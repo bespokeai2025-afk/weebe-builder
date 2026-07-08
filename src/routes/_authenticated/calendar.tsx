@@ -19,12 +19,14 @@ import {
   XCircle,
   Bot,
   PenLine,
+  Phone,
 } from "lucide-react";
 import { useMemo, useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { Textarea } from "@/components/ui/textarea";
 import { KpiCard } from "@/components/dashboard/PageShell";
+import { LoadingProgress } from "@/components/dashboard/LoadingProgress";
 import {
   Dialog,
   DialogContent,
@@ -40,24 +42,21 @@ import {
   cancelBookingFn,
 } from "@/lib/dashboard/bookings.functions";
 import type { UnifiedBooking } from "@/lib/dashboard/bookings.functions";
+import {
+  WBAH_UNKNOWN_AGENT_STYLE,
+  buildWbahAgentColorMap,
+  wbahAgentStyle,
+  type WbahAgentStyle,
+} from "@/lib/dashboard/wbah-agent-colors";
+import { useWbahAgentOptions } from "@/hooks/useWbahAgentOptions";
 
 export const Route = createFileRoute("/_authenticated/calendar")({
   head: () => ({ meta: [{ title: "Calendar — Webee" }] }),
   component: CalendarPage,
 });
 
-// ── Agent colour palette ──────────────────────────────────────────────────────
-const AGENT_PALETTE = [
-  { bg: "bg-violet-500/20",  text: "text-violet-300",  dot: "bg-violet-400",  ring: "ring-violet-500/30",  hex: "#a78bfa" },
-  { bg: "bg-cyan-500/20",    text: "text-cyan-300",    dot: "bg-cyan-400",    ring: "ring-cyan-500/30",    hex: "#22d3ee" },
-  { bg: "bg-emerald-500/20", text: "text-emerald-300", dot: "bg-emerald-400", ring: "ring-emerald-500/30", hex: "#34d399" },
-  { bg: "bg-pink-500/20",    text: "text-pink-300",    dot: "bg-pink-400",    ring: "ring-pink-500/30",    hex: "#f472b6" },
-  { bg: "bg-orange-500/20",  text: "text-orange-300",  dot: "bg-orange-400",  ring: "ring-orange-500/30", hex: "#fb923c" },
-  { bg: "bg-yellow-500/20",  text: "text-yellow-300",  dot: "bg-yellow-400",  ring: "ring-yellow-500/30", hex: "#facc15" },
-  { bg: "bg-sky-500/20",     text: "text-sky-300",     dot: "bg-sky-400",     ring: "ring-sky-500/30",    hex: "#38bdf8" },
-];
-
-const MANUAL_STYLE = { bg: "bg-slate-500/20", text: "text-slate-300", dot: "bg-slate-400", ring: "ring-slate-500/30", hex: "#94a3b8" };
+// ── Agent colour palette (shared with Leads / Qualified) ─────────────────────
+const MANUAL_STYLE = WBAH_UNKNOWN_AGENT_STYLE;
 const MANUAL_KEY   = "__manual__";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -85,7 +84,8 @@ function statusBadge(status: string) {
 }
 
 /** Returns the colour token set for a given booking */
-function bookingStyle(b: UnifiedBooking, agentColorMap: Map<string, typeof AGENT_PALETTE[0]>) {
+function bookingStyle(b: UnifiedBooking, agentColorMap: Map<string, WbahAgentStyle>) {
+  if (b.source === "wbah") return wbahAgentStyle(b.agent_name, agentColorMap);
   if (!b.agent_name) return MANUAL_STYLE;
   return agentColorMap.get(b.agent_name) ?? MANUAL_STYLE;
 }
@@ -107,7 +107,7 @@ function BookingDetailDialog({
   const detailQ = useQuery({
     queryKey: ["booking-detail", booking?.id],
     queryFn: () => getDetailFn({ data: { db_id: booking?.db_id ?? undefined, external_id: booking?.external_id ?? undefined } }),
-    enabled: open && booking != null && (!!booking.db_id || !!booking.external_id),
+    enabled: open && booking != null && booking.source !== "wbah" && (!!booking.db_id || !!booking.external_id),
     throwOnError: false,
   });
 
@@ -201,6 +201,11 @@ function BookingDetailDialog({
                   <Bot className="h-3 w-3" />
                   {booking.agent_name}
                 </span>
+              ) : booking.source === "wbah" ? (
+                <span className="rounded-full px-2 py-0.5 text-[11px] ring-1 bg-emerald-500/10 text-emerald-400 ring-emerald-500/20 flex items-center gap-1">
+                  <CalendarCheck className="h-3 w-3" />
+                  Calendly booking
+                </span>
               ) : (
                 <span className="rounded-full px-2 py-0.5 text-[11px] ring-1 bg-slate-500/10 text-slate-400 ring-slate-500/20 flex items-center gap-1">
                   <PenLine className="h-3 w-3" />
@@ -212,8 +217,14 @@ function BookingDetailDialog({
               <a href={booking.meeting_url} target="_blank" rel="noreferrer"
                 className="inline-flex items-center gap-1.5 text-xs text-blue-400 hover:text-blue-300 hover:underline">
                 <ExternalLink className="h-3 w-3" />
-                Open meeting link
+                {booking.source === "wbah" ? "Open Calendly booking" : "Open meeting link"}
               </a>
+            )}
+            {booking.attendee_phone && (
+              <div className="flex items-center gap-2.5 text-sm">
+                <Phone className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                <span className="font-mono text-xs">{booking.attendee_phone}</span>
+              </div>
             )}
           </div>
 
@@ -249,6 +260,7 @@ function BookingDetailDialog({
           ) : null}
 
           {/* Notes */}
+          {booking.source !== "wbah" && (
           <div className="px-6 py-4 space-y-2">
             <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground flex items-center gap-1.5">
               <FileText className="h-3 w-3" /> Notes
@@ -277,6 +289,7 @@ function BookingDetailDialog({
               </div>
             </div>
           </div>
+          )}
         </div>
       </DialogContent>
     </Dialog>
@@ -288,7 +301,9 @@ function CalendarPage() {
   const fn = useServerFn(listCalendarBookings);
   const qc = useQueryClient();
 
-  const q = useQuery({ queryKey: ["calendar-bookings"], queryFn: () => fn() ,
+  const q = useQuery({
+    queryKey: ["calendar-bookings"],
+    queryFn: () => fn(),
     throwOnError: false,
   });
   const data = q.data;
@@ -301,23 +316,33 @@ function CalendarPage() {
   }, [data?.bookings, localNotes]);
 
   // ── Build agent colour map from all unique agent names ──
-  const agentColorMap = useMemo(() => {
-    const names = Array.from(new Set(allBookings.map((b) => b.agent_name).filter(Boolean))) as string[];
-    const map = new Map<string, typeof AGENT_PALETTE[0]>();
-    names.forEach((name, i) => map.set(name, AGENT_PALETTE[i % AGENT_PALETTE.length]));
-    return map;
-  }, [allBookings]);
+  const bookingAgentNames = useMemo(
+    () => Array.from(new Set(allBookings.map((b) => b.agent_name).filter(Boolean))) as string[],
+    [allBookings],
+  );
+  const { options: wbahAgentOptions } = useWbahAgentOptions(bookingAgentNames, !!data?.isWbah);
+
+  const legendAgentNames = data?.isWbah ? wbahAgentOptions : bookingAgentNames;
+
+  const agentColorMap = useMemo(() => buildWbahAgentColorMap(legendAgentNames), [legendAgentNames]);
 
   // ── Legend entries ──
   const legendEntries = useMemo(() => {
     const entries: { key: string; label: string; style: typeof MANUAL_STYLE; count: number; isManual: boolean }[] = [];
-    agentColorMap.forEach((style, name) => {
-      entries.push({ key: name, label: name, style, count: allBookings.filter((b) => b.agent_name === name).length, isManual: false });
-    });
+    for (const name of legendAgentNames) {
+      const style = agentColorMap.get(name) ?? MANUAL_STYLE;
+      entries.push({
+        key: name,
+        label: name,
+        style,
+        count: allBookings.filter((b) => b.agent_name === name).length,
+        isManual: false,
+      });
+    }
     const manualCount = allBookings.filter((b) => !b.agent_name).length;
     if (manualCount > 0) entries.push({ key: MANUAL_KEY, label: "Manual", style: MANUAL_STYLE, count: manualCount, isManual: true });
     return entries;
-  }, [agentColorMap, allBookings]);
+  }, [legendAgentNames, agentColorMap, allBookings]);
 
   // ── Agent filter: null = show all ──
   // selectedFilters is a Set of keys (agent name or MANUAL_KEY). Empty = all visible.
@@ -382,7 +407,11 @@ function CalendarPage() {
         <div>
           <h1 className="text-xl font-semibold tracking-tight">Calendar Manager</h1>
           <p className="mt-0.5 text-xs text-muted-foreground">
-            {data?.calcomConfigured ? "Live bookings from Cal.com" : "Bookings from your agents"}
+            {data?.isWbah
+              ? "Calendly appointments from WBAH calls"
+              : data?.calcomConfigured
+                ? "Live bookings from Cal.com"
+                : "Bookings from your agents"}
           </p>
         </div>
         <Button variant="outline" size="sm" onClick={() => q.refetch()}>
@@ -397,6 +426,16 @@ function CalendarPage() {
         </div>
       )}
 
+      {q.isError && (
+        <div className="mb-4 rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-2.5 text-xs text-destructive">
+          Failed to load bookings. Try refreshing the page.
+        </div>
+      )}
+
+      {q.isLoading ? (
+        <LoadingProgress label="Loading calendar bookings" estimatedMs={6000} />
+      ) : (
+      <>
       {/* KPI strip */}
       <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
         <KpiCard label="Total Bookings" value={bookings.length} icon={CalendarCheck} iconBg="bg-blue-500/15" iconColor="text-blue-400" />
@@ -405,8 +444,14 @@ function CalendarPage() {
         <KpiCard label="Past" value={past.length} icon={CheckCircle2} iconBg="bg-emerald-500/15" iconColor="text-emerald-400" />
       </div>
 
+      {data?.isWbah && allBookings.length === 0 && (
+        <div className="mb-4 rounded-lg border border-white/[0.08] bg-card/40 px-4 py-3 text-xs text-muted-foreground">
+          No Calendly appointments found yet. Bookings from qualified calls with an appointment date will appear here — try Refresh to sync the latest CRM data.
+        </div>
+      )}
+
       {/* ── Legend + Agent filter ── */}
-      {legendEntries.length > 0 && (
+      {(legendEntries.length > 0 || (data?.isWbah && wbahAgentOptions.length > 0)) && (
         <div className="mb-4 flex flex-wrap items-center gap-2 rounded-xl border border-white/[0.06] bg-card/40 px-4 py-3">
           <span className="text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground mr-1">Filter by</span>
 
@@ -584,6 +629,8 @@ function CalendarPage() {
         booking={detailBooking} open={detailOpen} onOpenChange={setDetailOpen}
         onNotesSaved={handleNotesSaved} onCancelled={handleCancelled}
       />
+      </>
+      )}
     </div>
   );
 }

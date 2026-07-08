@@ -48,7 +48,7 @@ function PhoneNumbersPage() {
     queryFn: () => listFn({}),
     throwOnError: false,
   });
-  const numbersPag = useTablePagination(numbers, 50);
+  const numbersPag = useTablePagination(numbers);
 
   const { data: agents = [] } = useQuery({
     queryKey: ["agents-list"],

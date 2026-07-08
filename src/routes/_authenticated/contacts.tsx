@@ -22,6 +22,7 @@ import { NotesBookingSheet } from "@/components/dashboard/NotesBookingSheet";
 import { ContactDocumentsPanel } from "@/components/contacts/ContactDocumentsPanel";
 import type { NotesEntityType } from "@/components/dashboard/NotesBookingSheet";
 import { listWbahLeads } from "@/lib/integrations/webespokeEnterprise/wbah-workspace.server";
+import { useWbahAgentOptions } from "@/hooks/useWbahAgentOptions";
 import { useTablePagination, TablePagBar } from "@/components/ui/table-pagination";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
@@ -257,11 +258,11 @@ function WbahLeadsSection() {
 
   const records = (data ?? []) as any[];
 
-  const uniqueAgents = useMemo(() => {
-    const s = new Set<string>();
-    for (const r of records) if (r.agentName) s.add(r.agentName);
-    return [...s].sort();
-  }, [records]);
+  const agentNamesFromData = useMemo(
+    () => records.map((r) => r.agentName as string | undefined),
+    [records],
+  );
+  const { options: uniqueAgents } = useWbahAgentOptions(agentNamesFromData, true);
 
   const uniqueStatuses = useMemo(() => {
     const s = new Set<string>();
@@ -293,7 +294,7 @@ function WbahLeadsSection() {
     return out;
   }, [records, search, statusFilters, sentFilters, agentFilters]);
 
-  const leadsPag = useTablePagination(filtered, 50);
+  const leadsPag = useTablePagination(filtered);
 
   function toggleSent(v: string) {
     setSentFilters(prev => { const n = new Set(prev); n.has(v) ? n.delete(v) : n.add(v); return n; });
@@ -734,7 +735,7 @@ function ContactsPage() {
     );
   }, [deduped, search]);
 
-  const contactsPag = useTablePagination(filtered, 50);
+  const contactsPag = useTablePagination(filtered);
 
   const total       = deduped.length;
   const withAddress = deduped.filter((r: any) => r.address_line1).length;

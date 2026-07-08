@@ -4,7 +4,8 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState, useMemo, useEffect, useRef } from "react";
 import { Database, PhoneOutgoing, CalendarClock, UserCheck, Search, X, UserPlus, RotateCcw, BarChart3, Users, RefreshCw, Download, AlertCircle, Phone, Play, FileText, ExternalLink } from "lucide-react";
 import { WbahCallSchedulingSection } from "@/components/dashboard/WbahCallSchedulingSection";
-import { KpiCard } from "@/components/dashboard/PageShell";
+import { DashboardPage, KpiCard, stickyCell, stickyHead } from "@/components/dashboard/PageShell";
+import { cn } from "@/lib/utils";
 import { LoadingProgress } from "@/components/dashboard/LoadingProgress";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -45,7 +46,8 @@ import {
 } from "@/lib/dashboard/data-records.functions";
 import { getCallSchedule, setCallSchedule } from "@/lib/dashboard/call-schedule.functions";
 import { listLiveAgents } from "@/lib/agents/agents.functions";
-import { listWbahLeadsForPeople, listWbahCallsFromDb, listWbahCallsCount, listWbahCategorizedLeads, triggerWbahCategorySync, getWbahCategorySyncLog, getWbahCategorySyncAccess } from "@/lib/integrations/webespokeEnterprise/wbah-workspace.server";
+import { listWbahLeadsForPeople, listWbahCallsCount, listWbahCallsPaged, getWbahCallDetail, listWbahCategorizedLeads, listWbahPeopleCategories, triggerWbahCategorySync, getWbahCategorySyncLog, getWbahCategorySyncAccess } from "@/lib/integrations/webespokeEnterprise/wbah-workspace.server";
+import { useWbahAgentOptions } from "@/hooks/useWbahAgentOptions";
 import { supabase } from "@/integrations/supabase/client";
 
 export const Route = createFileRoute("/_authenticated/data")({
@@ -54,9 +56,6 @@ export const Route = createFileRoute("/_authenticated/data")({
 });
 
 const DAY_NAMES = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-
-const WBAH_CATEGORY_TABS = ["disqualified", "tried_to_contact", "rebooking"] as const;
-type WbahCategoryTab = typeof WBAH_CATEGORY_TABS[number];
 
 function wbahSyncAgo(iso?: string | null): string {
   if (!iso) return "";
@@ -289,6 +288,40 @@ function wbahDateCutoff(filter: string): number {
   return 0;
 }
 
+// ── Per-category colour coding for the People sub-tabs ─────────────────────────
+type WbahCatStyle = { active: string; badge: string; icon: string; banner: string };
+
+function wbahCatStyleKey(name: string): string {
+  return String(name ?? "").trim().toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "");
+}
+
+const WBAH_CAT_STYLES: Record<string, WbahCatStyle> = {
+  disqualified:                { active: "border-rose-400 text-rose-300",       badge: "bg-rose-500/20 text-rose-400",       icon: "text-rose-400",    banner: "bg-rose-500/5 border-rose-500/10 text-rose-400" },
+  tried_to_contact:            { active: "border-amber-400 text-amber-300",     badge: "bg-amber-500/20 text-amber-400",     icon: "text-amber-400",   banner: "bg-amber-500/5 border-amber-500/10 text-amber-400" },
+  rebook_initial_consultation: { active: "border-violet-400 text-violet-300",   badge: "bg-violet-500/20 text-violet-400",   icon: "text-violet-400",  banner: "bg-violet-500/5 border-violet-500/10 text-violet-400" },
+  rebooking:                   { active: "border-violet-400 text-violet-300",   badge: "bg-violet-500/20 text-violet-400",   icon: "text-violet-400",  banner: "bg-violet-500/5 border-violet-500/10 text-violet-400" },
+  call_back_request:           { active: "border-sky-400 text-sky-300",         badge: "bg-sky-500/20 text-sky-400",         icon: "text-sky-400",     banner: "bg-sky-500/5 border-sky-500/10 text-sky-400" },
+  frontline_pre_qualified:     { active: "border-emerald-400 text-emerald-300", badge: "bg-emerald-500/20 text-emerald-400", icon: "text-emerald-400", banner: "bg-emerald-500/5 border-emerald-500/10 text-emerald-400" },
+  logged:                      { active: "border-slate-400 text-slate-300",     badge: "bg-slate-500/20 text-slate-300",     icon: "text-slate-400",   banner: "bg-slate-500/5 border-slate-500/10 text-slate-300" },
+  testlead:                    { active: "border-zinc-400 text-zinc-300",       badge: "bg-zinc-500/20 text-zinc-300",       icon: "text-zinc-400",    banner: "bg-zinc-500/5 border-zinc-500/10 text-zinc-300" },
+};
+
+const WBAH_CAT_FALLBACK_STYLES: WbahCatStyle[] = [
+  { active: "border-blue-400 text-blue-300",       badge: "bg-blue-500/20 text-blue-400",       icon: "text-blue-400",    banner: "bg-blue-500/5 border-blue-500/10 text-blue-400" },
+  { active: "border-teal-400 text-teal-300",       badge: "bg-teal-500/20 text-teal-400",       icon: "text-teal-400",    banner: "bg-teal-500/5 border-teal-500/10 text-teal-400" },
+  { active: "border-fuchsia-400 text-fuchsia-300", badge: "bg-fuchsia-500/20 text-fuchsia-400", icon: "text-fuchsia-400", banner: "bg-fuchsia-500/5 border-fuchsia-500/10 text-fuchsia-400" },
+  { active: "border-orange-400 text-orange-300",   badge: "bg-orange-500/20 text-orange-400",   icon: "text-orange-400",  banner: "bg-orange-500/5 border-orange-500/10 text-orange-400" },
+  { active: "border-cyan-400 text-cyan-300",       badge: "bg-cyan-500/20 text-cyan-400",       icon: "text-cyan-400",    banner: "bg-cyan-500/5 border-cyan-500/10 text-cyan-400" },
+];
+
+function wbahCatStyle(name: string): WbahCatStyle {
+  const key = wbahCatStyleKey(name);
+  if (WBAH_CAT_STYLES[key]) return WBAH_CAT_STYLES[key];
+  let h = 0;
+  for (let i = 0; i < key.length; i++) h = (h * 31 + key.charCodeAt(i)) >>> 0;
+  return WBAH_CAT_FALLBACK_STYLES[h % WBAH_CAT_FALLBACK_STYLES.length];
+}
+
 function wbahRowPasses(
   r: any,
   search: string,
@@ -361,51 +394,51 @@ function DynamicDataTable({
   }, [records]);
 
   return (
-    <div className="overflow-x-auto">
+    <div className="min-w-0 overflow-x-auto">
       <table className="w-full text-xs">
         <thead>
           <tr className="border-b border-white/[0.06] bg-card/30">
-            <th className="w-8 px-3 py-2">
+            <th className="w-8 px-2 py-0.5">
               <Checkbox checked={allSelected} onCheckedChange={toggleAll} />
             </th>
-            <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Name</th>
-            <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Phone</th>
+            <th className="px-2 py-0.5 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Name</th>
+            <th className="px-2 py-0.5 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Phone</th>
             {extraCols.map((c) => (
-              <th key={c.key} className="whitespace-nowrap px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">{c.label}</th>
+              <th key={c.key} className="whitespace-nowrap px-2 py-0.5 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">{c.label}</th>
             ))}
             {metaKeys.map((k) => (
-              <th key={`meta_${k}`} className="whitespace-nowrap px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+              <th key={`meta_${k}`} className="whitespace-nowrap px-2 py-0.5 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
                 {k}
                 <span className="ml-1 font-normal normal-case tracking-normal text-amber-500/70">meta</span>
               </th>
             ))}
-            <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Status</th>
-            <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Agent</th>
-            <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Updated</th>
+            <th className="px-2 py-0.5 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Status</th>
+            <th className="px-2 py-0.5 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Agent</th>
+            <th className="px-2 py-0.5 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Updated</th>
           </tr>
         </thead>
         <tbody>
           {records.map((r: any) => (
             <tr key={r.id} className={`group h-9 border-b border-white/[0.04] align-middle hover:bg-white/[0.02] transition-colors ${selected.has(r.id) ? "bg-blue-500/5" : ""}`}>
-              <td className="px-3 py-1.5">
+              <td className="px-2.5 py-1">
                 <Checkbox
                   checked={selected.has(r.id)}
                   onCheckedChange={() => toggleOne(r.id)}
                 />
               </td>
-              <td className="px-3 py-1.5 text-xs font-medium whitespace-nowrap">{r.name}</td>
-              <td className="whitespace-nowrap px-3 py-1.5 text-muted-foreground text-[11px] font-mono">{r.mobile_number}</td>
+              <td className="px-2.5 py-1 text-xs font-medium whitespace-nowrap">{r.name}</td>
+              <td className="whitespace-nowrap px-2.5 py-1 text-muted-foreground text-[11px] font-mono">{r.mobile_number}</td>
               {extraCols.map((c) => (
-                <td key={c.key} className="px-3 py-1.5 text-muted-foreground text-[11px]">
+                <td key={c.key} className="px-2.5 py-1 text-muted-foreground text-[11px]">
                   {r[c.key] ?? "—"}
                 </td>
               ))}
               {metaKeys.map((k) => (
-                <td key={`meta_${k}`} className="px-3 py-1.5 text-muted-foreground text-[11px]">
+                <td key={`meta_${k}`} className="px-2.5 py-1 text-muted-foreground text-[11px]">
                   {r.meta?.[k] ?? "—"}
                 </td>
               ))}
-              <td className="px-3 py-1.5">
+              <td className="px-2.5 py-1">
                 <div className="flex items-center gap-1.5">
                   <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium capitalize ring-1 ${statusBadgeClass(r.call_status)}`}>
                     {(r.call_status ?? "").replace(/_/g, " ") || "—"}
@@ -419,12 +452,12 @@ function DynamicDataTable({
                   </button>
                 </div>
               </td>
-              <td className="px-3 py-1.5 text-muted-foreground text-[11px]">
+              <td className="px-2.5 py-1 text-muted-foreground text-[11px]">
                 {r.assigned_agent_id
                   ? (agents.find((a: any) => a.id === r.assigned_agent_id)?.name ?? "—")
                   : "—"}
               </td>
-              <td className="whitespace-nowrap px-3 py-1.5 text-muted-foreground text-[11px]">{fmtDate(r.updated_at)}</td>
+              <td className="whitespace-nowrap px-2.5 py-1 text-muted-foreground text-[11px]">{fmtDate(r.updated_at)}</td>
             </tr>
           ))}
         </tbody>
@@ -487,26 +520,27 @@ function DataPage() {
   const [wbahCallData, setWbahCallData]               = useState<any[]>([]);
   const [wbahCallDataLoading, setWbahCallDataLoading] = useState(false);
   const [wbahCallDataError, setWbahCallDataError]     = useState<string | null>(null);
-  const [wbahDqData, setWbahDqData]                   = useState<any[]>([]);
-  const [wbahDqLoading, setWbahDqLoading]             = useState(false);
-  const [wbahDqError, setWbahDqError]                 = useState<string | null>(null);
-  const [wbahDqCount, setWbahDqCount]                 = useState(0);
-  const [wbahTtcCount, setWbahTtcCount]               = useState(0);
-  const [wbahRbCount, setWbahRbCount]                 = useState(0);
-  const [wbahCallsData, setWbahCallsData]             = useState<any[]>([]);
+  // WBAH Calls tab — server-side paginated (never loads the full ~20MB list).
+  const [wbahCallsData, setWbahCallsData]             = useState<any[]>([]); // current page rows
   const [wbahCallsLoading, setWbahCallsLoading]       = useState(false);
   const [wbahCallsError, setWbahCallsError]           = useState<string | null>(null);
-  const [wbahCallsCount, setWbahCallsCount]           = useState(0);
-  const [wbahTtcData, setWbahTtcData]                 = useState<any[]>([]);
-  const [wbahTtcLoading, setWbahTtcLoading]           = useState(false);
-  const [wbahTtcError, setWbahTtcError]               = useState<string | null>(null);
-  const [wbahRbData, setWbahRbData]                   = useState<any[]>([]);
-  const [wbahRbLoading, setWbahRbLoading]             = useState(false);
-  const [wbahRbError, setWbahRbError]                 = useState<string | null>(null);
+  const [wbahCallsCount, setWbahCallsCount]           = useState(0);         // total (badge)
+  const [wbahCallsPage, setWbahCallsPage]             = useState(1);
+  const [wbahCallsPageSize, setWbahCallsPageSize]     = useState<number>(25);
+  const [wbahCallsTotal, setWbahCallsTotal]           = useState(0);
+  // Dynamic lead-filter categories (one People sub-tab each). Each category is a
+  // distinct WeeBespoke `lead_status` present in the loaded get-all-calldata feed.
+  const [wbahCategories, setWbahCategories]           = useState<{ name: string; count: number }[]>([]);
+  const [wbahCatLoadingList, setWbahCatLoadingList]   = useState(false);
+  const [wbahCatListError, setWbahCatListError]       = useState<string | null>(null);
+  const [wbahCatData, setWbahCatData]                 = useState<Record<string, any[]>>({});
+  const [wbahCatLoadingMap, setWbahCatLoadingMap]     = useState<Record<string, boolean>>({});
+  const [wbahCatErrorMap, setWbahCatErrorMap]         = useState<Record<string, string | null>>({});
   const [wbahCatSyncLog, setWbahCatSyncLog]           = useState<Record<string, any> | null>(null);
   const [wbahCatSyncing, setWbahCatSyncing]           = useState<string | null>(null);
   const [wbahCanSync, setWbahCanSync]                 = useState(false);
-  const [wbahPeopleSubTab, setWbahPeopleSubTab]       = useState<string>("disqualified");
+  // Active People sub-tab: a lead-filter category name, or the "calls" pseudo-tab.
+  const [wbahPeopleSubTab, setWbahPeopleSubTab]       = useState<string>("");
   const [wbahPeopleSearch, setWbahPeopleSearch]       = useState("");
   const [wbahStatusFilter,    setWbahStatusFilter]    = useState("all");
   const [wbahSentimentFilter, setWbahSentimentFilter] = useState("all");
@@ -538,9 +572,11 @@ function DataPage() {
   const fetchQualifiedLeadsFn = useServerFn(fetchQualifiedLeads);
   const setStatusFn = useServerFn(setRecordCallStatus);
   const listWbahLeadsForPeopleFn      = useServerFn(listWbahLeadsForPeople);
-  const listWbahCallsFromDbFn         = useServerFn(listWbahCallsFromDb);
+  const listWbahCallsPagedFn          = useServerFn(listWbahCallsPaged);
+  const getWbahCallDetailFn           = useServerFn(getWbahCallDetail);
   const listWbahCallsCountFn          = useServerFn(listWbahCallsCount);
   const listWbahCategorizedLeadsFn    = useServerFn(listWbahCategorizedLeads);
+  const listWbahPeopleCategoriesFn    = useServerFn(listWbahPeopleCategories);
   const triggerWbahCategorySyncFn     = useServerFn(triggerWbahCategorySync);
   const getWbahCategorySyncLogFn      = useServerFn(getWbahCategorySyncLog);
   const getWbahCategorySyncAccessFn   = useServerFn(getWbahCategorySyncAccess);
@@ -599,66 +635,76 @@ function DataPage() {
 
   const wbahDateCut = useMemo(() => wbahDateCutoff(wbahDateFilter), [wbahDateFilter]);
 
-  const wbahAgentOptions = useMemo(() => {
-    const set = new Set<string>();
-    for (const arr of [wbahCallData, wbahDqData, wbahTtcData, wbahRbData]) {
-      for (const r of arr) { const n = String(r?.agentName ?? "").trim(); if (n) set.add(n); }
+  // Rows for the currently-active lead-filter category sub-tab.
+  const wbahActiveCatRows = useMemo(
+    () => (wbahPeopleSubTab && wbahPeopleSubTab !== "calls" ? wbahCatData[wbahPeopleSubTab] ?? [] : []),
+    [wbahCatData, wbahPeopleSubTab],
+  );
+
+  const wbahAgentNamesFromData = useMemo(() => {
+    const names: string[] = [];
+    for (const arr of [wbahCallData, ...Object.values(wbahCatData)]) {
+      for (const r of arr) {
+        const n = String(r?.agentName ?? "").trim();
+        if (n) names.push(n);
+      }
     }
-    for (const r of wbahCallsData) { const n = String(r?.agent_name ?? r?.agentName ?? "").trim(); if (n) set.add(n); }
-    return Array.from(set).sort((a, b) => a.localeCompare(b));
-  }, [wbahCallData, wbahDqData, wbahTtcData, wbahRbData, wbahCallsData]);
+    for (const r of wbahCallsData) {
+      const n = String(r?.agent_name ?? r?.agentName ?? "").trim();
+      if (n) names.push(n);
+    }
+    return names;
+  }, [wbahCallData, wbahCatData, wbahCallsData]);
+
+  const { options: wbahAgentOptions } = useWbahAgentOptions(
+    wbahAgentNamesFromData,
+    isWbah && dataTab === "people",
+  );
 
   const wbahFiltered = useMemo(
     () => wbahCallData.filter(r => wbahRowPasses(r, wbahPeopleSearch, wbahStatusFilter, wbahSentimentFilter, wbahDateCut, wbahAgentFilter)),
     [wbahCallData, wbahPeopleSearch, wbahStatusFilter, wbahSentimentFilter, wbahDateCut, wbahAgentFilter],
   );
 
-  const wbahDqFiltered = useMemo(
-    () => wbahDqData.filter(r => wbahRowPasses(r, wbahPeopleSearch, wbahStatusFilter, wbahSentimentFilter, wbahDateCut, wbahAgentFilter)),
-    [wbahDqData, wbahPeopleSearch, wbahStatusFilter, wbahSentimentFilter, wbahDateCut, wbahAgentFilter],
+  const wbahCatFiltered = useMemo(
+    () => wbahActiveCatRows.filter(r => wbahRowPasses(r, wbahPeopleSearch, wbahStatusFilter, wbahSentimentFilter, wbahDateCut, wbahAgentFilter)),
+    [wbahActiveCatRows, wbahPeopleSearch, wbahStatusFilter, wbahSentimentFilter, wbahDateCut, wbahAgentFilter],
   );
 
-  const wbahTtcFiltered = useMemo(
-    () => wbahTtcData.filter(r => wbahRowPasses(r, wbahPeopleSearch, wbahStatusFilter, wbahSentimentFilter, wbahDateCut, wbahAgentFilter)),
-    [wbahTtcData, wbahPeopleSearch, wbahStatusFilter, wbahSentimentFilter, wbahDateCut, wbahAgentFilter],
-  );
-
-  const wbahRbFiltered = useMemo(
-    () => wbahRbData.filter(r => wbahRowPasses(r, wbahPeopleSearch, wbahStatusFilter, wbahSentimentFilter, wbahDateCut, wbahAgentFilter)),
-    [wbahRbData, wbahPeopleSearch, wbahStatusFilter, wbahSentimentFilter, wbahDateCut, wbahAgentFilter],
-  );
-
-  const wbahCallsFiltered = useMemo(() => {
-    return wbahCallsData.map((r: any, idx: number) => ({
-      id:                  r.id,
-      srNo:                idx + 1,
-      name:                r.wbah_name ?? r.lead?.full_name ?? null,
-      contact:             r.wbah_contact ?? r.from_number ?? r.to_number ?? null,
-      email:               null,
-      callType:            r.call_type ?? "outbound",
-      callStatus:          r.call_status,
-      sentimentAnalysis:   r.sentiment,
-      disconnectionReason: r.disconnection_reason,
-      appointmentDate:     r.appointment_date ?? null,
-      appointmentTime:     r.appointment_time ?? null,
-      bookingStatus:       r.booking_status ?? null,
-      calendlyBookingUrl:  r.calendly_booking_url ?? null,
-      agentName:           r.agent_name ?? null,
-      startTimestamp:      r.started_at ? new Date(r.started_at).getTime() : null,
-      durationMs:          r.duration_seconds ? r.duration_seconds * 1000 : null,
-      recordingUrl:        r.recording_url ?? null,
-      transcript:          r.transcript ?? null,
-      endReason:           r.end_reason ?? null,
-    })).filter(r => wbahRowPasses(r, wbahPeopleSearch, wbahStatusFilter, wbahSentimentFilter, wbahDateCut, wbahAgentFilter));
-  }, [wbahCallsData, wbahPeopleSearch, wbahStatusFilter, wbahSentimentFilter, wbahDateCut, wbahAgentFilter]);
+  // Calls rows come pre-shaped and already filtered/paginated by the server —
+  // no client-side re-mapping or wbahRowPasses filtering (that would only filter
+  // the current page and break the server total count).
+  const wbahCallsRows = wbahCallsData;
 
   const recordsPag = useTablePagination(records);
   const wbahPag    = useTablePagination(wbahFiltered);
-  const wbahDqPag    = useTablePagination(wbahDqFiltered);
-  const wbahTtcPag   = useTablePagination(wbahTtcFiltered);
-  const wbahRbPag    = useTablePagination(wbahRbFiltered);
-  const wbahCallsPag = useTablePagination(wbahCallsFiltered);
+  const wbahCatPag   = useTablePagination(wbahCatFiltered);
   const crmPag     = useTablePagination(crmPeople);
+
+  // Server-driven pagination object with the same shape the table + TablePagBar
+  // expect. Changing page/pageSize triggers a refetch via the effect below.
+  const wbahCallsPag = {
+    page:       wbahCallsPage,
+    pageSize:   wbahCallsPageSize as any,
+    totalPages: Math.max(1, Math.ceil(wbahCallsTotal / wbahCallsPageSize)),
+    total:      wbahCallsTotal,
+    sliced:     wbahCallsRows,
+    setPage:    (p: number) => handleFetchWbahCallsPage(p),
+    changePageSize: (s: number) => handleFetchWbahCallsPage(1, { pageSize: s }),
+  };
+
+  const wbahPeopleTotal = useMemo(
+    () => wbahCategories.reduce((a, c) => a + c.count, 0),
+    [wbahCategories],
+  );
+  const wbahAnyPeopleData =
+    wbahCallData.length > 0 ||
+    wbahCallsData.length > 0 ||
+    wbahCallsTotal > 0 ||
+    Object.values(wbahCatData).some((a) => a.length > 0);
+  const wbahActiveCatCount =
+    wbahCategories.find((c) => c.name === wbahPeopleSubTab)?.count ??
+    wbahActiveCatRows.length;
 
   function toggleAll() {
     if (allSelected) setSelected(new Set());
@@ -957,39 +1003,57 @@ function DataPage() {
     };
   }
 
-  const WBAH_CAT_SETTERS: Record<WbahCategoryTab, {
-    setData: (v: any[]) => void; setLoading: (v: boolean) => void; setError: (v: string | null) => void;
-  }> = {
-    disqualified:     { setData: setWbahDqData,  setLoading: setWbahDqLoading,  setError: setWbahDqError },
-    tried_to_contact: { setData: setWbahTtcData, setLoading: setWbahTtcLoading, setError: setWbahTtcError },
-    rebooking:        { setData: setWbahRbData,  setLoading: setWbahRbLoading,  setError: setWbahRbError },
-  };
+  // Fetch the list of lead-filter categories (drives the People sub-tabs) and
+  // default the active tab to the largest category on first load.
+  async function handleFetchWbahCategoryList() {
+    setWbahCatLoadingList(true);
+    setWbahCatListError(null);
+    try {
+      const res = await listWbahPeopleCategoriesFn();
+      const cats = ((res as any)?.categories ?? []) as { name: string; count: number }[];
+      setWbahCategories(cats);
+      setWbahPeopleSubTab((prev) => {
+        if (prev) return prev;
+        return cats[0]?.name ?? "";
+      });
+    } catch (err) {
+      // Surface the failure instead of leaving the People section blank.
+      setWbahCatListError((err as Error).message || "Failed to load lead categories");
+    } finally {
+      setWbahCatLoadingList(false);
+    }
+  }
 
-  async function handleFetchWbahCategory(cat: WbahCategoryTab) {
-    const s = WBAH_CAT_SETTERS[cat];
-    s.setLoading(true);
-    s.setError(null);
+  async function handleFetchWbahCategory(cat: string) {
+    if (!cat || cat === "calls") return;
+    setWbahCatLoadingMap((m) => ({ ...m, [cat]: true }));
+    setWbahCatErrorMap((m) => ({ ...m, [cat]: null }));
     try {
       const all: any[] = [];
       let page = 1;
       const limit = 200;
+      let total: number | undefined;
       for (;;) {
         const res = await listWbahCategorizedLeadsFn({ data: { category: cat, page, limit } });
         const rows = ((res as any)?.rows ?? []) as any[];
+        if (page === 1 && typeof (res as any)?.total === "number") {
+          total = (res as any).total;
+        }
         all.push(...rows);
         if (rows.length < limit || page >= 50) break;
         page += 1;
       }
-      s.setData(all.map(mapWbahCatRow));
+      setWbahCatData((m) => ({ ...m, [cat]: all.map(mapWbahCatRow) }));
+      if (typeof total === "number") {
+        setWbahCategories((cats) =>
+          cats.map((c) => (c.name === cat ? { ...c, count: total! } : c)),
+        );
+      }
     } catch (err) {
-      s.setError((err as Error).message);
+      setWbahCatErrorMap((m) => ({ ...m, [cat]: (err as Error).message }));
     } finally {
-      s.setLoading(false);
+      setWbahCatLoadingMap((m) => ({ ...m, [cat]: false }));
     }
-  }
-
-  async function handleFetchWbahDq() {
-    await handleFetchWbahCategory("disqualified");
   }
 
   async function handleFetchWbahCatSyncLog() {
@@ -1001,14 +1065,17 @@ function DataPage() {
     }
   }
 
-  async function handleTriggerWbahCatSync(cat: WbahCategoryTab | "all") {
+  async function handleTriggerWbahCatSync(cat: "all") {
     setWbahCatSyncing(cat);
     try {
       await triggerWbahCategorySyncFn({ data: { category: cat } });
-      toast.success(cat === "all" ? "All categories synced" : "Category synced");
+      toast.success("All categories synced");
       await handleFetchWbahCatSyncLog();
-      const cats: WbahCategoryTab[] = cat === "all" ? [...WBAH_CATEGORY_TABS] : [cat];
-      for (const c of cats) await handleFetchWbahCategory(c);
+      await handleFetchWbahCategoryList();
+      // Re-pull the active category's rows so the open tab reflects the sync.
+      if (wbahPeopleSubTab && wbahPeopleSubTab !== "calls") {
+        await handleFetchWbahCategory(wbahPeopleSubTab);
+      }
     } catch (err) {
       toast.error("Sync failed", { description: (err as Error).message });
     } finally {
@@ -1016,17 +1083,56 @@ function DataPage() {
     }
   }
 
-  async function handleFetchWbahCalls() {
+  const wbahCallsDateIso = useMemo(() => {
+    const cut = wbahDateCutoff(wbahDateFilter);
+    return cut > 0 ? new Date(cut).toISOString() : undefined;
+  }, [wbahDateFilter]);
+
+  // Fetch ONE server-paginated page of WBAH calls (lightweight rows only —
+  // no transcripts). The full list is never loaded into the browser.
+  async function handleFetchWbahCallsPage(page: number, opts?: { refresh?: boolean; pageSize?: number }) {
+    const pageSize = opts?.pageSize ?? wbahCallsPageSize;
     setWbahCallsLoading(true);
     setWbahCallsError(null);
     try {
-      const rows = await listWbahCallsFromDbFn();
-      setWbahCallsData(rows as any[]);
-      setWbahCallsCount((rows as any[]).length);
+      const res = await listWbahCallsPagedFn({
+        data: {
+          page,
+          pageSize,
+          search: wbahPeopleSearch.trim() || undefined,
+          dateFrom: wbahCallsDateIso,
+          status: wbahStatusFilter !== "all" ? wbahStatusFilter : undefined,
+          sentiment: wbahSentimentFilter !== "all" ? wbahSentimentFilter : undefined,
+          agentName: wbahAgentFilter !== "all" ? wbahAgentFilter : undefined,
+          refresh: opts?.refresh ?? false,
+        },
+      });
+      const r = res as any;
+      setWbahCallsData((r?.rows ?? []) as any[]);
+      setWbahCallsTotal(r?.total ?? 0);
+      if (typeof r?.total === "number") setWbahCallsCount(r.total);
+      setWbahCallsPage(page);
+      if (opts?.pageSize) setWbahCallsPageSize(opts.pageSize);
     } catch (err) {
       setWbahCallsError((err as Error).message);
     } finally {
       setWbahCallsLoading(false);
+    }
+  }
+
+  // Open a call's transcript — fetched on demand (never in the list payload).
+  async function openWbahTranscript(r: any) {
+    if (r?.transcript) {
+      setWbahTranscript({ name: r.name || "Record", text: r.transcript });
+      return;
+    }
+    if (!r?.id) return;
+    setWbahTranscript({ name: r.name || "Record", text: "Loading transcript…" });
+    try {
+      const d = await getWbahCallDetailFn({ data: { id: String(r.id) } });
+      setWbahTranscript({ name: r.name || "Record", text: (d as any)?.transcript || "No transcript available." });
+    } catch {
+      setWbahTranscript({ name: r.name || "Record", text: "Failed to load transcript." });
     }
   }
 
@@ -1039,62 +1145,56 @@ function DataPage() {
     }
   }
 
-  // Lightweight COUNT for the Disqualified KPI + badge. All CRM-loaded contacts
-  // now resolve to Disqualified (see classifyWbahCrmContact), so we only probe
-  // that one category — no wasted live WeeBespoke reads for the removed
-  // Tried-To-Contact / Rebooking buckets. Full rows load lazily on tab open.
-  async function handleFetchWbahCatCounts() {
-    // Guard against the React StrictMode double-effect firing two cold cache
-    // builds before the counts land.
-    if (wbahCatCountsInFlightRef.current) return;
-    wbahCatCountsInFlightRef.current = true;
-    try {
-      const dq = await listWbahCategorizedLeadsFn({ data: { category: "disqualified", page: 1, limit: 1 } });
-      setWbahDqCount((dq as any)?.total ?? 0);
-    } catch {
-      /* non-fatal — KPIs/badges just stay hidden until the tabs are opened */
-    } finally {
-      wbahCatCountsInFlightRef.current = false;
-    }
-  }
-
+  // Load the People category list when the tab is opened (not on initial mount
+  // while the user is still on Records — that fires before auth/workspace context
+  // is ready and never re-runs when the user navigates to People).
   useEffect(() => {
-    // Fetch only the calls COUNT for the sub-tab badge. The full call rows
-    // (11k+, each with a transcript) are a multi-MB payload, so they load
-    // lazily when the Calls tab is actually opened — keeping the People page
-    // (default "Disqualified" view) fast on first load.
-    if (dataTab === "people" && isWbah && wbahCallsData.length === 0 && wbahCallsCount === 0) {
+    if (!isWbah || dataTab !== "people") return;
+
+    setWbahSelected(new Set());
+    setWbahQualAgentId("");
+
+    if (wbahCallsData.length === 0 && wbahCallsCount === 0) {
       handleFetchWbahCallsCount();
     }
-    if (dataTab === "people" && isWbah && wbahDqCount === 0 && wbahTtcCount === 0 && wbahRbCount === 0) {
-      handleFetchWbahCatCounts();
+    if (wbahCategories.length === 0 && !wbahCatLoadingList) {
+      // Guard against the StrictMode double-effect firing two cold cache builds.
+      if (!wbahCatCountsInFlightRef.current) {
+        wbahCatCountsInFlightRef.current = true;
+        handleFetchWbahCategoryList().finally(() => {
+          wbahCatCountsInFlightRef.current = false;
+        });
+      }
     }
+
+    handleFetchWbahCatSyncLog();
+    getWbahCategorySyncAccessFn()
+      .then(res => setWbahCanSync(!!(res as any)?.canSync))
+      .catch(() => setWbahCanSync(false));
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dataTab, isWbah]);
 
+  // Load the active category sub-tab's rows when it changes (Calls handled below).
   useEffect(() => {
+    if (!isWbah || dataTab !== "people" || !wbahPeopleSubTab || wbahPeopleSubTab === "calls") return;
     setWbahSelected(new Set());
     setWbahQualAgentId("");
-    if (wbahPeopleSubTab === "disqualified" && wbahDqData.length === 0 && !wbahDqLoading) {
-      handleFetchWbahCategory("disqualified");
-    }
-    if (wbahPeopleSubTab === "tried_to_contact" && wbahTtcData.length === 0 && !wbahTtcLoading) {
-      handleFetchWbahCategory("tried_to_contact");
-    }
-    if (wbahPeopleSubTab === "rebooking" && wbahRbData.length === 0 && !wbahRbLoading) {
-      handleFetchWbahCategory("rebooking");
-    }
-    if ((WBAH_CATEGORY_TABS as readonly string[]).includes(wbahPeopleSubTab)) {
-      handleFetchWbahCatSyncLog();
-      getWbahCategorySyncAccessFn()
-        .then(res => setWbahCanSync(!!(res as any)?.canSync))
-        .catch(() => setWbahCanSync(false));
-    }
-    if (wbahPeopleSubTab === "calls" && wbahCallsData.length === 0 && !wbahCallsLoading) {
-      handleFetchWbahCalls();
+    if (!wbahCatData[wbahPeopleSubTab] && !wbahCatLoadingMap[wbahPeopleSubTab]) {
+      handleFetchWbahCategory(wbahPeopleSubTab);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [wbahPeopleSubTab]);
+  }, [dataTab, isWbah, wbahPeopleSubTab]);
+
+  // Calls tab: server-side paginated. Refetch page 1 (debounced) when the tab is
+  // opened or when search/status/sentiment/date filters change. A live refresh
+  // from WeeBespoke (throttled server-side) runs only on the initial open.
+  useEffect(() => {
+    if (!isWbah || dataTab !== "people" || wbahPeopleSubTab !== "calls") return;
+    const firstOpen = wbahCallsData.length === 0 && wbahCallsTotal === 0;
+    const t = setTimeout(() => { handleFetchWbahCallsPage(1, { refresh: firstOpen }); }, firstOpen ? 0 : 300);
+    return () => clearTimeout(t);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dataTab, isWbah, wbahPeopleSubTab, wbahPeopleSearch, wbahStatusFilter, wbahSentimentFilter, wbahDateFilter, wbahAgentFilter]);
 
   async function handleImportWbahSelected() {
     const toImport = wbahCallData.filter(r => wbahSelected.has(r.id));
@@ -1168,11 +1268,11 @@ function DataPage() {
   }
 
   return (
-    <div className="mx-auto w-full max-w-7xl px-6 py-5">
-      <div className="mb-4 flex items-start justify-between">
-        <div>
-          <h1 className="text-xl font-semibold tracking-tight">Data Records</h1>
-          <p className="mt-0.5 text-xs text-muted-foreground">
+    <DashboardPage>
+      <div className="flex flex-wrap items-start justify-between gap-2">
+        <div className="min-w-0">
+          <h1 className="text-sm font-semibold tracking-tight">Data Records</h1>
+          <p className="mt-0.5 text-[10px] text-muted-foreground">
             {isWbah
               ? "Manage calling data, import records, and control outbound campaigns"
               : "Pull inbound leads from your CRM and manage people"}
@@ -1210,7 +1310,7 @@ function DataPage() {
       </div>
 
       {/* Tabs — Records + Campaigns only for WBAH; People for all */}
-      <div className="flex gap-1 mb-4 border-b border-white/[0.06]">
+      <div className="flex gap-1 overflow-x-auto border-b border-white/[0.06]">
         {(isWbah
           ? (["records", "people", "campaigns"] as const)
           : (["people"] as const)
@@ -1218,7 +1318,7 @@ function DataPage() {
           <button
             key={t}
             onClick={() => setDataTab(t)}
-            className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${
+            className={`px-2.5 py-1 text-[11px] font-medium border-b-2 -mb-px transition-colors whitespace-nowrap ${
               dataTab === t
                 ? "border-primary text-foreground"
                 : "border-transparent text-muted-foreground hover:text-foreground"
@@ -1296,7 +1396,7 @@ function DataPage() {
       {dataTab === "records" && (
       <>
       {/* KPI strip — matches Leads page */}
-      <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
+      <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
         <KpiCard label="Total" value={stats.total} icon={Database} iconBg="bg-blue-500/15" iconColor="text-blue-400" />
         <KpiCard label="Need to Call" value={stats.needToCall} icon={PhoneOutgoing} iconBg="bg-amber-500/15" iconColor="text-amber-400" />
         <KpiCard label="Queued" value={stats.queued} icon={CalendarClock} iconBg="bg-violet-500/15" iconColor="text-violet-400" />
@@ -1304,16 +1404,16 @@ function DataPage() {
       </div>
 
       {/* Table card — matches Leads page container */}
-      <div className="rounded-xl border border-white/[0.06] bg-card/60 overflow-hidden">
+      <div className="min-w-0 overflow-hidden rounded-xl border border-white/[0.06] bg-card/60">
         {/* Toolbar row */}
-        <div className="flex items-center justify-between gap-2 flex-wrap px-4 py-2.5 border-b border-white/[0.06]">
-          <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+        <div className="flex flex-col gap-1.5 border-b border-white/[0.06] px-2.5 py-1.5 sm:px-3 lg:flex-row lg:items-center lg:justify-between">
+          <p className="shrink-0 text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
             Data Records
             {selected.size > 0 && (
               <span className="ml-2 normal-case text-xs font-normal text-blue-400 tracking-normal">{selected.size} selected</span>
             )}
           </p>
-          <div className="flex items-center gap-2 flex-wrap">
+          <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
             {selected.size > 0 && (
               <>
                 <Button size="sm" variant="ghost" className="h-7 text-xs text-muted-foreground" onClick={() => setSelected(new Set())}>
@@ -1356,7 +1456,7 @@ function DataPage() {
                 placeholder="Search name, phone…"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                className="h-7 w-44 pl-7 text-xs"
+                className="h-6 min-w-0 flex-1 basis-28 max-w-[180px] pl-7 text-[11px] sm:flex-none sm:w-36"
               />
             </div>
             <Select value={callStatus} onValueChange={setCallStatus}>
@@ -1445,70 +1545,67 @@ function DataPage() {
           )}
 
           {/* ── WBAH People KPI strip ───────────────────────────────────── */}
-          {(wbahDqData.length || wbahDqCount) > 0 && (() => {
-            const dq = wbahDqData.length || wbahDqCount;
-            return (
-              <div className="mb-4 grid grid-cols-2 gap-3">
-                <KpiCard label="CRM Contacts" value={dq} icon={Users}     iconBg="bg-blue-500/15" iconColor="text-blue-400" />
-                <KpiCard label="Disqualified" value={dq} icon={UserCheck} iconBg="bg-rose-500/15" iconColor="text-rose-400" />
-              </div>
-            );
-          })()}
+          {wbahPeopleTotal > 0 && (
+            <div className="grid grid-cols-2 gap-2">
+              <KpiCard label="CRM Contacts" value={wbahPeopleTotal} icon={Users}     iconBg="bg-blue-500/15" iconColor="text-blue-400" />
+              <KpiCard label="Lead Categories" value={wbahCategories.length} icon={UserCheck} iconBg="bg-rose-500/15" iconColor="text-rose-400" />
+            </div>
+          )}
 
           {/* ── WBAH People toolbar ─────────────────────────────────────── */}
-          <div className="rounded-xl border border-white/[0.06] bg-card/60 overflow-hidden">
+          <div className="min-w-0 overflow-hidden rounded-xl border border-white/[0.06] bg-card/60">
 
-            {/* ── CRM section sub-tabs ────────────────────────────────────── */}
-            <div className="flex items-center gap-0 border-b border-white/[0.06] px-4 overflow-x-auto">
-              {([
-                { id: "disqualified", label: "Disqualified" },
-                { id: "calls",        label: "Calls" },
-              ] as { id: string; label: string }[]).map(tab => {
-                const cnt = tab.id === "leads" ? wbahCallData.length
-                          : tab.id === "disqualified" ? (wbahDqData.length || wbahDqCount)
-                          : tab.id === "tried_to_contact" ? (wbahTtcData.length || wbahTtcCount)
-                          : tab.id === "rebooking" ? (wbahRbData.length || wbahRbCount)
-                          : tab.id === "calls" ? (wbahCallsData.length || wbahCallsCount)
-                          : 0;
-                const isCatTab = tab.id === "disqualified" || tab.id === "tried_to_contact" || tab.id === "rebooking";
+            {/* ── Lead-filter category sub-tabs (one per WeeBespoke lead_status) ─ */}
+            <div className="flex items-center gap-0 overflow-x-auto border-b border-white/[0.06] px-3 sm:px-4">
+              {[
+                ...wbahCategories.map((c) => ({ id: c.name, label: c.name, count: c.count })),
+                { id: "calls", label: "Calls", count: wbahCallsTotal || wbahCallsCount },
+              ].map(tab => {
+                const isActive = wbahPeopleSubTab === tab.id;
+                const isCatTab = tab.id !== "calls";
+                const style = isCatTab ? wbahCatStyle(tab.id) : null;
                 return (
                   <button
                     key={tab.id}
                     onClick={() => setWbahPeopleSubTab(tab.id)}
-                    className={`relative flex items-center gap-1.5 px-3 py-2.5 text-xs font-medium whitespace-nowrap transition-colors border-b-2 -mb-px ${
-                      wbahPeopleSubTab === tab.id
-                        ? "border-primary text-foreground"
+                    className={`relative flex items-center gap-1.5 px-2 py-1 text-xs font-medium whitespace-nowrap transition-colors border-b-2 -mb-px ${
+                      isActive
+                        ? (style ? style.active : "border-primary text-foreground")
                         : "border-transparent text-muted-foreground hover:text-foreground"
                     }`}
                   >
-                    {tab.id === "disqualified" && <AlertCircle className="h-3 w-3" />}
+                    {isCatTab && <AlertCircle className={`h-3 w-3 ${style?.icon ?? ""}`} />}
                     {tab.label}
-                    {cnt > 0 && (
+                    {tab.count > 0 && (
                       <span className={`ml-1 rounded-full px-1.5 py-0.5 text-[10px] font-semibold ${
-                        tab.id === "disqualified" ? "bg-rose-500/20 text-rose-400"
-                        : tab.id === "tried_to_contact" ? "bg-amber-500/20 text-amber-400"
-                        : tab.id === "rebooking" ? "bg-violet-500/20 text-violet-400"
-                        : "bg-muted/60 text-muted-foreground"
-                      }`}>{cnt}</span>
+                        style ? style.badge : "bg-muted/60 text-muted-foreground"
+                      }`}>{tab.count}</span>
                     )}
                   </button>
                 );
               })}
+              {wbahCatLoadingList && wbahCategories.length === 0 && (
+                <span className="px-2 py-1 text-xs text-muted-foreground flex items-center gap-1.5">
+                  <RefreshCw className="h-3 w-3 animate-spin" /> Loading categories…
+                </span>
+              )}
+              {!wbahCatLoadingList && wbahCategories.length === 0 && wbahCatListError && (
+                <button
+                  onClick={() => handleFetchWbahCategoryList()}
+                  className="px-2 py-1 text-xs text-destructive hover:text-destructive/80 flex items-center gap-1.5"
+                  title={wbahCatListError}
+                >
+                  <AlertCircle className="h-3 w-3" /> Couldn't load categories — Retry
+                </button>
+              )}
             </div>
 
-            <div className="flex items-center justify-between gap-2 flex-wrap px-4 py-2.5 border-b border-white/[0.06]">
-              <div className="flex items-center gap-3 flex-wrap">
+            <div className="flex flex-col gap-1.5 border-b border-white/[0.06] px-2.5 py-1.5 sm:px-3 lg:flex-row lg:items-center lg:justify-between">
+              <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2 sm:gap-3">
                 <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
-                  {wbahPeopleSubTab === "disqualified" ? "Disqualified Leads"
-                    : wbahPeopleSubTab === "tried_to_contact" ? "Tried To Contact"
-                    : wbahPeopleSubTab === "rebooking" ? "Rebooking"
-                    : wbahPeopleSubTab === "calls" ? "Calls" : "All Leads"}
+                  {wbahPeopleSubTab === "calls" ? "Calls" : (wbahPeopleSubTab || "Leads")}
                   {(() => {
-                    const total = wbahPeopleSubTab === "disqualified" ? (wbahDqData.length || wbahDqCount)
-                                : wbahPeopleSubTab === "tried_to_contact" ? (wbahTtcData.length || wbahTtcCount)
-                                : wbahPeopleSubTab === "rebooking" ? (wbahRbData.length || wbahRbCount)
-                                : wbahPeopleSubTab === "calls" ? wbahCallsData.length
-                                : wbahCallData.length;
+                    const total = wbahPeopleSubTab === "calls" ? wbahCallsTotal : wbahActiveCatCount;
                     return total > 0 ? (
                       <span className="ml-2 normal-case text-xs font-normal tracking-normal text-muted-foreground">
                         {total} total
@@ -1522,14 +1619,14 @@ function DataPage() {
                   )}
                 </p>
                 {/* Search */}
-                {(wbahCallData.length > 0 || wbahDqData.length > 0 || wbahTtcData.length > 0 || wbahRbData.length > 0 || wbahCallsData.length > 0) && (
+                {wbahAnyPeopleData && (
                   <div className="relative">
                     <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3 w-3 text-muted-foreground pointer-events-none" />
                     <input
                       value={wbahPeopleSearch}
                       onChange={e => setWbahPeopleSearch(e.target.value)}
                       placeholder="Search name, phone…"
-                      className="h-7 rounded-md border border-white/[0.08] bg-muted/40 pl-6 pr-2 text-xs placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-primary/40 w-44"
+                      className="h-6 min-w-0 w-full max-w-[160px] rounded-md border border-white/[0.08] bg-muted/40 pl-6 pr-2 text-[11px] placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-primary/40 sm:w-36"
                     />
                     {wbahPeopleSearch && (
                       <button
@@ -1542,7 +1639,7 @@ function DataPage() {
                   </div>
                 )}
                 {/* Filters — apply across all People sub-tabs */}
-                {(wbahCallData.length > 0 || wbahDqData.length > 0 || wbahTtcData.length > 0 || wbahRbData.length > 0 || wbahCallsData.length > 0) && (
+                {isWbah && dataTab === "people" && (
                   <>
                     <Select value={wbahStatusFilter} onValueChange={setWbahStatusFilter}>
                       <SelectTrigger className="h-7 w-[140px] text-xs"><SelectValue placeholder="Status" /></SelectTrigger>
@@ -1594,7 +1691,7 @@ function DataPage() {
                 )}
               </div>
 
-              <div className="flex items-center gap-2 flex-wrap">
+              <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
                 {/* Assign Qualification Agent — only when rows are selected on Leads tab */}
                 {wbahSelected.size > 0 && wbahPeopleSubTab === "leads" && (
                   <>
@@ -1659,19 +1756,13 @@ function DataPage() {
                     {wbahCallData.length > 0 ? "Refresh" : "Load Leads"}
                   </Button>
                 )}
-                {(WBAH_CATEGORY_TABS as readonly string[]).includes(wbahPeopleSubTab) && (() => {
-                  const cat = wbahPeopleSubTab as WbahCategoryTab;
-                  const loading = cat === "disqualified" ? wbahDqLoading : cat === "tried_to_contact" ? wbahTtcLoading : wbahRbLoading;
-                  const log = wbahCatSyncLog?.[cat];
+                {wbahPeopleSubTab && wbahPeopleSubTab !== "calls" && (() => {
+                  const cat = wbahPeopleSubTab;
+                  const loading = !!wbahCatLoadingMap[cat];
                   const syncBusy = !!wbahCatSyncing;
                   const thisSyncing = wbahCatSyncing === cat || wbahCatSyncing === "all";
                   return (
                     <>
-                      {log?.synced_at && (
-                        <span className="text-[11px] text-muted-foreground whitespace-nowrap">
-                          Last sync {wbahSyncAgo(log.synced_at)}
-                        </span>
-                      )}
                       <Button variant="outline" size="sm" className="h-7 text-xs"
                         onClick={() => handleFetchWbahCategory(cat)} disabled={loading}
                       >
@@ -1679,32 +1770,23 @@ function DataPage() {
                         Refresh
                       </Button>
                       {wbahCanSync && (
-                        <>
-                          <Button size="sm" className="h-7 text-xs"
-                            onClick={() => handleTriggerWbahCatSync(cat)} disabled={syncBusy}
-                            title="Pull the latest leads for this category from WeeBespoke (admin only)"
-                          >
-                            {thisSyncing ? <RefreshCw className="mr-1 h-3.5 w-3.5 animate-spin" /> : <Download className="mr-1 h-3.5 w-3.5" />}
-                            Sync
-                          </Button>
-                          <Button size="sm" variant="outline" className="h-7 text-xs"
-                            onClick={() => handleTriggerWbahCatSync("all")} disabled={syncBusy}
-                            title="Sync all three categories from WeeBespoke (admin only)"
-                          >
-                            {wbahCatSyncing === "all" ? <RefreshCw className="mr-1 h-3.5 w-3.5 animate-spin" /> : null}
-                            Sync All
-                          </Button>
-                        </>
+                        <Button size="sm" variant="outline" className="h-7 text-xs"
+                          onClick={() => handleTriggerWbahCatSync("all")} disabled={syncBusy}
+                          title="Sync all categories from WeeBespoke (admin only)"
+                        >
+                          {thisSyncing ? <RefreshCw className="mr-1 h-3.5 w-3.5 animate-spin" /> : <Download className="mr-1 h-3.5 w-3.5" />}
+                          Sync All
+                        </Button>
                       )}
                     </>
                   );
                 })()}
                 {wbahPeopleSubTab === "calls" && (
                   <Button variant="outline" size="sm" className="h-7 text-xs"
-                    onClick={handleFetchWbahCalls} disabled={wbahCallsLoading}
+                    onClick={() => handleFetchWbahCallsPage(1, { refresh: true })} disabled={wbahCallsLoading}
                   >
                     <RefreshCw className={`mr-1.5 h-3.5 w-3.5 ${wbahCallsLoading ? "animate-spin" : ""}`} />
-                    {wbahCallsData.length > 0 ? "Refresh" : "Load Calls"}
+                    Refresh
                   </Button>
                 )}
               </div>
@@ -1712,23 +1794,23 @@ function DataPage() {
 
             {/* ── Table body ─────────────────────────────────────────────── */}
             {(() => {
-              const isLeads = wbahPeopleSubTab === "leads";
-              const isDq    = wbahPeopleSubTab === "disqualified";
-              const isTtc   = wbahPeopleSubTab === "tried_to_contact";
-              const isRb    = wbahPeopleSubTab === "rebooking";
+              const isLeads = false;
               const isCalls = wbahPeopleSubTab === "calls";
-              const isCat   = isDq || isTtc || isRb;
+              const isCat   = !isCalls && !!wbahPeopleSubTab;
 
-              const loading = isLeads ? wbahCallDataLoading : isDq ? wbahDqLoading : isTtc ? wbahTtcLoading : isRb ? wbahRbLoading : wbahCallsLoading;
-              const error   = isLeads ? wbahCallDataError   : isDq ? wbahDqError   : isTtc ? wbahTtcError   : isRb ? wbahRbError   : wbahCallsError;
-              const empty   = isLeads ? wbahCallData.length === 0 : isDq ? wbahDqData.length === 0 : isTtc ? wbahTtcData.length === 0 : isRb ? wbahRbData.length === 0 : wbahCallsData.length === 0;
-              const onLoad  = isLeads ? handleFetchWbahCallData : isDq ? () => handleFetchWbahCategory("disqualified") : isTtc ? () => handleFetchWbahCategory("tried_to_contact") : isRb ? () => handleFetchWbahCategory("rebooking") : handleFetchWbahCalls;
-              const loadLabel = isLeads ? "Load Leads" : isDq ? "Load Disqualified" : isTtc ? "Load Tried To Contact" : isRb ? "Load Rebooking" : "Load Calls";
-              const rows    = isLeads ? wbahFiltered : isDq ? wbahDqFiltered : isTtc ? wbahTtcFiltered : isRb ? wbahRbFiltered : wbahCallsFiltered;
-              const pag     = isLeads ? wbahPag : isDq ? wbahDqPag : isTtc ? wbahTtcPag : isRb ? wbahRbPag : wbahCallsPag;
-              const loadingNoun = isLeads ? "leads" : isDq ? "disqualified records" : isTtc ? "tried-to-contact records" : isRb ? "rebooking records" : "calls";
+              const loading = isCalls ? wbahCallsLoading : !!wbahCatLoadingMap[wbahPeopleSubTab];
+              const error   = isCalls ? wbahCallsError   : (wbahCatErrorMap[wbahPeopleSubTab] ?? null);
+              const knownTotal = isCalls ? wbahCallsTotal : (isCat ? wbahActiveCatCount : 0);
+              const rowCount   = isCalls ? wbahCallsData.length : wbahActiveCatRows.length;
+              const empty      = rowCount === 0 && !(knownTotal > 0 && loading);
+              const showLoading = loading || (rowCount === 0 && knownTotal > 0 && !error);
+              const onLoad  = isCalls ? () => handleFetchWbahCallsPage(1, { refresh: true }) : () => handleFetchWbahCategory(wbahPeopleSubTab);
+              const loadLabel = isCalls ? "Load Calls" : `Load ${wbahPeopleSubTab || "data"}`;
+              const rows    = isCalls ? wbahCallsRows : wbahCatFiltered;
+              const pag     = isCalls ? wbahCallsPag : wbahCatPag;
+              const loadingNoun = isCalls ? "calls" : `${wbahPeopleSubTab || "records"} records`;
 
-              if (loading) return (
+              if (showLoading) return (
                 <LoadingProgress label={`Loading ${loadingNoun}`} estimatedMs={9000} className="py-20" />
               );
               if (error) return (
@@ -1751,13 +1833,11 @@ function DataPage() {
               );
 
               return (
-                <div className="overflow-x-auto">
+                <div className="min-w-0 overflow-x-auto">
                   {isCat && (() => {
-                    const cat   = isDq ? "disqualified" : isTtc ? "tried_to_contact" : "rebooking";
-                    const label = isDq ? "Disqualified" : isTtc ? "Tried To Contact" : "Rebooking";
-                    const tone  = isDq ? "bg-rose-500/5 border-rose-500/10 text-rose-400"
-                                : isTtc ? "bg-amber-500/5 border-amber-500/10 text-amber-400"
-                                : "bg-violet-500/5 border-violet-500/10 text-violet-400";
+                    const cat   = wbahPeopleSubTab;
+                    const label = wbahPeopleSubTab;
+                    const tone  = wbahCatStyle(cat).banner;
                     const log   = wbahCatSyncLog?.[cat];
                     return (
                       <div className={`flex flex-wrap items-center gap-2 px-4 py-2 border-b text-[11px] ${tone}`}>
@@ -1769,11 +1849,11 @@ function DataPage() {
                       </div>
                     );
                   })()}
-                  <table className="w-full text-xs">
+                  <table className="w-full text-[11px]">
                     <thead>
                       <tr className="border-b border-white/[0.06] bg-card/30">
                         {isLeads && (
-                          <th className="w-8 px-3 py-2">
+                          <th className={cn("w-8 px-2 py-1", stickyHead, "left-0")}>
                             <Checkbox
                               checked={rows.length > 0 && rows.every(r => wbahSelected.has(r.id))}
                               onCheckedChange={(v) => {
@@ -1788,7 +1868,17 @@ function DataPage() {
                           ...(isCat ? ["LOADED"] : []),
                           "TYPE","LAST CALLED AT","CALL STATUS","DURATION","RECORDING","TRANSCRIPT","SENTIMENT","APPT DATE","APPT TIME","BOOKING STATUS","CALENDLY","END REASON","DISCONNECTION",
                         ] as string[]).map(col => (
-                          <th key={col} className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.1em] text-muted-foreground whitespace-nowrap">{col}</th>
+                          <th
+                            key={col}
+                            className={cn(
+                              "px-2 py-1 text-left text-[9px] font-semibold uppercase tracking-[0.08em] text-muted-foreground whitespace-nowrap",
+                              col === "SR NO" && cn(stickyHead, isLeads ? "left-8 w-9" : "left-0 w-9"),
+                              col === "NAME" && cn(stickyHead, isLeads ? "left-[4.25rem] w-24" : "left-9 w-24"),
+                              col === "CONTACT" && cn(stickyHead, isLeads ? "left-[10.25rem] w-28 shadow-[4px_0_8px_-4px_rgba(0,0,0,0.45)]" : "left-[8.25rem] w-28 shadow-[4px_0_8px_-4px_rgba(0,0,0,0.45)]"),
+                            )}
+                          >
+                            {col}
+                          </th>
                         ))}
                       </tr>
                     </thead>
@@ -1800,10 +1890,10 @@ function DataPage() {
                         return (
                           <tr
                             key={r.id}
-                            className={`group border-b border-white/[0.04] align-middle hover:bg-white/[0.02] transition-colors ${isSelected ? "bg-blue-500/5" : ""}`}
+                            className={`group h-8 border-b border-white/[0.04] align-middle hover:bg-white/[0.02] transition-colors ${isSelected ? "bg-blue-500/5" : ""}`}
                           >
                             {isLeads && (
-                              <td className="px-3 py-2">
+                              <td className={cn("px-2 py-0.5", stickyCell, "left-0 w-8")}>
                                 <Checkbox
                                   checked={isSelected}
                                   onCheckedChange={() => {
@@ -1814,27 +1904,27 @@ function DataPage() {
                                 />
                               </td>
                             )}
-                            <td className="px-3 py-2 text-muted-foreground text-[11px]">{r.srNo}</td>
-                            <td className="px-3 py-2 font-medium whitespace-nowrap max-w-[140px] truncate">{r.name || "—"}</td>
-                            <td className="px-3 py-2 font-mono text-muted-foreground text-[11px] whitespace-nowrap">
+                            <td className={cn("px-2 py-0.5 text-[10px] text-muted-foreground", stickyCell, isLeads ? "left-8 w-9" : "left-0 w-9")}>{r.srNo}</td>
+                            <td className={cn("max-w-[6rem] truncate px-2 py-0.5 font-medium", stickyCell, isLeads ? "left-[4.25rem] w-24" : "left-9 w-24")}>{r.name || "—"}</td>
+                            <td className={cn("max-w-[7rem] truncate px-2 py-0.5 font-mono text-[10px] text-muted-foreground", stickyCell, isLeads ? "left-[10.25rem] w-28 shadow-[4px_0_8px_-4px_rgba(0,0,0,0.35)]" : "left-[8.25rem] w-28 shadow-[4px_0_8px_-4px_rgba(0,0,0,0.35)]")}>
                               {r.contact ? (
-                                <a href={`tel:${r.contact}`} className="flex items-center gap-1 hover:text-foreground transition-colors">
-                                  <Phone className="h-3 w-3" />{r.contact}
+                                <a href={`tel:${r.contact}`} className="flex items-center gap-1 hover:text-foreground transition-colors truncate">
+                                  <Phone className="h-3 w-3 shrink-0" />{r.contact}
                                 </a>
                               ) : "—"}
                             </td>
                             {isCat && (
-                              <td className="px-3 py-2 text-muted-foreground text-[11px] whitespace-nowrap">{r.loadedAt ? fmtDate(r.loadedAt) : "—"}</td>
+                              <td className="px-2 py-0.5 text-[10px] text-muted-foreground whitespace-nowrap">{r.loadedAt ? fmtDate(r.loadedAt) : "—"}</td>
                             )}
-                            <td className="px-3 py-2 text-muted-foreground text-[11px] whitespace-nowrap capitalize">{(r.callType || "—").replace(/_/g, " ")}</td>
-                            <td className="px-3 py-2 text-muted-foreground text-[11px] whitespace-nowrap">{fmtTs(r.startTimestamp)}</td>
-                            <td className="px-3 py-2 whitespace-nowrap">
+                            <td className="px-2 py-0.5 text-[10px] text-muted-foreground whitespace-nowrap capitalize">{(r.callType || "—").replace(/_/g, " ")}</td>
+                            <td className="px-2 py-0.5 text-[10px] text-muted-foreground whitespace-nowrap">{fmtTs(r.startTimestamp)}</td>
+                            <td className="px-2 py-0.5 whitespace-nowrap">
                               <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium ring-1 ring-white/[0.06] ${statusBadge.cls}`}>
                                 {statusBadge.label}
                               </span>
                             </td>
-                            <td className="px-3 py-2 text-muted-foreground text-[11px] whitespace-nowrap">{fmtMs(r.durationMs)}</td>
-                            <td className="px-3 py-2">
+                            <td className="px-2 py-0.5 text-muted-foreground text-[11px] whitespace-nowrap">{fmtMs(r.durationMs)}</td>
+                            <td className="px-2 py-0.5">
                               {r.recordingUrl ? (
                                 <a href={r.recordingUrl} target="_blank" rel="noopener noreferrer"
                                   className="inline-flex items-center gap-1 rounded-md bg-primary/10 px-2 py-1 text-[10px] font-medium text-primary hover:bg-primary/20 transition-colors"
@@ -1843,27 +1933,27 @@ function DataPage() {
                                 </a>
                               ) : <span className="text-muted-foreground/40 text-[11px]">—</span>}
                             </td>
-                            <td className="px-3 py-2">
-                              {r.transcript ? (
+                            <td className="px-2 py-0.5">
+                              {(r.transcript || r.hasTranscript) ? (
                                 <button
-                                  onClick={() => setWbahTranscript({ name: r.name || "Record", text: r.transcript })}
+                                  onClick={() => openWbahTranscript(r)}
                                   className="inline-flex items-center gap-1 rounded-md bg-muted/60 px-2 py-1 text-[10px] font-medium text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
                                 >
                                   <FileText className="h-3 w-3" /> View
                                 </button>
                               ) : <span className="text-muted-foreground/40 text-[11px]">—</span>}
                             </td>
-                            <td className={`px-3 py-2 text-[11px] font-medium whitespace-nowrap ${sentBadge.cls}`}>{sentBadge.label}</td>
-                            <td className="px-3 py-2 text-muted-foreground text-[11px] whitespace-nowrap">{r.appointmentDate || "—"}</td>
-                            <td className="px-3 py-2 text-muted-foreground text-[11px] whitespace-nowrap">{r.appointmentTime || "—"}</td>
-                            <td className="px-3 py-2">
+                            <td className={`px-2 py-0.5 text-[11px] font-medium whitespace-nowrap ${sentBadge.cls}`}>{sentBadge.label}</td>
+                            <td className="px-2 py-0.5 text-muted-foreground text-[11px] whitespace-nowrap">{r.appointmentDate || "—"}</td>
+                            <td className="px-2 py-0.5 text-muted-foreground text-[11px] whitespace-nowrap">{r.appointmentTime || "—"}</td>
+                            <td className="px-2 py-0.5">
                               {r.bookingStatus ? (
                                 <span className="inline-flex items-center rounded-full bg-muted px-2 py-0.5 text-[10px] font-medium text-muted-foreground ring-1 ring-white/[0.06] capitalize">
                                   {r.bookingStatus.replace(/_/g, " ")}
                                 </span>
                               ) : <span className="text-muted-foreground/40 text-[11px]">—</span>}
                             </td>
-                            <td className="px-3 py-2">
+                            <td className="px-2 py-0.5">
                               {r.calendlyBookingUrl ? (
                                 <a href={r.calendlyBookingUrl} target="_blank" rel="noopener noreferrer"
                                   className="inline-flex items-center gap-1 text-[11px] text-primary hover:underline"
@@ -1872,10 +1962,10 @@ function DataPage() {
                                 </a>
                               ) : <span className="text-muted-foreground/40 text-[11px]">—</span>}
                             </td>
-                            <td className="px-3 py-2 text-muted-foreground text-[11px] whitespace-nowrap capitalize max-w-[120px] truncate">
+                            <td className="px-2 py-0.5 text-muted-foreground text-[11px] whitespace-nowrap capitalize max-w-[120px] truncate">
                               {r.endReason ? r.endReason.replace(/_/g, " ") : "—"}
                             </td>
-                            <td className="px-3 py-2 text-muted-foreground text-[11px] whitespace-nowrap capitalize max-w-[140px] truncate">
+                            <td className="px-2 py-0.5 text-muted-foreground text-[11px] whitespace-nowrap capitalize max-w-[140px] truncate">
                               {r.disconnectionReason ? r.disconnectionReason.replace(/_/g, " ") : "—"}
                             </td>
                           </tr>
@@ -1898,9 +1988,9 @@ function DataPage() {
       )}
 
       {dataTab === "people" && !isWbah && (
-        <div className="rounded-xl border border-white/[0.06] bg-card/60 overflow-hidden">
+        <div className="min-w-0 overflow-hidden rounded-xl border border-white/[0.06] bg-card/60">
           {/* People toolbar */}
-          <div className="flex items-center justify-between gap-2 flex-wrap px-4 py-2.5 border-b border-white/[0.06]">
+          <div className="flex flex-col gap-1.5 border-b border-white/[0.06] px-2.5 py-1.5 sm:px-3 lg:flex-row lg:items-center lg:justify-between">
             <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
               Inbound Leads from CRM
               {crmPeople.length > 0 && (
@@ -1914,7 +2004,7 @@ function DataPage() {
                 </span>
               )}
             </p>
-            <div className="flex items-center gap-2 flex-wrap">
+            <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
               {crmPeopleSelected.size > 0 && (
                 <>
                   <Select
@@ -1995,11 +2085,11 @@ function DataPage() {
               </Button>
             </div>
           ) : (
-            <div className="overflow-x-auto">
+            <div className="min-w-0 overflow-x-auto">
               <table className="w-full text-xs">
                 <thead>
                   <tr className="border-b border-white/[0.06] bg-card/30">
-                    <th className="w-8 px-3 py-2">
+                    <th className="w-8 px-2 py-0.5">
                       <Checkbox
                         checked={crmPeople.length > 0 && crmPeopleSelected.size === crmPeople.length}
                         onCheckedChange={(v) => {
@@ -2008,12 +2098,12 @@ function DataPage() {
                         }}
                       />
                     </th>
-                    <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Name</th>
-                    <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Phone</th>
-                    <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Email</th>
-                    <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Source</th>
-                    <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">CRM Status</th>
-                    <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Received</th>
+                    <th className="px-2 py-0.5 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Name</th>
+                    <th className="px-2 py-0.5 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Phone</th>
+                    <th className="px-2 py-0.5 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Email</th>
+                    <th className="px-2 py-0.5 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Source</th>
+                    <th className="px-2 py-0.5 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">CRM Status</th>
+                    <th className="px-2 py-0.5 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Received</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -2022,7 +2112,7 @@ function DataPage() {
                       key={p.external_id}
                       className={`group h-9 border-b border-white/[0.04] align-middle hover:bg-white/[0.02] transition-colors ${crmPeopleSelected.has(p.external_id) ? "bg-blue-500/5" : ""}`}
                     >
-                      <td className="px-3 py-1.5">
+                      <td className="px-2.5 py-1">
                         <Checkbox
                           checked={crmPeopleSelected.has(p.external_id)}
                           onCheckedChange={() => {
@@ -2033,18 +2123,18 @@ function DataPage() {
                           }}
                         />
                       </td>
-                      <td className="px-3 py-1.5 text-xs font-medium whitespace-nowrap">{p.name || "—"}</td>
-                      <td className="whitespace-nowrap px-3 py-1.5 text-muted-foreground text-[11px] font-mono">{p.phone || "—"}</td>
-                      <td className="px-3 py-1.5 text-muted-foreground text-[11px]">{p.email || "—"}</td>
-                      <td className="px-3 py-1.5 text-muted-foreground text-[11px]">{p.source || "—"}</td>
-                      <td className="px-3 py-1.5">
+                      <td className="px-2.5 py-1 text-xs font-medium whitespace-nowrap">{p.name || "—"}</td>
+                      <td className="whitespace-nowrap px-2.5 py-1 text-muted-foreground text-[11px] font-mono">{p.phone || "—"}</td>
+                      <td className="px-2.5 py-1 text-muted-foreground text-[11px]">{p.email || "—"}</td>
+                      <td className="px-2.5 py-1 text-muted-foreground text-[11px]">{p.source || "—"}</td>
+                      <td className="px-2.5 py-1">
                         {p.status ? (
                           <span className="rounded-full bg-muted px-2 py-0.5 text-[10px] font-medium capitalize text-muted-foreground ring-1 ring-white/[0.06]">
                             {p.status.replace(/_/g, " ")}
                           </span>
                         ) : "—"}
                       </td>
-                      <td className="whitespace-nowrap px-3 py-1.5 text-muted-foreground text-[11px]">
+                      <td className="whitespace-nowrap px-2.5 py-1 text-muted-foreground text-[11px]">
                         {p.created_at ? fmtDate(p.created_at) : "—"}
                       </td>
                     </tr>
@@ -2107,7 +2197,7 @@ function DataPage() {
         scheduleData={scheduleQ.data ?? null}
         onSave={handleSaveSchedule}
       />
-    </div>
+    </DashboardPage>
   );
 }
 
@@ -2408,7 +2498,7 @@ function CsvMappingDialog({
                           const f = SYSTEM_FIELDS.find((x) => x.value === effective);
                           const customKeyVal = customKeys[h] || toMetaKey(h) || h;
                           return (
-                            <th key={h} className="whitespace-nowrap px-3 py-2 font-semibold">
+                            <th key={h} className="whitespace-nowrap px-2 py-0.5 font-semibold">
                               <div className="text-[11px] text-foreground/80">{h}</div>
                               <div className="text-[10px] font-normal">
                                 {isCustom ? (
@@ -2433,7 +2523,7 @@ function CsvMappingDialog({
                       {previewRows.map((row, i) => (
                         <tr key={i} className="border-b border-border/40">
                           {headers.map((h) => (
-                            <td key={h} className="whitespace-nowrap px-3 py-1.5" title={row[h]}>
+                            <td key={h} className="whitespace-nowrap px-2.5 py-1" title={row[h]}>
                               {row[h] || <span className="text-muted-foreground/50">—</span>}
                             </td>
                           ))}

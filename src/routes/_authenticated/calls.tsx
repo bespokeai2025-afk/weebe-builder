@@ -20,16 +20,17 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { KpiCard, SummaryTooltip } from "@/components/dashboard/PageShell";
+import { DashboardPage, KpiCard, SummaryTooltip, stickyCell, stickyHead } from "@/components/dashboard/PageShell";
 import { LoadingProgress } from "@/components/dashboard/LoadingProgress";
 import { cn } from "@/lib/utils";
 import { listCalls, listTestCalls } from "@/lib/dashboard/calls.functions";
-import { listWbahCallsLive } from "@/lib/integrations/webespokeEnterprise/wbah-workspace.server";
+import { listWbahCallsLive, getWbahCallDetail } from "@/lib/integrations/webespokeEnterprise/wbah-workspace.server";
 import { NotesBookingSheet } from "@/components/dashboard/NotesBookingSheet";
 import type { NotesEntityType } from "@/components/dashboard/NotesBookingSheet";
 import { RelativeTime } from "@/components/ui/relative-time";
 import { supabase } from "@/integrations/supabase/client";
 import { useTablePagination, TablePagBar } from "@/components/ui/table-pagination";
+import { useWbahAgentOptions } from "@/hooks/useWbahAgentOptions";
 
 export const Route = createFileRoute("/_authenticated/calls")({
   head: () => ({ meta: [{ title: "Calls — Webee" }] }),
@@ -112,6 +113,7 @@ type PanelTarget = {
   defaultPhone?: string;
   defaultEmail?: string;
   leadId?: string | null;
+  callSummary?: string | null;
 };
 
 function fmtCost(cents?: number | null) {
@@ -146,10 +148,10 @@ function TestCallRow({ c }: { c: ReturnType<typeof listTestCalls> extends Promis
         />
       )}
       <tr
-        className="h-9 border-b border-white/[0.04] last:border-0 align-middle hover:bg-white/[0.02] transition-colors cursor-pointer"
+        className="group h-8 border-b border-white/[0.04] last:border-0 align-middle hover:bg-white/[0.02] transition-colors cursor-pointer"
         onClick={() => c.transcript && setExpanded((p) => !p)}
       >
-        <td className="px-3 py-1.5">
+        <td className="px-2 py-0.5">
           {c.transcript ? (
             expanded ? (
               <ChevronDown className="h-3 w-3 text-muted-foreground" />
@@ -160,30 +162,30 @@ function TestCallRow({ c }: { c: ReturnType<typeof listTestCalls> extends Promis
             <span className="h-3 w-3 inline-block" />
           )}
         </td>
-        <td className="px-3 py-1.5 text-xs font-medium whitespace-nowrap">{label}</td>
-        <td className="px-3 py-1.5 text-muted-foreground tabular-nums text-[11px] whitespace-nowrap">
+        <td className="px-2 py-0.5 text-xs font-medium whitespace-nowrap">{label}</td>
+        <td className="px-2 py-0.5 text-muted-foreground tabular-nums text-[11px] whitespace-nowrap">
           {fmtDuration(c.duration_seconds)}
         </td>
-        <td className="px-3 py-1.5 text-[11px] text-muted-foreground whitespace-nowrap">
+        <td className="px-2 py-0.5 text-[11px] text-muted-foreground whitespace-nowrap">
           {channelLabel(c.from_number, c.call_type)}
         </td>
-        <td className="px-3 py-1.5 text-[11px] text-muted-foreground whitespace-nowrap tabular-nums">
+        <td className="px-2 py-0.5 text-[11px] text-muted-foreground whitespace-nowrap tabular-nums">
           {fmtCost(c.cost_cents)}
         </td>
-        <td className="px-3 py-1.5 text-[11px] text-muted-foreground font-mono max-w-[200px] truncate" title={sessionId !== "—" ? sessionId : undefined}>
+        <td className="px-2 py-0.5 text-[11px] text-muted-foreground font-mono max-w-[200px] truncate" title={sessionId !== "—" ? sessionId : undefined}>
           {shortSessionId}
         </td>
-        <td className="px-3 py-1.5 text-[11px] text-muted-foreground whitespace-nowrap">
+        <td className="px-2 py-0.5 text-[11px] text-muted-foreground whitespace-nowrap">
           {c.disconnection_reason
             ? String(c.disconnection_reason).replace(/_/g, " ")
             : "—"}
         </td>
-        <td className="px-3 py-1.5">
+        <td className="px-2 py-0.5">
           <span className={cn("rounded-full px-2 py-0.5 text-[10px] capitalize", statusClass(c.call_status))}>
             {String(c.call_status ?? "").replace(/_/g, " ").trim() || "—"}
           </span>
         </td>
-        <td className="px-3 py-1.5">
+        <td className="px-2 py-0.5">
           {c.sentiment ? (
             <span className={cn("rounded-full px-2 py-0.5 text-[10px] capitalize", sentimentClass(c.sentiment))}>
               {c.sentiment}
@@ -192,13 +194,13 @@ function TestCallRow({ c }: { c: ReturnType<typeof listTestCalls> extends Promis
             <span className="text-[11px] text-muted-foreground">—</span>
           )}
         </td>
-        <td className="px-3 py-1.5 text-[11px] text-muted-foreground whitespace-nowrap">
+        <td className="px-2 py-0.5 text-[11px] text-muted-foreground whitespace-nowrap">
           {c.from_number ?? "—"}
         </td>
-        <td className="px-3 py-1.5 text-[11px] text-muted-foreground whitespace-nowrap">
+        <td className="px-2 py-0.5 text-[11px] text-muted-foreground whitespace-nowrap">
           {c.to_number ?? "—"}
         </td>
-        <td className="px-3 py-1.5">
+        <td className="px-2 py-0.5">
           <span className="inline-flex items-center gap-1 text-[11px] text-muted-foreground">
             {c.call_type === "inbound" ? (
               <PhoneIncoming className="h-3 w-3 text-primary" />
@@ -208,7 +210,7 @@ function TestCallRow({ c }: { c: ReturnType<typeof listTestCalls> extends Promis
             {c.call_type === "inbound" ? "Inbound" : "Outbound"}
           </span>
         </td>
-        <td className="px-3 py-1.5" onClick={(e) => e.stopPropagation()}>
+        <td className="px-2 py-0.5" onClick={(e) => e.stopPropagation()}>
           {c.recording_url ? (
             <button
               onClick={() => setRecordingPlayer({ url: c.recording_url!, contact: label })}
@@ -220,7 +222,7 @@ function TestCallRow({ c }: { c: ReturnType<typeof listTestCalls> extends Promis
             <span className="text-[11px] text-muted-foreground">—</span>
           )}
         </td>
-        <td className="px-3 py-1.5 text-muted-foreground text-[11px] whitespace-nowrap">
+        <td className="px-2 py-0.5 text-muted-foreground text-[11px] whitespace-nowrap">
           <RelativeTime date={c.started_at} fallback="—" />
         </td>
       </tr>
@@ -291,11 +293,27 @@ function CallsPage() {
     vm === "only" || vm === "all" ? vm : "exclude",
   );
   const [daysFilter, setDaysFilter] = useState("30");
+  // Additional filters (call duration threshold, outcome, custom date range).
+  const [durationFilter, setDurationFilter] = useState("");   // min seconds ("" = any)
+  const [outcomeFilter, setOutcomeFilter]   = useState("");   // "" | "successful" | "unsuccessful"
+  const [customFrom, setCustomFrom]         = useState("");   // yyyy-mm-dd
+  const [customTo, setCustomTo]             = useState("");
+
+  // Effective {dateFrom,dateTo} — "custom" reveals a Between range; else a preset.
+  const effectiveDateRange = useMemo<{ dateFrom?: string; dateTo?: string }>(() => {
+    if (daysFilter === "custom") {
+      const r: { dateFrom?: string; dateTo?: string } = {};
+      if (customFrom) r.dateFrom = new Date(`${customFrom}T00:00:00`).toISOString();
+      if (customTo)   r.dateTo   = new Date(`${customTo}T23:59:59.999`).toISOString();
+      return r;
+    }
+    return filterToDates(daysFilter);
+  }, [daysFilter, customFrom, customTo]);
 
   const fn = useServerFn(listCalls);
   const q = useQuery({
-    queryKey:             ["calls", voicemailFilter, daysFilter],
-    queryFn:              () => { const dates = filterToDates(daysFilter); return fn({ data: { voicemailFilter, ...dates } }); },
+    queryKey:             ["calls", voicemailFilter, daysFilter, customFrom, customTo],
+    queryFn:              () => fn({ data: { voicemailFilter, ...effectiveDateRange } }),
     enabled:              !isWbah,
     staleTime:            3 * 60_000,
     refetchOnWindowFocus: false,
@@ -312,7 +330,7 @@ function CallsPage() {
     queryKey: ["wbah-calls"],
     queryFn: () => wbahFn(),
     enabled: isWbah,
-    staleTime:            60_000,
+    staleTime:            180_000,
     refetchOnWindowFocus: false,
     retry: 0,
     throwOnError: false,
@@ -356,6 +374,12 @@ function CallsPage() {
       : base.filter((r) => !isVoicemail(r));
   }, [isWbah, wbahRows, q.data, voicemailFilter]);
 
+  const wbahAgentNamesFromData = useMemo(
+    () => rows.map((r) => r.agent_name as string | undefined),
+    [rows],
+  );
+  const { options: wbahAgentOptions } = useWbahAgentOptions(wbahAgentNamesFromData, isWbah);
+
   const testFn = useServerFn(listTestCalls);
   const testQ = useQuery({
     queryKey:             ["test-calls"],
@@ -373,13 +397,29 @@ function CallsPage() {
   const [recordingPlayer, setRecordingPlayer] = useState<{ url: string; contact: string } | null>(null);
   const [panel, setPanel] = useState<PanelTarget | null>(null);
   const [wbahTranscript, setWbahTranscript] = useState<{ text: string; name: string } | null>(null);
+  const getWbahCallDetailFn = useServerFn(getWbahCallDetail);
+
+  // Transcripts are omitted from the list payload — load on demand when opened.
+  async function openWbahTranscript(c: any, name: string) {
+    if (c?.transcript) { setWbahTranscript({ text: c.transcript, name }); return; }
+    if (!c?.id) return;
+    setWbahTranscript({ text: "Loading transcript…", name });
+    try {
+      const d = await getWbahCallDetailFn({ data: { id: String(c.id) } });
+      setWbahTranscript({ text: (d as any)?.transcript || "No transcript available.", name });
+    } catch {
+      setWbahTranscript({ text: "Failed to load transcript.", name });
+    }
+  }
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
   const [callTypeFilter, setCallTypeFilter] = useState("");
   const [sentimentFilter, setSentimentFilter] = useState("");
+  const [wbahAgentFilter, setWbahAgentFilter] = useState("all");
 
   const filteredRows = useMemo(() => {
-    const { dateFrom: cutFrom, dateTo: cutTo } = filterToDates(daysFilter);
+    const { dateFrom: cutFrom, dateTo: cutTo } = effectiveDateRange;
+    const minDur = durationFilter ? parseInt(durationFilter, 10) : 0;
     return rows.filter((r: any) => {
       if (search.trim()) {
         const q = search.toLowerCase();
@@ -390,6 +430,12 @@ function CallsPage() {
       if (statusFilter && r.call_status !== statusFilter) return false;
       if (callTypeFilter && r.call_type !== callTypeFilter) return false;
       if (sentimentFilter && r.sentiment !== sentimentFilter) return false;
+      if (isWbah && wbahAgentFilter !== "all" && (r.agent_name ?? "") !== wbahAgentFilter) return false;
+      // Call duration greater than N minutes.
+      if (minDur > 0 && (r.duration_seconds ?? 0) < minDur) return false;
+      // Call outcome: successful = completed; unsuccessful = failed/no-answer/busy.
+      if (outcomeFilter === "successful" && r.call_status !== "completed") return false;
+      if (outcomeFilter === "unsuccessful" && !["failed", "no_answer", "busy"].includes(r.call_status)) return false;
       if (cutFrom || cutTo) {
         const dateStr = r.started_at ?? null;
         if (!dateStr) return false;
@@ -400,11 +446,11 @@ function CallsPage() {
       }
       return true;
     });
-  }, [rows, search, daysFilter, statusFilter, callTypeFilter, sentimentFilter]);
+  }, [rows, search, effectiveDateRange, statusFilter, callTypeFilter, sentimentFilter, durationFilter, outcomeFilter, isWbah, wbahAgentFilter]);
 
-  const callsPag = useTablePagination(filteredRows, 50);
+  const callsPag = useTablePagination(filteredRows);
 
-  const hasCallFilters = search.trim() || statusFilter || callTypeFilter || sentimentFilter;
+  const hasCallFilters = search.trim() || statusFilter || callTypeFilter || sentimentFilter || durationFilter || outcomeFilter || daysFilter === "custom" || (isWbah && wbahAgentFilter !== "all");
 
   function openPanel(c: any) {
     const inbound = c.call_type === "inbound";
@@ -418,6 +464,7 @@ function CallsPage() {
       entityName: contact,
       defaultPhone: phone ?? undefined,
       leadId: c.lead_id ?? null,
+      callSummary: c.call_summary ?? null,
     });
   }
 
@@ -426,7 +473,7 @@ function CallsPage() {
     : testQ.isRefetching;
 
   return (
-    <div className="mx-auto w-full max-w-7xl px-6 py-5">
+    <DashboardPage>
       {recordingPlayer && (
         <RecordingDialog
           url={recordingPlayer.url}
@@ -462,18 +509,18 @@ function CallsPage() {
       )}
 
       {/* Header */}
-      <div className="mb-5 flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
-          <h1 className="text-base font-semibold tracking-tight">Calls</h1>
-          <p className="mt-0.5 text-[11px] text-muted-foreground">Call activity, transcripts and outcomes</p>
+          <h1 className="text-sm font-semibold tracking-tight">Calls</h1>
+          <p className="mt-0.5 text-[10px] text-muted-foreground">Call activity, transcripts and outcomes</p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5">
           {/* Tab switcher */}
           <div className="flex items-center rounded-lg border border-white/[0.06] bg-card/40 p-0.5">
             <button
               onClick={() => setTab("live")}
               className={cn(
-                "flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition-colors",
+                "flex items-center gap-1.5 rounded-md px-2 py-0.5 text-xs font-medium transition-colors",
                 tab === "live"
                   ? "bg-primary/15 text-primary"
                   : "text-muted-foreground hover:text-foreground",
@@ -485,7 +532,7 @@ function CallsPage() {
             <button
               onClick={() => setTab("test")}
               className={cn(
-                "flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition-colors",
+                "flex items-center gap-1.5 rounded-md px-2 py-0.5 text-xs font-medium transition-colors",
                 tab === "test"
                   ? "bg-violet-500/15 text-violet-300"
                   : "text-muted-foreground hover:text-foreground",
@@ -504,7 +551,7 @@ function CallsPage() {
           <Button
             variant="ghost"
             size="sm"
-            className="h-8 gap-1.5 text-xs"
+            className="h-7 gap-1 px-2.5 text-xs"
             onClick={() => {
               if (tab === "live") isWbah ? wbahQ.refetch() : q.refetch();
               else testQ.refetch();
@@ -520,7 +567,7 @@ function CallsPage() {
       {tab === "live" ? (
         <>
           {/* KPI strip */}
-          <div className="grid grid-cols-2 gap-3 md:grid-cols-4 mb-5">
+          <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
             <KpiCard label="Total Calls" value={rows.length} icon={Phone} iconBg="bg-blue-500/15" iconColor="text-blue-400" />
             <KpiCard label="Completed" value={completed} icon={Phone} iconBg="bg-emerald-500/15" iconColor="text-emerald-400" />
             <KpiCard label="Failed" value={failed} icon={Phone} iconBg="bg-red-500/15" iconColor="text-red-400" />
@@ -528,17 +575,17 @@ function CallsPage() {
           </div>
 
           {/* Filter bar */}
-          <div className="mb-3 flex items-center gap-2 flex-wrap">
+          <div className="flex min-w-0 flex-wrap items-center gap-1.5">
             <Input
               placeholder="Search name or phone…"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="h-7 w-44 text-xs"
+              className="h-6 min-w-0 flex-1 basis-28 max-w-[180px] text-[11px] sm:flex-none sm:w-36"
             />
             <select
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value)}
-              className="h-7 rounded-md border border-white/[0.08] bg-card/80 px-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary/40"
+              className="h-6 rounded-md border border-white/[0.08] bg-card/80 px-1.5 text-[11px] text-foreground focus:outline-none focus:ring-1 focus:ring-primary/40"
             >
               <option value="">All Statuses</option>
               <option value="completed">Completed</option>
@@ -551,7 +598,7 @@ function CallsPage() {
               <select
                 value={callTypeFilter}
                 onChange={(e) => setCallTypeFilter(e.target.value)}
-                className="h-7 rounded-md border border-white/[0.08] bg-card/80 px-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary/40"
+                className="h-6 rounded-md border border-white/[0.08] bg-card/80 px-1.5 text-[11px] text-foreground focus:outline-none focus:ring-1 focus:ring-primary/40"
               >
                 <option value="">All Types</option>
                 <option value="inbound">Inbound</option>
@@ -561,17 +608,52 @@ function CallsPage() {
             <select
               value={sentimentFilter}
               onChange={(e) => setSentimentFilter(e.target.value)}
-              className="h-7 rounded-md border border-white/[0.08] bg-card/80 px-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary/40"
+              className="h-6 rounded-md border border-white/[0.08] bg-card/80 px-1.5 text-[11px] text-foreground focus:outline-none focus:ring-1 focus:ring-primary/40"
             >
               <option value="">All Sentiments</option>
               <option value="positive">Positive</option>
               <option value="neutral">Neutral</option>
               <option value="negative">Negative</option>
             </select>
+            {isWbah && (
+              <select
+                value={wbahAgentFilter}
+                onChange={(e) => setWbahAgentFilter(e.target.value)}
+                className="h-6 rounded-md border border-white/[0.08] bg-card/80 px-1.5 text-[11px] text-foreground focus:outline-none focus:ring-1 focus:ring-primary/40"
+              >
+                <option value="all">All agents</option>
+                {wbahAgentOptions.map((a) => (
+                  <option key={a} value={a}>{a}</option>
+                ))}
+              </select>
+            )}
+            <select
+              value={durationFilter}
+              onChange={(e) => setDurationFilter(e.target.value)}
+              className="h-6 rounded-md border border-white/[0.08] bg-card/80 px-1.5 text-[11px] text-foreground focus:outline-none focus:ring-1 focus:ring-primary/40"
+              title="Call duration"
+            >
+              <option value="">Any duration</option>
+              <option value="60">&gt; 1 min</option>
+              <option value="300">&gt; 5 min</option>
+              <option value="600">&gt; 10 min</option>
+              <option value="900">&gt; 15 min</option>
+              <option value="1800">&gt; 30 min</option>
+            </select>
+            <select
+              value={outcomeFilter}
+              onChange={(e) => setOutcomeFilter(e.target.value)}
+              className="h-6 rounded-md border border-white/[0.08] bg-card/80 px-1.5 text-[11px] text-foreground focus:outline-none focus:ring-1 focus:ring-primary/40"
+              title="Call outcome"
+            >
+              <option value="">All Outcomes</option>
+              <option value="successful">Successful</option>
+              <option value="unsuccessful">Unsuccessful</option>
+            </select>
             <select
               value={daysFilter}
               onChange={(e) => setDaysFilter(e.target.value)}
-              className="h-7 rounded-md border border-white/[0.08] bg-card/80 px-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary/40"
+              className="h-6 rounded-md border border-white/[0.08] bg-card/80 px-1.5 text-[11px] text-foreground focus:outline-none focus:ring-1 focus:ring-primary/40"
             >
               <option value="today">Today</option>
               <option value="yesterday">Yesterday</option>
@@ -581,7 +663,29 @@ function CallsPage() {
               <option value="90">Last 90 days</option>
               <option value="180">Last 6 months</option>
               <option value="all">All time</option>
+              <option value="custom">Custom range…</option>
             </select>
+            {daysFilter === "custom" && (
+              <div className="flex items-center gap-1">
+                <input
+                  type="date"
+                  value={customFrom}
+                  max={customTo || undefined}
+                  onChange={(e) => setCustomFrom(e.target.value)}
+                  className="h-6 rounded-md border border-white/[0.08] bg-card/80 px-1.5 text-[11px] text-foreground focus:outline-none focus:ring-1 focus:ring-primary/40"
+                  title="From date"
+                />
+                <span className="text-[11px] text-muted-foreground">to</span>
+                <input
+                  type="date"
+                  value={customTo}
+                  min={customFrom || undefined}
+                  onChange={(e) => setCustomTo(e.target.value)}
+                  className="h-6 rounded-md border border-white/[0.08] bg-card/80 px-1.5 text-[11px] text-foreground focus:outline-none focus:ring-1 focus:ring-primary/40"
+                  title="To date"
+                />
+              </div>
+            )}
 
             {/* Three-state voicemail filter pill — native filters server-side, WBAH client-side */}
             <div className="flex items-center rounded-md border border-white/[0.08] bg-card/60 p-0.5 gap-0.5">
@@ -613,8 +717,8 @@ function CallsPage() {
               <Button
                 size="sm"
                 variant="ghost"
-                className="h-7 text-xs text-muted-foreground hover:text-foreground"
-                onClick={() => { setSearch(""); setStatusFilter(""); setCallTypeFilter(""); setSentimentFilter(""); }}
+                className="h-6 text-[11px] text-muted-foreground hover:text-foreground"
+                onClick={() => { setSearch(""); setStatusFilter(""); setCallTypeFilter(""); setSentimentFilter(""); setDurationFilter(""); setOutcomeFilter(""); }}
               >
                 Clear filters
               </Button>
@@ -627,23 +731,35 @@ function CallsPage() {
           </div>
 
           {/* Calls table */}
-          <div className="rounded-xl border border-white/[0.06] bg-card/60 overflow-hidden">
+          <div className="min-w-0 overflow-hidden rounded-xl border border-white/[0.06] bg-card/60">
             {wbahQ.isFetching && isWbah && rows.length === 0 ? (
               <LoadingProgress label="Loading calls" estimatedMs={9000} />
             ) : rows.length === 0 ? (
-              <div className="flex flex-col items-center gap-2 py-16">
-                <Phone className="h-8 w-8 text-muted-foreground" />
+              <div className="flex flex-col items-center gap-2 py-10">
+                <Phone className="h-7 w-7 text-muted-foreground" />
                 <p className="text-sm font-medium">No calls yet</p>
                 <p className="text-xs text-muted-foreground">Outbound and inbound calls will be logged here.</p>
               </div>
             ) : isWbah ? (
               /* ── WeeBespoke calls table ──────────────────────────────────── */
               <div className="overflow-x-auto">
-                <table className="w-full text-xs">
+                <table className="w-full text-[11px]">
                   <thead>
                     <tr className="border-b border-white/[0.06] bg-card/30">
-                      {["SR No","Times Called","Dial","Name","Contact","Type","Last Called At","Call Status","Call Duration","Recording","Sentiment Analysis","Transcript","View","Appointment Date","Appointment Time","Booking Status","Calendly Booking Url","End Reason","Disconnection Reason"].map(h => (
-                        <th key={h} className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground whitespace-nowrap">{h}</th>
+                      {["SR No","Times Called","Dial","Name","Contact","Type","Last Called At","Call Status","Call Duration","Recording","Sentiment Analysis","Summary","Transcript","View","Appointment Date","Appointment Time","Booking Status","Calendly Booking Url","End Reason","Disconnection Reason"].map((h, i) => (
+                        <th
+                          key={h}
+                          className={cn(
+                            "px-2 py-1 text-left text-[9px] font-semibold uppercase tracking-[0.08em] text-muted-foreground whitespace-nowrap",
+                            i === 0 && cn(stickyHead, "left-0 w-9"),
+                            i === 1 && cn(stickyHead, "left-9 w-10 text-center"),
+                            i === 2 && cn(stickyHead, "left-[4.75rem] w-10"),
+                            i === 3 && cn(stickyHead, "left-[7.25rem] w-28"),
+                            i === 4 && cn(stickyHead, "left-[14.25rem] w-28 shadow-[4px_0_8px_-4px_rgba(0,0,0,0.45)]"),
+                          )}
+                        >
+                          {h}
+                        </th>
                       ))}
                     </tr>
                   </thead>
@@ -653,62 +769,65 @@ function CallsPage() {
                       const phone = c.wbah_contact ?? c.to_number ?? c.from_number ?? null;
                       const callType = c.call_type === "inbound" ? "Inbound" : "Outbound";
                       return (
-                        <tr key={c.id} className="h-9 border-b border-white/[0.04] last:border-0 align-middle hover:bg-white/[0.02] transition-colors">
-                          <td className="px-3 py-1.5 text-[11px] text-muted-foreground tabular-nums">{idx + 1}</td>
-                          <td className="px-3 py-1.5">
+                        <tr key={c.id} className="group h-8 border-b border-white/[0.04] last:border-0 align-middle hover:bg-white/[0.02] transition-colors">
+                          <td className={cn("px-2 py-0.5 text-[10px] text-muted-foreground tabular-nums", stickyCell, "left-0 w-9")}>{idx + 1}</td>
+                          <td className={cn("px-2 py-0.5", stickyCell, "left-9 w-10 text-center")}>
                             {(c.call_count ?? 1) > 1 ? (
-                              <span className="inline-flex items-center gap-0.5 rounded-full bg-amber-500/15 px-2 py-0.5 text-[10px] font-semibold text-amber-400 tabular-nums">×{c.call_count}</span>
+                              <span className="inline-flex items-center justify-center rounded-full bg-amber-500/15 px-1 py-0.5 text-[9px] font-semibold text-amber-400 tabular-nums">×{c.call_count}</span>
                             ) : (
-                              <span className="text-[11px] text-muted-foreground tabular-nums">1</span>
+                              <span className="text-[10px] text-muted-foreground tabular-nums">1</span>
                             )}
                           </td>
-                          <td className="px-3 py-1.5" onClick={(e) => e.stopPropagation()}>
+                          <td className={cn("px-2 py-0.5", stickyCell, "left-[4.75rem] w-10")} onClick={(e) => e.stopPropagation()}>
                             {phone
-                              ? <a href={`tel:${phone}`} className="inline-flex rounded p-1 text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors"><Phone className="h-3.5 w-3.5" /></a>
-                              : <Phone className="h-3.5 w-3.5 text-muted-foreground/30" />}
+                              ? <a href={`tel:${phone}`} className="inline-flex rounded p-0.5 text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors"><Phone className="h-3 w-3" /></a>
+                              : <Phone className="h-3 w-3 text-muted-foreground/30" />}
                           </td>
-                          <td className="px-3 py-1.5 text-xs font-medium whitespace-nowrap">{name}</td>
-                          <td className="px-3 py-1.5 text-[11px] text-muted-foreground tabular-nums whitespace-nowrap">{phone ?? "N/A"}</td>
-                          <td className="px-3 py-1.5 text-[11px] text-muted-foreground whitespace-nowrap">{callType}</td>
-                          <td className="px-3 py-1.5 text-[11px] text-muted-foreground whitespace-nowrap">
+                          <td className={cn("max-w-[7rem] truncate px-2 py-0.5 text-[11px] font-medium", stickyCell, "left-[7.25rem] w-28")}>{name}</td>
+                          <td className={cn("max-w-[7rem] truncate px-2 py-0.5 text-[10px] text-muted-foreground tabular-nums", stickyCell, "left-[14.25rem] w-28 shadow-[4px_0_8px_-4px_rgba(0,0,0,0.35)]")}>{phone ?? "N/A"}</td>
+                          <td className="px-2 py-0.5 text-[10px] text-muted-foreground whitespace-nowrap">{callType}</td>
+                          <td className="px-2 py-0.5 text-[10px] text-muted-foreground whitespace-nowrap">
                             {c.started_at
                               ? new Date(c.started_at).toLocaleString(undefined, { timeStyle: "short", dateStyle: "medium" })
                               : "N/A"}
                           </td>
-                          <td className="px-3 py-1.5">
+                          <td className="px-2 py-0.5">
                             <span className={cn("rounded-full px-2 py-0.5 text-[10px] capitalize", statusClass(c.call_status))}>
                               {String(c.call_status ?? "").replace(/_/g, " ").trim() || "—"}
                             </span>
                           </td>
-                          <td className="whitespace-nowrap px-3 py-1.5 text-muted-foreground tabular-nums text-[11px]">{fmtDuration(c.duration_seconds)}</td>
-                          <td className="px-3 py-1.5" onClick={(e) => e.stopPropagation()}>
+                          <td className="whitespace-nowrap px-2 py-0.5 text-muted-foreground tabular-nums text-[11px]">{fmtDuration(c.duration_seconds)}</td>
+                          <td className="px-2 py-0.5" onClick={(e) => e.stopPropagation()}>
                             {c.recording_url
                               ? <button onClick={() => setRecordingPlayer({ url: c.recording_url, contact: name })} className="inline-flex items-center gap-1 text-[11px] text-primary hover:underline whitespace-nowrap"><PlayCircle className="h-3 w-3" /> Play</button>
                               : <span className="text-[11px] text-muted-foreground">N/A</span>}
                           </td>
-                          <td className="px-3 py-1.5">
+                          <td className="px-2 py-0.5">
                             <span className={cn("text-[11px] capitalize", sentimentClass(c.sentiment ?? "neutral").replace(/bg-\S+/g, "").replace(/\s+/g, " ").trim())}>
                               {c.sentiment ? c.sentiment.charAt(0).toUpperCase() + c.sentiment.slice(1) : "Neutral"}
                             </span>
                           </td>
-                          <td className="px-3 py-1.5" onClick={(e) => e.stopPropagation()}>
-                            {c.transcript
-                              ? <button onClick={() => setWbahTranscript({ text: c.transcript, name })} className="inline-flex items-center gap-1 text-[11px] rounded bg-primary/20 text-primary px-2 py-0.5 hover:bg-primary/30 whitespace-nowrap font-medium">Transcript</button>
+                          <td className="max-w-[200px] px-2 py-0.5 text-xs text-muted-foreground align-middle">
+                            <SummaryTooltip text={c.call_summary} lines={2} />
+                          </td>
+                          <td className="px-2 py-0.5" onClick={(e) => e.stopPropagation()}>
+                            {(c.transcript || c.hasTranscript)
+                              ? <button onClick={() => openWbahTranscript(c, name)} className="inline-flex items-center gap-1 text-[11px] rounded bg-primary/20 text-primary px-2 py-0.5 hover:bg-primary/30 whitespace-nowrap font-medium">Transcript</button>
                               : <span className="text-[11px] text-muted-foreground">N/A</span>}
                           </td>
-                          <td className="px-3 py-1.5" onClick={(e) => e.stopPropagation()}>
+                          <td className="px-2 py-0.5" onClick={(e) => e.stopPropagation()}>
                             <button onClick={() => openPanel(c)} className="inline-flex items-center gap-1 text-[11px] rounded border border-white/20 px-2 py-0.5 text-muted-foreground hover:text-foreground hover:border-white/40 whitespace-nowrap transition-colors">View</button>
                           </td>
-                          <td className="px-3 py-1.5 text-[11px] text-muted-foreground whitespace-nowrap">{c.appointment_date ?? "N/A"}</td>
-                          <td className="px-3 py-1.5 text-[11px] text-muted-foreground whitespace-nowrap">{c.appointment_time ?? "N/A"}</td>
-                          <td className="px-3 py-1.5 text-[11px] text-muted-foreground whitespace-nowrap">{c.booking_status ?? "N/A"}</td>
-                          <td className="px-3 py-1.5 text-[11px] text-muted-foreground whitespace-nowrap">
+                          <td className="px-2 py-0.5 text-[11px] text-muted-foreground whitespace-nowrap">{c.appointment_date ?? "N/A"}</td>
+                          <td className="px-2 py-0.5 text-[11px] text-muted-foreground whitespace-nowrap">{c.appointment_time ?? "N/A"}</td>
+                          <td className="px-2 py-0.5 text-[11px] text-muted-foreground whitespace-nowrap">{c.booking_status ?? "N/A"}</td>
+                          <td className="px-2 py-0.5 text-[11px] text-muted-foreground whitespace-nowrap">
                             {c.calendly_booking_url
                               ? <a href={c.calendly_booking_url} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">Link</a>
                               : "N/A"}
                           </td>
-                          <td className="px-3 py-1.5 text-[11px] text-muted-foreground whitespace-nowrap">{c.end_reason ?? "N/A"}</td>
-                          <td className="px-3 py-1.5 text-[11px] text-muted-foreground whitespace-nowrap">{c.disconnection_reason ?? "N/A"}</td>
+                          <td className="px-2 py-0.5 text-[11px] text-muted-foreground whitespace-nowrap">{c.end_reason ?? "N/A"}</td>
+                          <td className="px-2 py-0.5 text-[11px] text-muted-foreground whitespace-nowrap">{c.disconnection_reason ?? "N/A"}</td>
                         </tr>
                       );
                     })}
@@ -722,18 +841,18 @@ function CallsPage() {
                 <table className="w-full text-xs">
                   <thead>
                     <tr className="border-b border-white/[0.06] bg-card/30">
-                      <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Contact</th>
-                      <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Type</th>
-                      <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Agent</th>
-                      <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Status</th>
-                      <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Sentiment</th>
-                      <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Summary</th>
-                      <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Duration</th>
-                      <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Rec</th>
-                      <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Transcript</th>
-                      <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground whitespace-nowrap">End Reason</th>
-                      <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground whitespace-nowrap">Last Called At</th>
-                      <th className="sticky right-0 bg-card/80 px-3 py-2 w-20 backdrop-blur-sm"></th>
+                      <th className="px-2 py-1 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Contact</th>
+                      <th className="px-2 py-1 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Type</th>
+                      <th className="px-2 py-1 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Agent</th>
+                      <th className="px-2 py-1 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Status</th>
+                      <th className="px-2 py-1 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Sentiment</th>
+                      <th className="px-2 py-1 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Summary</th>
+                      <th className="px-2 py-1 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Duration</th>
+                      <th className="px-2 py-1 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Rec</th>
+                      <th className="px-2 py-1 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Transcript</th>
+                      <th className="px-2 py-1 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground whitespace-nowrap">End Reason</th>
+                      <th className="px-2 py-1 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground whitespace-nowrap">Last Called At</th>
+                      <th className="sticky right-0 bg-card/80 px-2 py-1 w-20 backdrop-blur-sm"></th>
                     </tr>
                   </thead>
                   <tbody>
@@ -749,14 +868,14 @@ function CallsPage() {
                         : null;
                       return (
                         <Fragment key={c.id}>
-                          <tr onClick={() => openPanel(c)} className={cn("border-b border-white/[0.04] last:border-0 align-middle hover:bg-white/[0.02] transition-colors cursor-pointer", isVmMode ? "h-auto" : "h-9", isVmMode && "bg-amber-500/[0.015]")}>
-                            <td className={cn("px-3 py-1.5 text-xs font-medium whitespace-nowrap", isVmMode && "border-l-2 border-l-amber-500/50")}>
+                          <tr onClick={() => openPanel(c)} className={cn("group border-b border-white/[0.04] last:border-0 align-middle hover:bg-white/[0.02] transition-colors cursor-pointer", isVmMode ? "h-auto" : "h-8", isVmMode && "bg-amber-500/[0.015]")}>
+                            <td className={cn("px-2 py-0.5 text-xs font-medium whitespace-nowrap", isVmMode && "border-l-2 border-l-amber-500/50")}>
                               {contact}
                               {c.is_voicemail && (
                                 <span className="ml-1.5 inline-block rounded-full bg-amber-500/15 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-amber-400">Voicemail</span>
                               )}
                             </td>
-                            <td className="px-3 py-1.5">
+                            <td className="px-2 py-0.5">
                               <span className="inline-flex items-center gap-1 text-[11px] text-muted-foreground">
                                 {inbound ? <PhoneIncoming className="h-3 w-3 text-primary" /> : <PhoneOutgoing className="h-3 w-3" />}
                                 {inbound ? "Inbound" : "Outbound"}
@@ -768,38 +887,38 @@ function CallsPage() {
                                 <span className="ml-1 inline-block rounded-full bg-sky-500/15 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-sky-400">Web</span>
                               )}
                             </td>
-                            <td className="px-3 py-1.5 text-muted-foreground text-[11px] whitespace-nowrap">{c.agent_name ?? "—"}</td>
-                            <td className="px-3 py-1.5">
+                            <td className="px-2 py-0.5 text-muted-foreground text-[11px] whitespace-nowrap">{c.agent_name ?? "—"}</td>
+                            <td className="px-2 py-0.5">
                               <span className={cn("rounded-full px-2 py-0.5 text-[10px] capitalize", statusClass(c.call_status))}>
                                 {String(c.call_status ?? "").replace(/_/g, " ").trim() || "—"}
                               </span>
                             </td>
-                            <td className="px-3 py-1.5">
+                            <td className="px-2 py-0.5">
                               {c.sentiment
                                 ? <span className={cn("rounded-full px-2 py-0.5 text-[10px] capitalize", sentimentClass(c.sentiment))}>{c.sentiment}</span>
                                 : <span className="text-[11px] text-muted-foreground">—</span>}
                             </td>
-                            <td className="max-w-[300px] px-3 py-1.5 text-xs text-muted-foreground align-middle"><SummaryTooltip text={c.call_summary} lines={2} /></td>
-                            <td className="whitespace-nowrap px-3 py-1.5 text-muted-foreground tabular-nums text-[11px]">{fmtDuration(c.duration_seconds)}</td>
-                            <td className="px-3 py-1.5" onClick={(e) => e.stopPropagation()}>
+                            <td className="max-w-[300px] px-2 py-0.5 text-xs text-muted-foreground align-middle"><SummaryTooltip text={c.call_summary} lines={2} /></td>
+                            <td className="whitespace-nowrap px-2 py-0.5 text-muted-foreground tabular-nums text-[11px]">{fmtDuration(c.duration_seconds)}</td>
+                            <td className="px-2 py-0.5" onClick={(e) => e.stopPropagation()}>
                               {c.recording_url
                                 ? <button onClick={() => setRecordingPlayer({ url: c.recording_url, contact })} className="inline-flex items-center gap-1 text-[11px] text-primary hover:underline"><PlayCircle className="h-3 w-3" /> Play</button>
                                 : <span className="text-[11px] text-muted-foreground">—</span>}
                             </td>
-                            <td className="px-3 py-1.5" onClick={(e) => e.stopPropagation()}>
-                              {c.transcript
-                                ? <button onClick={() => setWbahTranscript({ text: c.transcript, name: contact })} className="inline-flex items-center gap-1 text-[11px] rounded bg-primary/20 text-primary px-2 py-0.5 hover:bg-primary/30 whitespace-nowrap font-medium">Transcript</button>
+                            <td className="px-2 py-0.5" onClick={(e) => e.stopPropagation()}>
+                              {(c.transcript || c.hasTranscript)
+                                ? <button onClick={() => openWbahTranscript(c, contact)} className="inline-flex items-center gap-1 text-[11px] rounded bg-primary/20 text-primary px-2 py-0.5 hover:bg-primary/30 whitespace-nowrap font-medium">Transcript</button>
                                 : <span className="text-[11px] text-muted-foreground">—</span>}
                             </td>
-                            <td className="px-3 py-1.5 text-[11px] text-muted-foreground whitespace-nowrap">
+                            <td className="px-2 py-0.5 text-[11px] text-muted-foreground whitespace-nowrap">
                               {c.disconnection_reason ? String(c.disconnection_reason).replace(/_/g, " ") : "—"}
                             </td>
-                            <td className="whitespace-nowrap px-3 py-1.5 text-muted-foreground text-[11px]">
+                            <td className="whitespace-nowrap px-2 py-0.5 text-muted-foreground text-[11px]">
                               {c.started_at
                                 ? new Date(c.started_at).toLocaleString(undefined, { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })
                                 : "Not called yet"}
                             </td>
-                            <td className="sticky right-0 bg-card/80 backdrop-blur-sm px-3 py-1.5" onClick={(e) => e.stopPropagation()}>
+                            <td className="sticky right-0 bg-card/80 backdrop-blur-sm px-2 py-0.5" onClick={(e) => e.stopPropagation()}>
                               <div className="flex items-center justify-center gap-1">
                                 {isVmMode && callbackPhone && (
                                   <div className="relative group/callback">
@@ -824,7 +943,7 @@ function CallsPage() {
                           </tr>
                           {transcriptSnippet && (
                             <tr className={cn("border-b border-white/[0.04] bg-amber-500/[0.015]")}>
-                              <td colSpan={12} className="border-l-2 border-l-amber-500/50 px-3 pb-2 pt-0">
+                              <td colSpan={12} className="border-l-2 border-l-amber-500/50 px-2.5 pb-2 pt-0">
                                 <div className="flex items-start gap-1.5 text-[11px] text-amber-400/70">
                                   <MessageSquare className="mt-0.5 h-3 w-3 shrink-0" />
                                   <span className="italic leading-relaxed">{transcriptSnippet}</span>
@@ -845,7 +964,7 @@ function CallsPage() {
       ) : (
         <>
           {/* Test calls KPI strip */}
-          <div className="grid grid-cols-2 gap-3 md:grid-cols-3 mb-5">
+          <div className="mb-2 grid grid-cols-2 gap-2 md:grid-cols-3">
             <KpiCard
               label="Test Calls"
               value={testRows.length}
@@ -870,7 +989,7 @@ function CallsPage() {
           </div>
 
           {/* Test calls table */}
-          <div className="rounded-xl border border-white/[0.06] bg-card/60 overflow-hidden">
+          <div className="min-w-0 overflow-hidden rounded-xl border border-white/[0.06] bg-card/60">
             {testRows.length === 0 ? (
               <div className="flex flex-col items-center gap-2 py-16">
                 <FlaskConical className="h-8 w-8 text-muted-foreground" />
@@ -882,20 +1001,20 @@ function CallsPage() {
                 <table className="w-full text-xs">
                   <thead>
                     <tr className="border-b border-white/[0.06] bg-card/30">
-                      <th className="w-6 px-3 py-2" />
-                      <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Agent</th>
-                      <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Duration</th>
-                      <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Channel Type</th>
-                      <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Cost</th>
-                      <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Session ID</th>
-                      <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">End Reason</th>
-                      <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Session Status</th>
-                      <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Sentiment</th>
-                      <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">From</th>
-                      <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">To</th>
-                      <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Direction</th>
-                      <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Recording</th>
-                      <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">When</th>
+                      <th className="w-6 px-2 py-1" />
+                      <th className="px-2 py-1 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Agent</th>
+                      <th className="px-2 py-1 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Duration</th>
+                      <th className="px-2 py-1 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Channel Type</th>
+                      <th className="px-2 py-1 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Cost</th>
+                      <th className="px-2 py-1 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Session ID</th>
+                      <th className="px-2 py-1 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">End Reason</th>
+                      <th className="px-2 py-1 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Session Status</th>
+                      <th className="px-2 py-1 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Sentiment</th>
+                      <th className="px-2 py-1 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">From</th>
+                      <th className="px-2 py-1 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">To</th>
+                      <th className="px-2 py-1 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Direction</th>
+                      <th className="px-2 py-1 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Recording</th>
+                      <th className="px-2 py-1 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">When</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -921,8 +1040,9 @@ function CallsPage() {
           defaultPhone={panel.defaultPhone}
           defaultEmail={panel.defaultEmail}
           leadId={panel.leadId}
+          callSummary={panel.callSummary}
         />
       )}
-    </div>
+    </DashboardPage>
   );
 }

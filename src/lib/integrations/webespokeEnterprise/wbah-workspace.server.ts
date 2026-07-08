@@ -14,8 +14,10 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
+import { enrichWbahCallRowsWithBookings, findWbahBookingCall, resolveWbahBookingFields, phoneDigits, isWbahRecordBooked, listWbahBookedContacts, WBAH_BOOKED_STATUSES } from "@/lib/dashboard/wbah-booking-meta";
+import { getWbahCallsAggregate } from "./wbah-leads.server";
 import { recordSyncState } from "@/lib/sync-state/sync-state.server";
-import { cacheWrap } from "@/lib/cache/redis.server";
+import { cacheWrap, cacheGet, cacheSet } from "@/lib/cache/redis.server";
 import * as api from "./client.server";
 import { wbahCallsParamTest, wbahCallsPostPage, wbahLeadsParamTest } from "./client.server";
 import { getCampaignData } from "@/lib/api-engine/data-source-router.server";
@@ -1371,8 +1373,15 @@ function normaliseWbahCall(r: any, idx: number): Record<string, unknown> {
 // Plain DB read of wbah_calls (paginated + shaped to the calls-table contract).
 // Kept OUTSIDE any cacheWrap so the "live" path can refresh THEN read without a
 // stale cached payload masking the just-upserted rows.
-async function readWbahCallsRows(supabase: any, workspaceId: string) {
+// `lite` excludes the heavy transcript/call_summary fields so the full list
+// stays well under Upstash/browser limits (transcripts load on demand via
+// getWbahCallDetail). KPIs, filters and search do not need those fields.
+async function readWbahCallsRows(supabase: any, workspaceId: string, opts?: { lite?: boolean }) {
   const sb = supabase as any;
+  const lite = opts?.lite ?? false;
+  const cols = lite
+    ? "id, customer_name, phone, agent_name, call_status, call_type, sentiment, duration_seconds, started_at, recording_url, disconnection_reason, end_reason, appointment_date, appointment_time, booking_status, calendly_booking_url, call_count, call_summary, transcript"
+    : "*";
   // Supabase PostgREST caps rows at 1000 by default — paginate to fetch all.
   const PAGE = 1000;
   const allRows: any[] = [];
@@ -1380,7 +1389,7 @@ async function readWbahCallsRows(supabase: any, workspaceId: string) {
   while (true) {
     const { data, error } = await sb
       .from("wbah_calls")
-      .select("*")
+      .select(cols)
       .eq("workspace_id", workspaceId)
       .order("started_at", { ascending: false, nullsFirst: false })
       .range(from, from + PAGE - 1);
@@ -1390,7 +1399,7 @@ async function readWbahCallsRows(supabase: any, workspaceId: string) {
     if (rows.length < PAGE) break;
     from += PAGE;
   }
-  return allRows.map((r: any) => ({
+  const mapped = allRows.map((r: any) => ({
     id:                   r.id,
     agent_id:             null,
     agent_name:           r.agent_name,
@@ -1400,8 +1409,11 @@ async function readWbahCallsRows(supabase: any, workspaceId: string) {
     started_at:           r.started_at,
     ended_at:             null,
     recording_url:        r.recording_url,
-    transcript:           r.transcript,
-    call_summary:         r.call_summary,
+    // In lite mode the transcript text is dropped from the payload; the client
+    // fetches it on demand. `hasTranscript` still drives the "View" button.
+    transcript:           lite ? null : r.transcript,
+    hasTranscript:        !!(r.transcript && String(r.transcript).trim()),
+    call_summary:         lite ? (r.call_summary && String(r.call_summary).trim() ? String(r.call_summary).trim() : null) : r.call_summary,
     from_number:          r.call_type === "inbound"  ? r.phone : null,
     to_number:            r.call_type === "outbound" ? r.phone : null,
     sentiment:            r.sentiment,
@@ -1418,36 +1430,35 @@ async function readWbahCallsRows(supabase: any, workspaceId: string) {
     end_reason:           r.end_reason,
     call_count:           r.call_count ?? 1,
   }));
+  return enrichWbahCallRowsWithBookings(supabaseAdmin, workspaceId, mapped);
 }
 
+// NOTE: the full WBAH calls list is ~20MB (15k+ rows with transcripts) — far
+// over Upstash's 10MB request limit and against the "no full lists in Redis"
+// policy. Supabase is the source of truth and is read directly (indexed,
+// paginated). We do NOT cacheWrap the whole list.
 export const listWbahCallsFromDb = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
     const { supabase, workspaceId } = context;
     if (!workspaceId) throw new Error("No active workspace");
-    return cacheWrap(`webee:wbah-calls:${workspaceId}`, 2 * 60, () => readWbahCallsRows(supabase, workspaceId));
+    return readWbahCallsRows(supabase, workspaceId);
   });
 
-// Live variant (option 3): pulls the newest calls from WeeBespoke on open
-// (incremental, stored-token, capped), upserts them, then reads the freshly-
-// updated table. Uses its OWN cache key so the refresh runs INSIDE the factory
-// and can never be masked by listWbahCallsFromDb's 2-min snapshot cache. The
-// refresh is idempotent and guarded against concurrent runs.
+// Live variant: pulls the newest calls from WeeBespoke on open (incremental,
+// stored-token, capped), upserts them, then reads the freshly-updated table
+// straight from Supabase. The incremental refresh has its own module-level
+// throttle; the full list is never cached in Redis (too large).
 export const listWbahCallsLive = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
     const { supabase, workspaceId } = context;
     if (!workspaceId) throw new Error("No active workspace");
-    return cacheWrap(`webee:wbah-calls-live:${workspaceId}`, 60, async () => {
-      if (workspaceId === WBAH_WORKSPACE_ID) {
-        try {
-          const { refreshWbahCallsIncremental } = await import("./wbah-leads-sync-tick");
-          await refreshWbahCallsIncremental();
-        } catch (e: any) {
-          console.warn("[wbah-calls-live] incremental refresh failed, serving DB snapshot:", e?.message ?? e);
-        }
-      }
-      return readWbahCallsRows(supabase, workspaceId);
+    void refreshWbahLiveData(workspaceId, { lightBackfill: true });
+    return cacheWrap(`webee:wbah-calls-live-lite:v1:${workspaceId}`, 180, async () => {
+      const rows = await readWbahCallsRows(supabase, workspaceId, { lite: true });
+      logWbahResponse("listWbahCallsLive", workspaceId, rows.length, rows);
+      return rows;
     });
   });
 
@@ -1469,9 +1480,234 @@ export const listWbahCallsCount = createServerFn({ method: "GET" })
     });
   });
 
+// ── Server-side paginated WBAH Calls ──────────────────────────────────────────
+// Returns ONE lightweight page of calls (no transcripts / summaries) so the
+// browser never receives the full ~20MB list. Supabase is the source of truth;
+// only the small page response is cached in Redis (short TTL, paginated key).
+
+function logWbahResponse(fn: string, workspaceId: string, rows: number, payload: unknown, extra?: Record<string, unknown>) {
+  let bytes = 0;
+  try { bytes = JSON.stringify(payload)?.length ?? 0; } catch { bytes = 0; }
+  console.log(
+    `[wbah-response] fn=${fn} workspace_id=${workspaceId} rows=${rows} bytes=${bytes} ` +
+    `sizeKB=${(bytes / 1024).toFixed(1)} sizeMB=${(bytes / 1_000_000).toFixed(2)}` +
+    (extra ? " " + Object.entries(extra).map(([k, v]) => `${k}=${v}`).join(" ") : ""),
+  );
+}
+
+// UI status buckets → raw wbah_calls.call_status values.
+const WBAH_CALL_STATUS_FILTER: Record<string, string[]> = {
+  completed:     ["completed", "ended", "call_analyzed", "analyzed"],
+  not_connected: ["no_answer", "not_connected", "voicemail", "voicemail_reached", "missed"],
+  need_to_call:  ["need_to_call"],
+  failed:        ["failed", "error", "call_failed"],
+};
+
+export const listWbahCallsPaged = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator(
+    z.object({
+      page:      z.coerce.number().int().min(1).default(1),
+      pageSize:  z.coerce.number().int().min(1).max(100).default(50),
+      search:    z.string().trim().max(120).optional(),
+      dateFrom:  z.string().optional(),
+      dateTo:    z.string().optional(),
+      status:    z.string().optional(),
+      sentiment: z.string().optional(),
+      agentName: z.string().trim().max(120).optional(),
+      refresh:   z.coerce.boolean().optional(),
+    }),
+  )
+  .handler(async ({ context, data }) => {
+    const { supabase, workspaceId } = context;
+    if (!workspaceId) throw new Error("No active workspace");
+
+    // Optional live refresh (throttled internally) — only worth doing on the
+    // first page of an unfiltered view so opening the tab shows fresh data.
+    if (data.refresh && workspaceId === WBAH_WORKSPACE_ID) {
+      try {
+        const { refreshWbahCallsFromRetell } = await import("./wbah-retell-calls-sync");
+        await refreshWbahCallsFromRetell();
+      } catch (e: any) {
+        console.warn("[wbah-calls-paged] incremental refresh failed:", e?.message ?? e);
+      }
+    }
+
+    const { page, pageSize, search, dateFrom, dateTo, status, sentiment, agentName } = data;
+    const filtersHash = Buffer.from(
+      JSON.stringify({ q: search ?? "", f: dateFrom ?? "", t: dateTo ?? "", s: status ?? "", se: sentiment ?? "", a: agentName ?? "" }),
+    ).toString("base64").replace(/[^a-zA-Z0-9]/g, "").slice(0, 24);
+
+    const key = `webee:wbah-calls-page:${workspaceId}:p${page}:ps${pageSize}:${filtersHash}`;
+    return cacheWrap(key, 60, async () => {
+      const sb = supabase as any;
+      const from = (page - 1) * pageSize;
+      const to = from + pageSize - 1;
+
+      let q = sb
+        .from("wbah_calls")
+        // transcript is selected only to derive `hasTranscript`; it is NOT
+        // returned in the response (fetched on demand via getWbahCallDetail).
+        .select(
+          "id, customer_name, phone, agent_name, call_status, call_type, sentiment, duration_seconds, started_at, recording_url, transcript, disconnection_reason, end_reason, appointment_date, appointment_time, booking_status, calendly_booking_url, call_count",
+          { count: "exact" },
+        )
+        .eq("workspace_id", workspaceId);
+
+      if (search) q = q.or(`customer_name.ilike.%${search}%,phone.ilike.%${search}%`);
+      if (dateFrom) q = q.gte("started_at", dateFrom);
+      if (dateTo) q = q.lte("started_at", dateTo);
+      if (sentiment && sentiment !== "all") q = q.eq("sentiment", sentiment);
+      if (agentName && agentName !== "all") q = q.eq("agent_name", agentName);
+      if (status && status !== "all" && WBAH_CALL_STATUS_FILTER[status]) {
+        q = q.in("call_status", WBAH_CALL_STATUS_FILTER[status]);
+      }
+      q = q.order("started_at", { ascending: false, nullsFirst: false }).range(from, to);
+
+      const { data: rows, count, error } = await q;
+      if (error) throw new Error(error.message);
+
+      const mapped = (rows ?? []).map((r: any, i: number) => ({
+        id:                  r.id,
+        srNo:                from + i + 1,
+        name:                r.customer_name ?? null,
+        contact:             r.phone ?? null,
+        email:               null,
+        callType:            r.call_type ?? "outbound",
+        callStatus:          r.call_status,
+        sentimentAnalysis:   r.sentiment,
+        disconnectionReason: r.disconnection_reason,
+        appointmentDate:     r.appointment_date ?? null,
+        appointmentTime:     r.appointment_time ?? null,
+        bookingStatus:       r.booking_status ?? null,
+        calendlyBookingUrl:  r.calendly_booking_url ?? null,
+        agentName:           r.agent_name ?? null,
+        startTimestamp:      r.started_at ? new Date(r.started_at).getTime() : null,
+        durationMs:          r.duration_seconds ? r.duration_seconds * 1000 : null,
+        recordingUrl:        r.recording_url ?? null,
+        endReason:           r.end_reason ?? null,
+        hasTranscript:       !!(r.transcript && String(r.transcript).trim()),
+      }));
+
+      const result = { rows: mapped, total: count ?? 0, page, pageSize };
+      logWbahResponse("listWbahCallsPaged", workspaceId, mapped.length, result, {
+        page, pageSize, filters: filtersHash,
+      });
+      return result;
+    });
+  });
+
+// ── Contact call history (drill-down) ─────────────────────────────────────────
+// All calls for one phone number, newest first (lightweight — transcript loaded
+// on demand via getWbahCallDetail). Powers the "N calls" drill-down on the Leads
+// and Qualified pages.
+export const getWbahContactCallHistory = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator(z.object({ phone: z.string().min(1) }))
+  .handler(async ({ context, data }) => {
+    const { supabase, workspaceId } = context;
+    if (!workspaceId) throw new Error("No active workspace");
+    const { data: rows, error } = await (supabase as any)
+      .from("wbah_calls")
+      .select("id, customer_name, phone, agent_name, call_status, sentiment, duration_seconds, started_at, recording_url, transcript, call_summary, disconnection_reason, end_reason, appointment_date, appointment_time, booking_status")
+      .eq("workspace_id", workspaceId)
+      .eq("phone", data.phone)
+      .order("started_at", { ascending: false, nullsFirst: false })
+      .limit(100);
+    if (error) throw new Error(error.message);
+    const calls = (rows ?? []).map((r: any) => ({
+      id:                  r.id,
+      name:                r.customer_name ?? null,
+      agentName:           r.agent_name ?? null,
+      callStatus:          r.call_status ?? null,
+      sentiment:           r.sentiment ?? null,
+      durationSeconds:     r.duration_seconds ?? null,
+      startedAt:           r.started_at ?? null,
+      recordingUrl:        r.recording_url ?? null,
+      callSummary:         r.call_summary ?? null,
+      disconnectionReason: r.disconnection_reason ?? null,
+      endReason:           r.end_reason ?? null,
+      appointmentDate:     r.appointment_date ?? null,
+      bookingStatus:       r.booking_status ?? null,
+      hasTranscript:       !!(r.transcript && String(r.transcript).trim()),
+    }));
+    return { phone: data.phone, calls };
+  });
+
+// ── Single-call detail (full transcript / summary / recording) ────────────────
+// Loaded on demand when a user opens a call — never included in the list page.
+export const getWbahCallDetail = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator(z.object({ id: z.string().min(1) }))
+  .handler(async ({ context, data }) => {
+    const { supabase, workspaceId } = context;
+    if (!workspaceId) throw new Error("No active workspace");
+    const sb = supabase as any;
+    const { data: row, error } = await sb
+      .from("wbah_calls")
+      .select("id, transcript, call_summary, recording_url, disconnection_reason, end_reason, sentiment, started_at, duration_seconds")
+      .eq("workspace_id", workspaceId)
+      .eq("id", data.id)
+      .maybeSingle();
+    if (error) throw new Error(error.message);
+    return {
+      id:           data.id,
+      transcript:   row?.transcript ?? null,
+      callSummary:  row?.call_summary ?? null,
+      recordingUrl: row?.recording_url ?? null,
+    };
+  });
+
 // ── Retell helper — get WBAH workspace's Retell API key ───────────────────────
 
 const WBAH_WORKSPACE_ID = "5cb750b6-fabf-4e84-9b92-740df1cd8d53";
+
+let _liveRefreshInflight: Promise<void> | null = null;
+
+async function refreshWbahLiveData(
+  workspaceId: string,
+  opts?: { awaitResult?: boolean; lightBackfill?: boolean },
+): Promise<void> {
+  if (workspaceId !== WBAH_WORKSPACE_ID) return;
+
+  const run = async () => {
+    try {
+      const { refreshWbahCallsFromRetell } = await import("./wbah-retell-calls-sync");
+      await refreshWbahCallsFromRetell();
+    } catch (e: any) {
+      console.warn("[wbah-live] retell refresh failed:", e?.message ?? e);
+    }
+    try {
+      const {
+        refreshWbahAppointmentBackfill,
+        syncWbahBookedContactsFromCrm,
+        syncWbahBookedContactsFromCalls,
+      } = await import("./wbah-leads-sync-tick");
+      const [booked, fromCalls] = await Promise.all([
+        syncWbahBookedContactsFromCrm(),
+        syncWbahBookedContactsFromCalls(),
+      ]);
+      if (booked.rows > 0 || fromCalls.rows > 0) {
+        const { cacheDel } = await import("@/lib/cache/redis.server");
+        await cacheDel(`webee:wbah-calls-aggregate:v5:${workspaceId}`);
+      }
+      await refreshWbahAppointmentBackfill(
+        opts?.lightBackfill ? { maxPages: 3 } : { maxPages: 25 },
+      );
+    } catch (e: any) {
+      console.warn("[wbah-live] appointment backfill failed:", e?.message ?? e);
+    }
+  };
+
+  if (opts?.awaitResult) {
+    return run();
+  }
+
+  if (!_liveRefreshInflight) {
+    _liveRefreshInflight = run().finally(() => { _liveRefreshInflight = null; });
+  }
+  void _liveRefreshInflight;
+}
 
 async function requireWbahRetellKey(userId: string): Promise<string> {
   if (!userId) throw new Error("Unauthorized");
@@ -1599,6 +1835,136 @@ export const getWbahRetellAgents = createServerFn({ method: "GET" })
     }));
   });
 
+// ── Reconcile WeBee agents ↔ Retell (WBAH workspace) ──────────────────────────
+// Cross-references the WBAH `agents` rows against the live Retell agent list
+// (deduped — Retell's /list-agents returns one row per agent version) and, when
+// `apply` is set, heals the mismatch non-destructively:
+//   • imports Retell agents that are missing from WeBee (so they're selectable)
+//   • clears stale `retell_agent_id`s on WeBee agents whose Retell agent no
+//     longer exists (prevents calls/deploys firing at a dead agent). The row and
+//     its builder `flow_data` are preserved so it can simply be re-deployed.
+
+// Fine-grained dashboard type stored in settings.dashboardAgentType (drives the
+// qualification agent picker). The `agent_type` enum column only has coarse
+// values ('lead_gen' | 'receptionist').
+function inferWbahDashboardType(name: string): string {
+  const n = name.toLowerCase();
+  if (n.includes("qualif") || n.includes("rebook")) return "client_qualification";
+  return "lead_generation";
+}
+
+export const reconcileWbahRetellAgents = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator(
+    z.object({ apply: z.coerce.boolean().default(false) }),
+  )
+  .handler(async ({ context, data }) => {
+    const { retellFetch } = await import("@/lib/providers/retell/client.server");
+    const apiKey = await requireWbahRetellKey(context.userId);
+    const isAdmin = await isPlatformAdmin(context.userId);
+    if (data.apply && !isAdmin) throw new Error("Admin access required to apply changes");
+
+    // Live Retell agents (dedupe versions by agent_id).
+    const agentList = await retellFetch<any[]>("/list-agents", null, "GET", apiKey).catch(() => []);
+    const retellById = new Map<string, string>();
+    for (const a of agentList ?? []) {
+      if (a?.agent_id && !retellById.has(a.agent_id)) retellById.set(a.agent_id, a.agent_name ?? a.agent_id);
+    }
+
+    // WeBee agents for the WBAH workspace.
+    const { data: dbAgents } = await (supabaseAdmin as any)
+      .from("agents")
+      .select("id, name, retell_agent_id, agent_type, deployment_mode, settings, created_at")
+      .eq("workspace_id", WBAH_WORKSPACE_ID);
+
+    // Ignore already-archived agents when computing the reconciliation.
+    const dbRows: any[] = (dbAgents ?? []).filter((a: any) => !(a.settings?.archived));
+    const dbRetellIds = new Set(dbRows.map((a) => a.retell_agent_id).filter(Boolean));
+
+    const matched = dbRows
+      .filter((a) => a.retell_agent_id && retellById.has(a.retell_agent_id))
+      .map((a) => ({ id: a.id, name: a.name, retell_agent_id: a.retell_agent_id }));
+    const orphaned = dbRows
+      .filter((a) => a.retell_agent_id && !retellById.has(a.retell_agent_id))
+      .map((a) => ({ id: a.id, name: a.name, retell_agent_id: a.retell_agent_id }));
+    const missing = Array.from(retellById, ([agent_id, name]) => ({ agent_id, name }))
+      .filter((m) => !dbRetellIds.has(m.agent_id));
+
+    // Duplicate WeBee rows sharing one retell_agent_id.
+    const byRetell = new Map<string, any[]>();
+    for (const a of dbRows) {
+      if (!a.retell_agent_id) continue;
+      const arr = byRetell.get(a.retell_agent_id) ?? [];
+      arr.push(a);
+      byRetell.set(a.retell_agent_id, arr);
+    }
+    const duplicates = Array.from(byRetell.values())
+      .filter((arr) => arr.length > 1)
+      .map((arr) => ({ retell_agent_id: arr[0].retell_agent_id, rows: arr.map((r) => ({ id: r.id, name: r.name })) }));
+
+    const actions = { imported: [] as any[], archivedStale: [] as any[] };
+
+    if (data.apply) {
+      // Resolve the WBAH workspace owner as the creator for imported rows.
+      const { data: owner } = await (supabaseAdmin as any)
+        .from("workspace_members")
+        .select("user_id")
+        .eq("workspace_id", WBAH_WORKSPACE_ID)
+        .eq("role", "owner")
+        .maybeSingle();
+      const ownerId = owner?.user_id ?? context.userId;
+
+      for (const m of missing) {
+        const dashType = inferWbahDashboardType(m.name);
+        const enumType = dashType === "lead_generation" ? "lead_gen" : "receptionist";
+        const { data: row, error } = await (supabaseAdmin as any)
+          .from("agents")
+          .insert({
+            user_id: ownerId,
+            workspace_id: WBAH_WORKSPACE_ID,
+            retell_agent_id: m.agent_id,
+            name: m.name,
+            agent_type: enumType,
+            deployment_mode: "RETELL",
+            flow_data: { nodes: [], edges: [] },
+            settings: { dashboardAgentType: dashType, isLive: true, liveAt: new Date().toISOString(), importedFromRetell: true },
+            variables: {},
+          })
+          .select("id")
+          .maybeSingle();
+        if (!error) actions.imported.push({ id: row?.id, name: m.name, retell_agent_id: m.agent_id, agent_type: dashType });
+      }
+
+      // Archive orphaned agents whose Retell agent no longer exists — these are
+      // the stale "old" agents that otherwise linger on the dashboard. A hard
+      // delete cascades ON DELETE SET NULL across many large tables and hits the
+      // DB statement timeout, so we soft-archive instead (cheap single-row
+      // update). Archived agents are filtered out of every agent listing and
+      // their builder flow_data is preserved.
+      const orphanRows = dbRows.filter((a) => a.retell_agent_id && !retellById.has(a.retell_agent_id));
+      for (const o of orphanRows) {
+        const nextSettings = { ...(o.settings ?? {}), isLive: false, archived: true, archivedAt: new Date().toISOString() };
+        const { error } = await (supabaseAdmin as any)
+          .from("agents")
+          .update({ retell_agent_id: null, settings: nextSettings, updated_at: new Date().toISOString() })
+          .eq("id", o.id)
+          .eq("workspace_id", WBAH_WORKSPACE_ID);
+        if (!error) actions.archivedStale.push({ id: o.id, name: o.name, retell_agent_id: o.retell_agent_id });
+      }
+    }
+
+    return {
+      retellAgentCount: retellById.size,
+      webeeAgentCount: dbRows.length,
+      matched,
+      orphaned,
+      missing,
+      duplicates,
+      applied: data.apply,
+      actions,
+    };
+  });
+
 // ─────────────────────────────────────────────────────────────────────────────
 // WBAH Categorized Lead Sync — server functions
 // Tables: wbah_categorized_leads, wbah_category_sync_log
@@ -1692,81 +2058,271 @@ function classifyWbahCrmContact(_r: any): WbahDerivedCat {
   return "disqualified";
 }
 
+// The WeeBespoke "Lead Filter Master" tags each loaded CRM contact with a
+// `lead_status` (e.g. "Disqualified", "Tried To Contact", "Rebook Initial
+// Consultation"). We surface that verbatim so the WeBee People section can split
+// the combined feed back into one tab per lead-filter category.
+function wbahContactLeadStatus(r: any): string {
+  return String(r?.crmData?.lead_status ?? r?.lead_status ?? "").trim() || "Uncategorized";
+}
+
+// Slug used to match a category name across the old enum values and the live
+// lead_status labels: "Tried To Contact" ⟺ "tried_to_contact", etc.
+function wbahCatSlug(s: string): string {
+  return String(s ?? "")
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "");
+}
+
+function wbahContactMatchesCategory(c: any, category: string): boolean {
+  if (!category || category === "all") return true;
+  return wbahCatSlug(c.__leadStatus ?? wbahContactLeadStatus(c)) === wbahCatSlug(category);
+}
+
 // Fetch ALL CRM-loaded contacts from the live `get-all-calldata` feed — the only
 // WeeBespoke source that carries not-yet-called ("need_to_call") contacts plus a
 // per-record CRM load date (`createdAt`). Records are deduped by phone (latest
 // load wins), already-booked contacts are dropped, and each survivor is tagged
 // with its `__cat`. Cached per-workspace for 60s so the three category tabs and
 // their count probes share a single fetch.
-async function getWbahCrmLoadedContacts(userId: string, workspaceId: string): Promise<any[]> {
-  return cacheWrap(`webee:wbah-crm-contacts:${workspaceId}`, 60, async () => {
-    const cbs = await requireWbahCbs(userId);
-    const gt  = cbs.getTokens;
-    const st  = cbs.saveNewAccessToken;
-    const rl  = cbs.reloginFn;
+// Live fetch of all CRM-loaded contacts from get-all-calldata (14 pages), deduped
+// and classified. Throws on failure/empty so the caller can fall back.
+async function fetchWbahCrmLoadedContactsLive(userId: string): Promise<any[]> {
+  const cbs = await requireWbahCbs(userId);
+  const gt  = cbs.getTokens;
+  const st  = cbs.saveNewAccessToken;
+  const rl  = cbs.reloginFn;
 
-    const extractRecs = (raw: any): any[] =>
-      Array.isArray(raw?.data) ? raw.data : Array.isArray(raw) ? raw : [];
+  const extractRecs = (raw: any): any[] =>
+    Array.isArray(raw?.data) ? raw.data : Array.isArray(raw) ? raw : [];
 
-    // Page 1 is fetched first (sequentially) with the re-login fallback. If the
-    // shared token is already dead, this mints a fresh session and persists it
-    // into the closure, so the parallel page batch below reuses the healed token.
-    // This reduces — but cannot fully eliminate — concurrent re-logins: a token
-    // invalidated mid-batch (or simultaneous uncached category requests) can
-    // still trigger a few parallel relogins, but those are bounded (batch size 8).
-    const p1Res = await api.wbahGetAllCallDataPaged(1, gt, st, rl);
-    if (!p1Res.ok) throw new Error(p1Res.error ?? "Failed to fetch CRM call data from WeeBespoke");
+  const p1Res = await api.wbahGetAllCallDataPaged(1, gt, st, rl);
+  if (!p1Res.ok) throw new Error(p1Res.error ?? "Failed to fetch CRM call data from WeeBespoke");
 
-    const p1Raw      = p1Res.data as any;
-    const pag        = p1Raw?.pagination ?? {};
-    const totalItems = Number(pag.totalItems ?? 0);
-    const pageSize   = Number(pag.pageSize ?? 50) || 50;
-    const apiPages   = Number(pag.totalPages ?? 1) || 1;
-    // Trust whichever page count is larger — guards against an unreliable
-    // totalPages under-fetching and dropping contacts from the buckets.
-    const totalPages = Math.max(apiPages, totalItems > 0 ? Math.ceil(totalItems / pageSize) : 1);
+  const p1Raw      = p1Res.data as any;
+  const pag        = p1Raw?.pagination ?? {};
+  const totalItems = Number(pag.totalItems ?? 0);
+  const pageSize   = Number(pag.pageSize ?? 50) || 50;
+  const apiPages   = Number(pag.totalPages ?? 1) || 1;
+  const totalPages = Math.max(apiPages, totalItems > 0 ? Math.ceil(totalItems / pageSize) : 1);
 
-    const all: any[] = [...extractRecs(p1Raw)];
-    for (let page = 2; page <= totalPages; page += 8) {
-      const batch = Array.from({ length: Math.min(8, totalPages - page + 1) }, (_, i) => page + i);
-      const settled = await Promise.allSettled(batch.map(p => api.wbahGetAllCallDataPaged(p, gt, st, rl)));
-      for (let i = 0; i < settled.length; i++) {
-        const s = settled[i];
-        if (s.status === "fulfilled" && s.value.ok) {
-          all.push(...extractRecs(s.value.data as any));
-          continue;
-        }
-        // Retry a failed page once; throw if it still fails so the bucket counts
-        // never silently return partial data.
-        const retry = await api.wbahGetAllCallDataPaged(batch[i], gt, st, rl);
-        if (!retry.ok) throw new Error(retry.error ?? `Failed to fetch CRM call data page ${batch[i]}`);
-        all.push(...extractRecs(retry.data as any));
+  const all: any[] = [...extractRecs(p1Raw)];
+  for (let page = 2; page <= totalPages; page += 8) {
+    const batch = Array.from({ length: Math.min(8, totalPages - page + 1) }, (_, i) => page + i);
+    const settled = await Promise.allSettled(batch.map(p => api.wbahGetAllCallDataPaged(p, gt, st, rl)));
+    for (let i = 0; i < settled.length; i++) {
+      const s = settled[i];
+      if (s.status === "fulfilled" && s.value.ok) {
+        all.push(...extractRecs(s.value.data as any));
+        continue;
       }
+      const retry = await api.wbahGetAllCallDataPaged(batch[i], gt, st, rl);
+      if (!retry.ok) throw new Error(retry.error ?? `Failed to fetch CRM call data page ${batch[i]}`);
+      all.push(...extractRecs(retry.data as any));
     }
+  }
 
-    // Dedup by phone, keeping each contact's most-recently-loaded row so the
-    // latest booking/call state (and load date) wins.
-    const byKey = new Map<string, any>();
-    for (const r of all) {
-      const phone = r.toNumber ?? r.fromNumber ?? r.phone ?? null;
-      const key = phone && String(phone).trim()
-        ? String(phone).trim()
-        : `id:${r.lead_id ?? r.callId ?? r.id}`;
-      const ts   = Date.parse(r.createdAt ?? r.created_at ?? "") || 0;
-      const prev = byKey.get(key);
-      const prevTs = prev ? (Date.parse(prev.createdAt ?? prev.created_at ?? "") || 0) : -1;
-      if (!prev || ts >= prevTs) byKey.set(key, r);
-    }
+  // Dedup by phone, keeping each contact's most-recently-loaded row.
+  const byKey = new Map<string, any>();
+  for (const r of all) {
+    const phone = r.toNumber ?? r.fromNumber ?? r.phone ?? null;
+    const key = phone && String(phone).trim()
+      ? String(phone).trim()
+      : `id:${r.lead_id ?? r.callId ?? r.id}`;
+    const ts   = Date.parse(r.createdAt ?? r.created_at ?? "") || 0;
+    const prev = byKey.get(key);
+    const prevTs = prev ? (Date.parse(prev.createdAt ?? prev.created_at ?? "") || 0) : -1;
+    if (!prev || ts >= prevTs) byKey.set(key, r);
+  }
 
-    // Drop already-booked contacts (latest state booked) and classify the rest.
-    const out: any[] = [];
-    for (const r of byKey.values()) {
-      if (String(r.booking_status ?? "").toLowerCase() === "success") continue;
-      r.__cat = classifyWbahCrmContact(r);
-      out.push(r);
+  const out: any[] = [];
+  for (const r of byKey.values()) {
+    if (isWbahRecordBooked({
+      appointment_date: r.call_appointment_date ?? r.appointmentDate ?? r.appointment_date ?? null,
+      appointment_time: r.call_appointment_time ?? r.appointmentTime ?? r.appointment_time ?? null,
+      booking_status: r.call_booking_status ?? r.bookingStatus ?? r.booking_status ?? null,
+      calendly_booking_url:
+        r.call_calendly_booking_url ?? r.calendlyBookingUrl ?? r.calendly_booking_url ?? r.calendlyUrl ?? null,
+    })) continue;
+    r.__cat = classifyWbahCrmContact(r);
+    r.__leadStatus = wbahContactLeadStatus(r);
+    out.push(r);
+  }
+  if (out.length === 0) throw new Error("WeeBespoke returned no CRM contacts (session may have been invalidated)");
+  return out;
+}
+
+// ── Durable People contacts via Supabase (source of truth) ────────────────────
+// The WeeBespoke API allows only ONE active session, so live reads blank the
+// People tab whenever the session is invalidated. We persist the CRM-loaded
+// contacts into `wbah_crm_contacts` and READ from Supabase; the live WeeBespoke
+// feed is only touched by a throttled background sync. A Redis "last-good"
+// snapshot remains as a cold-start fallback.
+
+const WBAH_CRM_LASTGOOD_TTL = 24 * 60 * 60; // 24h Redis fallback
+const WBAH_CRM_SYNC_TTL_MS  = 5 * 60 * 1000; // refresh from WeeBespoke at most every 5 min
+let _wbahCrmSyncAt = 0;
+let _wbahCrmSyncInflight: Promise<void> | null = null;
+
+function crmContactToDbRow(c: any, workspaceId: string, syncTime: string) {
+  const phone = c.toNumber ?? c.fromNumber ?? c.phone ?? null;
+  const dedup = phone && String(phone).trim()
+    ? String(phone).trim()
+    : `id:${c.lead_id ?? c.callId ?? c.id}`;
+  return {
+    dedup_key:            dedup,
+    workspace_id:         workspaceId,
+    external_id:          String(c.lead_id ?? c.callId ?? c.id ?? ""),
+    phone,
+    name:                 c.name ?? null,
+    email:                c.email ?? null,
+    lead_status:          c.__leadStatus ?? wbahContactLeadStatus(c),
+    call_status:          c.callStatus ?? null,
+    sentiment:            c.sentimentAnalysis ?? null,
+    disconnection_reason: c.disconnectionReason ?? null,
+    end_reason:           c.endReason ?? null,
+    agent_name:           c.agentName ?? null,
+    duration_ms:          c.durationMs != null ? Number(c.durationMs) : null,
+    start_timestamp:      c.startTimestamp != null ? Number(c.startTimestamp) : null,
+    recording_url:        c.recordingUrl ?? null,
+    transcript:           c.transcript ?? null,
+    appointment_date:     c.appointment_date ?? null,
+    appointment_time:     c.appointment_time ?? null,
+    booking_status:       c.booking_status ?? null,
+    calendly_booking_url: c.calendly_booking_url ?? null,
+    crm_loaded_at:        c.createdAt ?? c.created_at ?? null,
+    synced_at:            syncTime,
+  };
+}
+
+function dbRowToCrmContact(row: any) {
+  return {
+    id:                  row.external_id || row.dedup_key,
+    callId:              null,
+    lead_id:             row.external_id,
+    name:                row.name,
+    toNumber:            row.phone,
+    fromNumber:          null,
+    phone:               row.phone,
+    email:               row.email,
+    callStatus:          row.call_status,
+    sentimentAnalysis:   row.sentiment,
+    disconnectionReason: row.disconnection_reason,
+    endReason:           row.end_reason,
+    agentName:           row.agent_name,
+    durationMs:          row.duration_ms,
+    startTimestamp:      row.start_timestamp,
+    recordingUrl:        row.recording_url,
+    transcript:          row.transcript,
+    appointment_date:    row.appointment_date,
+    appointment_time:    row.appointment_time,
+    booking_status:      row.booking_status,
+    calendly_booking_url: row.calendly_booking_url,
+    createdAt:           row.crm_loaded_at,
+    created_at:          row.crm_loaded_at,
+    __cat:               "disqualified",
+    __leadStatus:        row.lead_status || "Uncategorized",
+  };
+}
+
+// Pull the live feed and replace the workspace's rows in wbah_crm_contacts.
+async function syncWbahCrmContactsToDb(userId: string, workspaceId: string): Promise<void> {
+  const live = await fetchWbahCrmLoadedContactsLive(userId); // non-booked, deduped; throws on failure/empty
+  const syncTime = new Date().toISOString();
+  const rows = live.map((c) => crmContactToDbRow(c, workspaceId, syncTime));
+
+  for (let i = 0; i < rows.length; i += 500) {
+    const chunk = rows.slice(i, i + 500);
+    const { error } = await (supabaseAdmin as any)
+      .from("wbah_crm_contacts")
+      .upsert(chunk, { onConflict: "workspace_id,dedup_key" });
+    if (error) throw new Error(error.message);
+  }
+  // Prune stale non-booked contacts only. Booked Calendly rows are maintained by
+  // syncWbahBookedContactsFromCrm / syncWbahBookedContactsFromCalls and must not be deleted here.
+  const statusNe = WBAH_BOOKED_STATUSES.map((s) => `booking_status.neq.${s}`).join(",");
+  await (supabaseAdmin as any)
+    .from("wbah_crm_contacts")
+    .delete()
+    .eq("workspace_id", workspaceId)
+    .lt("synced_at", syncTime)
+    .is("appointment_date", null)
+    .is("calendly_booking_url", null)
+    .or(`booking_status.is.null,and(${statusNe})`);
+
+  // Keep the Redis cold-start fallback fresh too.
+  await cacheSet(`webee:wbah-crm-contacts-good:${workspaceId}`, WBAH_CRM_LASTGOOD_TTL, live);
+  console.log(`[wbah-crm-contacts] synced ${rows.length} contacts to Supabase`);
+}
+
+async function readWbahCrmContactsFromDb(workspaceId: string): Promise<any[]> {
+  const PAGE = 1000;
+  const all: any[] = [];
+  let from = 0;
+  for (;;) {
+    const { data, error } = await (supabaseAdmin as any)
+      .from("wbah_crm_contacts")
+      .select("*")
+      .eq("workspace_id", workspaceId)
+      .range(from, from + PAGE - 1);
+    if (error) throw new Error(error.message);
+    const rows = (data ?? []).filter(
+      (row: any) =>
+        !isWbahRecordBooked({
+          appointment_date: row.appointment_date,
+          appointment_time: row.appointment_time,
+          booking_status: row.booking_status,
+          calendly_booking_url: row.calendly_booking_url,
+        }),
+    );
+    all.push(...rows);
+    if ((data ?? []).length < PAGE) break;
+    from += PAGE;
+  }
+  return all.map(dbRowToCrmContact);
+}
+
+// Throttled background refresh (best-effort; non-blocking on warm reads).
+function ensureWbahCrmSynced(userId: string, workspaceId: string): void {
+  if (Date.now() - _wbahCrmSyncAt < WBAH_CRM_SYNC_TTL_MS) return;
+  if (_wbahCrmSyncInflight) return;
+  _wbahCrmSyncInflight = (async () => {
+    try {
+      await syncWbahCrmContactsToDb(userId, workspaceId);
+      _wbahCrmSyncAt = Date.now();
+    } catch (e: any) {
+      console.warn(`[wbah-crm-contacts] background sync failed: ${e?.message}`);
+    } finally {
+      _wbahCrmSyncInflight = null;
     }
-    return out;
-  });
+  })();
+}
+
+async function getWbahCrmLoadedContacts(userId: string, workspaceId: string): Promise<any[]> {
+  let rows = await readWbahCrmContactsFromDb(workspaceId);
+
+  if (rows.length === 0) {
+    // Cold start — populate synchronously so the tab has data on first open.
+    try {
+      await syncWbahCrmContactsToDb(userId, workspaceId);
+      _wbahCrmSyncAt = Date.now();
+      rows = await readWbahCrmContactsFromDb(workspaceId);
+    } catch (e: any) {
+      // Live fetch failed on cold start — try the Redis last-good snapshot.
+      const lastGood = await cacheGet<any[]>(`webee:wbah-crm-contacts-good:${workspaceId}`);
+      if (Array.isArray(lastGood) && lastGood.length > 0) {
+        console.warn(`[wbah-crm-contacts] cold start live fetch failed (${e?.message}); serving Redis last-good (${lastGood.length})`);
+        return lastGood;
+      }
+      throw e;
+    }
+  } else {
+    // Warm — refresh from WeeBespoke in the background (throttled, non-blocking).
+    ensureWbahCrmSynced(userId, workspaceId);
+  }
+  return rows;
 }
 
 // Returns one category's page of CRM-loaded contacts, mapped to the row shape
@@ -1774,13 +2330,13 @@ async function getWbahCrmLoadedContacts(userId: string, workspaceId: string): Pr
 async function listWbahCrmLoadedCategory(
   userId: string,
   workspaceId: string,
-  category: WbahDerivedCat,
+  category: string,
   page: number,
   limit: number,
   search?: string,
 ) {
   const contacts = await getWbahCrmLoadedContacts(userId, workspaceId);
-  let filtered = contacts.filter((c) => c.__cat === category);
+  let filtered = contacts.filter((c) => wbahContactMatchesCategory(c, category));
 
   // Search (name / phone).
   if (search?.trim()) {
@@ -1799,6 +2355,7 @@ async function listWbahCrmLoadedCategory(
   const rows = pageRows.map((c) => {
     const phone    = c.toNumber ?? c.fromNumber ?? c.phone ?? null;
     const loadedAt = c.createdAt ?? c.created_at ?? null;
+    const leadStatus = c.__leadStatus ?? wbahContactLeadStatus(c);
     const raw = {
       callStatus: c.callStatus ?? null,
       sentimentAnalysis: c.sentimentAnalysis ?? null,
@@ -1815,11 +2372,11 @@ async function listWbahCrmLoadedCategory(
       transcript: c.transcript ?? null,
     };
     return {
-      id: String(c.id ?? c.callId ?? c.lead_id ?? phone ?? `${category}-${start}`),
+      id: String(c.id ?? c.callId ?? c.lead_id ?? phone ?? `${wbahCatSlug(category)}-${start}`),
       external_lead_id: phone ?? c.lead_id ?? c.id,
-      external_status_code: c.callStatus ?? category,
-      external_status_label: WBAH_DERIVED_LABEL[category],
-      webee_category: category,
+      external_status_code: c.callStatus ?? leadStatus,
+      external_status_label: leadStatus,
+      webee_category: leadStatus,
       full_name: c.name ?? "Unknown",
       first_name: null,
       last_name: null,
@@ -1831,6 +2388,7 @@ async function listWbahCrmLoadedCategory(
       property_type: null,
       meta: {
         raw_lead: raw,
+        lead_status: leadStatus,
         appointment_date: c.appointment_date ?? null,
         booking_status: c.booking_status ?? null,
         recording_url: c.recordingUrl ?? null,
@@ -1844,42 +2402,68 @@ async function listWbahCrmLoadedCategory(
   return { rows, total, page, limit, category };
 }
 
+// Resolve the WBAH workspace id + enforce that the caller can view it. Shared by
+// the People category endpoints below.
+async function requireWbahView(userId: string): Promise<string> {
+  const { data: ws } = await (supabaseAdmin as any)
+    .from("workspaces").select("id").eq("slug", "webuyanyhouse").maybeSingle();
+  if (!ws?.id) throw new Error("WBAH workspace not found");
+
+  const isAdmin = await isPlatformAdmin(userId);
+  if (!isAdmin) {
+    const { data: mem } = await (supabaseAdmin as any)
+      .from("workspace_members")
+      .select("id")
+      .eq("user_id", userId)
+      .eq("workspace_id", ws.id)
+      .maybeSingle();
+    if (!mem) throw new Error("Access denied");
+  }
+  return ws.id as string;
+}
+
+// ── listWbahPeopleCategories ──────────────────────────────────────────────────
+// Distinct lead-filter categories present in the loaded People feed, with counts.
+// Drives the dynamic People sub-tabs so the combined get-all-calldata feed can be
+// split back into one tab per WeeBespoke "Lead Filter Master" category.
+
+export const listWbahPeopleCategories = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const wsId = await requireWbahView(context.userId);
+    const contacts = await getWbahCrmLoadedContacts(context.userId, wsId);
+    const counts = new Map<string, number>();
+    for (const c of contacts) {
+      const name = c.__leadStatus ?? wbahContactLeadStatus(c);
+      counts.set(name, (counts.get(name) ?? 0) + 1);
+    }
+    const categories = Array.from(counts, ([name, count]) => ({ name, count }))
+      .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name));
+    return { categories, total: contacts.length };
+  });
+
 // ── listWbahCategorizedLeads ──────────────────────────────────────────────────
 
-export const listWbahCategorizedLeads = createServerFn({ method: "GET" })
+export const listWbahCategorizedLeads = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator(
     z.object({
-      category: z.enum(["disqualified", "tried_to_contact", "rebooking"]),
-      page:     z.number().int().min(1).default(1),
-      limit:    z.number().int().min(1).max(200).default(100),
+      // Accepts either the legacy enum slugs (disqualified / tried_to_contact /
+      // rebooking) or a live "Lead Filter Master" category name ("Disqualified",
+      // "Tried To Contact", …) or "all". Matched via slug so both forms work.
+      category: z.string().min(1),
+      page:     z.coerce.number().int().min(1).default(1),
+      limit:    z.coerce.number().int().min(1).max(200).default(100),
       search:   z.string().optional(),
     }),
   )
   .handler(async ({ data, context }) => {
-    // WBAH members and platform admins can view
-    const { data: ws } = await (supabaseAdmin as any)
-      .from("workspaces").select("id").eq("slug", "webuyanyhouse").maybeSingle();
-    if (!ws?.id) throw new Error("WBAH workspace not found");
-
-    const isAdmin = await isPlatformAdmin(context.userId);
-    if (!isAdmin) {
-      const { data: mem } = await (supabaseAdmin as any)
-        .from("workspace_members")
-        .select("id")
-        .eq("user_id", context.userId)
-        .eq("workspace_id", ws.id)
-        .maybeSingle();
-      if (!mem) throw new Error("Access denied");
-    }
-
+    const wsId = await requireWbahView(context.userId);
     const { category, page, limit, search } = data;
 
-    // All three WBAH categories are derived live from the CRM `get-all-calldata`
-    // feed as mutually exclusive buckets (see getWbahCrmLoadedContacts). This is
-    // the only source that includes not-yet-called contacts plus a CRM load date;
-    // needs-to-call contacts are folded into the Disqualified bucket.
-    return await listWbahCrmLoadedCategory(context.userId, ws.id, category, page, limit, search);
+    // Categories are derived live from the CRM `get-all-calldata` feed, split by
+    // each record's WeeBespoke `lead_status` (the Lead Filter Master category).
+    return await listWbahCrmLoadedCategory(context.userId, wsId, category, page, limit, search);
   });
 
 // ── getWbahCategorySyncLog ─────────────────────────────────────────────────────
@@ -1999,91 +2583,79 @@ export const listWbahLeadsForPeople = createServerFn({ method: "GET" })
 // the NOT-yet-booked contacts), so a warm, unbooked contact can legitimately
 // appear in both this window and the Rebooking tab.
 
+// A neutral call must last longer than this to count as "partial qualified".
+const WBAH_PARTIAL_QUALIFIED_MIN_SECONDS = 5 * 60; // 5 minutes
+
 export const listWbahPositiveNeutralLeads = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
     const { workspaceId } = context;
     if (!workspaceId) throw new Error("No active workspace");
-    return cacheWrap(`webee:wbah-posneu-leads:${workspaceId}`, 60, async () => {
-      // Live on open (option 3): refresh the newest calls from WeeBespoke first
-      // (incremental, idempotent, concurrency-guarded — deduped with the Calls
-      // page), so the positive/neutral leads derived below reflect the latest data.
-      if (workspaceId === WBAH_WORKSPACE_ID) {
-        try {
-          const { refreshWbahCallsIncremental } = await import("./wbah-leads-sync-tick");
-          await refreshWbahCallsIncremental();
-        } catch (e: any) {
-          console.warn("[wbah-posneu-leads] incremental refresh failed, serving DB snapshot:", e?.message ?? e);
+    void refreshWbahLiveData(workspaceId, { lightBackfill: true });
+
+    const { byPhone, crmBookingByDigits } = await getWbahCallsAggregate(workspaceId);
+
+      const sentRank = (s: string) => (s === "positive" ? 3 : s === "neutral" ? 2 : s === "negative" ? 1 : 0);
+      const posNeu: any[] = [];
+      for (const calls of byPhone.values()) {
+        // Latest-first (rows already ordered, but be explicit).
+        calls.sort((a, b) => (Date.parse(b.started_at ?? "") || 0) - (Date.parse(a.started_at ?? "") || 0));
+        // Definitive outcome = best sentiment across all the contact's calls.
+        let main = calls[0];
+        let best = sentRank(String(calls[0].sentiment ?? "").toLowerCase());
+        for (const c of calls) {
+          const r = sentRank(String(c.sentiment ?? "").toLowerCase());
+          if (r > best) { best = r; main = c; } // first (latest) call at the best rank
         }
-      }
-      const PAGE = 1000;
-      const all: any[] = [];
-      let from = 0;
-      for (;;) {
-        const { data, error } = await (supabaseAdmin as any)
-          .from("wbah_calls")
-          .select(
-            "id, customer_name, phone, agent_name, call_status, sentiment, duration_seconds, started_at, recording_url, disconnection_reason, end_reason, appointment_date, appointment_time, booking_status, calendly_booking_url",
-          )
-          .eq("workspace_id", workspaceId)
-          .order("started_at", { ascending: false, nullsFirst: false })
-          .order("id", { ascending: true })
-          .range(from, from + PAGE - 1);
-        if (error) throw new Error(`DB query failed: ${error.message}`);
-        const batch: any[] = data ?? [];
-        all.push(...batch);
-        if (batch.length < PAGE) break;
-        from += PAGE;
+        const definitive = String(main.sentiment ?? "").toLowerCase();
+        if (definitive !== "positive" && definitive !== "neutral") continue;
+        main.__callCount = calls.length;
+        posNeu.push(main);
       }
 
-      // Dedup per contact (phone). Rows are latest-first, so the first time we
-      // encounter a phone is that contact's most-recent call.
-      const seen = new Set<string>();
-      const latest: any[] = [];
-      for (const c of all) {
-        const key = c.phone && String(c.phone).trim() ? String(c.phone).trim() : `id:${c.id}`;
-        if (seen.has(key)) continue;
-        seen.add(key);
-        latest.push(c);
-      }
-
-      // Keep only contacts whose latest call came back positive or neutral.
-      const posNeu = latest.filter((c) => {
-        const s = String(c.sentiment ?? "").toLowerCase();
-        return s === "positive" || s === "neutral";
-      });
-
-      // Transcripts are heavy, so pull them only for the kept contacts, chunked
-      // to stay under PostgREST's row cap.
-      const transcriptById = new Map<string, string | null>();
+      // Transcripts are heavy — pull them only for the kept contacts, chunked to
+      // stay under PostgREST's row cap. call_summary is small and returned for the
+      // Summary column; full transcript stays on-demand via getWbahCallDetail.
+      const summaryById = new Map<string, string | null>();
+      const hasTranscriptById = new Map<string, boolean>();
       const ids = posNeu.map((c) => c.id).filter(Boolean);
       for (let i = 0; i < ids.length; i += 500) {
         const chunk = ids.slice(i, i + 500);
         const { data: trows } = await (supabaseAdmin as any)
           .from("wbah_calls")
-          .select("id, transcript")
+          .select("id, transcript, call_summary")
           .in("id", chunk);
-        for (const t of (trows ?? []) as any[]) transcriptById.set(t.id, t.transcript ?? null);
+        for (const t of (trows ?? []) as any[]) {
+          const summary = t.call_summary && String(t.call_summary).trim() ? String(t.call_summary).trim() : null;
+          summaryById.set(t.id, summary);
+          hasTranscriptById.set(t.id, !!(t.transcript && String(t.transcript).trim()));
+        }
       }
 
       console.log(`[WBAH leads] positive/neutral called contacts: ${posNeu.length}`);
-      // Shape rows to match the /leads ("Leads window") table contract so the
-      // existing WBAH renderer works unchanged: top-level lead fields + a `meta`
-      // blob carrying the latest-call details.
+
       return posNeu.map((c) => {
+        const phoneKey = phoneDigits(c.phone) || `id:${c.id}`;
+        const calls = byPhone.get(phoneKey) ?? [c];
+        const bookingCall = findWbahBookingCall(calls);
+        const crm = phoneDigits(c.phone) ? crmBookingByDigits.get(phoneDigits(c.phone)) : null;
+        const appt = resolveWbahBookingFields(c, bookingCall, crm);
         const startedIso: string | null = c.started_at ?? null;
-        const transcript = transcriptById.get(c.id) ?? null;
+        const summary = summaryById.get(c.id) ?? null;
+        const sentiment = String(c.sentiment ?? "").toLowerCase() || null;
+        const durationSec = Number(c.duration_seconds ?? 0);
+        const partialQualified = sentiment === "neutral" && durationSec > WBAH_PARTIAL_QUALIFIED_MIN_SECONDS;
         return {
           id:                c.id,
           full_name:         c.customer_name ?? "Unknown",
           company_name:      null,
           phone:             c.phone ?? null,
           email:             null,
-          sentiment:         (String(c.sentiment ?? "").toLowerCase() || null),
+          sentiment,
           lead_score:        null,
           interest_level:    null,
           status:            null,
-          call_summary:      transcript,
+          call_summary:      summary,
           next_action:       null,
           last_contacted_at: startedIso,
           created_at:        startedIso,
@@ -2092,17 +2664,19 @@ export const listWbahPositiveNeutralLeads = createServerFn({ method: "GET" })
             call_status:          c.call_status ?? null,
             duration_ms:          c.duration_seconds != null ? Number(c.duration_seconds) * 1000 : null,
             recording_url:        c.recording_url ?? null,
-            appointment_date:     c.appointment_date ?? null,
-            appointment_time:     c.appointment_time ?? null,
-            booking_status:       c.booking_status ?? null,
+            appointment_date:     appt.appointment_date ?? null,
+            appointment_time:     appt.appointment_time ?? null,
+            booking_status:       appt.booking_status ?? null,
             end_reason:           c.end_reason ?? null,
             disconnection_reason: c.disconnection_reason ?? null,
-            calendly_booking_url: c.calendly_booking_url ?? null,
-            agent_name:           c.agent_name ?? null,
+            calendly_booking_url: appt.calendly_booking_url ?? null,
+            agent_name:           appt.agent_name ?? c.agent_name ?? null,
+            partial_qualified:    partialQualified,
+            call_count:           c.__callCount ?? 1,
+            has_transcript:       hasTranscriptById.get(c.id) ?? false,
           },
         };
       });
-    });
   });
 
 // ── WBAH Qualified Leads (derived live from wbah_calls) ───────────────────────
@@ -2160,88 +2734,55 @@ export const listWbahQualifiedLeads = createServerFn({ method: "GET" })
   .handler(async ({ context }) => {
     const { workspaceId, userId } = context;
     if (!workspaceId) throw new Error("No active workspace");
-    return cacheWrap(`webee:wbah-qualified-leads:${workspaceId}`, 60, async () => {
-      // Live on open: refresh the newest calls from WeeBespoke first (guarded,
-      // idempotent, deduped with the Calls page) so qualification reflects the
-      // latest data.
-      if (workspaceId === WBAH_WORKSPACE_ID) {
-        try {
-          const { refreshWbahCallsIncremental } = await import("./wbah-leads-sync-tick");
-          await refreshWbahCallsIncremental();
-        } catch (e: any) {
-          console.warn("[wbah-qualified-leads] incremental refresh failed, serving DB snapshot:", e?.message ?? e);
-        }
-      }
+    void refreshWbahLiveData(workspaceId, { lightBackfill: true });
 
-      const PAGE = 1000;
-      const all: any[] = [];
-      let from = 0;
-      for (;;) {
-        const { data, error } = await (supabaseAdmin as any)
-          .from("wbah_calls")
-          .select(
-            "id, customer_name, phone, agent_name, call_status, sentiment, duration_seconds, started_at, recording_url, disconnection_reason, end_reason, appointment_date, appointment_time, booking_status, calendly_booking_url",
-          )
-          .eq("workspace_id", workspaceId)
-          .order("started_at", { ascending: false, nullsFirst: false })
-          .order("id", { ascending: true })
-          .range(from, from + PAGE - 1);
-        if (error) throw new Error(`DB query failed: ${error.message}`);
-        const batch: any[] = data ?? [];
-        all.push(...batch);
-        if (batch.length < PAGE) break;
-        from += PAGE;
-      }
+    const { all, byPhone, crmBookingByDigits } = await getWbahCallsAggregate(workspaceId);
 
-      // Dedup per contact (phone). Rows are latest-first, so the first time we
-      // see a phone is that contact's most-recent call. Separately remember the
-      // most-recent call that carried a booking — a contact may have booked on
-      // an earlier call and then had a neutral follow-up, and must stay qualified
-      // with its appointment details intact.
-      const hasUrl = (c: any) =>
-        c.calendly_booking_url != null && String(c.calendly_booking_url).trim() !== "";
       const latestByPhone = new Map<string, any>();
-      const bookingByPhone = new Map<string, any>();
+      const countByPhone = new Map<string, number>();
       const orderKeys: string[] = [];
-      for (const c of all) {
-        // Dedup key is digits-normalized so the same contact under different
-        // phone formats (+44… vs 0…) collapses to one row (parity with the
-        // agent-map matching below).
-        const digitsKey = String(c.phone ?? "").replace(/\D/g, "");
-        const key = digitsKey || `id:${c.id}`;
-        if (!latestByPhone.has(key)) {
-          latestByPhone.set(key, c);
-          orderKeys.push(key);
-        }
-        if (hasUrl(c) && !bookingByPhone.has(key)) bookingByPhone.set(key, c);
+      for (const [key, calls] of byPhone) {
+        const c = calls[0];
+        countByPhone.set(key, calls.length);
+        latestByPhone.set(key, c);
+        orderKeys.push(key);
       }
 
-      // Qualified = latest call positive, OR the contact booked an appointment.
+      const contactBooked = (key: string): boolean => {
+        const c = latestByPhone.get(key);
+        if (!c) return false;
+        const calls = byPhone.get(key) ?? [c];
+        const bookingCall = findWbahBookingCall(calls);
+        const digits = phoneDigits(c.phone);
+        const crm = digits ? crmBookingByDigits.get(digits) : null;
+        return isWbahRecordBooked(resolveWbahBookingFields(c, bookingCall, crm));
+      };
+
       const qualifiedKeys = orderKeys.filter((key) => {
         const latest = latestByPhone.get(key);
         const s = String(latest?.sentiment ?? "").toLowerCase();
-        return s === "positive" || bookingByPhone.has(key);
+        return s === "positive" || contactBooked(key);
       });
 
-      // Transcripts are heavy — pull them only for the kept contacts, chunked to
-      // stay under PostgREST's row cap.
       const keptIds = qualifiedKeys.map((k) => latestByPhone.get(k)?.id).filter(Boolean);
-      const transcriptById = new Map<string, string | null>();
+      const summaryById = new Map<string, string | null>();
+      const hasTranscriptById = new Map<string, boolean>();
       for (let i = 0; i < keptIds.length; i += 500) {
         const chunk = keptIds.slice(i, i + 500);
         const { data: trows } = await (supabaseAdmin as any)
           .from("wbah_calls")
-          .select("id, transcript")
+          .select("id, transcript, call_summary")
           .in("id", chunk);
-        for (const t of (trows ?? []) as any[]) transcriptById.set(t.id, t.transcript ?? null);
+        for (const t of (trows ?? []) as any[]) {
+          const summary = t.call_summary && String(t.call_summary).trim() ? String(t.call_summary).trim() : null;
+          summaryById.set(t.id, summary);
+          hasTranscriptById.set(t.id, !!(t.transcript && String(t.transcript).trim()));
+        }
       }
 
-      // Agent attribution — best-effort, bounded, and cached 1h separately so we
-      // don't re-page Retell on every 60s leads refresh. On any failure agents
-      // stay null and the UI hides the agent filter (graceful degradation).
       const neededDigits = new Set<string>();
       for (const key of qualifiedKeys) {
-        const d = String(latestByPhone.get(key)?.phone ?? "").replace(/\D/g, "");
+        const d = phoneDigits(latestByPhone.get(key)?.phone);
         if (d) neededDigits.add(d);
       }
       let agentByDigits: Record<string, string> = {};
@@ -2259,45 +2800,90 @@ export const listWbahQualifiedLeads = createServerFn({ method: "GET" })
       }
 
       console.log(`[WBAH qualified] qualified contacts: ${qualifiedKeys.length}`);
-      // Shape rows to the /leads ("Leads window") contract: top-level lead fields
-      // + a `meta` blob carrying the latest-call (and booking) details.
-      return qualifiedKeys.map((key) => {
-        const c = latestByPhone.get(key);
-        const booking = bookingByPhone.get(key) ?? null;
-        const apptSrc = booking ?? c; // appointment info from the booking call
+      const fromCalls = qualifiedKeys.map((key) => {
+        const c = latestByPhone.get(key)!;
+        const calls = byPhone.get(key) ?? [c];
+        const bookingCall = findWbahBookingCall(calls);
+        const digits = phoneDigits(c.phone);
+        const crm = digits ? crmBookingByDigits.get(digits) : null;
+        const appt = resolveWbahBookingFields(c, bookingCall, crm);
         const startedIso: string | null = c.started_at ?? null;
-        const digits = String(c.phone ?? "").replace(/\D/g, "");
-        const agentName = (digits && agentByDigits[digits]) || c.agent_name || null;
+        const agentName = (digits && agentByDigits[digits]) || appt.agent_name || c.agent_name || null;
+        const sentiment = (String(c.sentiment ?? "").toLowerCase() || null);
+        const durationSec = c.duration_seconds != null ? Number(c.duration_seconds) : null;
+        const partialQualified = sentiment === "neutral" && durationSec != null && durationSec > WBAH_PARTIAL_QUALIFIED_MIN_SECONDS;
         return {
           id:                c.id,
-          full_name:         c.customer_name ?? "Unknown",
+          full_name:         crm?.name ?? c.customer_name ?? "Unknown",
           company_name:      null,
           phone:             c.phone ?? null,
           email:             null,
-          sentiment:         (String(c.sentiment ?? "").toLowerCase() || null),
+          sentiment,
           lead_score:        null,
           interest_level:    null,
           status:            null,
-          call_summary:      transcriptById.get(c.id) ?? null,
+          call_summary:      summaryById.get(c.id) ?? null,
           next_action:       null,
           last_contacted_at: startedIso,
           created_at:        startedIso,
           meta: {
             last_called_at:       startedIso,
             call_status:          c.call_status ?? null,
-            duration_ms:          c.duration_seconds != null ? Number(c.duration_seconds) * 1000 : null,
+            duration_ms:          durationSec != null ? durationSec * 1000 : null,
             recording_url:        c.recording_url ?? null,
-            appointment_date:     apptSrc.appointment_date ?? null,
-            appointment_time:     apptSrc.appointment_time ?? null,
-            booking_status:       apptSrc.booking_status ?? null,
+            appointment_date:     appt.appointment_date ?? null,
+            appointment_time:     appt.appointment_time ?? null,
+            booking_status:       appt.booking_status ?? null,
             end_reason:           c.end_reason ?? null,
             disconnection_reason: c.disconnection_reason ?? null,
-            calendly_booking_url: apptSrc.calendly_booking_url ?? null,
+            calendly_booking_url: appt.calendly_booking_url ?? null,
             agent_name:           agentName,
+            partial_qualified:    partialQualified,
+            call_count:           countByPhone.get(key) ?? 1,
+            has_transcript:       hasTranscriptById.get(c.id) ?? false,
           },
         };
       });
-    });
+
+      const qualifiedKeySet = new Set(qualifiedKeys);
+      const bookedAll = listWbahBookedContacts({ all, byPhone, crmBookingByDigits });
+      const fromCrmOnly = bookedAll
+        .filter((b) => !qualifiedKeySet.has(b.key))
+        .map((b) => ({
+          id:                b.id,
+          full_name:         b.customer_name ?? "Unknown",
+          company_name:      null,
+          phone:             b.phone ?? null,
+          email:             null,
+          sentiment:         "positive" as const,
+          lead_score:        null,
+          interest_level:    null,
+          status:            null,
+          call_summary:      null,
+          next_action:       null,
+          last_contacted_at: null,
+          created_at:        null,
+          meta: {
+            last_called_at:       null,
+            call_status:          null,
+            duration_ms:          null,
+            recording_url:        null,
+            appointment_date:     b.appt.appointment_date ?? null,
+            appointment_time:     b.appt.appointment_time ?? null,
+            booking_status:       b.appt.booking_status ?? null,
+            end_reason:           null,
+            disconnection_reason: null,
+            calendly_booking_url: b.appt.calendly_booking_url ?? null,
+            agent_name:           b.appt.agent_name ?? null,
+            partial_qualified:    false,
+            call_count:           b.calls.length || 1,
+            has_transcript:       false,
+            crm_only_booking:     true,
+          },
+        }));
+
+      console.log(`[WBAH qualified] crm-only booked: ${fromCrmOnly.length} total=${fromCalls.length + fromCrmOnly.length}`);
+      return [...fromCalls, ...fromCrmOnly];
   });
 
 // ── Disqualified leads from WeeBespoke API (filter master UUID approach) ───────

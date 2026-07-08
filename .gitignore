@@ -7,6 +7,7 @@ yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
 
+# Dependencies & build outputs
 node_modules
 dist
 dist-ssr
@@ -14,11 +15,29 @@ dist-ssr
 .vinxi
 .tanstack/**
 .nitro
+build
+.turbo
+.cache
+
+# Environment & secrets — never commit
+.env
+.env.local
+.env.production
+.env.development
+.env.*.local
 *.local
+.dev.vars
+.secrets
+secrets/
+*.pem
+*.key
+*.p12
+*.pfx
+credentials.json
+service-account*.json
 
 # Wrangler / Cloudflare
 .wrangler/
-.dev.vars
 
 # Editor directories and files
 .vscode/*
@@ -30,6 +49,6 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
-.env
-.env.development
+
+# Local task notes
 todo.md

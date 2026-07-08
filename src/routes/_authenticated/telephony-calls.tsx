@@ -152,7 +152,7 @@ function TelephonyCallsPage() {
   const totalCalls = calls.length;
   const answered = calls.filter((c: any) => c.status === "completed" || c.status === "answered").length;
   const totalDuration = calls.reduce((acc: number, c: any) => acc + (c.duration_seconds ?? 0), 0);
-  const callsPag = useTablePagination(calls, 50);
+  const callsPag = useTablePagination(calls);
 
   return (
     <div className="flex flex-col gap-6 p-6">

@@ -42,6 +42,7 @@ export interface NotesBookingSheetProps {
   defaultPhone?: string | null;
   defaultEmail?: string | null;
   leadId?: string | null;
+  callSummary?: string | null;
 }
 
 
@@ -63,6 +64,7 @@ export function NotesBookingSheet({
   defaultPhone,
   defaultEmail,
   leadId,
+  callSummary,
 }: NotesBookingSheetProps) {
   const qc = useQueryClient();
   const addFn    = useServerFn(addEntityNote);
@@ -74,6 +76,7 @@ export function NotesBookingSheet({
   const [addingNote, setAddingNote] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [bookingOpen, setBookingOpen] = useState(false);
+  const [summaryOpen, setSummaryOpen] = useState(true);
 
   const [bTitle, setBTitle] = useState("");
   const [bDate, setBDate] = useState("");
@@ -106,8 +109,9 @@ export function NotesBookingSheet({
       setBDate(now.toISOString().slice(0, 16));
       setNoteText("");
       setBookingOpen(false);
+      setSummaryOpen(!!callSummary?.trim());
     }
-  }, [open, entityName, defaultPhone, defaultEmail]);
+  }, [open, entityName, defaultPhone, defaultEmail, callSummary]);
 
   const notes = (notesQ.data ?? []) as { id: string; body: string; created_at: string }[];
   const noteQueryKey = ["entity-notes", entityType, entityId];
@@ -187,6 +191,34 @@ export function NotesBookingSheet({
         </SheetHeader>
 
         <div className="flex-1 overflow-y-auto px-5 py-4 space-y-5">
+
+          {/* ── Call Summary ───────────────────────────────── */}
+          {callSummary?.trim() && (
+            <div className="space-y-2">
+              <button
+                type="button"
+                onClick={() => setSummaryOpen((v) => !v)}
+                className="flex items-center justify-between w-full group"
+              >
+                <Label className="text-[11px] font-semibold uppercase tracking-[0.1em] text-muted-foreground cursor-pointer group-hover:text-foreground transition-colors">
+                  Call Summary
+                </Label>
+                {summaryOpen ? (
+                  <ChevronUp className="h-3.5 w-3.5 text-muted-foreground" />
+                ) : (
+                  <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
+                )}
+              </button>
+              {summaryOpen && (
+                <div className="rounded-lg border border-white/[0.06] bg-white/[0.02] px-3 py-2.5">
+                  <p className="text-xs text-foreground/90 whitespace-pre-wrap leading-relaxed">
+                    {callSummary.trim()}
+                  </p>
+                </div>
+              )}
+              <Separator className="bg-white/[0.06]" />
+            </div>
+          )}
 
           {/* ── Add Note ───────────────────────────────────── */}
           <div className="space-y-2">

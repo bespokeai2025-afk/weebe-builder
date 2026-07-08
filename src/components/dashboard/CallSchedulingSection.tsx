@@ -229,7 +229,7 @@ export function CallSchedulingSection({ pageType, statusOptions, agents }: Props
   };
 
   return (
-    <div className="space-y-5">
+    <div className="min-w-0 space-y-4">
       {/* Header */}
       <div className="flex items-start justify-between">
         <div>
@@ -245,18 +245,18 @@ export function CallSchedulingSection({ pageType, statusOptions, agents }: Props
       </div>
 
       {/* Stats grid */}
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
         {[
           { label: "Total Campaigns", value: campaigns.length, icon: Phone, color: "text-blue-400", bg: "bg-blue-500/10", sub: `${campaigns.filter((c) => c.status === "paused").length} paused` },
           { label: "Active Campaigns", value: totalActive, icon: CheckCircle2, color: "text-emerald-400", bg: "bg-emerald-500/10", sub: "Running now" },
           { label: "Daily Campaigns", value: totalDaily, icon: PhoneCall, color: "text-violet-400", bg: "bg-violet-500/10", sub: "Recurring daily" },
           { label: "Custom Interval", value: totalCustom, icon: Clock, color: "text-amber-400", bg: "bg-amber-500/10", sub: "Custom schedule" },
         ].map((s) => (
-          <div key={s.label} className="rounded-xl border border-white/[0.06] bg-card/60 p-4">
-            <div className={cn("mb-2 inline-flex rounded-lg p-2", s.bg)}>
-              <s.icon className={cn("h-4 w-4", s.color)} />
+          <div key={s.label} className="min-w-0 rounded-xl border border-white/[0.06] bg-card/60 p-3">
+            <div className={cn("mb-1.5 inline-flex rounded-lg p-1.5", s.bg)}>
+              <s.icon className={cn("h-3.5 w-3.5", s.color)} />
             </div>
-            <p className={cn("text-xl font-bold tabular-nums", s.color)}>{s.value}</p>
+            <p className={cn("text-lg font-bold tabular-nums", s.color)}>{s.value}</p>
             <p className="text-xs font-medium text-foreground mt-0.5">{s.label}</p>
             <p className="text-[10px] text-muted-foreground">{s.sub}</p>
           </div>
@@ -264,8 +264,8 @@ export function CallSchedulingSection({ pageType, statusOptions, agents }: Props
       </div>
 
       {/* Search + refresh */}
-      <div className="flex items-center gap-2">
-        <div className="relative flex-1 max-w-sm">
+      <div className="flex min-w-0 items-center gap-2">
+        <div className="relative min-w-0 flex-1 max-w-sm">
           <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
           <Input
             value={search}

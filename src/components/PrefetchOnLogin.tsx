@@ -30,7 +30,6 @@ import { listCalls }                                  from "@/lib/dashboard/call
 import { getCallSchedule }                            from "@/lib/dashboard/call-schedule.functions";
 import { listDataRecords }                            from "@/lib/dashboard/data-records.functions";
 import {
-  listWbahCallsLive,
   listWbahPositiveNeutralLeads,
   listWbahQualifiedLeads,
   listWbahCategorizedLeads,
@@ -63,7 +62,6 @@ export function PrefetchOnLogin({ authed }: Props) {
   const listAgentsFn     = useServerFn(listLiveAgents);
   const scheduleFn       = useServerFn(getCallSchedule);
   const dataRecordsFn    = useServerFn(listDataRecords);
-  const wbahCallsFn      = useServerFn(listWbahCallsLive);
   const wbahLeadsFn      = useServerFn(listWbahPositiveNeutralLeads);
   const wbahQualifiedFn  = useServerFn(listWbahQualifiedLeads);
   const wbahCatFn        = useServerFn(listWbahCategorizedLeads);
@@ -127,9 +125,10 @@ export function PrefetchOnLogin({ authed }: Props) {
 
     if (isWbah) {
       // ── WBAH "We Buy Any House" workspace ──
-      prefetch(["leads-all", true, "30"], () => wbahLeadsFn());
+      prefetch(["leads-all", true], () => wbahLeadsFn());
       prefetch(["wbah-qualified-leads"],  () => wbahQualifiedFn());
-      prefetch(["wbah-calls"],            () => wbahCallsFn());
+      // NOTE: the full WBAH calls list is ~20MB — never prefetch it on login.
+      // The Calls page loads page-1 on demand via server-side pagination.
 
       // The Data → People sub-tabs use local component state (not React Query),
       // so prefetching cannot populate them directly. Instead warm the server-side
@@ -152,7 +151,7 @@ export function PrefetchOnLogin({ authed }: Props) {
       // ── All other workspaces ──
       const dateFrom = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
       const dateTo   = new Date().toISOString();
-      prefetch(["leads-all", false, "30"], () => listLeadsFn({ data: { limit: 1000, dateFrom, dateTo } }));
+      prefetch(["leads-all", false], () => listLeadsFn({ data: { limit: 1000, dateFrom, dateTo } }));
       prefetch(["calls", "exclude", "30"], () => callsFn({ data: { voicemailFilter: "exclude", dateFrom, dateTo } }));
       prefetch(["leads-qualified", ""],    () => qualLeadsFn({ data: { limit: 200 } }));
     }

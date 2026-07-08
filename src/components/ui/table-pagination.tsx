@@ -4,7 +4,7 @@ import { ChevronLeft, ChevronRight } from "lucide-react";
 const PAGE_SIZES = [10, 25, 50, 75, 100] as const;
 export type PageSize = typeof PAGE_SIZES[number];
 
-export function useTablePagination<T>(items: T[], defaultPageSize: PageSize = 50) {
+export function useTablePagination<T>(items: T[], defaultPageSize: PageSize = 25) {
   const [pageSize, setPageSize] = useState<PageSize>(defaultPageSize);
   const [page, setPage]         = useState(1);
 
@@ -40,8 +40,8 @@ export function TablePagBar({
   const to   = Math.min(page * pageSize, total);
 
   return (
-    <div className="flex items-center justify-between border-t border-white/[0.06] px-3 py-2 text-[11px] text-muted-foreground select-none">
-      <div className="flex items-center gap-2">
+    <div className="flex flex-wrap items-center justify-between gap-2 border-t border-white/[0.06] px-2.5 py-1.5 text-[11px] text-muted-foreground select-none">
+      <div className="flex min-w-0 items-center gap-2">
         <span>Rows per page</span>
         <select
           value={pageSize}

@@ -3,6 +3,7 @@ import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { cacheWrap, invalidateDashboardCache } from "@/lib/cache/redis.server";
+import { LEAD_STATUS_CATEGORY_MAP } from "@/lib/dashboard/lead-status-categories";
 
 const OVERVIEW_STATS_TTL = 90; // 90 seconds
 
@@ -342,6 +343,9 @@ export const listLeads = createServerFn({ method: "POST" })
     z
       .object({
         status: z.string().optional(),
+        statusCategory: z
+          .enum(["all", "tried_to_contact", "disqualified", "rebooked_consultation"])
+          .optional(),
         qualifiedOnly: z.boolean().optional(),
         search: z.string().optional(),
         limit: z.number().int().min(1).max(5000).default(100),
@@ -370,6 +374,9 @@ export const listLeads = createServerFn({ method: "POST" })
         .range(offset, offset + batchSize - 1);
       if (data.qualifiedOnly) q = q.in("status", ["interested", "qualified"]);
       if (data.status && data.status !== "all") q = q.eq("status", data.status);
+      if (data.statusCategory && data.statusCategory !== "all") {
+        q = q.in("status", LEAD_STATUS_CATEGORY_MAP[data.statusCategory]);
+      }
       if (data.search)
         q = q.or(`full_name.ilike.%${data.search}%,phone.ilike.%${data.search}%,email.ilike.%${data.search}%`);
       if (data.dateFrom) q = q.gte("created_at", data.dateFrom);
