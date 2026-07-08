@@ -2660,6 +2660,12 @@ export const listWbahPositiveNeutralLeads = createServerFn({ method: "GET" })
           next_action:       null,
           last_contacted_at: startedIso,
           created_at:        startedIso,
+          // These CRM-sourced contacts come from WBAH's own CRM sync (not a
+          // webform/manual/API intake), so the generic Leads-page source
+          // badge renders a CRM icon without any workspace-specific
+          // branching in the UI layer.
+          source:            "crm",
+          source_type:       "crm",
           meta: {
             last_called_at:       startedIso,
             call_status:          c.call_status ?? null,

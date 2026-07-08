@@ -1,0 +1,78 @@
+Please add small lead source and preferred contact indicators to each lead displayed on the Leads page.
+
+This should show where each lead originally came from and their preferred contact method, without disrupting the existing Leads page layout, filters, sizing, manual status selectors, pagination, or workspace-specific logic.
+
+Requirements:
+
+1. Add a small lead source icon/badge next to each lead on the Leads page.
+2. Add a small preferred contact indicator next to each lead as well.
+3. Both indicators should be very small, clean, and subtle so they do not clutter the table/card layout.
+4. Place them somewhere sensible near the lead name, phone number, email, or source area depending on the current Leads page layout.
+5. For leads received from WEBEE/webforms, show a small webform/source icon.
+6. For leads received from CRM intake, show a small CRM/source icon.
+7. For WBAH specifically, because their leads are coming from CRM intake, show a small suitable CRM-style icon on their leads.
+8. For any other lead intake system, support a custom source symbol/icon based on the lead source value.
+9. Preferred contact should show a small icon or badge based on the lead’s preferred contact method, for example:
+
+   * Phone/call = small phone icon
+   * Email = small email icon
+   * WhatsApp = small WhatsApp/message icon
+   * SMS/text = small message icon
+   * Unknown/blank = neutral icon or no icon
+10. Do not hardcode WBAH logic into the standard WEBEE accounts.
+11. The lead source icon must be determined from the lead’s own source/intake metadata, not from the logged-in account name alone.
+12. The preferred contact indicator must be determined from the lead’s own preferred contact metadata, not from account-level assumptions.
+13. If the source or preferred contact method is unknown, missing, or legacy data, show either a neutral default icon or no icon, but do not break the page.
+14. Make sure both indicators respect workspace_id scoping and only use the logged-in workspace’s own lead data.
+15. Do not change, remove, or break the existing manual status selectors on the standard WEBEE Leads page.
+16. Do not break filters, pagination, lead loading, qualified lead logic, calls logic, data page logic, or any existing workflows.
+17. Do not copy any WBAH workspace IDs, API keys, CRM settings, Retell settings, lead data, or configuration into standard WEBEE accounts.
+
+Implementation guidance:
+
+* Check whether leads already have a source field, intake_source field, origin field, crm_source field, form_source field, campaign source, or similar metadata.
+* Check whether leads already have a preferred_contact, preferred_contact_method, contact_preference, preferred_channel, communication_preference, or similar field.
+* If usable fields already exist, use those fields to render the icons.
+* If no suitable fields exist, add safe optional metadata fields in the correct leads table or mapping layer without breaking old leads.
+* Existing leads with no source or preferred contact method should continue loading normally.
+* New webform leads should be saved with a source such as `webform`.
+* New CRM-ingested leads should be saved with a source such as `crm`.
+* Other intake routes should be saved with their own source value where available.
+* New webform leads should save the preferred contact method when captured on the form.
+* CRM/API/imported leads should use the preferred contact field from their intake data if available.
+
+Suggested lead source icon mapping:
+
+* `webform` / `website_form` / `form` = small form or globe icon
+* `crm` / `dynamics` / `pipedrive` / `hubspot` = small CRM/database/building icon
+* `csv` / `data_upload` = small upload/file icon
+* `manual` = small user/edit icon
+* `api` / `webhook` = small plug/webhook icon
+* unknown/blank = neutral default icon or no icon
+
+Suggested preferred contact icon mapping:
+
+* `phone` / `call` = small phone icon
+* `email` = small email icon
+* `whatsapp` = small WhatsApp/message icon
+* `sms` / `text` = small message icon
+* `any` / `no_preference` = small neutral contact icon
+* unknown/blank = neutral default icon or no icon
+
+Testing required:
+
+* Login as a standard WEBEE account and confirm the Leads page still loads correctly.
+* Confirm each lead shows a small source icon where source data exists.
+* Confirm each lead shows a small preferred contact icon where preferred contact data exists.
+* Confirm webform leads show the webform icon.
+* Confirm CRM intake leads show the CRM icon.
+* Confirm WBAH CRM leads show the CRM-style icon without affecting other accounts.
+* Confirm phone/email/WhatsApp/SMS preferred contact methods display the correct small indicator.
+* Confirm leads with missing source or preferred contact values do not break the page.
+* Confirm filters still work.
+* Confirm manual status selectors still work.
+* Confirm pagination still works.
+* Confirm leads remain scoped to the logged-in workspace_id.
+* Confirm no WBAH-specific data, config, IDs, API keys, or CRM setup leaks into standard WEBEE accounts.
+
+This should be a small Leads page enhancement only. Preserve all existing backend logic, workspace scoping, RLS assumptions, workflows, filters, status update logic, and account-specific configuration.

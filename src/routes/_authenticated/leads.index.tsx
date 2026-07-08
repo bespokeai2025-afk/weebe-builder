@@ -18,6 +18,15 @@ import {
   CalendarClock,
   PlayCircle,
   StickyNote,
+  Globe,
+  Building2,
+  Upload,
+  UserCog,
+  Plug,
+  Mail,
+  MessageCircle,
+  MessageSquareText,
+  Contact,
 } from "lucide-react";
 import { useState, useMemo, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
@@ -177,6 +186,77 @@ function bookingStatusBadge(status: string | null) {
   return (
     <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium capitalize whitespace-nowrap ${map[lower] ?? "bg-muted text-muted-foreground"}`}>
       {status.replace(/_/g, " ")}
+    </span>
+  );
+}
+
+// ── Lead source / preferred contact indicators ────────────────────────────
+// Derived purely from the lead's own record (source_type/source, meta) —
+// never from workspace identity — so the same renderer works for every
+// account, including WBAH (its CRM-sourced rows are tagged source:"crm" at
+// the data layer, not via an isWbah branch here).
+type LeadBadgeSpec = { Icon: typeof Globe; label: string; tone: string };
+
+function leadSourceBadgeSpec(lead: any): LeadBadgeSpec | null {
+  const raw = String(lead?.source_type ?? lead?.source ?? "").toLowerCase().trim();
+  if (!raw) return null;
+  const FORM = new Set([
+    "webform", "website_form", "form", "landing_page", "facebook_lead_form",
+    "google_ads_lead_form", "tiktok_lead_form", "linkedin_lead_form",
+    "custom_form", "webee_website_form", "zapier", "make",
+  ]);
+  const CRM = new Set(["crm", "dynamics", "pipedrive", "hubspot", "import", "inbound", "outbound", "referral"]);
+  const UPLOAD = new Set(["csv", "data_upload"]);
+  const API = new Set(["api", "webhook"]);
+  if (FORM.has(raw)) return { Icon: Globe, label: "Web form lead", tone: "text-sky-400 bg-sky-500/10" };
+  if (CRM.has(raw)) return { Icon: Building2, label: "CRM lead", tone: "text-violet-400 bg-violet-500/10" };
+  if (UPLOAD.has(raw)) return { Icon: Upload, label: "CSV / uploaded lead", tone: "text-amber-400 bg-amber-500/10" };
+  if (raw === "manual") return { Icon: UserCog, label: "Manually added lead", tone: "text-slate-400 bg-slate-500/10" };
+  if (API.has(raw)) return { Icon: Plug, label: "API / webhook lead", tone: "text-emerald-400 bg-emerald-500/10" };
+  return null;
+}
+
+function LeadSourceBadge({ lead }: { lead: any }) {
+  const spec = leadSourceBadgeSpec(lead);
+  if (!spec) return null;
+  const { Icon, label, tone } = spec;
+  return (
+    <span
+      title={label}
+      className={cn("inline-flex shrink-0 items-center justify-center rounded p-0.5", tone)}
+    >
+      <Icon className="h-2.5 w-2.5" />
+    </span>
+  );
+}
+
+function preferredContactBadgeSpec(lead: any): LeadBadgeSpec | null {
+  const raw = String(
+    lead?.preferred_contact ??
+    lead?.preferred_contact_method ??
+    lead?.meta?.preferred_contact ??
+    lead?.meta?.preferred_contact_method ??
+    "",
+  ).toLowerCase().trim();
+  if (!raw) return null;
+  if (raw === "phone" || raw === "call") return { Icon: Phone, label: "Prefers phone", tone: "text-blue-400 bg-blue-500/10" };
+  if (raw === "email") return { Icon: Mail, label: "Prefers email", tone: "text-orange-400 bg-orange-500/10" };
+  if (raw === "whatsapp") return { Icon: MessageCircle, label: "Prefers WhatsApp", tone: "text-emerald-400 bg-emerald-500/10" };
+  if (raw === "sms" || raw === "text") return { Icon: MessageSquareText, label: "Prefers SMS", tone: "text-fuchsia-400 bg-fuchsia-500/10" };
+  if (raw === "any" || raw === "no_preference") return { Icon: Contact, label: "No contact preference", tone: "text-slate-400 bg-slate-500/10" };
+  return null;
+}
+
+function PreferredContactBadge({ lead }: { lead: any }) {
+  const spec = preferredContactBadgeSpec(lead);
+  if (!spec) return null;
+  const { Icon, label, tone } = spec;
+  return (
+    <span
+      title={label}
+      className={cn("inline-flex shrink-0 items-center justify-center rounded p-0.5", tone)}
+    >
+      <Icon className="h-2.5 w-2.5" />
     </span>
   );
 }
@@ -991,6 +1071,7 @@ function LeadsPage() {
                           <div className="min-w-0">
                             <div className="flex items-center gap-1 min-w-0">
                               <span className="truncate text-[11px] font-medium min-w-0">{lead.full_name ?? "—"}</span>
+                              <LeadSourceBadge lead={lead} />
                               {isWbah && (
                                 <WbahCallCountBadge
                                   count={lead.meta?.call_count ?? 1}
@@ -1007,7 +1088,10 @@ function LeadsPage() {
                           )}
                         </td>
                         <td className="px-2 py-0.5 text-muted-foreground whitespace-nowrap text-[10px] font-mono">
-                          {lead.phone}
+                          <span className="inline-flex items-center gap-1">
+                            {lead.phone}
+                            <PreferredContactBadge lead={lead} />
+                          </span>
                         </td>
                         {/* Status picker */}
                         <td className="px-2 py-0.5">
