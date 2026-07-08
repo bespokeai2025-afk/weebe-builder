@@ -1,0 +1,103 @@
+I need to update this existing Replit project with my new clean Cursor/GitHub codebase, but I must preserve all original app features.
+
+Critical:
+- Do not delete or overwrite original features without checking.
+- Do not blindly hard reset yet.
+- Do not delete Replit Secrets.
+- Do not print secret values.
+- Do not change domain/deployment settings.
+- Do not break existing Retell, n8n, WATI, FreJun, Supabase, Upstash, Cal.com/Calendly, webhooks, auth, analytics, HiveMind, or lead/call flows.
+- Do not mix old and new code in a messy way.
+- The goal is to safely migrate to the new Cursor/GitHub code while preserving any useful original Replit features.
+
+Before replacing code:
+
+1. Create a full backup branch/snapshot of the current Replit project code.
+
+2. Check Replit Secrets:
+   - List secret names only.
+   - Do not print values.
+   - Confirm secrets will remain untouched.
+
+3. Compare the current Replit codebase against the new GitHub/Cursor repo.
+
+4. Identify any original features that exist in the old Replit project but are missing or different in the new Cursor/GitHub code.
+
+Specifically check for these original features:
+- User login/auth
+- Workspace/account scoping
+- Webespoke AI workspace
+- WBAH workspace
+- WBAH People section
+- WBAH Disqualified leads
+- WBAH Tried To Contact leads
+- WBAH Rebook Initial Consultation leads
+- WBAH Calls tab
+- Calls section
+- Leads section
+- Qualified leads section
+- Pipeline section
+- Retell analytics
+- Retell API integration
+- Manual Start Calling
+- UAT API Start Calling integration
+- Follow-up system
+- HexMail/follow-up centre
+- WhatsApp/WATI flows
+- FreJun integration
+- n8n webhook flows
+- Cal.com/Calendly booking flows
+- HiveMind
+- Growth Mind
+- System Mind
+- Agent builder
+- PDF script upload/import
+- Live call/transcription/test calling
+- Upstash Redis cache layer
+- Supabase storage/database logic
+- Per-workspace Retell API key/settings
+- Admin settings
+- Webhook handlers
+- Deployment/start/build config
+
+5. Produce a feature comparison report with:
+   - Feature name
+   - Exists in old Replit code: yes/no
+   - Exists in new Cursor/GitHub code: yes/no
+   - Risk level
+   - File paths involved
+   - Recommended action
+
+6. Do not delete anything yet.
+
+7. If old Replit has features missing from the new Cursor/GitHub repo, merge those features into the new code first.
+
+8. After all required original features are confirmed preserved, then update the existing Replit project to the clean GitHub codebase.
+
+9. Preserve required Replit config files if needed:
+   - .replit
+   - replit.nix
+   - package.json
+   - lock files
+   - deployment config
+
+10. Run:
+   - npm install
+   - npm run build
+   - npm run start or the correct Replit start command
+
+11. Smoke test:
+   - Login works
+   - Supabase connects
+   - WBAH People loads
+   - WBAH Calls tab loads
+   - Manual Start Calling works through UAT API
+   - Follow-ups work
+   - Retell analytics loads
+   - HiveMind loads workspace-specific data
+   - Webespoke AI and WBAH data remain separate
+   - Upstash works but only caches safe small payloads
+   - Existing webhooks/n8n/WATI/FreJun/Cal.com flows are not broken
+
+Expected result:
+Before any code replacement, I want a clear report showing whether any original Replit features would be lost. Only proceed with replacing/resetting code after confirming all original features are preserved or merged into the new code.
