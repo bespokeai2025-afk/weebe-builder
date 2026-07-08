@@ -513,6 +513,9 @@ function DataPage() {
   const [crmPeopleSelected, setCrmPeopleSelected] = useState<Set<string>>(new Set());
   const [crmImporting, setCrmImporting] = useState(false);
   const [crmImportAgentId, setCrmImportAgentId] = useState<string>("");
+  const [crmSearch, setCrmSearch]             = useState("");
+  const [crmStatusFilter, setCrmStatusFilter] = useState("all");
+  const [crmDateFilter, setCrmDateFilter]     = useState("all");
 
   const [qualifiedLeads, setQualifiedLeads] = useState<QualifiedLeadRow[]>([]);
   const [qualifiedLoading, setQualifiedLoading] = useState(false);
@@ -677,10 +680,37 @@ function DataPage() {
   // the current page and break the server total count).
   const wbahCallsRows = wbahCallsData;
 
+  // Standard CRM People filters — options derived from the workspace's own rows.
+  const crmStatusOptions = useMemo(
+    () => Array.from(new Set(crmPeople.map((p) => String(p.status ?? "").trim()).filter(Boolean))).sort((a, b) => a.localeCompare(b)),
+    [crmPeople],
+  );
+  const crmDateCut = useMemo(() => wbahDateCutoff(crmDateFilter), [crmDateFilter]);
+  const crmFiltered = useMemo(
+    () => crmPeople.filter((p) => {
+      if (crmSearch.trim()) {
+        const q = crmSearch.toLowerCase();
+        if (
+          !(p.name ?? "").toLowerCase().includes(q) &&
+          !String(p.phone ?? "").toLowerCase().includes(q) &&
+          !(p.email ?? "").toLowerCase().includes(q)
+        ) return false;
+      }
+      if (crmStatusFilter !== "all" && String(p.status ?? "").trim() !== crmStatusFilter) return false;
+      if (crmDateCut > 0) {
+        const ts = p.created_at ? Date.parse(p.created_at) : 0;
+        if (!ts || ts < crmDateCut) return false;
+      }
+      return true;
+    }),
+    [crmPeople, crmSearch, crmStatusFilter, crmDateCut],
+  );
+  const crmHasFilters = crmSearch.trim() !== "" || crmStatusFilter !== "all" || crmDateFilter !== "all";
+
   const recordsPag = useTablePagination(records);
   const wbahPag    = useTablePagination(wbahFiltered);
   const wbahCatPag   = useTablePagination(wbahCatFiltered);
-  const crmPag     = useTablePagination(crmPeople);
+  const crmPag     = useTablePagination(crmFiltered);
 
   // Server-driven pagination object with the same shape the table + TablePagBar
   // expect. Changing page/pageSize triggers a refetch via the effect below.
@@ -1992,19 +2022,70 @@ function DataPage() {
         <div className="min-w-0 overflow-hidden rounded-xl border border-white/[0.06] bg-card/60">
           {/* People toolbar */}
           <div className="flex flex-col gap-1.5 border-b border-white/[0.06] px-2.5 py-1.5 sm:px-3 lg:flex-row lg:items-center lg:justify-between">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
-              Inbound Leads from CRM
+            <div className="flex min-w-0 flex-wrap items-center gap-2">
+              <p className="shrink-0 text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+                Inbound Leads from CRM
+                {crmPeople.length > 0 && (
+                  <span className="ml-2 normal-case text-xs font-normal tracking-normal text-muted-foreground">
+                    {crmHasFilters ? `${crmFiltered.length} of ${crmPeople.length}` : `${crmPeople.length} lead${crmPeople.length !== 1 ? "s" : ""}`}
+                  </span>
+                )}
+                {crmPeopleSelected.size > 0 && (
+                  <span className="ml-2 normal-case text-xs font-normal text-blue-400 tracking-normal">
+                    {crmPeopleSelected.size} selected
+                  </span>
+                )}
+              </p>
               {crmPeople.length > 0 && (
-                <span className="ml-2 normal-case text-xs font-normal tracking-normal text-muted-foreground">
-                  {crmPeople.length} lead{crmPeople.length !== 1 ? "s" : ""}
-                </span>
+                <>
+                  <div className="relative">
+                    <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3 w-3 text-muted-foreground pointer-events-none" />
+                    <input
+                      value={crmSearch}
+                      onChange={(e) => setCrmSearch(e.target.value)}
+                      placeholder="Search name, phone…"
+                      className="h-6 min-w-0 w-full max-w-[160px] rounded-md border border-white/[0.08] bg-muted/40 pl-6 pr-2 text-[11px] placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-primary/40 sm:w-36"
+                    />
+                    {crmSearch && (
+                      <button
+                        onClick={() => setCrmSearch("")}
+                        className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    )}
+                  </div>
+                  {crmStatusOptions.length > 0 && (
+                    <Select value={crmStatusFilter} onValueChange={setCrmStatusFilter}>
+                      <SelectTrigger className="h-7 w-[140px] text-xs"><SelectValue placeholder="Status" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All statuses</SelectItem>
+                        {crmStatusOptions.map((s) => (
+                          <SelectItem key={s} value={s} className="capitalize">{s.replace(/_/g, " ")}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
+                  <Select value={crmDateFilter} onValueChange={setCrmDateFilter}>
+                    <SelectTrigger className="h-7 w-[130px] text-xs"><SelectValue placeholder="Date" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All time</SelectItem>
+                      <SelectItem value="today">Today</SelectItem>
+                      <SelectItem value="7d">Last 7 days</SelectItem>
+                      <SelectItem value="30d">Last 30 days</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  {crmHasFilters && (
+                    <button
+                      onClick={() => { setCrmSearch(""); setCrmStatusFilter("all"); setCrmDateFilter("all"); }}
+                      className="text-[11px] text-muted-foreground hover:text-foreground underline whitespace-nowrap"
+                    >
+                      Clear filters
+                    </button>
+                  )}
+                </>
               )}
-              {crmPeopleSelected.size > 0 && (
-                <span className="ml-2 normal-case text-xs font-normal text-blue-400 tracking-normal">
-                  {crmPeopleSelected.size} selected
-                </span>
-              )}
-            </p>
+            </div>
             <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
               {crmPeopleSelected.size > 0 && (
                 <>
@@ -2037,12 +2118,12 @@ function DataPage() {
                   </Button>
                 </>
               )}
-              {crmPeople.length > 0 && crmPeopleSelected.size === 0 && (
+              {crmFiltered.length > 0 && crmPeopleSelected.size === 0 && (
                 <Button
                   size="sm"
                   variant="outline"
                   className="h-7 text-xs"
-                  onClick={() => setCrmPeopleSelected(new Set(crmPeople.map((p) => p.external_id)))}
+                  onClick={() => setCrmPeopleSelected(new Set(crmFiltered.map((p) => p.external_id)))}
                 >
                   Select All
                 </Button>
@@ -2085,6 +2166,19 @@ function DataPage() {
                 <RefreshCw className="mr-1.5 h-3.5 w-3.5" /> Pull from CRM
               </Button>
             </div>
+          ) : crmFiltered.length === 0 ? (
+            <div className="flex flex-col items-center gap-2 py-16">
+              <Users className="h-8 w-8 text-muted-foreground" />
+              <p className="text-sm font-medium">No leads match your filters</p>
+              <Button
+                variant="outline"
+                size="sm"
+                className="mt-2"
+                onClick={() => { setCrmSearch(""); setCrmStatusFilter("all"); setCrmDateFilter("all"); }}
+              >
+                Clear filters
+              </Button>
+            </div>
           ) : (
             <div className="min-w-0 overflow-x-auto">
               <table className="w-full text-[11px]">
@@ -2092,9 +2186,9 @@ function DataPage() {
                   <tr className="border-b border-white/[0.06] bg-card/30">
                     <th className="w-8 px-2 py-1">
                       <Checkbox
-                        checked={crmPeople.length > 0 && crmPeopleSelected.size === crmPeople.length}
+                        checked={crmFiltered.length > 0 && crmFiltered.every((p) => crmPeopleSelected.has(p.external_id))}
                         onCheckedChange={(v) => {
-                          if (v) setCrmPeopleSelected(new Set(crmPeople.map((p) => p.external_id)));
+                          if (v) setCrmPeopleSelected(new Set(crmFiltered.map((p) => p.external_id)));
                           else setCrmPeopleSelected(new Set());
                         }}
                       />

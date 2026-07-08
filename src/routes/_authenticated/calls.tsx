@@ -429,7 +429,7 @@ function CallsPage() {
       if (statusFilter && r.call_status !== statusFilter) return false;
       if (callTypeFilter && r.call_type !== callTypeFilter) return false;
       if (sentimentFilter && r.sentiment !== sentimentFilter) return false;
-      if (isWbah && wbahAgentFilter !== "all" && (r.agent_name ?? "") !== wbahAgentFilter) return false;
+      if (wbahAgentFilter !== "all" && (r.agent_name ?? "") !== wbahAgentFilter) return false;
       // Call duration greater than N minutes.
       if (minDur > 0 && (r.duration_seconds ?? 0) < minDur) return false;
       // Call outcome: successful = completed; unsuccessful = failed/no-answer/busy.
@@ -449,7 +449,7 @@ function CallsPage() {
 
   const callsPag = useTablePagination(filteredRows);
 
-  const hasCallFilters = search.trim() || statusFilter || callTypeFilter || sentimentFilter || durationFilter || outcomeFilter || daysFilter === "custom" || (isWbah && wbahAgentFilter !== "all");
+  const hasCallFilters = search.trim() || statusFilter || callTypeFilter || sentimentFilter || durationFilter || outcomeFilter || daysFilter === "custom" || wbahAgentFilter !== "all";
 
   function openPanel(c: any) {
     const inbound = c.call_type === "inbound";
@@ -672,7 +672,7 @@ function CallsPage() {
               <option value="neutral">Neutral</option>
               <option value="negative">Negative</option>
             </select>
-            {isWbah && (
+            {(isWbah || wbahAgentOptions.length > 0) && (
               <select
                 value={wbahAgentFilter}
                 onChange={(e) => setWbahAgentFilter(e.target.value)}
@@ -775,7 +775,7 @@ function CallsPage() {
                 size="sm"
                 variant="ghost"
                 className="h-6 text-[11px] text-muted-foreground hover:text-foreground"
-                onClick={() => { setSearch(""); setStatusFilter(""); setCallTypeFilter(""); setSentimentFilter(""); setDurationFilter(""); setOutcomeFilter(""); }}
+                onClick={() => { setSearch(""); setStatusFilter(""); setCallTypeFilter(""); setSentimentFilter(""); setDurationFilter(""); setOutcomeFilter(""); setWbahAgentFilter("all"); }}
               >
                 Clear filters
               </Button>

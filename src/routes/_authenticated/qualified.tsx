@@ -347,10 +347,10 @@ function QualifiedPage() {
       (r.full_name ?? "").toLowerCase().includes(q) ||
       (r.phone ?? "").toLowerCase().includes(q) ||
       (r.company_name ?? "").toLowerCase().includes(q));
-    if (isWbah && wbahAgentFilter !== "all") {
+    if (wbahAgentFilter !== "all") {
       out = out.filter((r: any) => (r.meta?.agent_name ?? "") === wbahAgentFilter);
     }
-    if (isWbah && wbahDaysFilter !== "all") {
+    if (wbahDaysFilter !== "all") {
       const { dateFrom, dateTo } = filterToDates(wbahDaysFilter);
       out = out.filter((r: any) => {
         // Booked contacts stay visible when the appointment falls in range,
@@ -372,7 +372,7 @@ function QualifiedPage() {
           // Booked but no parseable appt date — always show.
           return true;
         }
-        const dateStr = r.meta?.last_called_at ?? r.created_at ?? null;
+        const dateStr = r.meta?.last_called_at ?? r.last_contacted_at ?? r.created_at ?? null;
         if (!dateStr) return false;
         const ts = new Date(dateStr).getTime();
         if (isNaN(ts)) return false;
@@ -532,8 +532,7 @@ function QualifiedPage() {
       })()}
 
       {/* Filter bar — WBAH matches Calls page layout */}
-      {isWbah && (
-        <div className="flex min-w-0 flex-wrap items-center gap-1.5">
+      <div className="flex min-w-0 flex-wrap items-center gap-1.5">
           <div className="relative min-w-0 flex-shrink-0">
             <Search className="pointer-events-none absolute left-2 top-1/2 h-3 w-3 -translate-y-1/2 text-muted-foreground" />
             <Input
@@ -557,7 +556,7 @@ function QualifiedPage() {
             <option value="180">Last 6 months</option>
             <option value="all">All time</option>
           </select>
-          {isWbah && (
+          {(isWbah || wbahAgentOptions.length > 0) && (
             <select
               value={wbahAgentFilter}
               onChange={(e) => setWbahAgentFilter(e.target.value)}
@@ -572,34 +571,10 @@ function QualifiedPage() {
           {search.trim() && (
             <span className="text-[11px] text-muted-foreground">{filtered.length} matching</span>
           )}
-        </div>
-      )}
+      </div>
 
       {/* Table */}
       <div className="min-w-0 overflow-hidden rounded-xl border border-white/[0.06] bg-card/60">
-        {!isWbah && (
-          <div className="flex flex-col gap-1.5 border-b border-white/[0.06] px-2.5 py-1.5 sm:px-3 lg:flex-row lg:items-center lg:justify-between">
-            <p className="shrink-0 text-[10px] font-semibold uppercase tracking-[0.1em] text-muted-foreground">
-              Qualified Records
-              {search.trim() && (
-                <span className="ml-2 normal-case text-xs font-normal text-muted-foreground tracking-normal">
-                  {filtered.length} matching
-                </span>
-              )}
-            </p>
-            <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
-              <div className="relative min-w-0 flex-shrink-0">
-                <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3 w-3 -translate-y-1/2 text-muted-foreground" />
-                <Input
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  placeholder="Search name, phone…"
-                  className="h-6 w-36 pl-7 text-[11px] sm:w-40"
-                />
-              </div>
-            </div>
-          </div>
-        )}
         <div className="p-0">
           {(isWbah ? wbahLeadsQ.isLoading : leadsQ.isLoading) ? (
             <LoadingProgress label="Loading qualified contacts" estimatedMs={8000} />
@@ -610,6 +585,22 @@ function QualifiedPage() {
               <p className="mt-1 text-xs text-muted-foreground max-w-xs mx-auto">
                 Build a Client Qualification agent, run calls, and qualified contacts will appear here automatically.
               </p>
+            </div>
+          ) : filtered.length === 0 ? (
+            <div className="flex flex-col items-center gap-2 py-10 text-center">
+              <CheckCircle2 className="h-7 w-7 text-muted-foreground/50" />
+              <h3 className="mt-3 text-sm font-medium">No contacts match your filters</h3>
+              <p className="mt-1 text-xs text-muted-foreground max-w-xs mx-auto">
+                Try widening the date range or clearing the search and agent filters.
+              </p>
+              <Button
+                variant="outline"
+                size="sm"
+                className="mt-2 h-7 text-xs"
+                onClick={() => { setSearch(""); setWbahAgentFilter("all"); setWbahDaysFilter("all"); }}
+              >
+                Clear filters
+              </Button>
             </div>
           ) : (
             <div className="min-w-0 overflow-x-auto">

@@ -447,7 +447,7 @@ function LeadsPage() {
         : (isWbah ? l.meta?.call_status : null);
       if (cs !== callStatusFilter) return false;
     }
-    if (isWbah && wbahAgentFilter !== "all" && (l.meta?.agent_name ?? "") !== wbahAgentFilter) return false;
+    if (wbahAgentFilter !== "all" && (l.meta?.agent_name ?? "") !== wbahAgentFilter) return false;
     // Call duration greater than N minutes.
     if (leadsDuration) {
       const minDur = parseInt(leadsDuration, 10);
@@ -476,7 +476,7 @@ function LeadsPage() {
         if (dateTo && ts > new Date(dateTo).getTime()) return false;
       }
     }
-    if (quickFilter && isWbah) {
+    if (quickFilter) {
       const ns = normalizeSentiment(l.sentiment);
       const st = l.status;
       switch (quickFilter) {
@@ -520,7 +520,7 @@ function LeadsPage() {
       leads.length, pos, neu, neg, unk);
   }, [isWbah, leads]);
 
-  const hasLeadFilters = search.trim() || statusFilter || leadStatusCat !== "all" || sentimentFilter || callStatusFilter || quickFilter || leadsDuration || leadsOutcome || wbahDaysFilter === "custom" || (isWbah && wbahAgentFilter !== "all");
+  const hasLeadFilters = search.trim() || statusFilter || leadStatusCat !== "all" || sentimentFilter || callStatusFilter || quickFilter || leadsDuration || leadsOutcome || wbahDaysFilter === "custom" || wbahAgentFilter !== "all";
 
   const positive = leads.filter((l: any) => normalizeSentiment(l.sentiment) === "positive").length;
   const withScore = leads.filter((l: any) => l.lead_score != null);
@@ -873,7 +873,7 @@ function LeadsPage() {
                   />
                 </div>
               )}
-              {isWbah && (
+              {(isWbah || wbahAgentOptions.length > 0) && (
                 <select
                   value={wbahAgentFilter}
                   onChange={(e) => setWbahAgentFilter(e.target.value)}
@@ -897,13 +897,12 @@ function LeadsPage() {
               )}
             </div>
           </div>
-          {isWbah && (
-            <div className="flex flex-wrap items-center gap-1.5 border-b border-white/[0.06] px-2.5 py-1.5 sm:px-3">
+          <div className="flex flex-wrap items-center gap-1.5 border-b border-white/[0.06] px-2.5 py-1.5 sm:px-3">
               <span className="text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground mr-1">Quick filter</span>
               {[
-                { value: "positive",          label: "Positive" },
-                { value: "neutral",           label: "Neutral" },
-                { value: "partial_qualified", label: "Partial Qualified" },
+                { value: "positive", label: "Positive" },
+                { value: "neutral",  label: "Neutral" },
+                ...(isWbah ? [{ value: "partial_qualified", label: "Partial Qualified" }] : []),
               ].map((c) => {
                 const active = quickFilter === c.value;
                 return (
@@ -921,8 +920,7 @@ function LeadsPage() {
                 );
               })}
               <span className="ml-auto text-[11px] text-muted-foreground">{filtered.length} shown</span>
-            </div>
-          )}
+          </div>
           <div className="p-0">
             {(leadsQ.isLoading || !wsResolved) ? (
               <LoadingProgress label="Loading leads" estimatedMs={8000} />
