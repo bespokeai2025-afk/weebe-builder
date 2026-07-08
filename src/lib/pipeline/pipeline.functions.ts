@@ -195,6 +195,17 @@ async function getWbahPipelineLeads(workspaceId: string): Promise<PipelineLead[]
     const results: PipelineLead[] = [];
     const seen = new Set<string>();
 
+    // entity_notes.entity_id is TEXT, so this also matches the synthetic
+    // "crm:<digits>" ids used for CRM-only booked contacts below.
+    const { data: notesRows } = await (supabaseAdmin as any)
+      .from("entity_notes")
+      .select("entity_id")
+      .eq("workspace_id", workspaceId)
+      .eq("entity_type", "lead");
+    const notedIds = new Set<string>(
+      ((notesRows ?? []) as { entity_id: string }[]).map((r) => r.entity_id),
+    );
+
     for (const [key, calls] of byPhone) {
       calls.sort(
         (a, b) => (Date.parse(b.started_at ?? "") || 0) - (Date.parse(a.started_at ?? "") || 0),
@@ -235,7 +246,7 @@ async function getWbahPipelineLeads(workspaceId: string): Promise<PipelineLead[]
         source: "wbah",
         state_name: null,
         hasBooking: booked,
-        hasNotes: false,
+        hasNotes: notedIds.has(c.id),
         hasDocuments: false,
       });
     }
@@ -265,7 +276,7 @@ async function getWbahPipelineLeads(workspaceId: string): Promise<PipelineLead[]
         source: "wbah",
         state_name: null,
         hasBooking: true,
-        hasNotes: false,
+        hasNotes: notedIds.has(b.id),
         hasDocuments: false,
       });
     }

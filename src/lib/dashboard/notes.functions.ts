@@ -13,7 +13,10 @@ export const addEntityNote = createServerFn({ method: "POST" })
     z
       .object({
         entityType: z.enum(ENTITY_TYPES),
-        entityId: z.string().uuid(),
+        // Not always a real UUID — WBAH-derived leads/contacts/calls and
+        // CRM-only booked contacts use synthetic string ids (e.g. "crm:...",
+        // "wbah:..."). entity_notes.entity_id is TEXT to support these.
+        entityId: z.string().min(1).max(300),
         body: z.string().min(1).max(5000).trim(),
       })
       .parse(input),
@@ -39,7 +42,7 @@ export const listEntityNotes = createServerFn({ method: "POST" })
     z
       .object({
         entityType: z.enum(ENTITY_TYPES),
-        entityId: z.string().uuid(),
+        entityId: z.string().min(1).max(300),
       })
       .parse(input),
   )
