@@ -508,20 +508,127 @@ async function fetchAllCallRecords(
 
 // ── Upsert calls to wbah_calls ────────────────────────────────────────────────
 
+const BOOKING_FIELDS = ["appointment_date", "appointment_time", "booking_status", "calendly_booking_url"] as const;
+
+// A genuine Retell call_id always looks like `call_<hex>` (see
+// buildRetellCallRow in wbah-retell-calls-sync.ts). WeeBespoke's own
+// get-user-history record usually carries that same call_id, but for a small
+// fraction of records it's missing and buildCallRow falls back to
+// WeeBespoke's internal `_id`/`id` — a value that will never match Retell's
+// row. Combined with buildCallRow's started_at fallback (which lands near the
+// call's END time, not its start, when `startTimestamp` is absent), these
+// "weak id" rows silently create a SECOND wbah_calls row for a call Retell
+// already synced — customers see the same call listed twice, looking like a
+// start-time row and an end-time row.
+function isWeakCallId(id: string): boolean {
+  return !/^call_/.test(id);
+}
+
+// Detects wbah_calls rows built from a "weak id" WeeBespoke record that are
+// actually the SAME physical call as an existing Retell-sourced row (matched
+// by phone + call-end-time proximity). Any booking info on the WeeBespoke row
+// is merged onto the Retell row so it isn't lost, and the WeeBespoke row's id
+// is returned so the caller can skip inserting it as a duplicate.
+async function dedupeAgainstRetellRows(
+  sb: ReturnType<typeof getAdminClient>,
+  rows: NonNullable<ReturnType<typeof buildCallRow>>[],
+): Promise<Set<string>> {
+  const skip = new Set<string>();
+  const weakRows = rows.filter((r) => isWeakCallId(r.id) && r.phone && r.started_at);
+  if (!weakRows.length) return skip;
+
+  const workspaceId = weakRows[0].workspace_id;
+  const phones = Array.from(new Set(weakRows.map((r) => r.phone as string)));
+
+  // PostgREST caps a single response at 1000 rows — a chunk of many phones
+  // can easily have >1000 combined retell rows (busy numbers dominate),
+  // which would silently truncate the result and drop rows for other phones
+  // in the chunk with no error. Query a handful of phones per request and
+  // paginate each one until exhausted.
+  const PHONE_CHUNK = 20;
+  const PAGE = 1000;
+  const byPhone = new Map<string, any[]>();
+  for (let i = 0; i < phones.length; i += PHONE_CHUNK) {
+    const chunk = phones.slice(i, i + PHONE_CHUNK);
+    let from = 0;
+    while (true) {
+      const { data: retellRows, error } = await (sb as any)
+        .from("wbah_calls")
+        .select("id, phone, started_at, duration_seconds, appointment_date, appointment_time, booking_status, calendly_booking_url")
+        .eq("workspace_id", workspaceId)
+        .eq("meta->>source", "retell")
+        .in("phone", chunk)
+        .range(from, from + PAGE - 1);
+      if (error) break;
+      const rows = (retellRows ?? []) as any[];
+      for (const r of rows) {
+        const arr = byPhone.get(r.phone) ?? [];
+        arr.push(r);
+        byPhone.set(r.phone, arr);
+      }
+      if (rows.length < PAGE) break;
+      from += PAGE;
+    }
+  }
+  if (!byPhone.size) return skip;
+
+  const bookingUpdates = new Map<string, Record<string, any>>();
+  for (const row of weakRows) {
+    const candidates = byPhone.get(row.phone as string) ?? [];
+    const rowStart = Date.parse(String(row.started_at));
+    if (!Number.isFinite(rowStart)) continue;
+    for (const c of candidates) {
+      const cStart = c.started_at ? Date.parse(String(c.started_at)) : NaN;
+      if (!Number.isFinite(cStart)) continue;
+      const expectedEnd = cStart + (c.duration_seconds ?? 0) * 1000;
+      const durationsClose = row.duration_seconds == null || c.duration_seconds == null
+        ? true
+        : Math.abs(row.duration_seconds - c.duration_seconds) <= 3;
+      // WeeBespoke's fallback started_at lands within a few seconds of the
+      // call's real end — 90s covers sync-delay jitter without risking a
+      // false match against an unrelated call from the same number.
+      if (durationsClose && Math.abs(rowStart - expectedEnd) <= 90_000) {
+        skip.add(String(row.id));
+        const patch: Record<string, any> = {};
+        for (const f of BOOKING_FIELDS) {
+          const cur = c[f];
+          const incoming = (row as any)[f];
+          if ((cur == null || String(cur).trim() === "") && incoming != null && String(incoming).trim() !== "") {
+            patch[f] = incoming;
+          }
+        }
+        if (Object.keys(patch).length) {
+          bookingUpdates.set(String(c.id), { ...(bookingUpdates.get(String(c.id)) ?? {}), ...patch });
+        }
+        break;
+      }
+    }
+  }
+
+  for (const [id, patch] of bookingUpdates) {
+    const { error: updErr } = await (sb as any).from("wbah_calls").update(patch).eq("id", id);
+    if (updErr) console.error("[wbah-calls-sync] booking merge error:", updErr.message);
+  }
+  return skip;
+}
+
 async function upsertCallRows(sb: ReturnType<typeof getAdminClient>, rows: NonNullable<ReturnType<typeof buildCallRow>>[]): Promise<number> {
   if (!rows.length) return 0;
-  const BOOKING = ["appointment_date", "appointment_time", "booking_status", "calendly_booking_url"] as const;
-  const ids = rows.map((r) => r.id);
+  const skipIds = await dedupeAgainstRetellRows(sb, rows);
+  const rowsToUpsert = skipIds.size ? rows.filter((r) => !skipIds.has(String(r.id))) : rows;
+  if (!rowsToUpsert.length) return 0;
+
+  const ids = rowsToUpsert.map((r) => r.id);
   const { data: existing } = await (sb as any)
     .from("wbah_calls")
     .select("id, appointment_date, appointment_time, booking_status, calendly_booking_url")
     .in("id", ids);
   const byId = new Map<string, any>(((existing ?? []) as any[]).map((e) => [String(e.id), e]));
-  const merged = rows.map((row) => {
+  const merged = rowsToUpsert.map((row) => {
     const prev = byId.get(String(row.id));
     if (!prev) return row;
     const out = { ...row };
-    for (const f of BOOKING) {
+    for (const f of BOOKING_FIELDS) {
       const next = out[f];
       const kept = prev[f];
       if ((next == null || String(next).trim() === "") && kept != null && String(kept).trim() !== "") {
