@@ -1,0 +1,46 @@
+I need this existing Replit project to keep all current Secrets, environment variables, deployment settings, and domain settings, but replace the code with my new clean GitHub repo from Cursor.
+
+Critical:
+- Do not create a new Replit project.
+- Do not delete or modify Replit Secrets.
+- Do not print secret values.
+- Do not commit secret values.
+- Do not expose any API keys or tokens.
+- Do not overwrite deployment/domain settings.
+- Do not mix old code with new code.
+- The code should match the new GitHub repo cleanly, but the existing Replit Secrets should remain.
+
+Before changing code:
+1. Check that Replit Secrets are present by listing secret names only, not values.
+2. Check if there are any .env files in the project file tree.
+3. If .env files exist, compare only the variable names against Replit Secrets and tell me which variable names are missing from Replit Secrets. Do not print values.
+4. Create a backup branch or snapshot of the current Replit code.
+5. Confirm the current deployment/domain settings exist and do not change them.
+
+Then:
+6. Connect this existing Replit project to my new GitHub repo.
+7. Pull/fetch the latest code from the new repo.
+8. Reset the project code to match the new GitHub repo exactly.
+9. Remove old unused/untracked code files only after showing a dry-run list first.
+10. Preserve required Replit config files if needed, such as .replit, replit.nix, package.json, lock files, and deployment config.
+11. Run npm install.
+12. Run npm run build.
+13. Start the app in dev mode.
+14. If any env variable is missing, list only the variable name, never the value.
+15. Do not deploy until the build passes.
+
+After build, smoke test:
+- Login works.
+- Supabase connects.
+- WBAH People loads.
+- WBAH Calls tab loads.
+- Manual Start Calling uses the UAT API.
+- Follow-ups work.
+- Retell analytics loads.
+- HiveMind loads workspace-specific data.
+- Upstash remains enabled but only caches small safe payloads.
+- Webespoke AI and WBAH workspaces remain separate.
+- Webhooks, n8n, WATI, FreJun, and Cal.com/Calendly flows are not broken.
+
+Expected result:
+This existing Replit project keeps its current Secrets and domains, but the code is fully replaced by the latest clean Cursor/GitHub repo without old code left behind.
