@@ -16,15 +16,18 @@ import {
   StickyNote,
   X,
   Building2,
+  Loader2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { RecordingPlayerDialog } from "@/components/RecordingPlayerDialog";
+import { RecordingPlayerDialog, PlayRecordingButton } from "@/components/RecordingPlayerDialog";
 import { DashboardPage, KpiCard, SummaryTooltip, stickyCell, stickyHead } from "@/components/dashboard/PageShell";
 import { LoadingProgress } from "@/components/dashboard/LoadingProgress";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { WbahCallCountBadge, WbahBookedStickyBadge, wbahAgentColorMapFromLeads } from "@/components/dashboard/WbahNotesButton";
 import { cn } from "@/lib/utils";
 import { listCalls, listTestCalls } from "@/lib/dashboard/calls.functions";
-import { listWbahCallsLive, getWbahCallDetail } from "@/lib/integrations/webespokeEnterprise/wbah-workspace.server";
+import { listWbahCallsLive, getWbahCallDetail, getWbahContactCallHistory } from "@/lib/integrations/webespokeEnterprise/wbah-workspace.server";
 import { NotesBookingSheet } from "@/components/dashboard/NotesBookingSheet";
 import type { NotesEntityType } from "@/components/dashboard/NotesBookingSheet";
 import { RelativeTime } from "@/components/ui/relative-time";
@@ -354,7 +357,46 @@ function CallsPage() {
   const [recordingPlayer, setRecordingPlayer] = useState<{ url: string; contact: string } | null>(null);
   const [panel, setPanel] = useState<PanelTarget | null>(null);
   const [wbahTranscript, setWbahTranscript] = useState<{ text: string; name: string } | null>(null);
+  const [callHistory, setCallHistory] = useState<{ name: string; phone: string; loading: boolean; calls: any[] } | null>(null);
   const getWbahCallDetailFn = useServerFn(getWbahCallDetail);
+  const getContactHistoryFn = useServerFn(getWbahContactCallHistory);
+
+  // Adapt a WBAH call row to the LeadLike shape the shared badges expect.
+  function wbahBadgeLead(c: any) {
+    return {
+      sentiment: c.sentiment,
+      meta: {
+        appointment_date:     c.appointment_date,
+        appointment_time:     c.appointment_time,
+        booking_status:       c.booking_status,
+        calendly_booking_url: c.calendly_booking_url,
+        agent_name:           c.agent_name,
+      },
+    };
+  }
+  const wbahAgentColorMap = useMemo(
+    () => (isWbah ? wbahAgentColorMapFromLeads(rows.map(wbahBadgeLead)) : new Map()),
+    [isWbah, rows],
+  );
+
+  async function openCallHistory(c: any) {
+    const phone = c.wbah_contact ?? c.to_number ?? c.from_number;
+    if (!phone) return;
+    const name = c.wbah_name ?? c.lead?.full_name ?? "Contact";
+    setCallHistory({ name, phone, loading: true, calls: [] });
+    try {
+      const res = await getContactHistoryFn({ data: { phone } });
+      setCallHistory({ name, phone, loading: false, calls: (res as any)?.calls ?? [] });
+    } catch {
+      setCallHistory({ name, phone, loading: false, calls: [] });
+    }
+  }
+
+  function fmtDurSec(sec: number | null | undefined) {
+    if (sec == null) return "—";
+    const m = Math.floor(sec / 60); const s = sec % 60;
+    return m > 0 ? `${m}m ${s}s` : `${s}s`;
+  }
 
   // Transcripts are omitted from the list payload — load on demand when opened.
   async function openWbahTranscript(c: any, name: string) {
@@ -463,6 +505,64 @@ function CallsPage() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Contact call-history drill-down */}
+      {callHistory !== null && (
+        <Dialog open onOpenChange={() => setCallHistory(null)}>
+          <DialogContent className="max-w-3xl max-h-[80vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>{callHistory.name} — Call History</DialogTitle>
+              <DialogDescription>
+                {callHistory.phone} · {callHistory.calls.length} call{callHistory.calls.length !== 1 ? "s" : ""}. The row shows the definitive outcome (a positive call wins); all attempts are listed here.
+              </DialogDescription>
+            </DialogHeader>
+            {callHistory.loading ? (
+              <div className="py-8 flex items-center justify-center text-sm text-muted-foreground">
+                <Loader2 className="h-4 w-4 animate-spin mr-2" /> Loading calls…
+              </div>
+            ) : callHistory.calls.length === 0 ? (
+              <p className="py-6 text-center text-sm text-muted-foreground">No calls found.</p>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-xs">
+                  <thead>
+                    <tr className="border-b border-white/[0.06] text-left text-[10px] uppercase tracking-wide text-muted-foreground">
+                      <th className="px-2 py-1.5">Date</th>
+                      <th className="px-2 py-1.5">Status</th>
+                      <th className="px-2 py-1.5">Sentiment</th>
+                      <th className="px-2 py-1.5">Duration</th>
+                      <th className="px-2 py-1.5">Agent</th>
+                      <th className="px-2 py-1.5">Recording</th>
+                      <th className="px-2 py-1.5">Transcript</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {callHistory.calls.map((c: any) => (
+                      <tr key={c.id} className="border-b border-white/[0.04] align-middle">
+                        <td className="px-2 py-1.5 whitespace-nowrap text-muted-foreground">{c.startedAt ? new Date(c.startedAt).toLocaleString() : "—"}</td>
+                        <td className="px-2 py-1.5 whitespace-nowrap capitalize">{(c.callStatus ?? "—").replace(/_/g, " ")}</td>
+                        <td className="px-2 py-1.5 capitalize">{c.sentiment ?? "—"}</td>
+                        <td className="px-2 py-1.5 whitespace-nowrap text-muted-foreground">{fmtDurSec(c.durationSeconds)}</td>
+                        <td className="px-2 py-1.5 whitespace-nowrap text-muted-foreground">{c.agentName ?? "—"}</td>
+                        <td className="px-2 py-1.5">
+                          {c.recordingUrl
+                            ? <PlayRecordingButton url={c.recordingUrl} contact={callHistory.name || callHistory.phone || "Lead"} className="inline-flex items-center gap-1 text-primary hover:underline" />
+                            : <span className="text-muted-foreground">—</span>}
+                        </td>
+                        <td className="px-2 py-1.5">
+                          {c.hasTranscript
+                            ? <button onClick={() => openWbahTranscript(c, callHistory.name)} className="text-violet-400 hover:underline">View</button>
+                            : <span className="text-muted-foreground">—</span>}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </DialogContent>
+        </Dialog>
       )}
 
       {/* Header */}
@@ -703,16 +803,15 @@ function CallsPage() {
                 <table className="w-full text-[11px]">
                   <thead>
                     <tr className="border-b border-white/[0.06] bg-card/30">
-                      {["SR No","Times Called","Dial","Name","Contact","Type","Last Called At","Call Status","Call Duration","Recording","Sentiment Analysis","Summary","Transcript","View","Appointment Date","Appointment Time","Booking Status","Calendly Booking Url","End Reason","Disconnection Reason"].map((h, i) => (
+                      {["SR No","Dial","Name","Contact","Type","Last Called At","Call Status","Call Duration","Recording","Sentiment Analysis","Summary","Transcript","View","Appointment Date","Appointment Time","Booking Status","Calendly Booking Url","End Reason","Disconnection Reason"].map((h, i) => (
                         <th
                           key={h}
                           className={cn(
                             "px-2 py-1 text-left text-[9px] font-semibold uppercase tracking-[0.08em] text-muted-foreground whitespace-nowrap",
                             i === 0 && cn(stickyHead, "left-0 w-9"),
-                            i === 1 && cn(stickyHead, "left-9 w-10 text-center"),
-                            i === 2 && cn(stickyHead, "left-[4.75rem] w-10"),
-                            i === 3 && cn(stickyHead, "left-[7.25rem] w-28"),
-                            i === 4 && cn(stickyHead, "left-[14.25rem] w-28 shadow-[4px_0_8px_-4px_rgba(0,0,0,0.45)]"),
+                            i === 1 && cn(stickyHead, "left-9 w-10"),
+                            i === 2 && cn(stickyHead, "left-[4.75rem] w-28"),
+                            i === 3 && cn(stickyHead, "left-[11.75rem] w-28 shadow-[4px_0_8px_-4px_rgba(0,0,0,0.45)]"),
                           )}
                         >
                           {h}
@@ -728,20 +827,22 @@ function CallsPage() {
                       return (
                         <tr key={c.id} className="group h-8 border-b border-white/[0.04] last:border-0 align-middle hover:bg-white/[0.02] transition-colors">
                           <td className={cn("px-2 py-0.5 text-[10px] text-muted-foreground tabular-nums", stickyCell, "left-0 w-9")}>{idx + 1}</td>
-                          <td className={cn("px-2 py-0.5", stickyCell, "left-9 w-10 text-center")}>
-                            {(c.call_count ?? 1) > 1 ? (
-                              <span className="inline-flex items-center justify-center rounded-full bg-amber-500/15 px-1 py-0.5 text-[9px] font-semibold text-amber-400 tabular-nums">×{c.call_count}</span>
-                            ) : (
-                              <span className="text-[10px] text-muted-foreground tabular-nums">1</span>
-                            )}
-                          </td>
-                          <td className={cn("px-2 py-0.5", stickyCell, "left-[4.75rem] w-10")} onClick={(e) => e.stopPropagation()}>
+                          <td className={cn("px-2 py-0.5", stickyCell, "left-9 w-10")} onClick={(e) => e.stopPropagation()}>
                             {phone
                               ? <a href={`tel:${phone}`} className="inline-flex rounded p-0.5 text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors"><Phone className="h-3 w-3" /></a>
                               : <Phone className="h-3 w-3 text-muted-foreground/30" />}
                           </td>
-                          <td className={cn("max-w-[7rem] truncate px-2 py-0.5 text-[11px] font-medium", stickyCell, "left-[7.25rem] w-28")}>{name}</td>
-                          <td className={cn("max-w-[7rem] truncate px-2 py-0.5 text-[10px] text-muted-foreground tabular-nums", stickyCell, "left-[14.25rem] w-28 shadow-[4px_0_8px_-4px_rgba(0,0,0,0.35)]")}>{phone ?? "N/A"}</td>
+                          <td className={cn("px-2 py-0.5", stickyCell, "left-[4.75rem] w-28 max-w-[7rem] overflow-hidden")} onClick={(e) => e.stopPropagation()}>
+                            <div className="flex items-center gap-1 min-w-0">
+                              <span className="truncate text-[11px] font-medium min-w-0">{name}</span>
+                              <WbahCallCountBadge
+                                count={c.call_count ?? 1}
+                                onClick={() => openCallHistory(c)}
+                              />
+                              <WbahBookedStickyBadge lead={wbahBadgeLead(c)} agentColorMap={wbahAgentColorMap} />
+                            </div>
+                          </td>
+                          <td className={cn("max-w-[7rem] truncate px-2 py-0.5 text-[10px] text-muted-foreground tabular-nums", stickyCell, "left-[11.75rem] w-28 shadow-[4px_0_8px_-4px_rgba(0,0,0,0.35)]")}>{phone ?? "N/A"}</td>
                           <td className="px-2 py-0.5 text-[10px] text-muted-foreground whitespace-nowrap">{callType}</td>
                           <td className="px-2 py-0.5 text-[10px] text-muted-foreground whitespace-nowrap">
                             {c.started_at
