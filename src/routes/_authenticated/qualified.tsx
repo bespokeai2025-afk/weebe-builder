@@ -46,6 +46,7 @@ import { normalizeSentiment } from "@/lib/sentiment";
 import { listLiveAgents } from "@/lib/agents/agents.functions";
 import { NotesBookingSheet } from "@/components/dashboard/NotesBookingSheet";
 import { WbahNotesButton, WbahBookedStickyBadge, WbahCallCountBadge, WbahCalendlyLink, wbahAgentColorMapFromLeads } from "@/components/dashboard/WbahNotesButton";
+import { useWbahAgentOptions } from "@/hooks/useWbahAgentOptions";
 import type { NotesEntityType } from "@/components/dashboard/NotesBookingSheet";
 
 function QualifiedErrorFallback() {
@@ -382,17 +383,11 @@ function QualifiedPage() {
     return out;
   }, [rows, search, isWbah, wbahDaysFilter, wbahAgentFilter]);
 
-  // Distinct agents present in the qualified set — powers the per-agent filter.
-  // Hidden entirely when agent attribution is unavailable (all null).
-  const wbahAgentOptions = useMemo(
-    () =>
-      isWbah
-        ? Array.from(
-            new Set((rows as any[]).map((r) => r.meta?.agent_name).filter(Boolean) as string[]),
-          ).sort()
-        : [],
-    [rows, isWbah],
+  const wbahAgentNamesFromData = useMemo(
+    () => (rows as any[]).map((r) => r.meta?.agent_name as string | undefined),
+    [rows],
   );
+  const { options: wbahAgentOptions } = useWbahAgentOptions(wbahAgentNamesFromData, isWbah);
 
   const qualPag = useTablePagination(filtered);
 
@@ -561,7 +556,7 @@ function QualifiedPage() {
             <option value="180">Last 6 months</option>
             <option value="all">All time</option>
           </select>
-          {wbahAgentOptions.length > 0 && (
+          {isWbah && (
             <select
               value={wbahAgentFilter}
               onChange={(e) => setWbahAgentFilter(e.target.value)}

@@ -47,6 +47,7 @@ import {
 import { getCallSchedule, setCallSchedule } from "@/lib/dashboard/call-schedule.functions";
 import { listLiveAgents } from "@/lib/agents/agents.functions";
 import { listWbahLeadsForPeople, listWbahCallsCount, listWbahCallsPaged, getWbahCallDetail, listWbahCategorizedLeads, listWbahPeopleCategories, triggerWbahCategorySync, getWbahCategorySyncLog, getWbahCategorySyncAccess } from "@/lib/integrations/webespokeEnterprise/wbah-workspace.server";
+import { useWbahAgentOptions } from "@/hooks/useWbahAgentOptions";
 import { supabase } from "@/integrations/supabase/client";
 
 export const Route = createFileRoute("/_authenticated/data")({
@@ -640,14 +641,25 @@ function DataPage() {
     [wbahCatData, wbahPeopleSubTab],
   );
 
-  const wbahAgentOptions = useMemo(() => {
-    const set = new Set<string>();
+  const wbahAgentNamesFromData = useMemo(() => {
+    const names: string[] = [];
     for (const arr of [wbahCallData, ...Object.values(wbahCatData)]) {
-      for (const r of arr) { const n = String(r?.agentName ?? "").trim(); if (n) set.add(n); }
+      for (const r of arr) {
+        const n = String(r?.agentName ?? "").trim();
+        if (n) names.push(n);
+      }
     }
-    for (const r of wbahCallsData) { const n = String(r?.agent_name ?? r?.agentName ?? "").trim(); if (n) set.add(n); }
-    return Array.from(set).sort((a, b) => a.localeCompare(b));
+    for (const r of wbahCallsData) {
+      const n = String(r?.agent_name ?? r?.agentName ?? "").trim();
+      if (n) names.push(n);
+    }
+    return names;
   }, [wbahCallData, wbahCatData, wbahCallsData]);
+
+  const { options: wbahAgentOptions } = useWbahAgentOptions(
+    wbahAgentNamesFromData,
+    isWbah && dataTab === "people",
+  );
 
   const wbahFiltered = useMemo(
     () => wbahCallData.filter(r => wbahRowPasses(r, wbahPeopleSearch, wbahStatusFilter, wbahSentimentFilter, wbahDateCut, wbahAgentFilter)),
@@ -1091,6 +1103,7 @@ function DataPage() {
           dateFrom: wbahCallsDateIso,
           status: wbahStatusFilter !== "all" ? wbahStatusFilter : undefined,
           sentiment: wbahSentimentFilter !== "all" ? wbahSentimentFilter : undefined,
+          agentName: wbahAgentFilter !== "all" ? wbahAgentFilter : undefined,
           refresh: opts?.refresh ?? false,
         },
       });
@@ -1181,7 +1194,7 @@ function DataPage() {
     const t = setTimeout(() => { handleFetchWbahCallsPage(1, { refresh: firstOpen }); }, firstOpen ? 0 : 300);
     return () => clearTimeout(t);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [dataTab, isWbah, wbahPeopleSubTab, wbahPeopleSearch, wbahStatusFilter, wbahSentimentFilter, wbahDateFilter]);
+  }, [dataTab, isWbah, wbahPeopleSubTab, wbahPeopleSearch, wbahStatusFilter, wbahSentimentFilter, wbahDateFilter, wbahAgentFilter]);
 
   async function handleImportWbahSelected() {
     const toImport = wbahCallData.filter(r => wbahSelected.has(r.id));
@@ -1626,7 +1639,7 @@ function DataPage() {
                   </div>
                 )}
                 {/* Filters — apply across all People sub-tabs */}
-                {wbahAnyPeopleData && (
+                {isWbah && dataTab === "people" && (
                   <>
                     <Select value={wbahStatusFilter} onValueChange={setWbahStatusFilter}>
                       <SelectTrigger className="h-7 w-[140px] text-xs"><SelectValue placeholder="Status" /></SelectTrigger>

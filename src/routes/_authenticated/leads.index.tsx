@@ -75,6 +75,7 @@ import {
 import { getDashboardLiveAgents } from "@/lib/agents/agents.functions";
 import { CallSchedulingSection } from "@/components/dashboard/CallSchedulingSection";
 import { useTablePagination, TablePagBar } from "@/components/ui/table-pagination";
+import { useWbahAgentOptions } from "@/hooks/useWbahAgentOptions";
 
 export const Route = createFileRoute("/_authenticated/leads/")({
   head: () => ({ meta: [{ title: "Leads — Webee" }] }),
@@ -238,6 +239,7 @@ function LeadsPage() {
   const [leadsOutcome, setLeadsOutcome]   = useState("");  // "" | "successful" | "unsuccessful"
   const [leadsFrom, setLeadsFrom]         = useState("");  // yyyy-mm-dd
   const [leadsTo, setLeadsTo]             = useState("");
+  const [wbahAgentFilter, setWbahAgentFilter] = useState("all");
 
   // Effective {dateFrom,dateTo}: "custom" uses the Between inputs, else a preset.
   const leadsDateRange = useMemo<{ dateFrom?: string; dateTo?: string }>(() => {
@@ -383,6 +385,12 @@ function LeadsPage() {
   });
 
   const leads = (leadsQ.data ?? []) as any[];
+
+  const wbahAgentNamesFromData = useMemo(
+    () => leads.map((l: any) => l.meta?.agent_name as string | undefined),
+    [leads],
+  );
+  const { options: wbahAgentOptions } = useWbahAgentOptions(wbahAgentNamesFromData, isWbah);
   const stats = statsQ.data;
   const allAgents = (agentsQ.data ?? []) as any[];
   const qualAgents = allAgents.filter((a: any) => a.agentType === "client_qualification");
@@ -438,6 +446,7 @@ function LeadsPage() {
         : (isWbah ? l.meta?.call_status : null);
       if (cs !== callStatusFilter) return false;
     }
+    if (isWbah && wbahAgentFilter !== "all" && (l.meta?.agent_name ?? "") !== wbahAgentFilter) return false;
     // Call duration greater than N minutes.
     if (leadsDuration) {
       const minDur = parseInt(leadsDuration, 10);
@@ -510,7 +519,7 @@ function LeadsPage() {
       leads.length, pos, neu, neg, unk);
   }, [isWbah, leads]);
 
-  const hasLeadFilters = search.trim() || statusFilter || leadStatusCat !== "all" || sentimentFilter || callStatusFilter || quickFilter || leadsDuration || leadsOutcome || wbahDaysFilter === "custom";
+  const hasLeadFilters = search.trim() || statusFilter || leadStatusCat !== "all" || sentimentFilter || callStatusFilter || quickFilter || leadsDuration || leadsOutcome || wbahDaysFilter === "custom" || (isWbah && wbahAgentFilter !== "all");
 
   const positive = leads.filter((l: any) => normalizeSentiment(l.sentiment) === "positive").length;
   const withScore = leads.filter((l: any) => l.lead_score != null);
@@ -863,12 +872,24 @@ function LeadsPage() {
                   />
                 </div>
               )}
+              {isWbah && (
+                <select
+                  value={wbahAgentFilter}
+                  onChange={(e) => setWbahAgentFilter(e.target.value)}
+                  className="h-6 rounded-md border border-white/[0.08] bg-card/80 px-1.5 text-[11px] text-foreground focus:outline-none focus:ring-1 focus:ring-primary/40"
+                >
+                  <option value="all">All agents</option>
+                  {wbahAgentOptions.map((a) => (
+                    <option key={a} value={a}>{a}</option>
+                  ))}
+                </select>
+              )}
               {hasLeadFilters && (
                 <Button
                   size="sm"
                   variant="ghost"
                   className="h-7 text-xs text-muted-foreground hover:text-foreground"
-                  onClick={() => { setSearch(""); setStatusFilter(""); setLeadStatusCat("all"); setSentimentFilter(""); setCallStatusFilter(""); setQuickFilter(""); setLeadsDuration(""); setLeadsOutcome(""); }}
+                  onClick={() => { setSearch(""); setStatusFilter(""); setLeadStatusCat("all"); setSentimentFilter(""); setCallStatusFilter(""); setQuickFilter(""); setLeadsDuration(""); setLeadsOutcome(""); setWbahAgentFilter("all"); }}
                 >
                   Clear filters
                 </Button>

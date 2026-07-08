@@ -48,6 +48,7 @@ import {
   wbahAgentStyle,
   type WbahAgentStyle,
 } from "@/lib/dashboard/wbah-agent-colors";
+import { useWbahAgentOptions } from "@/hooks/useWbahAgentOptions";
 
 export const Route = createFileRoute("/_authenticated/calendar")({
   head: () => ({ meta: [{ title: "Calendar — Webee" }] }),
@@ -315,21 +316,33 @@ function CalendarPage() {
   }, [data?.bookings, localNotes]);
 
   // ── Build agent colour map from all unique agent names ──
-  const agentColorMap = useMemo(() => {
-    const names = Array.from(new Set(allBookings.map((b) => b.agent_name).filter(Boolean))) as string[];
-    return buildWbahAgentColorMap(names);
-  }, [allBookings]);
+  const bookingAgentNames = useMemo(
+    () => Array.from(new Set(allBookings.map((b) => b.agent_name).filter(Boolean))) as string[],
+    [allBookings],
+  );
+  const { options: wbahAgentOptions } = useWbahAgentOptions(bookingAgentNames, !!data?.isWbah);
+
+  const legendAgentNames = data?.isWbah ? wbahAgentOptions : bookingAgentNames;
+
+  const agentColorMap = useMemo(() => buildWbahAgentColorMap(legendAgentNames), [legendAgentNames]);
 
   // ── Legend entries ──
   const legendEntries = useMemo(() => {
     const entries: { key: string; label: string; style: typeof MANUAL_STYLE; count: number; isManual: boolean }[] = [];
-    agentColorMap.forEach((style, name) => {
-      entries.push({ key: name, label: name, style, count: allBookings.filter((b) => b.agent_name === name).length, isManual: false });
-    });
+    for (const name of legendAgentNames) {
+      const style = agentColorMap.get(name) ?? MANUAL_STYLE;
+      entries.push({
+        key: name,
+        label: name,
+        style,
+        count: allBookings.filter((b) => b.agent_name === name).length,
+        isManual: false,
+      });
+    }
     const manualCount = allBookings.filter((b) => !b.agent_name).length;
     if (manualCount > 0) entries.push({ key: MANUAL_KEY, label: "Manual", style: MANUAL_STYLE, count: manualCount, isManual: true });
     return entries;
-  }, [agentColorMap, allBookings]);
+  }, [legendAgentNames, agentColorMap, allBookings]);
 
   // ── Agent filter: null = show all ──
   // selectedFilters is a Set of keys (agent name or MANUAL_KEY). Empty = all visible.
@@ -438,7 +451,7 @@ function CalendarPage() {
       )}
 
       {/* ── Legend + Agent filter ── */}
-      {legendEntries.length > 0 && (
+      {(legendEntries.length > 0 || (data?.isWbah && wbahAgentOptions.length > 0)) && (
         <div className="mb-4 flex flex-wrap items-center gap-2 rounded-xl border border-white/[0.06] bg-card/40 px-4 py-3">
           <span className="text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground mr-1">Filter by</span>
 

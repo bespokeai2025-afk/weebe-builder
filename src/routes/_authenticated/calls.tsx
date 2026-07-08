@@ -30,6 +30,7 @@ import type { NotesEntityType } from "@/components/dashboard/NotesBookingSheet";
 import { RelativeTime } from "@/components/ui/relative-time";
 import { supabase } from "@/integrations/supabase/client";
 import { useTablePagination, TablePagBar } from "@/components/ui/table-pagination";
+import { useWbahAgentOptions } from "@/hooks/useWbahAgentOptions";
 
 export const Route = createFileRoute("/_authenticated/calls")({
   head: () => ({ meta: [{ title: "Calls — Webee" }] }),
@@ -373,6 +374,12 @@ function CallsPage() {
       : base.filter((r) => !isVoicemail(r));
   }, [isWbah, wbahRows, q.data, voicemailFilter]);
 
+  const wbahAgentNamesFromData = useMemo(
+    () => rows.map((r) => r.agent_name as string | undefined),
+    [rows],
+  );
+  const { options: wbahAgentOptions } = useWbahAgentOptions(wbahAgentNamesFromData, isWbah);
+
   const testFn = useServerFn(listTestCalls);
   const testQ = useQuery({
     queryKey:             ["test-calls"],
@@ -408,6 +415,7 @@ function CallsPage() {
   const [statusFilter, setStatusFilter] = useState("");
   const [callTypeFilter, setCallTypeFilter] = useState("");
   const [sentimentFilter, setSentimentFilter] = useState("");
+  const [wbahAgentFilter, setWbahAgentFilter] = useState("all");
 
   const filteredRows = useMemo(() => {
     const { dateFrom: cutFrom, dateTo: cutTo } = effectiveDateRange;
@@ -422,6 +430,7 @@ function CallsPage() {
       if (statusFilter && r.call_status !== statusFilter) return false;
       if (callTypeFilter && r.call_type !== callTypeFilter) return false;
       if (sentimentFilter && r.sentiment !== sentimentFilter) return false;
+      if (isWbah && wbahAgentFilter !== "all" && (r.agent_name ?? "") !== wbahAgentFilter) return false;
       // Call duration greater than N minutes.
       if (minDur > 0 && (r.duration_seconds ?? 0) < minDur) return false;
       // Call outcome: successful = completed; unsuccessful = failed/no-answer/busy.
@@ -437,11 +446,11 @@ function CallsPage() {
       }
       return true;
     });
-  }, [rows, search, effectiveDateRange, statusFilter, callTypeFilter, sentimentFilter, durationFilter, outcomeFilter]);
+  }, [rows, search, effectiveDateRange, statusFilter, callTypeFilter, sentimentFilter, durationFilter, outcomeFilter, isWbah, wbahAgentFilter]);
 
   const callsPag = useTablePagination(filteredRows);
 
-  const hasCallFilters = search.trim() || statusFilter || callTypeFilter || sentimentFilter || durationFilter || outcomeFilter || daysFilter === "custom";
+  const hasCallFilters = search.trim() || statusFilter || callTypeFilter || sentimentFilter || durationFilter || outcomeFilter || daysFilter === "custom" || (isWbah && wbahAgentFilter !== "all");
 
   function openPanel(c: any) {
     const inbound = c.call_type === "inbound";
@@ -606,6 +615,18 @@ function CallsPage() {
               <option value="neutral">Neutral</option>
               <option value="negative">Negative</option>
             </select>
+            {isWbah && (
+              <select
+                value={wbahAgentFilter}
+                onChange={(e) => setWbahAgentFilter(e.target.value)}
+                className="h-6 rounded-md border border-white/[0.08] bg-card/80 px-1.5 text-[11px] text-foreground focus:outline-none focus:ring-1 focus:ring-primary/40"
+              >
+                <option value="all">All agents</option>
+                {wbahAgentOptions.map((a) => (
+                  <option key={a} value={a}>{a}</option>
+                ))}
+              </select>
+            )}
             <select
               value={durationFilter}
               onChange={(e) => setDurationFilter(e.target.value)}

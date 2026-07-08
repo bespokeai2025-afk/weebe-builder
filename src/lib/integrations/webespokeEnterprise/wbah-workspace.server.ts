@@ -1514,6 +1514,7 @@ export const listWbahCallsPaged = createServerFn({ method: "POST" })
       dateTo:    z.string().optional(),
       status:    z.string().optional(),
       sentiment: z.string().optional(),
+      agentName: z.string().trim().max(120).optional(),
       refresh:   z.coerce.boolean().optional(),
     }),
   )
@@ -1532,9 +1533,9 @@ export const listWbahCallsPaged = createServerFn({ method: "POST" })
       }
     }
 
-    const { page, pageSize, search, dateFrom, dateTo, status, sentiment } = data;
+    const { page, pageSize, search, dateFrom, dateTo, status, sentiment, agentName } = data;
     const filtersHash = Buffer.from(
-      JSON.stringify({ q: search ?? "", f: dateFrom ?? "", t: dateTo ?? "", s: status ?? "", se: sentiment ?? "" }),
+      JSON.stringify({ q: search ?? "", f: dateFrom ?? "", t: dateTo ?? "", s: status ?? "", se: sentiment ?? "", a: agentName ?? "" }),
     ).toString("base64").replace(/[^a-zA-Z0-9]/g, "").slice(0, 24);
 
     const key = `webee:wbah-calls-page:${workspaceId}:p${page}:ps${pageSize}:${filtersHash}`;
@@ -1557,6 +1558,7 @@ export const listWbahCallsPaged = createServerFn({ method: "POST" })
       if (dateFrom) q = q.gte("started_at", dateFrom);
       if (dateTo) q = q.lte("started_at", dateTo);
       if (sentiment && sentiment !== "all") q = q.eq("sentiment", sentiment);
+      if (agentName && agentName !== "all") q = q.eq("agent_name", agentName);
       if (status && status !== "all" && WBAH_CALL_STATUS_FILTER[status]) {
         q = q.in("call_status", WBAH_CALL_STATUS_FILTER[status]);
       }
