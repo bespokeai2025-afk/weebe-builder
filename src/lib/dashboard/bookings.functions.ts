@@ -285,8 +285,10 @@ export const listCalendarBookings = createServerFn({ method: "GET" })
     let wbahBookings: UnifiedBooking[] = [];
     if (isWbah) {
       try {
-        const { cacheDel } = await import("@/lib/cache/redis.server");
-        await cacheDel(`webee:wbah-calls-aggregate:v5:${workspaceId}`);
+        // NOTE: do NOT bust the shared wbah-calls-aggregate cache here — doing it
+        // on every calendar open forced a full 16k-row rebuild for the next
+        // Leads/Qualified read. The sync jobs bust the cache themselves whenever
+        // they actually change rows, so a 3-min-stale calendar is the worst case.
         const wbahRows = await getWbahCalendarBookings(workspaceId);
         wbahBookings = wbahRows.map((b) => ({
           id: `wbah:${b.id}`,

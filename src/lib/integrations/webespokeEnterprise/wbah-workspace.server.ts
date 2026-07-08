@@ -1688,8 +1688,8 @@ async function refreshWbahLiveData(
         syncWbahBookedContactsFromCalls(),
       ]);
       if (booked.rows > 0 || fromCalls.rows > 0) {
-        const { cacheDel } = await import("@/lib/cache/redis.server");
-        await cacheDel(`webee:wbah-calls-aggregate:v5:${workspaceId}`);
+        const { invalidateWbahAggregate } = await import("./wbah-leads.server");
+        await invalidateWbahAggregate(workspaceId);
       }
       await refreshWbahAppointmentBackfill(
         opts?.lightBackfill ? { maxPages: 3 } : { maxPages: 25 },
@@ -2589,6 +2589,7 @@ const WBAH_PARTIAL_QUALIFIED_MIN_SECONDS = 5 * 60; // 5 minutes
 export const listWbahPositiveNeutralLeads = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
+    const t0 = Date.now();
     const { workspaceId } = context;
     if (!workspaceId) throw new Error("No active workspace");
     void refreshWbahLiveData(workspaceId, { lightBackfill: true });
@@ -2632,7 +2633,7 @@ export const listWbahPositiveNeutralLeads = createServerFn({ method: "GET" })
         }
       }
 
-      console.log(`[WBAH leads] positive/neutral called contacts: ${posNeu.length}`);
+      console.log(`[WBAH leads] positive/neutral called contacts: ${posNeu.length} in ${Date.now() - t0}ms`);
 
       return posNeu.map((c) => {
         const phoneKey = phoneDigits(c.phone) || `id:${c.id}`;
