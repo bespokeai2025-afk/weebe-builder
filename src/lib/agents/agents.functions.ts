@@ -146,6 +146,7 @@ export const getDashboardLiveAgents = createServerFn({ method: "GET" })
       phoneNumber: string | null;
       liveAt: string | null;
       deployedRetellAgentId: string | null;
+      defaultForLeads: boolean;
     };
 
     const rowToDashAgent = (r: (typeof rows)[0]): DashAgent => {
@@ -160,6 +161,7 @@ export const getDashboardLiveAgents = createServerFn({ method: "GET" })
         phoneNumber,
         liveAt: (s.liveAt as string | undefined) ?? null,
         deployedRetellAgentId: (s.deployedRetellAgentId as string | undefined) ?? null,
+        defaultForLeads: s.defaultForLeads === true,
       };
     };
 
@@ -249,6 +251,9 @@ export const getDashboardLiveAgents = createServerFn({ method: "GET" })
           localRow?.inbound_phone_number ??
           null;
 
+        const defaultForLeads = localLiveMatch?.defaultForLeads
+          ?? (localRow ? ((localRow.settings as Record<string, unknown>)?.defaultForLeads === true) : false);
+
         return {
           id: (localLiveMatch?.id ?? localRow?.id)!,
           name: ra.agent_name,
@@ -256,6 +261,7 @@ export const getDashboardLiveAgents = createServerFn({ method: "GET" })
           phoneNumber,
           liveAt,
           deployedRetellAgentId: ra.agent_id,
+          defaultForLeads,
         };
       });
 

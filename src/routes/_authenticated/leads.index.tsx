@@ -475,7 +475,9 @@ function LeadsPage() {
   const { options: wbahAgentOptions } = useWbahAgentOptions(wbahAgentNamesFromData, isWbah);
   const stats = statsQ.data;
   const allAgents = (agentsQ.data ?? []) as any[];
-  const qualAgents = allAgents.filter((a: any) => a.agentType === "client_qualification");
+  const qualAgents = allAgents
+    .filter((a: any) => a.agentType === "client_qualification")
+    .sort((a: any, b: any) => (b.defaultForLeads ? 1 : 0) - (a.defaultForLeads ? 1 : 0));
   const scheduledCount = leads.filter((l: any) => l.status === "scheduled").length;
 
   useEffect(() => {
