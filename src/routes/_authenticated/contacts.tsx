@@ -24,6 +24,7 @@ import { ContactDocumentsPanel } from "@/components/contacts/ContactDocumentsPan
 import type { NotesEntityType } from "@/components/dashboard/NotesBookingSheet";
 import { listWbahLeads } from "@/lib/integrations/webespokeEnterprise/wbah-workspace.server";
 import { useWbahAgentOptions } from "@/hooks/useWbahAgentOptions";
+import { wbahDateTimeOptions } from "@/lib/dashboard/wbah-timezone";
 import { useTablePagination, TablePagBar } from "@/components/ui/table-pagination";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
@@ -379,7 +380,7 @@ function WbahLeadsSection() {
                 ["Call Status",         viewRecord.callStatus],
                 ["Call Duration",       viewRecord.callDuration],
                 ["Sentiment",           viewRecord.sentiment],
-                ["Last Called At",      viewRecord.lastCalledAt ? new Date(viewRecord.lastCalledAt).toLocaleString() : null],
+                ["Last Called At",      viewRecord.lastCalledAt ? new Date(viewRecord.lastCalledAt).toLocaleString(undefined, wbahDateTimeOptions(true)) : null],
                 ["Appointment Date",    viewRecord.appointmentDate],
                 ["Appointment Time",    viewRecord.appointmentTime],
                 ["Booking Status",      viewRecord.bookingStatus],
@@ -569,7 +570,7 @@ function WbahLeadsSection() {
                     <td className="px-3 py-1.5 text-[11px] text-muted-foreground whitespace-nowrap">{r.type ?? "N/A"}</td>
                     <td className="px-3 py-1.5 text-[11px] text-muted-foreground whitespace-nowrap">
                       {r.lastCalledAt
-                        ? new Date(r.lastCalledAt).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" })
+                        ? new Date(r.lastCalledAt).toLocaleString(undefined, wbahDateTimeOptions(true, { dateStyle: "medium", timeStyle: "short" }))
                         : "N/A"}
                     </td>
                     <td className="px-3 py-1.5">

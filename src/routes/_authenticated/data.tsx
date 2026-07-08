@@ -49,6 +49,7 @@ import { getCallSchedule, setCallSchedule } from "@/lib/dashboard/call-schedule.
 import { listLiveAgents } from "@/lib/agents/agents.functions";
 import { listWbahLeadsForPeople, listWbahCallsCount, listWbahCallsPaged, getWbahCallDetail, listWbahCategorizedLeads, listWbahPeopleCategories, triggerWbahCategorySync, getWbahCategorySyncLog, getWbahCategorySyncAccess } from "@/lib/integrations/webespokeEnterprise/wbah-workspace.server";
 import { useWbahAgentOptions } from "@/hooks/useWbahAgentOptions";
+import { wbahDateTimeOptions } from "@/lib/dashboard/wbah-timezone";
 import { supabase } from "@/integrations/supabase/client";
 
 export const Route = createFileRoute("/_authenticated/data")({
@@ -211,13 +212,13 @@ function parseCsvLine(line: string): string[] {
   return result;
 }
 
-function fmtDate(iso?: string | null) {
+function fmtDate(iso?: string | null, isWbah = false) {
   if (!iso) return "\u2014";
-  return new Date(iso).toLocaleDateString("en-US", {
+  return new Date(iso).toLocaleDateString("en-US", wbahDateTimeOptions(isWbah, {
     month: "short",
     day: "numeric",
     year: "numeric",
-  });
+  }));
 }
 
 function statusBadgeClass(status?: string | null) {
@@ -233,11 +234,11 @@ function statusBadgeClass(status?: string | null) {
   return map[status ?? ""] ?? "bg-muted text-muted-foreground";
 }
 
-function fmtTs(ts: number | null | undefined): string {
+function fmtTs(ts: number | null | undefined, isWbah = false): string {
   if (!ts) return "N/A";
   const d = new Date(ts);
-  const time = d.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
-  const date = d.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
+  const time = d.toLocaleTimeString("en-GB", wbahDateTimeOptions(isWbah, { hour: "2-digit", minute: "2-digit" }));
+  const date = d.toLocaleDateString("en-GB", wbahDateTimeOptions(isWbah, { day: "2-digit", month: "short", year: "numeric" }));
   return `${time} · ${date}`;
 }
 
@@ -1945,10 +1946,10 @@ function DataPage() {
                               ) : "—"}
                             </td>
                             {isCat && (
-                              <td className="px-2 py-0.5 text-[10px] text-muted-foreground whitespace-nowrap">{r.loadedAt ? fmtDate(r.loadedAt) : "—"}</td>
+                              <td className="px-2 py-0.5 text-[10px] text-muted-foreground whitespace-nowrap">{r.loadedAt ? fmtDate(r.loadedAt, isWbah) : "—"}</td>
                             )}
                             <td className="px-2 py-0.5 text-[10px] text-muted-foreground whitespace-nowrap capitalize">{(r.callType || "—").replace(/_/g, " ")}</td>
-                            <td className="px-2 py-0.5 text-[10px] text-muted-foreground whitespace-nowrap">{fmtTs(r.startTimestamp)}</td>
+                            <td className="px-2 py-0.5 text-[10px] text-muted-foreground whitespace-nowrap">{fmtTs(r.startTimestamp, isWbah)}</td>
                             <td className="px-2 py-0.5 whitespace-nowrap">
                               <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium ring-1 ring-white/[0.06] ${statusBadge.cls}`}>
                                 {statusBadge.label}

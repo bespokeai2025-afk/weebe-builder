@@ -34,6 +34,7 @@ import { RelativeTime } from "@/components/ui/relative-time";
 import { supabase } from "@/integrations/supabase/client";
 import { useTablePagination, TablePagBar } from "@/components/ui/table-pagination";
 import { useWbahAgentOptions } from "@/hooks/useWbahAgentOptions";
+import { WBAH_TIMEZONE } from "@/lib/dashboard/wbah-timezone";
 
 export const Route = createFileRoute("/_authenticated/calls")({
   head: () => ({ meta: [{ title: "Calls — Webee" }] }),
@@ -540,7 +541,7 @@ function CallsPage() {
                   <tbody>
                     {callHistory.calls.map((c: any) => (
                       <tr key={c.id} className="border-b border-white/[0.04] align-middle">
-                        <td className="px-2 py-1.5 whitespace-nowrap text-muted-foreground">{c.startedAt ? new Date(c.startedAt).toLocaleString() : "—"}</td>
+                        <td className="px-2 py-1.5 whitespace-nowrap text-muted-foreground">{c.startedAt ? new Date(c.startedAt).toLocaleString(undefined, { timeZone: WBAH_TIMEZONE }) : "—"}</td>
                         <td className="px-2 py-1.5 whitespace-nowrap capitalize">{(c.callStatus ?? "—").replace(/_/g, " ")}</td>
                         <td className="px-2 py-1.5 capitalize">{c.sentiment ?? "—"}</td>
                         <td className="px-2 py-1.5 whitespace-nowrap text-muted-foreground">{fmtDurSec(c.durationSeconds)}</td>
@@ -846,7 +847,7 @@ function CallsPage() {
                           <td className="px-2 py-0.5 text-[10px] text-muted-foreground whitespace-nowrap">{callType}</td>
                           <td className="px-2 py-0.5 text-[10px] text-muted-foreground whitespace-nowrap">
                             {c.started_at
-                              ? new Date(c.started_at).toLocaleString(undefined, { timeStyle: "short", dateStyle: "medium" })
+                              ? new Date(c.started_at).toLocaleString(undefined, { timeStyle: "short", dateStyle: "medium", timeZone: WBAH_TIMEZONE })
                               : "N/A"}
                           </td>
                           <td className="px-2 py-0.5">

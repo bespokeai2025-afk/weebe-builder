@@ -48,6 +48,7 @@ import { NotesBookingSheet } from "@/components/dashboard/NotesBookingSheet";
 import { PlayRecordingButton } from "@/components/RecordingPlayerDialog";
 import { WbahNotesButton, WbahBookedStickyBadge, WbahCallCountBadge, WbahCalendlyLink, wbahAgentColorMapFromLeads } from "@/components/dashboard/WbahNotesButton";
 import { useWbahAgentOptions } from "@/hooks/useWbahAgentOptions";
+import { wbahDateTimeOptions, WBAH_TIMEZONE } from "@/lib/dashboard/wbah-timezone";
 import type { NotesEntityType } from "@/components/dashboard/NotesBookingSheet";
 
 function QualifiedErrorFallback() {
@@ -75,9 +76,9 @@ export const Route = createFileRoute("/_authenticated/qualified")({
   errorComponent: QualifiedErrorFallback,
 });
 
-function fmtDate(d: string | null) {
+function fmtDate(d: string | null, isWbah = false) {
   if (!d) return "—";
-  try { return new Date(d).toLocaleString(); } catch { return d; }
+  try { return new Date(d).toLocaleString(undefined, wbahDateTimeOptions(isWbah)); } catch { return d; }
 }
 
 function filterToDates(filter: string): { dateFrom?: string; dateTo?: string } {
@@ -97,13 +98,13 @@ function filterToDates(filter: string): { dateFrom?: string; dateTo?: string } {
   const days = parseInt(filter, 10);
   return isNaN(days) ? {} : { dateFrom: new Date(Date.now() - days * 86_400_000).toISOString() };
 }
-function fmtCallDate(iso: string | null | undefined) {
+function fmtCallDate(iso: string | null | undefined, isWbah = false) {
   if (!iso) return "Not called yet";
   try {
-    return new Date(iso).toLocaleString(undefined, {
+    return new Date(iso).toLocaleString(undefined, wbahDateTimeOptions(isWbah, {
       day: "2-digit", month: "short", year: "numeric",
       hour: "2-digit", minute: "2-digit",
-    });
+    }));
   } catch { return iso; }
 }
 
@@ -700,14 +701,15 @@ function QualifiedPage() {
                       )}
                       {!isWbah && (
                         <td className="px-2 py-0.5 text-muted-foreground whitespace-nowrap text-[11px]">
-                          {fmtDate(lead.last_contacted_at)}
+                          {fmtDate(lead.last_contacted_at, isWbah)}
                         </td>
                       )}
                       <td className="px-2 py-0.5 text-muted-foreground whitespace-nowrap text-[10px]">
                         {fmtCallDate(
                           isWbah ? lead.meta?.last_called_at
                           : isRetell ? lead.retell_call?.started_at
-                          : lead.last_contacted_at
+                          : lead.last_contacted_at,
+                          isWbah
                         )}
                       </td>
                       {isRetell && <>
@@ -830,7 +832,7 @@ function QualifiedPage() {
                   <tbody>
                     {callHistory.calls.map((c: any) => (
                       <tr key={c.id} className="border-b border-white/[0.04] align-middle">
-                        <td className="px-2 py-1.5 whitespace-nowrap text-muted-foreground">{c.startedAt ? new Date(c.startedAt).toLocaleString() : "—"}</td>
+                        <td className="px-2 py-1.5 whitespace-nowrap text-muted-foreground">{c.startedAt ? new Date(c.startedAt).toLocaleString(undefined, { timeZone: WBAH_TIMEZONE }) : "—"}</td>
                         <td className="px-2 py-1.5 whitespace-nowrap capitalize">{(c.callStatus ?? "—").replace(/_/g, " ")}</td>
                         <td className="px-2 py-1.5 capitalize">{c.sentiment ?? "—"}</td>
                         <td className="px-2 py-1.5 whitespace-nowrap text-muted-foreground">{fmtDurQ(c.durationSeconds)}</td>

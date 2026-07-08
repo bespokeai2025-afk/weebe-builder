@@ -86,27 +86,28 @@ import { getDashboardLiveAgents } from "@/lib/agents/agents.functions";
 import { CallSchedulingSection } from "@/components/dashboard/CallSchedulingSection";
 import { useTablePagination, TablePagBar } from "@/components/ui/table-pagination";
 import { useWbahAgentOptions } from "@/hooks/useWbahAgentOptions";
+import { wbahDateTimeOptions } from "@/lib/dashboard/wbah-timezone";
 
 export const Route = createFileRoute("/_authenticated/leads/")({
   head: () => ({ meta: [{ title: "Leads — Webee" }] }),
   component: LeadsPage,
 });
 
-function fmtDate(d: string | null) {
+function fmtDate(d: string | null, isWbah = false) {
   if (!d) return "—";
   try {
-    return new Date(d).toLocaleString();
+    return new Date(d).toLocaleString(undefined, wbahDateTimeOptions(isWbah));
   } catch {
     return d;
   }
 }
-function fmtCallDate(iso: string | null | undefined) {
+function fmtCallDate(iso: string | null | undefined, isWbah = false) {
   if (!iso) return "Not called yet";
   try {
-    return new Date(iso).toLocaleString(undefined, {
+    return new Date(iso).toLocaleString(undefined, wbahDateTimeOptions(isWbah, {
       day: "2-digit", month: "short", year: "numeric",
       hour: "2-digit", minute: "2-digit",
-    });
+    }));
   } catch { return iso; }
 }
 
@@ -655,7 +656,7 @@ function LeadsPage() {
           },
         });
         toast.success(`${result.scheduled} lead${result.scheduled !== 1 ? "s" : ""} scheduled`, {
-          description: `Calls will be placed at ${new Date(qualScheduledAt).toLocaleString()}`,
+          description: `Calls will be placed at ${new Date(qualScheduledAt).toLocaleString(undefined, wbahDateTimeOptions(isWbah))}`,
         });
       } else {
         const result = await startQualFn({
@@ -1144,13 +1145,14 @@ function LeadsPage() {
                           <span className="line-clamp-1">{lead.next_action ?? "—"}</span>
                         </td>
                         <td className="px-2 py-0.5 text-muted-foreground whitespace-nowrap text-[11px]">
-                          {fmtDate(lead.last_contacted_at)}
+                          {fmtDate(lead.last_contacted_at, isWbah)}
                         </td>
                         <td className="px-2 py-0.5 text-muted-foreground whitespace-nowrap text-[11px]">
                           {fmtCallDate(
                             isWbah ? lead.meta?.last_called_at
                             : isRetell ? lead.retell_call?.started_at
-                            : lead.last_contacted_at
+                            : lead.last_contacted_at,
+                            isWbah
                           )}
                         </td>
                         {isRetell && <>
@@ -1400,7 +1402,7 @@ function LeadsPage() {
                   <tbody>
                     {callHistory.calls.map((c: any) => (
                       <tr key={c.id} className="border-b border-white/[0.04] align-middle">
-                        <td className="px-2 py-1.5 whitespace-nowrap text-muted-foreground">{fmtCallDate(c.startedAt)}</td>
+                        <td className="px-2 py-1.5 whitespace-nowrap text-muted-foreground">{fmtCallDate(c.startedAt, true)}</td>
                         <td className="px-2 py-1.5">{callStatusBadge(c.callStatus)}</td>
                         <td className="px-2 py-1.5">{sentimentBadge(c.sentiment)}</td>
                         <td className="px-2 py-1.5 whitespace-nowrap text-muted-foreground">{fmtDuration(c.durationSeconds != null ? c.durationSeconds * 1000 : null)}</td>
