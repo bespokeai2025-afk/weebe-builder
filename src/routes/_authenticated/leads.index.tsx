@@ -634,6 +634,12 @@ function LeadsPage() {
     try {
       await setStatusFn({ data: { id, status } });
       qc.invalidateQueries({ queryKey: ["leads-all"] });
+      // The Qualified tab lives on a separate route with its own cached
+      // queries (staleTime 5min) — without invalidating these too, a status
+      // change made here doesn't show up there until the cache expires.
+      qc.invalidateQueries({ queryKey: ["leads-qualified"] });
+      qc.invalidateQueries({ queryKey: ["qualification-stats"] });
+      qc.invalidateQueries({ queryKey: ["wbah-qualified-leads"] });
     } catch (e) {
       toast.error("Failed to update status", { description: (e as Error).message });
     }
