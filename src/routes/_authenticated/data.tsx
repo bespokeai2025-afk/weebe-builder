@@ -4,6 +4,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState, useMemo, useEffect, useRef } from "react";
 import { Database, PhoneOutgoing, CalendarClock, UserCheck, Search, X, UserPlus, RotateCcw, BarChart3, Users, RefreshCw, Download, AlertCircle, Phone, FileText, ExternalLink } from "lucide-react";
 import { WbahCallSchedulingSection } from "@/components/dashboard/WbahCallSchedulingSection";
+import { StartCallsDialog } from "@/components/dashboard/StartCallsDialog";
 import { DashboardPage, KpiCard, stickyCell, stickyHead } from "@/components/dashboard/PageShell";
 import { PlayRecordingButton } from "@/components/RecordingPlayerDialog";
 import { cn } from "@/lib/utils";
@@ -517,6 +518,7 @@ function DataPage() {
   const [crmSearch, setCrmSearch]             = useState("");
   const [crmStatusFilter, setCrmStatusFilter] = useState("all");
   const [crmDateFilter, setCrmDateFilter]     = useState("all");
+  const [crmCallDialogOpen, setCrmCallDialogOpen] = useState(false);
 
   const [qualifiedLeads, setQualifiedLeads] = useState<QualifiedLeadRow[]>([]);
   const [qualifiedLoading, setQualifiedLoading] = useState(false);
@@ -626,6 +628,15 @@ function DataPage() {
     name: string;
     settings?: Record<string, unknown> | null;
   }>;
+  const crmCallAgents = useMemo(
+    () =>
+      agents.map((a) => ({
+        id: a.id,
+        name: a.name,
+        phoneNumber: (a.settings as any)?.phoneNumber ?? null,
+      })),
+    [agents],
+  );
   const records = (recordsQ.data ?? []) as any[];
 
   const stats = useMemo(() => {
@@ -1251,7 +1262,7 @@ function DataPage() {
     }
   }
 
-  async function handleImportCrmPeople() {
+  async function handleImportCrmPeople(then?: "call") {
     const toImport = crmPeople.filter((p) => crmPeopleSelected.has(p.external_id));
     if (toImport.length === 0) return;
     setCrmImporting(true);
@@ -1275,11 +1286,37 @@ function DataPage() {
       setCrmPeopleSelected(new Set());
       qc.invalidateQueries({ queryKey: ["data-records"] });
       qc.invalidateQueries({ queryKey: ["data-record-schema"] });
+      if (then === "call") {
+        const ids = result.ids ?? [];
+        if (ids.length > 0) {
+          setSelected(new Set(ids));
+          setCrmCallDialogOpen(true);
+        } else {
+          toast.info("No records available to call — check the Records tab.");
+        }
+      }
     } catch (err) {
       toast.error("Import failed", { description: (err as Error).message });
     } finally {
       setCrmImporting(false);
     }
+  }
+
+  async function handleCrmStartCalls({
+    agentId,
+    fromNumber,
+  }: { agentId: string; fromNumber: string | null }) {
+    await handleStartCalling(agentId, fromNumber);
+    setCrmCallDialogOpen(false);
+  }
+
+  async function handleCrmScheduleCalls({
+    agentId,
+    fromNumber,
+    scheduledAtIso,
+  }: { agentId: string; fromNumber: string | null; scheduledAtIso: string }) {
+    await handleSchedule(scheduledAtIso, agentId);
+    setCrmCallDialogOpen(false);
   }
 
   async function handleSaveSchedule(data: {
@@ -2106,8 +2143,9 @@ function DataPage() {
                   </Select>
                   <Button
                     size="sm"
+                    variant="outline"
                     className="h-7 text-xs"
-                    onClick={handleImportCrmPeople}
+                    onClick={() => handleImportCrmPeople()}
                     disabled={crmImporting}
                   >
                     {crmImporting ? (
@@ -2116,6 +2154,15 @@ function DataPage() {
                       <Download className="mr-1 h-3.5 w-3.5" />
                     )}
                     Import Selected
+                  </Button>
+                  <Button
+                    size="sm"
+                    className="h-7 text-xs"
+                    onClick={() => handleImportCrmPeople("call")}
+                    disabled={crmImporting}
+                  >
+                    <PhoneOutgoing className="mr-1 h-3.5 w-3.5" />
+                    Import &amp; Call
                   </Button>
                 </>
               )}
@@ -2285,6 +2332,19 @@ function DataPage() {
         recordCount={selected.size}
         agents={agents}
         onSchedule={handleSchedule}
+      />
+
+      <StartCallsDialog
+        open={crmCallDialogOpen}
+        onOpenChange={setCrmCallDialogOpen}
+        count={selected.size}
+        entityLabel="contact"
+        title="Call Imported Contacts"
+        agents={crmCallAgents}
+        defaultAgentId={crmImportAgentId}
+        noAgentsMessage="No calling agents found. Build and go-live with an agent in the Builder first."
+        onStart={handleCrmStartCalls}
+        onSchedule={handleCrmScheduleCalls}
       />
 
       <CallScheduleDialog

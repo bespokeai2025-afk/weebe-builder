@@ -84,6 +84,7 @@ import {
 } from "@/lib/dashboard/campaigns.functions";
 import { getDashboardLiveAgents } from "@/lib/agents/agents.functions";
 import { CallSchedulingSection } from "@/components/dashboard/CallSchedulingSection";
+import { StartCallsDialog } from "@/components/dashboard/StartCallsDialog";
 import { useTablePagination, TablePagBar } from "@/components/ui/table-pagination";
 import { useWbahAgentOptions } from "@/hooks/useWbahAgentOptions";
 import { wbahDateTimeOptions } from "@/lib/dashboard/wbah-timezone";
@@ -360,11 +361,6 @@ function LeadsPage() {
 
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [qualDialogOpen, setQualDialogOpen] = useState(false);
-  const [qualAgentId, setQualAgentId] = useState<string>("");
-  const [qualFromNumber, setQualFromNumber] = useState<string>("");
-  const [qualRunning, setQualRunning] = useState(false);
-  const [qualSchedule, setQualSchedule] = useState(false);
-  const [qualScheduledAt, setQualScheduledAt] = useState<string>("");
   const [firingScheduled, setFiringScheduled] = useState(false);
 
   type PanelTarget = {
@@ -645,51 +641,51 @@ function LeadsPage() {
     }
   }
 
-  async function handleStartQualification() {
-    if (!qualAgentId || selectedIds.size === 0) return;
-    setQualRunning(true);
+  async function handleStartQualification({ agentId, fromNumber }: { agentId: string; fromNumber: string | null }) {
     try {
-      if (qualSchedule) {
-        if (!qualScheduledAt) {
-          toast.error("Pick a date and time for the scheduled calls");
-          setQualRunning(false);
-          return;
-        }
-        const result = await scheduleCallsFn({
-          data: {
-            leadIds: Array.from(selectedIds),
-            agentId: qualAgentId,
-            fromNumber: qualFromNumber || null,
-            scheduledAt: new Date(qualScheduledAt).toISOString(),
-          },
-        });
-        toast.success(`${result.scheduled} lead${result.scheduled !== 1 ? "s" : ""} scheduled`, {
-          description: `Calls will be placed at ${new Date(qualScheduledAt).toLocaleString(undefined, wbahDateTimeOptions(isWbah))}`,
-        });
-      } else {
-        const result = await startQualFn({
-          data: {
-            leadIds: Array.from(selectedIds),
-            agentId: qualAgentId,
-            fromNumber: qualFromNumber || null,
-          },
-        });
-        const limitMsg = (result as any).limitReached > 0
-          ? ` · ${(result as any).limitReached} at daily limit`
-          : "";
-        toast.success(`Qualification started — ${result.placed} calls placed`, {
-          description: result.failed > 0 ? `${result.failed} failed${limitMsg}` : limitMsg || undefined,
-        });
-      }
+      const result = await startQualFn({
+        data: {
+          leadIds: Array.from(selectedIds),
+          agentId,
+          fromNumber,
+        },
+      });
+      const limitMsg = (result as any).limitReached > 0
+        ? ` · ${(result as any).limitReached} at daily limit`
+        : "";
+      toast.success(`Qualification started — ${result.placed} calls placed`, {
+        description: result.failed > 0 ? `${result.failed} failed${limitMsg}` : limitMsg || undefined,
+      });
       setQualDialogOpen(false);
-      setQualSchedule(false);
-      setQualScheduledAt("");
       setSelectedIds(new Set());
       qc.invalidateQueries({ queryKey: ["leads-all"] });
     } catch (e) {
       toast.error("Failed to start qualification", { description: (e as Error).message });
-    } finally {
-      setQualRunning(false);
+    }
+  }
+
+  async function handleScheduleQualification({
+    agentId,
+    fromNumber,
+    scheduledAtIso,
+  }: { agentId: string; fromNumber: string | null; scheduledAtIso: string }) {
+    try {
+      const result = await scheduleCallsFn({
+        data: {
+          leadIds: Array.from(selectedIds),
+          agentId,
+          fromNumber,
+          scheduledAt: scheduledAtIso,
+        },
+      });
+      toast.success(`${result.scheduled} lead${result.scheduled !== 1 ? "s" : ""} scheduled`, {
+        description: `Calls will be placed at ${new Date(scheduledAtIso).toLocaleString(undefined, wbahDateTimeOptions(isWbah))}`,
+      });
+      setQualDialogOpen(false);
+      setSelectedIds(new Set());
+      qc.invalidateQueries({ queryKey: ["leads-all"] });
+    } catch (e) {
+      toast.error("Failed to schedule qualification calls", { description: (e as Error).message });
     }
   }
 
@@ -717,9 +713,6 @@ function LeadsPage() {
       toast.error("Select at least one lead first");
       return;
     }
-    const defaultAgent = qualAgents[0];
-    if (defaultAgent && !qualAgentId) setQualAgentId(defaultAgent.id);
-    if (defaultAgent?.phoneNumber && !qualFromNumber) setQualFromNumber(defaultAgent.phoneNumber);
     setQualDialogOpen(true);
   }
 
@@ -1259,123 +1252,19 @@ function LeadsPage() {
       )}
 
       {/* Assign Qualification Agent Dialog */}
-      <Dialog open={qualDialogOpen} onOpenChange={(o) => { setQualDialogOpen(o); if (!o) { setQualSchedule(false); setQualScheduledAt(""); } }}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <ShieldCheck className="h-4 w-4 text-blue-400" />
-              Assign Qualification Agent
-            </DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4 py-1">
-            <p className="text-sm text-muted-foreground">
-              {qualSchedule ? "Schedule" : "Start"} qualification calls for <span className="font-semibold text-foreground">{selectedIds.size}</span> selected lead{selectedIds.size !== 1 ? "s" : ""}.
-            </p>
-            {qualAgents.length === 0 ? (
-              <div className="rounded-lg border border-amber-500/20 bg-amber-500/5 p-3 text-sm text-amber-400">
-                No live Client Qualification agents found. Build and go-live with a qualification agent in the Builder first.
-              </div>
-            ) : (
-              <>
-                <div>
-                  <Label className="text-xs">Qualification Agent</Label>
-                  <Select value={qualAgentId} onValueChange={(v) => {
-                    setQualAgentId(v);
-                    const agent = qualAgents.find((a: any) => a.id === v);
-                    if (agent?.phoneNumber) setQualFromNumber(agent.phoneNumber);
-                  }}>
-                    <SelectTrigger className="mt-1">
-                      <SelectValue placeholder="Select an agent…" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {qualAgents.map((a: any) => (
-                        <SelectItem key={a.id} value={a.id}>
-                          {a.name}
-                          {a.phoneNumber && <span className="ml-2 text-muted-foreground text-xs">{a.phoneNumber}</span>}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div>
-                  <Label className="text-xs">From Number (optional override)</Label>
-                  <Input
-                    value={qualFromNumber}
-                    onChange={(e) => setQualFromNumber(e.target.value)}
-                    placeholder="+1 555 000 0000"
-                    className="mt-1 h-8 text-xs"
-                  />
-                </div>
-
-                {/* Schedule toggle */}
-                <div className="rounded-lg border border-white/[0.08] bg-white/[0.02] p-3 space-y-3">
-                  <button
-                    type="button"
-                    onClick={() => setQualSchedule((v) => !v)}
-                    className="flex items-center justify-between w-full"
-                  >
-                    <span className="flex items-center gap-2 text-sm font-medium">
-                      <CalendarClock className="h-4 w-4 text-purple-400" />
-                      Schedule for later
-                    </span>
-                    <span className={`h-5 w-9 rounded-full transition-colors relative ${qualSchedule ? "bg-purple-500" : "bg-white/10"}`}>
-                      <span className={`absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition-transform ${qualSchedule ? "translate-x-4" : "translate-x-0.5"}`} />
-                    </span>
-                  </button>
-                  {qualSchedule && (
-                    <div>
-                      <Label className="text-xs text-muted-foreground">Call date &amp; time</Label>
-                      <Input
-                        type="datetime-local"
-                        value={qualScheduledAt}
-                        onChange={(e) => setQualScheduledAt(e.target.value)}
-                        className="mt-1 h-8 text-xs"
-                        min={new Date().toISOString().slice(0, 16)}
-                      />
-                      <p className="mt-1.5 text-[11px] text-muted-foreground flex items-center gap-1">
-                        <Clock className="h-3 w-3" />
-                        Click "Run Scheduled" on the Leads page when the time arrives to fire the calls.
-                      </p>
-                    </div>
-                  )}
-                </div>
-
-                {/* Daily limit notice */}
-                <p className="text-[11px] text-muted-foreground">
-                  Max 3 call attempts per lead per day — leads at the limit will be skipped.
-                </p>
-              </>
-            )}
-          </div>
-          <DialogFooter>
-            <Button variant="ghost" onClick={() => setQualDialogOpen(false)} disabled={qualRunning}>
-              Cancel
-            </Button>
-            <Button
-              onClick={handleStartQualification}
-              disabled={!qualAgentId || qualAgents.length === 0 || qualRunning}
-              className={qualSchedule ? "bg-purple-600 hover:bg-purple-500 text-white" : ""}
-            >
-              {qualRunning ? (
-                <>
-                  <Loader2 className="mr-1 h-4 w-4 animate-spin" />
-                  {qualSchedule ? "Scheduling…" : "Starting…"}
-                </>
-              ) : qualSchedule ? (
-                <>
-                  <CalendarClock className="mr-1 h-4 w-4" />
-                  Schedule {selectedIds.size} Call{selectedIds.size !== 1 ? "s" : ""}
-                </>
-              ) : (
-                <>
-                  <Phone className="mr-1 h-4 w-4" />
-                  Start {selectedIds.size} Call{selectedIds.size !== 1 ? "s" : ""}
-                </>
-              )}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <StartCallsDialog
+        open={qualDialogOpen}
+        onOpenChange={setQualDialogOpen}
+        count={selectedIds.size}
+        entityLabel="lead"
+        title="Assign Qualification Agent"
+        agents={qualAgents}
+        defaultAgentId={qualAgents[0]?.id}
+        footerNote="Max 3 call attempts per lead per day — leads at the limit will be skipped."
+        scheduleHint='Click "Run Scheduled" on the Leads page when the time arrives to fire the calls.'
+        onStart={handleStartQualification}
+        onSchedule={handleScheduleQualification}
+      />
 
       {/* Contact call-history drill-down */}
       {callHistory !== null && (

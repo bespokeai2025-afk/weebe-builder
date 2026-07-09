@@ -40,10 +40,11 @@ import { LoadingProgress } from "@/components/dashboard/LoadingProgress";
 import { useTablePagination, TablePagBar } from "@/components/ui/table-pagination";
 import { toast } from "sonner";
 import { listQualifiedLeads, getQualificationStats } from "@/lib/dashboard/qualified.functions";
-import { setLeadStatus } from "@/lib/dashboard/leads.functions";
+import { setLeadStatus, startQualificationCallsForLeads, scheduleQualificationCalls } from "@/lib/dashboard/leads.functions";
+import { StartCallsDialog } from "@/components/dashboard/StartCallsDialog";
 import { listWbahQualifiedLeads, getWbahContactCallHistory, getWbahCallDetail } from "@/lib/integrations/webespokeEnterprise/wbah-workspace.server";
 import { normalizeSentiment } from "@/lib/sentiment";
-import { listLiveAgents } from "@/lib/agents/agents.functions";
+import { getDashboardLiveAgents } from "@/lib/agents/agents.functions";
 import { NotesBookingSheet } from "@/components/dashboard/NotesBookingSheet";
 import { PlayRecordingButton } from "@/components/RecordingPlayerDialog";
 import { WbahNotesButton, WbahBookedStickyBadge, WbahCallCountBadge, WbahCalendlyLink, wbahAgentColorMapFromLeads } from "@/components/dashboard/WbahNotesButton";
@@ -235,7 +236,11 @@ function QualifiedPage() {
   const [panel, setPanel] = useState<PanelTarget | null>(null);
   const [wbahTranscript, setWbahTranscript] = useState<string | null>(null);
   const [qualTab, setQualTab] = useState<"contacts" | "campaigns">("contacts");
-  const listAgentsFn = useServerFn(listLiveAgents);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [callDialogOpen, setCallDialogOpen] = useState(false);
+  const startCallsFn = useServerFn(startQualificationCallsForLeads);
+  const scheduleCallsFn = useServerFn(scheduleQualificationCalls);
+  const listAgentsFn = useServerFn(getDashboardLiveAgents);
   const getContactHistoryFn = useServerFn(getWbahContactCallHistory);
   const getCallDetailFn = useServerFn(getWbahCallDetail);
   const [callHistory, setCallHistory] = useState<{ name: string; phone: string; loading: boolean; calls: any[] } | null>(null);
@@ -299,6 +304,9 @@ function QualifiedPage() {
     refetchOnWindowFocus: false,
     throwOnError: false,
   });
+  const callAgents = (agentsQ.data ?? [])
+    .filter((a: any) => a.agentType === "client_qualification")
+    .map((a: any) => ({ id: a.id, name: a.name, phoneNumber: a.phoneNumber ?? null }));
   const qualAgents = (agentsQ.data ?? []) as Array<{ id: string; name: string; retell_agent_id?: string | null }>;
 
   const leadsQ = useQuery({
@@ -411,6 +419,53 @@ function QualifiedPage() {
     }
   }
 
+  function openCallDialog() {
+    if (selectedIds.size === 0) {
+      toast.error("Select at least one contact first");
+      return;
+    }
+    setCallDialogOpen(true);
+  }
+
+  async function handleStartCalls({ agentId, fromNumber }: { agentId: string; fromNumber: string | null }) {
+    try {
+      const result = await startCallsFn({
+        data: { leadIds: Array.from(selectedIds), agentId, fromNumber },
+      });
+      const limitMsg = (result as any).limitReached > 0
+        ? ` · ${(result as any).limitReached} at daily limit`
+        : "";
+      toast.success(`Calling started — ${result.placed} calls placed`, {
+        description: result.failed > 0 ? `${result.failed} failed${limitMsg}` : limitMsg || undefined,
+      });
+      setCallDialogOpen(false);
+      setSelectedIds(new Set());
+      refresh();
+    } catch (e) {
+      toast.error("Failed to start calls", { description: (e as Error).message });
+    }
+  }
+
+  async function handleScheduleCalls({
+    agentId,
+    fromNumber,
+    scheduledAtIso,
+  }: { agentId: string; fromNumber: string | null; scheduledAtIso: string }) {
+    try {
+      const result = await scheduleCallsFn({
+        data: { leadIds: Array.from(selectedIds), agentId, fromNumber, scheduledAt: scheduledAtIso },
+      });
+      toast.success(`${result.scheduled} contact${result.scheduled !== 1 ? "s" : ""} scheduled`, {
+        description: `Calls will be placed at ${new Date(scheduledAtIso).toLocaleString(undefined, wbahDateTimeOptions(isWbah))}`,
+      });
+      setCallDialogOpen(false);
+      setSelectedIds(new Set());
+      refresh();
+    } catch (e) {
+      toast.error("Failed to schedule calls", { description: (e as Error).message });
+    }
+  }
+
   function refresh() {
     qc.invalidateQueries({ queryKey: ["leads-qualified"] });
     qc.invalidateQueries({ queryKey: ["wbah-qualified-leads"] });
@@ -451,10 +506,18 @@ function QualifiedPage() {
             Contacts scored and routed after qualification calls
           </p>
         </div>
-        <Button variant="ghost" size="sm" className="h-7 gap-1 px-2.5 text-xs" onClick={refresh}>
-          <RefreshCw className="h-3 w-3" />
-          Refresh
-        </Button>
+        <div className="flex items-center gap-2">
+          {qualTab === "contacts" && !isWbah && selectedIds.size > 0 && (
+            <Button size="sm" variant="outline" className="border-blue-500/30 text-blue-400 hover:text-blue-300" onClick={openCallDialog}>
+              <ShieldCheck className="mr-1 h-4 w-4" />
+              Call {selectedIds.size} Contact{selectedIds.size !== 1 ? "s" : ""}
+            </Button>
+          )}
+          <Button variant="ghost" size="sm" className="h-7 gap-1 px-2.5 text-xs" onClick={refresh}>
+            <RefreshCw className="h-3 w-3" />
+            Refresh
+          </Button>
+        </div>
       </div>
 
       {/* Tabs */}
@@ -608,6 +671,24 @@ function QualifiedPage() {
               <table className="w-full text-[11px]">
                 <thead>
                   <tr className="border-b border-white/[0.06] bg-card/30">
+                    {!isWbah && (
+                      <th className="px-2 py-1 w-6">
+                        <input
+                          type="checkbox"
+                          className="h-3 w-3 accent-blue-500"
+                          checked={qualPag.sliced.length > 0 && qualPag.sliced.every((l: any) => selectedIds.has(l.id))}
+                          onChange={(e) => {
+                            setSelectedIds((prev) => {
+                              const next = new Set(prev);
+                              for (const l of qualPag.sliced) {
+                                if (e.target.checked) next.add(l.id); else next.delete(l.id);
+                              }
+                              return next;
+                            });
+                          }}
+                        />
+                      </th>
+                    )}
                     <th className={cn("px-2 py-1 text-left text-[9px] font-semibold uppercase tracking-[0.08em] text-muted-foreground", isWbah && cn(stickyHead, "left-0 w-28"))}>Name</th>
                     <th className="px-2 py-1 text-left text-[9px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">Phone</th>
                     <th className="px-2 py-1 text-left text-[9px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">Status</th>
@@ -651,6 +732,22 @@ function QualifiedPage() {
                       key={lead.id}
                       className="group h-8 border-b border-white/[0.04] align-middle hover:bg-white/[0.02] transition-colors"
                     >
+                      {!isWbah && (
+                        <td className="px-2 py-0.5">
+                          <input
+                            type="checkbox"
+                            className="h-3 w-3 accent-blue-500"
+                            checked={selectedIds.has(lead.id)}
+                            onChange={(e) => {
+                              setSelectedIds((prev) => {
+                                const next = new Set(prev);
+                                if (e.target.checked) next.add(lead.id); else next.delete(lead.id);
+                                return next;
+                              });
+                            }}
+                          />
+                        </td>
+                      )}
                       <td className={cn("px-2 py-0.5", isWbah && cn(stickyCell, "left-0 w-28 max-w-[7rem] overflow-hidden"))}>
                         <div className="min-w-0">
                           <div className="flex items-center gap-1 min-w-0">
@@ -884,6 +981,22 @@ function QualifiedPage() {
           callSummary={panel.callSummary}
         />
       )}
+
+      {/* Start/Schedule Calling Dialog */}
+      <StartCallsDialog
+        open={callDialogOpen}
+        onOpenChange={setCallDialogOpen}
+        count={selectedIds.size}
+        entityLabel="contact"
+        title="Call Qualified Contacts"
+        agents={callAgents}
+        defaultAgentId={callAgents[0]?.id}
+        noAgentsMessage="No live Client Qualification agents found. Build and go-live with a qualification agent in the Builder first."
+        footerNote="Max 3 call attempts per contact per day — contacts at the limit will be skipped."
+        scheduleHint='Click "Run Scheduled" on the Leads page when the time arrives to fire the calls.'
+        onStart={handleStartCalls}
+        onSchedule={handleScheduleCalls}
+      />
     </DashboardPage>
   );
 }
