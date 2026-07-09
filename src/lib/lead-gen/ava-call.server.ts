@@ -11,13 +11,26 @@ import { createHash, randomInt } from "crypto";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { sendResendEmail, escapeHtml, renderBasicEmail } from "@/lib/email/resend.server";
 import { toLeadSourceEnum, WEBEE_ADMIN_EMAIL } from "@/lib/lead-gen/webforms.server";
+import {
+  detectOtpProvider,
+  sendOtp,
+  checkTwilioVerifyCode,
+  isOtpDevMode,
+  getOtpDevCode,
+  type OtpChannel,
+} from "@/lib/lead-gen/ava-otp-provider.server";
 
 /** Retell live agent that answers "Call Ava Now" requests. */
 export const AVA_LIVE_AGENT_ID = "agent_a7d436bf944aeae0c72a12d5d2";
 
-const OTP_TTL_MS = 10 * 60 * 1000; // 10 minutes
+const OTP_EXPIRY_MINUTES = (() => {
+  const n = Number(process.env.OTP_EXPIRY_MINUTES);
+  return Number.isFinite(n) && n >= 1 && n <= 60 ? n : 10;
+})();
+const OTP_TTL_MS = OTP_EXPIRY_MINUTES * 60 * 1000;
 const MAX_OTP_ATTEMPTS = 5;
 const PER_PHONE_DAILY_CAP = Number(process.env.AVA_CALL_PER_PHONE_DAILY_CAP ?? 2);
+const PER_EMAIL_DAILY_CAP = Number(process.env.AVA_CALL_PER_EMAIL_DAILY_CAP ?? 2);
 const GLOBAL_DAILY_CAP = Number(process.env.AVA_CALL_DAILY_CAP ?? 25);
 /** Comma-separated dial-code prefixes allowed to receive Ava calls. */
 const ALLOWED_PREFIXES = (process.env.AVA_CALL_ALLOWED_COUNTRY_CODES ?? "+1,+44")
@@ -44,7 +57,9 @@ export type AvaCallRequestRow = {
 };
 
 function hashOtp(requestId: string, otp: string): string {
-  return createHash("sha256").update(`${requestId}:${otp}`).digest("hex");
+  // OTP_SECRET (optional) hardens the hash; requestId already salts it.
+  const secret = process.env.OTP_SECRET?.trim() ?? "";
+  return createHash("sha256").update(`${secret}:${requestId}:${otp}`).digest("hex");
 }
 
 export function normalizePhoneE164(raw: string): string | null {
@@ -118,13 +133,20 @@ export async function createAvaCallRequest(input: {
   email?: string;
   phone?: string;
   website?: string;
+  consent?: unknown;
   ip: string | null;
   userAgent: string | null;
-}): Promise<{ ok: true; requestId: string } | { ok: false; error: string; status: number }> {
+}): Promise<
+  | { ok: true; requestId: string; channel: OtpChannel; fallback: boolean }
+  | { ok: false; error: string; status: number; code?: string }
+> {
   const email = String(input.email ?? "").trim().toLowerCase();
   const name = String(input.name ?? "").trim().slice(0, 120) || null;
   const website = String(input.website ?? "").trim().slice(0, 300) || null;
 
+  if (input.consent !== true) {
+    return { ok: false, error: "Please confirm you agree to receive a call from Ava.", status: 422 };
+  }
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) {
     return { ok: false, error: "A valid email is required.", status: 422 };
   }
@@ -134,6 +156,19 @@ export async function createAvaCallRequest(input: {
   }
   if (!isAllowedCountry(phone)) {
     return { ok: false, error: "Sorry, Ava can't call that region yet. Use the Talk to Us form instead.", status: 422 };
+  }
+
+  // Provider check happens BEFORE any row is created so an unconfigured
+  // environment fails fast with a clear, user-actionable message.
+  const provider = detectOtpProvider();
+  if (provider.channel === "none") {
+    console.error("[AVA-CALL] No OTP provider configured (Twilio Verify / Twilio SMS / Resend all missing)");
+    return {
+      ok: false,
+      error: "Verification is not configured yet. Please book a demo instead.",
+      status: 503,
+      code: "no_provider",
+    };
   }
 
   const workspaceId = await resolveAdminWorkspaceId();
@@ -152,6 +187,17 @@ export async function createAvaCallRequest(input: {
     .not("retell_call_id", "is", null);
   if ((phoneCount ?? 0) >= PER_PHONE_DAILY_CAP) {
     return { ok: false, error: "This number has already received Ava calls today. Please try again tomorrow.", status: 429 };
+  }
+
+  // Per-email daily cap (calls actually triggered)
+  const { count: emailCount } = await supabaseAdmin
+    .from("ava_call_requests")
+    .select("id", { count: "exact", head: true })
+    .eq("email", email)
+    .gte("created_at", dayAgo)
+    .not("retell_call_id", "is", null);
+  if ((emailCount ?? 0) >= PER_EMAIL_DAILY_CAP) {
+    return { ok: false, error: "This email has already received Ava calls today. Please try again tomorrow.", status: 429 };
   }
 
   // Global daily cap on triggered calls
@@ -184,35 +230,44 @@ export async function createAvaCallRequest(input: {
   }
 
   const requestId = (created as { id: string }).id;
-  const otp = String(randomInt(100000, 1000000));
+  // Dev test mode uses a fixed local code; Twilio Verify manages the code on
+  // Twilio's side (no local hash); every other channel gets a random local OTP.
+  const otp = isOtpDevMode() ? getOtpDevCode() : String(randomInt(100000, 1000000));
+
+  const sendResult = await sendOtp({
+    provider,
+    phone,
+    email,
+    name,
+    otp,
+    expiryMinutes: OTP_EXPIRY_MINUTES,
+  });
+  if (!sendResult.success) {
+    console.error("[AVA-CALL] OTP send failed", { channel: sendResult.channel, error: sendResult.error });
+    await supabaseAdmin
+      .from("ava_call_requests")
+      .update({ status: "failed", call_outcome: { reason: "otp_send_failed" }, updated_at: new Date().toISOString() } as never)
+      .eq("id", requestId);
+    return { ok: false, error: "Could not send the verification code. Please try again.", status: 502 };
+  }
+
+  // Store the local OTP hash unless Twilio Verify holds the code.
+  const usesTwilioVerify = sendResult.channel === "twilio_verify";
   await supabaseAdmin
     .from("ava_call_requests")
     .update({
-      otp_hash: hashOtp(requestId, otp),
+      otp_hash: usesTwilioVerify ? null : hashOtp(requestId, otp),
       otp_expires_at: new Date(Date.now() + OTP_TTL_MS).toISOString(),
       updated_at: new Date().toISOString(),
     } as never)
     .eq("id", requestId);
 
-  const emailResult = await sendResendEmail({
-    to: email,
-    subject: `${otp} is your Ava verification code`,
-    html: renderBasicEmail({
-      heading: "Verify your Ava call",
-      bodyHtml: `
-        <p style="font-size:14px;color:#c8c8d8">Hi${name ? ` ${escapeHtml(name)}` : ""},</p>
-        <p style="font-size:14px;color:#c8c8d8">Use this code to confirm your request — Ava will call you right after:</p>
-        <p style="font-size:30px;font-weight:700;letter-spacing:6px;color:#ffffff;margin:18px 0">${escapeHtml(otp)}</p>
-        <p style="font-size:12px;color:#8a8aa0">The code expires in 10 minutes. If you didn't request a call from WEBEE, you can ignore this email.</p>`,
-    }),
+  console.log("[AVA-CALL] Request created, OTP sent", {
+    requestId,
+    channel: sendResult.channel,
+    fallback: sendResult.fallback,
   });
-  if (!emailResult.success) {
-    console.error("[AVA-CALL] OTP email failed", emailResult.error);
-    return { ok: false, error: "Could not send the verification email. Please try again.", status: 502 };
-  }
-
-  console.log("[AVA-CALL] Request created, OTP sent", { requestId });
-  return { ok: true, requestId };
+  return { ok: true, requestId, channel: sendResult.channel, fallback: sendResult.fallback };
 }
 
 // ── Step 2: verify OTP + trigger the Retell call ─────────────────────────────
@@ -240,7 +295,7 @@ export async function verifyAvaCallOtpAndTrigger(input: {
   if (request.otp_attempts >= MAX_OTP_ATTEMPTS) {
     return { ok: false, error: "Too many attempts. Please request a new call.", status: 429 };
   }
-  if (!request.otp_hash || !request.otp_expires_at || Date.parse(request.otp_expires_at) < Date.now()) {
+  if (!request.otp_expires_at || Date.parse(request.otp_expires_at) < Date.now()) {
     return { ok: false, error: "This code has expired. Please request a new call.", status: 410 };
   }
 
@@ -249,8 +304,21 @@ export async function verifyAvaCallOtpAndTrigger(input: {
     .update({ otp_attempts: request.otp_attempts + 1, updated_at: new Date().toISOString() } as never)
     .eq("id", requestId);
 
-  if (hashOtp(requestId, otp) !== request.otp_hash) {
-    return { ok: false, error: "That code doesn't match. Please check and try again.", status: 401 };
+  if (request.otp_hash) {
+    // Local OTP check (email / SMS / dev channels).
+    if (hashOtp(requestId, otp) !== request.otp_hash) {
+      return { ok: false, error: "That code doesn't match. Please check and try again.", status: 401 };
+    }
+  } else if (detectOtpProvider().managedByTwilioVerify) {
+    // No local hash → the code lives in Twilio Verify; delegate the check.
+    const check = await checkTwilioVerifyCode(request.phone, otp);
+    if (!check.success) {
+      return { ok: false, error: "That code doesn't match. Please check and try again.", status: 401 };
+    }
+  } else {
+    // No local hash and no Twilio Verify (e.g. provider config changed
+    // between request and verify) — treat as expired, ask for a new request.
+    return { ok: false, error: "This code has expired. Please request a new call.", status: 410 };
   }
 
   // OTP verified — atomically claim the request so two concurrent verifies

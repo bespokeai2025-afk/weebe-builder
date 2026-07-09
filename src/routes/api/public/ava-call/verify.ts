@@ -44,7 +44,7 @@ export const Route = createFileRoute("/api/public/ava-call/verify")({
           return Response.json({ error: result.error }, { status: result.status, headers: CORS });
         }
         return Response.json(
-          { ok: true, message: "Ava is calling you now." },
+          { ok: true, success: true, message: "Ava is calling you now." },
           { headers: CORS },
         );
       },

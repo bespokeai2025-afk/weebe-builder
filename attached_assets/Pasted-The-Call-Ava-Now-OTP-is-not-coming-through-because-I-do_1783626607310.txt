@@ -1,0 +1,343 @@
+The “Call Ava Now” OTP is not coming through because I do not think an OTP/SMS provider has been set up yet.
+
+Please update the Ava Call OTP system so it properly detects whether an OTP provider is configured, supports email OTP as an immediate fallback, and does not silently fail.
+
+## Current feature
+
+Homepage feature:
+
+* “Call Ava Now”
+* User enters name, email, phone, optional website, and consent
+* User should receive OTP
+* User verifies OTP
+* Backend triggers Ava call using Retell agent:
+  `agent_a7d436bf944aeae0c72a12d5d2`
+
+## Main issue
+
+There may currently be no SMS OTP provider configured.
+
+Please audit the implementation and make it safe.
+
+---
+
+## 1. Provider detection
+
+Check whether the project currently has any OTP sending provider configured.
+
+Look for:
+
+* Twilio Verify
+* Twilio SMS
+* Resend email
+* Supabase auth OTP
+* any existing email/SMS provider in the project
+
+If no SMS provider is configured, do not attempt SMS and silently fail.
+
+Instead:
+
+1. Use email OTP through Resend if `RESEND_API_KEY` is available.
+2. If Resend is also not configured, return a clear error:
+   “Verification is not configured yet. Please book a demo instead.”
+
+---
+
+## 2. Immediate recommended setup
+
+For now, implement **email OTP first** using Resend, because the user already enters an email address and this is easier to get working immediately.
+
+Then structure the code so SMS OTP can be added later with Twilio Verify.
+
+Provider priority should be:
+
+1. Twilio Verify SMS, if fully configured
+2. Twilio SMS, if fully configured
+3. Resend email OTP, if configured
+4. Clear error if no provider is configured
+
+Do not pretend the OTP was sent if no provider exists.
+
+---
+
+## 3. Required environment variables
+
+Please check for these environment variables:
+
+For email OTP:
+
+```env
+RESEND_API_KEY=
+AVA_OTP_FROM_EMAIL=
+```
+
+Suggested from email:
+
+```env
+AVA_OTP_FROM_EMAIL=Ava at We Bespoke AI <ava@webespokeai.com>
+```
+
+For OTP security:
+
+```env
+OTP_SECRET=
+OTP_EXPIRY_MINUTES=10
+```
+
+For future SMS OTP:
+
+```env
+TWILIO_ACCOUNT_SID=
+TWILIO_AUTH_TOKEN=
+TWILIO_VERIFY_SERVICE_SID=
+TWILIO_PHONE_NUMBER=
+```
+
+For Ava call:
+
+```env
+AVA_RETELL_AGENT_ID=agent_a7d436bf944aeae0c72a12d5d2
+RETELL_API_KEY=
+AVA_CALL_FROM_NUMBER=
+AVA_CALL_WORKSPACE_ID=
+```
+
+If any required variable is missing, log it safely server-side and return a clean frontend error.
+
+Do not expose secrets to the browser.
+
+---
+
+## 4. Email OTP fallback
+
+If SMS is not configured but Resend is configured, send the OTP to the user’s email address.
+
+Email subject:
+
+`Your Ava verification code`
+
+Email body:
+
+“Your verification code for speaking with Ava is: {{OTP}}
+
+This code expires in 10 minutes.
+
+If you did not request this, you can ignore this email.”
+
+Important:
+
+* Generate OTP server-side.
+* Store only hashed OTP.
+* Do not store raw OTP.
+* Do not return OTP in API response.
+* Do not log raw OTP in production.
+* The OTP should expire after 10 minutes.
+* OTP should be one-time use only.
+* Limit attempts to 5.
+
+Frontend message if email OTP is used:
+
+“We’ve sent your verification code to your email.”
+
+If SMS is configured later and email fallback is used because SMS failed:
+
+“We could not send SMS, so we sent the code to your email.”
+
+---
+
+## 5. Dev test mode
+
+Add a safe development-only OTP mode so we can test the flow before providers are live.
+
+Environment variables:
+
+```env
+AVA_OTP_DEV_MODE=true
+AVA_OTP_DEV_CODE=123456
+```
+
+Rules:
+
+* Only allow this when `NODE_ENV !== "production"`.
+* Never allow dev OTP mode in production.
+* Clearly log server-side when dev OTP mode is active.
+* Do not expose this mode to users.
+* Do not return the OTP in production API responses.
+
+This will let us test the full Ava flow while SMS/email setup is being completed.
+
+---
+
+## 6. Update request OTP endpoint
+
+Endpoint:
+
+`POST /api/public/ava-call/request-otp`
+
+Expected payload:
+
+```json
+{
+  "name": "Full name",
+  "email": "email@example.com",
+  "phone": "+447000000000",
+  "businessWebsite": "https://example.com",
+  "consent": true
+}
+```
+
+Backend should:
+
+1. Validate name, email, phone, and consent.
+2. Normalize phone number.
+3. Rate limit by IP, email, and phone.
+4. Detect available OTP provider.
+5. Generate OTP.
+6. Store hashed OTP.
+7. Send OTP using available provider.
+8. Return which channel was used, without exposing secrets.
+
+Example response for email OTP:
+
+```json
+{
+  "success": true,
+  "channel": "email",
+  "message": "Verification code sent to your email."
+}
+```
+
+Example response for SMS OTP:
+
+```json
+{
+  "success": true,
+  "channel": "sms",
+  "message": "Verification code sent to your phone."
+}
+```
+
+Example response if no provider is configured:
+
+```json
+{
+  "success": false,
+  "message": "Verification is not configured yet. Please book a demo instead."
+}
+```
+
+---
+
+## 7. Update verify and call endpoint
+
+Endpoint:
+
+`POST /api/public/ava-call/verify-and-call`
+
+Expected payload:
+
+```json
+{
+  "email": "email@example.com",
+  "phone": "+447000000000",
+  "otp": "123456"
+}
+```
+
+Backend should:
+
+1. Validate email, phone, and OTP.
+2. Check the stored hashed OTP or Twilio Verify result.
+3. Confirm OTP is not expired.
+4. Confirm OTP has not already been used.
+5. Enforce attempt limits.
+6. If verified, save/update Ava call request.
+7. Trigger Ava call server-side using Retell.
+8. Return success message.
+
+Do not trigger Retell unless OTP verification succeeds.
+
+---
+
+## 8. Frontend updates
+
+Update the Call Ava modal so it handles each OTP channel properly.
+
+If SMS is used:
+
+“Verification code sent to your phone.”
+
+If email is used:
+
+“We’ve sent your verification code to your email.”
+
+If no provider is configured:
+
+“Verification is not configured yet. Please book a demo instead.”
+
+Add a fallback CTA button:
+
+“Book a Demo”
+
+This should open the existing Book Demo popup/webform.
+
+---
+
+## 9. Anti-spam rules still apply
+
+Keep or add:
+
+* Max 3 OTP requests per IP per hour
+* Max 3 OTP requests per email per hour
+* Max 3 OTP requests per phone per hour
+* Max 5 OTP attempts per request
+* Max 2 successful Ava calls per phone per day
+* Max 2 successful Ava calls per email per day
+* Do not trigger Ava if OTP is not verified
+
+---
+
+## 10. Do not break existing logic
+
+Do not break:
+
+* Existing Free Trial form
+* Existing Book Demo form
+* Existing Get Quote form
+* Existing webform lead capture
+* Existing Retell call flows
+* Existing WBAH account logic
+* Existing standard WEBEE account logic
+* Leads page
+* Calls page
+* Qualified page
+* Data page
+* Manual lead status selectors
+* Filters
+* Workspace scoping
+* Supabase RLS assumptions
+
+Do not hardcode or copy any WBAH workspace IDs, API keys, CRM settings, lead data, or Retell setup.
+
+---
+
+## 11. Testing required
+
+Please test:
+
+1. No SMS provider configured but Resend configured → OTP sends by email.
+2. No SMS and no Resend configured → clear error appears.
+3. Dev mode enabled in development → test OTP works.
+4. Dev mode cannot run in production.
+5. Correct OTP verifies successfully.
+6. Incorrect OTP fails.
+7. Expired OTP fails.
+8. Ava call only triggers after successful OTP verification.
+9. Retell call uses Ava agent ID:
+   `agent_a7d436bf944aeae0c72a12d5d2`
+10. Secrets are not exposed in frontend/network responses.
+11. Existing website buttons and forms still work.
+
+Final instruction:
+
+Make the OTP flow provider-aware. If no SMS provider is configured, use Resend email OTP as the immediate working fallback. If no provider is configured at all, show a clear error instead of silently failing.

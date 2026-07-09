@@ -1,11 +1,14 @@
 /**
- * "Call Ava Now" — step 1: create a call request + email a 6-digit OTP.
+ * "Call Ava Now" — step 1: create a call request + send a 6-digit OTP via the
+ * best available provider (Twilio Verify → Twilio SMS → Resend email).
  * POST /api/public/ava-call/request
- * No auth. Rate-limited per IP and per email. Honeypot spam check.
+ * No auth. Rate-limited 3/hour per IP, per email and per phone. Honeypot spam check.
  */
 import { createFileRoute } from "@tanstack/react-router";
 import { checkRateLimit, isSpam } from "@/lib/lead-gen/webforms.server";
-import { createAvaCallRequest } from "@/lib/lead-gen/ava-call.server";
+import { createAvaCallRequest, normalizePhoneE164 } from "@/lib/lead-gen/ava-call.server";
+
+const HOUR_MS = 60 * 60 * 1000;
 
 const CORS = {
   "Access-Control-Allow-Origin": "*",
@@ -33,14 +36,19 @@ export const Route = createFileRoute("/api/public/ava-call/request")({
           return Response.json({ ok: true, requestId: crypto.randomUUID() }, { headers: CORS });
         }
 
-        const allowedIp = await checkRateLimit(`avacall:req:${ip ?? "global"}`, 3);
+        // 3 OTP requests per hour per IP, per email AND per phone.
+        const normalizedPhone =
+          normalizePhoneE164(String(fields.phone ?? "")) ?? String(fields.phone ?? "").trim() ?? "none";
+        const allowedIp = await checkRateLimit(`avacall:req:${ip ?? "global"}`, 3, HOUR_MS);
         const allowedEmail = await checkRateLimit(
           `avacall:email:${String(fields.email ?? "").trim().toLowerCase() || "none"}`,
           3,
+          HOUR_MS,
         );
-        if (!allowedIp || !allowedEmail) {
+        const allowedPhone = await checkRateLimit(`avacall:phone:${normalizedPhone || "none"}`, 3, HOUR_MS);
+        if (!allowedIp || !allowedEmail || !allowedPhone) {
           return Response.json(
-            { error: "Too many requests. Please wait a minute and try again." },
+            { error: "Too many requests. Please wait an hour and try again." },
             { status: 429, headers: CORS },
           );
         }
@@ -50,14 +58,27 @@ export const Route = createFileRoute("/api/public/ava-call/request")({
           email: fields.email as string | undefined,
           phone: fields.phone as string | undefined,
           website: fields.website as string | undefined,
+          consent: fields.consent,
           ip,
           userAgent: request.headers.get("user-agent"),
         });
 
         if (!result.ok) {
-          return Response.json({ error: result.error }, { status: result.status, headers: CORS });
+          return Response.json(
+            { error: result.error, ...(result.code ? { code: result.code } : {}) },
+            { status: result.status, headers: CORS },
+          );
         }
-        return Response.json({ ok: true, requestId: result.requestId }, { headers: CORS });
+        return Response.json(
+          {
+            ok: true,
+            success: true,
+            requestId: result.requestId,
+            channel: result.channel,
+            fallback: result.fallback,
+          },
+          { headers: CORS },
+        );
       },
     },
   },

@@ -92,6 +92,8 @@ RESEND_FROM = "Webespoke AI <notifications@admin.webespokeai.com>"
 [userenv.production]
 PUBLIC_BASE_URL = "https://webeebuilder.com"
 
+[userenv.development]
+
 [postMerge]
 path = "scripts/post-merge.sh"
 timeoutMs = 60000

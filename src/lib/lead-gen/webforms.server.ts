@@ -65,9 +65,13 @@ function extractUtm(raw: Record<string, unknown>) {
 
 // ── Rate limiting ──────────────────────────────────────────────────────────────
 
-export async function checkRateLimit(key: string, maxPerMinute = 10): Promise<boolean> {
+export async function checkRateLimit(
+  key: string,
+  maxPerWindow = 10,
+  windowMs = 60_000,
+): Promise<boolean> {
   try {
-    const windowStart = new Date(Date.now() - 60_000).toISOString();
+    const windowStart = new Date(Date.now() - windowMs).toISOString();
     const { data } = await supabaseAdmin
       .from("webform_rate_limits")
       .select("count, window_start")
@@ -81,7 +85,7 @@ export async function checkRateLimit(key: string, maxPerMinute = 10): Promise<bo
       return true;
     }
 
-    if (data.count >= maxPerMinute) return false;
+    if (data.count >= maxPerWindow) return false;
 
     await supabaseAdmin
       .from("webform_rate_limits")
