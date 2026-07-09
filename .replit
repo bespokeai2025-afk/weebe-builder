@@ -87,6 +87,7 @@ externalPort = 8081
 RETELL_SIGNATURE_VERIFICATION_ENABLED = "true"
 WEBESPOKE_ADMIN_EMAIL = "nathan@bespoke.ai"
 N8N_API_BASE_URL = "https://bespoke.app.n8n.cloud/api/v1"
+RESEND_FROM = "Webespoke AI <notifications@admin.webespokeai.com>"
 
 [userenv.production]
 PUBLIC_BASE_URL = "https://webeebuilder.com"
