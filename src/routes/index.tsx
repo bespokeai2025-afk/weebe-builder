@@ -10,6 +10,7 @@ import {
   RefreshCw, Repeat2, Cpu, LayoutPanelLeft,
 } from "lucide-react";
 import logoWebee from "@/assets/webee-logo-yellow.png";
+import { useCallAvaNow } from "@/components/landing/CallAvaNowModal";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -175,6 +176,7 @@ function Nav() {
 
 /* ─── Hero Section ──────────────────────────────────────────────────── */
 function HeroSection() {
+  const { open: openCallAva, CallAvaNow } = useCallAvaNow();
   return (
     <section style={{
       background: "linear-gradient(160deg, #050e1e 0%, #0a1a35 40%, #0d1a40 70%, #080f28 100%)",
@@ -254,6 +256,23 @@ function HeroSection() {
           >
             Get Started Free <ArrowRight size={14} />
           </Link>
+          <button
+            onClick={openCallAva}
+            type="button"
+            style={{
+              display: "inline-flex", alignItems: "center", gap: 8,
+              padding: "13px 28px", borderRadius: 999,
+              border: "1px solid rgba(245,184,0,0.45)",
+              background: "rgba(245,184,0,0.08)",
+              color: "#F5B800",
+              fontSize: 14.5, fontWeight: 700,
+              cursor: "pointer", letterSpacing: "-0.01em",
+            }}
+            className="hover:bg-amber-400/20 transition-colors"
+          >
+            <PhoneCall size={14} /> Call Ava Now
+          </button>
+          {CallAvaNow}
           <a href="https://www.webespokeai.com" target="_blank" rel="noopener noreferrer"
             style={{
               display: "inline-flex", alignItems: "center", gap: 8,

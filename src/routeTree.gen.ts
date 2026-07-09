@@ -229,6 +229,8 @@ import { Route as ApiPublicFrejunFlowRouteImport } from './routes/api/public/fre
 import { Route as ApiPublicElevenlabsWebhookHealthRouteImport } from './routes/api/public/elevenlabs-webhook.health'
 import { Route as ApiPublicCalcomWebhookHealthRouteImport } from './routes/api/public/calcom-webhook.health'
 import { Route as ApiPublicCalcomWebhookWorkspaceIdRouteImport } from './routes/api/public/calcom-webhook.$workspaceId'
+import { Route as ApiPublicAvaCallVerifyRouteImport } from './routes/api/public/ava-call/verify'
+import { Route as ApiPublicAvaCallRequestRouteImport } from './routes/api/public/ava-call/request'
 import { Route as ApiPublicAgentsRegisterRouteImport } from './routes/api/public/agents/register'
 import { Route as ApiInternalAgentToolsIdRouteImport } from './routes/api/internal/agent-tools.$id'
 import { Route as AuthenticatedSystemmindClientsSetupRouteImport } from './routes/_authenticated/systemmind.clients.setup'
@@ -1488,6 +1490,16 @@ const ApiPublicCalcomWebhookWorkspaceIdRoute =
     path: '/api/public/calcom-webhook/$workspaceId',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiPublicAvaCallVerifyRoute = ApiPublicAvaCallVerifyRouteImport.update({
+  id: '/api/public/ava-call/verify',
+  path: '/api/public/ava-call/verify',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiPublicAvaCallRequestRoute = ApiPublicAvaCallRequestRouteImport.update({
+  id: '/api/public/ava-call/request',
+  path: '/api/public/ava-call/request',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiPublicAgentsRegisterRoute = ApiPublicAgentsRegisterRouteImport.update({
   id: '/api/public/agents/register',
   path: '/api/public/agents/register',
@@ -1777,6 +1789,8 @@ export interface FileRoutesByFullPath {
   '/systemmind/clients/setup': typeof AuthenticatedSystemmindClientsSetupRoute
   '/api/internal/agent-tools/$id': typeof ApiInternalAgentToolsIdRoute
   '/api/public/agents/register': typeof ApiPublicAgentsRegisterRoute
+  '/api/public/ava-call/request': typeof ApiPublicAvaCallRequestRoute
+  '/api/public/ava-call/verify': typeof ApiPublicAvaCallVerifyRoute
   '/api/public/calcom-webhook/$workspaceId': typeof ApiPublicCalcomWebhookWorkspaceIdRoute
   '/api/public/calcom-webhook/health': typeof ApiPublicCalcomWebhookHealthRoute
   '/api/public/elevenlabs-webhook/health': typeof ApiPublicElevenlabsWebhookHealthRoute
@@ -2006,6 +2020,8 @@ export interface FileRoutesByTo {
   '/systemmind/clients/setup': typeof AuthenticatedSystemmindClientsSetupRoute
   '/api/internal/agent-tools/$id': typeof ApiInternalAgentToolsIdRoute
   '/api/public/agents/register': typeof ApiPublicAgentsRegisterRoute
+  '/api/public/ava-call/request': typeof ApiPublicAvaCallRequestRoute
+  '/api/public/ava-call/verify': typeof ApiPublicAvaCallVerifyRoute
   '/api/public/calcom-webhook/$workspaceId': typeof ApiPublicCalcomWebhookWorkspaceIdRoute
   '/api/public/calcom-webhook/health': typeof ApiPublicCalcomWebhookHealthRoute
   '/api/public/elevenlabs-webhook/health': typeof ApiPublicElevenlabsWebhookHealthRoute
@@ -2247,6 +2263,8 @@ export interface FileRoutesById {
   '/_authenticated/systemmind/clients/setup': typeof AuthenticatedSystemmindClientsSetupRoute
   '/api/internal/agent-tools/$id': typeof ApiInternalAgentToolsIdRoute
   '/api/public/agents/register': typeof ApiPublicAgentsRegisterRoute
+  '/api/public/ava-call/request': typeof ApiPublicAvaCallRequestRoute
+  '/api/public/ava-call/verify': typeof ApiPublicAvaCallVerifyRoute
   '/api/public/calcom-webhook/$workspaceId': typeof ApiPublicCalcomWebhookWorkspaceIdRoute
   '/api/public/calcom-webhook/health': typeof ApiPublicCalcomWebhookHealthRoute
   '/api/public/elevenlabs-webhook/health': typeof ApiPublicElevenlabsWebhookHealthRoute
@@ -2488,6 +2506,8 @@ export interface FileRouteTypes {
     | '/systemmind/clients/setup'
     | '/api/internal/agent-tools/$id'
     | '/api/public/agents/register'
+    | '/api/public/ava-call/request'
+    | '/api/public/ava-call/verify'
     | '/api/public/calcom-webhook/$workspaceId'
     | '/api/public/calcom-webhook/health'
     | '/api/public/elevenlabs-webhook/health'
@@ -2717,6 +2737,8 @@ export interface FileRouteTypes {
     | '/systemmind/clients/setup'
     | '/api/internal/agent-tools/$id'
     | '/api/public/agents/register'
+    | '/api/public/ava-call/request'
+    | '/api/public/ava-call/verify'
     | '/api/public/calcom-webhook/$workspaceId'
     | '/api/public/calcom-webhook/health'
     | '/api/public/elevenlabs-webhook/health'
@@ -2957,6 +2979,8 @@ export interface FileRouteTypes {
     | '/_authenticated/systemmind/clients/setup'
     | '/api/internal/agent-tools/$id'
     | '/api/public/agents/register'
+    | '/api/public/ava-call/request'
+    | '/api/public/ava-call/verify'
     | '/api/public/calcom-webhook/$workspaceId'
     | '/api/public/calcom-webhook/health'
     | '/api/public/elevenlabs-webhook/health'
@@ -3064,6 +3088,8 @@ export interface RootRouteChildren {
   LovableEmailSuppressionRoute: typeof LovableEmailSuppressionRoute
   ApiInternalAgentToolsIdRoute: typeof ApiInternalAgentToolsIdRoute
   ApiPublicAgentsRegisterRoute: typeof ApiPublicAgentsRegisterRoute
+  ApiPublicAvaCallRequestRoute: typeof ApiPublicAvaCallRequestRoute
+  ApiPublicAvaCallVerifyRoute: typeof ApiPublicAvaCallVerifyRoute
   ApiPublicCalcomWebhookWorkspaceIdRoute: typeof ApiPublicCalcomWebhookWorkspaceIdRoute
   ApiPublicCalcomWebhookHealthRoute: typeof ApiPublicCalcomWebhookHealthRoute
   ApiPublicFrejunFlowRoute: typeof ApiPublicFrejunFlowRoute
@@ -4642,6 +4668,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicCalcomWebhookWorkspaceIdRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/ava-call/verify': {
+      id: '/api/public/ava-call/verify'
+      path: '/api/public/ava-call/verify'
+      fullPath: '/api/public/ava-call/verify'
+      preLoaderRoute: typeof ApiPublicAvaCallVerifyRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/ava-call/request': {
+      id: '/api/public/ava-call/request'
+      path: '/api/public/ava-call/request'
+      fullPath: '/api/public/ava-call/request'
+      preLoaderRoute: typeof ApiPublicAvaCallRequestRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/agents/register': {
       id: '/api/public/agents/register'
       path: '/api/public/agents/register'
@@ -5479,6 +5519,8 @@ const rootRouteChildren: RootRouteChildren = {
   LovableEmailSuppressionRoute: LovableEmailSuppressionRoute,
   ApiInternalAgentToolsIdRoute: ApiInternalAgentToolsIdRoute,
   ApiPublicAgentsRegisterRoute: ApiPublicAgentsRegisterRoute,
+  ApiPublicAvaCallRequestRoute: ApiPublicAvaCallRequestRoute,
+  ApiPublicAvaCallVerifyRoute: ApiPublicAvaCallVerifyRoute,
   ApiPublicCalcomWebhookWorkspaceIdRoute:
     ApiPublicCalcomWebhookWorkspaceIdRoute,
   ApiPublicCalcomWebhookHealthRoute: ApiPublicCalcomWebhookHealthRoute,

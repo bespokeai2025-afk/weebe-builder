@@ -15,6 +15,11 @@ import {
   markLiveCallSessionEnded,
   mergeWebhookTranscript,
 } from "@/lib/retell/live-call-sessions.server";
+import {
+  findAvaCallRequestByCallId,
+  processAvaCallAnalyzed,
+  markAvaCallFailed,
+} from "@/lib/lead-gen/ava-call.server";
 
 const SUPPORTED_RETELL_EVENTS = new Set([
   "call_started",
@@ -578,6 +583,19 @@ export async function processRetellWebhook(
     .update({ workspace_id: workspaceId } as never)
     .eq("id", eventLogId ?? "00000000-0000-0000-0000-000000000000");
 
+  // ── "Call Ava Now" homepage flow detection ─────────────────────────────────
+  // Calls triggered from the homepage Call Ava Now flow have an audit row in
+  // ava_call_requests. For those calls the standard lead-affecting paths
+  // (no-answer lead update, lead-gen intelligence, client qualification, CRM
+  // dispatch) are BYPASSED — a lead is created only by processAvaCallAnalyzed
+  // when the appointment was booked AND sentiment is positive/neutral.
+  let isAvaHomepageCall = false;
+  try {
+    isAvaHomepageCall = Boolean(await findAvaCallRequestByCallId(callId));
+  } catch (e) {
+    console.warn("[AVA-CALL] Request lookup failed (treating as standard call)", e);
+  }
+
   // ── LIVE CALLS lifecycle (display-only, best-effort) ───────────────────────
   // Surface the call card the moment it connects (call_started), and clear the
   // live session when the call finishes — independent of the calls-table write
@@ -761,7 +779,8 @@ export async function processRetellWebhook(
     leadId &&
     callType === "outbound" &&
     ["call_ended", "call_failed"].includes(event) &&
-    isNoAnswerCall
+    isNoAnswerCall &&
+    !isAvaHomepageCall
   ) {
     await supabaseAdmin
       .from("leads")
@@ -952,6 +971,7 @@ export async function processRetellWebhook(
   // Runs AFTER all other processing so it never blocks the core path.
   if (
     event === "call_analyzed" &&
+    !isAvaHomepageCall &&
     (agentRow.dashboardAgentType === "lead_generation" ||
       (agentRow as any).agent_type === "lead_gen") &&
     contactPhone
@@ -996,9 +1016,25 @@ export async function processRetellWebhook(
     }
   }
 
+  // ── "Call Ava Now" homepage flow — terminal post-call processing ──────────
+  // Runs INSTEAD of the standard lead-gen / qualification / CRM paths below.
+  // Lead creation rule: appointment booked AND sentiment positive/neutral only.
+  if (isAvaHomepageCall) {
+    try {
+      if (event === "call_analyzed") {
+        await processAvaCallAnalyzed(call, isNoAnswerCall);
+      } else if (event === "call_failed") {
+        await markAvaCallFailed(callId, call.disconnection_reason ?? null);
+      }
+    } catch (avaErr) {
+      console.error("[AVA-CALL] Post-call processing error", avaErr);
+    }
+  }
+
   // ── Client Qualification post-call processing ────────────────────────────
   if (
     event === "call_analyzed" &&
+    !isAvaHomepageCall &&
     agentRow.dashboardAgentType === "client_qualification" &&
     contactPhone
   ) {
@@ -1050,7 +1086,7 @@ export async function processRetellWebhook(
   }
 
   // ── CRM post-call dispatch ────────────────────────────────────────────────
-  if (event === "call_analyzed" && contactPhone) {
+  if (event === "call_analyzed" && contactPhone && !isAvaHomepageCall) {
     try {
       const custom = call.call_analysis?.custom_analysis_data ?? {};
       const dynVars = (payload as any)?.call?.retell_llm_dynamic_variables ?? {};

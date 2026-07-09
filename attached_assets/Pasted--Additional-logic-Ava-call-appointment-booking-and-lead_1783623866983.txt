@@ -1,0 +1,188 @@
+## Additional logic — Ava call appointment booking and lead creation
+
+Please add logic for the “Call Ava Now” feature so that users who speak to Ava are only added into the main WEBEE Leads section after the call if they meet the correct outcome rules.
+
+Important rule:
+
+If someone uses the “Call Ava Now” feature and books an appointment with Ava, they should be added as a lead in the WEBEE platform only when the call sentiment is positive or neutral.
+
+They must not be added with the status `needs_to_call`.
+
+Required behaviour:
+
+1. When the user first requests the Ava call and verifies with OTP, save the request in the `ava_call_requests` table or equivalent request/audit table.
+2. Do not immediately add them as a normal active lead unless the existing system absolutely requires it.
+3. If a temporary/pre-call record is required, mark it clearly as:
+
+   * `pending_ava_call`
+   * or `ava_call_requested`
+   * but do not mark it as `needs_to_call`.
+4. After the Ava call completes, use the Retell post-call webhook, call analysis, or post-call data extraction to check:
+
+   * whether an appointment was booked
+   * the call sentiment
+   * booking slot/date/time
+   * customer name
+   * email
+   * phone number
+   * business website URL
+   * call summary
+   * call recording/transcript link if available
+
+Lead creation rule:
+
+Only create or promote the person into the main WEBEE Leads section if:
+
+* `appointment_booked = true`
+* and sentiment is either `positive` or `neutral`
+
+Do not create/promote them into the main Leads section if:
+
+* sentiment is `negative`
+* appointment was not booked
+* the call failed
+* the call was spam
+* the call was abusive
+* the call was incomplete
+* the caller did not give enough valid information
+
+Status mapping:
+
+If appointment booked and sentiment is positive or neutral, save the lead with a booked/qualified status, not `needs_to_call`.
+
+Use one of the existing valid statuses if already available, such as:
+
+* `appointment_booked`
+* `demo_booked`
+* `booked_demo`
+* `qualified`
+* `new_booking`
+
+If those do not exist, add a safe new status such as:
+
+* `appointment_booked`
+
+Do not use:
+
+* `needs_to_call`
+* `to_call`
+* `call_required`
+* `callback_required`
+
+for users who have already booked an appointment through Ava.
+
+Lead fields to save:
+
+* full name
+* email
+* phone number
+* business website URL
+* source = `homepage_ava_call`
+* intake_source = `webform`
+* cta_source = `call_ava_now`
+* preferred_contact = `phone`
+* preferred_contact_methods = `phone`
+* sentiment = `positive` or `neutral`
+* appointment_booked = true
+* booking_slot / appointment date and time
+* booking_link or booking reference if available
+* call summary
+* Retell call ID
+* transcript URL if available
+* recording URL if available
+* status = `appointment_booked` or closest existing booked status
+* notes = `Booked appointment through Ava live call from homepage`
+
+Duplicate handling:
+
+* If a lead already exists with the same email or phone in the same workspace, update the existing lead instead of creating a duplicate.
+* Append the Ava call details and booking details to the existing lead.
+* Do not overwrite important existing lead data unless the new data is more complete.
+* Never move an already booked lead into `needs_to_call`.
+
+Post-call webhook requirements:
+
+* Reuse the existing Retell webhook/post-call processing if available.
+* Add handling for Ava’s agent ID:
+  `agent_a7d436bf944aeae0c72a12d5d2`
+* Detect that the call came from the homepage Ava flow using:
+
+  * Retell call ID
+  * `ava_call_requests` record
+  * dynamic variables
+  * `lead_source = homepage_ava_call`
+  * `enquiry_type = ava_live_demo`
+* Make the webhook idempotent so the same Retell webhook cannot create duplicate leads.
+* Store webhook processing status safely.
+
+Sentiment rules:
+
+Treat these values as positive:
+
+* `positive`
+* `interested`
+* `good`
+* `qualified`
+* `high_intent`
+
+Treat these values as neutral:
+
+* `neutral`
+* `unknown but booked`
+* `mixed`
+* `needs review but booked`
+
+Treat these values as negative:
+
+* `negative`
+* `not_interested`
+* `spam`
+* `abusive`
+* `invalid`
+* `do_not_contact`
+
+If the sentiment is missing but an appointment was clearly booked, mark the record as `needs_review` in the Ava call request/audit table, but do not automatically create the active lead unless the existing business rule allows neutral fallback. Prefer safe manual review if uncertain.
+
+Booking rules:
+
+The appointment should count as booked only if there is clear evidence such as:
+
+* `appointment_booked = true`
+* a valid `booking_slot`
+* a calendar booking ID
+* a Cal.com/Calendly booking reference
+* or a post-call extraction field confirming the booking
+
+If the user only asks about booking but does not confirm a time, do not treat it as booked.
+
+Workspace rules:
+
+* Use the correct Webespoke AI / WEBEE workspace ID from secure server-side config.
+* Do not use WBAH workspace IDs.
+* Do not copy WBAH setup, CRM config, Retell config, API keys, or data.
+* Keep all data scoped to the correct workspace_id.
+
+Testing required:
+
+1. User clicks Call Ava Now.
+2. User verifies OTP.
+3. Ava call is triggered.
+4. User books appointment and sentiment is positive.
+5. Confirm lead appears in WEBEE Leads with booked status, not `needs_to_call`.
+6. User books appointment and sentiment is neutral.
+7. Confirm lead appears in WEBEE Leads with booked status, not `needs_to_call`.
+8. User books appointment but sentiment is negative.
+9. Confirm active lead is not created or is marked for review, depending on existing system rules.
+10. User does not book appointment.
+11. Confirm active lead is not created as `needs_to_call`.
+12. Confirm duplicate webhook events do not create duplicate leads.
+13. Confirm existing leads are updated instead of duplicated.
+14. Confirm booking slot/date/time is saved.
+15. Confirm source icon shows homepage/webform/Ava call source.
+16. Confirm preferred contact shows phone.
+17. Confirm no WBAH data or config is used.
+18. Confirm existing lead status selectors, filters, pagination, Calls, Leads, Qualified, and Data pages still work.
+
+Final instruction:
+
+This Ava homepage call feature should only create a main WEBEE lead after a successful booked appointment with positive or neutral sentiment. Never add these users as `needs_to_call` when they have already booked an appointment.

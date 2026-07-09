@@ -94,3 +94,4 @@
 - [entity_notes non-UUID entity ids](entity-notes-non-uuid-ids.md) — many synced/derived rows (WBAH leads/contacts/calls, CRM-only booked contacts) use synthetic string ids, not real UUIDs; entity_id column/validators must accept any string, not `.uuid()`.
 - [WBAH dashboard timezone display](wbah-dashboard-timezone.md) — only WBAH workspace forces Europe/London on toLocaleString calls via wbahDateTimeOptions()/WBAH_TIMEZONE; all other workspaces stay browser-local.
 - [WBAH calls weak-id duplicate rows](wbah-calls-weak-id-dedup.md) — WeeBespoke sync's fallback id/started_at creates a 2nd row for a Retell call; dedup before insert; batched `.in()` audits need per-batch `.range()` or PostgREST's 1000-row cap silently drops matches.
+- [Call Ava Now homepage flow](ava-call-now-arch.md) — OTP-verified homepage call → Retell Ava call → lead ONLY if booked+pos/neutral; webhook gating, atomic claims, resend .success trap.
