@@ -1,9 +1,18 @@
 import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useServerFn } from "@tanstack/react-start";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
+import { Switch } from "@/components/ui/switch";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   Card,
   CardContent,
@@ -20,6 +29,7 @@ import {
   Save,
   Zap,
   AlertCircle,
+  Mail,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
@@ -30,6 +40,11 @@ import {
   type HexmailProvider,
   type HexmailSettings,
 } from "@/lib/hexmail/settings.functions";
+import {
+  getLeadAutoEmailSettings,
+  saveLeadAutoEmailSettings,
+} from "@/lib/lead-gen/lead-email.server";
+import { listHexmailTemplates } from "@/lib/hexmail/templates.functions";
 
 type TestState = "idle" | "testing" | "ok" | "error";
 
@@ -384,6 +399,120 @@ export function HexMailSettings() {
           )}
         </Button>
       </div>
+
+      <LeadAutoEmailCard />
     </div>
+  );
+}
+
+function LeadAutoEmailCard() {
+  const qc = useQueryClient();
+  const getSettingsFn = useServerFn(getLeadAutoEmailSettings);
+  const saveSettingsFn = useServerFn(saveLeadAutoEmailSettings);
+  const listTemplatesFn = useServerFn(listHexmailTemplates);
+
+  const { data: settings, isLoading } = useQuery({
+    queryKey: ["lead-auto-email-settings"],
+    queryFn: () => getSettingsFn(),
+    throwOnError: false,
+  });
+
+  const templatesQ = useQuery({
+    queryKey: ["hexmail-templates", "email"],
+    queryFn: () => listTemplatesFn({ data: { type: "email" } }),
+    throwOnError: false,
+  });
+
+  const [enabled, setEnabled] = useState(false);
+  const [templateId, setTemplateId] = useState<string>("");
+
+  useEffect(() => {
+    if (!settings) return;
+    setEnabled(settings.enabled);
+    setTemplateId(settings.templateId ?? "");
+  }, [settings]);
+
+  const saveMut = useMutation({
+    mutationFn: (vars: { enabled: boolean; templateId: string | null }) =>
+      saveSettingsFn({ data: vars }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["lead-auto-email-settings"] });
+      toast.success("Automation settings saved");
+    },
+    onError: (e: any) => toast.error(e?.message ?? "Failed to save"),
+  });
+
+  const templates = templatesQ.data ?? [];
+
+  function handleToggle(next: boolean) {
+    setEnabled(next);
+    if (next && !templateId) {
+      toast.error("Choose an email template below, then save.");
+      return;
+    }
+    saveMut.mutate({ enabled: next, templateId: templateId || null });
+  }
+
+  function handleTemplateChange(id: string) {
+    setTemplateId(id);
+    if (enabled) saveMut.mutate({ enabled: true, templateId: id });
+  }
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center py-10 text-muted-foreground gap-2">
+        <Loader2 className="h-4 w-4 animate-spin" /> Loading automation settings…
+      </div>
+    );
+  }
+
+  return (
+    <Card>
+      <CardHeader className="pb-3">
+        <div className="flex items-center gap-3">
+          <div className="h-9 w-9 rounded-lg flex items-center justify-center bg-orange-500/10 text-orange-400">
+            <Mail className="h-4.5 w-4.5" />
+          </div>
+          <div>
+            <CardTitle className="text-base">Lead Auto-Email</CardTitle>
+            <CardDescription className="text-xs mt-0.5">
+              Automatically send an email template whenever a new lead selects "email" as their
+              preferred contact method.
+            </CardDescription>
+          </div>
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="flex items-center justify-between rounded-lg border p-3">
+          <div>
+            <p className="text-sm font-medium">Enable automation</p>
+            <p className="text-xs text-muted-foreground">
+              Sends once per lead, using the active email provider above.
+            </p>
+          </div>
+          <Switch checked={enabled} onCheckedChange={handleToggle} disabled={saveMut.isPending} />
+        </div>
+
+        <div className="space-y-1.5">
+          <Label className="text-xs">Email template</Label>
+          {templates.length === 0 ? (
+            <p className="text-xs text-muted-foreground">
+              No email templates yet — create one in HexMail → Templates first.
+            </p>
+          ) : (
+            <Select value={templateId} onValueChange={handleTemplateChange}>
+              <SelectTrigger className="text-xs">
+                <SelectValue placeholder="Choose a template" />
+              </SelectTrigger>
+              <SelectContent>
+                {templates.map((t: any) => (
+                  <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
+        </div>
+      </CardContent>
+    </Card>
   );
 }

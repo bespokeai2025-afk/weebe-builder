@@ -75,6 +75,7 @@ import {
   type LeadStatusCategory,
 } from "@/lib/dashboard/lead-status-categories";
 import { NotesBookingSheet } from "@/components/dashboard/NotesBookingSheet";
+import { LeadEmailDialog } from "@/components/dashboard/LeadEmailDialog";
 import { PlayRecordingButton } from "@/components/RecordingPlayerDialog";
 import { WbahNotesButton, WbahBookedStickyBadge, WbahCallCountBadge, WbahCalendlyLink, wbahAgentColorMapFromLeads } from "@/components/dashboard/WbahNotesButton";
 import type { NotesEntityType } from "@/components/dashboard/NotesBookingSheet";
@@ -249,10 +250,34 @@ function preferredContactBadgeSpec(lead: any): LeadBadgeSpec | null {
   return null;
 }
 
-function PreferredContactBadge({ lead }: { lead: any }) {
+function PreferredContactBadge({ lead, onEmailClick }: { lead: any; onEmailClick?: (lead: any) => void }) {
   const spec = preferredContactBadgeSpec(lead);
   if (!spec) return null;
   const { Icon, label, tone } = spec;
+  const raw = String(
+    lead?.preferred_contact ??
+    lead?.preferred_contact_method ??
+    lead?.meta?.preferred_contact ??
+    lead?.meta?.preferred_contact_method ??
+    "",
+  ).toLowerCase().trim();
+
+  if (raw === "email" && onEmailClick && lead?.email) {
+    return (
+      <button
+        type="button"
+        title={`${label} — click to email ${lead.email}`}
+        onClick={(e) => { e.stopPropagation(); onEmailClick(lead); }}
+        className={cn(
+          "inline-flex shrink-0 items-center justify-center rounded p-0.5 transition hover:ring-1 hover:ring-orange-400/60",
+          tone,
+        )}
+      >
+        <Icon className="h-2.5 w-2.5" />
+      </button>
+    );
+  }
+
   return (
     <span
       title={label}
@@ -374,6 +399,7 @@ function LeadsPage() {
   };
   const [panel, setPanel] = useState<PanelTarget | null>(null);
   const [wbahTranscript, setWbahTranscript] = useState<string | null>(null);
+  const [emailDialogLead, setEmailDialogLead] = useState<any | null>(null);
   const getContactHistoryFn = useServerFn(getWbahContactCallHistory);
   const getCallDetailFn = useServerFn(getWbahCallDetail);
   const [callHistory, setCallHistory] = useState<{ name: string; phone: string; loading: boolean; calls: any[] } | null>(null);
@@ -1092,8 +1118,24 @@ function LeadsPage() {
                         <td className="px-2 py-0.5 text-muted-foreground whitespace-nowrap text-[10px] font-mono">
                           <span className="inline-flex items-center gap-1">
                             {lead.phone}
-                            <PreferredContactBadge lead={lead} />
+                            <PreferredContactBadge lead={lead} onEmailClick={setEmailDialogLead} />
                           </span>
+                          {String(
+                            lead?.preferred_contact ??
+                            lead?.preferred_contact_method ??
+                            lead?.meta?.preferred_contact ??
+                            lead?.meta?.preferred_contact_method ??
+                            "",
+                          ).toLowerCase().trim() === "email" && lead.email && (
+                            <button
+                              type="button"
+                              title={`Email ${lead.email}`}
+                              onClick={() => setEmailDialogLead(lead)}
+                              className="block truncate max-w-[140px] text-left text-orange-400 hover:underline"
+                            >
+                              {lead.email}
+                            </button>
+                          )}
                         </td>
                         {/* Status picker */}
                         <td className="px-2 py-0.5">
@@ -1351,6 +1393,8 @@ function LeadsPage() {
           callSummary={panel.callSummary}
         />
       )}
+
+      <LeadEmailDialog lead={emailDialogLead} onClose={() => setEmailDialogLead(null)} />
 
     </DashboardPage>
   );

@@ -3,6 +3,7 @@
 
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { sendResendEmail, escapeHtml, renderBasicEmail } from "@/lib/email/resend.server";
+import { sendTemplateEmailToLeadCore } from "@/lib/lead-gen/lead-email.server";
 
 export const WEBEE_ADMIN_EMAIL = "admin@webespokeai.com";
 
@@ -334,6 +335,41 @@ export async function processWebformSubmission(opts: {
       subject: `New webform lead: ${full_name ?? email ?? phone ?? "Unknown"} — ${formName}`,
       html,
     }).catch(() => {});
+  }
+
+  // Auto-email automation: if this is a brand-new lead whose preferred contact
+  // method is "email" (set on creation only — never on update), and the
+  // workspace has auto-email enabled with a template chosen, send it.
+  // Best-effort — never fails the webform submission over an email problem.
+  if (leadStatus === "created" && email) {
+    const preferredContact = String(
+      raw.preferred_contact_method ?? raw.preferred_contact ?? "",
+    ).toLowerCase().trim();
+    if (preferredContact === "email") {
+      try {
+        const { data: ws } = await supabaseAdmin
+          .from("workspace_settings")
+          .select("lead_auto_email_enabled, lead_auto_email_template_id")
+          .eq("workspace_id", workspaceId)
+          .maybeSingle();
+        if (ws?.lead_auto_email_enabled && ws?.lead_auto_email_template_id) {
+          await sendTemplateEmailToLeadCore(supabaseAdmin, {
+            workspaceId,
+            leadId,
+            templateId: ws.lead_auto_email_template_id as string,
+            lead: {
+              full_name: full_name ?? null,
+              email,
+              phone: phone ?? null,
+              company_name: mapped.company_name ?? null,
+            },
+            trigger: "auto_new_lead",
+          });
+        }
+      } catch (e) {
+        console.error("[WEBFORM] auto-email automation failed:", e instanceof Error ? e.message : e);
+      }
+    }
   }
 
   return { ok: true, leadId, submissionId: submission?.id, status: leadStatus };

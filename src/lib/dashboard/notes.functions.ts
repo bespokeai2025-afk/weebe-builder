@@ -122,6 +122,7 @@ export const createManualBooking = createServerFn({ method: "POST" })
     // Attempt to push to Cal.com if configured and we have enough info
     const email = data.attendeeEmail?.trim() || null;
     const name = data.attendeeName?.trim() || "Guest";
+    let calSyncWarning: string | null = null;
 
     if (email) {
       try {
@@ -167,10 +168,13 @@ export const createManualBooking = createServerFn({ method: "POST" })
             .eq("id", localId);
         }
       } catch (calErr) {
-        // Cal.com push failed — log but don't fail the whole operation
-        console.warn("[createManualBooking] Cal.com sync failed:", (calErr as Error).message);
+        // Cal.com push failed — the local booking still stands, but surface
+        // the failure back to the caller so the UI can warn the user instead
+        // of silently pretending the calendar sync succeeded.
+        calSyncWarning = (calErr as Error).message || "Cal.com sync failed";
+        console.warn("[createManualBooking] Cal.com sync failed:", calSyncWarning);
       }
     }
 
-    return { id: localId };
+    return { id: localId, calSyncWarning };
   });
