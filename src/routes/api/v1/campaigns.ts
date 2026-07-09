@@ -6,7 +6,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { createClient } from "@supabase/supabase-js";
 import { authenticateV1Request, jsonOk, jsonErr } from "@/lib/developer-api/v1-auth.middleware";
 
-const SUPABASE_URL = process.env.SUPABASE_URL ?? "";
+const SUPABASE_URL = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || "";
 const SERVICE_KEY  = process.env.SUPABASE_SERVICE_ROLE_KEY ?? "";
 const sb = () => createClient(SUPABASE_URL, SERVICE_KEY, { auth: { autoRefreshToken: false, persistSession: false } });
 
@@ -58,6 +58,10 @@ export const Route = createFileRoute("/api/v1/campaigns")({
             }).select("id").single();
             if (newLeadError) console.error("[API v1] campaign lead auto-create failed:", newLeadError.message);
             resolvedLeadId = newLead?.id;
+            // Intentionally NOT hooking lead-auto-call automation here: this
+            // endpoint immediately enrols the lead into a campaign (below),
+            // which will call it on its own cadence. Also placing an
+            // auto-call here would risk double-dialing the same number.
           }
         }
 

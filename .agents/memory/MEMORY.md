@@ -87,6 +87,7 @@
 - [WBAH aggregate cache & Leads perf](wbah-aggregate-cache-perf.md) — Redis 5MB SET cap silently skipped the ~8MB aggregate (cacheWrap = no-op); in-process cache + single-flight; invalidate ONLY via invalidateWbahAggregate.
 - [Full-height page layout trap](fullheight-page-layout-trap.md) — `h-full` page roots collapse inside the min-h-screen sidebar chain; bound the page root with a dvh calc instead.
 - [Cursor repo sync procedure](cursor-repo-snapshot-sync.md) — user pushes from Cursor to weebe-builder repo; diff trees first, sync only deltas, never hard reset; repo lockfile can be stale.
+- [Lead auto-call automation + bulk remove](lead-auto-call-and-bulk-remove.md) — one call-recipe shared by auto/manual/scheduled; 3/day cap is a rate limit not a dedupe lock; v1 API SUPABASE_URL needs VITE_ fallback.
 - [Business DNA KB upload wiring](business-dna-kb-upload.md) — KB uploads on Business DNA pages target executive's own KB slug (e.g. growthmind); reuse pattern for any future "upload docs to inform X" feature.
 - [Lead email automation](lead-email-automation.md) — shared send-to-lead path (Resend-only, no separate Outlook adapter); preferred_contact fallback-key convention; auto-send once-per-lead unique index.
 - [entity_notes non-UUID entity ids](entity-notes-non-uuid-ids.md) — many synced/derived rows (WBAH leads/contacts/calls, CRM-only booked contacts) use synthetic string ids, not real UUIDs; entity_id column/validators must accept any string, not `.uuid()`.

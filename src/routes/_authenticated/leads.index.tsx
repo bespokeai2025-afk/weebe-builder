@@ -66,6 +66,7 @@ import {
   startQualificationCallsForLeads,
   scheduleQualificationCalls,
   fireScheduledCalls,
+  removeLeads,
 } from "@/lib/dashboard/leads.functions";
 import { listWbahPositiveNeutralLeads, getWbahContactCallHistory, getWbahCallDetail } from "@/lib/integrations/webespokeEnterprise/wbah-workspace.server";
 import {
@@ -333,6 +334,7 @@ function LeadsPage() {
   const startQualFn = useServerFn(startQualificationCallsForLeads);
   const scheduleCallsFn = useServerFn(scheduleQualificationCalls);
   const fireScheduledFn = useServerFn(fireScheduledCalls);
+  const removeLeadsFn = useServerFn(removeLeads);
 
   const [tab, setTab] = useState<"leads" | "campaigns">("leads");
   const [search, setSearch] = useState("");
@@ -387,6 +389,8 @@ function LeadsPage() {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [qualDialogOpen, setQualDialogOpen] = useState(false);
   const [firingScheduled, setFiringScheduled] = useState(false);
+  const [removeDialogOpen, setRemoveDialogOpen] = useState(false);
+  const [isRemoving, setIsRemoving] = useState(false);
 
   type PanelTarget = {
     entityType: NotesEntityType;
@@ -742,6 +746,31 @@ function LeadsPage() {
     setQualDialogOpen(true);
   }
 
+  function openRemoveDialog() {
+    if (selectedIds.size === 0) {
+      toast.error("Select at least one lead first");
+      return;
+    }
+    setRemoveDialogOpen(true);
+  }
+
+  async function handleRemoveLeads() {
+    setIsRemoving(true);
+    try {
+      const result = await removeLeadsFn({ data: { leadIds: Array.from(selectedIds) } });
+      toast.success(`Removed ${result.removed} lead${result.removed !== 1 ? "s" : ""}`);
+      setSelectedIds(new Set());
+      setRemoveDialogOpen(false);
+      qc.invalidateQueries({ queryKey: ["leads-all"] });
+      qc.invalidateQueries({ queryKey: ["leads-qualified"] });
+      qc.invalidateQueries({ queryKey: ["qualification-stats"] });
+    } catch (e) {
+      toast.error("Failed to remove leads", { description: (e as Error).message });
+    } finally {
+      setIsRemoving(false);
+    }
+  }
+
   return (
     <DashboardPage>
       {/* Header */}
@@ -777,6 +806,12 @@ function LeadsPage() {
             <Button size="sm" variant="outline" className="border-blue-500/30 text-blue-400 hover:text-blue-300" onClick={openQualDialog}>
               <ShieldCheck className="mr-1 h-4 w-4" />
               Qualify {selectedIds.size} Lead{selectedIds.size !== 1 ? "s" : ""}
+            </Button>
+          )}
+          {tab === "leads" && !isWbah && selectedIds.size > 0 && (
+            <Button size="sm" variant="outline" className="border-red-500/30 text-red-400 hover:text-red-300" onClick={openRemoveDialog}>
+              <Trash2 className="mr-1 h-4 w-4" />
+              Remove {selectedIds.size} Lead{selectedIds.size !== 1 ? "s" : ""}
             </Button>
           )}
           <Button variant="outline" size="sm" className="h-7 px-2.5 text-xs" onClick={() => {
@@ -1307,6 +1342,33 @@ function LeadsPage() {
         onStart={handleStartQualification}
         onSchedule={handleScheduleQualification}
       />
+
+      {/* Remove Leads confirmation */}
+      <Dialog open={removeDialogOpen} onOpenChange={setRemoveDialogOpen}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Remove {selectedIds.size} lead{selectedIds.size !== 1 ? "s" : ""}?</DialogTitle>
+            <DialogDescription>
+              This permanently deletes the selected lead{selectedIds.size !== 1 ? "s" : ""} and cannot be undone. Their
+              call history is not affected.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" size="sm" onClick={() => setRemoveDialogOpen(false)} disabled={isRemoving}>
+              Cancel
+            </Button>
+            <Button
+              size="sm"
+              className="bg-red-600 text-white hover:bg-red-500"
+              onClick={handleRemoveLeads}
+              disabled={isRemoving}
+            >
+              {isRemoving ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <Trash2 className="mr-1 h-4 w-4" />}
+              Remove
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Contact call-history drill-down */}
       {callHistory !== null && (

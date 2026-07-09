@@ -39,7 +39,7 @@ interface CachedTokenData {
   permissions: ApiPermission[];
 }
 
-const SUPABASE_URL  = process.env.SUPABASE_URL ?? "";
+const SUPABASE_URL  = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || "";
 const SERVICE_KEY   = process.env.SUPABASE_SERVICE_ROLE_KEY ?? "";
 const RATE_LIMIT    = 60; // requests per minute
 const TOKEN_CACHE_TTL = 60; // seconds

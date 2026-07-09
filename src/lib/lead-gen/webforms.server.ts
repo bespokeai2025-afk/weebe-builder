@@ -4,6 +4,7 @@
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { sendResendEmail, escapeHtml, renderBasicEmail } from "@/lib/email/resend.server";
 import { sendTemplateEmailToLeadCore } from "@/lib/lead-gen/lead-email.server";
+import { triggerAutoCallForNewLead } from "@/lib/qualification/auto-call.server";
 
 export const WEBEE_ADMIN_EMAIL = "admin@webespokeai.com";
 
@@ -370,6 +371,14 @@ export async function processWebformSubmission(opts: {
         console.error("[WEBFORM] auto-email automation failed:", e instanceof Error ? e.message : e);
       }
     }
+  }
+
+  // Auto-call automation: if this is a brand-new lead and the workspace has
+  // lead auto-call enabled with a configured agent, place an outbound
+  // qualification call. Best-effort — triggerAutoCallForNewLead never
+  // throws, so this never fails the webform submission.
+  if (leadStatus === "created") {
+    await triggerAutoCallForNewLead(supabaseAdmin, { workspaceId, leadId });
   }
 
   return { ok: true, leadId, submissionId: submission?.id, status: leadStatus };
