@@ -399,6 +399,38 @@ export async function verifyAvaCallOtpAndTrigger(input: {
   return { ok: true };
 }
 
+/**
+ * Verify variant for clients that don't hold a requestId (e.g. the main
+ * Webespoke marketing site sends only { email, phone, otp }): resolve the most
+ * recent pending request for that email+phone, then run the normal verify.
+ */
+export async function verifyAvaCallOtpByContact(input: {
+  email?: string;
+  phone?: string;
+  otp?: string;
+}): Promise<{ ok: true } | { ok: false; error: string; status: number }> {
+  const email = String(input.email ?? "").trim().toLowerCase();
+  const phone = normalizePhoneE164(String(input.phone ?? ""));
+  const otp = String(input.otp ?? "").trim();
+  if (!email || !phone || !/^\d{6}$/.test(otp)) {
+    return { ok: false, error: "Invalid verification details.", status: 422 };
+  }
+
+  const { data } = await supabaseAdmin
+    .from("ava_call_requests")
+    .select("id")
+    .eq("email", email)
+    .eq("phone", phone)
+    .eq("status", "pending_verification")
+    .order("created_at", { ascending: false })
+    .limit(1);
+  const requestId = ((data ?? []) as Array<{ id: string }>)[0]?.id;
+  if (!requestId) {
+    return { ok: false, error: "This code has expired. Please request a new call.", status: 410 };
+  }
+  return verifyAvaCallOtpAndTrigger({ requestId, otp });
+}
+
 // ── Webhook integration ──────────────────────────────────────────────────────
 
 /** Find the (unprocessed or processed) request behind a Retell call, if any. */

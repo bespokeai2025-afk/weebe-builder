@@ -229,7 +229,9 @@ import { Route as ApiPublicFrejunFlowRouteImport } from './routes/api/public/fre
 import { Route as ApiPublicElevenlabsWebhookHealthRouteImport } from './routes/api/public/elevenlabs-webhook.health'
 import { Route as ApiPublicCalcomWebhookHealthRouteImport } from './routes/api/public/calcom-webhook.health'
 import { Route as ApiPublicCalcomWebhookWorkspaceIdRouteImport } from './routes/api/public/calcom-webhook.$workspaceId'
+import { Route as ApiPublicAvaCallVerifyAndCallRouteImport } from './routes/api/public/ava-call/verify-and-call'
 import { Route as ApiPublicAvaCallVerifyRouteImport } from './routes/api/public/ava-call/verify'
+import { Route as ApiPublicAvaCallRequestOtpRouteImport } from './routes/api/public/ava-call/request-otp'
 import { Route as ApiPublicAvaCallRequestRouteImport } from './routes/api/public/ava-call/request'
 import { Route as ApiPublicAgentsRegisterRouteImport } from './routes/api/public/agents/register'
 import { Route as ApiInternalAgentToolsIdRouteImport } from './routes/api/internal/agent-tools.$id'
@@ -1490,11 +1492,23 @@ const ApiPublicCalcomWebhookWorkspaceIdRoute =
     path: '/api/public/calcom-webhook/$workspaceId',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiPublicAvaCallVerifyAndCallRoute =
+  ApiPublicAvaCallVerifyAndCallRouteImport.update({
+    id: '/api/public/ava-call/verify-and-call',
+    path: '/api/public/ava-call/verify-and-call',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiPublicAvaCallVerifyRoute = ApiPublicAvaCallVerifyRouteImport.update({
   id: '/api/public/ava-call/verify',
   path: '/api/public/ava-call/verify',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPublicAvaCallRequestOtpRoute =
+  ApiPublicAvaCallRequestOtpRouteImport.update({
+    id: '/api/public/ava-call/request-otp',
+    path: '/api/public/ava-call/request-otp',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiPublicAvaCallRequestRoute = ApiPublicAvaCallRequestRouteImport.update({
   id: '/api/public/ava-call/request',
   path: '/api/public/ava-call/request',
@@ -1790,7 +1804,9 @@ export interface FileRoutesByFullPath {
   '/api/internal/agent-tools/$id': typeof ApiInternalAgentToolsIdRoute
   '/api/public/agents/register': typeof ApiPublicAgentsRegisterRoute
   '/api/public/ava-call/request': typeof ApiPublicAvaCallRequestRoute
+  '/api/public/ava-call/request-otp': typeof ApiPublicAvaCallRequestOtpRoute
   '/api/public/ava-call/verify': typeof ApiPublicAvaCallVerifyRoute
+  '/api/public/ava-call/verify-and-call': typeof ApiPublicAvaCallVerifyAndCallRoute
   '/api/public/calcom-webhook/$workspaceId': typeof ApiPublicCalcomWebhookWorkspaceIdRoute
   '/api/public/calcom-webhook/health': typeof ApiPublicCalcomWebhookHealthRoute
   '/api/public/elevenlabs-webhook/health': typeof ApiPublicElevenlabsWebhookHealthRoute
@@ -2021,7 +2037,9 @@ export interface FileRoutesByTo {
   '/api/internal/agent-tools/$id': typeof ApiInternalAgentToolsIdRoute
   '/api/public/agents/register': typeof ApiPublicAgentsRegisterRoute
   '/api/public/ava-call/request': typeof ApiPublicAvaCallRequestRoute
+  '/api/public/ava-call/request-otp': typeof ApiPublicAvaCallRequestOtpRoute
   '/api/public/ava-call/verify': typeof ApiPublicAvaCallVerifyRoute
+  '/api/public/ava-call/verify-and-call': typeof ApiPublicAvaCallVerifyAndCallRoute
   '/api/public/calcom-webhook/$workspaceId': typeof ApiPublicCalcomWebhookWorkspaceIdRoute
   '/api/public/calcom-webhook/health': typeof ApiPublicCalcomWebhookHealthRoute
   '/api/public/elevenlabs-webhook/health': typeof ApiPublicElevenlabsWebhookHealthRoute
@@ -2264,7 +2282,9 @@ export interface FileRoutesById {
   '/api/internal/agent-tools/$id': typeof ApiInternalAgentToolsIdRoute
   '/api/public/agents/register': typeof ApiPublicAgentsRegisterRoute
   '/api/public/ava-call/request': typeof ApiPublicAvaCallRequestRoute
+  '/api/public/ava-call/request-otp': typeof ApiPublicAvaCallRequestOtpRoute
   '/api/public/ava-call/verify': typeof ApiPublicAvaCallVerifyRoute
+  '/api/public/ava-call/verify-and-call': typeof ApiPublicAvaCallVerifyAndCallRoute
   '/api/public/calcom-webhook/$workspaceId': typeof ApiPublicCalcomWebhookWorkspaceIdRoute
   '/api/public/calcom-webhook/health': typeof ApiPublicCalcomWebhookHealthRoute
   '/api/public/elevenlabs-webhook/health': typeof ApiPublicElevenlabsWebhookHealthRoute
@@ -2507,7 +2527,9 @@ export interface FileRouteTypes {
     | '/api/internal/agent-tools/$id'
     | '/api/public/agents/register'
     | '/api/public/ava-call/request'
+    | '/api/public/ava-call/request-otp'
     | '/api/public/ava-call/verify'
+    | '/api/public/ava-call/verify-and-call'
     | '/api/public/calcom-webhook/$workspaceId'
     | '/api/public/calcom-webhook/health'
     | '/api/public/elevenlabs-webhook/health'
@@ -2738,7 +2760,9 @@ export interface FileRouteTypes {
     | '/api/internal/agent-tools/$id'
     | '/api/public/agents/register'
     | '/api/public/ava-call/request'
+    | '/api/public/ava-call/request-otp'
     | '/api/public/ava-call/verify'
+    | '/api/public/ava-call/verify-and-call'
     | '/api/public/calcom-webhook/$workspaceId'
     | '/api/public/calcom-webhook/health'
     | '/api/public/elevenlabs-webhook/health'
@@ -2980,7 +3004,9 @@ export interface FileRouteTypes {
     | '/api/internal/agent-tools/$id'
     | '/api/public/agents/register'
     | '/api/public/ava-call/request'
+    | '/api/public/ava-call/request-otp'
     | '/api/public/ava-call/verify'
+    | '/api/public/ava-call/verify-and-call'
     | '/api/public/calcom-webhook/$workspaceId'
     | '/api/public/calcom-webhook/health'
     | '/api/public/elevenlabs-webhook/health'
@@ -3089,7 +3115,9 @@ export interface RootRouteChildren {
   ApiInternalAgentToolsIdRoute: typeof ApiInternalAgentToolsIdRoute
   ApiPublicAgentsRegisterRoute: typeof ApiPublicAgentsRegisterRoute
   ApiPublicAvaCallRequestRoute: typeof ApiPublicAvaCallRequestRoute
+  ApiPublicAvaCallRequestOtpRoute: typeof ApiPublicAvaCallRequestOtpRoute
   ApiPublicAvaCallVerifyRoute: typeof ApiPublicAvaCallVerifyRoute
+  ApiPublicAvaCallVerifyAndCallRoute: typeof ApiPublicAvaCallVerifyAndCallRoute
   ApiPublicCalcomWebhookWorkspaceIdRoute: typeof ApiPublicCalcomWebhookWorkspaceIdRoute
   ApiPublicCalcomWebhookHealthRoute: typeof ApiPublicCalcomWebhookHealthRoute
   ApiPublicFrejunFlowRoute: typeof ApiPublicFrejunFlowRoute
@@ -4668,11 +4696,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicCalcomWebhookWorkspaceIdRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/ava-call/verify-and-call': {
+      id: '/api/public/ava-call/verify-and-call'
+      path: '/api/public/ava-call/verify-and-call'
+      fullPath: '/api/public/ava-call/verify-and-call'
+      preLoaderRoute: typeof ApiPublicAvaCallVerifyAndCallRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/ava-call/verify': {
       id: '/api/public/ava-call/verify'
       path: '/api/public/ava-call/verify'
       fullPath: '/api/public/ava-call/verify'
       preLoaderRoute: typeof ApiPublicAvaCallVerifyRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/ava-call/request-otp': {
+      id: '/api/public/ava-call/request-otp'
+      path: '/api/public/ava-call/request-otp'
+      fullPath: '/api/public/ava-call/request-otp'
+      preLoaderRoute: typeof ApiPublicAvaCallRequestOtpRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/public/ava-call/request': {
@@ -5520,7 +5562,9 @@ const rootRouteChildren: RootRouteChildren = {
   ApiInternalAgentToolsIdRoute: ApiInternalAgentToolsIdRoute,
   ApiPublicAgentsRegisterRoute: ApiPublicAgentsRegisterRoute,
   ApiPublicAvaCallRequestRoute: ApiPublicAvaCallRequestRoute,
+  ApiPublicAvaCallRequestOtpRoute: ApiPublicAvaCallRequestOtpRoute,
   ApiPublicAvaCallVerifyRoute: ApiPublicAvaCallVerifyRoute,
+  ApiPublicAvaCallVerifyAndCallRoute: ApiPublicAvaCallVerifyAndCallRoute,
   ApiPublicCalcomWebhookWorkspaceIdRoute:
     ApiPublicCalcomWebhookWorkspaceIdRoute,
   ApiPublicCalcomWebhookHealthRoute: ApiPublicCalcomWebhookHealthRoute,

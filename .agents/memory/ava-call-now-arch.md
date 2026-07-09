@@ -9,7 +9,19 @@ Homepage CTA → `CallAvaNowModal` (2-step) → `/api/public/ava-call/request` (
 → `/api/public/ava-call/verify` (atomic claim → Retell `v2/create-phone-call` with
 `override_agent_id` = live Ava agent). Audit table `ava_call_requests` (RLS deny-all =
 service-role only). Core logic in `src/lib/lead-gen/ava-call.server.ts` + provider chain in
-`src/lib/lead-gen/ava-otp-provider.server.ts`.
+`src/lib/lead-gen/ava-otp-provider.server.ts`; shared HTTP handlers in
+`src/lib/lead-gen/ava-call-http.server.ts`.
+
+**Marketing-site alias endpoints:** the main Webespoke site (webespokeai.com — separate
+Lovable-built SPA, NOT this codebase) has its own "Call Ava" widget that POSTs
+`/api/public/ava-call/request-otp` and `/verify-and-call` with a different contract:
+`businessWebsite` instead of `website`, and verify sends `{email, phone, otp}` (NO requestId).
+Both alias routes exist here (CORS `*`); verify falls back to latest `pending_verification`
+row by email+E.164 phone (`verifyAvaCallOtpByContact`). CRITICAL: the widget uses RELATIVE
+URLs, so its requests hit the Lovable static host, which answers SPA HTML with HTTP 200 — the
+widget treats that as success and plays a fake "Ava is speaking" animation with no OTP ever
+sent. The Lovable site must point those two fetches at `https://webeebuilder.com/...`
+(absolute) or proxy `/api/public/ava-call/*` there; nothing in this repo can fix that routing.
 
 **OTP provider chain (env-driven):** Twilio Verify (`TWILIO_VERIFY_SERVICE_SID`) → Twilio SMS
 (`TWILIO_PHONE_NUMBER`) → Resend email → 503 `{code:"no_provider"}` (modal shows "Book a Demo
