@@ -18,30 +18,6 @@ import {
 
 const HOUR_MS = 60 * 60 * 1000;
 
-/**
- * TEMP (dev-testing exemption): log every candidate caller IP the production
- * backend can observe so RATE_LIMIT_ALLOWLIST_IPS can be set to the real value.
- * We log the FULL x-forwarded-for chain (not just the first hop) plus common
- * alternate proxy headers, because prod may insert extra proxy hops in front of
- * the client address. Remove together with the allowlist entry once live
- * testing is finished.
- */
-function logCallerIpForTesting(stage: string, request: Request, ip: string | null): void {
-  const xff = request.headers.get("x-forwarded-for") ?? "";
-  const alt = [
-    ["x-real-ip", request.headers.get("x-real-ip")],
-    ["cf-connecting-ip", request.headers.get("cf-connecting-ip")],
-    ["fly-client-ip", request.headers.get("fly-client-ip")],
-  ]
-    .filter(([, v]) => v)
-    .map(([k, v]) => `${k}=${v}`)
-    .join(" ");
-  console.log(
-    `[ava-call] ${stage} ip=${ip ?? "unknown"} exempt=${isRateLimitExempt(ip)} ` +
-      `xff="${xff}"${alt ? ` ${alt}` : ""}`,
-  );
-}
-
 export const AVA_CALL_CORS = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
@@ -54,7 +30,6 @@ export const avaCallOptionsHandler = async () =>
 /** Step 1: create a call request + send the OTP. */
 export async function handleAvaCallRequestPost(request: Request): Promise<Response> {
   const ip = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? null;
-  logCallerIpForTesting("request", request, ip);
 
   let fields: Record<string, unknown> = {};
   try {
@@ -124,7 +99,6 @@ export async function handleAvaCallRequestPost(request: Request): Promise<Respon
 /** Step 2: verify the OTP and trigger the call. Accepts requestId OR email+phone. */
 export async function handleAvaCallVerifyPost(request: Request): Promise<Response> {
   const ip = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? null;
-  logCallerIpForTesting("verify", request, ip);
   if (!isRateLimitExempt(ip)) {
     const allowed = await checkRateLimit(`avacall:verify:${ip ?? "global"}`, 10);
     if (!allowed) {
