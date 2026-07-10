@@ -87,6 +87,7 @@
 - [WBAH aggregate cache & Leads perf](wbah-aggregate-cache-perf.md) — Redis 5MB SET cap silently skipped the ~8MB aggregate (cacheWrap = no-op); in-process cache + single-flight; invalidate ONLY via invalidateWbahAggregate.
 - [Full-height page layout trap](fullheight-page-layout-trap.md) — `h-full` page roots collapse inside the min-h-screen sidebar chain; bound the page root with a dvh calc instead.
 - [Cursor repo sync procedure](cursor-repo-snapshot-sync.md) — user pushes from Cursor to weebe-builder repo; diff trees first, sync only deltas, never hard reset; repo lockfile can be stale.
+- [Retell /list-agents duplicate agent_ids](retell-list-agents-duplicate-ids.md) — API returns same agent_id per published version; dashboard selector must dedupe by agent_id AND collapse to one entry per local row id (prefer deployed match).
 - [Retell CF dangling edges & DB resync](retell-cf-dangling-edges-and-db-resync.md) — edit live CF via direct REST PATCH+GET; dangling edges (no destination_node_id) silently stall calls; importAgentJson can resync DB from live ground truth.
 - [Lead auto-call automation + bulk remove](lead-auto-call-and-bulk-remove.md) — one call-recipe shared by auto/manual/scheduled; 3/day cap is a rate limit not a dedupe lock; v1 API SUPABASE_URL needs VITE_ fallback.
 - [Business DNA KB upload wiring](business-dna-kb-upload.md) — KB uploads on Business DNA pages target executive's own KB slug (e.g. growthmind); reuse pattern for any future "upload docs to inform X" feature.

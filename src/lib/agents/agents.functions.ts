@@ -147,6 +147,10 @@ export const getDashboardLiveAgents = createServerFn({ method: "GET" })
       liveAt: string | null;
       deployedRetellAgentId: string | null;
       defaultForLeads: boolean;
+      /** True when this entry was matched via the local row's deployed (live)
+       *  Retell agent rather than its builder-draft retell_agent_id. Used only
+       *  to pick the best entry when collapsing duplicates; stripped before return. */
+      matchedByDeployed?: boolean;
     };
 
     const rowToDashAgent = (r: (typeof rows)[0]): DashAgent => {
@@ -217,6 +221,18 @@ export const getDashboardLiveAgents = createServerFn({ method: "GET" })
       return localLive;
     }
 
+    // Retell's /list-agents can return the same agent_id multiple times (one
+    // row per published version). Collapse to unique agent_ids so a single
+    // deployed agent doesn't appear many times in the dashboard.
+    {
+      const seen = new Set<string>();
+      retellAgentList = retellAgentList.filter((a) => {
+        if (seen.has(a.agent_id)) return false;
+        seen.add(a.agent_id);
+        return true;
+      });
+    }
+
     if (retellAgentList.length === 0) return localLive;
 
     // Build lookup maps from local DB for deduplication and metadata reuse.
@@ -262,6 +278,7 @@ export const getDashboardLiveAgents = createServerFn({ method: "GET" })
           liveAt,
           deployedRetellAgentId: ra.agent_id,
           defaultForLeads,
+          matchedByDeployed: !!localLiveMatch,
         };
       });
 
@@ -271,7 +288,21 @@ export const getDashboardLiveAgents = createServerFn({ method: "GET" })
       (a) => !a.deployedRetellAgentId || !retellIds.has(a.deployedRetellAgentId),
     );
 
-    return [...retellMapped, ...localOnly];
+    // A single local agent can surface through several channels — its deployed
+    // (live) Retell agent, its builder-draft retell_agent_id, and the local-only
+    // fallback — so the combined list can contain multiple entries that all share
+    // the same local `id`. Since the dashboard uses that id as the Select value,
+    // duplicates render as many identical, all-"selected" rows. Collapse to one
+    // entry per id, preferring the deployed match (correct live name/phone), then
+    // any Retell-mapped entry, then the local-only fallback.
+    const priority = (a: DashAgent): number =>
+      a.matchedByDeployed ? 2 : retellIds.has(a.deployedRetellAgentId ?? "") ? 1 : 0;
+    const byId = new Map<string, DashAgent>();
+    for (const a of [...retellMapped, ...localOnly]) {
+      const existing = byId.get(a.id);
+      if (!existing || priority(a) > priority(existing)) byId.set(a.id, a);
+    }
+    return [...byId.values()].map(({ matchedByDeployed: _drop, ...rest }) => rest);
   });
 
 /** Load a specific agent by row id. */
