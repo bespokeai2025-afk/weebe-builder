@@ -310,6 +310,32 @@ export function CustomAgentPanel() {
             />
           </div>
 
+          <button
+            type="button"
+            onClick={() => {
+              setDescription(
+                "You are an outbound lead-qualification voice agent for {{business_name}}. You automatically call every new lead the moment they come in from a website/webform enquiry.\n\n" +
+                "Goal: quickly qualify the lead and book the next step.\n" +
+                "1. Greet {{full_name}} by name and say you're calling about their enquiry with {{business_name}}.\n" +
+                "2. Confirm you're speaking to the right person and that now is a good time.\n" +
+                "3. Ask 2-4 short qualifying questions (their need, timeframe, budget/fit) — keep it natural.\n" +
+                "4. If they're a good fit and interested, book the appointment / next step and confirm the details.\n" +
+                "5. If they're not ready right now, offer a callback at a better time.\n" +
+                "6. If it goes to voicemail or no answer, end politely — the system will automatically try again later (up to 3 attempts per day).\n\n" +
+                "Tone: warm, professional, concise. Never be pushy. Always confirm contact details before ending.\n\n" +
+                "Outcome mapping (drives the lead's status automatically):\n" +
+                "- Positive / booked -> qualified\n" +
+                "- Interested but not booked -> interested\n" +
+                "- Wants a callback -> callback requested\n" +
+                "- No answer / voicemail -> re-queued for the next run"
+              );
+              setCategory("client_qualification");
+            }}
+            className="text-[9px] text-primary hover:underline text-left w-full"
+          >
+            Use the standard lead-gen webform intake setup
+          </button>
+
           <div>
             <Label className="text-[9px]">Category</Label>
             <Select value={category} onValueChange={setCategory}>

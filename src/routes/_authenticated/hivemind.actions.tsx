@@ -36,6 +36,7 @@ const ACTION_STYLES: Record<string, { label: string; color: string; bg: string; 
   launch_broadcast:           { label: "Broadcast",          color: "text-orange-400",  bg: "bg-orange-500/10 border-orange-500/20",icon: Megaphone },
   growthmind_video_campaign:  { label: "GrowthMind Video",   color: "text-pink-400",    bg: "bg-pink-500/10 border-pink-500/20",    icon: Film },
   growthmind_growth_campaign: { label: "GrowthMind Campaign",color: "text-violet-400",  bg: "bg-violet-500/10 border-violet-500/20",icon: TrendingUp },
+  activate_lead_intake_workflow: { label: "Lead Intake Auto-Call", color: "text-emerald-400", bg: "bg-emerald-500/10 border-emerald-500/20", icon: Phone },
 };
 
 function getActionStyle(type: string) {

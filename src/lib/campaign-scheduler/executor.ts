@@ -288,11 +288,34 @@ export async function runCampaignTick(opts?: {
         ` (pool=${Math.min(MAX_CONCURRENT_CALLS, total)} concurrent)`,
     );
 
+    // Start of the current UTC day — used to enforce the standard
+    // 3-calls-per-phone-per-UTC-day guardrail on lead campaign re-runs, shared
+    // with the auto-call-on-new-lead pipeline (auto-call.server.ts).
+    const todayUtc = new Date();
+    todayUtc.setUTCHours(0, 0, 0, 0);
+    const todayUtcIso = todayUtc.toISOString();
+
     let placed = 0;
     let failed = 0;
+    let skipped = 0;
 
     await withConcurrency(records, MAX_CONCURRENT_CALLS, async (record) => {
       try {
+        // Lead / qualified campaigns share the platform daily call cap so
+        // repeated runs never dial the same number more than 3x per UTC day.
+        if (record.tableSource === "leads") {
+          const { count: attemptsToday } = await sb
+            .from("calls")
+            .select("id", { count: "exact", head: true })
+            .eq("workspace_id", campaign.workspace_id)
+            .eq("to_number", record.phone)
+            .gte("created_at", todayUtcIso);
+          if ((attemptsToday ?? 0) >= 3) {
+            skipped++;
+            return;
+          }
+        }
+
         const payload = {
           from_number: fromNumber,
           to_number: record.phone,
@@ -314,7 +337,29 @@ export async function runCampaignTick(opts?: {
 
         if (res.ok) {
           placed++;
-          if (record.tableSource === "data_records") {
+          if (record.tableSource === "leads") {
+            // Reflect the placed call on the lead (status changes accordingly)
+            // and record it in `calls` so the shared daily cap + the webhook's
+            // phone-match lifecycle both see this attempt.
+            const call = await res.json().catch(() => null);
+            const now = new Date().toISOString();
+            await sb
+              .from("leads")
+              .update({ status: "calling", updated_at: now })
+              .eq("id", record.id)
+              .eq("workspace_id", campaign.workspace_id);
+            await sb.from("calls").insert({
+              workspace_id: campaign.workspace_id,
+              retell_call_id: call?.call_id ?? null,
+              agent_id: retellAgentId,
+              agent_name: agent.name ?? null,
+              from_number: fromNumber,
+              to_number: record.phone,
+              call_type: "outbound",
+              call_status: "initiated",
+              lead_id: record.id,
+            });
+          } else if (record.tableSource === "data_records") {
             await sb
               .from("data_records")
               .update({
@@ -349,7 +394,8 @@ export async function runCampaignTick(opts?: {
 
     console.log(
       `[campaign-scheduler] "${campaign.name}" done — placed: ${placed}, failed: ${failed}` +
-        (failed > 0 ? ` (${total - placed - failed} still queued)` : ""),
+        (skipped > 0 ? `, skipped(cap): ${skipped}` : "") +
+        (failed > 0 ? ` (${total - placed - failed - skipped} still queued)` : ""),
     );
 
     results.push({ ...base, placed, failed });
