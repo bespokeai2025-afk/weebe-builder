@@ -1,16 +1,17 @@
-import { useId } from "react";
+import { useId, useState, useEffect } from "react";
 import type { CSSProperties } from "react";
 
 /**
- * AvaLiveOrb — a premium, 3D-feeling animated "live AI energy sphere" for the
- * active Call Ava call screen. Built with CSS 3D transforms (a preserve-3d
- * orbit cage) + SVG gradients/energy flow + a shaded spherical core, so it
- * reads as a real 3D orb with depth and parallax — no raster, no WebGL, SSR-safe.
+ * AvaLiveOrb — a premium, LIVE "AI energy" visual for the active Call Ava call
+ * screen. Instead of a solid sphere it is a hollow, swirling plasma ring
+ * (blue → purple), built with animated SVG turbulence + displacement so the ring
+ * constantly warps, reshapes and churns — plus a slow color-sweep rotation,
+ * drifting smoke wisps and twinkling sparks. Pure SVG/CSS (no WebGL), SSR-safe.
  *
  * State behaviour:
- *  - connecting → subtle, slow "loading" pulse
- *  - speaking   → stronger energy, brighter pulse, faster orbit
- *  - listening  → calmer, slower motion
+ *  - connecting → gentle, slow churn + soft glow
+ *  - speaking   → energetic: bigger displacement, faster churn, brighter glow
+ *  - listening  → calmer, medium motion
  *  - ended      → fades + scales down softly
  */
 
@@ -24,202 +25,263 @@ interface AvaLiveOrbProps {
   style?: CSSProperties;
 }
 
-const SIZE_MAP: Record<AvaLiveOrbSize, number> = { sm: 120, md: 170, lg: 220 };
+const SIZE_MAP: Record<AvaLiveOrbSize, number> = { sm: 130, md: 190, lg: 240 };
 
-/** Deterministic neural particles (no Math.random → SSR-hydration safe). */
-const PARTICLES: Array<{ cx: number; cy: number; r: number; delay: number; fill: string }> = [
-  { cx: 50, cy: 3, r: 0.9, delay: 0, fill: "#BAE6FD" },
-  { cx: 82, cy: 14, r: 0.7, delay: 0.6, fill: "#38BDF8" },
-  { cx: 96, cy: 46, r: 1.0, delay: 1.2, fill: "#22D3EE" },
-  { cx: 88, cy: 80, r: 0.7, delay: 1.8, fill: "#38BDF8" },
-  { cx: 58, cy: 96, r: 0.9, delay: 0.9, fill: "#BAE6FD" },
-  { cx: 24, cy: 92, r: 0.7, delay: 2.2, fill: "#8B5CF6" },
-  { cx: 5, cy: 60, r: 1.0, delay: 1.4, fill: "#22D3EE" },
-  { cx: 9, cy: 24, r: 0.7, delay: 2.6, fill: "#8B5CF6" },
-  { cx: 34, cy: 8, r: 0.8, delay: 0.3, fill: "#38BDF8" },
-  { cx: 72, cy: 92, r: 0.8, delay: 1.6, fill: "#22D3EE" },
-];
+interface StateCfg {
+  /** turbulence baseFrequency animation duration (s) */
+  freqDur: number;
+  /** displacement scale [min, max] — how strongly the ring reshapes */
+  disp: [number, number];
+  /** displacement animation duration (s) */
+  dispDur: number;
+  /** color-sweep rotation duration (s) */
+  rot: number;
+  /** breathe scale peak + duration */
+  bs: number;
+  breatheDur: number;
+}
 
-/** Faint neural connecting lines between a few particles. */
-const LINKS: Array<[number, number, number, number]> = [
-  [50, 3, 82, 14],
-  [82, 14, 96, 46],
-  [96, 46, 88, 80],
-  [9, 24, 5, 60],
-  [5, 60, 24, 92],
-  [34, 8, 9, 24],
-];
+const CFG: Record<AvaLiveOrbState, StateCfg> = {
+  connecting: { freqDur: 20, disp: [12, 22], dispDur: 7, rot: 44, bs: 1.02, breatheDur: 5 },
+  speaking: { freqDur: 10, disp: [24, 44], dispDur: 3, rot: 20, bs: 1.06, breatheDur: 2 },
+  listening: { freqDur: 17, disp: [15, 28], dispDur: 5.5, rot: 32, bs: 1.03, breatheDur: 4.5 },
+  ended: { freqDur: 22, disp: [8, 14], dispDur: 8, rot: 44, bs: 1, breatheDur: 6 },
+};
 
-const RINGS = [
-  { cls: "alo-r1", grad: "g1", sw: 0.8, dash: "2.5 5" },
-  { cls: "alo-r2", grad: "g2", sw: 0.7, dash: "1.5 6" },
-  { cls: "alo-r3", grad: "g3", sw: 0.9, dash: "3 4" },
-  { cls: "alo-r4", grad: "g1", sw: 0.6, dash: "1 7" },
+/** Deterministic sparks scattered around the ring (no Math.random → SSR-safe). */
+const SPARKS: Array<{ cx: number; cy: number; r: number; delay: number; fill: string }> = [
+  { cx: 150, cy: 58, r: 0.9, delay: 0, fill: "#bae6fd" },
+  { cx: 178, cy: 104, r: 0.8, delay: 0.5, fill: "#38bdf8" },
+  { cx: 150, cy: 152, r: 1.0, delay: 1.0, fill: "#22d3ee" },
+  { cx: 104, cy: 180, r: 0.8, delay: 1.5, fill: "#7dd3fc" },
+  { cx: 52, cy: 152, r: 0.9, delay: 0.8, fill: "#c084fc" },
+  { cx: 24, cy: 106, r: 0.8, delay: 2.0, fill: "#a855f7" },
+  { cx: 48, cy: 54, r: 1.0, delay: 1.3, fill: "#bae6fd" },
+  { cx: 100, cy: 22, r: 0.8, delay: 0.3, fill: "#38bdf8" },
 ];
 
 const ORB_STYLES = `
-  @keyframes avalive-orbit { from { transform: rotateX(16deg) rotateY(0deg); } to { transform: rotateX(16deg) rotateY(360deg); } }
-  @keyframes avalive-flow { to { stroke-dashoffset: -200; } }
-  @keyframes avalive-breathe { 0%, 100% { transform: translate(-50%, -50%) scale(1); } 50% { transform: translate(-50%, -50%) scale(1.05); } }
-  @keyframes avalive-breathe-strong { 0%, 100% { transform: translate(-50%, -50%) scale(1); } 50% { transform: translate(-50%, -50%) scale(1.1); } }
-  @keyframes avalive-glow { 0%, 100% { opacity: .5; } 50% { opacity: .85; } }
-  @keyframes avalive-twinkle { 0%, 100% { opacity: .12; } 50% { opacity: .9; } }
-  @keyframes avalive-spin { to { transform: rotate(360deg); } }
+  @keyframes alo-rot { to { transform: rotate(360deg); } }
+  @keyframes alo-rot-rev { to { transform: rotate(-360deg); } }
+  @keyframes alo-breathe { 0%, 100% { transform: scale(1); } 50% { transform: scale(var(--alo-bs, 1.04)); } }
+  @keyframes alo-glow { 0%, 100% { opacity: .3; } 50% { opacity: .72; } }
+  @keyframes alo-flow { to { stroke-dashoffset: -300; } }
+  @keyframes alo-tw { 0%, 100% { opacity: .12; } 50% { opacity: .95; } }
 
-  .alo-root { position: relative; display: inline-flex; align-items: center; justify-content: center; border-radius: 50%; transition: opacity .5s ease, transform .5s ease; }
+  .alo-root { position: relative; display: inline-flex; align-items: center; justify-content: center; border-radius: 50%; transition: opacity .5s ease, transform .5s ease, box-shadow .5s ease; }
   .alo-root, .alo-root * { box-sizing: border-box; }
-  .alo-layer { position: absolute; inset: 0; }
 
-  .alo-purple { left: -8%; top: 50%; width: 62%; height: 82%; position: absolute; transform: translateY(-50%); border-radius: 50%; background: radial-gradient(circle at 32% 50%, rgba(124,58,237,0.30) 0%, rgba(124,58,237,0.07) 46%, transparent 70%); pointer-events: none; }
-  .alo-glow { left: 50%; top: 50%; width: 92%; height: 92%; position: absolute; transform: translate(-50%, -50%); border-radius: 50%; background: radial-gradient(circle, rgba(56,189,248,0.45) 0%, rgba(56,189,248,0.12) 42%, transparent 70%); animation: avalive-glow 5s ease-in-out infinite; will-change: opacity; }
+  .alo-amb { position: absolute; border-radius: 50%; pointer-events: none; }
+  .alo-amb-p { left: -12%; top: -8%; width: 74%; height: 74%; background: radial-gradient(circle, rgba(168,85,247,0.34) 0%, rgba(168,85,247,0) 68%); }
+  .alo-amb-b { right: -12%; bottom: -8%; width: 76%; height: 76%; background: radial-gradient(circle, rgba(56,189,248,0.30) 0%, rgba(56,189,248,0) 68%); }
 
-  .alo-scene { position: absolute; inset: 0; transform-style: preserve-3d; animation: avalive-orbit 18s linear infinite; will-change: transform; }
-  .alo-ring { position: absolute; inset: 0; transform-style: preserve-3d; }
-  .alo-ring svg { width: 100%; height: 100%; display: block; overflow: visible; }
-  .alo-ring .flow { animation: avalive-flow 6s linear infinite; }
-  .alo-r1 { transform: rotateX(72deg); }
-  .alo-r2 { transform: rotateY(45deg) rotateX(72deg); }
-  .alo-r3 { transform: rotateY(90deg) rotateX(72deg); }
-  .alo-r4 { transform: rotateY(135deg) rotateX(72deg); }
+  .alo-svg { position: relative; width: 100%; height: 100%; display: block; overflow: visible; will-change: transform, filter; }
+  .alo-ring, .alo-wisp, .alo-dash { transform-box: fill-box; transform-origin: center; }
 
-  .alo-core { position: absolute; left: 50%; top: 50%; width: 46%; height: 46%; transform: translate(-50%, -50%); border-radius: 50%;
-    background: radial-gradient(circle at 38% 30%, #12356a 0%, #061a3a 44%, #020817 100%);
-    box-shadow: inset 0 0 22px rgba(2,8,23,0.9), inset -6px -9px 20px rgba(0,0,0,0.55), 0 0 34px rgba(56,189,248,0.28);
-    animation: avalive-breathe 5.5s ease-in-out infinite; will-change: transform; }
-  .alo-core-hi { position: absolute; left: 20%; top: 14%; width: 44%; height: 36%; border-radius: 50%; background: radial-gradient(circle, rgba(160,205,255,0.55) 0%, rgba(160,205,255,0) 70%); filter: blur(2px); }
+  /* motion (disabled when prefers-reduced-motion) */
+  .alo-root.is-live .alo-svg { animation: alo-breathe var(--alo-breathe-dur, 4s) ease-in-out infinite; }
+  .alo-root.is-live .alo-ring { animation: alo-rot var(--alo-rot-dur, 36s) linear infinite; }
+  .alo-root.is-live .alo-wisp { animation: alo-rot-rev calc(var(--alo-rot-dur, 36s) * 1.7) linear infinite; }
+  .alo-root.is-live .alo-centerglow { animation: alo-glow var(--alo-breathe-dur, 4s) ease-in-out infinite; }
+  .alo-root.is-live .alo-dash { animation: alo-flow 5s linear infinite; }
+  .alo-root.is-live .alo-spark { animation: alo-tw 3.2s ease-in-out infinite; }
 
-  .alo-front { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
-  .alo-front .flow { animation: avalive-flow 5s linear infinite; }
-  .alo-front .spin { transform-box: fill-box; transform-origin: center; animation: avalive-spin 22s linear infinite; }
-  .alo-front .twk { animation: avalive-twinkle 3.4s ease-in-out infinite; }
+  /* per-state brightness / saturation */
+  .alo-root[data-state="connecting"] .alo-svg { filter: brightness(.95) saturate(1); }
+  .alo-root[data-state="speaking"] .alo-svg { filter: brightness(1.16) saturate(1.28); }
+  .alo-root[data-state="listening"] .alo-svg { filter: brightness(1.05) saturate(1.12); }
+  .alo-root[data-state="ended"] .alo-svg { filter: brightness(.8) saturate(.85); }
 
-  /* connecting */
-  .alo-root[data-state="connecting"] .alo-scene { animation-duration: 26s; }
-  .alo-root[data-state="connecting"] .alo-core { animation-duration: 3s; }
-  .alo-root[data-state="connecting"] .alo-glow { animation-duration: 2.4s; opacity: .5; }
-
-  /* speaking */
-  .alo-root[data-state="speaking"] .alo-scene { animation-duration: 9s; }
-  .alo-root[data-state="speaking"] .alo-core { animation-name: avalive-breathe-strong; animation-duration: 1.7s; }
-  .alo-root[data-state="speaking"] .alo-glow { animation-duration: 1.7s; opacity: .92; }
-  .alo-root[data-state="speaking"] .alo-front .flow { animation-duration: 2.4s; }
-  .alo-root[data-state="speaking"] .alo-ring .flow { animation-duration: 3s; }
-
-  /* listening */
-  .alo-root[data-state="listening"] .alo-scene { animation-duration: 22s; }
-  .alo-root[data-state="listening"] .alo-core { animation-duration: 5s; }
-  .alo-root[data-state="listening"] .alo-glow { animation-duration: 5s; }
-
-  /* ended */
-  .alo-root[data-state="ended"] { opacity: 0; transform: scale(.92); }
-
-  @media (prefers-reduced-motion: reduce) {
-    .alo-root .alo-scene, .alo-root .alo-core, .alo-root .alo-glow,
-    .alo-root .flow, .alo-root .spin, .alo-root .twk { animation: none !important; }
-    .alo-root .alo-glow { opacity: .7; }
-    .alo-root .alo-scene { transform: rotateX(16deg) rotateY(24deg); }
-  }
+  .alo-root[data-state="ended"] { opacity: 0; transform: scale(.9); }
 `;
 
 export function AvaLiveOrb({ state = "connecting", size = "lg", className, style }: AvaLiveOrbProps) {
   const rawId = useId();
   const uid = rawId.replace(/[^a-zA-Z0-9_-]/g, "");
   const px = SIZE_MAP[size];
+  const cfg = CFG[state];
+
+  // Respect prefers-reduced-motion. Default = motion on (SSR + first paint),
+  // switched off only if the user asks for reduced motion.
+  const [reduced, setReduced] = useState(false);
+  useEffect(() => {
+    if (typeof window === "undefined" || !window.matchMedia) return;
+    const mq = window.matchMedia("(prefers-reduced-motion: reduce)");
+    const apply = () => setReduced(mq.matches);
+    apply();
+    mq.addEventListener?.("change", apply);
+    return () => mq.removeEventListener?.("change", apply);
+  }, []);
+  const motion = !reduced;
 
   const id = {
-    g1: `${uid}-g1`,
-    g2: `${uid}-g2`,
-    g3: `${uid}-g3`,
-    main: `${uid}-main`,
-    comet: `${uid}-comet`,
+    grad: `${uid}-grad`,
+    core: `${uid}-core`,
+    plasma: `${uid}-plasma`,
+    wisp: `${uid}-wisp`,
   };
 
+  const r = (n: number) => Math.round(n);
   const halo =
     state === "speaking"
-      ? `0 0 ${Math.round(px * 0.55)}px rgba(56,189,248,0.5), ${-Math.round(px * 0.16)}px 0 ${Math.round(px * 0.42)}px rgba(124,58,237,0.24)`
+      ? `0 0 ${r(px * 0.5)}px rgba(56,189,248,0.5), 0 0 ${r(px * 0.42)}px rgba(139,92,246,0.42)`
       : state === "listening"
-        ? `0 0 ${Math.round(px * 0.4)}px rgba(56,189,248,0.32), ${-Math.round(px * 0.14)}px 0 ${Math.round(px * 0.36)}px rgba(124,58,237,0.16)`
-        : `0 0 ${Math.round(px * 0.34)}px rgba(56,189,248,0.28), ${-Math.round(px * 0.12)}px 0 ${Math.round(px * 0.32)}px rgba(124,58,237,0.14)`;
+        ? `0 0 ${r(px * 0.4)}px rgba(56,189,248,0.36), 0 0 ${r(px * 0.34)}px rgba(139,92,246,0.3)`
+        : state === "ended"
+          ? "none"
+          : `0 0 ${r(px * 0.36)}px rgba(56,189,248,0.32), 0 0 ${r(px * 0.3)}px rgba(139,92,246,0.26)`;
+
+  const rootStyle = {
+    width: px,
+    height: px,
+    boxShadow: halo,
+    "--alo-bs": cfg.bs,
+    "--alo-rot-dur": `${cfg.rot}s`,
+    "--alo-breathe-dur": `${cfg.breatheDur}s`,
+    ...style,
+  } as CSSProperties;
 
   return (
     <div
-      className={`alo-root${className ? ` ${className}` : ""}`}
+      className={`alo-root${motion ? " is-live" : ""}${className ? ` ${className}` : ""}`}
       data-state={state}
-      style={{ width: px, height: px, perspective: `${Math.round(px * 4)}px`, boxShadow: halo, ...style }}
+      style={rootStyle}
     >
       <style>{ORB_STYLES}</style>
 
-      <div className="alo-purple" />
-      <div className="alo-glow" />
+      <div className="alo-amb alo-amb-p" />
+      <div className="alo-amb alo-amb-b" />
 
-      {/* 3D orbit cage */}
-      <div className="alo-scene">
-        {RINGS.map((ring) => (
-          <div key={ring.cls} className={`alo-ring ${ring.cls}`}>
-            <svg viewBox="0 0 100 100" aria-hidden="true">
-              <defs>
-                <linearGradient id={`${id[ring.grad as "g1" | "g2" | "g3"]}-${ring.cls}`} x1="0%" y1="0%" x2="100%" y2="100%">
-                  {ring.grad === "g1" && (<><stop offset="0%" stopColor="#22D3EE" /><stop offset="100%" stopColor="#38BDF8" /></>)}
-                  {ring.grad === "g2" && (<><stop offset="0%" stopColor="#38BDF8" /><stop offset="100%" stopColor="#3B82F6" /></>)}
-                  {ring.grad === "g3" && (<><stop offset="0%" stopColor="#3B82F6" /><stop offset="100%" stopColor="#8B5CF6" /></>)}
-                </linearGradient>
-              </defs>
-              <circle
-                className="flow"
-                cx="50"
-                cy="50"
-                r="47"
-                fill="none"
-                stroke={`url(#${id[ring.grad as "g1" | "g2" | "g3"]}-${ring.cls})`}
-                strokeWidth={ring.sw}
-                strokeDasharray={ring.dash}
-                strokeLinecap="round"
-              />
-            </svg>
-          </div>
-        ))}
-      </div>
-
-      {/* shaded spherical core */}
-      <div className="alo-core">
-        <div className="alo-core-hi" />
-      </div>
-
-      {/* front hero ring + neural particles */}
-      <svg className="alo-front" viewBox="0 0 100 100" aria-hidden="true">
+      <svg className="alo-svg" viewBox="0 0 200 200" aria-hidden="true">
         <defs>
-          <linearGradient id={id.main} x1="0%" y1="0%" x2="100%" y2="100%">
-            <stop offset="0%" stopColor="#22D3EE" />
-            <stop offset="50%" stopColor="#7DD3FC" />
-            <stop offset="100%" stopColor="#3B82F6" />
+          <linearGradient
+            id={id.grad}
+            gradientUnits="userSpaceOnUse"
+            x1="52"
+            y1="44"
+            x2="150"
+            y2="156"
+          >
+            <stop offset="0%" stopColor="#d8b4fe" />
+            <stop offset="22%" stopColor="#a855f7" />
+            <stop offset="50%" stopColor="#6366f1" />
+            <stop offset="74%" stopColor="#38bdf8" />
+            <stop offset="100%" stopColor="#22d3ee" />
           </linearGradient>
-          <linearGradient id={id.comet} x1="0%" y1="0%" x2="100%" y2="0%">
-            <stop offset="0%" stopColor="rgba(224,242,254,0.95)" />
-            <stop offset="100%" stopColor="rgba(34,211,238,0)" />
-          </linearGradient>
+
+          <radialGradient id={id.core}>
+            <stop offset="0%" stopColor="rgba(56,189,248,0.28)" />
+            <stop offset="55%" stopColor="rgba(124,58,237,0.12)" />
+            <stop offset="100%" stopColor="rgba(2,8,23,0)" />
+          </radialGradient>
+
+          {/* Plasma: churning turbulence displaces the ring so it reshapes live. */}
+          <filter
+            id={id.plasma}
+            x="-60%"
+            y="-60%"
+            width="220%"
+            height="220%"
+            colorInterpolationFilters="sRGB"
+          >
+            <feTurbulence type="fractalNoise" baseFrequency="0.012 0.02" numOctaves={2} seed={4} result="n">
+              {motion && (
+                <animate
+                  attributeName="baseFrequency"
+                  dur={`${cfg.freqDur}s`}
+                  values="0.009 0.015;0.021 0.031;0.009 0.015"
+                  repeatCount="indefinite"
+                />
+              )}
+            </feTurbulence>
+            <feDisplacementMap
+              in="SourceGraphic"
+              in2="n"
+              scale={cfg.disp[0]}
+              xChannelSelector="R"
+              yChannelSelector="G"
+              result="d"
+            >
+              {motion && (
+                <animate
+                  attributeName="scale"
+                  dur={`${cfg.dispDur}s`}
+                  values={`${cfg.disp[0]};${cfg.disp[1]};${cfg.disp[0]}`}
+                  repeatCount="indefinite"
+                />
+              )}
+            </feDisplacementMap>
+            <feGaussianBlur in="d" stdDeviation="2.1" result="b" />
+            <feMerge>
+              <feMergeNode in="b" />
+              <feMergeNode in="d" />
+            </feMerge>
+          </filter>
+
+          {/* Wisp: broader, softer turbulence → smoky trails around the ring. */}
+          <filter id={id.wisp} x="-90%" y="-90%" width="280%" height="280%" colorInterpolationFilters="sRGB">
+            <feTurbulence type="fractalNoise" baseFrequency="0.018 0.028" numOctaves={2} seed={9} result="n">
+              {motion && (
+                <animate
+                  attributeName="baseFrequency"
+                  dur={`${cfg.freqDur * 1.4}s`}
+                  values="0.014 0.022;0.026 0.036;0.014 0.022"
+                  repeatCount="indefinite"
+                />
+              )}
+            </feTurbulence>
+            <feDisplacementMap
+              in="SourceGraphic"
+              in2="n"
+              scale={cfg.disp[1] * 1.5}
+              xChannelSelector="R"
+              yChannelSelector="G"
+              result="d"
+            />
+            <feGaussianBlur in="d" stdDeviation="4" />
+          </filter>
         </defs>
 
-        {/* neural links */}
-        <g stroke="rgba(125,211,252,0.18)" strokeWidth="0.3">
-          {LINKS.map((l, i) => (
-            <line key={i} x1={l[0]} y1={l[1]} x2={l[2]} y2={l[3]} />
-          ))}
+        {/* faint hollow-center glow */}
+        <circle className="alo-centerglow" cx="100" cy="100" r="50" fill={`url(#${id.core})`} />
+
+        {/* smoky wisps (behind) */}
+        <g className="alo-wisp" filter={`url(#${id.wisp})`} opacity="0.55">
+          <circle cx="100" cy="100" r="72" fill="none" stroke={`url(#${id.grad})`} strokeWidth="10" opacity="0.32" />
+          <circle cx="100" cy="100" r="84" fill="none" stroke="#7c3aed" strokeWidth="6" opacity="0.18" />
         </g>
 
-        {/* prominent front ring */}
-        <circle cx="50" cy="50" r="47" fill="none" stroke={`url(#${id.main})`} strokeWidth="1.1" opacity="0.9" />
-        <circle className="flow" cx="50" cy="50" r="47" fill="none" stroke="#BAE6FD" strokeWidth="0.6" strokeDasharray="2 6" strokeLinecap="round" opacity="0.7" />
-        <circle cx="50" cy="50" r="40" fill="none" stroke="rgba(56,189,248,0.28)" strokeWidth="0.4" />
-
-        {/* rotating comet arc */}
-        <g className="spin">
-          <circle cx="50" cy="50" r="44" fill="none" stroke={`url(#${id.comet})`} strokeWidth="1.6" strokeDasharray="34 240" strokeLinecap="round" />
+        {/* main plasma ring (churns + rotates through the color sweep) */}
+        <g className="alo-ring" filter={`url(#${id.plasma})`}>
+          <circle cx="100" cy="100" r="66" fill="none" stroke={`url(#${id.grad})`} strokeWidth="5" />
+          <circle cx="100" cy="100" r="60" fill="none" stroke={`url(#${id.grad})`} strokeWidth="2" opacity="0.6" />
+          <circle cx="100" cy="100" r="73" fill="none" stroke="#c084fc" strokeWidth="2" opacity="0.5" />
+          <circle
+            className="alo-dash"
+            cx="100"
+            cy="100"
+            r="66"
+            fill="none"
+            stroke="#e0f2fe"
+            strokeWidth="1.3"
+            strokeDasharray="3 7"
+            strokeLinecap="round"
+            opacity="0.85"
+          />
         </g>
 
-        {/* neural particles */}
+        {/* twinkling sparks */}
         <g>
-          {PARTICLES.map((p, i) => (
-            <circle key={i} className="twk" cx={p.cx} cy={p.cy} r={p.r} fill={p.fill} style={{ animationDelay: `${p.delay}s` }} />
+          {SPARKS.map((s, i) => (
+            <circle
+              key={i}
+              className="alo-spark"
+              cx={s.cx}
+              cy={s.cy}
+              r={s.r}
+              fill={s.fill}
+              style={{ animationDelay: `${s.delay}s` }}
+            />
           ))}
         </g>
       </svg>
