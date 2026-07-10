@@ -97,14 +97,125 @@ export async function checkRateLimit(
   }
 }
 
+/** Parse an IPv4/IPv6 address into a fixed-width BigInt for comparison. */
+function parseIpToBigInt(ip: string): { version: 4 | 6; value: bigint } | null {
+  // Drop an IPv6 zone id (e.g. "fe80::1%eth0") and any surrounding brackets.
+  const s = ip.trim().replace(/^\[/, "").replace(/\]$/, "").split("%")[0];
+  if (!s) return null;
+
+  if (s.includes(":")) {
+    const value = parseIpv6(s);
+    return value == null ? null : { version: 6, value };
+  }
+  if (s.includes(".")) {
+    const value = parseIpv4(s);
+    return value == null ? null : { version: 4, value };
+  }
+  return null;
+}
+
+function parseIpv4(s: string): bigint | null {
+  const parts = s.split(".");
+  if (parts.length !== 4) return null;
+  let value = 0n;
+  for (const p of parts) {
+    if (!/^\d{1,3}$/.test(p)) return null;
+    const n = Number(p);
+    if (n > 255) return null;
+    value = (value << 8n) | BigInt(n);
+  }
+  return value;
+}
+
+function parseIpv6(input: string): bigint | null {
+  let s = input;
+
+  // Expand an embedded IPv4 tail (e.g. "::ffff:1.2.3.4") into two hextets.
+  if (s.includes(".")) {
+    const lastColon = s.lastIndexOf(":");
+    const v4 = parseIpv4(s.slice(lastColon + 1));
+    if (v4 == null) return null;
+    const h1 = (Number(v4 >> 16n) & 0xffff).toString(16);
+    const h2 = Number(v4 & 0xffffn).toString(16);
+    s = `${s.slice(0, lastColon + 1)}${h1}:${h2}`;
+  }
+
+  const halves = s.split("::");
+  if (halves.length > 2) return null;
+
+  const toGroups = (part: string): string[] | null => {
+    if (part === "") return [];
+    const groups = part.split(":");
+    for (const g of groups) {
+      if (!/^[0-9a-fA-F]{1,4}$/.test(g)) return null;
+    }
+    return groups;
+  };
+
+  const head = toGroups(halves[0]);
+  if (head == null) return null;
+
+  let groups: string[];
+  if (halves.length === 2) {
+    const tail = toGroups(halves[1]);
+    if (tail == null) return null;
+    const missing = 8 - head.length - tail.length;
+    if (missing < 0) return null;
+    groups = [...head, ...Array(missing).fill("0"), ...tail];
+  } else {
+    groups = head;
+  }
+  if (groups.length !== 8) return null;
+
+  let value = 0n;
+  for (const g of groups) {
+    value = (value << 16n) | BigInt(parseInt(g, 16));
+  }
+  return value;
+}
+
+/**
+ * True when `ip` matches an allowlist `entry`. An entry may be:
+ *  - an exact IPv4/IPv6 address (compared after normalization), or
+ *  - a CIDR range like "2a02:c7c:6c17:f400::/64" (matches any address in range).
+ * Non-IP entries fall back to a trimmed string compare.
+ */
+function ipMatchesAllowEntry(ip: string, entry: string): boolean {
+  const slash = entry.indexOf("/");
+  if (slash === -1) {
+    const a = parseIpToBigInt(ip);
+    const b = parseIpToBigInt(entry);
+    if (a && b) return a.version === b.version && a.value === b.value;
+    return ip.trim() === entry.trim();
+  }
+
+  const prefixStr = entry.slice(slash + 1);
+  if (!/^\d{1,3}$/.test(prefixStr)) return false;
+  const prefix = Number(prefixStr);
+
+  const addr = parseIpToBigInt(ip);
+  const network = parseIpToBigInt(entry.slice(0, slash));
+  if (!addr || !network || addr.version !== network.version) return false;
+
+  const totalBits = addr.version === 4 ? 32 : 128;
+  if (prefix > totalBits) return false;
+  if (prefix === 0) return true;
+
+  const shift = BigInt(totalBits - prefix);
+  return addr.value >> shift === network.value >> shift;
+}
+
 /**
  * Developer/testing bypass for public rate limits.
  *
  * Returns true when rate limiting should be skipped for this caller:
  *  - always in the development environment (only the developer hits the dev
  *    server, so testing shouldn't be throttled), or
- *  - when the caller IP is listed in the RATE_LIMIT_ALLOWLIST_IPS env var
- *    (comma-separated) — use this to test against the live deployment.
+ *  - when the caller IP matches an entry in the RATE_LIMIT_ALLOWLIST_IPS env var
+ *    (comma-separated) — use this to test against the live deployment. Each entry
+ *    may be an exact IPv4/IPv6 address or a CIDR range (e.g.
+ *    "2a02:c7c:6c17:f400::/64"). A /64 range is recommended for residential IPv6
+ *    since ISPs rotate the address suffix.
  *
  * Never bypasses for normal visitors in production.
  */
@@ -118,7 +229,7 @@ export function isRateLimitExempt(ip: string | null): boolean {
     .split(",")
     .map((entry) => entry.trim())
     .filter(Boolean);
-  return allowlist.includes(ip.trim());
+  return allowlist.some((entry) => ipMatchesAllowEntry(ip, entry));
 }
 
 // ── Honeypot check ────────────────────────────────────────────────────────────

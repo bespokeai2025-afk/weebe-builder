@@ -91,6 +91,7 @@ RESEND_FROM = "Webespoke AI <notifications@admin.webespokeai.com>"
 
 [userenv.production]
 PUBLIC_BASE_URL = "https://webeebuilder.com"
+RATE_LIMIT_ALLOWLIST_IPS = "2a02:c7c:6c17:f400::/64"
 
 [userenv.development]
 

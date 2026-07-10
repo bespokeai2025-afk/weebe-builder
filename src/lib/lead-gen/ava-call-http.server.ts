@@ -30,6 +30,10 @@ export const avaCallOptionsHandler = async () =>
 /** Step 1: create a call request + send the OTP. */
 export async function handleAvaCallRequestPost(request: Request): Promise<Response> {
   const ip = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? null;
+  // TEMP (dev-testing exemption): log the caller IP the production backend actually
+  // observes so RATE_LIMIT_ALLOWLIST_IPS can be set to the real value. Remove together
+  // with the allowlist entry once live testing is finished.
+  console.log(`[ava-call] request ip=${ip ?? "unknown"} exempt=${isRateLimitExempt(ip)}`);
 
   let fields: Record<string, unknown> = {};
   try {
@@ -99,6 +103,8 @@ export async function handleAvaCallRequestPost(request: Request): Promise<Respon
 /** Step 2: verify the OTP and trigger the call. Accepts requestId OR email+phone. */
 export async function handleAvaCallVerifyPost(request: Request): Promise<Response> {
   const ip = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? null;
+  // TEMP (dev-testing exemption): see note in handleAvaCallRequestPost above.
+  console.log(`[ava-call] verify ip=${ip ?? "unknown"} exempt=${isRateLimitExempt(ip)}`);
   if (!isRateLimitExempt(ip)) {
     const allowed = await checkRateLimit(`avacall:verify:${ip ?? "global"}`, 10);
     if (!allowed) {

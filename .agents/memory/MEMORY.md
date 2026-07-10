@@ -87,6 +87,7 @@
 - [WBAH aggregate cache & Leads perf](wbah-aggregate-cache-perf.md) — Redis 5MB SET cap silently skipped the ~8MB aggregate (cacheWrap = no-op); in-process cache + single-flight; invalidate ONLY via invalidateWbahAggregate.
 - [Full-height page layout trap](fullheight-page-layout-trap.md) — `h-full` page roots collapse inside the min-h-screen sidebar chain; bound the page root with a dvh calc instead.
 - [Cursor repo sync procedure](cursor-repo-snapshot-sync.md) — user pushes from Cursor to weebe-builder repo; diff trees first, sync only deltas, never hard reset; repo lockfile can be stale.
+- [Prod has no IPv6 ingress](prod-no-ipv6-ingress.md) — webeereceptionist.com/webespokeai.com are AAAA-less; backend sees clients' IPv4 in x-forwarded-for even for IPv6 users; allowlist the real IPv4, not a guessed /64.
 - [Live "AI energy" plasma orb technique](ava-live-orb-plasma.md) — no anim libs installed (three/framer/gsap); use animated SVG feTurbulence+feDisplacement; CSS can't stop SMIL (conditionally render <animate>); drive per-state intensity via React SMIL dur/scale.
 - [Retell /list-agents duplicate agent_ids](retell-list-agents-duplicate-ids.md) — API returns same agent_id per published version; dashboard selector must dedupe by agent_id AND collapse to one entry per local row id (prefer deployed match).
 - [Retell CF dangling edges & DB resync](retell-cf-dangling-edges-and-db-resync.md) — edit live CF via direct REST PATCH+GET; dangling edges (no destination_node_id) silently stall calls; importAgentJson can resync DB from live ground truth.
