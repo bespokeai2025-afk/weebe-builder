@@ -1,0 +1,118 @@
+Please replace the current Loveable-generated Call Ava floating graphic with a proper high-quality custom React component.
+
+The current Loveable graphic looks low quality, blurry, and not premium enough. Do not use Loveable-generated artwork, PNGs, screenshots, or image assets for the Ava orb.
+
+Create a reusable component:
+
+`AvaOrb.tsx`
+
+Purpose:
+
+AvaOrb should be a sharp, premium, animated SVG/CSS orb used for the floating Call Ava launcher and optionally inside the live Ava call modal.
+
+Design requirements:
+
+* Dark navy circular centre.
+* Very subtle soft blue centre glow.
+* Thin circular ring made from multiple animated blue/cyan SVG strokes.
+* Several fine orbit/wave paths around the ring.
+* Small subtle particles only.
+* No large dots.
+* No purple.
+* No blurry raster images.
+* No stock phone icon as the main graphic.
+* No square background.
+* Must look sharp on retina/high-DPI screens.
+* Must scale cleanly from small launcher size to larger modal size.
+
+Colour palette:
+
+* Deep navy: `#020817`
+* Midnight blue: `#061936`
+* Electric blue: `#1E90FF`
+* Cyan: `#00D5FF`
+* Azure: `#38BDF8`
+* Icy blue: `#BAE6FD`
+* Soft glow blue: `rgba(56, 189, 248, 0.45)`
+
+Component behaviour:
+
+Idle:
+
+* slow subtle pulse
+* gentle orbit stroke movement
+* soft centre glow
+
+Hover:
+
+* slightly brighter glow
+* slight scale up
+* orbit lines become more visible
+
+Active/speaking:
+
+* stronger pulse
+* faster orbit stroke movement
+* centre glow brightens slightly
+
+Reduced motion:
+
+* respect `prefers-reduced-motion`
+* disable or reduce animation when needed
+
+Implementation guidance:
+
+Use inline SVG and CSS animations.
+
+Suggested SVG structure:
+
+* outer wrapper div with circular shape
+* radial-gradient dark centre
+* SVG viewBox 0 0 100 100
+* several `<circle>` or `<path>` strokes with:
+
+  * different stroke widths
+  * different dash arrays
+  * different blue/cyan tones
+  * opacity variations
+  * rotate animations
+* subtle centre glow using radial gradient
+* optional tiny particles as small SVG circles with low opacity
+* no large nodes or heavy blobs
+
+Create variants:
+
+`size="sm"` for floating launcher
+`size="lg"` for live call modal
+`state="idle" | "hover" | "speaking"`
+
+Then update the floating Call Ava launcher to use:
+
+`<AvaOrb size="sm" state="idle" />`
+
+Floating launcher requirements:
+
+* fixed bottom-right
+* transparent/no square background around the orb
+* optional small text label:
+  “Talk to Ava”
+* clicking opens the existing Call Ava OTP modal
+* do not bypass OTP
+* do not create duplicate modals
+
+Also remove the large “Call Ava Now” hero button if it still exists.
+
+Do not break:
+
+* Call Ava modal
+* OTP flow
+* Free Trial
+* Book Demo
+* Products dropdown
+* Client Access dropdown
+* Mobile navigation
+* Lead capture forms
+
+Final result:
+
+The Ava launcher should look like a custom-built, premium, sharp, animated blue AI orb — not a Loveable-generated image or blurry graphic.

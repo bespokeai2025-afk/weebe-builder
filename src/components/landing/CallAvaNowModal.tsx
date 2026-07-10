@@ -1,6 +1,7 @@
 import { useState } from "react";
-import { X, Loader2, PhoneCall, ShieldCheck, CheckCircle2, CalendarDays } from "lucide-react";
+import { X, Loader2, PhoneCall, ShieldCheck, CalendarDays } from "lucide-react";
 import { TalkToUsForm } from "@/components/landing/TalkToUsForm";
+import { AvaOrb } from "@/components/landing/AvaOrb";
 
 interface CallAvaNowModalProps {
   onClose: () => void;
@@ -255,8 +256,8 @@ export function CallAvaNowModal({ onClose }: CallAvaNowModalProps) {
 
         {step === "calling" && (
           <div className="flex flex-col items-center justify-center py-14 px-6 text-center">
-            <div className="h-14 w-14 rounded-full bg-emerald-500/15 flex items-center justify-center mb-4">
-              <CheckCircle2 className="h-7 w-7 text-emerald-400" />
+            <div className="mb-5">
+              <AvaOrb size={120} state="speaking" />
             </div>
             <p className="text-lg font-semibold mb-2 text-white">Ava is calling you now!</p>
             <p className="text-sm text-muted-foreground max-w-xs">
