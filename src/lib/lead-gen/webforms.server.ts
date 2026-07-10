@@ -97,6 +97,30 @@ export async function checkRateLimit(
   }
 }
 
+/**
+ * Developer/testing bypass for public rate limits.
+ *
+ * Returns true when rate limiting should be skipped for this caller:
+ *  - always in the development environment (only the developer hits the dev
+ *    server, so testing shouldn't be throttled), or
+ *  - when the caller IP is listed in the RATE_LIMIT_ALLOWLIST_IPS env var
+ *    (comma-separated) — use this to test against the live deployment.
+ *
+ * Never bypasses for normal visitors in production.
+ */
+export function isRateLimitExempt(ip: string | null): boolean {
+  if (process.env.NODE_ENV !== "production") return true;
+
+  const raw = process.env.RATE_LIMIT_ALLOWLIST_IPS;
+  if (!raw || !ip) return false;
+
+  const allowlist = raw
+    .split(",")
+    .map((entry) => entry.trim())
+    .filter(Boolean);
+  return allowlist.includes(ip.trim());
+}
+
 // ── Honeypot check ────────────────────────────────────────────────────────────
 
 export function isSpam(raw: Record<string, unknown>): boolean {

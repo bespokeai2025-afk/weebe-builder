@@ -8,7 +8,7 @@
  * site (webespokeai.com), which sends `businessWebsite` instead of `website`
  * and verifies with { email, phone, otp } instead of { requestId, otp }.
  */
-import { checkRateLimit, isSpam } from "@/lib/lead-gen/webforms.server";
+import { checkRateLimit, isRateLimitExempt, isSpam } from "@/lib/lead-gen/webforms.server";
 import {
   createAvaCallRequest,
   normalizePhoneE164,
@@ -44,20 +44,27 @@ export async function handleAvaCallRequestPost(request: Request): Promise<Respon
   }
 
   // 3 OTP requests per hour per IP, per email AND per phone.
+  // Skipped for developer/testing traffic (dev env or allowlisted IP).
   const normalizedPhone =
     normalizePhoneE164(String(fields.phone ?? "")) ?? String(fields.phone ?? "").trim() ?? "none";
-  const allowedIp = await checkRateLimit(`avacall:req:${ip ?? "global"}`, 3, HOUR_MS);
-  const allowedEmail = await checkRateLimit(
-    `avacall:email:${String(fields.email ?? "").trim().toLowerCase() || "none"}`,
-    3,
-    HOUR_MS,
-  );
-  const allowedPhone = await checkRateLimit(`avacall:phone:${normalizedPhone || "none"}`, 3, HOUR_MS);
-  if (!allowedIp || !allowedEmail || !allowedPhone) {
-    return Response.json(
-      { error: "Too many requests. Please wait an hour and try again." },
-      { status: 429, headers: AVA_CALL_CORS },
+  if (!isRateLimitExempt(ip)) {
+    const allowedIp = await checkRateLimit(`avacall:req:${ip ?? "global"}`, 3, HOUR_MS);
+    const allowedEmail = await checkRateLimit(
+      `avacall:email:${String(fields.email ?? "").trim().toLowerCase() || "none"}`,
+      3,
+      HOUR_MS,
     );
+    const allowedPhone = await checkRateLimit(
+      `avacall:phone:${normalizedPhone || "none"}`,
+      3,
+      HOUR_MS,
+    );
+    if (!allowedIp || !allowedEmail || !allowedPhone) {
+      return Response.json(
+        { error: "Too many requests. Please wait an hour and try again." },
+        { status: 429, headers: AVA_CALL_CORS },
+      );
+    }
   }
 
   const result = await createAvaCallRequest({
@@ -92,12 +99,14 @@ export async function handleAvaCallRequestPost(request: Request): Promise<Respon
 /** Step 2: verify the OTP and trigger the call. Accepts requestId OR email+phone. */
 export async function handleAvaCallVerifyPost(request: Request): Promise<Response> {
   const ip = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? null;
-  const allowed = await checkRateLimit(`avacall:verify:${ip ?? "global"}`, 10);
-  if (!allowed) {
-    return Response.json(
-      { error: "Too many attempts. Please wait a minute and try again." },
-      { status: 429, headers: AVA_CALL_CORS },
-    );
+  if (!isRateLimitExempt(ip)) {
+    const allowed = await checkRateLimit(`avacall:verify:${ip ?? "global"}`, 10);
+    if (!allowed) {
+      return Response.json(
+        { error: "Too many attempts. Please wait a minute and try again." },
+        { status: 429, headers: AVA_CALL_CORS },
+      );
+    }
   }
 
   let fields: Record<string, unknown> = {};
