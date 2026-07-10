@@ -1,7 +1,7 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { X, Loader2, PhoneCall, ShieldCheck, CalendarDays } from "lucide-react";
 import { TalkToUsForm } from "@/components/landing/TalkToUsForm";
-import { AvaOrb } from "@/components/landing/AvaOrb";
+import { AvaLiveOrb, type AvaLiveOrbState } from "@/components/landing/AvaLiveOrb";
 
 interface CallAvaNowModalProps {
   onClose: () => void;
@@ -38,6 +38,38 @@ export function CallAvaNowModal({ onClose }: CallAvaNowModalProps) {
   const [error, setError] = useState<string | null>(null);
   const [showBookDemo, setShowBookDemo] = useState(false);
   const [showTalkToUs, setShowTalkToUs] = useState(false);
+  const [liveState, setLiveState] = useState<AvaLiveOrbState>("connecting");
+
+  // Simulate a convincing live-call cadence. The actual call is placed over the
+  // phone (PSTN via Retell), so there is no in-browser speaking/listening
+  // signal — we drive a plausible connecting → speaking ⇄ listening cycle.
+  useEffect(() => {
+    if (step !== "calling") return;
+    setLiveState("connecting");
+    const t = setTimeout(() => setLiveState("speaking"), 2400);
+    return () => clearTimeout(t);
+  }, [step]);
+
+  useEffect(() => {
+    if (step !== "calling" || liveState === "connecting" || liveState === "ended") return;
+    const dur = liveState === "speaking" ? 3800 : 3000;
+    const t = setTimeout(
+      () => setLiveState((s) => (s === "speaking" ? "listening" : "speaking")),
+      dur,
+    );
+    return () => clearTimeout(t);
+  }, [step, liveState]);
+
+  const endCallTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => () => {
+    if (endCallTimer.current) clearTimeout(endCallTimer.current);
+  }, []);
+
+  function endCall() {
+    setLiveState("ended");
+    // Let the orb's 0.5s fade-down finish before unmounting the modal.
+    endCallTimer.current = setTimeout(onClose, 520);
+  }
 
   if (showTalkToUs) {
     return <TalkToUsForm onClose={onClose} sourcePage="call-ava-now" />;
@@ -255,20 +287,48 @@ export function CallAvaNowModal({ onClose }: CallAvaNowModalProps) {
         )}
 
         {step === "calling" && (
-          <div className="flex flex-col items-center justify-center py-14 px-6 text-center">
-            <div className="mb-5">
-              <AvaOrb size={120} state="speaking" />
+          <div
+            className="flex flex-col items-center justify-center px-6 py-9 text-center"
+            style={{ background: "radial-gradient(circle at 50% 36%, rgba(30,64,120,0.18), transparent 62%)" }}
+          >
+            {/* live status row */}
+            <div className="flex items-center gap-2 mb-7">
+              <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-400/30 bg-emerald-400/10 px-2.5 py-1 text-[10.5px] font-semibold text-emerald-300">
+                <ShieldCheck className="h-3 w-3" /> Verified
+              </span>
+              {liveState === "connecting" ? (
+                <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-400/30 bg-amber-400/10 px-2.5 py-1 text-[10.5px] font-semibold text-amber-300">
+                  <span className="h-1.5 w-1.5 rounded-full bg-amber-400 animate-pulse" /> Connecting
+                </span>
+              ) : (
+                <span className="inline-flex items-center gap-1.5 rounded-full border border-sky-400/30 bg-sky-400/10 px-2.5 py-1 text-[10.5px] font-semibold text-sky-300">
+                  <span className="h-1.5 w-1.5 rounded-full bg-sky-400 animate-pulse" /> Live
+                </span>
+              )}
             </div>
-            <p className="text-lg font-semibold mb-2 text-white">Ava is calling you now!</p>
-            <p className="text-sm text-muted-foreground max-w-xs">
-              Keep your phone handy — the call from Ava should arrive within a few seconds. She can
-              answer questions and book you a demo appointment on the spot.
+
+            <AvaLiveOrb state={liveState} size="lg" />
+
+            <p className="mt-7 text-lg font-semibold text-white">
+              {liveState === "connecting"
+                ? "Connecting you to Ava…"
+                : liveState === "ended"
+                  ? "Call ended"
+                  : liveState === "listening"
+                    ? "Ava is listening…"
+                    : "Ava is speaking…"}
             </p>
+            <p className="mt-1.5 text-xs text-muted-foreground max-w-xs">
+              Keep your phone handy — Ava is calling{" "}
+              <span className="text-white/90 font-medium">{form.phone}</span>. She can answer questions
+              and book you a demo on the spot.
+            </p>
+
             <button
-              onClick={onClose}
-              className="mt-6 rounded-lg bg-amber-400 hover:bg-amber-300 px-6 py-2.5 text-sm font-bold text-[#06162B] transition-all"
+              onClick={endCall}
+              className="mt-7 inline-flex items-center gap-2 rounded-full border border-red-500/40 bg-red-500/10 hover:bg-red-500/20 px-6 py-2.5 text-sm font-bold text-red-300 transition-all"
             >
-              Done
+              <X className="h-4 w-4" /> End call
             </button>
           </div>
         )}
