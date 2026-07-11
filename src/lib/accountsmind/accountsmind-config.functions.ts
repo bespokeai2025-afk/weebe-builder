@@ -46,8 +46,10 @@ export const listAccountsMindConfig = createServerFn({ method: "GET" })
 export const getClientVisibleConfig = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
-    const { listActiveConfigServer, computeMetricsServer, snapshotMetricsServer, getMetricSeriesServer } =
-      await import("@/lib/accountsmind/accountsmind-config.server");
+    const {
+      listActiveConfigServer, computeMetricsServer, snapshotMetricsServer,
+      getMetricSeriesServer, ensureMetricHistoryBackfillServer,
+    } = await import("@/lib/accountsmind/accountsmind-config.server");
     const workspaceId = requireWorkspaceId(context.workspaceId);
     const config = await listActiveConfigServer(workspaceId, { clientOnly: true });
     const keys = [
@@ -63,6 +65,9 @@ export const getClientVisibleConfig = createServerFn({ method: "GET" })
       .filter((w: any) => w.widget_type === "trend" || w.widget_type === "progress")
       .map((w: any) => w.metric_key)
       .filter(Boolean);
+    // One-off history backfill so sparklines render immediately for existing
+    // workspaces (best-effort, no-op once the window is full).
+    await ensureMetricHistoryBackfillServer(workspaceId, seriesKeys);
     const series = await getMetricSeriesServer(workspaceId, seriesKeys, 30);
     return { ...config, metrics, series };
   });
@@ -93,14 +98,14 @@ export const getAccountsMindMetricSeries = createServerFn({ method: "POST" })
     }).parse(input),
   )
   .handler(async ({ data, context }) => {
-    const { getMetricSeriesServer } = await import(
+    const { getMetricSeriesServer, ensureMetricHistoryBackfillServer } = await import(
       "@/lib/accountsmind/accountsmind-config.server"
     );
-    return getMetricSeriesServer(
-      requireWorkspaceId(context.workspaceId),
-      data.keys,
-      data.days ?? 30,
-    );
+    const workspaceId = requireWorkspaceId(context.workspaceId);
+    // One-off history backfill so sparklines render immediately for existing
+    // workspaces (best-effort, no-op once the window is full).
+    await ensureMetricHistoryBackfillServer(workspaceId, data.keys, data.days ?? 30);
+    return getMetricSeriesServer(workspaceId, data.keys, data.days ?? 30);
   });
 
 // ── setConfigItemStatus ───────────────────────────────────────────────────────

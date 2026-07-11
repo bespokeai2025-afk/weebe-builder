@@ -55,18 +55,31 @@ async function count(sb: Sb, table: string, build: (q: any) => any): Promise<num
   return c ?? 0;
 }
 
+/**
+ * Historical ("as of day D") resolver used by the one-off sparkline backfill.
+ * dayEndIso = exclusive upper bound (start of D+1 UTC); monthStartIso = start
+ * of the month CONTAINING day D. Only metrics whose historical value can be
+ * derived from row timestamps get one — current-state metrics (qualified
+ * leads, active campaigns, callbacks…) cannot be backfilled and keep the
+ * "Collecting daily history" note until real snapshots accumulate.
+ */
+type BackfillResolve = (sb: Sb, workspaceId: string, dayEndIso: string, monthStartIso: string) => Promise<number>;
+
 export const METRIC_REGISTRY: Record<string, MetricMeta & {
   resolve: (sb: Sb, workspaceId: string) => Promise<number>;
+  backfill?: BackfillResolve;
 }> = {
   leads_total: {
     key: "leads_total", label: "Total leads", format: "count", sensitive: false,
     description: "All leads in the workspace CRM.",
     resolve: (sb, ws) => count(sb, "leads", (q) => q.eq("workspace_id", ws)),
+    backfill: (sb, ws, dayEnd) => count(sb, "leads", (q) => q.eq("workspace_id", ws).lt("created_at", dayEnd)),
   },
   leads_new_this_month: {
     key: "leads_new_this_month", label: "New leads this month", format: "count", sensitive: false,
     description: "Leads created since the start of the current month.",
     resolve: (sb, ws) => count(sb, "leads", (q) => q.eq("workspace_id", ws).gte("created_at", monthStartIso())),
+    backfill: (sb, ws, dayEnd, monthStart) => count(sb, "leads", (q) => q.eq("workspace_id", ws).gte("created_at", monthStart).lt("created_at", dayEnd)),
   },
   leads_qualified: {
     key: "leads_qualified", label: "Qualified leads", format: "count", sensitive: false,
@@ -87,11 +100,13 @@ export const METRIC_REGISTRY: Record<string, MetricMeta & {
     key: "calls_total", label: "Total calls", format: "count", sensitive: false,
     description: "All AI agent calls recorded for this workspace.",
     resolve: (sb, ws) => count(sb, "calls", (q) => q.eq("workspace_id", ws)),
+    backfill: (sb, ws, dayEnd) => count(sb, "calls", (q) => q.eq("workspace_id", ws).lt("created_at", dayEnd)),
   },
   calls_this_month: {
     key: "calls_this_month", label: "Calls this month", format: "count", sensitive: false,
     description: "AI agent calls since the start of the current month.",
     resolve: (sb, ws) => count(sb, "calls", (q) => q.eq("workspace_id", ws).gte("created_at", monthStartIso())),
+    backfill: (sb, ws, dayEnd, monthStart) => count(sb, "calls", (q) => q.eq("workspace_id", ws).gte("created_at", monthStart).lt("created_at", dayEnd)),
   },
   call_minutes_this_month: {
     key: "call_minutes_this_month", label: "Call minutes this month", format: "duration", sensitive: false,
@@ -102,21 +117,30 @@ export const METRIC_REGISTRY: Record<string, MetricMeta & {
       const secs = (data ?? []).reduce((a: number, r: any) => a + (r.duration_seconds ?? 0), 0);
       return Math.round(secs / 60);
     },
+    backfill: async (sb, ws, dayEnd, monthStart) => {
+      const { data } = await sb.from("calls").select("duration_seconds")
+        .eq("workspace_id", ws).gte("created_at", monthStart).lt("created_at", dayEnd).limit(5000);
+      const secs = (data ?? []).reduce((a: number, r: any) => a + (r.duration_seconds ?? 0), 0);
+      return Math.round(secs / 60);
+    },
   },
   successful_calls_this_month: {
     key: "successful_calls_this_month", label: "Successful calls this month", format: "count", sensitive: false,
     description: "Calls flagged successful since the start of the month.",
     resolve: (sb, ws) => count(sb, "calls", (q) => q.eq("workspace_id", ws).eq("call_successful", true).gte("created_at", monthStartIso())),
+    backfill: (sb, ws, dayEnd, monthStart) => count(sb, "calls", (q) => q.eq("workspace_id", ws).eq("call_successful", true).gte("created_at", monthStart).lt("created_at", dayEnd)),
   },
   positive_sentiment_calls_this_month: {
     key: "positive_sentiment_calls_this_month", label: "Positive calls this month", format: "count", sensitive: false,
     description: "Calls with positive sentiment since the start of the month.",
     resolve: (sb, ws) => count(sb, "calls", (q) => q.eq("workspace_id", ws).ilike("sentiment", "%positive%").gte("created_at", monthStartIso())),
+    backfill: (sb, ws, dayEnd, monthStart) => count(sb, "calls", (q) => q.eq("workspace_id", ws).ilike("sentiment", "%positive%").gte("created_at", monthStart).lt("created_at", dayEnd)),
   },
   agents_total: {
     key: "agents_total", label: "AI agents", format: "count", sensitive: false,
     description: "AI agents built in this workspace.",
     resolve: (sb, ws) => count(sb, "agents", (q) => q.eq("workspace_id", ws)),
+    backfill: (sb, ws, dayEnd) => count(sb, "agents", (q) => q.eq("workspace_id", ws).lt("created_at", dayEnd)),
   },
   campaigns_active: {
     key: "campaigns_active", label: "Active campaigns", format: "count", sensitive: false,
@@ -132,6 +156,12 @@ export const METRIC_REGISTRY: Record<string, MetricMeta & {
       const total = (data ?? []).reduce((a: number, r: any) => a + Number(r.cost_usd ?? 0), 0);
       return Math.round(total * 100) / 100;
     },
+    backfill: async (sb, ws, dayEnd, monthStart) => {
+      const { data } = await sb.from("provider_usage_log").select("cost_usd")
+        .eq("workspace_id", ws).gte("created_at", monthStart).lt("created_at", dayEnd).limit(5000);
+      const total = (data ?? []).reduce((a: number, r: any) => a + Number(r.cost_usd ?? 0), 0);
+      return Math.round(total * 100) / 100;
+    },
   },
   provider_requests_this_month: {
     key: "provider_requests_this_month", label: "Provider requests this month", format: "count", sensitive: false,
@@ -139,6 +169,11 @@ export const METRIC_REGISTRY: Record<string, MetricMeta & {
     resolve: async (sb, ws) => {
       const { data } = await sb.from("provider_usage_log").select("requests")
         .eq("workspace_id", ws).gte("created_at", monthStartIso()).limit(5000);
+      return (data ?? []).reduce((a: number, r: any) => a + (r.requests ?? 0), 0);
+    },
+    backfill: async (sb, ws, dayEnd, monthStart) => {
+      const { data } = await sb.from("provider_usage_log").select("requests")
+        .eq("workspace_id", ws).gte("created_at", monthStart).lt("created_at", dayEnd).limit(5000);
       return (data ?? []).reduce((a: number, r: any) => a + (r.requests ?? 0), 0);
     },
   },
@@ -153,6 +188,14 @@ export const METRIC_REGISTRY: Record<string, MetricMeta & {
       const err = rows.reduce((a: number, r: any) => a + (r.errors ?? 0), 0);
       return req > 0 ? Math.round((err / req) * 1000) / 10 : 0;
     },
+    backfill: async (sb, ws, dayEnd, monthStart) => {
+      const { data } = await sb.from("provider_usage_log").select("requests, errors")
+        .eq("workspace_id", ws).gte("created_at", monthStart).lt("created_at", dayEnd).limit(5000);
+      const rows = data ?? [];
+      const req = rows.reduce((a: number, r: any) => a + (r.requests ?? 0), 0);
+      const err = rows.reduce((a: number, r: any) => a + (r.errors ?? 0), 0);
+      return req > 0 ? Math.round((err / req) * 1000) / 10 : 0;
+    },
   },
   call_cost_this_month: {
     key: "call_cost_this_month", label: "Call cost this month", format: "currency", sensitive: true,
@@ -160,6 +203,12 @@ export const METRIC_REGISTRY: Record<string, MetricMeta & {
     resolve: async (sb, ws) => {
       const { data } = await sb.from("calls").select("cost_cents")
         .eq("workspace_id", ws).gte("created_at", monthStartIso()).limit(5000);
+      const cents = (data ?? []).reduce((a: number, r: any) => a + (r.cost_cents ?? 0), 0);
+      return Math.round(cents) / 100;
+    },
+    backfill: async (sb, ws, dayEnd, monthStart) => {
+      const { data } = await sb.from("calls").select("cost_cents")
+        .eq("workspace_id", ws).gte("created_at", monthStart).lt("created_at", dayEnd).limit(5000);
       const cents = (data ?? []).reduce((a: number, r: any) => a + (r.cost_cents ?? 0), 0);
       return Math.round(cents) / 100;
     },
@@ -312,6 +361,118 @@ export async function getMetricSeriesServer(
   for (const row of data ?? []) {
     if (!out[row.metric_key]) continue;
     out[row.metric_key].push({ date: row.captured_on, value: Number(row.value) });
+  }
+  return out;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// History backfill — compute past daily values retroactively from row
+// timestamps so trend/progress sparklines render immediately for existing
+// workspaces instead of waiting days for real snapshots to accumulate.
+//
+// Rules:
+//   • Only metrics with a `backfill` resolver participate; current-state
+//     metrics (qualified leads, active campaigns…) can't be reconstructed
+//     and keep the "Collecting daily history" note.
+//   • Only days STRICTLY BEFORE today (UTC) are backfilled — today's value
+//     comes from the normal snapshot path.
+//   • Existing snapshot rows are NEVER overwritten (insert with
+//     ignoreDuplicates), so real captured history always wins.
+//   • Best-effort: never throws; a backfill failure must not break a
+//     dashboard read. Self-limiting: once every day in the window has a
+//     row, the guard is a single cheap SELECT.
+// ═══════════════════════════════════════════════════════════════════════════
+
+const BACKFILL_DAYS = 30;
+const backfillInFlight = new Set<string>();
+
+/** Start of D+1 UTC (exclusive upper bound for "as of end of day D"). */
+function dayEndIsoOf(day: string): string {
+  return new Date(new Date(`${day}T00:00:00Z`).getTime() + 24 * 60 * 60 * 1000).toISOString();
+}
+
+/** Start of the UTC month containing day D. */
+function monthStartIsoOf(day: string): string {
+  const d = new Date(`${day}T00:00:00Z`);
+  return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), 1)).toISOString();
+}
+
+export async function ensureMetricHistoryBackfillServer(
+  workspaceId: string,
+  keys: string[],
+  days = BACKFILL_DAYS,
+): Promise<{ backfilled: number; skipped: boolean }> {
+  const out = { backfilled: 0, skipped: false };
+  try {
+    const backfillable = [...new Set(keys)].filter((k) => METRIC_REGISTRY[k]?.backfill);
+    if (backfillable.length === 0) { out.skipped = true; return out; }
+    if (backfillInFlight.has(workspaceId)) { out.skipped = true; return out; }
+    backfillInFlight.add(workspaceId);
+    try {
+      const sb = supabaseAdmin as any;
+      const today = todayUtcDate();
+      const dayList: string[] = [];
+      for (let i = days; i >= 1; i--) {
+        dayList.push(new Date(Date.now() - i * 24 * 60 * 60 * 1000).toISOString().slice(0, 10));
+      }
+
+      const { data: existing, error: readErr } = await sb.from("accountsmind_metric_snapshots")
+        .select("metric_key, captured_on")
+        .eq("workspace_id", workspaceId)
+        .in("metric_key", backfillable)
+        .gte("captured_on", dayList[0])
+        .lt("captured_on", today)
+        .limit(backfillable.length * (days + 1));
+      if (readErr) {
+        console.warn("[accountsmind] backfill guard read failed:", readErr.message);
+        return out;
+      }
+      const have = new Set((existing ?? []).map((r: any) => `${r.metric_key}|${r.captured_on}`));
+
+      const missing: Array<{ key: string; day: string }> = [];
+      for (const key of backfillable) {
+        for (const day of dayList) {
+          if (!have.has(`${key}|${day}`)) missing.push({ key, day });
+        }
+      }
+      if (missing.length === 0) { out.skipped = true; return out; }
+
+      const now = new Date().toISOString();
+      const rows: Array<Record<string, unknown>> = [];
+      const CHUNK = 8;
+      for (let i = 0; i < missing.length; i += CHUNK) {
+        await Promise.all(missing.slice(i, i + CHUNK).map(async ({ key, day }) => {
+          try {
+            const v = await METRIC_REGISTRY[key].backfill!(
+              sb, workspaceId, dayEndIsoOf(day), monthStartIsoOf(day),
+            );
+            if (v != null && Number.isFinite(v)) {
+              rows.push({
+                workspace_id: workspaceId,
+                metric_key:   key,
+                captured_on:  day,
+                value:        v,
+                updated_at:   now,
+              });
+            }
+          } catch { /* skip this day — best-effort */ }
+        }));
+      }
+      if (rows.length === 0) return out;
+
+      // ignoreDuplicates: never overwrite a real captured snapshot.
+      const { error: insErr } = await sb.from("accountsmind_metric_snapshots")
+        .upsert(rows, { onConflict: "workspace_id,metric_key,captured_on", ignoreDuplicates: true });
+      if (insErr) {
+        console.warn("[accountsmind] backfill insert failed:", insErr.message);
+        return out;
+      }
+      out.backfilled = rows.length;
+    } finally {
+      backfillInFlight.delete(workspaceId);
+    }
+  } catch (err: any) {
+    console.warn("[accountsmind] metric history backfill failed:", err?.message ?? err);
   }
   return out;
 }
@@ -743,6 +904,16 @@ export async function activateAccountsMindConfigKind(
       risk_level:     METRIC_REGISTRY[w.metric_key]?.sensitive ? "high" : "low",
       display_order:  order++,
     }));
+  }
+
+  // On-widget-creation backfill: fill past daily history for the newly
+  // activated trend/progress widgets so sparklines render immediately.
+  // Fire-and-forget — activation must not block on (or fail because of) it.
+  const trendKeys = cfg.widgets
+    .filter((w) => w.widget_type === "trend" || w.widget_type === "progress")
+    .map((w) => w.metric_key);
+  if (trendKeys.length > 0) {
+    void ensureMetricHistoryBackfillServer(workspaceId, trendKeys).catch(() => {});
   }
 
   return {
