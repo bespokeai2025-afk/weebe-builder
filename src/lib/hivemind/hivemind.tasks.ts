@@ -56,6 +56,10 @@ interface ScanFinding {
   metadata?:    Record<string, unknown>;
 }
 
+// Workspaces younger than this never get the "setup completion low" nudge —
+// give new customers a few days to work through onboarding first.
+const SETUP_NUDGE_MIN_AGE_DAYS = 5;
+
 async function scanPlatform(sb: any, workspaceId: string): Promise<ScanFinding[]> {
   const results: ScanFinding[] = [];
   const now    = new Date();
@@ -184,6 +188,63 @@ async function scanPlatform(sb: any, workspaceId: string): Promise<ScanFinding[]
       severity:     "critical",
     });
   }
+
+  // 7. Setup completion stays low — nudge to the SystemMind Setup Assistant.
+  // Only fires once the workspace is at least SETUP_NUDGE_MIN_AGE_DAYS old, so
+  // brand-new workspaces get time to work through onboarding first. This is a
+  // recommendation only (suggested task) — nothing is executed automatically.
+  try {
+    const { data: wsRow } = await sb.from("workspaces")
+      .select("created_at").eq("id", workspaceId).maybeSingle();
+    const createdAt = wsRow?.created_at ? new Date(wsRow.created_at) : null;
+    const ageDays = createdAt
+      ? Math.floor((now.getTime() - createdAt.getTime()) / 86_400_000)
+      : null;
+    if (ageDays !== null && ageDays >= SETUP_NUDGE_MIN_AGE_DAYS) {
+      const { getSetupChecklistServer, runChecksServer, CHECK_KEYS } = await import(
+        "@/lib/systemmind/workspace-setup.server"
+      );
+      const cl = await getSetupChecklistServer(workspaceId);
+      let hasChecklist = false;
+      let doneCount = 0;
+      let totalCount = 0;
+      if (cl.checklist && cl.totalCount > 0) {
+        hasChecklist = true;
+        doneCount = cl.doneCount;
+        totalCount = cl.totalCount;
+      } else {
+        const derived = await runChecksServer(workspaceId, CHECK_KEYS);
+        doneCount = Object.values(derived).filter(Boolean).length;
+        totalCount = CHECK_KEYS.length;
+      }
+      const percent = totalCount > 0 ? Math.round((doneCount / totalCount) * 100) : 100;
+      if (totalCount > 0 && percent < 50) {
+        results.push(hasChecklist
+          ? {
+              trigger_type: "setup_completion_low",
+              entity_type:  "systemmind",
+              entity_id:    "setup-assistant",
+              entity_name:  "Setup Assistant",
+              title:        `Setup checklist only ${percent}% complete after ${ageDays} days`,
+              description:  `Your personalised setup checklist is ${percent}% complete (${doneCount} of ${totalCount} steps verified). Open the SystemMind Setup Assistant to finish the remaining steps and unlock the platform's full value.`,
+              priority:     "high",
+              severity:     "warning",
+              metadata:     { percent, doneCount, totalCount, ageDays, href: "/systemmind/setup-assistant" },
+            }
+          : {
+              trigger_type: "setup_assistant_unused",
+              entity_type:  "systemmind",
+              entity_id:    "setup-assistant",
+              entity_name:  "Setup Assistant",
+              title:        `Workspace setup is only ${percent}% complete — no setup plan yet`,
+              description:  `Only ${doneCount} of ${totalCount} setup checks pass and no personalised setup plan exists. Run the SystemMind Setup Assistant — describe your business and it drafts a tailored setup checklist for your approval (nothing runs without sign-off).`,
+              priority:     "medium",
+              severity:     "info",
+              metadata:     { percent, doneCount, totalCount, ageDays, href: "/systemmind/setup-assistant" },
+            });
+      }
+    }
+  } catch {}
 
   // GrowthMind intelligence scan
   try {

@@ -17,10 +17,34 @@ export function generateRecommendations(data: any): Recommendation[] {
   const {
     agents, agentScores, calls, leads, bookings,
     campaigns, whatsapp, telephony, phoneNumbers,
-    systemHealth, settings,
+    systemHealth, settings, setup,
   } = data;
 
   // ── SETUP ──
+
+  // Setup Assistant nudge — after the first few days, if the workspace's derived
+  // setup completion is still low, point the user to the SystemMind Setup
+  // Assistant (draft/approval-first — this only recommends, never executes).
+  const setupAgeDays = setup?.workspaceAgeDays ?? null;
+  if (setup && setupAgeDays !== null && setupAgeDays >= 5 && setup.totalCount > 0 && setup.percent < 50) {
+    if (setup.hasChecklist) {
+      recs.push({
+        id: "setup-completion-low", category: "Setup", priority: "high",
+        problem: `Setup checklist is only ${setup.percent}% complete (${setup.doneCount} of ${setup.totalCount} steps) after ${setupAgeDays} days`,
+        impact: "Key parts of the workspace are still unconfigured, so agents, campaigns, and AI executives cannot deliver their full value.",
+        fix: "Open the SystemMind Setup Assistant to review your personalised checklist and finish the remaining steps.",
+        action: { label: "Open Setup Assistant", href: "/systemmind/setup-assistant" },
+      });
+    } else {
+      recs.push({
+        id: "setup-assistant-unused", category: "Setup", priority: "medium",
+        problem: `Workspace setup is only ${setup.percent}% complete and no personalised setup plan exists`,
+        impact: "Without a tailored setup checklist it's easy to miss the configuration steps that matter most for your business.",
+        fix: "Run the SystemMind Setup Assistant — describe your business and it drafts a personalised setup checklist for your approval.",
+        action: { label: "Open Setup Assistant", href: "/systemmind/setup-assistant" },
+      });
+    }
+  }
 
   // Brand-new workspace: no agents, no leads, no calls → provide a full onboarding path
   const isNewWorkspace = agents.length === 0 && (leads?.total ?? 0) === 0 && (calls?.total ?? 0) === 0;

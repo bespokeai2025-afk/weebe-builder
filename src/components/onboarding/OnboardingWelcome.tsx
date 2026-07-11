@@ -5,7 +5,7 @@ import { toast } from "sonner";
 import {
   Brain, TrendingUp, Settings, Cpu, Zap, ArrowRight, ArrowLeft,
   CheckCircle2, Circle, Building2, Globe, Users, Target, Mic,
-  LayoutDashboard, Link2, X, ChevronRight, Rocket, Loader2,
+  LayoutDashboard, Link2, X, ChevronRight, Rocket, Loader2, Sparkles,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -301,6 +301,7 @@ export function OnboardingWelcome() {
           {step === "summary_agent" && (
             <SummaryAgentStep
               onDone={() => handleComplete("/builder")}
+              onSetupAssistant={() => handleComplete("/systemmind/setup-assistant")}
               saving={saving}
             />
           )}
@@ -308,6 +309,7 @@ export function OnboardingWelcome() {
             <SummaryGrowStep
               crmChoice={selectedCrm}
               onDone={() => handleComplete("/growthmind")}
+              onSetupAssistant={() => handleComplete("/systemmind/setup-assistant")}
               saving={saving}
             />
           )}
@@ -315,6 +317,7 @@ export function OnboardingWelcome() {
             <SummaryBothStep
               crmChoice={selectedCrm}
               onDone={() => handleComplete("/growthmind")}
+              onSetupAssistant={() => handleComplete("/systemmind/setup-assistant")}
               saving={saving}
             />
           )}
@@ -567,7 +570,29 @@ function ChecklistItem({ done, label }: { done: boolean; label: string }) {
   );
 }
 
-function SummaryAgentStep({ onDone, saving }: { onDone(): void; saving: boolean }) {
+// Shared pointer to the SystemMind Setup Assistant — shown on every summary step
+// so brand-new workspaces know a personalised setup plan is one click away.
+function SetupAssistantCallout({ onOpen, saving }: { onOpen(): void; saving: boolean }) {
+  return (
+    <button
+      onClick={onOpen}
+      disabled={saving}
+      className="w-full flex items-center gap-3 rounded-xl border border-sky-500/25 bg-sky-500/[0.07] p-4 text-left hover:border-sky-500/40 hover:bg-sky-500/[0.12] transition-all group disabled:opacity-50">
+      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-sky-500/15 ring-1 ring-sky-500/20">
+        <Sparkles className="h-4 w-4 text-sky-400" />
+      </div>
+      <div className="flex-1">
+        <p className="text-sm font-semibold text-sky-300">Want a personalised setup plan?</p>
+        <p className="text-xs text-muted-foreground mt-0.5">
+          Describe your business and the Setup Assistant drafts a tailored checklist — you approve every step.
+        </p>
+      </div>
+      <ChevronRight className="h-4 w-4 text-sky-400/60 group-hover:text-sky-300 transition-colors" />
+    </button>
+  );
+}
+
+function SummaryAgentStep({ onDone, onSetupAssistant, saving }: { onDone(): void; onSetupAssistant(): void; saving: boolean }) {
   return (
     <div className="space-y-6 text-center">
       <div className="space-y-2">
@@ -589,6 +614,8 @@ function SummaryAgentStep({ onDone, saving }: { onDone(): void; saving: boolean 
         <ChecklistItem done={false} label="Deploy your agent" />
       </div>
 
+      <SetupAssistantCallout onOpen={onSetupAssistant} saving={saving} />
+
       <Button
         onClick={onDone}
         disabled={saving}
@@ -600,7 +627,7 @@ function SummaryAgentStep({ onDone, saving }: { onDone(): void; saving: boolean 
   );
 }
 
-function SummaryGrowStep({ crmChoice, onDone, saving }: { crmChoice: CrmChoice; onDone(): void; saving: boolean }) {
+function SummaryGrowStep({ crmChoice, onDone, onSetupAssistant, saving }: { crmChoice: CrmChoice; onDone(): void; onSetupAssistant(): void; saving: boolean }) {
   return (
     <div className="space-y-6 text-center">
       <div className="space-y-2">
@@ -624,6 +651,8 @@ function SummaryGrowStep({ crmChoice, onDone, saving }: { crmChoice: CrmChoice; 
         <ChecklistItem done={false} label="Review GrowthMind analysis and first campaign" />
       </div>
 
+      <SetupAssistantCallout onOpen={onSetupAssistant} saving={saving} />
+
       <Button
         onClick={onDone}
         disabled={saving}
@@ -635,7 +664,7 @@ function SummaryGrowStep({ crmChoice, onDone, saving }: { crmChoice: CrmChoice; 
   );
 }
 
-function SummaryBothStep({ crmChoice, onDone, saving }: { crmChoice: CrmChoice; onDone(): void; saving: boolean }) {
+function SummaryBothStep({ crmChoice, onDone, onSetupAssistant, saving }: { crmChoice: CrmChoice; onDone(): void; onSetupAssistant(): void; saving: boolean }) {
   return (
     <div className="space-y-6 text-center">
       <div className="space-y-2">
@@ -659,6 +688,8 @@ function SummaryBothStep({ crmChoice, onDone, saving }: { crmChoice: CrmChoice; 
         <ChecklistItem done={false} label="Review GrowthMind analysis" />
         <ChecklistItem done={false} label="Launch first campaign" />
       </div>
+
+      <SetupAssistantCallout onOpen={onSetupAssistant} saving={saving} />
 
       <Button
         onClick={onDone}
