@@ -26,11 +26,11 @@ export interface HiveMindAction {
   title:          string;
   description:    string | null;
   action_type:    ActionType;
-  action_payload: Record<string, unknown>;
+  action_payload: Record<string, any>;
   status:         ActionStatus;
   proposed_by:    string;
   approved_by:    string | null;
-  result:         Record<string, unknown> | null;
+  result:         Record<string, any> | null;
   error_message:  string | null;
   created_at:     string;
   updated_at:     string;
@@ -38,7 +38,7 @@ export interface HiveMindAction {
 }
 
 // ── Action execution ─────────────────────────────────────────────────────────
-async function executeAction(sb: any, workspaceId: string, action: HiveMindAction): Promise<Record<string, unknown>> {
+async function executeAction(sb: any, workspaceId: string, action: HiveMindAction): Promise<Record<string, any>> {
   const p = action.action_payload;
 
   switch (action.action_type) {
@@ -371,7 +371,7 @@ export const approveHiveMindAction = createServerFn({ method: "POST" })
     if (action.status !== "pending") throw new Error("Action is not pending");
 
     try {
-      const result = await executeAction(sb, context.workspaceId, action as HiveMindAction);
+      const result = await executeAction(sb, context.workspaceId!, action as HiveMindAction);
       await sb.from("hivemind_actions").update({
         status: "executed", approved_by: data.approved_by,
         result, executed_at: new Date().toISOString(), updated_at: new Date().toISOString(),

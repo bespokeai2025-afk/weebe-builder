@@ -182,7 +182,7 @@ export const getCostEngine = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth, requirePlatformAdmin])
   .handler(async (): Promise<CostEngineData & { tablesReady: boolean }> => {
     // Probe whether tables exist yet
-    const probe = await supabaseAdmin.from("cost_engine_llm" as any).select("id").limit(1);
+    const probe = await supabaseAdmin.from("cost_engine_llm").select("id").limit(1);
     if (probe.error?.code === "42P01") {
       // Tables not yet created — migration pending
       return {
@@ -195,16 +195,16 @@ export const getCostEngine = createServerFn({ method: "GET" })
 
     const [llmR, voiceR, telR, knR, toolR, infraR, retR, mkR, planR, roleR] =
       await Promise.all([
-        supabaseAdmin.from("cost_engine_llm" as any).select("*").eq("is_current", true).order("provider").order("model"),
-        supabaseAdmin.from("cost_engine_voice" as any).select("*").eq("is_current", true).order("provider").order("voice_name"),
-        supabaseAdmin.from("cost_engine_telephony" as any).select("*").eq("is_current", true).order("provider").order("country"),
-        supabaseAdmin.from("cost_engine_knowledge" as any).select("*").eq("is_current", true).order("created_at", { ascending: false }).limit(1).maybeSingle(),
-        supabaseAdmin.from("cost_engine_tools" as any).select("*").eq("is_current", true).order("created_at", { ascending: false }).limit(1).maybeSingle(),
-        supabaseAdmin.from("cost_engine_infrastructure" as any).select("*").eq("is_current", true).order("created_at", { ascending: false }).limit(1).maybeSingle(),
-        supabaseAdmin.from("cost_engine_retell" as any).select("*").eq("is_current", true).order("created_at", { ascending: false }).limit(1).maybeSingle(),
-        supabaseAdmin.from("cost_engine_markup" as any).select("*").eq("is_active", true).order("created_at", { ascending: false }).limit(1).maybeSingle(),
-        supabaseAdmin.from("cost_engine_customer_plans" as any).select("*").eq("is_active", true).order("sort_order"),
-        supabaseAdmin.from("cost_engine_dev_roles" as any).select("*").order("sort_order"),
+        supabaseAdmin.from("cost_engine_llm").select("*").eq("is_current", true).order("provider").order("model"),
+        supabaseAdmin.from("cost_engine_voice").select("*").eq("is_current", true).order("provider").order("voice_name"),
+        supabaseAdmin.from("cost_engine_telephony").select("*").eq("is_current", true).order("provider").order("country"),
+        supabaseAdmin.from("cost_engine_knowledge").select("*").eq("is_current", true).order("created_at", { ascending: false }).limit(1).maybeSingle(),
+        supabaseAdmin.from("cost_engine_tools").select("*").eq("is_current", true).order("created_at", { ascending: false }).limit(1).maybeSingle(),
+        supabaseAdmin.from("cost_engine_infrastructure").select("*").eq("is_current", true).order("created_at", { ascending: false }).limit(1).maybeSingle(),
+        supabaseAdmin.from("cost_engine_retell").select("*").eq("is_current", true).order("created_at", { ascending: false }).limit(1).maybeSingle(),
+        supabaseAdmin.from("cost_engine_markup").select("*").eq("is_active", true).order("created_at", { ascending: false }).limit(1).maybeSingle(),
+        supabaseAdmin.from("cost_engine_customer_plans").select("*").eq("is_active", true).order("sort_order"),
+        supabaseAdmin.from("cost_engine_dev_roles").select("*").order("sort_order"),
       ]);
 
     return {
@@ -226,7 +226,7 @@ export const getCostAnalytics = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth, requirePlatformAdmin])
   .handler(async (): Promise<CostAnalytics> => {
     const { data } = await supabaseAdmin
-      .from("call_profitability" as any)
+      .from("call_profitability")
       .select("*")
       .order("created_at", { ascending: false })
       .limit(5000);
@@ -296,7 +296,7 @@ export const saveLlmCost = createServerFn({ method: "POST" })
   .inputValidator((i: z.infer<typeof LlmInput>) => LlmInput.parse(i))
   .handler(async ({ data }) => {
     if (data.id) {
-      const { error } = await supabaseAdmin.from("cost_engine_llm" as any).update({
+      const { error } = await supabaseAdmin.from("cost_engine_llm").update({
         provider: data.provider, model: data.model,
         input_token_cost: data.input_token_cost, output_token_cost: data.output_token_cost,
         audio_input_cost: data.audio_input_cost, audio_output_cost: data.audio_output_cost,
@@ -305,7 +305,7 @@ export const saveLlmCost = createServerFn({ method: "POST" })
       }).eq("id", data.id);
       if (error) throw new Error(error.message);
     } else {
-      const { error } = await supabaseAdmin.from("cost_engine_llm" as any).insert({
+      const { error } = await supabaseAdmin.from("cost_engine_llm").insert({
         provider: data.provider, model: data.model,
         input_token_cost: data.input_token_cost, output_token_cost: data.output_token_cost,
         audio_input_cost: data.audio_input_cost, audio_output_cost: data.audio_output_cost,
@@ -321,7 +321,7 @@ export const deleteLlmCost = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth, requirePlatformAdmin])
   .inputValidator((i: { id: string }) => i)
   .handler(async ({ data }) => {
-    const { error } = await supabaseAdmin.from("cost_engine_llm" as any).update({ is_current: false }).eq("id", data.id);
+    const { error } = await supabaseAdmin.from("cost_engine_llm").update({ is_current: false }).eq("id", data.id);
     if (error) throw new Error(error.message);
     return { ok: true };
   });
@@ -344,7 +344,7 @@ export const saveVoiceCost = createServerFn({ method: "POST" })
   .inputValidator((i: z.infer<typeof VoiceInput>) => VoiceInput.parse(i))
   .handler(async ({ data }) => {
     if (data.id) {
-      const { error } = await supabaseAdmin.from("cost_engine_voice" as any).update({
+      const { error } = await supabaseAdmin.from("cost_engine_voice").update({
         provider: data.provider, voice_id: data.voice_id, voice_name: data.voice_name,
         cost_per_character: data.cost_per_character, cost_per_minute: data.cost_per_minute,
         cost_per_request: data.cost_per_request, notes: data.notes ?? null,
@@ -352,7 +352,7 @@ export const saveVoiceCost = createServerFn({ method: "POST" })
       }).eq("id", data.id);
       if (error) throw new Error(error.message);
     } else {
-      const { error } = await supabaseAdmin.from("cost_engine_voice" as any).insert({
+      const { error } = await supabaseAdmin.from("cost_engine_voice").insert({
         provider: data.provider, voice_id: data.voice_id, voice_name: data.voice_name,
         cost_per_character: data.cost_per_character, cost_per_minute: data.cost_per_minute,
         cost_per_request: data.cost_per_request, notes: data.notes ?? null, is_current: true,
@@ -366,7 +366,7 @@ export const deleteVoiceCost = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth, requirePlatformAdmin])
   .inputValidator((i: { id: string }) => i)
   .handler(async ({ data }) => {
-    const { error } = await supabaseAdmin.from("cost_engine_voice" as any).update({ is_current: false }).eq("id", data.id);
+    const { error } = await supabaseAdmin.from("cost_engine_voice").update({ is_current: false }).eq("id", data.id);
     if (error) throw new Error(error.message);
     return { ok: true };
   });
@@ -389,7 +389,7 @@ export const saveTelephonyCost = createServerFn({ method: "POST" })
   .inputValidator((i: z.infer<typeof TelInput>) => TelInput.parse(i))
   .handler(async ({ data }) => {
     if (data.id) {
-      const { error } = await supabaseAdmin.from("cost_engine_telephony" as any).update({
+      const { error } = await supabaseAdmin.from("cost_engine_telephony").update({
         provider: data.provider, country: data.country,
         inbound_cost_per_min: data.inbound_cost_per_min, outbound_cost_per_min: data.outbound_cost_per_min,
         recording_cost_per_min: data.recording_cost_per_min, number_rental_monthly: data.number_rental_monthly,
@@ -397,7 +397,7 @@ export const saveTelephonyCost = createServerFn({ method: "POST" })
       }).eq("id", data.id);
       if (error) throw new Error(error.message);
     } else {
-      const { error } = await supabaseAdmin.from("cost_engine_telephony" as any).insert({
+      const { error } = await supabaseAdmin.from("cost_engine_telephony").insert({
         provider: data.provider, country: data.country,
         inbound_cost_per_min: data.inbound_cost_per_min, outbound_cost_per_min: data.outbound_cost_per_min,
         recording_cost_per_min: data.recording_cost_per_min, number_rental_monthly: data.number_rental_monthly,
@@ -412,7 +412,7 @@ export const deleteTelephonyCost = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth, requirePlatformAdmin])
   .inputValidator((i: { id: string }) => i)
   .handler(async ({ data }) => {
-    const { error } = await supabaseAdmin.from("cost_engine_telephony" as any).update({ is_current: false }).eq("id", data.id);
+    const { error } = await supabaseAdmin.from("cost_engine_telephony").update({ is_current: false }).eq("id", data.id);
     if (error) throw new Error(error.message);
     return { ok: true };
   });
@@ -505,8 +505,8 @@ export const saveMarkup = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth, requirePlatformAdmin])
   .inputValidator((i: z.infer<typeof MarkupInput>) => MarkupInput.parse(i))
   .handler(async ({ data }) => {
-    await supabaseAdmin.from("cost_engine_markup" as any).update({ is_active: false }).eq("is_active", true);
-    const { error } = await supabaseAdmin.from("cost_engine_markup" as any).insert({
+    await supabaseAdmin.from("cost_engine_markup").update({ is_active: false }).eq("is_active", true);
+    const { error } = await supabaseAdmin.from("cost_engine_markup").insert({
       label: data.label ?? "Default",
       markup_type: data.markup_type,
       markup_value: data.markup_value,
@@ -534,7 +534,7 @@ export const savePlan = createServerFn({ method: "POST" })
   .inputValidator((i: z.infer<typeof PlanInput>) => PlanInput.parse(i))
   .handler(async ({ data }) => {
     if (data.id) {
-      const { error } = await supabaseAdmin.from("cost_engine_customer_plans" as any).update({
+      const { error } = await supabaseAdmin.from("cost_engine_customer_plans").update({
         plan_name: data.plan_name, description: data.description ?? null,
         included_minutes: data.included_minutes, price_per_month: data.price_per_month,
         price_per_minute: data.price_per_minute, sort_order: data.sort_order ?? 0,
@@ -542,7 +542,7 @@ export const savePlan = createServerFn({ method: "POST" })
       }).eq("id", data.id);
       if (error) throw new Error(error.message);
     } else {
-      const { error } = await supabaseAdmin.from("cost_engine_customer_plans" as any).insert({
+      const { error } = await supabaseAdmin.from("cost_engine_customer_plans").insert({
         plan_name: data.plan_name, description: data.description ?? null,
         included_minutes: data.included_minutes, price_per_month: data.price_per_month,
         price_per_minute: data.price_per_minute, sort_order: data.sort_order ?? 0,
@@ -559,7 +559,7 @@ export const deletePlan = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth, requirePlatformAdmin])
   .inputValidator((i: z.infer<typeof DeleteInput>) => DeleteInput.parse(i))
   .handler(async ({ data }) => {
-    const { error } = await supabaseAdmin.from("cost_engine_customer_plans" as any).update({ is_active: false }).eq("id", data.id);
+    const { error } = await supabaseAdmin.from("cost_engine_customer_plans").update({ is_active: false }).eq("id", data.id);
     if (error) throw new Error(error.message);
     return { ok: true };
   });
@@ -580,14 +580,14 @@ export const saveDevRole = createServerFn({ method: "POST" })
   .inputValidator((i: z.infer<typeof DevRoleInput>) => DevRoleInput.parse(i))
   .handler(async ({ data }) => {
     if (data.id) {
-      const { error } = await supabaseAdmin.from("cost_engine_dev_roles" as any).update({
+      const { error } = await supabaseAdmin.from("cost_engine_dev_roles").update({
         role_name: data.role_name, rate_per_hour: data.rate_per_hour,
         hours_per_week: data.hours_per_week, notes: data.notes ?? null,
         sort_order: data.sort_order ?? 0,
       }).eq("id", data.id);
       if (error) throw new Error(error.message);
     } else {
-      const { error } = await supabaseAdmin.from("cost_engine_dev_roles" as any).insert({
+      const { error } = await supabaseAdmin.from("cost_engine_dev_roles").insert({
         role_name: data.role_name, rate_per_hour: data.rate_per_hour,
         hours_per_week: data.hours_per_week, notes: data.notes ?? null,
         sort_order: data.sort_order ?? 0,
@@ -603,7 +603,7 @@ export const deleteDevRole = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth, requirePlatformAdmin])
   .inputValidator((i: z.infer<typeof DeleteRoleInput>) => DeleteRoleInput.parse(i))
   .handler(async ({ data }) => {
-    const { error } = await supabaseAdmin.from("cost_engine_dev_roles" as any).delete().eq("id", data.id);
+    const { error } = await supabaseAdmin.from("cost_engine_dev_roles").delete().eq("id", data.id);
     if (error) throw new Error(error.message);
     return { ok: true };
   });
@@ -614,11 +614,11 @@ export const getClientEstimates = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth, requirePlatformAdmin])
   .handler(async (): Promise<ClientEstimate[]> => {
     const { data, error } = await supabaseAdmin
-      .from("cost_engine_client_estimates" as any)
+      .from("cost_engine_client_estimates")
       .select("*")
       .order("created_at", { ascending: false });
     if (error) throw new Error(error.message);
-    return (data ?? []) as ClientEstimate[];
+    return (data ?? []) as unknown as ClientEstimate[];
   });
 
 const EstimateInput = z.object({
@@ -657,10 +657,10 @@ export const saveClientEstimate = createServerFn({ method: "POST" })
       updated_at: new Date().toISOString(),
     };
     if (data.id) {
-      const { error } = await supabaseAdmin.from("cost_engine_client_estimates" as any).update(payload).eq("id", data.id);
+      const { error } = await supabaseAdmin.from("cost_engine_client_estimates").update(payload).eq("id", data.id);
       if (error) throw new Error(error.message);
     } else {
-      const { error } = await supabaseAdmin.from("cost_engine_client_estimates" as any).insert(payload);
+      const { error } = await supabaseAdmin.from("cost_engine_client_estimates").insert(payload);
       if (error) throw new Error(error.message);
     }
     return { ok: true };
@@ -672,7 +672,7 @@ export const deleteClientEstimate = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth, requirePlatformAdmin])
   .inputValidator((i: z.infer<typeof DeleteEstimateInput>) => DeleteEstimateInput.parse(i))
   .handler(async ({ data }) => {
-    const { error } = await supabaseAdmin.from("cost_engine_client_estimates" as any).delete().eq("id", data.id);
+    const { error } = await supabaseAdmin.from("cost_engine_client_estimates").delete().eq("id", data.id);
     if (error) throw new Error(error.message);
     return { ok: true };
   });
@@ -783,7 +783,7 @@ export const getProviderSpendRollup = createServerFn({ method: "GET" })
   }> => {
     try {
       const { data } = await supabaseAdmin
-        .from("provider_usage" as any)
+        .from("provider_usage")
         .select("provider_category, provider_name, requests, errors, total_cost_usd, total_duration_ms, workspace_id");
 
       const rows = data ?? [];
@@ -933,19 +933,19 @@ export const getActivePlatformClients = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth, requirePlatformAdmin])
   .handler(async (): Promise<PlatformClient[]> => {
     const [wsRes, settingsRes] = await Promise.all([
-      supabaseAdmin.from("workspaces" as any).select("id,name,created_at").order("created_at", { ascending: false }),
-      supabaseAdmin.from("workspace_settings" as any).select("workspace_id,business_name,notification_email"),
+      supabaseAdmin.from("workspaces").select("id,name,created_at").order("created_at", { ascending: false }),
+      supabaseAdmin.from("workspace_settings").select("workspace_id,business_name,notification_email"),
     ]);
     const settingsMap = Object.fromEntries(
-      ((settingsRes.data ?? []) as any[]).map((s: any) => [s.workspace_id, s]),
+      (settingsRes.data ?? []).map((s) => [s.workspace_id, s]),
     );
-    return ((wsRes.data ?? []) as any[]).map((w: any) => {
-      const s = settingsMap[w.id] ?? {};
+    return (wsRes.data ?? []).map((w) => {
+      const s = settingsMap[w.id];
       return {
         workspace_id:       w.id,
         workspace_name:     w.name,
-        business_name:      s.business_name ?? null,
-        notification_email: s.notification_email ?? null,
+        business_name:      s?.business_name ?? null,
+        notification_email: s?.notification_email ?? null,
         created_at:         w.created_at,
       };
     });

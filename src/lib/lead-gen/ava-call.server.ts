@@ -539,7 +539,8 @@ export async function processAvaCallAnalyzed(call: AvaAnalyzedCall, isNoAnswerCa
   const phone = str(custom.phone_number) ?? request.phone;
   const digits = (s: string) => s.replace(/\D/g, "");
 
-  let existing: { id: string; full_name: string | null; status: string; meta: Record<string, unknown> | null; email: string | null; phone: string | null } | null = null;
+  type ExistingLead = { id: string; full_name: string | null; status: string; meta: Record<string, unknown> | null; email: string | null; phone: string | null };
+  let existing: ExistingLead | null = null;
   {
     const { data } = await supabaseAdmin
       .from("leads")
@@ -547,7 +548,7 @@ export async function processAvaCallAnalyzed(call: AvaAnalyzedCall, isNoAnswerCa
       .eq("workspace_id", workspaceId)
       .eq("email", email)
       .maybeSingle();
-    existing = data as typeof existing;
+    existing = data as ExistingLead | null;
   }
   if (!existing) {
     const { data } = await supabaseAdmin
@@ -556,7 +557,7 @@ export async function processAvaCallAnalyzed(call: AvaAnalyzedCall, isNoAnswerCa
       .eq("workspace_id", workspaceId)
       .eq("phone", phone)
       .maybeSingle();
-    existing = data as typeof existing;
+    existing = data as ExistingLead | null;
   }
   if (!existing) {
     const { data: candidates } = await supabaseAdmin
@@ -565,7 +566,7 @@ export async function processAvaCallAnalyzed(call: AvaAnalyzedCall, isNoAnswerCa
       .eq("workspace_id", workspaceId)
       .limit(500);
     existing =
-      ((candidates ?? []) as NonNullable<typeof existing>[]).find(
+      ((candidates ?? []) as ExistingLead[]).find(
         (l) => l.phone && digits(l.phone) === digits(phone),
       ) ?? null;
   }

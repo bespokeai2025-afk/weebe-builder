@@ -26,3 +26,13 @@ The generated types file goes stale as manual migrations are applied. To refresh
 
 **How to apply:** after applying any manual migration batch, re-run the typegen fetch and
 location-diff check; fix only genuinely new error locations.
+
+**Common pre-existing error classes and fixes (from the 440→237 cleanup):**
+- TanStack server-fn handlers whose return contains `unknown` / `Record<string, unknown>` fail
+  the serializable-return validation with a huge truncated TS2345 on `.handler(...)` — type those
+  values as `any` / `Record<string, any>` (or a concrete shape) instead of `unknown`.
+- `NonNullable<typeof x>` inside an `if (!x)` block resolves to `never` (x is narrowed to null
+  there) — use a named type alias instead.
+- PostgrestBuilder has no `.catch`; use `.then(onOk, onErr)`.
+- `Record<string, unknown>` is not assignable to a `Json` column — cast via
+  `as import("@/integrations/supabase/types").Json`.

@@ -1322,7 +1322,12 @@ export type Database = {
           description: string | null
           id: string
           name: string
+          phone_number_id: string | null
+          retry_config: Json | null
+          schedule_config: Json | null
+          stats: Json | null
           status: string
+          targets: Json
           updated_at: string
           workspace_id: string
         }
@@ -1332,7 +1337,12 @@ export type Database = {
           description?: string | null
           id?: string
           name: string
+          phone_number_id?: string | null
+          retry_config?: Json | null
+          schedule_config?: Json | null
+          stats?: Json | null
           status?: string
+          targets?: Json
           updated_at?: string
           workspace_id: string
         }
@@ -1342,7 +1352,12 @@ export type Database = {
           description?: string | null
           id?: string
           name?: string
+          phone_number_id?: string | null
+          retry_config?: Json | null
+          schedule_config?: Json | null
+          stats?: Json | null
           status?: string
+          targets?: Json
           updated_at?: string
           workspace_id?: string
         }
@@ -1352,6 +1367,13 @@ export type Database = {
             columns: ["agent_id"]
             isOneToOne: false
             referencedRelation: "agents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "campaigns_phone_number_id_fkey"
+            columns: ["phone_number_id"]
+            isOneToOne: false
+            referencedRelation: "phone_numbers"
             referencedColumns: ["id"]
           },
           {

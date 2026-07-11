@@ -638,7 +638,7 @@ function HiveMindActionsPage() {
     try { await deleteFn({ data: { id } }); await refetch(); }
     finally { setMutating(false); }
   }
-  async function handleCreate(d: Parameters<typeof proposeFn>[0]["data"]) {
+  async function handleCreate(d: { title: string; description?: string; action_type: string; action_payload?: Record<string, any>; proposed_by?: string }) {
     setMutating(true);
     try { await proposeFn({ data: d }); await refetch(); }
     finally { setMutating(false); }

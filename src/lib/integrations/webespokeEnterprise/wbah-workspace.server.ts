@@ -502,7 +502,7 @@ export const getWbahCredits = createServerFn({ method: "GET" })
         : Array.isArray(monthlyObj?.monthly_usage)
           ? monthlyObj.monthly_usage
           : [];
-    const rawRetell = (unwrap(retellR.data) ?? null) as Record<string, unknown> | null;
+    const rawRetell = (unwrap(retellR.data) ?? null) as Record<string, any> | null;
     const history = extractWbahArray(historyR.data);
 
     // Normalize the credit KPIs to the canonical field names the UI reads
@@ -578,7 +578,7 @@ export const createWbahCampaign = createServerFn({ method: "POST" })
     const cbs = await requireWbahCbs(context.userId);
     const res = await api.wbahCreateCampaign(data as Record<string, unknown>, cbs.getTokens, cbs.saveNewAccessToken, cbs.reloginFn);
     if (!res.ok) throw new Error(res.error ?? "Failed to create campaign");
-    return res.data;
+    return res.data as any;
   });
 
 export const pauseWbahCampaign = createServerFn({ method: "POST" })
@@ -588,7 +588,7 @@ export const pauseWbahCampaign = createServerFn({ method: "POST" })
     const cbs = await requireWbahCbs(context.userId);
     const res = await api.wbahPauseCampaign(data.id, cbs.getTokens, cbs.saveNewAccessToken, cbs.reloginFn);
     if (!res.ok) throw new Error(res.error ?? "Failed to pause campaign");
-    return res.data;
+    return res.data as any;
   });
 
 export const resumeWbahCampaign = createServerFn({ method: "POST" })
@@ -598,7 +598,7 @@ export const resumeWbahCampaign = createServerFn({ method: "POST" })
     const cbs = await requireWbahCbs(context.userId);
     const res = await api.wbahResumeCampaign(data.id, cbs.getTokens, cbs.saveNewAccessToken, cbs.reloginFn);
     if (!res.ok) throw new Error(res.error ?? "Failed to resume campaign");
-    return res.data;
+    return res.data as any;
   });
 
 export const deleteWbahCampaign = createServerFn({ method: "POST" })
@@ -608,7 +608,7 @@ export const deleteWbahCampaign = createServerFn({ method: "POST" })
     const cbs = await requireWbahCbs(context.userId);
     const res = await api.wbahDeleteCampaign(data.id, cbs.getTokens, cbs.saveNewAccessToken, cbs.reloginFn);
     if (!res.ok) throw new Error(res.error ?? "Failed to delete campaign");
-    return res.data;
+    return res.data as any;
   });
 
 export const updateWbahCampaignSettings = createServerFn({ method: "POST" })
@@ -631,7 +631,7 @@ export const updateWbahCampaignSettings = createServerFn({ method: "POST" })
     const cbs = await requireWbahCbs(context.userId);
     const res = await api.wbahUpdateCampaign(id, payload as Record<string, unknown>, cbs.getTokens, cbs.saveNewAccessToken, cbs.reloginFn);
     if (!res.ok) throw new Error(res.error ?? "Failed to update campaign");
-    return res.data;
+    return res.data as any;
   });
 
 export const toggleWbahCampaignVoicemailSetting = createServerFn({ method: "POST" })
@@ -649,7 +649,7 @@ export const toggleWbahCampaignVoicemailSetting = createServerFn({ method: "POST
       cbs.reloginFn,
     );
     if (!res.ok) throw new Error(res.error ?? "Failed to update voicemail setting");
-    return res.data;
+    return res.data as any;
   });
 
 export const getWbahAgentsForCampaign = createServerFn({ method: "GET" })
@@ -692,7 +692,7 @@ export const listWbahLeads = createServerFn({ method: "GET" })
     try {
       const { getPeopleData } = await import("@/lib/api-engine/data-source-router.server");
       const routed = await getPeopleData(WBAH_WORKSPACE_ID);
-      if (routed.source === "engine") return routed.rows;
+      if (routed.source === "engine") return routed.rows as any[];
     } catch { /* fall through to direct call */ }
 
     const cbs = await requireWbahCbs(context.userId);
@@ -1009,7 +1009,7 @@ export const listWbahCalls = createServerFn({ method: "GET" })
     try {
       const { getCallsData } = await import("@/lib/api-engine/data-source-router.server");
       const routed = await getCallsData(WBAH_WORKSPACE_ID);
-      if (routed.source === "engine") return routed.rows;
+      if (routed.source === "engine") return routed.rows as any[];
     } catch { /* fall through to direct call */ }
 
     const cbs = await requireWbahCbs(context.userId);
@@ -1193,7 +1193,7 @@ export const listWbahCrmContacts = createServerFn({ method: "GET" })
     try {
       const { getCRMData } = await import("@/lib/api-engine/data-source-router.server");
       const routed = await getCRMData(WBAH_WORKSPACE_ID);
-      if (routed.source === "engine") return routed.rows;
+      if (routed.source === "engine") return routed.rows as any[];
     } catch { /* fall through to direct call */ }
 
     const cbs = await requireWbahCbs(context.userId);

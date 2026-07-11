@@ -39,8 +39,7 @@ export const getTelephonyConfig = createServerFn({ method: "POST" })
       await supabaseAdmin
         .from("telephony_configs")
         .insert({ workspace_id: workspaceId, provider: "twilio", is_active: true })
-        .then(() => {})
-        .catch(() => {});
+        .then(() => {}, () => {});
     }
 
     return {
@@ -348,7 +347,7 @@ export const saveCampaign = createServerFn({ method: "POST" })
           agent_id: data.agent_id,
           phone_number_id: data.phone_number_id,
           targets: data.targets,
-          schedule_config: data.schedule_config ?? {},
+          schedule_config: (data.schedule_config ?? {}) as import("@/integrations/supabase/types").Json,
           retry_config: data.retry_config,
           updated_at: new Date().toISOString(),
         })
@@ -365,7 +364,7 @@ export const saveCampaign = createServerFn({ method: "POST" })
           agent_id: data.agent_id,
           phone_number_id: data.phone_number_id,
           targets: data.targets,
-          schedule_config: data.schedule_config ?? {},
+          schedule_config: (data.schedule_config ?? {}) as import("@/integrations/supabase/types").Json,
           retry_config: data.retry_config,
           stats: { total: data.targets.length, called: 0, answered: 0, booked: 0, failed: 0 },
         });
