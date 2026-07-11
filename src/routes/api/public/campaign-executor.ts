@@ -105,6 +105,25 @@ export const Route = createFileRoute("/api/public/campaign-executor")({
           } catch (snapErr: any) {
             console.warn("[accountsmind-snapshots] sweep failed:", snapErr?.message ?? snapErr);
           }
+
+          // Daily log-table retention prune (retell_webhook_events,
+          // hivemind_events, provider_usage_log, growthmind_generation_logs,
+          // growthmind_ad_webhook_events). Once per UTC day; best-effort —
+          // never blocks the tick.
+          try {
+            const { runLogRetentionSweepServer } = await import(
+              "@/lib/maintenance/log-retention.server"
+            );
+            const retention = await runLogRetentionSweepServer();
+            const tables = Object.keys(retention.pruned);
+            if (tables.length > 0) {
+              console.log(
+                `[log-retention] ${tables.map((t) => `${t}=${retention.pruned[t]}`).join(" ")}`,
+              );
+            }
+          } catch (retErr: any) {
+            console.warn("[log-retention] sweep failed:", retErr?.message ?? retErr);
+          }
           console.log(
             `[campaign-executor] ran=${due.length} skipped=${skipped.length}`,
           );

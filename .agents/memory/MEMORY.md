@@ -107,3 +107,4 @@
 - [AccountsMind config/onboarding/health kinds](accountsmind-config-onboarding-health.md) — every activation kind must re-run assertNoCredentialValues (TOCTOU); sensitive metrics never client-visible; checklist done derived live; e2e via vitest.e2e.config.ts + random-UUID workspace.
 - [HiveMind tables RLS zero-policies gap](hivemind-rls-zero-policies.md) — RLS on + 0 policies = silent deny-all for authenticated; hivemind_actions/tasks/events were unreadable until members policies added (migration 20260711000000).
 - [TanStack server-fn wire protocol from Node](tanstack-serverfn-wire-protocol.md) — serverFnFetcher throws outside Start context; replicate with seroval toJSONAsync/fromCrossJSON + router-core defaultSerovalPlugins; ref script .local/browser-contract-test.mjs.
+- [Log-table retention sweep](log-table-retention.md) — daily batched prune from campaign-executor tick; new append-only log tables need a RETENTION_RULES row or a documented keep-forever note.
