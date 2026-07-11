@@ -7,7 +7,10 @@ description: How to regenerate src/integrations/supabase/types.ts from the live 
 
 The generated types file goes stale as manual migrations are applied. To refresh it:
 
-- Use the Management API typegen endpoint (no CLI login needed):
+- **Preferred: `node scripts/refresh-supabase-types.mjs`** — fetches live types and overwrites
+  the file; `--check` exits 1 when stale (registered as the `schema-types-fresh` validation
+  step). Run it after every migration apply.
+- Under the hood it uses the Management API typegen endpoint (no CLI login needed):
   `GET https://api.supabase.com/v1/projects/{ref}/types/typescript?included_schemas=public`
   with `Authorization: Bearer $SUPABASE_ACCESS_TOKEN`. Response is JSON `{ types: "..." }` —
   write `types` verbatim to `src/integrations/supabase/types.ts`.
