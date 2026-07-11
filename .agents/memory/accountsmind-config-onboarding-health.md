@@ -15,6 +15,11 @@ on-demand deterministic health-check engine (no draft/AI — runs directly).
 - Metrics flagged `sensitive` (billing/cost) are forced `client_visible=false` at generation
   AND re-forced at activation (defence-in-depth against tampered drafts). Currency custom
   fields are internal-only by default too.
+- The client dashboard read (`getClientVisibleDashboardServer`) ALSO strips sensitive-metric
+  stats/widgets, their values and their snapshot series at read time — even a tampered
+  `client_visible=true` DB row can't leak cost data. Guarded by
+  `tests/e2e/accountsmind-client-visible-sensitive.e2e.test.ts`; keep new client-facing metric
+  reads behind the same filter.
 - **Every activation kind must call `assertNoCredentialValues` during its activation-time
   re-validation, not just at generation.** Architect review caught `activateOnboardingPlanKind`
   missing it — a TOCTOU hole (tampered stored draft could persist credential-shaped values).

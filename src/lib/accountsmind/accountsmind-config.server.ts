@@ -1006,6 +1006,54 @@ export async function listActiveConfigServer(
   return { fields, stats, widgets };
 }
 
+// ── Client-safe dashboard read (the ONLY path clients get metric data from) ──
+// Sensitive (billing/cost) metrics must NEVER reach a client, no matter what
+// the widget/stat rows in the DB say. sanitizeGeneratedConfig already strips
+// client_visible from sensitive items at draft time, but this read applies the
+// same rule again as defence-in-depth: even a tampered/legacy row marked
+// client_visible=true for a sensitive metric is dropped here, and its metric
+// value / history series is never computed or returned.
+
+function isClientSafeMetricKey(key: string | null | undefined): boolean {
+  return !!key && !!METRIC_REGISTRY[key] && !METRIC_REGISTRY[key].sensitive;
+}
+
+export async function getClientVisibleDashboardServer(workspaceId: string): Promise<
+  ActiveConfig & {
+    metrics: Record<string, number | null>;
+    series:  Record<string, MetricSeriesPoint[]>;
+  }
+> {
+  const config = await listActiveConfigServer(workspaceId, { clientOnly: true });
+
+  // Defence-in-depth: drop any stat/widget referencing a sensitive or unknown
+  // metric, and any currency custom field, regardless of client_visible flags.
+  const stats   = config.stats.filter((s: any) => isClientSafeMetricKey(s.metric_key));
+  const widgets = config.widgets.filter((w: any) => isClientSafeMetricKey(w.metric_key));
+  const fields  = config.fields.filter((f: any) => f.field_type !== "currency");
+
+  const keys = [
+    ...stats.map((s: any) => s.metric_key),
+    ...widgets.map((w: any) => w.metric_key),
+  ].filter(isClientSafeMetricKey);
+  const metrics = await computeMetricsServer(workspaceId, keys);
+  // Record today's values so trend/progress widgets accumulate real history.
+  await snapshotMetricsServer(workspaceId, metrics);
+
+  // Series ONLY for client-safe metrics referenced by client-visible
+  // trend/progress widgets.
+  const seriesKeys = widgets
+    .filter((w: any) => w.widget_type === "trend" || w.widget_type === "progress")
+    .map((w: any) => w.metric_key)
+    .filter(isClientSafeMetricKey);
+  // One-off history backfill so sparklines render immediately for existing
+  // workspaces (best-effort, no-op once the window is full).
+  await ensureMetricHistoryBackfillServer(workspaceId, seriesKeys);
+  const series = await getMetricSeriesServer(workspaceId, seriesKeys, 30);
+
+  return { fields, stats, widgets, metrics, series };
+}
+
 const KIND_TABLE: Record<string, string> = {
   field:  "accountsmind_field_defs",
   stat:   "accountsmind_stat_defs",

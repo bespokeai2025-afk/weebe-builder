@@ -43,33 +43,16 @@ export const listAccountsMindConfig = createServerFn({ method: "GET" })
   });
 
 // ── getClientVisibleConfig (client-safe section — active + client_visible only)
+// Full logic lives in getClientVisibleDashboardServer so the e2e suite can
+// exercise the exact production path; sensitive (billing/cost) metrics are
+// stripped there as defence-in-depth even if a row was tampered client_visible.
 export const getClientVisibleConfig = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
-    const {
-      listActiveConfigServer, computeMetricsServer, snapshotMetricsServer,
-      getMetricSeriesServer, ensureMetricHistoryBackfillServer,
-    } = await import("@/lib/accountsmind/accountsmind-config.server");
-    const workspaceId = requireWorkspaceId(context.workspaceId);
-    const config = await listActiveConfigServer(workspaceId, { clientOnly: true });
-    const keys = [
-      ...config.stats.map((s: any) => s.metric_key),
-      ...config.widgets.map((w: any) => w.metric_key),
-    ];
-    const metrics = await computeMetricsServer(workspaceId, keys);
-    // Record today's values so trend/progress widgets accumulate real history.
-    await snapshotMetricsServer(workspaceId, metrics);
-    // Series ONLY for metrics already referenced by client-visible defs —
-    // sensitive metrics are never client_visible, so no visibility change.
-    const seriesKeys = config.widgets
-      .filter((w: any) => w.widget_type === "trend" || w.widget_type === "progress")
-      .map((w: any) => w.metric_key)
-      .filter(Boolean);
-    // One-off history backfill so sparklines render immediately for existing
-    // workspaces (best-effort, no-op once the window is full).
-    await ensureMetricHistoryBackfillServer(workspaceId, seriesKeys);
-    const series = await getMetricSeriesServer(workspaceId, seriesKeys, 30);
-    return { ...config, metrics, series };
+    const { getClientVisibleDashboardServer } = await import(
+      "@/lib/accountsmind/accountsmind-config.server"
+    );
+    return getClientVisibleDashboardServer(requireWorkspaceId(context.workspaceId));
   });
 
 // ── computeAccountsMindMetrics (internal dashboard values) ───────────────────
