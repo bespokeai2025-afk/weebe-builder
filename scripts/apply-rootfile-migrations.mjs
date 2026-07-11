@@ -5,6 +5,7 @@
 // DO ... EXCEPTION WHEN duplicate_object. Stop-on-first-error. READ the file list
 // from argv; results written to .local/migration_audit/rootfile-apply-results.json.
 import { readFileSync, writeFileSync } from "node:fs";
+import { spawnSync } from "node:child_process";
 
 const token = process.env.SUPABASE_ACCESS_TOKEN;
 const url = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
@@ -50,3 +51,15 @@ for (const f of files) {
 }
 writeFileSync(".local/migration_audit/rootfile-apply-results.json", JSON.stringify(results, null, 2));
 console.log(`\nDone. ${results.filter((r) => r.status === "OK").length}/${files.length} applied.`);
+
+// Auto-refresh the schema map after a successful apply. Non-fatal: a typegen
+// hiccup must not mask a successful migration run — warn loudly instead.
+console.log("\nRefreshing schema map (src/integrations/supabase/types.ts) ...");
+const refresh = spawnSync(process.execPath, ["scripts/refresh-supabase-types.mjs"], { stdio: "inherit" });
+if (refresh.status !== 0) {
+  console.error("\n" + "!".repeat(72));
+  console.error("!! WARNING: schema-map refresh FAILED (migrations DID apply successfully).");
+  console.error("!! src/integrations/supabase/types.ts may now be STALE.");
+  console.error("!! Fix by running manually: node scripts/refresh-supabase-types.mjs");
+  console.error("!".repeat(72));
+}

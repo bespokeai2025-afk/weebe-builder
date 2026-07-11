@@ -3,6 +3,7 @@
 // shared Supabase DB via the Management API. One step at a time, STOP on first
 // error. Everything is IF NOT EXISTS / guarded, so re-running is safe.
 import { readFileSync, writeFileSync } from "node:fs";
+import { spawnSync } from "node:child_process";
 
 const token = process.env.SUPABASE_ACCESS_TOKEN;
 const url = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
@@ -114,3 +115,16 @@ for (const s of steps) {
 }
 writeFileSync(".local/migration_audit/apply-results.json", JSON.stringify(results, null, 2));
 console.log(`\n✅ ALL ${results.length} STEPS APPLIED. Results → .local/migration_audit/apply-results.json`);
+
+// ── Auto-refresh the schema map so src/integrations/supabase/types.ts can never
+//    drift after an apply. Non-fatal: a typegen hiccup must not mask a successful
+//    migration run — print a loud warning instead.
+console.log("\n▶ Refreshing schema map (src/integrations/supabase/types.ts) ...");
+const refresh = spawnSync(process.execPath, ["scripts/refresh-supabase-types.mjs"], { stdio: "inherit" });
+if (refresh.status !== 0) {
+  console.error("\n" + "!".repeat(72));
+  console.error("!! WARNING: schema-map refresh FAILED (migrations DID apply successfully).");
+  console.error("!! src/integrations/supabase/types.ts may now be STALE.");
+  console.error("!! Fix by running manually: node scripts/refresh-supabase-types.mjs");
+  console.error("!".repeat(72));
+}
