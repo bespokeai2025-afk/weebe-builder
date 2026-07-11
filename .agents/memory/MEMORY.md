@@ -103,3 +103,4 @@
 - [SystemMind Automation Layer](systemmind-automation-layer.md) — approval-first AI drafts; resume must require status=paused; new server-write-only tables must REVOKE (default grants give authenticated ALL).
 - [Workspace auto-provision trap](workspace-autoprovision-trap.md) — never auto-provision on a failed membership query; "my data vanished" = default_workspace_id repointed at an empty duplicate ws.
 - [Lead-intake auto-call standard](lead-intake-standard-setup.md) — reusable webform→auto-call setup; switches = lead_auto_call_* + active workflow-from-template; caller must be client_qualification agent.
+- [AccountsMind config/onboarding/health kinds](accountsmind-config-onboarding-health.md) — every activation kind must re-run assertNoCredentialValues (TOCTOU); sensitive metrics never client-visible; checklist done derived live; e2e via vitest.e2e.config.ts + random-UUID workspace.

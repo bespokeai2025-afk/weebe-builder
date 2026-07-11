@@ -486,16 +486,27 @@ export async function activateSystemMindAutomation(
   // update + audit stays centralised here. Dynamic string-literal import to
   // avoid a static import cycle (generators imports helpers from this file).
   const kind = String(draft.action_kind ?? "workflow");
-  if (kind === "whatsapp_setup" || kind === "follow_up_sequence" || kind === "n8n_blueprint") {
-    const gen = await import("@/lib/systemmind/systemmind-generators.server");
+  if (
+    kind === "whatsapp_setup" || kind === "follow_up_sequence" || kind === "n8n_blueprint" ||
+    kind === "accountsmind_config" || kind === "onboarding_plan"
+  ) {
     let result: { activatedTargetType: string; activatedTargetId: string; summary: Record<string, unknown> };
     try {
-      if (kind === "whatsapp_setup") {
-        result = await gen.activateWhatsAppSetupKind(workspaceId, generatedActionId);
-      } else if (kind === "follow_up_sequence") {
-        result = await gen.activateFollowUpSequenceKind(workspaceId, generatedActionId);
+      if (kind === "accountsmind_config") {
+        const cfg = await import("@/lib/accountsmind/accountsmind-config.server");
+        result = await cfg.activateAccountsMindConfigKind(workspaceId, generatedActionId);
+      } else if (kind === "onboarding_plan") {
+        const setup = await import("@/lib/systemmind/workspace-setup.server");
+        result = await setup.activateOnboardingPlanKind(workspaceId, generatedActionId);
       } else {
-        result = await gen.activateN8nBlueprintKind(workspaceId, generatedActionId);
+        const gen = await import("@/lib/systemmind/systemmind-generators.server");
+        if (kind === "whatsapp_setup") {
+          result = await gen.activateWhatsAppSetupKind(workspaceId, generatedActionId);
+        } else if (kind === "follow_up_sequence") {
+          result = await gen.activateFollowUpSequenceKind(workspaceId, generatedActionId);
+        } else {
+          result = await gen.activateN8nBlueprintKind(workspaceId, generatedActionId);
+        }
       }
     } catch (err) {
       await sb.from("systemmind_generated_actions").update({

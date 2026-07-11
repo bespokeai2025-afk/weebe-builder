@@ -55,6 +55,8 @@ const KIND_META: Record<string, { label: string; color: string; icon: React.Elem
   whatsapp_setup:     { label: "WhatsApp Setup",     color: "text-green-400 border-green-500/30",   icon: MessageSquare },
   follow_up_sequence: { label: "Follow-Up Sequence", color: "text-violet-400 border-violet-500/30", icon: CalendarClock },
   n8n_blueprint:      { label: "n8n Conversion",     color: "text-orange-400 border-orange-500/30", icon: GitBranch },
+  accountsmind_config:{ label: "AccountsMind Config",color: "text-emerald-400 border-emerald-500/30",icon: ListChecks },
+  onboarding_plan:    { label: "Onboarding Plan",    color: "text-sky-400 border-sky-500/30",       icon: CheckCircle2 },
 };
 
 interface AutomationDraft {
@@ -82,6 +84,8 @@ function stepsSummaryFor(draft: AutomationDraft): { count: number; noun: string 
     case "whatsapp_setup":     return { count: (p.setup_steps ?? []).length,        noun: "setup steps" };
     case "follow_up_sequence": return { count: (p.sequence ?? []).length,           noun: "sequence steps" };
     case "n8n_blueprint":      return { count: (p.blueprint?.steps ?? []).length,   noun: "steps" };
+    case "accountsmind_config": return { count: (p.fields ?? []).length + (p.stats ?? []).length + (p.widgets ?? []).length, noun: "config items" };
+    case "onboarding_plan":    return { count: (p.items ?? []).length,             noun: "checklist steps" };
     default:                   return { count: (p.flow_definition?.steps ?? []).length, noun: "steps" };
   }
 }
@@ -271,6 +275,84 @@ function N8nBlueprintDetail({ payload }: { payload: Record<string, any> }) {
   );
 }
 
+function AccountsMindConfigDetail({ payload }: { payload: Record<string, any> }) {
+  const fields:  any[] = payload.fields  ?? [];
+  const stats:   any[] = payload.stats   ?? [];
+  const widgets: any[] = payload.widgets ?? [];
+  const risks: string[] = payload.risks ?? [];
+
+  const Section = ({ title, items, render }: { title: string; items: any[]; render: (i: any) => React.ReactNode }) =>
+    items.length === 0 ? null : (
+      <div>
+        <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide mb-1.5">{title}</p>
+        <div className="space-y-1">{items.map((it, i) => <div key={i} className="flex items-center gap-2 text-[11px] flex-wrap">{render(it)}</div>)}</div>
+      </div>
+    );
+
+  return (
+    <>
+      <Section title={`Custom fields (${fields.length})`} items={fields} render={(f) => (
+        <>
+          <Badge variant="outline" className="text-[10px] font-mono">{f.field_key}</Badge>
+          <span className="font-medium">{f.label}</span>
+          <span className="text-muted-foreground">{f.field_type} · {f.entity_type}</span>
+          {f.client_visible && <Badge variant="outline" className="text-[9px] border-sky-500/30 text-sky-400">client-visible</Badge>}
+        </>
+      )} />
+      <Section title={`Stats (${stats.length})`} items={stats} render={(s) => (
+        <>
+          <Badge variant="outline" className="text-[10px] font-mono">{s.stat_key}</Badge>
+          <span className="font-medium">{s.label}</span>
+          <span className="text-muted-foreground">metric: {s.metric_key} · {s.format}</span>
+          {s.client_visible && <Badge variant="outline" className="text-[9px] border-sky-500/30 text-sky-400">client-visible</Badge>}
+        </>
+      )} />
+      <Section title={`Widgets (${widgets.length})`} items={widgets} render={(w) => (
+        <>
+          <Badge variant="outline" className="text-[10px] font-mono">{w.widget_key}</Badge>
+          <span className="font-medium">{w.title}</span>
+          <span className="text-muted-foreground">{w.widget_type} · metric: {w.metric_key}</span>
+          {w.client_visible && <Badge variant="outline" className="text-[9px] border-sky-500/30 text-sky-400">client-visible</Badge>}
+        </>
+      )} />
+      {risks.length > 0 && (
+        <div>
+          <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide mb-1.5">Risks noted by SystemMind</p>
+          <ul className="space-y-0.5">
+            {risks.map((r, i) => <li key={i} className="text-[11px] text-amber-400/80">• {r}</li>)}
+          </ul>
+        </div>
+      )}
+    </>
+  );
+}
+
+function OnboardingPlanDetail({ payload }: { payload: Record<string, any> }) {
+  const items: any[] = payload.items ?? [];
+  return (
+    <>
+      {payload.business_summary && (
+        <p className="text-[11px] text-muted-foreground whitespace-pre-wrap">{payload.business_summary}</p>
+      )}
+      <div>
+        <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide mb-1.5">Checklist steps (completion is verified automatically once live)</p>
+        <ol className="space-y-1.5">
+          {items.map((s: any, i: number) => (
+            <li key={i} className="text-[11px] flex items-start gap-2">
+              <span className="text-muted-foreground w-5 text-right shrink-0">{i + 1}.</span>
+              <div className="min-w-0">
+                <span className="font-medium">{s.title}</span>
+                <Badge variant="outline" className="ml-1.5 text-[9px] font-mono">{s.check_key}</Badge>
+                {s.why && <p className="text-muted-foreground mt-0.5">{s.why}</p>}
+              </div>
+            </li>
+          ))}
+        </ol>
+      </div>
+    </>
+  );
+}
+
 // ── Draft card ────────────────────────────────────────────────────────────────
 function DraftCard({
   draft, busy,
@@ -412,6 +494,10 @@ function DraftCard({
             <FollowUpSequenceDetail payload={draft.payload ?? {}} />
           ) : draft.action_kind === "n8n_blueprint" ? (
             <N8nBlueprintDetail payload={draft.payload ?? {}} />
+          ) : draft.action_kind === "accountsmind_config" ? (
+            <AccountsMindConfigDetail payload={draft.payload ?? {}} />
+          ) : draft.action_kind === "onboarding_plan" ? (
+            <OnboardingPlanDetail payload={draft.payload ?? {}} />
           ) : (
             <div>
               <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide mb-1.5">Workflow steps</p>
