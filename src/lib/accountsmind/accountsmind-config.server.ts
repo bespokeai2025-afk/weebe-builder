@@ -246,6 +246,40 @@ function todayUtcDate(): string {
   return new Date().toISOString().slice(0, 10);
 }
 
+// Retention window for metric snapshots. Reads cap at 90 days
+// (getMetricSeriesServer), so anything older than 180 days is dead weight —
+// prune it during the daily sweep to keep the table from bloating forever
+// (this project has a history of unbounded tables causing query timeouts).
+const SNAPSHOT_RETENTION_DAYS = 180;
+
+/**
+ * Best-effort prune of snapshot rows older than the retention window.
+ * Never throws; a prune failure must not block the tick.
+ */
+async function pruneOldMetricSnapshotsServer(): Promise<number> {
+  try {
+    const sb = supabaseAdmin as any;
+    const cutoff = new Date(Date.now() - SNAPSHOT_RETENTION_DAYS * 24 * 60 * 60 * 1000)
+      .toISOString().slice(0, 10);
+    const { data, error } = await sb.from("accountsmind_metric_snapshots")
+      .delete()
+      .lt("captured_on", cutoff)
+      .select("id");
+    if (error) {
+      console.warn("[accountsmind] snapshot retention prune failed:", error.message);
+      return 0;
+    }
+    const pruned = (data ?? []).length;
+    if (pruned > 0) {
+      console.log(`[accountsmind] pruned ${pruned} metric snapshot rows older than ${cutoff}`);
+    }
+    return pruned;
+  } catch (err: any) {
+    console.warn("[accountsmind] snapshot retention prune failed:", err?.message ?? err);
+    return 0;
+  }
+}
+
 export async function snapshotMetricsServer(
   workspaceId: string,
   metrics: Record<string, number | null>,
@@ -296,8 +330,9 @@ export async function runMetricSnapshotSweepServer(): Promise<{
   workspaces: number;
   snapshotted: number;
   skipped: number;
+  pruned: number;
 }> {
-  const out = { workspaces: 0, snapshotted: 0, skipped: 0 };
+  const out = { workspaces: 0, snapshotted: 0, skipped: 0, pruned: 0 };
   try {
     const sb = supabaseAdmin as any;
     const day = todayUtcDate();
@@ -326,6 +361,13 @@ export async function runMetricSnapshotSweepServer(): Promise<{
       if (doneSet.has(ws)) { out.skipped++; continue; }
       await snapshotActiveConfigMetricsServer(ws);
       out.snapshotted++;
+    }
+
+    // Retention prune: only when this tick actually snapshotted something
+    // (i.e. roughly once per UTC day, at the first tick of a new day) so the
+    // 5-minute tick doesn't issue a delete scan every run. Best-effort.
+    if (out.snapshotted > 0) {
+      out.pruned = await pruneOldMetricSnapshotsServer();
     }
   } catch (err: any) {
     console.warn("[accountsmind] snapshot sweep failed:", err?.message ?? err);

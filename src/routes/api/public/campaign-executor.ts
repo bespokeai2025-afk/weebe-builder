@@ -97,9 +97,9 @@ export const Route = createFileRoute("/api/public/campaign-executor")({
               "@/lib/accountsmind/accountsmind-config.server"
             );
             const sweep = await runMetricSnapshotSweepServer();
-            if (sweep.snapshotted > 0) {
+            if (sweep.snapshotted > 0 || sweep.pruned > 0) {
               console.log(
-                `[accountsmind-snapshots] workspaces=${sweep.workspaces} snapshotted=${sweep.snapshotted} skipped=${sweep.skipped}`,
+                `[accountsmind-snapshots] workspaces=${sweep.workspaces} snapshotted=${sweep.snapshotted} skipped=${sweep.skipped} pruned=${sweep.pruned}`,
               );
             }
           } catch (snapErr: any) {
