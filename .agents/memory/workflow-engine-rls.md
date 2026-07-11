@@ -5,19 +5,29 @@ description: The two distinct RLS shapes used for the workflow automation tables
 
 # Workflow Engine RLS — two different policy shapes on purpose
 
-`workflow_templates` and `workspace_workflows` (created by
+ALL seven Workflow Engine tables (created by
 `supabase/migrations/WORKFLOW_ENGINE_MIGRATION.sql`) shipped with **no RLS**. RLS was
-added in `supabase/migrations/WORKFLOW_ENGINE_RLS.sql` (applied via Management API).
+added in two passes, both applied via Management API:
+`supabase/migrations/WORKFLOW_ENGINE_RLS.sql` (`workflow_templates` + `workspace_workflows`)
+and `supabase/migrations/WORKFLOW_ENGINE_RLS_PART2.sql` (`workflow_runs`,
+`workflow_schedules`, `workflow_run_events`, `workflow_template_categories`,
+`workflow_template_versions`).
 
-**Two shapes, because the tables have different tenancy:**
+**Three shapes, because the tables have different tenancy:**
 
-- `workspace_workflows` — per-workspace instances. Standard multi-tenant policy
-  (`workspace_members` / `auth.uid()`), `FOR ALL`. See `workspace-rls-policy-pattern.md`.
+- Per-workspace (own the `workspace_id` col) — standard multi-tenant policy
+  (`workspace_members` / `auth.uid()`), `FOR ALL`. Covers `workspace_workflows`,
+  `workflow_runs`, `workflow_schedules`. See `workspace-rls-policy-pattern.md`.
 
-- `workflow_templates` — **SHARED platform data, no `workspace_id` column.** So the
-  members pattern does NOT apply. Instead: a `FOR SELECT USING (true)` policy (every
-  signed-in user reads all templates) + a separate `FOR ALL` admin-only write policy
-  gated on `profiles.user_type='admin' OR user_roles.role='admin'`.
+- `workflow_run_events` — **child of a run, NO `workspace_id` col.** Gate by an
+  `EXISTS` join to the parent `workflow_runs` row's workspace membership (both USING
+  and WITH CHECK). Same trick for any future child-of-a-workspace-row table.
+
+- SHARED platform data, no `workspace_id` col (`workflow_templates`,
+  `workflow_template_categories`, `workflow_template_versions`) — members pattern does
+  NOT apply. Instead: a `FOR SELECT USING (true)` policy (every signed-in user reads
+  all) + a separate `FOR ALL` admin-only write policy gated on
+  `profiles.user_type='admin' OR user_roles.role='admin'`.
 
 **Why the admin write policy (not service-role-only):** the template-management server
 fns (`saveWorkflowTemplate` / `deleteWorkflowTemplate` in
