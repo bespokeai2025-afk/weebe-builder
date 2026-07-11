@@ -10,7 +10,9 @@ import { Badge } from "@/components/ui/badge";
 import {
   listAccountsMindConfig,
   computeAccountsMindMetrics,
+  getAccountsMindMetricSeries,
 } from "@/lib/accountsmind/accountsmind-config.functions";
+import { MetricSparkline } from "./MetricSparkline";
 
 function formatMetric(value: number | null | undefined, format: string): string {
   if (value == null) return "—";
@@ -31,6 +33,7 @@ const STATUS_COLORS: Record<string, string> = {
 export function AccountsMindWorkspaceConfig() {
   const listFn    = useServerFn(listAccountsMindConfig);
   const metricsFn = useServerFn(computeAccountsMindMetrics);
+  const seriesFn  = useServerFn(getAccountsMindMetricSeries);
 
   const { data: config, isLoading } = useQuery({
     queryKey: ["accountsmind-config"],
@@ -47,6 +50,20 @@ export function AccountsMindWorkspaceConfig() {
     queryKey: ["accountsmind-metric-values", [...new Set(metricKeys)].sort().join(",")],
     queryFn: () => metricsFn({ data: { keys: [...new Set(metricKeys)] } }),
     enabled: metricKeys.length > 0,
+    throwOnError: false,
+  });
+
+  const trendKeys = [...new Set(
+    (config?.widgets ?? [])
+      .filter((w: any) => w.widget_type === "trend" || w.widget_type === "progress")
+      .map((w: any) => w.metric_key)
+      .filter(Boolean),
+  )];
+
+  const { data: metricSeries } = useQuery({
+    queryKey: ["accountsmind-metric-series", [...trendKeys].sort().join(",")],
+    queryFn: () => seriesFn({ data: { keys: trendKeys, days: 30 } }),
+    enabled: trendKeys.length > 0 && !!metricValues,
     throwOnError: false,
   });
 
@@ -104,6 +121,18 @@ export function AccountsMindWorkspaceConfig() {
                       <p className="text-xl font-bold text-white mt-1.5">
                         {formatMetric(metricValues?.[w.metric_key], w.format)}
                       </p>
+                      {(w.widget_type === "trend" || w.widget_type === "progress") && (
+                        (metricSeries?.[w.metric_key]?.length ?? 0) >= 2 ? (
+                          <MetricSparkline
+                            points={metricSeries![w.metric_key]}
+                            formatValue={(v) => formatMetric(v, w.format)}
+                          />
+                        ) : (
+                          <p className="text-[10px] text-gray-600 mt-2">
+                            Collecting daily history — trend appears after a few days.
+                          </p>
+                        )
+                      )}
                       <div className="flex items-center gap-1.5 mt-2 flex-wrap">
                         <Badge variant="outline" className="text-[9px] font-mono border-gray-700 text-gray-500">{w.metric_key}</Badge>
                         <Badge variant="outline" className={cn("text-[9px]", STATUS_COLORS[w.status] ?? "text-gray-500 border-gray-700")}>{w.status}</Badge>

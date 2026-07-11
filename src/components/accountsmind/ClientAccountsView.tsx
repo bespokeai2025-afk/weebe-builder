@@ -1,7 +1,8 @@
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { Loader2, BarChart3 } from "lucide-react";
+import { Loader2, BarChart3, TrendingUp } from "lucide-react";
 import { getClientVisibleConfig } from "@/lib/accountsmind/accountsmind-config.functions";
+import { MetricSparkline } from "./MetricSparkline";
 
 function formatMetric(value: number | null | undefined, format: string): string {
   if (value == null) return "—";
@@ -25,6 +26,7 @@ export function ClientAccountsView() {
   const widgets: any[] = data?.widgets ?? [];
   const stats:   any[] = data?.stats ?? [];
   const metrics = data?.metrics ?? {};
+  const series: Record<string, Array<{ date: string; value: number }>> = data?.series ?? {};
 
   return (
     <div className="p-5 md:p-6 max-w-5xl mx-auto space-y-6">
@@ -52,13 +54,30 @@ export function ClientAccountsView() {
         <>
           {widgets.length > 0 && (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-              {widgets.map((w: any) => (
-                <div key={w.id} className="rounded-xl border border-white/[0.07] bg-white/[0.02] p-4">
-                  <p className="text-xs text-muted-foreground">{w.title}</p>
-                  <p className="text-2xl font-bold mt-1.5">{formatMetric(metrics[w.metric_key], w.format)}</p>
-                  {w.description && <p className="text-[10px] text-muted-foreground mt-1">{w.description}</p>}
-                </div>
-              ))}
+              {widgets.map((w: any) => {
+                const isTrend = w.widget_type === "trend" || w.widget_type === "progress";
+                const points = isTrend ? (series[w.metric_key] ?? []) : [];
+                return (
+                  <div key={w.id} className="rounded-xl border border-white/[0.07] bg-white/[0.02] p-4">
+                    <p className="text-xs text-muted-foreground flex items-center gap-1.5">
+                      {isTrend && <TrendingUp className="h-3 w-3 text-emerald-400" />}
+                      {w.title}
+                    </p>
+                    <p className="text-2xl font-bold mt-1.5">{formatMetric(metrics[w.metric_key], w.format)}</p>
+                    {points.length >= 2 ? (
+                      <MetricSparkline
+                        points={points}
+                        formatValue={(v) => formatMetric(v, w.format)}
+                      />
+                    ) : isTrend ? (
+                      <p className="text-[10px] text-muted-foreground/70 mt-2">
+                        Collecting daily history — the trend line will appear here.
+                      </p>
+                    ) : null}
+                    {w.description && <p className="text-[10px] text-muted-foreground mt-1">{w.description}</p>}
+                  </div>
+                );
+              })}
             </div>
           )}
           {stats.length > 0 && (

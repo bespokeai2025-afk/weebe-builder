@@ -89,6 +89,22 @@ export const Route = createFileRoute("/api/public/campaign-executor")({
               (accountsTick.failed.length ? ` failed=${accountsTick.failed.length}` : ""),
             );
           }
+
+          // Daily AccountsMind metric snapshots (once per workspace per UTC
+          // day — powers trend/progress widget history). Best-effort.
+          try {
+            const { runMetricSnapshotSweepServer } = await import(
+              "@/lib/accountsmind/accountsmind-config.server"
+            );
+            const sweep = await runMetricSnapshotSweepServer();
+            if (sweep.snapshotted > 0) {
+              console.log(
+                `[accountsmind-snapshots] workspaces=${sweep.workspaces} snapshotted=${sweep.snapshotted} skipped=${sweep.skipped}`,
+              );
+            }
+          } catch (snapErr: any) {
+            console.warn("[accountsmind-snapshots] sweep failed:", snapErr?.message ?? snapErr);
+          }
           console.log(
             `[campaign-executor] ran=${due.length} skipped=${skipped.length}`,
           );

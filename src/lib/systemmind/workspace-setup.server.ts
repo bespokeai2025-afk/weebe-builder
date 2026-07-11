@@ -530,6 +530,17 @@ export async function runWorkspaceHealthCheckServer(
   try {
     const results = await runChecksServer(workspaceId, CHECK_KEYS);
 
+    // Best-effort: capture today's AccountsMind metric snapshots on every
+    // health-check run so trend widgets accumulate history (never throws).
+    try {
+      const { snapshotActiveConfigMetricsServer } = await import(
+        "@/lib/accountsmind/accountsmind-config.server"
+      );
+      await snapshotActiveConfigMetricsServer(workspaceId);
+    } catch {
+      // snapshot failures must never fail a health run
+    }
+
     const findings: HealthFinding[] = Object.values(CHECK_REGISTRY).map((c) => {
       const passed = results[c.key] === true;
       return {

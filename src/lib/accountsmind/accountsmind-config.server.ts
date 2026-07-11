@@ -186,6 +186,137 @@ export async function computeMetricsServer(
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
+// Metric snapshots — one row per (workspace, metric, UTC day) so trend /
+// progress widgets can render real historical series. Server-write-only
+// table (accountsmind_metric_snapshots); populated opportunistically from
+// every metric computation plus SystemMind health-check runs. Best-effort:
+// never throws (a snapshot failure must not break a dashboard read).
+// ═══════════════════════════════════════════════════════════════════════════
+
+function todayUtcDate(): string {
+  return new Date().toISOString().slice(0, 10);
+}
+
+export async function snapshotMetricsServer(
+  workspaceId: string,
+  metrics: Record<string, number | null>,
+): Promise<void> {
+  try {
+    const sb = supabaseAdmin as any;
+    const day = todayUtcDate();
+    const rows = Object.entries(metrics)
+      .filter(([k, v]) => v != null && Number.isFinite(v) && METRIC_REGISTRY[k])
+      .map(([metric_key, value]) => ({
+        workspace_id: workspaceId,
+        metric_key,
+        captured_on:  day,
+        value,
+        updated_at:   new Date().toISOString(),
+      }));
+    if (rows.length === 0) return;
+    const { error } = await sb.from("accountsmind_metric_snapshots")
+      .upsert(rows, { onConflict: "workspace_id,metric_key,captured_on" });
+    if (error) console.warn("[accountsmind] metric snapshot upsert failed:", error.message);
+  } catch (err: any) {
+    console.warn("[accountsmind] metric snapshot failed:", err?.message ?? err);
+  }
+}
+
+/** Compute + snapshot every metric referenced by this workspace's ACTIVE config. */
+export async function snapshotActiveConfigMetricsServer(workspaceId: string): Promise<void> {
+  try {
+    const config = await listActiveConfigServer(workspaceId);
+    const keys = [
+      ...config.stats.map((s: any) => s.metric_key),
+      ...config.widgets.map((w: any) => w.metric_key),
+    ].filter(Boolean);
+    if (keys.length === 0) return;
+    const metrics = await computeMetricsServer(workspaceId, keys);
+    await snapshotMetricsServer(workspaceId, metrics);
+  } catch (err: any) {
+    console.warn("[accountsmind] active-config snapshot failed:", err?.message ?? err);
+  }
+}
+
+/**
+ * Daily sweep for the background tick: snapshot every workspace that has
+ * active stat/widget defs, but only once per UTC day per workspace (the tick
+ * runs every 5 minutes — skip workspaces already captured today).
+ */
+export async function runMetricSnapshotSweepServer(): Promise<{
+  workspaces: number;
+  snapshotted: number;
+  skipped: number;
+}> {
+  const out = { workspaces: 0, snapshotted: 0, skipped: 0 };
+  try {
+    const sb = supabaseAdmin as any;
+    const day = todayUtcDate();
+
+    const [statsRes, widgetsRes] = await Promise.all([
+      sb.from("accountsmind_stat_defs").select("workspace_id")
+        .eq("status", "active").eq("is_deleted", false).limit(2000),
+      sb.from("accountsmind_widget_defs").select("workspace_id")
+        .eq("status", "active").eq("is_deleted", false).limit(2000),
+    ]);
+    const wsIds = [...new Set([
+      ...(statsRes.data ?? []).map((r: any) => r.workspace_id),
+      ...(widgetsRes.data ?? []).map((r: any) => r.workspace_id),
+    ])].filter(Boolean) as string[];
+    out.workspaces = wsIds.length;
+    if (wsIds.length === 0) return out;
+
+    const { data: doneToday } = await sb.from("accountsmind_metric_snapshots")
+      .select("workspace_id")
+      .in("workspace_id", wsIds)
+      .eq("captured_on", day)
+      .limit(2000);
+    const doneSet = new Set((doneToday ?? []).map((r: any) => r.workspace_id));
+
+    for (const ws of wsIds) {
+      if (doneSet.has(ws)) { out.skipped++; continue; }
+      await snapshotActiveConfigMetricsServer(ws);
+      out.snapshotted++;
+    }
+  } catch (err: any) {
+    console.warn("[accountsmind] snapshot sweep failed:", err?.message ?? err);
+  }
+  return out;
+}
+
+export interface MetricSeriesPoint { date: string; value: number }
+
+export async function getMetricSeriesServer(
+  workspaceId: string,
+  keys: string[],
+  days = 30,
+): Promise<Record<string, MetricSeriesPoint[]>> {
+  const sb = supabaseAdmin as any;
+  const unique = [...new Set(keys)].filter((k) => METRIC_REGISTRY[k]);
+  const out: Record<string, MetricSeriesPoint[]> = {};
+  for (const k of unique) out[k] = [];
+  if (unique.length === 0) return out;
+
+  const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+  const { data, error } = await sb.from("accountsmind_metric_snapshots")
+    .select("metric_key, captured_on, value")
+    .eq("workspace_id", workspaceId)
+    .in("metric_key", unique)
+    .gte("captured_on", since)
+    .order("captured_on", { ascending: true })
+    .limit(unique.length * (days + 1));
+  if (error) {
+    console.warn("[accountsmind] metric series read failed:", error.message);
+    return out;
+  }
+  for (const row of data ?? []) {
+    if (!out[row.metric_key]) continue;
+    out[row.metric_key].push({ date: row.captured_on, value: Number(row.value) });
+  }
+  return out;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
 // Draft schema (strict validation of model output)
 // ═══════════════════════════════════════════════════════════════════════════
 

@@ -35,3 +35,10 @@ description: AccountsMind client costing + profit monitoring system — DB schem
 - **Admin nav**: AccountsMind link added to admin.users.tsx header nav.
 
 **Why:** Separate profitability layer (not merged into cost engine) to avoid breaking existing /admin/cost-engine, which is a pure rate-config tool. AccountsMind tracks actuals vs charges.
+
+## Metric snapshots (trend/progress widget history)
+- `accountsmind_metric_snapshots` — one row per ws+metric_key+UTC day (unique upsert), server-write-only (REVOKE ALL, members SELECT via RLS).
+- Captured best-effort (never throws) from: client-config load, admin metric compute, workspace health check, and a once-per-ws-per-day sweep (`runMetricSnapshotSweepServer`) inside the campaign-executor cron route.
+- **Trap:** never hook snapshot code into `accountsmind-scheduler.plugin.ts`/`executor.ts` — they load from vite.config context where `@/` aliases don't resolve; the cron ROUTE is app code and is safe.
+- Client series exposure is safe by construction: series returned only for metric keys on `client_visible` trend/progress widgets; sensitive metrics are never client_visible.
+- Sparkline UI: `MetricSparkline.tsx` renders when ≥2 daily points; otherwise "Collecting daily history" note.

@@ -46,9 +46,8 @@ export const listAccountsMindConfig = createServerFn({ method: "GET" })
 export const getClientVisibleConfig = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
-    const { listActiveConfigServer, computeMetricsServer } = await import(
-      "@/lib/accountsmind/accountsmind-config.server"
-    );
+    const { listActiveConfigServer, computeMetricsServer, snapshotMetricsServer, getMetricSeriesServer } =
+      await import("@/lib/accountsmind/accountsmind-config.server");
     const workspaceId = requireWorkspaceId(context.workspaceId);
     const config = await listActiveConfigServer(workspaceId, { clientOnly: true });
     const keys = [
@@ -56,7 +55,16 @@ export const getClientVisibleConfig = createServerFn({ method: "GET" })
       ...config.widgets.map((w: any) => w.metric_key),
     ];
     const metrics = await computeMetricsServer(workspaceId, keys);
-    return { ...config, metrics };
+    // Record today's values so trend/progress widgets accumulate real history.
+    await snapshotMetricsServer(workspaceId, metrics);
+    // Series ONLY for metrics already referenced by client-visible defs —
+    // sensitive metrics are never client_visible, so no visibility change.
+    const seriesKeys = config.widgets
+      .filter((w: any) => w.widget_type === "trend" || w.widget_type === "progress")
+      .map((w: any) => w.metric_key)
+      .filter(Boolean);
+    const series = await getMetricSeriesServer(workspaceId, seriesKeys, 30);
+    return { ...config, metrics, series };
   });
 
 // ── computeAccountsMindMetrics (internal dashboard values) ───────────────────
@@ -66,10 +74,33 @@ export const computeAccountsMindMetrics = createServerFn({ method: "POST" })
     z.object({ keys: z.array(z.string().max(80)).max(40) }).parse(input),
   )
   .handler(async ({ data, context }) => {
-    const { computeMetricsServer } = await import(
+    const { computeMetricsServer, snapshotMetricsServer } = await import(
       "@/lib/accountsmind/accountsmind-config.server"
     );
-    return computeMetricsServer(requireWorkspaceId(context.workspaceId), data.keys);
+    const workspaceId = requireWorkspaceId(context.workspaceId);
+    const metrics = await computeMetricsServer(workspaceId, data.keys);
+    await snapshotMetricsServer(workspaceId, metrics);
+    return metrics;
+  });
+
+// ── getAccountsMindMetricSeries (historical snapshots for trend widgets) ─────
+export const getAccountsMindMetricSeries = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) =>
+    z.object({
+      keys: z.array(z.string().max(80)).max(40),
+      days: z.number().int().min(1).max(90).optional(),
+    }).parse(input),
+  )
+  .handler(async ({ data, context }) => {
+    const { getMetricSeriesServer } = await import(
+      "@/lib/accountsmind/accountsmind-config.server"
+    );
+    return getMetricSeriesServer(
+      requireWorkspaceId(context.workspaceId),
+      data.keys,
+      data.days ?? 30,
+    );
   });
 
 // ── setConfigItemStatus ───────────────────────────────────────────────────────
