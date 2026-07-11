@@ -45,7 +45,7 @@ const ConditionSchema = z.object({
   next:  z.string().min(1).max(100),
 });
 
-const StepSchema = z.object({
+export const StepSchema = z.object({
   id:            z.string().min(1).max(100),
   type:          z.enum(ALLOWED_STEP_TYPES),
   next:          z.string().max(100).optional(),
@@ -141,6 +141,19 @@ export function classifyDraftRisk(draft: GeneratedDraft): {
   const credentialHit = CREDENTIAL_KEYWORDS.find((k) => textBlob.includes(k));
   if (credentialHit) reasons.push(`Touches sensitive configuration ("${credentialHit}")`);
 
+  // Bulk operations → high. A scheduled trigger combined with outbound
+  // messaging/calling fans out to every matching lead on every tick, and
+  // "all leads"-style wording signals whole-base targeting.
+  if (
+    draft.trigger_type === "scheduled" &&
+    (stepTypes.has("send_whatsapp") || stepTypes.has("send_email") || stepTypes.has("call_lead"))
+  ) {
+    reasons.push("Bulk: scheduled trigger combined with customer messaging/calling");
+  }
+  if (/\ball leads\b|\bevery lead\b|\bevery contact\b|\ball contacts\b/.test(textBlob)) {
+    reasons.push("Bulk: targets all leads/contacts");
+  }
+
   // Bulk data mutation → medium
   const mediumReasons: string[] = [];
   if (stepTypes.has("update_lead_status")) mediumReasons.push("Changes lead statuses automatically");
@@ -171,6 +184,10 @@ function sanitizeSteps(steps: GeneratedDraft["steps"]): GeneratedDraft["steps"] 
   }
   return cleaned;
 }
+
+// Exported for the generators module (n8n conversion re-uses the exact same
+// validation + sanitisation pipeline).
+export const sanitizeGeneratedSteps = sanitizeSteps;
 
 // ── Generation ─────────────────────────────────────────────────────────────────
 const GENERATION_SYSTEM_PROMPT = `You are SystemMind, the AI CTO of the WEBEE platform. You design WORKSPACE-SCOPED automation workflow drafts. You NEVER execute anything — you only produce a draft for human approval.
@@ -461,6 +478,60 @@ export async function activateSystemMindAutomation(
   const draft = await getDraftOrThrow(workspaceId, generatedActionId);
   assertTransition(draft.status, "active");
 
+  // ── Kind dispatch ─────────────────────────────────────────────────────────
+  // Generator kinds (whatsapp_setup / follow_up_sequence / n8n_blueprint) have
+  // their own activation logic in the generators module; the hub row status
+  // update + audit stays centralised here. Dynamic string-literal import to
+  // avoid a static import cycle (generators imports helpers from this file).
+  const kind = String(draft.action_kind ?? "workflow");
+  if (kind === "whatsapp_setup" || kind === "follow_up_sequence" || kind === "n8n_blueprint") {
+    const gen = await import("@/lib/systemmind/systemmind-generators.server");
+    let result: { activatedTargetType: string; activatedTargetId: string; summary: Record<string, unknown> };
+    try {
+      if (kind === "whatsapp_setup") {
+        result = await gen.activateWhatsAppSetupKind(workspaceId, generatedActionId);
+      } else if (kind === "follow_up_sequence") {
+        result = await gen.activateFollowUpSequenceKind(workspaceId, generatedActionId);
+      } else {
+        result = await gen.activateN8nBlueprintKind(workspaceId, generatedActionId);
+      }
+    } catch (err) {
+      await sb.from("systemmind_generated_actions").update({
+        status: "failed",
+        error_message: (err instanceof Error ? err.message : String(err)).slice(0, 2000),
+      }).eq("id", generatedActionId).eq("workspace_id", workspaceId);
+      throw err;
+    }
+
+    const activatedAt = new Date().toISOString();
+    const { error: kindUpErr } = await sb.from("systemmind_generated_actions").update({
+      status:                "active",
+      approved_by:           approvedBy,
+      approved_at:           activatedAt,
+      activated_at:          activatedAt,
+      activated_target_type: result.activatedTargetType,
+      activated_target_id:   result.activatedTargetId,
+    }).eq("id", generatedActionId).eq("workspace_id", workspaceId);
+    if (kindUpErr) throw new Error(kindUpErr.message);
+
+    await writeSystemMindAudit({
+      workspaceId,
+      actionType: "activate",
+      targetType: "systemmind_generated_action",
+      targetId:   generatedActionId,
+      beforeState: { status: draft.status },
+      finalAfterState: { status: "active", kind, ...result.summary },
+      approvalStatus: "approved",
+      approvedBy,
+      executedAt: activatedAt,
+    });
+
+    // Keep the legacy return shape: workflow_id carries the activated target id
+    // so the HiveMind executor needs no changes.
+    return { workflow_id: result.activatedTargetId, draft_id: generatedActionId };
+  }
+
+  // ── Legacy workflow kind ──────────────────────────────────────────────────
   // Re-validate payload server-side — never trust what's been sitting in the DB
   // or anything a client may have altered.
   const payload = draft.payload ?? {};
