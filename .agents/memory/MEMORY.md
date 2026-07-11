@@ -108,3 +108,4 @@
 - [HiveMind tables RLS zero-policies gap](hivemind-rls-zero-policies.md) — RLS on + 0 policies = silent deny-all for authenticated; hivemind_actions/tasks/events were unreadable until members policies added (migration 20260711000000).
 - [TanStack server-fn wire protocol from Node](tanstack-serverfn-wire-protocol.md) — serverFnFetcher throws outside Start context; replicate with seroval toJSONAsync/fromCrossJSON + router-core defaultSerovalPlugins; ref script .local/browser-contract-test.mjs.
 - [Log-table retention sweep](log-table-retention.md) — daily batched prune from campaign-executor tick; new append-only log tables need a RETENTION_RULES row or a documented keep-forever note.
+- [Supabase types regeneration](supabase-typegen-refresh.md) — Mgmt API /types/typescript endpoint; repo never typechecks clean, so diff error file:line locations vs baseline; tsc needs a temp workflow (>120s, OOM-prone).

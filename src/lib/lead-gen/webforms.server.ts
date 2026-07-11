@@ -8,6 +8,14 @@ import { triggerAutoCallForNewLead } from "@/lib/qualification/auto-call.server"
 
 export const WEBEE_ADMIN_EMAIL = "admin@webespokeai.com";
 
+// Coerce an unknown webform value into a JSON-safe scalar (string or null).
+function toJsonScalar(v: unknown): string | null {
+  if (v === null || v === undefined) return null;
+  if (typeof v === "string") return v.slice(0, 500);
+  if (typeof v === "number" || typeof v === "boolean") return String(v);
+  try { return JSON.stringify(v).slice(0, 500); } catch { return null; }
+}
+
 // ── Field mapping helpers ──────────────────────────────────────────────────────
 
 const DEFAULT_FIELD_MAP: Record<string, string> = {
@@ -389,8 +397,8 @@ export async function processWebformSubmission(opts: {
         referrer:       utm.referrer,
         meta:           {
           website:            mapped.website ?? null,
-          preferred_contact:  raw.preferred_contact_method ?? raw.preferred_contact ?? null,
-          interested_in:      raw.interested_in ?? null,
+          preferred_contact:  toJsonScalar(raw.preferred_contact_method ?? raw.preferred_contact),
+          interested_in:      toJsonScalar(raw.interested_in),
           webform_source:     formName,
           ...Object.fromEntries(
             Object.entries(raw)
