@@ -4,6 +4,7 @@
 // Option B: Configure deployment from existing script (full 12-section analysis).
 
 import { useState } from "react";
+import { useNavigate } from "@tanstack/react-router";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -40,6 +41,7 @@ import {
   Variable,
   Target,
   Layers,
+  Hammer,
 } from "lucide-react";
 import { useBuilderStore } from "@/lib/builder/store";
 import type { NodeKind } from "@/lib/builder/types";
@@ -148,6 +150,8 @@ function ResultSection({
 
 // ── Main component ─────────────────────────────────────────────────────────────
 export function CustomAgentPanel() {
+  const navigate = useNavigate();
+  const currentAgentRowId = useBuilderStore((s) => s.currentAgentRowId);
   const [mode, setMode] = useState<"build" | "configure">("build");
 
   // Option A state
@@ -271,6 +275,27 @@ export function CustomAgentPanel() {
 
   return (
     <div className="space-y-3 mt-1">
+      {/* SystemMind Build Workspace entry */}
+      <button
+        onClick={() =>
+          navigate({
+            to: "/systemmind/build",
+            search: currentAgentRowId
+              ? { session: undefined, workflow: undefined, agent: currentAgentRowId }
+              : { session: undefined, workflow: undefined, agent: undefined },
+          })
+        }
+        className="w-full flex items-center gap-2 rounded-lg border border-sky-500/25 bg-sky-500/[0.06] px-2.5 py-2 text-left transition-colors hover:bg-sky-500/[0.12]"
+      >
+        <Hammer className="h-3.5 w-3.5 shrink-0 text-sky-400" />
+        <div className="min-w-0">
+          <p className="text-[10px] font-semibold text-sky-300 leading-none">Build with SystemMind</p>
+          <p className="text-[9px] text-muted-foreground mt-0.5 leading-tight">
+            Iterative chat builder — prompt, test, version, then apply.
+          </p>
+        </div>
+      </button>
+
       {/* Mode tabs */}
       <div className="flex gap-1 rounded-lg border border-white/[0.06] p-0.5 bg-white/[0.02]">
         <button

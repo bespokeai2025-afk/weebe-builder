@@ -116,6 +116,7 @@ import { Route as AuthenticatedSystemmindDataLimitsRouteImport } from './routes/
 import { Route as AuthenticatedSystemmindCrmAdaptersRouteImport } from './routes/_authenticated/systemmind.crm-adapters'
 import { Route as AuthenticatedSystemmindClientsRouteImport } from './routes/_authenticated/systemmind.clients'
 import { Route as AuthenticatedSystemmindChatRouteImport } from './routes/_authenticated/systemmind.chat'
+import { Route as AuthenticatedSystemmindBuildRouteImport } from './routes/_authenticated/systemmind.build'
 import { Route as AuthenticatedSystemmindAutomationRouteImport } from './routes/_authenticated/systemmind.automation'
 import { Route as AuthenticatedSystemmindAuditsRouteImport } from './routes/_authenticated/systemmind.audits'
 import { Route as AuthenticatedSystemmindArchitectureRouteImport } from './routes/_authenticated/systemmind.architecture'
@@ -243,6 +244,7 @@ import { Route as AuthenticatedSystemmindClientsSetupRouteImport } from './route
 import { Route as AuthenticatedSystemmindClientsApiProbeRouteImport } from './routes/_authenticated/systemmind.clients.api-probe'
 import { Route as AuthenticatedSettingsProvidersCategoryRouteImport } from './routes/_authenticated/settings.providers.$category'
 import { Route as AuthenticatedAdminAccountsWorkspaceConfigRouteImport } from './routes/_authenticated/admin.accounts.workspace-config'
+import { Route as AuthenticatedAdminAccountsSystemmindRouteImport } from './routes/_authenticated/admin.accounts.systemmind'
 import { Route as AuthenticatedAdminAccountsSettingsRouteImport } from './routes/_authenticated/admin.accounts.settings'
 import { Route as AuthenticatedAdminAccountsRechargesRouteImport } from './routes/_authenticated/admin.accounts.recharges'
 import { Route as AuthenticatedAdminAccountsProfitabilityRouteImport } from './routes/_authenticated/admin.accounts.profitability'
@@ -834,6 +836,12 @@ const AuthenticatedSystemmindChatRoute =
   AuthenticatedSystemmindChatRouteImport.update({
     id: '/chat',
     path: '/chat',
+    getParentRoute: () => AuthenticatedSystemmindRoute,
+  } as any)
+const AuthenticatedSystemmindBuildRoute =
+  AuthenticatedSystemmindBuildRouteImport.update({
+    id: '/build',
+    path: '/build',
     getParentRoute: () => AuthenticatedSystemmindRoute,
   } as any)
 const AuthenticatedSystemmindAutomationRoute =
@@ -1577,6 +1585,12 @@ const AuthenticatedAdminAccountsWorkspaceConfigRoute =
     path: '/workspace-config',
     getParentRoute: () => AuthenticatedAdminAccountsRoute,
   } as any)
+const AuthenticatedAdminAccountsSystemmindRoute =
+  AuthenticatedAdminAccountsSystemmindRouteImport.update({
+    id: '/systemmind',
+    path: '/systemmind',
+    getParentRoute: () => AuthenticatedAdminAccountsRoute,
+  } as any)
 const AuthenticatedAdminAccountsSettingsRoute =
   AuthenticatedAdminAccountsSettingsRouteImport.update({
     id: '/settings',
@@ -1765,6 +1779,7 @@ export interface FileRoutesByFullPath {
   '/systemmind/architecture': typeof AuthenticatedSystemmindArchitectureRoute
   '/systemmind/audits': typeof AuthenticatedSystemmindAuditsRoute
   '/systemmind/automation': typeof AuthenticatedSystemmindAutomationRoute
+  '/systemmind/build': typeof AuthenticatedSystemmindBuildRoute
   '/systemmind/chat': typeof AuthenticatedSystemmindChatRoute
   '/systemmind/clients': typeof AuthenticatedSystemmindClientsRouteWithChildren
   '/systemmind/crm-adapters': typeof AuthenticatedSystemmindCrmAdaptersRoute
@@ -1837,6 +1852,7 @@ export interface FileRoutesByFullPath {
   '/admin/accounts/profitability': typeof AuthenticatedAdminAccountsProfitabilityRoute
   '/admin/accounts/recharges': typeof AuthenticatedAdminAccountsRechargesRoute
   '/admin/accounts/settings': typeof AuthenticatedAdminAccountsSettingsRoute
+  '/admin/accounts/systemmind': typeof AuthenticatedAdminAccountsSystemmindRoute
   '/admin/accounts/workspace-config': typeof AuthenticatedAdminAccountsWorkspaceConfigRoute
   '/settings/providers/$category': typeof AuthenticatedSettingsProvidersCategoryRoute
   '/systemmind/clients/api-probe': typeof AuthenticatedSystemmindClientsApiProbeRoute
@@ -2005,6 +2021,7 @@ export interface FileRoutesByTo {
   '/systemmind/architecture': typeof AuthenticatedSystemmindArchitectureRoute
   '/systemmind/audits': typeof AuthenticatedSystemmindAuditsRoute
   '/systemmind/automation': typeof AuthenticatedSystemmindAutomationRoute
+  '/systemmind/build': typeof AuthenticatedSystemmindBuildRoute
   '/systemmind/chat': typeof AuthenticatedSystemmindChatRoute
   '/systemmind/crm-adapters': typeof AuthenticatedSystemmindCrmAdaptersRoute
   '/systemmind/data-limits': typeof AuthenticatedSystemmindDataLimitsRoute
@@ -2075,6 +2092,7 @@ export interface FileRoutesByTo {
   '/admin/accounts/profitability': typeof AuthenticatedAdminAccountsProfitabilityRoute
   '/admin/accounts/recharges': typeof AuthenticatedAdminAccountsRechargesRoute
   '/admin/accounts/settings': typeof AuthenticatedAdminAccountsSettingsRoute
+  '/admin/accounts/systemmind': typeof AuthenticatedAdminAccountsSystemmindRoute
   '/admin/accounts/workspace-config': typeof AuthenticatedAdminAccountsWorkspaceConfigRoute
   '/settings/providers/$category': typeof AuthenticatedSettingsProvidersCategoryRoute
   '/systemmind/clients/api-probe': typeof AuthenticatedSystemmindClientsApiProbeRoute
@@ -2253,6 +2271,7 @@ export interface FileRoutesById {
   '/_authenticated/systemmind/architecture': typeof AuthenticatedSystemmindArchitectureRoute
   '/_authenticated/systemmind/audits': typeof AuthenticatedSystemmindAuditsRoute
   '/_authenticated/systemmind/automation': typeof AuthenticatedSystemmindAutomationRoute
+  '/_authenticated/systemmind/build': typeof AuthenticatedSystemmindBuildRoute
   '/_authenticated/systemmind/chat': typeof AuthenticatedSystemmindChatRoute
   '/_authenticated/systemmind/clients': typeof AuthenticatedSystemmindClientsRouteWithChildren
   '/_authenticated/systemmind/crm-adapters': typeof AuthenticatedSystemmindCrmAdaptersRoute
@@ -2325,6 +2344,7 @@ export interface FileRoutesById {
   '/_authenticated/admin/accounts/profitability': typeof AuthenticatedAdminAccountsProfitabilityRoute
   '/_authenticated/admin/accounts/recharges': typeof AuthenticatedAdminAccountsRechargesRoute
   '/_authenticated/admin/accounts/settings': typeof AuthenticatedAdminAccountsSettingsRoute
+  '/_authenticated/admin/accounts/systemmind': typeof AuthenticatedAdminAccountsSystemmindRoute
   '/_authenticated/admin/accounts/workspace-config': typeof AuthenticatedAdminAccountsWorkspaceConfigRoute
   '/_authenticated/settings/providers/$category': typeof AuthenticatedSettingsProvidersCategoryRoute
   '/_authenticated/systemmind/clients/api-probe': typeof AuthenticatedSystemmindClientsApiProbeRoute
@@ -2503,6 +2523,7 @@ export interface FileRouteTypes {
     | '/systemmind/architecture'
     | '/systemmind/audits'
     | '/systemmind/automation'
+    | '/systemmind/build'
     | '/systemmind/chat'
     | '/systemmind/clients'
     | '/systemmind/crm-adapters'
@@ -2575,6 +2596,7 @@ export interface FileRouteTypes {
     | '/admin/accounts/profitability'
     | '/admin/accounts/recharges'
     | '/admin/accounts/settings'
+    | '/admin/accounts/systemmind'
     | '/admin/accounts/workspace-config'
     | '/settings/providers/$category'
     | '/systemmind/clients/api-probe'
@@ -2743,6 +2765,7 @@ export interface FileRouteTypes {
     | '/systemmind/architecture'
     | '/systemmind/audits'
     | '/systemmind/automation'
+    | '/systemmind/build'
     | '/systemmind/chat'
     | '/systemmind/crm-adapters'
     | '/systemmind/data-limits'
@@ -2813,6 +2836,7 @@ export interface FileRouteTypes {
     | '/admin/accounts/profitability'
     | '/admin/accounts/recharges'
     | '/admin/accounts/settings'
+    | '/admin/accounts/systemmind'
     | '/admin/accounts/workspace-config'
     | '/settings/providers/$category'
     | '/systemmind/clients/api-probe'
@@ -2990,6 +3014,7 @@ export interface FileRouteTypes {
     | '/_authenticated/systemmind/architecture'
     | '/_authenticated/systemmind/audits'
     | '/_authenticated/systemmind/automation'
+    | '/_authenticated/systemmind/build'
     | '/_authenticated/systemmind/chat'
     | '/_authenticated/systemmind/clients'
     | '/_authenticated/systemmind/crm-adapters'
@@ -3062,6 +3087,7 @@ export interface FileRouteTypes {
     | '/_authenticated/admin/accounts/profitability'
     | '/_authenticated/admin/accounts/recharges'
     | '/_authenticated/admin/accounts/settings'
+    | '/_authenticated/admin/accounts/systemmind'
     | '/_authenticated/admin/accounts/workspace-config'
     | '/_authenticated/settings/providers/$category'
     | '/_authenticated/systemmind/clients/api-probe'
@@ -3970,6 +3996,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedSystemmindChatRouteImport
       parentRoute: typeof AuthenticatedSystemmindRoute
     }
+    '/_authenticated/systemmind/build': {
+      id: '/_authenticated/systemmind/build'
+      path: '/build'
+      fullPath: '/systemmind/build'
+      preLoaderRoute: typeof AuthenticatedSystemmindBuildRouteImport
+      parentRoute: typeof AuthenticatedSystemmindRoute
+    }
     '/_authenticated/systemmind/automation': {
       id: '/_authenticated/systemmind/automation'
       path: '/automation'
@@ -4859,6 +4892,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminAccountsWorkspaceConfigRouteImport
       parentRoute: typeof AuthenticatedAdminAccountsRoute
     }
+    '/_authenticated/admin/accounts/systemmind': {
+      id: '/_authenticated/admin/accounts/systemmind'
+      path: '/systemmind'
+      fullPath: '/admin/accounts/systemmind'
+      preLoaderRoute: typeof AuthenticatedAdminAccountsSystemmindRouteImport
+      parentRoute: typeof AuthenticatedAdminAccountsRoute
+    }
     '/_authenticated/admin/accounts/settings': {
       id: '/_authenticated/admin/accounts/settings'
       path: '/settings'
@@ -4978,6 +5018,7 @@ interface AuthenticatedAdminAccountsRouteChildren {
   AuthenticatedAdminAccountsProfitabilityRoute: typeof AuthenticatedAdminAccountsProfitabilityRoute
   AuthenticatedAdminAccountsRechargesRoute: typeof AuthenticatedAdminAccountsRechargesRoute
   AuthenticatedAdminAccountsSettingsRoute: typeof AuthenticatedAdminAccountsSettingsRoute
+  AuthenticatedAdminAccountsSystemmindRoute: typeof AuthenticatedAdminAccountsSystemmindRoute
   AuthenticatedAdminAccountsWorkspaceConfigRoute: typeof AuthenticatedAdminAccountsWorkspaceConfigRoute
   AuthenticatedAdminAccountsIndexRoute: typeof AuthenticatedAdminAccountsIndexRoute
   AuthenticatedAdminAccountsWorkspaceIdRoute: typeof AuthenticatedAdminAccountsWorkspaceIdRoute
@@ -4996,6 +5037,8 @@ const AuthenticatedAdminAccountsRouteChildren: AuthenticatedAdminAccountsRouteCh
       AuthenticatedAdminAccountsRechargesRoute,
     AuthenticatedAdminAccountsSettingsRoute:
       AuthenticatedAdminAccountsSettingsRoute,
+    AuthenticatedAdminAccountsSystemmindRoute:
+      AuthenticatedAdminAccountsSystemmindRoute,
     AuthenticatedAdminAccountsWorkspaceConfigRoute:
       AuthenticatedAdminAccountsWorkspaceConfigRoute,
     AuthenticatedAdminAccountsIndexRoute: AuthenticatedAdminAccountsIndexRoute,
@@ -5277,6 +5320,7 @@ interface AuthenticatedSystemmindRouteChildren {
   AuthenticatedSystemmindArchitectureRoute: typeof AuthenticatedSystemmindArchitectureRoute
   AuthenticatedSystemmindAuditsRoute: typeof AuthenticatedSystemmindAuditsRoute
   AuthenticatedSystemmindAutomationRoute: typeof AuthenticatedSystemmindAutomationRoute
+  AuthenticatedSystemmindBuildRoute: typeof AuthenticatedSystemmindBuildRoute
   AuthenticatedSystemmindChatRoute: typeof AuthenticatedSystemmindChatRoute
   AuthenticatedSystemmindClientsRoute: typeof AuthenticatedSystemmindClientsRouteWithChildren
   AuthenticatedSystemmindCrmAdaptersRoute: typeof AuthenticatedSystemmindCrmAdaptersRoute
@@ -5313,6 +5357,7 @@ const AuthenticatedSystemmindRouteChildren: AuthenticatedSystemmindRouteChildren
     AuthenticatedSystemmindAuditsRoute: AuthenticatedSystemmindAuditsRoute,
     AuthenticatedSystemmindAutomationRoute:
       AuthenticatedSystemmindAutomationRoute,
+    AuthenticatedSystemmindBuildRoute: AuthenticatedSystemmindBuildRoute,
     AuthenticatedSystemmindChatRoute: AuthenticatedSystemmindChatRoute,
     AuthenticatedSystemmindClientsRoute:
       AuthenticatedSystemmindClientsRouteWithChildren,

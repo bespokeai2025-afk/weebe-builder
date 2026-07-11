@@ -1348,3 +1348,62 @@ export async function getSystemMindUsageAdminServer(
     pricing,
   };
 }
+
+// ── Admin pricing editor (cost_engine_systemmind, is_current row-versioning) ───
+export async function listSystemMindPricingHistoryServer(): Promise<any[]> {
+  const sb = supabaseAdmin as any;
+  const { data, error } = await sb.from("cost_engine_systemmind")
+    .select("*")
+    .order("created_at", { ascending: false })
+    .limit(50);
+  if (error) throw new Error(error.message);
+  return data ?? [];
+}
+
+export async function saveSystemMindPricingServer(args: {
+  userId: string | null;
+  pricing: {
+    base_charge_per_run_usd:    number;
+    charge_per_minute_usd:      number;
+    charge_per_1k_tokens_usd:   number;
+    charge_per_tool_call_usd:   number;
+    included_runs_per_month:    number;
+    included_seconds_per_month: number;
+    included_tokens_per_month:  number;
+    overage_multiplier:         number;
+    expose_provider_cost:       boolean;
+    notes?:                     string;
+  };
+}): Promise<{ id: string }> {
+  const sb = supabaseAdmin as any;
+  const p = args.pricing;
+
+  // Row-versioning: insert the new current row FIRST, then retire the old ones.
+  // If the insert fails nothing changes; a brief two-current overlap is resolved
+  // by the reader's ORDER BY created_at DESC LIMIT 1.
+  const { data: row, error: insErr } = await sb.from("cost_engine_systemmind").insert({
+    base_charge_per_run_usd:    p.base_charge_per_run_usd,
+    charge_per_minute_usd:      p.charge_per_minute_usd,
+    charge_per_1k_tokens_usd:   p.charge_per_1k_tokens_usd,
+    charge_per_tool_call_usd:   p.charge_per_tool_call_usd,
+    included_runs_per_month:    Math.round(p.included_runs_per_month),
+    included_seconds_per_month: Math.round(p.included_seconds_per_month),
+    included_tokens_per_month:  Math.round(p.included_tokens_per_month),
+    overage_multiplier:         p.overage_multiplier,
+    expose_provider_cost:       p.expose_provider_cost,
+    notes:                      (p.notes ?? "").slice(0, 2000) || null,
+    is_current:                 true,
+  }).select("id").single();
+  if (insErr) throw new Error(`Failed to save pricing: ${insErr.message}`);
+  const newId = row.id as string;
+
+  const { error: retireErr } = await sb.from("cost_engine_systemmind")
+    .update({ is_current: false, updated_at: new Date().toISOString() })
+    .neq("id", newId).eq("is_current", true);
+  if (retireErr) throw new Error(`Pricing saved but retiring old rows failed: ${retireErr.message}`);
+
+  // No systemmind_audit_logs row here: that table is workspace-scoped (NOT NULL
+  // workspace_id) and this is platform-level config. The cost_engine_systemmind
+  // table itself is the immutable history (row-versioning + notes + created_at).
+  return { id: newId };
+}

@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useNavigate } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { RetellWebClient } from "retell-client-js-sdk";
-import { Phone, PhoneOff, Loader2, RefreshCw, DollarSign, Plus, Download, Zap, ShieldCheck, ShieldAlert, AlertTriangle, CheckCircle2, XCircle } from "lucide-react";
+import { Phone, PhoneOff, Loader2, RefreshCw, DollarSign, Plus, Download, Zap, ShieldCheck, ShieldAlert, AlertTriangle, CheckCircle2, XCircle, Hammer } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -37,6 +38,10 @@ import {
   getMyAgentByRetellId,
 } from "@/lib/agents/agents.functions";
 import { getMySpend, recordTestCallCost } from "@/lib/auth/auth.functions";
+import {
+  getBuildProvenanceForAgent,
+  markBuildVersionDeployed,
+} from "@/lib/systemmind/build-workspace.functions";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { getTotalCostPerMinute, getHyperStreamCostPerMinute, calcHyperStreamTurnCost, HYPERSTREAM_TELEPHONY_PER_MIN, ELEVENLABS_PER_MIN } from "@/lib/builder/pricing";
 import { validateFlow } from "@/lib/builder/validate";
@@ -186,9 +191,49 @@ export function RetellDeployDialog({
   const getAgentByRetellId = useServerFn(getMyAgentByRetellId);
   const fetchSpend = useServerFn(getMySpend);
   const recordCost = useServerFn(recordTestCallCost);
+  const getBuildProvenanceFn = useServerFn(getBuildProvenanceForAgent);
+  const markBuildDeployedFn = useServerFn(markBuildVersionDeployed);
   // Core Runtime — buildAgentRuntimeDefinition is a pure function called
   // directly from the builder store.  No DB round-trip needed for test calls.
   const qc = useQueryClient();
+  const navigate = useNavigate();
+
+  // ── SystemMind Build Workspace provenance ────────────────────────────────
+  // If this agent was built/edited via the Build Workspace, surface a link
+  // back to the session and mark the applied version "deployed" after a
+  // successful deploy from here.
+  const buildProvenanceQ = useQuery({
+    queryKey: ["smbw-provenance", currentAgentRowId],
+    queryFn: () => getBuildProvenanceFn({ data: { agentId: currentAgentRowId as string } }),
+    enabled: Boolean(currentAgentRowId),
+    refetchOnWindowFocus: false,
+    throwOnError: false,
+  });
+  const buildProvenance = buildProvenanceQ.data ?? null;
+
+  async function notifyBuildDeployed(deployTarget: string) {
+    // Best-effort: never let provenance bookkeeping break a deploy.
+    try {
+      const rowId = useBuilderStore.getState().currentAgentRowId;
+      if (!rowId) return;
+      const prov = buildProvenance?.session_id
+        ? buildProvenance
+        : await getBuildProvenanceFn({ data: { agentId: rowId } });
+      if (!prov || prov.status !== "applied") return;
+      await markBuildDeployedFn({
+        data: {
+          sessionId: prov.session_id as string,
+          versionId: prov.id as string,
+          deployTarget,
+        },
+      });
+      qc.invalidateQueries({ queryKey: ["smbw-provenance", rowId] });
+      qc.invalidateQueries({ queryKey: ["smbw-session", prov.session_id] });
+      qc.invalidateQueries({ queryKey: ["smbw-sessions"] });
+    } catch (e) {
+      console.warn("[build-workspace] mark-deployed skipped:", (e as Error).message);
+    }
+  }
 
   const spendQ = useQuery({
     queryKey: ["my-spend"],
@@ -381,6 +426,7 @@ export function RetellDeployDialog({
             : "HyperStream agent saved",
           { description: "Saved locally — routed via Master Admin Enterprise Line" },
         );
+        await notifyBuildDeployed("hyperstream");
       } catch (e) {
         toast.error("Save failed", { description: (e as Error).message });
       } finally {
@@ -452,6 +498,7 @@ export function RetellDeployDialog({
             : "VoxStream agent created",
           { description: `ElevenLabs agent: ${result.agentId}` },
         );
+        await notifyBuildDeployed("elevenlabs");
       } catch (e) {
         toast.error("VoxStream deploy failed", { description: (e as Error).message });
       } finally {
@@ -526,6 +573,7 @@ export function RetellDeployDialog({
       toast.success(successLabel, {
         description: `agent_id: ${res.agentId}\n${bookingNote}`,
       });
+      await notifyBuildDeployed("retell");
       if (res.voiceFallback) {
         toast.warning("Voice not available in builder workspace", {
           description:
@@ -2727,6 +2775,28 @@ export function RetellDeployDialog({
             title="Load agent by ID"
           >
             <Download className="h-3.5 w-3.5" />
+          </Button>
+        )}
+
+        {/* Built by SystemMind — open the Build Workspace session */}
+        {buildProvenance && (
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={() =>
+              navigate({
+                to: "/systemmind/build",
+                search: {
+                  session: buildProvenance.session_id as string,
+                  workflow: undefined,
+                  agent: undefined,
+                },
+              })
+            }
+            className="!h-8 !w-8 !p-0 text-sky-400/80 hover:bg-sky-500/10 hover:text-sky-300"
+            title={`Built by SystemMind (v${buildProvenance.version_number}) — open build session`}
+          >
+            <Hammer className="h-3.5 w-3.5" />
           </Button>
         )}
 

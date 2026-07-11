@@ -100,6 +100,7 @@
 - [WBAH dashboard timezone display](wbah-dashboard-timezone.md) — only WBAH workspace forces Europe/London on toLocaleString calls via wbahDateTimeOptions()/WBAH_TIMEZONE; all other workspaces stay browser-local.
 - [WBAH calls weak-id duplicate rows](wbah-calls-weak-id-dedup.md) — WeeBespoke sync's fallback id/started_at creates a 2nd row for a Retell call; dedup before insert; batched `.in()` audits need per-batch `.range()` or PostgREST's 1000-row cap silently drops matches.
 - [Call Ava Now homepage flow](ava-call-now-arch.md) — OTP-verified homepage call → Retell Ava call → lead ONLY if booked+pos/neutral; webhook gating, atomic claims, resend .success trap.
+- [SystemMind Build Workspace](systemmind-build-workspace-arch.md) — immutable versions; high-risk apply must route via HiveMind approval; applied workflows land inactive; markDeployed gates on "applied"; row-versioned pricing.
 - [SystemMind Automation Layer](systemmind-automation-layer.md) — approval-first AI drafts; resume must require status=paused; new server-write-only tables must REVOKE (default grants give authenticated ALL).
 - [Workspace auto-provision trap](workspace-autoprovision-trap.md) — never auto-provision on a failed membership query; "my data vanished" = default_workspace_id repointed at an empty duplicate ws.
 - [Lead-intake auto-call standard](lead-intake-standard-setup.md) — reusable webform→auto-call setup; switches = lead_auto_call_* + active workflow-from-template; caller must be client_qualification agent.

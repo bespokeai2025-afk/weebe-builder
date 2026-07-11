@@ -4,6 +4,7 @@ import {
   AlertTriangle, PlugZap, ClipboardList, Lightbulb, Wrench,
   CheckSquare, FileText, Layers, MessageSquare, Settings2, Wand2, Database,
   Users, Activity, Network, Boxes, Share2, BrainCircuit, Rocket, Gauge, GraduationCap, Zap,
+  Hammer,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useEffect, useState } from "react";
@@ -29,6 +30,7 @@ const BASE_NAV_GROUPS: Array<{ title?: string; adminOnly?: boolean; items: NavIt
   {
     title: "Improve",
     items: [
+      { label: "Build Workspace",     href: "/systemmind/build",               icon: Hammer     },
       { label: "Recommendations",     href: "/systemmind/recommendations",     icon: Lightbulb  },
       { label: "Fix Plans",           href: "/systemmind/fix-plans",           icon: Wrench     },
       { label: "Workflows",           href: "/systemmind/workflows",           icon: GitBranch  },
