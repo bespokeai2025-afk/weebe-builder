@@ -114,6 +114,7 @@ import { Route as AuthenticatedSystemmindDataLimitsRouteImport } from './routes/
 import { Route as AuthenticatedSystemmindCrmAdaptersRouteImport } from './routes/_authenticated/systemmind.crm-adapters'
 import { Route as AuthenticatedSystemmindClientsRouteImport } from './routes/_authenticated/systemmind.clients'
 import { Route as AuthenticatedSystemmindChatRouteImport } from './routes/_authenticated/systemmind.chat'
+import { Route as AuthenticatedSystemmindAutomationRouteImport } from './routes/_authenticated/systemmind.automation'
 import { Route as AuthenticatedSystemmindAuditsRouteImport } from './routes/_authenticated/systemmind.audits'
 import { Route as AuthenticatedSystemmindArchitectureRouteImport } from './routes/_authenticated/systemmind.architecture'
 import { Route as AuthenticatedSettingsProvidersRouteImport } from './routes/_authenticated/settings.providers'
@@ -817,6 +818,12 @@ const AuthenticatedSystemmindChatRoute =
   AuthenticatedSystemmindChatRouteImport.update({
     id: '/chat',
     path: '/chat',
+    getParentRoute: () => AuthenticatedSystemmindRoute,
+  } as any)
+const AuthenticatedSystemmindAutomationRoute =
+  AuthenticatedSystemmindAutomationRouteImport.update({
+    id: '/automation',
+    path: '/automation',
     getParentRoute: () => AuthenticatedSystemmindRoute,
   } as any)
 const AuthenticatedSystemmindAuditsRoute =
@@ -1727,6 +1734,7 @@ export interface FileRoutesByFullPath {
   '/settings/providers': typeof AuthenticatedSettingsProvidersRouteWithChildren
   '/systemmind/architecture': typeof AuthenticatedSystemmindArchitectureRoute
   '/systemmind/audits': typeof AuthenticatedSystemmindAuditsRoute
+  '/systemmind/automation': typeof AuthenticatedSystemmindAutomationRoute
   '/systemmind/chat': typeof AuthenticatedSystemmindChatRoute
   '/systemmind/clients': typeof AuthenticatedSystemmindClientsRouteWithChildren
   '/systemmind/crm-adapters': typeof AuthenticatedSystemmindCrmAdaptersRoute
@@ -1962,6 +1970,7 @@ export interface FileRoutesByTo {
   '/settings/providers': typeof AuthenticatedSettingsProvidersRouteWithChildren
   '/systemmind/architecture': typeof AuthenticatedSystemmindArchitectureRoute
   '/systemmind/audits': typeof AuthenticatedSystemmindAuditsRoute
+  '/systemmind/automation': typeof AuthenticatedSystemmindAutomationRoute
   '/systemmind/chat': typeof AuthenticatedSystemmindChatRoute
   '/systemmind/crm-adapters': typeof AuthenticatedSystemmindCrmAdaptersRoute
   '/systemmind/data-limits': typeof AuthenticatedSystemmindDataLimitsRoute
@@ -2205,6 +2214,7 @@ export interface FileRoutesById {
   '/_authenticated/settings/providers': typeof AuthenticatedSettingsProvidersRouteWithChildren
   '/_authenticated/systemmind/architecture': typeof AuthenticatedSystemmindArchitectureRoute
   '/_authenticated/systemmind/audits': typeof AuthenticatedSystemmindAuditsRoute
+  '/_authenticated/systemmind/automation': typeof AuthenticatedSystemmindAutomationRoute
   '/_authenticated/systemmind/chat': typeof AuthenticatedSystemmindChatRoute
   '/_authenticated/systemmind/clients': typeof AuthenticatedSystemmindClientsRouteWithChildren
   '/_authenticated/systemmind/crm-adapters': typeof AuthenticatedSystemmindCrmAdaptersRoute
@@ -2450,6 +2460,7 @@ export interface FileRouteTypes {
     | '/settings/providers'
     | '/systemmind/architecture'
     | '/systemmind/audits'
+    | '/systemmind/automation'
     | '/systemmind/chat'
     | '/systemmind/clients'
     | '/systemmind/crm-adapters'
@@ -2685,6 +2696,7 @@ export interface FileRouteTypes {
     | '/settings/providers'
     | '/systemmind/architecture'
     | '/systemmind/audits'
+    | '/systemmind/automation'
     | '/systemmind/chat'
     | '/systemmind/crm-adapters'
     | '/systemmind/data-limits'
@@ -2927,6 +2939,7 @@ export interface FileRouteTypes {
     | '/_authenticated/settings/providers'
     | '/_authenticated/systemmind/architecture'
     | '/_authenticated/systemmind/audits'
+    | '/_authenticated/systemmind/automation'
     | '/_authenticated/systemmind/chat'
     | '/_authenticated/systemmind/clients'
     | '/_authenticated/systemmind/crm-adapters'
@@ -3889,6 +3902,13 @@ declare module '@tanstack/react-router' {
       path: '/chat'
       fullPath: '/systemmind/chat'
       preLoaderRoute: typeof AuthenticatedSystemmindChatRouteImport
+      parentRoute: typeof AuthenticatedSystemmindRoute
+    }
+    '/_authenticated/systemmind/automation': {
+      id: '/_authenticated/systemmind/automation'
+      path: '/automation'
+      fullPath: '/systemmind/automation'
+      preLoaderRoute: typeof AuthenticatedSystemmindAutomationRouteImport
       parentRoute: typeof AuthenticatedSystemmindRoute
     }
     '/_authenticated/systemmind/audits': {
@@ -5172,6 +5192,7 @@ const AuthenticatedSystemmindClientsRouteWithChildren =
 interface AuthenticatedSystemmindRouteChildren {
   AuthenticatedSystemmindArchitectureRoute: typeof AuthenticatedSystemmindArchitectureRoute
   AuthenticatedSystemmindAuditsRoute: typeof AuthenticatedSystemmindAuditsRoute
+  AuthenticatedSystemmindAutomationRoute: typeof AuthenticatedSystemmindAutomationRoute
   AuthenticatedSystemmindChatRoute: typeof AuthenticatedSystemmindChatRoute
   AuthenticatedSystemmindClientsRoute: typeof AuthenticatedSystemmindClientsRouteWithChildren
   AuthenticatedSystemmindCrmAdaptersRoute: typeof AuthenticatedSystemmindCrmAdaptersRoute
@@ -5203,6 +5224,8 @@ const AuthenticatedSystemmindRouteChildren: AuthenticatedSystemmindRouteChildren
     AuthenticatedSystemmindArchitectureRoute:
       AuthenticatedSystemmindArchitectureRoute,
     AuthenticatedSystemmindAuditsRoute: AuthenticatedSystemmindAuditsRoute,
+    AuthenticatedSystemmindAutomationRoute:
+      AuthenticatedSystemmindAutomationRoute,
     AuthenticatedSystemmindChatRoute: AuthenticatedSystemmindChatRoute,
     AuthenticatedSystemmindClientsRoute:
       AuthenticatedSystemmindClientsRouteWithChildren,

@@ -62,7 +62,7 @@ export async function resolveWorkspaceIdForUser(
     if (role) return profile.default_workspace_id;
   }
 
-  const { data: memberships } = await supabase
+  const { data: memberships, error: memErr } = await supabase
     .from("workspace_members")
     .select("workspace_id")
     .eq("user_id", userId)
@@ -70,6 +70,32 @@ export async function resolveWorkspaceIdForUser(
 
   if (memberships && memberships.length > 0) {
     return memberships[0].workspace_id;
+  }
+
+  // NEVER auto-provision on a failed query — a transient DB/RLS error here used
+  // to silently create a blank workspace and repoint the user's default at it,
+  // making all their existing data "disappear" on the next login.
+  if (memErr) {
+    console.error(`[resolve-workspace] membership lookup failed for user ${userId}: ${memErr.message}`);
+    throw new Error("Could not load your workspace right now — please try again in a moment.");
+  }
+
+  // Belt-and-braces: re-check with the service-role client before concluding the
+  // user truly has no workspace (RLS misconfiguration must not trigger provisioning).
+  const { data: adminMemberships, error: adminErr } = await supabaseAdmin
+    .from("workspace_members")
+    .select("workspace_id")
+    .eq("user_id", userId)
+    .limit(1);
+  if (adminErr) {
+    console.error(`[resolve-workspace] admin membership re-check failed for user ${userId}: ${adminErr.message}`);
+    throw new Error("Could not load your workspace right now — please try again in a moment.");
+  }
+  if (adminMemberships && adminMemberships.length > 0) {
+    console.error(
+      `[resolve-workspace] RLS returned no memberships for user ${userId} but service-role found ${adminMemberships[0].workspace_id} — NOT auto-provisioning. Check workspace_members RLS policies.`,
+    );
+    return adminMemberships[0].workspace_id;
   }
 
   // No workspace found — user signed up before the auto-provision trigger.

@@ -17,7 +17,8 @@ export type ActionType     =
   | "register_resend_webhook"
   | "sync_ad_stats"
   | "send_workflow_draft_to_builder"
-  | "activate_lead_intake_workflow";
+  | "activate_lead_intake_workflow"
+  | "activate_systemmind_automation";
 
 export interface HiveMindAction {
   id:             string;
@@ -261,6 +262,22 @@ async function executeAction(sb: any, workspaceId: string, action: HiveMindActio
       }
 
       return { enabled: true, agent_id: agentId, workflow_id: workflowId, template_id: templateId };
+    }
+
+    case "activate_systemmind_automation": {
+      const generatedActionId = String(p.generated_action_id ?? "");
+      if (!generatedActionId) throw new Error("generated_action_id required");
+      const { activateSystemMindAutomation } = await import(
+        "@/lib/systemmind/systemmind-automation.server"
+      );
+      // Payload is re-validated server-side inside activateSystemMindAutomation
+      // (step whitelist + workspace ownership) before anything goes live.
+      const result = await activateSystemMindAutomation(
+        workspaceId,
+        generatedActionId,
+        "User",
+      );
+      return { workflow_id: result.workflow_id, draft_id: result.draft_id };
     }
 
     default:

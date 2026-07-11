@@ -3,7 +3,7 @@ import {
   Server, BarChart3, ShieldCheck, BookOpen, GitBranch, Shield,
   AlertTriangle, PlugZap, ClipboardList, Lightbulb, Wrench,
   CheckSquare, FileText, Layers, MessageSquare, Settings2, Wand2, Database,
-  Users, Activity, Network, Boxes, Share2, BrainCircuit, Rocket, Gauge, GraduationCap,
+  Users, Activity, Network, Boxes, Share2, BrainCircuit, Rocket, Gauge, GraduationCap, Zap,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useEffect, useState } from "react";
@@ -34,6 +34,7 @@ const BASE_NAV_GROUPS: Array<{ title?: string; adminOnly?: boolean; items: NavIt
       { label: "Workflows",           href: "/systemmind/workflows",           icon: GitBranch  },
       { label: "Workflow Generator",  href: "/systemmind/workflow-generator",  icon: Wand2      },
       { label: "Workflow Drafts",     href: "/systemmind/workflow-drafts",     icon: Layers     },
+      { label: "Automation",          href: "/systemmind/automation",          icon: Zap        },
       { label: "Playbooks",           href: "/systemmind/playbooks",           icon: Shield     },
     ],
   },
