@@ -2,6 +2,11 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 
+function requireWorkspaceId(workspaceId: string | undefined): string {
+  if (!workspaceId) throw new Error("No workspace selected — join or create a workspace first.");
+  return workspaceId;
+}
+
 // ── generateAutomationDraft ───────────────────────────────────────────────────
 export const generateAutomationDraft = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
@@ -15,7 +20,7 @@ export const generateAutomationDraft = createServerFn({ method: "POST" })
       "@/lib/systemmind/systemmind-automation.server"
     );
     return generateAutomationDraftServer({
-      workspaceId: context.workspaceId,
+      workspaceId: requireWorkspaceId(context.workspaceId),
       userId:      context.userId ?? null,
       description: data.description,
       instructedBy: "user",
@@ -29,7 +34,7 @@ export const listAutomationDrafts = createServerFn({ method: "GET" })
     const { listAutomationDraftsServer, isClaudeEnabled } = await import(
       "@/lib/systemmind/systemmind-automation.server"
     );
-    const drafts = await listAutomationDraftsServer(context.workspaceId);
+    const drafts = await listAutomationDraftsServer(requireWorkspaceId(context.workspaceId));
     return { drafts, claudeEnabled: isClaudeEnabled() };
   });
 
@@ -40,7 +45,7 @@ export const listAutomationRuns = createServerFn({ method: "GET" })
     const { listAutomationRunsServer } = await import(
       "@/lib/systemmind/systemmind-automation.server"
     );
-    return listAutomationRunsServer(context.workspaceId);
+    return listAutomationRunsServer(requireWorkspaceId(context.workspaceId));
   });
 
 // ── listAutomationAudit ───────────────────────────────────────────────────────
@@ -53,7 +58,7 @@ export const listAutomationAudit = createServerFn({ method: "GET" })
     const { listAutomationAuditServer } = await import(
       "@/lib/systemmind/systemmind-automation.server"
     );
-    return listAutomationAuditServer(context.workspaceId, data.targetId);
+    return listAutomationAuditServer(requireWorkspaceId(context.workspaceId), data.targetId);
   });
 
 // ── submitDraftForApproval ────────────────────────────────────────────────────
@@ -66,7 +71,7 @@ export const submitDraftForApproval = createServerFn({ method: "POST" })
     const { submitDraftForApprovalServer } = await import(
       "@/lib/systemmind/systemmind-automation.server"
     );
-    return submitDraftForApprovalServer(context.workspaceId, context.userId ?? null, data.draftId);
+    return submitDraftForApprovalServer(requireWorkspaceId(context.workspaceId), context.userId ?? null, data.draftId);
   });
 
 // ── rejectAutomationDraft ─────────────────────────────────────────────────────
@@ -79,7 +84,7 @@ export const rejectAutomationDraft = createServerFn({ method: "POST" })
     const { rejectDraftServer } = await import(
       "@/lib/systemmind/systemmind-automation.server"
     );
-    await rejectDraftServer(context.workspaceId, context.userId ?? null, data.draftId);
+    await rejectDraftServer(requireWorkspaceId(context.workspaceId), context.userId ?? null, data.draftId);
     return { ok: true };
   });
 
@@ -93,6 +98,6 @@ export const setAutomationPaused = createServerFn({ method: "POST" })
     const { setDraftPausedServer } = await import(
       "@/lib/systemmind/systemmind-automation.server"
     );
-    await setDraftPausedServer(context.workspaceId, context.userId ?? null, data.draftId, data.paused);
+    await setDraftPausedServer(requireWorkspaceId(context.workspaceId), context.userId ?? null, data.draftId, data.paused);
     return { ok: true };
   });

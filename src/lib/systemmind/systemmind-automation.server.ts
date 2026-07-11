@@ -240,16 +240,18 @@ export interface GenerateAutomationArgs {
   instructedBy?: "user" | "hivemind" | "admin";
 }
 
-export interface GenerateAutomationResult {
+export type GenerateAutomationResult = {
   runId:       string;
   draftId:     string;
-  draft:       Record<string, unknown>;
+  // Record<string, any> (not unknown): TanStack Start's serializable-return
+  // check rejects `unknown` index signatures on server fn return types.
+  draft:       Record<string, any>;
   modelUsed:   string;
   provider:    string;
   usedFallback: boolean;
   claudeEnabled: boolean;
   riskLevel:   "low" | "medium" | "high";
-}
+};
 
 export async function generateAutomationDraftServer(
   args: GenerateAutomationArgs,
@@ -645,12 +647,22 @@ export async function setDraftPausedServer(
     .eq("id", draftId).eq("workspace_id", workspaceId);
   if (error) throw new Error(error.message);
 
-  // Mirror onto the live workflow row
+  // Mirror onto the live activated target so the draft status and the running
+  // automation can never disagree. workspace_workflow (legacy + n8n_blueprint)
+  // and hexmail_campaign (follow_up_sequence) both support active/paused;
+  // whatsapp_setup_draft has no live runtime, so nothing to mirror.
   if (draft.activated_target_type === "workspace_workflow" && draft.activated_target_id) {
-    await sb.from("workspace_workflows")
+    const { error: mirrorErr } = await sb.from("workspace_workflows")
       .update({ status: paused ? "paused" : "active", updated_at: new Date().toISOString() })
       .eq("id", draft.activated_target_id)
       .eq("workspace_id", workspaceId);
+    if (mirrorErr) throw new Error(`Draft ${paused ? "paused" : "resumed"} but the live workflow update failed: ${mirrorErr.message}`);
+  } else if (draft.activated_target_type === "hexmail_campaign" && draft.activated_target_id) {
+    const { error: mirrorErr } = await sb.from("hexmail_campaigns")
+      .update({ status: paused ? "paused" : "active", updated_at: new Date().toISOString() })
+      .eq("id", draft.activated_target_id)
+      .eq("workspace_id", workspaceId);
+    if (mirrorErr) throw new Error(`Draft ${paused ? "paused" : "resumed"} but the live campaign update failed: ${mirrorErr.message}`);
   }
 
   await writeSystemMindAudit({

@@ -2,6 +2,11 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 
+function requireWorkspaceId(workspaceId: string | undefined): string {
+  if (!workspaceId) throw new Error("No workspace selected — join or create a workspace first.");
+  return workspaceId;
+}
+
 // ── generateWhatsAppSetupDraft ────────────────────────────────────────────────
 export const generateWhatsAppSetupDraft = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
@@ -16,7 +21,7 @@ export const generateWhatsAppSetupDraft = createServerFn({ method: "POST" })
       "@/lib/systemmind/systemmind-generators.server"
     );
     return generateWhatsAppSetupDraftServer({
-      workspaceId:  context.workspaceId,
+      workspaceId:  requireWorkspaceId(context.workspaceId),
       userId:       context.userId ?? null,
       provider:     data.provider,
       description:  data.description,
@@ -37,7 +42,7 @@ export const generateFollowUpSequenceDraft = createServerFn({ method: "POST" })
       "@/lib/systemmind/systemmind-generators.server"
     );
     return generateFollowUpSequenceDraftServer({
-      workspaceId:  context.workspaceId,
+      workspaceId:  requireWorkspaceId(context.workspaceId),
       userId:       context.userId ?? null,
       description:  data.description,
       instructedBy: "user",
@@ -57,7 +62,7 @@ export const convertN8nWorkflowToDraft = createServerFn({ method: "POST" })
       "@/lib/systemmind/systemmind-generators.server"
     );
     return convertN8nWorkflowServer({
-      workspaceId:  context.workspaceId,
+      workspaceId:  requireWorkspaceId(context.workspaceId),
       userId:       context.userId ?? null,
       n8nRowId:     data.n8nRowId,
       instructedBy: "user",
@@ -74,7 +79,7 @@ export const getAutomationDraftDetail = createServerFn({ method: "GET" })
     const { getDraftDetailServer } = await import(
       "@/lib/systemmind/systemmind-generators.server"
     );
-    return getDraftDetailServer(context.workspaceId, data.draftId);
+    return getDraftDetailServer(requireWorkspaceId(context.workspaceId), data.draftId);
   });
 
 // ── listConvertibleN8nWorkflows (picker for the conversion tab) ───────────────
@@ -84,5 +89,5 @@ export const listConvertibleN8nWorkflows = createServerFn({ method: "GET" })
     const { listN8nWorkflows } = await import(
       "@/lib/systemmind/n8n-discovery.server"
     );
-    return listN8nWorkflows(context.workspaceId);
+    return listN8nWorkflows(requireWorkspaceId(context.workspaceId));
   });

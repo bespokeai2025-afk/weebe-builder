@@ -12,6 +12,10 @@ Three generator kinds sit on top of the SystemMind Automation Layer hub
 - Lifecycle status lives ONLY on the hub row; detail tables are pure detail. If a detail
   insert fails, the generator deletes the hub row (no orphan hub rows). If activation fails,
   the hub row is marked `failed` and the error re-thrown so HiveMind marks its action failed.
+- Pause/resume MUST mirror to the live activated target per `activated_target_type`
+  (`workspace_workflow` AND `hexmail_campaign`; `whatsapp_setup_draft` has no runtime).
+  Any new kind whose activation creates something that runs needs its own mirror branch in
+  `setDraftPausedServer`, or the draft shows paused while the automation keeps running.
 - `activateSystemMindAutomation` dispatches by `action_kind`: the three generator kinds route
   to activation fns in the generators module via **string-literal** dynamic import (variable
   specifiers break the prod Rollup build). Hub status update + audit stay centralized in the

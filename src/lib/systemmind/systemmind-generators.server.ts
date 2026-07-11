@@ -126,7 +126,7 @@ function routedArgs(workspaceId: string, sb: Sb) {
     contentType: "systemmind_automation",
     mode:        "manual" as const,
     provider:    claudeEnabled ? ("claude" as const) : ("openai" as const),
-    model:       claudeEnabled ? "claude-sonnet-4-5" : "gpt-4.1",
+    model:       claudeEnabled ? ("claude-sonnet-4-5" as const) : ("gpt-4.1" as const),
     settings:    {},
     workspaceId,
     sb,
