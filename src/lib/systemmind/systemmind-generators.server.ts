@@ -63,7 +63,7 @@ const CREDENTIAL_VALUE_PATTERNS: RegExp[] = [
   /Bearer\s+[A-Za-z0-9._-]{30,}/i,    // raw bearer tokens
 ];
 
-function assertNoCredentialValues(draft: unknown, label: string): void {
+export function assertNoCredentialValues(draft: unknown, label: string): void {
   const blob = JSON.stringify(draft ?? {});
   for (const re of CREDENTIAL_VALUE_PATTERNS) {
     if (re.test(blob)) {

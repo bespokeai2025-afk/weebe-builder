@@ -1,0 +1,232 @@
+WBAH / WeBuyAnyHouse workspace data is not showing correctly in the WBAH workspace. Please investigate and fix this issue **only for the WBAH workspace**, without changing or breaking any other workspace or any of the recent WEBEE platform changes.
+
+Important context:
+
+I have made a lot of new changes recently across WEBEE, including UI updates, filters, lead source icons, preferred contact indicators, Call Ava, SystemMind, HiveMind, AccountsMind, workflow logic, webforms, and workspace-specific improvements.
+
+This fix must be isolated and must not roll back, overwrite, or interfere with those changes.
+
+## Main issue
+
+When logged into the WBAH / WeBuyAnyHouse workspace, the expected WBAH data does not appear to be present or loading correctly.
+
+Please audit and fix the data loading for WBAH only.
+
+## Critical safety rules
+
+1. Do not change global logic unless absolutely necessary.
+2. Do not change any other workspace’s data, settings, API keys, filters, agents, calls, leads, qualified data, or workflows.
+3. Do not copy WBAH settings into standard WEBEE accounts.
+4. Do not copy standard WEBEE settings into WBAH.
+5. Do not reset or overwrite any workspace settings.
+6. Do not remove any recent UI, filters, icons, webform, Ava, SystemMind, HiveMind, GrowthMind, AccountsMind, or workflow changes.
+7. Do not break WBAH-specific logic that already existed.
+8. Do not break standard WEBEE account logic.
+9. Do not break workspace_id scoping or Supabase RLS assumptions.
+10. Do not apply broad migrations without confirming they are safe.
+
+## What to check
+
+Please audit the WBAH workspace configuration and data loading paths for:
+
+* workspace_id mapping
+* user → workspace relation
+* workspace membership
+* workspace settings
+* Retell API key / Retell workspace ID
+* WBAH CRM/Dynamics intake configuration
+* WBAH lead source mapping
+* WBAH calls loading
+* WBAH leads loading
+* WBAH qualified leads loading
+* WBAH data page loading
+* WBAH filters
+* WBAH analytics
+* WBAH post-call data mapping
+* WBAH status mapping
+* WBAH positive/neutral qualified logic
+* WBAH lead visibility rules
+* Supabase RLS policies affecting WBAH
+* recent frontend filters that may be hiding WBAH data
+* recent UI changes that may have changed default filter states
+* recent workspace-specific source filters
+* recent changes to Calls, Leads, Qualified, or Data pages
+
+## Likely causes to investigate
+
+Please specifically check for these possible causes:
+
+1. Wrong workspace_id being used when logged into WBAH.
+2. WBAH user account not linked to the correct workspace.
+3. WBAH workspace settings missing or overwritten.
+4. Retell workspace ID or API key not loading for WBAH.
+5. Filters defaulting to hide WBAH data.
+6. Data page only loading standard WEBEE source records.
+7. Leads page only showing webform leads and excluding CRM intake leads.
+8. Qualified page filtering out WBAH statuses incorrectly.
+9. Calls page querying the wrong workspace_id.
+10. RLS policy blocking WBAH rows.
+11. Recent UI/filter changes created a default filter that excludes WBAH.
+12. WBAH CRM intake source not included in source/status mappings.
+13. WBAH positive/neutral lead rules not being applied.
+14. WBAH data exists in Supabase but is not being selected by the frontend.
+15. WBAH data exists under a different workspace_id due to previous migration/import.
+16. WBAH account is accidentally loading standard WEBEE workspace settings.
+17. WBAH workspace has old status values that the new UI no longer recognises.
+
+## Required approach
+
+Please do this carefully in stages.
+
+### Stage 1 — Audit only
+
+Before changing anything, inspect and report internally in logs:
+
+* logged-in WBAH user id
+* resolved workspace_id
+* workspace name
+* workspace settings id
+* Retell workspace setting presence
+* count of WBAH calls by workspace_id
+* count of WBAH leads by workspace_id
+* count of WBAH qualified leads by workspace_id
+* count of WBAH data records by workspace_id
+* current active filters on Calls page
+* current active filters on Leads page
+* current active filters on Qualified page
+* current active filters on Data page
+
+Do not expose secrets in logs.
+
+Mask API keys.
+
+### Stage 2 — Identify whether data is missing or hidden
+
+Determine whether:
+
+A. WBAH data exists in the database but the UI is not showing it.
+
+or
+
+B. WBAH data is not present under the expected workspace_id.
+
+or
+
+C. WBAH data exists under the wrong workspace_id.
+
+or
+
+D. WBAH data is being filtered out by source/status/sentiment/date/default filters.
+
+or
+
+E. WBAH API/Retell/CRM data is not syncing.
+
+### Stage 3 — Fix only the exact cause
+
+Only fix the specific cause found.
+
+Examples:
+
+* If the UI is querying the wrong workspace_id, fix WBAH workspace resolution safely.
+* If filters are hiding WBAH data, adjust only the default filter logic so WBAH data appears.
+* If WBAH CRM source values are excluded, add WBAH CRM source values to the allowed source mapping.
+* If WBAH statuses are excluded, map old WBAH status values safely.
+* If WBAH user membership points to the wrong workspace, repair that membership only.
+* If WBAH settings are missing, restore only WBAH workspace settings from existing safe config or environment variables.
+* If WBAH data is under the wrong workspace_id, do not move it unless confirmed. Create a safe migration plan first and only update WBAH rows if clearly correct.
+
+## WBAH-specific behaviour to preserve
+
+WBAH / WeBuyAnyHouse may have CRM intake data and very large lead volume.
+
+For WBAH:
+
+* CRM intake leads should be recognised.
+* WBAH CRM source should show the CRM-style source icon.
+* WBAH leads should not be hidden just because they are not webform leads.
+* Qualified/positive/neutral logic should keep working.
+* Calls should remain visible in Calls.
+* Positive and neutral qualified leads should appear where expected.
+* Manual status selectors should not be broken.
+* Existing WBAH analytics should keep working.
+* Existing Retell API integration should keep working.
+* Existing Dynamics/CRM-related configuration should not be overwritten.
+
+## Do not make these mistakes
+
+Do not:
+
+* remove workspace filters globally
+* disable RLS
+* hardcode WBAH workspace_id into shared components
+* force all users to WBAH config
+* copy WBAH data into other workspaces
+* copy other workspace data into WBAH
+* delete data
+* wipe filters
+* reset settings
+* roll back recent UI work
+* break the standard WEBEE user account setup
+* change the main data model unless absolutely required
+
+## Safe fixes allowed
+
+Allowed safe fixes include:
+
+* correcting WBAH workspace membership if wrong
+* correcting WBAH workspace_settings lookup if wrong
+* fixing frontend queries that accidentally use the wrong workspace context
+* fixing WBAH-specific filter defaults
+* adding WBAH CRM source/status values to mappings
+* making source/status mapping backward-compatible
+* improving debug logs
+* adding a workspace-scoped health check for WBAH data
+* fixing date filters so old WBAH data is not hidden by default
+* fixing pagination so WBAH large data volume loads safely
+
+## Add temporary WBAH diagnostics page or logs if useful
+
+If helpful, add a temporary admin-only diagnostic function/page for WBAH showing:
+
+* resolved workspace_id
+* counts of calls/leads/qualified/data_records
+* recent 10 calls
+* recent 10 leads
+* recent 10 qualified leads
+* active filters
+* detected source values
+* detected status values
+* Retell setting presence
+* CRM setting presence
+
+This must be admin-only and must not expose secrets.
+
+## Testing required
+
+Please test:
+
+1. Login as WBAH user.
+2. Confirm the correct WBAH workspace_id is resolved.
+3. Confirm WBAH Calls page loads WBAH calls.
+4. Confirm WBAH Leads page loads WBAH leads.
+5. Confirm WBAH Qualified page loads WBAH qualified leads.
+6. Confirm WBAH Data page loads WBAH data records if applicable.
+7. Confirm WBAH filters do not hide all data by default.
+8. Confirm WBAH CRM intake leads are recognised.
+9. Confirm WBAH source icons still work.
+10. Confirm WBAH preferred contact indicators still work where data exists.
+11. Confirm WBAH manual status/status mapping still works.
+12. Confirm WBAH Retell analytics still work if configured.
+13. Confirm standard WEBEE account still loads its own data.
+14. Confirm another non-WBAH workspace still loads its own data.
+15. Confirm no WBAH data appears in other workspaces.
+16. Confirm no other workspace data appears in WBAH.
+17. Confirm recent UI changes remain intact.
+18. Confirm Call Ava, webforms, SystemMind, HiveMind, GrowthMind, AccountsMind, workflows, and Follow Up Centre are not broken.
+
+## Final instruction
+
+Fix the WBAH data visibility/loading issue with the smallest safe change possible. Treat this as a workspace-scoped bug fix, not a platform-wide refactor.
+
+Before making broad changes, identify whether the WBAH data is missing, under the wrong workspace_id, or simply hidden by filters/query logic.

@@ -1,0 +1,26 @@
+AccountsMind Config Builder + Onboarding Assistant
+What & Why
+Second half of the SystemMind Automation Layer spec: let SystemMind draft AccountsMind configuration (custom fields, stats, dashboard widgets, a client-facing section) and act as a new-workspace onboarding assistant with automated health checks. Same rules: drafts only, approval-first, audited, workspace-isolated, Claude with GPT-4o fallback.
+
+Done looks like
+Admin can ask SystemMind to draft AccountsMind custom fields, stat definitions and dashboard widgets; approved drafts render in AccountsMind (admin view) and the client section shows only client-safe widgets.
+New workspaces get an onboarding assistant that proposes a setup checklist tailored to the workspace's stated business, tracks completion, and re-checks state instead of blindly trusting checkmarks.
+Health checks run on demand per workspace (agent deployed? KB seeded? providers connected? webhooks reachable?) and produce a scored report with recommended fixes as draft actions — never auto-fixes.
+Everything lands in the same approval/audit surfaces built in the foundations task.
+Out of scope
+Changing existing AccountsMind cost-aggregation logic
+Autonomous remediation — health checks only recommend
+Steps
+Schema — AccountsMind config tables (custom field defs, stat defs, widget defs, client-section config) plus onboarding/health-check tables (plan, checklist state, health runs, findings); workspace-scoped, RLS, lifecycle + soft-delete. Additive, idempotent SQL applied manually.
+AccountsMind config generator + renderer — Claude drafts config from a plain-language ask; approval activates it; AccountsMind admin pages render dynamic fields/stats/widgets from active config; client section filters to client-safe items.
+Onboarding assistant — Extend the existing onboarding system with a SystemMind-driven tailored checklist draft per new workspace, with derived (re-checked) completion state.
+Health-check engine — Deterministic per-workspace checks + scored report; findings become recommended draft actions through the approval pipeline.
+Rollout + verify + teach — End-to-end tests; architect review; platform SystemMind KB note covering the whole automation layer now that all pieces are live.
+Relevant files
+src/lib/accountsmind/accountsmind.functions.ts
+src/lib/accountsmind/client-costing.server.ts
+src/lib/onboarding/onboarding.server.ts
+src/lib/systemmind/systemmind-cto.server.ts
+src/lib/hivemind/hivemind.actions.ts
+attached_assets/Pasted--Additional-requirement-AccountsMind-and-new-workspace-_1783699090208.txt
+Dependencies
