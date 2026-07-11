@@ -14,6 +14,7 @@ import { createClient } from "@supabase/supabase-js";
 import { readFileSync } from "fs";
 import { fileURLToPath } from "url";
 import { resolve, dirname } from "path";
+import { refreshSchemaMap } from "./lib/refresh-schema-map.mjs";
 
 const __dir = dirname(fileURLToPath(import.meta.url));
 const SQL = readFileSync(
@@ -63,6 +64,7 @@ if (projectRef && mgmtToken) {
   const json = await res.json();
   if (res.ok) {
     console.log("✅ growthmind_video_assets migration applied via Management API!");
+    refreshSchemaMap();
     process.exit(0);
   }
   console.error("Management API error:", JSON.stringify(json));

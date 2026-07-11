@@ -19,6 +19,7 @@ import { createClient } from "@supabase/supabase-js";
 import { readFileSync } from "fs";
 import { fileURLToPath } from "url";
 import { resolve, dirname } from "path";
+import { refreshSchemaMap } from "./lib/refresh-schema-map.mjs";
 
 const __dir = dirname(fileURLToPath(import.meta.url));
 const SQL = readFileSync(
@@ -98,6 +99,7 @@ if (projectRef && mgmtToken) {
     try { json = await res.json(); } catch { json = { raw: await res.text().catch(() => "(unreadable)") }; }
     if (res.ok) {
       console.log("✅ SystemMind Workflow Library migration applied via Management API!");
+      refreshSchemaMap();
       process.exit(0);
     }
     console.warn("[systemmind-migration] Management API error:", JSON.stringify(json));
