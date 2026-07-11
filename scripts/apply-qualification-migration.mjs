@@ -3,6 +3,7 @@
  * Run: node scripts/apply-qualification-migration.mjs
  */
 import { createClient } from "@supabase/supabase-js";
+import { refreshSchemaMap } from "./lib/refresh-schema-map.mjs";
 
 const SUPABASE_URL = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
 const SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -65,6 +66,7 @@ if (!projectRef) {
     const json = await res.json();
     if (res.ok) {
       console.log("✅ Migration applied successfully via Management API!");
+      refreshSchemaMap();
       process.exit(0);
     } else {
       console.error("Management API error:", JSON.stringify(json));

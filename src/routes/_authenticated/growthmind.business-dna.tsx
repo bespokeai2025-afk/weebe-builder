@@ -5,6 +5,7 @@ import { useState } from "react";
 import { toast } from "sonner";
 import { Dna, Save, RefreshCw, CheckCircle2, AlertCircle, Loader2, ChevronDown, ChevronUp } from "lucide-react";
 import { GrowthMindShell } from "@/components/growthmind/GrowthMindShell";
+import { BusinessDnaKnowledgeUpload } from "@/components/hivemind/BusinessDnaKnowledgeUpload";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -217,6 +218,9 @@ function BusinessDnaPage() {
             </p>
           )}
         </div>
+
+        {/* Knowledge base document upload — feeds discovery + GrowthMind */}
+        <BusinessDnaKnowledgeUpload accent="emerald" />
 
         {/* Section: Company */}
         <Section id="company" title="Company Information" description="Core identity — used in every strategy and content piece"

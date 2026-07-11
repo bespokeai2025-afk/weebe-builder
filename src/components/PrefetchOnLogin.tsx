@@ -125,7 +125,7 @@ export function PrefetchOnLogin({ authed }: Props) {
 
     if (isWbah) {
       // ── WBAH "We Buy Any House" workspace ──
-      prefetch(["leads-all", true, "30"], () => wbahLeadsFn());
+      prefetch(["leads-all", true], () => wbahLeadsFn());
       prefetch(["wbah-qualified-leads"],  () => wbahQualifiedFn());
       // NOTE: the full WBAH calls list is ~20MB — never prefetch it on login.
       // The Calls page loads page-1 on demand via server-side pagination.
@@ -151,7 +151,7 @@ export function PrefetchOnLogin({ authed }: Props) {
       // ── All other workspaces ──
       const dateFrom = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
       const dateTo   = new Date().toISOString();
-      prefetch(["leads-all", false, "30"], () => listLeadsFn({ data: { limit: 1000, dateFrom, dateTo } }));
+      prefetch(["leads-all", false], () => listLeadsFn({ data: { limit: 1000, dateFrom, dateTo } }));
       prefetch(["calls", "exclude", "30"], () => callsFn({ data: { voicemailFilter: "exclude", dateFrom, dateTo } }));
       prefetch(["leads-qualified", ""],    () => qualLeadsFn({ data: { limit: 200 } }));
     }

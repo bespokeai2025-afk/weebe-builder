@@ -4,7 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import {
   CheckCircle2, Circle, ChevronDown, ChevronUp, X,
-  TrendingUp, Cpu, Zap, ExternalLink, ListChecks,
+  TrendingUp, Cpu, Zap, ExternalLink, ListChecks, Sparkles,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { getOnboardingState, type OnboardingPath } from "@/lib/onboarding/onboarding.server";
@@ -177,6 +177,18 @@ export function OnboardingChecklist() {
               <p className="text-xs font-semibold text-emerald-400">🎉 Setup complete!</p>
               <p className="text-[10px] text-muted-foreground mt-0.5">You're all set to get results from WEBEE.</p>
             </div>
+          )}
+
+          {!allDone && (
+            <button
+              onClick={() => navigate({ to: "/systemmind/setup-assistant" as any })}
+              className="w-full flex items-center gap-2 border-t border-white/[0.06] px-4 py-2.5 text-left hover:bg-sky-500/[0.06] transition-colors group">
+              <Sparkles className="h-3.5 w-3.5 shrink-0 text-sky-400" />
+              <span className="flex-1 text-[11px] text-muted-foreground group-hover:text-sky-300 transition-colors">
+                Get a personalised setup plan from the Setup Assistant
+              </span>
+              <ExternalLink className="h-3 w-3 shrink-0 text-muted-foreground/40 group-hover:text-sky-400 transition-colors" />
+            </button>
           )}
         </div>
       )}

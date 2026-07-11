@@ -11,9 +11,9 @@ import {
   PlayCircle,
   RefreshCw,
   X,
-  Download,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { RecordingPlayerDialog } from "@/components/RecordingPlayerDialog";
 import { listTelephonyCalls } from "@/lib/telephony/telephony.functions";
 
 export const Route = createFileRoute("/_authenticated/telephony-calls")({
@@ -62,35 +62,6 @@ function outcomeBadge(o?: string | null) {
     <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium capitalize ${map[o] ?? "bg-muted text-muted-foreground"}`}>
       {o.replace("_", " ")}
     </span>
-  );
-}
-
-function RecordingModal({ url, contact, onClose }: { url: string; contact: string; onClose: () => void }) {
-  return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm"
-      onClick={e => e.target === e.currentTarget && onClose()}
-    >
-      <div className="w-full max-w-md rounded-xl border border-border bg-card p-6 shadow-2xl">
-        <div className="mb-4 flex items-start justify-between gap-3">
-          <div>
-            <h2 className="text-base font-semibold">Recording</h2>
-            <p className="mt-0.5 text-sm text-muted-foreground">{contact}</p>
-          </div>
-          <button onClick={onClose} className="rounded-md p-1 text-muted-foreground hover:bg-muted hover:text-foreground">
-            <X className="h-4 w-4" />
-          </button>
-        </div>
-        <audio controls autoPlay={false} className="w-full" src={url} style={{ colorScheme: "dark" }} />
-        <a
-          href={url}
-          download
-          className="mt-3 flex items-center gap-1.5 text-xs text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
-        >
-          <Download className="h-3.5 w-3.5" /> Download
-        </a>
-      </div>
-    </div>
   );
 }
 
@@ -262,7 +233,7 @@ function TelephonyCallsPage() {
         </div>
       )}
 
-      {recording && <RecordingModal url={recording.url} contact={recording.contact} onClose={() => setRecording(null)} />}
+      {recording && <RecordingPlayerDialog url={recording.url} contact={recording.contact} onClose={() => setRecording(null)} />}
       {transcript && <TranscriptModal call={transcript} onClose={() => setTranscript(null)} />}
     </div>
   );

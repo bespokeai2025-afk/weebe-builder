@@ -157,7 +157,7 @@ const SIDEBAR_SECTIONS = [
 
 type TabId = typeof SIDEBAR_SECTIONS[number]["items"][number]["id"];
 
-const ALL_ITEMS = SIDEBAR_SECTIONS.flatMap(s => s.items);
+const ALL_ITEMS = SIDEBAR_SECTIONS.flatMap(s => [...s.items]);
 
 // ── Main page ─────────────────────────────────────────────────────────────────
 
@@ -380,7 +380,7 @@ function LlmTab({ rows, onSaved }: { rows: LlmCost[]; onSaved: () => void }) {
   const save = async () => {
     setBusy(true);
     try {
-      await saveLlmCost({ ...(editId !== "new" ? { id: editId! } : {}), ...form, notes: form.notes ?? undefined } as any);
+      await saveLlmCost({ data: { ...(editId !== "new" ? { id: editId! } : {}), ...form, notes: form.notes ?? undefined } });
       toast.success("Saved");
       setEditId(null);
       onSaved();
@@ -391,7 +391,7 @@ function LlmTab({ rows, onSaved }: { rows: LlmCost[]; onSaved: () => void }) {
   const remove = async (id: string) => {
     if (!confirm("Remove this entry?")) return;
     setBusy(true);
-    try { await deleteLlmCost({ id }); toast.success("Removed"); onSaved(); }
+    try { await deleteLlmCost({ data: { id } }); toast.success("Removed"); onSaved(); }
     catch (e: any) { toast.error(e?.message ?? "Failed"); }
     finally { setBusy(false); }
   };
@@ -477,13 +477,13 @@ function VoiceTab({ rows, onSaved }: { rows: VoiceCost[]; onSaved: () => void })
   const startEdit = (row: VoiceCost) => { setEditId(row.id); setForm({ provider: row.provider, voice_id: row.voice_id, voice_name: row.voice_name, cost_per_character: n(row.cost_per_character), cost_per_minute: n(row.cost_per_minute), cost_per_request: n(row.cost_per_request), notes: row.notes }); };
   const save = async () => {
     setBusy(true);
-    try { await saveVoiceCost({ ...(editId !== "new" ? { id: editId! } : {}), ...form, notes: form.notes ?? undefined } as any); toast.success("Saved"); setEditId(null); onSaved(); }
+    try { await saveVoiceCost({ data: { ...(editId !== "new" ? { id: editId! } : {}), ...form, notes: form.notes ?? undefined } }); toast.success("Saved"); setEditId(null); onSaved(); }
     catch (e: any) { toast.error(e?.message ?? "Failed"); } finally { setBusy(false); }
   };
   const remove = async (id: string) => {
     if (!confirm("Remove?")) return;
     setBusy(true);
-    try { await deleteVoiceCost({ id }); toast.success("Removed"); onSaved(); } catch (e: any) { toast.error(e?.message ?? "Failed"); } finally { setBusy(false); }
+    try { await deleteVoiceCost({ data: { id } }); toast.success("Removed"); onSaved(); } catch (e: any) { toast.error(e?.message ?? "Failed"); } finally { setBusy(false); }
   };
 
   const EditForm = () => (
@@ -548,13 +548,13 @@ function TelephonyTab({ rows, onSaved }: { rows: TelephonyCost[]; onSaved: () =>
   const startEdit = (row: TelephonyCost) => { setEditId(row.id); setForm({ provider: row.provider, country: row.country, inbound_cost_per_min: n(row.inbound_cost_per_min), outbound_cost_per_min: n(row.outbound_cost_per_min), recording_cost_per_min: n(row.recording_cost_per_min), number_rental_monthly: n(row.number_rental_monthly), notes: row.notes }); };
   const save = async () => {
     setBusy(true);
-    try { await saveTelephonyCost({ ...(editId !== "new" ? { id: editId! } : {}), ...form, notes: form.notes ?? undefined } as any); toast.success("Saved"); setEditId(null); onSaved(); }
+    try { await saveTelephonyCost({ data: { ...(editId !== "new" ? { id: editId! } : {}), ...form, notes: form.notes ?? undefined } }); toast.success("Saved"); setEditId(null); onSaved(); }
     catch (e: any) { toast.error(e?.message ?? "Failed"); } finally { setBusy(false); }
   };
   const remove = async (id: string) => {
     if (!confirm("Remove?")) return;
     setBusy(true);
-    try { await deleteTelephonyCost({ id }); toast.success("Removed"); onSaved(); } catch (e: any) { toast.error(e?.message ?? "Failed"); } finally { setBusy(false); }
+    try { await deleteTelephonyCost({ data: { id } }); toast.success("Removed"); onSaved(); } catch (e: any) { toast.error(e?.message ?? "Failed"); } finally { setBusy(false); }
   };
 
   const EditForm = () => (
@@ -635,7 +635,7 @@ function FixedCostsTab({ data, onSaved }: { data: CostEngineData; onSaved: () =>
           <NumInput label="Storage /GB/mo" value={kn.storage_per_gb_month} onChange={v => setKn(f => ({ ...f, storage_per_gb_month: v }))} step="0.001" />
           <div className="col-span-2"><Label className="text-xs">Notes</Label><Input className="h-7 text-xs" value={kn.notes} onChange={e => setKn(f => ({ ...f, notes: e.target.value }))} /></div>
         </div>
-        <Button size="sm" className="mt-3 h-7 text-xs" disabled={busy} onClick={() => act(() => saveKnowledgeCost(kn), "Knowledge")}>Save</Button>
+        <Button size="sm" className="mt-3 h-7 text-xs" disabled={busy} onClick={() => act(() => saveKnowledgeCost({ data: kn }), "Knowledge")}>Save</Button>
       </div>
 
       {/* Tools */}
@@ -648,7 +648,7 @@ function FixedCostsTab({ data, onSaved }: { data: CostEngineData; onSaved: () =>
           <NumInput label="Calendar /month" value={tools.calendar_cost_per_month} onChange={v => setTools(f => ({ ...f, calendar_cost_per_month: v }))} step="0.01" />
           <div className="col-span-2"><Label className="text-xs">Notes</Label><Input className="h-7 text-xs" value={tools.notes} onChange={e => setTools(f => ({ ...f, notes: e.target.value }))} /></div>
         </div>
-        <Button size="sm" className="mt-3 h-7 text-xs" disabled={busy} onClick={() => act(() => saveToolsCost(tools), "Tools")}>Save</Button>
+        <Button size="sm" className="mt-3 h-7 text-xs" disabled={busy} onClick={() => act(() => saveToolsCost({ data: tools }), "Tools")}>Save</Button>
       </div>
 
       {/* Infrastructure */}
@@ -670,7 +670,7 @@ function FixedCostsTab({ data, onSaved }: { data: CostEngineData; onSaved: () =>
           <div className="col-span-2"><Label className="text-xs">Notes</Label><Input className="h-7 text-xs" value={infra.notes} onChange={e => setInfra(f => ({ ...f, notes: e.target.value }))} /></div>
         </div>
         <div className="mt-2 text-xs text-muted-foreground">Derived cost per minute: <span className="font-medium text-foreground">{fmtCurrency(infraCostPerMin)}</span></div>
-        <Button size="sm" className="mt-2 h-7 text-xs" disabled={busy} onClick={() => act(() => saveInfrastructureCost(infra), "Infrastructure")}>Save</Button>
+        <Button size="sm" className="mt-2 h-7 text-xs" disabled={busy} onClick={() => act(() => saveInfrastructureCost({ data: infra }), "Infrastructure")}>Save</Button>
       </div>
 
       {/* OmniVoice */}
@@ -685,7 +685,7 @@ function FixedCostsTab({ data, onSaved }: { data: CostEngineData; onSaved: () =>
           <div><Label className="text-xs">Notes</Label><Input className="h-7 text-xs" value={retell.notes} onChange={e => setRetell(f => ({ ...f, notes: e.target.value }))} /></div>
         </div>
         <div className="mt-2 text-xs text-muted-foreground">Total cost /min: <span className="font-medium text-foreground">{fmtCurrency(n(retell.minute_cost) + n(retell.voice_cost_per_min))}</span></div>
-        <Button size="sm" className="mt-2 h-7 text-xs" disabled={busy} onClick={() => act(() => saveRetellCost(retell), "OmniVoice")}>Save</Button>
+        <Button size="sm" className="mt-2 h-7 text-xs" disabled={busy} onClick={() => act(() => saveRetellCost({ data: retell }), "OmniVoice")}>Save</Button>
       </div>
     </div>
   );
@@ -1021,13 +1021,13 @@ function ProfitTab({ data, onSaved }: { data: CostEngineData; onSaved: () => voi
 
   const saveMarkupFn = async () => {
     setBusy(true);
-    try { await saveMarkup(mk); toast.success("Markup saved"); onSaved(); } catch (e: any) { toast.error(e?.message ?? "Failed"); } finally { setBusy(false); }
+    try { await saveMarkup({ data: mk }); toast.success("Markup saved"); onSaved(); } catch (e: any) { toast.error(e?.message ?? "Failed"); } finally { setBusy(false); }
   };
 
   const savePlanFn = async () => {
     setBusy(true);
     try {
-      await savePlan({ ...(editPlanId !== "new" ? { id: editPlanId! } : {}), ...planForm });
+      await savePlan({ data: { ...(editPlanId !== "new" ? { id: editPlanId! } : {}), ...planForm } });
       toast.success("Plan saved"); setEditPlanId(null); onSaved();
     } catch (e: any) { toast.error(e?.message ?? "Failed"); } finally { setBusy(false); }
   };
@@ -1106,7 +1106,7 @@ function ProfitTab({ data, onSaved }: { data: CostEngineData; onSaved: () => voi
             <div className="flex gap-2">
               <Button size="sm" className="h-7 text-xs" disabled={busy} onClick={savePlanFn}>Save Plan</Button>
               <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => setEditPlanId(null)}>Cancel</Button>
-              {editPlanId !== "new" && <Button size="sm" variant="ghost" className="h-7 text-xs text-destructive" disabled={busy} onClick={async () => { if (!confirm("Remove plan?")) return; setBusy(true); try { await deletePlan({ id: editPlanId }); toast.success("Removed"); setEditPlanId(null); onSaved(); } catch { toast.error("Failed"); } finally { setBusy(false); } }}>Delete</Button>}
+              {editPlanId !== "new" && <Button size="sm" variant="ghost" className="h-7 text-xs text-destructive" disabled={busy} onClick={async () => { if (!confirm("Remove plan?")) return; setBusy(true); try { await deletePlan({ data: { id: editPlanId } }); toast.success("Removed"); setEditPlanId(null); onSaved(); } catch { toast.error("Failed"); } finally { setBusy(false); } }}>Delete</Button>}
             </div>
           </div>
         )}
@@ -1213,7 +1213,7 @@ function OnboardingTab({ rows, onSaved }: { rows: DevRole[]; onSaved: () => void
   const save = async () => {
     setBusy(true);
     try {
-      await saveDevRole({ ...(editId !== "new" ? { id: editId! } : {}), ...form, notes: form.notes || undefined });
+      await saveDevRole({ data: { ...(editId !== "new" ? { id: editId! } : {}), ...form, notes: form.notes || undefined } });
       toast.success("Saved"); setEditId(null); onSaved();
     } catch (e: any) { toast.error(e?.message ?? "Failed"); } finally { setBusy(false); }
   };
@@ -1221,7 +1221,7 @@ function OnboardingTab({ rows, onSaved }: { rows: DevRole[]; onSaved: () => void
   const remove = async (id: string) => {
     if (!confirm("Delete this role?")) return;
     setBusy(true);
-    try { await deleteDevRole({ id }); toast.success("Deleted"); onSaved(); }
+    try { await deleteDevRole({ data: { id } }); toast.success("Deleted"); onSaved(); }
     catch (e: any) { toast.error(e?.message ?? "Failed"); } finally { setBusy(false); }
   };
 
@@ -1355,7 +1355,7 @@ function ClientEstimatesTab({ data, estimates, platformClients, onSaved }: {
   const saveEst = async () => {
     setBusy(true);
     try {
-      await saveClientEstimate({
+      await saveClientEstimate({ data: {
         ...(editId !== "new" ? { id: editId! } : {}),
         client_name: form.client_name,
         client_email: form.client_email || undefined,
@@ -1364,7 +1364,7 @@ function ClientEstimatesTab({ data, estimates, platformClients, onSaved }: {
         team_config: teamRows.filter(r => r.count > 0),
         monthly_addon_charges: addons.filter(a => a.label),
         notes: form.notes || undefined,
-      });
+      } });
       toast.success("Estimate saved"); setEditId(null); onSaved();
     } catch (e: any) { toast.error(e?.message ?? "Failed"); } finally { setBusy(false); }
   };
@@ -1372,7 +1372,7 @@ function ClientEstimatesTab({ data, estimates, platformClients, onSaved }: {
   const removeEst = async (id: string) => {
     if (!confirm("Delete this estimate?")) return;
     setBusy(true);
-    try { await deleteClientEstimate({ id }); toast.success("Deleted"); onSaved(); }
+    try { await deleteClientEstimate({ data: { id } }); toast.success("Deleted"); onSaved(); }
     catch (e: any) { toast.error(e?.message ?? "Failed"); } finally { setBusy(false); }
   };
 
@@ -1680,7 +1680,7 @@ function ProviderRatesTab() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await getRatesFn({ data: {} });
+      const res = await getRatesFn();
       setRates(Array.isArray(res) ? res : []);
     } catch { /* graceful */ }
     setLoading(false);

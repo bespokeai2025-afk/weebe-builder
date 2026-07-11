@@ -23,6 +23,8 @@ export const LEAD_FIELD_OPTIONS: Array<{ value: string; label: string; group: st
   { value: "call_summary", label: "Call Summary", group: "Core" },
   { value: "next_action", label: "Next Action", group: "Core" },
   { value: "objections", label: "Objections", group: "Core" },
+  { value: "email", label: "Email", group: "Core" },
+  { value: "phone", label: "Phone", group: "Core" },
   { value: "lead_score", label: "Lead Score (number)", group: "Scoring" },
   { value: "interest_level", label: "Interest Level", group: "Scoring" },
   { value: "buying_intent", label: "Buying Intent", group: "Scoring" },

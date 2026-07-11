@@ -1,0 +1,360 @@
+## Additional requirement — AccountsMind and new workspace setup
+
+Please extend the SystemMind Automation Layer so it can also help configure **AccountsMind** and new user/company workspaces.
+
+SystemMind should be able to assist new users with setting up their workspace, including AccountsMind, dashboards, stats, custom fields, client/account sections, lead tracking, usage monitoring, billing visibility, and performance reporting.
+
+Critical rule:
+
+All AccountsMind setup and customisation must be stored as workspace-specific configuration against the signed-in user’s `workspace_id`.
+
+SystemMind must never make global changes to the WEBEE codebase or change AccountsMind fields/stats for every user.
+
+---
+
+## 1. New workspace onboarding
+
+When a new company joins WEBEE, SystemMind should help create a workspace setup plan.
+
+It should ask or infer:
+
+* Business type
+* Main service/product
+* Lead sources
+* Sales process
+* Preferred contact methods
+* CRM requirements
+* Calendar requirements
+* WhatsApp/email/SMS usage
+* Follow-up requirements
+* Reporting needs
+* Usage/billing tracking needs
+* Team members and permissions
+* Required AI departments:
+
+  * HiveMind
+  * GrowthMind
+  * SystemMind
+  * AccountsMind
+
+SystemMind should then generate a workspace-specific setup checklist and draft configuration.
+
+Nothing should activate without approval.
+
+---
+
+## 2. AccountsMind setup
+
+AccountsMind acts as the in-house accounts and commercial monitoring department.
+
+SystemMind should help configure what AccountsMind tracks for each workspace.
+
+AccountsMind should be able to track fields and stats such as:
+
+* Platform usage
+* AI call minutes used
+* Estimated usage bills
+* Retell/voice usage costs
+* WhatsApp usage costs
+* Email usage costs
+* Income/revenue
+* Lead value
+* Deal value
+* Cost per lead
+* Cost per qualified lead
+* Cost per booking
+* Campaign ROI
+* Follow-ups required
+* Missed opportunities
+* Booked appointments
+* Converted customers
+* Outstanding invoices
+* Client value
+* Revenue by campaign
+* Revenue by lead source
+* Revenue by agent
+* Profitability by workflow or campaign
+
+Users should be able to add, remove, edit, or reorder AccountsMind fields and stats for their own workspace only.
+
+---
+
+## 3. Custom AccountsMind fields
+
+Add support for workspace-specific custom fields.
+
+Examples:
+
+* `estimated_deal_value`
+* `monthly_client_value`
+* `invoice_status`
+* `payment_status`
+* `lead_value`
+* `campaign_cost`
+* `expected_commission`
+* `customer_lifetime_value`
+* `follow_up_priority`
+* `sales_owner`
+* `conversion_probability`
+
+SystemMind should allow users to request fields in natural language.
+
+Example prompts:
+
+* “Add a field for estimated deal value.”
+* “Track cost per qualified lead.”
+* “Show monthly revenue from booked appointments.”
+* “Add invoice status to the client accounts section.”
+* “Create a stat for follow-ups overdue this week.”
+* “Track revenue by lead source.”
+* “Create a dashboard widget for campaign ROI.”
+
+SystemMind should generate the field as a draft first, including:
+
+* field name
+* field key
+* field type
+* where it appears
+* whether it is required
+* default value
+* validation rules
+* reporting usage
+* risk level
+* approval required
+
+The user/admin must approve before the field becomes active.
+
+---
+
+## 4. Field types
+
+Support safe custom field types such as:
+
+* text
+* number
+* currency
+* percentage
+* date
+* boolean
+* single select
+* multi select
+* status
+* calculated metric
+* relation to lead/contact/campaign/agent
+* formula-based field, if safely supported
+
+Formula fields must be sandboxed and must not allow arbitrary code execution.
+
+---
+
+## 5. AccountsMind dashboard widgets
+
+SystemMind should be able to create workspace-specific dashboard widgets for AccountsMind.
+
+Examples:
+
+* Total usage this month
+* Estimated bill this month
+* Revenue tracked this month
+* Cost per booking
+* Cost per qualified lead
+* Follow-ups required
+* Campaign ROI
+* Booked appointments value
+* Outstanding client value
+* Top lead sources by revenue
+* Agents generating highest value
+* Workflow cost vs return
+
+Widgets must be saved only to the current workspace.
+
+Users should be able to approve, edit, pause, hide, or delete widgets.
+
+---
+
+## 6. Client/accounts section customisation
+
+SystemMind should be able to configure the client/accounts section for each workspace.
+
+Users should be able to add/remove:
+
+* client fields
+* account fields
+* billing fields
+* revenue fields
+* lead value fields
+* contact preference fields
+* campaign performance fields
+* usage tracking fields
+* follow-up status fields
+
+Example:
+
+“Add payment status, monthly value, last contacted date, and follow-up priority to my client accounts page.”
+
+SystemMind should draft the changes and require approval.
+
+---
+
+## 7. Permissions and approval
+
+High-risk changes must require approval.
+
+High-risk AccountsMind changes include:
+
+* billing-related fields
+* income/revenue calculations
+* formula fields
+* invoice/payment status fields
+* deleting fields with existing data
+* changing calculated metrics
+* changing dashboard totals
+* changing permissions
+* exposing financial data to more users
+
+SystemMind should always show:
+
+* what will change
+* where it will appear
+* whether existing data is affected
+* risk level
+* rollback option
+
+---
+
+## 8. Workspace health checks
+
+SystemMind should be able to scan the current workspace and produce a setup health check.
+
+It should identify missing or incomplete setup such as:
+
+* no calendar connected
+* no Retell key
+* no WhatsApp provider
+* no email provider
+* no lead statuses configured
+* no Follow Up Centre sequence
+* no AccountsMind stats configured
+* no CRM integration
+* no agent live
+* no campaign tracking
+* no lead source mapping
+* no preferred contact mapping
+* no billing/usage tracking
+* no dashboard widgets
+
+SystemMind should then recommend setup actions and allow the user to approve them.
+
+---
+
+## 9. Database requirements
+
+Create or adapt workspace-scoped configuration tables for:
+
+* `workspace_custom_fields`
+* `workspace_custom_stats`
+* `workspace_dashboard_widgets`
+* `accountsmind_configs`
+* `accountsmind_metric_definitions`
+* `accountsmind_widget_definitions`
+* `workspace_setup_checklists`
+* `workspace_onboarding_recommendations`
+
+Every row must include:
+
+* `workspace_id`
+* `created_by_user_id`
+* `created_by_system = systemmind`
+* `approval_status`
+* `version`
+* `audit_log_id`
+* `created_at`
+* `updated_at`
+
+Do not allow records without a valid workspace_id.
+
+---
+
+## 10. Rollback/versioning
+
+Every SystemMind-created AccountsMind change should be versioned.
+
+Users/admins should be able to:
+
+* view previous versions
+* rollback a field/widget/stat config
+* disable a generated field
+* hide a widget
+* pause a metric
+* reject a proposed change
+
+Do not permanently delete configuration if it could affect existing data. Prefer soft delete or archive.
+
+---
+
+## 11. UI locations
+
+Add SystemMind assistance into:
+
+* AccountsMind page
+* Client/accounts section
+* Workspace onboarding/setup page
+* Dashboard widget settings
+* Custom fields/settings page
+* HiveMind recommendations page
+* SystemMind automation builder
+
+Example UI actions:
+
+* “Ask SystemMind to set this up”
+* “Generate AccountsMind fields”
+* “Create dashboard stats”
+* “Build client account view”
+* “Run workspace health check”
+* “Approve setup”
+* “Reject”
+* “Edit before approval”
+
+---
+
+## 12. Critical safety rules
+
+SystemMind must not:
+
+* change global WEBEE fields for all users
+* change the main codebase from user prompts
+* expose one workspace’s financial fields to another workspace
+* delete existing data without approval
+* activate financial calculations without approval
+* expose billing or revenue data to unauthorised users
+* modify WBAH or any other workspace unless logged in as that workspace
+* bypass Supabase RLS or workspace_id checks
+
+---
+
+## 13. Testing required
+
+Please test:
+
+1. New user asks SystemMind to set up AccountsMind.
+2. Draft setup checklist is created for their workspace only.
+3. User adds a custom AccountsMind field.
+4. Field is saved as draft with correct workspace_id.
+5. User approves the field.
+6. Field appears only in that workspace.
+7. Another workspace cannot see the field.
+8. User creates a custom stat.
+9. Stat appears only in their AccountsMind dashboard.
+10. User creates a client/account section field.
+11. Field appears only in their client/accounts section.
+12. User runs a workspace health check.
+13. Missing setup items are detected correctly.
+14. High-risk billing/revenue fields require approval.
+15. Rollback/versioning works.
+16. WBAH workspace remains unaffected.
+17. Standard WEBEE accounts remain unaffected.
+18. No global codebase changes are made by user prompts.
+
+Final instruction:
+
+SystemMind should be able to help configure AccountsMind, custom fields, custom stats, dashboard widgets, client/account sections, and new workspace onboarding — but only as workspace-specific configuration with approval, audit logs, and rollback.

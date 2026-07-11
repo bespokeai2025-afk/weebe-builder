@@ -9,7 +9,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { createClient } from "@supabase/supabase-js";
 import { authenticateV1Request, jsonOk, jsonErr } from "@/lib/developer-api/v1-auth.middleware";
 
-const SUPABASE_URL = process.env.SUPABASE_URL ?? "";
+const SUPABASE_URL = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || "";
 const SERVICE_KEY  = process.env.SUPABASE_SERVICE_ROLE_KEY ?? "";
 const sb = () => createClient(SUPABASE_URL, SERVICE_KEY, { auth: { autoRefreshToken: false, persistSession: false } });
 
@@ -63,6 +63,7 @@ export const Route = createFileRoute("/api/v1/contacts")({
           return jsonErr("At least one of: full_name, phone, email is required");
         }
 
+        const { toLeadSourceEnum } = await import("@/lib/lead-gen/webforms.server");
         const now = new Date().toISOString();
         const { data, error } = await sb().from("leads").insert({
           workspace_id:   workspaceId,
@@ -70,11 +71,11 @@ export const Route = createFileRoute("/api/v1/contacts")({
           name:           contactName ?? null,
           phone:          phone       ?? null,
           email:          email       ?? null,
-          source:         source      ?? "api",
+          source:         toLeadSourceEnum(source ?? "api", "api"),
           notes:          notes       ?? null,
           tags:           tags        ?? null,
           pipeline_stage: pipeline_stage ?? null,
-          status:         "new",
+          status:         "need_to_call",
           created_at:     now,
           updated_at:     now,
         }).select(CONTACT_SELECT).single();
@@ -84,6 +85,10 @@ export const Route = createFileRoute("/api/v1/contacts")({
         import("@/lib/developer-api/webhook-delivery.server")
           .then(m => m.fireWebhookEvent(workspaceId, "lead.created", data))
           .catch(() => {});
+
+        // Auto-call automation — best-effort, never throws.
+        const { triggerAutoCallForNewLead } = await import("@/lib/qualification/auto-call.server");
+        await triggerAutoCallForNewLead(sb(), { workspaceId, leadId: data.id });
 
         return jsonOk({ object: "contact", ...formatContact(data) }, 201);
       },

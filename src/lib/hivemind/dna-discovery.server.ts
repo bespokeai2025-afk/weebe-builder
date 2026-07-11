@@ -4,11 +4,13 @@
 //   - Lead profiles & sources
 //   - Campaign performance signals
 //   - Executive events history
+//   - Uploaded knowledge base documents (GrowthMind + Shared executive KBs)
 //
 // Updates growthmind_business_dna with discovered values + per-field confidence.
 // Designed to run on the daily scheduler and on-demand from the DNA page.
 
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
+import { ensureDefaultKnowledgeBases } from "@/lib/executives/executive-knowledge.server";
 
 // ── Mini OpenAI helper ────────────────────────────────────────────────────────
 async function gptMini(
@@ -44,8 +46,13 @@ export async function runDnaDiscovery(
   const sb = supabaseAdmin as any;
   const now = new Date().toISOString();
 
+  // ── 0. Resolve the workspace's GrowthMind + Shared knowledge base ids so we
+  // can pull any uploaded documentation into the discovery context below. ────
+  const kbRows = await ensureDefaultKnowledgeBases(sb, workspaceId).catch(() => [] as any[]);
+  const kbIds = kbRows.filter((k: any) => k.slug === "growthmind" || k.slug === "shared").map((k: any) => k.id);
+
   // ── 1. Pull data sources in parallel ───────────────────────────────────────
-  const [callsRes, leadsRes, campaignRes, eventsRes, existingDnaRes] = await Promise.all([
+  const [callsRes, leadsRes, campaignRes, eventsRes, existingDnaRes, kbChunksRes] = await Promise.all([
     sb.from("calls")
       .select("transcript, call_status, call_successful, sentiment, metadata")
       .eq("workspace_id", workspaceId)
@@ -75,6 +82,15 @@ export async function runDnaDiscovery(
       .select("*")
       .eq("workspace_id", workspaceId)
       .single(),
+
+    kbIds.length > 0
+      ? sb.from("executive_document_chunks")
+          .select("content, metadata")
+          .eq("workspace_id", workspaceId)
+          .in("knowledge_base_id", kbIds)
+          .order("created_at", { ascending: false })
+          .limit(40)
+      : Promise.resolve({ data: [] }),
   ]);
 
   const calls      = callsRes.data ?? [];
@@ -82,6 +98,7 @@ export async function runDnaDiscovery(
   const campaigns  = campaignRes.data ?? [];
   const events     = eventsRes.data ?? [];
   const existing   = existingDnaRes.data ?? {};
+  const kbChunks    = kbChunksRes.data ?? [];
 
   // ── 2. Build concise context for AI ────────────────────────────────────────
   const callContext = calls
@@ -107,6 +124,10 @@ export async function runDnaDiscovery(
     )
     .join("\n");
 
+  const kbContext = kbChunks
+    .map((c: any) => `[${(c.metadata?.title as string | undefined) ?? "Document"}] ${String(c.content ?? "").slice(0, 500)}`)
+    .join("\n---\n");
+
   const prompt = `You are a business intelligence AI. Analyse the following workspace data and extract/infer business DNA fields.
 
 EXISTING DNA (partial):
@@ -124,10 +145,14 @@ ${leadContext.slice(0, 1500)}
 CAMPAIGN DATA:
 ${campaignContext.slice(0, 800)}
 
+UPLOADED KNOWLEDGE BASE DOCUMENTS (brand guides, pricing sheets, playbooks, case studies, etc. uploaded by the team):
+${kbContext ? kbContext.slice(0, 3000) : "(none uploaded yet)"}
+
 Based on this data, extract or infer the following fields. For each field, assign:
 - value: your best inference (or "" if unclear)
 - confidence: 0-100 (how certain you are from the data)
-- source: which data drove this (e.g. "Call Transcripts", "Lead Profiles", "Both")
+- source: which data drove this (e.g. "Call Transcripts", "Lead Profiles", "Knowledge Base Docs", "Both")
+Uploaded knowledge base documents are authoritative first-party material — when they directly state a fact (pricing, USPs, ICP, brand voice, etc.), prefer them and assign high confidence (80-100).
 
 Return ONLY valid JSON:
 {
@@ -208,6 +233,7 @@ Only include fields with confidence ≥ 20. Empty string for unknown.`;
         calls_analysed:     calls.length,
         leads_analysed:     leads.length,
         campaigns_analysed: campaigns.length,
+        kb_docs_analysed:   kbChunks.length,
         last_run:           now,
       },
     };
@@ -221,6 +247,6 @@ Only include fields with confidence ≥ 20. Empty string for unknown.`;
   return {
     updatedFields,
     confidenceScores: updatedConfidence,
-    summary: parsed.summary ?? `Analysed ${calls.length} calls, ${leads.length} leads, ${campaigns.length} campaigns.`,
+    summary: parsed.summary ?? `Analysed ${calls.length} calls, ${leads.length} leads, ${campaigns.length} campaigns, ${kbChunks.length} knowledge base excerpts.`,
   };
 }

@@ -380,12 +380,15 @@ export function CampaignTimeline({ initialCampaignId }: CampaignTimelineProps) {
 
   const campaignsQ = useQuery<HexmailCampaign[]>({
     queryKey: ["hexmail-campaigns"],
-    queryFn: () => listHexmailCampaigns({ data: {} }),
+    queryFn: () => listHexmailCampaigns({ data: {} }) as Promise<HexmailCampaign[]>,
   });
 
   const campaignQ = useQuery({
     queryKey: ["hexmail-campaign-steps", campaignId],
-    queryFn: () => getHexmailCampaignWithSteps({ data: { id: campaignId } }),
+    queryFn: () =>
+      getHexmailCampaignWithSteps({ data: { id: campaignId } }) as Promise<
+        (HexmailCampaign & { steps: any[] }) | null
+      >,
     enabled: !!campaignId,
     throwOnError: false,
   });

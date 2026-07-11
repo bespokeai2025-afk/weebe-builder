@@ -1,0 +1,126 @@
+I have set up one agent in the WebespokeAI workspace only. I need you to adapt ONLY this specific agent.
+
+CRITICAL RULES:
+Do not change any other workspace.
+Do not change the WeBuyAnyHouse workspace.
+Do not change any existing WBAH agents, Retell keys, analytics, leads, calls, webhooks, workflows, or CRM mappings.
+Do not apply this globally to every agent.
+Only update the agent that belongs to the WebespokeAI workspace.
+
+Task:
+Find the agent I have just created in the WebespokeAI workspace. If there is more than one possible match, stop and tell me the agent names/IDs before making changes.
+
+For this specific agent only, add the following Retell post-call data extraction fields and WEBEE field mappings:
+
+industry
+interest
+budget
+email
+phone_number
+booking_slot
+booking_status
+
+These should be available as variables in the agent flow:
+
+{{industry}}
+{{interest}}
+{{budget}}
+{{email}}
+{{phone_number}}
+{{booking_slot}}
+{{booking_status}}
+
+Field configuration:
+
+1. industry
+Type: text
+WEBEE mapping: lead.industry
+Description:
+Extract the customer's industry or business sector. Examples: real estate, dental clinic, law firm, finance, property investment, ecommerce, recruitment, healthcare, construction. If the caller does not give an industry, return null.
+
+2. interest
+Type: enum / selector
+WEBEE mapping: lead.interest
+Allowed values:
+receptionist
+lead_generation
+client_qualification
+whatsapp_messaging
+smart_dashboard
+crm_follow_up
+not_sure
+other
+Description:
+Select the main WEBEE product or service the caller is interested in. Use receptionist if they want inbound call answering, missed-call handling, or AI receptionist. Use lead_generation if they want outbound calls or new leads. Use client_qualification if they want to qualify existing leads or customers. Use whatsapp_messaging if they ask about WhatsApp automation, WATI, broadcasts, or inbound/outbound WhatsApp. Use smart_dashboard if they ask about reporting, analytics, CRM, calls, leads, or dashboard control. Use crm_follow_up if they ask about automated follow-up, email, SMS, WhatsApp follow-up, or HexMail. Use not_sure if they are unsure. Use other if none apply.
+
+3. budget
+Type: text
+WEBEE mapping: lead.budget
+Description:
+Extract the caller's stated budget exactly but cleanly. Include currency and whether it is monthly, setup, or total budget if mentioned. Examples: £500 per month, 3000 AED monthly, $1000 setup budget, not sure yet, no budget given. If no budget is mentioned, return null.
+
+4. email
+Type: text
+WEBEE mapping: lead.email
+Description:
+Extract the caller's email address. Correct obvious spoken formatting, for example "nathan at webespoke ai dot com" should become nathan@webespokeai.com. Return null if no email was provided.
+
+5. phone_number
+Type: text
+WEBEE mapping: lead.phone_number
+Description:
+Extract the caller's phone number in a clean format. Include country code if provided or infer it from the call context only when obvious. Keep the number as text, not a number, so leading zeros and plus signs are preserved. Return null if no phone number was provided.
+
+6. booking_slot
+Type: text
+WEBEE mapping: lead.booking_slot
+Description:
+Extract the final appointment time the caller selected or confirmed. Include date, time, and timezone if available. Only populate this if the caller selected or confirmed a slot. If no appointment was booked or confirmed, return null.
+
+7. booking_status
+Type: enum / selector
+WEBEE mapping: lead.booking_status
+Allowed values:
+booked
+requested_but_not_booked
+not_requested
+failed
+Description:
+Select booked only if the calendar booking function successfully created the appointment. Select requested_but_not_booked if the caller wanted a booking but it was not completed. Select not_requested if the caller did not ask to book. Select failed if the booking failed or no suitable slot was available.
+
+Also update this agent’s calendar booking behaviour only:
+
+- Check Availability Cal should only check available slots.
+- After available slots are returned, the agent should offer the available slot or slots.
+- When the caller confirms a slot, capture it as {{booking_slot}}.
+- Then call the Book Calendar Appointment / Cal.com booking function.
+- Only say the appointment is booked after the booking function succeeds.
+- If the booking fails, apologise briefly, check availability again, and offer another slot.
+- booking_status should only be "booked" when the booking function successfully creates the calendar appointment.
+
+Update the agent prompt/instructions for this agent only with this logic:
+
+When the caller wants to book a demo or appointment, first collect their name, email address, phone number, industry, interest, and budget if they are willing to provide it. Ask for their preferred day and time. Then check calendar availability. Offer a maximum of two available slots. When the caller clearly confirms one slot, store it as booking_slot and call the calendar booking function. Do not tell the caller they are booked until the calendar booking function returns a successful booking result. If booking fails, apologise and offer another available slot.
+
+Data handling rules:
+
+- Do not overwrite existing populated lead fields with null, empty, undefined, or "not provided".
+- phone_number must be stored as text/string only.
+- budget must be stored as text/string only.
+- Store raw extracted post-call data in the existing call metadata/extracted data field if available.
+- Keep everything scoped by workspace_id and agent_id.
+- Do not create duplicate global mappings.
+- Do not change system-wide defaults unless absolutely required, and if required, explain before doing it.
+
+Before making changes:
+1. Identify the WebespokeAI workspace ID.
+2. Identify the specific agent I just created.
+3. Confirm no WeBuyAnyHouse workspace or agent records are included in the update query.
+4. Then apply the update only to that agent.
+
+After making changes, give me:
+1. The WebespokeAI workspace ID used.
+2. The exact agent ID/name updated.
+3. The files changed.
+4. Whether the Retell agent was updated successfully.
+5. How to test that industry, interest, budget, email, phone_number, booking_slot, and booking_status come back into WEBEE correctly.

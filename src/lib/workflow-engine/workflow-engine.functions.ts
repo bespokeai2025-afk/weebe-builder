@@ -35,6 +35,10 @@ export interface WorkspaceWorkflow {
   updated_at:       string;
   run_count?:       number;
   last_run_at?:     string | null;
+  // Build Workspace provenance (set when built/edited by SystemMind)
+  source?:                  string | null;
+  source_build_session_id?: string | null;
+  source_build_version?:    number | null;
 }
 
 export interface WorkflowRun {

@@ -1,0 +1,50 @@
+I made UI sizing, layout, configuration, and filter updates yesterday inside the Webuyanyhouse/WBAH account workspace on the WEBEE platform. I now need those same improvements applied to the standard WEBEE user accounts.
+
+By UI changes, I specifically mean the sizing, spacing, layout, table/card configuration, column sizing, responsive behaviour, page density, filters/header layout, and general visual configuration of these pages:
+
+* Calls page
+* Leads page
+* Qualified page
+* Data page
+
+I also added filters to each of these pages. The same filter sections and filter behaviour should be added to the standard WEBEE version as well, where appropriate.
+
+This must be treated as a UI/design and filter parity update only. Do not copy any WBAH-specific configuration, workspace data, API settings, agents, campaigns, or workflow rules.
+
+Critical requirements:
+
+1. Apply the reusable UI sizing/layout/configuration improvements from the WBAH version to the standard WEBEE version.
+2. Apply the reusable filters added to the WBAH Calls, Leads, Qualified, and Data pages to the standard WEBEE pages.
+3. Do not copy any WBAH workspace configuration into normal WEBEE accounts.
+4. Do not copy or hardcode any WBAH workspace IDs, Retell API keys, Retell workspace IDs, agent IDs, phone numbers, campaign IDs, Cal.com/Calendly settings, CRM settings, lead data, call data, qualified data, or workflow rules.
+5. All data and filters must remain scoped by the logged-in user’s own workspace_id.
+6. Filter options must be generated from the logged-in workspace’s own data, not WBAH data.
+7. The Calls, Leads, Qualified, and Data pages on standard WEBEE accounts should visually match the improved WBAH page sizing, layout, and filtering setup.
+8. Do not break existing logic or workflows on the Calls, Leads, Qualified, or Data pages.
+9. The standard WEBEE Leads page has manual status selectors/manual status update controls. These must continue working exactly as they do now.
+10. Do not remove or overwrite existing filters, pagination, lead loading, call loading, qualified lead loading, data upload/import logic, qualification logic, workspace-specific settings, or API routing.
+11. Do not change backend logic unless absolutely required for the UI and filters to render correctly.
+12. Do not change RLS assumptions, Supabase workspace scoping, or API credential loading.
+13. WBAH must continue working exactly as it does now.
+14. Normal WEBEE accounts must keep their own account settings, workspace settings, API credentials, data, statuses, filters, and workflows.
+
+Please first compare the WBAH versions of the Calls, Leads, Qualified, and Data pages against the standard WEBEE versions. Identify the reusable UI sizing/layout/configuration changes and the reusable filter changes only, then apply those safely to the standard version.
+
+After making the changes, test the following:
+
+* Login as a standard WEBEE account.
+* Confirm the Calls page visually matches the improved WBAH sizing/layout.
+* Confirm the Leads page visually matches the improved WBAH sizing/layout.
+* Confirm the Qualified page visually matches the improved WBAH sizing/layout.
+* Confirm the Data page visually matches the improved WBAH sizing/layout.
+* Confirm the new filters appear on Calls, Leads, Qualified, and Data pages.
+* Confirm each filter works using only the logged-in standard workspace’s own data.
+* Confirm Calls only load data for the logged-in standard workspace.
+* Confirm Leads only load data for the logged-in standard workspace.
+* Confirm Qualified only loads data for the logged-in standard workspace.
+* Confirm the Data page only loads/uploads/manages data for the logged-in standard workspace.
+* Confirm manual lead status selectors still work on the standard Leads page.
+* Confirm no WBAH data, config, workspace ID, API key, agents, campaigns, filters, or settings appear in standard accounts.
+* Confirm the WBAH account still works exactly as before.
+
+This should be a safe UI and filter parity update across the Calls, Leads, Qualified, and Data pages only. Preserve all existing backend logic, workspace scoping, workflows, status update logic, API routing, filter logic, and account-specific configuration.

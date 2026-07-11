@@ -2,9 +2,11 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState, useMemo, useEffect, useRef } from "react";
-import { Database, PhoneOutgoing, CalendarClock, UserCheck, Search, X, UserPlus, RotateCcw, BarChart3, Users, RefreshCw, Download, AlertCircle, Phone, Play, FileText, ExternalLink } from "lucide-react";
+import { Database, PhoneOutgoing, CalendarClock, UserCheck, Search, X, UserPlus, RotateCcw, BarChart3, Users, RefreshCw, Download, AlertCircle, Phone, FileText, ExternalLink } from "lucide-react";
 import { WbahCallSchedulingSection } from "@/components/dashboard/WbahCallSchedulingSection";
+import { StartCallsDialog } from "@/components/dashboard/StartCallsDialog";
 import { DashboardPage, KpiCard, stickyCell, stickyHead } from "@/components/dashboard/PageShell";
+import { PlayRecordingButton } from "@/components/RecordingPlayerDialog";
 import { cn } from "@/lib/utils";
 import { LoadingProgress } from "@/components/dashboard/LoadingProgress";
 import { Card, CardContent } from "@/components/ui/card";
@@ -48,6 +50,7 @@ import { getCallSchedule, setCallSchedule } from "@/lib/dashboard/call-schedule.
 import { listLiveAgents } from "@/lib/agents/agents.functions";
 import { listWbahLeadsForPeople, listWbahCallsCount, listWbahCallsPaged, getWbahCallDetail, listWbahCategorizedLeads, listWbahPeopleCategories, triggerWbahCategorySync, getWbahCategorySyncLog, getWbahCategorySyncAccess } from "@/lib/integrations/webespokeEnterprise/wbah-workspace.server";
 import { useWbahAgentOptions } from "@/hooks/useWbahAgentOptions";
+import { wbahDateTimeOptions } from "@/lib/dashboard/wbah-timezone";
 import { supabase } from "@/integrations/supabase/client";
 
 export const Route = createFileRoute("/_authenticated/data")({
@@ -210,13 +213,13 @@ function parseCsvLine(line: string): string[] {
   return result;
 }
 
-function fmtDate(iso?: string | null) {
+function fmtDate(iso?: string | null, isWbah = false) {
   if (!iso) return "\u2014";
-  return new Date(iso).toLocaleDateString("en-US", {
+  return new Date(iso).toLocaleDateString("en-US", wbahDateTimeOptions(isWbah, {
     month: "short",
     day: "numeric",
     year: "numeric",
-  });
+  }));
 }
 
 function statusBadgeClass(status?: string | null) {
@@ -232,11 +235,11 @@ function statusBadgeClass(status?: string | null) {
   return map[status ?? ""] ?? "bg-muted text-muted-foreground";
 }
 
-function fmtTs(ts: number | null | undefined): string {
+function fmtTs(ts: number | null | undefined, isWbah = false): string {
   if (!ts) return "N/A";
   const d = new Date(ts);
-  const time = d.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
-  const date = d.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
+  const time = d.toLocaleTimeString("en-GB", wbahDateTimeOptions(isWbah, { hour: "2-digit", minute: "2-digit" }));
+  const date = d.toLocaleDateString("en-GB", wbahDateTimeOptions(isWbah, { day: "2-digit", month: "short", year: "numeric" }));
   return `${time} · ${date}`;
 }
 
@@ -512,6 +515,10 @@ function DataPage() {
   const [crmPeopleSelected, setCrmPeopleSelected] = useState<Set<string>>(new Set());
   const [crmImporting, setCrmImporting] = useState(false);
   const [crmImportAgentId, setCrmImportAgentId] = useState<string>("");
+  const [crmSearch, setCrmSearch]             = useState("");
+  const [crmStatusFilter, setCrmStatusFilter] = useState("all");
+  const [crmDateFilter, setCrmDateFilter]     = useState("all");
+  const [crmCallDialogOpen, setCrmCallDialogOpen] = useState(false);
 
   const [qualifiedLeads, setQualifiedLeads] = useState<QualifiedLeadRow[]>([]);
   const [qualifiedLoading, setQualifiedLoading] = useState(false);
@@ -621,6 +628,15 @@ function DataPage() {
     name: string;
     settings?: Record<string, unknown> | null;
   }>;
+  const crmCallAgents = useMemo(
+    () =>
+      agents.map((a) => ({
+        id: a.id,
+        name: a.name,
+        phoneNumber: (a.settings as any)?.phoneNumber ?? null,
+      })),
+    [agents],
+  );
   const records = (recordsQ.data ?? []) as any[];
 
   const stats = useMemo(() => {
@@ -676,10 +692,37 @@ function DataPage() {
   // the current page and break the server total count).
   const wbahCallsRows = wbahCallsData;
 
+  // Standard CRM People filters — options derived from the workspace's own rows.
+  const crmStatusOptions = useMemo(
+    () => Array.from(new Set(crmPeople.map((p) => String(p.status ?? "").trim()).filter(Boolean))).sort((a, b) => a.localeCompare(b)),
+    [crmPeople],
+  );
+  const crmDateCut = useMemo(() => wbahDateCutoff(crmDateFilter), [crmDateFilter]);
+  const crmFiltered = useMemo(
+    () => crmPeople.filter((p) => {
+      if (crmSearch.trim()) {
+        const q = crmSearch.toLowerCase();
+        if (
+          !(p.name ?? "").toLowerCase().includes(q) &&
+          !String(p.phone ?? "").toLowerCase().includes(q) &&
+          !(p.email ?? "").toLowerCase().includes(q)
+        ) return false;
+      }
+      if (crmStatusFilter !== "all" && String(p.status ?? "").trim() !== crmStatusFilter) return false;
+      if (crmDateCut > 0) {
+        const ts = p.created_at ? Date.parse(p.created_at) : 0;
+        if (!ts || ts < crmDateCut) return false;
+      }
+      return true;
+    }),
+    [crmPeople, crmSearch, crmStatusFilter, crmDateCut],
+  );
+  const crmHasFilters = crmSearch.trim() !== "" || crmStatusFilter !== "all" || crmDateFilter !== "all";
+
   const recordsPag = useTablePagination(records);
   const wbahPag    = useTablePagination(wbahFiltered);
   const wbahCatPag   = useTablePagination(wbahCatFiltered);
-  const crmPag     = useTablePagination(crmPeople);
+  const crmPag     = useTablePagination(crmFiltered);
 
   // Server-driven pagination object with the same shape the table + TablePagBar
   // expect. Changing page/pageSize triggers a refetch via the effect below.
@@ -1219,7 +1262,7 @@ function DataPage() {
     }
   }
 
-  async function handleImportCrmPeople() {
+  async function handleImportCrmPeople(then?: "call") {
     const toImport = crmPeople.filter((p) => crmPeopleSelected.has(p.external_id));
     if (toImport.length === 0) return;
     setCrmImporting(true);
@@ -1243,11 +1286,37 @@ function DataPage() {
       setCrmPeopleSelected(new Set());
       qc.invalidateQueries({ queryKey: ["data-records"] });
       qc.invalidateQueries({ queryKey: ["data-record-schema"] });
+      if (then === "call") {
+        const ids = result.ids ?? [];
+        if (ids.length > 0) {
+          setSelected(new Set(ids));
+          setCrmCallDialogOpen(true);
+        } else {
+          toast.info("No records available to call — check the Records tab.");
+        }
+      }
     } catch (err) {
       toast.error("Import failed", { description: (err as Error).message });
     } finally {
       setCrmImporting(false);
     }
+  }
+
+  async function handleCrmStartCalls({
+    agentId,
+    fromNumber,
+  }: { agentId: string; fromNumber: string | null }) {
+    await handleStartCalling(agentId, fromNumber);
+    setCrmCallDialogOpen(false);
+  }
+
+  async function handleCrmScheduleCalls({
+    agentId,
+    fromNumber,
+    scheduledAtIso,
+  }: { agentId: string; fromNumber: string | null; scheduledAtIso: string }) {
+    await handleSchedule(scheduledAtIso, agentId);
+    setCrmCallDialogOpen(false);
   }
 
   async function handleSaveSchedule(data: {
@@ -1914,10 +1983,10 @@ function DataPage() {
                               ) : "—"}
                             </td>
                             {isCat && (
-                              <td className="px-2 py-0.5 text-[10px] text-muted-foreground whitespace-nowrap">{r.loadedAt ? fmtDate(r.loadedAt) : "—"}</td>
+                              <td className="px-2 py-0.5 text-[10px] text-muted-foreground whitespace-nowrap">{r.loadedAt ? fmtDate(r.loadedAt, isWbah) : "—"}</td>
                             )}
                             <td className="px-2 py-0.5 text-[10px] text-muted-foreground whitespace-nowrap capitalize">{(r.callType || "—").replace(/_/g, " ")}</td>
-                            <td className="px-2 py-0.5 text-[10px] text-muted-foreground whitespace-nowrap">{fmtTs(r.startTimestamp)}</td>
+                            <td className="px-2 py-0.5 text-[10px] text-muted-foreground whitespace-nowrap">{fmtTs(r.startTimestamp, isWbah)}</td>
                             <td className="px-2 py-0.5 whitespace-nowrap">
                               <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium ring-1 ring-white/[0.06] ${statusBadge.cls}`}>
                                 {statusBadge.label}
@@ -1926,11 +1995,11 @@ function DataPage() {
                             <td className="px-2 py-0.5 text-muted-foreground text-[11px] whitespace-nowrap">{fmtMs(r.durationMs)}</td>
                             <td className="px-2 py-0.5">
                               {r.recordingUrl ? (
-                                <a href={r.recordingUrl} target="_blank" rel="noopener noreferrer"
+                                <PlayRecordingButton
+                                  url={r.recordingUrl}
+                                  contact={r.name ?? r.contact ?? "Lead"}
                                   className="inline-flex items-center gap-1 rounded-md bg-primary/10 px-2 py-1 text-[10px] font-medium text-primary hover:bg-primary/20 transition-colors"
-                                >
-                                  <Play className="h-3 w-3" /> Play
-                                </a>
+                                />
                               ) : <span className="text-muted-foreground/40 text-[11px]">—</span>}
                             </td>
                             <td className="px-2 py-0.5">
@@ -1991,19 +2060,70 @@ function DataPage() {
         <div className="min-w-0 overflow-hidden rounded-xl border border-white/[0.06] bg-card/60">
           {/* People toolbar */}
           <div className="flex flex-col gap-1.5 border-b border-white/[0.06] px-2.5 py-1.5 sm:px-3 lg:flex-row lg:items-center lg:justify-between">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
-              Inbound Leads from CRM
+            <div className="flex min-w-0 flex-wrap items-center gap-2">
+              <p className="shrink-0 text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+                Inbound Leads from CRM
+                {crmPeople.length > 0 && (
+                  <span className="ml-2 normal-case text-xs font-normal tracking-normal text-muted-foreground">
+                    {crmHasFilters ? `${crmFiltered.length} of ${crmPeople.length}` : `${crmPeople.length} lead${crmPeople.length !== 1 ? "s" : ""}`}
+                  </span>
+                )}
+                {crmPeopleSelected.size > 0 && (
+                  <span className="ml-2 normal-case text-xs font-normal text-blue-400 tracking-normal">
+                    {crmPeopleSelected.size} selected
+                  </span>
+                )}
+              </p>
               {crmPeople.length > 0 && (
-                <span className="ml-2 normal-case text-xs font-normal tracking-normal text-muted-foreground">
-                  {crmPeople.length} lead{crmPeople.length !== 1 ? "s" : ""}
-                </span>
+                <>
+                  <div className="relative">
+                    <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3 w-3 text-muted-foreground pointer-events-none" />
+                    <input
+                      value={crmSearch}
+                      onChange={(e) => setCrmSearch(e.target.value)}
+                      placeholder="Search name, phone…"
+                      className="h-6 min-w-0 w-full max-w-[160px] rounded-md border border-white/[0.08] bg-muted/40 pl-6 pr-2 text-[11px] placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-primary/40 sm:w-36"
+                    />
+                    {crmSearch && (
+                      <button
+                        onClick={() => setCrmSearch("")}
+                        className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    )}
+                  </div>
+                  {crmStatusOptions.length > 0 && (
+                    <Select value={crmStatusFilter} onValueChange={setCrmStatusFilter}>
+                      <SelectTrigger className="h-7 w-[140px] text-xs"><SelectValue placeholder="Status" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All statuses</SelectItem>
+                        {crmStatusOptions.map((s) => (
+                          <SelectItem key={s} value={s} className="capitalize">{s.replace(/_/g, " ")}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
+                  <Select value={crmDateFilter} onValueChange={setCrmDateFilter}>
+                    <SelectTrigger className="h-7 w-[130px] text-xs"><SelectValue placeholder="Date" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All time</SelectItem>
+                      <SelectItem value="today">Today</SelectItem>
+                      <SelectItem value="7d">Last 7 days</SelectItem>
+                      <SelectItem value="30d">Last 30 days</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  {crmHasFilters && (
+                    <button
+                      onClick={() => { setCrmSearch(""); setCrmStatusFilter("all"); setCrmDateFilter("all"); }}
+                      className="text-[11px] text-muted-foreground hover:text-foreground underline whitespace-nowrap"
+                    >
+                      Clear filters
+                    </button>
+                  )}
+                </>
               )}
-              {crmPeopleSelected.size > 0 && (
-                <span className="ml-2 normal-case text-xs font-normal text-blue-400 tracking-normal">
-                  {crmPeopleSelected.size} selected
-                </span>
-              )}
-            </p>
+            </div>
             <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
               {crmPeopleSelected.size > 0 && (
                 <>
@@ -2023,8 +2143,9 @@ function DataPage() {
                   </Select>
                   <Button
                     size="sm"
+                    variant="outline"
                     className="h-7 text-xs"
-                    onClick={handleImportCrmPeople}
+                    onClick={() => handleImportCrmPeople()}
                     disabled={crmImporting}
                   >
                     {crmImporting ? (
@@ -2034,14 +2155,23 @@ function DataPage() {
                     )}
                     Import Selected
                   </Button>
+                  <Button
+                    size="sm"
+                    className="h-7 text-xs"
+                    onClick={() => handleImportCrmPeople("call")}
+                    disabled={crmImporting}
+                  >
+                    <PhoneOutgoing className="mr-1 h-3.5 w-3.5" />
+                    Import &amp; Call
+                  </Button>
                 </>
               )}
-              {crmPeople.length > 0 && crmPeopleSelected.size === 0 && (
+              {crmFiltered.length > 0 && crmPeopleSelected.size === 0 && (
                 <Button
                   size="sm"
                   variant="outline"
                   className="h-7 text-xs"
-                  onClick={() => setCrmPeopleSelected(new Set(crmPeople.map((p) => p.external_id)))}
+                  onClick={() => setCrmPeopleSelected(new Set(crmFiltered.map((p) => p.external_id)))}
                 >
                   Select All
                 </Button>
@@ -2084,35 +2214,48 @@ function DataPage() {
                 <RefreshCw className="mr-1.5 h-3.5 w-3.5" /> Pull from CRM
               </Button>
             </div>
+          ) : crmFiltered.length === 0 ? (
+            <div className="flex flex-col items-center gap-2 py-16">
+              <Users className="h-8 w-8 text-muted-foreground" />
+              <p className="text-sm font-medium">No leads match your filters</p>
+              <Button
+                variant="outline"
+                size="sm"
+                className="mt-2"
+                onClick={() => { setCrmSearch(""); setCrmStatusFilter("all"); setCrmDateFilter("all"); }}
+              >
+                Clear filters
+              </Button>
+            </div>
           ) : (
             <div className="min-w-0 overflow-x-auto">
-              <table className="w-full text-xs">
+              <table className="w-full text-[11px]">
                 <thead>
                   <tr className="border-b border-white/[0.06] bg-card/30">
-                    <th className="w-8 px-2 py-0.5">
+                    <th className="w-8 px-2 py-1">
                       <Checkbox
-                        checked={crmPeople.length > 0 && crmPeopleSelected.size === crmPeople.length}
+                        checked={crmFiltered.length > 0 && crmFiltered.every((p) => crmPeopleSelected.has(p.external_id))}
                         onCheckedChange={(v) => {
-                          if (v) setCrmPeopleSelected(new Set(crmPeople.map((p) => p.external_id)));
+                          if (v) setCrmPeopleSelected(new Set(crmFiltered.map((p) => p.external_id)));
                           else setCrmPeopleSelected(new Set());
                         }}
                       />
                     </th>
-                    <th className="px-2 py-0.5 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Name</th>
-                    <th className="px-2 py-0.5 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Phone</th>
-                    <th className="px-2 py-0.5 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Email</th>
-                    <th className="px-2 py-0.5 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Source</th>
-                    <th className="px-2 py-0.5 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">CRM Status</th>
-                    <th className="px-2 py-0.5 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Received</th>
+                    <th className="px-2 py-1 text-left text-[9px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">Name</th>
+                    <th className="px-2 py-1 text-left text-[9px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">Phone</th>
+                    <th className="px-2 py-1 text-left text-[9px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">Email</th>
+                    <th className="px-2 py-1 text-left text-[9px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">Source</th>
+                    <th className="px-2 py-1 text-left text-[9px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">CRM Status</th>
+                    <th className="px-2 py-1 text-left text-[9px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">Received</th>
                   </tr>
                 </thead>
                 <tbody>
                   {crmPag.sliced.map((p) => (
                     <tr
                       key={p.external_id}
-                      className={`group h-9 border-b border-white/[0.04] align-middle hover:bg-white/[0.02] transition-colors ${crmPeopleSelected.has(p.external_id) ? "bg-blue-500/5" : ""}`}
+                      className={`group h-8 border-b border-white/[0.04] align-middle hover:bg-white/[0.02] transition-colors ${crmPeopleSelected.has(p.external_id) ? "bg-blue-500/5" : ""}`}
                     >
-                      <td className="px-2.5 py-1">
+                      <td className="px-2 py-0.5">
                         <Checkbox
                           checked={crmPeopleSelected.has(p.external_id)}
                           onCheckedChange={() => {
@@ -2123,18 +2266,18 @@ function DataPage() {
                           }}
                         />
                       </td>
-                      <td className="px-2.5 py-1 text-xs font-medium whitespace-nowrap">{p.name || "—"}</td>
-                      <td className="whitespace-nowrap px-2.5 py-1 text-muted-foreground text-[11px] font-mono">{p.phone || "—"}</td>
-                      <td className="px-2.5 py-1 text-muted-foreground text-[11px]">{p.email || "—"}</td>
-                      <td className="px-2.5 py-1 text-muted-foreground text-[11px]">{p.source || "—"}</td>
-                      <td className="px-2.5 py-1">
+                      <td className="px-2 py-0.5 text-[11px] font-medium whitespace-nowrap">{p.name || "—"}</td>
+                      <td className="whitespace-nowrap px-2 py-0.5 text-muted-foreground text-[10px] font-mono">{p.phone || "—"}</td>
+                      <td className="px-2 py-0.5 text-muted-foreground text-[11px]">{p.email || "—"}</td>
+                      <td className="px-2 py-0.5 text-muted-foreground text-[11px]">{p.source || "—"}</td>
+                      <td className="px-2 py-0.5">
                         {p.status ? (
                           <span className="rounded-full bg-muted px-2 py-0.5 text-[10px] font-medium capitalize text-muted-foreground ring-1 ring-white/[0.06]">
                             {p.status.replace(/_/g, " ")}
                           </span>
                         ) : "—"}
                       </td>
-                      <td className="whitespace-nowrap px-2.5 py-1 text-muted-foreground text-[11px]">
+                      <td className="whitespace-nowrap px-2 py-0.5 text-muted-foreground text-[11px]">
                         {p.created_at ? fmtDate(p.created_at) : "—"}
                       </td>
                     </tr>
@@ -2189,6 +2332,19 @@ function DataPage() {
         recordCount={selected.size}
         agents={agents}
         onSchedule={handleSchedule}
+      />
+
+      <StartCallsDialog
+        open={crmCallDialogOpen}
+        onOpenChange={setCrmCallDialogOpen}
+        count={selected.size}
+        entityLabel="contact"
+        title="Call Imported Contacts"
+        agents={crmCallAgents}
+        defaultAgentId={crmImportAgentId}
+        noAgentsMessage="No calling agents found. Build and go-live with an agent in the Builder first."
+        onStart={handleCrmStartCalls}
+        onSchedule={handleCrmScheduleCalls}
       />
 
       <CallScheduleDialog

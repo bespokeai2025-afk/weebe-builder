@@ -18,6 +18,15 @@ import {
   CalendarClock,
   PlayCircle,
   StickyNote,
+  Globe,
+  Building2,
+  Upload,
+  UserCog,
+  Plug,
+  Mail,
+  MessageCircle,
+  MessageSquareText,
+  Contact,
 } from "lucide-react";
 import { useState, useMemo, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
@@ -57,6 +66,7 @@ import {
   startQualificationCallsForLeads,
   scheduleQualificationCalls,
   fireScheduledCalls,
+  removeLeads,
 } from "@/lib/dashboard/leads.functions";
 import { listWbahPositiveNeutralLeads, getWbahContactCallHistory, getWbahCallDetail } from "@/lib/integrations/webespokeEnterprise/wbah-workspace.server";
 import {
@@ -66,6 +76,8 @@ import {
   type LeadStatusCategory,
 } from "@/lib/dashboard/lead-status-categories";
 import { NotesBookingSheet } from "@/components/dashboard/NotesBookingSheet";
+import { LeadEmailDialog } from "@/components/dashboard/LeadEmailDialog";
+import { PlayRecordingButton } from "@/components/RecordingPlayerDialog";
 import { WbahNotesButton, WbahBookedStickyBadge, WbahCallCountBadge, WbahCalendlyLink, wbahAgentColorMapFromLeads } from "@/components/dashboard/WbahNotesButton";
 import type { NotesEntityType } from "@/components/dashboard/NotesBookingSheet";
 import { DialogDescription } from "@/components/ui/dialog";
@@ -74,29 +86,31 @@ import {
 } from "@/lib/dashboard/campaigns.functions";
 import { getDashboardLiveAgents } from "@/lib/agents/agents.functions";
 import { CallSchedulingSection } from "@/components/dashboard/CallSchedulingSection";
+import { StartCallsDialog } from "@/components/dashboard/StartCallsDialog";
 import { useTablePagination, TablePagBar } from "@/components/ui/table-pagination";
 import { useWbahAgentOptions } from "@/hooks/useWbahAgentOptions";
+import { wbahDateTimeOptions } from "@/lib/dashboard/wbah-timezone";
 
 export const Route = createFileRoute("/_authenticated/leads/")({
   head: () => ({ meta: [{ title: "Leads — Webee" }] }),
   component: LeadsPage,
 });
 
-function fmtDate(d: string | null) {
+function fmtDate(d: string | null, isWbah = false) {
   if (!d) return "—";
   try {
-    return new Date(d).toLocaleString();
+    return new Date(d).toLocaleString(undefined, wbahDateTimeOptions(isWbah));
   } catch {
     return d;
   }
 }
-function fmtCallDate(iso: string | null | undefined) {
+function fmtCallDate(iso: string | null | undefined, isWbah = false) {
   if (!iso) return "Not called yet";
   try {
-    return new Date(iso).toLocaleString(undefined, {
+    return new Date(iso).toLocaleString(undefined, wbahDateTimeOptions(isWbah, {
       day: "2-digit", month: "short", year: "numeric",
       hour: "2-digit", minute: "2-digit",
-    });
+    }));
   } catch { return iso; }
 }
 
@@ -180,6 +194,101 @@ function bookingStatusBadge(status: string | null) {
   );
 }
 
+// ── Lead source / preferred contact indicators ────────────────────────────
+// Derived purely from the lead's own record (source_type/source, meta) —
+// never from workspace identity — so the same renderer works for every
+// account, including WBAH (its CRM-sourced rows are tagged source:"crm" at
+// the data layer, not via an isWbah branch here).
+type LeadBadgeSpec = { Icon: typeof Globe; label: string; tone: string };
+
+function leadSourceBadgeSpec(lead: any): LeadBadgeSpec | null {
+  const raw = String(lead?.source_type ?? lead?.source ?? "").toLowerCase().trim();
+  if (!raw) return null;
+  const FORM = new Set([
+    "webform", "website_form", "form", "landing_page", "facebook_lead_form",
+    "google_ads_lead_form", "tiktok_lead_form", "linkedin_lead_form",
+    "custom_form", "webee_website_form", "zapier", "make",
+  ]);
+  const CRM = new Set(["crm", "dynamics", "pipedrive", "hubspot", "import", "inbound", "outbound", "referral"]);
+  const UPLOAD = new Set(["csv", "data_upload"]);
+  const API = new Set(["api", "webhook"]);
+  if (FORM.has(raw)) return { Icon: Globe, label: "Web form lead", tone: "text-sky-400 bg-sky-500/10" };
+  if (CRM.has(raw)) return { Icon: Building2, label: "CRM lead", tone: "text-violet-400 bg-violet-500/10" };
+  if (UPLOAD.has(raw)) return { Icon: Upload, label: "CSV / uploaded lead", tone: "text-amber-400 bg-amber-500/10" };
+  if (raw === "manual") return { Icon: UserCog, label: "Manually added lead", tone: "text-slate-400 bg-slate-500/10" };
+  if (API.has(raw)) return { Icon: Plug, label: "API / webhook lead", tone: "text-emerald-400 bg-emerald-500/10" };
+  return null;
+}
+
+function LeadSourceBadge({ lead }: { lead: any }) {
+  const spec = leadSourceBadgeSpec(lead);
+  if (!spec) return null;
+  const { Icon, label, tone } = spec;
+  return (
+    <span
+      title={label}
+      className={cn("inline-flex shrink-0 items-center justify-center rounded p-0.5", tone)}
+    >
+      <Icon className="h-2.5 w-2.5" />
+    </span>
+  );
+}
+
+function preferredContactBadgeSpec(lead: any): LeadBadgeSpec | null {
+  const raw = String(
+    lead?.preferred_contact ??
+    lead?.preferred_contact_method ??
+    lead?.meta?.preferred_contact ??
+    lead?.meta?.preferred_contact_method ??
+    "",
+  ).toLowerCase().trim();
+  if (!raw) return null;
+  if (raw === "phone" || raw === "call") return { Icon: Phone, label: "Prefers phone", tone: "text-blue-400 bg-blue-500/10" };
+  if (raw === "email") return { Icon: Mail, label: "Prefers email", tone: "text-orange-400 bg-orange-500/10" };
+  if (raw === "whatsapp") return { Icon: MessageCircle, label: "Prefers WhatsApp", tone: "text-emerald-400 bg-emerald-500/10" };
+  if (raw === "sms" || raw === "text") return { Icon: MessageSquareText, label: "Prefers SMS", tone: "text-fuchsia-400 bg-fuchsia-500/10" };
+  if (raw === "any" || raw === "no_preference") return { Icon: Contact, label: "No contact preference", tone: "text-slate-400 bg-slate-500/10" };
+  return null;
+}
+
+function PreferredContactBadge({ lead, onEmailClick }: { lead: any; onEmailClick?: (lead: any) => void }) {
+  const spec = preferredContactBadgeSpec(lead);
+  if (!spec) return null;
+  const { Icon, label, tone } = spec;
+  const raw = String(
+    lead?.preferred_contact ??
+    lead?.preferred_contact_method ??
+    lead?.meta?.preferred_contact ??
+    lead?.meta?.preferred_contact_method ??
+    "",
+  ).toLowerCase().trim();
+
+  if (raw === "email" && onEmailClick && lead?.email) {
+    return (
+      <button
+        type="button"
+        title={`${label} — click to email ${lead.email}`}
+        onClick={(e) => { e.stopPropagation(); onEmailClick(lead); }}
+        className={cn(
+          "inline-flex shrink-0 items-center justify-center rounded p-0.5 transition hover:ring-1 hover:ring-orange-400/60",
+          tone,
+        )}
+      >
+        <Icon className="h-2.5 w-2.5" />
+      </button>
+    );
+  }
+
+  return (
+    <span
+      title={label}
+      className={cn("inline-flex shrink-0 items-center justify-center rounded p-0.5", tone)}
+    >
+      <Icon className="h-2.5 w-2.5" />
+    </span>
+  );
+}
+
 const STATUS_OPTIONS = [
   { value: "interested", label: "Open", color: "bg-emerald-500/15 text-emerald-400 ring-emerald-500/30" },
   { value: "qualified", label: "Qualified", color: "bg-violet-500/15 text-violet-400 ring-violet-500/30" },
@@ -225,6 +334,7 @@ function LeadsPage() {
   const startQualFn = useServerFn(startQualificationCallsForLeads);
   const scheduleCallsFn = useServerFn(scheduleQualificationCalls);
   const fireScheduledFn = useServerFn(fireScheduledCalls);
+  const removeLeadsFn = useServerFn(removeLeads);
 
   const [tab, setTab] = useState<"leads" | "campaigns">("leads");
   const [search, setSearch] = useState("");
@@ -278,12 +388,9 @@ function LeadsPage() {
 
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [qualDialogOpen, setQualDialogOpen] = useState(false);
-  const [qualAgentId, setQualAgentId] = useState<string>("");
-  const [qualFromNumber, setQualFromNumber] = useState<string>("");
-  const [qualRunning, setQualRunning] = useState(false);
-  const [qualSchedule, setQualSchedule] = useState(false);
-  const [qualScheduledAt, setQualScheduledAt] = useState<string>("");
   const [firingScheduled, setFiringScheduled] = useState(false);
+  const [removeDialogOpen, setRemoveDialogOpen] = useState(false);
+  const [isRemoving, setIsRemoving] = useState(false);
 
   type PanelTarget = {
     entityType: NotesEntityType;
@@ -296,6 +403,7 @@ function LeadsPage() {
   };
   const [panel, setPanel] = useState<PanelTarget | null>(null);
   const [wbahTranscript, setWbahTranscript] = useState<string | null>(null);
+  const [emailDialogLead, setEmailDialogLead] = useState<any | null>(null);
   const getContactHistoryFn = useServerFn(getWbahContactCallHistory);
   const getCallDetailFn = useServerFn(getWbahCallDetail);
   const [callHistory, setCallHistory] = useState<{ name: string; phone: string; loading: boolean; calls: any[] } | null>(null);
@@ -393,7 +501,9 @@ function LeadsPage() {
   const { options: wbahAgentOptions } = useWbahAgentOptions(wbahAgentNamesFromData, isWbah);
   const stats = statsQ.data;
   const allAgents = (agentsQ.data ?? []) as any[];
-  const qualAgents = allAgents.filter((a: any) => a.agentType === "client_qualification");
+  const qualAgents = allAgents
+    .filter((a: any) => a.agentType === "client_qualification")
+    .sort((a: any, b: any) => (b.defaultForLeads ? 1 : 0) - (a.defaultForLeads ? 1 : 0));
   const scheduledCount = leads.filter((l: any) => l.status === "scheduled").length;
 
   useEffect(() => {
@@ -446,7 +556,7 @@ function LeadsPage() {
         : (isWbah ? l.meta?.call_status : null);
       if (cs !== callStatusFilter) return false;
     }
-    if (isWbah && wbahAgentFilter !== "all" && (l.meta?.agent_name ?? "") !== wbahAgentFilter) return false;
+    if (wbahAgentFilter !== "all" && (l.meta?.agent_name ?? "") !== wbahAgentFilter) return false;
     // Call duration greater than N minutes.
     if (leadsDuration) {
       const minDur = parseInt(leadsDuration, 10);
@@ -475,7 +585,7 @@ function LeadsPage() {
         if (dateTo && ts > new Date(dateTo).getTime()) return false;
       }
     }
-    if (quickFilter && isWbah) {
+    if (quickFilter) {
       const ns = normalizeSentiment(l.sentiment);
       const st = l.status;
       switch (quickFilter) {
@@ -519,7 +629,7 @@ function LeadsPage() {
       leads.length, pos, neu, neg, unk);
   }, [isWbah, leads]);
 
-  const hasLeadFilters = search.trim() || statusFilter || leadStatusCat !== "all" || sentimentFilter || callStatusFilter || quickFilter || leadsDuration || leadsOutcome || wbahDaysFilter === "custom" || (isWbah && wbahAgentFilter !== "all");
+  const hasLeadFilters = search.trim() || statusFilter || leadStatusCat !== "all" || sentimentFilter || callStatusFilter || quickFilter || leadsDuration || leadsOutcome || wbahDaysFilter === "custom" || wbahAgentFilter !== "all";
 
   const positive = leads.filter((l: any) => normalizeSentiment(l.sentiment) === "positive").length;
   const withScore = leads.filter((l: any) => l.lead_score != null);
@@ -550,56 +660,62 @@ function LeadsPage() {
     try {
       await setStatusFn({ data: { id, status } });
       qc.invalidateQueries({ queryKey: ["leads-all"] });
+      // The Qualified tab lives on a separate route with its own cached
+      // queries (staleTime 5min) — without invalidating these too, a status
+      // change made here doesn't show up there until the cache expires.
+      qc.invalidateQueries({ queryKey: ["leads-qualified"] });
+      qc.invalidateQueries({ queryKey: ["qualification-stats"] });
+      qc.invalidateQueries({ queryKey: ["wbah-qualified-leads"] });
     } catch (e) {
       toast.error("Failed to update status", { description: (e as Error).message });
     }
   }
 
-  async function handleStartQualification() {
-    if (!qualAgentId || selectedIds.size === 0) return;
-    setQualRunning(true);
+  async function handleStartQualification({ agentId, fromNumber }: { agentId: string; fromNumber: string | null }) {
     try {
-      if (qualSchedule) {
-        if (!qualScheduledAt) {
-          toast.error("Pick a date and time for the scheduled calls");
-          setQualRunning(false);
-          return;
-        }
-        const result = await scheduleCallsFn({
-          data: {
-            leadIds: Array.from(selectedIds),
-            agentId: qualAgentId,
-            fromNumber: qualFromNumber || null,
-            scheduledAt: new Date(qualScheduledAt).toISOString(),
-          },
-        });
-        toast.success(`${result.scheduled} lead${result.scheduled !== 1 ? "s" : ""} scheduled`, {
-          description: `Calls will be placed at ${new Date(qualScheduledAt).toLocaleString()}`,
-        });
-      } else {
-        const result = await startQualFn({
-          data: {
-            leadIds: Array.from(selectedIds),
-            agentId: qualAgentId,
-            fromNumber: qualFromNumber || null,
-          },
-        });
-        const limitMsg = (result as any).limitReached > 0
-          ? ` · ${(result as any).limitReached} at daily limit`
-          : "";
-        toast.success(`Qualification started — ${result.placed} calls placed`, {
-          description: result.failed > 0 ? `${result.failed} failed${limitMsg}` : limitMsg || undefined,
-        });
-      }
+      const result = await startQualFn({
+        data: {
+          leadIds: Array.from(selectedIds),
+          agentId,
+          fromNumber,
+        },
+      });
+      const limitMsg = (result as any).limitReached > 0
+        ? ` · ${(result as any).limitReached} at daily limit`
+        : "";
+      toast.success(`Qualification started — ${result.placed} calls placed`, {
+        description: result.failed > 0 ? `${result.failed} failed${limitMsg}` : limitMsg || undefined,
+      });
       setQualDialogOpen(false);
-      setQualSchedule(false);
-      setQualScheduledAt("");
       setSelectedIds(new Set());
       qc.invalidateQueries({ queryKey: ["leads-all"] });
     } catch (e) {
       toast.error("Failed to start qualification", { description: (e as Error).message });
-    } finally {
-      setQualRunning(false);
+    }
+  }
+
+  async function handleScheduleQualification({
+    agentId,
+    fromNumber,
+    scheduledAtIso,
+  }: { agentId: string; fromNumber: string | null; scheduledAtIso: string }) {
+    try {
+      const result = await scheduleCallsFn({
+        data: {
+          leadIds: Array.from(selectedIds),
+          agentId,
+          fromNumber,
+          scheduledAt: scheduledAtIso,
+        },
+      });
+      toast.success(`${result.scheduled} lead${result.scheduled !== 1 ? "s" : ""} scheduled`, {
+        description: `Calls will be placed at ${new Date(scheduledAtIso).toLocaleString(undefined, wbahDateTimeOptions(isWbah))}`,
+      });
+      setQualDialogOpen(false);
+      setSelectedIds(new Set());
+      qc.invalidateQueries({ queryKey: ["leads-all"] });
+    } catch (e) {
+      toast.error("Failed to schedule qualification calls", { description: (e as Error).message });
     }
   }
 
@@ -627,10 +743,32 @@ function LeadsPage() {
       toast.error("Select at least one lead first");
       return;
     }
-    const defaultAgent = qualAgents[0];
-    if (defaultAgent && !qualAgentId) setQualAgentId(defaultAgent.id);
-    if (defaultAgent?.phoneNumber && !qualFromNumber) setQualFromNumber(defaultAgent.phoneNumber);
     setQualDialogOpen(true);
+  }
+
+  function openRemoveDialog() {
+    if (selectedIds.size === 0) {
+      toast.error("Select at least one lead first");
+      return;
+    }
+    setRemoveDialogOpen(true);
+  }
+
+  async function handleRemoveLeads() {
+    setIsRemoving(true);
+    try {
+      const result = await removeLeadsFn({ data: { leadIds: Array.from(selectedIds) } });
+      toast.success(`Removed ${result.removed} lead${result.removed !== 1 ? "s" : ""}`);
+      setSelectedIds(new Set());
+      setRemoveDialogOpen(false);
+      qc.invalidateQueries({ queryKey: ["leads-all"] });
+      qc.invalidateQueries({ queryKey: ["leads-qualified"] });
+      qc.invalidateQueries({ queryKey: ["qualification-stats"] });
+    } catch (e) {
+      toast.error("Failed to remove leads", { description: (e as Error).message });
+    } finally {
+      setIsRemoving(false);
+    }
   }
 
   return (
@@ -668,6 +806,12 @@ function LeadsPage() {
             <Button size="sm" variant="outline" className="border-blue-500/30 text-blue-400 hover:text-blue-300" onClick={openQualDialog}>
               <ShieldCheck className="mr-1 h-4 w-4" />
               Qualify {selectedIds.size} Lead{selectedIds.size !== 1 ? "s" : ""}
+            </Button>
+          )}
+          {tab === "leads" && !isWbah && selectedIds.size > 0 && (
+            <Button size="sm" variant="outline" className="border-red-500/30 text-red-400 hover:text-red-300" onClick={openRemoveDialog}>
+              <Trash2 className="mr-1 h-4 w-4" />
+              Remove {selectedIds.size} Lead{selectedIds.size !== 1 ? "s" : ""}
             </Button>
           )}
           <Button variant="outline" size="sm" className="h-7 px-2.5 text-xs" onClick={() => {
@@ -872,7 +1016,7 @@ function LeadsPage() {
                   />
                 </div>
               )}
-              {isWbah && (
+              {(isWbah || wbahAgentOptions.length > 0) && (
                 <select
                   value={wbahAgentFilter}
                   onChange={(e) => setWbahAgentFilter(e.target.value)}
@@ -896,13 +1040,12 @@ function LeadsPage() {
               )}
             </div>
           </div>
-          {isWbah && (
-            <div className="flex flex-wrap items-center gap-1.5 border-b border-white/[0.06] px-2.5 py-1.5 sm:px-3">
+          <div className="flex flex-wrap items-center gap-1.5 border-b border-white/[0.06] px-2.5 py-1.5 sm:px-3">
               <span className="text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground mr-1">Quick filter</span>
               {[
-                { value: "positive",          label: "Positive" },
-                { value: "neutral",           label: "Neutral" },
-                { value: "partial_qualified", label: "Partial Qualified" },
+                { value: "positive", label: "Positive" },
+                { value: "neutral",  label: "Neutral" },
+                ...(isWbah ? [{ value: "partial_qualified", label: "Partial Qualified" }] : []),
               ].map((c) => {
                 const active = quickFilter === c.value;
                 return (
@@ -920,8 +1063,7 @@ function LeadsPage() {
                 );
               })}
               <span className="ml-auto text-[11px] text-muted-foreground">{filtered.length} shown</span>
-            </div>
-          )}
+          </div>
           <div className="p-0">
             {(leadsQ.isLoading || !wsResolved) ? (
               <LoadingProgress label="Loading leads" estimatedMs={8000} />
@@ -992,6 +1134,7 @@ function LeadsPage() {
                           <div className="min-w-0">
                             <div className="flex items-center gap-1 min-w-0">
                               <span className="truncate text-[11px] font-medium min-w-0">{lead.full_name ?? "—"}</span>
+                              <LeadSourceBadge lead={lead} />
                               {isWbah && (
                                 <WbahCallCountBadge
                                   count={lead.meta?.call_count ?? 1}
@@ -1008,7 +1151,26 @@ function LeadsPage() {
                           )}
                         </td>
                         <td className="px-2 py-0.5 text-muted-foreground whitespace-nowrap text-[10px] font-mono">
-                          {lead.phone}
+                          <span className="inline-flex items-center gap-1">
+                            {lead.phone}
+                            <PreferredContactBadge lead={lead} onEmailClick={setEmailDialogLead} />
+                          </span>
+                          {String(
+                            lead?.preferred_contact ??
+                            lead?.preferred_contact_method ??
+                            lead?.meta?.preferred_contact ??
+                            lead?.meta?.preferred_contact_method ??
+                            "",
+                          ).toLowerCase().trim() === "email" && lead.email && (
+                            <button
+                              type="button"
+                              title={`Email ${lead.email}`}
+                              onClick={() => setEmailDialogLead(lead)}
+                              className="block truncate max-w-[140px] text-left text-orange-400 hover:underline"
+                            >
+                              {lead.email}
+                            </button>
+                          )}
                         </td>
                         {/* Status picker */}
                         <td className="px-2 py-0.5">
@@ -1061,13 +1223,14 @@ function LeadsPage() {
                           <span className="line-clamp-1">{lead.next_action ?? "—"}</span>
                         </td>
                         <td className="px-2 py-0.5 text-muted-foreground whitespace-nowrap text-[11px]">
-                          {fmtDate(lead.last_contacted_at)}
+                          {fmtDate(lead.last_contacted_at, isWbah)}
                         </td>
                         <td className="px-2 py-0.5 text-muted-foreground whitespace-nowrap text-[11px]">
                           {fmtCallDate(
                             isWbah ? lead.meta?.last_called_at
                             : isRetell ? lead.retell_call?.started_at
-                            : lead.last_contacted_at
+                            : lead.last_contacted_at,
+                            isWbah
                           )}
                         </td>
                         {isRetell && <>
@@ -1075,7 +1238,7 @@ function LeadsPage() {
                           <td className="px-2 py-0.5 text-[11px] text-muted-foreground whitespace-nowrap">{fmtDuration((lead.retell_call?.duration_seconds ?? 0) * 1000)}</td>
                           <td className="px-2 py-0.5">
                             {lead.retell_call?.recording_url
-                              ? <a href={lead.retell_call.recording_url} target="_blank" rel="noreferrer" className="flex items-center gap-1 rounded px-1.5 py-1 text-[10px] font-medium text-blue-400/80 hover:text-blue-400 hover:bg-blue-500/10 border border-blue-500/20 transition-colors whitespace-nowrap"><PlayCircle className="h-3 w-3" /><span>Play</span></a>
+                              ? <PlayRecordingButton url={lead.retell_call.recording_url} contact={lead.name ?? lead.phone ?? "Lead"} className="flex items-center gap-1 rounded px-1.5 py-1 text-[10px] font-medium text-blue-400/80 hover:text-blue-400 hover:bg-blue-500/10 border border-blue-500/20 transition-colors whitespace-nowrap" />
                               : <span className="text-muted-foreground text-[11px]">—</span>}
                           </td>
                           <td className="px-2 py-0.5">
@@ -1092,7 +1255,7 @@ function LeadsPage() {
                           <td className="px-2 py-0.5 text-[11px] text-muted-foreground whitespace-nowrap">{fmtDuration(lead.meta?.duration_ms)}</td>
                           <td className="px-2 py-0.5">
                             {lead.meta?.recording_url
-                              ? <a href={lead.meta.recording_url} target="_blank" rel="noreferrer" className="flex items-center gap-1 rounded px-1.5 py-1 text-[10px] font-medium text-blue-400/80 hover:text-blue-400 hover:bg-blue-500/10 border border-blue-500/20 transition-colors whitespace-nowrap"><PlayCircle className="h-3 w-3" /><span>Play</span></a>
+                              ? <PlayRecordingButton url={lead.meta.recording_url} contact={lead.name ?? lead.phone ?? "Lead"} className="flex items-center gap-1 rounded px-1.5 py-1 text-[10px] font-medium text-blue-400/80 hover:text-blue-400 hover:bg-blue-500/10 border border-blue-500/20 transition-colors whitespace-nowrap" />
                               : <span className="text-muted-foreground text-[11px]">—</span>}
                           </td>
                           <td className="px-2 py-0.5">
@@ -1166,119 +1329,42 @@ function LeadsPage() {
       )}
 
       {/* Assign Qualification Agent Dialog */}
-      <Dialog open={qualDialogOpen} onOpenChange={(o) => { setQualDialogOpen(o); if (!o) { setQualSchedule(false); setQualScheduledAt(""); } }}>
-        <DialogContent>
+      <StartCallsDialog
+        open={qualDialogOpen}
+        onOpenChange={setQualDialogOpen}
+        count={selectedIds.size}
+        entityLabel="lead"
+        title="Assign Qualification Agent"
+        agents={qualAgents}
+        defaultAgentId={qualAgents[0]?.id}
+        footerNote="Max 3 call attempts per lead per day — leads at the limit will be skipped."
+        scheduleHint='Click "Run Scheduled" on the Leads page when the time arrives to fire the calls.'
+        onStart={handleStartQualification}
+        onSchedule={handleScheduleQualification}
+      />
+
+      {/* Remove Leads confirmation */}
+      <Dialog open={removeDialogOpen} onOpenChange={setRemoveDialogOpen}>
+        <DialogContent className="max-w-sm">
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <ShieldCheck className="h-4 w-4 text-blue-400" />
-              Assign Qualification Agent
-            </DialogTitle>
+            <DialogTitle>Remove {selectedIds.size} lead{selectedIds.size !== 1 ? "s" : ""}?</DialogTitle>
+            <DialogDescription>
+              This permanently deletes the selected lead{selectedIds.size !== 1 ? "s" : ""} and cannot be undone. Their
+              call history is not affected.
+            </DialogDescription>
           </DialogHeader>
-          <div className="space-y-4 py-1">
-            <p className="text-sm text-muted-foreground">
-              {qualSchedule ? "Schedule" : "Start"} qualification calls for <span className="font-semibold text-foreground">{selectedIds.size}</span> selected lead{selectedIds.size !== 1 ? "s" : ""}.
-            </p>
-            {qualAgents.length === 0 ? (
-              <div className="rounded-lg border border-amber-500/20 bg-amber-500/5 p-3 text-sm text-amber-400">
-                No live Client Qualification agents found. Build and go-live with a qualification agent in the Builder first.
-              </div>
-            ) : (
-              <>
-                <div>
-                  <Label className="text-xs">Qualification Agent</Label>
-                  <Select value={qualAgentId} onValueChange={(v) => {
-                    setQualAgentId(v);
-                    const agent = qualAgents.find((a: any) => a.id === v);
-                    if (agent?.phoneNumber) setQualFromNumber(agent.phoneNumber);
-                  }}>
-                    <SelectTrigger className="mt-1">
-                      <SelectValue placeholder="Select an agent…" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {qualAgents.map((a: any) => (
-                        <SelectItem key={a.id} value={a.id}>
-                          {a.name}
-                          {a.phoneNumber && <span className="ml-2 text-muted-foreground text-xs">{a.phoneNumber}</span>}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div>
-                  <Label className="text-xs">From Number (optional override)</Label>
-                  <Input
-                    value={qualFromNumber}
-                    onChange={(e) => setQualFromNumber(e.target.value)}
-                    placeholder="+1 555 000 0000"
-                    className="mt-1 h-8 text-xs"
-                  />
-                </div>
-
-                {/* Schedule toggle */}
-                <div className="rounded-lg border border-white/[0.08] bg-white/[0.02] p-3 space-y-3">
-                  <button
-                    type="button"
-                    onClick={() => setQualSchedule((v) => !v)}
-                    className="flex items-center justify-between w-full"
-                  >
-                    <span className="flex items-center gap-2 text-sm font-medium">
-                      <CalendarClock className="h-4 w-4 text-purple-400" />
-                      Schedule for later
-                    </span>
-                    <span className={`h-5 w-9 rounded-full transition-colors relative ${qualSchedule ? "bg-purple-500" : "bg-white/10"}`}>
-                      <span className={`absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition-transform ${qualSchedule ? "translate-x-4" : "translate-x-0.5"}`} />
-                    </span>
-                  </button>
-                  {qualSchedule && (
-                    <div>
-                      <Label className="text-xs text-muted-foreground">Call date &amp; time</Label>
-                      <Input
-                        type="datetime-local"
-                        value={qualScheduledAt}
-                        onChange={(e) => setQualScheduledAt(e.target.value)}
-                        className="mt-1 h-8 text-xs"
-                        min={new Date().toISOString().slice(0, 16)}
-                      />
-                      <p className="mt-1.5 text-[11px] text-muted-foreground flex items-center gap-1">
-                        <Clock className="h-3 w-3" />
-                        Click "Run Scheduled" on the Leads page when the time arrives to fire the calls.
-                      </p>
-                    </div>
-                  )}
-                </div>
-
-                {/* Daily limit notice */}
-                <p className="text-[11px] text-muted-foreground">
-                  Max 3 call attempts per lead per day — leads at the limit will be skipped.
-                </p>
-              </>
-            )}
-          </div>
           <DialogFooter>
-            <Button variant="ghost" onClick={() => setQualDialogOpen(false)} disabled={qualRunning}>
+            <Button variant="outline" size="sm" onClick={() => setRemoveDialogOpen(false)} disabled={isRemoving}>
               Cancel
             </Button>
             <Button
-              onClick={handleStartQualification}
-              disabled={!qualAgentId || qualAgents.length === 0 || qualRunning}
-              className={qualSchedule ? "bg-purple-600 hover:bg-purple-500 text-white" : ""}
+              size="sm"
+              className="bg-red-600 text-white hover:bg-red-500"
+              onClick={handleRemoveLeads}
+              disabled={isRemoving}
             >
-              {qualRunning ? (
-                <>
-                  <Loader2 className="mr-1 h-4 w-4 animate-spin" />
-                  {qualSchedule ? "Scheduling…" : "Starting…"}
-                </>
-              ) : qualSchedule ? (
-                <>
-                  <CalendarClock className="mr-1 h-4 w-4" />
-                  Schedule {selectedIds.size} Call{selectedIds.size !== 1 ? "s" : ""}
-                </>
-              ) : (
-                <>
-                  <Phone className="mr-1 h-4 w-4" />
-                  Start {selectedIds.size} Call{selectedIds.size !== 1 ? "s" : ""}
-                </>
-              )}
+              {isRemoving ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <Trash2 className="mr-1 h-4 w-4" />}
+              Remove
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -1317,14 +1403,14 @@ function LeadsPage() {
                   <tbody>
                     {callHistory.calls.map((c: any) => (
                       <tr key={c.id} className="border-b border-white/[0.04] align-middle">
-                        <td className="px-2 py-1.5 whitespace-nowrap text-muted-foreground">{fmtCallDate(c.startedAt)}</td>
+                        <td className="px-2 py-1.5 whitespace-nowrap text-muted-foreground">{fmtCallDate(c.startedAt, true)}</td>
                         <td className="px-2 py-1.5">{callStatusBadge(c.callStatus)}</td>
                         <td className="px-2 py-1.5">{sentimentBadge(c.sentiment)}</td>
                         <td className="px-2 py-1.5 whitespace-nowrap text-muted-foreground">{fmtDuration(c.durationSeconds != null ? c.durationSeconds * 1000 : null)}</td>
                         <td className="px-2 py-1.5 whitespace-nowrap text-muted-foreground">{c.agentName ?? "—"}</td>
                         <td className="px-2 py-1.5">
                           {c.recordingUrl
-                            ? <a href={c.recordingUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-primary hover:underline"><PlayCircle className="h-3 w-3" />Play</a>
+                            ? <PlayRecordingButton url={c.recordingUrl} contact={callHistory.name || callHistory.phone || "Lead"} className="inline-flex items-center gap-1 text-primary hover:underline" />
                             : <span className="text-muted-foreground">—</span>}
                         </td>
                         <td className="px-2 py-1.5">
@@ -1369,6 +1455,8 @@ function LeadsPage() {
           callSummary={panel.callSummary}
         />
       )}
+
+      <LeadEmailDialog lead={emailDialogLead} onClose={() => setEmailDialogLead(null)} />
 
     </DashboardPage>
   );

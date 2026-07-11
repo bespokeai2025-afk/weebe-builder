@@ -194,3 +194,20 @@ INSERT INTO workflow_templates (category_id, name, description, tags, trigger_ty
 )
 
 ON CONFLICT DO NOTHING;
+
+-- ── Reusable standard: "Lead generation webform intake setup" ─────────────────
+-- Auto-calls every new lead in the leads section with a Client Qualification
+-- agent, updates status from the call outcome, and re-queues unanswered leads.
+-- workflow_templates.name has NO unique constraint, so guard with WHERE NOT EXISTS.
+INSERT INTO workflow_templates (category_id, name, description, tags, trigger_type, status, flow_definition)
+SELECT
+  (SELECT id FROM workflow_template_categories WHERE name = 'Lead Management'),
+  'Lead generation webform intake setup',
+  'Standard lead-generation intake: automatically calls every new lead that lands in the leads section with a Client Qualification agent, updates the lead''s status from the call outcome (qualified / interested / callback), and re-queues unanswered leads as need_to_call for the next run. Capped at 3 calls per number per day.',
+  ARRAY['lead','webform','intake','auto-call','qualification'],
+  'lead_added',
+  'published',
+  '{"steps":[{"id":"trigger","type":"trigger","trigger_type":"lead_added"},{"id":"call","type":"call_lead","agent_assignment":"qualification","daily_cap":3},{"id":"branch","type":"branch","conditions":[{"field":"call_outcome","op":"equals","value":"qualified","next":"move_qualified"},{"field":"call_outcome","op":"equals","value":"positive","next":"move_qualified"},{"field":"call_outcome","op":"equals","value":"interested","next":"move_interested"},{"field":"call_outcome","op":"equals","value":"neutral","next":"move_interested"},{"field":"call_outcome","op":"equals","value":"callback","next":"create_callback"},{"field":"call_outcome","op":"equals","value":"no_answer","next":"requeue"}]},{"id":"move_qualified","type":"update_lead_status","status":"qualified"},{"id":"move_interested","type":"update_lead_status","status":"interested"},{"id":"create_callback","type":"create_callback","delay_hours":4},{"id":"requeue","type":"update_lead_status","status":"need_to_call"},{"id":"end","type":"stop_workflow"}]}'::jsonb
+WHERE NOT EXISTS (
+  SELECT 1 FROM workflow_templates WHERE name = 'Lead generation webform intake setup'
+);

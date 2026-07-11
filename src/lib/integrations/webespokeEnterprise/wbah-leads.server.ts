@@ -86,11 +86,13 @@ async function countBookedCallsInDb(workspaceId: string): Promise<number> {
   const PAGE = 1000;
   let from = 0;
   for (;;) {
+    // Only rows with at least one booking signal — avoids scanning the full
+    // wbah_calls table (16k+ rows) just to count the handful of booked ones.
     const { data, error } = await sb
       .from("wbah_calls")
       .select(COLS)
       .eq("workspace_id", workspaceId)
-      .order("started_at", { ascending: false, nullsFirst: false })
+      .or("calendly_booking_url.not.is.null,appointment_date.not.is.null,booking_status.not.is.null")
       .range(from, from + PAGE - 1);
     if (error) break;
     const batch = (data ?? []) as any[];
@@ -152,44 +154,125 @@ async function ensureWbahBookedContactsInDb(workspaceId: string): Promise<void> 
     ]);
 
     if (crmRes.rows > 0 || callsRes.rows > 0 || callsBooked > crmHint) {
-      const { cacheDel } = await import("@/lib/cache/redis.server");
-      await cacheDel(`${WBAH_AGGREGATE_CACHE_KEY}:${workspaceId}`);
+      await invalidateWbahAggregate(workspaceId);
     }
   } catch (e: any) {
     console.warn("[WBAH aggregate] booked sync failed:", e?.message ?? e);
   }
 }
 
+// The booked-contacts consistency repair can take tens of seconds when it has
+// to talk to WeeBespoke — it must NEVER block a page read. Run it in the
+// background, single-flight, at most once per interval. Reads render from the
+// data already in wbah_calls/wbah_crm_contacts; the repair busts the aggregate
+// cache itself when it changes rows, so the next read picks up the fixes.
+let _ensureBookedInflight: Promise<void> | null = null;
+let _ensureBookedLastAt = 0;
+const ENSURE_BOOKED_MIN_INTERVAL_MS = 5 * 60 * 1000;
+
+function scheduleEnsureWbahBookedContacts(workspaceId: string): void {
+  if (_ensureBookedInflight) return;
+  if (Date.now() - _ensureBookedLastAt < ENSURE_BOOKED_MIN_INTERVAL_MS) return;
+  _ensureBookedInflight = ensureWbahBookedContactsInDb(workspaceId)
+    .catch((e: any) => console.warn("[WBAH aggregate] booked ensure failed:", e?.message ?? e))
+    .finally(() => {
+      _ensureBookedLastAt = Date.now();
+      _ensureBookedInflight = null;
+    });
+}
+
+// ── In-process aggregate cache ────────────────────────────────────────────────
+// The serialized aggregate is ~8MB, which exceeds the Redis layer's 5MB SET cap
+// — Redis silently skips the write, so cacheWrap alone gave us NO caching at
+// all: every Leads/Qualified/Calendar open paid a full rebuild. Cache the built
+// aggregate in process memory with the same TTL, and single-flight concurrent
+// cold reads (the login prefetch fires several at once) so they share one
+// rebuild instead of racing.
+const _aggMem = new Map<string, { at: number; data: WbahCallsAggregateCached }>();
+const _aggInflight = new Map<string, Promise<WbahCallsAggregateCached>>();
+
+/**
+ * Bust the WBAH calls aggregate (memory + Redis) for a workspace. All sync
+ * jobs that change wbah_calls/wbah_crm_contacts rows must call this instead
+ * of cacheDel'ing the Redis key directly, or the in-memory copy goes stale.
+ */
+export async function invalidateWbahAggregate(workspaceId: string): Promise<void> {
+  _aggMem.delete(workspaceId);
+  const { cacheDel } = await import("@/lib/cache/redis.server");
+  await cacheDel(`${WBAH_AGGREGATE_CACHE_KEY}:${workspaceId}`);
+}
+
 export async function getWbahCallsAggregate(workspaceId: string): Promise<WbahCallsAggregate> {
-  await ensureWbahBookedContactsInDb(workspaceId);
-  const cached = await cacheWrap(`${WBAH_AGGREGATE_CACHE_KEY}:${workspaceId}`, WBAH_AGGREGATE_TTL, async () => {
+  scheduleEnsureWbahBookedContacts(workspaceId);
+
+  const mem = _aggMem.get(workspaceId);
+  if (mem && Date.now() - mem.at < WBAH_AGGREGATE_TTL * 1000) {
+    const crmBookingByDigits = new Map(Object.entries(mem.data.crm));
+    return { all: mem.data.all, byPhone: buildWbahByPhone(mem.data.all), crmBookingByDigits };
+  }
+
+  let inflight = _aggInflight.get(workspaceId);
+  if (!inflight) {
+    inflight = buildWbahCallsAggregateCached(workspaceId)
+      .then((data) => {
+        _aggMem.set(workspaceId, { at: Date.now(), data });
+        return data;
+      })
+      .finally(() => _aggInflight.delete(workspaceId));
+    _aggInflight.set(workspaceId, inflight);
+  }
+  const cached = await inflight;
+
+  const crmBookingByDigits = new Map(Object.entries(cached.crm));
+  return { all: cached.all, byPhone: buildWbahByPhone(cached.all), crmBookingByDigits };
+}
+
+async function buildWbahCallsAggregateCached(workspaceId: string): Promise<WbahCallsAggregateCached> {
+  return await cacheWrap(`${WBAH_AGGREGATE_CACHE_KEY}:${workspaceId}`, WBAH_AGGREGATE_TTL, async () => {
     const crmMap = await loadWbahCrmBookingByDigits(supabaseAdmin, workspaceId);
     const crm: WbahCallsAggregateCached["crm"] = {};
     crmMap.forEach((v, k) => { crm[k] = v; });
 
+    // Count first, then fetch all pages IN PARALLEL — the sequential page walk
+    // took ~6s for 16k+ rows; parallel fetch is roughly one round-trip.
     const PAGE = 1000;
+    const t0 = Date.now();
+    const { count, error: countErr } = await (supabaseAdmin as any)
+      .from("wbah_calls")
+      .select("id", { count: "exact", head: true })
+      .eq("workspace_id", workspaceId);
+    if (countErr) throw new Error(`DB count failed: ${countErr.message}`);
+    // +1 page of headroom in case rows land between the count and the fetch.
+    const total = (count ?? 0) + PAGE;
+    const offsets: number[] = [];
+    for (let from = 0; from < total; from += PAGE) offsets.push(from);
+
+    const pages = await Promise.all(
+      offsets.map(async (from) => {
+        const { data, error } = await (supabaseAdmin as any)
+          .from("wbah_calls")
+          .select(AGGREGATE_COLS)
+          .eq("workspace_id", workspaceId)
+          .order("started_at", { ascending: false, nullsFirst: false })
+          .order("id", { ascending: true })
+          .range(from, from + PAGE - 1);
+        if (error) throw new Error(`DB query failed: ${error.message}`);
+        return (data ?? []) as any[];
+      }),
+    );
+    // Dedupe by id in case concurrent inserts shifted rows across page borders.
+    const seen = new Set<string>();
     const all: any[] = [];
-    let from = 0;
-    for (;;) {
-      const { data, error } = await (supabaseAdmin as any)
-        .from("wbah_calls")
-        .select(AGGREGATE_COLS)
-        .eq("workspace_id", workspaceId)
-        .order("started_at", { ascending: false, nullsFirst: false })
-        .order("id", { ascending: true })
-        .range(from, from + PAGE - 1);
-      if (error) throw new Error(`DB query failed: ${error.message}`);
-      const batch: any[] = data ?? [];
-      all.push(...batch);
-      if (batch.length < PAGE) break;
-      from += PAGE;
+    for (const batch of pages) {
+      for (const row of batch) {
+        if (seen.has(row.id)) continue;
+        seen.add(row.id);
+        all.push(row);
+      }
     }
-    console.log(`[WBAH aggregate] calls=${all.length} crm_bookings=${Object.keys(crm).length}`);
+    console.log(`[WBAH aggregate] calls=${all.length} crm_bookings=${Object.keys(crm).length} in ${Date.now() - t0}ms`);
     return { all, crm };
   });
-
-  const crmBookingByDigits = new Map(Object.entries(cached.crm));
-  return { all: cached.all, byPhone: buildWbahByPhone(cached.all), crmBookingByDigits };
 }
 
 // Returns one row per WBAH contact (their most-recent call), NOT filtered by

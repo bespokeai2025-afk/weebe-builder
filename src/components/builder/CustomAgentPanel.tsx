@@ -4,6 +4,7 @@
 // Option B: Configure deployment from existing script (full 12-section analysis).
 
 import { useState } from "react";
+import { useNavigate } from "@tanstack/react-router";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -40,6 +41,7 @@ import {
   Variable,
   Target,
   Layers,
+  Hammer,
 } from "lucide-react";
 import { useBuilderStore } from "@/lib/builder/store";
 import type { NodeKind } from "@/lib/builder/types";
@@ -148,6 +150,8 @@ function ResultSection({
 
 // ── Main component ─────────────────────────────────────────────────────────────
 export function CustomAgentPanel() {
+  const navigate = useNavigate();
+  const currentAgentRowId = useBuilderStore((s) => s.currentAgentRowId);
   const [mode, setMode] = useState<"build" | "configure">("build");
 
   // Option A state
@@ -271,6 +275,27 @@ export function CustomAgentPanel() {
 
   return (
     <div className="space-y-3 mt-1">
+      {/* SystemMind Build Workspace entry */}
+      <button
+        onClick={() =>
+          navigate({
+            to: "/systemmind/build",
+            search: currentAgentRowId
+              ? { session: undefined, workflow: undefined, agent: currentAgentRowId }
+              : { session: undefined, workflow: undefined, agent: undefined },
+          })
+        }
+        className="w-full flex items-center gap-2 rounded-lg border border-sky-500/25 bg-sky-500/[0.06] px-2.5 py-2 text-left transition-colors hover:bg-sky-500/[0.12]"
+      >
+        <Hammer className="h-3.5 w-3.5 shrink-0 text-sky-400" />
+        <div className="min-w-0">
+          <p className="text-[10px] font-semibold text-sky-300 leading-none">Build with SystemMind</p>
+          <p className="text-[9px] text-muted-foreground mt-0.5 leading-tight">
+            Iterative chat builder — prompt, test, version, then apply.
+          </p>
+        </div>
+      </button>
+
       {/* Mode tabs */}
       <div className="flex gap-1 rounded-lg border border-white/[0.06] p-0.5 bg-white/[0.02]">
         <button
@@ -309,6 +334,32 @@ export function CustomAgentPanel() {
               onChange={(e) => setDescription(e.target.value)}
             />
           </div>
+
+          <button
+            type="button"
+            onClick={() => {
+              setDescription(
+                "You are an outbound lead-qualification voice agent for {{business_name}}. You automatically call every new lead the moment they come in from a website/webform enquiry.\n\n" +
+                "Goal: quickly qualify the lead and book the next step.\n" +
+                "1. Greet {{full_name}} by name and say you're calling about their enquiry with {{business_name}}.\n" +
+                "2. Confirm you're speaking to the right person and that now is a good time.\n" +
+                "3. Ask 2-4 short qualifying questions (their need, timeframe, budget/fit) — keep it natural.\n" +
+                "4. If they're a good fit and interested, book the appointment / next step and confirm the details.\n" +
+                "5. If they're not ready right now, offer a callback at a better time.\n" +
+                "6. If it goes to voicemail or no answer, end politely — the system will automatically try again later (up to 3 attempts per day).\n\n" +
+                "Tone: warm, professional, concise. Never be pushy. Always confirm contact details before ending.\n\n" +
+                "Outcome mapping (drives the lead's status automatically):\n" +
+                "- Positive / booked -> qualified\n" +
+                "- Interested but not booked -> interested\n" +
+                "- Wants a callback -> callback requested\n" +
+                "- No answer / voicemail -> re-queued for the next run"
+              );
+              setCategory("client_qualification");
+            }}
+            className="text-[9px] text-primary hover:underline text-left w-full"
+          >
+            Use the standard lead-gen webform intake setup
+          </button>
 
           <div>
             <Label className="text-[9px]">Category</Label>

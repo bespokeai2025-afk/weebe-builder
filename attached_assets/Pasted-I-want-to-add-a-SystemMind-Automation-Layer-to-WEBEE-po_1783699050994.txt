@@ -1,0 +1,431 @@
+I want to add a SystemMind Automation Layer to WEBEE, powered by Claude Agent SDK / Claude Code-style agentic tooling, but it must be implemented safely.
+
+Goal:
+
+SystemMind should become intelligent enough to help configure, generate, and automate workspace-specific workflows, agent setups, WhatsApp agent setups, follow-up sequences, and integration blueprints inside the WEBEE platform.
+
+This must not allow SystemMind, HiveMind, or any user interface to directly change the global WEBEE codebase or affect all users.
+
+Critical rule:
+
+SystemMind must only create or update workspace-specific configuration, workflows, prompts, setup tasks, templates, and automation records for the signed-in user’s own `workspace_id`.
+
+It must never make uncontrolled changes across the main WEBEE codebase or across all user workspaces.
+
+---
+
+## 1. Architecture requirement
+
+Please design and implement a safe architecture where SystemMind can use Claude Agent SDK / Claude Code-style automation as a backend intelligence layer.
+
+SystemMind should be able to:
+
+* Read the user’s workspace context.
+* Understand current agent setup.
+* Generate workflow configs.
+* Generate custom prompt workflows.
+* Generate WhatsApp agent setup steps.
+* Generate WATI / Meta / Twilio setup instructions and config drafts.
+* Generate follow-up sequences.
+* Generate Follow Up Centre campaigns.
+* Convert imported n8n workflows into WEBEE-native workflow blueprints.
+* Recommend changes under HiveMind instruction.
+* Present changes for user approval before activation.
+
+SystemMind must not directly edit global app source code for normal user actions.
+
+---
+
+## 2. Use Claude safely
+
+Use Claude Agent SDK / Claude Code-style tooling only inside a controlled backend job runner.
+
+Do not run Claude with unrestricted shell access in production.
+
+Do not allow arbitrary user prompts to execute commands.
+
+Do not expose Anthropic API keys or Claude Code credentials to the frontend.
+
+Use server-side environment variables only.
+
+Suggested env variables:
+
+```env
+ANTHROPIC_API_KEY=
+SYSTEMMIND_CLAUDE_ENABLED=true
+SYSTEMMIND_REQUIRE_APPROVAL=true
+SYSTEMMIND_SANDBOX_MODE=true
+SYSTEMMIND_MAX_ACTIONS_PER_RUN=20
+```
+
+If Claude is not configured, SystemMind should show a clear message and continue using the existing SystemMind logic.
+
+---
+
+## 3. Workspace isolation
+
+Every SystemMind-generated object must include:
+
+* `workspace_id`
+* `created_by_user_id`
+* `source = systemmind`
+* `approval_status`
+* `version`
+* `audit_log_id`
+
+This applies to:
+
+* workflows
+* workflow steps
+* agent prompts
+* WhatsApp agent configs
+* WATI setup configs
+* Meta WhatsApp setup configs
+* Twilio setup configs
+* Follow Up Centre sequences
+* follow-up campaigns
+* imported n8n blueprints
+* generated templates
+* generated automation rules
+
+No generated object may be created without a workspace_id.
+
+Add backend validation that rejects any SystemMind action where `workspace_id` is missing or does not match the signed-in user.
+
+---
+
+## 4. Approval-first system
+
+SystemMind should not immediately activate generated changes.
+
+Use this lifecycle:
+
+1. `draft`
+2. `pending_approval`
+3. `approved`
+4. `active`
+5. `paused`
+6. `rejected`
+7. `failed`
+
+HiveMind can recommend the action.
+
+SystemMind can build the draft.
+
+The user/admin must approve before activation.
+
+For high-risk actions, require explicit approval.
+
+High-risk actions include:
+
+* sending WhatsApp broadcasts
+* activating outbound calling
+* changing live agent prompts
+* changing provider credentials
+* changing webhook URLs
+* activating follow-up campaigns
+* editing CRM sync rules
+* creating automations that message customers
+* modifying billing/usage-related settings
+
+---
+
+## 5. SystemMind custom prompt workflow builder
+
+Update the SystemMind custom prompt workflow builder so users can type natural language instructions like:
+
+* “Build a workflow that sends a WhatsApp follow-up when a lead is qualified.”
+* “Create a WATI setup workflow for this WhatsApp agent.”
+* “Turn this n8n workflow into a WEBEE workflow.”
+* “Create a 7-day follow-up campaign for leads who have not replied.”
+* “Build a Twilio WhatsApp setup checklist for this workspace.”
+* “Create a Meta WhatsApp onboarding workflow.”
+
+SystemMind should return:
+
+* workflow name
+* workflow purpose
+* trigger
+* conditions
+* actions
+* required credentials
+* risks
+* approval required
+* generated config
+* test plan
+
+Then let the user save it as a draft or submit it for approval.
+
+---
+
+## 6. WhatsApp agent builder integration
+
+In the Builder page, WhatsApp tab, add SystemMind assistance for workflow setup.
+
+SystemMind should help with:
+
+* WhatsApp agent setup
+* WATI setup
+* Meta WhatsApp Cloud API setup
+* Twilio WhatsApp setup
+* WhatsApp message templates
+* WhatsApp automation flows
+* WhatsApp broadcast logic
+* WhatsApp follow-up rules
+* WhatsApp qualification flows
+* WhatsApp handover to human
+* WhatsApp CRM updates
+
+The generated WhatsApp workflows must be saved only to the current workspace_id.
+
+Do not activate broadcasts or customer messaging without approval.
+
+---
+
+## 7. Follow Up Centre integration
+
+Add SystemMind assistance inside the Follow Up Centre.
+
+SystemMind should be able to generate:
+
+* follow-up sequences
+* campaign steps
+* email follow-ups
+* SMS follow-ups
+* WhatsApp follow-ups
+* call-back reminders
+* rules for leads who have not responded
+* 7-day, 30-day, and 90-day nurture campaigns
+* channel-specific follow-up templates
+* timing rules
+* stop conditions
+* escalation rules
+
+SystemMind should draft these sequences under HiveMind instruction and user approval.
+
+Example:
+
+HiveMind identifies leads not responding.
+
+HiveMind recommends a follow-up campaign.
+
+SystemMind generates the sequence.
+
+User approves.
+
+Follow Up Centre activates the sequence for that workspace only.
+
+---
+
+## 8. n8n workflow blueprint import
+
+Add a safe system to import existing n8n workflows as blueprints.
+
+Purpose:
+
+Do not run n8n directly.
+
+Use previous n8n workflows as reference patterns so SystemMind can create WEBEE-native workflows in the future.
+
+For each imported n8n workflow, store:
+
+* original name
+* JSON structure
+* trigger summary
+* action summary
+* credentials required
+* mapped WEBEE equivalent actions
+* unsupported nodes
+* risk level
+* workspace_id
+* template visibility:
+
+  * private workspace template
+  * admin/global template only if explicitly approved by WEBEE admin
+
+SystemMind should be able to say:
+
+“This n8n workflow can be converted into a WEBEE workflow with these triggers/actions.”
+
+Do not expose one workspace’s n8n workflow to another workspace unless it has been approved as a global template by a WEBEE admin.
+
+---
+
+## 9. Workflow execution model
+
+Create a clear separation between:
+
+A. Workflow generation
+B. Workflow approval
+C. Workflow activation
+D. Workflow execution
+
+SystemMind can generate and recommend.
+
+The user/admin approves.
+
+The WEBEE workflow engine executes.
+
+Claude should not directly execute customer-facing actions without approval.
+
+---
+
+## 10. Audit logs
+
+Every SystemMind-generated action must create an audit log.
+
+Audit log fields:
+
+* id
+* workspace_id
+* user_id
+* source_agent = `systemmind`
+* instructed_by = `hivemind` / `user` / `admin`
+* action_type
+* target_type
+* target_id
+* before_state
+* proposed_after_state
+* final_after_state
+* approval_status
+* approved_by
+* approved_at
+* executed_at
+* error
+* created_at
+
+The UI should show:
+
+* what SystemMind wants to change
+* why it wants to change it
+* what data it used
+* what risk level it has
+* whether approval is required
+
+---
+
+## 11. Safety guardrails
+
+Add strict guardrails:
+
+* No global code edits from user prompts.
+* No cross-workspace changes.
+* No API key exposure.
+* No credential display.
+* No deleting workflows without approval.
+* No sending customer communications without approval.
+* No activating broadcast workflows without approval.
+* No modifying billing/usage logic without admin approval.
+* No changes to WBAH or any other workspace unless logged in as that workspace.
+* No automatic changes to main WEBEE source code.
+
+SystemMind can suggest platform-level improvements, but these must be labelled as:
+
+`platform_improvement_suggestion`
+
+and must not be executed automatically.
+
+---
+
+## 12. Database tables / schema
+
+Please add or adapt safe workspace-scoped tables for:
+
+* `systemmind_runs`
+* `systemmind_generated_workflows`
+* `systemmind_generated_actions`
+* `systemmind_approvals`
+* `systemmind_audit_logs`
+* `workflow_blueprints`
+* `n8n_workflow_blueprints`
+* `follow_up_sequence_drafts`
+* `whatsapp_setup_drafts`
+
+Every table must include `workspace_id` where workspace data is involved.
+
+Use RLS/workspace checks consistently.
+
+---
+
+## 13. UI updates
+
+Add SystemMind assistance into these areas:
+
+1. SystemMind page
+2. Builder page → custom prompt workflow builder
+3. Builder page → WhatsApp tab
+4. Follow Up Centre
+5. Workflow section
+6. n8n blueprint import section, if available
+
+Each UI should allow:
+
+* Ask SystemMind to build
+* Preview generated workflow
+* Show required credentials
+* Show risks
+* Save as draft
+* Submit for approval
+* Approve and activate
+* Reject
+* Edit before activation
+
+---
+
+## 14. Do not break existing features
+
+Do not break:
+
+* Existing SystemMind setup
+* Existing HiveMind setup
+* Existing GrowthMind setup
+* Existing AccountsMind setup
+* Existing agent builder
+* Existing WhatsApp builder
+* Existing Follow Up Centre
+* Existing workflow section
+* Existing Retell call flows
+* Existing WATI/Meta/Twilio settings
+* Existing WBAH workspace logic
+* Existing standard WEBEE workspace logic
+* Calls page
+* Leads page
+* Qualified page
+* Data page
+* Manual lead status selectors
+* Filters
+* Workspace scoping
+* Supabase RLS assumptions
+
+---
+
+## 15. Testing required
+
+Please test:
+
+1. User asks SystemMind to create a workflow.
+2. Workflow is saved as draft with correct workspace_id.
+3. Workflow does not affect other workspaces.
+4. User asks SystemMind to create WhatsApp setup for WATI.
+5. Draft is created only for current workspace.
+6. User asks SystemMind to create Meta WhatsApp setup.
+7. Draft is created only for current workspace.
+8. User asks SystemMind to create Twilio WhatsApp setup.
+9. Draft is created only for current workspace.
+10. User asks Follow Up Centre to create a follow-up campaign.
+11. Draft sequence is created only for current workspace.
+12. HiveMind recommends a follow-up sequence.
+13. SystemMind drafts it.
+14. User approval is required before activation.
+15. Imported n8n workflow is stored as a workspace-specific blueprint.
+16. SystemMind can generate a WEBEE-native workflow from the n8n blueprint.
+17. No workflow activates without approval.
+18. No cross-workspace data leakage occurs.
+19. WBAH workspace remains unaffected.
+20. Standard WEBEE accounts remain unaffected.
+21. SystemMind cannot modify the global WEBEE source code from a user prompt.
+22. Audit logs are created for every proposed and approved action.
+
+Final instruction:
+
+Implement SystemMind as a controlled, workspace-scoped automation intelligence layer. It should help build workflows, WhatsApp setups, follow-up sequences, agent configurations, and n8n-derived blueprints, but it must never make uncontrolled global codebase changes or cross-workspace changes.

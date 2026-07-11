@@ -1,5 +1,6 @@
 import { normalizeSentiment } from "@/lib/sentiment";
 import { isWbahRecordBooked } from "@/lib/dashboard/wbah-booking-meta";
+import { WBAH_TIMEZONE } from "@/lib/dashboard/wbah-timezone";
 
 const PARTIAL_QUALIFIED_MS = 5 * 60 * 1000;
 
@@ -165,7 +166,7 @@ export function isWbahPartialQualified(lead: WbahLeadLike): boolean {
 function formatWbahAppointmentTime(v: string): string {
   if (/T\d{2}:\d{2}/.test(v)) {
     try {
-      return new Date(v).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
+      return new Date(v).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit", timeZone: WBAH_TIMEZONE });
     } catch { /* fall through */ }
   }
   return v;
@@ -175,7 +176,7 @@ function formatWbahAppointmentDate(v: string): string {
   if (/^\d{4}-\d{2}-\d{2}/.test(v)) {
     try {
       return new Date(v.length > 10 ? v : `${v}T12:00:00`).toLocaleDateString(undefined, {
-        day: "2-digit", month: "short", year: "numeric",
+        day: "2-digit", month: "short", year: "numeric", timeZone: WBAH_TIMEZONE,
       });
     } catch { /* fall through */ }
   }

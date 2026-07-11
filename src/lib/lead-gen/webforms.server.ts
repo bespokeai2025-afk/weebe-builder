@@ -3,8 +3,18 @@
 
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { sendResendEmail, escapeHtml, renderBasicEmail } from "@/lib/email/resend.server";
+import { sendTemplateEmailToLeadCore } from "@/lib/lead-gen/lead-email.server";
+import { triggerAutoCallForNewLead } from "@/lib/qualification/auto-call.server";
 
 export const WEBEE_ADMIN_EMAIL = "admin@webespokeai.com";
+
+// Coerce an unknown webform value into a JSON-safe scalar (string or null).
+function toJsonScalar(v: unknown): string | null {
+  if (v === null || v === undefined) return null;
+  if (typeof v === "string") return v.slice(0, 500);
+  if (typeof v === "number" || typeof v === "boolean") return String(v);
+  try { return JSON.stringify(v).slice(0, 500); } catch { return null; }
+}
 
 // ── Field mapping helpers ──────────────────────────────────────────────────────
 
@@ -63,9 +73,13 @@ function extractUtm(raw: Record<string, unknown>) {
 
 // ── Rate limiting ──────────────────────────────────────────────────────────────
 
-export async function checkRateLimit(key: string, maxPerMinute = 10): Promise<boolean> {
+export async function checkRateLimit(
+  key: string,
+  maxPerWindow = 10,
+  windowMs = 60_000,
+): Promise<boolean> {
   try {
-    const windowStart = new Date(Date.now() - 60_000).toISOString();
+    const windowStart = new Date(Date.now() - windowMs).toISOString();
     const { data } = await supabaseAdmin
       .from("webform_rate_limits")
       .select("count, window_start")
@@ -79,7 +93,7 @@ export async function checkRateLimit(key: string, maxPerMinute = 10): Promise<bo
       return true;
     }
 
-    if (data.count >= maxPerMinute) return false;
+    if (data.count >= maxPerWindow) return false;
 
     await supabaseAdmin
       .from("webform_rate_limits")
@@ -89,6 +103,141 @@ export async function checkRateLimit(key: string, maxPerMinute = 10): Promise<bo
   } catch {
     return true;
   }
+}
+
+/** Parse an IPv4/IPv6 address into a fixed-width BigInt for comparison. */
+function parseIpToBigInt(ip: string): { version: 4 | 6; value: bigint } | null {
+  // Drop an IPv6 zone id (e.g. "fe80::1%eth0") and any surrounding brackets.
+  const s = ip.trim().replace(/^\[/, "").replace(/\]$/, "").split("%")[0];
+  if (!s) return null;
+
+  if (s.includes(":")) {
+    const value = parseIpv6(s);
+    return value == null ? null : { version: 6, value };
+  }
+  if (s.includes(".")) {
+    const value = parseIpv4(s);
+    return value == null ? null : { version: 4, value };
+  }
+  return null;
+}
+
+function parseIpv4(s: string): bigint | null {
+  const parts = s.split(".");
+  if (parts.length !== 4) return null;
+  let value = 0n;
+  for (const p of parts) {
+    if (!/^\d{1,3}$/.test(p)) return null;
+    const n = Number(p);
+    if (n > 255) return null;
+    value = (value << 8n) | BigInt(n);
+  }
+  return value;
+}
+
+function parseIpv6(input: string): bigint | null {
+  let s = input;
+
+  // Expand an embedded IPv4 tail (e.g. "::ffff:1.2.3.4") into two hextets.
+  if (s.includes(".")) {
+    const lastColon = s.lastIndexOf(":");
+    const v4 = parseIpv4(s.slice(lastColon + 1));
+    if (v4 == null) return null;
+    const h1 = (Number(v4 >> 16n) & 0xffff).toString(16);
+    const h2 = Number(v4 & 0xffffn).toString(16);
+    s = `${s.slice(0, lastColon + 1)}${h1}:${h2}`;
+  }
+
+  const halves = s.split("::");
+  if (halves.length > 2) return null;
+
+  const toGroups = (part: string): string[] | null => {
+    if (part === "") return [];
+    const groups = part.split(":");
+    for (const g of groups) {
+      if (!/^[0-9a-fA-F]{1,4}$/.test(g)) return null;
+    }
+    return groups;
+  };
+
+  const head = toGroups(halves[0]);
+  if (head == null) return null;
+
+  let groups: string[];
+  if (halves.length === 2) {
+    const tail = toGroups(halves[1]);
+    if (tail == null) return null;
+    const missing = 8 - head.length - tail.length;
+    if (missing < 0) return null;
+    groups = [...head, ...Array(missing).fill("0"), ...tail];
+  } else {
+    groups = head;
+  }
+  if (groups.length !== 8) return null;
+
+  let value = 0n;
+  for (const g of groups) {
+    value = (value << 16n) | BigInt(parseInt(g, 16));
+  }
+  return value;
+}
+
+/**
+ * True when `ip` matches an allowlist `entry`. An entry may be:
+ *  - an exact IPv4/IPv6 address (compared after normalization), or
+ *  - a CIDR range like "2a02:c7c:6c17:f400::/64" (matches any address in range).
+ * Non-IP entries fall back to a trimmed string compare.
+ */
+function ipMatchesAllowEntry(ip: string, entry: string): boolean {
+  const slash = entry.indexOf("/");
+  if (slash === -1) {
+    const a = parseIpToBigInt(ip);
+    const b = parseIpToBigInt(entry);
+    if (a && b) return a.version === b.version && a.value === b.value;
+    return ip.trim() === entry.trim();
+  }
+
+  const prefixStr = entry.slice(slash + 1);
+  if (!/^\d{1,3}$/.test(prefixStr)) return false;
+  const prefix = Number(prefixStr);
+
+  const addr = parseIpToBigInt(ip);
+  const network = parseIpToBigInt(entry.slice(0, slash));
+  if (!addr || !network || addr.version !== network.version) return false;
+
+  const totalBits = addr.version === 4 ? 32 : 128;
+  if (prefix > totalBits) return false;
+  if (prefix === 0) return true;
+
+  const shift = BigInt(totalBits - prefix);
+  return addr.value >> shift === network.value >> shift;
+}
+
+/**
+ * Developer/testing bypass for public rate limits.
+ *
+ * Returns true when rate limiting should be skipped for this caller:
+ *  - always in the development environment (only the developer hits the dev
+ *    server, so testing shouldn't be throttled), or
+ *  - when the caller IP matches an entry in the RATE_LIMIT_ALLOWLIST_IPS env var
+ *    (comma-separated) — use this to test against the live deployment. Each entry
+ *    may be an exact IPv4/IPv6 address or a CIDR range (e.g.
+ *    "2a02:c7c:6c17:f400::/64"). A /64 range is recommended for residential IPv6
+ *    since ISPs rotate the address suffix.
+ *
+ * Never bypasses for normal visitors in production.
+ */
+export function isRateLimitExempt(ip: string | null): boolean {
+  if (process.env.NODE_ENV !== "production") return true;
+
+  const raw = process.env.RATE_LIMIT_ALLOWLIST_IPS;
+  if (!raw || !ip) return false;
+
+  const allowlist = raw
+    .split(",")
+    .map((entry) => entry.trim())
+    .filter(Boolean);
+  return allowlist.some((entry) => ipMatchesAllowEntry(ip, entry));
 }
 
 // ── Honeypot check ────────────────────────────────────────────────────────────
@@ -126,6 +275,19 @@ export interface ProcessSubmissionResult {
   error?: string;
 }
 
+// leads.source is a Postgres enum (lead_source); source_type is free text.
+// Never write an unvalidated value into the enum column — Postgres rejects
+// the whole row with "invalid input value for enum lead_source".
+const LEAD_SOURCE_ENUM_VALUES = new Set([
+  "website", "inbound", "outbound", "referral", "import",
+  "website_form", "landing_page", "facebook_lead_form", "google_ads_lead_form",
+  "tiktok_lead_form", "linkedin_lead_form", "zapier", "make", "custom_form",
+  "webee_website_form", "api",
+]);
+export function toLeadSourceEnum(sourceType: string, fallback = "website_form"): string {
+  return LEAD_SOURCE_ENUM_VALUES.has(sourceType) ? sourceType : fallback;
+}
+
 export async function processWebformSubmission(opts: {
   workspaceId: string;
   webformSourceId: string;
@@ -146,17 +308,19 @@ export async function processWebformSubmission(opts: {
 
   // Spam check
   if (isSpam(raw)) {
-    await supabaseAdmin.from("webform_submissions").insert({
-      workspace_id: workspaceId,
-      webform_source_id: webformSourceId,
-      source_type: sourceType,
-      source_detail: sourceDetail,
-      raw_payload: raw,
-      mapped_payload: {},
-      ip_address: ip,
-      user_agent: userAgent,
-      status: "spam",
-    }).catch(() => {});
+    try {
+      await supabaseAdmin.from("webform_submissions").insert({
+        workspace_id: workspaceId,
+        webform_source_id: webformSourceId,
+        source_type: sourceType,
+        source_detail: sourceDetail,
+        raw_payload: raw,
+        mapped_payload: {},
+        ip_address: ip,
+        user_agent: userAgent,
+        status: "spam",
+      });
+    } catch { /* best-effort */ }
     return { ok: false, status: "spam", error: "Spam detected" };
   }
 
@@ -222,8 +386,8 @@ export async function processWebformSubmission(opts: {
         phone:          phone ?? "",
         company_name:   mapped.company_name ?? null,
         notes:          mapped.notes ?? null,
-        status:         "new",
-        source:         sourceType,
+        status:         "need_to_call",
+        source:         toLeadSourceEnum(sourceType),
         source_type:    sourceType,
         source_detail:  sourceDetail,
         source_page:    utm.source_page,
@@ -233,8 +397,8 @@ export async function processWebformSubmission(opts: {
         referrer:       utm.referrer,
         meta:           {
           website:            mapped.website ?? null,
-          preferred_contact:  raw.preferred_contact_method ?? raw.preferred_contact ?? null,
-          interested_in:      raw.interested_in ?? null,
+          preferred_contact:  toJsonScalar(raw.preferred_contact_method ?? raw.preferred_contact),
+          interested_in:      toJsonScalar(raw.interested_in),
           webform_source:     formName,
           ...Object.fromEntries(
             Object.entries(raw)
@@ -255,37 +419,44 @@ export async function processWebformSubmission(opts: {
     leadId = newLead!.id;
   }
 
-  // Add note to entity notes
-  await supabaseAdmin.from("entity_notes").insert({
-    workspace_id: workspaceId,
-    entity_type:  "lead",
-    entity_id:    leadId,
-    content:      `Lead ${leadStatus === "created" ? "created" : "updated"} from webform: ${formName}${sourceDetail ? ` (${sourceDetail})` : ""}`,
-    created_at:   new Date().toISOString(),
-  }).catch(() => {});
+  // Add note to entity notes (best-effort — never fail the submission over it)
+  try {
+    const { error: noteError } = await supabaseAdmin.from("entity_notes").insert({
+      workspace_id: workspaceId,
+      entity_type:  "lead",
+      entity_id:    leadId,
+      body:         `Lead ${leadStatus === "created" ? "created" : "updated"} from webform: ${formName}${sourceDetail ? ` (${sourceDetail})` : ""}`,
+      created_at:   new Date().toISOString(),
+    });
+    if (noteError) console.error("[WEBFORM] entity_notes insert failed:", noteError.message);
+  } catch { /* best-effort */ }
 
   // Store submission record
-  const { data: submission } = await supabaseAdmin
-    .from("webform_submissions")
-    .insert({
-      workspace_id:     workspaceId,
-      webform_source_id: webformSourceId,
-      lead_id:          leadId,
-      source_type:      sourceType,
-      source_detail:    sourceDetail,
-      raw_payload:      raw,
-      mapped_payload:   { ...mapped, ...utm },
-      utm_source:       utm.utm_source,
-      utm_medium:       utm.utm_medium,
-      utm_campaign:     utm.utm_campaign,
-      referrer:         utm.referrer,
-      ip_address:       ip,
-      user_agent:       userAgent,
-      status:           leadStatus === "updated" ? "duplicate" : "processed",
-    })
-    .select("id")
-    .single()
-    .catch(() => ({ data: null }));
+  let submission: { id: string } | null = null;
+  try {
+    const { data, error: submissionError } = await supabaseAdmin
+      .from("webform_submissions")
+      .insert({
+        workspace_id:     workspaceId,
+        webform_source_id: webformSourceId,
+        lead_id:          leadId,
+        source_type:      sourceType,
+        source_detail:    sourceDetail,
+        raw_payload:      raw,
+        mapped_payload:   { ...mapped, ...utm },
+        utm_source:       utm.utm_source,
+        utm_medium:       utm.utm_medium,
+        utm_campaign:     utm.utm_campaign,
+        referrer:         utm.referrer,
+        ip_address:       ip,
+        user_agent:       userAgent,
+        status:           leadStatus === "updated" ? "duplicate" : "processed",
+      })
+      .select("id")
+      .single();
+    if (submissionError) console.error("[WEBFORM] webform_submissions insert failed:", submissionError.message);
+    submission = data;
+  } catch { submission = null; }
 
   // Send notification email
   if (notifyEmail) {
@@ -314,6 +485,49 @@ export async function processWebformSubmission(opts: {
     }).catch(() => {});
   }
 
+  // Auto-email automation: if this is a brand-new lead whose preferred contact
+  // method is "email" (set on creation only — never on update), and the
+  // workspace has auto-email enabled with a template chosen, send it.
+  // Best-effort — never fails the webform submission over an email problem.
+  if (leadStatus === "created" && email) {
+    const preferredContact = String(
+      raw.preferred_contact_method ?? raw.preferred_contact ?? "",
+    ).toLowerCase().trim();
+    if (preferredContact === "email") {
+      try {
+        const { data: ws } = await supabaseAdmin
+          .from("workspace_settings")
+          .select("lead_auto_email_enabled, lead_auto_email_template_id")
+          .eq("workspace_id", workspaceId)
+          .maybeSingle();
+        if (ws?.lead_auto_email_enabled && ws?.lead_auto_email_template_id) {
+          await sendTemplateEmailToLeadCore(supabaseAdmin, {
+            workspaceId,
+            leadId,
+            templateId: ws.lead_auto_email_template_id as string,
+            lead: {
+              full_name: full_name ?? null,
+              email,
+              phone: phone ?? null,
+              company_name: mapped.company_name ?? null,
+            },
+            trigger: "auto_new_lead",
+          });
+        }
+      } catch (e) {
+        console.error("[WEBFORM] auto-email automation failed:", e instanceof Error ? e.message : e);
+      }
+    }
+  }
+
+  // Auto-call automation: if this is a brand-new lead and the workspace has
+  // lead auto-call enabled with a configured agent, place an outbound
+  // qualification call. Best-effort — triggerAutoCallForNewLead never
+  // throws, so this never fails the webform submission.
+  if (leadStatus === "created") {
+    await triggerAutoCallForNewLead(supabaseAdmin, { workspaceId, leadId });
+  }
+
   return { ok: true, leadId, submissionId: submission?.id, status: leadStatus };
 }
 
@@ -338,14 +552,15 @@ export async function processContactForm(fields: {
   let workspaceId: string | null = adminWorkspaceId;
 
   if (!workspaceId) {
-    const { data: ws } = await supabaseAdmin
-      .from("workspace_members")
-      .select("workspace_id, users!inner(email)")
-      .eq("users.email", WEBEE_ADMIN_EMAIL)
-      .limit(1)
-      .single()
-      .catch(() => ({ data: null }));
-    workspaceId = ws?.workspace_id ?? null;
+    try {
+      const { data: ws } = await supabaseAdmin
+        .from("workspace_members")
+        .select("workspace_id, users!inner(email)")
+        .eq("users.email", WEBEE_ADMIN_EMAIL)
+        .limit(1)
+        .single();
+      workspaceId = ws?.workspace_id ?? null;
+    } catch { workspaceId = null; }
   }
 
   if (!workspaceId) {

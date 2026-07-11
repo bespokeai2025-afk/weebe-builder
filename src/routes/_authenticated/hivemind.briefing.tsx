@@ -11,7 +11,7 @@ import { Link } from "@tanstack/react-router";
 import { cn } from "@/lib/utils";
 import { HiveMindShell, useHiveMindMode } from "@/components/hivemind/HiveMindShell";
 import { MarketingExecutiveSummary } from "@/components/hivemind/MarketingExecutiveSummary";
-import { getExecutiveBriefing, type BiRecommendation, type BiRisk } from "@/lib/hivemind/hivemind.bi";
+import { getExecutiveBriefing, type BiRecommendation, type BiRisk, type ExecutiveBriefing } from "@/lib/hivemind/hivemind.bi";
 import { proposeHiveMindAction } from "@/lib/hivemind/hivemind.actions";
 import { Button } from "@/components/ui/button";
 import { RelativeTime } from "@/components/ui/relative-time";
@@ -131,7 +131,7 @@ function HiveMindBriefingPage() {
 
   const { data, isLoading, isFetching, refetch } = useQuery({
     queryKey: ["hivemind-briefing-exec"],
-    queryFn:  () => getBriefFn(),
+    queryFn:  () => getBriefFn() as Promise<ExecutiveBriefing>,
     staleTime: 120_000,
     throwOnError: false,
   });

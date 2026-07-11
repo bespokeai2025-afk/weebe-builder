@@ -1,10 +1,11 @@
 import { useState } from "react";
+import { useNavigate } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   Plus, Play, Pause, Trash2, BarChart3, CheckCircle2, XCircle, Clock,
   Zap, RefreshCw, ChevronRight, AlertCircle, Loader2, Settings,
-  Activity, TrendingUp, Search, GitBranch,
+  Activity, TrendingUp, Search, GitBranch, Hammer,
 } from "lucide-react";
 import { toast } from "sonner";
 import { formatDistanceToNow } from "date-fns";
@@ -82,6 +83,7 @@ function StatCard({ label, value, icon: Icon, color }: { label: string; value: n
 
 export function WorkflowEnginePage() {
   const qc = useQueryClient();
+  const navigate = useNavigate();
 
   const listTemplatesFn = useServerFn(listWorkflowTemplates);
   const listWfFn        = useServerFn(listWorkspaceWorkflows);
@@ -261,6 +263,12 @@ export function WorkflowEnginePage() {
                         <Badge variant="secondary" className="text-[10px]">
                           {TRIGGER_LABELS[wf.trigger_type] ?? wf.trigger_type}
                         </Badge>
+                        {wf.source === "systemmind_build" && (
+                          <Badge variant="outline" className="text-[10px] gap-1 border-sky-500/30 text-sky-400 bg-sky-500/5">
+                            <Hammer className="h-2.5 w-2.5" />
+                            Built by SystemMind{wf.source_build_version ? ` v${wf.source_build_version}` : ""}
+                          </Badge>
+                        )}
                       </div>
                       <div className="flex gap-4 mt-0.5 text-xs text-muted-foreground">
                         {wf.description && <span className="truncate max-w-xs">{wf.description}</span>}
@@ -271,6 +279,19 @@ export function WorkflowEnginePage() {
                       </div>
                     </div>
                     <div className="flex items-center gap-2 shrink-0">
+                      {/* Edit with SystemMind (Build Workspace, edit mode) */}
+                      <Button
+                        size="sm" variant="outline"
+                        className="gap-1.5 h-7 text-xs border-sky-500/30 text-sky-400 hover:text-sky-300"
+                        onClick={() =>
+                          navigate({
+                            to: "/systemmind/build",
+                            search: { session: undefined, workflow: wf.id, agent: undefined },
+                          })
+                        }
+                      >
+                        <Hammer className="h-3 w-3" /> Edit with SystemMind
+                      </Button>
                       {/* Edit flow builder */}
                       <Button
                         size="sm" variant="outline" className="gap-1.5 h-7 text-xs"

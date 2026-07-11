@@ -5,6 +5,7 @@
 // DO ... EXCEPTION WHEN duplicate_object. Stop-on-first-error. READ the file list
 // from argv; results written to .local/migration_audit/rootfile-apply-results.json.
 import { readFileSync, writeFileSync } from "node:fs";
+import { refreshSchemaMap } from "./lib/refresh-schema-map.mjs";
 
 const token = process.env.SUPABASE_ACCESS_TOKEN;
 const url = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
@@ -50,3 +51,7 @@ for (const f of files) {
 }
 writeFileSync(".local/migration_audit/rootfile-apply-results.json", JSON.stringify(results, null, 2));
 console.log(`\nDone. ${results.filter((r) => r.status === "OK").length}/${files.length} applied.`);
+
+// Auto-refresh the schema map after a successful apply. Non-fatal: a typegen
+// hiccup must not mask a successful migration run — the helper warns loudly.
+refreshSchemaMap();

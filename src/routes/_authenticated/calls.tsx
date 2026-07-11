@@ -5,7 +5,6 @@ import { Fragment, useState, useEffect, useMemo } from "react";
 import {
   ChevronDown,
   ChevronRight,
-  Download,
   FlaskConical,
   MessageSquare,
   Phone,
@@ -17,20 +16,25 @@ import {
   StickyNote,
   X,
   Building2,
+  Loader2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { RecordingPlayerDialog, PlayRecordingButton } from "@/components/RecordingPlayerDialog";
 import { DashboardPage, KpiCard, SummaryTooltip, stickyCell, stickyHead } from "@/components/dashboard/PageShell";
 import { LoadingProgress } from "@/components/dashboard/LoadingProgress";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { WbahCallCountBadge, WbahBookedStickyBadge, wbahAgentColorMapFromLeads } from "@/components/dashboard/WbahNotesButton";
 import { cn } from "@/lib/utils";
 import { listCalls, listTestCalls } from "@/lib/dashboard/calls.functions";
-import { listWbahCallsLive, getWbahCallDetail } from "@/lib/integrations/webespokeEnterprise/wbah-workspace.server";
+import { listWbahCallsLive, getWbahCallDetail, getWbahContactCallHistory } from "@/lib/integrations/webespokeEnterprise/wbah-workspace.server";
 import { NotesBookingSheet } from "@/components/dashboard/NotesBookingSheet";
 import type { NotesEntityType } from "@/components/dashboard/NotesBookingSheet";
 import { RelativeTime } from "@/components/ui/relative-time";
 import { supabase } from "@/integrations/supabase/client";
 import { useTablePagination, TablePagBar } from "@/components/ui/table-pagination";
 import { useWbahAgentOptions } from "@/hooks/useWbahAgentOptions";
+import { WBAH_TIMEZONE } from "@/lib/dashboard/wbah-timezone";
 
 export const Route = createFileRoute("/_authenticated/calls")({
   head: () => ({ meta: [{ title: "Calls — Webee" }] }),
@@ -61,49 +65,6 @@ function statusClass(s?: string | null) {
     return "bg-destructive/15 text-destructive";
   if (s === "voicemail") return "bg-amber-500/15 text-amber-400";
   return "bg-muted text-muted-foreground";
-}
-
-function RecordingDialog({
-  url,
-  contact,
-  onClose,
-}: {
-  url: string;
-  contact: string;
-  onClose: () => void;
-}) {
-  return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm"
-      onClick={(e) => e.target === e.currentTarget && onClose()}
-    >
-      <div className="w-full max-w-md rounded-xl border border-border bg-card p-6 shadow-2xl">
-        <div className="mb-4 flex items-start justify-between gap-3">
-          <div>
-            <h2 className="text-base font-semibold">Call Recording</h2>
-            <p className="mt-0.5 text-sm text-muted-foreground">{contact}</p>
-          </div>
-          <button
-            onClick={onClose}
-            className="rounded-md p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
-          >
-            <X className="h-4 w-4" />
-          </button>
-        </div>
-        <audio controls autoPlay={false} className="w-full" src={url} style={{ colorScheme: "dark" }}>
-          Your browser does not support audio playback.
-        </audio>
-        <a
-          href={url}
-          download
-          className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-md border border-border bg-muted/40 px-4 py-2 text-sm font-medium hover:bg-muted"
-        >
-          <Download className="h-4 w-4" />
-          Download recording
-        </a>
-      </div>
-    </div>
-  );
 }
 
 type PanelTarget = {
@@ -141,7 +102,7 @@ function TestCallRow({ c }: { c: ReturnType<typeof listTestCalls> extends Promis
   return (
     <>
       {recordingPlayer && (
-        <RecordingDialog
+        <RecordingPlayerDialog
           url={recordingPlayer.url}
           contact={recordingPlayer.contact}
           onClose={() => setRecordingPlayer(null)}
@@ -397,7 +358,46 @@ function CallsPage() {
   const [recordingPlayer, setRecordingPlayer] = useState<{ url: string; contact: string } | null>(null);
   const [panel, setPanel] = useState<PanelTarget | null>(null);
   const [wbahTranscript, setWbahTranscript] = useState<{ text: string; name: string } | null>(null);
+  const [callHistory, setCallHistory] = useState<{ name: string; phone: string; loading: boolean; calls: any[] } | null>(null);
   const getWbahCallDetailFn = useServerFn(getWbahCallDetail);
+  const getContactHistoryFn = useServerFn(getWbahContactCallHistory);
+
+  // Adapt a WBAH call row to the LeadLike shape the shared badges expect.
+  function wbahBadgeLead(c: any) {
+    return {
+      sentiment: c.sentiment,
+      meta: {
+        appointment_date:     c.appointment_date,
+        appointment_time:     c.appointment_time,
+        booking_status:       c.booking_status,
+        calendly_booking_url: c.calendly_booking_url,
+        agent_name:           c.agent_name,
+      },
+    };
+  }
+  const wbahAgentColorMap = useMemo(
+    () => (isWbah ? wbahAgentColorMapFromLeads(rows.map(wbahBadgeLead)) : new Map()),
+    [isWbah, rows],
+  );
+
+  async function openCallHistory(c: any) {
+    const phone = c.wbah_contact ?? c.to_number ?? c.from_number;
+    if (!phone) return;
+    const name = c.wbah_name ?? c.lead?.full_name ?? "Contact";
+    setCallHistory({ name, phone, loading: true, calls: [] });
+    try {
+      const res = await getContactHistoryFn({ data: { phone } });
+      setCallHistory({ name, phone, loading: false, calls: (res as any)?.calls ?? [] });
+    } catch {
+      setCallHistory({ name, phone, loading: false, calls: [] });
+    }
+  }
+
+  function fmtDurSec(sec: number | null | undefined) {
+    if (sec == null) return "—";
+    const m = Math.floor(sec / 60); const s = sec % 60;
+    return m > 0 ? `${m}m ${s}s` : `${s}s`;
+  }
 
   // Transcripts are omitted from the list payload — load on demand when opened.
   async function openWbahTranscript(c: any, name: string) {
@@ -430,7 +430,7 @@ function CallsPage() {
       if (statusFilter && r.call_status !== statusFilter) return false;
       if (callTypeFilter && r.call_type !== callTypeFilter) return false;
       if (sentimentFilter && r.sentiment !== sentimentFilter) return false;
-      if (isWbah && wbahAgentFilter !== "all" && (r.agent_name ?? "") !== wbahAgentFilter) return false;
+      if (wbahAgentFilter !== "all" && (r.agent_name ?? "") !== wbahAgentFilter) return false;
       // Call duration greater than N minutes.
       if (minDur > 0 && (r.duration_seconds ?? 0) < minDur) return false;
       // Call outcome: successful = completed; unsuccessful = failed/no-answer/busy.
@@ -450,7 +450,7 @@ function CallsPage() {
 
   const callsPag = useTablePagination(filteredRows);
 
-  const hasCallFilters = search.trim() || statusFilter || callTypeFilter || sentimentFilter || durationFilter || outcomeFilter || daysFilter === "custom" || (isWbah && wbahAgentFilter !== "all");
+  const hasCallFilters = search.trim() || statusFilter || callTypeFilter || sentimentFilter || durationFilter || outcomeFilter || daysFilter === "custom" || wbahAgentFilter !== "all";
 
   function openPanel(c: any) {
     const inbound = c.call_type === "inbound";
@@ -475,7 +475,7 @@ function CallsPage() {
   return (
     <DashboardPage>
       {recordingPlayer && (
-        <RecordingDialog
+        <RecordingPlayerDialog
           url={recordingPlayer.url}
           contact={recordingPlayer.contact}
           onClose={() => setRecordingPlayer(null)}
@@ -506,6 +506,64 @@ function CallsPage() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Contact call-history drill-down */}
+      {callHistory !== null && (
+        <Dialog open onOpenChange={() => setCallHistory(null)}>
+          <DialogContent className="max-w-3xl max-h-[80vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>{callHistory.name} — Call History</DialogTitle>
+              <DialogDescription>
+                {callHistory.phone} · {callHistory.calls.length} call{callHistory.calls.length !== 1 ? "s" : ""}. The row shows the definitive outcome (a positive call wins); all attempts are listed here.
+              </DialogDescription>
+            </DialogHeader>
+            {callHistory.loading ? (
+              <div className="py-8 flex items-center justify-center text-sm text-muted-foreground">
+                <Loader2 className="h-4 w-4 animate-spin mr-2" /> Loading calls…
+              </div>
+            ) : callHistory.calls.length === 0 ? (
+              <p className="py-6 text-center text-sm text-muted-foreground">No calls found.</p>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-xs">
+                  <thead>
+                    <tr className="border-b border-white/[0.06] text-left text-[10px] uppercase tracking-wide text-muted-foreground">
+                      <th className="px-2 py-1.5">Date</th>
+                      <th className="px-2 py-1.5">Status</th>
+                      <th className="px-2 py-1.5">Sentiment</th>
+                      <th className="px-2 py-1.5">Duration</th>
+                      <th className="px-2 py-1.5">Agent</th>
+                      <th className="px-2 py-1.5">Recording</th>
+                      <th className="px-2 py-1.5">Transcript</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {callHistory.calls.map((c: any) => (
+                      <tr key={c.id} className="border-b border-white/[0.04] align-middle">
+                        <td className="px-2 py-1.5 whitespace-nowrap text-muted-foreground">{c.startedAt ? new Date(c.startedAt).toLocaleString(undefined, { timeZone: WBAH_TIMEZONE }) : "—"}</td>
+                        <td className="px-2 py-1.5 whitespace-nowrap capitalize">{(c.callStatus ?? "—").replace(/_/g, " ")}</td>
+                        <td className="px-2 py-1.5 capitalize">{c.sentiment ?? "—"}</td>
+                        <td className="px-2 py-1.5 whitespace-nowrap text-muted-foreground">{fmtDurSec(c.durationSeconds)}</td>
+                        <td className="px-2 py-1.5 whitespace-nowrap text-muted-foreground">{c.agentName ?? "—"}</td>
+                        <td className="px-2 py-1.5">
+                          {c.recordingUrl
+                            ? <PlayRecordingButton url={c.recordingUrl} contact={callHistory.name || callHistory.phone || "Lead"} className="inline-flex items-center gap-1 text-primary hover:underline" />
+                            : <span className="text-muted-foreground">—</span>}
+                        </td>
+                        <td className="px-2 py-1.5">
+                          {c.hasTranscript
+                            ? <button onClick={() => openWbahTranscript(c, callHistory.name)} className="text-violet-400 hover:underline">View</button>
+                            : <span className="text-muted-foreground">—</span>}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </DialogContent>
+        </Dialog>
       )}
 
       {/* Header */}
@@ -615,7 +673,7 @@ function CallsPage() {
               <option value="neutral">Neutral</option>
               <option value="negative">Negative</option>
             </select>
-            {isWbah && (
+            {(isWbah || wbahAgentOptions.length > 0) && (
               <select
                 value={wbahAgentFilter}
                 onChange={(e) => setWbahAgentFilter(e.target.value)}
@@ -718,7 +776,7 @@ function CallsPage() {
                 size="sm"
                 variant="ghost"
                 className="h-6 text-[11px] text-muted-foreground hover:text-foreground"
-                onClick={() => { setSearch(""); setStatusFilter(""); setCallTypeFilter(""); setSentimentFilter(""); setDurationFilter(""); setOutcomeFilter(""); }}
+                onClick={() => { setSearch(""); setStatusFilter(""); setCallTypeFilter(""); setSentimentFilter(""); setDurationFilter(""); setOutcomeFilter(""); setWbahAgentFilter("all"); }}
               >
                 Clear filters
               </Button>
@@ -746,16 +804,15 @@ function CallsPage() {
                 <table className="w-full text-[11px]">
                   <thead>
                     <tr className="border-b border-white/[0.06] bg-card/30">
-                      {["SR No","Times Called","Dial","Name","Contact","Type","Last Called At","Call Status","Call Duration","Recording","Sentiment Analysis","Summary","Transcript","View","Appointment Date","Appointment Time","Booking Status","Calendly Booking Url","End Reason","Disconnection Reason"].map((h, i) => (
+                      {["SR No","Dial","Name","Contact","Type","Last Called At","Call Status","Call Duration","Recording","Sentiment Analysis","Summary","Transcript","View","Appointment Date","Appointment Time","Booking Status","Calendly Booking Url","End Reason","Disconnection Reason"].map((h, i) => (
                         <th
                           key={h}
                           className={cn(
                             "px-2 py-1 text-left text-[9px] font-semibold uppercase tracking-[0.08em] text-muted-foreground whitespace-nowrap",
                             i === 0 && cn(stickyHead, "left-0 w-9"),
-                            i === 1 && cn(stickyHead, "left-9 w-10 text-center"),
-                            i === 2 && cn(stickyHead, "left-[4.75rem] w-10"),
-                            i === 3 && cn(stickyHead, "left-[7.25rem] w-28"),
-                            i === 4 && cn(stickyHead, "left-[14.25rem] w-28 shadow-[4px_0_8px_-4px_rgba(0,0,0,0.45)]"),
+                            i === 1 && cn(stickyHead, "left-9 w-10"),
+                            i === 2 && cn(stickyHead, "left-[4.75rem] w-28"),
+                            i === 3 && cn(stickyHead, "left-[11.75rem] w-28 shadow-[4px_0_8px_-4px_rgba(0,0,0,0.45)]"),
                           )}
                         >
                           {h}
@@ -771,24 +828,26 @@ function CallsPage() {
                       return (
                         <tr key={c.id} className="group h-8 border-b border-white/[0.04] last:border-0 align-middle hover:bg-white/[0.02] transition-colors">
                           <td className={cn("px-2 py-0.5 text-[10px] text-muted-foreground tabular-nums", stickyCell, "left-0 w-9")}>{idx + 1}</td>
-                          <td className={cn("px-2 py-0.5", stickyCell, "left-9 w-10 text-center")}>
-                            {(c.call_count ?? 1) > 1 ? (
-                              <span className="inline-flex items-center justify-center rounded-full bg-amber-500/15 px-1 py-0.5 text-[9px] font-semibold text-amber-400 tabular-nums">×{c.call_count}</span>
-                            ) : (
-                              <span className="text-[10px] text-muted-foreground tabular-nums">1</span>
-                            )}
-                          </td>
-                          <td className={cn("px-2 py-0.5", stickyCell, "left-[4.75rem] w-10")} onClick={(e) => e.stopPropagation()}>
+                          <td className={cn("px-2 py-0.5", stickyCell, "left-9 w-10")} onClick={(e) => e.stopPropagation()}>
                             {phone
                               ? <a href={`tel:${phone}`} className="inline-flex rounded p-0.5 text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors"><Phone className="h-3 w-3" /></a>
                               : <Phone className="h-3 w-3 text-muted-foreground/30" />}
                           </td>
-                          <td className={cn("max-w-[7rem] truncate px-2 py-0.5 text-[11px] font-medium", stickyCell, "left-[7.25rem] w-28")}>{name}</td>
-                          <td className={cn("max-w-[7rem] truncate px-2 py-0.5 text-[10px] text-muted-foreground tabular-nums", stickyCell, "left-[14.25rem] w-28 shadow-[4px_0_8px_-4px_rgba(0,0,0,0.35)]")}>{phone ?? "N/A"}</td>
+                          <td className={cn("px-2 py-0.5", stickyCell, "left-[4.75rem] w-28 max-w-[7rem] overflow-hidden")} onClick={(e) => e.stopPropagation()}>
+                            <div className="flex items-center gap-1 min-w-0">
+                              <span className="truncate text-[11px] font-medium min-w-0">{name}</span>
+                              <WbahCallCountBadge
+                                count={c.call_count ?? 1}
+                                onClick={() => openCallHistory(c)}
+                              />
+                              <WbahBookedStickyBadge lead={wbahBadgeLead(c)} agentColorMap={wbahAgentColorMap} />
+                            </div>
+                          </td>
+                          <td className={cn("max-w-[7rem] truncate px-2 py-0.5 text-[10px] text-muted-foreground tabular-nums", stickyCell, "left-[11.75rem] w-28 shadow-[4px_0_8px_-4px_rgba(0,0,0,0.35)]")}>{phone ?? "N/A"}</td>
                           <td className="px-2 py-0.5 text-[10px] text-muted-foreground whitespace-nowrap">{callType}</td>
                           <td className="px-2 py-0.5 text-[10px] text-muted-foreground whitespace-nowrap">
                             {c.started_at
-                              ? new Date(c.started_at).toLocaleString(undefined, { timeStyle: "short", dateStyle: "medium" })
+                              ? new Date(c.started_at).toLocaleString(undefined, { timeStyle: "short", dateStyle: "medium", timeZone: WBAH_TIMEZONE })
                               : "N/A"}
                           </td>
                           <td className="px-2 py-0.5">
@@ -838,20 +897,20 @@ function CallsPage() {
             ) : (
               /* ── Standard WEBEE calls table ──────────────────────────────── */
               <div className="overflow-x-auto">
-                <table className="w-full text-xs">
+                <table className="w-full text-[11px]">
                   <thead>
                     <tr className="border-b border-white/[0.06] bg-card/30">
-                      <th className="px-2 py-1 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Contact</th>
-                      <th className="px-2 py-1 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Type</th>
-                      <th className="px-2 py-1 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Agent</th>
-                      <th className="px-2 py-1 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Status</th>
-                      <th className="px-2 py-1 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Sentiment</th>
-                      <th className="px-2 py-1 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Summary</th>
-                      <th className="px-2 py-1 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Duration</th>
-                      <th className="px-2 py-1 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Rec</th>
-                      <th className="px-2 py-1 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Transcript</th>
-                      <th className="px-2 py-1 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground whitespace-nowrap">End Reason</th>
-                      <th className="px-2 py-1 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground whitespace-nowrap">Last Called At</th>
+                      <th className="px-2 py-1 text-left text-[9px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">Contact</th>
+                      <th className="px-2 py-1 text-left text-[9px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">Type</th>
+                      <th className="px-2 py-1 text-left text-[9px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">Agent</th>
+                      <th className="px-2 py-1 text-left text-[9px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">Status</th>
+                      <th className="px-2 py-1 text-left text-[9px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">Sentiment</th>
+                      <th className="px-2 py-1 text-left text-[9px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">Summary</th>
+                      <th className="px-2 py-1 text-left text-[9px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">Duration</th>
+                      <th className="px-2 py-1 text-left text-[9px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">Rec</th>
+                      <th className="px-2 py-1 text-left text-[9px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">Transcript</th>
+                      <th className="px-2 py-1 text-left text-[9px] font-semibold uppercase tracking-[0.08em] text-muted-foreground whitespace-nowrap">End Reason</th>
+                      <th className="px-2 py-1 text-left text-[9px] font-semibold uppercase tracking-[0.08em] text-muted-foreground whitespace-nowrap">Last Called At</th>
                       <th className="sticky right-0 bg-card/80 px-2 py-1 w-20 backdrop-blur-sm"></th>
                     </tr>
                   </thead>
@@ -869,7 +928,7 @@ function CallsPage() {
                       return (
                         <Fragment key={c.id}>
                           <tr onClick={() => openPanel(c)} className={cn("group border-b border-white/[0.04] last:border-0 align-middle hover:bg-white/[0.02] transition-colors cursor-pointer", isVmMode ? "h-auto" : "h-8", isVmMode && "bg-amber-500/[0.015]")}>
-                            <td className={cn("px-2 py-0.5 text-xs font-medium whitespace-nowrap", isVmMode && "border-l-2 border-l-amber-500/50")}>
+                            <td className={cn("px-2 py-0.5 text-[11px] font-medium whitespace-nowrap", isVmMode && "border-l-2 border-l-amber-500/50")}>
                               {contact}
                               {c.is_voicemail && (
                                 <span className="ml-1.5 inline-block rounded-full bg-amber-500/15 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-amber-400">Voicemail</span>

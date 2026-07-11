@@ -17,6 +17,10 @@ author = "agent"
 task = "workflow.run"
 args = "Start application"
 
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "schema-types-fresh"
+
 [[workflows.workflow]]
 name = "Start application"
 author = "agent"
@@ -28,6 +32,17 @@ waitForPort = 5000
 
 [workflows.workflow.metadata]
 outputType = "webview"
+
+[[workflows.workflow]]
+name = "schema-types-fresh"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "node scripts/refresh-supabase-types.mjs --check"
+
+[workflows.workflow.metadata]
+isValidation = true
 
 [[ports]]
 localPort = 3000
@@ -87,9 +102,13 @@ externalPort = 8081
 RETELL_SIGNATURE_VERIFICATION_ENABLED = "true"
 WEBESPOKE_ADMIN_EMAIL = "nathan@bespoke.ai"
 N8N_API_BASE_URL = "https://bespoke.app.n8n.cloud/api/v1"
+RESEND_FROM = "Webespoke AI <notifications@admin.webespokeai.com>"
+SYSTEMMIND_CLAUDE_ENABLED = "true"
 
 [userenv.production]
 PUBLIC_BASE_URL = "https://webeebuilder.com"
+
+[userenv.development]
 
 [postMerge]
 path = "scripts/post-merge.sh"

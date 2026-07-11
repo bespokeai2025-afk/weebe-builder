@@ -456,6 +456,8 @@ export const upsertLead = createServerFn({ method: "POST" })
       .single();
     if (error) throw new Error(error.message);
     invalidateDashboardCache(workspaceId);
+    const { triggerAutoCallForNewLead } = await import("@/lib/qualification/auto-call.server");
+    await triggerAutoCallForNewLead(supabase as any, { workspaceId, leadId: row!.id as string });
     return { id: row!.id as string };
   });
 
@@ -504,6 +506,24 @@ export const deleteLead = createServerFn({ method: "POST" })
     if (error) throw new Error(error.message);
     if (workspaceId) invalidateDashboardCache(workspaceId);
     return { ok: true };
+  });
+
+export const removeLeads = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input) =>
+    z.object({ leadIds: z.array(z.string().uuid()).min(1).max(500) }).parse(input),
+  )
+  .handler(async ({ context, data }) => {
+    const { supabase, workspaceId } = context;
+    if (!workspaceId) throw new Error("No active workspace");
+    const { error, count } = await (supabase as any)
+      .from("leads" as never)
+      .delete({ count: "exact" })
+      .in("id", data.leadIds)
+      .eq("workspace_id", workspaceId);
+    if (error) throw new Error(error.message);
+    invalidateDashboardCache(workspaceId);
+    return { removed: count ?? data.leadIds.length };
   });
 
 export const startQualificationCallsForLeads = createServerFn({ method: "POST" })
@@ -564,7 +584,10 @@ export const startQualificationCallsForLeads = createServerFn({ method: "POST" }
       const k = secret?.production_api_key?.trim();
       if (k?.startsWith("key_")) agentApiKey = k;
     }
-    const resolvedKey = deployedRetellAgentId ? (clientRetellKey || agentApiKey) : undefined;
+    // If the workspace has its own Retell API key, always use it — the agent belongs
+    // to their Retell workspace regardless of which internal deployment flag is set.
+    // Fallback: per-agent secret (deployedRetellAgentId path), then platform key (undefined).
+    const resolvedKey = clientRetellKey || (deployedRetellAgentId ? agentApiKey : undefined);
 
     const fromNumber = data.fromNumber?.trim() || (agentSettings.phoneNumber as string | undefined) || null;
 
@@ -772,7 +795,7 @@ export const fireScheduledCalls = createServerFn({ method: "POST" })
           fromNumber: (agentSettings.phoneNumber as string | undefined) ?? null,
           name: agent?.name ?? "Agent",
           preCallMappings: (qualifySettings.preCallMappings as Record<string, string> | undefined) ?? {},
-          resolvedKey: deployedRetellAgentId ? (clientRetellKey || agentApiKey) : undefined,
+          resolvedKey: clientRetellKey || (deployedRetellAgentId ? agentApiKey : undefined),
         };
       }
 

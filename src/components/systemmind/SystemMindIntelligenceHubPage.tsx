@@ -189,17 +189,22 @@ function DependenciesTab() {
 
   const { data: nodesData, isLoading } = useQuery({
     queryKey: ["systemmind-graph-nodes", "deps"],
-    queryFn: () => nodesFn({ data: { limit: 500 } }),
+    queryFn: () => nodesFn({ data: { limit: 500 } }) as Promise<{ nodes: any[] } | any[]>,
     throwOnError: false,
   });
   const { data: deps, isFetching } = useQuery({
     queryKey: ["systemmind-node-deps", selected],
-    queryFn: () => depsFn({ data: { nodeId: selected!, depth: 2 } }),
+    queryFn: () =>
+      depsFn({ data: { nodeId: selected!, depth: 2 } }) as Promise<{
+        root: { label: string; summary?: string | null } | null;
+        nodes: any[];
+        edges: any[];
+      } | null>,
     enabled: !!selected,
     throwOnError: false,
   });
 
-  const nodes = (nodesData?.nodes ?? nodesData ?? []) as any[];
+  const nodes = (Array.isArray(nodesData) ? nodesData : nodesData?.nodes ?? []) as any[];
   const filtered = nodes.filter((n: any) => !query || String(n.label).toLowerCase().includes(query.toLowerCase()) || String(n.node_type).toLowerCase().includes(query.toLowerCase()));
 
   return (

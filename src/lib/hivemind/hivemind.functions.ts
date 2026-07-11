@@ -11,7 +11,8 @@ import {
 const HIVEMIND_PLATFORM_TTL = 5 * 60; // 5 minutes
 
 function hivemindPlatformKey(workspaceId: string) {
-  return `webee:hivemind:${workspaceId}:platform`;
+  // v2: response shape gained the `setup` summary (setup-assistant completion)
+  return `webee:hivemind:${workspaceId}:platform:v2`;
 }
 
 export type HiveMindTask = {
@@ -97,13 +98,58 @@ export const getHiveMindPlatformData = createServerFn({ method: "GET" })
     // derive both from the small, clean wbah_calls table instead (see comment above
     // deriveWbahLeadsFromCalls). ID fallback guards against an RLS-blocked slug lookup.
     const { data: wsRow, error: wsErr } = await sb
-      .from("workspaces").select("slug").eq("id", workspaceId).maybeSingle();
+      .from("workspaces").select("slug, created_at").eq("id", workspaceId).maybeSingle();
     if (wsErr) console.error("[HiveMind pages] workspace slug lookup error:", wsErr.message);
     const isWbah = wsRow?.slug === "webuyanyhouse" || workspaceId === WBAH_WORKSPACE_ID;
     // Kick off the WBAH derivation now so it runs concurrently with the main batch.
     const wbahLeadsPromise: Promise<any[] | null> = isWbah
       ? deriveWbahLeadsFromCalls(workspaceId)
       : Promise.resolve(null);
+
+    // Setup-assistant completion summary (runs concurrently with the main batch).
+    // If a SystemMind setup checklist exists, use its derived completion; otherwise
+    // derive completion across the full deterministic check registry so HiveMind
+    // can still judge how "set up" the workspace is. Read-only — never mutates.
+    const workspaceCreatedAt: string | null = wsRow?.created_at ?? null;
+    const setupPromise: Promise<{
+      hasChecklist: boolean;
+      doneCount: number;
+      totalCount: number;
+      percent: number;
+      workspaceAgeDays: number | null;
+    } | null> = (async () => {
+      try {
+        const { getSetupChecklistServer, runChecksServer, CHECK_KEYS } = await import(
+          "@/lib/systemmind/workspace-setup.server"
+        );
+        const ageDays = workspaceCreatedAt
+          ? Math.floor((Date.now() - new Date(workspaceCreatedAt).getTime()) / 86_400_000)
+          : null;
+        const cl = await getSetupChecklistServer(workspaceId);
+        if (cl.checklist && cl.totalCount > 0) {
+          return {
+            hasChecklist: true,
+            doneCount: cl.doneCount,
+            totalCount: cl.totalCount,
+            percent: Math.round((cl.doneCount / cl.totalCount) * 100),
+            workspaceAgeDays: ageDays,
+          };
+        }
+        const results = await runChecksServer(workspaceId, CHECK_KEYS);
+        const doneCount = Object.values(results).filter(Boolean).length;
+        const totalCount = CHECK_KEYS.length;
+        return {
+          hasChecklist: false,
+          doneCount,
+          totalCount,
+          percent: totalCount > 0 ? Math.round((doneCount / totalCount) * 100) : 0,
+          workspaceAgeDays: ageDays,
+        };
+      } catch (e: any) {
+        console.error("[HiveMind pages] setup summary error:", e?.message ?? e);
+        return null;
+      }
+    })();
 
     const [
       agentsRes, callsRes, leadsRes, bookingsRes, settingsRes,
@@ -359,6 +405,7 @@ export const getHiveMindPlatformData = createServerFn({ method: "GET" })
       systemHealth,
       settings,
       tasks,
+      setup: await setupPromise,
     };
   }, bust);
   });

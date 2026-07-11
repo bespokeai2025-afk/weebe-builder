@@ -5,7 +5,7 @@ import { useState, useMemo, useEffect, Component, type ReactNode } from "react";
 import {
   BookUser, RefreshCw, Search, StickyNote, FolderOpen, Loader2,
   Building2, PlayCircle, ChevronRight, X, Phone, SlidersHorizontal,
-  Download, Calendar, CheckCircle2, TrendingUp,
+  Calendar, CheckCircle2, TrendingUp,
 } from "lucide-react";
 import { KpiCard } from "@/components/dashboard/PageShell";
 import { Input } from "@/components/ui/input";
@@ -19,10 +19,12 @@ import {
   getContactUploadToken,
 } from "@/lib/dashboard/documents.functions";
 import { NotesBookingSheet } from "@/components/dashboard/NotesBookingSheet";
+import { RecordingPlayerDialog } from "@/components/RecordingPlayerDialog";
 import { ContactDocumentsPanel } from "@/components/contacts/ContactDocumentsPanel";
 import type { NotesEntityType } from "@/components/dashboard/NotesBookingSheet";
 import { listWbahLeads } from "@/lib/integrations/webespokeEnterprise/wbah-workspace.server";
 import { useWbahAgentOptions } from "@/hooks/useWbahAgentOptions";
+import { wbahDateTimeOptions } from "@/lib/dashboard/wbah-timezone";
 import { useTablePagination, TablePagBar } from "@/components/ui/table-pagination";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
@@ -133,33 +135,6 @@ function leadSentimentClass(v?: string | null) {
   if (l === "positive") return "bg-emerald-500/15 text-emerald-400";
   if (l === "negative") return "bg-destructive/15 text-destructive";
   return "bg-muted text-muted-foreground";
-}
-
-function LeadRecordingDialog({ url, contact, onClose }: { url: string; contact: string; onClose: () => void }) {
-  return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm"
-      onClick={(e) => e.target === e.currentTarget && onClose()}
-    >
-      <div className="w-full max-w-md rounded-xl border border-border bg-card p-6 shadow-2xl">
-        <div className="mb-4 flex items-start justify-between gap-3">
-          <div>
-            <h2 className="text-base font-semibold">Call Recording</h2>
-            <p className="mt-0.5 text-sm text-muted-foreground">{contact}</p>
-          </div>
-          <button onClick={onClose} className="rounded-md p-1 text-muted-foreground hover:bg-muted hover:text-foreground">
-            <X className="h-4 w-4" />
-          </button>
-        </div>
-        <audio controls autoPlay={false} className="w-full" src={url} style={{ colorScheme: "dark" }}>
-          Your browser does not support audio playback.
-        </audio>
-        <a href={url} download className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-md border border-border bg-muted/40 px-4 py-2 text-sm font-medium hover:bg-muted">
-          <Download className="h-4 w-4" /> Download recording
-        </a>
-      </div>
-    </div>
-  );
 }
 
 // Class-based error boundary — catches render-time throws (e.g. stale TanStack
@@ -337,7 +312,7 @@ function WbahLeadsSection() {
     <div className="flex flex-col gap-3">
       {/* Recording player dialog */}
       {recordingPlayer && (
-        <LeadRecordingDialog
+        <RecordingPlayerDialog
           url={recordingPlayer.url}
           contact={recordingPlayer.contact}
           onClose={() => setRecordingPlayer(null)}
@@ -405,7 +380,7 @@ function WbahLeadsSection() {
                 ["Call Status",         viewRecord.callStatus],
                 ["Call Duration",       viewRecord.callDuration],
                 ["Sentiment",           viewRecord.sentiment],
-                ["Last Called At",      viewRecord.lastCalledAt ? new Date(viewRecord.lastCalledAt).toLocaleString() : null],
+                ["Last Called At",      viewRecord.lastCalledAt ? new Date(viewRecord.lastCalledAt).toLocaleString(undefined, wbahDateTimeOptions(true)) : null],
                 ["Appointment Date",    viewRecord.appointmentDate],
                 ["Appointment Time",    viewRecord.appointmentTime],
                 ["Booking Status",      viewRecord.bookingStatus],
@@ -595,7 +570,7 @@ function WbahLeadsSection() {
                     <td className="px-3 py-1.5 text-[11px] text-muted-foreground whitespace-nowrap">{r.type ?? "N/A"}</td>
                     <td className="px-3 py-1.5 text-[11px] text-muted-foreground whitespace-nowrap">
                       {r.lastCalledAt
-                        ? new Date(r.lastCalledAt).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" })
+                        ? new Date(r.lastCalledAt).toLocaleString(undefined, wbahDateTimeOptions(true, { dateStyle: "medium", timeStyle: "short" }))
                         : "N/A"}
                     </td>
                     <td className="px-3 py-1.5">

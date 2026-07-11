@@ -1,0 +1,176 @@
+Please update the **open / active Call Ava graphic** in the website so it becomes a **3D animated moving visual**, using the **attached reference image** as the style direction.
+
+Important:
+Do not just display the attached image as a flat picture. I want Replit to build a live animated version of it.
+
+## Main goal
+
+Replace the current open Call Ava graphic / live-call visual with a **3D-style animated orb / neural ring** inspired by the attached reference.
+
+The reference shows the correct visual direction:
+
+* dark futuristic background
+* glowing circular ring
+* blue energy lines
+* subtle purple on the left side if needed, but keep it premium and balanced
+* neural / particle / energy feel
+* live AI conversation aesthetic
+
+## What I want
+
+Create a new **live Ava call visual component** for when the Call Ava modal is open and the call is active.
+
+This should feel:
+
+* 3D
+* moving
+* premium
+* futuristic
+* high-definition
+* alive
+* like a live AI energy sphere / ring
+
+## Visual requirements
+
+The visual should have:
+
+1. A dark centre.
+2. A glowing circular ring / orb around the centre.
+3. Multiple moving energy lines flowing around the ring.
+4. Neural network style particles / subtle connecting lines around it.
+5. A slight 3D effect so it feels like depth, not a flat circle.
+6. Subtle motion / pulsing / orbiting / shimmer.
+7. A soft centre glow.
+8. A premium dark UI background.
+
+## 3D / motion direction
+
+The orb should feel like it has depth.
+
+Suggested motion ideas:
+
+* rotating energy strands
+* layered orbital rings
+* parallax depth effect
+* subtle particle drift
+* pulsing centre glow
+* animated shader-like movement if possible
+* reactive breathing/pulsing when Ava is speaking
+* calmer idle motion when Ava is listening
+
+If real speaking/listening state is available:
+
+* stronger motion when Ava is speaking
+* calmer motion when Ava is idle/listening
+
+If not available:
+
+* simulate a convincing live pulse animation
+
+## Use the attached image as reference
+
+Use the attached image only as a **design reference**.
+
+Do not simply place it inside the modal as a static image.
+
+Build a proper animated component based on it.
+
+## Technical preference
+
+Please build this as a real frontend component, not a screenshot.
+
+Preferred approaches:
+
+* React component
+* SVG animation
+* CSS animation
+* Canvas
+* WebGL / Three.js if appropriate
+* lightweight shader / particle approach if possible
+
+Best option:
+If feasible, build a **Three.js / React Three Fiber** based animated orb so it feels properly 3D.
+
+If that is too heavy, create a convincing 3D-feeling animated version using SVG/CSS/canvas.
+
+## Component suggestion
+
+Create something like:
+
+`AvaLiveOrb.tsx`
+
+Props:
+
+* `state: "connecting" | "speaking" | "listening" | "ended"`
+* `size?: "sm" | "md" | "lg"`
+
+Behaviour:
+
+* `connecting` = subtle pulse, loading feel
+* `speaking` = stronger animated energy / brighter pulse
+* `listening` = calmer motion
+* `ended` = fade down softly
+
+## UI integration
+
+Use this new animated 3D orb in the **open Call Ava modal/live call screen**.
+
+The live call state should show:
+
+* top status:
+
+  * Verified
+  * Connecting
+  * Live
+* the new animated 3D Ava orb in the centre
+* text below:
+
+  * “Ava is speaking…”
+* small End Call button below
+
+Do not show:
+
+* flat screenshot image
+* low-resolution icon
+* clunky separate waveform graphic
+* cheap stock animation
+
+## Performance requirements
+
+* Keep animation smooth and premium
+* Do not make the page laggy
+* Optimise for desktop and mobile
+* Respect reduced motion settings where possible
+* If using Three.js/WebGL, keep it lightweight
+
+## Do not break
+
+Do not break:
+
+* Call Ava modal flow
+* OTP flow
+* Free Trial button
+* Book Demo button
+* Products dropdown
+* Client Access dropdown
+* existing homepage layout
+* existing lead capture forms
+
+## Testing required
+
+Please test:
+
+1. Opening Call Ava shows the new animated graphic.
+2. The visual is 3D-feeling, not flat.
+3. The visual moves smoothly.
+4. It matches the attached reference image style.
+5. It is not just a static image.
+6. It looks high-definition on desktop.
+7. It looks good on mobile.
+8. Speaking state feels more animated.
+9. Idle/listening state feels calmer.
+10. Existing Call Ava flow still works.
+
+## Final result
+
+I want the open Call Ava graphic to become a **premium animated 3D live AI orb**, based on the attached reference image, so it feels like a real futuristic voice assistant interface rather than a static graphic.

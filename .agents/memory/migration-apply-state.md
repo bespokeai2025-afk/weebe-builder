@@ -66,6 +66,13 @@ Only ONE Supabase DB is wired (shared `VITE_SUPABASE_URL`), so changes hit live 
   `app_config` rows `health_sweep_url` + `health_sweep_key` (service-role key) are set —
   leave that as a deliberate manual step; do not auto-store the service-role key.
 - Reusable applier: `scripts/apply-migrations.mjs` (stop-on-error, per-file, lock guard).
+- **Schema map refresh is now automatic:** `scripts/apply-migrations.mjs` and
+  `scripts/apply-rootfile-migrations.mjs` both run
+  `node scripts/refresh-supabase-types.mjs` after a fully successful apply
+  (non-fatal — a typegen failure prints a loud warning, run the refresh manually).
+  For any other one-off apply script or SQL-editor apply, still refresh manually.
+  `--check` mode exits 1 if stale and is registered as the `schema-types-fresh`
+  validation step. Skipping this is how the types file went badly stale before.
 
 ## Audit blind spot: root-level .sql files are NOT in supabase/migrations/
 

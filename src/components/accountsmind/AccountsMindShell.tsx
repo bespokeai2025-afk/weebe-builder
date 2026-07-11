@@ -9,6 +9,8 @@ import {
   Settings,
   ChevronRight,
   DollarSign,
+  SlidersHorizontal,
+  Hammer,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -18,7 +20,9 @@ const NAV = [
   { label: "Provider Costs",href: "/admin/accounts/costs",        icon: DollarSign },
   { label: "Recharges",     href: "/admin/accounts/recharges",    icon: Zap },
   { label: "Profitability", href: "/admin/accounts/profitability",icon: TrendingUp },
+  { label: "SystemMind",    href: "/admin/accounts/systemmind",   icon: Hammer },
   { label: "Alerts",        href: "/admin/accounts/alerts",       icon: Bell },
+  { label: "Workspace Config", href: "/admin/accounts/workspace-config", icon: SlidersHorizontal },
   { label: "Settings",      href: "/admin/accounts/settings",     icon: Settings },
 ];
 

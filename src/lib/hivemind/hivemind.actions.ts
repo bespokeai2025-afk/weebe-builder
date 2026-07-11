@@ -16,7 +16,9 @@ export type ActionType     =
   | "growthmind_growth_campaign"
   | "register_resend_webhook"
   | "sync_ad_stats"
-  | "send_workflow_draft_to_builder";
+  | "send_workflow_draft_to_builder"
+  | "activate_lead_intake_workflow"
+  | "activate_systemmind_automation";
 
 export interface HiveMindAction {
   id:             string;
@@ -24,11 +26,11 @@ export interface HiveMindAction {
   title:          string;
   description:    string | null;
   action_type:    ActionType;
-  action_payload: Record<string, unknown>;
+  action_payload: Record<string, any>;
   status:         ActionStatus;
   proposed_by:    string;
   approved_by:    string | null;
-  result:         Record<string, unknown> | null;
+  result:         Record<string, any> | null;
   error_message:  string | null;
   created_at:     string;
   updated_at:     string;
@@ -36,7 +38,7 @@ export interface HiveMindAction {
 }
 
 // ── Action execution ─────────────────────────────────────────────────────────
-async function executeAction(sb: any, workspaceId: string, action: HiveMindAction): Promise<Record<string, unknown>> {
+async function executeAction(sb: any, workspaceId: string, action: HiveMindAction): Promise<Record<string, any>> {
   const p = action.action_payload;
 
   switch (action.action_type) {
@@ -172,6 +174,112 @@ async function executeAction(sb: any, workspaceId: string, action: HiveMindActio
       return { draft_id: draftId, status: "sent_to_builder" };
     }
 
+    case "activate_lead_intake_workflow": {
+      const agentId = String(p.agent_id ?? "");
+      if (!agentId) throw new Error("agent_id required");
+
+      // Validate the chosen agent is a Client Qualification agent — the intake
+      // lifecycle (positive/neutral → lead status, no-answer → need_to_call
+      // reset) is driven by the qualification webhook path.
+      const { data: agent, error: agErr } = await sb.from("agents")
+        .select("id, name, settings")
+        .eq("id", agentId)
+        .eq("workspace_id", workspaceId)
+        .maybeSingle();
+      if (agErr) throw agErr;
+      if (!agent) throw new Error("Agent not found");
+      const agentSettings = (agent.settings ?? {}) as Record<string, unknown>;
+      if (agentSettings.dashboardAgentType !== "client_qualification") {
+        throw new Error("Selected agent must be a Client Qualification agent to run lead-intake auto-calling");
+      }
+
+      // 1. Turn on the standard auto-call-on-new-lead pipeline for this agent.
+      const { error: wsErr } = await sb.from("workspace_settings").upsert(
+        {
+          workspace_id:            workspaceId,
+          lead_auto_call_enabled:  true,
+          lead_auto_call_agent_id: agentId,
+          updated_at:              new Date().toISOString(),
+        },
+        { onConflict: "workspace_id" },
+      );
+      if (wsErr) throw wsErr;
+
+      // 2. Materialise the reusable "Lead generation webform intake setup"
+      //    workflow as an ACTIVE instance, de-duplicating on template_id so
+      //    re-activation just flips an existing row back to active.
+      const TEMPLATE_NAME = "Lead generation webform intake setup";
+      let templateId: string | null = p.template_id ? String(p.template_id) : null;
+      let flowDefinition: Record<string, unknown> = {};
+      let templateVersion: number | null = null;
+      let triggerType = "lead_added";
+
+      let tmplQuery = sb.from("workflow_templates")
+        .select("id, flow_definition, version, trigger_type");
+      tmplQuery = templateId
+        ? tmplQuery.eq("id", templateId)
+        : tmplQuery.eq("name", TEMPLATE_NAME);
+      const { data: tmplRows } = await tmplQuery.limit(1);
+      const tmpl = (tmplRows ?? [])[0];
+      if (tmpl) {
+        templateId      = tmpl.id;
+        flowDefinition  = tmpl.flow_definition ?? {};
+        templateVersion = tmpl.version ?? null;
+        triggerType     = tmpl.trigger_type ?? "lead_added";
+      }
+
+      let workflowId: string | null = null;
+      if (templateId) {
+        const { data: existRows } = await sb.from("workspace_workflows")
+          .select("id")
+          .eq("workspace_id", workspaceId)
+          .eq("template_id", templateId)
+          .limit(1);
+        const existing = (existRows ?? [])[0];
+        if (existing) {
+          workflowId = existing.id;
+          await sb.from("workspace_workflows")
+            .update({ status: "active", updated_at: new Date().toISOString() })
+            .eq("id", existing.id)
+            .eq("workspace_id", workspaceId);
+        }
+      }
+
+      if (!workflowId) {
+        const { data: row, error: wfErr } = await sb.from("workspace_workflows").insert({
+          workspace_id:     workspaceId,
+          template_id:      templateId,
+          template_version: templateVersion,
+          name:             TEMPLATE_NAME,
+          description:      "Auto-calls every new lead in the leads section, updates lead status from the call outcome, and re-queues unanswered leads for the next run (3 calls/number/day cap).",
+          trigger_type:     triggerType,
+          trigger_config:   { agent_id: agentId },
+          flow_definition:  flowDefinition,
+          status:           "active",
+        }).select("id").maybeSingle();
+        if (wfErr) throw wfErr;
+        workflowId = row?.id ?? null;
+      }
+
+      return { enabled: true, agent_id: agentId, workflow_id: workflowId, template_id: templateId };
+    }
+
+    case "activate_systemmind_automation": {
+      const generatedActionId = String(p.generated_action_id ?? "");
+      if (!generatedActionId) throw new Error("generated_action_id required");
+      const { activateSystemMindAutomation } = await import(
+        "@/lib/systemmind/systemmind-automation.server"
+      );
+      // Payload is re-validated server-side inside activateSystemMindAutomation
+      // (step whitelist + workspace ownership) before anything goes live.
+      const result = await activateSystemMindAutomation(
+        workspaceId,
+        generatedActionId,
+        "User",
+      );
+      return { workflow_id: result.workflow_id, draft_id: result.draft_id };
+    }
+
     default:
       throw new Error(`Unknown action type: ${action.action_type}`);
   }
@@ -263,7 +371,7 @@ export const approveHiveMindAction = createServerFn({ method: "POST" })
     if (action.status !== "pending") throw new Error("Action is not pending");
 
     try {
-      const result = await executeAction(sb, context.workspaceId, action as HiveMindAction);
+      const result = await executeAction(sb, context.workspaceId!, action as HiveMindAction);
       await sb.from("hivemind_actions").update({
         status: "executed", approved_by: data.approved_by,
         result, executed_at: new Date().toISOString(), updated_at: new Date().toISOString(),
@@ -392,6 +500,54 @@ export const generateOperatorActions = createServerFn({ method: "POST" })
         });
       }
     }
+
+    // 2b. Lead-intake auto-calling standard — propose activation when there's a
+    //     deployed Client Qualification agent + leads, but auto-calling is off
+    //     and the reusable intake workflow isn't already active.
+    try {
+      if (!pendingTypes.has("activate_lead_intake_workflow") && leads.length > 0) {
+        const { data: ws } = await sb.from("workspace_settings")
+          .select("lead_auto_call_enabled")
+          .eq("workspace_id", workspaceId)
+          .maybeSingle();
+        const autoCallOn = !!ws?.lead_auto_call_enabled;
+
+        const qualAgent = agents.find(
+          (a: any) =>
+            a.settings?.dashboardAgentType === "client_qualification" &&
+            (a.settings?.deployedRetellAgentId || a.retell_agent_id),
+        );
+
+        if (!autoCallOn && qualAgent) {
+          const TEMPLATE_NAME = "Lead generation webform intake setup";
+          const { data: tmplRows } = await sb.from("workflow_templates")
+            .select("id").eq("name", TEMPLATE_NAME).limit(1);
+          const tmpl = (tmplRows ?? [])[0];
+
+          let alreadyActive = false;
+          if (tmpl) {
+            const { data: wfRows } = await sb.from("workspace_workflows")
+              .select("id,status")
+              .eq("workspace_id", workspaceId)
+              .eq("template_id", tmpl.id)
+              .limit(1);
+            alreadyActive = ((wfRows ?? [])[0]?.status === "active");
+          }
+
+          if (!alreadyActive) {
+            proposed.push({
+              workspace_id:   workspaceId,
+              title:          `Activate lead-intake auto-calling with "${qualAgent.name}"`,
+              description:    `Turn on the standard lead-generation intake setup: every new lead that lands in the leads section is automatically called by "${qualAgent.name}", the lead's status updates from the call outcome (interested / qualified / callback), and unanswered leads are re-queued for the next run — capped at 3 calls per number per day. Requires a workspace admin to approve.`,
+              action_type:    "activate_lead_intake_workflow",
+              action_payload: { agent_id: qualAgent.id, template_id: tmpl?.id ?? null },
+              proposed_by:    "hivemind",
+              status:         "pending",
+            });
+          }
+        }
+      }
+    } catch { /* graceful — settings / workflow tables may not exist yet */ }
 
     // 3. Stalled campaigns → create task
     for (const c of camps) {

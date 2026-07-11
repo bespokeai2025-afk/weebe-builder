@@ -85,7 +85,8 @@ environment variable(s)".
 | `PORT` | ✅ | Port to listen on. The container sets `PORT=8080` via Docker `ENV`; override it to match your platform's expected port if needed. Don't assume AWS auto-injects it. |
 | `VITE_SUPABASE_URL` | ✅ | Also needed at runtime for SSR (server reads it as a fallback). |
 | `VITE_SUPABASE_PUBLISHABLE_KEY` | ✅ | Same — needed for SSR. |
-| `RESEND_API_KEY` | optional | Email notifications (e.g. workspace approval). |
+| `RESEND_API_KEY` | optional | Email notifications (e.g. workspace approval, webform leads). |
+| `RESEND_FROM` | recommended if `RESEND_API_KEY` is set | Must be an address on a domain verified in Resend (Settings > Domains), e.g. `"Name <notify@yourdomain.com>"`. Without it, sends fall back to `onboarding@resend.dev`, which Resend silently refuses to deliver to anyone except the account owner — notification emails (workspace approvals, webform leads) will appear to send successfully in logs but never arrive. |
 | `RETELL_WEBHOOK_SECRET` | optional | Verify inbound Retell webhooks. |
 | `RETELL_SIGNATURE_VERIFICATION_ENABLED` | optional | `"true"` to enforce webhook signature checks. |
 | `PUBLIC_SITE_URL` / `PUBLIC_BASE_URL` | recommended | Your public HTTPS URL (used in emails, booking links, redirects). |

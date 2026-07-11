@@ -152,7 +152,7 @@ export function NotesBookingSheet({
     try {
       const startAt = new Date(bDate).toISOString();
       const endAt = new Date(new Date(bDate).getTime() + parseInt(bDuration) * 60_000).toISOString();
-      await bookFn({
+      const result = await bookFn({
         data: {
           title: bTitle.trim(),
           attendeeName: bName || null,
@@ -167,6 +167,11 @@ export function NotesBookingSheet({
       toast.success("Appointment booked", {
         description: `${bTitle} on ${new Date(bDate).toLocaleString()}`,
       });
+      if (result?.calSyncWarning) {
+        toast.warning("Saved locally, but Cal.com sync failed", {
+          description: result.calSyncWarning,
+        });
+      }
       qc.invalidateQueries({ queryKey: ["bookings"] });
       qc.invalidateQueries({ queryKey: ["calendar-bookings"] });
       setBookingOpen(false);

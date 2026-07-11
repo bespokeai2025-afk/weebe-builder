@@ -33,9 +33,9 @@ const TYPE_STYLE: Record<BriefingType, { color: string; bg: string; label: strin
 
 // ── Section card ───────────────────────────────────────────────────────────────
 function SectionCard({
-  title, icon: Icon, color, content,
+  title, icon: Icon, color, children,
 }: {
-  title: string; icon: React.ElementType; color: string; content: React.ReactNode;
+  title: string; icon: React.ElementType; color: string; children: React.ReactNode;
 }) {
   const [open, setOpen] = useState(true);
   return (
@@ -48,7 +48,7 @@ function SectionCard({
         <p className="text-xs font-semibold flex-1 text-left">{title}</p>
         {open ? <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" /> : <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />}
       </button>
-      {open && <div className="px-4 pb-4">{content}</div>}
+      {open && <div className="px-4 pb-4">{children}</div>}
     </div>
   );
 }

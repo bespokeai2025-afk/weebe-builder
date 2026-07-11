@@ -501,19 +501,34 @@ export const importDataRecords = createServerFn({ method: "POST" })
     // duplicates. Scoped to source = "csv" so an upload is never silently dropped
     // just because the number also exists as a synced CRM/sync record (those live
     // in the same table but are not shown in the Records tab).
-    const { data: existingRows, error: existErr } = await sb
-      .from("data_records")
-      .select("mobile_number")
-      .eq("workspace_id", workspaceId)
-      .eq("is_deleted", false)
-      .eq("source", "csv");
-    if (existErr) throw new Error(existErr.message);
-    const existingNumbers = new Set<string>(
-      (existingRows ?? []).map((r: any) => (r.mobile_number ?? "").trim()),
-    );
+    // Paginated (PostgREST caps a single select at 1000 rows) so workspaces with
+    // large CSV history don't get silent dedup truncation / re-insert duplicates.
+    const existingIdByNumber = new Map<string, string>();
+    const EXIST_PAGE = 1000;
+    for (let offset = 0; ; offset += EXIST_PAGE) {
+      const { data: existingPage, error: existErr } = await sb
+        .from("data_records")
+        .select("id, mobile_number")
+        .eq("workspace_id", workspaceId)
+        .eq("is_deleted", false)
+        .eq("source", "csv")
+        .order("id")
+        .range(offset, offset + EXIST_PAGE - 1);
+      if (existErr) throw new Error(existErr.message);
+      for (const r of existingPage ?? []) {
+        existingIdByNumber.set((r.mobile_number ?? "").trim(), r.id as string);
+      }
+      if (!existingPage || existingPage.length < EXIST_PAGE) break;
+    }
+    const existingNumbers = new Set<string>(existingIdByNumber.keys());
 
     const newRows = uniqueRows.filter((r) => !existingNumbers.has(r.mobile_number.trim()));
-    if (newRows.length === 0) return { inserted: 0, skipped: uniqueRows.length };
+    if (newRows.length === 0) {
+      const ids = uniqueRows
+        .map((r) => existingIdByNumber.get(r.mobile_number.trim()))
+        .filter((id): id is string => !!id);
+      return { inserted: 0, skipped: uniqueRows.length, ids };
+    }
 
     const payload = newRows.map((r) => ({
       workspace_id: workspaceId,
@@ -539,13 +554,27 @@ export const importDataRecords = createServerFn({ method: "POST" })
     }));
     const CHUNK = 1000;
     let inserted = 0;
+    const insertedIdByNumber = new Map<string, string>();
     for (let i = 0; i < payload.length; i += CHUNK) {
       const slice = payload.slice(i, i + CHUNK);
-      const { error, count } = await sb.from("data_records").insert(slice, { count: "exact" });
+      const { data: insertedRows, error } = await sb
+        .from("data_records")
+        .insert(slice)
+        .select("id, mobile_number");
       if (error) throw new Error(`Chunk ${i / CHUNK + 1}: ${error.message}`);
-      inserted += count ?? slice.length;
+      inserted += insertedRows?.length ?? slice.length;
+      for (const row of insertedRows ?? []) {
+        insertedIdByNumber.set((row.mobile_number ?? "").trim(), row.id as string);
+      }
     }
-    return { inserted, skipped: uniqueRows.length - newRows.length };
+    const ids = uniqueRows
+      .map(
+        (r) =>
+          insertedIdByNumber.get(r.mobile_number.trim()) ??
+          existingIdByNumber.get(r.mobile_number.trim()),
+      )
+      .filter((id): id is string => !!id);
+    return { inserted, skipped: uniqueRows.length - newRows.length, ids };
   });
 
 export type QualifiedLeadRow = {

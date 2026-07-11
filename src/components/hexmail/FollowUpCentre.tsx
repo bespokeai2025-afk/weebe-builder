@@ -96,7 +96,7 @@ export function FollowUpCentre({ onOpenVisualBuilder, onOpenFormBuilder }: Follo
 
   const { data: campaigns = [], isLoading } = useQuery<HexmailCampaign[]>({
     queryKey: ["hexmail-campaigns"],
-    queryFn: () => listHexmailCampaigns({ data: {} }),
+    queryFn: () => listHexmailCampaigns({ data: {} }) as Promise<HexmailCampaign[]>,
   });
 
   const updateStatus = useMutation({

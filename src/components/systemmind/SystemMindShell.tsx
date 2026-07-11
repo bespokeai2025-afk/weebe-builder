@@ -3,7 +3,8 @@ import {
   Server, BarChart3, ShieldCheck, BookOpen, GitBranch, Shield,
   AlertTriangle, PlugZap, ClipboardList, Lightbulb, Wrench,
   CheckSquare, FileText, Layers, MessageSquare, Settings2, Wand2, Database,
-  Users, Activity, Network, Boxes, Share2, BrainCircuit, Rocket, Gauge, GraduationCap,
+  Users, Activity, Network, Boxes, Share2, BrainCircuit, Rocket, Gauge, GraduationCap, Zap,
+  Hammer,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useEffect, useState } from "react";
@@ -29,11 +30,15 @@ const BASE_NAV_GROUPS: Array<{ title?: string; adminOnly?: boolean; items: NavIt
   {
     title: "Improve",
     items: [
+      { label: "Build Workspace",     href: "/systemmind/build",               icon: Hammer     },
       { label: "Recommendations",     href: "/systemmind/recommendations",     icon: Lightbulb  },
       { label: "Fix Plans",           href: "/systemmind/fix-plans",           icon: Wrench     },
       { label: "Workflows",           href: "/systemmind/workflows",           icon: GitBranch  },
       { label: "Workflow Generator",  href: "/systemmind/workflow-generator",  icon: Wand2      },
       { label: "Workflow Drafts",     href: "/systemmind/workflow-drafts",     icon: Layers     },
+      { label: "Automation",          href: "/systemmind/automation",          icon: Zap        },
+      { label: "AccountsMind Setup",  href: "/systemmind/accountsmind-setup",  icon: BarChart3  },
+      { label: "Setup Assistant",     href: "/systemmind/setup-assistant",     icon: CheckSquare },
       { label: "Playbooks",           href: "/systemmind/playbooks",           icon: Shield     },
     ],
   },

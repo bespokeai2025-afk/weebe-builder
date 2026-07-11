@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { HiveMindShell } from "@/components/hivemind/HiveMindShell";
+import { BusinessDnaKnowledgeUpload } from "@/components/hivemind/BusinessDnaKnowledgeUpload";
 import {
   getBusinessDnaFn, updateBusinessDnaFn, runDnaDiscoveryFn,
 } from "@/lib/hivemind/business-dna.functions";
@@ -323,6 +324,9 @@ function BusinessDnaPage() {
             </div>
           </div>
         </div>
+
+        {/* Knowledge base document upload — feeds discovery + GrowthMind */}
+        <BusinessDnaKnowledgeUpload accent="violet" />
 
         {/* Sections */}
         <DnaSection title="Company Identity" icon={Building2} color="bg-violet-500/15 text-violet-400">

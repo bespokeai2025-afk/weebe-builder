@@ -1,0 +1,623 @@
+Please further develop the SystemMind Agent Workflow Builder so it works more like an intelligent Replit-style workspace for building, testing, re-prompting, fixing, approving, and deploying agent workflows.
+
+The goal is:
+
+When a user asks SystemMind to build an agent or workflow from the Agent Builder page, SystemMind should generate the setup, but if the agent/workflow is not correct, the user should be able to keep prompting SystemMind inside a dedicated workspace until it works properly.
+
+Once the user is happy, they should click an Apply / Deploy button, and the system should apply the workflow, automate the Go Live process where appropriate, save the workflow to the client’s Workflows page, and allow future edits.
+
+This must be workspace-specific and must never change the global WEBEE codebase or affect other users.
+
+---
+
+## 1. Main feature: SystemMind Build Workspace
+
+Add a dedicated SystemMind Build Workspace for agent and workflow creation.
+
+When a user uses the Agent Builder page and selects or prompts SystemMind to build an agent/workflow, open a new sub-tab in the left-hand Builder platform navigation.
+
+Suggested sub-tab name:
+
+* SystemMind Build
+* Build Workspace
+* Agent Build Workspace
+* Workflow Build Studio
+
+This workspace should stay attached to the current agent/workflow being built.
+
+It should allow the user to:
+
+* see the generated agent setup
+* see the generated workflow
+* test the generated setup
+* prompt SystemMind again to fix or improve it
+* view change history
+* compare versions
+* approve changes
+* apply changes
+* deploy/go live when ready
+
+---
+
+## 2. Re-prompting and iterative fixing
+
+The user should be able to keep giving SystemMind instructions until the workflow is correct.
+
+Example flow:
+
+1. User says:
+   “Build me a WhatsApp qualification agent for estate agency leads.”
+
+2. SystemMind generates:
+
+   * agent prompt
+   * workflow steps
+   * variables
+   * post-call/post-chat extraction
+   * follow-up rules
+   * WhatsApp setup requirements
+   * testing checklist
+
+3. User tests it and says:
+   “This is wrong, make the qualification questions shorter and add budget before booking.”
+
+4. SystemMind creates a new version.
+
+5. User says:
+   “Now add a follow-up sequence if they do not respond.”
+
+6. SystemMind creates another version.
+
+7. User clicks:
+   “Apply”
+   or
+   “Apply & Go Live”
+
+8. The approved setup is applied to the actual Agent Builder / Workflow system.
+
+9. The final workflow is saved into the client’s Workflows page.
+
+The Build Workspace should support unlimited or configurable iterative prompt runs, subject to workspace usage/billing limits.
+
+---
+
+## 3. Versioning
+
+Every SystemMind-generated build should be versioned.
+
+Each version should include:
+
+* version number
+* created_at
+* created_by_user_id
+* workspace_id
+* original user prompt
+* SystemMind response
+* generated agent prompt
+* generated workflow config
+* generated variables
+* generated extraction fields
+* generated follow-up rules
+* generated WhatsApp/SMS/call setup
+* generated test plan
+* status:
+
+  * draft
+  * testing
+  * revised
+  * pending_approval
+  * applied
+  * deployed
+  * rejected
+  * archived
+
+The user should be able to:
+
+* view previous versions
+* restore a previous version
+* compare current vs previous
+* leave notes
+* approve only a selected version
+
+---
+
+## 4. Apply button
+
+Add an Apply button inside the SystemMind Build Workspace.
+
+When clicked, Apply should:
+
+1. Validate the generated setup.
+2. Check required fields are present.
+3. Check workspace_id scoping.
+4. Check credentials required.
+5. Check provider setup requirements.
+6. Check if approval is needed.
+7. Save the approved setup to the correct workspace.
+8. Update the Agent Builder configuration.
+9. Create or update the workflow in the Workflows page.
+10. Create an audit log.
+
+Apply must not immediately activate high-risk workflows unless the user/admin confirms.
+
+High-risk examples:
+
+* outbound calling
+* WhatsApp broadcasts
+* SMS campaigns
+* email campaigns
+* CRM sync rules
+* billing/usage changes
+* provider credential changes
+* webhook changes
+* live customer messaging
+
+For high-risk changes, show:
+
+“This workflow affects live customer communication and requires approval before going live.”
+
+---
+
+## 5. Apply & Go Live button
+
+Add an optional Apply & Go Live button when safe.
+
+This should appear only when:
+
+* the user has permission
+* required credentials are present
+* all validation checks pass
+* no high-risk approval is missing
+* the agent/workflow is ready
+* the workflow belongs to the current workspace_id
+
+When clicked, Apply & Go Live should:
+
+1. Apply the approved version.
+2. Save the workflow to the client’s Workflows page.
+3. Trigger the existing Go Live logic in the Agent Deploy tab.
+4. Mark agent/workflow status as active/live.
+5. Create an audit log.
+6. Show success state.
+
+Important:
+
+Do not duplicate the Go Live logic. Reuse the existing Go Live/deploy service if it exists.
+
+Do not bypass existing deployment checks.
+
+Do not break existing Agent Deploy tab behaviour.
+
+---
+
+## 6. Agent Deploy tab integration
+
+In the Agent Builder → Agent Deploy tab, add support for SystemMind-generated builds.
+
+If the agent was created through the SystemMind Build Workspace, the deploy tab should show:
+
+* generated by SystemMind
+* current version
+* approval status
+* validation status
+* required credentials
+* workflow linked
+* usage estimate
+* Go Live readiness
+* Apply & Go Live option where allowed
+
+If the user clicks Go Live from this method, it should use the same safe deployment flow as normal.
+
+---
+
+## 7. Save to client Workflows page
+
+After Apply or Apply & Go Live, save the workflow into the client’s Workflows page.
+
+The saved workflow should include:
+
+* workflow name
+* description
+* workspace_id
+* agent_id
+* workflow type
+* trigger
+* conditions
+* actions
+* channels:
+
+  * call
+  * WhatsApp
+  * SMS
+  * email
+  * CRM
+  * follow-up
+* generated by SystemMind
+* source build id
+* source version
+* approval status
+* live status
+* created_by_user_id
+* created_at
+* updated_at
+
+The Workflows page should allow:
+
+* view workflow
+* edit workflow
+* duplicate workflow
+* pause workflow
+* reactivate workflow
+* send back to SystemMind Build Workspace for changes
+* view audit history
+* view usage/costs
+
+---
+
+## 8. Future editing from Workflows page
+
+Add an Edit with SystemMind option from the Workflows page.
+
+When clicked:
+
+1. Open the SystemMind Build Workspace.
+2. Load the existing workflow.
+3. Let the user prompt changes.
+4. Create a new version.
+5. Let the user test.
+6. Let the user Apply or Apply & Go Live again.
+
+Do not overwrite the live version until Apply is clicked.
+
+Keep old versions available for rollback.
+
+---
+
+## 9. Testing/simulation before apply
+
+Inside the Build Workspace, add a testing/simulation area.
+
+The user should be able to test:
+
+* sample conversation
+* sample lead input
+* sample WhatsApp message
+* sample call outcome
+* sample follow-up trigger
+* sample CRM update
+* sample booking outcome
+
+SystemMind should show:
+
+* expected workflow path
+* variables captured
+* actions that would trigger
+* follow-up steps created
+* errors/warnings
+* missing setup items
+
+This should run as a safe simulation and not contact real customers.
+
+---
+
+## 10. Token usage tracking
+
+Track token usage for every SystemMind prompt/task.
+
+For each SystemMind run, track:
+
+* workspace_id
+* user_id
+* build_session_id
+* workflow_id if applicable
+* model/provider used
+* prompt_tokens
+* completion_tokens
+* total_tokens
+* cached_tokens if available
+* tool calls used
+* execution_started_at
+* execution_completed_at
+* elapsed_seconds
+* estimated_provider_cost
+* billable_cost
+* billing_status
+* task_type
+* source_page:
+
+  * agent_builder
+  * whatsapp_builder
+  * follow_up_centre
+  * workflows
+  * systemmind
+  * hivemind
+* success/failure
+* error if any
+
+Do not rely only on token usage. Also track time elapsed for the task.
+
+---
+
+## 11. Charge by elapsed time and task usage
+
+I want to charge for SystemMind execution by the length of time elapsed to execute each prompt/task, plus token/provider usage where relevant.
+
+Add a usage engine for SystemMind tasks.
+
+Track:
+
+* elapsed time
+* tokens
+* model cost
+* number of tool calls
+* number of generated workflow steps
+* number of generated files/configs
+* task complexity
+* workspace usage plan
+* free allowance if applicable
+* overage billing if applicable
+
+Suggested billing fields:
+
+* `systemmind_seconds_used`
+* `systemmind_tokens_used`
+* `systemmind_runs_count`
+* `systemmind_billable_units`
+* `systemmind_estimated_cost`
+* `systemmind_customer_charge`
+* `systemmind_margin`
+
+The pricing formula should be configurable in an admin cost engine, not hardcoded.
+
+Example:
+
+* base charge per SystemMind run
+* charge per elapsed second/minute
+* charge per 1,000 tokens
+* charge per tool call
+* plan-based included allowance
+* overage charge after included allowance
+
+Do not expose provider raw cost to clients unless the admin UI chooses to.
+
+AccountsMind should be able to show usage and billing visibility for SystemMind.
+
+---
+
+## 12. Replit-quality intelligence target
+
+The SystemMind Build Workspace should feel as good and useful as Replit-style iterative building.
+
+That means:
+
+* user can prompt
+* SystemMind builds
+* user tests
+* user reprompts
+* SystemMind revises
+* user applies
+* user deploys
+* workflow is saved
+* future edits are possible
+
+But unlike Replit, it must not edit global source code.
+
+It should generate and modify workspace-specific configs, workflows, prompts, sequences, agent settings, and integration setup records only.
+
+---
+
+## 13. Workspace isolation critical rule
+
+Every generated setup must be isolated to the signed-in user’s workspace_id.
+
+This applies to:
+
+* build sessions
+* prompts
+* versions
+* workflows
+* agents
+* WhatsApp configs
+* Follow Up Centre sequences
+* WATI setup drafts
+* Meta setup drafts
+* Twilio setup drafts
+* n8n blueprint conversions
+* deployment records
+* token usage records
+* billing records
+* audit logs
+
+Do not allow:
+
+* cross-workspace reads
+* cross-workspace writes
+* global workflow changes
+* global prompt changes
+* global agent changes
+* global billing changes from user prompts
+* editing the main WEBEE codebase from user prompts
+
+---
+
+## 14. Approval and audit logs
+
+Every SystemMind build action must create audit logs.
+
+Audit should include:
+
+* workspace_id
+* user_id
+* build_session_id
+* action type
+* prompt text
+* generated result
+* before state
+* after state
+* approval status
+* approved_by
+* approved_at
+* applied_at
+* deployed_at
+* rollback version
+* token usage
+* elapsed time
+* cost estimate
+
+The UI should show:
+
+* what SystemMind changed
+* why it changed it
+* whether approval is required
+* what risk level it has
+* what version is live
+* what version is draft
+
+---
+
+## 15. Suggested database tables
+
+Create or adapt tables for:
+
+* `systemmind_build_sessions`
+* `systemmind_build_versions`
+* `systemmind_build_messages`
+* `systemmind_generated_agent_configs`
+* `systemmind_generated_workflow_configs`
+* `systemmind_build_tests`
+* `systemmind_apply_events`
+* `systemmind_usage_events`
+* `systemmind_billing_events`
+* `workspace_workflows`
+* `workflow_versions`
+* `workflow_audit_logs`
+
+Every relevant row must include:
+
+* `workspace_id`
+* `created_by_user_id`
+* `created_at`
+* `updated_at`
+* `approval_status`
+* `version`
+* `source = systemmind`
+
+Use RLS and backend workspace checks.
+
+---
+
+## 16. UI requirements
+
+Add or update UI in these areas:
+
+### Agent Builder page
+
+When user uses custom prompt / SystemMind builder:
+
+* open SystemMind Build Workspace sub-tab
+* show build chat/prompt panel
+* show generated config preview
+* show test/simulation panel
+* show version history
+* show Apply button
+* show Apply & Go Live button where safe
+
+### Left-hand Builder navigation
+
+Add dynamic sub-tab while building:
+
+* SystemMind Build
+* or Build Workspace
+
+### Agent Deploy tab
+
+Show SystemMind-generated status and Apply & Go Live option.
+
+### Workflows page
+
+Show saved workflows generated by SystemMind.
+
+Add:
+
+* Edit with SystemMind
+* Version history
+* Pause/activate
+* Audit log
+* Usage/cost tracking
+
+### AccountsMind
+
+Show SystemMind usage:
+
+* runs
+* elapsed time
+* tokens
+* estimated cost
+* customer charge
+* plan allowance
+* overage
+
+---
+
+## 17. Do not break existing features
+
+Do not break:
+
+* existing Agent Builder
+* existing Agent Deploy tab
+* existing Go Live button
+* existing Retell setup
+* existing WhatsApp builder
+* existing Follow Up Centre
+* existing Workflows page
+* existing SystemMind setup
+* existing HiveMind setup
+* existing GrowthMind setup
+* existing AccountsMind setup
+* existing WBAH logic
+* standard WEBEE accounts
+* Calls page
+* Leads page
+* Qualified page
+* Data page
+* workspace scoping
+* Supabase RLS
+* existing filters
+* manual status selectors
+* Call Ava feature
+* webform lead capture
+
+---
+
+## 18. Testing required
+
+Please test:
+
+1. User opens Agent Builder.
+2. User prompts SystemMind to build an agent/workflow.
+3. SystemMind Build Workspace sub-tab opens.
+4. Generated workflow appears as a draft.
+5. User can re-prompt for changes.
+6. New version is created.
+7. User can view version history.
+8. User can simulate/test the workflow without sending real messages/calls.
+9. User can Apply the workflow.
+10. Workflow saves to current workspace only.
+11. Workflow appears on the client Workflows page.
+12. User can click Edit with SystemMind from Workflows page.
+13. Edit opens the Build Workspace with the existing workflow loaded.
+14. User can make changes and apply a new version.
+15. Apply & Go Live triggers existing Go Live logic safely.
+16. High-risk workflows require approval before activation.
+17. Token usage is tracked.
+18. Elapsed time is tracked.
+19. SystemMind usage appears in AccountsMind.
+20. Billing events are created.
+21. No other workspace is affected.
+22. WBAH remains unaffected.
+23. Standard WEBEE accounts remain unaffected.
+24. Existing Agent Builder and Go Live logic still work normally for non-SystemMind workflows.
+
+Final instruction:
+
+Build SystemMind into an iterative, Replit-style workspace-specific agent/workflow builder where users can prompt, test, re-prompt, version, apply, deploy, save to workflows, edit later, and track usage/costs — without ever allowing user prompts to modify the global WEBEE codebase or affect other workspaces.

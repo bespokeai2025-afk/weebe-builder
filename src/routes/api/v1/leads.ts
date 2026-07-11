@@ -7,7 +7,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { createClient } from "@supabase/supabase-js";
 import { authenticateV1Request, jsonOk, jsonErr } from "@/lib/developer-api/v1-auth.middleware";
 
-const SUPABASE_URL = process.env.SUPABASE_URL ?? "";
+const SUPABASE_URL = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || "";
 const SERVICE_KEY  = process.env.SUPABASE_SERVICE_ROLE_KEY ?? "";
 const sb = () => createClient(SUPABASE_URL, SERVICE_KEY, { auth: { autoRefreshToken: false, persistSession: false } });
 
@@ -73,6 +73,10 @@ export const Route = createFileRoute("/api/v1/leads")({
         import("@/lib/developer-api/webhook-delivery.server")
           .then(m => m.fireWebhookEvent(workspaceId, "lead.created", data))
           .catch(() => {});
+
+        // Auto-call automation — best-effort, never throws.
+        const { triggerAutoCallForNewLead } = await import("@/lib/qualification/auto-call.server");
+        await triggerAutoCallForNewLead(sb(), { workspaceId, leadId: data.id });
 
         return jsonOk({ object: "lead", ...data }, 201);
       },

@@ -465,7 +465,7 @@ export const provisionWebuyanyhouseAccount = createServerFn({ method: "POST" })
 
       await supabaseAdmin.from("telephony_configs")
         .upsert({ workspace_id: workspaceId, provider: "twilio", is_active: true }, { onConflict: "workspace_id,provider" })
-        .then(() => {}).catch(() => {});
+        .then(() => {}, () => {});
     }
 
     return { ok: true, email: WBAH_EMAIL, userId, workspaceId, alreadyExisted };

@@ -16,6 +16,8 @@ export interface SendEmailParams {
   subject: string;
   html: string;
   text?: string;
+  /** Optional from override (must be a Resend-verified domain). Defaults to RESEND_FROM. */
+  from?: string;
 }
 
 export interface SendEmailResult {
@@ -41,7 +43,7 @@ export async function sendResendEmail(params: SendEmailParams): Promise<SendEmai
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        from: RESEND_FROM,
+        from: params.from?.trim() || RESEND_FROM,
         to: [params.to],
         subject: params.subject,
         html: params.html,
