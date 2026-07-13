@@ -34,6 +34,7 @@ import {
   type GeneratedDraft,
 } from "@/lib/systemmind/systemmind-automation.server";
 import { assertNoCredentialValues } from "@/lib/systemmind/systemmind-generators.server";
+import { RequirementsSchema } from "@/lib/systemmind/requirements-schema";
 import {
   computeBuildImpactReport,
   createBuildSnapshotServer,
@@ -77,6 +78,9 @@ const BuildConfigSchema = z.object({
   required_credentials: z.array(z.string().max(120)).max(20).default([]),
   risks:                z.array(z.string().max(300)).max(20).default([]),
   test_plan:            z.array(z.string().max(400)).max(20).default([]),
+  // Guided Requirements Assistant output (optional — absent on all configs
+  // produced before the assistant existed, and on plain chat-built configs).
+  requirements:         RequirementsSchema.optional(),
 });
 
 export type BuildConfig = z.infer<typeof BuildConfigSchema>;
@@ -328,6 +332,68 @@ async function supersedeOpenVersions(sessionId: string, workspaceId: string): Pr
     .update({ status: "revised" })
     .eq("session_id", sessionId).eq("workspace_id", workspaceId)
     .in("status", ["draft", "testing"]);
+}
+
+// ── Insert a deterministic (non-AI) version into an existing session ───────────
+// Used by the Guided Requirements Assistant: its generator is deterministic, so
+// versions enter the normal immutable pipeline without a model call. Reuses the
+// same supersede + numbering + message + audit bookkeeping as promptBuildSessionServer.
+export async function insertBuildVersionServer(args: {
+  workspaceId: string;
+  userId:      string | null;
+  sessionId:   string;
+  config:      BuildConfig;
+  summary:     string;
+  userPrompt?: string | null;
+  auditAction?: string;
+}): Promise<{ versionId: string; versionNumber: number; version: Record<string, any> }> {
+  const sb = supabaseAdmin as any;
+  const { workspaceId, userId, sessionId } = args;
+  const session = await getSessionOrThrow(workspaceId, sessionId);
+  if (session.status !== "active") throw new Error("This build session is archived — restore it first.");
+
+  // Same trust boundary as every other entry point: full re-validation.
+  const config = validateConfigOrThrow(args.config, "Requirements build config");
+  const { riskLevel, riskReasons } = classifyConfigRisk(config);
+
+  await supersedeOpenVersions(sessionId, workspaceId);
+  const versionNumber = await nextVersionNumber(sessionId);
+
+  const { data: version, error: vErr } = await sb.from("systemmind_build_versions").insert({
+    session_id:         sessionId,
+    workspace_id:       workspaceId,
+    created_by_user_id: userId,
+    version_number:     versionNumber,
+    user_prompt:        args.userPrompt ? args.userPrompt.slice(0, 8000) : null,
+    assistant_summary:  args.summary.slice(0, 4000),
+    generated_config:   config,
+    risk_level:         riskLevel,
+    risk_reasons:       riskReasons,
+    status:             "draft",
+  }).select("*").single();
+  if (vErr) throw new Error(`Failed to save version: ${vErr.message}`);
+
+  await insertMessage({
+    sessionId, workspaceId, userId: null, role: "systemmind",
+    content: args.summary, versionId: version.id,
+  });
+  await sb.from("systemmind_build_sessions")
+    .update({ current_version_id: version.id })
+    .eq("id", sessionId).eq("workspace_id", workspaceId);
+
+  await writeSystemMindAudit({
+    workspaceId, userId,
+    actionType: args.auditAction ?? "build_version_generated",
+    targetType: "systemmind_build_version",
+    targetId:   version.id,
+    proposedAfterState: {
+      session_id: sessionId, version_number: versionNumber,
+      risk_level: riskLevel, source: "requirements_assistant",
+    },
+    approvalStatus: "not_requested",
+  });
+
+  return { versionId: version.id as string, versionNumber, version };
 }
 
 // ── Create session ──────────────────────────────────────────────────────────────
@@ -1150,15 +1216,26 @@ async function performBuildApply(args: {
         content: `Saved as a new draft — the existing configuration for your agent was left untouched. Apply this version directly when you're ready to update the agent.`,
       });
     } else {
+    // Guided Requirements Assistant payload: persisted alongside the config so
+    // the deployment pipeline (Go Live checklist, orchestrator) can read it.
+    // Only APPROVED script additions ever reach agent_prompt (the approval step
+    // merges them into a NEW version before apply); proposed/rejected drafts
+    // ride along as inert data.
+    const req = config.requirements ?? null;
     const cfgFields = {
       title:              `Build Workspace v${version.version_number}: ${config.workflow.name}`.slice(0, 200),
       agent_summary:      (version.assistant_summary ?? "").slice(0, 4000) || null,
       required_variables: config.variables,
       extraction_fields:  config.extraction_fields,
+      ...(req ? {
+        crm_field_mapping: req.variable_mappings,
+        outcome_schema:    { outcome_rules: req.outcome_rules, summary_field: req.summary_field, negative_reason_field: req.negative_reason_field },
+      } : {}),
       deployment_config: {
         agent_prompt:     config.agent_prompt,
         follow_up_rules:  config.follow_up_rules,
         channel_setup:    config.channel_setup,
+        ...(req ? { requirements: req } : {}),
         source:           "systemmind_build",
         build_session_id: session.id,
         build_version:    version.version_number,
@@ -1178,6 +1255,48 @@ async function performBuildApply(args: {
       });
       if (error) throw new Error(`Workflow applied, but the agent config insert failed: ${error.message}`);
     }
+    }
+  }
+
+  // Requirements: scheduled-calling campaign is created PAUSED, and only if a
+  // campaign with the same name doesn't already exist. Nothing is activated:
+  // no lead_auto_call switches are ever flipped here, campaigns never start
+  // running on their own (spec §14 — activation is always a separate human act).
+  const reqCalling = config.requirements?.calling ?? null;
+  const reqCampaign = config.requirements?.campaign ?? null;
+  if (reqCampaign && reqCalling && (reqCalling.mode === "scheduled" || reqCalling.mode === "both")) {
+    const { data: existingCampaign } = await sb.from("campaigns")
+      .select("id").eq("workspace_id", workspaceId).eq("name", reqCampaign.name.slice(0, 200))
+      .limit(1).maybeSingle();
+    if (!existingCampaign) {
+      const { error: cErr } = await sb.from("campaigns").insert({
+        workspace_id: workspaceId,
+        agent_id:     session.target_agent_id ?? null,
+        name:         reqCampaign.name.slice(0, 200),
+        description:  reqCampaign.schedule_description.slice(0, 500) || "Created paused by SystemMind Requirements Assistant.",
+        status:       "paused",
+        targets:      [],
+        retry_config: {
+          max_attempts_per_lead: reqCalling.max_attempts_per_lead,
+          retry_spacing_hours:   reqCalling.retry_spacing_hours,
+        },
+        schedule_config: {
+          calling_window:    reqCalling.calling_window,
+          max_calls_per_day: reqCalling.max_calls_per_day,
+          source:            "requirements_assistant",
+        },
+      });
+      if (cErr) {
+        await insertMessage({
+          sessionId: session.id, workspaceId, userId, role: "system", versionId: version.id,
+          content: `Applied, but the paused campaign "${reqCampaign.name}" could not be created: ${cErr.message}. You can create it manually from the Campaigns page.`,
+        });
+      } else {
+        await insertMessage({
+          sessionId: session.id, workspaceId, userId, role: "system", versionId: version.id,
+          content: `Campaign "${reqCampaign.name}" was created PAUSED. It will not call anyone until you start it from the Campaigns page.`,
+        });
+      }
     }
   }
 
