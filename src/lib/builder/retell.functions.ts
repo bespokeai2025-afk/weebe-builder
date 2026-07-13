@@ -9,6 +9,17 @@ import {
   isRetailDeployEnabled,
 } from "@/lib/deploy/config.server";
 import { registerCalcomWebhook } from "@/lib/providers/calcom/webhook-register.server";
+import {
+  RETELL_BASE,
+  RetellApiError,
+  rememberProductionRetellApiKey,
+  retellFetch,
+  retellFetchForAgent,
+  buyRetellPhoneNumberService,
+  importSipPhoneNumberService,
+  listRetellPhoneNumbersService,
+  assignNumberToAgentService,
+} from "@/lib/builder/retell-telephony.server";
 
 /**
  * Look up whether the signed-in user has Cal.com configured at the workspace
@@ -26,8 +37,6 @@ async function maybeBuildBookingToolsForWorkspace(workspaceId: string) {
   return buildBookingTools();
 }
 
-const RETELL_BASE = "https://api.retellai.com";
-
 function resolveProductionApiKey(explicitKey: string | undefined): string {
   const trimmed = explicitKey?.trim();
   if (trimmed) return trimmed;
@@ -38,144 +47,10 @@ function resolveProductionApiKey(explicitKey: string | undefined): string {
   );
 }
 
-class RetellApiError extends Error {
-  constructor(
-    public path: string,
-    public status: number,
-    message: string,
-  ) {
-    super(`${path} (${status}): ${message}`);
-    this.name = "RetellApiError";
-  }
-}
-
-function isRetellAuthError(error: unknown) {
-  return error instanceof RetellApiError && (error.status === 401 || error.status === 403);
-}
-
-function maskApiKey(key: string) {
-  const trimmed = key.trim();
-  if (trimmed.length <= 12) return `${trimmed.slice(0, 4)}…`;
-  return `${trimmed.slice(0, 8)}…${trimmed.slice(-4)}`;
-}
-
 function readProductionRetellApiKey(settings: unknown) {
   if (!settings || typeof settings !== "object" || Array.isArray(settings)) return null;
   const value = (settings as Record<string, unknown>).productionRetellApiKey;
   return typeof value === "string" && value.trim() ? value.trim() : null;
-}
-
-async function loadStoredProductionRetellApiKey(agentRowId: string | undefined, userId: string) {
-  if (!agentRowId) return null;
-  const admin = supabaseAdmin as any;
-  const { data, error } = await admin
-    .from("agent_retell_secrets")
-    .select("production_api_key")
-    .eq("agent_id", agentRowId)
-    .eq("user_id", userId)
-    .maybeSingle();
-  if (error) throw new Error(error.message);
-  return typeof data?.production_api_key === "string" ? data.production_api_key : null;
-}
-
-async function rememberProductionRetellApiKey(
-  agentRowId: string | undefined,
-  userId: string,
-  apiKey: string | undefined,
-) {
-  const trimmed = apiKey?.trim();
-  if (!agentRowId || !trimmed) return;
-  const admin = supabaseAdmin as any;
-  const masked = maskApiKey(trimmed);
-  const { error: secretErr } = await admin.from("agent_retell_secrets").upsert(
-    {
-      user_id: userId,
-      agent_id: agentRowId,
-      production_api_key: trimmed,
-      production_api_key_masked: masked,
-    },
-    { onConflict: "user_id,agent_id" },
-  );
-  if (secretErr) throw new Error(secretErr.message);
-  const { data, error: readErr } = await supabaseAdmin
-    .from("agents")
-    .select("settings")
-    .eq("id", agentRowId)
-    .eq("user_id", userId)
-    .maybeSingle();
-  if (readErr) throw new Error(readErr.message);
-  const settings =
-    data?.settings && typeof data.settings === "object" && !Array.isArray(data.settings)
-      ? { ...(data.settings as Record<string, unknown>) }
-      : {};
-  delete settings.productionRetellApiKey;
-  const next = {
-    ...settings,
-    productionRetellApiKeyMasked: masked,
-    productionRetellApiKeySavedAt: new Date().toISOString(),
-  };
-  const { error } = await supabaseAdmin
-    .from("agents")
-    .update({ settings: next })
-    .eq("id", agentRowId)
-    .eq("user_id", userId);
-  if (error) throw new Error(error.message);
-}
-
-async function retellFetchForAgent(
-  path: string,
-  body: unknown,
-  method: string,
-  userId: string,
-  agentRowId?: string,
-  explicitApiKey?: string,
-  workspaceId?: string,
-) {
-  const explicit = explicitApiKey?.trim() || undefined;
-  let stored = explicit ? null : await loadStoredProductionRetellApiKey(agentRowId, userId);
-  // Fall back to the admin-provisioned workspace-level production API key.
-  if (!explicit && !stored && workspaceId) {
-    const { data: ws } = await supabaseAdmin
-      .from("workspace_settings")
-      .select("retell_workspace_id")
-      .eq("workspace_id", workspaceId)
-      .maybeSingle();
-    const wsKey = (ws?.retell_workspace_id as string | undefined)?.trim();
-    if (wsKey && wsKey.startsWith("key_")) stored = wsKey;
-  }
-  const resp = await retellFetch(path, body, method, explicit ?? stored ?? undefined);
-  if (explicit) await rememberProductionRetellApiKey(agentRowId, userId, explicit);
-  return resp;
-}
-
-async function retellFetch(path: string, body: unknown, method = "POST", overrideApiKey?: string) {
-  const apiKey = overrideApiKey || process.env.RETELL_API_KEY;
-  if (!apiKey) throw new Error("RETELL_API_KEY is not configured");
-  const res = await fetch(`${RETELL_BASE}${path}`, {
-    method,
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      "Content-Type": "application/json",
-    },
-    body: body ? JSON.stringify(body) : undefined,
-  });
-  const text = await res.text();
-  let parsed: unknown = text;
-  try {
-    parsed = text ? JSON.parse(text) : null;
-  } catch {
-    /* keep text */
-  }
-  if (!res.ok) {
-    const message =
-      typeof parsed === "object" && parsed && "message" in parsed
-        ? String((parsed as { message: unknown }).message)
-        : typeof parsed === "object" && parsed && "error_message" in parsed
-          ? String((parsed as { error_message: unknown }).error_message)
-          : text || res.statusText;
-    throw new RetellApiError(path, res.status, message);
-  }
-  return parsed as Record<string, unknown>;
 }
 
 // Fields Retell rejects on create/PATCH (read-only / system-managed).
@@ -1398,51 +1273,9 @@ export const addElevenLabsCommunityVoice = createServerFn({ method: "POST" })
   });
 
 /**
- * Guard for attaching agent IDs to phone number operations.
- *
- * When a workspace has its own Retell API key, only agents that were cloned
- * into that workspace (stored as `deployedRetellAgentId` on the agent row) are
- * valid there. Passing a platform-workspace agent ID with a client API key
- * causes Retell to return 400 "Invalid inbound agent".
- *
- * Returns `true` when it is safe to include the agent ID in the Retell call:
- *  - No workspace key exists (platform key used for all calls) → always safe.
- *  - Workspace key exists AND the passed ID matches the agent's deployedRetellAgentId → safe.
- *  - Workspace key exists but ID is the platform-workspace agent → NOT safe (returns false).
- */
-async function resolveAgentIdForWorkspace(
-  agentId: string | undefined,
-  agentRowId: string | undefined,
-  workspaceId: string | undefined,
-): Promise<boolean> {
-  if (!agentId) return false;
-
-  // No workspace override key → platform key handles everything; any agent ID is fine.
-  if (!workspaceId) return true;
-  const { data: ws } = await supabaseAdmin
-    .from("workspace_settings")
-    .select("retell_workspace_id")
-    .eq("workspace_id", workspaceId)
-    .maybeSingle();
-  const wsKey = (ws?.retell_workspace_id as string | undefined)?.trim();
-  if (!wsKey || !wsKey.startsWith("key_")) return true; // no workspace key → safe
-
-  // Workspace has its own key — only the cloned production agent ID is valid.
-  if (!agentRowId) return false;
-  const { data: agentRow } = await supabaseAdmin
-    .from("agents")
-    .select("settings")
-    .eq("id", agentRowId)
-    .maybeSingle();
-  const deployedId = (
-    agentRow?.settings as Record<string, unknown> | null
-  )?.deployedRetellAgentId as string | undefined;
-  return deployedId === agentId;
-}
-
-/**
  * Buy a new phone number from Retell (Twilio-backed by default).
  * Markup is purely display-side; Retell bills its own rate.
+ * Logic lives in retell-telephony.server.ts (shared with the orchestrator).
  */
 export const buyRetellPhoneNumber = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
@@ -1458,39 +1291,11 @@ export const buyRetellPhoneNumber = createServerFn({ method: "POST" })
     }) => input,
   )
   .handler(async ({ data, context }) => {
-    const body: Record<string, unknown> = {
-      phone_number_pricing_type: data.tollFree ? "toll_free" : "standard",
-    };
-    if (data.areaCode) body.area_code = data.areaCode;
-    if (data.nickname) body.nickname = data.nickname;
-
-    // Only attach agent IDs if they belong to the workspace that owns the API key.
-    // When a workspace has its own Retell key, platform-workspace agent IDs are
-    // invalid there → Retell returns 400 "Invalid inbound agent".
-    // We verify by checking whether the passed ID matches the agent's stored
-    // deployedRetellAgentId (set during "Deploy to company workspace" clone step).
-    const agentIdSafe = await resolveAgentIdForWorkspace(
-      data.inboundAgentId ?? data.outboundAgentId,
-      data.agentRowId,
-      context.workspaceId,
-    );
-    if (data.inboundAgentId && agentIdSafe) body.inbound_agent_id = data.inboundAgentId;
-    if (data.outboundAgentId && agentIdSafe) body.outbound_agent_id = data.outboundAgentId;
-
-    const resp = await retellFetchForAgent(
-      `/create-phone-number`,
-      body,
-      "POST",
-      context.userId,
-      data.agentRowId,
-      data.productionApiKey,
-      context.workspaceId,
-    );
-    return {
-      phoneNumber: String(resp.phone_number ?? ""),
-      nickname: String(resp.nickname ?? ""),
-      type: String(resp.phone_number_type ?? ""),
-    };
+    return buyRetellPhoneNumberService({
+      userId: context.userId,
+      workspaceId: context.workspaceId,
+      ...data,
+    });
   });
 
 /**
@@ -1512,39 +1317,11 @@ export const importSipPhoneNumber = createServerFn({ method: "POST" })
     }) => input,
   )
   .handler(async ({ data, context }) => {
-    if (!/^\+\d{7,15}$/.test(data.phoneNumber)) {
-      throw new Error("Phone number must be in E.164 format, e.g. +447533043457");
-    }
-    if (!data.terminationUri.trim()) {
-      throw new Error("Termination URI is required");
-    }
-    const body: Record<string, unknown> = {
-      phone_number: data.phoneNumber,
-      termination_uri: data.terminationUri.trim(),
-    };
-    if (data.sipUsername) body.sip_trunk_auth_username = data.sipUsername;
-    if (data.sipPassword) body.sip_trunk_auth_password = data.sipPassword;
-    if (data.nickname) body.nickname = data.nickname;
-    const agentIdSafe = await resolveAgentIdForWorkspace(
-      data.inboundAgentId ?? data.outboundAgentId,
-      data.agentRowId,
-      context.workspaceId,
-    );
-    if (data.inboundAgentId && agentIdSafe) body.inbound_agent_id = data.inboundAgentId;
-    if (data.outboundAgentId && agentIdSafe) body.outbound_agent_id = data.outboundAgentId;
-    const resp = await retellFetchForAgent(
-      `/import-phone-number`,
-      body,
-      "POST",
-      context.userId,
-      data.agentRowId,
-      data.productionApiKey,
-      context.workspaceId,
-    );
-    return {
-      phoneNumber: String(resp.phone_number ?? data.phoneNumber),
-      nickname: String(resp.nickname ?? ""),
-    };
+    return importSipPhoneNumberService({
+      userId: context.userId,
+      workspaceId: context.workspaceId,
+      ...data,
+    });
   });
 
 /** List phone numbers the workspace owns (for the deploy dialog). */
@@ -1554,39 +1331,11 @@ export const listRetellPhoneNumbers = createServerFn({ method: "POST" })
     (input: { productionApiKey?: string; agentRowId?: string } | undefined) => input ?? {},
   )
   .handler(async ({ data, context }) => {
-    let resp: Record<string, unknown>;
-    try {
-      resp = await retellFetchForAgent(
-        `/list-phone-numbers`,
-        undefined,
-        "GET",
-        context.userId,
-        data?.agentRowId,
-        data?.productionApiKey,
-        context.workspaceId,
-      );
-    } catch (error) {
-      if (isRetellAuthError(error)) {
-        console.warn("[retell] list-phone-numbers auth failed", {
-          userId: context.userId,
-          agentRowId: data?.agentRowId,
-          hasExplicitKey: Boolean(data?.productionApiKey?.trim()),
-        });
-        throw new Error(
-          "Retell rejected your production API key (401/403). Re-enter the production API key above and try again.",
-        );
-      }
-      throw error;
-    }
-    const arr = Array.isArray(resp) ? resp : [];
-    return arr.map((n) => {
-      const item = n as Record<string, unknown>;
-      return {
-        phoneNumber: String(item.phone_number ?? ""),
-        nickname: String(item.nickname ?? ""),
-        inboundAgentId: (item.inbound_agent_id as string | undefined) ?? null,
-        outboundAgentId: (item.outbound_agent_id as string | undefined) ?? null,
-      };
+    return listRetellPhoneNumbersService({
+      userId: context.userId,
+      workspaceId: context.workspaceId,
+      agentRowId: data?.agentRowId,
+      productionApiKey: data?.productionApiKey,
     });
   });
 
@@ -1629,30 +1378,11 @@ export const assignNumberToAgent = createServerFn({ method: "POST" })
     }) => input,
   )
   .handler(async ({ data, context }) => {
-    const body: Record<string, unknown> = {};
-    // Apply the same workspace-key guard as buy/import: only include agent IDs
-    // that actually exist in the workspace that owns the API key.
-    const agentIdSafe = await resolveAgentIdForWorkspace(
-      data.inboundAgentId ?? data.outboundAgentId,
-      data.agentRowId,
-      context.workspaceId,
-    );
-    if (data.inboundAgentId !== undefined) {
-      body.inbound_agent_id = agentIdSafe ? data.inboundAgentId : null;
-    }
-    if (data.outboundAgentId !== undefined) {
-      body.outbound_agent_id = agentIdSafe ? data.outboundAgentId : null;
-    }
-    const resp = await retellFetchForAgent(
-      `/update-phone-number/${encodeURIComponent(data.phoneNumber)}`,
-      body,
-      "PATCH",
-      context.userId,
-      data.agentRowId,
-      data.productionApiKey,
-      context.workspaceId,
-    );
-    return { phoneNumber: String(resp.phone_number ?? data.phoneNumber) };
+    return assignNumberToAgentService({
+      userId: context.userId,
+      workspaceId: context.workspaceId,
+      ...data,
+    });
   });
 
 /**

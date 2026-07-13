@@ -1,0 +1,720 @@
+Please extend the SystemMind Agent Workflow Builder so it acts as a guided requirements assistant before applying or deploying an agent workflow.
+
+The user should not have to know every technical detail upfront. SystemMind should analyse the created agent setup, detect what information is missing, ask the user the right questions, suggest sensible defaults, and then build the workflow, CRM mapping, extraction fields, campaign logic, call scheduling, and any required small script additions.
+
+This must work for agents created by any existing WEBEE Agent Builder method:
+
+* document/script upload
+* manual builder
+* voice command prompt
+* custom prompt engine
+* templates
+* duplicated/imported agents
+* previous agent setups
+
+SystemMind should not replace the existing agent creation flow. It should configure the operational workflow around the created agent.
+
+---
+
+## 1. Main feature: Guided Agent Workflow Requirements
+
+After an agent is created or saved in Agent Builder, SystemMind should open a guided setup flow inside the SystemMind Build Workspace.
+
+This flow should help the user define:
+
+* CRM outcome mapping
+* sentiment mapping
+* post-call/post-chat extraction fields
+* dynamic variables
+* lead creation rules
+* qualified lead rules
+* booking rules
+* negative reason rules
+* follow-up rules
+* campaign/calling rules
+* call schedule rules
+* daily call limits
+* phone/SIP deployment requirements
+* provider requirements
+* required script additions
+* Go Live readiness
+
+SystemMind should ask questions only where the answer is missing or ambiguous.
+
+---
+
+## 2. Analyse the existing agent first
+
+Before asking questions, SystemMind should inspect the saved agent configuration.
+
+Inspect:
+
+* agent name
+* agent type
+* channel: call / WhatsApp / SMS
+* creation method
+* agent prompt
+* conversation nodes
+* script sections
+* variables already present
+* existing dynamic variables
+* existing extraction fields
+* booking logic
+* callback/rebooking logic
+* sentiment logic
+* qualification questions
+* lead source
+* CRM mode
+* selected provider
+* Retell agent ID if created
+* workspace_id
+* existing workflow links
+* existing deployment status
+
+Then produce a setup summary:
+
+“Here is what I found in this agent.”
+
+Show:
+
+* detected purpose
+* detected variables
+* detected outcomes
+* detected missing requirements
+* recommended workflow type
+* recommended CRM mapping
+* required user decisions
+
+---
+
+## 3. Guided questions SystemMind should ask
+
+SystemMind should ask the user clear setup questions such as:
+
+### Sentiment mapping
+
+* “When the call sentiment is positive, what should happen in the CRM?”
+* “Which CRM status should positive sentiment map to?”
+* “Should positive sentiment create a lead, qualified lead, booking, follow-up, or all of these?”
+* “When sentiment is neutral, what should happen?”
+* “When sentiment is negative, should the call only be logged, or should a lead still be created?”
+* “Should negative sentiment require a negative reason?”
+
+### CRM field mapping
+
+* “Which CRM field should this variable map to?”
+* “Should this field appear on Leads, Qualified, Calls, Client Accounts, or AccountsMind?”
+* “Should this field be required?”
+* “Should this field create a custom CRM field for this workspace?”
+
+### Summary mapping
+
+* “Where should the call summary be saved?”
+* “Should the summary appear on the Calls page, Lead record, Qualified record, or all relevant areas?”
+* “Should HiveMind use the summary for recommendations?”
+
+### Dynamic variables
+
+* “I detected these variables from the agent script: [list]. Where should each one map?”
+* “Do you want to add any additional variables?”
+* “Should any detected variable be renamed before deployment?”
+* “Should any variable be used as a workflow trigger?”
+
+### Negative reason
+
+* “Do you want to capture a reason when the customer is negative or not interested?”
+* “Where should the negative reason be saved?”
+* “Should I add a question to the agent script asking why they are not interested?”
+
+### Calling/campaign rules
+
+* “Should this agent call leads as soon as they appear?”
+* “Should this agent run on a scheduled campaign?”
+* “Should both instant calling and scheduled campaigns be allowed?”
+* “How many calls per day should this agent make?”
+* “What time windows should the agent call within?”
+* “Should there be a retry limit?”
+* “How long should the system wait before retrying?”
+* “Should voicemail calls be ignored or logged?”
+* “Should the agent stop calling after booking, positive result, negative result, or opt-out?”
+
+### Booking rules
+
+* “If the customer books an appointment, what CRM status should be used?”
+* “Should booked appointments go to the Qualified page?”
+* “Should booked appointments start a confirmation follow-up?”
+* “Should booked appointments never be marked as needs_to_call?”
+
+### Follow-up rules
+
+* “Should this workflow create follow-up tasks?”
+* “Which channel should follow-up use: call, WhatsApp, SMS, email, or multiple?”
+* “How long after no response should follow-up start?”
+* “Should follow-up sequences stop when the customer replies or books?”
+
+### Deployment rules
+
+* “Does this agent need a phone number?”
+* “Should we assign an existing number, purchase a Retell number, or use SIP trunk?”
+* “Should this agent go live after workflow approval?”
+* “Do you want to test the workflow first?”
+
+---
+
+## 4. Suggested defaults
+
+SystemMind should suggest safe defaults, but not force them.
+
+Example defaults:
+
+Positive sentiment:
+
+* create/update lead
+* move to Qualified if qualification criteria are met
+* status = positive or qualified
+* create HiveMind recommendation
+
+Neutral sentiment:
+
+* create/update lead
+* status = neutral or follow_up_required
+* create Follow Up Centre task
+
+Negative sentiment:
+
+* log call only by default
+* do not move to Qualified
+* save negative reason if captured
+* do not create follow-up unless user chooses
+
+Booked appointment:
+
+* status = appointment_booked
+* save booking slot
+* do not use needs_to_call
+* create confirmation follow-up
+
+No answer:
+
+* log call
+* retry according to campaign rules
+* do not create qualified lead
+
+Callback requested:
+
+* create Follow Up Centre callback task
+* save callback date/time
+* do not book unless a slot is confirmed
+
+SystemMind should show:
+
+“Recommended default”
+and allow the user to change it.
+
+---
+
+## 5. Dynamic variable detection
+
+SystemMind must detect dynamic variables from the existing agent script/config.
+
+Examples:
+
+* `full_name`
+* `email`
+* `phone_number`
+* `preferred_contact_method`
+* `budget`
+* `location`
+* `property_address`
+* `business_name`
+* `business_website_url`
+* `appointment_booked`
+* `booking_slot`
+* `callback_requested`
+* `callback_date`
+* `callback_time`
+* `negative_reason`
+* `lead_score`
+* `sentiment`
+* `qualification_status`
+* `summary`
+* `next_action`
+
+For each detected variable, SystemMind should ask or infer:
+
+* should it be extracted?
+* where should it map?
+* what type is it?
+* is it required?
+* should it be visible in CRM?
+* should it trigger workflows?
+* should it update an existing CRM field?
+* should it create a workspace-specific custom field?
+
+SystemMind must not create global fields.
+
+---
+
+## 6. Small script additions where workflow requires it
+
+SystemMind should be allowed to propose small additions to the agent script when required by the workflow.
+
+Example:
+
+If the user wants `negative_reason`, but the agent script does not ask why the customer is not interested, SystemMind should propose adding a short question at the correct point.
+
+Example script addition:
+
+“If the customer is not interested, politely ask: ‘No problem, just so we can improve, may I ask the main reason this is not suitable right now?’”
+
+SystemMind should then create:
+
+* new variable: `negative_reason`
+* extraction field: `negative_reason`
+* CRM mapping: Calls/Lead record → Negative Reason
+* workflow rule: save only when sentiment = negative or not_interested
+
+Other examples of script additions:
+
+* preferred contact method question
+* budget question
+* booking confirmation question
+* callback date/time question
+* opt-out confirmation
+* qualification question
+* consent/compliance line
+* lead source confirmation
+* decision timeframe question
+
+Critical rule:
+
+SystemMind must not silently edit the live script.
+
+Any script addition must:
+
+1. show the suggested text
+2. show where it will be inserted
+3. show why it is needed
+4. create a draft version
+5. show a diff
+6. require approval
+7. create a rollback point if applied
+
+---
+
+## 7. CRM outcome mapping builder
+
+Add a clear mapping builder UI in SystemMind Build Workspace.
+
+It should allow the user to define:
+
+Positive sentiment:
+
+* CRM destination
+* status
+* create lead yes/no
+* create qualified lead yes/no
+* follow-up yes/no
+* booking rules
+
+Neutral sentiment:
+
+* CRM destination
+* status
+* create lead yes/no
+* follow-up yes/no
+* qualified yes/no
+
+Negative sentiment:
+
+* CRM destination
+* status
+* create lead yes/no
+* save reason yes/no
+* follow-up yes/no
+* suppress future calls yes/no
+
+Appointment booked:
+
+* CRM status
+* booking slot mapping
+* calendar mapping
+* confirmation follow-up
+* qualified pipeline rule
+
+Callback requested:
+
+* callback date/time mapping
+* Follow Up Centre task
+* retry schedule
+
+No answer/voicemail:
+
+* log call
+* retry rule
+* voicemail handling
+* status mapping
+
+Opt-out/do not contact:
+
+* status mapping
+* stop sequence
+* suppress future calls
+
+---
+
+## 8. Calling mode configuration
+
+SystemMind should ask and configure how the agent should call.
+
+Supported modes:
+
+### Instant lead calling
+
+Agent calls as soon as a new lead appears and matches the workflow rules.
+
+Questions:
+
+* which lead source should trigger instant calling?
+* should this apply to webforms, CRM intake, CSV upload, manual leads, or all?
+* should there be a delay before calling?
+* should it only call during allowed hours?
+* should it respect daily call caps?
+
+### Scheduled campaign
+
+Agent runs through leads on a schedule or campaign.
+
+Questions:
+
+* campaign name
+* start date
+* calling days
+* calling time window
+* max calls per day
+* retry rules
+* stop conditions
+* target lead status/source
+* concurrency limit
+
+### Hybrid mode
+
+Both instant calling and scheduled campaigns can exist.
+
+Rules:
+
+* prevent duplicate calls
+* do not call a lead already in an active campaign
+* do not call after booking
+* do not call after opt-out
+* respect global/workspace call caps
+* prioritise instant high-intent leads if configured
+
+SystemMind should let the user choose:
+
+* instant only
+* scheduled only
+* both
+* no calling yet, save as draft
+
+---
+
+## 9. Daily call limits and campaign safety
+
+SystemMind should configure safe call controls.
+
+Ask:
+
+* “How many calls per day should this agent make?”
+* “What is the maximum concurrent calls?”
+* “What days should it call?”
+* “What time window should it call?”
+* “How many retries per lead?”
+* “How long between retries?”
+* “Should voicemail calls be retried?”
+* “Should negative leads be suppressed?”
+* “Should booked leads be excluded from future calls?”
+
+Default safe values should be suggested.
+
+Do not activate high-volume outbound calling without approval.
+
+---
+
+## 10. Workflow generation after questions
+
+After the requirements interview, SystemMind should generate:
+
+* post-call/post-chat extraction fields
+* CRM mappings
+* sentiment outcome rules
+* dynamic variable mappings
+* calling mode config
+* campaign config
+* follow-up rules
+* script addition drafts if needed
+* workflow blocks
+* simulation tests
+* deployment checklist
+
+Then show:
+
+* summary of decisions
+* missing items
+* risk warnings
+* estimated usage/cost impact
+* Apply button
+* Apply & Go Live button where safe
+
+---
+
+## 11. Re-prompt support
+
+The user should be able to re-prompt after the guided setup.
+
+Examples:
+
+* “Change neutral to follow_up_required.”
+* “Do not create leads from negative calls.”
+* “Add negative reason to the script.”
+* “Make it call instantly when a webform lead comes in.”
+* “Limit this to 50 calls per day.”
+* “Use scheduled campaign only.”
+* “Map budget to AccountsMind deal value.”
+* “Send appointment_booked to Qualified.”
+* “Add WhatsApp follow-up after failed call.”
+* “Use both instant calling and scheduled campaign, but prevent duplicates.”
+
+Each re-prompt should create a new version and update the setup draft.
+
+---
+
+## 12. Simulation before Apply
+
+Before Apply, user should be able to test scenarios.
+
+Simulation examples:
+
+### Positive call
+
+Input:
+
+* sentiment = positive
+* appointment_booked = true
+* booking_slot exists
+
+Expected:
+
+* create/update lead
+* status = appointment_booked
+* add to Qualified if rule allows
+* save summary
+* save booking slot
+* stop future calling
+
+### Neutral call
+
+Input:
+
+* sentiment = neutral
+* appointment_booked = false
+* follow_up_required = true
+
+Expected:
+
+* create/update lead
+* status = follow_up_required
+* create Follow Up Centre task
+
+### Negative call
+
+Input:
+
+* sentiment = negative
+* negative_reason exists
+
+Expected:
+
+* save call
+* save negative reason
+* do not move to Qualified
+* suppress future calls if configured
+
+### Callback requested
+
+Input:
+
+* callback_requested = true
+* callback_date/time exists
+
+Expected:
+
+* create callback task
+* status = callback_scheduled
+* do not mark appointment booked unless booking confirmed
+
+### New webform lead
+
+Input:
+
+* lead_source = webform
+* calling mode = instant
+
+Expected:
+
+* call as soon as allowed
+* respect call hours/caps
+* prevent duplicate campaign call
+
+No real calls/messages should be triggered during simulation.
+
+---
+
+## 13. Apply and deployment
+
+When Apply is clicked:
+
+* save workflow setup
+* save extraction fields
+* save CRM mappings
+* save calling mode
+* save campaign config
+* save follow-up rules
+* save approved script additions if any
+* save to Workflows page
+* create audit log
+* track token/time usage
+
+When Apply & Go Live is clicked:
+
+* run all deployment checks
+* validate phone/SIP
+* validate provider credentials
+* validate Retell mapping
+* validate workflow
+* validate call caps
+* validate approvals
+* reuse existing Go Live logic
+* do not bypass manual approval for risky actions
+
+---
+
+## 14. Safety and approval
+
+SystemMind must notify the user before any change that:
+
+* edits an existing agent script
+* changes live agent prompt
+* changes live workflow
+* changes post-call extraction
+* changes CRM mappings
+* changes lead status logic
+* activates outbound calling
+* starts scheduled campaigns
+* purchases or assigns a phone number
+* assigns SIP trunk
+* sends WhatsApp/SMS/email
+* creates billing/usage impact
+* changes provider/webhook settings
+
+Default should be save as draft, not apply live.
+
+---
+
+## 15. Workspace isolation
+
+All generated requirements, mappings, workflows, call settings, campaigns, script additions, and audit logs must include current workspace_id.
+
+Never affect another workspace.
+
+Never apply WBAH-specific rules to standard WEBEE accounts.
+
+Never apply standard account rules to WBAH.
+
+Reject if workspace_id is missing or mismatched.
+
+---
+
+## 16. UI requirements
+
+In the SystemMind Build Workspace, add a “Requirements” step or panel.
+
+Suggested layout:
+
+1. Detected agent setup
+2. Questions to answer
+3. Recommended defaults
+4. Sentiment mapping
+5. Dynamic variables
+6. CRM mapping
+7. Calling mode
+8. Campaign settings
+9. Follow-up settings
+10. Script additions needed
+11. Simulation
+12. Apply / Apply & Go Live
+
+Allow users to skip optional questions, but mark missing critical fields.
+
+---
+
+## 17. Do not break
+
+Do not break:
+
+* existing Agent Builder
+* document uploader
+* manual builder
+* voice command prompt builder
+* custom prompt engine
+* Create Agent button
+* Agents page
+* Deploy Agent flow
+* Go Live flow
+* Retell workspace mapping
+* phone number assignment
+* SIP trunk assignment
+* Follow Up Centre
+* Workflows page
+* Calls page
+* Leads page
+* Qualified page
+* Data page
+* WBAH workspace
+* standard WEBEE accounts
+* workspace scoping
+* Supabase RLS
+* existing SystemMind/HiveMind/GrowthMind/AccountsMind logic
+
+---
+
+## 18. Testing required
+
+Please test:
+
+1. Created agent has detected variables.
+2. SystemMind asks where variables should map.
+3. SystemMind asks what positive sentiment should do.
+4. SystemMind asks what neutral sentiment should do.
+5. SystemMind asks what negative sentiment should do.
+6. User requests negative reason.
+7. SystemMind proposes script addition at correct point.
+8. Script addition is saved as draft, not live.
+9. User approves script addition.
+10. SystemMind creates `negative_reason` extraction field.
+11. SystemMind maps `negative_reason` to CRM.
+12. SystemMind asks whether calls should be instant, scheduled, both, or draft only.
+13. User sets calls per day.
+14. SystemMind saves campaign/calling config.
+15. Simulation works for positive, neutral, negative, callback, and webform lead.
+16. Apply saves all config to current workspace only.
+17. Apply & Go Live runs existing deployment checks.
+18. No existing live agent is silently changed.
+19. No other workspace is affected.
+20. WBAH remains isolated.
+21. All changes are audit logged.
+22. Token/time usage is tracked.
+
+Final instruction:
+
+SystemMind should guide the user through the missing operational requirements for the agent workflow. It should ask intelligent questions, suggest defaults, detect variables, map data to CRM, configure calling/campaign rules, propose script additions where required, and only apply changes after user approval.

@@ -45,6 +45,7 @@ interface AgentCardProps {
   loading?: boolean;
   onOpen: (id: string) => void;
   onDeploy: () => void;
+  onGuidedDeploy?: () => void;
   onDelete: () => void;
 }
 
@@ -140,7 +141,7 @@ function Metric({
   );
 }
 
-export function AgentCard({ agent, loading, onOpen, onDeploy, onDelete }: AgentCardProps) {
+export function AgentCard({ agent, loading, onOpen, onDeploy, onGuidedDeploy, onDelete }: AgentCardProps) {
   const status = deriveStatus(agent);
   const tags = deriveTags(agent);
   const voiceProvider = deriveVoiceProvider(agent);
@@ -319,6 +320,12 @@ export function AgentCard({ agent, loading, onOpen, onDeploy, onDelete }: AgentC
                 <DropdownMenuItem onClick={copyId}>
                   <CopyIcon className="mr-2 h-4 w-4" />
                   Copy agent ID
+                </DropdownMenuItem>
+              )}
+              {onGuidedDeploy && (
+                <DropdownMenuItem onClick={onGuidedDeploy} data-testid="menu-guided-deploy">
+                  <Rocket className="mr-2 h-4 w-4" />
+                  Guided deployment
                 </DropdownMenuItem>
               )}
               <DropdownMenuSeparator />

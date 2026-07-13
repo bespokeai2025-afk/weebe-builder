@@ -4,7 +4,15 @@ import { useServerFn } from "@tanstack/react-start";
 import { Builder } from "@/components/builder/Builder";
 import { Button } from "@/components/ui/button";
 import { SidebarTrigger } from "@/components/ui/sidebar";
-import { BookmarkPlus, Check, CircleDot, Loader2, MapPin, Save, MessageSquare, Zap } from "lucide-react";
+import { BookmarkPlus, Check, CircleDot, Loader2, MapPin, Rocket, Save, MessageSquare, Zap } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { DeploymentChecklistPanel } from "@/components/systemmind/DeploymentChecklistPanel";
 import { toast } from "sonner";
 import { useBuilderStore } from "@/lib/builder/store";
 import { SaveAsTemplateDialog } from "@/components/builder/SaveAsTemplateDialog";
@@ -46,6 +54,7 @@ function BuilderPage() {
   }, [newAgent]);
   const [lastSavedAt, setLastSavedAt] = useState<number | null>(null);
   const [saveTemplateOpen, setSaveTemplateOpen] = useState(false);
+  const [deployChecklistOpen, setDeployChecklistOpen] = useState(false);
   const savedRelTime = useRelativeTime(lastSavedAt, { short: true, fallback: "Not saved" });
   const saveAgent = useServerFn(upsertMyAgent);
   const currentAgentRowId = useBuilderStore((s) => s.currentAgentRowId);
@@ -139,6 +148,21 @@ function BuilderPage() {
       >
         <BookmarkPlus />
       </Button>
+      {currentAgentRowId && (
+        <>
+          <div className="h-3.5 w-px bg-white/[0.07] mx-0.5" />
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={() => setDeployChecklistOpen(true)}
+            title="Guided deployment checklist"
+            data-testid="button-deploy-checklist"
+            className="!h-8 !w-8 !p-0 text-muted-foreground/60 hover:text-foreground"
+          >
+            <Rocket className="h-3.5 w-3.5" />
+          </Button>
+        </>
+      )}
       <div className="h-3.5 w-px bg-white/[0.07] mx-0.5" />
       <div data-tour="save-btn" style={{ display: "inline-flex" }}>
         {channelType === "whatsapp" ? (
@@ -186,6 +210,18 @@ function BuilderPage() {
         toolbarTrailing={trailing}
       />
       <SaveAsTemplateDialog open={saveTemplateOpen} onOpenChange={setSaveTemplateOpen} />
+      <Dialog open={deployChecklistOpen} onOpenChange={setDeployChecklistOpen}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Guided deployment</DialogTitle>
+            <DialogDescription>
+              SystemMind tracks this agent&apos;s path to going live. Billing and live-affecting
+              steps always need your approval.
+            </DialogDescription>
+          </DialogHeader>
+          {currentAgentRowId && <DeploymentChecklistPanel agentId={currentAgentRowId} />}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

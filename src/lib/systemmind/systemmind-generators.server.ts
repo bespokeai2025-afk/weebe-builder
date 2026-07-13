@@ -60,6 +60,7 @@ const CREDENTIAL_VALUE_PATTERNS: RegExp[] = [
   /EAA[A-Za-z0-9]{40,}/,              // Meta long-lived access tokens
   /eyJ[A-Za-z0-9_-]{30,}\.[A-Za-z0-9_-]{20,}\.[A-Za-z0-9_-]{10,}/, // JWTs
   /sbp_[A-Za-z0-9]{20,}/,             // Supabase personal access tokens
+  /key_[A-Za-z0-9]{24,}/,             // Retell API keys
   /Bearer\s+[A-Za-z0-9._-]{30,}/i,    // raw bearer tokens
 ];
 

@@ -8447,6 +8447,62 @@ export type Database = {
         }
         Relationships: []
       }
+      systemmind_deployment_approvals: {
+        Row: {
+          action_type: string
+          approved_at: string | null
+          approved_by: string | null
+          consumed_at: string | null
+          deployment_id: string
+          error: string | null
+          id: string
+          payload: Json
+          requested_at: string
+          requested_by: string | null
+          result: Json | null
+          status: string
+          workspace_id: string
+        }
+        Insert: {
+          action_type: string
+          approved_at?: string | null
+          approved_by?: string | null
+          consumed_at?: string | null
+          deployment_id: string
+          error?: string | null
+          id?: string
+          payload?: Json
+          requested_at?: string
+          requested_by?: string | null
+          result?: Json | null
+          status?: string
+          workspace_id: string
+        }
+        Update: {
+          action_type?: string
+          approved_at?: string | null
+          approved_by?: string | null
+          consumed_at?: string | null
+          deployment_id?: string
+          error?: string | null
+          id?: string
+          payload?: Json
+          requested_at?: string
+          requested_by?: string | null
+          result?: Json | null
+          status?: string
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "systemmind_deployment_approvals_deployment_id_fkey"
+            columns: ["deployment_id"]
+            isOneToOne: false
+            referencedRelation: "systemmind_deployments"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       systemmind_deployment_plans: {
         Row: {
           confidence: number | null
@@ -8508,6 +8564,75 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      systemmind_deployments: {
+        Row: {
+          agent_id: string
+          agent_type: string | null
+          build_session_id: string | null
+          build_version_id: string | null
+          checklist_overrides: Json
+          created_at: string
+          created_by: string
+          created_by_user_id: string | null
+          deployment_type: string
+          go_live_at: string | null
+          id: string
+          phone_number: string | null
+          phone_number_id: string | null
+          report: Json
+          retell_agent_id: string | null
+          sip_trunk_ref: string | null
+          status: string
+          updated_at: string
+          workflow_id: string | null
+          workspace_id: string
+        }
+        Insert: {
+          agent_id: string
+          agent_type?: string | null
+          build_session_id?: string | null
+          build_version_id?: string | null
+          checklist_overrides?: Json
+          created_at?: string
+          created_by?: string
+          created_by_user_id?: string | null
+          deployment_type?: string
+          go_live_at?: string | null
+          id?: string
+          phone_number?: string | null
+          phone_number_id?: string | null
+          report?: Json
+          retell_agent_id?: string | null
+          sip_trunk_ref?: string | null
+          status?: string
+          updated_at?: string
+          workflow_id?: string | null
+          workspace_id: string
+        }
+        Update: {
+          agent_id?: string
+          agent_type?: string | null
+          build_session_id?: string | null
+          build_version_id?: string | null
+          checklist_overrides?: Json
+          created_at?: string
+          created_by?: string
+          created_by_user_id?: string | null
+          deployment_type?: string
+          go_live_at?: string | null
+          id?: string
+          phone_number?: string | null
+          phone_number_id?: string | null
+          report?: Json
+          retell_agent_id?: string | null
+          sip_trunk_ref?: string | null
+          status?: string
+          updated_at?: string
+          workflow_id?: string | null
+          workspace_id?: string
+        }
+        Relationships: []
       }
       systemmind_fix_plans: {
         Row: {

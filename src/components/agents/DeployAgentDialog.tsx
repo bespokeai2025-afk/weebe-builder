@@ -12,6 +12,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { DeploymentChecklistPanel } from "@/components/systemmind/DeploymentChecklistPanel";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -580,6 +581,8 @@ export function DeployAgentDialog({ open, onOpenChange, agent }: Props) {
             )}
           </DialogDescription>
         </DialogHeader>
+
+        {!showGate && agent && <DeploymentChecklistPanel agentId={agent.id} compact />}
 
         {!showGate &&
           !needsDeploy &&
