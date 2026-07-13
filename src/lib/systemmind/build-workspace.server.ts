@@ -34,6 +34,13 @@ import {
   type GeneratedDraft,
 } from "@/lib/systemmind/systemmind-automation.server";
 import { assertNoCredentialValues } from "@/lib/systemmind/systemmind-generators.server";
+import {
+  computeBuildImpactReport,
+  createBuildSnapshotServer,
+  listBuildSnapshotsServer,
+  rollbackBuildSnapshotServer,
+  type BuildImpactReport,
+} from "@/lib/systemmind/build-protection.server";
 
 // Mirrors the automation layer's module-private whitelist.
 const BW_ALLOWED_TRIGGER_TYPES = ["lead_added", "lead_status_changed", "call_completed", "manual", "scheduled"] as const;
@@ -80,7 +87,7 @@ const ModelResponseSchema = z.object({
 });
 
 // ── Validation helpers ─────────────────────────────────────────────────────────
-function validateConfigOrThrow(raw: unknown, label: string): BuildConfig {
+export function validateConfigOrThrow(raw: unknown, label: string): BuildConfig {
   const parsed = BuildConfigSchema.parse(raw);
   parsed.workflow.steps = sanitizeGeneratedSteps(parsed.workflow.steps as GeneratedDraft["steps"]);
   if (parsed.workflow.steps.length === 0) {
@@ -96,7 +103,7 @@ function validateConfigOrThrow(raw: unknown, label: string): BuildConfig {
   return parsed;
 }
 
-function classifyConfigRisk(config: BuildConfig): { riskLevel: "low" | "medium" | "high"; riskReasons: string[] } {
+export function classifyConfigRisk(config: BuildConfig): { riskLevel: "low" | "medium" | "high"; riskReasons: string[] } {
   // Map onto the automation layer's deterministic classifier so build-workspace
   // and hub drafts always agree on what counts as high-risk.
   return classifyDraftRisk({
@@ -423,6 +430,81 @@ export async function createBuildSessionServer(args: {
   return { sessionId, seededVersionId };
 }
 
+// ── Create session seeded from a legacy conversion ─────────────────────────────
+// Used by the Legacy Logic Converter (legacy-conversion.server.ts): the caller
+// has already produced a validated BuildConfig from a legacy source. This
+// creates a fresh session whose v1 IS that converted draft — nothing live is
+// ever touched (the standard Apply pipeline handles that later, with all its
+// protection rules).
+export async function createBuildSessionFromConfigServer(args: {
+  workspaceId:      string;
+  userId:           string | null;
+  title:            string;
+  sourcePage?:      string;
+  targetAgentId?:   string | null;
+  config:           BuildConfig;
+  assistantSummary: string;
+  systemNote?:      string;
+}): Promise<{ sessionId: string; versionId: string }> {
+  const sb = supabaseAdmin as any;
+  const { workspaceId, userId } = args;
+  if (!workspaceId) throw new Error("workspace_id missing — refusing to create build session.");
+
+  // Re-validate defensively (schema + sanitiser + credential scan) even though
+  // the converter already did — never trust a config across module boundaries.
+  const config = validateConfigOrThrow(args.config, "Converted build config");
+
+  const sourcePage = ["agent_builder","whatsapp_builder","follow_up_centre","workflows","systemmind","hivemind"]
+    .includes(args.sourcePage ?? "") ? String(args.sourcePage) : "systemmind";
+
+  const { data: session, error } = await sb.from("systemmind_build_sessions").insert({
+    workspace_id:       workspaceId,
+    created_by_user_id: userId,
+    title:              args.title.slice(0, 200),
+    source_page:        sourcePage,
+    target_agent_id:    args.targetAgentId ?? null,
+    linked_workflow_id: null,
+    status:             "active",
+  }).select("id").single();
+  if (error) throw new Error(`Failed to create build session: ${error.message}`);
+  const sessionId = session.id as string;
+
+  const { riskLevel, riskReasons } = classifyConfigRisk(config);
+  const { data: v, error: vErr } = await sb.from("systemmind_build_versions").insert({
+    session_id:         sessionId,
+    workspace_id:       workspaceId,
+    created_by_user_id: userId,
+    version_number:     1,
+    user_prompt:        null,
+    assistant_summary:  args.assistantSummary.slice(0, 4000),
+    generated_config:   config,
+    risk_level:         riskLevel,
+    risk_reasons:       riskReasons,
+    status:             "draft",
+  }).select("id").single();
+  if (vErr) throw new Error(`Failed to seed converted version: ${vErr.message}`);
+  const versionId = v.id as string;
+
+  await sb.from("systemmind_build_sessions")
+    .update({ current_version_id: versionId })
+    .eq("id", sessionId).eq("workspace_id", workspaceId);
+
+  await insertMessage({
+    sessionId, workspaceId, userId, role: "system", versionId,
+    content: (args.systemNote ?? "Session opened from a legacy-logic conversion (v1 = converted draft). The original setup is untouched.").slice(0, 20000),
+  });
+
+  await writeSystemMindAudit({
+    workspaceId, userId,
+    actionType: "build_session_created",
+    targetType: "systemmind_build_session",
+    targetId:   sessionId,
+    finalAfterState: { title: args.title.slice(0, 200), source_page: sourcePage, seeded_from: "legacy_conversion" },
+  });
+
+  return { sessionId, versionId };
+}
+
 // ── Prompt (generation / iteration) ─────────────────────────────────────────────
 const BUILD_SYSTEM_PROMPT = `You are SystemMind, the AI CTO of the WEBEE platform, working inside the Build Workspace — an iterative builder where the user refines a complete agent/workflow setup through conversation. You NEVER execute anything: every version is a draft until the human clicks Apply.
 
@@ -627,23 +709,25 @@ export async function listBuildSessionsServer(workspaceId: string): Promise<any[
 }
 
 export async function getBuildSessionServer(workspaceId: string, sessionId: string): Promise<{
-  session:  Record<string, any>;
-  versions: any[];
-  messages: any[];
+  session:   Record<string, any>;
+  versions:  any[];
+  messages:  any[];
+  snapshots: any[];
 }> {
   const sb = supabaseAdmin as any;
   const session = await getSessionOrThrow(workspaceId, sessionId);
-  const [{ data: versions, error: vErr }, { data: messages, error: mErr }] = await Promise.all([
+  const [{ data: versions, error: vErr }, { data: messages, error: mErr }, snapshots] = await Promise.all([
     sb.from("systemmind_build_versions").select("*")
       .eq("session_id", sessionId).eq("workspace_id", workspaceId)
       .order("version_number", { ascending: false }).limit(100),
     sb.from("systemmind_build_messages").select("*")
       .eq("session_id", sessionId).eq("workspace_id", workspaceId)
       .order("created_at", { ascending: true }).limit(500),
+    listBuildSnapshotsServer(workspaceId, sessionId).catch(() => []),
   ]);
   if (vErr) throw new Error(vErr.message);
   if (mErr) throw new Error(mErr.message);
-  return { session, versions: versions ?? [], messages: messages ?? [] };
+  return { session, versions: versions ?? [], messages: messages ?? [], snapshots };
 }
 
 // Deploy-tab provenance: latest applied/deployed build version for an agent.
@@ -940,8 +1024,37 @@ export async function simulateBuildVersionServer(args: {
 }
 
 // ── Apply ──────────────────────────────────────────────────────────────────────
+
+export type BuildApplyMode = "direct" | "new_draft" | "duplicate_edit" | "propose";
+
+// Blocking conflicts, resolved against the chosen apply mode. Most "block"
+// conflicts (workspace mismatch, broken variable references, …) refuse EVERY
+// apply. A small set only exists to stop an existing target being overwritten
+// in place — touch-nothing modes (new_draft / duplicate_edit) may proceed,
+// because they create a fresh INACTIVE row and leave the target untouched.
+const OVERWRITE_ONLY_BLOCKS = new Set(["duplicate_trigger"]);
+function hardBlockConflicts(impact: BuildImpactReport, mode: BuildApplyMode) {
+  const touchNothing = mode === "new_draft" || mode === "duplicate_edit";
+  return impact.conflicts.filter(
+    (c) => c.severity === "block" && !(touchNothing && OVERWRITE_ONLY_BLOCKS.has(c.code)),
+  );
+}
+
+// Plain-English hard stop built from blocking conflicts.
+function buildConflictError(blocks: BuildImpactReport["conflicts"]): Error {
+  const lines = blocks.map((c) => `• ${c.message} What to do: ${c.suggestion}`);
+  return new Error(
+    `This apply was blocked to protect your existing setup:\n${lines.join("\n")}`,
+  );
+}
+
 // Direct-apply writer shared by the low/medium-risk path and the post-approval
 // activation path. Re-validates everything; workspace-scoped every query.
+// Protection rules (do not weaken):
+//   • A rollback snapshot is ALWAYS taken before an existing target row (or an
+//     existing agent config) is modified — snapshot failure aborts the apply.
+//   • mode "new_draft"/"duplicate_edit" force a FRESH inactive workflow row and
+//     never overwrite an existing agent config.
 async function performBuildApply(args: {
   workspaceId: string;
   userId:      string | null;
@@ -949,15 +1062,18 @@ async function performBuildApply(args: {
   version:     any;
   config:      BuildConfig;
   approvedBy?: string | null;
-}): Promise<{ workflowId: string }> {
+  mode?:       BuildApplyMode;
+}): Promise<{ workflowId: string; snapshotId: string | null }> {
   const sb = supabaseAdmin as any;
   const { workspaceId, userId, session, version, config } = args;
+  const mode = args.mode ?? "direct";
+  const forceNewRow = mode === "new_draft" || mode === "duplicate_edit";
   const now = new Date().toISOString();
 
   // Target workflow row: edit-mode linked row, else the row a previous version
   // of THIS session already applied into, else a fresh row.
-  let targetWorkflowId: string | null = session.linked_workflow_id ?? null;
-  if (!targetWorkflowId) {
+  let targetWorkflowId: string | null = forceNewRow ? null : (session.linked_workflow_id ?? null);
+  if (!targetWorkflowId && !forceNewRow) {
     const { data: prior } = await sb.from("systemmind_build_versions")
       .select("applied_workflow_id")
       .eq("session_id", session.id).eq("workspace_id", workspaceId)
@@ -972,8 +1088,25 @@ async function performBuildApply(args: {
     if (!existing) targetWorkflowId = null; // row deleted since — create fresh
   }
 
+  // Rollback snapshot BEFORE anything existing is touched. Snapshot failure
+  // throws inside createBuildSnapshotServer and aborts the apply.
+  const writesAgentConfig = !!(session.target_agent_id && config.agent_prompt.trim()) && !forceNewRow;
+  let snapshotId: string | null = null;
+  if (targetWorkflowId || writesAgentConfig) {
+    const snap = await createBuildSnapshotServer({
+      workspaceId, userId,
+      sessionId:        session.id,
+      versionId:        version.id,
+      versionNumber:    version.version_number,
+      targetWorkflowId: targetWorkflowId,
+      targetAgentId:    writesAgentConfig ? session.target_agent_id : null,
+      reason:           "pre_apply",
+    });
+    snapshotId = snap?.snapshotId ?? null;
+  }
+
   const workflowFields = {
-    name:            config.workflow.name.slice(0, 200),
+    name:            (mode === "duplicate_edit" ? `${config.workflow.name} (copy)` : config.workflow.name).slice(0, 200),
     description:     config.workflow.purpose.slice(0, 500) || `Built in SystemMind Build Workspace (v${version.version_number}).`,
     trigger_type:    config.workflow.trigger_type,
     trigger_config:  config.workflow.trigger_config ?? {},
@@ -1004,11 +1137,19 @@ async function performBuildApply(args: {
   }
 
   // Agent-config apply: custom_agent_configs, NEVER agents.settings.
+  // In new_draft/duplicate_edit mode an EXISTING agent config is never
+  // overwritten — the whole point of those modes is "touch nothing existing".
   if (session.target_agent_id && config.agent_prompt.trim()) {
     const { data: cfgRow } = await sb.from("custom_agent_configs")
       .select("id")
       .eq("workspace_id", workspaceId).eq("agent_id", session.target_agent_id)
       .order("updated_at", { ascending: false }).limit(1).maybeSingle();
+    if (forceNewRow && cfgRow?.id) {
+      await insertMessage({
+        sessionId: session.id, workspaceId, userId, role: "system", versionId: version.id,
+        content: `Saved as a new draft — the existing configuration for your agent was left untouched. Apply this version directly when you're ready to update the agent.`,
+      });
+    } else {
     const cfgFields = {
       title:              `Build Workspace v${version.version_number}: ${config.workflow.name}`.slice(0, 200),
       agent_summary:      (version.assistant_summary ?? "").slice(0, 4000) || null,
@@ -1037,6 +1178,7 @@ async function performBuildApply(args: {
       });
       if (error) throw new Error(`Workflow applied, but the agent config insert failed: ${error.message}`);
     }
+    }
   }
 
   const { error: vErr } = await sb.from("systemmind_build_versions").update({
@@ -1048,7 +1190,9 @@ async function performBuildApply(args: {
 
   await insertMessage({
     sessionId: session.id, workspaceId, userId, role: "system", versionId: version.id,
-    content: `Version ${version.version_number} applied to workflow "${config.workflow.name}".`,
+    content: mode === "direct"
+      ? `Version ${version.version_number} applied to workflow "${config.workflow.name}".${snapshotId ? " A rollback snapshot of the previous state was saved first." : ""}`
+      : `Version ${version.version_number} saved as a new inactive draft workflow "${config.workflow.name}${mode === "duplicate_edit" ? " (copy)" : ""}" — nothing existing was changed.`,
   });
 
   await writeSystemMindAudit({
@@ -1056,14 +1200,17 @@ async function performBuildApply(args: {
     actionType: "build_version_applied",
     targetType: "systemmind_build_version",
     targetId:   version.id,
-    beforeState: { status: version.status },
-    finalAfterState: { status: "applied", workflow_id: workflowId, version_number: version.version_number },
+    beforeState: { status: version.status, snapshot_id: snapshotId },
+    finalAfterState: {
+      status: "applied", workflow_id: workflowId, version_number: version.version_number,
+      apply_mode: mode, snapshot_id: snapshotId,
+    },
     approvalStatus: args.approvedBy ? "approved" : "not_required",
     approvedBy: args.approvedBy ?? null,
     executedAt: now,
   });
 
-  return { workflowId };
+  return { workflowId, snapshotId };
 }
 
 export type ApplyBuildResult = {
@@ -1073,10 +1220,53 @@ export type ApplyBuildResult = {
   hivemindActionId:  string | null;
   riskLevel:         "low" | "medium" | "high";
   riskReasons:       string[];
+  mode:              BuildApplyMode;
+  snapshotId:        string | null;
+  impact:            BuildImpactReport | null;
 };
+
+// ── Safety report (read-only pre-flight for the UI safety panel) ───────────────
+export async function getBuildApplySafetyReportServer(args: {
+  workspaceId: string; userId: string | null; sessionId: string; versionId: string;
+}): Promise<{ riskLevel: "low" | "medium" | "high"; riskReasons: string[]; impact: BuildImpactReport }> {
+  const { workspaceId, userId, sessionId, versionId } = args;
+  const session = await getSessionOrThrow(workspaceId, sessionId);
+  const version = await getVersionOrThrow(workspaceId, sessionId, versionId);
+  const config = validateConfigOrThrow(version.generated_config, "Safety check build config");
+  const { riskLevel, riskReasons } = classifyConfigRisk(config);
+  const impact = await computeBuildImpactReport({ workspaceId, session, version, config, riskLevel, riskReasons });
+
+  await writeSystemMindAudit({
+    workspaceId, userId,
+    actionType: "build_apply_safety_checked",
+    targetType: "systemmind_build_version",
+    targetId:   versionId,
+    finalAfterState: {
+      risk_level:        riskLevel,
+      target_is_new:     impact.targetIsNew,
+      target_is_live:    impact.targetIsLive,
+      diff_count:        impact.diff.length,
+      conflicts:         impact.conflicts.map((c) => c.code),
+      requires_approval: impact.requiresApproval,
+    },
+  });
+
+  return { riskLevel, riskReasons, impact };
+}
+
+// Default mode when the caller doesn't choose one. Safe-by-default: ONLY a
+// completely fresh target (no existing workflow row, no existing agent config
+// that would be overwritten, no live agent) applies directly. ANY existing
+// target defaults to "new_draft" — overwriting in place requires the user to
+// explicitly pick "direct" in the safety panel.
+function resolveDefaultApplyMode(_session: any, impact: BuildImpactReport): BuildApplyMode {
+  if (impact.targetIsNew && !impact.agentHasConfig && !impact.agentIsLive) return "direct";
+  return "new_draft";
+}
 
 export async function applyBuildVersionServer(args: {
   workspaceId: string; userId: string | null; sessionId: string; versionId: string;
+  mode?: BuildApplyMode; goLiveIntent?: boolean;
 }): Promise<ApplyBuildResult> {
   const sb = supabaseAdmin as any;
   const { workspaceId, userId, sessionId, versionId } = args;
@@ -1091,7 +1281,36 @@ export async function applyBuildVersionServer(args: {
   const config = validateConfigOrThrow(version.generated_config, "Apply build config");
   const { riskLevel, riskReasons } = classifyConfigRisk(config);
 
-  if (riskLevel === "high") {
+  // Impact analysis + hard protection rules — ALWAYS run, every apply.
+  const impact = await computeBuildImpactReport({ workspaceId, session, version, config, riskLevel, riskReasons });
+  const mode: BuildApplyMode = args.mode ?? resolveDefaultApplyMode(session, impact);
+  const hardBlocks = hardBlockConflicts(impact, mode);
+  if (hardBlocks.length > 0) {
+    throw buildConflictError(hardBlocks);
+  }
+  if (args.goLiveIntent && !impact.canGoLive) {
+    const gates = impact.conflicts.filter((c) => c.severity === "block_go_live" || c.severity === "needs_approval");
+    throw new Error(
+      `Apply & Go Live was blocked:\n${gates.map((c) => `• ${c.message} What to do: ${c.suggestion}`).join("\n")}` +
+      (impact.requiresApproval ? "\n• This change needs approval before it can go live." : ""),
+    );
+  }
+
+  // Approval gate. "Touches existing" covers BOTH the workflow row and the
+  // agent's configuration — a direct apply that would overwrite an existing
+  // agent config (or write config for a LIVE agent) is never auto-applied
+  // when an approval-gated conflict (live target, live agent, webhook change,
+  // …) is present.
+  const writesAgentConfig = !!(session.target_agent_id && config.agent_prompt.trim());
+  const overwritesExisting =
+    mode === "direct" &&
+    (!impact.targetIsNew || (writesAgentConfig && (impact.agentHasConfig || impact.agentIsLive)));
+  const needsApprovalGate =
+    riskLevel === "high" ||
+    mode === "propose" ||
+    (overwritesExisting && impact.conflicts.some((c) => c.severity === "needs_approval"));
+
+  if (needsApprovalGate) {
     // Route through the SystemMind hub + HiveMind approval — never auto-apply.
     const { data: hubRow, error: hubErr } = await sb.from("systemmind_generated_actions").insert({
       workspace_id:         workspaceId,
@@ -1106,6 +1325,14 @@ export async function applyBuildVersionServer(args: {
         session_id:     sessionId,
         version_id:     versionId,
         version_number: version.version_number,
+        apply_mode:     mode === "propose" ? "direct" : mode,
+        impact_summary: {
+          target_is_new:  impact.targetIsNew,
+          target_is_live: impact.targetIsLive,
+          target_workflow_name: impact.targetWorkflowName,
+          diff_count:     impact.diff.length,
+          conflicts:      impact.conflicts.map((c) => ({ code: c.code, severity: c.severity, message: c.message })),
+        },
       },
       required_credentials: config.required_credentials,
       test_plan:            config.test_plan,
@@ -1136,9 +1363,14 @@ export async function applyBuildVersionServer(args: {
     }).eq("id", versionId).eq("session_id", sessionId).eq("workspace_id", workspaceId);
     if (vErr) throw new Error(vErr.message);
 
+    const approvalWhy = riskLevel === "high"
+      ? `is HIGH RISK (${riskReasons.join("; ")})`
+      : mode === "propose"
+        ? "was submitted as a proposed change"
+        : `would overwrite an existing setup with conflicts (${impact.conflicts.filter((c) => c.severity === "needs_approval").map((c) => c.code).join(", ")})`;
     await insertMessage({
       sessionId, workspaceId, userId, role: "system", versionId,
-      content: `Version ${version.version_number} is HIGH RISK (${riskReasons.join("; ")}). It has been sent to the HiveMind action centre for approval — nothing goes live until it's approved there.`,
+      content: `Version ${version.version_number} ${approvalWhy}. It has been sent to the HiveMind action centre for approval — nothing goes live until it's approved there.`,
     });
 
     const completedAt = new Date();
@@ -1148,10 +1380,10 @@ export async function applyBuildVersionServer(args: {
       startedAt, completedAt, success: true,
     });
 
-    return { requiresApproval: true, workflowId: null, hubActionId, hivemindActionId, riskLevel, riskReasons };
+    return { requiresApproval: true, workflowId: null, hubActionId, hivemindActionId, riskLevel, riskReasons, mode, snapshotId: null, impact };
   }
 
-  const { workflowId } = await performBuildApply({ workspaceId, userId, session, version, config });
+  const { workflowId, snapshotId } = await performBuildApply({ workspaceId, userId, session, version, config, mode });
 
   const completedAt = new Date();
   await recordSystemMindUsageEvent({
@@ -1160,7 +1392,7 @@ export async function applyBuildVersionServer(args: {
     startedAt, completedAt, success: true,
   });
 
-  return { requiresApproval: false, workflowId, hubActionId: null, hivemindActionId: null, riskLevel, riskReasons };
+  return { requiresApproval: false, workflowId, hubActionId: null, hivemindActionId: null, riskLevel, riskReasons, mode, snapshotId, impact };
 }
 
 // ── Post-approval activation (called ONLY from the hub dispatcher) ─────────────
@@ -1187,8 +1419,22 @@ export async function activateBuildWorkspaceApplyKind(
   }
   const config = validateConfigOrThrow(version.generated_config, "Approved build config");
 
-  const { workflowId } = await performBuildApply({
-    workspaceId, userId: null, session, version, config,
+  // TOCTOU re-checks: the workspace may have changed between submission and
+  // approval. Re-run the full impact analysis and refuse on any hard block.
+  const { riskLevel, riskReasons } = classifyConfigRisk(config);
+  const impact = await computeBuildImpactReport({ workspaceId, session, version, config, riskLevel, riskReasons });
+
+  const approvedMode = String(hubRow.payload?.apply_mode ?? "direct") as BuildApplyMode;
+  const mode: BuildApplyMode =
+    approvedMode === "new_draft" || approvedMode === "duplicate_edit" ? approvedMode : "direct";
+
+  const hardBlocks = hardBlockConflicts(impact, mode);
+  if (hardBlocks.length > 0) {
+    throw buildConflictError(hardBlocks);
+  }
+
+  const { workflowId, snapshotId } = await performBuildApply({
+    workspaceId, userId: null, session, version, config, mode,
     approvedBy: hubRow.approved_by ?? "hivemind",
   });
 
@@ -1201,8 +1447,25 @@ export async function activateBuildWorkspaceApplyKind(
   return {
     activatedTargetType: "workspace_workflow",
     activatedTargetId:   workflowId,
-    summary: { build_session_id: sessionId, build_version: version.version_number, workflow_id: workflowId },
+    summary: {
+      build_session_id: sessionId, build_version: version.version_number,
+      workflow_id: workflowId, apply_mode: mode, snapshot_id: snapshotId,
+    },
   };
+}
+
+// ── Rollback (restore a pre-apply snapshot) ────────────────────────────────────
+export async function rollbackBuildApplyServer(args: {
+  workspaceId: string; userId: string | null; sessionId: string; snapshotId: string;
+}): Promise<{ restoredWorkflowId: string | null; restoredAgentConfigId: string | null }> {
+  const { workspaceId, userId, sessionId, snapshotId } = args;
+  await getSessionOrThrow(workspaceId, sessionId); // membership/scoping guard
+  const result = await rollbackBuildSnapshotServer({ workspaceId, userId, snapshotId });
+  await insertMessage({
+    sessionId, workspaceId, userId, role: "system",
+    content: `Rolled back to the snapshot taken before the last apply — the previous workflow${result.restoredAgentConfigId ? " and agent configuration were" : " was"} restored.`,
+  });
+  return result;
 }
 
 // ── Mark deployed (after a successful Go Live, orchestrated client-side) ───────

@@ -156,20 +156,61 @@ export const simulateBuildVersion = createServerFn({ method: "POST" })
     });
   });
 
-export const applyBuildVersion = createServerFn({ method: "POST" })
+export const getBuildApplySafetyReport = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) =>
     z.object({ sessionId: z.string().uuid(), versionId: z.string().uuid() }).parse(input),
+  )
+  .handler(async ({ data, context }) => {
+    const { getBuildApplySafetyReportServer } = await import(
+      "@/lib/systemmind/build-workspace.server"
+    );
+    return getBuildApplySafetyReportServer({
+      workspaceId: requireWorkspaceId(context.workspaceId),
+      userId:      context.userId ?? null,
+      sessionId:   data.sessionId,
+      versionId:   data.versionId,
+    });
+  });
+
+export const applyBuildVersion = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) =>
+    z.object({
+      sessionId:    z.string().uuid(),
+      versionId:    z.string().uuid(),
+      mode:         z.enum(["direct", "new_draft", "duplicate_edit", "propose"]).optional(),
+      goLiveIntent: z.boolean().optional(),
+    }).parse(input),
   )
   .handler(async ({ data, context }) => {
     const { applyBuildVersionServer } = await import(
       "@/lib/systemmind/build-workspace.server"
     );
     return applyBuildVersionServer({
+      workspaceId:  requireWorkspaceId(context.workspaceId),
+      userId:       context.userId ?? null,
+      sessionId:    data.sessionId,
+      versionId:    data.versionId,
+      mode:         data.mode,
+      goLiveIntent: data.goLiveIntent,
+    });
+  });
+
+export const rollbackBuildApply = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) =>
+    z.object({ sessionId: z.string().uuid(), snapshotId: z.string().uuid() }).parse(input),
+  )
+  .handler(async ({ data, context }) => {
+    const { rollbackBuildApplyServer } = await import(
+      "@/lib/systemmind/build-workspace.server"
+    );
+    return rollbackBuildApplyServer({
       workspaceId: requireWorkspaceId(context.workspaceId),
       userId:      context.userId ?? null,
       sessionId:   data.sessionId,
-      versionId:   data.versionId,
+      snapshotId:  data.snapshotId,
     });
   });
 

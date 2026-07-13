@@ -1,0 +1,396 @@
+Please extend SystemMind so it can convert logic from previous agent setups, existing workflows, and old n8n-style automations into new WEBEE-native workflows inside the WEBEE Workflow Builder.
+
+The goal is for SystemMind to understand how previous agents/workflows were configured, extract the reusable business logic, and recreate that logic inside WEBEE’s own workflow builder instead of relying on third-party services like n8n.
+
+Critical rule:
+
+SystemMind must never directly overwrite an existing agent or workflow. It must convert previous logic into a new workspace-scoped draft first, then allow testing, approval, and deployment.
+
+---
+
+## 1. Main feature: Legacy Logic Converter
+
+Add a SystemMind capability called:
+
+`Legacy Logic Converter`
+
+or
+
+`Convert to WEBEE Workflow`
+
+This should allow users to select:
+
+* existing WEBEE agent setup
+* previous agent configuration
+* existing workflow
+* old Retell agent flow
+* n8n workflow blueprint
+* WhatsApp automation setup
+* Follow Up Centre sequence
+* CRM/webhook automation
+* manual business process description
+
+SystemMind should then convert the logic into a WEBEE-native workflow draft.
+
+---
+
+## 2. What SystemMind should extract
+
+When converting an old setup, SystemMind should identify:
+
+* trigger
+* entry point
+* agent type
+* channel:
+
+  * call
+  * WhatsApp
+  * SMS
+  * email
+  * CRM
+  * webform
+  * calendar
+  * follow-up
+* conditions
+* branching logic
+* variables collected
+* post-call extraction fields
+* post-chat extraction fields
+* lead source rules
+* status mappings
+* sentiment rules
+* qualification rules
+* booking rules
+* follow-up rules
+* CRM update rules
+* webhook/API actions
+* stop conditions
+* escalation conditions
+* failure handling
+* fallback actions
+* approval requirements
+* provider dependencies
+* data fields required
+* workspace custom fields needed
+
+---
+
+## 3. Convert to WEBEE Workflow Builder blocks
+
+SystemMind should map old logic into WEBEE workflow builder blocks.
+
+Example mapping:
+
+* n8n Webhook Trigger → WEBEE Webform / API Trigger
+* n8n HTTP Request → WEBEE Integration Action
+* n8n If Node → WEBEE Condition Block
+* n8n Switch Node → WEBEE Branch Block
+* n8n Set Node → WEBEE Variable Mapping Block
+* n8n Wait Node → WEBEE Delay / Follow-up Timing Block
+* n8n Email Node → WEBEE HexMail Action
+* n8n WhatsApp Node → WEBEE BuzzChat / WhatsApp Action
+* n8n SMS Node → WEBEE SMS Action
+* n8n CRM Node → WEBEE CRM Update Action
+* n8n Calendar Node → WEBEE Booking / Calendar Action
+* n8n OpenAI/AI Node → WEBEE Agent / SystemMind Action
+* n8n Retell Node → WEBEE Call Agent / Voice Agent Action
+* n8n Filter Node → WEBEE Condition / Segment Filter
+* n8n Code Node → WEBEE Safe Function / Manual Review Required
+
+If a node cannot be converted safely, SystemMind should mark it as:
+
+`unsupported_requires_review`
+
+and explain what is missing.
+
+---
+
+## 4. Previous agent setup conversion
+
+SystemMind should also be able to read existing agent setups and convert their logic into reusable WEBEE workflows.
+
+For example:
+
+If an old agent has logic like:
+
+* capture name
+* capture email
+* capture phone
+* qualify budget
+* check intent
+* book appointment
+* send follow-up
+* update lead status
+* push to CRM
+
+SystemMind should create a WEBEE workflow draft like:
+
+1. Trigger: agent call completed
+2. Condition: sentiment is positive or neutral
+3. Condition: appointment booked is true
+4. Action: create/update lead
+5. Action: save booking slot
+6. Action: update status to booked
+7. Action: send confirmation email
+8. Action: start follow-up sequence if no response
+9. Action: update CRM if connected
+
+---
+
+## 5. Workflow conversion output
+
+When SystemMind converts previous logic, it should produce a structured conversion report.
+
+The report should include:
+
+* source setup name
+* source setup type
+* source workspace_id
+* detected trigger
+* detected actions
+* detected variables
+* detected conditions
+* detected provider dependencies
+* detected risks
+* unsupported logic
+* WEBEE-native workflow draft
+* recommended test cases
+* approval required
+* estimated usage/cost impact
+
+The user should see:
+
+“SystemMind found this old logic and converted it into this WEBEE workflow.”
+
+Then show:
+
+* original logic summary
+* new WEBEE workflow blocks
+* warnings
+* missing credentials
+* test plan
+* Apply button
+* Apply & Go Live button where safe
+
+---
+
+## 6. n8n blueprint conversion
+
+For n8n workflows, SystemMind should treat them as blueprints, not active dependencies.
+
+The process:
+
+1. Import n8n JSON.
+2. Parse nodes and connections.
+3. Summarise trigger/action logic.
+4. Map supported nodes to WEBEE blocks.
+5. Flag unsupported nodes.
+6. Create WEBEE-native workflow draft.
+7. Save the original n8n blueprint for audit/reference.
+8. Do not call or rely on n8n at runtime unless explicitly approved.
+
+The final workflow should run inside WEBEE’s workflow engine, not n8n.
+
+---
+
+## 7. Do not depend on third-party workflow engines
+
+SystemMind should prefer WEBEE-native workflow builder actions.
+
+Use WEBEE tools first:
+
+* WEBEE Workflow Builder
+* WEBEE CRM
+* Follow Up Centre
+* HexMail
+* BuzzChat
+* Template Studio
+* Calendar/Booking actions
+* Agent Builder
+* SystemMind actions
+* HiveMind recommendations
+* AccountsMind usage/billing tracking
+
+Only mark third-party service required if WEBEE does not yet support that action.
+
+---
+
+## 8. Conversion safety rules
+
+SystemMind must not:
+
+* overwrite the old workflow
+* delete the old setup
+* disable the old setup
+* change live agents without approval
+* change live webhooks without approval
+* activate converted workflows without testing and approval
+* use another workspace’s old workflow
+* convert WBAH logic into a standard WEBEE workspace
+* convert standard WEBEE logic into WBAH
+* expose API keys or credentials
+* run imported code nodes directly
+* execute arbitrary JavaScript from n8n Code nodes
+
+If there is a Code node or unsupported custom logic, SystemMind should explain it and create a manual review task.
+
+---
+
+## 9. Workspace isolation
+
+Every conversion must be limited to the current signed-in workspace_id.
+
+All converted workflows must be saved with:
+
+* workspace_id
+* source_type
+* source_id
+* source_version
+* converted_by = systemmind
+* approval_status = draft
+* conversion_status
+* risk_level
+* audit_log_id
+
+If workspace_id is missing, reject the conversion.
+
+---
+
+## 10. Testing/simulation before apply
+
+Before applying a converted workflow, SystemMind should allow safe simulation.
+
+Simulation should show:
+
+* sample input
+* path through workflow
+* variables captured
+* conditions matched
+* actions that would run
+* CRM updates that would happen
+* messages that would be sent
+* follow-ups that would be scheduled
+* errors/warnings
+
+No real customers should be contacted during simulation.
+
+---
+
+## 11. Approval before activation
+
+Converted workflows should follow this lifecycle:
+
+1. imported / detected
+2. analysed
+3. converted_to_draft
+4. simulated
+5. pending_approval
+6. approved
+7. applied
+8. live
+9. paused
+10. archived
+
+SystemMind should never skip directly from converted draft to live.
+
+---
+
+## 12. UI requirements
+
+Add “Convert to WEBEE Workflow” buttons in relevant places:
+
+* Agent Builder
+* Agent Deploy tab
+* Workflows page
+* n8n blueprint import page
+* WhatsApp Builder
+* Follow Up Centre
+* SystemMind Build Workspace
+
+When clicked, open SystemMind Build Workspace with the converted draft loaded.
+
+The user should be able to:
+
+* view original logic
+* view converted WEBEE workflow
+* ask SystemMind to improve it
+* test it
+* approve it
+* apply it
+* apply & go live if safe
+* save it to Workflows
+* edit it later
+
+---
+
+## 13. Audit logs
+
+Every conversion must create audit records.
+
+Audit log should include:
+
+* workspace_id
+* user_id
+* source workflow/agent id
+* source type
+* original logic summary
+* converted workflow id
+* conversion version
+* unsupported nodes/actions
+* risk level
+* approval status
+* applied_at
+* deployed_at
+* rollback snapshot
+* token usage
+* elapsed time
+* cost estimate
+
+---
+
+## 14. Do not break existing systems
+
+Do not break:
+
+* existing agents
+* existing workflows
+* existing n8n blueprint storage
+* existing Agent Builder
+* existing WhatsApp Builder
+* existing Follow Up Centre
+* existing Go Live logic
+* existing Workflows page
+* existing SystemMind Build Workspace
+* existing HiveMind, GrowthMind, AccountsMind
+* WBAH workspace logic
+* standard WEBEE workspace logic
+* Calls, Leads, Qualified, and Data pages
+* workspace scoping
+* Supabase RLS
+
+---
+
+## 15. Testing required
+
+Please test:
+
+1. Convert an existing agent setup into a WEBEE workflow draft.
+2. Confirm the old agent is not changed.
+3. Confirm converted workflow is saved as draft only.
+4. Confirm workflow uses current workspace_id only.
+5. Convert an n8n JSON blueprint into WEBEE workflow blocks.
+6. Confirm unsupported nodes are flagged.
+7. Confirm Code nodes are not executed.
+8. Confirm converted workflow can be simulated safely.
+9. Confirm converted workflow can be edited with SystemMind.
+10. Confirm Apply saves it to the Workflows page.
+11. Confirm Apply & Go Live only works after approval and validation.
+12. Confirm WBAH logic does not leak into other workspaces.
+13. Confirm standard WEBEE logic does not leak into WBAH.
+14. Confirm no old live workflows are overwritten.
+15. Confirm audit logs are created.
+16. Confirm token/time usage is tracked.
+
+Final instruction:
+
+SystemMind should be able to convert previous agent setups and old n8n-style logic into WEBEE-native workflow builder drafts. It should use those old setups as blueprints, not dependencies, and it must never overwrite or break existing configurations without approval.

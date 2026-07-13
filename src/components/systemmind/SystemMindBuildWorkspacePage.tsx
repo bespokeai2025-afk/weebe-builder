@@ -12,7 +12,8 @@ import {
   Hammer, Loader2, Send, Plus, Archive, ArchiveRestore, History,
   FlaskConical, FileCode2, Gauge, RotateCcw, CheckCircle2, AlertTriangle,
   ShieldAlert, Rocket, GitBranch, Variable, ListChecks, Bell, StickyNote,
-  ArrowRight, Bot, Workflow as WorkflowIcon, ExternalLink,
+  ArrowRight, Bot, Workflow as WorkflowIcon, ExternalLink, ShieldCheck,
+  Undo2, GitCompareArrows, FilePlus2, Copy, SendToBack, Import, Info,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { SystemMindShell } from "./SystemMindShell";
@@ -20,11 +21,20 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import {
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
+} from "@/components/ui/dialog";
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from "@/components/ui/select";
+import {
   createBuildSession, listBuildSessions, getBuildSession, promptBuildSession,
   simulateBuildVersion, applyBuildVersion, restoreBuildVersion,
   setBuildVersionNotes, setBuildSessionArchived, markBuildVersionDeployed,
-  getSystemMindUsageSummary,
+  getSystemMindUsageSummary, getBuildApplySafetyReport, rollbackBuildApply,
 } from "@/lib/systemmind/build-workspace.functions";
+import {
+  listLegacyConversionSources, convertLegacySourceToDraft, getConversionForSession,
+} from "@/lib/systemmind/legacy-conversion.functions";
 import { goLiveAgent } from "@/lib/agents/agents.functions";
 
 // ── Small bits ─────────────────────────────────────────────────────────────────
@@ -241,13 +251,122 @@ function SimulationView({ sim }: { sim: Record<string, any> }) {
   );
 }
 
+// ── Conversion report (Legacy Logic Converter) ─────────────────────────────────
+
+const SOURCE_TYPE_LABELS: Record<string, string> = {
+  agent:              "Existing agent",
+  workflow:           "Existing WEBEE workflow",
+  n8n:                "n8n workflow",
+  hexmail_sequence:   "Email follow-up sequence",
+  wati_setup:         "WATI WhatsApp campaign",
+  webform_auto_call:  "Webform + auto-call setup",
+  manual_description: "Described process",
+};
+
+const FIDELITY_STYLES: Record<string, string> = {
+  full:     "border-green-500/40 text-green-400",
+  partial:  "border-amber-500/40 text-amber-400",
+  assisted: "border-sky-500/40 text-sky-400",
+};
+
+function ConversionReportView({ conversion }: { conversion: Record<string, any> }) {
+  const r = (conversion.report ?? {}) as Record<string, any>;
+  const converted   = (r.converted ?? []) as Array<{ from: string; to: string }>;
+  const unsupported = (r.unsupported ?? []) as Array<{ item: string; reason: string }>;
+  const warnings    = (r.warnings ?? []) as string[];
+  const assumptions = (r.assumptions ?? []) as string[];
+  const deps        = (r.provider_dependencies ?? []) as string[];
+  const testPlan    = (r.test_plan ?? []) as string[];
+  const fidelity    = String(conversion.fidelity ?? r.fidelity ?? "partial");
+
+  return (
+    <div className="space-y-3">
+      <div className="flex flex-wrap items-center gap-2 rounded-lg border border-white/[0.06] bg-white/[0.02] p-3">
+        <Import className="h-4 w-4 text-sky-400" />
+        <div className="min-w-0 flex-1">
+          <p className="text-xs font-semibold">
+            Converted from {SOURCE_TYPE_LABELS[String(conversion.source_type)] ?? conversion.source_type}
+            {conversion.source_name ? ` — “${conversion.source_name}”` : ""}
+          </p>
+          <p className="mt-0.5 text-[10px] text-muted-foreground">
+            {fmtTime(conversion.created_at)} · original untouched — nothing goes live until Apply
+          </p>
+        </div>
+        <Badge variant="outline" className={cn("text-[10px] font-semibold", FIDELITY_STYLES[fidelity] ?? "border-white/20")}>
+          {fidelity === "full" ? "full fidelity" : fidelity === "partial" ? "partial fidelity" : "AI-assisted"}
+        </Badge>
+        <RiskBadge risk={conversion.risk_level ?? r.risk_level} />
+      </div>
+
+      {r.original_summary && (
+        <Section icon={Info} title="What the original did">
+          <p className="text-[11px] leading-relaxed text-muted-foreground whitespace-pre-wrap">{r.original_summary}</p>
+          {r.detected_trigger && (
+            <p className="text-[10px] text-muted-foreground/70">Trigger detected: <span className="text-sky-300">{r.detected_trigger}</span></p>
+          )}
+        </Section>
+      )}
+
+      {converted.length > 0 && (
+        <Section icon={CheckCircle2} title={`Converted (${converted.length})`}>
+          {converted.map((c, i) => (
+            <p key={i} className="flex items-start gap-1.5 text-[11px]">
+              <span className="text-muted-foreground truncate max-w-[45%]" title={c.from}>{c.from}</span>
+              <ArrowRight className="mt-0.5 h-2.5 w-2.5 shrink-0 text-muted-foreground/50" />
+              <span className="text-green-300/90">{c.to}</span>
+            </p>
+          ))}
+        </Section>
+      )}
+
+      {unsupported.length > 0 && (
+        <Section icon={AlertTriangle} title={`Needs manual review (${unsupported.length})`}>
+          {unsupported.map((u, i) => (
+            <div key={i} className="rounded border border-amber-500/20 bg-amber-500/[0.04] px-2 py-1.5">
+              <p className="text-[11px] font-medium text-amber-200/90">{u.item}</p>
+              <p className="text-[10px] text-muted-foreground">{u.reason}</p>
+            </div>
+          ))}
+          <p className="text-[10px] text-muted-foreground/70">
+            A review task has been added to the HiveMind action centre for these items.
+          </p>
+        </Section>
+      )}
+
+      {warnings.length > 0 && (
+        <Section icon={ShieldAlert} title="Warnings">
+          {warnings.map((w, i) => <p key={i} className="text-[11px] text-amber-300/90">{w}</p>)}
+        </Section>
+      )}
+
+      {assumptions.length > 0 && (
+        <Section icon={StickyNote} title="Assumptions made">
+          {assumptions.map((a, i) => <p key={i} className="text-[11px] text-muted-foreground">• {a}</p>)}
+        </Section>
+      )}
+
+      {deps.length > 0 && (
+        <Section icon={ShieldAlert} title="Provider dependencies">
+          {deps.map((d, i) => <p key={i} className="text-[11px] text-muted-foreground">• {d}</p>)}
+        </Section>
+      )}
+
+      {testPlan.length > 0 && (
+        <Section icon={ListChecks} title="Suggested test plan">
+          {testPlan.map((t, i) => <p key={i} className="text-[11px] text-muted-foreground">{i + 1}. {t}</p>)}
+        </Section>
+      )}
+    </div>
+  );
+}
+
 // ── Page ────────────────────────────────────────────────────────────────────────
 
 export function SystemMindBuildWorkspacePage() {
   const navigate = useNavigate();
   const qc       = useQueryClient();
   const search   = useSearch({ from: "/_authenticated/systemmind/build" }) as {
-    session?: string; workflow?: string; agent?: string;
+    session?: string; workflow?: string; agent?: string; convert?: string;
   };
   const sessionId = search.session;
 
@@ -263,12 +382,25 @@ export function SystemMindBuildWorkspacePage() {
   const deployedFn = useServerFn(markBuildVersionDeployed);
   const usageFn    = useServerFn(getSystemMindUsageSummary);
   const goLiveFn   = useServerFn(goLiveAgent);
+  const safetyFn   = useServerFn(getBuildApplySafetyReport);
+  const rollbackFn = useServerFn(rollbackBuildApply);
+  const convSourcesFn = useServerFn(listLegacyConversionSources);
+  const convertFn     = useServerFn(convertLegacySourceToDraft);
+  const conversionFn  = useServerFn(getConversionForSession);
 
   const [prompt, setPrompt]           = useState("");
-  const [tab, setTab]                 = useState<"config" | "test" | "versions" | "usage">("config");
+  const [tab, setTab]                 = useState<"config" | "test" | "versions" | "usage" | "conversion">("config");
+  const [convertOpen, setConvertOpen]   = useState(false);
+  const [convertType, setConvertType]   = useState<string>("");
+  const [convertSourceId, setConvertSourceId] = useState<string>("");
+  const [convertDesc, setConvertDesc]   = useState("");
   const [sim, setSim]                 = useState<Record<string, any> | null>(null);
   const [notesEditId, setNotesEditId] = useState<string | null>(null);
   const [notesDraft, setNotesDraft]   = useState("");
+  const [safetyOpen, setSafetyOpen]   = useState(false);
+  const [safetyGoLive, setSafetyGoLive] = useState(false);
+  const [safetyReport, setSafetyReport] = useState<Record<string, any> | null>(null);
+  const [applyMode, setApplyMode]     = useState<"direct" | "new_draft" | "duplicate_edit" | "propose">("direct");
   const chatEndRef = useRef<HTMLDivElement | null>(null);
 
   const { data: sessions, isLoading: sessionsLoading } = useQuery({
@@ -293,9 +425,28 @@ export function SystemMindBuildWorkspacePage() {
     staleTime: 60_000,
   });
 
-  const session  = detail?.session as Record<string, any> | undefined;
-  const versions = (detail?.versions ?? []) as any[];
-  const messages = (detail?.messages ?? []) as any[];
+  // Legacy Logic Converter: convertible sources (only fetched while the dialog is open)
+  const { data: convSources, isLoading: convSourcesLoading } = useQuery({
+    queryKey: ["smbw-convert-sources"],
+    queryFn: () => convSourcesFn(),
+    enabled: convertOpen,
+    throwOnError: false,
+    staleTime: 60_000,
+  });
+
+  // Conversion lineage row for the open session (drives the Conversion tab)
+  const { data: conversion } = useQuery({
+    queryKey: ["smbw-conversion", sessionId],
+    queryFn: () => conversionFn({ data: { sessionId: sessionId! } }),
+    enabled: !!sessionId,
+    throwOnError: false,
+    staleTime: 60_000,
+  });
+
+  const session   = detail?.session as Record<string, any> | undefined;
+  const versions  = (detail?.versions ?? []) as any[];
+  const messages  = (detail?.messages ?? []) as any[];
+  const snapshots = ((detail as any)?.snapshots ?? []) as any[];
   const currentVersion = useMemo(
     () => versions.find((v) => v.id === session?.current_version_id) ?? versions[0] ?? null,
     [versions, session?.current_version_id],
@@ -341,6 +492,43 @@ export function SystemMindBuildWorkspacePage() {
     onError: (e: any) => toast.error("Could not create build session", { description: e?.message }),
   });
 
+  // Open the converter dialog automatically when arriving via ?convert=1
+  const convertAutoOpenedRef = useRef(false);
+  useEffect(() => {
+    if (search.convert && !convertAutoOpenedRef.current) {
+      convertAutoOpenedRef.current = true;
+      setConvertOpen(true);
+    }
+  }, [search.convert]);
+
+  const runConvert = useMutation({
+    mutationFn: () => {
+      if (!convertType) throw new Error("Pick what you want to convert.");
+      if (convertType === "manual_description") {
+        return convertFn({ data: { sourceType: convertType as any, description: convertDesc.trim(), sourcePage: "systemmind" } });
+      }
+      if (!convertSourceId) throw new Error("Pick the source to convert.");
+      return convertFn({ data: { sourceType: convertType as any, sourceId: convertSourceId, sourcePage: "systemmind" } });
+    },
+    onSuccess: (res: any) => {
+      setConvertOpen(false);
+      setConvertType("");
+      setConvertSourceId("");
+      setConvertDesc("");
+      setSim(null);
+      setTab("conversion");
+      qc.invalidateQueries({ queryKey: ["smbw-sessions"] });
+      const rep = res?.report ?? {};
+      const unsup = (rep.unsupported ?? []).length;
+      toast.success("Converted to a WEBEE draft", {
+        description: `${(rep.converted ?? []).length} element(s) converted${unsup ? `, ${unsup} need manual review` : ""}. The original is untouched.`,
+        duration: 8000,
+      });
+      navigate({ to: "/systemmind/build", search: { session: res.sessionId, workflow: undefined, agent: undefined } });
+    },
+    onError: (e: any) => toast.error("Conversion failed", { description: e?.message, duration: 10000 }),
+  });
+
   const sendPrompt = useMutation({
     mutationFn: async () => {
       const p = prompt.trim();
@@ -374,19 +562,45 @@ export function SystemMindBuildWorkspacePage() {
     onError: (e: any) => toast.error("Simulation failed", { description: e?.message }),
   });
 
+  // Safety pre-flight: fetch impact report, then open the panel for the user
+  // to choose HOW to apply. Nothing is written by this call.
+  const openSafetyPanel = useMutation({
+    mutationFn: (goLive: boolean) =>
+      safetyFn({ data: { sessionId: sessionId!, versionId: currentVersion!.id } }).then((r: any) => ({ r, goLive })),
+    onSuccess: ({ r, goLive }: any) => {
+      setSafetyReport(r);
+      setSafetyGoLive(goLive);
+      const impact = r?.impact ?? {};
+      // Default mode mirrors the server's safe default: ONLY a completely
+      // fresh target defaults to direct; ANY existing target defaults to
+      // "Save as new draft" — overwriting is an explicit opt-in.
+      setApplyMode(
+        impact.targetIsNew && !impact.agentHasConfig && !impact.agentIsLive
+          ? "direct"
+          : "new_draft",
+      );
+      setSafetyOpen(true);
+    },
+    onError: (e: any) => toast.error("Safety check failed", { description: e?.message }),
+  });
+
   const apply = useMutation({
-    mutationFn: () => applyFn({ data: { sessionId: sessionId!, versionId: currentVersion!.id } }),
+    mutationFn: (vars: { mode?: string; goLiveIntent?: boolean } = {}) =>
+      applyFn({ data: { sessionId: sessionId!, versionId: currentVersion!.id, mode: vars.mode as any, goLiveIntent: vars.goLiveIntent } }),
     onSuccess: (res: any) => {
+      setSafetyOpen(false);
       qc.invalidateQueries({ queryKey: ["smbw-session", sessionId] });
       qc.invalidateQueries({ queryKey: ["smbw-sessions"] });
       if (res.requiresApproval) {
         toast.warning("Approval required before this goes live", {
-          description: "This build affects live customer communication. It has been sent to the HiveMind action centre for approval.",
+          description: "This change needs a human sign-off. It has been sent to the HiveMind action centre for approval.",
           duration: 8000,
         });
       } else {
-        toast.success("Build applied", {
-          description: "The workflow has been saved to your Workflows page.",
+        toast.success(res.mode === "direct" ? "Build applied" : "Saved as a new draft", {
+          description: res.mode === "direct"
+            ? `The workflow has been saved to your Workflows page.${res.snapshotId ? " A rollback snapshot of the previous state was taken first." : ""}`
+            : "A new inactive draft workflow was created — nothing existing was changed.",
           action: {
             label: "View workflows",
             onClick: () => navigate({ to: "/workflow-engine" }),
@@ -395,13 +609,18 @@ export function SystemMindBuildWorkspacePage() {
         });
       }
     },
-    onError: (e: any) => toast.error("Apply failed", { description: e?.message }),
+    onError: (e: any) => {
+      setSafetyOpen(false);
+      toast.error("Apply blocked", { description: e?.message, duration: 12000 });
+    },
   });
 
   const applyAndGoLive = useMutation({
-    mutationFn: async () => {
+    mutationFn: async (vars: { mode?: string } = {}) => {
       const versionId = currentVersion!.id;
-      const res: any = await applyFn({ data: { sessionId: sessionId!, versionId } });
+      const res: any = await applyFn({
+        data: { sessionId: sessionId!, versionId, mode: (vars.mode ?? "direct") as any, goLiveIntent: true },
+      });
       if (res.requiresApproval) return { ...res, wentLive: false };
       // Reuse the EXISTING Go Live flow — same checks as the Deploy tab.
       await goLiveFn({ data: { id: session!.target_agent_id, agentType: "receptionist" } });
@@ -409,11 +628,12 @@ export function SystemMindBuildWorkspacePage() {
       return { ...res, wentLive: true };
     },
     onSuccess: (res: any) => {
+      setSafetyOpen(false);
       qc.invalidateQueries({ queryKey: ["smbw-session", sessionId] });
       qc.invalidateQueries({ queryKey: ["smbw-sessions"] });
       if (res.requiresApproval) {
         toast.warning("Approval required before this goes live", {
-          description: "This build affects live customer communication. It has been sent to the HiveMind action centre for approval.",
+          description: "This change needs a human sign-off. It has been sent to the HiveMind action centre for approval.",
           duration: 8000,
         });
       } else if (res.wentLive) {
@@ -421,12 +641,23 @@ export function SystemMindBuildWorkspacePage() {
       }
     },
     onError: (e: any) => {
+      setSafetyOpen(false);
       qc.invalidateQueries({ queryKey: ["smbw-session", sessionId] });
       toast.error("Go Live did not complete", {
-        description: `${e?.message ?? "Unknown error"} — the applied version is saved; finish Go Live from the agent's Deploy tab.`,
+        description: `${e?.message ?? "Unknown error"}`,
         duration: 10000,
       });
     },
+  });
+
+  const rollback = useMutation({
+    mutationFn: (snapshotId: string) =>
+      rollbackFn({ data: { sessionId: sessionId!, snapshotId } }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["smbw-session", sessionId] });
+      toast.success("Rolled back", { description: "The previous setup was restored from the snapshot." });
+    },
+    onError: (e: any) => toast.error("Rollback failed", { description: e?.message }),
   });
 
   const restore = useMutation({
@@ -477,6 +708,15 @@ export function SystemMindBuildWorkspacePage() {
             {newSession.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Plus className="h-3.5 w-3.5" />}
             New build
           </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            className="w-full gap-1.5 text-xs border-sky-500/30 text-sky-400 hover:text-sky-300"
+            onClick={() => setConvertOpen(true)}
+          >
+            <Import className="h-3.5 w-3.5" />
+            Convert legacy logic
+          </Button>
           <div className="min-h-0 flex-1 space-y-1 overflow-y-auto pr-1">
             {sessionsLoading && <p className="px-2 py-4 text-center text-[11px] text-muted-foreground">Loading…</p>}
             {(sessions ?? []).map((s: any) => (
@@ -517,10 +757,24 @@ export function SystemMindBuildWorkspacePage() {
                 nothing goes live without your say-so.
               </p>
             </div>
-            <Button size="sm" className="gap-1.5 text-xs" onClick={() => newSession.mutate()} disabled={newSession.isPending}>
-              {newSession.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Plus className="h-3.5 w-3.5" />}
-              Start a build
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button size="sm" className="gap-1.5 text-xs" onClick={() => newSession.mutate()} disabled={newSession.isPending}>
+                {newSession.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Plus className="h-3.5 w-3.5" />}
+                Start a build
+              </Button>
+              <Button
+                size="sm" variant="outline"
+                className="gap-1.5 text-xs border-sky-500/30 text-sky-400 hover:text-sky-300"
+                onClick={() => setConvertOpen(true)}
+              >
+                <Import className="h-3.5 w-3.5" />
+                Convert legacy logic
+              </Button>
+            </div>
+            <p className="max-w-md text-[11px] text-muted-foreground/70">
+              Convert legacy logic pulls an old setup — an agent flow, an n8n workflow, an email
+              sequence, a WATI campaign, or a process you describe — into an editable draft here.
+            </p>
           </div>
         ) : detailLoading ? (
           <div className="flex flex-1 items-center justify-center">
@@ -620,6 +874,7 @@ export function SystemMindBuildWorkspacePage() {
                     ["test",     FlaskConical, "Test"],
                     ["versions", History,      "Versions"],
                     ["usage",    Gauge,        "Usage"],
+                    ...(conversion ? ([["conversion", Import, "Conversion"]] as const) : []),
                   ] as const).map(([key, Icon, label]) => (
                     <button
                       key={key}
@@ -645,20 +900,20 @@ export function SystemMindBuildWorkspacePage() {
                     <Button
                       size="sm"
                       className="h-7 gap-1 px-2.5 text-[11px]"
-                      disabled={!canApply || apply.isPending || applyAndGoLive.isPending}
-                      onClick={() => apply.mutate()}
+                      disabled={!canApply || apply.isPending || applyAndGoLive.isPending || openSafetyPanel.isPending}
+                      onClick={() => openSafetyPanel.mutate(false)}
                     >
-                      {apply.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : <CheckCircle2 className="h-3 w-3" />}
+                      {(apply.isPending || (openSafetyPanel.isPending && !openSafetyPanel.variables)) ? <Loader2 className="h-3 w-3 animate-spin" /> : <CheckCircle2 className="h-3 w-3" />}
                       Apply
                     </Button>
                     {session.target_agent_id && currentVersion?.risk_level !== "high" && (
                       <Button
                         size="sm"
                         className="h-7 gap-1 bg-emerald-600 px-2.5 text-[11px] text-white hover:bg-emerald-500"
-                        disabled={!canApply || apply.isPending || applyAndGoLive.isPending}
-                        onClick={() => applyAndGoLive.mutate()}
+                        disabled={!canApply || apply.isPending || applyAndGoLive.isPending || openSafetyPanel.isPending}
+                        onClick={() => openSafetyPanel.mutate(true)}
                       >
-                        {applyAndGoLive.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : <Rocket className="h-3 w-3" />}
+                        {(applyAndGoLive.isPending || (openSafetyPanel.isPending && !!openSafetyPanel.variables)) ? <Loader2 className="h-3 w-3 animate-spin" /> : <Rocket className="h-3 w-3" />}
                         Apply &amp; Go Live
                       </Button>
                     )}
@@ -680,6 +935,12 @@ export function SystemMindBuildWorkspacePage() {
                     config
                       ? <ConfigPreview config={config} />
                       : <p className="py-8 text-center text-[11px] text-muted-foreground">Nothing generated yet — send SystemMind a prompt to create the first version.</p>
+                  )}
+
+                  {tab === "conversion" && (
+                    conversion
+                      ? <ConversionReportView conversion={conversion as Record<string, any>} />
+                      : <p className="py-8 text-center text-[11px] text-muted-foreground">This session was not created by the Legacy Logic Converter.</p>
                   )}
 
                   {tab === "test" && (
@@ -787,6 +1048,39 @@ export function SystemMindBuildWorkspacePage() {
                           </div>
                         </div>
                       ))}
+
+                      {snapshots.length > 0 && (
+                        <div className="space-y-2 pt-3">
+                          <p className="flex items-center gap-1.5 text-[11px] font-semibold text-foreground/80">
+                            <ShieldCheck className="h-3 w-3 text-emerald-400" /> Rollback snapshots
+                          </p>
+                          <p className="text-[10px] text-muted-foreground">
+                            Taken automatically before each apply that changed an existing setup.
+                            Rolling back restores the workflow (and agent configuration) exactly as it was.
+                          </p>
+                          {snapshots.map((s: any) => (
+                            <div key={s.id} className="flex flex-wrap items-center gap-2 rounded-lg border border-white/[0.05] bg-white/[0.02] px-3 py-2">
+                              <History className="h-3 w-3 shrink-0 text-muted-foreground" />
+                              <p className="text-[11px]">
+                                <span className="font-medium">{s.target_workflow_name ?? "Workflow"}</span>
+                                {" · "}before v{s.version_number ?? "?"}
+                              </p>
+                              {s.restored_at ? (
+                                <Badge variant="outline" className="text-[10px] border-emerald-500/40 text-emerald-300">restored {fmtTime(s.restored_at)}</Badge>
+                              ) : null}
+                              <span className="text-[10px] text-muted-foreground">{fmtTime(s.created_at)}</span>
+                              <Button
+                                size="sm" variant="outline" className="ml-auto h-6 gap-1 px-2 text-[10px]"
+                                disabled={rollback.isPending}
+                                onClick={() => rollback.mutate(s.id)}
+                              >
+                                {rollback.isPending ? <Loader2 className="h-2.5 w-2.5 animate-spin" /> : <Undo2 className="h-2.5 w-2.5" />}
+                                Roll back
+                              </Button>
+                            </div>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   )}
 
@@ -836,6 +1130,292 @@ export function SystemMindBuildWorkspacePage() {
           </div>
         )}
       </div>
+
+      {/* ── Apply safety panel ── */}
+      <Dialog open={safetyOpen} onOpenChange={(o) => { if (!o) setSafetyOpen(false); }}>
+        <DialogContent className="max-h-[85dvh] max-w-lg overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-sm">
+              <ShieldCheck className="h-4 w-4 text-emerald-400" />
+              {safetyGoLive ? "Apply & Go Live — safety check" : "Apply — safety check"}
+            </DialogTitle>
+            <DialogDescription className="text-[11px]">
+              Review what this apply will change before anything is written.
+            </DialogDescription>
+          </DialogHeader>
+
+          {safetyReport && (() => {
+            const impact = (safetyReport.impact ?? {}) as Record<string, any>;
+            const conflicts = (impact.conflicts ?? []) as any[];
+            const diff = (impact.diff ?? []) as any[];
+            const deps = (impact.dependencies ?? []) as string[];
+            const hasBlock = conflicts.some((c) => c.severity === "block");
+            const goLiveBlocked = safetyGoLive && impact.canGoLive === false;
+            const confirmDisabled =
+              apply.isPending || applyAndGoLive.isPending ||
+              (applyMode === "direct" && hasBlock) ||
+              (safetyGoLive && (applyMode !== "direct" || goLiveBlocked));
+            return (
+              <div className="space-y-3">
+                {/* Target */}
+                <div className="rounded-lg border border-white/[0.06] bg-white/[0.02] p-3 text-[11px]">
+                  {impact.targetIsNew ? (
+                    <p className="flex items-center gap-1.5 text-emerald-300">
+                      <FilePlus2 className="h-3 w-3" /> This creates a brand-new workflow — nothing existing is touched.
+                    </p>
+                  ) : (
+                    <>
+                      <p>
+                        Updates <span className="font-semibold">{impact.targetWorkflowName ?? "an existing workflow"}</span>
+                        {impact.targetIsLive && <Badge variant="outline" className="ml-1.5 border-red-500/40 text-[10px] text-red-300">LIVE</Badge>}
+                      </p>
+                      {impact.targetAgentName && (
+                        <p className="mt-1 text-muted-foreground">
+                          Also updates the setup of agent <span className="font-medium text-foreground/80">{impact.targetAgentName}</span>
+                          {impact.agentIsLive ? " (currently live)" : ""}.
+                        </p>
+                      )}
+                      {impact.rollbackAvailable && (
+                        <p className="mt-1 flex items-center gap-1 text-emerald-300/90">
+                          <Undo2 className="h-3 w-3" /> A rollback snapshot is taken automatically before overwriting.
+                        </p>
+                      )}
+                    </>
+                  )}
+                  {deps.length > 0 && (
+                    <div className="mt-2 border-t border-white/[0.05] pt-2 text-muted-foreground">
+                      <p className="font-medium text-foreground/70">Could also affect:</p>
+                      {deps.map((d, i) => <p key={i}>• {d}</p>)}
+                    </div>
+                  )}
+                </div>
+
+                {/* Conflicts */}
+                {conflicts.length > 0 && (
+                  <div className="space-y-1.5">
+                    {conflicts.map((c: any, i: number) => (
+                      <div
+                        key={i}
+                        className={cn(
+                          "rounded-lg border px-3 py-2 text-[11px]",
+                          c.severity === "block" && "border-red-500/30 bg-red-500/[0.05] text-red-200",
+                          c.severity === "needs_approval" && "border-amber-500/30 bg-amber-500/[0.05] text-amber-200",
+                          c.severity === "block_go_live" && "border-orange-500/30 bg-orange-500/[0.05] text-orange-200",
+                        )}
+                      >
+                        <p className="flex items-start gap-1.5">
+                          <AlertTriangle className="mt-0.5 h-3 w-3 shrink-0" /> {c.message}
+                        </p>
+                        <p className="mt-0.5 pl-[18px] opacity-80">{c.suggestion}</p>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* Diff */}
+                {diff.length > 0 && (
+                  <div className="rounded-lg border border-white/[0.06] bg-white/[0.02] p-3">
+                    <p className="mb-1.5 flex items-center gap-1.5 text-[11px] font-semibold text-foreground/80">
+                      <GitCompareArrows className="h-3 w-3" /> What changes ({diff.length})
+                    </p>
+                    <div className="max-h-40 space-y-1 overflow-y-auto">
+                      {diff.map((d: any, i: number) => (
+                        <p key={i} className="text-[11px] text-muted-foreground">
+                          <span className={cn(
+                            "mr-1 font-semibold",
+                            d.kind === "added" && "text-emerald-400",
+                            d.kind === "removed" && "text-red-400",
+                            (d.kind === "changed" || d.kind === "renamed") && "text-amber-400",
+                            d.kind === "disabled" && "text-orange-400",
+                          )}>{d.kind}</span>
+                          {d.label}{d.detail ? ` — ${d.detail}` : ""}
+                        </p>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {!impact.targetIsNew && diff.length === 0 && (
+                  <p className="text-[11px] text-muted-foreground">No differences detected against the current setup.</p>
+                )}
+
+                {/* Apply mode chooser (only when a target exists) */}
+                {!impact.targetIsNew && (
+                  <div className="space-y-1.5">
+                    <p className="text-[11px] font-semibold text-foreground/80">How do you want to apply it?</p>
+                    {([
+                      ["new_draft",      FilePlus2,   "Save as new draft",      "Creates a separate inactive workflow. Nothing existing changes. Safest."],
+                      ["direct",         CheckCircle2, "Update the existing one", "Overwrites the current setup (a rollback snapshot is taken first)."],
+                      ["duplicate_edit", Copy,        "Duplicate & edit",        "Copies the existing workflow with the changes applied, as an inactive draft."],
+                      ["propose",        SendToBack,  "Propose for approval",    "Sends the change to the HiveMind action centre for sign-off first."],
+                    ] as const).map(([value, Icon, label, hint]) => {
+                      const disabled = value === "direct" && hasBlock;
+                      return (
+                        <button
+                          key={value}
+                          disabled={disabled}
+                          onClick={() => setApplyMode(value)}
+                          className={cn(
+                            "flex w-full items-start gap-2 rounded-lg border px-3 py-2 text-left transition-colors",
+                            applyMode === value ? "border-sky-500/40 bg-sky-500/[0.08]" : "border-white/[0.06] bg-white/[0.02] hover:bg-white/[0.05]",
+                            disabled && "cursor-not-allowed opacity-40",
+                          )}
+                        >
+                          <Icon className="mt-0.5 h-3.5 w-3.5 shrink-0 text-sky-300" />
+                          <span>
+                            <span className="block text-[11px] font-medium">{label}</span>
+                            <span className="block text-[10px] text-muted-foreground">{hint}</span>
+                          </span>
+                        </button>
+                      );
+                    })}
+                    {safetyGoLive && applyMode !== "direct" && (
+                      <p className="text-[10px] text-amber-300/90">
+                        Go Live only works with “Update the existing one” — other modes save a draft without deploying.
+                      </p>
+                    )}
+                  </div>
+                )}
+
+                {(safetyReport.riskLevel === "high" || impact.requiresApproval) && (
+                  <p className="flex items-start gap-1.5 rounded-lg border border-amber-500/25 bg-amber-500/[0.05] px-3 py-2 text-[11px] text-amber-200/90">
+                    <ShieldAlert className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                    This change requires approval — confirming sends it to the HiveMind action centre instead of applying immediately.
+                  </p>
+                )}
+
+                <DialogFooter className="gap-2 sm:gap-0">
+                  <Button variant="ghost" size="sm" className="text-xs" onClick={() => setSafetyOpen(false)}>Cancel</Button>
+                  <Button
+                    size="sm"
+                    className={cn("gap-1.5 text-xs", safetyGoLive && "bg-emerald-600 text-white hover:bg-emerald-500")}
+                    disabled={confirmDisabled}
+                    onClick={() =>
+                      safetyGoLive
+                        ? applyAndGoLive.mutate({ mode: applyMode })
+                        : apply.mutate({ mode: applyMode })
+                    }
+                  >
+                    {(apply.isPending || applyAndGoLive.isPending)
+                      ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      : safetyGoLive ? <Rocket className="h-3.5 w-3.5" /> : <CheckCircle2 className="h-3.5 w-3.5" />}
+                    {safetyGoLive ? "Apply & Go Live" : "Confirm apply"}
+                  </Button>
+                </DialogFooter>
+              </div>
+            );
+          })()}
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Legacy Logic Converter dialog ── */}
+      <Dialog open={convertOpen} onOpenChange={(o) => { if (!o && !runConvert.isPending) setConvertOpen(false); }}>
+        <DialogContent className="max-h-[85dvh] max-w-lg overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-sm">
+              <Import className="h-4 w-4 text-sky-400" />
+              Convert legacy logic
+            </DialogTitle>
+            <DialogDescription className="text-[11px]">
+              SystemMind reads an old setup and rebuilds it as an editable WEBEE draft.
+              The original is never modified, and nothing goes live until you Apply.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-3">
+            <div className="space-y-1.5">
+              <p className="text-[11px] font-semibold text-foreground/80">What do you want to convert?</p>
+              <Select
+                value={convertType}
+                onValueChange={(v) => { setConvertType(v); setConvertSourceId(""); }}
+                disabled={runConvert.isPending}
+              >
+                <SelectTrigger className="h-8 text-xs">
+                  <SelectValue placeholder="Pick a source type…" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="agent" className="text-xs">Existing agent (call flow → workflow)</SelectItem>
+                  <SelectItem value="workflow" className="text-xs">Existing WEBEE workflow (load for editing)</SelectItem>
+                  <SelectItem value="n8n" className="text-xs">n8n workflow</SelectItem>
+                  <SelectItem value="hexmail_sequence" className="text-xs">Email follow-up sequence</SelectItem>
+                  <SelectItem value="wati_setup" className="text-xs">WATI WhatsApp campaign</SelectItem>
+                  <SelectItem value="webform_auto_call" className="text-xs">Webform + auto-call setup</SelectItem>
+                  <SelectItem value="manual_description" className="text-xs">Describe a process manually</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {convertType && convertType !== "manual_description" && (() => {
+              const options: Array<{ id: string; label: string }> =
+                convertType === "agent"             ? ((convSources?.agents ?? []) as any[]).map((a) => ({ id: a.id, label: `${a.name}${a.agent_type ? ` (${a.agent_type})` : ""}` })) :
+                convertType === "workflow"          ? ((convSources?.workflows ?? []) as any[]).map((w) => ({ id: w.id, label: `${w.name}${w.is_active ? " (active)" : ""}` })) :
+                convertType === "n8n"               ? ((convSources?.n8n ?? []) as any[]).map((n) => ({ id: n.id, label: n.name })) :
+                convertType === "hexmail_sequence"  ? ((convSources?.sequences ?? []) as any[]).map((s) => ({ id: s.id, label: `${s.name}${s.status ? ` (${s.status})` : ""}` })) :
+                convertType === "wati_setup"        ? ((convSources?.wati ?? []) as any[]).map((w) => ({ id: w.id, label: `${w.name}${w.template_name ? ` — ${w.template_name}` : ""}` })) :
+                ((convSources?.webforms ?? []) as any[]).map((w) => ({ id: w.id, label: `${w.name}${w.status ? ` (${w.status})` : ""}` }));
+              return (
+                <div className="space-y-1.5">
+                  <p className="text-[11px] font-semibold text-foreground/80">Pick the source</p>
+                  {convSourcesLoading ? (
+                    <p className="flex items-center gap-2 text-[11px] text-muted-foreground">
+                      <Loader2 className="h-3 w-3 animate-spin" /> Loading your sources…
+                    </p>
+                  ) : options.length === 0 ? (
+                    <p className="text-[11px] text-muted-foreground">
+                      Nothing found for this source type in your workspace.
+                    </p>
+                  ) : (
+                    <Select value={convertSourceId} onValueChange={setConvertSourceId} disabled={runConvert.isPending}>
+                      <SelectTrigger className="h-8 text-xs">
+                        <SelectValue placeholder="Pick one…" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {options.map((o) => (
+                          <SelectItem key={o.id} value={o.id} className="text-xs">{o.label}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
+                </div>
+              );
+            })()}
+
+            {convertType === "manual_description" && (
+              <div className="space-y-1.5">
+                <p className="text-[11px] font-semibold text-foreground/80">Describe the process</p>
+                <Textarea
+                  value={convertDesc}
+                  onChange={(e) => setConvertDesc(e.target.value)}
+                  placeholder="e.g. “When a lead comes in from our website we call them within 5 minutes; if no answer we send a WhatsApp, then email the day after…”"
+                  className="min-h-[100px] resize-none text-xs"
+                  disabled={runConvert.isPending}
+                />
+                <p className="text-[10px] text-muted-foreground/70">
+                  SystemMind will convert this into a workflow draft and clearly mark any assumptions it makes.
+                </p>
+              </div>
+            )}
+
+            <DialogFooter className="gap-2 sm:gap-0">
+              <Button variant="ghost" size="sm" className="text-xs" disabled={runConvert.isPending} onClick={() => setConvertOpen(false)}>
+                Cancel
+              </Button>
+              <Button
+                size="sm"
+                className="gap-1.5 text-xs"
+                disabled={
+                  runConvert.isPending ||
+                  !convertType ||
+                  (convertType === "manual_description" ? convertDesc.trim().length < 20 : !convertSourceId)
+                }
+                onClick={() => runConvert.mutate()}
+              >
+                {runConvert.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Import className="h-3.5 w-3.5" />}
+                {runConvert.isPending ? "Converting…" : "Convert to draft"}
+              </Button>
+            </DialogFooter>
+          </div>
+        </DialogContent>
+      </Dialog>
     </SystemMindShell>
   );
 }
