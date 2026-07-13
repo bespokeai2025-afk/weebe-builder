@@ -1,0 +1,407 @@
+Please add strict protection rules to the SystemMind Agent Workflow Builder so it cannot accidentally alter, overwrite, or break existing agent setups, workflows, prompts, provider configurations, or live deployments.
+
+SystemMind must treat all existing agent setups as protected by default.
+
+## Main rule
+
+SystemMind must never silently change an existing live agent, workflow, prompt, provider setup, webhook, follow-up sequence, WhatsApp setup, Retell setup, WATI setup, Meta setup, Twilio setup, CRM sync, or Go Live configuration.
+
+If a requested change would alter, replace, break, disable, overwrite, or conflict with an existing configuration, SystemMind must stop and notify the user before making any change.
+
+The user must explicitly approve the change before it is applied.
+
+---
+
+## 1. Protected existing configuration
+
+Treat these as protected objects:
+
+* live agents
+* draft agents connected to live workflows
+* agent prompts
+* conversation flows
+* workflow configs
+* workflow triggers
+* workflow actions
+* post-call extraction fields
+* post-chat extraction fields
+* Go Live deployment settings
+* Retell agent IDs
+* Retell API settings
+* phone numbers
+* webhook URLs
+* WATI setup
+* Meta WhatsApp setup
+* Twilio setup
+* WhatsApp templates
+* WhatsApp broadcast workflows
+* Follow Up Centre sequences
+* email/SMS/WhatsApp follow-up campaigns
+* CRM sync settings
+* calendar settings
+* lead status mappings
+* qualification rules
+* workspace custom fields
+* AccountsMind metrics
+* HiveMind, GrowthMind, SystemMind, and AccountsMind settings
+
+SystemMind can create new drafts, but it must not overwrite protected objects without approval.
+
+---
+
+## 2. Change impact detection
+
+Before applying any SystemMind-generated change, run an impact check.
+
+The impact check should detect:
+
+* which agent is affected
+* which workflow is affected
+* whether the target is live
+* whether the target is used by other workflows
+* whether the target has active leads/calls/follow-ups
+* whether existing post-call extraction fields will change
+* whether variables will be removed or renamed
+* whether webhooks will change
+* whether provider settings will change
+* whether Go Live settings will change
+* whether any existing workflow trigger/action will be disabled
+* whether any sequence will stop sending
+* whether any CRM mapping will change
+* whether any status mapping will change
+* whether any workspace field/stat/widget will be deleted or changed
+
+If the impact is non-zero, SystemMind must show a warning and require confirmation.
+
+---
+
+## 3. Approval required before breaking or replacing anything
+
+If SystemMind detects that a requested change could break or replace a previous configuration, show the user a warning like:
+
+“This change may affect an existing live setup. It will modify the following items: [list]. This could impact current agents, workflows, follow-ups, or integrations. Do you want to continue?”
+
+The user should have options:
+
+* Cancel
+* Save as new draft instead
+* Duplicate and edit safely
+* Apply change after approval
+* Apply and create rollback point
+
+Default should always be:
+
+`Save as new draft instead`
+
+Never default to overwriting a live setup.
+
+---
+
+## 4. Safe edit modes
+
+Add clear edit modes for SystemMind changes:
+
+### Create New
+
+Creates a new agent/workflow/sequence/config without touching existing ones.
+
+### Duplicate and Edit
+
+Copies the existing setup into a new draft version and edits the copy.
+
+### Propose Change
+
+Creates a proposed patch against the existing setup but does not apply it.
+
+### Apply Approved Change
+
+Only applies after user/admin approval.
+
+### Emergency Rollback
+
+Restores the previous version if something goes wrong.
+
+SystemMind should prefer `Duplicate and Edit` when modifying existing live agents.
+
+---
+
+## 5. Version snapshots before apply
+
+Before applying any change to an existing configuration, automatically create a rollback snapshot.
+
+The snapshot should include:
+
+* previous agent prompt
+* previous workflow config
+* previous variables
+* previous extraction fields
+* previous Go Live settings
+* previous provider/webhook settings if affected
+* previous follow-up sequence
+* previous status mappings
+* previous CRM mapping
+* previous workflow version
+
+If the apply fails or the user wants to undo, restore from the snapshot.
+
+---
+
+## 6. Diff preview before approval
+
+Before applying changes, show a clear diff preview.
+
+The preview should show:
+
+* what is being added
+* what is being changed
+* what is being removed
+* what is being renamed
+* what is being disabled
+* which workflows/agents depend on it
+* risk level
+* rollback availability
+
+Example labels:
+
+* Added
+* Changed
+* Removed
+* Renamed
+* Disabled
+* High risk
+* Requires approval
+
+Do not apply changes until the user approves this preview.
+
+---
+
+## 7. Conflict detection
+
+Add conflict detection.
+
+SystemMind should detect conflicts such as:
+
+* duplicate workflow triggers
+* duplicate active follow-up sequences
+* missing variables
+* renamed variables used elsewhere
+* deleted extraction fields used by CRM mapping
+* webhook URL changes
+* Retell agent ID mismatch
+* provider credentials missing
+* WhatsApp template not approved
+* calendar connection missing
+* CRM field missing
+* status value not recognised
+* workspace_id mismatch
+* workflow trying to use another workspace’s config
+* live deployment already active
+
+If conflict exists, SystemMind must not apply.
+
+It should explain the conflict and suggest a fix.
+
+---
+
+## 8. Workspace isolation remains critical
+
+Every check and every change must be limited to the signed-in user’s `workspace_id`.
+
+SystemMind must never:
+
+* read another workspace’s agent setup
+* alter another workspace’s workflow
+* copy WBAH config into another workspace
+* copy another workspace’s config into WBAH
+* change global defaults from a user prompt
+* update the main WEBEE codebase from a user prompt
+* apply a workspace-specific change globally
+
+If `workspace_id` is missing, mismatched, or ambiguous, reject the action.
+
+---
+
+## 9. Live agent protection
+
+If an agent is live, SystemMind must treat it as high risk.
+
+For live agents:
+
+* do not overwrite prompt directly
+* do not change deployment settings directly
+* do not change webhook URL directly
+* do not change provider settings directly
+* do not change post-call extraction directly
+* do not remove variables directly
+* do not disable workflows directly
+
+Instead:
+
+1. create a draft version
+2. run validation
+3. run simulation/test
+4. show diff
+5. require approval
+6. create rollback snapshot
+7. apply safely
+8. verify after deploy
+
+---
+
+## 10. Apply and Go Live safety
+
+The Apply & Go Live button must not bypass safety checks.
+
+Before Apply & Go Live:
+
+* validate workspace_id
+* validate required credentials
+* validate variables
+* validate workflow dependencies
+* validate provider setup
+* validate webhooks
+* validate follow-up rules
+* run conflict check
+* create rollback snapshot
+* show diff preview
+* require approval if live/high-risk
+
+If anything fails, do not go live.
+
+Show clear errors.
+
+---
+
+## 11. User notification rules
+
+SystemMind should notify the user when:
+
+* a change affects an existing agent
+* a change affects a live workflow
+* a change affects provider setup
+* a change affects webhook settings
+* a change affects CRM mapping
+* a change affects follow-up sequences
+* a change removes/renames variables
+* a change could stop existing automations
+* a change requires missing credentials
+* a change could affect billing/usage
+* a change has high risk
+
+SystemMind must explain the risk in plain English.
+
+---
+
+## 12. Audit logging
+
+Every proposed, approved, applied, rejected, and rolled-back change must be logged.
+
+Audit log should include:
+
+* workspace_id
+* user_id
+* agent_id
+* workflow_id
+* build_session_id
+* version_id
+* action_type
+* before_state
+* proposed_after_state
+* final_after_state
+* risk_level
+* conflicts_detected
+* approval_required
+* approved_by
+* approved_at
+* applied_at
+* rollback_snapshot_id
+* token usage
+* elapsed time
+* cost estimate
+
+---
+
+## 13. Recommended UI changes
+
+In the SystemMind Build Workspace, add a safety panel showing:
+
+* Affected agent
+* Affected workflow
+* Live status
+* Dependencies
+* Risk level
+* Conflicts found
+* Approval required
+* Rollback available
+* Diff preview
+* Recommended safe action
+
+Buttons:
+
+* Save as New Draft
+* Duplicate and Edit
+* Request Approval
+* Apply Approved Change
+* Apply & Go Live
+* Rollback
+
+Hide or disable Apply & Go Live until all required safety checks pass.
+
+---
+
+## 14. Do not break existing features
+
+Do not break:
+
+* existing Agent Builder
+* existing live agents
+* existing Agent Deploy tab
+* existing Go Live button
+* Retell setup
+* WhatsApp builder
+* Follow Up Centre
+* Workflows page
+* SystemMind
+* HiveMind
+* GrowthMind
+* AccountsMind
+* WBAH logic
+* standard WEBEE accounts
+* Calls page
+* Leads page
+* Qualified page
+* Data page
+* workspace scoping
+* Supabase RLS
+* filters
+* manual status selectors
+* Call Ava
+* webforms
+
+---
+
+## 15. Testing required
+
+Please test:
+
+1. SystemMind creates a new workflow without affecting existing agents.
+2. SystemMind tries to edit a live agent and is forced into draft/duplicate mode.
+3. SystemMind detects a variable rename that would break extraction.
+4. SystemMind detects a workflow trigger conflict.
+5. SystemMind detects a webhook change and requires approval.
+6. SystemMind detects a missing credential and refuses Apply & Go Live.
+7. SystemMind shows a diff before applying.
+8. SystemMind creates a rollback snapshot before applying.
+9. User can cancel a risky change.
+10. User can save risky change as a draft instead.
+11. User can approve and apply a safe change.
+12. User can rollback after applying.
+13. No other workspace is affected.
+14. WBAH is not affected unless logged into WBAH.
+15. Standard WEBEE accounts are not affected.
+16. Apply & Go Live cannot bypass safety checks.
+17. Audit logs are created for every proposed/applied change.
+
+Final instruction:
+
+SystemMind must be safe by default. It can build, test, draft, duplicate, propose, and improve workflows, but it must never silently alter or break existing agent setups. If a change could affect a previous configuration, SystemMind must notify the user, show the impact, require approval, and create a rollback point before applying anything.
