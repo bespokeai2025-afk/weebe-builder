@@ -1,0 +1,1572 @@
+// ── SystemMind Build Session View ──────────────────────────────────────────────
+// The full session workspace (chat + step tabs + apply safety flow), extracted
+// from SystemMindBuildWorkspacePage so it can render BOTH on the full
+// /systemmind/build page AND inside the Agent Builder right-side drawer.
+// Step tabs: Brief → Requirements → Variables → CRM Mapping → Workflow → Test
+// → Review → Apply, plus Versions / Usage / Conversion.
+
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useNavigate } from "@tanstack/react-router";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useServerFn } from "@tanstack/react-start";
+import { toast } from "sonner";
+import {
+  Loader2, Send, Archive, ArchiveRestore, History,
+  FlaskConical, FileCode2, Gauge, RotateCcw, CheckCircle2, AlertTriangle,
+  ShieldAlert, Rocket, GitBranch, Variable, ListChecks, Bell, StickyNote,
+  ArrowRight, Bot, Workflow as WorkflowIcon, ExternalLink, ShieldCheck,
+  Undo2, GitCompareArrows, FilePlus2, Copy, SendToBack, Import, Info,
+  ClipboardList, Lightbulb, Table2, Eye,
+} from "lucide-react";
+import { cn } from "@/lib/utils";
+import { DeploymentChecklistPanel } from "./DeploymentChecklistPanel";
+import { RequirementsPanel } from "./RequirementsPanel";
+import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
+import { Badge } from "@/components/ui/badge";
+import {
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
+} from "@/components/ui/dialog";
+import {
+  getBuildSession, promptBuildSession,
+  simulateBuildVersion, applyBuildVersion, restoreBuildVersion,
+  setBuildVersionNotes, setBuildSessionArchived, markBuildVersionDeployed,
+  getSystemMindUsageSummary, getBuildApplySafetyReport, rollbackBuildApply,
+} from "@/lib/systemmind/build-workspace.functions";
+import { getConversionForSession } from "@/lib/systemmind/legacy-conversion.functions";
+import { goLiveAgent } from "@/lib/agents/agents.functions";
+
+// ── Small bits ─────────────────────────────────────────────────────────────────
+
+export function RiskBadge({ risk }: { risk?: string | null }) {
+  if (!risk) return null;
+  return (
+    <Badge
+      variant="outline"
+      className={cn(
+        "text-[10px] font-semibold",
+        risk === "high"   && "border-red-500/40   text-red-400",
+        risk === "medium" && "border-amber-500/40 text-amber-400",
+        risk === "low"    && "border-green-500/40 text-green-400",
+      )}
+    >
+      {risk} risk
+    </Badge>
+  );
+}
+
+const STATUS_STYLES: Record<string, string> = {
+  draft:            "border-white/20 text-muted-foreground",
+  testing:          "border-sky-500/40 text-sky-400",
+  revised:          "border-white/15 text-muted-foreground/70",
+  pending_approval: "border-amber-500/40 text-amber-400",
+  applied:          "border-green-500/40 text-green-400",
+  deployed:         "border-emerald-500/50 text-emerald-300",
+  rejected:         "border-red-500/40 text-red-400",
+  archived:         "border-white/15 text-muted-foreground/60",
+};
+
+export function StatusBadge({ status }: { status?: string | null }) {
+  if (!status) return null;
+  return (
+    <Badge variant="outline" className={cn("text-[10px]", STATUS_STYLES[status] ?? "border-white/20")}>
+      {status.replace(/_/g, " ")}
+    </Badge>
+  );
+}
+
+export function fmtTime(iso?: string | null) {
+  if (!iso) return "";
+  try { return new Date(iso).toLocaleString(); } catch { return ""; }
+}
+
+export function fmtMs(ms: number) {
+  if (ms < 1000) return `${ms}ms`;
+  const s = ms / 1000;
+  if (s < 60) return `${s.toFixed(1)}s`;
+  return `${Math.floor(s / 60)}m ${Math.round(s % 60)}s`;
+}
+
+// ── Config preview ──────────────────────────────────────────────────────────────
+
+function Section({ icon: Icon, title, children }: { icon: React.ElementType; title: string; children: React.ReactNode }) {
+  return (
+    <div className="rounded-lg border border-white/[0.06] bg-white/[0.02] p-3 space-y-2">
+      <div className="flex items-center gap-1.5">
+        <Icon className="h-3.5 w-3.5 text-sky-400" />
+        <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{title}</p>
+      </div>
+      {children}
+    </div>
+  );
+}
+
+function ConfigPreview({ config }: { config: Record<string, any> }) {
+  const wf     = config.workflow ?? {};
+  const steps  = (wf.steps ?? []) as any[];
+  const vars   = (config.variables ?? []) as any[];
+  const fields = (config.extraction_fields ?? []) as any[];
+  const rules  = (config.follow_up_rules ?? []) as any[];
+  const creds  = (config.required_credentials ?? []) as string[];
+  const risks  = (config.risks ?? []) as string[];
+  const tests  = (config.test_plan ?? []) as string[];
+  const chan   = (config.channel_setup ?? {}) as Record<string, string>;
+
+  return (
+    <div className="space-y-3">
+      <Section icon={WorkflowIcon} title={`Workflow — ${wf.name ?? "Unnamed"}`}>
+        <p className="text-[11px] text-muted-foreground">{wf.purpose}</p>
+        <p className="text-[10px] text-muted-foreground/70">Trigger: <span className="text-sky-300">{wf.trigger_type}</span></p>
+        <div className="space-y-1">
+          {steps.map((s: any) => (
+            <div key={s.id} className="flex items-start gap-2 rounded border border-white/[0.05] bg-white/[0.02] px-2 py-1.5">
+              <Badge variant="secondary" className="text-[9px] shrink-0 mt-0.5">{s.id}</Badge>
+              <div className="min-w-0">
+                <p className="text-[11px] font-medium">{s.type}{s.title ? ` — ${s.title}` : ""}{s.status ? ` → ${s.status}` : ""}{s.template ? ` (${s.template})` : ""}</p>
+                {s.type === "branch" && (s.conditions ?? []).map((c: any, i: number) => (
+                  <p key={i} className="text-[10px] text-muted-foreground">if {c.field} {c.op} {String(c.value)} → {c.next}</p>
+                ))}
+                {s.next && <p className="text-[10px] text-muted-foreground/60">next → {s.next}</p>}
+              </div>
+            </div>
+          ))}
+        </div>
+      </Section>
+
+      {config.agent_prompt ? (
+        <Section icon={Bot} title="Agent prompt">
+          <pre className="whitespace-pre-wrap text-[11px] leading-relaxed text-foreground/85 max-h-64 overflow-y-auto">{config.agent_prompt}</pre>
+        </Section>
+      ) : null}
+
+      {(vars.length > 0 || fields.length > 0) && (
+        <Section icon={Variable} title="Variables & extraction">
+          {vars.map((v: any, i: number) => (
+            <p key={`v${i}`} className="text-[11px]"><span className="font-medium">{v.name}</span> <span className="text-muted-foreground">— {v.source ?? v.description ?? "runtime"}</span></p>
+          ))}
+          {fields.map((f: any, i: number) => (
+            <p key={`f${i}`} className="text-[11px]"><span className="font-medium">{f.name}</span> <span className="text-muted-foreground">— extracted from conversation</span></p>
+          ))}
+        </Section>
+      )}
+
+      {rules.length > 0 && (
+        <Section icon={Bell} title="Follow-up rules">
+          {rules.map((r: any, i: number) => (
+            <p key={i} className="text-[11px] text-muted-foreground">
+              <span className="text-foreground">{r.trigger}</span> → {r.action}
+              {r.delay_hours ? ` (after ${r.delay_hours}h)` : ""}{r.channel ? ` via ${r.channel}` : ""}
+            </p>
+          ))}
+        </Section>
+      )}
+
+      {(Object.keys(chan).length > 0 || creds.length > 0) && (
+        <Section icon={ShieldAlert} title="Setup requirements">
+          {Object.entries(chan).map(([k, v]) => (
+            <p key={k} className="text-[11px]"><span className="font-medium capitalize">{k}:</span> <span className="text-muted-foreground">{String(v)}</span></p>
+          ))}
+          {creds.map((c, i) => (
+            <p key={i} className="text-[11px] text-amber-300/90">Credential needed: {c} <span className="text-muted-foreground">(enter in WEBEE settings — never here)</span></p>
+          ))}
+        </Section>
+      )}
+
+      {risks.length > 0 && (
+        <Section icon={AlertTriangle} title="Risks">
+          {risks.map((r, i) => <p key={i} className="text-[11px] text-amber-300/90">{r}</p>)}
+        </Section>
+      )}
+
+      {tests.length > 0 && (
+        <Section icon={ListChecks} title="Test plan">
+          {tests.map((t, i) => <p key={i} className="text-[11px] text-muted-foreground">{i + 1}. {t}</p>)}
+        </Section>
+      )}
+    </div>
+  );
+}
+
+// ── Simulation panel ────────────────────────────────────────────────────────────
+
+function SimulationView({ sim }: { sim: Record<string, any> }) {
+  return (
+    <div className="space-y-3">
+      <div className={cn(
+        "flex items-center gap-2 rounded-lg border p-3",
+        sim.ok ? "border-green-500/30 bg-green-500/[0.05]" : "border-amber-500/30 bg-amber-500/[0.05]",
+      )}>
+        {sim.ok
+          ? <CheckCircle2 className="h-4 w-4 text-green-400" />
+          : <AlertTriangle className="h-4 w-4 text-amber-400" />}
+        <p className="text-xs font-medium">
+          {sim.ok
+            ? `Simulation passed — ${sim.stepCount} steps, ${sim.paths?.length ?? 0} path(s), no warnings.`
+            : `Simulation found ${(sim.warnings?.length ?? 0)} warning(s) and ${(sim.missingSetup?.length ?? 0)} setup gap(s).`}
+        </p>
+      </div>
+
+      {(sim.paths ?? []).map((p: any, i: number) => (
+        <Section key={i} icon={GitBranch} title={p.label}>
+          <div className="flex flex-wrap items-center gap-1">
+            {p.steps.map((s: any, j: number) => (
+              <span key={j} className="inline-flex items-center gap-1">
+                <span className="rounded bg-white/[0.05] border border-white/[0.06] px-1.5 py-0.5 text-[10px]" title={s.description}>
+                  {s.type}
+                </span>
+                {j < p.steps.length - 1 && <ArrowRight className="h-2.5 w-2.5 text-muted-foreground/50" />}
+              </span>
+            ))}
+          </div>
+        </Section>
+      ))}
+
+      {(sim.actionsTriggered ?? []).length > 0 && (
+        <Section icon={ListChecks} title="Actions that would trigger">
+          {sim.actionsTriggered.map((a: string, i: number) => <p key={i} className="text-[11px] text-muted-foreground">• {a}</p>)}
+        </Section>
+      )}
+
+      {(sim.variables ?? []).length > 0 && (
+        <Section icon={Variable} title="Variables captured">
+          {sim.variables.map((v: any, i: number) => (
+            <p key={i} className="text-[11px]"><span className="font-medium">{v.name}</span> <span className="text-muted-foreground">— {v.source}</span></p>
+          ))}
+        </Section>
+      )}
+
+      {(sim.warnings ?? []).length > 0 && (
+        <Section icon={AlertTriangle} title="Warnings">
+          {sim.warnings.map((w: string, i: number) => <p key={i} className="text-[11px] text-amber-300/90">{w}</p>)}
+        </Section>
+      )}
+
+      {(sim.missingSetup ?? []).length > 0 && (
+        <Section icon={ShieldAlert} title="Missing setup">
+          {sim.missingSetup.map((m: string, i: number) => <p key={i} className="text-[11px] text-red-300/90">{m}</p>)}
+        </Section>
+      )}
+    </div>
+  );
+}
+
+// ── Conversion report (Legacy Logic Converter) ─────────────────────────────────
+
+const SOURCE_TYPE_LABELS: Record<string, string> = {
+  agent:              "Existing agent",
+  workflow:           "Existing WEBEE workflow",
+  n8n:                "n8n workflow",
+  hexmail_sequence:   "Email follow-up sequence",
+  wati_setup:         "WATI WhatsApp campaign",
+  webform_auto_call:  "Webform + auto-call setup",
+  manual_description: "Described process",
+};
+
+const FIDELITY_STYLES: Record<string, string> = {
+  full:     "border-green-500/40 text-green-400",
+  partial:  "border-amber-500/40 text-amber-400",
+  assisted: "border-sky-500/40 text-sky-400",
+};
+
+function ConversionReportView({ conversion }: { conversion: Record<string, any> }) {
+  const r = (conversion.report ?? {}) as Record<string, any>;
+  const converted   = (r.converted ?? []) as Array<{ from: string; to: string }>;
+  const unsupported = (r.unsupported ?? []) as Array<{ item: string; reason: string }>;
+  const warnings    = (r.warnings ?? []) as string[];
+  const assumptions = (r.assumptions ?? []) as string[];
+  const deps        = (r.provider_dependencies ?? []) as string[];
+  const testPlan    = (r.test_plan ?? []) as string[];
+  const fidelity    = String(conversion.fidelity ?? r.fidelity ?? "partial");
+
+  return (
+    <div className="space-y-3">
+      <div className="flex flex-wrap items-center gap-2 rounded-lg border border-white/[0.06] bg-white/[0.02] p-3">
+        <Import className="h-4 w-4 text-sky-400" />
+        <div className="min-w-0 flex-1">
+          <p className="text-xs font-semibold">
+            Converted from {SOURCE_TYPE_LABELS[String(conversion.source_type)] ?? conversion.source_type}
+            {conversion.source_name ? ` — “${conversion.source_name}”` : ""}
+          </p>
+          <p className="mt-0.5 text-[10px] text-muted-foreground">
+            {fmtTime(conversion.created_at)} · original untouched — nothing goes live until Apply
+          </p>
+        </div>
+        <Badge variant="outline" className={cn("text-[10px] font-semibold", FIDELITY_STYLES[fidelity] ?? "border-white/20")}>
+          {fidelity === "full" ? "full fidelity" : fidelity === "partial" ? "partial fidelity" : "AI-assisted"}
+        </Badge>
+        <RiskBadge risk={conversion.risk_level ?? r.risk_level} />
+      </div>
+
+      {r.original_summary && (
+        <Section icon={Info} title="What the original did">
+          <p className="text-[11px] leading-relaxed text-muted-foreground whitespace-pre-wrap">{r.original_summary}</p>
+          {r.detected_trigger && (
+            <p className="text-[10px] text-muted-foreground/70">Trigger detected: <span className="text-sky-300">{r.detected_trigger}</span></p>
+          )}
+        </Section>
+      )}
+
+      {converted.length > 0 && (
+        <Section icon={CheckCircle2} title={`Converted (${converted.length})`}>
+          {converted.map((c, i) => (
+            <p key={i} className="flex items-start gap-1.5 text-[11px]">
+              <span className="text-muted-foreground truncate max-w-[45%]" title={c.from}>{c.from}</span>
+              <ArrowRight className="mt-0.5 h-2.5 w-2.5 shrink-0 text-muted-foreground/50" />
+              <span className="text-green-300/90">{c.to}</span>
+            </p>
+          ))}
+        </Section>
+      )}
+
+      {unsupported.length > 0 && (
+        <Section icon={AlertTriangle} title={`Needs manual review (${unsupported.length})`}>
+          {unsupported.map((u, i) => (
+            <div key={i} className="rounded border border-amber-500/20 bg-amber-500/[0.04] px-2 py-1.5">
+              <p className="text-[11px] font-medium text-amber-200/90">{u.item}</p>
+              <p className="text-[10px] text-muted-foreground">{u.reason}</p>
+            </div>
+          ))}
+          <p className="text-[10px] text-muted-foreground/70">
+            A review task has been added to the HiveMind action centre for these items.
+          </p>
+        </Section>
+      )}
+
+      {warnings.length > 0 && (
+        <Section icon={ShieldAlert} title="Warnings">
+          {warnings.map((w, i) => <p key={i} className="text-[11px] text-amber-300/90">{w}</p>)}
+        </Section>
+      )}
+
+      {assumptions.length > 0 && (
+        <Section icon={StickyNote} title="Assumptions made">
+          {assumptions.map((a, i) => <p key={i} className="text-[11px] text-muted-foreground">• {a}</p>)}
+        </Section>
+      )}
+
+      {deps.length > 0 && (
+        <Section icon={ShieldAlert} title="Provider dependencies">
+          {deps.map((d, i) => <p key={i} className="text-[11px] text-muted-foreground">• {d}</p>)}
+        </Section>
+      )}
+
+      {testPlan.length > 0 && (
+        <Section icon={ListChecks} title="Suggested test plan">
+          {testPlan.map((t, i) => <p key={i} className="text-[11px] text-muted-foreground">{i + 1}. {t}</p>)}
+        </Section>
+      )}
+    </div>
+  );
+}
+
+// ── Step panels (Brief / Variables / CRM Mapping / Review) ─────────────────────
+
+function BriefPanel({
+  messages, currentVersion, config,
+}: {
+  messages: any[]; currentVersion: any | null; config: Record<string, any> | null;
+}) {
+  const firstUserMsg = messages.find((m) => m.role === "user");
+  const wf = (config?.workflow ?? {}) as Record<string, any>;
+  const creds = (config?.required_credentials ?? []) as string[];
+  const risks = (config?.risks ?? []) as string[];
+
+  if (!firstUserMsg && !currentVersion) {
+    return (
+      <p className="py-8 text-center text-[11px] text-muted-foreground">
+        Nothing here yet — tell SystemMind what to build in the chat and the brief will fill in.
+      </p>
+    );
+  }
+  return (
+    <div className="space-y-3">
+      {firstUserMsg && (
+        <Section icon={Lightbulb} title="Your original request">
+          <p className="whitespace-pre-wrap text-[11px] leading-relaxed text-foreground/90">{firstUserMsg.content}</p>
+        </Section>
+      )}
+      {currentVersion?.assistant_summary && (
+        <Section icon={Bot} title="What SystemMind understood">
+          <p className="whitespace-pre-wrap text-[11px] leading-relaxed text-muted-foreground">{currentVersion.assistant_summary}</p>
+        </Section>
+      )}
+      {(wf.purpose || wf.trigger_type || wf.name) && (
+        <Section icon={WorkflowIcon} title="Detected purpose & workflow type">
+          {wf.name && <p className="text-[11px]"><span className="font-medium">Workflow:</span> {wf.name}</p>}
+          {wf.purpose && <p className="text-[11px] text-muted-foreground">{wf.purpose}</p>}
+          {wf.trigger_type && (
+            <p className="text-[10px] text-muted-foreground/70">Recommended trigger: <span className="text-sky-300">{wf.trigger_type}</span></p>
+          )}
+        </Section>
+      )}
+      {currentVersion && (
+        <Section icon={ShieldCheck} title="Current state">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-[11px] text-muted-foreground">Version v{currentVersion.version_number}</span>
+            <StatusBadge status={currentVersion.status} />
+            <RiskBadge risk={currentVersion.risk_level} />
+          </div>
+          {Array.isArray(currentVersion.risk_reasons) && currentVersion.risk_reasons.length > 0 && (
+            <p className="text-[10px] text-amber-300/80">{currentVersion.risk_reasons.join(" · ")}</p>
+          )}
+        </Section>
+      )}
+      {(creds.length > 0 || risks.length > 0) && (
+        <Section icon={AlertTriangle} title="Missing information / open points">
+          {creds.map((c, i) => <p key={`c${i}`} className="text-[11px] text-amber-300/90">Credential needed: {c}</p>)}
+          {risks.map((r, i) => <p key={`r${i}`} className="text-[11px] text-amber-300/90">{r}</p>)}
+          {creds.length === 0 && risks.length === 0 && (
+            <p className="text-[11px] text-muted-foreground">Nothing outstanding.</p>
+          )}
+        </Section>
+      )}
+    </div>
+  );
+}
+
+function VariablesPanel({ config }: { config: Record<string, any> | null }) {
+  const vars   = (config?.variables ?? []) as any[];
+  const fields = (config?.extraction_fields ?? []) as any[];
+  if (vars.length === 0 && fields.length === 0) {
+    return (
+      <p className="py-8 text-center text-[11px] text-muted-foreground">
+        No variables detected yet. Generate a version first (chat or the Requirements step),
+        then the detected variables appear here.
+      </p>
+    );
+  }
+  const row = (v: any, kind: "variable" | "extracted", i: number) => (
+    <div key={`${kind}${i}`} className="flex flex-wrap items-center gap-2 rounded-lg border border-white/[0.05] bg-white/[0.02] px-3 py-2">
+      <Variable className="h-3 w-3 shrink-0 text-sky-300" />
+      <p className="text-[11px] font-medium">{v.name ?? v.key ?? "unnamed"}</p>
+      <Badge variant="secondary" className="text-[9px]">{kind === "variable" ? "runtime variable" : "extracted from call"}</Badge>
+      {v.type && <Badge variant="outline" className="text-[9px]">{String(v.type)}</Badge>}
+      {(v.required === true || v.required === false) && (
+        <Badge variant="outline" className={cn("text-[9px]", v.required ? "border-amber-500/40 text-amber-300" : "text-muted-foreground")}>
+          {v.required ? "required" : "optional"}
+        </Badge>
+      )}
+      <span className="ml-auto text-[10px] text-muted-foreground">
+        {v.source ?? v.description ?? (kind === "extracted" ? "post-call extraction" : "runtime")}
+        {(v.crm_destination || v.destination || v.maps_to) ? ` → ${v.crm_destination ?? v.destination ?? v.maps_to}` : ""}
+      </span>
+    </div>
+  );
+  return (
+    <div className="space-y-2">
+      {vars.map((v, i) => row(v, "variable", i))}
+      {fields.map((f, i) => row(f, "extracted", i))}
+      <p className="pt-1 text-[10px] text-muted-foreground/70">
+        To add, remove or rename a variable, ask SystemMind in the chat — e.g. “add a variable for
+        budget and make it required” — and a new version will be generated. The Requirements step can
+        also add missing script questions for you.
+      </p>
+    </div>
+  );
+}
+
+function MappingPanel({ config }: { config: Record<string, any> | null }) {
+  const fields = (config?.extraction_fields ?? []) as any[];
+  const req    = (config?.requirements ?? {}) as Record<string, any>;
+  const reqMappings = (req.variable_mappings ?? req.crm_mappings ?? []) as any[];
+
+  const rows: Array<{ field: string; destination: string; crmField: string; usage: string }> = [];
+  for (const f of fields) {
+    rows.push({
+      field:       String(f.name ?? f.key ?? "unnamed"),
+      destination: String(f.crm_destination ?? f.destination ?? f.maps_to ?? "Leads"),
+      crmField:    String(f.crm_field ?? f.field ?? f.name ?? ""),
+      usage:       String(f.usage ?? f.description ?? "post-call data"),
+    });
+  }
+  for (const m of reqMappings) {
+    rows.push({
+      field:       String(m.variable ?? m.field ?? m.name ?? "unnamed"),
+      destination: String(m.destination ?? m.crm_destination ?? "Leads"),
+      crmField:    String(m.crm_field ?? m.field ?? ""),
+      usage:       String(m.usage ?? m.reason ?? "workflow"),
+    });
+  }
+
+  if (rows.length === 0) {
+    return (
+      <p className="py-8 text-center text-[11px] text-muted-foreground">
+        No CRM mappings yet. They are generated with the workflow — answer the Requirements step
+        (it asks where each captured field should land: Calls, Leads, Qualified, Data, Follow-Up
+        Centre, Calendar) or ask SystemMind in the chat, e.g. “map the post-call data to Leads and
+        Qualified”.
+      </p>
+    );
+  }
+  return (
+    <div className="space-y-2">
+      <div className="overflow-x-auto rounded-lg border border-white/[0.06]">
+        <table className="w-full text-left text-[11px]">
+          <thead>
+            <tr className="border-b border-white/[0.06] bg-white/[0.02] text-[10px] uppercase tracking-wide text-muted-foreground">
+              <th className="px-3 py-2 font-medium">Extracted field</th>
+              <th className="px-3 py-2 font-medium">CRM destination</th>
+              <th className="px-3 py-2 font-medium">CRM field</th>
+              <th className="px-3 py-2 font-medium">Used for</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((r, i) => (
+              <tr key={i} className="border-b border-white/[0.04] last:border-0">
+                <td className="px-3 py-2 font-medium">{r.field}</td>
+                <td className="px-3 py-2"><Badge variant="outline" className="text-[9px]">{r.destination}</Badge></td>
+                <td className="px-3 py-2 text-muted-foreground">{r.crmField || "—"}</td>
+                <td className="px-3 py-2 text-muted-foreground">{r.usage}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <p className="text-[10px] text-muted-foreground/70">
+        To change a destination, ask SystemMind in the chat — e.g. “send appointment_time to
+        Calendar instead of Leads” — and a new version is generated. Nothing is written to your CRM
+        until you Apply.
+      </p>
+    </div>
+  );
+}
+
+function ReviewPanel({
+  report, loading, config,
+}: {
+  report: Record<string, any> | null; loading: boolean; config: Record<string, any> | null;
+}) {
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center gap-2 py-10 text-[11px] text-muted-foreground">
+        <Loader2 className="h-3.5 w-3.5 animate-spin" /> Running the pre-apply safety check…
+      </div>
+    );
+  }
+  if (!report) {
+    return (
+      <p className="py-8 text-center text-[11px] text-muted-foreground">
+        Generate a version first, then this step shows the full pre-apply review: what changes,
+        conflicts, risk level and rollback availability.
+      </p>
+    );
+  }
+  const impact    = (report.impact ?? {}) as Record<string, any>;
+  const conflicts = (impact.conflicts ?? []) as any[];
+  const diff      = (impact.diff ?? []) as any[];
+  const deps      = (impact.dependencies ?? []) as string[];
+  const creds     = (config?.required_credentials ?? []) as string[];
+
+  return (
+    <div className="space-y-3">
+      <div className="flex flex-wrap items-center gap-2 rounded-lg border border-white/[0.06] bg-white/[0.02] p-3">
+        <ShieldCheck className="h-4 w-4 text-emerald-400" />
+        <p className="text-xs font-medium">Pre-apply review</p>
+        <RiskBadge risk={report.riskLevel} />
+        {impact.requiresApproval && (
+          <Badge variant="outline" className="border-amber-500/40 text-[10px] text-amber-300">requires approval</Badge>
+        )}
+        {impact.rollbackAvailable && (
+          <Badge variant="outline" className="border-emerald-500/40 text-[10px] text-emerald-300">rollback available</Badge>
+        )}
+      </div>
+
+      <Section icon={Info} title="Target">
+        {impact.targetIsNew ? (
+          <p className="text-[11px] text-emerald-300">Creates a brand-new workflow — nothing existing is touched.</p>
+        ) : (
+          <>
+            <p className="text-[11px]">
+              Updates <span className="font-semibold">{impact.targetWorkflowName ?? "an existing workflow"}</span>
+              {impact.targetIsLive && <Badge variant="outline" className="ml-1.5 border-red-500/40 text-[10px] text-red-300">LIVE</Badge>}
+            </p>
+            {impact.targetAgentName && (
+              <p className="text-[11px] text-muted-foreground">
+                Also updates agent <span className="font-medium text-foreground/80">{impact.targetAgentName}</span>
+                {impact.agentIsLive ? " (currently live)" : ""}.
+              </p>
+            )}
+          </>
+        )}
+        {deps.length > 0 && deps.map((d, i) => <p key={i} className="text-[10px] text-muted-foreground">• could also affect: {d}</p>)}
+      </Section>
+
+      {conflicts.length > 0 && (
+        <Section icon={AlertTriangle} title={`Blockers & approvals (${conflicts.length})`}>
+          {conflicts.map((c: any, i: number) => (
+            <div key={i} className={cn(
+              "rounded border px-2 py-1.5 text-[11px]",
+              c.severity === "block" && "border-red-500/30 bg-red-500/[0.05] text-red-200",
+              c.severity === "needs_approval" && "border-amber-500/30 bg-amber-500/[0.05] text-amber-200",
+              c.severity === "block_go_live" && "border-orange-500/30 bg-orange-500/[0.05] text-orange-200",
+            )}>
+              <p>{c.message}</p>
+              <p className="mt-0.5 text-[10px] opacity-80">{c.suggestion}</p>
+            </div>
+          ))}
+        </Section>
+      )}
+
+      {diff.length > 0 && (
+        <Section icon={GitCompareArrows} title={`What changes (${diff.length})`}>
+          <div className="max-h-48 space-y-1 overflow-y-auto">
+            {diff.map((d: any, i: number) => (
+              <p key={i} className="text-[11px] text-muted-foreground">
+                <span className={cn(
+                  "mr-1 font-semibold",
+                  d.kind === "added" && "text-emerald-400",
+                  d.kind === "removed" && "text-red-400",
+                  (d.kind === "changed" || d.kind === "renamed") && "text-amber-400",
+                  d.kind === "disabled" && "text-orange-400",
+                )}>{d.kind}</span>
+                {d.label}{d.detail ? ` — ${d.detail}` : ""}
+              </p>
+            ))}
+          </div>
+        </Section>
+      )}
+
+      {creds.length > 0 && (
+        <Section icon={ShieldAlert} title="Setup still needed">
+          {creds.map((c, i) => <p key={i} className="text-[11px] text-amber-300/90">Credential needed: {c}</p>)}
+        </Section>
+      )}
+
+      <p className="text-[10px] text-muted-foreground/70">
+        Nothing has been written — this is a read-only preview. Use Apply (or the Apply step) when
+        you're happy; you'll confirm exactly how to apply it there, and a rollback snapshot is taken
+        automatically before any existing setup is overwritten.
+      </p>
+    </div>
+  );
+}
+
+// ── Session view ────────────────────────────────────────────────────────────────
+
+type Tab =
+  | "brief" | "requirements" | "variables" | "mapping" | "config" | "test"
+  | "review" | "deploy" | "versions" | "usage" | "conversion";
+
+export function BuildSessionView({
+  sessionId,
+  embedded = false,
+  initialPrompt,
+  onInitialPromptConsumed,
+}: {
+  sessionId: string;
+  embedded?: boolean;
+  initialPrompt?: string | null;
+  onInitialPromptConsumed?: () => void;
+}) {
+  const navigate = useNavigate();
+  const qc       = useQueryClient();
+
+  const getFn      = useServerFn(getBuildSession);
+  const promptFn   = useServerFn(promptBuildSession);
+  const simulateFn = useServerFn(simulateBuildVersion);
+  const applyFn    = useServerFn(applyBuildVersion);
+  const restoreFn  = useServerFn(restoreBuildVersion);
+  const notesFn    = useServerFn(setBuildVersionNotes);
+  const archiveFn  = useServerFn(setBuildSessionArchived);
+  const deployedFn = useServerFn(markBuildVersionDeployed);
+  const usageFn    = useServerFn(getSystemMindUsageSummary);
+  const goLiveFn   = useServerFn(goLiveAgent);
+  const safetyFn   = useServerFn(getBuildApplySafetyReport);
+  const rollbackFn = useServerFn(rollbackBuildApply);
+  const conversionFn = useServerFn(getConversionForSession);
+
+  const [prompt, setPrompt]           = useState("");
+  const [tab, setTab]                 = useState<Tab>("config");
+  const [sim, setSim]                 = useState<Record<string, any> | null>(null);
+  const [notesEditId, setNotesEditId] = useState<string | null>(null);
+  const [notesDraft, setNotesDraft]   = useState("");
+  const [safetyOpen, setSafetyOpen]   = useState(false);
+  const [safetyGoLive, setSafetyGoLive] = useState(false);
+  const [safetyReport, setSafetyReport] = useState<Record<string, any> | null>(null);
+  const [applyMode, setApplyMode]     = useState<"direct" | "new_draft" | "duplicate_edit" | "propose">("direct");
+  const chatEndRef = useRef<HTMLDivElement | null>(null);
+
+  const { data: detail, isLoading: detailLoading } = useQuery({
+    queryKey: ["smbw-session", sessionId],
+    queryFn: () => getFn({ data: { sessionId } }),
+    enabled: !!sessionId,
+    throwOnError: false,
+  });
+
+  const { data: usage } = useQuery({
+    queryKey: ["smbw-usage"],
+    queryFn: () => usageFn({ data: { days: 30 } }),
+    enabled: tab === "usage",
+    throwOnError: false,
+    staleTime: 60_000,
+  });
+
+  // Conversion lineage row for the open session (drives the Conversion tab)
+  const { data: conversion } = useQuery({
+    queryKey: ["smbw-conversion", sessionId],
+    queryFn: () => conversionFn({ data: { sessionId } }),
+    enabled: !!sessionId,
+    throwOnError: false,
+    staleTime: 60_000,
+  });
+
+  const session   = detail?.session as Record<string, any> | undefined;
+  const versions  = (detail?.versions ?? []) as any[];
+  const messages  = (detail?.messages ?? []) as any[];
+  const snapshots = ((detail as any)?.snapshots ?? []) as any[];
+  const currentVersion = useMemo(
+    () => versions.find((v) => v.id === session?.current_version_id) ?? versions[0] ?? null,
+    [versions, session?.current_version_id],
+  );
+  const config = (currentVersion?.generated_config ?? null) as Record<string, any> | null;
+  const canApply = currentVersion && ["draft", "testing", "revised"].includes(String(currentVersion.status));
+
+  // Read-only review report — fetched only while the Review step is open.
+  const { data: reviewReport, isLoading: reviewLoading } = useQuery({
+    queryKey: ["smbw-review", sessionId, currentVersion?.id],
+    queryFn: () => safetyFn({ data: { sessionId, versionId: currentVersion!.id } }),
+    enabled: tab === "review" && !!currentVersion,
+    throwOnError: false,
+    staleTime: 30_000,
+  });
+
+  useEffect(() => {
+    chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages.length]);
+
+  const sendPrompt = useMutation({
+    mutationFn: async (text?: string) => {
+      const p = (text ?? prompt).trim();
+      if (!p) throw new Error("Describe what you want SystemMind to build or change.");
+      return promptFn({ data: { sessionId, prompt: p } });
+    },
+    onSuccess: (res: any) => {
+      setPrompt("");
+      setSim(null);
+      setTab("config");
+      qc.invalidateQueries({ queryKey: ["smbw-session", sessionId] });
+      qc.invalidateQueries({ queryKey: ["smbw-sessions"] });
+      qc.invalidateQueries({ queryKey: ["smbw-usage"] });
+      qc.invalidateQueries({ queryKey: ["smbw-review", sessionId] });
+      toast.success(`Version ${res.versionNumber} generated`, {
+        description: `${res.riskLevel} risk · ${fmtMs(res.elapsedMs)} · ${res.totalTokens} tokens`,
+      });
+    },
+    onError: (e: any) => {
+      qc.invalidateQueries({ queryKey: ["smbw-session", sessionId] });
+      toast.error("Generation failed", { description: e?.message });
+    },
+  });
+
+  // Auto-send the initial prompt handed over from the Agent Builder prompt box.
+  // The latch resets whenever the parent clears initialPrompt (via
+  // onInitialPromptConsumed), so each newly handed-off prompt sends exactly once.
+  const initialSentRef = useRef(false);
+  useEffect(() => {
+    if (!initialPrompt?.trim()) {
+      initialSentRef.current = false;
+      return;
+    }
+    if (initialSentRef.current) return;
+    if (detailLoading || !session) return;
+    if (session.status === "archived") return;
+    initialSentRef.current = true;
+    sendPrompt.mutate(initialPrompt.trim());
+    onInitialPromptConsumed?.();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialPrompt, detailLoading, session]);
+
+  const runSim = useMutation({
+    mutationFn: () => simulateFn({ data: { sessionId, versionId: currentVersion!.id } }),
+    onSuccess: (res: any) => {
+      setSim(res);
+      setTab("test");
+      qc.invalidateQueries({ queryKey: ["smbw-session", sessionId] });
+    },
+    onError: (e: any) => toast.error("Simulation failed", { description: e?.message }),
+  });
+
+  // Safety pre-flight: fetch impact report, then open the panel for the user
+  // to choose HOW to apply. Nothing is written by this call.
+  const openSafetyPanel = useMutation({
+    mutationFn: (goLive: boolean) =>
+      safetyFn({ data: { sessionId, versionId: currentVersion!.id } }).then((r: any) => ({ r, goLive })),
+    onSuccess: ({ r, goLive }: any) => {
+      setSafetyReport(r);
+      setSafetyGoLive(goLive);
+      const impact = r?.impact ?? {};
+      // Default mode mirrors the server's safe default: ONLY a completely
+      // fresh target defaults to direct; ANY existing target defaults to
+      // "Save as new draft" — overwriting is an explicit opt-in.
+      setApplyMode(
+        impact.targetIsNew && !impact.agentHasConfig && !impact.agentIsLive
+          ? "direct"
+          : "new_draft",
+      );
+      setSafetyOpen(true);
+    },
+    onError: (e: any) => toast.error("Safety check failed", { description: e?.message }),
+  });
+
+  const apply = useMutation({
+    mutationFn: (vars: { mode?: string; goLiveIntent?: boolean } = {}) =>
+      applyFn({ data: { sessionId, versionId: currentVersion!.id, mode: vars.mode as any, goLiveIntent: vars.goLiveIntent } }),
+    onSuccess: (res: any) => {
+      setSafetyOpen(false);
+      qc.invalidateQueries({ queryKey: ["smbw-session", sessionId] });
+      qc.invalidateQueries({ queryKey: ["smbw-sessions"] });
+      if (res.requiresApproval) {
+        toast.warning("Approval required before this goes live", {
+          description: "This change needs a human sign-off. It has been sent to the HiveMind action centre for approval.",
+          duration: 8000,
+        });
+      } else {
+        toast.success(res.mode === "direct" ? "Build applied" : "Saved as a new draft", {
+          description: res.mode === "direct"
+            ? `The workflow has been saved to your Workflows page.${res.snapshotId ? " A rollback snapshot of the previous state was taken first." : ""}`
+            : "A new inactive draft workflow was created — nothing existing was changed.",
+          action: {
+            label: "View workflows",
+            onClick: () => navigate({ to: "/workflow-engine" }),
+          },
+          duration: 8000,
+        });
+      }
+    },
+    onError: (e: any) => {
+      setSafetyOpen(false);
+      toast.error("Apply blocked", { description: e?.message, duration: 12000 });
+    },
+  });
+
+  const applyAndGoLive = useMutation({
+    mutationFn: async (vars: { mode?: string } = {}) => {
+      const versionId = currentVersion!.id;
+      const res: any = await applyFn({
+        data: { sessionId, versionId, mode: (vars.mode ?? "direct") as any, goLiveIntent: true },
+      });
+      if (res.requiresApproval) return { ...res, wentLive: false };
+      // Reuse the EXISTING Go Live flow — same checks as the Deploy tab.
+      await goLiveFn({ data: { id: session!.target_agent_id, agentType: "receptionist" } });
+      await deployedFn({ data: { sessionId, versionId, deployTarget: "agent go-live" } });
+      return { ...res, wentLive: true };
+    },
+    onSuccess: (res: any) => {
+      setSafetyOpen(false);
+      qc.invalidateQueries({ queryKey: ["smbw-session", sessionId] });
+      qc.invalidateQueries({ queryKey: ["smbw-sessions"] });
+      if (res.requiresApproval) {
+        toast.warning("Approval required before this goes live", {
+          description: "This change needs a human sign-off. It has been sent to the HiveMind action centre for approval.",
+          duration: 8000,
+        });
+      } else if (res.wentLive) {
+        toast.success("Applied & live", { description: "The workflow is saved and the agent is now live." });
+      }
+    },
+    onError: (e: any) => {
+      setSafetyOpen(false);
+      qc.invalidateQueries({ queryKey: ["smbw-session", sessionId] });
+      toast.error("Go Live did not complete", {
+        description: `${e?.message ?? "Unknown error"}`,
+        duration: 10000,
+      });
+    },
+  });
+
+  const rollback = useMutation({
+    mutationFn: (snapshotId: string) =>
+      rollbackFn({ data: { sessionId, snapshotId } }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["smbw-session", sessionId] });
+      toast.success("Rolled back", { description: "The previous setup was restored from the snapshot." });
+    },
+    onError: (e: any) => toast.error("Rollback failed", { description: e?.message }),
+  });
+
+  const restore = useMutation({
+    mutationFn: (versionId: string) => restoreFn({ data: { sessionId, versionId } }),
+    onSuccess: (res: any) => {
+      setSim(null);
+      qc.invalidateQueries({ queryKey: ["smbw-session", sessionId] });
+      toast.success(`Restored as version ${res.versionNumber}`);
+    },
+    onError: (e: any) => toast.error("Restore failed", { description: e?.message }),
+  });
+
+  const saveNotes = useMutation({
+    mutationFn: (versionId: string) =>
+      notesFn({ data: { sessionId, versionId, notes: notesDraft } }),
+    onSuccess: () => {
+      setNotesEditId(null);
+      qc.invalidateQueries({ queryKey: ["smbw-session", sessionId] });
+      toast.success("Notes saved");
+    },
+    onError: (e: any) => toast.error("Could not save notes", { description: e?.message }),
+  });
+
+  const archive = useMutation({
+    mutationFn: (args: { id: string; archived: boolean }) =>
+      archiveFn({ data: { sessionId: args.id, archived: args.archived } }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["smbw-sessions"] });
+      qc.invalidateQueries({ queryKey: ["smbw-session", sessionId] });
+    },
+    onError: (e: any) => toast.error("Archive failed", { description: e?.message }),
+  });
+
+  const busy = sendPrompt.isPending;
+
+  if (detailLoading) {
+    return (
+      <div className="flex flex-1 items-center justify-center">
+        <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+  if (!session) {
+    return (
+      <div className="flex flex-1 items-center justify-center text-xs text-muted-foreground">
+        Build session not found.
+      </div>
+    );
+  }
+
+  const stepTabs: Array<readonly [Tab, React.ElementType, string]> = [
+    ["brief",  Lightbulb, "Brief"],
+    ...(session.target_agent_id ? ([["requirements", ClipboardList, "Requirements"]] as const) : []),
+    ["variables", Variable, "Variables"],
+    ["mapping",   Table2,   "CRM Mapping"],
+    ["config",    FileCode2, "Workflow"],
+    ["test",      FlaskConical, "Test"],
+    ["review",    Eye,      "Review"],
+    ...(session.target_agent_id ? ([["deploy", Rocket, "Apply"]] as const) : []),
+  ];
+  const extraTabs: Array<readonly [Tab, React.ElementType, string]> = [
+    ["versions", History, "Versions"],
+    ["usage",    Gauge,   "Usage"],
+    ...(conversion ? ([["conversion", Import, "Conversion"]] as const) : []),
+  ];
+
+  return (
+    <div className="flex min-h-0 flex-1 flex-col gap-3">
+      {/* Header */}
+      <div className="flex flex-wrap items-center gap-2">
+        <h1 className="truncate text-sm font-semibold">{session.title}</h1>
+        {currentVersion && <StatusBadge status={currentVersion.status} />}
+        {currentVersion && <RiskBadge risk={currentVersion.risk_level} />}
+        {session.linked_workflow_id && (
+          <Badge variant="outline" className="text-[10px] border-sky-500/30 text-sky-300">editing live workflow</Badge>
+        )}
+        <div className="ml-auto flex items-center gap-1.5">
+          {embedded && (
+            <Button
+              size="sm" variant="outline"
+              className="h-7 gap-1 px-2 text-[11px] border-sky-500/30 text-sky-400 hover:text-sky-300"
+              onClick={() =>
+                navigate({
+                  to: "/systemmind/build",
+                  search: { session: session.id, workflow: undefined, agent: undefined },
+                })
+              }
+            >
+              <ExternalLink className="h-3 w-3" /> Open in SystemMind
+            </Button>
+          )}
+          <Button
+            size="sm" variant="ghost"
+            className="h-7 gap-1 px-2 text-[11px] text-muted-foreground"
+            onClick={() => archive.mutate({ id: session.id, archived: session.status !== "archived" })}
+          >
+            {session.status === "archived"
+              ? (<><ArchiveRestore className="h-3 w-3" /> Restore</>)
+              : (<><Archive className="h-3 w-3" /> Archive</>)}
+          </Button>
+        </div>
+      </div>
+
+      <div className="flex min-h-0 flex-1 gap-3">
+        {/* Chat column */}
+        <div className={cn(
+          "flex min-h-0 flex-col rounded-xl border border-white/[0.05] bg-white/[0.01]",
+          embedded ? "w-[38%] min-w-[260px]" : "w-[42%] min-w-[300px]",
+        )}>
+          <div className="min-h-0 flex-1 space-y-3 overflow-y-auto p-3">
+            {messages.length === 0 && !busy && (
+              <p className="py-8 text-center text-[11px] text-muted-foreground">
+                Tell SystemMind what to build — e.g. “Build me a WhatsApp qualification
+                agent for estate agency leads.”
+              </p>
+            )}
+            {messages.map((m: any) => (
+              <div key={m.id} className={cn("flex", m.role === "user" ? "justify-end" : "justify-start")}>
+                <div className={cn(
+                  "max-w-[85%] rounded-lg px-3 py-2 text-xs leading-relaxed",
+                  m.role === "user" && "bg-sky-500/15 text-sky-100",
+                  m.role === "systemmind" && "border border-white/[0.06] bg-white/[0.03]",
+                  m.role === "system" && "border border-amber-500/20 bg-amber-500/[0.04] text-amber-200/90 text-[11px]",
+                )}>
+                  {m.role !== "user" && (
+                    <p className="mb-1 text-[9px] font-semibold uppercase tracking-wider text-muted-foreground">
+                      {m.role === "systemmind" ? "SystemMind" : "System"}
+                    </p>
+                  )}
+                  <p className="whitespace-pre-wrap">{m.content}</p>
+                </div>
+              </div>
+            ))}
+            {busy && (
+              <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
+                <Loader2 className="h-3 w-3 animate-spin" /> SystemMind is building…
+              </div>
+            )}
+            <div ref={chatEndRef} />
+          </div>
+          <div className="border-t border-white/[0.05] p-2.5">
+            <div className="flex items-end gap-2">
+              <Textarea
+                value={prompt}
+                onChange={(e) => setPrompt(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && (e.metaKey || e.ctrlKey) && !busy) sendPrompt.mutate(undefined);
+                }}
+                placeholder={versions.length > 0 ? "Ask for changes — a new version will be created…" : "Describe the agent/workflow to build…"}
+                className="min-h-[60px] resize-none text-xs"
+                disabled={busy || session.status === "archived"}
+              />
+              <Button
+                size="sm"
+                className="h-9 gap-1.5 px-3 text-xs"
+                onClick={() => sendPrompt.mutate(undefined)}
+                disabled={busy || !prompt.trim() || session.status === "archived"}
+              >
+                {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
+              </Button>
+            </div>
+          </div>
+        </div>
+
+        {/* Workbench column */}
+        <div className="flex min-h-0 flex-1 flex-col rounded-xl border border-white/[0.05] bg-white/[0.01]">
+          {/* Tabs + actions */}
+          <div className="flex flex-wrap items-center gap-1 border-b border-white/[0.05] p-2">
+            {stepTabs.map(([key, Icon, label], i) => (
+              <button
+                key={key}
+                onClick={() => setTab(key)}
+                className={cn(
+                  "flex items-center gap-1.5 rounded-md px-2 py-1.5 text-[11px] font-medium transition-colors",
+                  tab === key ? "bg-sky-500/15 text-sky-300" : "text-muted-foreground hover:bg-white/[0.04]",
+                )}
+              >
+                <span className={cn(
+                  "hidden h-3.5 w-3.5 items-center justify-center rounded-full text-[8px] font-bold xl:flex",
+                  tab === key ? "bg-sky-500/30 text-sky-200" : "bg-white/[0.06] text-muted-foreground",
+                )}>
+                  {i + 1}
+                </span>
+                <Icon className="h-3 w-3 xl:hidden" /> {label}
+              </button>
+            ))}
+            <div className="mx-1 h-4 w-px bg-white/[0.08]" />
+            {extraTabs.map(([key, Icon, label]) => (
+              <button
+                key={key}
+                onClick={() => setTab(key)}
+                className={cn(
+                  "flex items-center gap-1.5 rounded-md px-2 py-1.5 text-[11px] font-medium transition-colors",
+                  tab === key ? "bg-sky-500/15 text-sky-300" : "text-muted-foreground hover:bg-white/[0.04]",
+                )}
+              >
+                <Icon className="h-3 w-3" /> {label}
+              </button>
+            ))}
+            <div className="ml-auto flex items-center gap-1.5">
+              <Button
+                size="sm" variant="outline"
+                className="h-7 gap-1 px-2.5 text-[11px]"
+                disabled={!currentVersion || runSim.isPending}
+                onClick={() => runSim.mutate()}
+              >
+                {runSim.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : <FlaskConical className="h-3 w-3" />}
+                Simulate
+              </Button>
+              <Button
+                size="sm"
+                className="h-7 gap-1 px-2.5 text-[11px]"
+                disabled={!canApply || apply.isPending || applyAndGoLive.isPending || openSafetyPanel.isPending}
+                onClick={() => openSafetyPanel.mutate(false)}
+              >
+                {(apply.isPending || (openSafetyPanel.isPending && !openSafetyPanel.variables)) ? <Loader2 className="h-3 w-3 animate-spin" /> : <CheckCircle2 className="h-3 w-3" />}
+                Apply
+              </Button>
+              {session.target_agent_id && currentVersion?.risk_level !== "high" && (
+                <Button
+                  size="sm"
+                  className="h-7 gap-1 bg-emerald-600 px-2.5 text-[11px] text-white hover:bg-emerald-500"
+                  disabled={!canApply || apply.isPending || applyAndGoLive.isPending || openSafetyPanel.isPending}
+                  onClick={() => openSafetyPanel.mutate(true)}
+                >
+                  {(applyAndGoLive.isPending || (openSafetyPanel.isPending && !!openSafetyPanel.variables)) ? <Loader2 className="h-3 w-3 animate-spin" /> : <Rocket className="h-3 w-3" />}
+                  Apply &amp; Go Live
+                </Button>
+              )}
+            </div>
+          </div>
+
+          {currentVersion?.risk_level === "high" && canApply && (
+            <div className="mx-3 mt-2 flex items-start gap-2 rounded-lg border border-amber-500/25 bg-amber-500/[0.05] px-3 py-2">
+              <ShieldAlert className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-400" />
+              <p className="text-[11px] text-amber-200/90">
+                This workflow affects live customer communication and requires approval
+                before going live. Apply will send it to the HiveMind action centre.
+              </p>
+            </div>
+          )}
+
+          <div className="min-h-0 flex-1 overflow-y-auto p-3">
+            {tab === "brief" && (
+              <BriefPanel messages={messages} currentVersion={currentVersion} config={config} />
+            )}
+
+            {tab === "variables" && <VariablesPanel config={config} />}
+
+            {tab === "mapping" && <MappingPanel config={config} />}
+
+            {tab === "review" && (
+              <ReviewPanel report={(reviewReport as any) ?? null} loading={reviewLoading} config={config} />
+            )}
+
+            {tab === "config" && (
+              config
+                ? <ConfigPreview config={config} />
+                : <p className="py-8 text-center text-[11px] text-muted-foreground">Nothing generated yet — send SystemMind a prompt to create the first version.</p>
+            )}
+
+            {tab === "conversion" && (
+              conversion
+                ? <ConversionReportView conversion={conversion as Record<string, any>} />
+                : <p className="py-8 text-center text-[11px] text-muted-foreground">This session was not created by the Legacy Logic Converter.</p>
+            )}
+
+            {tab === "test" && (
+              sim
+                ? <SimulationView sim={sim} />
+                : <div className="py-8 text-center">
+                    <p className="text-[11px] text-muted-foreground">
+                      Run a safe simulation — it walks every workflow path, shows what
+                      would trigger, and checks your workspace setup. Nothing is sent
+                      to real customers.
+                    </p>
+                    <Button
+                      size="sm" variant="outline" className="mt-3 gap-1.5 text-xs"
+                      disabled={!currentVersion || runSim.isPending}
+                      onClick={() => runSim.mutate()}
+                    >
+                      {runSim.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <FlaskConical className="h-3.5 w-3.5" />}
+                      Run simulation
+                    </Button>
+                  </div>
+            )}
+
+            {tab === "versions" && (
+              <div className="space-y-2">
+                {versions.length === 0 && (
+                  <p className="py-8 text-center text-[11px] text-muted-foreground">No versions yet.</p>
+                )}
+                {versions.map((v: any) => (
+                  <div
+                    key={v.id}
+                    className={cn(
+                      "rounded-lg border p-3 space-y-1.5",
+                      v.id === session.current_version_id
+                        ? "border-sky-500/30 bg-sky-500/[0.04]"
+                        : "border-white/[0.05] bg-white/[0.02]",
+                    )}
+                  >
+                    <div className="flex flex-wrap items-center gap-2">
+                      <p className="text-xs font-semibold">v{v.version_number}</p>
+                      <StatusBadge status={v.status} />
+                      <RiskBadge risk={v.risk_level} />
+                      {v.id === session.current_version_id && (
+                        <Badge variant="outline" className="text-[10px] border-sky-500/40 text-sky-300">current</Badge>
+                      )}
+                      {v.restored_from_version_id && (
+                        <Badge variant="secondary" className="text-[10px]">restored</Badge>
+                      )}
+                      <span className="ml-auto text-[10px] text-muted-foreground">{fmtTime(v.created_at)}</span>
+                    </div>
+                    {v.user_prompt && (
+                      <p className="text-[11px] text-muted-foreground line-clamp-2">
+                        <span className="font-medium text-foreground/70">Prompt:</span> {v.user_prompt}
+                      </p>
+                    )}
+                    {v.assistant_summary && (
+                      <p className="text-[11px] text-muted-foreground line-clamp-3">{v.assistant_summary}</p>
+                    )}
+                    {Array.isArray(v.risk_reasons) && v.risk_reasons.length > 0 && (
+                      <p className="text-[10px] text-amber-300/80">{v.risk_reasons.join(" · ")}</p>
+                    )}
+                    {notesEditId === v.id ? (
+                      <div className="flex items-end gap-2">
+                        <Textarea
+                          value={notesDraft}
+                          onChange={(e) => setNotesDraft(e.target.value)}
+                          className="min-h-[48px] resize-none text-[11px]"
+                          placeholder="Notes about this version…"
+                        />
+                        <div className="flex flex-col gap-1">
+                          <Button size="sm" className="h-6 px-2 text-[10px]" disabled={saveNotes.isPending} onClick={() => saveNotes.mutate(v.id)}>Save</Button>
+                          <Button size="sm" variant="ghost" className="h-6 px-2 text-[10px]" onClick={() => setNotesEditId(null)}>Cancel</Button>
+                        </div>
+                      </div>
+                    ) : v.notes ? (
+                      <p className="flex items-start gap-1 text-[11px] text-sky-200/80">
+                        <StickyNote className="mt-0.5 h-3 w-3 shrink-0" /> {v.notes}
+                      </p>
+                    ) : null}
+                    <div className="flex items-center gap-1.5 pt-0.5">
+                      {v.id !== session.current_version_id && !["pending_approval"].includes(v.status) && (
+                        <Button
+                          size="sm" variant="outline" className="h-6 gap-1 px-2 text-[10px]"
+                          disabled={restore.isPending}
+                          onClick={() => restore.mutate(v.id)}
+                        >
+                          <RotateCcw className="h-2.5 w-2.5" /> Restore
+                        </Button>
+                      )}
+                      {notesEditId !== v.id && (
+                        <Button
+                          size="sm" variant="ghost" className="h-6 gap-1 px-2 text-[10px] text-muted-foreground"
+                          onClick={() => { setNotesEditId(v.id); setNotesDraft(v.notes ?? ""); }}
+                        >
+                          <StickyNote className="h-2.5 w-2.5" /> {v.notes ? "Edit notes" : "Add notes"}
+                        </Button>
+                      )}
+                      {v.applied_workflow_id && (
+                        <Button
+                          size="sm" variant="ghost" className="h-6 gap-1 px-2 text-[10px] text-muted-foreground"
+                          onClick={() => navigate({ to: "/workflow-engine" })}
+                        >
+                          <ExternalLink className="h-2.5 w-2.5" /> View workflow
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                ))}
+
+                {snapshots.length > 0 && (
+                  <div className="space-y-2 pt-3">
+                    <p className="flex items-center gap-1.5 text-[11px] font-semibold text-foreground/80">
+                      <ShieldCheck className="h-3 w-3 text-emerald-400" /> Rollback snapshots
+                    </p>
+                    <p className="text-[10px] text-muted-foreground">
+                      Taken automatically before each apply that changed an existing setup.
+                      Rolling back restores the workflow (and agent configuration) exactly as it was.
+                    </p>
+                    {snapshots.map((s: any) => (
+                      <div key={s.id} className="flex flex-wrap items-center gap-2 rounded-lg border border-white/[0.05] bg-white/[0.02] px-3 py-2">
+                        <History className="h-3 w-3 shrink-0 text-muted-foreground" />
+                        <p className="text-[11px]">
+                          <span className="font-medium">{s.target_workflow_name ?? "Workflow"}</span>
+                          {" · "}before v{s.version_number ?? "?"}
+                        </p>
+                        {s.restored_at ? (
+                          <Badge variant="outline" className="text-[10px] border-emerald-500/40 text-emerald-300">restored {fmtTime(s.restored_at)}</Badge>
+                        ) : null}
+                        <span className="text-[10px] text-muted-foreground">{fmtTime(s.created_at)}</span>
+                        <Button
+                          size="sm" variant="outline" className="ml-auto h-6 gap-1 px-2 text-[10px]"
+                          disabled={rollback.isPending}
+                          onClick={() => rollback.mutate(s.id)}
+                        >
+                          {rollback.isPending ? <Loader2 className="h-2.5 w-2.5 animate-spin" /> : <Undo2 className="h-2.5 w-2.5" />}
+                          Roll back
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {tab === "deploy" && session.target_agent_id && (
+              <div className="space-y-3">
+                <div className="flex flex-wrap items-center gap-2 rounded-lg border border-white/[0.06] bg-white/[0.02] p-3">
+                  <Rocket className="h-4 w-4 text-emerald-400" />
+                  <p className="text-xs font-medium">Apply &amp; deploy</p>
+                  <div className="ml-auto flex flex-wrap items-center gap-1.5">
+                    <Button
+                      size="sm" variant="outline" className="h-7 gap-1 px-2.5 text-[11px]"
+                      disabled={!canApply || apply.isPending || applyAndGoLive.isPending}
+                      onClick={() => apply.mutate({ mode: "new_draft" })}
+                    >
+                      <FilePlus2 className="h-3 w-3" /> Save Draft
+                    </Button>
+                    <Button
+                      size="sm" className="h-7 gap-1 px-2.5 text-[11px]"
+                      disabled={!canApply || apply.isPending || applyAndGoLive.isPending || openSafetyPanel.isPending}
+                      onClick={() => openSafetyPanel.mutate(false)}
+                    >
+                      <CheckCircle2 className="h-3 w-3" /> Apply
+                    </Button>
+                    {currentVersion?.risk_level !== "high" && (
+                      <Button
+                        size="sm"
+                        className="h-7 gap-1 bg-emerald-600 px-2.5 text-[11px] text-white hover:bg-emerald-500"
+                        disabled={!canApply || apply.isPending || applyAndGoLive.isPending || openSafetyPanel.isPending}
+                        onClick={() => openSafetyPanel.mutate(true)}
+                      >
+                        <Rocket className="h-3 w-3" /> Apply &amp; Go Live
+                      </Button>
+                    )}
+                    <Button
+                      size="sm" variant="ghost" className="h-7 gap-1 px-2 text-[11px] text-muted-foreground"
+                      onClick={() => navigate({ to: "/workflow-engine" })}
+                    >
+                      <ExternalLink className="h-3 w-3" /> View in Workflows
+                    </Button>
+                  </div>
+                </div>
+                <p className="text-[10px] text-muted-foreground/70">
+                  Save Draft creates a separate inactive workflow (nothing existing changes). Apply
+                  runs the safety check first and asks how to apply. Apply &amp; Go Live stays
+                  disabled until the deployment checks below pass.
+                </p>
+                <DeploymentChecklistPanel agentId={session.target_agent_id} />
+              </div>
+            )}
+
+            {tab === "requirements" && session.target_agent_id && (
+              <RequirementsPanel
+                agentId={session.target_agent_id}
+                currentRequirements={(config?.requirements as Record<string, any>) ?? null}
+                onVersionCreated={() => {
+                  qc.invalidateQueries({ queryKey: ["smbw-session", sessionId] });
+                  qc.invalidateQueries({ queryKey: ["smbw-sessions"] });
+                }}
+              />
+            )}
+
+            {tab === "usage" && (
+              <div className="space-y-3">
+                {!usage ? (
+                  <p className="py-8 text-center text-[11px] text-muted-foreground">Loading usage…</p>
+                ) : (
+                  <>
+                    <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                      {[
+                        ["Runs (30d)", String(usage.totalRuns ?? 0)],
+                        ["Tokens", (usage.totalTokens ?? 0).toLocaleString()],
+                        ["Time", fmtMs(usage.totalElapsedMs ?? 0)],
+                        ["Charge", `$${Number(usage.totalChargeUsd ?? 0).toFixed(4)}`],
+                      ].map(([label, value]) => (
+                        <div key={label} className="rounded-lg border border-white/[0.05] bg-white/[0.02] p-3">
+                          <p className="text-[10px] text-muted-foreground">{label}</p>
+                          <p className="mt-0.5 text-sm font-semibold">{value}</p>
+                        </div>
+                      ))}
+                    </div>
+                    {usage.included && (
+                      <p className="text-[11px] text-muted-foreground">
+                        Plan allowance: {usage.included.runsPerMonth || "∞"} runs ·{" "}
+                        {usage.included.secondsPerMonth || "∞"} seconds ·{" "}
+                        {usage.included.tokensPerMonth ? usage.included.tokensPerMonth.toLocaleString() : "∞"} tokens per month.
+                      </p>
+                    )}
+                    {usage.byTask && Object.keys(usage.byTask).length > 0 && (
+                      <Section icon={Gauge} title="By task type">
+                        {Object.entries(usage.byTask as Record<string, any>).map(([t, s]) => (
+                          <p key={t} className="text-[11px] text-muted-foreground">
+                            <span className="font-medium text-foreground/80">{t.replace(/_/g, " ")}</span>
+                            {" — "}{s.runs} runs · {s.tokens.toLocaleString()} tokens · {fmtMs(s.elapsedMs)} · ${Number(s.chargeUsd).toFixed(4)}
+                          </p>
+                        ))}
+                      </Section>
+                    )}
+                  </>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* ── Apply safety panel ── */}
+      <Dialog open={safetyOpen} onOpenChange={(o) => { if (!o) setSafetyOpen(false); }}>
+        <DialogContent className="max-h-[85dvh] max-w-lg overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-sm">
+              <ShieldCheck className="h-4 w-4 text-emerald-400" />
+              {safetyGoLive ? "Apply & Go Live — safety check" : "Apply — safety check"}
+            </DialogTitle>
+            <DialogDescription className="text-[11px]">
+              Review what this apply will change before anything is written.
+            </DialogDescription>
+          </DialogHeader>
+
+          {safetyReport && (() => {
+            const impact = (safetyReport.impact ?? {}) as Record<string, any>;
+            const conflicts = (impact.conflicts ?? []) as any[];
+            const diff = (impact.diff ?? []) as any[];
+            const deps = (impact.dependencies ?? []) as string[];
+            const hasBlock = conflicts.some((c) => c.severity === "block");
+            const goLiveBlocked = safetyGoLive && impact.canGoLive === false;
+            const confirmDisabled =
+              apply.isPending || applyAndGoLive.isPending ||
+              (applyMode === "direct" && hasBlock) ||
+              (safetyGoLive && (applyMode !== "direct" || goLiveBlocked));
+            return (
+              <div className="space-y-3">
+                {/* Target */}
+                <div className="rounded-lg border border-white/[0.06] bg-white/[0.02] p-3 text-[11px]">
+                  {impact.targetIsNew ? (
+                    <p className="flex items-center gap-1.5 text-emerald-300">
+                      <FilePlus2 className="h-3 w-3" /> This creates a brand-new workflow — nothing existing is touched.
+                    </p>
+                  ) : (
+                    <>
+                      <p>
+                        Updates <span className="font-semibold">{impact.targetWorkflowName ?? "an existing workflow"}</span>
+                        {impact.targetIsLive && <Badge variant="outline" className="ml-1.5 border-red-500/40 text-[10px] text-red-300">LIVE</Badge>}
+                      </p>
+                      {impact.targetAgentName && (
+                        <p className="mt-1 text-muted-foreground">
+                          Also updates the setup of agent <span className="font-medium text-foreground/80">{impact.targetAgentName}</span>
+                          {impact.agentIsLive ? " (currently live)" : ""}.
+                        </p>
+                      )}
+                      {impact.rollbackAvailable && (
+                        <p className="mt-1 flex items-center gap-1 text-emerald-300/90">
+                          <Undo2 className="h-3 w-3" /> A rollback snapshot is taken automatically before overwriting.
+                        </p>
+                      )}
+                    </>
+                  )}
+                  {deps.length > 0 && (
+                    <div className="mt-2 border-t border-white/[0.05] pt-2 text-muted-foreground">
+                      <p className="font-medium text-foreground/70">Could also affect:</p>
+                      {deps.map((d, i) => <p key={i}>• {d}</p>)}
+                    </div>
+                  )}
+                </div>
+
+                {/* Conflicts */}
+                {conflicts.length > 0 && (
+                  <div className="space-y-1.5">
+                    {conflicts.map((c: any, i: number) => (
+                      <div
+                        key={i}
+                        className={cn(
+                          "rounded-lg border px-3 py-2 text-[11px]",
+                          c.severity === "block" && "border-red-500/30 bg-red-500/[0.05] text-red-200",
+                          c.severity === "needs_approval" && "border-amber-500/30 bg-amber-500/[0.05] text-amber-200",
+                          c.severity === "block_go_live" && "border-orange-500/30 bg-orange-500/[0.05] text-orange-200",
+                        )}
+                      >
+                        <p className="flex items-start gap-1.5">
+                          <AlertTriangle className="mt-0.5 h-3 w-3 shrink-0" /> {c.message}
+                        </p>
+                        <p className="mt-0.5 pl-[18px] opacity-80">{c.suggestion}</p>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* Diff */}
+                {diff.length > 0 && (
+                  <div className="rounded-lg border border-white/[0.06] bg-white/[0.02] p-3">
+                    <p className="mb-1.5 flex items-center gap-1.5 text-[11px] font-semibold text-foreground/80">
+                      <GitCompareArrows className="h-3 w-3" /> What changes ({diff.length})
+                    </p>
+                    <div className="max-h-40 space-y-1 overflow-y-auto">
+                      {diff.map((d: any, i: number) => (
+                        <p key={i} className="text-[11px] text-muted-foreground">
+                          <span className={cn(
+                            "mr-1 font-semibold",
+                            d.kind === "added" && "text-emerald-400",
+                            d.kind === "removed" && "text-red-400",
+                            (d.kind === "changed" || d.kind === "renamed") && "text-amber-400",
+                            d.kind === "disabled" && "text-orange-400",
+                          )}>{d.kind}</span>
+                          {d.label}{d.detail ? ` — ${d.detail}` : ""}
+                        </p>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {!impact.targetIsNew && diff.length === 0 && (
+                  <p className="text-[11px] text-muted-foreground">No differences detected against the current setup.</p>
+                )}
+
+                {/* Apply mode chooser (only when a target exists) */}
+                {!impact.targetIsNew && (
+                  <div className="space-y-1.5">
+                    <p className="text-[11px] font-semibold text-foreground/80">How do you want to apply it?</p>
+                    {([
+                      ["new_draft",      FilePlus2,   "Save as new draft",      "Creates a separate inactive workflow. Nothing existing changes. Safest."],
+                      ["direct",         CheckCircle2, "Update the existing one", "Overwrites the current setup (a rollback snapshot is taken first)."],
+                      ["duplicate_edit", Copy,        "Duplicate & edit",        "Copies the existing workflow with the changes applied, as an inactive draft."],
+                      ["propose",        SendToBack,  "Propose for approval",    "Sends the change to the HiveMind action centre for sign-off first."],
+                    ] as const).map(([value, Icon, label, hint]) => {
+                      const disabled = value === "direct" && hasBlock;
+                      return (
+                        <button
+                          key={value}
+                          disabled={disabled}
+                          onClick={() => setApplyMode(value)}
+                          className={cn(
+                            "flex w-full items-start gap-2 rounded-lg border px-3 py-2 text-left transition-colors",
+                            applyMode === value ? "border-sky-500/40 bg-sky-500/[0.08]" : "border-white/[0.06] bg-white/[0.02] hover:bg-white/[0.05]",
+                            disabled && "cursor-not-allowed opacity-40",
+                          )}
+                        >
+                          <Icon className="mt-0.5 h-3.5 w-3.5 shrink-0 text-sky-300" />
+                          <span>
+                            <span className="block text-[11px] font-medium">{label}</span>
+                            <span className="block text-[10px] text-muted-foreground">{hint}</span>
+                          </span>
+                        </button>
+                      );
+                    })}
+                    {safetyGoLive && applyMode !== "direct" && (
+                      <p className="text-[10px] text-amber-300/90">
+                        Go Live only works with “Update the existing one” — other modes save a draft without deploying.
+                      </p>
+                    )}
+                  </div>
+                )}
+
+                {(safetyReport.riskLevel === "high" || impact.requiresApproval) && (
+                  <p className="flex items-start gap-1.5 rounded-lg border border-amber-500/25 bg-amber-500/[0.05] px-3 py-2 text-[11px] text-amber-200/90">
+                    <ShieldAlert className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                    This change requires approval — confirming sends it to the HiveMind action centre instead of applying immediately.
+                  </p>
+                )}
+
+                <DialogFooter className="gap-2 sm:gap-0">
+                  <Button variant="ghost" size="sm" className="text-xs" onClick={() => setSafetyOpen(false)}>Cancel</Button>
+                  <Button
+                    size="sm"
+                    className={cn("gap-1.5 text-xs", safetyGoLive && "bg-emerald-600 text-white hover:bg-emerald-500")}
+                    disabled={confirmDisabled}
+                    onClick={() =>
+                      safetyGoLive
+                        ? applyAndGoLive.mutate({ mode: applyMode })
+                        : apply.mutate({ mode: applyMode })
+                    }
+                  >
+                    {(apply.isPending || applyAndGoLive.isPending)
+                      ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      : safetyGoLive ? <Rocket className="h-3.5 w-3.5" /> : <CheckCircle2 className="h-3.5 w-3.5" />}
+                    {safetyGoLive ? "Apply & Go Live" : "Confirm apply"}
+                  </Button>
+                </DialogFooter>
+              </div>
+            );
+          })()}
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
