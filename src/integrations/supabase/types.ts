@@ -8262,6 +8262,60 @@ export type Database = {
         }
         Relationships: []
       }
+      systemmind_build_snapshots: {
+        Row: {
+          agent_config_state: Json | null
+          agent_settings_state: Json | null
+          created_at: string
+          created_by_user_id: string | null
+          id: string
+          reason: string
+          restored_at: string | null
+          restored_by_user_id: string | null
+          session_id: string | null
+          target_agent_id: string | null
+          target_workflow_id: string | null
+          version_id: string | null
+          version_number: number | null
+          workflow_state: Json | null
+          workspace_id: string
+        }
+        Insert: {
+          agent_config_state?: Json | null
+          agent_settings_state?: Json | null
+          created_at?: string
+          created_by_user_id?: string | null
+          id?: string
+          reason?: string
+          restored_at?: string | null
+          restored_by_user_id?: string | null
+          session_id?: string | null
+          target_agent_id?: string | null
+          target_workflow_id?: string | null
+          version_id?: string | null
+          version_number?: number | null
+          workflow_state?: Json | null
+          workspace_id: string
+        }
+        Update: {
+          agent_config_state?: Json | null
+          agent_settings_state?: Json | null
+          created_at?: string
+          created_by_user_id?: string | null
+          id?: string
+          reason?: string
+          restored_at?: string | null
+          restored_by_user_id?: string | null
+          session_id?: string | null
+          target_agent_id?: string | null
+          target_workflow_id?: string | null
+          version_id?: string | null
+          version_number?: number | null
+          workflow_state?: Json | null
+          workspace_id?: string
+        }
+        Relationships: []
+      }
       systemmind_build_versions: {
         Row: {
           applied_at: string | null

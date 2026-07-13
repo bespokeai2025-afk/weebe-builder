@@ -110,3 +110,4 @@
 - [TanStack server-fn wire protocol from Node](tanstack-serverfn-wire-protocol.md) — serverFnFetcher throws outside Start context; replicate with seroval toJSONAsync/fromCrossJSON + router-core defaultSerovalPlugins; ref script .local/browser-contract-test.mjs.
 - [Log-table retention sweep](log-table-retention.md) — daily batched prune from campaign-executor tick; new append-only log tables need a RETENTION_RULES row or a documented keep-forever note.
 - [Supabase types regeneration](supabase-typegen-refresh.md) — Mgmt API /types/typescript endpoint; repo never typechecks clean, so diff error file:line locations vs baseline; tsc needs a temp workflow (>120s, OOM-prone).
+- [Build Workspace apply protection](build-workspace-apply-protection.md) — impact/conflict engine + snapshots on every apply; custom_agent_configs has REAL FKs (workspaces+agents) unlike most workspace_id tables — e2e needs real fixture rows.

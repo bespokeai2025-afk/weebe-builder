@@ -12,7 +12,8 @@ import {
   Hammer, Loader2, Send, Plus, Archive, ArchiveRestore, History,
   FlaskConical, FileCode2, Gauge, RotateCcw, CheckCircle2, AlertTriangle,
   ShieldAlert, Rocket, GitBranch, Variable, ListChecks, Bell, StickyNote,
-  ArrowRight, Bot, Workflow as WorkflowIcon, ExternalLink,
+  ArrowRight, Bot, Workflow as WorkflowIcon, ExternalLink, ShieldCheck,
+  Undo2, GitCompareArrows, FilePlus2, Copy, SendToBack,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { SystemMindShell } from "./SystemMindShell";
@@ -20,10 +21,13 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import {
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
+} from "@/components/ui/dialog";
+import {
   createBuildSession, listBuildSessions, getBuildSession, promptBuildSession,
   simulateBuildVersion, applyBuildVersion, restoreBuildVersion,
   setBuildVersionNotes, setBuildSessionArchived, markBuildVersionDeployed,
-  getSystemMindUsageSummary,
+  getSystemMindUsageSummary, getBuildApplySafetyReport, rollbackBuildApply,
 } from "@/lib/systemmind/build-workspace.functions";
 import { goLiveAgent } from "@/lib/agents/agents.functions";
 
@@ -263,12 +267,18 @@ export function SystemMindBuildWorkspacePage() {
   const deployedFn = useServerFn(markBuildVersionDeployed);
   const usageFn    = useServerFn(getSystemMindUsageSummary);
   const goLiveFn   = useServerFn(goLiveAgent);
+  const safetyFn   = useServerFn(getBuildApplySafetyReport);
+  const rollbackFn = useServerFn(rollbackBuildApply);
 
   const [prompt, setPrompt]           = useState("");
   const [tab, setTab]                 = useState<"config" | "test" | "versions" | "usage">("config");
   const [sim, setSim]                 = useState<Record<string, any> | null>(null);
   const [notesEditId, setNotesEditId] = useState<string | null>(null);
   const [notesDraft, setNotesDraft]   = useState("");
+  const [safetyOpen, setSafetyOpen]   = useState(false);
+  const [safetyGoLive, setSafetyGoLive] = useState(false);
+  const [safetyReport, setSafetyReport] = useState<Record<string, any> | null>(null);
+  const [applyMode, setApplyMode]     = useState<"direct" | "new_draft" | "duplicate_edit" | "propose">("direct");
   const chatEndRef = useRef<HTMLDivElement | null>(null);
 
   const { data: sessions, isLoading: sessionsLoading } = useQuery({
@@ -293,9 +303,10 @@ export function SystemMindBuildWorkspacePage() {
     staleTime: 60_000,
   });
 
-  const session  = detail?.session as Record<string, any> | undefined;
-  const versions = (detail?.versions ?? []) as any[];
-  const messages = (detail?.messages ?? []) as any[];
+  const session   = detail?.session as Record<string, any> | undefined;
+  const versions  = (detail?.versions ?? []) as any[];
+  const messages  = (detail?.messages ?? []) as any[];
+  const snapshots = ((detail as any)?.snapshots ?? []) as any[];
   const currentVersion = useMemo(
     () => versions.find((v) => v.id === session?.current_version_id) ?? versions[0] ?? null,
     [versions, session?.current_version_id],
@@ -374,19 +385,45 @@ export function SystemMindBuildWorkspacePage() {
     onError: (e: any) => toast.error("Simulation failed", { description: e?.message }),
   });
 
+  // Safety pre-flight: fetch impact report, then open the panel for the user
+  // to choose HOW to apply. Nothing is written by this call.
+  const openSafetyPanel = useMutation({
+    mutationFn: (goLive: boolean) =>
+      safetyFn({ data: { sessionId: sessionId!, versionId: currentVersion!.id } }).then((r: any) => ({ r, goLive })),
+    onSuccess: ({ r, goLive }: any) => {
+      setSafetyReport(r);
+      setSafetyGoLive(goLive);
+      const impact = r?.impact ?? {};
+      // Default mode mirrors the server's safe default: ONLY a completely
+      // fresh target defaults to direct; ANY existing target defaults to
+      // "Save as new draft" — overwriting is an explicit opt-in.
+      setApplyMode(
+        impact.targetIsNew && !impact.agentHasConfig && !impact.agentIsLive
+          ? "direct"
+          : "new_draft",
+      );
+      setSafetyOpen(true);
+    },
+    onError: (e: any) => toast.error("Safety check failed", { description: e?.message }),
+  });
+
   const apply = useMutation({
-    mutationFn: () => applyFn({ data: { sessionId: sessionId!, versionId: currentVersion!.id } }),
+    mutationFn: (vars: { mode?: string; goLiveIntent?: boolean } = {}) =>
+      applyFn({ data: { sessionId: sessionId!, versionId: currentVersion!.id, mode: vars.mode as any, goLiveIntent: vars.goLiveIntent } }),
     onSuccess: (res: any) => {
+      setSafetyOpen(false);
       qc.invalidateQueries({ queryKey: ["smbw-session", sessionId] });
       qc.invalidateQueries({ queryKey: ["smbw-sessions"] });
       if (res.requiresApproval) {
         toast.warning("Approval required before this goes live", {
-          description: "This build affects live customer communication. It has been sent to the HiveMind action centre for approval.",
+          description: "This change needs a human sign-off. It has been sent to the HiveMind action centre for approval.",
           duration: 8000,
         });
       } else {
-        toast.success("Build applied", {
-          description: "The workflow has been saved to your Workflows page.",
+        toast.success(res.mode === "direct" ? "Build applied" : "Saved as a new draft", {
+          description: res.mode === "direct"
+            ? `The workflow has been saved to your Workflows page.${res.snapshotId ? " A rollback snapshot of the previous state was taken first." : ""}`
+            : "A new inactive draft workflow was created — nothing existing was changed.",
           action: {
             label: "View workflows",
             onClick: () => navigate({ to: "/workflow-engine" }),
@@ -395,13 +432,18 @@ export function SystemMindBuildWorkspacePage() {
         });
       }
     },
-    onError: (e: any) => toast.error("Apply failed", { description: e?.message }),
+    onError: (e: any) => {
+      setSafetyOpen(false);
+      toast.error("Apply blocked", { description: e?.message, duration: 12000 });
+    },
   });
 
   const applyAndGoLive = useMutation({
-    mutationFn: async () => {
+    mutationFn: async (vars: { mode?: string } = {}) => {
       const versionId = currentVersion!.id;
-      const res: any = await applyFn({ data: { sessionId: sessionId!, versionId } });
+      const res: any = await applyFn({
+        data: { sessionId: sessionId!, versionId, mode: (vars.mode ?? "direct") as any, goLiveIntent: true },
+      });
       if (res.requiresApproval) return { ...res, wentLive: false };
       // Reuse the EXISTING Go Live flow — same checks as the Deploy tab.
       await goLiveFn({ data: { id: session!.target_agent_id, agentType: "receptionist" } });
@@ -409,11 +451,12 @@ export function SystemMindBuildWorkspacePage() {
       return { ...res, wentLive: true };
     },
     onSuccess: (res: any) => {
+      setSafetyOpen(false);
       qc.invalidateQueries({ queryKey: ["smbw-session", sessionId] });
       qc.invalidateQueries({ queryKey: ["smbw-sessions"] });
       if (res.requiresApproval) {
         toast.warning("Approval required before this goes live", {
-          description: "This build affects live customer communication. It has been sent to the HiveMind action centre for approval.",
+          description: "This change needs a human sign-off. It has been sent to the HiveMind action centre for approval.",
           duration: 8000,
         });
       } else if (res.wentLive) {
@@ -421,12 +464,23 @@ export function SystemMindBuildWorkspacePage() {
       }
     },
     onError: (e: any) => {
+      setSafetyOpen(false);
       qc.invalidateQueries({ queryKey: ["smbw-session", sessionId] });
       toast.error("Go Live did not complete", {
-        description: `${e?.message ?? "Unknown error"} — the applied version is saved; finish Go Live from the agent's Deploy tab.`,
+        description: `${e?.message ?? "Unknown error"}`,
         duration: 10000,
       });
     },
+  });
+
+  const rollback = useMutation({
+    mutationFn: (snapshotId: string) =>
+      rollbackFn({ data: { sessionId: sessionId!, snapshotId } }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["smbw-session", sessionId] });
+      toast.success("Rolled back", { description: "The previous setup was restored from the snapshot." });
+    },
+    onError: (e: any) => toast.error("Rollback failed", { description: e?.message }),
   });
 
   const restore = useMutation({
@@ -645,20 +699,20 @@ export function SystemMindBuildWorkspacePage() {
                     <Button
                       size="sm"
                       className="h-7 gap-1 px-2.5 text-[11px]"
-                      disabled={!canApply || apply.isPending || applyAndGoLive.isPending}
-                      onClick={() => apply.mutate()}
+                      disabled={!canApply || apply.isPending || applyAndGoLive.isPending || openSafetyPanel.isPending}
+                      onClick={() => openSafetyPanel.mutate(false)}
                     >
-                      {apply.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : <CheckCircle2 className="h-3 w-3" />}
+                      {(apply.isPending || (openSafetyPanel.isPending && !openSafetyPanel.variables)) ? <Loader2 className="h-3 w-3 animate-spin" /> : <CheckCircle2 className="h-3 w-3" />}
                       Apply
                     </Button>
                     {session.target_agent_id && currentVersion?.risk_level !== "high" && (
                       <Button
                         size="sm"
                         className="h-7 gap-1 bg-emerald-600 px-2.5 text-[11px] text-white hover:bg-emerald-500"
-                        disabled={!canApply || apply.isPending || applyAndGoLive.isPending}
-                        onClick={() => applyAndGoLive.mutate()}
+                        disabled={!canApply || apply.isPending || applyAndGoLive.isPending || openSafetyPanel.isPending}
+                        onClick={() => openSafetyPanel.mutate(true)}
                       >
-                        {applyAndGoLive.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : <Rocket className="h-3 w-3" />}
+                        {(applyAndGoLive.isPending || (openSafetyPanel.isPending && !!openSafetyPanel.variables)) ? <Loader2 className="h-3 w-3 animate-spin" /> : <Rocket className="h-3 w-3" />}
                         Apply &amp; Go Live
                       </Button>
                     )}
@@ -787,6 +841,39 @@ export function SystemMindBuildWorkspacePage() {
                           </div>
                         </div>
                       ))}
+
+                      {snapshots.length > 0 && (
+                        <div className="space-y-2 pt-3">
+                          <p className="flex items-center gap-1.5 text-[11px] font-semibold text-foreground/80">
+                            <ShieldCheck className="h-3 w-3 text-emerald-400" /> Rollback snapshots
+                          </p>
+                          <p className="text-[10px] text-muted-foreground">
+                            Taken automatically before each apply that changed an existing setup.
+                            Rolling back restores the workflow (and agent configuration) exactly as it was.
+                          </p>
+                          {snapshots.map((s: any) => (
+                            <div key={s.id} className="flex flex-wrap items-center gap-2 rounded-lg border border-white/[0.05] bg-white/[0.02] px-3 py-2">
+                              <History className="h-3 w-3 shrink-0 text-muted-foreground" />
+                              <p className="text-[11px]">
+                                <span className="font-medium">{s.target_workflow_name ?? "Workflow"}</span>
+                                {" · "}before v{s.version_number ?? "?"}
+                              </p>
+                              {s.restored_at ? (
+                                <Badge variant="outline" className="text-[10px] border-emerald-500/40 text-emerald-300">restored {fmtTime(s.restored_at)}</Badge>
+                              ) : null}
+                              <span className="text-[10px] text-muted-foreground">{fmtTime(s.created_at)}</span>
+                              <Button
+                                size="sm" variant="outline" className="ml-auto h-6 gap-1 px-2 text-[10px]"
+                                disabled={rollback.isPending}
+                                onClick={() => rollback.mutate(s.id)}
+                              >
+                                {rollback.isPending ? <Loader2 className="h-2.5 w-2.5 animate-spin" /> : <Undo2 className="h-2.5 w-2.5" />}
+                                Roll back
+                              </Button>
+                            </div>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   )}
 
@@ -836,6 +923,182 @@ export function SystemMindBuildWorkspacePage() {
           </div>
         )}
       </div>
+
+      {/* ── Apply safety panel ── */}
+      <Dialog open={safetyOpen} onOpenChange={(o) => { if (!o) setSafetyOpen(false); }}>
+        <DialogContent className="max-h-[85dvh] max-w-lg overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-sm">
+              <ShieldCheck className="h-4 w-4 text-emerald-400" />
+              {safetyGoLive ? "Apply & Go Live — safety check" : "Apply — safety check"}
+            </DialogTitle>
+            <DialogDescription className="text-[11px]">
+              Review what this apply will change before anything is written.
+            </DialogDescription>
+          </DialogHeader>
+
+          {safetyReport && (() => {
+            const impact = (safetyReport.impact ?? {}) as Record<string, any>;
+            const conflicts = (impact.conflicts ?? []) as any[];
+            const diff = (impact.diff ?? []) as any[];
+            const deps = (impact.dependencies ?? []) as string[];
+            const hasBlock = conflicts.some((c) => c.severity === "block");
+            const goLiveBlocked = safetyGoLive && impact.canGoLive === false;
+            const confirmDisabled =
+              apply.isPending || applyAndGoLive.isPending ||
+              (applyMode === "direct" && hasBlock) ||
+              (safetyGoLive && (applyMode !== "direct" || goLiveBlocked));
+            return (
+              <div className="space-y-3">
+                {/* Target */}
+                <div className="rounded-lg border border-white/[0.06] bg-white/[0.02] p-3 text-[11px]">
+                  {impact.targetIsNew ? (
+                    <p className="flex items-center gap-1.5 text-emerald-300">
+                      <FilePlus2 className="h-3 w-3" /> This creates a brand-new workflow — nothing existing is touched.
+                    </p>
+                  ) : (
+                    <>
+                      <p>
+                        Updates <span className="font-semibold">{impact.targetWorkflowName ?? "an existing workflow"}</span>
+                        {impact.targetIsLive && <Badge variant="outline" className="ml-1.5 border-red-500/40 text-[10px] text-red-300">LIVE</Badge>}
+                      </p>
+                      {impact.targetAgentName && (
+                        <p className="mt-1 text-muted-foreground">
+                          Also updates the setup of agent <span className="font-medium text-foreground/80">{impact.targetAgentName}</span>
+                          {impact.agentIsLive ? " (currently live)" : ""}.
+                        </p>
+                      )}
+                      {impact.rollbackAvailable && (
+                        <p className="mt-1 flex items-center gap-1 text-emerald-300/90">
+                          <Undo2 className="h-3 w-3" /> A rollback snapshot is taken automatically before overwriting.
+                        </p>
+                      )}
+                    </>
+                  )}
+                  {deps.length > 0 && (
+                    <div className="mt-2 border-t border-white/[0.05] pt-2 text-muted-foreground">
+                      <p className="font-medium text-foreground/70">Could also affect:</p>
+                      {deps.map((d, i) => <p key={i}>• {d}</p>)}
+                    </div>
+                  )}
+                </div>
+
+                {/* Conflicts */}
+                {conflicts.length > 0 && (
+                  <div className="space-y-1.5">
+                    {conflicts.map((c: any, i: number) => (
+                      <div
+                        key={i}
+                        className={cn(
+                          "rounded-lg border px-3 py-2 text-[11px]",
+                          c.severity === "block" && "border-red-500/30 bg-red-500/[0.05] text-red-200",
+                          c.severity === "needs_approval" && "border-amber-500/30 bg-amber-500/[0.05] text-amber-200",
+                          c.severity === "block_go_live" && "border-orange-500/30 bg-orange-500/[0.05] text-orange-200",
+                        )}
+                      >
+                        <p className="flex items-start gap-1.5">
+                          <AlertTriangle className="mt-0.5 h-3 w-3 shrink-0" /> {c.message}
+                        </p>
+                        <p className="mt-0.5 pl-[18px] opacity-80">{c.suggestion}</p>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* Diff */}
+                {diff.length > 0 && (
+                  <div className="rounded-lg border border-white/[0.06] bg-white/[0.02] p-3">
+                    <p className="mb-1.5 flex items-center gap-1.5 text-[11px] font-semibold text-foreground/80">
+                      <GitCompareArrows className="h-3 w-3" /> What changes ({diff.length})
+                    </p>
+                    <div className="max-h-40 space-y-1 overflow-y-auto">
+                      {diff.map((d: any, i: number) => (
+                        <p key={i} className="text-[11px] text-muted-foreground">
+                          <span className={cn(
+                            "mr-1 font-semibold",
+                            d.kind === "added" && "text-emerald-400",
+                            d.kind === "removed" && "text-red-400",
+                            (d.kind === "changed" || d.kind === "renamed") && "text-amber-400",
+                            d.kind === "disabled" && "text-orange-400",
+                          )}>{d.kind}</span>
+                          {d.label}{d.detail ? ` — ${d.detail}` : ""}
+                        </p>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {!impact.targetIsNew && diff.length === 0 && (
+                  <p className="text-[11px] text-muted-foreground">No differences detected against the current setup.</p>
+                )}
+
+                {/* Apply mode chooser (only when a target exists) */}
+                {!impact.targetIsNew && (
+                  <div className="space-y-1.5">
+                    <p className="text-[11px] font-semibold text-foreground/80">How do you want to apply it?</p>
+                    {([
+                      ["new_draft",      FilePlus2,   "Save as new draft",      "Creates a separate inactive workflow. Nothing existing changes. Safest."],
+                      ["direct",         CheckCircle2, "Update the existing one", "Overwrites the current setup (a rollback snapshot is taken first)."],
+                      ["duplicate_edit", Copy,        "Duplicate & edit",        "Copies the existing workflow with the changes applied, as an inactive draft."],
+                      ["propose",        SendToBack,  "Propose for approval",    "Sends the change to the HiveMind action centre for sign-off first."],
+                    ] as const).map(([value, Icon, label, hint]) => {
+                      const disabled = value === "direct" && hasBlock;
+                      return (
+                        <button
+                          key={value}
+                          disabled={disabled}
+                          onClick={() => setApplyMode(value)}
+                          className={cn(
+                            "flex w-full items-start gap-2 rounded-lg border px-3 py-2 text-left transition-colors",
+                            applyMode === value ? "border-sky-500/40 bg-sky-500/[0.08]" : "border-white/[0.06] bg-white/[0.02] hover:bg-white/[0.05]",
+                            disabled && "cursor-not-allowed opacity-40",
+                          )}
+                        >
+                          <Icon className="mt-0.5 h-3.5 w-3.5 shrink-0 text-sky-300" />
+                          <span>
+                            <span className="block text-[11px] font-medium">{label}</span>
+                            <span className="block text-[10px] text-muted-foreground">{hint}</span>
+                          </span>
+                        </button>
+                      );
+                    })}
+                    {safetyGoLive && applyMode !== "direct" && (
+                      <p className="text-[10px] text-amber-300/90">
+                        Go Live only works with “Update the existing one” — other modes save a draft without deploying.
+                      </p>
+                    )}
+                  </div>
+                )}
+
+                {(safetyReport.riskLevel === "high" || impact.requiresApproval) && (
+                  <p className="flex items-start gap-1.5 rounded-lg border border-amber-500/25 bg-amber-500/[0.05] px-3 py-2 text-[11px] text-amber-200/90">
+                    <ShieldAlert className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                    This change requires approval — confirming sends it to the HiveMind action centre instead of applying immediately.
+                  </p>
+                )}
+
+                <DialogFooter className="gap-2 sm:gap-0">
+                  <Button variant="ghost" size="sm" className="text-xs" onClick={() => setSafetyOpen(false)}>Cancel</Button>
+                  <Button
+                    size="sm"
+                    className={cn("gap-1.5 text-xs", safetyGoLive && "bg-emerald-600 text-white hover:bg-emerald-500")}
+                    disabled={confirmDisabled}
+                    onClick={() =>
+                      safetyGoLive
+                        ? applyAndGoLive.mutate({ mode: applyMode })
+                        : apply.mutate({ mode: applyMode })
+                    }
+                  >
+                    {(apply.isPending || applyAndGoLive.isPending)
+                      ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      : safetyGoLive ? <Rocket className="h-3.5 w-3.5" /> : <CheckCircle2 className="h-3.5 w-3.5" />}
+                    {safetyGoLive ? "Apply & Go Live" : "Confirm apply"}
+                  </Button>
+                </DialogFooter>
+              </div>
+            );
+          })()}
+        </DialogContent>
+      </Dialog>
     </SystemMindShell>
   );
 }
