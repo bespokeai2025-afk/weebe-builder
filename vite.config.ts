@@ -31,8 +31,10 @@ export default defineConfig({
     server: { entry: "server" },
   },
   vite: {
-    // Expose WEBESPOKE_* from .env to SSR + import.meta.env (not only VITE_*).
-    envPrefix: ["VITE_", "WEBESPOKE_"],
+    // Expose WEBESPOKE_API_BASE_URL from .env to SSR + import.meta.env (not only VITE_*).
+    // SECURITY: never widen this to "WEBESPOKE_" — that would bake WEBESPOKE_ADMIN_PASSWORD
+    // into the client bundle at build time. Only this exact (non-secret) var is exposed.
+    envPrefix: ["VITE_", "WEBESPOKE_API_BASE_URL"],
     server: {
       host: "0.0.0.0",
       port: 5000,

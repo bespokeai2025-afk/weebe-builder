@@ -983,6 +983,9 @@ export const getWbahAgentsForCampaign = createServerFn({ method: "GET" })
 export const listWbahLeads = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
+    // SECURITY: membership check MUST run before any data read (router or direct) —
+    // engine-routed rows would otherwise leak to authenticated non-WBAH users (IDOR).
+    await requireWbahView(context.userId);
     // Try DataSourceRouter first — routes through engine when a profile is configured
     try {
       const { getPeopleData } = await import("@/lib/api-engine/data-source-router.server");
@@ -1405,6 +1408,9 @@ function formatDurationMs(ms: number | null | undefined): string | null {
 export const listWbahCalls = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
+    // SECURITY: membership check MUST run before any data read (router or direct) —
+    // engine-routed rows would otherwise leak to authenticated non-WBAH users (IDOR).
+    await requireWbahView(context.userId);
     // Try DataSourceRouter first — routes through engine when a profile is configured
     try {
       const { getCallsData } = await import("@/lib/api-engine/data-source-router.server");
@@ -1653,6 +1659,9 @@ export const listWbahLatestCalls = createServerFn({ method: "GET" })
 export const listWbahCrmContacts = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
+    // SECURITY: membership check MUST run before any data read (router or direct) —
+    // engine-routed rows would otherwise leak to authenticated non-WBAH users (IDOR).
+    await requireWbahView(context.userId);
     // Try DataSourceRouter first — routes through engine when a profile is configured
     try {
       const { getCRMData } = await import("@/lib/api-engine/data-source-router.server");
