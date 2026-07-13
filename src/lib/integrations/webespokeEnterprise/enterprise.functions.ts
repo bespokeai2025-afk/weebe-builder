@@ -5,6 +5,7 @@ import { requirePlatformAdmin } from "@/lib/auth/require-platform-admin";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import {
   loginWithPassword,
+  parseWeeBespokeAuthEnvelope,
   requestOtp,
   verifyOtp,
   getAllCars,
@@ -287,16 +288,13 @@ export const adminOverrideConnectWebespokeEnterprise = createServerFn({ method: 
       );
     }
 
-    const d = res.data;
-    const accessToken  = d.accessToken ?? d.token;
-    const refreshToken = d.refreshToken ?? "";
-
-    if (!accessToken) {
+    const parsed = parseWeeBespokeAuthEnvelope(res.data);
+    if (!parsed) {
       throw new Error("Login succeeded but no access token was returned by WeeBespoke AI.");
     }
 
     // Persist server-side only — never returned to browser
-    await saveTokens(accessToken, refreshToken, d.user ?? { email });
+    await saveTokens(parsed.accessToken, parsed.refreshToken, parsed.user ?? { email });
     return { ok: true, email };
   });
 

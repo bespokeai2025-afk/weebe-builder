@@ -18,7 +18,7 @@ import {
   adminSyncWebuyanyhouseLeads,
   cleanupWbahDuplicateLeads,
 } from "@/lib/integrations/webespokeEnterprise/wbah.functions";
-import { wbahProbeApi } from "@/lib/integrations/webespokeEnterprise/wbah-workspace.server";
+import { wbahProbeApi, wbahProbeCrmPeople } from "@/lib/integrations/webespokeEnterprise/wbah-workspace.server";
 import { getSyncState } from "@/lib/sync-state/sync-state.server";
 
 export const Route = createFileRoute(
@@ -103,9 +103,12 @@ function WebuyanyhouseAdminPanel() {
   const syncFn        = useServerFn(adminSyncWebuyanyhouseLeads);
   const cleanupFn     = useServerFn(cleanupWbahDuplicateLeads);
   const probeFn       = useServerFn(wbahProbeApi);
+  const crmPeopleProbeFn = useServerFn(wbahProbeCrmPeople);
 
   const [probing, setProbing]       = useState(false);
   const [probeResult, setProbeResult] = useState<any | null>(null);
+  const [crmPeopleProbing, setCrmPeopleProbing] = useState(false);
+  const [crmPeopleProbeResult, setCrmPeopleProbeResult] = useState<any | null>(null);
 
   const { data: status, isLoading } = useQuery({
     queryKey: ["wbah-admin-status"],
@@ -148,6 +151,15 @@ function WebuyanyhouseAdminPanel() {
       setProbeResult(r);
     } catch (e: any) { toast.error(e?.message ?? "Probe failed"); }
     finally { setProbing(false); }
+  }
+
+  async function handleCrmPeopleProbe() {
+    setCrmPeopleProbing(true);
+    try {
+      const r = await crmPeopleProbeFn();
+      setCrmPeopleProbeResult(r);
+    } catch (e: any) { toast.error(e?.message ?? "CRM People probe failed"); }
+    finally { setCrmPeopleProbing(false); }
   }
 
   async function handleCleanup() {
@@ -382,9 +394,36 @@ function WebuyanyhouseAdminPanel() {
               )}
             </Section>
 
-            {/* 3 — API Diagnostic Probe */}
+            {/* 3 — UAT CRM_data People cohorts */}
+            <Section title="3 · UAT CRM_data People Cohorts">
+              <div className="flex items-center justify-between gap-4 flex-wrap">
+                <p className="text-xs text-gray-500">
+                  Reads People tab cohorts from UAT CRM_data (synced by backend Dynamics category sync).
+                  Run sync from Data → Campaigns if counts are zero.
+                </p>
+                <Button
+                  size="sm"
+                  className="bg-sky-600 hover:bg-sky-700 text-white h-8 text-xs gap-1.5 shrink-0"
+                  disabled={crmPeopleProbing}
+                  onClick={handleCrmPeopleProbe}
+                >
+                  {crmPeopleProbing
+                    ? <><Loader2 className="w-3 h-3 animate-spin" />Testing…</>
+                    : <><RefreshCw className="w-3 h-3" />Probe CRM_data counts</>}
+                </Button>
+              </div>
+              {crmPeopleProbeResult && (
+                <div className="mt-2 rounded-lg bg-gray-950 border border-gray-800 p-3 overflow-x-auto">
+                  <pre className="text-[11px] text-sky-300 whitespace-pre-wrap font-mono leading-relaxed">
+                    {JSON.stringify(crmPeopleProbeResult, null, 2)}
+                  </pre>
+                </div>
+              )}
+            </Section>
+
+            {/* 4 — WeeBespoke API Diagnostic Probe */}
             {apiConn && (
-              <Section title="3 · API Diagnostic Probe">
+              <Section title="4 · WeeBespoke API Diagnostic Probe">
                 <div className="flex items-center justify-between gap-4 flex-wrap">
                   <p className="text-xs text-gray-500">
                     Fires 7 parallel requests to WeeBespoke API and returns record counts for each.

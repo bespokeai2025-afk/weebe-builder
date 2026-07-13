@@ -1,3 +1,5 @@
+import { createHash } from "node:crypto";
+
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { cacheWrap } from "@/lib/cache/redis.server";
 import {
@@ -420,4 +422,78 @@ export async function getWbahCalendarBookings(
     `[WBAH calendar] booked appointments: ${rows.length} total=${booked.length} skipped_unparseable=${skipped} crm=${aggregate.crmBookingByDigits.size}`,
   );
   return rows;
+}
+
+const PEOPLE_CALL_LOOKUP_COLS =
+  "id, phone, agent_name, call_status, sentiment, duration_seconds, started_at, recording_url, disconnection_reason, end_reason, appointment_date, appointment_time, booking_status, calendly_booking_url";
+
+const PEOPLE_CALL_LOOKUP_TTL = 120;
+
+function phoneTail(phone: string | null | undefined): string | null {
+  const d = phoneDigits(phone);
+  return d.length >= 10 ? d.slice(-10) : null;
+}
+
+function peopleCallLookupHash(tails: string[]): string {
+  return createHash("sha256")
+    .update(tails.slice().sort().join(","))
+    .digest("hex")
+    .slice(0, 12);
+}
+
+/** Latest wbah_calls row per phone tail — one indexed query instead of scanning all calls. */
+export async function getLatestWbahCallsForPhones(
+  workspaceId: string,
+  phones: (string | null | undefined)[],
+): Promise<Map<string, Record<string, unknown>>> {
+  const tails = [
+    ...new Set(phones.map(phoneTail).filter((t): t is string => Boolean(t))),
+  ];
+  if (!tails.length) return new Map();
+
+  const hash = peopleCallLookupHash(tails);
+  const cached = await cacheWrap(
+    `webee:wbah-people-call-lookup:v1:${workspaceId}:${hash}`,
+    PEOPLE_CALL_LOOKUP_TTL,
+    async () => {
+      const sb = supabaseAdmin as any;
+      const byTail = new Map<string, Record<string, unknown>>();
+      const CHUNK = 25;
+
+      for (let i = 0; i < tails.length; i += CHUNK) {
+        const chunk = tails.slice(i, i + CHUNK);
+        const orFilter = chunk.map((t) => `phone.ilike.%${t}`).join(",");
+        const { data, error } = await sb
+          .from("wbah_calls")
+          .select(PEOPLE_CALL_LOOKUP_COLS)
+          .eq("workspace_id", workspaceId)
+          .or(orFilter)
+          .order("started_at", { ascending: false })
+          .limit(250);
+        if (error) throw new Error(`wbah_calls phone lookup failed: ${error.message}`);
+
+        for (const call of (data ?? []) as Record<string, unknown>[]) {
+          const tail = phoneTail(String(call.phone ?? ""));
+          if (tail && !byTail.has(tail)) byTail.set(tail, call);
+        }
+      }
+
+      return Object.fromEntries(byTail);
+    },
+  );
+
+  const byTail = new Map<string, Record<string, unknown>>(Object.entries(cached));
+  const lookup = new Map<string, Record<string, unknown>>();
+  for (const p of phones) {
+    const tail = phoneTail(p);
+    if (!tail) continue;
+    const call = byTail.get(tail);
+    if (!call) continue;
+    const digits = phoneDigits(p);
+    if (digits) lookup.set(digits, call);
+    if (digits.startsWith("0") && digits.length >= 10) lookup.set(`44${digits.slice(1)}`, call);
+    if (digits.startsWith("44") && digits.length >= 12) lookup.set(`0${digits.slice(2)}`, call);
+    lookup.set(tail, call);
+  }
+  return lookup;
 }

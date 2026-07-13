@@ -14,13 +14,25 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
-import { enrichWbahCallRowsWithBookings, findWbahBookingCall, resolveWbahBookingFields, phoneDigits, isWbahRecordBooked, listWbahBookedContacts, WBAH_BOOKED_STATUSES } from "@/lib/dashboard/wbah-booking-meta";
+import {
+  enrichWbahCallRowsWithBookings,
+  findWbahBookingCall,
+  resolveWbahBookingFields,
+  phoneDigits,
+  isWbahRecordBooked,
+  listWbahBookedContacts,
+  WBAH_BOOKED_STATUSES,
+} from "@/lib/dashboard/wbah-booking-meta";
 import { getWbahCallsAggregate } from "./wbah-leads.server";
 import { recordSyncState } from "@/lib/sync-state/sync-state.server";
 import { cacheWrap, cacheGet, cacheSet } from "@/lib/cache/redis.server";
 import * as api from "./client.server";
 import { wbahCallsParamTest, wbahCallsPostPage, wbahLeadsParamTest } from "./client.server";
 import { getCampaignData } from "@/lib/api-engine/data-source-router.server";
+import type { DynamicsCategorySyncResult } from "./wbah-campaign-sync.types";
+import {
+  WBAH_CAMPAIGN_LEAD_STATUS_OPTIONS,
+} from "./wbah-campaign-sync.types";
 
 // ── Internal: require webuyanyhouse membership + get API token callbacks ───────
 
@@ -31,7 +43,12 @@ const RELOGIN_TTL_MS = 30 * 60 * 1000;
 async function isPlatformAdmin(userId: string): Promise<boolean> {
   const [profileRes, roleRes] = await Promise.all([
     (supabaseAdmin as any).from("profiles").select("user_type").eq("user_id", userId).maybeSingle(),
-    (supabaseAdmin as any).from("user_roles").select("role").eq("user_id", userId).eq("role", "admin").maybeSingle(),
+    (supabaseAdmin as any)
+      .from("user_roles")
+      .select("role")
+      .eq("user_id", userId)
+      .eq("role", "admin")
+      .maybeSingle(),
   ]);
   return profileRes.data?.user_type === "admin" || !!roleRes.data;
 }
@@ -67,12 +84,14 @@ async function requireWbahCbs(userId: string) {
     throw new Error("WeeBespoke API not connected — contact your administrator");
   }
 
-  let currentAccessToken  = integration.access_token as string;
+  let currentAccessToken = integration.access_token as string;
   let currentRefreshToken = (integration.refresh_token ?? "") as string;
 
-  const password = process.env.WEBESPOKE_ADMIN_PASSWORD;
-  const email    = (integration.user_payload as any)?.email
-                ?? process.env.WEBESPOKE_ADMIN_EMAIL;
+  const { getWebespokeAdminCreds } = await import("./webespoke-env.server");
+  const fileCreds = getWebespokeAdminCreds();
+  const password = fileCreds?.password;
+  // .env file wins over stale email stored in enterprise_integrations
+  const email = fileCreds?.email ?? (integration.user_payload as any)?.email;
 
   // Full re-login with the stored admin credentials, minting a brand-new session
   // and persisting it for every caller. WeeBespoke allows only ONE active session
@@ -80,42 +99,58 @@ async function requireWbahCbs(userId: string) {
   // invalidated by a concurrent background sync logging into the same account.
   // Passing this as the 401 fallback (reloginFn) lets a live call recover a dead
   // token inline instead of surfacing "Token expired — reconnect required".
+  let lastReloginError: string | null = null;
+
   const reloginFn = async (): Promise<{ accessToken: string } | null> => {
     if (!password || !email) return null;
     try {
       const loginRes = await api.loginWithPassword(email, password);
-      if (!loginRes.ok || !loginRes.data) return null;
-      const d = loginRes.data as any;
-      const at = d.accessToken ?? d.token ?? d.access_token ?? d.jwt ??
-                 d.data?.accessToken ?? d.data?.token ?? d.data?.access_token ??
-                 d.result?.accessToken ?? d.result?.token ??
-                 d.auth?.accessToken ?? d.auth?.token ?? d.user?.token ?? null;
-      const rt = d.refreshToken ?? d.refresh_token ?? d.data?.refreshToken ??
-                 d.data?.refresh_token ?? d.result?.refreshToken ?? currentRefreshToken;
-      if (!at) return null;
+      const parsed = api.parseWeeBespokeAuthEnvelope(loginRes.data);
+      if (!loginRes.ok || !parsed) {
+        const msg =
+          (loginRes.data as { message?: string } | null)?.message ??
+          loginRes.error ??
+          `HTTP ${loginRes.status}`;
+        lastReloginError = msg;
+        console.error(`[wbah-auth] UAT relogin failed for ${email}: ${msg}`);
+        return null;
+      }
+      const { accessToken: at, refreshToken: rt } = parsed;
       await (supabaseAdmin as any)
         .from("enterprise_integrations")
-        .update({ access_token: at, refresh_token: rt, status: "connected" })
+        .update({
+          access_token: at,
+          refresh_token: rt || currentRefreshToken,
+          status: "connected",
+          user_payload: { email },
+        })
         .eq("integration_key", "webespoke_enterprise")
         .eq("client_name", "Webuyanyhouse");
-      currentAccessToken  = at;
-      currentRefreshToken = rt;
+      currentAccessToken = at;
+      currentRefreshToken = rt || currentRefreshToken;
       _wbahReloginAt = Date.now();
       return { accessToken: at };
-    } catch {
-      // Ignore relogin errors — caller keeps the existing token.
+    } catch (err) {
+      console.error("[wbah-auth] UAT relogin error:", (err as Error).message);
       return null;
     }
   };
 
-  // Proactively relogin using stored credentials when the cache has expired.
-  // This prevents "token expired" errors without adding latency to every call.
-  if (password && email && Date.now() - _wbahReloginAt > RELOGIN_TTL_MS) {
-    await reloginFn();
+  // Fresh UAT session before each request when env credentials exist (UAT allows
+  // one active session — stale DB tokens otherwise surface "Token expired").
+  if (password && email) {
+    const fresh = await reloginFn();
+    if (!fresh?.accessToken) {
+      throw new Error(
+        lastReloginError
+          ? `UAT login failed for ${email}: ${lastReloginError}. Set WEBESPOKE_ADMIN_EMAIL and WEBESPOKE_ADMIN_PASSWORD in .env to the same credentials you use in WeWeb UAT, then restart the dev server.`
+          : "UAT login failed. Set WEBESPOKE_ADMIN_EMAIL and WEBESPOKE_ADMIN_PASSWORD in .env, then restart the dev server.",
+      );
+    }
   }
 
   const getTokens = async () => ({
-    accessToken:  currentAccessToken,
+    accessToken: currentAccessToken,
     refreshToken: currentRefreshToken,
   });
 
@@ -146,15 +181,15 @@ export const wbahProbeApi = createServerFn({ method: "GET" })
 
     // ── Helper: extract records array from any known response shape ────────────
     function extractArr(raw: any): any[] | null {
-      if (Array.isArray(raw))            return raw;
-      if (Array.isArray(raw?.data))      return raw.data;
-      if (Array.isArray(raw?.calls))     return raw.calls;
-      if (Array.isArray(raw?.leads))     return raw.leads;
-      if (Array.isArray(raw?.records))   return raw.records;
-      if (Array.isArray(raw?.result))    return raw.result;
-      if (Array.isArray(raw?.items))     return raw.items;
-      if (Array.isArray(raw?.contacts))  return raw.contacts;
-      if (Array.isArray(raw?.output))    return raw.output;
+      if (Array.isArray(raw)) return raw;
+      if (Array.isArray(raw?.data)) return raw.data;
+      if (Array.isArray(raw?.calls)) return raw.calls;
+      if (Array.isArray(raw?.leads)) return raw.leads;
+      if (Array.isArray(raw?.records)) return raw.records;
+      if (Array.isArray(raw?.result)) return raw.result;
+      if (Array.isArray(raw?.items)) return raw.items;
+      if (Array.isArray(raw?.contacts)) return raw.contacts;
+      if (Array.isArray(raw?.output)) return raw.output;
       return null;
     }
 
@@ -163,45 +198,69 @@ export const wbahProbeApi = createServerFn({ method: "GET" })
       if (!r || typeof r !== "object") return null;
       const k = Object.keys(r);
       const has = (patterns: string[]) =>
-        patterns.some(p => k.some(key => key.toLowerCase().includes(p.toLowerCase())));
+        patterns.some((p) => k.some((key) => key.toLowerCase().includes(p.toLowerCase())));
       return {
-        allKeys:          k,
-        hasDuration:      has(["duration", "callduration", "call_duration", "length"]),
-        hasRecordingUrl:  has(["recording", "recordurl", "record_url", "audio", "audiourl"]),
-        hasTranscript:    has(["transcript", "transcription", "summary"]),
-        hasSentiment:     has(["sentiment", "score", "mood"]),
-        hasCallStatus:    has(["callstatus", "call_status", "status", "outcome", "disposition"]),
-        hasCallOutcome:   has(["outcome", "result", "disposition"]),
-        hasPhoneNumber:   has(["phone", "mobile", "tel", "number", "contact"]),
-        hasName:          has(["name", "fullname", "firstname", "lastname"]),
-        hasAddress:       has(["address", "postcode", "zip", "city", "street"]),
-        hasEmail:         has(["email"]),
-        hasLeadId:        has(["leadid", "lead_id", "userid", "user_id", "contactid"]),
-        hasCallId:        has(["callid", "call_id", "retellcallid", "retell_call"]),
-        hasTimestamp:     has(["date", "time", "createdat", "created_at", "calledat", "called_at", "startedat"]),
-        hasAppointment:   has(["appointment", "booked", "slot", "meeting"]),
+        allKeys: k,
+        hasDuration: has(["duration", "callduration", "call_duration", "length"]),
+        hasRecordingUrl: has(["recording", "recordurl", "record_url", "audio", "audiourl"]),
+        hasTranscript: has(["transcript", "transcription", "summary"]),
+        hasSentiment: has(["sentiment", "score", "mood"]),
+        hasCallStatus: has(["callstatus", "call_status", "status", "outcome", "disposition"]),
+        hasCallOutcome: has(["outcome", "result", "disposition"]),
+        hasPhoneNumber: has(["phone", "mobile", "tel", "number", "contact"]),
+        hasName: has(["name", "fullname", "firstname", "lastname"]),
+        hasAddress: has(["address", "postcode", "zip", "city", "street"]),
+        hasEmail: has(["email"]),
+        hasLeadId: has(["leadid", "lead_id", "userid", "user_id", "contactid"]),
+        hasCallId: has(["callid", "call_id", "retellcallid", "retell_call"]),
+        hasTimestamp: has([
+          "date",
+          "time",
+          "createdat",
+          "created_at",
+          "calledat",
+          "called_at",
+          "startedat",
+        ]),
+        hasAppointment: has(["appointment", "booked", "slot", "meeting"]),
         sampleValues: Object.fromEntries(
-          k.slice(0, 12).map(key => [key, typeof r[key] === "string" ? r[key].slice(0, 80) : r[key]])
+          k
+            .slice(0, 12)
+            .map((key) => [key, typeof r[key] === "string" ? r[key].slice(0, 80) : r[key]]),
         ),
       };
     }
 
     // ── Helper: classify endpoint based on first-record inspection ─────────────
-    function classify(inspection: ReturnType<typeof inspectRecord>, recordCount: number | "N/A"): string {
+    function classify(
+      inspection: ReturnType<typeof inspectRecord>,
+      recordCount: number | "N/A",
+    ): string {
       if (!inspection) return "6-Unknown (no records returned)";
-      const { hasDuration, hasRecordingUrl, hasTranscript, hasSentiment,
-              hasCallStatus, hasAddress, hasPhoneNumber, hasCallId } = inspection;
+      const {
+        hasDuration,
+        hasRecordingUrl,
+        hasTranscript,
+        hasSentiment,
+        hasCallStatus,
+        hasAddress,
+        hasPhoneNumber,
+        hasCallId,
+      } = inspection;
 
       // Strong completed-call signals
-      if ((hasDuration || hasRecordingUrl || hasTranscript) && hasSentiment) return "2-Completed call log ✓";
+      if ((hasDuration || hasRecordingUrl || hasTranscript) && hasSentiment)
+        return "2-Completed call log ✓";
       if (hasDuration && hasCallId) return "2-Completed call log ✓";
       if (hasTranscript && hasCallStatus) return "2-Completed call log ✓";
       if (hasSentiment && hasCallId) return "2-Completed call log ✓";
       if (hasSentiment && hasCallStatus && !hasAddress) return "2-Completed call log (likely) ✓";
 
       // CRM / leads-to-call signals
-      if (hasAddress && hasPhoneNumber && !hasDuration && !hasCallId) return "1-CRM contact / lead to call";
-      if (hasAddress && !hasDuration && !hasSentiment) return "1-CRM contact / lead to call (likely)";
+      if (hasAddress && hasPhoneNumber && !hasDuration && !hasCallId)
+        return "1-CRM contact / lead to call";
+      if (hasAddress && !hasDuration && !hasSentiment)
+        return "1-CRM contact / lead to call (likely)";
 
       // Callback queue
       if (inspection.hasAppointment && hasPhoneNumber) return "4-Callback queue";
@@ -212,7 +271,9 @@ export const wbahProbeApi = createServerFn({ method: "GET" })
       if (recordCount === "N/A" || recordCount === 0) return "5-Dashboard metric / empty";
       return "6-Unknown — see allKeys";
     }
-    function hasTimestamp(ins: any) { return ins?.hasTimestamp ?? false; }
+    function hasTimestamp(ins: any) {
+      return ins?.hasTimestamp ?? false;
+    }
 
     // ── Round 1: hit all call-output-data endpoints in parallel ───────────────
     console.log("[WBAH-AUDIT] ▶ Starting comprehensive endpoint audit…");
@@ -227,35 +288,32 @@ export const wbahProbeApi = createServerFn({ method: "GET" })
       callsBulkRes,
       leadsBulkRes,
     ] = await Promise.all([
-      api.wbahGetAllCallDataPaged(1,   gt, st),   // GET /get-all-calldata?currentPage=1
-      api.wbahGetCallCount(            gt, st),   // GET /get-call-count
-      api.wbahGetUserCallLeadPaged(1,  gt, st),   // GET /get-userCall-lead?currentPage=1
-      api.wbahGetAllCallOutput(        gt, st),   // GET /all
-      api.wbahGetPendingCallbacks(     gt, st),   // GET /callbacks/pending
-      api.wbahGetCrmData(              gt, st),   // GET /crm-data/get-crm-data
-      api.wbahGetAllCallDataAll(       gt, st),   // GET /get-all-calldata?limit=10000
-      api.wbahGetUserCallLeadAll(      gt, st),   // GET /get-userCall-lead?limit=10000
+      api.wbahGetAllCallDataPaged(1, gt, st), // GET /get-all-calldata?currentPage=1
+      api.wbahGetCallCount(gt, st), // GET /get-call-count
+      api.wbahGetUserCallLeadPaged(1, gt, st), // GET /get-userCall-lead?currentPage=1
+      api.wbahGetAllCallOutput(gt, st), // GET /all
+      api.wbahGetPendingCallbacks(gt, st), // GET /callbacks/pending
+      api.wbahGetCrmData(gt, st), // GET /crm-data/get-crm-data
+      api.wbahGetAllCallDataAll(gt, st), // GET /get-all-calldata?limit=10000
+      api.wbahGetUserCallLeadAll(gt, st), // GET /get-userCall-lead?limit=10000
     ]);
 
     // ── Round 2: POST /get-user-history — page 1 variants + explicit page 2 ─────
-    const [
-      histEmpty, histLimit100, histLimitBig, histLeadId, histPage1, histPage2,
-    ] = await Promise.all([
-      api.wbahGetUserHistory({},                                  gt, st),
-      api.wbahGetUserHistory({ limit: 100 },                     gt, st),
-      api.wbahGetUserHistory({ limit: 10000 },                   gt, st),
-      api.wbahGetUserHistory({ page: 1, limit: 50 },             gt, st),
-      api.wbahGetUserHistory({ currentPage: 1, pageSize: 50 },   gt, st),
-      api.wbahGetUserHistory({ currentPage: 2 },                 gt, st),  // ← KEY: pagination validation
-    ]);
+    const [histEmpty, histLimit100, histLimitBig, histLeadId, histPage1, histPage2] =
+      await Promise.all([
+        api.wbahGetUserHistory({}, gt, st),
+        api.wbahGetUserHistory({ limit: 100 }, gt, st),
+        api.wbahGetUserHistory({ limit: 10000 }, gt, st),
+        api.wbahGetUserHistory({ page: 1, limit: 50 }, gt, st),
+        api.wbahGetUserHistory({ currentPage: 1, pageSize: 50 }, gt, st),
+        api.wbahGetUserHistory({ currentPage: 2 }, gt, st), // ← KEY: pagination validation
+      ]);
 
     // ── Round 3: page-2 of /get-all-calldata to find pagination key ───────────
-    const [
-      callsPage2Param, callsPage2Num, callsPage2PageNo,
-    ] = await Promise.all([
+    const [callsPage2Param, callsPage2Num, callsPage2PageNo] = await Promise.all([
       wbahCallsParamTest("currentPage", 2, gt, st),
-      wbahCallsParamTest("pageNumber",  2, gt, st),
-      wbahCallsParamTest("pageNo",      2, gt, st),
+      wbahCallsParamTest("pageNumber", 2, gt, st),
+      wbahCallsParamTest("pageNo", 2, gt, st),
     ]);
 
     // ── Analyse each response ──────────────────────────────────────────────────
@@ -268,9 +326,12 @@ export const wbahProbeApi = createServerFn({ method: "GET" })
       const raw = res.data as any;
       const arr = extractArr(raw);
       const recordCount: number | "N/A" = arr ? arr.length : "N/A";
-      const topLevelKeys = raw && typeof raw === "object" && !Array.isArray(raw)
-        ? Object.keys(raw)
-        : Array.isArray(raw) ? ["(bare array)"] : [];
+      const topLevelKeys =
+        raw && typeof raw === "object" && !Array.isArray(raw)
+          ? Object.keys(raw)
+          : Array.isArray(raw)
+            ? ["(bare array)"]
+            : [];
       const pagination = raw?.pagination ?? raw?.meta ?? null;
       const totalItems = pagination?.totalItems ?? pagination?.total ?? pagination?.count ?? null;
       const inspection = arr && arr.length > 0 ? inspectRecord(arr[0]) : null;
@@ -279,9 +340,9 @@ export const wbahProbeApi = createServerFn({ method: "GET" })
       const report = {
         endpoint,
         method,
-        payloadNote:      payloadNote ?? null,
-        httpStatus:       res.status,
-        ok:               res.ok,
+        payloadNote: payloadNote ?? null,
+        httpStatus: res.status,
+        ok: res.ok,
         classification,
         recordCountInPage: recordCount,
         totalItemsReported: totalItems,
@@ -289,27 +350,27 @@ export const wbahProbeApi = createServerFn({ method: "GET" })
         topLevelKeys,
         firstRecordAllKeys: inspection?.allKeys ?? null,
         // Field presence flags
-        hasDuration:      inspection?.hasDuration      ?? false,
-        hasRecordingUrl:  inspection?.hasRecordingUrl  ?? false,
-        hasTranscript:    inspection?.hasTranscript    ?? false,
-        hasSentiment:     inspection?.hasSentiment     ?? false,
-        hasCallStatus:    inspection?.hasCallStatus    ?? false,
-        hasPhoneNumber:   inspection?.hasPhoneNumber   ?? false,
-        hasName:          inspection?.hasName          ?? false,
-        hasAddress:       inspection?.hasAddress       ?? false,
-        hasCallId:        inspection?.hasCallId        ?? false,
-        hasLeadId:        inspection?.hasLeadId        ?? false,
-        hasTimestamp:     inspection?.hasTimestamp     ?? false,
-        hasAppointment:   inspection?.hasAppointment   ?? false,
+        hasDuration: inspection?.hasDuration ?? false,
+        hasRecordingUrl: inspection?.hasRecordingUrl ?? false,
+        hasTranscript: inspection?.hasTranscript ?? false,
+        hasSentiment: inspection?.hasSentiment ?? false,
+        hasCallStatus: inspection?.hasCallStatus ?? false,
+        hasPhoneNumber: inspection?.hasPhoneNumber ?? false,
+        hasName: inspection?.hasName ?? false,
+        hasAddress: inspection?.hasAddress ?? false,
+        hasCallId: inspection?.hasCallId ?? false,
+        hasLeadId: inspection?.hasLeadId ?? false,
+        hasTimestamp: inspection?.hasTimestamp ?? false,
+        hasAppointment: inspection?.hasAppointment ?? false,
         // Sample first record
-        sampleRecord:     inspection?.sampleValues     ?? null,
+        sampleRecord: inspection?.sampleValues ?? null,
         // Raw when no records
-        rawResponseWhenEmpty: (!arr || arr.length === 0) ? raw : undefined,
+        rawResponseWhenEmpty: !arr || arr.length === 0 ? raw : undefined,
       };
 
       console.log(
         `[WBAH-AUDIT] ${method} ${endpoint}${payloadNote ? " " + payloadNote : ""}` +
-        ` → HTTP ${res.status} | records=${recordCount} | total=${totalItems ?? "?"} | ${classification}`
+          ` → HTTP ${res.status} | records=${recordCount} | total=${totalItems ?? "?"} | ${classification}`,
       );
       if (inspection?.allKeys) {
         console.log(`[WBAH-AUDIT]   first record keys: ${inspection.allKeys.join(", ")}`);
@@ -322,56 +383,112 @@ export const wbahProbeApi = createServerFn({ method: "GET" })
     }
 
     const results = {
-      "GET /call-output-data/get-all-calldata (page 1)":
-        analyseEndpoint(callsP1Res,    "/call-output-data/get-all-calldata",          "GET", "?currentPage=1"),
+      "GET /call-output-data/get-all-calldata (page 1)": analyseEndpoint(
+        callsP1Res,
+        "/call-output-data/get-all-calldata",
+        "GET",
+        "?currentPage=1",
+      ),
 
-      "GET /call-output-data/get-all-calldata (limit=10000)":
-        analyseEndpoint(callsBulkRes,  "/call-output-data/get-all-calldata",          "GET", "?limit=10000"),
+      "GET /call-output-data/get-all-calldata (limit=10000)": analyseEndpoint(
+        callsBulkRes,
+        "/call-output-data/get-all-calldata",
+        "GET",
+        "?limit=10000",
+      ),
 
-      "GET /call-output-data/get-all-calldata (page 2 ?currentPage=2)":
-        analyseEndpoint(callsPage2Param, "/call-output-data/get-all-calldata",        "GET", "?currentPage=2"),
+      "GET /call-output-data/get-all-calldata (page 2 ?currentPage=2)": analyseEndpoint(
+        callsPage2Param,
+        "/call-output-data/get-all-calldata",
+        "GET",
+        "?currentPage=2",
+      ),
 
-      "GET /call-output-data/get-all-calldata (page 2 ?pageNumber=2)":
-        analyseEndpoint(callsPage2Num,  "/call-output-data/get-all-calldata",         "GET", "?pageNumber=2"),
+      "GET /call-output-data/get-all-calldata (page 2 ?pageNumber=2)": analyseEndpoint(
+        callsPage2Num,
+        "/call-output-data/get-all-calldata",
+        "GET",
+        "?pageNumber=2",
+      ),
 
-      "GET /call-output-data/get-all-calldata (page 2 ?pageNo=2)":
-        analyseEndpoint(callsPage2PageNo, "/call-output-data/get-all-calldata",       "GET", "?pageNo=2"),
+      "GET /call-output-data/get-all-calldata (page 2 ?pageNo=2)": analyseEndpoint(
+        callsPage2PageNo,
+        "/call-output-data/get-all-calldata",
+        "GET",
+        "?pageNo=2",
+      ),
 
-      "GET /call-output-data/get-call-count":
-        analyseEndpoint(callCountRes,  "/call-output-data/get-call-count",            "GET"),
+      "GET /call-output-data/get-call-count": analyseEndpoint(
+        callCountRes,
+        "/call-output-data/get-call-count",
+        "GET",
+      ),
 
-      "POST /call-output-data/get-user-history (empty body)":
-        analyseEndpoint(histEmpty,     "/call-output-data/get-user-history",          "POST", "body={}"),
+      "POST /call-output-data/get-user-history (empty body)": analyseEndpoint(
+        histEmpty,
+        "/call-output-data/get-user-history",
+        "POST",
+        "body={}",
+      ),
 
-      "POST /call-output-data/get-user-history (limit:100)":
-        analyseEndpoint(histLimit100,  "/call-output-data/get-user-history",          "POST", "body={limit:100}"),
+      "POST /call-output-data/get-user-history (limit:100)": analyseEndpoint(
+        histLimit100,
+        "/call-output-data/get-user-history",
+        "POST",
+        "body={limit:100}",
+      ),
 
-      "POST /call-output-data/get-user-history (limit:10000)":
-        analyseEndpoint(histLimitBig,  "/call-output-data/get-user-history",          "POST", "body={limit:10000}"),
+      "POST /call-output-data/get-user-history (limit:10000)": analyseEndpoint(
+        histLimitBig,
+        "/call-output-data/get-user-history",
+        "POST",
+        "body={limit:10000}",
+      ),
 
-      "POST /call-output-data/get-user-history (page:1 limit:50)":
-        analyseEndpoint(histPage1,     "/call-output-data/get-user-history",          "POST", "body={page:1,limit:50}"),
+      "POST /call-output-data/get-user-history (page:1 limit:50)": analyseEndpoint(
+        histPage1,
+        "/call-output-data/get-user-history",
+        "POST",
+        "body={page:1,limit:50}",
+      ),
 
-      "POST /call-output-data/get-user-history (currentPage:1 pageSize:50)":
-        analyseEndpoint(histLeadId,    "/call-output-data/get-user-history",          "POST", "body={currentPage:1,pageSize:50}"),
+      "POST /call-output-data/get-user-history (currentPage:1 pageSize:50)": analyseEndpoint(
+        histLeadId,
+        "/call-output-data/get-user-history",
+        "POST",
+        "body={currentPage:1,pageSize:50}",
+      ),
 
-      "POST /call-output-data/get-user-history (currentPage:2 — pagination test)":
-        analyseEndpoint(histPage2,     "/call-output-data/get-user-history",          "POST", "body={currentPage:2}"),
+      "POST /call-output-data/get-user-history (currentPage:2 — pagination test)": analyseEndpoint(
+        histPage2,
+        "/call-output-data/get-user-history",
+        "POST",
+        "body={currentPage:2}",
+      ),
 
-      "GET /call-output-data/get-userCall-lead (page 1)":
-        analyseEndpoint(leadsP1Res,    "/call-output-data/get-userCall-lead",         "GET", "?currentPage=1"),
+      "GET /call-output-data/get-userCall-lead (page 1)": analyseEndpoint(
+        leadsP1Res,
+        "/call-output-data/get-userCall-lead",
+        "GET",
+        "?currentPage=1",
+      ),
 
-      "GET /call-output-data/get-userCall-lead (limit=10000)":
-        analyseEndpoint(leadsBulkRes,  "/call-output-data/get-userCall-lead",         "GET", "?limit=10000"),
+      "GET /call-output-data/get-userCall-lead (limit=10000)": analyseEndpoint(
+        leadsBulkRes,
+        "/call-output-data/get-userCall-lead",
+        "GET",
+        "?limit=10000",
+      ),
 
-      "GET /call-output-data/all":
-        analyseEndpoint(callsAllRes,   "/call-output-data/all",                       "GET"),
+      "GET /call-output-data/all": analyseEndpoint(callsAllRes, "/call-output-data/all", "GET"),
 
-      "GET /call-output-data/callbacks/pending":
-        analyseEndpoint(callbacksRes,  "/call-output-data/callbacks/pending",         "GET"),
+      "GET /call-output-data/callbacks/pending": analyseEndpoint(
+        callbacksRes,
+        "/call-output-data/callbacks/pending",
+        "GET",
+      ),
 
-      "GET /crm-data/get-crm-data":
-        analyseEndpoint(crmRes,        "/crm-data/get-crm-data",                      "GET"),
+      "GET /crm-data/get-crm-data": analyseEndpoint(crmRes, "/crm-data/get-crm-data", "GET"),
     };
 
     // ── Summary table ──────────────────────────────────────────────────────────
@@ -380,14 +497,27 @@ export const wbahProbeApi = createServerFn({ method: "GET" })
     for (const [key, r] of Object.entries(results)) {
       console.log(
         `[WBAH-AUDIT] ${r.endpoint}${r.payloadNote ? " " + r.payloadNote : ""}` +
-        ` | ${r.classification}` +
-        ` | records=${r.recordCountInPage}` +
-        ` | total=${r.totalItemsReported ?? "?"}`
+          ` | ${r.classification}` +
+          ` | records=${r.recordCountInPage}` +
+          ` | total=${r.totalItemsReported ?? "?"}`,
       );
     }
     console.log("[WBAH-AUDIT] ════════════════════════════════════════════════════════════\n");
 
     return { audit: results };
+  });
+
+// ── UAT CRM_data probe — People category counts (post backend sync) ───────────
+
+export const wbahProbeCrmPeople = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const isAdmin = await isPlatformAdmin(context.userId);
+    if (!isAdmin) throw new Error("Admin access required");
+
+    const cbs = await requireWbahCbs(context.userId);
+    const { probeWbahCrmPeopleCategories } = await import("./wbah-people-crm.server");
+    return probeWbahCrmPeopleCategories(cbs);
   });
 
 // ── Campaigns (live from WeeBespoke API — shown as a tab in /campaigns) ────────
@@ -400,9 +530,9 @@ export const wbahProbeApi = createServerFn({ method: "GET" })
 function extractWbahArray(raw: any): any[] {
   if (Array.isArray(raw)) return raw;
   if (raw && typeof raw === "object") {
-    if (Array.isArray(raw.data))      return raw.data;
-    if (Array.isArray(raw.result))    return raw.result;
-    if (Array.isArray(raw.rows))      return raw.rows;
+    if (Array.isArray(raw.data)) return raw.data;
+    if (Array.isArray(raw.result)) return raw.result;
+    if (Array.isArray(raw.rows)) return raw.rows;
     if (Array.isArray(raw.campaigns)) return raw.campaigns;
   }
   return [];
@@ -415,6 +545,7 @@ function extractWbahArray(raw: any): any[] {
 function normalizeWbahCampaign(raw: any): any {
   if (!raw || typeof raw !== "object") return raw;
   const out: Record<string, unknown> = { ...raw };
+  if (out.campaign_name == null && raw.name != null) out.campaign_name = raw.name;
   if (out.call_time == null && raw.call_hour != null) {
     const hh = String(raw.call_hour).padStart(2, "0");
     const mm = String(raw.call_minute ?? 0).padStart(2, "0");
@@ -427,6 +558,115 @@ function normalizeWbahCampaign(raw: any): any {
   if (typeof raw.status === "string") out.status = raw.status.toLowerCase();
   return out;
 }
+
+const wbahCampaignLeadStatusValues = WBAH_CAMPAIGN_LEAD_STATUS_OPTIONS.map(
+  (o) => o.value,
+) as [string, string, string];
+
+const wbahCampaignFormSchema = z.object({
+  campaign_name: z.string().min(1).max(120),
+  agent_id: z.string().nullable().optional(),
+  lead_status: z.enum(wbahCampaignLeadStatusValues),
+  call_time: z.string().default("09:00"),
+  timezone: z.string().default("Europe/London"),
+  frequency_type: z.enum(["daily", "custom"]).default("daily"),
+  interval_days: z.number().int().min(1).max(365).optional(),
+  voicemail_enabled: z.boolean().optional(),
+});
+
+/** Map WEBEE campaign form fields → UAT API body (`name`, `call_hour`, `frequency`, …). */
+function uiCampaignFormToUatPayload(
+  data: z.infer<typeof wbahCampaignFormSchema>,
+): Record<string, unknown> {
+  const [hhRaw, mmRaw] = (data.call_time ?? "09:00").split(":");
+  const call_hour = Math.min(23, Math.max(0, parseInt(hhRaw, 10) || 0));
+  const call_minute = Math.min(59, Math.max(0, parseInt(mmRaw, 10) || 0));
+  return {
+    name: data.campaign_name.trim(),
+    agent_id: data.agent_id || null,
+    lead_status: data.lead_status,
+    call_hour,
+    call_minute,
+    timezone: data.timezone ?? "Europe/London",
+    frequency: data.frequency_type === "custom" ? "Custom" : "Daily",
+    interval_days: data.interval_days ?? 1,
+    voicemail_enabled: data.voicemail_enabled ?? false,
+  };
+}
+
+function extractWbahCampaignEntity(raw: unknown): unknown {
+  if (!raw) return raw;
+  if (Array.isArray(raw)) return raw[0] ?? null;
+  if (typeof raw !== "object") return raw;
+  const o = raw as Record<string, unknown>;
+  if (o.data && typeof o.data === "object") {
+    const inner = o.data;
+    if (Array.isArray(inner)) return inner[0] ?? null;
+    return inner;
+  }
+  return o;
+}
+
+function extractWbahSyncResult(raw: unknown): DynamicsCategorySyncResult {
+  const o = raw as Record<string, unknown> | null;
+  const inner =
+    o?.data && typeof o.data === "object" && !Array.isArray(o.data)
+      ? (o.data as Record<string, unknown>)
+      : o;
+  if (!inner || typeof inner !== "object") {
+    return { dryRun: true, categories: [], campaignsScheduled: [], duplicateLeadIds: [] };
+  }
+  return {
+    dryRun: Boolean(inner.dryRun),
+    categories: Array.isArray(inner.categories) ? inner.categories : [],
+    campaignsScheduled: Array.isArray(inner.campaignsScheduled) ? inner.campaignsScheduled : [],
+    duplicateLeadIds: Array.isArray(inner.duplicateLeadIds) ? inner.duplicateLeadIds : [],
+  } as DynamicsCategorySyncResult;
+}
+
+function throwWbahCampaignApiError(
+  res: { status: number; error?: string },
+  fallback: string,
+): never {
+  if (res.status === 401) throw new Error("Session expired. Please sign in again.");
+  if (res.status === 403) throw new Error("You don't have permission to sync campaigns");
+  throw new Error(res.error ?? fallback);
+}
+
+export const getWbahCampaignDynamicsSyncAccess = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    await requireWbahCbs(context.userId);
+    return { canPreview: true, canSync: true };
+  });
+
+export const previewWbahDynamicsCategorySync = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const cbs = await requireWbahCbs(context.userId);
+    const res = await api.wbahPreviewDynamicsCategorySync(
+      cbs.getTokens,
+      cbs.saveNewAccessToken,
+      cbs.reloginFn,
+    );
+    if (!res.ok) throwWbahCampaignApiError(res, "Failed to preview Dynamics sync");
+    return extractWbahSyncResult(res.data);
+  });
+
+export const syncWbahDynamicsCategories = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((i) => z.object({ scheduleCampaign: z.boolean().default(false) }).parse(i ?? {}))
+  .handler(async ({ context, data }) => {
+    const cbs = await requireWbahCbs(context.userId);
+    const res = await api.wbahSyncDynamicsCategories(
+      data.scheduleCampaign,
+      cbs.getTokens,
+      cbs.saveNewAccessToken,
+      cbs.reloginFn,
+    );
+    if (!res.ok) throwWbahCampaignApiError(res, "Failed to sync Dynamics categories");
+    return extractWbahSyncResult(res.data);
+  });
 
 export const getWbahCampaigns = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
@@ -441,7 +681,9 @@ export const getWbahCampaigns = createServerFn({ method: "GET" })
       if (routed.source === "engine") {
         return Array.isArray(routed.rows) ? routed.rows.map(normalizeWbahCampaign) : [];
       }
-    } catch { /* fall through to direct call */ }
+    } catch {
+      /* fall through to direct call */
+    }
 
     // Fallback: direct WeeBespoke API call. The campaign array is nested at
     // res.data.data because of the API's { result, statuscode, message, data }
@@ -449,7 +691,12 @@ export const getWbahCampaigns = createServerFn({ method: "GET" })
     const res = await api.wbahGetCampaigns(cbs.getTokens, cbs.saveNewAccessToken, cbs.reloginFn);
     // Surface a real failure instead of silently returning an empty list — a 401
     // with a dead refresh token would otherwise look like "no campaigns" in the UI.
-    if (!res.ok) throw new Error(res.error ?? "Failed to load campaigns from WeeBespoke");
+    if (!res.ok) {
+      throw new Error(
+        res.error ??
+          "Failed to load campaigns from UAT. Check WEBESPOKE_ADMIN_EMAIL and WEBESPOKE_ADMIN_PASSWORD in .env.",
+      );
+    }
     return extractWbahArray(res.data).map(normalizeWbahCampaign);
   });
 
@@ -528,26 +775,50 @@ export const getWbahCredits = createServerFn({ method: "GET" })
       return num(...keys.map((k) => a[k]), ...keys.map((k) => b[k]));
     };
     const allocated = pick([
-      "allocated_minutes", "allocatedMinutes", "total_allocated_minutes",
-      "total_allocated", "totalAllocated", "minutes_allocated", "allocated",
+      "allocated_minutes",
+      "allocatedMinutes",
+      "total_allocated_minutes",
+      "total_allocated",
+      "totalAllocated",
+      "minutes_allocated",
+      "allocated",
       "credits_allocated",
     ]);
     const used = pick([
-      "used_minutes", "usedMinutes", "total_used_minutes", "minutes_used",
-      "total_used", "used", "consumed_minutes", "credits_used",
+      "used_minutes",
+      "usedMinutes",
+      "total_used_minutes",
+      "minutes_used",
+      "total_used",
+      "used",
+      "consumed_minutes",
+      "credits_used",
     ]);
     let remaining = pick([
-      "remaining_minutes", "remainingMinutes", "minutes_remaining",
-      "available_minutes", "balance_minutes", "remaining", "balance",
+      "remaining_minutes",
+      "remainingMinutes",
+      "minutes_remaining",
+      "available_minutes",
+      "balance_minutes",
+      "remaining",
+      "balance",
       "credits_remaining",
     ]);
     let percent = pick([
-      "percent_used", "percentUsed", "usage_percent", "usagePercent",
-      "percentage_used", "percentage", "percent",
+      "percent_used",
+      "percentUsed",
+      "usage_percent",
+      "usagePercent",
+      "percentage_used",
+      "percentage",
+      "percent",
     ]);
     const carried = pick([
-      "carried_over_minutes", "carriedOverMinutes", "carryover_minutes",
-      "carried_over", "carryover",
+      "carried_over_minutes",
+      "carriedOverMinutes",
+      "carryover_minutes",
+      "carried_over",
+      "carryover",
     ]);
     // Derive anything the API didn't send directly.
     if (remaining == null && allocated != null && used != null) {
@@ -571,14 +842,30 @@ export const getWbahCredits = createServerFn({ method: "GET" })
     return { summary, months, retell: rawRetell, history };
   });
 
+export const getWbahCampaignLeadStatusOptions = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async () => {
+    // Campaigns dial only the three Dynamics-synced CRM cohorts.
+    return WBAH_CAMPAIGN_LEAD_STATUS_OPTIONS.map((o) => ({
+      value: o.value,
+      label: o.label,
+      source: "dynamics" as const,
+    }));
+  });
+
 export const createWbahCampaign = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((i) => z.record(z.string(), z.unknown()).parse(i ?? {}))
+  .inputValidator((i) => wbahCampaignFormSchema.parse(i ?? {}))
   .handler(async ({ context, data }) => {
     const cbs = await requireWbahCbs(context.userId);
-    const res = await api.wbahCreateCampaign(data as Record<string, unknown>, cbs.getTokens, cbs.saveNewAccessToken, cbs.reloginFn);
+    const res = await api.wbahCreateCampaign(
+      uiCampaignFormToUatPayload(data),
+      cbs.getTokens,
+      cbs.saveNewAccessToken,
+      cbs.reloginFn,
+    );
     if (!res.ok) throw new Error(res.error ?? "Failed to create campaign");
-    return res.data as any;
+    return normalizeWbahCampaign(extractWbahCampaignEntity(res.data));
   });
 
 export const pauseWbahCampaign = createServerFn({ method: "POST" })
@@ -586,7 +873,12 @@ export const pauseWbahCampaign = createServerFn({ method: "POST" })
   .inputValidator((i) => z.object({ id: z.string() }).parse(i ?? {}))
   .handler(async ({ context, data }) => {
     const cbs = await requireWbahCbs(context.userId);
-    const res = await api.wbahPauseCampaign(data.id, cbs.getTokens, cbs.saveNewAccessToken, cbs.reloginFn);
+    const res = await api.wbahPauseCampaign(
+      data.id,
+      cbs.getTokens,
+      cbs.saveNewAccessToken,
+      cbs.reloginFn,
+    );
     if (!res.ok) throw new Error(res.error ?? "Failed to pause campaign");
     return res.data as any;
   });
@@ -596,7 +888,12 @@ export const resumeWbahCampaign = createServerFn({ method: "POST" })
   .inputValidator((i) => z.object({ id: z.string() }).parse(i ?? {}))
   .handler(async ({ context, data }) => {
     const cbs = await requireWbahCbs(context.userId);
-    const res = await api.wbahResumeCampaign(data.id, cbs.getTokens, cbs.saveNewAccessToken, cbs.reloginFn);
+    const res = await api.wbahResumeCampaign(
+      data.id,
+      cbs.getTokens,
+      cbs.saveNewAccessToken,
+      cbs.reloginFn,
+    );
     if (!res.ok) throw new Error(res.error ?? "Failed to resume campaign");
     return res.data as any;
   });
@@ -606,32 +903,31 @@ export const deleteWbahCampaign = createServerFn({ method: "POST" })
   .inputValidator((i) => z.object({ id: z.string() }).parse(i ?? {}))
   .handler(async ({ context, data }) => {
     const cbs = await requireWbahCbs(context.userId);
-    const res = await api.wbahDeleteCampaign(data.id, cbs.getTokens, cbs.saveNewAccessToken, cbs.reloginFn);
+    const res = await api.wbahDeleteCampaign(
+      data.id,
+      cbs.getTokens,
+      cbs.saveNewAccessToken,
+      cbs.reloginFn,
+    );
     if (!res.ok) throw new Error(res.error ?? "Failed to delete campaign");
     return res.data as any;
   });
 
 export const updateWbahCampaignSettings = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((i) =>
-    z.object({
-      id: z.string(),
-      campaign_name: z.string().min(1).max(120),
-      agent_id: z.string().nullable().optional(),
-      lead_status: z.string().nullable().optional(),
-      call_time: z.string().default("09:00"),
-      timezone: z.string().default("Europe/London"),
-      frequency_type: z.enum(["daily", "custom"]).default("daily"),
-      interval_days: z.number().int().min(1).max(365).optional(),
-      voicemail_enabled: z.boolean().optional(),
-    }).parse(i ?? {}),
-  )
+  .inputValidator((i) => wbahCampaignFormSchema.extend({ id: z.string().min(1) }).parse(i ?? {}))
   .handler(async ({ context, data }) => {
-    const { id, ...payload } = data;
+    const { id, ...form } = data;
     const cbs = await requireWbahCbs(context.userId);
-    const res = await api.wbahUpdateCampaign(id, payload as Record<string, unknown>, cbs.getTokens, cbs.saveNewAccessToken, cbs.reloginFn);
+    const res = await api.wbahUpdateCampaign(
+      id,
+      uiCampaignFormToUatPayload(form),
+      cbs.getTokens,
+      cbs.saveNewAccessToken,
+      cbs.reloginFn,
+    );
     if (!res.ok) throw new Error(res.error ?? "Failed to update campaign");
-    return res.data as any;
+    return normalizeWbahCampaign(extractWbahCampaignEntity(res.data));
   });
 
 export const toggleWbahCampaignVoicemailSetting = createServerFn({ method: "POST" })
@@ -660,27 +956,26 @@ export const getWbahAgentsForCampaign = createServerFn({ method: "GET" })
     const st = cbs.saveNewAccessToken;
     const rl = cbs.reloginFn;
 
-    const normalize = (raw: any) => ({
-      id:                raw._id ?? raw.id ?? raw.agent_id ?? "",
-      name:              raw.agent_name ?? raw.name ?? raw.agentName ?? raw._id ?? raw.id ?? "Unknown Agent",
-      status:            raw.status ?? "active",
-      voicemail_enabled: raw.voicemail_enabled ?? raw.voicemailEnabled ?? false,
-      phone_number:      raw.phone_number ?? raw.phoneNumber ?? null,
+    const normalize = (raw: Record<string, unknown>) => ({
+      id: String(raw.agent_id ?? raw._id ?? raw.id ?? ""),
+      name: String(raw.agent_name ?? raw.name ?? raw.agentName ?? raw.agent_id ?? "Unknown Agent"),
+      status: raw.is_active === true ? "active" : String(raw.status ?? "inactive"),
+      voicemail_enabled: Boolean(raw.voicemail_enabled ?? raw.voicemailEnabled ?? false),
+      phone_number: (raw.phone_number ?? raw.phoneNumber ?? null) as string | null,
     });
 
-    const extractArr = (raw: any): any[] =>
-      Array.isArray(raw) ? raw
-      : Array.isArray(raw?.data)    ? raw.data
-      : Array.isArray(raw?.agents)  ? raw.agents
-      : Array.isArray(raw?.result)  ? raw.result
-      : [];
-
-    const campaignOnlyRes = await api.wbahGetAgents(gt, st, rl);
-    const campaignArr = extractArr(campaignOnlyRes.data);
-    if (campaignArr.length > 0) return campaignArr.map(normalize);
-
+    // Full Retell agent list — same as WeWeb campaign dropdown (all agents with names).
+    // campaign_only=true is limited to CAMPAIGN_AGENT_IDS on UAT (often a single agent).
     const allRes = await api.wbahGetAgents(gt, st, rl);
-    return extractArr(allRes.data).map(normalize);
+    if (!allRes.ok) {
+      throw new Error(allRes.error ?? "Failed to load agents from UAT");
+    }
+    const rows = extractWbahArray(allRes.data);
+
+    return rows
+      .map((raw) => normalize(raw as Record<string, unknown>))
+      .filter((a) => a.id)
+      .sort((a, b) => a.name.localeCompare(b.name));
   });
 
 // ── Leads — self-healing paginated fetch (same pattern as listWbahCalls) ───────
@@ -692,12 +987,14 @@ export const listWbahLeads = createServerFn({ method: "GET" })
     try {
       const { getPeopleData } = await import("@/lib/api-engine/data-source-router.server");
       const routed = await getPeopleData(WBAH_WORKSPACE_ID);
-      if (routed.source === "engine") return routed.rows as any[];
-    } catch { /* fall through to direct call */ }
+      if (routed.source === "engine") return routed.rows;
+    } catch {
+      /* fall through to direct call */
+    }
 
     const cbs = await requireWbahCbs(context.userId);
-    const gt  = cbs.getTokens;
-    const st  = cbs.saveNewAccessToken;
+    const gt = cbs.getTokens;
+    const st = cbs.saveNewAccessToken;
 
     // ── Pages 1 & 2 in parallel — validates that ?currentPage=N advances ──
     const [p1Res, p2Res] = await Promise.all([
@@ -706,30 +1003,52 @@ export const listWbahLeads = createServerFn({ method: "GET" })
     ]);
     if (!p1Res.ok) throw new Error(p1Res.error ?? "Failed to fetch leads from WeeBespoke");
 
-    const p1Raw      = p1Res.data as any;
-    const p2Raw      = p2Res.ok ? p2Res.data as any : null;
-    const p1Recs     = extractRecords(p1Raw);
-    const p2Recs     = p2Raw ? extractRecords(p2Raw) : [];
+    const p1Raw = p1Res.data as any;
+    const p2Raw = p2Res.ok ? (p2Res.data as any) : null;
+    const p1Recs = extractRecords(p1Raw);
+    const p2Recs = p2Raw ? extractRecords(p2Raw) : [];
     // Log the raw shape of both pages so we know the record key, pagination, and whether page 2 differs
-    console.log(`[WBAH leads] p1 raw top-level keys: ${p1Raw && typeof p1Raw === "object" ? Object.keys(p1Raw).join(",") : typeof p1Raw}`);
-    console.log(`[WBAH leads] p1 sample record keys: ${p1Recs[0] ? Object.keys(p1Recs[0]).join(",") : "no records"}`);
+    console.log(
+      `[WBAH leads] p1 raw top-level keys: ${p1Raw && typeof p1Raw === "object" ? Object.keys(p1Raw).join(",") : typeof p1Raw}`,
+    );
+    console.log(
+      `[WBAH leads] p1 sample record keys: ${p1Recs[0] ? Object.keys(p1Recs[0]).join(",") : "no records"}`,
+    );
     console.log(`[WBAH leads] p1 pagination object: ${JSON.stringify(p1Raw?.pagination ?? null)}`);
-    console.log(`[WBAH leads] p2 ok=${p2Res.ok} status=${p2Res.status} raw keys: ${p2Raw && typeof p2Raw === "object" ? Object.keys(p2Raw).join(",") : typeof p2Raw} records=${p2Recs.length}`);
+    console.log(
+      `[WBAH leads] p2 ok=${p2Res.ok} status=${p2Res.status} raw keys: ${p2Raw && typeof p2Raw === "object" ? Object.keys(p2Raw).join(",") : typeof p2Raw} records=${p2Recs.length}`,
+    );
     const pagination = p1Raw?.pagination;
-    const totalItems = pagination?.totalItems ?? pagination?.totalRecords ?? pagination?.total_count ?? pagination?.count ?? 0;
-    const pageSize   = pagination?.pageSize ?? pagination?.page_size ?? pagination?.limit ?? pagination?.perPage ?? (p1Recs.length || 50);
-    const totalPages = totalItems > 0 ? Math.ceil(totalItems / pageSize) : (pagination?.totalPages ?? 1);
+    const totalItems =
+      pagination?.totalItems ??
+      pagination?.totalRecords ??
+      pagination?.total_count ??
+      pagination?.count ??
+      0;
+    const pageSize =
+      pagination?.pageSize ??
+      pagination?.page_size ??
+      pagination?.limit ??
+      pagination?.perPage ??
+      (p1Recs.length || 50);
+    const totalPages =
+      totalItems > 0 ? Math.ceil(totalItems / pageSize) : (pagination?.totalPages ?? 1);
 
     // Detect pagination advance by comparing a stable unique key from the first record of each page.
     // Falls back through several fields so we don't get tripped up if _id is absent.
     const recordKey = (r: any): string | null =>
-      r?._id ?? r?.id ?? (r?.srNo != null ? String(r.srNo) : null) ?? r?.toNumber ?? r?.mobile_number ?? null;
+      r?._id ??
+      r?.id ??
+      (r?.srNo != null ? String(r.srNo) : null) ??
+      r?.toNumber ??
+      r?.mobile_number ??
+      null;
     const p1FirstId = recordKey(p1Recs[0]);
     const p2FirstId = recordKey(p2Recs[0]);
     const paginationWorks = p2FirstId !== null && p2FirstId !== p1FirstId;
     console.log(
       `[WBAH leads] page1: records=${p1Recs.length} totalItems=${totalItems} pageSize=${pageSize} totalPages=${totalPages}` +
-      ` | page2: records=${p2Recs.length} firstId=${p2FirstId} | paginationWorks=${paginationWorks}`,
+        ` | page2: records=${p2Recs.length} firstId=${p2FirstId} | paginationWorks=${paginationWorks}`,
     );
 
     // ── If ?currentPage=N didn't advance, probe alternative GET/POST param names ──
@@ -738,29 +1057,70 @@ export const listWbahLeads = createServerFn({ method: "GET" })
     // returned a full page (suggesting more pages exist).
     type PageFn = (page: number) => Promise<any>;
     let pageFn: PageFn = (p) => api.wbahGetUserCallLeadPaged(p, gt, st);
-    const unknownTotal  = !pagination || totalItems === 0;
-    const likelyHasMore = unknownTotal ? (p1Recs.length >= pageSize) : (totalPages > 1);
+    const unknownTotal = !pagination || totalItems === 0;
+    const likelyHasMore = unknownTotal ? p1Recs.length >= pageSize : totalPages > 1;
 
     if (!paginationWorks && likelyHasMore) {
-      console.log(`[WBAH leads] ⚠ ?currentPage=2 did not advance — probing alternative pagination keys… (unknownTotal=${unknownTotal} totalPages=${totalPages})`);
+      console.log(
+        `[WBAH leads] ⚠ ?currentPage=2 did not advance — probing alternative pagination keys… (unknownTotal=${unknownTotal} totalPages=${totalPages})`,
+      );
       const LEAD_BASE = "/call-output-data/get-userCall-lead";
       const candidates: Array<{ label: string; fn: PageFn }> = [
-        { label: "?page=N",        fn: (p) => api.authenticatedFetch(`${LEAD_BASE}?page=${p}`,        { method: "GET" }, gt, st) },
-        { label: "?pageNumber=N",  fn: (p) => api.authenticatedFetch(`${LEAD_BASE}?pageNumber=${p}`,  { method: "GET" }, gt, st) },
-        { label: "?pageNo=N",      fn: (p) => api.authenticatedFetch(`${LEAD_BASE}?pageNo=${p}`,      { method: "GET" }, gt, st) },
-        { label: "?offset=N*ps",   fn: (p) => api.authenticatedFetch(`${LEAD_BASE}?offset=${(p - 1) * pageSize}&limit=${pageSize}`, { method: "GET" }, gt, st) },
-        { label: "POST?curPage=N", fn: (p) => api.authenticatedFetch(`${LEAD_BASE}?currentPage=${p}`, { method: "POST", body: "{}" }, gt, st) },
-        { label: "POST?page=N",    fn: (p) => api.authenticatedFetch(`${LEAD_BASE}?page=${p}`,        { method: "POST", body: "{}" }, gt, st) },
+        {
+          label: "?page=N",
+          fn: (p) => api.authenticatedFetch(`${LEAD_BASE}?page=${p}`, { method: "GET" }, gt, st),
+        },
+        {
+          label: "?pageNumber=N",
+          fn: (p) =>
+            api.authenticatedFetch(`${LEAD_BASE}?pageNumber=${p}`, { method: "GET" }, gt, st),
+        },
+        {
+          label: "?pageNo=N",
+          fn: (p) => api.authenticatedFetch(`${LEAD_BASE}?pageNo=${p}`, { method: "GET" }, gt, st),
+        },
+        {
+          label: "?offset=N*ps",
+          fn: (p) =>
+            api.authenticatedFetch(
+              `${LEAD_BASE}?offset=${(p - 1) * pageSize}&limit=${pageSize}`,
+              { method: "GET" },
+              gt,
+              st,
+            ),
+        },
+        {
+          label: "POST?curPage=N",
+          fn: (p) =>
+            api.authenticatedFetch(
+              `${LEAD_BASE}?currentPage=${p}`,
+              { method: "POST", body: "{}" },
+              gt,
+              st,
+            ),
+        },
+        {
+          label: "POST?page=N",
+          fn: (p) =>
+            api.authenticatedFetch(
+              `${LEAD_BASE}?page=${p}`,
+              { method: "POST", body: "{}" },
+              gt,
+              st,
+            ),
+        },
       ];
 
       const probeResults = await Promise.all(candidates.map((c) => c.fn(2)));
-      let foundKey: typeof candidates[number] | null = null;
+      let foundKey: (typeof candidates)[number] | null = null;
 
       for (let i = 0; i < candidates.length; i++) {
-        const res   = probeResults[i];
-        const recs  = res?.ok ? extractRecords(res.data) : [];
+        const res = probeResults[i];
+        const recs = res?.ok ? extractRecords(res.data) : [];
         const first = recs[0]?._id ?? recs[0]?.id ?? null;
-        console.log(`[WBAH leads] probe ${candidates[i].label} → ok=${res?.ok} records=${recs.length} firstId=${first}`);
+        console.log(
+          `[WBAH leads] probe ${candidates[i].label} → ok=${res?.ok} records=${recs.length} firstId=${first}`,
+        );
         if (first && first !== p1FirstId) {
           foundKey = candidates[i];
           p2Recs.length = 0;
@@ -773,12 +1133,15 @@ export const listWbahLeads = createServerFn({ method: "GET" })
         console.log(`[WBAH leads] ✓ working pagination key: ${foundKey.label}`);
         pageFn = foundKey.fn;
       } else {
-        console.log(`[WBAH leads] ✗ no key advanced — will try fetch-until-empty with ?currentPage=N`);
+        console.log(
+          `[WBAH leads] ✗ no key advanced — will try fetch-until-empty with ?currentPage=N`,
+        );
       }
     }
 
     // ── Fetch remaining pages ──────────────────────────────────────────────
-    const effectivelyWorks = paginationWorks || (p2Recs.length > 0 && (p2Recs[0]?._id ?? p2Recs[0]?.id) !== p1FirstId);
+    const effectivelyWorks =
+      paginationWorks || (p2Recs.length > 0 && (p2Recs[0]?._id ?? p2Recs[0]?.id) !== p1FirstId);
     const allRecs: any[] = effectivelyWorks ? [...p1Recs, ...p2Recs] : [...p1Recs];
     const BATCH = 20;
 
@@ -787,39 +1150,67 @@ export const listWbahLeads = createServerFn({ method: "GET" })
       const remaining = Array.from({ length: totalPages - 2 }, (_, i) => i + 3);
       let firstEmptyLogged = false;
       for (let i = 0; i < remaining.length; i += BATCH) {
-        const batch   = remaining.slice(i, i + BATCH);
+        const batch = remaining.slice(i, i + BATCH);
         const results = await Promise.all(batch.map((p) => pageFn(p)));
-        let   found   = 0;
+        let found = 0;
         for (const res of results) {
-          if (res?.ok) { const recs = extractRecords(res.data); allRecs.push(...recs); found += recs.length; }
+          if (res?.ok) {
+            const recs = extractRecords(res.data);
+            allRecs.push(...recs);
+            found += recs.length;
+          }
         }
-        console.log(`[WBAH leads] batch pages ${batch[0]}-${batch[batch.length - 1]} → +${found} (total: ${allRecs.length})`);
+        console.log(
+          `[WBAH leads] batch pages ${batch[0]}-${batch[batch.length - 1]} → +${found} (total: ${allRecs.length})`,
+        );
         if (found === 0 && !firstEmptyLogged) {
           firstEmptyLogged = true;
-          const diag = results.slice(0, 3).map((r, ri) => `p${batch[ri]}:HTTP${r?.status}ok=${r?.ok}recs=${r?.ok ? extractRecords(r.data).length : "FAIL"}`).join(" | ");
-          console.log(`[WBAH leads] ⚠ FIRST EMPTY BATCH: ${diag} | raw: ${JSON.stringify((results[0]?.data as any) ?? results[0]?.error).slice(0, 300)}`);
+          const diag = results
+            .slice(0, 3)
+            .map(
+              (r, ri) =>
+                `p${batch[ri]}:HTTP${r?.status}ok=${r?.ok}recs=${r?.ok ? extractRecords(r.data).length : "FAIL"}`,
+            )
+            .join(" | ");
+          console.log(
+            `[WBAH leads] ⚠ FIRST EMPTY BATCH: ${diag} | raw: ${JSON.stringify((results[0]?.data as any) ?? results[0]?.error).slice(0, 300)}`,
+          );
         }
-        if (found === 0 && allRecs.length > 0) { console.log(`[WBAH leads] ℹ stopping early at page ${batch[0]}.`); break; }
+        if (found === 0 && allRecs.length > 0) {
+          console.log(`[WBAH leads] ℹ stopping early at page ${batch[0]}.`);
+          break;
+        }
       }
     } else if (effectivelyWorks || likelyHasMore) {
       // Unknown total OR pagination works but totalPages ≤ 2 — fetch until empty / no new records
-      console.log(`[WBAH leads] using fetch-until-empty (effectivelyWorks=${effectivelyWorks} likelyHasMore=${likelyHasMore})`);
+      console.log(
+        `[WBAH leads] using fetch-until-empty (effectivelyWorks=${effectivelyWorks} likelyHasMore=${likelyHasMore})`,
+      );
       const seenIds = new Set(allRecs.map((r: any) => r._id ?? r.id ?? ""));
       let page = effectivelyWorks ? 3 : 2;
       while (page <= 500) {
-        const batch   = Array.from({ length: BATCH }, (_, i) => page + i);
+        const batch = Array.from({ length: BATCH }, (_, i) => page + i);
         const results = await Promise.all(batch.map((p) => pageFn(p)));
-        let   newFound = 0;
+        let newFound = 0;
         for (const res of results) {
           if (res?.ok) {
             for (const r of extractRecords(res.data)) {
               const rid = r._id ?? r.id ?? "";
-              if (!seenIds.has(rid)) { seenIds.add(rid); allRecs.push(r); newFound++; }
+              if (!seenIds.has(rid)) {
+                seenIds.add(rid);
+                allRecs.push(r);
+                newFound++;
+              }
             }
           }
         }
-        console.log(`[WBAH leads] fetch-until-empty pages ${batch[0]}-${batch[batch.length - 1]} → +${newFound} new (total: ${allRecs.length})`);
-        if (newFound === 0) { console.log(`[WBAH leads] ℹ no new records in batch — done.`); break; }
+        console.log(
+          `[WBAH leads] fetch-until-empty pages ${batch[0]}-${batch[batch.length - 1]} → +${newFound} new (total: ${allRecs.length})`,
+        );
+        if (newFound === 0) {
+          console.log(`[WBAH leads] ℹ no new records in batch — done.`);
+          break;
+        }
         page += BATCH;
       }
     }
@@ -835,7 +1226,7 @@ export const listWbahLeads = createServerFn({ method: "GET" })
       if (phone) phoneCounts.set(phone, (phoneCounts.get(phone) ?? 0) + 1);
     }
 
-    const annotated = leads.map(lead => ({
+    const annotated = leads.map((lead) => ({
       ...lead,
       callCount: phoneCounts.get((lead.contact as string | null) ?? "") ?? 1,
     }));
@@ -852,46 +1243,46 @@ export const listWbahLeads = createServerFn({ method: "GET" })
 
 function normaliseLeadRecord(r: any, idx: number) {
   return {
-    id:                 String(r._id ?? r.id ?? idx),
-    srNo:               r.srNo ?? r.sr_no ?? null,
-    name:               r.name ?? r.fullName ?? r.full_name ?? r.contactName ?? null,
-    contact:            r.toNumber ?? r.mobile_number ?? r.phone ?? r.contact ?? null,
-    type:               r.type ?? r.leadType ?? "Lead",
-    lastCalledAt:       r.lastCalledAt ?? r.last_called_at ?? r.calledAt ?? r.created_at ?? null,
-    callStatus:         r.callStatus ?? r.call_status ?? r.status ?? null,
-    callDuration:       r.callDuration ?? r.call_duration ?? r.duration ?? null,
-    recordingUrl:       r.recordingUrl ?? r.recording_url ?? r.recordingLink ?? null,
-    transcript:         r.transcript ?? r.callTranscript ?? null,
-    sentiment:          r.sentimentAnalysis ?? r.sentiment ?? null,
-    direction:          r.direction ?? r.callDirection ?? null,
-    appointmentDate:    r.appointmentDate ?? r.appointment_date ?? null,
-    appointmentTime:    r.appointmentTime ?? r.appointment_time ?? null,
-    bookingStatus:      r.bookingStatus ?? r.booking_status ?? null,
+    id: String(r._id ?? r.id ?? idx),
+    srNo: r.srNo ?? r.sr_no ?? null,
+    name: r.name ?? r.fullName ?? r.full_name ?? r.contactName ?? null,
+    contact: r.toNumber ?? r.mobile_number ?? r.phone ?? r.contact ?? null,
+    type: r.type ?? r.leadType ?? "Lead",
+    lastCalledAt: r.lastCalledAt ?? r.last_called_at ?? r.calledAt ?? r.created_at ?? null,
+    callStatus: r.callStatus ?? r.call_status ?? r.status ?? null,
+    callDuration: r.callDuration ?? r.call_duration ?? r.duration ?? null,
+    recordingUrl: r.recordingUrl ?? r.recording_url ?? r.recordingLink ?? null,
+    transcript: r.transcript ?? r.callTranscript ?? null,
+    sentiment: r.sentimentAnalysis ?? r.sentiment ?? null,
+    direction: r.direction ?? r.callDirection ?? null,
+    appointmentDate: r.appointmentDate ?? r.appointment_date ?? null,
+    appointmentTime: r.appointmentTime ?? r.appointment_time ?? null,
+    bookingStatus: r.bookingStatus ?? r.booking_status ?? null,
     calendlyBookingUrl: r.calendlyBookingUrl ?? r.calendly_booking_url ?? r.calendlyUrl ?? null,
-    endReason:          r.endReason ?? r.end_reason ?? null,
-    disconnectionReason:r.disconnectionReason ?? r.disconnection_reason ?? null,
-    agentName:          r.agentName ?? r.agent_name ?? r.assignedAgent ?? r.agent ?? null,
-    callSummary:        r.callSummary ?? r.call_summary ?? r.summary ?? null,
+    endReason: r.endReason ?? r.end_reason ?? null,
+    disconnectionReason: r.disconnectionReason ?? r.disconnection_reason ?? null,
+    agentName: r.agentName ?? r.agent_name ?? r.assignedAgent ?? r.agent ?? null,
+    callSummary: r.callSummary ?? r.call_summary ?? r.summary ?? null,
   };
 }
 
 function extractRecords(raw: any): any[] {
-  if (Array.isArray(raw))                 return raw;
-  if (Array.isArray(raw?.data))           return raw.data;
-  if (Array.isArray(raw?.calls))          return raw.calls;
-  if (Array.isArray(raw?.records))        return raw.records;
-  if (Array.isArray(raw?.leads))          return raw.leads;
-  if (Array.isArray(raw?.result))         return raw.result;
-  if (Array.isArray(raw?.items))          return raw.items;
+  if (Array.isArray(raw)) return raw;
+  if (Array.isArray(raw?.data)) return raw.data;
+  if (Array.isArray(raw?.calls)) return raw.calls;
+  if (Array.isArray(raw?.records)) return raw.records;
+  if (Array.isArray(raw?.leads)) return raw.leads;
+  if (Array.isArray(raw?.result)) return raw.result;
+  if (Array.isArray(raw?.items)) return raw.items;
   // Additional keys seen in WeeBespoke lead/call endpoints
-  if (Array.isArray(raw?.callLeads))      return raw.callLeads;
-  if (Array.isArray(raw?.callData))       return raw.callData;
-  if (Array.isArray(raw?.userCallLeads))  return raw.userCallLeads;
-  if (Array.isArray(raw?.list))           return raw.list;
-  if (Array.isArray(raw?.rows))           return raw.rows;
-  if (Array.isArray(raw?.docs))           return raw.docs;
-  if (Array.isArray(raw?.payload))        return raw.payload;
-  if (Array.isArray(raw?.response))       return raw.response;
+  if (Array.isArray(raw?.callLeads)) return raw.callLeads;
+  if (Array.isArray(raw?.callData)) return raw.callData;
+  if (Array.isArray(raw?.userCallLeads)) return raw.userCallLeads;
+  if (Array.isArray(raw?.list)) return raw.list;
+  if (Array.isArray(raw?.rows)) return raw.rows;
+  if (Array.isArray(raw?.docs)) return raw.docs;
+  if (Array.isArray(raw?.payload)) return raw.payload;
+  if (Array.isArray(raw?.response)) return raw.response;
   // Last-resort: find the first array-valued property on the object
   if (raw && typeof raw === "object") {
     for (const v of Object.values(raw)) {
@@ -915,8 +1306,9 @@ function extractTotalPages(raw: any): number | null {
   // ONLY trust a computed value from totalItems ÷ pageSize.
   // The API's own totalPages field is known to be wrong (e.g. returns 13 when
   // there are really 203 pages for calls). Never fall back to it.
-  const totalItems = p.totalItems ?? p.totalRecords ?? p.total_records ?? p.total_count ?? p.count ?? p.total;
-  const pageSize   = p.pageSize ?? p.page_size ?? p.limit ?? p.perPage ?? p.per_page;
+  const totalItems =
+    p.totalItems ?? p.totalRecords ?? p.total_records ?? p.total_count ?? p.count ?? p.total;
+  const pageSize = p.pageSize ?? p.page_size ?? p.limit ?? p.perPage ?? p.per_page;
   if (typeof totalItems === "number" && typeof pageSize === "number" && pageSize > 0) {
     return Math.ceil(totalItems / pageSize);
   }
@@ -931,9 +1323,11 @@ async function fetchAllPages(
   firstRaw: any,
   label = "endpoint",
 ): Promise<any[]> {
-  const firstRecs  = extractRecords(firstRaw);
+  const firstRecs = extractRecords(firstRaw);
   const totalPages = extractTotalPages(firstRaw) ?? null;
-  console.log(`[WBAH fetchAllPages:${label}] page1.records=${firstRecs.length} totalPages=${totalPages} pagination=${JSON.stringify(firstRaw?.pagination ?? null)}`);
+  console.log(
+    `[WBAH fetchAllPages:${label}] page1.records=${firstRecs.length} totalPages=${totalPages} pagination=${JSON.stringify(firstRaw?.pagination ?? null)}`,
+  );
 
   // If we know total pages, fetch all remaining in parallel batches of 20
   if (totalPages && totalPages > 1) {
@@ -941,7 +1335,7 @@ async function fetchAllPages(
     const BATCH = 20;
     const allRecs = [...firstRecs];
     for (let i = 0; i < remaining.length; i += BATCH) {
-      const batch   = remaining.slice(i, i + BATCH);
+      const batch = remaining.slice(i, i + BATCH);
       const results = await Promise.all(batch.map((p) => fetchPage(p)));
       let batchFound = 0;
       for (const res of results) {
@@ -951,20 +1345,24 @@ async function fetchAllPages(
           batchFound += recs.length;
         }
       }
-      console.log(`[WBAH fetchAllPages:${label}] batch pages ${batch[0]}-${batch[batch.length - 1]} → +${batchFound} records (running total: ${allRecs.length})`);
+      console.log(
+        `[WBAH fetchAllPages:${label}] batch pages ${batch[0]}-${batch[batch.length - 1]} → +${batchFound} records (running total: ${allRecs.length})`,
+      );
     }
     return allRecs;
   }
 
   // Fallback: fetch until we get an empty batch (unknown total pages)
-  console.log(`[WBAH fetchAllPages:${label}] no totalPages from API — using "fetch until empty" fallback`);
-  const BATCH   = 20;
+  console.log(
+    `[WBAH fetchAllPages:${label}] no totalPages from API — using "fetch until empty" fallback`,
+  );
+  const BATCH = 20;
   const allRecs = [...firstRecs];
-  let   page    = 2;
+  let page = 2;
   while (page <= 500) {
-    const batch   = Array.from({ length: BATCH }, (_, i) => page + i);
+    const batch = Array.from({ length: BATCH }, (_, i) => page + i);
     const results = await Promise.all(batch.map((p) => fetchPage(p)));
-    let   found   = 0;
+    let found = 0;
     for (const res of results) {
       if (res?.ok && res?.data) {
         const recs = extractRecords(res.data);
@@ -972,7 +1370,9 @@ async function fetchAllPages(
         found += recs.length;
       }
     }
-    console.log(`[WBAH fetchAllPages:${label}] fallback batch pages ${batch[0]}-${batch[batch.length - 1]} → +${found} records (running total: ${allRecs.length})`);
+    console.log(
+      `[WBAH fetchAllPages:${label}] fallback batch pages ${batch[0]}-${batch[batch.length - 1]} → +${found} records (running total: ${allRecs.length})`,
+    );
     if (found === 0) break;
     page += BATCH;
   }
@@ -1009,8 +1409,10 @@ export const listWbahCalls = createServerFn({ method: "GET" })
     try {
       const { getCallsData } = await import("@/lib/api-engine/data-source-router.server");
       const routed = await getCallsData(WBAH_WORKSPACE_ID);
-      if (routed.source === "engine") return routed.rows as any[];
-    } catch { /* fall through to direct call */ }
+      if (routed.source === "engine") return routed.rows;
+    } catch {
+      /* fall through to direct call */
+    }
 
     const cbs = await requireWbahCbs(context.userId);
     const gt = cbs.getTokens;
@@ -1022,16 +1424,19 @@ export const listWbahCalls = createServerFn({ method: "GET" })
       api.wbahGetUserHistoryPaged(2, gt, st),
     ]);
     if (!p1Res.ok) {
-      console.log(`[WBAH calls] get-user-history page1 failed: status=${p1Res.status} err=${p1Res.error}`);
+      console.log(
+        `[WBAH calls] get-user-history page1 failed: status=${p1Res.status} err=${p1Res.error}`,
+      );
       throw new Error(p1Res.error ?? "Failed to fetch calls from WeeBespoke");
     }
-    const p1Raw        = p1Res.data as any;
-    const p1Recs       = Array.isArray(p1Raw?.data) ? p1Raw.data : [];
-    const p2Recs       = (p2Res.ok && Array.isArray((p2Res.data as any)?.data)) ? (p2Res.data as any).data : [];
-    const pagination   = p1Raw?.pagination;
-    const totalItems   = pagination?.totalItems ?? 0;
+    const p1Raw = p1Res.data as any;
+    const p1Recs = Array.isArray(p1Raw?.data) ? p1Raw.data : [];
+    const p2Recs =
+      p2Res.ok && Array.isArray((p2Res.data as any)?.data) ? (p2Res.data as any).data : [];
+    const pagination = p1Raw?.pagination;
+    const totalItems = pagination?.totalItems ?? 0;
     // pageSize is hardcoded to 10 by the API regardless of payload
-    const totalPages   = pagination?.totalPages ?? Math.ceil(totalItems / 10);
+    const totalPages = pagination?.totalPages ?? Math.ceil(totalItems / 10);
 
     // Detect whether pagination is advancing — compare first call_id of each page
     const p1FirstId = p1Recs[0]?.call_id ?? null;
@@ -1039,7 +1444,7 @@ export const listWbahCalls = createServerFn({ method: "GET" })
     const paginationWorks = p2FirstId !== null && p2FirstId !== p1FirstId;
     console.log(
       `[WBAH calls] get-user-history page1: records=${p1Recs.length} totalItems=${totalItems} totalPages=${totalPages}` +
-      ` | page2: records=${p2Recs.length} firstId=${p2FirstId} | paginationWorks=${paginationWorks}`,
+        ` | page2: records=${p2Recs.length} firstId=${p2FirstId} | paginationWorks=${paginationWorks}`,
     );
 
     // ── If currentPage didn't advance, discover the real pagination key ──
@@ -1047,27 +1452,67 @@ export const listWbahCalls = createServerFn({ method: "GET" })
     let pageFn: PageFn = (p) => api.wbahGetUserHistoryPaged(p, gt, st);
 
     if (!paginationWorks && totalPages > 1) {
-      console.log(`[WBAH calls] ⚠ { currentPage: 2 } did not advance — probing alternative pagination keys…`);
+      console.log(
+        `[WBAH calls] ⚠ { currentPage: 2 } did not advance — probing alternative pagination keys…`,
+      );
 
       // Try URL query-param variants (body params are ignored by this endpoint)
       // Note: ?currentPage=N is already tried via wbahGetUserHistoryPaged above
       const candidates: Array<{ label: string; fn: PageFn }> = [
-        { label: "?page=N",       fn: (p) => api.authenticatedFetch(`/call-output-data/get-user-history?page=${p}`,       { method: "POST", body: "{}" }, gt, st) },
-        { label: "?pageNumber=N", fn: (p) => api.authenticatedFetch(`/call-output-data/get-user-history?pageNumber=${p}`, { method: "POST", body: "{}" }, gt, st) },
-        { label: "?pageNo=N",     fn: (p) => api.authenticatedFetch(`/call-output-data/get-user-history?pageNo=${p}`,     { method: "POST", body: "{}" }, gt, st) },
-        { label: "?offset=N*10",  fn: (p) => api.authenticatedFetch(`/call-output-data/get-user-history?offset=${(p-1)*10}`, { method: "POST", body: "{}" }, gt, st) },
-        { label: "body{page:N}",  fn: (p) => api.wbahGetUserHistory({ page: p }, gt, st) },
+        {
+          label: "?page=N",
+          fn: (p) =>
+            api.authenticatedFetch(
+              `/call-output-data/get-user-history?page=${p}`,
+              { method: "POST", body: "{}" },
+              gt,
+              st,
+            ),
+        },
+        {
+          label: "?pageNumber=N",
+          fn: (p) =>
+            api.authenticatedFetch(
+              `/call-output-data/get-user-history?pageNumber=${p}`,
+              { method: "POST", body: "{}" },
+              gt,
+              st,
+            ),
+        },
+        {
+          label: "?pageNo=N",
+          fn: (p) =>
+            api.authenticatedFetch(
+              `/call-output-data/get-user-history?pageNo=${p}`,
+              { method: "POST", body: "{}" },
+              gt,
+              st,
+            ),
+        },
+        {
+          label: "?offset=N*10",
+          fn: (p) =>
+            api.authenticatedFetch(
+              `/call-output-data/get-user-history?offset=${(p - 1) * 10}`,
+              { method: "POST", body: "{}" },
+              gt,
+              st,
+            ),
+        },
+        { label: "body{page:N}", fn: (p) => api.wbahGetUserHistory({ page: p }, gt, st) },
       ];
 
       const probeResults = await Promise.all(candidates.map((c) => c.fn(2)));
-      let foundKey: typeof candidates[number] | null = null;
+      let foundKey: (typeof candidates)[number] | null = null;
 
       for (let i = 0; i < candidates.length; i++) {
         const res = probeResults[i];
         if (res?.ok) {
           const recs = Array.isArray((res.data as any)?.data) ? (res.data as any).data : [];
           const firstId = recs[0]?.call_id ?? null;
-          console.log(`[WBAH calls] probe ${candidates[i].label} → records=${recs.length} firstId=${firstId}`);
+          console.log(
+            `[WBAH calls] probe ${candidates[i].label} → records=${recs.length} firstId=${firstId}`,
+          );
           if (firstId && firstId !== p1FirstId) {
             foundKey = candidates[i];
             // Add the page-2 results we already have
@@ -1082,22 +1527,25 @@ export const listWbahCalls = createServerFn({ method: "GET" })
         console.log(`[WBAH calls] ✓ working pagination key: ${foundKey.label}`);
         pageFn = foundKey.fn;
       } else {
-        console.log(`[WBAH calls] ✗ no pagination key advanced the page — will return page1 only (${p1Recs.length} records)`);
+        console.log(
+          `[WBAH calls] ✗ no pagination key advanced the page — will return page1 only (${p1Recs.length} records)`,
+        );
       }
     }
 
     // ── Fetch remaining pages in parallel batches of 20 ──────────────────
-    const effectivePaginationWorks = paginationWorks || (p2Recs.length > 0 && p2Recs[0]?.call_id !== p1FirstId);
+    const effectivePaginationWorks =
+      paginationWorks || (p2Recs.length > 0 && p2Recs[0]?.call_id !== p1FirstId);
     const allRecs: any[] = effectivePaginationWorks ? [...p1Recs, ...p2Recs] : [...p1Recs];
 
     if (effectivePaginationWorks && totalPages > 2) {
       const remaining = Array.from({ length: totalPages - 2 }, (_, i) => i + 3);
       const BATCH = 20;
-      let   firstEmptyBatchLogged = false;
+      let firstEmptyBatchLogged = false;
       for (let i = 0; i < remaining.length; i += BATCH) {
-        const batch   = remaining.slice(i, i + BATCH);
+        const batch = remaining.slice(i, i + BATCH);
         const results = await Promise.all(batch.map((p) => pageFn(p)));
-        let   found   = 0;
+        let found = 0;
         for (const res of results) {
           if (res?.ok) {
             const recs = Array.isArray((res.data as any)?.data) ? (res.data as any).data : [];
@@ -1105,16 +1553,28 @@ export const listWbahCalls = createServerFn({ method: "GET" })
             found += recs.length;
           }
         }
-        console.log(`[WBAH calls] get-user-history batch pages ${batch[0]}-${batch[batch.length - 1]} → +${found} (total: ${allRecs.length})`);
+        console.log(
+          `[WBAH calls] get-user-history batch pages ${batch[0]}-${batch[batch.length - 1]} → +${found} (total: ${allRecs.length})`,
+        );
 
         // On the first batch that returns zero — log HTTP statuses + raw data to diagnose the cause
         if (found === 0 && !firstEmptyBatchLogged) {
           firstEmptyBatchLogged = true;
-          const statusSummary = results.slice(0, 3).map((r, ri) => {
-            const recs = r?.ok ? (Array.isArray((r.data as any)?.data) ? (r.data as any).data?.length : "non-array") : "FAIL";
-            return `p${batch[ri]}: HTTP${r?.status} ok=${r?.ok} recs=${recs}`;
-          }).join(" | ");
-          const rawSample = JSON.stringify((results[0]?.data as any) ?? results[0]?.error).slice(0, 400);
+          const statusSummary = results
+            .slice(0, 3)
+            .map((r, ri) => {
+              const recs = r?.ok
+                ? Array.isArray((r.data as any)?.data)
+                  ? (r.data as any).data?.length
+                  : "non-array"
+                : "FAIL";
+              return `p${batch[ri]}: HTTP${r?.status} ok=${r?.ok} recs=${recs}`;
+            })
+            .join(" | ");
+          const rawSample = JSON.stringify((results[0]?.data as any) ?? results[0]?.error).slice(
+            0,
+            400,
+          );
           console.log(`[WBAH calls] ⚠ FIRST EMPTY BATCH diagnosis: ${statusSummary}`);
           console.log(`[WBAH calls] ⚠ raw response sample: ${rawSample}`);
         }
@@ -1122,8 +1582,10 @@ export const listWbahCalls = createServerFn({ method: "GET" })
         // Stop early if many consecutive empty batches — no more data on the server
         if (found === 0 && i > 0 && allRecs.length > 0) {
           const prevBatchStart = remaining[i - BATCH] ?? 3;
-          const prevBatchEnd   = remaining[Math.min(i - 1, remaining.length - 1)];
-          console.log(`[WBAH calls] ℹ all-zero batches starting at page ${batch[0]} — likely server max. Stopping early.`);
+          const prevBatchEnd = remaining[Math.min(i - 1, remaining.length - 1)];
+          console.log(
+            `[WBAH calls] ℹ all-zero batches starting at page ${batch[0]} — likely server max. Stopping early.`,
+          );
           break;
         }
       }
@@ -1143,7 +1605,9 @@ export const listWbahCalls = createServerFn({ method: "GET" })
       console.log(`[WBAH calls] dedup: ${allRecs.length} raw → ${deduped.length} unique records`);
     }
 
-    console.log(`[WBAH calls] get-user-history COMPLETE: unique=${deduped.length} of totalItems=${totalItems}`);
+    console.log(
+      `[WBAH calls] get-user-history COMPLETE: unique=${deduped.length} of totalItems=${totalItems}`,
+    );
 
     const calls = deduped.map((r: any, idx: number) => normaliseWbahCall(r, idx));
 
@@ -1174,7 +1638,7 @@ export const listWbahLatestCalls = createServerFn({ method: "GET" })
     const cbs = await requireWbahCbs(context.userId);
     const res = await api.wbahGetUserHistoryPaged(1, cbs.getTokens, cbs.saveNewAccessToken);
     if (!res.ok) return [];
-    const recs  = Array.isArray((res.data as any)?.data) ? (res.data as any).data : [];
+    const recs = Array.isArray((res.data as any)?.data) ? (res.data as any).data : [];
     const calls = recs.map((r: any, idx: number) => normaliseWbahCall(r, idx));
     calls.sort((a: any, b: any) => {
       const ta = a.started_at ? new Date(a.started_at as string).getTime() : 0;
@@ -1193,21 +1657,23 @@ export const listWbahCrmContacts = createServerFn({ method: "GET" })
     try {
       const { getCRMData } = await import("@/lib/api-engine/data-source-router.server");
       const routed = await getCRMData(WBAH_WORKSPACE_ID);
-      if (routed.source === "engine") return routed.rows as any[];
-    } catch { /* fall through to direct call */ }
+      if (routed.source === "engine") return routed.rows;
+    } catch {
+      /* fall through to direct call */
+    }
 
     const cbs = await requireWbahCbs(context.userId);
     const res = await api.wbahGetCrmData(cbs.getTokens, cbs.saveNewAccessToken);
     if (!res.ok) throw new Error(res.error ?? "Failed to fetch CRM contacts");
     const recs = extractRecords(res.data as any);
     return recs.map((r: any, idx: number) => ({
-      id:        String(r._id ?? r.id ?? idx),
-      name:      r.name ?? r.fullName ?? r.full_name ?? null,
-      contact:   r.mobile_number ?? r.phone ?? r.toNumber ?? null,
-      email:     r.email ?? null,
-      type:      r.type ?? r.leadType ?? "Contact",
-      status:    r.status ?? r.callStatus ?? null,
-      srNo:      r.srNo ?? r.sr_no ?? null,
+      id: String(r._id ?? r.id ?? idx),
+      name: r.name ?? r.fullName ?? r.full_name ?? null,
+      contact: r.mobile_number ?? r.phone ?? r.toNumber ?? null,
+      email: r.email ?? null,
+      type: r.type ?? r.leadType ?? "Contact",
+      status: r.status ?? r.callStatus ?? null,
+      srNo: r.srNo ?? r.sr_no ?? null,
       agentName: r.agentName ?? r.agent_name ?? null,
       createdAt: r.createdAt ?? r.created_at ?? null,
     }));
@@ -1222,9 +1688,9 @@ export const listWbahAllCallData = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
     const cbs = await requireWbahCbs(context.userId);
-    const gt  = cbs.getTokens;
-    const st  = cbs.saveNewAccessToken;
-    const rl  = cbs.reloginFn;
+    const gt = cbs.getTokens;
+    const st = cbs.saveNewAccessToken;
+    const rl = cbs.reloginFn;
 
     function extractRecs(raw: any): any[] {
       return Array.isArray(raw?.data) ? raw.data : Array.isArray(raw) ? raw : [];
@@ -1233,50 +1699,53 @@ export const listWbahAllCallData = createServerFn({ method: "GET" })
     const p1Res = await api.wbahGetAllCallDataPaged(1, gt, st, rl);
     if (!p1Res.ok) throw new Error(p1Res.error ?? "Failed to fetch call data from WeeBespoke");
 
-    const p1Raw    = p1Res.data as any;
+    const p1Raw = p1Res.data as any;
     const pagination = p1Raw?.pagination;
     const totalPages = pagination?.totalPages ?? 1;
     const allRecs: any[] = [...extractRecs(p1Raw)];
 
     for (let page = 2; page <= totalPages; page += 8) {
       const batch = Array.from({ length: Math.min(8, totalPages - page + 1) }, (_, i) => page + i);
-      const settled = await Promise.allSettled(batch.map(p => api.wbahGetAllCallDataPaged(p, gt, st, rl)));
+      const settled = await Promise.allSettled(
+        batch.map((p) => api.wbahGetAllCallDataPaged(p, gt, st, rl)),
+      );
       for (const r of settled) {
-        if (r.status === "fulfilled" && r.value.ok) allRecs.push(...extractRecs(r.value.data as any));
+        if (r.status === "fulfilled" && r.value.ok)
+          allRecs.push(...extractRecs(r.value.data as any));
       }
     }
 
     return allRecs.map((r: any, idx: number) => ({
-      id:                  String(r.id ?? r._id ?? idx),
-      srNo:                idx + 1,
-      name:                r.name ?? r.fullName ?? null,
-      contact:             r.toNumber ?? r.fromNumber ?? r.phone ?? null,
-      callType:            r.callType ?? "Lead",
-      callId:              r.callId ?? null,
-      agentName:           r.agentName ?? null,
-      callStatus:          r.callStatus ?? null,
-      startTimestamp:      r.startTimestamp ? Number(r.startTimestamp) : null,
-      durationMs:          r.durationMs    ? Number(r.durationMs)    : null,
-      recordingUrl:        r.recordingUrl  ?? null,
-      transcript:          r.transcript    ?? null,
-      sentimentAnalysis:   r.sentimentAnalysis ?? null,
-      endReason:           r.endReason           ?? null,
+      id: String(r.id ?? r._id ?? idx),
+      srNo: idx + 1,
+      name: r.name ?? r.fullName ?? null,
+      contact: r.toNumber ?? r.fromNumber ?? r.phone ?? null,
+      callType: r.callType ?? "Lead",
+      callId: r.callId ?? null,
+      agentName: r.agentName ?? null,
+      callStatus: r.callStatus ?? null,
+      startTimestamp: r.startTimestamp ? Number(r.startTimestamp) : null,
+      durationMs: r.durationMs ? Number(r.durationMs) : null,
+      recordingUrl: r.recordingUrl ?? null,
+      transcript: r.transcript ?? null,
+      sentimentAnalysis: r.sentimentAnalysis ?? null,
+      endReason: r.endReason ?? null,
       disconnectionReason: r.disconnectionReason ?? null,
-      email:               r.email    ?? null,
-      leadId:              r.lead_id  ?? null,
-      appointmentDate:     r.appointment_date  ?? null,
-      appointmentTime:     r.appointment_time  ?? null,
-      bookingStatus:       r.booking_status    ?? null,
-      calendlyBookingUrl:  r.calendly_booking_url ?? null,
+      email: r.email ?? null,
+      leadId: r.lead_id ?? null,
+      appointmentDate: r.appointment_date ?? null,
+      appointmentTime: r.appointment_time ?? null,
+      bookingStatus: r.booking_status ?? null,
+      calendlyBookingUrl: r.calendly_booking_url ?? null,
     }));
   });
 
 function normaliseWbahCall(r: any, idx: number): Record<string, unknown> {
   // ── Identity ──────────────────────────────────────────────────────────────
   // get-user-history uses call_id; get-userCall-lead uses id
-  const id    = String(r.call_id ?? r._id ?? r.id ?? `wbah-${idx}`);
+  const id = String(r.call_id ?? r._id ?? r.id ?? `wbah-${idx}`);
   // get-user-history uses customer_name; get-userCall-lead uses name
-  const name  = r.customer_name ?? r.name ?? r.fullName ?? r.full_name ?? r.contactName ?? null;
+  const name = r.customer_name ?? r.name ?? r.fullName ?? r.full_name ?? r.contactName ?? null;
   // get-user-history uses to_number (snake); get-userCall-lead uses toNumber (camel)
   const phone = r.to_number ?? r.toNumber ?? r.mobile_number ?? r.phone ?? r.phoneNumber ?? null;
   const agentName = r.agentName ?? r.agent_name ?? r.assignedAgent ?? null;
@@ -1287,7 +1756,9 @@ function normaliseWbahCall(r: any, idx: number): Record<string, unknown> {
   let callStatus: string;
   if (rawStatus === "ended" || rawStatus === "call_analyzed" || rawStatus === "completed") {
     callStatus = "completed";
-  } else if (["not_connected","voicemail","voicemail_reached","no_answer","missed"].includes(rawStatus)) {
+  } else if (
+    ["not_connected", "voicemail", "voicemail_reached", "no_answer", "missed"].includes(rawStatus)
+  ) {
     callStatus = "no_answer";
   } else if (rawStatus === "failed") {
     callStatus = "failed";
@@ -1307,9 +1778,9 @@ function normaliseWbahCall(r: any, idx: number): Record<string, unknown> {
     return "";
   })();
   let sentiment: string | null = null;
-  if (/positive/.test(rawSentiment))       sentiment = "positive";
-  else if (/neutral/.test(rawSentiment))   sentiment = "neutral";
-  else if (/negative/.test(rawSentiment))  sentiment = "negative";
+  if (/positive/.test(rawSentiment)) sentiment = "positive";
+  else if (/neutral/.test(rawSentiment)) sentiment = "neutral";
+  else if (/negative/.test(rawSentiment)) sentiment = "negative";
 
   // ── Duration ──────────────────────────────────────────────────────────────
   // get-user-history: duration_ms (snake), duration (string seconds?)
@@ -1328,43 +1799,59 @@ function normaliseWbahCall(r: any, idx: number): Record<string, unknown> {
 
   // ── Timestamps ────────────────────────────────────────────────────────────
   // get-user-history: call_updatedat; get-userCall-lead: startTimestamp / createdAt
-  const startedAt =
-    r.startTimestamp
-      ? new Date(Number(r.startTimestamp)).toISOString()
-      : r.call_updatedat ?? r.lastCalledAt ?? r.last_called_at ?? r.calledAt
-        ?? r.createdAt ?? r.created_at ?? null;
+  const startedAt = r.startTimestamp
+    ? new Date(Number(r.startTimestamp)).toISOString()
+    : (r.call_updatedat ??
+      r.lastCalledAt ??
+      r.last_called_at ??
+      r.calledAt ??
+      r.createdAt ??
+      r.created_at ??
+      null);
 
   // ── Direction ─────────────────────────────────────────────────────────────
-  const dir = (r.direction ?? r.callDirection ?? r.call_type ?? r.callType ?? r.type ?? "outbound").toLowerCase();
+  const dir = (
+    r.direction ??
+    r.callDirection ??
+    r.call_type ??
+    r.callType ??
+    r.type ??
+    "outbound"
+  ).toLowerCase();
   const callType = dir.includes("inbound") ? "inbound" : "outbound";
 
   return {
     id,
-    agent_id:              null,
-    agent_name:            agentName,
-    call_status:           callStatus,
-    call_type:             callType,
-    duration_seconds:      durationSeconds,
-    started_at:            startedAt,
-    ended_at:              null,
-    recording_url:         r.recording_url ?? r.recordingUrl ?? null,
-    transcript:            r.transcript ?? r.callTranscript ?? null,
-    call_summary:          r.transcript ?? r.callTranscript ?? r.callSummary ?? null,
-    from_number:           callType === "inbound"  ? phone : null,
-    to_number:             callType === "outbound" ? phone : null,
+    agent_id: null,
+    agent_name: agentName,
+    call_status: callStatus,
+    call_type: callType,
+    duration_seconds: durationSeconds,
+    started_at: startedAt,
+    ended_at: null,
+    recording_url: r.recording_url ?? r.recordingUrl ?? null,
+    transcript: r.transcript ?? r.callTranscript ?? null,
+    call_summary: r.transcript ?? r.callTranscript ?? r.callSummary ?? null,
+    from_number: callType === "inbound" ? phone : null,
+    to_number: callType === "outbound" ? phone : null,
     sentiment,
-    disconnection_reason:  r.disconnection_reason ?? r.disconnectionReason ?? null,
-    cost_cents:            null,
-    retell_call_id:        null,
-    lead:                  name ? { id, full_name: name, phone: phone ?? "" } : null,
+    disconnection_reason: r.disconnection_reason ?? r.disconnectionReason ?? null,
+    cost_cents: null,
+    retell_call_id: null,
+    lead: name ? { id, full_name: name, phone: phone ?? "" } : null,
     // WeeBespoke-specific extras
-    wbah_name:             name,
-    wbah_contact:          phone,
-    appointment_date:      r.call_appointment_date ?? r.appointmentDate ?? r.appointment_date ?? null,
-    appointment_time:      r.call_appointment_time ?? r.appointmentTime ?? r.appointment_time ?? null,
-    booking_status:        r.call_booking_status ?? r.bookingStatus ?? r.booking_status ?? null,
-    calendly_booking_url:  r.call_calendly_booking_url ?? r.calendlyBookingUrl ?? r.calendly_booking_url ?? r.calendlyUrl ?? null,
-    end_reason:            r.end_reason ?? r.endReason ?? null,
+    wbah_name: name,
+    wbah_contact: phone,
+    appointment_date: r.call_appointment_date ?? r.appointmentDate ?? r.appointment_date ?? null,
+    appointment_time: r.call_appointment_time ?? r.appointmentTime ?? r.appointment_time ?? null,
+    booking_status: r.call_booking_status ?? r.bookingStatus ?? r.booking_status ?? null,
+    calendly_booking_url:
+      r.call_calendly_booking_url ??
+      r.calendlyBookingUrl ??
+      r.calendly_booking_url ??
+      r.calendlyUrl ??
+      null,
+    end_reason: r.end_reason ?? r.endReason ?? null,
   };
 }
 
@@ -1400,35 +1887,39 @@ async function readWbahCallsRows(supabase: any, workspaceId: string, opts?: { li
     from += PAGE;
   }
   const mapped = allRows.map((r: any) => ({
-    id:                   r.id,
-    agent_id:             null,
-    agent_name:           r.agent_name,
-    call_status:          r.call_status,
-    call_type:            r.call_type ?? "outbound",
-    duration_seconds:     r.duration_seconds,
-    started_at:           r.started_at,
-    ended_at:             null,
-    recording_url:        r.recording_url,
+    id: r.id,
+    agent_id: null,
+    agent_name: r.agent_name,
+    call_status: r.call_status,
+    call_type: r.call_type ?? "outbound",
+    duration_seconds: r.duration_seconds,
+    started_at: r.started_at,
+    ended_at: null,
+    recording_url: r.recording_url,
     // In lite mode the transcript text is dropped from the payload; the client
     // fetches it on demand. `hasTranscript` still drives the "View" button.
-    transcript:           lite ? null : r.transcript,
-    hasTranscript:        !!(r.transcript && String(r.transcript).trim()),
-    call_summary:         lite ? (r.call_summary && String(r.call_summary).trim() ? String(r.call_summary).trim() : null) : r.call_summary,
-    from_number:          r.call_type === "inbound"  ? r.phone : null,
-    to_number:            r.call_type === "outbound" ? r.phone : null,
-    sentiment:            r.sentiment,
+    transcript: lite ? null : r.transcript,
+    hasTranscript: !!(r.transcript && String(r.transcript).trim()),
+    call_summary: lite
+      ? r.call_summary && String(r.call_summary).trim()
+        ? String(r.call_summary).trim()
+        : null
+      : r.call_summary,
+    from_number: r.call_type === "inbound" ? r.phone : null,
+    to_number: r.call_type === "outbound" ? r.phone : null,
+    sentiment: r.sentiment,
     disconnection_reason: r.disconnection_reason,
-    cost_cents:           null,
-    retell_call_id:       null,
-    lead:                 r.customer_name ? { id: r.id, full_name: r.customer_name, phone: r.phone ?? "" } : null,
-    wbah_name:            r.customer_name,
-    wbah_contact:         r.phone,
-    appointment_date:     r.appointment_date,
-    appointment_time:     r.appointment_time,
-    booking_status:       r.booking_status,
+    cost_cents: null,
+    retell_call_id: null,
+    lead: r.customer_name ? { id: r.id, full_name: r.customer_name, phone: r.phone ?? "" } : null,
+    wbah_name: r.customer_name,
+    wbah_contact: r.phone,
+    appointment_date: r.appointment_date,
+    appointment_time: r.appointment_time,
+    booking_status: r.booking_status,
     calendly_booking_url: r.calendly_booking_url,
-    end_reason:           r.end_reason,
-    call_count:           r.call_count ?? 1,
+    end_reason: r.end_reason,
+    call_count: r.call_count ?? 1,
   }));
   return enrichWbahCallRowsWithBookings(supabaseAdmin, workspaceId, mapped);
 }
@@ -1485,37 +1976,52 @@ export const listWbahCallsCount = createServerFn({ method: "GET" })
 // browser never receives the full ~20MB list. Supabase is the source of truth;
 // only the small page response is cached in Redis (short TTL, paginated key).
 
-function logWbahResponse(fn: string, workspaceId: string, rows: number, payload: unknown, extra?: Record<string, unknown>) {
+function logWbahResponse(
+  fn: string,
+  workspaceId: string,
+  rows: number,
+  payload: unknown,
+  extra?: Record<string, unknown>,
+) {
   let bytes = 0;
-  try { bytes = JSON.stringify(payload)?.length ?? 0; } catch { bytes = 0; }
+  try {
+    bytes = JSON.stringify(payload)?.length ?? 0;
+  } catch {
+    bytes = 0;
+  }
   console.log(
     `[wbah-response] fn=${fn} workspace_id=${workspaceId} rows=${rows} bytes=${bytes} ` +
-    `sizeKB=${(bytes / 1024).toFixed(1)} sizeMB=${(bytes / 1_000_000).toFixed(2)}` +
-    (extra ? " " + Object.entries(extra).map(([k, v]) => `${k}=${v}`).join(" ") : ""),
+      `sizeKB=${(bytes / 1024).toFixed(1)} sizeMB=${(bytes / 1_000_000).toFixed(2)}` +
+      (extra
+        ? " " +
+          Object.entries(extra)
+            .map(([k, v]) => `${k}=${v}`)
+            .join(" ")
+        : ""),
   );
 }
 
 // UI status buckets → raw wbah_calls.call_status values.
 const WBAH_CALL_STATUS_FILTER: Record<string, string[]> = {
-  completed:     ["completed", "ended", "call_analyzed", "analyzed"],
+  completed: ["completed", "ended", "call_analyzed", "analyzed"],
   not_connected: ["no_answer", "not_connected", "voicemail", "voicemail_reached", "missed"],
-  need_to_call:  ["need_to_call"],
-  failed:        ["failed", "error", "call_failed"],
+  need_to_call: ["need_to_call"],
+  failed: ["failed", "error", "call_failed"],
 };
 
 export const listWbahCallsPaged = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator(
     z.object({
-      page:      z.coerce.number().int().min(1).default(1),
-      pageSize:  z.coerce.number().int().min(1).max(100).default(50),
-      search:    z.string().trim().max(120).optional(),
-      dateFrom:  z.string().optional(),
-      dateTo:    z.string().optional(),
-      status:    z.string().optional(),
+      page: z.coerce.number().int().min(1).default(1),
+      pageSize: z.coerce.number().int().min(1).max(100).default(50),
+      search: z.string().trim().max(120).optional(),
+      dateFrom: z.string().optional(),
+      dateTo: z.string().optional(),
+      status: z.string().optional(),
       sentiment: z.string().optional(),
       agentName: z.string().trim().max(120).optional(),
-      refresh:   z.coerce.boolean().optional(),
+      refresh: z.coerce.boolean().optional(),
     }),
   )
   .handler(async ({ context, data }) => {
@@ -1535,8 +2041,18 @@ export const listWbahCallsPaged = createServerFn({ method: "POST" })
 
     const { page, pageSize, search, dateFrom, dateTo, status, sentiment, agentName } = data;
     const filtersHash = Buffer.from(
-      JSON.stringify({ q: search ?? "", f: dateFrom ?? "", t: dateTo ?? "", s: status ?? "", se: sentiment ?? "", a: agentName ?? "" }),
-    ).toString("base64").replace(/[^a-zA-Z0-9]/g, "").slice(0, 24);
+      JSON.stringify({
+        q: search ?? "",
+        f: dateFrom ?? "",
+        t: dateTo ?? "",
+        s: status ?? "",
+        se: sentiment ?? "",
+        a: agentName ?? "",
+      }),
+    )
+      .toString("base64")
+      .replace(/[^a-zA-Z0-9]/g, "")
+      .slice(0, 24);
 
     const key = `webee:wbah-calls-page:${workspaceId}:p${page}:ps${pageSize}:${filtersHash}`;
     return cacheWrap(key, 60, async () => {
@@ -1568,30 +2084,32 @@ export const listWbahCallsPaged = createServerFn({ method: "POST" })
       if (error) throw new Error(error.message);
 
       const mapped = (rows ?? []).map((r: any, i: number) => ({
-        id:                  r.id,
-        srNo:                from + i + 1,
-        name:                r.customer_name ?? null,
-        contact:             r.phone ?? null,
-        email:               null,
-        callType:            r.call_type ?? "outbound",
-        callStatus:          r.call_status,
-        sentimentAnalysis:   r.sentiment,
+        id: r.id,
+        srNo: from + i + 1,
+        name: r.customer_name ?? null,
+        contact: r.phone ?? null,
+        email: null,
+        callType: r.call_type ?? "outbound",
+        callStatus: r.call_status,
+        sentimentAnalysis: r.sentiment,
         disconnectionReason: r.disconnection_reason,
-        appointmentDate:     r.appointment_date ?? null,
-        appointmentTime:     r.appointment_time ?? null,
-        bookingStatus:       r.booking_status ?? null,
-        calendlyBookingUrl:  r.calendly_booking_url ?? null,
-        agentName:           r.agent_name ?? null,
-        startTimestamp:      r.started_at ? new Date(r.started_at).getTime() : null,
-        durationMs:          r.duration_seconds ? r.duration_seconds * 1000 : null,
-        recordingUrl:        r.recording_url ?? null,
-        endReason:           r.end_reason ?? null,
-        hasTranscript:       !!(r.transcript && String(r.transcript).trim()),
+        appointmentDate: r.appointment_date ?? null,
+        appointmentTime: r.appointment_time ?? null,
+        bookingStatus: r.booking_status ?? null,
+        calendlyBookingUrl: r.calendly_booking_url ?? null,
+        agentName: r.agent_name ?? null,
+        startTimestamp: r.started_at ? new Date(r.started_at).getTime() : null,
+        durationMs: r.duration_seconds ? r.duration_seconds * 1000 : null,
+        recordingUrl: r.recording_url ?? null,
+        endReason: r.end_reason ?? null,
+        hasTranscript: !!(r.transcript && String(r.transcript).trim()),
       }));
 
       const result = { rows: mapped, total: count ?? 0, page, pageSize };
       logWbahResponse("listWbahCallsPaged", workspaceId, mapped.length, result, {
-        page, pageSize, filters: filtersHash,
+        page,
+        pageSize,
+        filters: filtersHash,
       });
       return result;
     });
@@ -1609,27 +2127,29 @@ export const getWbahContactCallHistory = createServerFn({ method: "POST" })
     if (!workspaceId) throw new Error("No active workspace");
     const { data: rows, error } = await (supabase as any)
       .from("wbah_calls")
-      .select("id, customer_name, phone, agent_name, call_status, sentiment, duration_seconds, started_at, recording_url, transcript, call_summary, disconnection_reason, end_reason, appointment_date, appointment_time, booking_status")
+      .select(
+        "id, customer_name, phone, agent_name, call_status, sentiment, duration_seconds, started_at, recording_url, transcript, call_summary, disconnection_reason, end_reason, appointment_date, appointment_time, booking_status",
+      )
       .eq("workspace_id", workspaceId)
       .eq("phone", data.phone)
       .order("started_at", { ascending: false, nullsFirst: false })
       .limit(100);
     if (error) throw new Error(error.message);
     const calls = (rows ?? []).map((r: any) => ({
-      id:                  r.id,
-      name:                r.customer_name ?? null,
-      agentName:           r.agent_name ?? null,
-      callStatus:          r.call_status ?? null,
-      sentiment:           r.sentiment ?? null,
-      durationSeconds:     r.duration_seconds ?? null,
-      startedAt:           r.started_at ?? null,
-      recordingUrl:        r.recording_url ?? null,
-      callSummary:         r.call_summary ?? null,
+      id: r.id,
+      name: r.customer_name ?? null,
+      agentName: r.agent_name ?? null,
+      callStatus: r.call_status ?? null,
+      sentiment: r.sentiment ?? null,
+      durationSeconds: r.duration_seconds ?? null,
+      startedAt: r.started_at ?? null,
+      recordingUrl: r.recording_url ?? null,
+      callSummary: r.call_summary ?? null,
       disconnectionReason: r.disconnection_reason ?? null,
-      endReason:           r.end_reason ?? null,
-      appointmentDate:     r.appointment_date ?? null,
-      bookingStatus:       r.booking_status ?? null,
-      hasTranscript:       !!(r.transcript && String(r.transcript).trim()),
+      endReason: r.end_reason ?? null,
+      appointmentDate: r.appointment_date ?? null,
+      bookingStatus: r.booking_status ?? null,
+      hasTranscript: !!(r.transcript && String(r.transcript).trim()),
     }));
     return { phone: data.phone, calls };
   });
@@ -1645,15 +2165,17 @@ export const getWbahCallDetail = createServerFn({ method: "POST" })
     const sb = supabase as any;
     const { data: row, error } = await sb
       .from("wbah_calls")
-      .select("id, transcript, call_summary, recording_url, disconnection_reason, end_reason, sentiment, started_at, duration_seconds")
+      .select(
+        "id, transcript, call_summary, recording_url, disconnection_reason, end_reason, sentiment, started_at, duration_seconds",
+      )
       .eq("workspace_id", workspaceId)
       .eq("id", data.id)
       .maybeSingle();
     if (error) throw new Error(error.message);
     return {
-      id:           data.id,
-      transcript:   row?.transcript ?? null,
-      callSummary:  row?.call_summary ?? null,
+      id: data.id,
+      transcript: row?.transcript ?? null,
+      callSummary: row?.call_summary ?? null,
       recordingUrl: row?.recording_url ?? null,
     };
   });
@@ -1704,7 +2226,9 @@ async function refreshWbahLiveData(
   }
 
   if (!_liveRefreshInflight) {
-    _liveRefreshInflight = run().finally(() => { _liveRefreshInflight = null; });
+    _liveRefreshInflight = run().finally(() => {
+      _liveRefreshInflight = null;
+    });
   }
   void _liveRefreshInflight;
 }
@@ -1736,7 +2260,9 @@ async function requireWbahRetellKey(userId: string): Promise<string> {
 
   const apiKey = (ws?.retell_workspace_id as string | undefined)?.trim();
   if (!apiKey) {
-    throw new Error("Retell not connected for WeeBespoke workspace — add API key in Settings → Providers");
+    throw new Error(
+      "Retell not connected for WeeBespoke workspace — add API key in Settings → Providers",
+    );
   }
   return apiKey;
 }
@@ -1746,9 +2272,11 @@ async function requireWbahRetellKey(userId: string): Promise<string> {
 export const getWbahRetellCalls = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((i) =>
-    z.object({
-      paginationKey: z.string().nullable().default(null),
-    }).parse(i ?? {}),
+    z
+      .object({
+        paginationKey: z.string().nullable().default(null),
+      })
+      .parse(i ?? {}),
   )
   .handler(async ({ context, data }) => {
     const { retellFetch } = await import("@/lib/providers/retell/client.server");
@@ -1778,27 +2306,29 @@ export const getWbahRetellCalls = createServerFn({ method: "POST" })
     const nextPaginationKey: string | null = callRes?.pagination_key ?? null;
 
     const records = calls.map((c: any) => ({
-      id:           String(c.call_id ?? Math.random()),
-      agentName:    agentNames[c.agent_id] ?? c.agent_id ?? null,
-      from:         c.from_number ?? null,
-      to:           c.to_number ?? null,
-      type:         c.call_type ?? "phone_call",
-      direction:    c.direction ?? (c.call_type === "phone_call" ? "outbound" : "web"),
+      id: String(c.call_id ?? Math.random()),
+      agentName: agentNames[c.agent_id] ?? c.agent_id ?? null,
+      from: c.from_number ?? null,
+      to: c.to_number ?? null,
+      type: c.call_type ?? "phone_call",
+      direction: c.direction ?? (c.call_type === "phone_call" ? "outbound" : "web"),
       lastCalledAt: c.start_timestamp ? new Date(c.start_timestamp).toISOString() : null,
-      status:       c.call_status ?? null,
-      duration:     formatDurationMs(c.duration_ms),
+      status: c.call_status ?? null,
+      duration: formatDurationMs(c.duration_ms),
       recordingUrl: c.recording_url ?? null,
-      transcript:   typeof c.transcript === "string" ? c.transcript
-                  : Array.isArray(c.transcript)
-                    ? c.transcript.map((t: any) => `${t.role}: ${t.content}`).join("\n")
-                    : null,
-      sentiment:    c.call_analysis?.user_sentiment ?? null,
-      callSummary:  c.call_analysis?.call_summary ?? null,
+      transcript:
+        typeof c.transcript === "string"
+          ? c.transcript
+          : Array.isArray(c.transcript)
+            ? c.transcript.map((t: any) => `${t.role}: ${t.content}`).join("\n")
+            : null,
+      sentiment: c.call_analysis?.user_sentiment ?? null,
+      callSummary: c.call_analysis?.call_summary ?? null,
     }));
 
     return {
       records,
-      hasMore:          !!nextPaginationKey,
+      hasMore: !!nextPaginationKey,
       nextPaginationKey,
     };
   });
@@ -1828,10 +2358,10 @@ export const getWbahRetellAgents = createServerFn({ method: "GET" })
     );
 
     return (agentList ?? []).map((a: any) => ({
-      id:        a.agent_id,
-      name:      a.agent_name ?? a.agent_id,
-      voiceId:   a.voice_id ?? null,
-      isLive:    liveCallAgentIds.has(a.agent_id),
+      id: a.agent_id,
+      name: a.agent_name ?? a.agent_id,
+      voiceId: a.voice_id ?? null,
+      isLive: liveCallAgentIds.has(a.agent_id),
     }));
   });
 
@@ -1855,9 +2385,7 @@ function inferWbahDashboardType(name: string): string {
 
 export const reconcileWbahRetellAgents = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator(
-    z.object({ apply: z.coerce.boolean().default(false) }),
-  )
+  .inputValidator(z.object({ apply: z.coerce.boolean().default(false) }))
   .handler(async ({ context, data }) => {
     const { retellFetch } = await import("@/lib/providers/retell/client.server");
     const apiKey = await requireWbahRetellKey(context.userId);
@@ -1868,7 +2396,8 @@ export const reconcileWbahRetellAgents = createServerFn({ method: "POST" })
     const agentList = await retellFetch<any[]>("/list-agents", null, "GET", apiKey).catch(() => []);
     const retellById = new Map<string, string>();
     for (const a of agentList ?? []) {
-      if (a?.agent_id && !retellById.has(a.agent_id)) retellById.set(a.agent_id, a.agent_name ?? a.agent_id);
+      if (a?.agent_id && !retellById.has(a.agent_id))
+        retellById.set(a.agent_id, a.agent_name ?? a.agent_id);
     }
 
     // WeBee agents for the WBAH workspace.
@@ -1878,7 +2407,7 @@ export const reconcileWbahRetellAgents = createServerFn({ method: "POST" })
       .eq("workspace_id", WBAH_WORKSPACE_ID);
 
     // Ignore already-archived agents when computing the reconciliation.
-    const dbRows: any[] = (dbAgents ?? []).filter((a: any) => !(a.settings?.archived));
+    const dbRows: any[] = (dbAgents ?? []).filter((a: any) => !a.settings?.archived);
     const dbRetellIds = new Set(dbRows.map((a) => a.retell_agent_id).filter(Boolean));
 
     const matched = dbRows
@@ -1887,8 +2416,9 @@ export const reconcileWbahRetellAgents = createServerFn({ method: "POST" })
     const orphaned = dbRows
       .filter((a) => a.retell_agent_id && !retellById.has(a.retell_agent_id))
       .map((a) => ({ id: a.id, name: a.name, retell_agent_id: a.retell_agent_id }));
-    const missing = Array.from(retellById, ([agent_id, name]) => ({ agent_id, name }))
-      .filter((m) => !dbRetellIds.has(m.agent_id));
+    const missing = Array.from(retellById, ([agent_id, name]) => ({ agent_id, name })).filter(
+      (m) => !dbRetellIds.has(m.agent_id),
+    );
 
     // Duplicate WeBee rows sharing one retell_agent_id.
     const byRetell = new Map<string, any[]>();
@@ -1900,7 +2430,10 @@ export const reconcileWbahRetellAgents = createServerFn({ method: "POST" })
     }
     const duplicates = Array.from(byRetell.values())
       .filter((arr) => arr.length > 1)
-      .map((arr) => ({ retell_agent_id: arr[0].retell_agent_id, rows: arr.map((r) => ({ id: r.id, name: r.name })) }));
+      .map((arr) => ({
+        retell_agent_id: arr[0].retell_agent_id,
+        rows: arr.map((r) => ({ id: r.id, name: r.name })),
+      }));
 
     const actions = { imported: [] as any[], archivedStale: [] as any[] };
 
@@ -1927,12 +2460,23 @@ export const reconcileWbahRetellAgents = createServerFn({ method: "POST" })
             agent_type: enumType,
             deployment_mode: "RETELL",
             flow_data: { nodes: [], edges: [] },
-            settings: { dashboardAgentType: dashType, isLive: true, liveAt: new Date().toISOString(), importedFromRetell: true },
+            settings: {
+              dashboardAgentType: dashType,
+              isLive: true,
+              liveAt: new Date().toISOString(),
+              importedFromRetell: true,
+            },
             variables: {},
           })
           .select("id")
           .maybeSingle();
-        if (!error) actions.imported.push({ id: row?.id, name: m.name, retell_agent_id: m.agent_id, agent_type: dashType });
+        if (!error)
+          actions.imported.push({
+            id: row?.id,
+            name: m.name,
+            retell_agent_id: m.agent_id,
+            agent_type: dashType,
+          });
       }
 
       // Archive orphaned agents whose Retell agent no longer exists — these are
@@ -1941,15 +2485,31 @@ export const reconcileWbahRetellAgents = createServerFn({ method: "POST" })
       // DB statement timeout, so we soft-archive instead (cheap single-row
       // update). Archived agents are filtered out of every agent listing and
       // their builder flow_data is preserved.
-      const orphanRows = dbRows.filter((a) => a.retell_agent_id && !retellById.has(a.retell_agent_id));
+      const orphanRows = dbRows.filter(
+        (a) => a.retell_agent_id && !retellById.has(a.retell_agent_id),
+      );
       for (const o of orphanRows) {
-        const nextSettings = { ...(o.settings ?? {}), isLive: false, archived: true, archivedAt: new Date().toISOString() };
+        const nextSettings = {
+          ...(o.settings ?? {}),
+          isLive: false,
+          archived: true,
+          archivedAt: new Date().toISOString(),
+        };
         const { error } = await (supabaseAdmin as any)
           .from("agents")
-          .update({ retell_agent_id: null, settings: nextSettings, updated_at: new Date().toISOString() })
+          .update({
+            retell_agent_id: null,
+            settings: nextSettings,
+            updated_at: new Date().toISOString(),
+          })
           .eq("id", o.id)
           .eq("workspace_id", WBAH_WORKSPACE_ID);
-        if (!error) actions.archivedStale.push({ id: o.id, name: o.name, retell_agent_id: o.retell_agent_id });
+        if (!error)
+          actions.archivedStale.push({
+            id: o.id,
+            name: o.name,
+            retell_agent_id: o.retell_agent_id,
+          });
       }
     }
 
@@ -1965,73 +2525,7 @@ export const reconcileWbahRetellAgents = createServerFn({ method: "POST" })
     };
   });
 
-// ─────────────────────────────────────────────────────────────────────────────
-// WBAH Categorized Lead Sync — server functions
-// Tables: wbah_categorized_leads, wbah_category_sync_log
-// ─────────────────────────────────────────────────────────────────────────────
-
-const WBAH_CATEGORIES = ["disqualified", "tried_to_contact", "rebooking"] as const;
-type WbahCat = typeof WBAH_CATEGORIES[number];
-
-// ── triggerWbahCategorySync ───────────────────────────────────────────────────
-
-export const triggerWbahCategorySync = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
-  .inputValidator(
-    z.object({
-      category: z.enum(["disqualified", "tried_to_contact", "rebooking", "all"]).optional(),
-    }),
-  )
-  .handler(async ({ data, context }) => {
-    const isAdmin = await isPlatformAdmin(context.userId);
-    if (!isAdmin) throw new Error("Admin access required");
-
-    const { runWbahCategorySyncTick } = await import(
-      "@/lib/integrations/webespokeEnterprise/wbah-category-sync"
-    );
-
-    const categoriesOnly =
-      data.category && data.category !== "all"
-        ? [data.category as WbahCat]
-        : undefined;
-
-    const result = await runWbahCategorySyncTick({ categoriesOnly });
-
-    // Record the outcome for the unified sync-state panel. Best-effort only.
-    try {
-      const { data: wsRow } = await (supabaseAdmin as any)
-        .from("workspaces").select("id").eq("slug", "webuyanyhouse").maybeSingle();
-      if (wsRow?.id) {
-        const cats = ["disqualified", "tried_to_contact", "rebooking"] as const;
-        let created = 0, updated = 0, skipped = 0;
-        for (const c of cats) {
-          created += Number((result as any)?.[c]?.imported ?? 0);
-          updated += Number((result as any)?.[c]?.updated ?? 0);
-          skipped += Number((result as any)?.[c]?.skipped ?? 0);
-        }
-        const errs = Array.isArray((result as any)?.errors) ? (result as any).errors : [];
-        const totalTouched = created + updated + skipped;
-        const status: "success" | "partial" | "error" =
-          errs.length === 0 ? "success" : totalTouched === 0 ? "error" : "partial";
-        await recordSyncState({
-          workspaceId: wsRow.id,
-          sourceName: "webespoke_enterprise",
-          module: "people",
-          status,
-          recordsCreated: created,
-          recordsUpdated: updated,
-          recordsSkipped: skipped,
-          errorMessage: errs.length ? errs.join("; ") : null,
-        });
-      }
-    } catch {
-      /* sync-state recording is best-effort */
-    }
-
-    return result;
-  });
-
-// ── WBAH call-derived categories (Disqualified / Tried To Contact / Rebooking) ─
+// ── WBAH call-derived categories (legacy get-all-calldata cache) ──────────────
 // All three People sub-tabs are derived live from the rich `wbah_calls` table.
 // Every contact who has NOT yet booked an appointment "needs to be called", and
 // each such contact is bucketed into exactly ONE category from their latest call
@@ -2045,9 +2539,9 @@ export const triggerWbahCategorySync = createServerFn({ method: "POST" })
 type WbahDerivedCat = "disqualified" | "tried_to_contact" | "rebooking";
 
 const WBAH_DERIVED_LABEL: Record<WbahDerivedCat, string> = {
-  disqualified:     "Disqualified",
+  disqualified: "Disqualified",
   tried_to_contact: "Tried To Contact",
-  rebooking:        "Rebooking",
+  rebooking: "Rebooking",
 };
 
 // Per WBAH, every CRM-loaded contact from the People feed (get-all-calldata) is
@@ -2091,9 +2585,9 @@ function wbahContactMatchesCategory(c: any, category: string): boolean {
 // and classified. Throws on failure/empty so the caller can fall back.
 async function fetchWbahCrmLoadedContactsLive(userId: string): Promise<any[]> {
   const cbs = await requireWbahCbs(userId);
-  const gt  = cbs.getTokens;
-  const st  = cbs.saveNewAccessToken;
-  const rl  = cbs.reloginFn;
+  const gt = cbs.getTokens;
+  const st = cbs.saveNewAccessToken;
+  const rl = cbs.reloginFn;
 
   const extractRecs = (raw: any): any[] =>
     Array.isArray(raw?.data) ? raw.data : Array.isArray(raw) ? raw : [];
@@ -2101,17 +2595,19 @@ async function fetchWbahCrmLoadedContactsLive(userId: string): Promise<any[]> {
   const p1Res = await api.wbahGetAllCallDataPaged(1, gt, st, rl);
   if (!p1Res.ok) throw new Error(p1Res.error ?? "Failed to fetch CRM call data from WeeBespoke");
 
-  const p1Raw      = p1Res.data as any;
-  const pag        = p1Raw?.pagination ?? {};
+  const p1Raw = p1Res.data as any;
+  const pag = p1Raw?.pagination ?? {};
   const totalItems = Number(pag.totalItems ?? 0);
-  const pageSize   = Number(pag.pageSize ?? 50) || 50;
-  const apiPages   = Number(pag.totalPages ?? 1) || 1;
+  const pageSize = Number(pag.pageSize ?? 50) || 50;
+  const apiPages = Number(pag.totalPages ?? 1) || 1;
   const totalPages = Math.max(apiPages, totalItems > 0 ? Math.ceil(totalItems / pageSize) : 1);
 
   const all: any[] = [...extractRecs(p1Raw)];
   for (let page = 2; page <= totalPages; page += 8) {
     const batch = Array.from({ length: Math.min(8, totalPages - page + 1) }, (_, i) => page + i);
-    const settled = await Promise.allSettled(batch.map(p => api.wbahGetAllCallDataPaged(p, gt, st, rl)));
+    const settled = await Promise.allSettled(
+      batch.map((p) => api.wbahGetAllCallDataPaged(p, gt, st, rl)),
+    );
     for (let i = 0; i < settled.length; i++) {
       const s = settled[i];
       if (s.status === "fulfilled" && s.value.ok) {
@@ -2119,7 +2615,8 @@ async function fetchWbahCrmLoadedContactsLive(userId: string): Promise<any[]> {
         continue;
       }
       const retry = await api.wbahGetAllCallDataPaged(batch[i], gt, st, rl);
-      if (!retry.ok) throw new Error(retry.error ?? `Failed to fetch CRM call data page ${batch[i]}`);
+      if (!retry.ok)
+        throw new Error(retry.error ?? `Failed to fetch CRM call data page ${batch[i]}`);
       all.push(...extractRecs(retry.data as any));
     }
   }
@@ -2128,29 +2625,38 @@ async function fetchWbahCrmLoadedContactsLive(userId: string): Promise<any[]> {
   const byKey = new Map<string, any>();
   for (const r of all) {
     const phone = r.toNumber ?? r.fromNumber ?? r.phone ?? null;
-    const key = phone && String(phone).trim()
-      ? String(phone).trim()
-      : `id:${r.lead_id ?? r.callId ?? r.id}`;
-    const ts   = Date.parse(r.createdAt ?? r.created_at ?? "") || 0;
+    const key =
+      phone && String(phone).trim() ? String(phone).trim() : `id:${r.lead_id ?? r.callId ?? r.id}`;
+    const ts = Date.parse(r.createdAt ?? r.created_at ?? "") || 0;
     const prev = byKey.get(key);
-    const prevTs = prev ? (Date.parse(prev.createdAt ?? prev.created_at ?? "") || 0) : -1;
+    const prevTs = prev ? Date.parse(prev.createdAt ?? prev.created_at ?? "") || 0 : -1;
     if (!prev || ts >= prevTs) byKey.set(key, r);
   }
 
   const out: any[] = [];
   for (const r of byKey.values()) {
-    if (isWbahRecordBooked({
-      appointment_date: r.call_appointment_date ?? r.appointmentDate ?? r.appointment_date ?? null,
-      appointment_time: r.call_appointment_time ?? r.appointmentTime ?? r.appointment_time ?? null,
-      booking_status: r.call_booking_status ?? r.bookingStatus ?? r.booking_status ?? null,
-      calendly_booking_url:
-        r.call_calendly_booking_url ?? r.calendlyBookingUrl ?? r.calendly_booking_url ?? r.calendlyUrl ?? null,
-    })) continue;
+    if (
+      isWbahRecordBooked({
+        appointment_date:
+          r.call_appointment_date ?? r.appointmentDate ?? r.appointment_date ?? null,
+        appointment_time:
+          r.call_appointment_time ?? r.appointmentTime ?? r.appointment_time ?? null,
+        booking_status: r.call_booking_status ?? r.bookingStatus ?? r.booking_status ?? null,
+        calendly_booking_url:
+          r.call_calendly_booking_url ??
+          r.calendlyBookingUrl ??
+          r.calendly_booking_url ??
+          r.calendlyUrl ??
+          null,
+      })
+    )
+      continue;
     r.__cat = classifyWbahCrmContact(r);
     r.__leadStatus = wbahContactLeadStatus(r);
     out.push(r);
   }
-  if (out.length === 0) throw new Error("WeeBespoke returned no CRM contacts (session may have been invalidated)");
+  if (out.length === 0)
+    throw new Error("WeeBespoke returned no CRM contacts (session may have been invalidated)");
   return out;
 }
 
@@ -2162,68 +2668,67 @@ async function fetchWbahCrmLoadedContactsLive(userId: string): Promise<any[]> {
 // snapshot remains as a cold-start fallback.
 
 const WBAH_CRM_LASTGOOD_TTL = 24 * 60 * 60; // 24h Redis fallback
-const WBAH_CRM_SYNC_TTL_MS  = 5 * 60 * 1000; // refresh from WeeBespoke at most every 5 min
+const WBAH_CRM_SYNC_TTL_MS = 5 * 60 * 1000; // refresh from WeeBespoke at most every 5 min
 let _wbahCrmSyncAt = 0;
 let _wbahCrmSyncInflight: Promise<void> | null = null;
 
 function crmContactToDbRow(c: any, workspaceId: string, syncTime: string) {
   const phone = c.toNumber ?? c.fromNumber ?? c.phone ?? null;
-  const dedup = phone && String(phone).trim()
-    ? String(phone).trim()
-    : `id:${c.lead_id ?? c.callId ?? c.id}`;
+  const dedup =
+    phone && String(phone).trim() ? String(phone).trim() : `id:${c.lead_id ?? c.callId ?? c.id}`;
   return {
-    dedup_key:            dedup,
-    workspace_id:         workspaceId,
-    external_id:          String(c.lead_id ?? c.callId ?? c.id ?? ""),
+    dedup_key: dedup,
+    workspace_id: workspaceId,
+    external_id: String(c.lead_id ?? c.callId ?? c.id ?? ""),
     phone,
-    name:                 c.name ?? null,
-    email:                c.email ?? null,
-    lead_status:          c.__leadStatus ?? wbahContactLeadStatus(c),
-    call_status:          c.callStatus ?? null,
-    sentiment:            c.sentimentAnalysis ?? null,
+    name: c.name ?? null,
+    email: c.email ?? null,
+    lead_status: c.__leadStatus ?? wbahContactLeadStatus(c),
+    call_status: c.callStatus ?? null,
+    sentiment: c.sentimentAnalysis ?? null,
     disconnection_reason: c.disconnectionReason ?? null,
-    end_reason:           c.endReason ?? null,
-    agent_name:           c.agentName ?? null,
-    duration_ms:          c.durationMs != null ? Number(c.durationMs) : null,
-    start_timestamp:      c.startTimestamp != null ? Number(c.startTimestamp) : null,
-    recording_url:        c.recordingUrl ?? null,
-    transcript:           c.transcript ?? null,
-    appointment_date:     c.appointment_date ?? null,
-    appointment_time:     c.appointment_time ?? null,
-    booking_status:       c.booking_status ?? null,
+    end_reason: c.endReason ?? null,
+    agent_name: c.agentName ?? null,
+    duration_ms: c.durationMs != null ? Number(c.durationMs) : null,
+    start_timestamp: c.startTimestamp != null ? Number(c.startTimestamp) : null,
+    recording_url: c.recordingUrl ?? null,
+    transcript: c.transcript ?? null,
+    appointment_date: c.appointment_date ?? null,
+    appointment_time: c.appointment_time ?? null,
+    booking_status: c.booking_status ?? null,
     calendly_booking_url: c.calendly_booking_url ?? null,
-    crm_loaded_at:        c.createdAt ?? c.created_at ?? null,
-    synced_at:            syncTime,
+    crm_loaded_at: c.createdAt ?? c.created_at ?? null,
+    synced_at: syncTime,
   };
 }
 
 function dbRowToCrmContact(row: any) {
   return {
-    id:                  row.external_id || row.dedup_key,
-    callId:              null,
-    lead_id:             row.external_id,
-    name:                row.name,
-    toNumber:            row.phone,
-    fromNumber:          null,
-    phone:               row.phone,
-    email:               row.email,
-    callStatus:          row.call_status,
-    sentimentAnalysis:   row.sentiment,
+    id: row.external_id || row.dedup_key,
+    callId: null,
+    lead_id: row.external_id,
+    name: row.name,
+    toNumber: row.phone,
+    fromNumber: null,
+    phone: row.phone,
+    email: row.email,
+    callStatus: row.call_status,
+    sentimentAnalysis: row.sentiment,
     disconnectionReason: row.disconnection_reason,
-    endReason:           row.end_reason,
-    agentName:           row.agent_name,
-    durationMs:          row.duration_ms,
-    startTimestamp:      row.start_timestamp,
-    recordingUrl:        row.recording_url,
-    transcript:          row.transcript,
-    appointment_date:    row.appointment_date,
-    appointment_time:    row.appointment_time,
-    booking_status:      row.booking_status,
+    endReason: row.end_reason,
+    agentName: row.agent_name,
+    durationMs: row.duration_ms,
+    startTimestamp: row.start_timestamp,
+    recordingUrl: row.recording_url,
+    transcript: row.transcript,
+    appointment_date: row.appointment_date,
+    appointment_time: row.appointment_time,
+    booking_status: row.booking_status,
     calendly_booking_url: row.calendly_booking_url,
-    createdAt:           row.crm_loaded_at,
-    created_at:          row.crm_loaded_at,
-    __cat:               "disqualified",
-    __leadStatus:        row.lead_status || "Uncategorized",
+    createdAt: row.crm_loaded_at,
+    created_at: row.crm_loaded_at,
+    __cat: "disqualified",
+    __leadStatus: row.lead_status || "Uncategorized",
   };
 }
 
@@ -2313,7 +2818,9 @@ async function getWbahCrmLoadedContacts(userId: string, workspaceId: string): Pr
       // Live fetch failed on cold start — try the Redis last-good snapshot.
       const lastGood = await cacheGet<any[]>(`webee:wbah-crm-contacts-good:${workspaceId}`);
       if (Array.isArray(lastGood) && lastGood.length > 0) {
-        console.warn(`[wbah-crm-contacts] cold start live fetch failed (${e?.message}); serving Redis last-good (${lastGood.length})`);
+        console.warn(
+          `[wbah-crm-contacts] cold start live fetch failed (${e?.message}); serving Redis last-good (${lastGood.length})`,
+        );
         return lastGood;
       }
       throw e;
@@ -2343,8 +2850,12 @@ async function listWbahCrmLoadedCategory(
     const s = search.trim().toLowerCase();
     filtered = filtered.filter(
       (c) =>
-        String(c.name ?? "").toLowerCase().includes(s) ||
-        String(c.toNumber ?? c.fromNumber ?? c.phone ?? "").toLowerCase().includes(s),
+        String(c.name ?? "")
+          .toLowerCase()
+          .includes(s) ||
+        String(c.toNumber ?? c.fromNumber ?? c.phone ?? "")
+          .toLowerCase()
+          .includes(s),
     );
   }
 
@@ -2353,7 +2864,7 @@ async function listWbahCrmLoadedCategory(
   const pageRows = filtered.slice(start, start + limit);
 
   const rows = pageRows.map((c) => {
-    const phone    = c.toNumber ?? c.fromNumber ?? c.phone ?? null;
+    const phone = c.toNumber ?? c.fromNumber ?? c.phone ?? null;
     const loadedAt = c.createdAt ?? c.created_at ?? null;
     const leadStatus = c.__leadStatus ?? wbahContactLeadStatus(c);
     const raw = {
@@ -2406,7 +2917,10 @@ async function listWbahCrmLoadedCategory(
 // the People category endpoints below.
 async function requireWbahView(userId: string): Promise<string> {
   const { data: ws } = await (supabaseAdmin as any)
-    .from("workspaces").select("id").eq("slug", "webuyanyhouse").maybeSingle();
+    .from("workspaces")
+    .select("id")
+    .eq("slug", "webuyanyhouse")
+    .maybeSingle();
   if (!ws?.id) throw new Error("WBAH workspace not found");
 
   const isAdmin = await isPlatformAdmin(userId);
@@ -2431,15 +2945,16 @@ export const listWbahPeopleCategories = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
     const wsId = await requireWbahView(context.userId);
-    const contacts = await getWbahCrmLoadedContacts(context.userId, wsId);
-    const counts = new Map<string, number>();
-    for (const c of contacts) {
-      const name = c.__leadStatus ?? wbahContactLeadStatus(c);
-      counts.set(name, (counts.get(name) ?? 0) + 1);
-    }
-    const categories = Array.from(counts, ([name, count]) => ({ name, count }))
-      .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name));
-    return { categories, total: contacts.length };
+    const cbs = await requireWbahCbs(context.userId);
+    return cacheWrap(`webee:wbah-people-crm-counts:${wsId}`, 2 * 60, async () => {
+      const { listWbahCrmPeopleCategories } = await import("./wbah-people-crm.server");
+      const { categories, total } = await listWbahCrmPeopleCategories(cbs);
+      return {
+        categories: categories.map((c) => ({ name: c.name, count: c.count })),
+        total,
+        source: "crm_data" as const,
+      };
+    });
   });
 
 // ── listWbahCategorizedLeads ──────────────────────────────────────────────────
@@ -2452,69 +2967,31 @@ export const listWbahCategorizedLeads = createServerFn({ method: "POST" })
       // rebooking) or a live "Lead Filter Master" category name ("Disqualified",
       // "Tried To Contact", …) or "all". Matched via slug so both forms work.
       category: z.string().min(1),
-      page:     z.coerce.number().int().min(1).default(1),
-      limit:    z.coerce.number().int().min(1).max(200).default(100),
-      search:   z.string().optional(),
+      page: z.coerce.number().int().min(1).default(1),
+      limit: z.coerce.number().int().min(1).max(200).default(100),
+      search: z.string().optional(),
     }),
   )
   .handler(async ({ data, context }) => {
-    const wsId = await requireWbahView(context.userId);
-    const { category, page, limit, search } = data;
-
-    // Categories are derived live from the CRM `get-all-calldata` feed, split by
-    // each record's WeeBespoke `lead_status` (the Lead Filter Master category).
-    return await listWbahCrmLoadedCategory(context.userId, wsId, category, page, limit, search);
-  });
-
-// ── getWbahCategorySyncLog ─────────────────────────────────────────────────────
-
-export const getWbahCategorySyncLog = createServerFn({ method: "GET" })
-  .middleware([requireSupabaseAuth])
-  .handler(async ({ context }) => {
-    const { data: ws } = await (supabaseAdmin as any)
-      .from("workspaces").select("id").eq("slug", "webuyanyhouse").maybeSingle();
-    if (!ws?.id) throw new Error("WBAH workspace not found");
-
-    const isAdmin = await isPlatformAdmin(context.userId);
-    if (!isAdmin) {
-      const { data: mem } = await (supabaseAdmin as any)
-        .from("workspace_members")
-        .select("id")
-        .eq("user_id", context.userId)
-        .eq("workspace_id", ws.id)
-        .maybeSingle();
-      if (!mem) throw new Error("Access denied");
-    }
-
-    const logs: Record<string, unknown> = {};
-    for (const cat of WBAH_CATEGORIES) {
-      const { data: row } = await (supabaseAdmin as any)
-        .from("wbah_category_sync_log")
-        .select("*")
-        .eq("workspace_id", ws.id)
-        .eq("category", cat)
-        .order("synced_at", { ascending: false })
-        .limit(1)
-        .maybeSingle();
-      logs[cat] = row ?? null;
-    }
-    return logs as Record<WbahCat, {
-      id: string; synced_at: string; imported: number; updated: number;
-      skipped: number; failed: number; total_records: number; duration_ms: number;
-      error_message: string | null;
-    } | null>;
-  });
-
-// ── getWbahCategorySyncAccess ──────────────────────────────────────────────────
-// Lets the UI know whether the current user may trigger a category sync, so the
-// admin-only Sync / Sync All controls can be hidden from non-admins. The real
-// enforcement still lives in triggerWbahCategorySync (server-side).
-
-export const getWbahCategorySyncAccess = createServerFn({ method: "GET" })
-  .middleware([requireSupabaseAuth])
-  .handler(async ({ context }) => {
-    const isAdmin = await isPlatformAdmin(context.userId);
-    return { canSync: isAdmin };
+    const { workspaceId } = context;
+    if (!workspaceId) throw new Error("No active workspace");
+    await requireWbahView(context.userId);
+    const cbs = await requireWbahCbs(context.userId);
+    const {
+      listWbahCrmCategorizedLeads,
+      normalizeWbahPeopleCategorySlug,
+      enrichPeopleCrmRowsWithWbahCalls,
+    } = await import("./wbah-people-crm.server");
+    const normalized = normalizeWbahPeopleCategorySlug(data.category);
+    const result = await listWbahCrmCategorizedLeads(
+      cbs,
+      normalized,
+      data.page,
+      data.limit,
+      data.search,
+    );
+    const rows = await enrichPeopleCrmRowsWithWbahCalls(workspaceId, result.rows);
+    return { ...result, rows };
   });
 
 // ── WBAH seller leads from DB (synced by wbah-leads-sync plugin) ──────────────
@@ -2527,51 +3004,53 @@ export const listWbahLeadsForPeople = createServerFn({ method: "GET" })
     const { supabase, workspaceId } = context;
     if (!workspaceId) throw new Error("No active workspace");
     return cacheWrap(`webee:wbah-people-leads:${workspaceId}`, 60, async () => {
-    const sb   = supabase as any;
-    const PAGE = 1000;
-    const all: any[] = [];
-    let from = 0;
-    while (true) {
-      const { data, error } = await sb
-        .from("leads")
-        .select("id, full_name, phone, email, created_at, meta, call_summary, callback_date")
-        .eq("workspace_id", workspaceId)
-        .eq("source", "import")
-        .eq("source_detail", "webespoke_enterprise")
-        .order("created_at", { ascending: false })
-        .range(from, from + PAGE - 1);
-      if (error) throw new Error(error.message);
-      const rows: any[] = data ?? [];
-      // exclude CRM contact rows (wbah_source = "crm")
-      const sellers = rows.filter((r: any) => r.meta?.wbah_source !== "crm");
-      all.push(...sellers);
-      if (rows.length < PAGE) break;
-      from += PAGE;
-    }
-    console.log(`[WBAH people] leads from DB: ${all.length}`);
-    return all.map((r: any, idx: number) => ({
-      id:                  r.id,
-      srNo:                idx + 1,
-      name:                r.full_name,
-      contact:             r.phone,
-      email:               r.email,
-      callType:            "Lead",
-      callStatus:          r.meta?.call_status ?? null,
-      sentimentAnalysis:   r.meta?.last_call_sentiment ?? null,
-      disconnectionReason: r.meta?.disconnection_reason ?? null,
-      appointmentDate:     r.meta?.appointment_date ?? null,
-      appointmentTime:     r.meta?.appointment_time ?? null,
-      bookingStatus:       r.meta?.booking_status ?? null,
-      calendlyBookingUrl:  r.meta?.calendly_booking_url ?? null,
-      agentName:           r.meta?.agent_name ?? r.meta?.assigned_agent ?? null,
-      startTimestamp:      r.meta?.start_timestamp
-                             ? Number(r.meta.start_timestamp)
-                             : (r.meta?.last_called_at ? new Date(r.meta.last_called_at).getTime() : null),
-      durationMs:          r.meta?.duration_ms ? Number(r.meta.duration_ms) : null,
-      recordingUrl:        r.meta?.recording_url ?? null,
-      transcript:          r.meta?.transcript ?? r.call_summary ?? null,
-      endReason:           r.meta?.end_reason ?? null,
-    }));
+      const sb = supabase as any;
+      const PAGE = 1000;
+      const all: any[] = [];
+      let from = 0;
+      while (true) {
+        const { data, error } = await sb
+          .from("leads")
+          .select("id, full_name, phone, email, created_at, meta, call_summary, callback_date")
+          .eq("workspace_id", workspaceId)
+          .eq("source", "import")
+          .eq("source_detail", "webespoke_enterprise")
+          .order("created_at", { ascending: false })
+          .range(from, from + PAGE - 1);
+        if (error) throw new Error(error.message);
+        const rows: any[] = data ?? [];
+        // exclude CRM contact rows (wbah_source = "crm")
+        const sellers = rows.filter((r: any) => r.meta?.wbah_source !== "crm");
+        all.push(...sellers);
+        if (rows.length < PAGE) break;
+        from += PAGE;
+      }
+      console.log(`[WBAH people] leads from DB: ${all.length}`);
+      return all.map((r: any, idx: number) => ({
+        id: r.id,
+        srNo: idx + 1,
+        name: r.full_name,
+        contact: r.phone,
+        email: r.email,
+        callType: "Lead",
+        callStatus: r.meta?.call_status ?? null,
+        sentimentAnalysis: r.meta?.last_call_sentiment ?? null,
+        disconnectionReason: r.meta?.disconnection_reason ?? null,
+        appointmentDate: r.meta?.appointment_date ?? null,
+        appointmentTime: r.meta?.appointment_time ?? null,
+        bookingStatus: r.meta?.booking_status ?? null,
+        calendlyBookingUrl: r.meta?.calendly_booking_url ?? null,
+        agentName: r.meta?.agent_name ?? r.meta?.assigned_agent ?? null,
+        startTimestamp: r.meta?.start_timestamp
+          ? Number(r.meta.start_timestamp)
+          : r.meta?.last_called_at
+            ? new Date(r.meta.last_called_at).getTime()
+            : null,
+        durationMs: r.meta?.duration_ms ? Number(r.meta.duration_ms) : null,
+        recordingUrl: r.meta?.recording_url ?? null,
+        transcript: r.meta?.transcript ?? r.call_summary ?? null,
+        endReason: r.meta?.end_reason ?? null,
+      }));
     });
   });
 
@@ -2596,94 +3075,96 @@ export const listWbahPositiveNeutralLeads = createServerFn({ method: "GET" })
 
     const { byPhone, crmBookingByDigits } = await getWbahCallsAggregate(workspaceId);
 
-      const sentRank = (s: string) => (s === "positive" ? 3 : s === "neutral" ? 2 : s === "negative" ? 1 : 0);
-      const posNeu: any[] = [];
-      for (const calls of byPhone.values()) {
-        // Latest-first (rows already ordered, but be explicit).
-        calls.sort((a, b) => (Date.parse(b.started_at ?? "") || 0) - (Date.parse(a.started_at ?? "") || 0));
-        // Definitive outcome = best sentiment across all the contact's calls.
-        let main = calls[0];
-        let best = sentRank(String(calls[0].sentiment ?? "").toLowerCase());
-        for (const c of calls) {
-          const r = sentRank(String(c.sentiment ?? "").toLowerCase());
-          if (r > best) { best = r; main = c; } // first (latest) call at the best rank
-        }
-        const definitive = String(main.sentiment ?? "").toLowerCase();
-        if (definitive !== "positive" && definitive !== "neutral") continue;
-        main.__callCount = calls.length;
-        posNeu.push(main);
+    const sentRank = (s: string) =>
+      s === "positive" ? 3 : s === "neutral" ? 2 : s === "negative" ? 1 : 0;
+    const posNeu: any[] = [];
+    for (const calls of byPhone.values()) {
+      // Latest-first (rows already ordered, but be explicit).
+      calls.sort(
+        (a, b) => (Date.parse(b.started_at ?? "") || 0) - (Date.parse(a.started_at ?? "") || 0),
+      );
+      // Definitive outcome = best sentiment across all the contact's calls.
+      let main = calls[0];
+      let best = sentRank(String(calls[0].sentiment ?? "").toLowerCase());
+      for (const c of calls) {
+        const r = sentRank(String(c.sentiment ?? "").toLowerCase());
+        if (r > best) {
+          best = r;
+          main = c;
+        } // first (latest) call at the best rank
       }
+      const definitive = String(main.sentiment ?? "").toLowerCase();
+      if (definitive !== "positive" && definitive !== "neutral") continue;
+      main.__callCount = calls.length;
+      posNeu.push(main);
+    }
 
-      // Transcripts are heavy — pull them only for the kept contacts, chunked to
-      // stay under PostgREST's row cap. call_summary is small and returned for the
-      // Summary column; full transcript stays on-demand via getWbahCallDetail.
-      const summaryById = new Map<string, string | null>();
-      const hasTranscriptById = new Map<string, boolean>();
-      const ids = posNeu.map((c) => c.id).filter(Boolean);
-      for (let i = 0; i < ids.length; i += 500) {
-        const chunk = ids.slice(i, i + 500);
-        const { data: trows } = await (supabaseAdmin as any)
-          .from("wbah_calls")
-          .select("id, transcript, call_summary")
-          .in("id", chunk);
-        for (const t of (trows ?? []) as any[]) {
-          const summary = t.call_summary && String(t.call_summary).trim() ? String(t.call_summary).trim() : null;
-          summaryById.set(t.id, summary);
-          hasTranscriptById.set(t.id, !!(t.transcript && String(t.transcript).trim()));
-        }
+    // Transcripts are heavy — pull them only for the kept contacts, chunked to
+    // stay under PostgREST's row cap. call_summary is small and returned for the
+    // Summary column; full transcript stays on-demand via getWbahCallDetail.
+    const summaryById = new Map<string, string | null>();
+    const hasTranscriptById = new Map<string, boolean>();
+    const ids = posNeu.map((c) => c.id).filter(Boolean);
+    for (let i = 0; i < ids.length; i += 500) {
+      const chunk = ids.slice(i, i + 500);
+      const { data: trows } = await (supabaseAdmin as any)
+        .from("wbah_calls")
+        .select("id, transcript, call_summary")
+        .in("id", chunk);
+      for (const t of (trows ?? []) as any[]) {
+        const summary =
+          t.call_summary && String(t.call_summary).trim() ? String(t.call_summary).trim() : null;
+        summaryById.set(t.id, summary);
+        hasTranscriptById.set(t.id, !!(t.transcript && String(t.transcript).trim()));
       }
+    }
 
-      console.log(`[WBAH leads] positive/neutral called contacts: ${posNeu.length} in ${Date.now() - t0}ms`);
+    console.log(`[WBAH leads] positive/neutral called contacts: ${posNeu.length}`);
 
-      return posNeu.map((c) => {
-        const phoneKey = phoneDigits(c.phone) || `id:${c.id}`;
-        const calls = byPhone.get(phoneKey) ?? [c];
-        const bookingCall = findWbahBookingCall(calls);
-        const crm = phoneDigits(c.phone) ? crmBookingByDigits.get(phoneDigits(c.phone)) : null;
-        const appt = resolveWbahBookingFields(c, bookingCall, crm);
-        const startedIso: string | null = c.started_at ?? null;
-        const summary = summaryById.get(c.id) ?? null;
-        const sentiment = String(c.sentiment ?? "").toLowerCase() || null;
-        const durationSec = Number(c.duration_seconds ?? 0);
-        const partialQualified = sentiment === "neutral" && durationSec > WBAH_PARTIAL_QUALIFIED_MIN_SECONDS;
-        return {
-          id:                c.id,
-          full_name:         c.customer_name ?? "Unknown",
-          company_name:      null,
-          phone:             c.phone ?? null,
-          email:             null,
-          sentiment,
-          lead_score:        null,
-          interest_level:    null,
-          status:            null,
-          call_summary:      summary,
-          next_action:       null,
-          last_contacted_at: startedIso,
-          created_at:        startedIso,
-          // These CRM-sourced contacts come from WBAH's own CRM sync (not a
-          // webform/manual/API intake), so the generic Leads-page source
-          // badge renders a CRM icon without any workspace-specific
-          // branching in the UI layer.
-          source:            "crm",
-          source_type:       "crm",
-          meta: {
-            last_called_at:       startedIso,
-            call_status:          c.call_status ?? null,
-            duration_ms:          c.duration_seconds != null ? Number(c.duration_seconds) * 1000 : null,
-            recording_url:        c.recording_url ?? null,
-            appointment_date:     appt.appointment_date ?? null,
-            appointment_time:     appt.appointment_time ?? null,
-            booking_status:       appt.booking_status ?? null,
-            end_reason:           c.end_reason ?? null,
-            disconnection_reason: c.disconnection_reason ?? null,
-            calendly_booking_url: appt.calendly_booking_url ?? null,
-            agent_name:           appt.agent_name ?? c.agent_name ?? null,
-            partial_qualified:    partialQualified,
-            call_count:           c.__callCount ?? 1,
-            has_transcript:       hasTranscriptById.get(c.id) ?? false,
-          },
-        };
-      });
+    return posNeu.map((c) => {
+      const phoneKey = phoneDigits(c.phone) || `id:${c.id}`;
+      const calls = byPhone.get(phoneKey) ?? [c];
+      const bookingCall = findWbahBookingCall(calls);
+      const crm = phoneDigits(c.phone) ? crmBookingByDigits.get(phoneDigits(c.phone)) : null;
+      const appt = resolveWbahBookingFields(c, bookingCall, crm);
+      const startedIso: string | null = c.started_at ?? null;
+      const summary = summaryById.get(c.id) ?? null;
+      const sentiment = String(c.sentiment ?? "").toLowerCase() || null;
+      const durationSec = Number(c.duration_seconds ?? 0);
+      const partialQualified =
+        sentiment === "neutral" && durationSec > WBAH_PARTIAL_QUALIFIED_MIN_SECONDS;
+      return {
+        id: c.id,
+        full_name: c.customer_name ?? "Unknown",
+        company_name: null,
+        phone: c.phone ?? null,
+        email: null,
+        sentiment,
+        lead_score: null,
+        interest_level: null,
+        status: null,
+        call_summary: summary,
+        next_action: null,
+        last_contacted_at: startedIso,
+        created_at: startedIso,
+        meta: {
+          last_called_at: startedIso,
+          call_status: c.call_status ?? null,
+          duration_ms: c.duration_seconds != null ? Number(c.duration_seconds) * 1000 : null,
+          recording_url: c.recording_url ?? null,
+          appointment_date: appt.appointment_date ?? null,
+          appointment_time: appt.appointment_time ?? null,
+          booking_status: appt.booking_status ?? null,
+          end_reason: c.end_reason ?? null,
+          disconnection_reason: c.disconnection_reason ?? null,
+          calendly_booking_url: appt.calendly_booking_url ?? null,
+          agent_name: appt.agent_name ?? c.agent_name ?? null,
+          partial_qualified: partialQualified,
+          call_count: c.__callCount ?? 1,
+          has_transcript: hasTranscriptById.get(c.id) ?? false,
+        },
+      };
+    });
   });
 
 // ── WBAH Qualified Leads (derived live from wbah_calls) ───────────────────────
@@ -2710,7 +3191,11 @@ async function buildWbahAgentPhoneMap(
   for (let page = 0; page < MAX_PAGES && remaining.size > 0; page++) {
     const callRes: any = await retellFetch<any>(
       "/v2/list-calls",
-      { limit: 50, sort_order: "descending", ...(paginationKey ? { pagination_key: paginationKey } : {}) },
+      {
+        limit: 50,
+        sort_order: "descending",
+        ...(paginationKey ? { pagination_key: paginationKey } : {}),
+      },
       "POST",
       apiKey,
     );
@@ -2745,152 +3230,157 @@ export const listWbahQualifiedLeads = createServerFn({ method: "GET" })
 
     const { all, byPhone, crmBookingByDigits } = await getWbahCallsAggregate(workspaceId);
 
-      const latestByPhone = new Map<string, any>();
-      const countByPhone = new Map<string, number>();
-      const orderKeys: string[] = [];
-      for (const [key, calls] of byPhone) {
-        const c = calls[0];
-        countByPhone.set(key, calls.length);
-        latestByPhone.set(key, c);
-        orderKeys.push(key);
-      }
+    const latestByPhone = new Map<string, any>();
+    const countByPhone = new Map<string, number>();
+    const orderKeys: string[] = [];
+    for (const [key, calls] of byPhone) {
+      const c = calls[0];
+      countByPhone.set(key, calls.length);
+      latestByPhone.set(key, c);
+      orderKeys.push(key);
+    }
 
-      const contactBooked = (key: string): boolean => {
-        const c = latestByPhone.get(key);
-        if (!c) return false;
-        const calls = byPhone.get(key) ?? [c];
-        const bookingCall = findWbahBookingCall(calls);
-        const digits = phoneDigits(c.phone);
-        const crm = digits ? crmBookingByDigits.get(digits) : null;
-        return isWbahRecordBooked(resolveWbahBookingFields(c, bookingCall, crm));
+    const contactBooked = (key: string): boolean => {
+      const c = latestByPhone.get(key);
+      if (!c) return false;
+      const calls = byPhone.get(key) ?? [c];
+      const bookingCall = findWbahBookingCall(calls);
+      const digits = phoneDigits(c.phone);
+      const crm = digits ? crmBookingByDigits.get(digits) : null;
+      return isWbahRecordBooked(resolveWbahBookingFields(c, bookingCall, crm));
+    };
+
+    const qualifiedKeys = orderKeys.filter((key) => {
+      const latest = latestByPhone.get(key);
+      const s = String(latest?.sentiment ?? "").toLowerCase();
+      return s === "positive" || contactBooked(key);
+    });
+
+    const keptIds = qualifiedKeys.map((k) => latestByPhone.get(k)?.id).filter(Boolean);
+    const summaryById = new Map<string, string | null>();
+    const hasTranscriptById = new Map<string, boolean>();
+    for (let i = 0; i < keptIds.length; i += 500) {
+      const chunk = keptIds.slice(i, i + 500);
+      const { data: trows } = await (supabaseAdmin as any)
+        .from("wbah_calls")
+        .select("id, transcript, call_summary")
+        .in("id", chunk);
+      for (const t of (trows ?? []) as any[]) {
+        const summary =
+          t.call_summary && String(t.call_summary).trim() ? String(t.call_summary).trim() : null;
+        summaryById.set(t.id, summary);
+        hasTranscriptById.set(t.id, !!(t.transcript && String(t.transcript).trim()));
+      }
+    }
+
+    const neededDigits = new Set<string>();
+    for (const key of qualifiedKeys) {
+      const d = phoneDigits(latestByPhone.get(key)?.phone);
+      if (d) neededDigits.add(d);
+    }
+    let agentByDigits: Record<string, string> = {};
+    try {
+      if (neededDigits.size > 0) {
+        const apiKey = await requireWbahRetellKey(userId);
+        agentByDigits = await cacheWrap(`webee:wbah-agent-map:${workspaceId}`, 3600, () =>
+          buildWbahAgentPhoneMap(apiKey, neededDigits),
+        );
+      }
+    } catch (e: any) {
+      console.warn("[wbah-qualified-leads] agent enrichment skipped:", e?.message ?? e);
+    }
+
+    console.log(`[WBAH qualified] qualified contacts: ${qualifiedKeys.length}`);
+    const fromCalls = qualifiedKeys.map((key) => {
+      const c = latestByPhone.get(key)!;
+      const calls = byPhone.get(key) ?? [c];
+      const bookingCall = findWbahBookingCall(calls);
+      const digits = phoneDigits(c.phone);
+      const crm = digits ? crmBookingByDigits.get(digits) : null;
+      const appt = resolveWbahBookingFields(c, bookingCall, crm);
+      const startedIso: string | null = c.started_at ?? null;
+      const agentName =
+        (digits && agentByDigits[digits]) || appt.agent_name || c.agent_name || null;
+      const sentiment = String(c.sentiment ?? "").toLowerCase() || null;
+      const durationSec = c.duration_seconds != null ? Number(c.duration_seconds) : null;
+      const partialQualified =
+        sentiment === "neutral" &&
+        durationSec != null &&
+        durationSec > WBAH_PARTIAL_QUALIFIED_MIN_SECONDS;
+      return {
+        id: c.id,
+        full_name: crm?.name ?? c.customer_name ?? "Unknown",
+        company_name: null,
+        phone: c.phone ?? null,
+        email: null,
+        sentiment,
+        lead_score: null,
+        interest_level: null,
+        status: null,
+        call_summary: summaryById.get(c.id) ?? null,
+        next_action: null,
+        last_contacted_at: startedIso,
+        created_at: startedIso,
+        meta: {
+          last_called_at: startedIso,
+          call_status: c.call_status ?? null,
+          duration_ms: durationSec != null ? durationSec * 1000 : null,
+          recording_url: c.recording_url ?? null,
+          appointment_date: appt.appointment_date ?? null,
+          appointment_time: appt.appointment_time ?? null,
+          booking_status: appt.booking_status ?? null,
+          end_reason: c.end_reason ?? null,
+          disconnection_reason: c.disconnection_reason ?? null,
+          calendly_booking_url: appt.calendly_booking_url ?? null,
+          agent_name: agentName,
+          partial_qualified: partialQualified,
+          call_count: countByPhone.get(key) ?? 1,
+          has_transcript: hasTranscriptById.get(c.id) ?? false,
+        },
       };
+    });
 
-      const qualifiedKeys = orderKeys.filter((key) => {
-        const latest = latestByPhone.get(key);
-        const s = String(latest?.sentiment ?? "").toLowerCase();
-        return s === "positive" || contactBooked(key);
-      });
+    const qualifiedKeySet = new Set(qualifiedKeys);
+    const bookedAll = listWbahBookedContacts({ all, byPhone, crmBookingByDigits });
+    const fromCrmOnly = bookedAll
+      .filter((b) => !qualifiedKeySet.has(b.key))
+      .map((b) => ({
+        id: b.id,
+        full_name: b.customer_name ?? "Unknown",
+        company_name: null,
+        phone: b.phone ?? null,
+        email: null,
+        sentiment: "positive" as const,
+        lead_score: null,
+        interest_level: null,
+        status: null,
+        call_summary: null,
+        next_action: null,
+        last_contacted_at: null,
+        created_at: null,
+        meta: {
+          last_called_at: null,
+          call_status: null,
+          duration_ms: null,
+          recording_url: null,
+          appointment_date: b.appt.appointment_date ?? null,
+          appointment_time: b.appt.appointment_time ?? null,
+          booking_status: b.appt.booking_status ?? null,
+          end_reason: null,
+          disconnection_reason: null,
+          calendly_booking_url: b.appt.calendly_booking_url ?? null,
+          agent_name: b.appt.agent_name ?? null,
+          partial_qualified: false,
+          call_count: b.calls.length || 1,
+          has_transcript: false,
+          crm_only_booking: true,
+        },
+      }));
 
-      const keptIds = qualifiedKeys.map((k) => latestByPhone.get(k)?.id).filter(Boolean);
-      const summaryById = new Map<string, string | null>();
-      const hasTranscriptById = new Map<string, boolean>();
-      for (let i = 0; i < keptIds.length; i += 500) {
-        const chunk = keptIds.slice(i, i + 500);
-        const { data: trows } = await (supabaseAdmin as any)
-          .from("wbah_calls")
-          .select("id, transcript, call_summary")
-          .in("id", chunk);
-        for (const t of (trows ?? []) as any[]) {
-          const summary = t.call_summary && String(t.call_summary).trim() ? String(t.call_summary).trim() : null;
-          summaryById.set(t.id, summary);
-          hasTranscriptById.set(t.id, !!(t.transcript && String(t.transcript).trim()));
-        }
-      }
-
-      const neededDigits = new Set<string>();
-      for (const key of qualifiedKeys) {
-        const d = phoneDigits(latestByPhone.get(key)?.phone);
-        if (d) neededDigits.add(d);
-      }
-      let agentByDigits: Record<string, string> = {};
-      try {
-        if (neededDigits.size > 0) {
-          const apiKey = await requireWbahRetellKey(userId);
-          agentByDigits = await cacheWrap(
-            `webee:wbah-agent-map:${workspaceId}`,
-            3600,
-            () => buildWbahAgentPhoneMap(apiKey, neededDigits),
-          );
-        }
-      } catch (e: any) {
-        console.warn("[wbah-qualified-leads] agent enrichment skipped:", e?.message ?? e);
-      }
-
-      console.log(`[WBAH qualified] qualified contacts: ${qualifiedKeys.length}`);
-      const fromCalls = qualifiedKeys.map((key) => {
-        const c = latestByPhone.get(key)!;
-        const calls = byPhone.get(key) ?? [c];
-        const bookingCall = findWbahBookingCall(calls);
-        const digits = phoneDigits(c.phone);
-        const crm = digits ? crmBookingByDigits.get(digits) : null;
-        const appt = resolveWbahBookingFields(c, bookingCall, crm);
-        const startedIso: string | null = c.started_at ?? null;
-        const agentName = (digits && agentByDigits[digits]) || appt.agent_name || c.agent_name || null;
-        const sentiment = (String(c.sentiment ?? "").toLowerCase() || null);
-        const durationSec = c.duration_seconds != null ? Number(c.duration_seconds) : null;
-        const partialQualified = sentiment === "neutral" && durationSec != null && durationSec > WBAH_PARTIAL_QUALIFIED_MIN_SECONDS;
-        return {
-          id:                c.id,
-          full_name:         crm?.name ?? c.customer_name ?? "Unknown",
-          company_name:      null,
-          phone:             c.phone ?? null,
-          email:             null,
-          sentiment,
-          lead_score:        null,
-          interest_level:    null,
-          status:            null,
-          call_summary:      summaryById.get(c.id) ?? null,
-          next_action:       null,
-          last_contacted_at: startedIso,
-          created_at:        startedIso,
-          meta: {
-            last_called_at:       startedIso,
-            call_status:          c.call_status ?? null,
-            duration_ms:          durationSec != null ? durationSec * 1000 : null,
-            recording_url:        c.recording_url ?? null,
-            appointment_date:     appt.appointment_date ?? null,
-            appointment_time:     appt.appointment_time ?? null,
-            booking_status:       appt.booking_status ?? null,
-            end_reason:           c.end_reason ?? null,
-            disconnection_reason: c.disconnection_reason ?? null,
-            calendly_booking_url: appt.calendly_booking_url ?? null,
-            agent_name:           agentName,
-            partial_qualified:    partialQualified,
-            call_count:           countByPhone.get(key) ?? 1,
-            has_transcript:       hasTranscriptById.get(c.id) ?? false,
-          },
-        };
-      });
-
-      const qualifiedKeySet = new Set(qualifiedKeys);
-      const bookedAll = listWbahBookedContacts({ all, byPhone, crmBookingByDigits });
-      const fromCrmOnly = bookedAll
-        .filter((b) => !qualifiedKeySet.has(b.key))
-        .map((b) => ({
-          id:                b.id,
-          full_name:         b.customer_name ?? "Unknown",
-          company_name:      null,
-          phone:             b.phone ?? null,
-          email:             null,
-          sentiment:         "positive" as const,
-          lead_score:        null,
-          interest_level:    null,
-          status:            null,
-          call_summary:      null,
-          next_action:       null,
-          last_contacted_at: null,
-          created_at:        null,
-          meta: {
-            last_called_at:       null,
-            call_status:          null,
-            duration_ms:          null,
-            recording_url:        null,
-            appointment_date:     b.appt.appointment_date ?? null,
-            appointment_time:     b.appt.appointment_time ?? null,
-            booking_status:       b.appt.booking_status ?? null,
-            end_reason:           null,
-            disconnection_reason: null,
-            calendly_booking_url: b.appt.calendly_booking_url ?? null,
-            agent_name:           b.appt.agent_name ?? null,
-            partial_qualified:    false,
-            call_count:           b.calls.length || 1,
-            has_transcript:       false,
-            crm_only_booking:     true,
-          },
-        }));
-
-      console.log(`[WBAH qualified] crm-only booked: ${fromCrmOnly.length} total=${fromCalls.length + fromCrmOnly.length}`);
-      return [...fromCalls, ...fromCrmOnly];
+    console.log(
+      `[WBAH qualified] crm-only booked: ${fromCrmOnly.length} total=${fromCalls.length + fromCrmOnly.length}`,
+    );
+    return [...fromCalls, ...fromCrmOnly];
   });
 
 // ── Disqualified leads from WeeBespoke API (filter master UUID approach) ───────
@@ -2901,10 +3391,10 @@ export const listWbahDisqualifiedFromApi = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
     const cbs = await requireWbahCbs(context.userId);
-    const gt  = cbs.getTokens;
-    const st  = cbs.saveNewAccessToken;
+    const gt = cbs.getTokens;
+    const st = cbs.saveNewAccessToken;
 
-    const DISQ_UUID  = "6c113950-a5ae-461d-90b1-a187ee173673";
+    const DISQ_UUID = "6c113950-a5ae-461d-90b1-a187ee173673";
     const DISQ_LABEL = "Disqualified";
 
     const allRecs: any[] = [];
@@ -2912,13 +3402,13 @@ export const listWbahDisqualifiedFromApi = createServerFn({ method: "GET" })
       try {
         const res = await api.wbahGetLeadsFiltered(code, 1, gt, st);
         if (!res.ok) continue;
-        const raw  = res.data as any;
+        const raw = res.data as any;
         const recs = Array.isArray(raw?.data) ? raw.data : Array.isArray(raw) ? raw : [];
         if (recs.length === 0) continue;
         allRecs.push(...recs);
-        const pag        = raw?.pagination;
+        const pag = raw?.pagination;
         const totalItems = pag?.totalItems ?? pag?.total_count ?? 0;
-        const pageSize   = pag?.pageSize ?? pag?.page_size ?? 50;
+        const pageSize = pag?.pageSize ?? pag?.page_size ?? 50;
         const totalPages = totalItems > 0 ? Math.ceil(totalItems / pageSize) : 1;
         for (let p = 2; p <= Math.min(totalPages, 100); p++) {
           const pr = await api.wbahGetLeadsFiltered(code, p, gt, st);
@@ -2935,24 +3425,24 @@ export const listWbahDisqualifiedFromApi = createServerFn({ method: "GET" })
     }
     console.log(`[WBAH disqualified] total: ${allRecs.length}`);
     return allRecs.map((r: any, idx: number) => ({
-      id:                  String(r.id ?? r._id ?? `dq-${idx}`),
-      srNo:                idx + 1,
-      name:                r.name ?? r.fullName ?? null,
-      contact:             r.toNumber ?? r.fromNumber ?? r.phone ?? null,
-      email:               r.email ?? null,
-      callType:            "Disqualified",
-      callStatus:          r.callStatus ?? null,
-      sentimentAnalysis:   r.sentimentAnalysis ?? null,
+      id: String(r.id ?? r._id ?? `dq-${idx}`),
+      srNo: idx + 1,
+      name: r.name ?? r.fullName ?? null,
+      contact: r.toNumber ?? r.fromNumber ?? r.phone ?? null,
+      email: r.email ?? null,
+      callType: "Disqualified",
+      callStatus: r.callStatus ?? null,
+      sentimentAnalysis: r.sentimentAnalysis ?? null,
       disconnectionReason: r.disconnectionReason ?? null,
-      appointmentDate:     r.appointment_date ?? null,
-      appointmentTime:     r.appointment_time ?? null,
-      bookingStatus:       r.booking_status ?? null,
-      calendlyBookingUrl:  r.calendly_booking_url ?? null,
-      agentName:           r.agentName ?? null,
-      startTimestamp:      r.startTimestamp ? Number(r.startTimestamp) : null,
-      durationMs:          r.durationMs ? Number(r.durationMs) : null,
-      recordingUrl:        r.recordingUrl ?? null,
-      transcript:          r.transcript ?? null,
-      endReason:           r.endReason ?? null,
+      appointmentDate: r.appointment_date ?? null,
+      appointmentTime: r.appointment_time ?? null,
+      bookingStatus: r.booking_status ?? null,
+      calendlyBookingUrl: r.calendly_booking_url ?? null,
+      agentName: r.agentName ?? null,
+      startTimestamp: r.startTimestamp ? Number(r.startTimestamp) : null,
+      durationMs: r.durationMs ? Number(r.durationMs) : null,
+      recordingUrl: r.recordingUrl ?? null,
+      transcript: r.transcript ?? null,
+      endReason: r.endReason ?? null,
     }));
   });

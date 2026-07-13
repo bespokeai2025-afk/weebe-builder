@@ -18,7 +18,8 @@
 import { useEffect, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { supabase } from "@/integrations/supabase/client";
+import { resolveWbahUiAccess } from "@/lib/integrations/webespokeEnterprise/wbah.functions";
+import { getMyContext } from "@/lib/workspace/workspace.functions";
 
 import { getOverviewStats, listLeads }               from "@/lib/dashboard/leads.functions";
 import { getDashboardLiveAgents, listLiveAgents }     from "@/lib/agents/agents.functions";
@@ -66,6 +67,8 @@ export function PrefetchOnLogin({ authed }: Props) {
   const wbahQualifiedFn  = useServerFn(listWbahQualifiedLeads);
   const wbahCatFn        = useServerFn(listWbahCategorizedLeads);
   const wbahCallsCountFn = useServerFn(listWbahCallsCount);
+  const wbahAccessFn     = useServerFn(resolveWbahUiAccess);
+  const getMyContextFn   = useServerFn(getMyContext);
 
   // null = not yet resolved; true/false once the workspace slug is known.
   const [isWbah, setIsWbah] = useState<boolean | null>(null);
@@ -73,37 +76,21 @@ export function PrefetchOnLogin({ authed }: Props) {
   useEffect(() => {
     if (!authed) { setIsWbah(null); return; }
     let active = true;
-    (async () => {
-      try {
-        const { data: sess } = await supabase.auth.getSession();
-        if (!sess.session) { if (active) setIsWbah(false); return; }
-        const { data: profile } = await supabase
-          .from("profiles")
-          .select("default_workspace_id")
-          .eq("user_id", sess.session.user.id)
-          .maybeSingle();
-        if (!profile?.default_workspace_id) { if (active) setIsWbah(false); return; }
-        const wsId = profile.default_workspace_id as string;
-        // Account isolation: if the active workspace changed since the last
-        // resolve (a different user logged in on this same SPA session), wipe
-        // the React Query cache so no prior workspace's data is served under
-        // the shared (non-workspace-keyed) query keys before fresh data loads.
+    Promise.all([getMyContextFn(), wbahAccessFn()])
+      .then(([ctx, access]) => {
+        if (!active) return;
+        const wsId = ctx.workspaceId;
         if (lastWorkspaceId !== null && lastWorkspaceId !== wsId) {
           qc.clear();
         }
         lastWorkspaceId = wsId;
-        const { data: ws } = await supabase
-          .from("workspaces")
-          .select("slug")
-          .eq("id", wsId)
-          .maybeSingle();
-        if (active) setIsWbah(ws?.slug === "webuyanyhouse");
-      } catch {
+        setIsWbah(access.isWbah);
+      })
+      .catch(() => {
         if (active) setIsWbah(false);
-      }
-    })();
+      });
     return () => { active = false; };
-  }, [authed]);
+  }, [authed, getMyContextFn, wbahAccessFn, qc]);
 
   useEffect(() => {
     if (!authed || isWbah === null) return;
@@ -139,10 +126,10 @@ export function PrefetchOnLogin({ authed }: Props) {
       (async () => {
         try {
           await wbahCallsCountFn();
-          await wbahCatFn({ data: { category: "disqualified",     page: 1, limit: 1 } });
+          await wbahCatFn({ data: { category: "disqualified", page: 1, limit: 1 } });
           await wbahCatFn({ data: { category: "tried_to_contact", page: 1, limit: 1 } });
-          await wbahCatFn({ data: { category: "rebooking",        page: 1, limit: 1 } });
-          await wbahCatFn({ data: { category: "disqualified",     page: 1, limit: 200 } });
+          await wbahCatFn({ data: { category: "rebook_initial_consultation", page: 1, limit: 1 } });
+          await wbahCatFn({ data: { category: "callback_request", page: 1, limit: 1 } });
         } catch {
           /* warming is best-effort; ignore failures */
         }

@@ -208,8 +208,10 @@ async function dispatchEngineCall(
   if (res.status === 401 && profile.auth_strategy === "enterprise_integration") {
     try {
       const { loginWithPassword } = await import("@/lib/integrations/webespokeEnterprise/client.server");
-      const password = process.env.WEBESPOKE_ADMIN_PASSWORD;
-      const email    = process.env.WEBESPOKE_ADMIN_EMAIL;
+      const { getWebespokeAdminCreds } = await import("@/lib/integrations/webespokeEnterprise/webespoke-env.server");
+      const creds = getWebespokeAdminCreds();
+      const password = creds?.password;
+      const email = creds?.email;
       if (password && email) {
         const loginRes = await loginWithPassword(email, password);
         if (loginRes.ok && loginRes.data) {

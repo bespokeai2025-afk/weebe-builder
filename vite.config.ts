@@ -31,6 +31,8 @@ export default defineConfig({
     server: { entry: "server" },
   },
   vite: {
+    // Expose WEBESPOKE_* from .env to SSR + import.meta.env (not only VITE_*).
+    envPrefix: ["VITE_", "WEBESPOKE_"],
     server: {
       host: "0.0.0.0",
       port: 5000,

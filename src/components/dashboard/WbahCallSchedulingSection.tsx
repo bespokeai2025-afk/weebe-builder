@@ -14,6 +14,9 @@ import {
   Globe,
   RefreshCw,
   CheckCircle2,
+  Database,
+  Eye,
+  Loader2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -33,6 +36,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
+import { Checkbox } from "@/components/ui/checkbox";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import {
@@ -44,7 +48,15 @@ import {
   resumeWbahCampaign,
   toggleWbahCampaignVoicemailSetting,
   getWbahAgentsForCampaign,
+  getWbahCampaignDynamicsSyncAccess,
+  previewWbahDynamicsCategorySync,
+  syncWbahDynamicsCategories,
 } from "@/lib/integrations/webespokeEnterprise/wbah-workspace.server";
+import type { DynamicsCategorySyncResult } from "@/lib/integrations/webespokeEnterprise/wbah-campaign-sync.types";
+import {
+  DYNAMICS_CATEGORY_LABELS,
+  WBAH_CAMPAIGN_LEAD_STATUS_OPTIONS,
+} from "@/lib/integrations/webespokeEnterprise/wbah-campaign-sync.types";
 
 const TIMEZONES = [
   { value: "Europe/London", label: "London (GMT/BST)" },
@@ -60,17 +72,7 @@ const TIMEZONES = [
   { value: "Australia/Sydney", label: "Sydney (AEST)" },
 ];
 
-const LEAD_STATUS_OPTIONS = [
-  { value: "new", label: "New" },
-  { value: "contacted", label: "Contacted" },
-  { value: "interested", label: "Interested" },
-  { value: "qualified", label: "Qualified" },
-  { value: "not_interested", label: "Not Interested" },
-  { value: "callback_requested", label: "Callback Requested" },
-  { value: "no_answer", label: "No Answer" },
-  { value: "scheduled", label: "Scheduled" },
-  { value: "completed", label: "Completed" },
-];
+const CAMPAIGN_LEAD_STATUS_OPTIONS = WBAH_CAMPAIGN_LEAD_STATUS_OPTIONS;
 
 function fmt12(time24: string) {
   const [h, m] = time24.split(":").map(Number);
@@ -105,7 +107,7 @@ type WbahAgent = {
 const BLANK = {
   campaign_name: "",
   agent_id: "",
-  lead_status: "",
+  lead_status: DYNAMICS_CATEGORY_LABELS.disqualified,
   call_time: "09:00",
   timezone: "Europe/London",
   frequency_type: "daily" as "daily" | "custom",
@@ -136,12 +138,21 @@ export function WbahCallSchedulingSection() {
   const pauseFn  = useServerFn(pauseWbahCampaign);
   const resumeFn = useServerFn(resumeWbahCampaign);
   const vmFn     = useServerFn(toggleWbahCampaignVoicemailSetting);
+  const syncAccessFn = useServerFn(getWbahCampaignDynamicsSyncAccess);
+  const previewSyncFn = useServerFn(previewWbahDynamicsCategorySync);
+  const liveSyncFn = useServerFn(syncWbahDynamicsCategories);
 
   const [search, setSearch] = useState("");
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editTarget, setEditTarget] = useState<WbahCampaign | null>(null);
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState(BLANK);
+
+  const [syncDialogOpen, setSyncDialogOpen] = useState(false);
+  const [scheduleOnSync, setScheduleOnSync] = useState(false);
+  const [previewing, setPreviewing] = useState(false);
+  const [syncing, setSyncing] = useState(false);
+  const [syncResult, setSyncResult] = useState<DynamicsCategorySyncResult | null>(null);
 
   const campaignsQ = useQuery({
     queryKey: QK_CAMPAIGNS,
@@ -155,10 +166,22 @@ export function WbahCallSchedulingSection() {
     queryFn: () => agentsFn(),
     refetchOnWindowFocus: false,
     throwOnError: false,
+    staleTime: 60_000,
   });
+
+  const syncAccessQ = useQuery({
+    queryKey: ["wbah-campaign-dynamics-sync-access"],
+    queryFn: () => syncAccessFn(),
+    staleTime: 60_000,
+    throwOnError: false,
+  });
+
+  const canPreviewSync = syncAccessQ.data?.canPreview ?? true;
+  const canLiveSync = syncAccessQ.data?.canSync ?? true;
 
   const campaigns = (campaignsQ.data ?? []) as WbahCampaign[];
   const agents    = (agentsQ.data ?? []) as WbahAgent[];
+  const leadStatusOptions = CAMPAIGN_LEAD_STATUS_OPTIONS;
 
   const filtered = search.trim()
     ? campaigns.filter((c) => campaignName(c).toLowerCase().includes(search.toLowerCase()))
@@ -172,14 +195,19 @@ export function WbahCallSchedulingSection() {
     setEditTarget(null);
     setForm(BLANK);
     setDialogOpen(true);
+    void qc.invalidateQueries({ queryKey: QK_AGENTS });
   }
 
   function openEdit(c: WbahCampaign) {
     setEditTarget(c);
+    const status = c.lead_status ?? "";
+    const allowed = CAMPAIGN_LEAD_STATUS_OPTIONS.some((o) => o.value === status)
+      ? status
+      : DYNAMICS_CATEGORY_LABELS.disqualified;
     setForm({
       campaign_name:    campaignName(c),
       agent_id:         c.agent_id ?? "",
-      lead_status:      c.lead_status ?? "",
+      lead_status:      allowed,
       call_time:        c.call_time ?? "09:00",
       timezone:         c.timezone ?? "Europe/London",
       frequency_type:   c.frequency_type ?? "daily",
@@ -187,16 +215,93 @@ export function WbahCallSchedulingSection() {
       voicemail_enabled: c.voicemail_enabled ?? false,
     });
     setDialogOpen(true);
+    void qc.invalidateQueries({ queryKey: QK_AGENTS });
+  }
+
+  async function handlePreviewSync() {
+    setPreviewing(true);
+    setSyncResult(null);
+    try {
+      const result = await previewSyncFn();
+      setSyncResult(result);
+      toast.success("Dynamics preview loaded");
+    } catch (e) {
+      const msg = (e as Error).message;
+      toast.error(msg.includes("permission") ? msg : "Preview failed", { description: msg });
+    } finally {
+      setPreviewing(false);
+    }
+  }
+
+  async function handleLiveSync() {
+    setSyncing(true);
+    try {
+      const result = await liveSyncFn({ data: { scheduleCampaign: scheduleOnSync } });
+      setSyncResult(result);
+      setSyncDialogOpen(false);
+      toast.success("Dynamics sync completed");
+      qc.invalidateQueries({ queryKey: QK_CAMPAIGNS });
+    } catch (e) {
+      const msg = (e as Error).message;
+      toast.error(msg.includes("permission") ? msg : "Sync failed", { description: msg });
+    } finally {
+      setSyncing(false);
+    }
+  }
+
+  function renderSyncResultTable(result: DynamicsCategorySyncResult, showWrites: boolean) {
+    return (
+      <div className="mt-3 overflow-x-auto rounded-lg border border-white/[0.06]">
+        <table className="w-full text-left text-[11px]">
+          <thead>
+            <tr className="border-b border-white/[0.06] bg-white/[0.02] text-muted-foreground">
+              <th className="px-3 py-2 font-medium">Category</th>
+              <th className="px-3 py-2 font-medium">Dynamics</th>
+              <th className="px-3 py-2 font-medium">No mobile</th>
+              {showWrites && (
+                <>
+                  <th className="px-3 py-2 font-medium">Inserted</th>
+                  <th className="px-3 py-2 font-medium">Updated</th>
+                  <th className="px-3 py-2 font-medium">Expired</th>
+                </>
+              )}
+            </tr>
+          </thead>
+          <tbody>
+            {result.categories.map((c) => (
+              <tr key={c.slug} className="border-b border-white/[0.04] last:border-0">
+                <td className="px-3 py-2 font-medium text-foreground">
+                  {DYNAMICS_CATEGORY_LABELS[c.slug] ?? c.leadStatus}
+                </td>
+                <td className="px-3 py-2 tabular-nums">{c.dynamicsFetched}</td>
+                <td className="px-3 py-2 tabular-nums text-muted-foreground">{c.skippedNoMobile}</td>
+                {showWrites && (
+                  <>
+                    <td className="px-3 py-2 tabular-nums text-emerald-400">{c.insertedCount}</td>
+                    <td className="px-3 py-2 tabular-nums text-blue-400">{c.updatedCount}</td>
+                    <td className="px-3 py-2 tabular-nums text-amber-400">{c.expiredCount}</td>
+                  </>
+                )}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    );
   }
 
   async function handleSave() {
     if (!form.campaign_name.trim()) { toast.error("Campaign name is required"); return; }
+    if (!form.lead_status || !CAMPAIGN_LEAD_STATUS_OPTIONS.some((o) => o.value === form.lead_status)) {
+      toast.error("Select a lead category (Disqualified, Tried To Contact, or Rebook Initial Consultation)");
+      return;
+    }
     setSaving(true);
     try {
       const payload = {
         campaign_name:    form.campaign_name.trim(),
         agent_id:         form.agent_id || null,
-        lead_status:      form.lead_status || null,
+        lead_status:      form.lead_status,
         call_time:        form.call_time,
         timezone:         form.timezone,
         frequency_type:   form.frequency_type,
@@ -220,6 +325,8 @@ export function WbahCallSchedulingSection() {
   }
 
   async function handleDelete(c: WbahCampaign) {
+    const name = campaignName(c);
+    if (!window.confirm(`Delete campaign "${name}"? This cannot be undone.`)) return;
     try {
       await deleteFn({ data: { id: campaignId(c) } });
       toast.success("Campaign deleted");
@@ -259,8 +366,8 @@ export function WbahCallSchedulingSection() {
   };
 
   const statusLabel = (filter: string | null | undefined) => {
-    if (!filter) return "All Leads (no filter)";
-    return LEAD_STATUS_OPTIONS.find((s) => s.value === filter)?.label ?? filter;
+    if (!filter) return "—";
+    return leadStatusOptions.find((s) => s.value === filter)?.label ?? filter;
   };
 
   return (
@@ -277,6 +384,75 @@ export function WbahCallSchedulingSection() {
           <Plus className="h-4 w-4 mr-1" />
           Create Call Campaign
         </Button>
+      </div>
+
+      {/* Dynamics category sync */}
+      <div className="rounded-xl border border-white/[0.06] bg-card/50 p-4">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <div className="flex items-center gap-2 text-sm font-semibold">
+              <Database className="h-4 w-4 text-violet-400" />
+              Dynamics lead sync
+            </div>
+            <p className="mt-1 text-[11px] text-muted-foreground max-w-xl">
+              Import Disqualified, Tried To Contact, and Rebook Initial Consultation from Dynamics
+              into CRM_data for campaign dialing.
+            </p>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            {canPreviewSync && (
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-8 text-xs"
+                disabled={previewing || syncing}
+                onClick={() => void handlePreviewSync()}
+              >
+                {previewing ? (
+                  <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" />
+                ) : (
+                  <Eye className="h-3.5 w-3.5 mr-1" />
+                )}
+                Preview Dynamics sync
+              </Button>
+            )}
+            {canLiveSync && (
+              <Button
+                size="sm"
+                className="h-8 text-xs"
+                disabled={previewing || syncing}
+                onClick={() => {
+                  setScheduleOnSync(false);
+                  setSyncDialogOpen(true);
+                }}
+              >
+                <Database className="h-3.5 w-3.5 mr-1" />
+                Sync from Dynamics
+              </Button>
+            )}
+          </div>
+        </div>
+
+        {syncResult && (
+          <div className="mt-3">
+            <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+              {syncResult.dryRun ? "Preview results" : "Last sync results"}
+            </p>
+            {renderSyncResultTable(syncResult, !syncResult.dryRun)}
+            {!syncResult.dryRun && syncResult.campaignsScheduled.length > 0 && (
+              <p className="mt-2 text-[11px] text-muted-foreground">
+                Campaigns scheduled:{" "}
+                <span className="text-foreground">{syncResult.campaignsScheduled.join(", ")}</span>
+              </p>
+            )}
+            {syncResult.duplicateLeadIds.length > 0 && (
+              <div className="mt-2 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-[11px] text-amber-200">
+                {syncResult.duplicateLeadIds.length} lead_id(s) have multiple CRM_data rows
+                (legacy null-slug rows may need cleanup).
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Stats grid */}
@@ -458,6 +634,19 @@ export function WbahCallSchedulingSection() {
                 <Label className="text-xs">Select Call Agent</Label>
                 {agentsQ.isLoading ? (
                   <p className="mt-1 text-[11px] text-muted-foreground">Loading agents…</p>
+                ) : agentsQ.isError ? (
+                  <div className="mt-1 space-y-1">
+                    <p className="text-[11px] text-amber-400">Failed to load agents from UAT.</p>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="h-7 text-[11px]"
+                      onClick={() => void agentsQ.refetch()}
+                    >
+                      Retry
+                    </Button>
+                  </div>
                 ) : agents.length === 0 ? (
                   <p className="mt-1 text-[11px] text-amber-400">
                     No agents found in your WeeBespoke account.
@@ -492,15 +681,14 @@ export function WbahCallSchedulingSection() {
               <div>
                 <Label className="text-xs">Target Lead Status</Label>
                 <Select
-                  value={form.lead_status || "__all__"}
-                  onValueChange={(v) => setForm((f) => ({ ...f, lead_status: v === "__all__" ? "" : v }))}
+                  value={form.lead_status}
+                  onValueChange={(v) => setForm((f) => ({ ...f, lead_status: v }))}
                 >
                   <SelectTrigger className="mt-1 h-8 text-xs">
-                    <SelectValue />
+                    <SelectValue placeholder="Select lead category" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="__all__">All Leads (no filter)</SelectItem>
-                    {LEAD_STATUS_OPTIONS.map((s) => (
+                    {leadStatusOptions.map((s) => (
                       <SelectItem key={s.value} value={s.value}>
                         {s.label}
                       </SelectItem>
@@ -597,6 +785,43 @@ export function WbahCallSchedulingSection() {
             </Button>
             <Button size="sm" onClick={handleSave} disabled={saving}>
               {saving ? "Saving…" : editTarget ? "Save Changes" : "Launch Campaign"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={syncDialogOpen} onOpenChange={(o) => { if (!syncing) setSyncDialogOpen(o); }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-sm">Sync from Dynamics</DialogTitle>
+          </DialogHeader>
+          <p className="text-xs text-muted-foreground">
+            Import leads from Dynamics into CRM_data? This updates Disqualified, Tried To Contact,
+            and Rebook Initial Consultation cohorts (30-day retention).
+          </p>
+          <label className="flex items-start gap-2 mt-3 cursor-pointer">
+            <Checkbox
+              checked={scheduleOnSync}
+              onCheckedChange={(v) => setScheduleOnSync(v === true)}
+              className="mt-0.5"
+            />
+            <span className="text-xs text-muted-foreground">
+              Also schedule active matching campaigns (queues call jobs for matching lead_status)
+            </span>
+          </label>
+          <DialogFooter className="gap-2 pt-2">
+            <Button variant="outline" size="sm" onClick={() => setSyncDialogOpen(false)} disabled={syncing}>
+              Cancel
+            </Button>
+            <Button size="sm" onClick={() => void handleLiveSync()} disabled={syncing}>
+              {syncing ? (
+                <>
+                  <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" />
+                  Syncing…
+                </>
+              ) : (
+                "Run sync"
+              )}
             </Button>
           </DialogFooter>
         </DialogContent>

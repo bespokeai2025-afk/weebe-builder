@@ -5,10 +5,17 @@
  * Tokens are never returned to the client; they live only in the DB and in
  * server-function memory during a request.
  *
- * Base: https://uat-api.webespokeai.com
+ * Base: WEBESPOKE_API_BASE_URL in .env (default https://uat-api.webespokeai.com)
  */
 
-const BASE_URL = "https://uat-api.webespokeai.com";
+const DEFAULT_API_BASE = "https://uat-api.webespokeai.com";
+
+export function getWebespokeApiBaseUrl(): string {
+  const raw =
+    process.env.WEBESPOKE_API_BASE_URL?.trim() ||
+    (import.meta.env.WEBESPOKE_API_BASE_URL as string | undefined)?.trim();
+  return (raw || DEFAULT_API_BASE).replace(/\/$/, "");
+}
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -28,7 +35,7 @@ async function apiFetch<T>(
   path: string,
   options: RequestInit = {},
 ): Promise<ApiResponse<T>> {
-  const url = `${BASE_URL}${path}`;
+  const url = `${getWebespokeApiBaseUrl()}${path}`;
   try {
     const res = await fetch(url, {
       ...options,
@@ -53,10 +60,32 @@ function authHeader(token: string): Record<string, string> {
 
 // ── Auto-refresh wrapper ──────────────────────────────────────────────────────
 
-function extractToken(d: unknown): string | null {
-  const o = d as any;
+/** UAT wraps tokens in `{ result, data: { accessToken, refreshToken } }`. */
+export function parseWeeBespokeAuthEnvelope(
+  body: unknown,
+): { accessToken: string; refreshToken: string; user?: unknown } | null {
+  const o = body as Record<string, unknown> | null;
   if (!o) return null;
-  return o.accessToken ?? o.token ?? o.data?.accessToken ?? o.data?.token ?? null;
+  const inner =
+    o.data && typeof o.data === "object"
+      ? (o.data as Record<string, unknown>)
+      : o;
+  const accessToken =
+    (inner.accessToken as string | undefined) ??
+    (inner.token as string | undefined) ??
+    (inner.access_token as string | undefined) ??
+    (inner.jwt as string | undefined) ??
+    null;
+  if (!accessToken) return null;
+  const refreshToken =
+    (inner.refreshToken as string | undefined) ??
+    (inner.refresh_token as string | undefined) ??
+    "";
+  return { accessToken, refreshToken, user: inner };
+}
+
+function extractToken(d: unknown): string | null {
+  return parseWeeBespokeAuthEnvelope(d)?.accessToken ?? null;
 }
 
 export async function authenticatedFetch<T>(
@@ -149,8 +178,9 @@ export async function verifyOtp(email: string, otp: string) {
 }
 
 export async function refreshTokenRequest(refreshToken: string) {
-  return apiFetch<{ accessToken?: string; token?: string }>("/admin/refresh-token", {
-    method: "POST", body: JSON.stringify({ refreshToken }),
+  return apiFetch<{ accessToken?: string; token?: string }>("/auth/refresh-token", {
+    method: "POST",
+    body: JSON.stringify({ refreshToken }),
   });
 }
 
@@ -224,6 +254,10 @@ export const wbahGetAllCallOutput = (gt: GetTokens, st: SaveToken) =>
 export const wbahGetCrmData = (gt: GetTokens, st: SaveToken) =>
   aGet("/crm-data/get-crm-data", gt, st);
 
+/** Paginated / filtered CRM_data read (lead_status, isCallbackPending, currentPage, pageSize). */
+export const wbahGetCrmDataPath = (path: string, gt: GetTokens, st: SaveToken, rl?: Relogin) =>
+  aGet(path, gt, st, rl);
+
 export const wbahCreateCrmLead = (payload: Record<string, unknown>, gt: GetTokens, st: SaveToken) =>
   aPost("/crm-data/create", payload, gt, st);
 
@@ -245,7 +279,7 @@ export async function wbahUploadCrmExcel(
   const form = new FormData();
   form.append("file", file);
   try {
-    const res = await fetch(`${BASE_URL}/crm-data/upload-excel`, {
+    const res = await fetch(`${getWebespokeApiBaseUrl()}/crm-data/upload-excel`, {
       method: "POST",
       headers: { Authorization: `Bearer ${accessToken}` },
       body: form,
@@ -263,6 +297,9 @@ export async function wbahUploadCrmExcel(
 
 export const wbahGetCampaigns = (gt: GetTokens, st: SaveToken, rl?: Relogin) =>
   aGet("/campaigns", gt, st, rl);
+
+export const wbahGetCampaignLeadStatusOptions = (gt: GetTokens, st: SaveToken, rl?: Relogin) =>
+  aGet("/campaigns/lead-status-options", gt, st, rl);
 
 export const wbahCreateCampaign = (payload: Record<string, unknown>, gt: GetTokens, st: SaveToken, rl?: Relogin) =>
   aPost("/campaigns", payload, gt, st, rl);
@@ -285,10 +322,31 @@ export const wbahCampaignVoicemail = (id: string, payload: Record<string, unknow
 export const wbahDeleteCampaign = (id: string, gt: GetTokens, st: SaveToken, rl?: Relogin) =>
   aDel(`/campaigns/${id}`, gt, st, undefined, rl);
 
+export const wbahPreviewDynamicsCategorySync = (gt: GetTokens, st: SaveToken, rl?: Relogin) =>
+  aGet("/campaigns/sync-dynamics-categories/preview", gt, st, rl);
+
+export const wbahSyncDynamicsCategories = (
+  scheduleCampaign: boolean,
+  gt: GetTokens,
+  st: SaveToken,
+  rl?: Relogin,
+) =>
+  aPost("/campaigns/sync-dynamics-categories", { scheduleCampaign }, gt, st, rl);
+
 // ── Agents ────────────────────────────────────────────────────────────────────
 
-export const wbahGetAgents = (gt: GetTokens, st: SaveToken, rl?: Relogin) =>
-  aGet("/agent/get-list", gt, st, rl);
+export const wbahGetAgents = (
+  gt: GetTokens,
+  st: SaveToken,
+  rl?: Relogin,
+  opts?: { campaignOnly?: boolean },
+) =>
+  aGet(
+    `/agent/get-list${opts?.campaignOnly ? "?campaign_only=true" : ""}`,
+    gt,
+    st,
+    rl,
+  );
 
 export const wbahGetAgentsWithVoicemail = (gt: GetTokens, st: SaveToken) =>
   aGet("/agent/get-agents-with-voicemail", gt, st);
