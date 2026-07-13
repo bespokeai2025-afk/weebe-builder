@@ -9220,6 +9220,51 @@ export type Database = {
           },
         ]
       }
+      systemmind_requirements_interviews: {
+        Row: {
+          agent_id: string
+          answers: Json
+          created_at: string
+          created_by_user_id: string | null
+          detected: Json
+          id: string
+          last_generated_version_id: string | null
+          questions: Json
+          session_id: string
+          status: string
+          updated_at: string
+          workspace_id: string
+        }
+        Insert: {
+          agent_id: string
+          answers?: Json
+          created_at?: string
+          created_by_user_id?: string | null
+          detected?: Json
+          id?: string
+          last_generated_version_id?: string | null
+          questions?: Json
+          session_id: string
+          status?: string
+          updated_at?: string
+          workspace_id: string
+        }
+        Update: {
+          agent_id?: string
+          answers?: Json
+          created_at?: string
+          created_by_user_id?: string | null
+          detected?: Json
+          id?: string
+          last_generated_version_id?: string | null
+          questions?: Json
+          session_id?: string
+          status?: string
+          updated_at?: string
+          workspace_id?: string
+        }
+        Relationships: []
+      }
       systemmind_runs: {
         Row: {
           completed_at: string | null

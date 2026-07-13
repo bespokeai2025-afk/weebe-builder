@@ -14,10 +14,12 @@ import {
   ShieldAlert, Rocket, GitBranch, Variable, ListChecks, Bell, StickyNote,
   ArrowRight, Bot, Workflow as WorkflowIcon, ExternalLink, ShieldCheck,
   Undo2, GitCompareArrows, FilePlus2, Copy, SendToBack, Import, Info,
+  ClipboardList,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { SystemMindShell } from "./SystemMindShell";
 import { DeploymentChecklistPanel } from "./DeploymentChecklistPanel";
+import { RequirementsPanel } from "./RequirementsPanel";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
@@ -390,7 +392,7 @@ export function SystemMindBuildWorkspacePage() {
   const conversionFn  = useServerFn(getConversionForSession);
 
   const [prompt, setPrompt]           = useState("");
-  const [tab, setTab]                 = useState<"config" | "test" | "versions" | "usage" | "conversion" | "deploy">("config");
+  const [tab, setTab]                 = useState<"config" | "test" | "versions" | "usage" | "conversion" | "deploy" | "requirements">("config");
   const [convertOpen, setConvertOpen]   = useState(false);
   const [convertType, setConvertType]   = useState<string>("");
   const [convertSourceId, setConvertSourceId] = useState<string>("");
@@ -875,6 +877,7 @@ export function SystemMindBuildWorkspacePage() {
                     ["test",     FlaskConical, "Test"],
                     ["versions", History,      "Versions"],
                     ["usage",    Gauge,        "Usage"],
+                    ...(session.target_agent_id ? ([["requirements", ClipboardList, "Requirements"]] as const) : []),
                     ...(session.target_agent_id ? ([["deploy", Rocket, "Deploy"]] as const) : []),
                     ...(conversion ? ([["conversion", Import, "Conversion"]] as const) : []),
                   ] as const).map(([key, Icon, label]) => (
@@ -1088,6 +1091,17 @@ export function SystemMindBuildWorkspacePage() {
 
                   {tab === "deploy" && session.target_agent_id && (
                     <DeploymentChecklistPanel agentId={session.target_agent_id} />
+                  )}
+
+                  {tab === "requirements" && session.target_agent_id && (
+                    <RequirementsPanel
+                      agentId={session.target_agent_id}
+                      currentRequirements={(config?.requirements as Record<string, any>) ?? null}
+                      onVersionCreated={() => {
+                        qc.invalidateQueries({ queryKey: ["smbw-session", sessionId] });
+                        qc.invalidateQueries({ queryKey: ["smbw-sessions"] });
+                      }}
+                    />
                   )}
 
                   {tab === "usage" && (
