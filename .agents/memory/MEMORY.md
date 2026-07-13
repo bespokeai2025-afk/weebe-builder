@@ -112,3 +112,4 @@
 - [Supabase types regeneration](supabase-typegen-refresh.md) — Mgmt API /types/typescript endpoint; repo never typechecks clean, so diff errors vs a baseline instead of expecting zero.
 - [Build Workspace apply protection](build-workspace-apply-protection.md) — impact/conflict engine + snapshots on every apply; custom_agent_configs has REAL FKs (workspaces+agents) unlike most workspace_id tables — e2e needs real fixture rows.
 - [SystemMind Legacy Logic Converter](legacy-conversion-arch.md) — legacy sources → Build Workspace DRAFTS + report; never-overwrite, cred-scrub-before-store, WBAH blocked; hivemind_tasks status must be "suggested"; workspace_workflows has status not is_active.
+- [SystemMind Deployment Orchestrator](deployment-orchestrator-arch.md) — live-recomputed 14-item checklist; atomic single-use approvals w/ post-consume re-validation; reuses manual deploy services.

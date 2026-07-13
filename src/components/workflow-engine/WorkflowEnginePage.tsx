@@ -36,6 +36,12 @@ import {
   type WorkflowRun,
 } from "@/lib/workflow-engine/workflow-engine.functions";
 import { WorkflowBuilder } from "@/components/workflow-engine/WorkflowBuilder";
+import { DeploymentChecklistPanel } from "@/components/systemmind/DeploymentChecklistPanel";
+import {
+  listAgentDeployments,
+  setDeploymentActive,
+} from "@/lib/systemmind/deployment-orchestrator.functions";
+import { Rocket } from "lucide-react";
 
 const TRIGGER_LABELS: Record<string, string> = {
   manual:                   "Manual",
@@ -233,6 +239,9 @@ export function WorkflowEnginePage() {
           </TabsTrigger>
           <TabsTrigger value="templates" className="gap-2">
             <Settings className="h-3.5 w-3.5" />Templates
+          </TabsTrigger>
+          <TabsTrigger value="deployments" className="gap-2" data-testid="tab-deployments">
+            <Rocket className="h-3.5 w-3.5" />Deployments
           </TabsTrigger>
         </TabsList>
 
@@ -447,6 +456,11 @@ export function WorkflowEnginePage() {
             ))}
           </div>
         </TabsContent>
+
+        {/* ── Deployments Tab ── */}
+        <TabsContent value="deployments" className="mt-4">
+          <DeploymentsTab />
+        </TabsContent>
       </Tabs>
 
       {/* Create Workflow Dialog */}
@@ -509,6 +523,118 @@ export function WorkflowEnginePage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+    </div>
+  );
+}
+
+// ── Deployments tab — SystemMind-orchestrated agent deployments ────────────────
+function DeploymentsTab() {
+  const qc = useQueryClient();
+  const listFn = useServerFn(listAgentDeployments);
+  const activeFn = useServerFn(setDeploymentActive);
+  const [expanded, setExpanded] = useState<string | null>(null);
+
+  const depsQ = useQuery({
+    queryKey: ["sm-deployments"],
+    queryFn: () => listFn(),
+    throwOnError: false,
+  });
+
+  const toggleActive = useMutation({
+    mutationFn: (vars: { deploymentId: string; active: boolean }) =>
+      activeFn({ data: vars }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["sm-deployments"] });
+      toast.success("Deployment updated");
+    },
+    onError: (e: any) => toast.error("Update failed", { description: e?.message }),
+  });
+
+  const rows = (depsQ.data ?? []) as Array<Record<string, any>>;
+
+  const statusColor: Record<string, string> = {
+    live:        "border-emerald-500/30 text-emerald-400 bg-emerald-500/5",
+    ready:       "border-primary/30 text-primary bg-primary/5",
+    blocked:     "border-red-500/30 text-red-400 bg-red-500/5",
+    in_progress: "border-amber-500/30 text-amber-400 bg-amber-500/5",
+    abandoned:   "border-muted-foreground/30 text-muted-foreground",
+  };
+
+  if (depsQ.isLoading) {
+    return (
+      <div className="flex items-center gap-2 text-muted-foreground text-sm">
+        <Loader2 className="h-4 w-4 animate-spin" /> Loading deployments…
+      </div>
+    );
+  }
+
+  if (rows.length === 0) {
+    return (
+      <div className="rounded-xl border border-dashed border-white/[0.08] p-10 text-center">
+        <Rocket className="h-8 w-8 mx-auto text-muted-foreground/40 mb-3" />
+        <p className="text-sm text-muted-foreground">
+          No guided deployments yet. Start one from the Agents page ("Guided deployment"), the
+          agent builder, or the Deploy dialog.
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-3" data-testid="deployments-list">
+      <p className="text-sm text-muted-foreground">
+        SystemMind-guided agent deployments in this workspace. Billing and live-affecting steps
+        always required your approval.
+      </p>
+      {rows.map((d) => (
+        <Card key={d.id} data-testid={`deployment-row-${d.id}`}>
+          <CardContent className="py-4 space-y-3">
+            <div className="flex flex-wrap items-center gap-2">
+              <Rocket className="h-4 w-4 text-primary shrink-0" />
+              <span className="text-sm font-medium capitalize">
+                {(d.deployment_type ?? "agent").replace("_", " ")} deployment
+              </span>
+              <Badge variant="outline" className={cn("text-[10px] capitalize", statusColor[d.status] ?? "")}>
+                {(d.status ?? "").replace("_", " ")}
+              </Badge>
+              {d.phone_number && (
+                <Badge variant="secondary" className="text-[10px]">{d.phone_number}</Badge>
+              )}
+              {d.build_version_id && (
+                <Badge variant="outline" className="text-[10px]">Build Workspace</Badge>
+              )}
+              <span className="text-xs text-muted-foreground ml-auto">
+                {d.created_at ? formatDistanceToNow(new Date(d.created_at), { addSuffix: true }) : ""}
+              </span>
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-7 text-xs"
+                onClick={() => setExpanded(expanded === d.id ? null : d.id)}
+                data-testid={`button-expand-${d.id}`}
+              >
+                {expanded === d.id ? "Hide checklist" : "View checklist"}
+              </Button>
+              {d.status !== "live" && (
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="h-7 text-xs text-muted-foreground"
+                  disabled={toggleActive.isPending}
+                  onClick={() =>
+                    toggleActive.mutate({ deploymentId: d.id, active: d.status === "abandoned" })
+                  }
+                >
+                  {d.status === "abandoned" ? "Resume" : "Pause"}
+                </Button>
+              )}
+            </div>
+            {expanded === d.id && d.agent_id && (
+              <DeploymentChecklistPanel agentId={d.agent_id} />
+            )}
+          </CardContent>
+        </Card>
+      ))}
     </div>
   );
 }

@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { SystemMindShell } from "./SystemMindShell";
+import { DeploymentChecklistPanel } from "./DeploymentChecklistPanel";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
@@ -389,7 +390,7 @@ export function SystemMindBuildWorkspacePage() {
   const conversionFn  = useServerFn(getConversionForSession);
 
   const [prompt, setPrompt]           = useState("");
-  const [tab, setTab]                 = useState<"config" | "test" | "versions" | "usage" | "conversion">("config");
+  const [tab, setTab]                 = useState<"config" | "test" | "versions" | "usage" | "conversion" | "deploy">("config");
   const [convertOpen, setConvertOpen]   = useState(false);
   const [convertType, setConvertType]   = useState<string>("");
   const [convertSourceId, setConvertSourceId] = useState<string>("");
@@ -874,6 +875,7 @@ export function SystemMindBuildWorkspacePage() {
                     ["test",     FlaskConical, "Test"],
                     ["versions", History,      "Versions"],
                     ["usage",    Gauge,        "Usage"],
+                    ...(session.target_agent_id ? ([["deploy", Rocket, "Deploy"]] as const) : []),
                     ...(conversion ? ([["conversion", Import, "Conversion"]] as const) : []),
                   ] as const).map(([key, Icon, label]) => (
                     <button
@@ -1082,6 +1084,10 @@ export function SystemMindBuildWorkspacePage() {
                         </div>
                       )}
                     </div>
+                  )}
+
+                  {tab === "deploy" && session.target_agent_id && (
+                    <DeploymentChecklistPanel agentId={session.target_agent_id} />
                   )}
 
                   {tab === "usage" && (

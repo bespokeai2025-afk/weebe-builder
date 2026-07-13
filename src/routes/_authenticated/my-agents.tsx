@@ -8,6 +8,14 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useTablePagination, TablePagBar } from "@/components/ui/table-pagination";
 import { DeployAgentDialog } from "@/components/agents/DeployAgentDialog";
+import { DeploymentChecklistPanel } from "@/components/systemmind/DeploymentChecklistPanel";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { AgentCard, type AgentCardData, deriveVoiceProvider } from "@/components/agents/AgentCard";
 import {
   AlertDialog,
@@ -50,6 +58,7 @@ function MyAgentsPage() {
   const qc = useQueryClient();
   const [loadingId, setLoadingId] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string } | null>(null);
+  const [guidedTarget, setGuidedTarget] = useState<{ id: string; name: string } | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [query, setQuery] = useState("");
   const { engine: voiceFilter } = useSearch({ from: "/_authenticated/my-agents" });
@@ -266,6 +275,7 @@ function MyAgentsPage() {
                     inbound_phone_number: (a as any).inbound_phone_number ?? null,
                   })
                 }
+                onGuidedDeploy={() => setGuidedTarget({ id: a.id, name: a.name })}
                 onDelete={() => setDeleteTarget({ id: a.id, name: a.name })}
               />
             ))}
@@ -299,6 +309,19 @@ function MyAgentsPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <Dialog open={Boolean(guidedTarget)} onOpenChange={(o) => !o && setGuidedTarget(null)}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Guided deployment — {guidedTarget?.name}</DialogTitle>
+            <DialogDescription>
+              SystemMind walks this agent through deployment step by step. Billing and
+              live-affecting actions always need your approval.
+            </DialogDescription>
+          </DialogHeader>
+          {guidedTarget && <DeploymentChecklistPanel agentId={guidedTarget.id} />}
+        </DialogContent>
+      </Dialog>
 
       <DeployAgentDialog
         open={Boolean(deployTarget)}
