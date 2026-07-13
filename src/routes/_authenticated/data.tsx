@@ -2,11 +2,31 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState, useMemo, useEffect, useRef } from "react";
-import { Database, PhoneOutgoing, CalendarClock, UserCheck, Search, X, UserPlus, RotateCcw, BarChart3, Users, RefreshCw, Download, AlertCircle, Phone, FileText, ExternalLink } from "lucide-react";
+import {
+  Database,
+  PhoneOutgoing,
+  CalendarClock,
+  UserCheck,
+  Search,
+  X,
+  UserPlus,
+  RotateCcw,
+  BarChart3,
+  Users,
+  RefreshCw,
+  Download,
+  AlertCircle,
+  Phone,
+  Play,
+  FileText,
+  ExternalLink,
+  Eye,
+} from "lucide-react";
 import { WbahCallSchedulingSection } from "@/components/dashboard/WbahCallSchedulingSection";
 import { StartCallsDialog } from "@/components/dashboard/StartCallsDialog";
 import { DashboardPage, KpiCard, stickyCell, stickyHead } from "@/components/dashboard/PageShell";
 import { PlayRecordingButton } from "@/components/RecordingPlayerDialog";
+import { wbahDateTimeOptions } from "@/lib/dashboard/wbah-timezone";
 import { cn } from "@/lib/utils";
 import { LoadingProgress } from "@/components/dashboard/LoadingProgress";
 import { Card, CardContent } from "@/components/ui/card";
@@ -48,10 +68,16 @@ import {
 } from "@/lib/dashboard/data-records.functions";
 import { getCallSchedule, setCallSchedule } from "@/lib/dashboard/call-schedule.functions";
 import { listLiveAgents } from "@/lib/agents/agents.functions";
-import { listWbahLeadsForPeople, listWbahCallsCount, listWbahCallsPaged, getWbahCallDetail, listWbahCategorizedLeads, listWbahPeopleCategories, triggerWbahCategorySync, getWbahCategorySyncLog, getWbahCategorySyncAccess } from "@/lib/integrations/webespokeEnterprise/wbah-workspace.server";
+import {
+  listWbahLeadsForPeople,
+  listWbahCallsCount,
+  listWbahCallsPaged,
+  getWbahCallDetail,
+  listWbahCategorizedLeads,
+  listWbahPeopleCategories,
+} from "@/lib/integrations/webespokeEnterprise/wbah-workspace.server";
 import { useWbahAgentOptions } from "@/hooks/useWbahAgentOptions";
-import { wbahDateTimeOptions } from "@/lib/dashboard/wbah-timezone";
-import { supabase } from "@/integrations/supabase/client";
+import { useIsWbahWorkspace } from "@/hooks/useIsWbahWorkspace";
 
 export const Route = createFileRoute("/_authenticated/data")({
   head: () => ({ meta: [{ title: "Data Records — Webee" }] }),
@@ -83,26 +109,27 @@ const CALL_STATUSES = [
   { value: "disqualified", label: "Disqualified" },
 ] as const;
 
-const SYSTEM_FIELDS: Array<{ value: string; label: string; required?: boolean; custom?: boolean }> = [
-  { value: "name", label: "Name", required: true },
-  { value: "mobile_number", label: "Mobile Number", required: true },
-  { value: "first_name", label: "First Name" },
-  { value: "last_name", label: "Last Name" },
-  { value: "email", label: "Email" },
-  { value: "title", label: "Title" },
-  { value: "client_name", label: "Client Name" },
-  { value: "unique_id", label: "Unique ID" },
-  { value: "lead_external_id", label: "Lead External ID" },
-  { value: "property_type", label: "Property Type" },
-  { value: "bedrooms", label: "Bedrooms" },
-  { value: "address_line1", label: "Address Line 1" },
-  { value: "address_line2", label: "Address Line 2" },
-  { value: "city", label: "City" },
-  { value: "state", label: "State" },
-  { value: "postal_code", label: "Postal Code" },
-  { value: "notes", label: "Notes" },
-  { value: "__custom__", label: "Custom field (stored in meta)", custom: true },
-];
+const SYSTEM_FIELDS: Array<{ value: string; label: string; required?: boolean; custom?: boolean }> =
+  [
+    { value: "name", label: "Name", required: true },
+    { value: "mobile_number", label: "Mobile Number", required: true },
+    { value: "first_name", label: "First Name" },
+    { value: "last_name", label: "Last Name" },
+    { value: "email", label: "Email" },
+    { value: "title", label: "Title" },
+    { value: "client_name", label: "Client Name" },
+    { value: "unique_id", label: "Unique ID" },
+    { value: "lead_external_id", label: "Lead External ID" },
+    { value: "property_type", label: "Property Type" },
+    { value: "bedrooms", label: "Bedrooms" },
+    { value: "address_line1", label: "Address Line 1" },
+    { value: "address_line2", label: "Address Line 2" },
+    { value: "city", label: "City" },
+    { value: "state", label: "State" },
+    { value: "postal_code", label: "Postal Code" },
+    { value: "notes", label: "Notes" },
+    { value: "__custom__", label: "Custom field (stored in meta)", custom: true },
+  ];
 
 function normaliseKey(s: string) {
   return s.toLowerCase().replace(/[\s_\-().]/g, "");
@@ -253,23 +280,26 @@ function fmtMs(ms: number | null | undefined): string {
 
 function wbahCallStatusBadge(status: string | null | undefined): { label: string; cls: string } {
   const s = (status ?? "").toLowerCase();
-  if (s === "need_to_call" || s === "need to call") return { label: "Need To Call", cls: "bg-amber-500/15 text-amber-400" };
-  if (s === "not_connected" || s === "no_answer" || s === "not connected") return { label: "Not Connected", cls: "bg-orange-500/15 text-orange-400" };
-  if (s === "call_analyzed" || s === "completed" || s === "ended") return { label: "Completed", cls: "bg-emerald-500/15 text-emerald-400" };
-  if (s === "disqualified" || s === "rejected" || s === "not_interested") return { label: "Disqualified", cls: "bg-rose-500/15 text-rose-400" };
+  if (s === "need_to_call" || s === "need to call")
+    return { label: "Need To Call", cls: "bg-amber-500/15 text-amber-400" };
+  if (s === "not_connected" || s === "no_answer" || s === "not connected")
+    return { label: "Not Connected", cls: "bg-orange-500/15 text-orange-400" };
+  if (s === "call_analyzed" || s === "completed" || s === "ended")
+    return { label: "Completed", cls: "bg-emerald-500/15 text-emerald-400" };
+  if (s === "disqualified" || s === "rejected" || s === "not_interested")
+    return { label: "Disqualified", cls: "bg-rose-500/15 text-rose-400" };
   if (!s) return { label: "N/A", cls: "bg-muted text-muted-foreground" };
-  const label = s.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase());
+  const label = s.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
   return { label, cls: "bg-muted text-muted-foreground" };
 }
 
 function wbahSentimentBadge(sentiment: string | null | undefined): { label: string; cls: string } {
   const s = (sentiment ?? "").toLowerCase();
   if (s.includes("positive")) return { label: "Positive", cls: "text-emerald-400" };
-  if (s.includes("neutral"))  return { label: "Neutral",  cls: "text-amber-400" };
+  if (s.includes("neutral")) return { label: "Neutral", cls: "text-amber-400" };
   if (s.includes("negative")) return { label: "Negative", cls: "text-rose-400" };
   return { label: sentiment ? sentiment : "N/A", cls: "text-muted-foreground" };
 }
-
 
 // Normalize the many raw/normalized call statuses into a few filter buckets so
 // the same Status filter works across both Leads (raw API statuses) and Calls
@@ -277,44 +307,242 @@ function wbahSentimentBadge(sentiment: string | null | undefined): { label: stri
 function wbahStatusKey(status: string | null | undefined): string {
   const s = (status ?? "").toLowerCase().trim();
   if (s === "need_to_call" || s === "need to call") return "need_to_call";
-  if (s === "not_connected" || s === "no_answer" || s === "not connected" || s === "voicemail" || s === "voicemail_reached" || s === "missed") return "not_connected";
+  if (
+    s === "not_connected" ||
+    s === "no_answer" ||
+    s === "not connected" ||
+    s === "voicemail" ||
+    s === "voicemail_reached" ||
+    s === "missed"
+  )
+    return "not_connected";
   if (s === "call_analyzed" || s === "completed" || s === "ended") return "completed";
-  if (s === "disqualified" || s === "rejected" || s === "not_interested" || s.includes("disqualif")) return "disqualified";
+  if (s === "disqualified" || s === "rejected" || s === "not_interested" || s.includes("disqualif"))
+    return "disqualified";
   if (s === "failed" || s === "error" || s === "call_failed") return "failed";
   return "other";
 }
 
 function wbahDateCutoff(filter: string): number {
-  if (filter === "today") { const d = new Date(); d.setHours(0, 0, 0, 0); return d.getTime(); }
-  if (filter === "7d")  return Date.now() - 7  * 24 * 60 * 60 * 1000;
+  if (filter === "today") {
+    const d = new Date();
+    d.setHours(0, 0, 0, 0);
+    return d.getTime();
+  }
+  if (filter === "7d") return Date.now() - 7 * 24 * 60 * 60 * 1000;
   if (filter === "30d") return Date.now() - 30 * 24 * 60 * 60 * 1000;
+  if (filter === "45d") return Date.now() - 45 * 24 * 60 * 60 * 1000;
   return 0;
+}
+
+type WbahLeadDetailView = {
+  name: string;
+  call?: Record<string, unknown> | null;
+  crm?: Record<string, unknown> | null;
+};
+
+function wbahDetailLabel(key: string): string {
+  return key
+    .replace(/_/g, " ")
+    .replace(/([a-z])([A-Z])/g, "$1 $2")
+    .replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+function wbahDetailValue(val: unknown): string {
+  if (val == null || val === "") return "N/A";
+  if (typeof val === "boolean") return val ? "True" : "False";
+  if (typeof val === "object") return JSON.stringify(val);
+  return String(val);
+}
+
+function wbahCallDetailFromRow(r: any): Record<string, unknown> {
+  if (r?._rawCall && typeof r._rawCall === "object") return { ...r._rawCall };
+  const raw = (r?._rawLead ?? {}) as Record<string, unknown>;
+  return {
+    Id: raw.wbah_call_id ?? r.wbahCallId ?? null,
+    CallId: raw.callId ?? raw.call_id ?? null,
+    CallType: r.callType ?? raw.callType ?? raw.call_type ?? null,
+    AgentName: r.agentName ?? raw.agentName ?? raw.agent_name ?? null,
+    Name: r.name ?? null,
+    CallStatus: r.callStatus ?? raw.callStatus ?? raw.call_status ?? null,
+    StartTimestamp: r.startTimestamp ?? raw.startTimestamp ?? raw.start_timestamp ?? null,
+    DurationMs: r.durationMs ?? raw.durationMs ?? raw.duration_ms ?? null,
+    Transcript: r.transcript ?? raw.transcript ?? null,
+    ToNumber: r.contact ?? raw.toNumber ?? raw.phone ?? null,
+    RecordingUrl: r.recordingUrl ?? raw.recordingUrl ?? raw.recording_url ?? null,
+    DisconnectionReason: r.disconnectionReason ?? raw.disconnectionReason ?? null,
+    SentimentAnalysis: r.sentimentAnalysis ?? raw.sentimentAnalysis ?? raw.sentiment ?? null,
+    EndReason: r.endReason ?? raw.endReason ?? raw.end_reason ?? null,
+    Email: r.email ?? raw.email ?? null,
+    LeadId: raw.lead_id ?? raw.leadId ?? null,
+    AppointmentDate: r.appointmentDate ?? raw.appointment_date ?? null,
+    AppointmentTime: r.appointmentTime ?? raw.appointment_time ?? null,
+    BookingStatus: r.bookingStatus ?? raw.booking_status ?? null,
+    CalendlyBookingUrl: r.calendlyBookingUrl ?? raw.calendly_booking_url ?? null,
+  };
+}
+
+function WbahLeadDetailModal({
+  detail,
+  onClose,
+}: {
+  detail: WbahLeadDetailView | null;
+  onClose: () => void;
+}) {
+  if (!detail) return null;
+
+  function renderSection(title: string, data?: Record<string, unknown> | null) {
+    if (!data) return null;
+    const entries = Object.entries(data).filter(([k, v]) => !k.startsWith("_") && v !== undefined);
+    if (!entries.length) return null;
+    return (
+      <div className="space-y-2">
+        <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+          {title}
+        </p>
+        <div className="rounded-lg border border-white/[0.06] divide-y divide-white/[0.04]">
+          {entries.map(([key, val]) => (
+            <div key={key} className="grid grid-cols-[minmax(8rem,34%)_1fr] gap-3 px-3 py-2">
+              <p className="text-[11px] font-medium text-foreground">{wbahDetailLabel(key)}</p>
+              <p className="text-[11px] text-muted-foreground break-all">{wbahDetailValue(val)}</p>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+      <div className="w-full max-w-3xl rounded-xl border border-white/[0.08] bg-card flex flex-col max-h-[85vh]">
+        <div className="flex items-center justify-between px-5 py-3.5 border-b border-white/[0.06] shrink-0">
+          <p className="text-sm font-semibold">{detail.name} — Lead details</p>
+          <button
+            onClick={onClose}
+            className="text-muted-foreground hover:text-foreground transition-colors"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+        <div className="overflow-y-auto px-5 py-4 space-y-5 flex-1">
+          {renderSection("Call data", detail.call)}
+          {renderSection("CRM data", detail.crm)}
+          {!detail.call && !detail.crm && (
+            <p className="text-xs text-muted-foreground">No detail fields available for this row.</p>
+          )}
+        </div>
+      </div>
+    </div>
+  );
 }
 
 // ── Per-category colour coding for the People sub-tabs ─────────────────────────
 type WbahCatStyle = { active: string; badge: string; icon: string; banner: string };
 
 function wbahCatStyleKey(name: string): string {
-  return String(name ?? "").trim().toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "");
+  return String(name ?? "")
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "");
 }
 
 const WBAH_CAT_STYLES: Record<string, WbahCatStyle> = {
-  disqualified:                { active: "border-rose-400 text-rose-300",       badge: "bg-rose-500/20 text-rose-400",       icon: "text-rose-400",    banner: "bg-rose-500/5 border-rose-500/10 text-rose-400" },
-  tried_to_contact:            { active: "border-amber-400 text-amber-300",     badge: "bg-amber-500/20 text-amber-400",     icon: "text-amber-400",   banner: "bg-amber-500/5 border-amber-500/10 text-amber-400" },
-  rebook_initial_consultation: { active: "border-violet-400 text-violet-300",   badge: "bg-violet-500/20 text-violet-400",   icon: "text-violet-400",  banner: "bg-violet-500/5 border-violet-500/10 text-violet-400" },
-  rebooking:                   { active: "border-violet-400 text-violet-300",   badge: "bg-violet-500/20 text-violet-400",   icon: "text-violet-400",  banner: "bg-violet-500/5 border-violet-500/10 text-violet-400" },
-  call_back_request:           { active: "border-sky-400 text-sky-300",         badge: "bg-sky-500/20 text-sky-400",         icon: "text-sky-400",     banner: "bg-sky-500/5 border-sky-500/10 text-sky-400" },
-  frontline_pre_qualified:     { active: "border-emerald-400 text-emerald-300", badge: "bg-emerald-500/20 text-emerald-400", icon: "text-emerald-400", banner: "bg-emerald-500/5 border-emerald-500/10 text-emerald-400" },
-  logged:                      { active: "border-slate-400 text-slate-300",     badge: "bg-slate-500/20 text-slate-300",     icon: "text-slate-400",   banner: "bg-slate-500/5 border-slate-500/10 text-slate-300" },
-  testlead:                    { active: "border-zinc-400 text-zinc-300",       badge: "bg-zinc-500/20 text-zinc-300",       icon: "text-zinc-400",    banner: "bg-zinc-500/5 border-zinc-500/10 text-zinc-300" },
+  disqualified: {
+    active: "border-rose-400 text-rose-300",
+    badge: "bg-rose-500/20 text-rose-400",
+    icon: "text-rose-400",
+    banner: "bg-rose-500/5 border-rose-500/10 text-rose-400",
+  },
+  tried_to_contact: {
+    active: "border-amber-400 text-amber-300",
+    badge: "bg-amber-500/20 text-amber-400",
+    icon: "text-amber-400",
+    banner: "bg-amber-500/5 border-amber-500/10 text-amber-400",
+  },
+  rebook_initial_consultation: {
+    active: "border-violet-400 text-violet-300",
+    badge: "bg-violet-500/20 text-violet-400",
+    icon: "text-violet-400",
+    banner: "bg-violet-500/5 border-violet-500/10 text-violet-400",
+  },
+  rebooking: {
+    active: "border-violet-400 text-violet-300",
+    badge: "bg-violet-500/20 text-violet-400",
+    icon: "text-violet-400",
+    banner: "bg-violet-500/5 border-violet-500/10 text-violet-400",
+  },
+  callback_request: {
+    active: "border-sky-400 text-sky-300",
+    badge: "bg-sky-500/20 text-sky-400",
+    icon: "text-sky-400",
+    banner: "bg-sky-500/5 border-sky-500/10 text-sky-400",
+  },
+  call_back_request: {
+    active: "border-sky-400 text-sky-300",
+    badge: "bg-sky-500/20 text-sky-400",
+    icon: "text-sky-400",
+    banner: "bg-sky-500/5 border-sky-500/10 text-sky-400",
+  },
+  frontline_pre_qualified: {
+    active: "border-emerald-400 text-emerald-300",
+    badge: "bg-emerald-500/20 text-emerald-400",
+    icon: "text-emerald-400",
+    banner: "bg-emerald-500/5 border-emerald-500/10 text-emerald-400",
+  },
+  logged: {
+    active: "border-slate-400 text-slate-300",
+    badge: "bg-slate-500/20 text-slate-300",
+    icon: "text-slate-400",
+    banner: "bg-slate-500/5 border-slate-500/10 text-slate-300",
+  },
+  testlead: {
+    active: "border-zinc-400 text-zinc-300",
+    badge: "bg-zinc-500/20 text-zinc-300",
+    icon: "text-zinc-400",
+    banner: "bg-zinc-500/5 border-zinc-500/10 text-zinc-300",
+  },
 };
 
+// Fixed People tabs — cohorts synced into UAT CRM_data by the backend.
+const WBAH_PEOPLE_TABS: { name: string; count: number }[] = [
+  { name: "Disqualified", count: 0 },
+  { name: "Tried To Contact", count: 0 },
+  { name: "Rebook Initial Consultation", count: 0 },
+  { name: "Callback Request", count: 0 },
+];
+
 const WBAH_CAT_FALLBACK_STYLES: WbahCatStyle[] = [
-  { active: "border-blue-400 text-blue-300",       badge: "bg-blue-500/20 text-blue-400",       icon: "text-blue-400",    banner: "bg-blue-500/5 border-blue-500/10 text-blue-400" },
-  { active: "border-teal-400 text-teal-300",       badge: "bg-teal-500/20 text-teal-400",       icon: "text-teal-400",    banner: "bg-teal-500/5 border-teal-500/10 text-teal-400" },
-  { active: "border-fuchsia-400 text-fuchsia-300", badge: "bg-fuchsia-500/20 text-fuchsia-400", icon: "text-fuchsia-400", banner: "bg-fuchsia-500/5 border-fuchsia-500/10 text-fuchsia-400" },
-  { active: "border-orange-400 text-orange-300",   badge: "bg-orange-500/20 text-orange-400",   icon: "text-orange-400",  banner: "bg-orange-500/5 border-orange-500/10 text-orange-400" },
-  { active: "border-cyan-400 text-cyan-300",       badge: "bg-cyan-500/20 text-cyan-400",       icon: "text-cyan-400",    banner: "bg-cyan-500/5 border-cyan-500/10 text-cyan-400" },
+  {
+    active: "border-blue-400 text-blue-300",
+    badge: "bg-blue-500/20 text-blue-400",
+    icon: "text-blue-400",
+    banner: "bg-blue-500/5 border-blue-500/10 text-blue-400",
+  },
+  {
+    active: "border-teal-400 text-teal-300",
+    badge: "bg-teal-500/20 text-teal-400",
+    icon: "text-teal-400",
+    banner: "bg-teal-500/5 border-teal-500/10 text-teal-400",
+  },
+  {
+    active: "border-fuchsia-400 text-fuchsia-300",
+    badge: "bg-fuchsia-500/20 text-fuchsia-400",
+    icon: "text-fuchsia-400",
+    banner: "bg-fuchsia-500/5 border-fuchsia-500/10 text-fuchsia-400",
+  },
+  {
+    active: "border-orange-400 text-orange-300",
+    badge: "bg-orange-500/20 text-orange-400",
+    icon: "text-orange-400",
+    banner: "bg-orange-500/5 border-orange-500/10 text-orange-400",
+  },
+  {
+    active: "border-cyan-400 text-cyan-300",
+    badge: "bg-cyan-500/20 text-cyan-400",
+    icon: "text-cyan-400",
+    banner: "bg-cyan-500/5 border-cyan-500/10 text-cyan-400",
+  },
 ];
 
 function wbahCatStyle(name: string): WbahCatStyle {
@@ -335,15 +563,20 @@ function wbahRowPasses(
 ): boolean {
   if (search) {
     const q = search.toLowerCase();
-    if (!(r.name ?? "").toLowerCase().includes(q) && !String(r.contact ?? "").includes(q)) return false;
+    if (!(r.name ?? "").toLowerCase().includes(q) && !String(r.contact ?? "").includes(q))
+      return false;
   }
   if (statusF !== "all" && wbahStatusKey(r.callStatus) !== statusF) return false;
-  if (sentimentF !== "all" && !(r.sentimentAnalysis ?? "").toLowerCase().includes(sentimentF)) return false;
+  if (sentimentF !== "all" && !(r.sentimentAnalysis ?? "").toLowerCase().includes(sentimentF))
+    return false;
   if (dateCutoff > 0) {
     // CRM-loaded category rows that have not been called yet carry no
     // startTimestamp, so fall back to their CRM load date for date filtering.
-    const ts = r.startTimestamp ? Number(r.startTimestamp)
-             : r.loadedAt ? Date.parse(r.loadedAt) : 0;
+    const ts = r.startTimestamp
+      ? Number(r.startTimestamp)
+      : r.loadedAt
+        ? Date.parse(r.loadedAt)
+        : 0;
     if (!ts || ts < dateCutoff) return false;
   }
   if (agentF !== "all" && String(r.agentName ?? r.agent_name ?? "").trim() !== agentF) return false;
@@ -404,33 +637,55 @@ function DynamicDataTable({
             <th className="w-8 px-2 py-0.5">
               <Checkbox checked={allSelected} onCheckedChange={toggleAll} />
             </th>
-            <th className="px-2 py-0.5 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Name</th>
-            <th className="px-2 py-0.5 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Phone</th>
+            <th className="px-2 py-0.5 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+              Name
+            </th>
+            <th className="px-2 py-0.5 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+              Phone
+            </th>
             {extraCols.map((c) => (
-              <th key={c.key} className="whitespace-nowrap px-2 py-0.5 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">{c.label}</th>
-            ))}
-            {metaKeys.map((k) => (
-              <th key={`meta_${k}`} className="whitespace-nowrap px-2 py-0.5 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
-                {k}
-                <span className="ml-1 font-normal normal-case tracking-normal text-amber-500/70">meta</span>
+              <th
+                key={c.key}
+                className="whitespace-nowrap px-2 py-0.5 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground"
+              >
+                {c.label}
               </th>
             ))}
-            <th className="px-2 py-0.5 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Status</th>
-            <th className="px-2 py-0.5 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Agent</th>
-            <th className="px-2 py-0.5 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Updated</th>
+            {metaKeys.map((k) => (
+              <th
+                key={`meta_${k}`}
+                className="whitespace-nowrap px-2 py-0.5 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground"
+              >
+                {k}
+                <span className="ml-1 font-normal normal-case tracking-normal text-amber-500/70">
+                  meta
+                </span>
+              </th>
+            ))}
+            <th className="px-2 py-0.5 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+              Status
+            </th>
+            <th className="px-2 py-0.5 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+              Agent
+            </th>
+            <th className="px-2 py-0.5 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+              Updated
+            </th>
           </tr>
         </thead>
         <tbody>
           {records.map((r: any) => (
-            <tr key={r.id} className={`group h-9 border-b border-white/[0.04] align-middle hover:bg-white/[0.02] transition-colors ${selected.has(r.id) ? "bg-blue-500/5" : ""}`}>
+            <tr
+              key={r.id}
+              className={`group h-9 border-b border-white/4 align-middle hover:bg-white/[0.02] transition-colors ${selected.has(r.id) ? "bg-blue-500/5" : ""}`}
+            >
               <td className="px-2.5 py-1">
-                <Checkbox
-                  checked={selected.has(r.id)}
-                  onCheckedChange={() => toggleOne(r.id)}
-                />
+                <Checkbox checked={selected.has(r.id)} onCheckedChange={() => toggleOne(r.id)} />
               </td>
               <td className="px-2.5 py-1 text-xs font-medium whitespace-nowrap">{r.name}</td>
-              <td className="whitespace-nowrap px-2.5 py-1 text-muted-foreground text-[11px] font-mono">{r.mobile_number}</td>
+              <td className="whitespace-nowrap px-2.5 py-1 text-muted-foreground text-[11px] font-mono">
+                {r.mobile_number}
+              </td>
               {extraCols.map((c) => (
                 <td key={c.key} className="px-2.5 py-1 text-muted-foreground text-[11px]">
                   {r[c.key] ?? "—"}
@@ -443,7 +698,9 @@ function DynamicDataTable({
               ))}
               <td className="px-2.5 py-1">
                 <div className="flex items-center gap-1.5">
-                  <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium capitalize ring-1 ${statusBadgeClass(r.call_status)}`}>
+                  <span
+                    className={`rounded-full px-2 py-0.5 text-[10px] font-medium capitalize ring-1 ${statusBadgeClass(r.call_status)}`}
+                  >
                     {(r.call_status ?? "").replace(/_/g, " ") || "—"}
                   </span>
                   <button
@@ -460,7 +717,9 @@ function DynamicDataTable({
                   ? (agents.find((a: any) => a.id === r.assigned_agent_id)?.name ?? "—")
                   : "—"}
               </td>
-              <td className="whitespace-nowrap px-2.5 py-1 text-muted-foreground text-[11px]">{fmtDate(r.updated_at)}</td>
+              <td className="whitespace-nowrap px-2.5 py-1 text-muted-foreground text-[11px]">
+                {fmtDate(r.updated_at)}
+              </td>
             </tr>
           ))}
         </tbody>
@@ -480,34 +739,12 @@ function DataPage() {
   const [startCallingOpen, setStartCallingOpen] = useState(false);
   const [scheduleOpen, setScheduleOpen] = useState(false);
   const [callScheduleOpen, setCallScheduleOpen] = useState(false);
-  const [isWbah, setIsWbah] = useState(false);
+  const { isWbah, resolved: isWbahResolved } = useIsWbahWorkspace();
   const [dataTab, setDataTab] = useState<"records" | "campaigns" | "people">("records");
 
   useEffect(() => {
-    let active = true;
-    (async () => {
-      try {
-        const { data: sess } = await supabase.auth.getSession();
-        if (!sess.session) return;
-        const { data: profile } = await supabase
-          .from("profiles")
-          .select("default_workspace_id")
-          .eq("user_id", sess.session.user.id)
-          .maybeSingle();
-        if (!profile?.default_workspace_id || !active) return;
-        const { data: ws } = await supabase
-          .from("workspaces")
-          .select("slug")
-          .eq("id", profile.default_workspace_id)
-          .maybeSingle();
-        if (!active) return;
-        const wbah = ws?.slug === "webuyanyhouse";
-        setIsWbah(wbah);
-        if (!wbah) setDataTab("people");
-      } catch {}
-    })();
-    return () => { active = false; };
-  }, []);
+    if (isWbahResolved && !isWbah) setDataTab("people");
+  }, [isWbahResolved, isWbah]);
 
   const [crmPeople, setCrmPeople] = useState<CrmPersonRow[]>([]);
   const [crmPeopleLoading, setCrmPeopleLoading] = useState(false);
@@ -524,39 +761,38 @@ function DataPage() {
   const [qualifiedLoading, setQualifiedLoading] = useState(false);
   const [qualifiedError, setQualifiedError] = useState<string | null>(null);
 
-  const [wbahCallData, setWbahCallData]               = useState<any[]>([]);
+  const [wbahCallData, setWbahCallData] = useState<any[]>([]);
   const [wbahCallDataLoading, setWbahCallDataLoading] = useState(false);
-  const [wbahCallDataError, setWbahCallDataError]     = useState<string | null>(null);
+  const [wbahCallDataError, setWbahCallDataError] = useState<string | null>(null);
   // WBAH Calls tab — server-side paginated (never loads the full ~20MB list).
-  const [wbahCallsData, setWbahCallsData]             = useState<any[]>([]); // current page rows
-  const [wbahCallsLoading, setWbahCallsLoading]       = useState(false);
-  const [wbahCallsError, setWbahCallsError]           = useState<string | null>(null);
-  const [wbahCallsCount, setWbahCallsCount]           = useState(0);         // total (badge)
-  const [wbahCallsPage, setWbahCallsPage]             = useState(1);
-  const [wbahCallsPageSize, setWbahCallsPageSize]     = useState<number>(25);
-  const [wbahCallsTotal, setWbahCallsTotal]           = useState(0);
-  // Dynamic lead-filter categories (one People sub-tab each). Each category is a
-  // distinct WeeBespoke `lead_status` present in the loaded get-all-calldata feed.
-  const [wbahCategories, setWbahCategories]           = useState<{ name: string; count: number }[]>([]);
-  const [wbahCatLoadingList, setWbahCatLoadingList]   = useState(false);
-  const [wbahCatListError, setWbahCatListError]       = useState<string | null>(null);
-  const [wbahCatData, setWbahCatData]                 = useState<Record<string, any[]>>({});
-  const [wbahCatLoadingMap, setWbahCatLoadingMap]     = useState<Record<string, boolean>>({});
-  const [wbahCatErrorMap, setWbahCatErrorMap]         = useState<Record<string, string | null>>({});
-  const [wbahCatSyncLog, setWbahCatSyncLog]           = useState<Record<string, any> | null>(null);
-  const [wbahCatSyncing, setWbahCatSyncing]           = useState<string | null>(null);
-  const [wbahCanSync, setWbahCanSync]                 = useState(false);
+  const [wbahCallsData, setWbahCallsData] = useState<any[]>([]); // current page rows
+  const [wbahCallsLoading, setWbahCallsLoading] = useState(false);
+  const [wbahCallsError, setWbahCallsError] = useState<string | null>(null);
+  const [wbahCallsCount, setWbahCallsCount] = useState(0); // total (badge)
+  const [wbahCallsPage, setWbahCallsPage] = useState(1);
+  const [wbahCallsPageSize, setWbahCallsPageSize] = useState<number>(25);
+  const [wbahCallsTotal, setWbahCallsTotal] = useState(0);
+  // Fixed lead-filter categories from UAT CRM_data (one People sub-tab each).
+  const [wbahCategories, setWbahCategories] = useState<{ name: string; count: number }[]>([]);
+  const [wbahCatLoadingList, setWbahCatLoadingList] = useState(false);
+  const [wbahCatListError, setWbahCatListError] = useState<string | null>(null);
+  const [wbahCatData, setWbahCatData] = useState<Record<string, any[]>>({});
+  const [wbahCatPage, setWbahCatPage] = useState(1);
+  const [wbahCatPageSize, setWbahCatPageSize] = useState(50);
+  const [wbahCatLoadingMap, setWbahCatLoadingMap] = useState<Record<string, boolean>>({});
+  const [wbahCatErrorMap, setWbahCatErrorMap] = useState<Record<string, string | null>>({});
   // Active People sub-tab: a lead-filter category name, or the "calls" pseudo-tab.
-  const [wbahPeopleSubTab, setWbahPeopleSubTab]       = useState<string>("");
-  const [wbahPeopleSearch, setWbahPeopleSearch]       = useState("");
-  const [wbahStatusFilter,    setWbahStatusFilter]    = useState("all");
+  const [wbahPeopleSubTab, setWbahPeopleSubTab] = useState<string>("");
+  const [wbahPeopleSearch, setWbahPeopleSearch] = useState("");
+  const [wbahStatusFilter, setWbahStatusFilter] = useState("all");
   const [wbahSentimentFilter, setWbahSentimentFilter] = useState("all");
-  const [wbahDateFilter,      setWbahDateFilter]      = useState("all");
-  const [wbahAgentFilter,     setWbahAgentFilter]     = useState("all");
-  const [wbahSelected, setWbahSelected]               = useState<Set<string>>(new Set());
-  const [wbahQualAgentId, setWbahQualAgentId]         = useState<string>("");
-  const [wbahTranscript, setWbahTranscript]           = useState<{ name: string; text: string } | null>(null);
-  const [wbahImporting, setWbahImporting]             = useState(false);
+  const [wbahDateFilter, setWbahDateFilter] = useState("45d");
+  const [wbahAgentFilter, setWbahAgentFilter] = useState("all");
+  const [wbahSelected, setWbahSelected] = useState<Set<string>>(new Set());
+  const [wbahQualAgentId, setWbahQualAgentId] = useState<string>("");
+  const [wbahTranscript, setWbahTranscript] = useState<{ name: string; text: string } | null>(null);
+  const [wbahLeadDetail, setWbahLeadDetail] = useState<WbahLeadDetailView | null>(null);
+  const [wbahImporting, setWbahImporting] = useState(false);
 
   const [showManualEntry, setShowManualEntry] = useState(false);
   const [csvHeaders, setCsvHeaders] = useState<string[]>([]);
@@ -578,15 +814,12 @@ function DataPage() {
   const fetchCrmPeopleFn = useServerFn(fetchCrmPeople);
   const fetchQualifiedLeadsFn = useServerFn(fetchQualifiedLeads);
   const setStatusFn = useServerFn(setRecordCallStatus);
-  const listWbahLeadsForPeopleFn      = useServerFn(listWbahLeadsForPeople);
-  const listWbahCallsPagedFn          = useServerFn(listWbahCallsPaged);
-  const getWbahCallDetailFn           = useServerFn(getWbahCallDetail);
-  const listWbahCallsCountFn          = useServerFn(listWbahCallsCount);
-  const listWbahCategorizedLeadsFn    = useServerFn(listWbahCategorizedLeads);
-  const listWbahPeopleCategoriesFn    = useServerFn(listWbahPeopleCategories);
-  const triggerWbahCategorySyncFn     = useServerFn(triggerWbahCategorySync);
-  const getWbahCategorySyncLogFn      = useServerFn(getWbahCategorySyncLog);
-  const getWbahCategorySyncAccessFn   = useServerFn(getWbahCategorySyncAccess);
+  const listWbahLeadsForPeopleFn = useServerFn(listWbahLeadsForPeople);
+  const listWbahCallsPagedFn = useServerFn(listWbahCallsPaged);
+  const getWbahCallDetailFn = useServerFn(getWbahCallDetail);
+  const listWbahCallsCountFn = useServerFn(listWbahCallsCount);
+  const listWbahCategorizedLeadsFn = useServerFn(listWbahCategorizedLeads);
+  const listWbahPeopleCategoriesFn = useServerFn(listWbahPeopleCategories);
   const qc = useQueryClient();
 
   const filters = useMemo(() => {
@@ -653,7 +886,8 @@ function DataPage() {
 
   // Rows for the currently-active lead-filter category sub-tab.
   const wbahActiveCatRows = useMemo(
-    () => (wbahPeopleSubTab && wbahPeopleSubTab !== "calls" ? wbahCatData[wbahPeopleSubTab] ?? [] : []),
+    () =>
+      wbahPeopleSubTab && wbahPeopleSubTab !== "calls" ? (wbahCatData[wbahPeopleSubTab] ?? []) : [],
     [wbahCatData, wbahPeopleSubTab],
   );
 
@@ -678,13 +912,47 @@ function DataPage() {
   );
 
   const wbahFiltered = useMemo(
-    () => wbahCallData.filter(r => wbahRowPasses(r, wbahPeopleSearch, wbahStatusFilter, wbahSentimentFilter, wbahDateCut, wbahAgentFilter)),
-    [wbahCallData, wbahPeopleSearch, wbahStatusFilter, wbahSentimentFilter, wbahDateCut, wbahAgentFilter],
+    () =>
+      wbahCallData.filter((r) =>
+        wbahRowPasses(
+          r,
+          wbahPeopleSearch,
+          wbahStatusFilter,
+          wbahSentimentFilter,
+          wbahDateCut,
+          wbahAgentFilter,
+        ),
+      ),
+    [
+      wbahCallData,
+      wbahPeopleSearch,
+      wbahStatusFilter,
+      wbahSentimentFilter,
+      wbahDateCut,
+      wbahAgentFilter,
+    ],
   );
 
   const wbahCatFiltered = useMemo(
-    () => wbahActiveCatRows.filter(r => wbahRowPasses(r, wbahPeopleSearch, wbahStatusFilter, wbahSentimentFilter, wbahDateCut, wbahAgentFilter)),
-    [wbahActiveCatRows, wbahPeopleSearch, wbahStatusFilter, wbahSentimentFilter, wbahDateCut, wbahAgentFilter],
+    () =>
+      wbahActiveCatRows.filter((r) =>
+        wbahRowPasses(
+          r,
+          wbahPeopleSearch,
+          wbahStatusFilter,
+          wbahSentimentFilter,
+          wbahDateCut,
+          wbahAgentFilter,
+        ),
+      ),
+    [
+      wbahActiveCatRows,
+      wbahPeopleSearch,
+      wbahStatusFilter,
+      wbahSentimentFilter,
+      wbahDateCut,
+      wbahAgentFilter,
+    ],
   );
 
   // Calls rows come pre-shaped and already filtered/paginated by the server —
@@ -720,20 +988,36 @@ function DataPage() {
   const crmHasFilters = crmSearch.trim() !== "" || crmStatusFilter !== "all" || crmDateFilter !== "all";
 
   const recordsPag = useTablePagination(records);
-  const wbahPag    = useTablePagination(wbahFiltered);
-  const wbahCatPag   = useTablePagination(wbahCatFiltered);
-  const crmPag     = useTablePagination(crmFiltered);
+  const wbahPag = useTablePagination(wbahFiltered);
+  const wbahCatPag = useTablePagination(wbahCatFiltered);
+  const crmPag = useTablePagination(crmPeople);
 
   // Server-driven pagination object with the same shape the table + TablePagBar
   // expect. Changing page/pageSize triggers a refetch via the effect below.
   const wbahCallsPag = {
-    page:       wbahCallsPage,
-    pageSize:   wbahCallsPageSize as any,
+    page: wbahCallsPage,
+    pageSize: wbahCallsPageSize as any,
     totalPages: Math.max(1, Math.ceil(wbahCallsTotal / wbahCallsPageSize)),
-    total:      wbahCallsTotal,
-    sliced:     wbahCallsRows,
-    setPage:    (p: number) => handleFetchWbahCallsPage(p),
+    total: wbahCallsTotal,
+    sliced: wbahCallsRows,
+    setPage: (p: number) => handleFetchWbahCallsPage(p),
     changePageSize: (s: number) => handleFetchWbahCallsPage(1, { pageSize: s }),
+  };
+
+  const wbahActiveCatTotal =
+    wbahCategories.find((c) => c.name === wbahPeopleSubTab)?.count ?? 0;
+
+  const wbahCatServerPag = {
+    page: wbahCatPage,
+    pageSize: wbahCatPageSize as any,
+    total: wbahActiveCatTotal,
+    totalPages: Math.max(1, Math.ceil(Math.max(wbahActiveCatTotal, 1) / wbahCatPageSize)),
+    sliced: wbahCatFiltered,
+    setPage: (p: number) => handleFetchWbahCategory(wbahPeopleSubTab, p),
+    changePageSize: (s: number) => {
+      setWbahCatPageSize(s);
+      handleFetchWbahCategory(wbahPeopleSubTab, 1, s);
+    },
   };
 
   const wbahPeopleTotal = useMemo(
@@ -745,9 +1029,7 @@ function DataPage() {
     wbahCallsData.length > 0 ||
     wbahCallsTotal > 0 ||
     Object.values(wbahCatData).some((a) => a.length > 0);
-  const wbahActiveCatCount =
-    wbahCategories.find((c) => c.name === wbahPeopleSubTab)?.count ??
-    wbahActiveCatRows.length;
+  const wbahActiveCatCount = wbahCategories.find((c) => c.name === wbahPeopleSubTab)?.count ?? 0;
 
   function toggleAll() {
     if (allSelected) setSelected(new Set());
@@ -863,7 +1145,8 @@ function DataPage() {
         ? agents.find((a) => a.id === csvImportAgentId)?.name
         : null;
       const skipped = (result as any).skipped ?? 0;
-      const skipNote = skipped > 0 ? ` (${skipped} duplicate${skipped !== 1 ? "s" : ""} skipped)` : "";
+      const skipNote =
+        skipped > 0 ? ` (${skipped} duplicate${skipped !== 1 ? "s" : ""} skipped)` : "";
       toast.success(
         agentName
           ? `Imported ${result.inserted} records and assigned to ${agentName}${skipNote}`
@@ -957,7 +1240,9 @@ function DataPage() {
       const result = await setStatusFn({
         data: { recordIds: Array.from(selected), status: "disqualified" },
       });
-      toast.success(`Marked ${result.updated} record${result.updated !== 1 ? "s" : ""} as disqualified`);
+      toast.success(
+        `Marked ${result.updated} record${result.updated !== 1 ? "s" : ""} as disqualified`,
+      );
       setSelected(new Set());
       qc.invalidateQueries({ queryKey: ["data-records"] });
     } catch (err) {
@@ -975,7 +1260,9 @@ function DataPage() {
       if ((people as CrmPersonRow[]).length === 0) {
         toast.info("No inbound leads found in your CRM");
       } else {
-        toast.success(`Found ${(people as CrmPersonRow[]).length} inbound lead${(people as CrmPersonRow[]).length !== 1 ? "s" : ""}`);
+        toast.success(
+          `Found ${(people as CrmPersonRow[]).length} inbound lead${(people as CrmPersonRow[]).length !== 1 ? "s" : ""}`,
+        );
       }
     } catch (err) {
       const msg = (err as Error).message;
@@ -1003,7 +1290,7 @@ function DataPage() {
     if (dataTab === "people") {
       handleFetchQualifiedLeads();
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dataTab]);
 
   async function handleFetchWbahCallData() {
@@ -1023,27 +1310,40 @@ function DataPage() {
   function mapWbahCatRow(r: any, idx: number) {
     const raw = (r.meta?.raw_lead ?? {}) as any;
     return {
-      id:                  r.id,
-      srNo:                idx + 1,
-      name:                r.full_name,
-      contact:             r.phone,
-      email:               r.email,
-      callType:            r.external_status_label ?? "Lead",
-      callStatus:          raw.callStatus ?? null,
-      sentimentAnalysis:   raw.sentimentAnalysis ?? null,
+      id: r.id,
+      srNo: idx + 1,
+      name: r.full_name,
+      contact: r.phone,
+      email: r.email,
+      callType: r.external_status_label ?? "Lead",
+      callStatus: raw.callStatus ?? null,
+      sentimentAnalysis: raw.sentimentAnalysis ?? null,
       disconnectionReason: raw.disconnectionReason ?? null,
-      appointmentDate:     r.meta?.appointment_date ?? raw.appointment_date ?? null,
-      appointmentTime:     raw.appointment_time ?? null,
-      bookingStatus:       r.meta?.booking_status ?? raw.booking_status ?? null,
-      calendlyBookingUrl:  raw.calendly_booking_url ?? null,
-      agentName:           raw.agentName ?? null,
-      startTimestamp:      raw.startTimestamp ? Number(raw.startTimestamp) : null,
-      durationMs:          raw.durationMs ? Number(raw.durationMs) : null,
-      recordingUrl:        r.meta?.recording_url ?? raw.recordingUrl ?? null,
-      transcript:          raw.transcript ?? null,
-      endReason:           raw.endReason ?? null,
-      loadedAt:            r.meta?.crm_loaded_at ?? r.created_at ?? null,
+      appointmentDate: r.meta?.appointment_date ?? raw.appointment_date ?? null,
+      appointmentTime: raw.appointment_time ?? null,
+      bookingStatus: r.meta?.booking_status ?? raw.booking_status ?? null,
+      calendlyBookingUrl: raw.calendly_booking_url ?? null,
+      agentName: raw.agentName ?? null,
+      startTimestamp: raw.startTimestamp ? Number(raw.startTimestamp) : null,
+      durationMs: raw.durationMs ? Number(raw.durationMs) : null,
+      recordingUrl: r.meta?.recording_url ?? raw.recordingUrl ?? null,
+      transcript: raw.transcript ?? null,
+      endReason: raw.endReason ?? null,
+      loadedAt: r.meta?.crm_loaded_at ?? r.created_at ?? null,
+      wbahCallId: raw.wbah_call_id ?? null,
+      hasTranscript: !!(raw.wbah_call_id || raw.has_transcript),
+      _rawCrm: (r.meta?.raw_crm ?? null) as Record<string, unknown> | null,
+      _rawCall: (r.meta?.raw_call ?? null) as Record<string, unknown> | null,
+      _rawLead: raw,
     };
+  }
+
+  function openWbahLeadDetail(r: any) {
+    setWbahLeadDetail({
+      name: r.name || "Lead",
+      call: wbahCallDetailFromRow(r),
+      crm: r._rawCrm ?? null,
+    });
   }
 
   // Fetch the list of lead-filter categories (drives the People sub-tabs) and
@@ -1051,78 +1351,50 @@ function DataPage() {
   async function handleFetchWbahCategoryList() {
     setWbahCatLoadingList(true);
     setWbahCatListError(null);
+    // Show the 4 Dynamics tabs immediately — refresh badge counts from server.
+    setWbahCategories(WBAH_PEOPLE_TABS);
+    setWbahPeopleSubTab((prev) => prev || WBAH_PEOPLE_TABS[0]?.name || "");
     try {
       const res = await listWbahPeopleCategoriesFn();
       const cats = ((res as any)?.categories ?? []) as { name: string; count: number }[];
-      setWbahCategories(cats);
-      setWbahPeopleSubTab((prev) => {
-        if (prev) return prev;
-        return cats[0]?.name ?? "";
-      });
+      if (cats.length > 0) {
+        const byName = new Map(cats.map((c) => [c.name, c.count]));
+        setWbahCategories(
+          WBAH_PEOPLE_TABS.map((tab) => ({
+            name: tab.name,
+            count: Math.max(0, byName.get(tab.name) ?? tab.count),
+          })),
+        );
+      }
     } catch (err) {
-      // Surface the failure instead of leaving the People section blank.
       setWbahCatListError((err as Error).message || "Failed to load lead categories");
     } finally {
       setWbahCatLoadingList(false);
     }
   }
 
-  async function handleFetchWbahCategory(cat: string) {
+  async function handleFetchWbahCategory(cat: string, page = 1, pageSize = wbahCatPageSize) {
     if (!cat || cat === "calls") return;
     setWbahCatLoadingMap((m) => ({ ...m, [cat]: true }));
     setWbahCatErrorMap((m) => ({ ...m, [cat]: null }));
     try {
-      const all: any[] = [];
-      let page = 1;
-      const limit = 200;
-      let total: number | undefined;
-      for (;;) {
-        const res = await listWbahCategorizedLeadsFn({ data: { category: cat, page, limit } });
-        const rows = ((res as any)?.rows ?? []) as any[];
-        if (page === 1 && typeof (res as any)?.total === "number") {
-          total = (res as any).total;
-        }
-        all.push(...rows);
-        if (rows.length < limit || page >= 50) break;
-        page += 1;
-      }
-      setWbahCatData((m) => ({ ...m, [cat]: all.map(mapWbahCatRow) }));
+      const res = await listWbahCategorizedLeadsFn({
+        data: { category: cat, page, limit: pageSize },
+      });
+      const rows = ((res as any)?.rows ?? []) as any[];
+      const total = (res as any)?.total;
+      setWbahCatData((m) => ({ ...m, [cat]: rows.map(mapWbahCatRow) }));
+      setWbahCatPage(page);
       if (typeof total === "number") {
-        setWbahCategories((cats) =>
-          cats.map((c) => (c.name === cat ? { ...c, count: total! } : c)),
-        );
+        setWbahCategories((prev) => {
+          const base = prev.length > 0 ? prev : WBAH_PEOPLE_TABS;
+          return base.map((c) => (c.name === cat ? { ...c, count: total } : c));
+        });
       }
     } catch (err) {
       setWbahCatErrorMap((m) => ({ ...m, [cat]: (err as Error).message }));
     } finally {
       setWbahCatLoadingMap((m) => ({ ...m, [cat]: false }));
-    }
-  }
-
-  async function handleFetchWbahCatSyncLog() {
-    try {
-      const log = await getWbahCategorySyncLogFn();
-      setWbahCatSyncLog(log as Record<string, any>);
-    } catch {
-      /* non-fatal */
-    }
-  }
-
-  async function handleTriggerWbahCatSync(cat: "all") {
-    setWbahCatSyncing(cat);
-    try {
-      await triggerWbahCategorySyncFn({ data: { category: cat } });
-      toast.success("All categories synced");
-      await handleFetchWbahCatSyncLog();
-      await handleFetchWbahCategoryList();
-      // Re-pull the active category's rows so the open tab reflects the sync.
-      if (wbahPeopleSubTab && wbahPeopleSubTab !== "calls") {
-        await handleFetchWbahCategory(wbahPeopleSubTab);
-      }
-    } catch (err) {
-      toast.error("Sync failed", { description: (err as Error).message });
-    } finally {
-      setWbahCatSyncing(null);
     }
   }
 
@@ -1133,7 +1405,10 @@ function DataPage() {
 
   // Fetch ONE server-paginated page of WBAH calls (lightweight rows only —
   // no transcripts). The full list is never loaded into the browser.
-  async function handleFetchWbahCallsPage(page: number, opts?: { refresh?: boolean; pageSize?: number }) {
+  async function handleFetchWbahCallsPage(
+    page: number,
+    opts?: { refresh?: boolean; pageSize?: number },
+  ) {
     const pageSize = opts?.pageSize ?? wbahCallsPageSize;
     setWbahCallsLoading(true);
     setWbahCallsError(null);
@@ -1169,11 +1444,14 @@ function DataPage() {
       setWbahTranscript({ name: r.name || "Record", text: r.transcript });
       return;
     }
-    if (!r?.id) return;
+    if (!r?.id && !r?.wbahCallId) return;
     setWbahTranscript({ name: r.name || "Record", text: "Loading transcript…" });
     try {
-      const d = await getWbahCallDetailFn({ data: { id: String(r.id) } });
-      setWbahTranscript({ name: r.name || "Record", text: (d as any)?.transcript || "No transcript available." });
+      const d = await getWbahCallDetailFn({ data: { id: String(r.wbahCallId ?? r.id) } });
+      setWbahTranscript({
+        name: r.name || "Record",
+        text: (d as any)?.transcript || "No transcript available.",
+      });
     } catch {
       setWbahTranscript({ name: r.name || "Record", text: "Failed to load transcript." });
     }
@@ -1201,31 +1479,37 @@ function DataPage() {
       handleFetchWbahCallsCount();
     }
     if (wbahCategories.length === 0 && !wbahCatLoadingList) {
-      // Guard against the StrictMode double-effect firing two cold cache builds.
-      if (!wbahCatCountsInFlightRef.current) {
-        wbahCatCountsInFlightRef.current = true;
+      setWbahCategories(WBAH_PEOPLE_TABS);
+      setWbahPeopleSubTab((prev) => prev || WBAH_PEOPLE_TABS[0]?.name || "");
+    }
+    let countsTimer: ReturnType<typeof setTimeout> | undefined;
+    if (!wbahCatCountsInFlightRef.current) {
+      wbahCatCountsInFlightRef.current = true;
+      // Defer badge counts so the active tab's rows load first.
+      countsTimer = setTimeout(() => {
         handleFetchWbahCategoryList().finally(() => {
           wbahCatCountsInFlightRef.current = false;
         });
-      }
+      }, 150);
     }
 
-    handleFetchWbahCatSyncLog();
-    getWbahCategorySyncAccessFn()
-      .then(res => setWbahCanSync(!!(res as any)?.canSync))
-      .catch(() => setWbahCanSync(false));
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    return () => {
+      if (countsTimer) clearTimeout(countsTimer);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dataTab, isWbah]);
 
   // Load the active category sub-tab's rows when it changes (Calls handled below).
   useEffect(() => {
-    if (!isWbah || dataTab !== "people" || !wbahPeopleSubTab || wbahPeopleSubTab === "calls") return;
+    if (!isWbah || dataTab !== "people" || !wbahPeopleSubTab || wbahPeopleSubTab === "calls")
+      return;
     setWbahSelected(new Set());
     setWbahQualAgentId("");
+    setWbahCatPage(1);
     if (!wbahCatData[wbahPeopleSubTab] && !wbahCatLoadingMap[wbahPeopleSubTab]) {
-      handleFetchWbahCategory(wbahPeopleSubTab);
+      handleFetchWbahCategory(wbahPeopleSubTab, 1);
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dataTab, isWbah, wbahPeopleSubTab]);
 
   // Calls tab: server-side paginated. Refetch page 1 (debounced) when the tab is
@@ -1234,21 +1518,37 @@ function DataPage() {
   useEffect(() => {
     if (!isWbah || dataTab !== "people" || wbahPeopleSubTab !== "calls") return;
     const firstOpen = wbahCallsData.length === 0 && wbahCallsTotal === 0;
-    const t = setTimeout(() => { handleFetchWbahCallsPage(1, { refresh: firstOpen }); }, firstOpen ? 0 : 300);
+    const t = setTimeout(
+      () => {
+        handleFetchWbahCallsPage(1, { refresh: firstOpen });
+      },
+      firstOpen ? 0 : 300,
+    );
     return () => clearTimeout(t);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [dataTab, isWbah, wbahPeopleSubTab, wbahPeopleSearch, wbahStatusFilter, wbahSentimentFilter, wbahDateFilter, wbahAgentFilter]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    dataTab,
+    isWbah,
+    wbahPeopleSubTab,
+    wbahPeopleSearch,
+    wbahStatusFilter,
+    wbahSentimentFilter,
+    wbahDateFilter,
+    wbahAgentFilter,
+  ]);
 
   async function handleImportWbahSelected() {
-    const toImport = wbahCallData.filter(r => wbahSelected.has(r.id));
+    const toImport = wbahCallData.filter((r) => wbahSelected.has(r.id));
     if (!toImport.length) return;
     setWbahImporting(true);
     try {
-      const rows = toImport.map(r => ({
-        name:          r.name || "Unknown",
+      const rows = toImport.map((r) => ({
+        name: r.name || "Unknown",
         mobile_number: r.contact || "",
-        email:         r.email  || "",
-        notes:         ["Disqualified Sweep", r.callStatus, r.disconnectionReason].filter(Boolean).join(" | "),
+        email: r.email || "",
+        notes: ["Disqualified Sweep", r.callStatus, r.disconnectionReason]
+          .filter(Boolean)
+          .join(" | "),
       }));
       const result = await importFn({ data: { rows, agentId: wbahQualAgentId || null } });
       const inserted = (result as any)?.inserted ?? toImport.length;
@@ -1282,7 +1582,9 @@ function DataPage() {
         data: { rows: valid, agentId: crmImportAgentId || null },
       });
       const skipNote = result.skipped > 0 ? ` (${result.skipped} already existed)` : "";
-      toast.success(`Imported ${result.inserted} lead${result.inserted !== 1 ? "s" : ""}${skipNote}`);
+      toast.success(
+        `Imported ${result.inserted} lead${result.inserted !== 1 ? "s" : ""}${skipNote}`,
+      );
       setCrmPeopleSelected(new Set());
       qc.invalidateQueries({ queryKey: ["data-records"] });
       qc.invalidateQueries({ queryKey: ["data-record-schema"] });
@@ -1349,11 +1651,7 @@ function DataPage() {
         </div>
         {isWbah && (
           <div className="flex items-center gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setShowManualEntry(true)}
-            >
+            <Button variant="outline" size="sm" onClick={() => setShowManualEntry(true)}>
               <UserPlus className="mr-1.5 h-3.5 w-3.5" />
               Add Record
             </Button>
@@ -1380,39 +1678,36 @@ function DataPage() {
 
       {/* Tabs — Records + Campaigns only for WBAH; People for all */}
       <div className="flex gap-1 overflow-x-auto border-b border-white/[0.06]">
-        {(isWbah
-          ? (["records", "people", "campaigns"] as const)
-          : (["people"] as const)
-        ).map((t) => (
-          <button
-            key={t}
-            onClick={() => setDataTab(t)}
-            className={`px-2.5 py-1 text-[11px] font-medium border-b-2 -mb-px transition-colors whitespace-nowrap ${
-              dataTab === t
-                ? "border-primary text-foreground"
-                : "border-transparent text-muted-foreground hover:text-foreground"
-            }`}
-          >
-            {t === "records" ? (
-              <span className="flex items-center gap-1.5">
-                <Database className="h-3.5 w-3.5" /> Records
-              </span>
-            ) : t === "people" ? (
-              <span className="flex items-center gap-1.5">
-                <Users className="h-3.5 w-3.5" /> People
-              </span>
-            ) : (
-              <span className="flex items-center gap-1.5">
-                <BarChart3 className="h-3.5 w-3.5" /> Campaigns
-              </span>
-            )}
-          </button>
-        ))}
+        {(isWbah ? (["records", "people", "campaigns"] as const) : (["people"] as const)).map(
+          (t) => (
+            <button
+              key={t}
+              onClick={() => setDataTab(t)}
+              className={`px-2.5 py-1 text-[11px] font-medium border-b-2 -mb-px transition-colors whitespace-nowrap ${
+                dataTab === t
+                  ? "border-primary text-foreground"
+                  : "border-transparent text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              {t === "records" ? (
+                <span className="flex items-center gap-1.5">
+                  <Database className="h-3.5 w-3.5" /> Records
+                </span>
+              ) : t === "people" ? (
+                <span className="flex items-center gap-1.5">
+                  <Users className="h-3.5 w-3.5" /> People
+                </span>
+              ) : (
+                <span className="flex items-center gap-1.5">
+                  <BarChart3 className="h-3.5 w-3.5" /> Campaigns
+                </span>
+              )}
+            </button>
+          ),
+        )}
       </div>
 
-      {dataTab === "campaigns" && (
-        <WbahCallSchedulingSection />
-      )}
+      {dataTab === "campaigns" && <WbahCallSchedulingSection />}
 
       {dataTab === "records" && showCsvImport && (
         <Card className="mb-6">
@@ -1463,132 +1758,179 @@ function DataPage() {
       )}
 
       {dataTab === "records" && (
-      <>
-      {/* KPI strip — matches Leads page */}
-      <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
-        <KpiCard label="Total" value={stats.total} icon={Database} iconBg="bg-blue-500/15" iconColor="text-blue-400" />
-        <KpiCard label="Need to Call" value={stats.needToCall} icon={PhoneOutgoing} iconBg="bg-amber-500/15" iconColor="text-amber-400" />
-        <KpiCard label="Queued" value={stats.queued} icon={CalendarClock} iconBg="bg-violet-500/15" iconColor="text-violet-400" />
-        <KpiCard label="Completed" value={stats.completed} icon={UserCheck} iconBg="bg-emerald-500/15" iconColor="text-emerald-400" />
-      </div>
+        <>
+          {/* KPI strip — matches Leads page */}
+          <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
+            <KpiCard
+              label="Total"
+              value={stats.total}
+              icon={Database}
+              iconBg="bg-blue-500/15"
+              iconColor="text-blue-400"
+            />
+            <KpiCard
+              label="Need to Call"
+              value={stats.needToCall}
+              icon={PhoneOutgoing}
+              iconBg="bg-amber-500/15"
+              iconColor="text-amber-400"
+            />
+            <KpiCard
+              label="Queued"
+              value={stats.queued}
+              icon={CalendarClock}
+              iconBg="bg-violet-500/15"
+              iconColor="text-violet-400"
+            />
+            <KpiCard
+              label="Completed"
+              value={stats.completed}
+              icon={UserCheck}
+              iconBg="bg-emerald-500/15"
+              iconColor="text-emerald-400"
+            />
+          </div>
 
-      {/* Table card — matches Leads page container */}
-      <div className="min-w-0 overflow-hidden rounded-xl border border-white/[0.06] bg-card/60">
-        {/* Toolbar row */}
-        <div className="flex flex-col gap-1.5 border-b border-white/[0.06] px-2.5 py-1.5 sm:px-3 lg:flex-row lg:items-center lg:justify-between">
-          <p className="shrink-0 text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
-            Data Records
-            {selected.size > 0 && (
-              <span className="ml-2 normal-case text-xs font-normal text-blue-400 tracking-normal">{selected.size} selected</span>
-            )}
-          </p>
-          <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
-            {selected.size > 0 && (
-              <>
-                <Button size="sm" variant="ghost" className="h-7 text-xs text-muted-foreground" onClick={() => setSelected(new Set())}>
-                  Clear
-                </Button>
-                <Select onValueChange={(v) => handleBulkAssign(v === "none" ? null : v)}>
-                  <SelectTrigger className="h-7 w-[140px] text-xs">
-                    <SelectValue placeholder="Assign agent…" />
+          {/* Table card — matches Leads page container */}
+          <div className="min-w-0 overflow-hidden rounded-xl border border-white/[0.06] bg-card/60">
+            {/* Toolbar row */}
+            <div className="flex flex-col gap-1.5 border-b border-white/[0.06] px-2.5 py-1.5 sm:px-3 lg:flex-row lg:items-center lg:justify-between">
+              <p className="shrink-0 text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+                Data Records
+                {selected.size > 0 && (
+                  <span className="ml-2 normal-case text-xs font-normal text-blue-400 tracking-normal">
+                    {selected.size} selected
+                  </span>
+                )}
+              </p>
+              <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
+                {selected.size > 0 && (
+                  <>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="h-7 text-xs text-muted-foreground"
+                      onClick={() => setSelected(new Set())}
+                    >
+                      Clear
+                    </Button>
+                    <Select onValueChange={(v) => handleBulkAssign(v === "none" ? null : v)}>
+                      <SelectTrigger className="h-7 w-[140px] text-xs">
+                        <SelectValue placeholder="Assign agent…" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">Unassign</SelectItem>
+                        {agents.map((a) => (
+                          <SelectItem key={a.id} value={a.id}>
+                            {a.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-7 text-xs"
+                      onClick={() => setScheduleOpen(true)}
+                    >
+                      <CalendarClock className="mr-1 h-3.5 w-3.5" />
+                      Schedule
+                    </Button>
+                    <Button
+                      variant="default"
+                      size="sm"
+                      className="h-7 text-xs"
+                      onClick={() => setStartCallingOpen(true)}
+                    >
+                      <PhoneOutgoing className="mr-1 h-3.5 w-3.5" />
+                      Start Calling
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-7 text-xs text-rose-400 border-rose-400/30 hover:bg-rose-500/10"
+                      onClick={handleDisqualify}
+                    >
+                      <X className="mr-1 h-3.5 w-3.5" />
+                      Disqualify
+                    </Button>
+                  </>
+                )}
+                {/* Filters */}
+                <div className="relative">
+                  <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3 w-3 -translate-y-1/2 text-muted-foreground" />
+                  <Input
+                    placeholder="Search name, phone…"
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                    className="h-6 min-w-0 flex-1 basis-28 max-w-[180px] pl-7 text-[11px] sm:flex-none sm:w-36"
+                  />
+                </div>
+                <Select value={callStatus} onValueChange={setCallStatus}>
+                  <SelectTrigger className="h-7 w-[130px] text-xs">
+                    <SelectValue placeholder="Call status" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="none">Unassign</SelectItem>
-                    {agents.map((a) => (
-                      <SelectItem key={a.id} value={a.id}>{a.name}</SelectItem>
+                    {CALL_STATUSES.map((s) => (
+                      <SelectItem key={s.value} value={s.value}>
+                        {s.label}
+                      </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
-                <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => setScheduleOpen(true)}>
-                  <CalendarClock className="mr-1 h-3.5 w-3.5" />
-                  Schedule
-                </Button>
-                <Button variant="default" size="sm" className="h-7 text-xs" onClick={() => setStartCallingOpen(true)}>
-                  <PhoneOutgoing className="mr-1 h-3.5 w-3.5" />
-                  Start Calling
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="h-7 text-xs text-rose-400 border-rose-400/30 hover:bg-rose-500/10"
-                  onClick={handleDisqualify}
-                >
-                  <X className="mr-1 h-3.5 w-3.5" />
-                  Disqualify
-                </Button>
+                <Select value={agentFilter} onValueChange={setAgentFilter}>
+                  <SelectTrigger className="h-7 w-[120px] text-xs">
+                    <SelectValue placeholder="Agent" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All agents</SelectItem>
+                    {agents.map((a) => (
+                      <SelectItem key={a.id} value={a.id}>
+                        {a.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <label className="flex cursor-pointer items-center gap-1.5">
+                  <Checkbox
+                    checked={unassignedOnly}
+                    onCheckedChange={(v) => {
+                      setUnassignedOnly(v === true);
+                      if (v) setAgentFilter("all");
+                    }}
+                  />
+                  <span className="text-xs text-muted-foreground">Unassigned</span>
+                </label>
+              </div>
+            </div>
+
+            {/* Table body */}
+            {recordsQ.isLoading ? (
+              <LoadingProgress label="Loading records" estimatedMs={8000} />
+            ) : records.length === 0 ? (
+              <div className="flex flex-col items-center gap-2 py-16">
+                <Database className="h-8 w-8 text-muted-foreground" />
+                <p className="text-sm font-medium">No data records</p>
+                <p className="text-xs text-muted-foreground">
+                  Import a CSV to get started or adjust your filters.
+                </p>
+              </div>
+            ) : (
+              <>
+                <DynamicDataTable
+                  records={recordsPag.sliced}
+                  agents={agents}
+                  selected={selected}
+                  allSelected={allSelected}
+                  toggleAll={toggleAll}
+                  toggleOne={toggleOne}
+                  onReset={handleReset}
+                />
+                <TablePagBar {...recordsPag} />
               </>
             )}
-            {/* Filters */}
-            <div className="relative">
-              <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3 w-3 -translate-y-1/2 text-muted-foreground" />
-              <Input
-                placeholder="Search name, phone…"
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                className="h-6 min-w-0 flex-1 basis-28 max-w-[180px] pl-7 text-[11px] sm:flex-none sm:w-36"
-              />
-            </div>
-            <Select value={callStatus} onValueChange={setCallStatus}>
-              <SelectTrigger className="h-7 w-[130px] text-xs">
-                <SelectValue placeholder="Call status" />
-              </SelectTrigger>
-              <SelectContent>
-                {CALL_STATUSES.map((s) => (
-                  <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <Select value={agentFilter} onValueChange={setAgentFilter}>
-              <SelectTrigger className="h-7 w-[120px] text-xs">
-                <SelectValue placeholder="Agent" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All agents</SelectItem>
-                {agents.map((a) => (
-                  <SelectItem key={a.id} value={a.id}>{a.name}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <label className="flex cursor-pointer items-center gap-1.5">
-              <Checkbox
-                checked={unassignedOnly}
-                onCheckedChange={(v) => {
-                  setUnassignedOnly(v === true);
-                  if (v) setAgentFilter("all");
-                }}
-              />
-              <span className="text-xs text-muted-foreground">Unassigned</span>
-            </label>
           </div>
-        </div>
-
-        {/* Table body */}
-        {recordsQ.isLoading ? (
-          <LoadingProgress label="Loading records" estimatedMs={8000} />
-        ) : records.length === 0 ? (
-          <div className="flex flex-col items-center gap-2 py-16">
-            <Database className="h-8 w-8 text-muted-foreground" />
-            <p className="text-sm font-medium">No data records</p>
-            <p className="text-xs text-muted-foreground">
-              Import a CSV to get started or adjust your filters.
-            </p>
-          </div>
-        ) : (
-          <>
-            <DynamicDataTable
-              records={recordsPag.sliced}
-              agents={agents}
-              selected={selected}
-              allSelected={allSelected}
-              toggleAll={toggleAll}
-              toggleOne={toggleOne}
-              onReset={handleReset}
-            />
-            <TablePagBar {...recordsPag} />
-          </>
-        )}
-      </div>
-      </>
+        </>
       )}
 
       {dataTab === "people" && isWbah && (
@@ -1613,23 +1955,40 @@ function DataPage() {
             </div>
           )}
 
+          <WbahLeadDetailModal detail={wbahLeadDetail} onClose={() => setWbahLeadDetail(null)} />
+
           {/* ── WBAH People KPI strip ───────────────────────────────────── */}
           {wbahPeopleTotal > 0 && (
             <div className="grid grid-cols-2 gap-2">
-              <KpiCard label="CRM Contacts" value={wbahPeopleTotal} icon={Users}     iconBg="bg-blue-500/15" iconColor="text-blue-400" />
-              <KpiCard label="Lead Categories" value={wbahCategories.length} icon={UserCheck} iconBg="bg-rose-500/15" iconColor="text-rose-400" />
+              <KpiCard
+                label="CRM Contacts"
+                value={wbahPeopleTotal}
+                icon={Users}
+                iconBg="bg-blue-500/15"
+                iconColor="text-blue-400"
+              />
+              <KpiCard
+                label="Lead Categories"
+                value={wbahCategories.length}
+                icon={UserCheck}
+                iconBg="bg-rose-500/15"
+                iconColor="text-rose-400"
+              />
             </div>
           )}
 
           {/* ── WBAH People toolbar ─────────────────────────────────────── */}
           <div className="min-w-0 overflow-hidden rounded-xl border border-white/[0.06] bg-card/60">
-
-            {/* ── Lead-filter category sub-tabs (one per WeeBespoke lead_status) ─ */}
+            {/* ── Lead-filter category sub-tabs (Dynamics CRM categories) ─ */}
             <div className="flex items-center gap-0 overflow-x-auto border-b border-white/[0.06] px-3 sm:px-4">
               {[
-                ...wbahCategories.map((c) => ({ id: c.name, label: c.name, count: c.count })),
+                ...(wbahCategories.length > 0 ? wbahCategories : WBAH_PEOPLE_TABS).map((c) => ({
+                  id: c.name,
+                  label: c.name,
+                  count: Math.max(0, c.count),
+                })),
                 { id: "calls", label: "Calls", count: wbahCallsTotal || wbahCallsCount },
-              ].map(tab => {
+              ].map((tab) => {
                 const isActive = wbahPeopleSubTab === tab.id;
                 const isCatTab = tab.id !== "calls";
                 const style = isCatTab ? wbahCatStyle(tab.id) : null;
@@ -1639,16 +1998,22 @@ function DataPage() {
                     onClick={() => setWbahPeopleSubTab(tab.id)}
                     className={`relative flex items-center gap-1.5 px-2 py-1 text-xs font-medium whitespace-nowrap transition-colors border-b-2 -mb-px ${
                       isActive
-                        ? (style ? style.active : "border-primary text-foreground")
+                        ? style
+                          ? style.active
+                          : "border-primary text-foreground"
                         : "border-transparent text-muted-foreground hover:text-foreground"
                     }`}
                   >
                     {isCatTab && <AlertCircle className={`h-3 w-3 ${style?.icon ?? ""}`} />}
                     {tab.label}
                     {tab.count > 0 && (
-                      <span className={`ml-1 rounded-full px-1.5 py-0.5 text-[10px] font-semibold ${
-                        style ? style.badge : "bg-muted/60 text-muted-foreground"
-                      }`}>{tab.count}</span>
+                      <span
+                        className={`ml-1 rounded-full px-1.5 py-0.5 text-[10px] font-semibold ${
+                          style ? style.badge : "bg-muted/60 text-muted-foreground"
+                        }`}
+                      >
+                        {tab.count}
+                      </span>
                     )}
                   </button>
                 );
@@ -1672,15 +2037,7 @@ function DataPage() {
             <div className="flex flex-col gap-1.5 border-b border-white/[0.06] px-2.5 py-1.5 sm:px-3 lg:flex-row lg:items-center lg:justify-between">
               <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2 sm:gap-3">
                 <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
-                  {wbahPeopleSubTab === "calls" ? "Calls" : (wbahPeopleSubTab || "Leads")}
-                  {(() => {
-                    const total = wbahPeopleSubTab === "calls" ? wbahCallsTotal : wbahActiveCatCount;
-                    return total > 0 ? (
-                      <span className="ml-2 normal-case text-xs font-normal tracking-normal text-muted-foreground">
-                        {total} total
-                      </span>
-                    ) : null;
-                  })()}
+                  {wbahPeopleSubTab === "calls" ? "Calls" : wbahPeopleSubTab || "Leads"}
                   {wbahSelected.size > 0 && (
                     <span className="ml-2 normal-case text-xs font-normal text-blue-400 tracking-normal">
                       {wbahSelected.size} selected
@@ -1693,7 +2050,7 @@ function DataPage() {
                     <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3 w-3 text-muted-foreground pointer-events-none" />
                     <input
                       value={wbahPeopleSearch}
-                      onChange={e => setWbahPeopleSearch(e.target.value)}
+                      onChange={(e) => setWbahPeopleSearch(e.target.value)}
                       placeholder="Search name, phone…"
                       className="h-6 min-w-0 w-full max-w-[160px] rounded-md border border-white/[0.08] bg-muted/40 pl-6 pr-2 text-[11px] placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-primary/40 sm:w-36"
                     />
@@ -1711,7 +2068,9 @@ function DataPage() {
                 {isWbah && dataTab === "people" && (
                   <>
                     <Select value={wbahStatusFilter} onValueChange={setWbahStatusFilter}>
-                      <SelectTrigger className="h-7 w-[140px] text-xs"><SelectValue placeholder="Status" /></SelectTrigger>
+                      <SelectTrigger className="h-7 w-[140px] text-xs">
+                        <SelectValue placeholder="Status" />
+                      </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="all">All statuses</SelectItem>
                         <SelectItem value="need_to_call">Need To Call</SelectItem>
@@ -1722,7 +2081,9 @@ function DataPage() {
                       </SelectContent>
                     </Select>
                     <Select value={wbahSentimentFilter} onValueChange={setWbahSentimentFilter}>
-                      <SelectTrigger className="h-7 w-[130px] text-xs"><SelectValue placeholder="Sentiment" /></SelectTrigger>
+                      <SelectTrigger className="h-7 w-[130px] text-xs">
+                        <SelectValue placeholder="Sentiment" />
+                      </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="all">All sentiment</SelectItem>
                         <SelectItem value="positive">Positive</SelectItem>
@@ -1731,26 +2092,41 @@ function DataPage() {
                       </SelectContent>
                     </Select>
                     <Select value={wbahDateFilter} onValueChange={setWbahDateFilter}>
-                      <SelectTrigger className="h-7 w-[130px] text-xs"><SelectValue placeholder="Date" /></SelectTrigger>
+                      <SelectTrigger className="h-7 w-[130px] text-xs">
+                        <SelectValue placeholder="Date" />
+                      </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="all">All time</SelectItem>
                         <SelectItem value="today">Today</SelectItem>
                         <SelectItem value="7d">Last 7 days</SelectItem>
                         <SelectItem value="30d">Last 30 days</SelectItem>
+                        <SelectItem value="45d">Last 45 days</SelectItem>
                       </SelectContent>
                     </Select>
                     <Select value={wbahAgentFilter} onValueChange={setWbahAgentFilter}>
-                      <SelectTrigger className="h-7 w-[150px] text-xs"><SelectValue placeholder="Agent" /></SelectTrigger>
+                      <SelectTrigger className="h-7 w-[150px] text-xs">
+                        <SelectValue placeholder="Agent" />
+                      </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="all">All agents</SelectItem>
                         {wbahAgentOptions.map((name) => (
-                          <SelectItem key={name} value={name}>{name}</SelectItem>
+                          <SelectItem key={name} value={name}>
+                            {name}
+                          </SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
-                    {(wbahStatusFilter !== "all" || wbahSentimentFilter !== "all" || wbahDateFilter !== "all" || wbahAgentFilter !== "all") && (
+                    {(wbahStatusFilter !== "all" ||
+                      wbahSentimentFilter !== "all" ||
+                      wbahDateFilter !== "all" ||
+                      wbahAgentFilter !== "all") && (
                       <button
-                        onClick={() => { setWbahStatusFilter("all"); setWbahSentimentFilter("all"); setWbahDateFilter("all"); setWbahAgentFilter("all"); }}
+                        onClick={() => {
+                          setWbahStatusFilter("all");
+                          setWbahSentimentFilter("all");
+                          setWbahDateFilter("all");
+                          setWbahAgentFilter("all");
+                        }}
                         className="text-[11px] text-muted-foreground hover:text-foreground underline whitespace-nowrap"
                       >
                         Clear filters
@@ -1774,7 +2150,9 @@ function DataPage() {
                       <SelectContent>
                         <SelectItem value="__none__">No agent</SelectItem>
                         {agents.map((a) => (
-                          <SelectItem key={a.id} value={a.id}>{a.name}</SelectItem>
+                          <SelectItem key={a.id} value={a.id}>
+                            {a.name}
+                          </SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
@@ -1795,16 +2173,18 @@ function DataPage() {
                 )}
 
                 {/* Select All — only on Leads tab */}
-                {wbahPeopleSubTab === "leads" && wbahFiltered.length > 0 && wbahSelected.size === 0 && (
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="h-7 text-xs"
-                    onClick={() => setWbahSelected(new Set(wbahFiltered.map((r: any) => r.id)))}
-                  >
-                    Select All
-                  </Button>
-                )}
+                {wbahPeopleSubTab === "leads" &&
+                  wbahFiltered.length > 0 &&
+                  wbahSelected.size === 0 && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-7 text-xs"
+                      onClick={() => setWbahSelected(new Set(wbahFiltered.map((r: any) => r.id)))}
+                    >
+                      Select All
+                    </Button>
+                  )}
                 {wbahSelected.size > 0 && (
                   <Button
                     size="sm"
@@ -1818,43 +2198,50 @@ function DataPage() {
 
                 {/* Refresh / Load button — varies per sub-tab */}
                 {wbahPeopleSubTab === "leads" && (
-                  <Button variant="outline" size="sm" className="h-7 text-xs"
-                    onClick={handleFetchWbahCallData} disabled={wbahCallDataLoading}
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-7 text-xs"
+                    onClick={handleFetchWbahCallData}
+                    disabled={wbahCallDataLoading}
                   >
-                    <RefreshCw className={`mr-1.5 h-3.5 w-3.5 ${wbahCallDataLoading ? "animate-spin" : ""}`} />
+                    <RefreshCw
+                      className={`mr-1.5 h-3.5 w-3.5 ${wbahCallDataLoading ? "animate-spin" : ""}`}
+                    />
                     {wbahCallData.length > 0 ? "Refresh" : "Load Leads"}
                   </Button>
                 )}
-                {wbahPeopleSubTab && wbahPeopleSubTab !== "calls" && (() => {
-                  const cat = wbahPeopleSubTab;
-                  const loading = !!wbahCatLoadingMap[cat];
-                  const syncBusy = !!wbahCatSyncing;
-                  const thisSyncing = wbahCatSyncing === cat || wbahCatSyncing === "all";
-                  return (
-                    <>
-                      <Button variant="outline" size="sm" className="h-7 text-xs"
-                        onClick={() => handleFetchWbahCategory(cat)} disabled={loading}
+                {wbahPeopleSubTab &&
+                  wbahPeopleSubTab !== "calls" &&
+                  (() => {
+                    const cat = wbahPeopleSubTab;
+                    const loading = !!wbahCatLoadingMap[cat];
+                    return (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-7 text-xs"
+                        onClick={() => handleFetchWbahCategory(cat)}
+                        disabled={loading}
                       >
-                        <RefreshCw className={`mr-1.5 h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`} />
+                        <RefreshCw
+                          className={`mr-1.5 h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`}
+                        />
                         Refresh
                       </Button>
-                      {wbahCanSync && (
-                        <Button size="sm" variant="outline" className="h-7 text-xs"
-                          onClick={() => handleTriggerWbahCatSync("all")} disabled={syncBusy}
-                          title="Sync all categories from WeeBespoke (admin only)"
-                        >
-                          {thisSyncing ? <RefreshCw className="mr-1 h-3.5 w-3.5 animate-spin" /> : <Download className="mr-1 h-3.5 w-3.5" />}
-                          Sync All
-                        </Button>
-                      )}
-                    </>
-                  );
-                })()}
+                    );
+                  })()}
                 {wbahPeopleSubTab === "calls" && (
-                  <Button variant="outline" size="sm" className="h-7 text-xs"
-                    onClick={() => handleFetchWbahCallsPage(1, { refresh: true })} disabled={wbahCallsLoading}
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-7 text-xs"
+                    onClick={() => handleFetchWbahCallsPage(1, { refresh: true })}
+                    disabled={wbahCallsLoading}
                   >
-                    <RefreshCw className={`mr-1.5 h-3.5 w-3.5 ${wbahCallsLoading ? "animate-spin" : ""}`} />
+                    <RefreshCw
+                      className={`mr-1.5 h-3.5 w-3.5 ${wbahCallsLoading ? "animate-spin" : ""}`}
+                    />
                     Refresh
                   </Button>
                 )}
@@ -1865,85 +2252,115 @@ function DataPage() {
             {(() => {
               const isLeads = false;
               const isCalls = wbahPeopleSubTab === "calls";
-              const isCat   = !isCalls && !!wbahPeopleSubTab;
+              const isCat = !isCalls && !!wbahPeopleSubTab;
 
               const loading = isCalls ? wbahCallsLoading : !!wbahCatLoadingMap[wbahPeopleSubTab];
-              const error   = isCalls ? wbahCallsError   : (wbahCatErrorMap[wbahPeopleSubTab] ?? null);
-              const knownTotal = isCalls ? wbahCallsTotal : (isCat ? wbahActiveCatCount : 0);
-              const rowCount   = isCalls ? wbahCallsData.length : wbahActiveCatRows.length;
-              const empty      = rowCount === 0 && !(knownTotal > 0 && loading);
+              const error = isCalls ? wbahCallsError : (wbahCatErrorMap[wbahPeopleSubTab] ?? null);
+              const knownTotal = isCalls ? wbahCallsTotal : isCat ? wbahActiveCatCount : 0;
+              const rowCount = isCalls ? wbahCallsData.length : wbahActiveCatRows.length;
+              const empty = rowCount === 0 && !(knownTotal > 0 && loading);
               const showLoading = loading || (rowCount === 0 && knownTotal > 0 && !error);
-              const onLoad  = isCalls ? () => handleFetchWbahCallsPage(1, { refresh: true }) : () => handleFetchWbahCategory(wbahPeopleSubTab);
+              const onLoad = isCalls
+                ? () => handleFetchWbahCallsPage(1, { refresh: true })
+                : () => handleFetchWbahCategory(wbahPeopleSubTab);
               const loadLabel = isCalls ? "Load Calls" : `Load ${wbahPeopleSubTab || "data"}`;
-              const rows    = isCalls ? wbahCallsRows : wbahCatFiltered;
-              const pag     = isCalls ? wbahCallsPag : wbahCatPag;
+              const rows = isCalls ? wbahCallsRows : wbahCatFiltered;
+              const pag = isCalls ? wbahCallsPag : isCat ? wbahCatServerPag : wbahCatPag;
               const loadingNoun = isCalls ? "calls" : `${wbahPeopleSubTab || "records"} records`;
 
-              if (showLoading) return (
-                <LoadingProgress label={`Loading ${loadingNoun}`} estimatedMs={9000} className="py-20" />
-              );
-              if (error) return (
-                <div className="flex flex-col items-center gap-2 py-16 text-sm">
-                  <AlertCircle className="h-8 w-8 text-destructive/60" />
-                  <p className="font-medium text-destructive">Could not load data</p>
-                  <p className="max-w-sm text-center text-xs text-muted-foreground">{error}</p>
-                  <Button variant="outline" size="sm" className="mt-2" onClick={onLoad}>Try again</Button>
-                </div>
-              );
-              if (empty) return (
-                <div className="flex flex-col items-center gap-2 py-16">
-                  <Users className="h-8 w-8 text-muted-foreground" />
-                  <p className="text-sm font-medium">No data loaded yet</p>
-                  <p className="text-xs text-muted-foreground">Click <strong>{loadLabel}</strong> to fetch records.</p>
-                  <Button variant="outline" size="sm" className="mt-2" onClick={onLoad}>
-                    <RefreshCw className="mr-1.5 h-3.5 w-3.5" /> {loadLabel}
-                  </Button>
-                </div>
-              );
+              if (showLoading)
+                return (
+                  <LoadingProgress
+                    label={`Loading ${loadingNoun}`}
+                    estimatedMs={9000}
+                    className="py-20"
+                  />
+                );
+              if (error)
+                return (
+                  <div className="flex flex-col items-center gap-2 py-16 text-sm">
+                    <AlertCircle className="h-8 w-8 text-destructive/60" />
+                    <p className="font-medium text-destructive">Could not load data</p>
+                    <p className="max-w-sm text-center text-xs text-muted-foreground">{error}</p>
+                    <Button variant="outline" size="sm" className="mt-2" onClick={onLoad}>
+                      Try again
+                    </Button>
+                  </div>
+                );
+              if (empty)
+                return (
+                  <div className="flex flex-col items-center gap-2 py-16">
+                    <Users className="h-8 w-8 text-muted-foreground" />
+                    <p className="text-sm font-medium">No data loaded yet</p>
+                    <p className="text-xs text-muted-foreground">
+                      Click <strong>{loadLabel}</strong> to fetch records.
+                    </p>
+                    <Button variant="outline" size="sm" className="mt-2" onClick={onLoad}>
+                      <RefreshCw className="mr-1.5 h-3.5 w-3.5" /> {loadLabel}
+                    </Button>
+                  </div>
+                );
 
               return (
                 <div className="min-w-0 overflow-x-auto">
-                  {isCat && (() => {
-                    const cat   = wbahPeopleSubTab;
-                    const label = wbahPeopleSubTab;
-                    const tone  = wbahCatStyle(cat).banner;
-                    const log   = wbahCatSyncLog?.[cat];
-                    return (
-                      <div className={`flex flex-wrap items-center gap-2 px-4 py-2 border-b text-[11px] ${tone}`}>
-                        <AlertCircle className="h-3 w-3" />
-                        <span>{label} leads from WeeBespoke — {rows.length} record{rows.length !== 1 ? "s" : ""}</span>
-                        {log?.synced_at && (
-                          <span className="opacity-70">· last synced {wbahSyncAgo(log.synced_at)}{typeof log.imported === "number" ? ` (${log.imported} imported)` : ""}</span>
-                        )}
-                      </div>
-                    );
-                  })()}
                   <table className="w-full text-[11px]">
                     <thead>
                       <tr className="border-b border-white/[0.06] bg-card/30">
                         {isLeads && (
                           <th className={cn("w-8 px-2 py-1", stickyHead, "left-0")}>
                             <Checkbox
-                              checked={rows.length > 0 && rows.every(r => wbahSelected.has(r.id))}
+                              checked={rows.length > 0 && rows.every((r) => wbahSelected.has(r.id))}
                               onCheckedChange={(v) => {
-                                if (v) setWbahSelected(prev => new Set([...prev, ...rows.map((r: any) => r.id)]));
-                                else setWbahSelected(prev => { const n = new Set(prev); rows.forEach((r: any) => n.delete(r.id)); return n; });
+                                if (v)
+                                  setWbahSelected(
+                                    (prev) => new Set([...prev, ...rows.map((r: any) => r.id)]),
+                                  );
+                                else
+                                  setWbahSelected((prev) => {
+                                    const n = new Set(prev);
+                                    rows.forEach((r: any) => n.delete(r.id));
+                                    return n;
+                                  });
                               }}
                             />
                           </th>
                         )}
-                        {([
-                          "SR NO","NAME","CONTACT",
-                          ...(isCat ? ["LOADED"] : []),
-                          "TYPE","LAST CALLED AT","CALL STATUS","DURATION","RECORDING","TRANSCRIPT","SENTIMENT","APPT DATE","APPT TIME","BOOKING STATUS","CALENDLY","END REASON","DISCONNECTION",
-                        ] as string[]).map(col => (
+                        {(
+                          [
+                            "SR NO",
+                            "NAME",
+                            "CONTACT",
+                            ...(isCat ? ["LOADED"] : []),
+                            "TYPE",
+                            "LAST CALLED AT",
+                            "CALL STATUS",
+                            "DURATION",
+                            "RECORDING",
+                            "TRANSCRIPT",
+                            "SENTIMENT",
+                            "APPT DATE",
+                            "APPT TIME",
+                            "BOOKING STATUS",
+                            "CALENDLY",
+                            "END REASON",
+                            "DISCONNECTION",
+                          ] as string[]
+                        ).map((col) => (
                           <th
                             key={col}
                             className={cn(
                               "px-2 py-1 text-left text-[9px] font-semibold uppercase tracking-[0.08em] text-muted-foreground whitespace-nowrap",
-                              col === "SR NO" && cn(stickyHead, isLeads ? "left-8 w-9" : "left-0 w-9"),
-                              col === "NAME" && cn(stickyHead, isLeads ? "left-[4.25rem] w-24" : "left-9 w-24"),
-                              col === "CONTACT" && cn(stickyHead, isLeads ? "left-[10.25rem] w-28 shadow-[4px_0_8px_-4px_rgba(0,0,0,0.45)]" : "left-[8.25rem] w-28 shadow-[4px_0_8px_-4px_rgba(0,0,0,0.45)]"),
+                              col === "SR NO" &&
+                                cn(stickyHead, isLeads ? "left-8 w-9" : "left-0 w-9"),
+                              col === "NAME" &&
+                                cn(stickyHead, isLeads ? "left-[4.25rem] w-24" : "left-9 w-24"),
+                              col === "CONTACT" &&
+                                cn(
+                                  stickyHead,
+                                  isLeads
+                                    ? "left-[10.25rem] w-28 shadow-[4px_0_8px_-4px_rgba(0,0,0,0.45)]"
+                                    : "left-[8.25rem] w-28 shadow-[4px_0_8px_-4px_rgba(0,0,0,0.45)]",
+                                ),
                             )}
                           >
                             {col}
@@ -1952,10 +2369,11 @@ function DataPage() {
                       </tr>
                     </thead>
                     <tbody>
-                      {pag.sliced.map((r: any) => {
+                      {pag.sliced.map((r: any, rowIdx: number) => {
                         const statusBadge = wbahCallStatusBadge(r.callStatus);
-                        const sentBadge   = wbahSentimentBadge(r.sentimentAnalysis);
-                        const isSelected  = wbahSelected.has(r.id);
+                        const sentBadge = wbahSentimentBadge(r.sentimentAnalysis);
+                        const isSelected = wbahSelected.has(r.id);
+                        const rowSrNo = (pag.page - 1) * Number(pag.pageSize) + rowIdx + 1;
                         return (
                           <tr
                             key={r.id}
@@ -1967,75 +2385,157 @@ function DataPage() {
                                   checked={isSelected}
                                   onCheckedChange={() => {
                                     const n = new Set(wbahSelected);
-                                    if (n.has(r.id)) n.delete(r.id); else n.add(r.id);
+                                    if (n.has(r.id)) n.delete(r.id);
+                                    else n.add(r.id);
                                     setWbahSelected(n);
                                   }}
                                 />
                               </td>
                             )}
-                            <td className={cn("px-2 py-0.5 text-[10px] text-muted-foreground", stickyCell, isLeads ? "left-8 w-9" : "left-0 w-9")}>{r.srNo}</td>
-                            <td className={cn("max-w-[6rem] truncate px-2 py-0.5 font-medium", stickyCell, isLeads ? "left-[4.25rem] w-24" : "left-9 w-24")}>{r.name || "—"}</td>
-                            <td className={cn("max-w-[7rem] truncate px-2 py-0.5 font-mono text-[10px] text-muted-foreground", stickyCell, isLeads ? "left-[10.25rem] w-28 shadow-[4px_0_8px_-4px_rgba(0,0,0,0.35)]" : "left-[8.25rem] w-28 shadow-[4px_0_8px_-4px_rgba(0,0,0,0.35)]")}>
+                            <td
+                              className={cn(
+                                "px-2 py-0.5 text-[10px] text-muted-foreground",
+                                stickyCell,
+                                isLeads ? "left-8 w-9" : "left-0 w-9",
+                              )}
+                            >
+                              {rowSrNo}
+                            </td>
+                            <td
+                              className={cn(
+                                "max-w-[6rem] truncate px-2 py-0.5 font-medium",
+                                stickyCell,
+                                isLeads ? "left-[4.25rem] w-24" : "left-9 w-24",
+                              )}
+                            >
+                              <div className="flex items-center gap-1 min-w-0">
+                                <button
+                                  type="button"
+                                  onClick={() => openWbahLeadDetail(r)}
+                                  className="truncate text-left hover:text-primary transition-colors"
+                                  title="View lead details"
+                                >
+                                  {r.name || "—"}
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => openWbahLeadDetail(r)}
+                                  className="shrink-0 rounded p-0.5 text-muted-foreground hover:text-foreground hover:bg-white/[0.06] transition-colors"
+                                  title="View lead details"
+                                >
+                                  <Eye className="h-3 w-3" />
+                                </button>
+                              </div>
+                            </td>
+                            <td
+                              className={cn(
+                                "max-w-[7rem] truncate px-2 py-0.5 font-mono text-[10px] text-muted-foreground",
+                                stickyCell,
+                                isLeads
+                                  ? "left-[10.25rem] w-28 shadow-[4px_0_8px_-4px_rgba(0,0,0,0.35)]"
+                                  : "left-[8.25rem] w-28 shadow-[4px_0_8px_-4px_rgba(0,0,0,0.35)]",
+                              )}
+                            >
                               {r.contact ? (
-                                <a href={`tel:${r.contact}`} className="flex items-center gap-1 hover:text-foreground transition-colors truncate">
-                                  <Phone className="h-3 w-3 shrink-0" />{r.contact}
+                                <a
+                                  href={`tel:${r.contact}`}
+                                  className="flex items-center gap-1 hover:text-foreground transition-colors truncate"
+                                >
+                                  <Phone className="h-3 w-3 shrink-0" />
+                                  {r.contact}
                                 </a>
-                              ) : "—"}
+                              ) : (
+                                "—"
+                              )}
                             </td>
                             {isCat && (
-                              <td className="px-2 py-0.5 text-[10px] text-muted-foreground whitespace-nowrap">{r.loadedAt ? fmtDate(r.loadedAt, isWbah) : "—"}</td>
+                              <td className="px-2 py-0.5 text-[10px] text-muted-foreground whitespace-nowrap">
+                                {r.loadedAt ? fmtDate(r.loadedAt, true) : "—"}
+                              </td>
                             )}
-                            <td className="px-2 py-0.5 text-[10px] text-muted-foreground whitespace-nowrap capitalize">{(r.callType || "—").replace(/_/g, " ")}</td>
-                            <td className="px-2 py-0.5 text-[10px] text-muted-foreground whitespace-nowrap">{fmtTs(r.startTimestamp, isWbah)}</td>
+                            <td className="px-2 py-0.5 text-[10px] text-muted-foreground whitespace-nowrap capitalize">
+                              {(r.callType || "—").replace(/_/g, " ")}
+                            </td>
+                            <td className="px-2 py-0.5 text-[10px] text-muted-foreground whitespace-nowrap">
+                              {fmtTs(r.startTimestamp, true)}
+                            </td>
                             <td className="px-2 py-0.5 whitespace-nowrap">
-                              <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium ring-1 ring-white/[0.06] ${statusBadge.cls}`}>
+                              <span
+                                className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium ring-1 ring-white/[0.06] ${statusBadge.cls}`}
+                              >
                                 {statusBadge.label}
                               </span>
                             </td>
-                            <td className="px-2 py-0.5 text-muted-foreground text-[11px] whitespace-nowrap">{fmtMs(r.durationMs)}</td>
-                            <td className="px-2 py-0.5">
-                              {r.recordingUrl ? (
-                                <PlayRecordingButton
-                                  url={r.recordingUrl}
-                                  contact={r.name ?? r.contact ?? "Lead"}
-                                  className="inline-flex items-center gap-1 rounded-md bg-primary/10 px-2 py-1 text-[10px] font-medium text-primary hover:bg-primary/20 transition-colors"
-                                />
-                              ) : <span className="text-muted-foreground/40 text-[11px]">—</span>}
+                            <td className="px-2 py-0.5 text-muted-foreground text-[11px] whitespace-nowrap">
+                              {fmtMs(r.durationMs)}
                             </td>
                             <td className="px-2 py-0.5">
-                              {(r.transcript || r.hasTranscript) ? (
+                              {r.recordingUrl ? (
+                                <a
+                                  href={r.recordingUrl}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="inline-flex items-center gap-1 rounded-md bg-primary/10 px-2 py-1 text-[10px] font-medium text-primary hover:bg-primary/20 transition-colors"
+                                >
+                                  <Play className="h-3 w-3" /> Play
+                                </a>
+                              ) : (
+                                <span className="text-muted-foreground/40 text-[11px]">—</span>
+                              )}
+                            </td>
+                            <td className="px-2 py-0.5">
+                              {r.transcript || r.hasTranscript ? (
                                 <button
                                   onClick={() => openWbahTranscript(r)}
                                   className="inline-flex items-center gap-1 rounded-md bg-muted/60 px-2 py-1 text-[10px] font-medium text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
                                 >
                                   <FileText className="h-3 w-3" /> View
                                 </button>
-                              ) : <span className="text-muted-foreground/40 text-[11px]">—</span>}
+                              ) : (
+                                <span className="text-muted-foreground/40 text-[11px]">—</span>
+                              )}
                             </td>
-                            <td className={`px-2 py-0.5 text-[11px] font-medium whitespace-nowrap ${sentBadge.cls}`}>{sentBadge.label}</td>
-                            <td className="px-2 py-0.5 text-muted-foreground text-[11px] whitespace-nowrap">{r.appointmentDate || "—"}</td>
-                            <td className="px-2 py-0.5 text-muted-foreground text-[11px] whitespace-nowrap">{r.appointmentTime || "—"}</td>
+                            <td
+                              className={`px-2 py-0.5 text-[11px] font-medium whitespace-nowrap ${sentBadge.cls}`}
+                            >
+                              {sentBadge.label}
+                            </td>
+                            <td className="px-2 py-0.5 text-muted-foreground text-[11px] whitespace-nowrap">
+                              {r.appointmentDate || "—"}
+                            </td>
+                            <td className="px-2 py-0.5 text-muted-foreground text-[11px] whitespace-nowrap">
+                              {r.appointmentTime || "—"}
+                            </td>
                             <td className="px-2 py-0.5">
                               {r.bookingStatus ? (
                                 <span className="inline-flex items-center rounded-full bg-muted px-2 py-0.5 text-[10px] font-medium text-muted-foreground ring-1 ring-white/[0.06] capitalize">
                                   {r.bookingStatus.replace(/_/g, " ")}
                                 </span>
-                              ) : <span className="text-muted-foreground/40 text-[11px]">—</span>}
+                              ) : (
+                                <span className="text-muted-foreground/40 text-[11px]">—</span>
+                              )}
                             </td>
                             <td className="px-2 py-0.5">
                               {r.calendlyBookingUrl ? (
-                                <a href={r.calendlyBookingUrl} target="_blank" rel="noopener noreferrer"
+                                <a
+                                  href={r.calendlyBookingUrl}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
                                   className="inline-flex items-center gap-1 text-[11px] text-primary hover:underline"
                                 >
                                   <ExternalLink className="h-3 w-3" /> Link
                                 </a>
-                              ) : <span className="text-muted-foreground/40 text-[11px]">—</span>}
+                              ) : (
+                                <span className="text-muted-foreground/40 text-[11px]">—</span>
+                              )}
                             </td>
                             <td className="px-2 py-0.5 text-muted-foreground text-[11px] whitespace-nowrap capitalize max-w-[120px] truncate">
                               {r.endReason ? r.endReason.replace(/_/g, " ") : "—"}
                             </td>
                             <td className="px-2 py-0.5 text-muted-foreground text-[11px] whitespace-nowrap capitalize max-w-[140px] truncate">
-                              {r.disconnectionReason ? r.disconnectionReason.replace(/_/g, " ") : "—"}
+                              {r.disconnectionReason
+                                ? r.disconnectionReason.replace(/_/g, " ")
+                                : "—"}
                             </td>
                           </tr>
                         );
@@ -2137,7 +2637,9 @@ function DataPage() {
                     <SelectContent>
                       <SelectItem value="__none__">No agent</SelectItem>
                       {agents.map((a) => (
-                        <SelectItem key={a.id} value={a.id}>{a.name}</SelectItem>
+                        <SelectItem key={a.id} value={a.id}>
+                          {a.name}
+                        </SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
@@ -2183,7 +2685,9 @@ function DataPage() {
                 onClick={handleFetchCrmPeople}
                 disabled={crmPeopleLoading}
               >
-                <RefreshCw className={`mr-1.5 h-3.5 w-3.5 ${crmPeopleLoading ? "animate-spin" : ""}`} />
+                <RefreshCw
+                  className={`mr-1.5 h-3.5 w-3.5 ${crmPeopleLoading ? "animate-spin" : ""}`}
+                />
                 {crmPeople.length > 0 ? "Refresh" : "Pull from CRM"}
               </Button>
             </div>
@@ -2234,26 +2738,40 @@ function DataPage() {
                   <tr className="border-b border-white/[0.06] bg-card/30">
                     <th className="w-8 px-2 py-1">
                       <Checkbox
-                        checked={crmFiltered.length > 0 && crmFiltered.every((p) => crmPeopleSelected.has(p.external_id))}
+                        checked={
+                          crmPeople.length > 0 && crmPeopleSelected.size === crmPeople.length
+                        }
                         onCheckedChange={(v) => {
                           if (v) setCrmPeopleSelected(new Set(crmFiltered.map((p) => p.external_id)));
                           else setCrmPeopleSelected(new Set());
                         }}
                       />
                     </th>
-                    <th className="px-2 py-1 text-left text-[9px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">Name</th>
-                    <th className="px-2 py-1 text-left text-[9px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">Phone</th>
-                    <th className="px-2 py-1 text-left text-[9px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">Email</th>
-                    <th className="px-2 py-1 text-left text-[9px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">Source</th>
-                    <th className="px-2 py-1 text-left text-[9px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">CRM Status</th>
-                    <th className="px-2 py-1 text-left text-[9px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">Received</th>
+                    <th className="px-2 py-0.5 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+                      Name
+                    </th>
+                    <th className="px-2 py-0.5 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+                      Phone
+                    </th>
+                    <th className="px-2 py-0.5 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+                      Email
+                    </th>
+                    <th className="px-2 py-0.5 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+                      Source
+                    </th>
+                    <th className="px-2 py-0.5 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+                      CRM Status
+                    </th>
+                    <th className="px-2 py-0.5 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+                      Received
+                    </th>
                   </tr>
                 </thead>
                 <tbody>
                   {crmPag.sliced.map((p) => (
                     <tr
                       key={p.external_id}
-                      className={`group h-8 border-b border-white/[0.04] align-middle hover:bg-white/[0.02] transition-colors ${crmPeopleSelected.has(p.external_id) ? "bg-blue-500/5" : ""}`}
+                      className={`group h-9 border-b border-white/4 align-middle hover:bg-white/[0.02] transition-colors ${crmPeopleSelected.has(p.external_id) ? "bg-blue-500/5" : ""}`}
                     >
                       <td className="px-2 py-0.5">
                         <Checkbox
@@ -2266,16 +2784,26 @@ function DataPage() {
                           }}
                         />
                       </td>
-                      <td className="px-2 py-0.5 text-[11px] font-medium whitespace-nowrap">{p.name || "—"}</td>
-                      <td className="whitespace-nowrap px-2 py-0.5 text-muted-foreground text-[10px] font-mono">{p.phone || "—"}</td>
-                      <td className="px-2 py-0.5 text-muted-foreground text-[11px]">{p.email || "—"}</td>
-                      <td className="px-2 py-0.5 text-muted-foreground text-[11px]">{p.source || "—"}</td>
-                      <td className="px-2 py-0.5">
+                      <td className="px-2.5 py-1 text-xs font-medium whitespace-nowrap">
+                        {p.name || "—"}
+                      </td>
+                      <td className="whitespace-nowrap px-2.5 py-1 text-muted-foreground text-[11px] font-mono">
+                        {p.phone || "—"}
+                      </td>
+                      <td className="px-2.5 py-1 text-muted-foreground text-[11px]">
+                        {p.email || "—"}
+                      </td>
+                      <td className="px-2.5 py-1 text-muted-foreground text-[11px]">
+                        {p.source || "—"}
+                      </td>
+                      <td className="px-2.5 py-1">
                         {p.status ? (
                           <span className="rounded-full bg-muted px-2 py-0.5 text-[10px] font-medium capitalize text-muted-foreground ring-1 ring-white/[0.06]">
                             {p.status.replace(/_/g, " ")}
                           </span>
-                        ) : "—"}
+                        ) : (
+                          "—"
+                        )}
                       </td>
                       <td className="whitespace-nowrap px-2 py-0.5 text-muted-foreground text-[11px]">
                         {p.created_at ? fmtDate(p.created_at) : "—"}
@@ -2500,10 +3028,7 @@ function CsvMappingDialog({
         {/* Auto-custom toggle bar */}
         <div className="flex items-center gap-2 border-b border-border bg-muted/20 px-4 py-2">
           <label className="flex cursor-pointer items-center gap-2">
-            <Checkbox
-              checked={autoCustom}
-              onCheckedChange={(v) => setAutoCustom(v === true)}
-            />
+            <Checkbox checked={autoCustom} onCheckedChange={(v) => setAutoCustom(v === true)} />
             <span className="text-xs text-muted-foreground">
               Auto-save all unmapped columns as custom fields
             </span>
@@ -2570,9 +3095,7 @@ function CsvMappingDialog({
                               <SelectItem
                                 key={f.value}
                                 value={f.value}
-                                disabled={
-                                  mappedFields.has(f.value) && mapping[h] !== f.value
-                                }
+                                disabled={mappedFields.has(f.value) && mapping[h] !== f.value}
                               >
                                 {f.label}
                                 {f.required ? " *" : ""}
@@ -2658,9 +3181,7 @@ function CsvMappingDialog({
                               <div className="text-[11px] text-foreground/80">{h}</div>
                               <div className="text-[10px] font-normal">
                                 {isCustom ? (
-                                  <span className="text-amber-500">
-                                    meta.{customKeyVal}
-                                  </span>
+                                  <span className="text-amber-500">meta.{customKeyVal}</span>
                                 ) : isMapped ? (
                                   <span className="text-primary">
                                     → {f?.label ?? effective}
@@ -2708,7 +3229,9 @@ function CsvMappingDialog({
             {canImport && (
               <span className="text-emerald-500">
                 {rows.length} row{rows.length !== 1 ? "s" : ""} ready
-                {customCount > 0 ? ` · ${customCount} custom field${customCount !== 1 ? "s" : ""}` : ""}
+                {customCount > 0
+                  ? ` · ${customCount} custom field${customCount !== 1 ? "s" : ""}`
+                  : ""}
               </span>
             )}
           </div>
@@ -2716,9 +3239,7 @@ function CsvMappingDialog({
             Cancel
           </Button>
           <Button onClick={handleImport} disabled={!canImport || importing}>
-            {importing
-              ? "Importing…"
-              : `Import ${rows.length} row${rows.length !== 1 ? "s" : ""}`}
+            {importing ? "Importing…" : `Import ${rows.length} row${rows.length !== 1 ? "s" : ""}`}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -2941,7 +3462,13 @@ function CallScheduleDialog({
   }) => Promise<void>;
 }) {
   const existing = scheduleData?.schedule as
-    | { enabled?: boolean; days?: number[]; startHour?: number; endHour?: number; maxDailyAttempts?: number }
+    | {
+        enabled?: boolean;
+        days?: number[];
+        startHour?: number;
+        endHour?: number;
+        maxDailyAttempts?: number;
+      }
     | null
     | undefined;
 
@@ -3072,7 +3599,8 @@ function CallScheduleDialog({
               <span className="text-sm text-muted-foreground">attempts / day</span>
             </div>
             <p className="text-xs text-muted-foreground">
-              Records that reach this limit are skipped for the rest of the day and retried the next.
+              Records that reach this limit are skipped for the rest of the day and retried the
+              next.
             </p>
           </div>
         </div>
@@ -3097,7 +3625,13 @@ const MANUAL_FIELDS: Array<{
   type?: string;
 }> = [
   { key: "name", label: "Full Name", placeholder: "Jane Smith", required: true },
-  { key: "mobile_number", label: "Mobile Number", placeholder: "+1 555 000 0000", required: true, type: "tel" },
+  {
+    key: "mobile_number",
+    label: "Mobile Number",
+    placeholder: "+1 555 000 0000",
+    required: true,
+    type: "tel",
+  },
   { key: "first_name", label: "First Name", placeholder: "Jane" },
   { key: "last_name", label: "Last Name", placeholder: "Smith" },
   { key: "email", label: "Email", placeholder: "jane@example.com", type: "email" },
@@ -3130,14 +3664,19 @@ function ManualEntryDialog({
 }) {
   const [fields, setFields] = useState<Record<string, string>>({});
   const [agentId, setAgentId] = useState("");
-  const [extraRows, setExtraRows] = useState<Array<{ key: string; label: string; value: string }>>([]);
+  const [extraRows, setExtraRows] = useState<Array<{ key: string; label: string; value: string }>>(
+    [],
+  );
   const [newKey, setNewKey] = useState("");
   const [newVal, setNewVal] = useState("");
   const [loading, setLoading] = useState(false);
 
   function getAgentMeta(id: string) {
     const ag = agents.find((a) => a.id === id);
-    const mappings = ((ag?.settings?.leadGen as any)?.variableMappings ?? {}) as Record<string, string>;
+    const mappings = ((ag?.settings?.leadGen as any)?.variableMappings ?? {}) as Record<
+      string,
+      string
+    >;
     return {
       fixedCols: [...new Set(Object.values(mappings).filter((v) => !v.startsWith("meta.")))],
       metaRows: Object.entries(mappings)
@@ -3190,7 +3729,8 @@ function ManualEntryDialog({
     return s;
   }
 
-  const canSave = (fields.name ?? "").trim().length > 0 && (fields.mobile_number ?? "").trim().length > 0;
+  const canSave =
+    (fields.name ?? "").trim().length > 0 && (fields.mobile_number ?? "").trim().length > 0;
 
   async function handleSave() {
     setLoading(true);
@@ -3310,7 +3850,9 @@ function ManualEntryDialog({
           <div className="space-y-2 pt-2">
             <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
               Custom Fields
-              <span className="ml-1 font-normal normal-case tracking-normal text-amber-500">stored in meta</span>
+              <span className="ml-1 font-normal normal-case tracking-normal text-amber-500">
+                stored in meta
+              </span>
             </p>
             {extraRows.map((row, i) => (
               <div key={i} className="flex items-center gap-2">
