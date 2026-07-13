@@ -18,11 +18,9 @@ because the `workspace_api_profiles` table doesn't exist, so `resolveProfile`
 errors and the router always returns `source:"fallback"` — but the moment a profile
 table/mapping is added, the gap becomes live.
 
-**How to apply:** Fixed everywhere as of July 2026: `getWbahCampaigns` gates via
-`requireWbahCbs`; `listWbahLeads`/`listWbahCalls`/`listWbahCrmContacts` hoist
-`requireWbahView` (membership-only, no UAT login — avoids single-session churn)
-above the router try-block. When adding any NEW WBAH server fn with an engine-first
-read, copy that pattern. Membership gating must be path-independent; never let the
-data source determine whether auth runs. Prefer `requireWbahView` for the pre-router
-gate: `requireWbahCbs` now does a full UAT login per call, so hoisting it would
-multiply login churn.
+**How to apply:** When adding any WBAH server fn with an engine-first read, hoist
+the membership gate above the router try-block (see `listWbahLeads`/`listWbahCalls`/
+`listWbahCrmContacts` for the pattern). Membership gating must be path-independent;
+never let the data source determine whether auth runs. Prefer `requireWbahView`
+(membership-only, no UAT login) for the pre-router gate: `requireWbahCbs` does a
+full UAT login per call, so hoisting it would multiply single-session login churn.

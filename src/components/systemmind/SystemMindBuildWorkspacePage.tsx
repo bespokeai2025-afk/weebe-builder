@@ -13,7 +13,7 @@ import {
   FlaskConical, FileCode2, Gauge, RotateCcw, CheckCircle2, AlertTriangle,
   ShieldAlert, Rocket, GitBranch, Variable, ListChecks, Bell, StickyNote,
   ArrowRight, Bot, Workflow as WorkflowIcon, ExternalLink, ShieldCheck,
-  Undo2, GitCompareArrows, FilePlus2, Copy, SendToBack,
+  Undo2, GitCompareArrows, FilePlus2, Copy, SendToBack, Import, Info,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { SystemMindShell } from "./SystemMindShell";
@@ -24,11 +24,17 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
 } from "@/components/ui/dialog";
 import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from "@/components/ui/select";
+import {
   createBuildSession, listBuildSessions, getBuildSession, promptBuildSession,
   simulateBuildVersion, applyBuildVersion, restoreBuildVersion,
   setBuildVersionNotes, setBuildSessionArchived, markBuildVersionDeployed,
   getSystemMindUsageSummary, getBuildApplySafetyReport, rollbackBuildApply,
 } from "@/lib/systemmind/build-workspace.functions";
+import {
+  listLegacyConversionSources, convertLegacySourceToDraft, getConversionForSession,
+} from "@/lib/systemmind/legacy-conversion.functions";
 import { goLiveAgent } from "@/lib/agents/agents.functions";
 
 // ── Small bits ─────────────────────────────────────────────────────────────────
@@ -245,13 +251,122 @@ function SimulationView({ sim }: { sim: Record<string, any> }) {
   );
 }
 
+// ── Conversion report (Legacy Logic Converter) ─────────────────────────────────
+
+const SOURCE_TYPE_LABELS: Record<string, string> = {
+  agent:              "Existing agent",
+  workflow:           "Existing WEBEE workflow",
+  n8n:                "n8n workflow",
+  hexmail_sequence:   "Email follow-up sequence",
+  wati_setup:         "WATI WhatsApp campaign",
+  webform_auto_call:  "Webform + auto-call setup",
+  manual_description: "Described process",
+};
+
+const FIDELITY_STYLES: Record<string, string> = {
+  full:     "border-green-500/40 text-green-400",
+  partial:  "border-amber-500/40 text-amber-400",
+  assisted: "border-sky-500/40 text-sky-400",
+};
+
+function ConversionReportView({ conversion }: { conversion: Record<string, any> }) {
+  const r = (conversion.report ?? {}) as Record<string, any>;
+  const converted   = (r.converted ?? []) as Array<{ from: string; to: string }>;
+  const unsupported = (r.unsupported ?? []) as Array<{ item: string; reason: string }>;
+  const warnings    = (r.warnings ?? []) as string[];
+  const assumptions = (r.assumptions ?? []) as string[];
+  const deps        = (r.provider_dependencies ?? []) as string[];
+  const testPlan    = (r.test_plan ?? []) as string[];
+  const fidelity    = String(conversion.fidelity ?? r.fidelity ?? "partial");
+
+  return (
+    <div className="space-y-3">
+      <div className="flex flex-wrap items-center gap-2 rounded-lg border border-white/[0.06] bg-white/[0.02] p-3">
+        <Import className="h-4 w-4 text-sky-400" />
+        <div className="min-w-0 flex-1">
+          <p className="text-xs font-semibold">
+            Converted from {SOURCE_TYPE_LABELS[String(conversion.source_type)] ?? conversion.source_type}
+            {conversion.source_name ? ` — “${conversion.source_name}”` : ""}
+          </p>
+          <p className="mt-0.5 text-[10px] text-muted-foreground">
+            {fmtTime(conversion.created_at)} · original untouched — nothing goes live until Apply
+          </p>
+        </div>
+        <Badge variant="outline" className={cn("text-[10px] font-semibold", FIDELITY_STYLES[fidelity] ?? "border-white/20")}>
+          {fidelity === "full" ? "full fidelity" : fidelity === "partial" ? "partial fidelity" : "AI-assisted"}
+        </Badge>
+        <RiskBadge risk={conversion.risk_level ?? r.risk_level} />
+      </div>
+
+      {r.original_summary && (
+        <Section icon={Info} title="What the original did">
+          <p className="text-[11px] leading-relaxed text-muted-foreground whitespace-pre-wrap">{r.original_summary}</p>
+          {r.detected_trigger && (
+            <p className="text-[10px] text-muted-foreground/70">Trigger detected: <span className="text-sky-300">{r.detected_trigger}</span></p>
+          )}
+        </Section>
+      )}
+
+      {converted.length > 0 && (
+        <Section icon={CheckCircle2} title={`Converted (${converted.length})`}>
+          {converted.map((c, i) => (
+            <p key={i} className="flex items-start gap-1.5 text-[11px]">
+              <span className="text-muted-foreground truncate max-w-[45%]" title={c.from}>{c.from}</span>
+              <ArrowRight className="mt-0.5 h-2.5 w-2.5 shrink-0 text-muted-foreground/50" />
+              <span className="text-green-300/90">{c.to}</span>
+            </p>
+          ))}
+        </Section>
+      )}
+
+      {unsupported.length > 0 && (
+        <Section icon={AlertTriangle} title={`Needs manual review (${unsupported.length})`}>
+          {unsupported.map((u, i) => (
+            <div key={i} className="rounded border border-amber-500/20 bg-amber-500/[0.04] px-2 py-1.5">
+              <p className="text-[11px] font-medium text-amber-200/90">{u.item}</p>
+              <p className="text-[10px] text-muted-foreground">{u.reason}</p>
+            </div>
+          ))}
+          <p className="text-[10px] text-muted-foreground/70">
+            A review task has been added to the HiveMind action centre for these items.
+          </p>
+        </Section>
+      )}
+
+      {warnings.length > 0 && (
+        <Section icon={ShieldAlert} title="Warnings">
+          {warnings.map((w, i) => <p key={i} className="text-[11px] text-amber-300/90">{w}</p>)}
+        </Section>
+      )}
+
+      {assumptions.length > 0 && (
+        <Section icon={StickyNote} title="Assumptions made">
+          {assumptions.map((a, i) => <p key={i} className="text-[11px] text-muted-foreground">• {a}</p>)}
+        </Section>
+      )}
+
+      {deps.length > 0 && (
+        <Section icon={ShieldAlert} title="Provider dependencies">
+          {deps.map((d, i) => <p key={i} className="text-[11px] text-muted-foreground">• {d}</p>)}
+        </Section>
+      )}
+
+      {testPlan.length > 0 && (
+        <Section icon={ListChecks} title="Suggested test plan">
+          {testPlan.map((t, i) => <p key={i} className="text-[11px] text-muted-foreground">{i + 1}. {t}</p>)}
+        </Section>
+      )}
+    </div>
+  );
+}
+
 // ── Page ────────────────────────────────────────────────────────────────────────
 
 export function SystemMindBuildWorkspacePage() {
   const navigate = useNavigate();
   const qc       = useQueryClient();
   const search   = useSearch({ from: "/_authenticated/systemmind/build" }) as {
-    session?: string; workflow?: string; agent?: string;
+    session?: string; workflow?: string; agent?: string; convert?: string;
   };
   const sessionId = search.session;
 
@@ -269,9 +384,16 @@ export function SystemMindBuildWorkspacePage() {
   const goLiveFn   = useServerFn(goLiveAgent);
   const safetyFn   = useServerFn(getBuildApplySafetyReport);
   const rollbackFn = useServerFn(rollbackBuildApply);
+  const convSourcesFn = useServerFn(listLegacyConversionSources);
+  const convertFn     = useServerFn(convertLegacySourceToDraft);
+  const conversionFn  = useServerFn(getConversionForSession);
 
   const [prompt, setPrompt]           = useState("");
-  const [tab, setTab]                 = useState<"config" | "test" | "versions" | "usage">("config");
+  const [tab, setTab]                 = useState<"config" | "test" | "versions" | "usage" | "conversion">("config");
+  const [convertOpen, setConvertOpen]   = useState(false);
+  const [convertType, setConvertType]   = useState<string>("");
+  const [convertSourceId, setConvertSourceId] = useState<string>("");
+  const [convertDesc, setConvertDesc]   = useState("");
   const [sim, setSim]                 = useState<Record<string, any> | null>(null);
   const [notesEditId, setNotesEditId] = useState<string | null>(null);
   const [notesDraft, setNotesDraft]   = useState("");
@@ -299,6 +421,24 @@ export function SystemMindBuildWorkspacePage() {
     queryKey: ["smbw-usage"],
     queryFn: () => usageFn({ data: { days: 30 } }),
     enabled: tab === "usage",
+    throwOnError: false,
+    staleTime: 60_000,
+  });
+
+  // Legacy Logic Converter: convertible sources (only fetched while the dialog is open)
+  const { data: convSources, isLoading: convSourcesLoading } = useQuery({
+    queryKey: ["smbw-convert-sources"],
+    queryFn: () => convSourcesFn(),
+    enabled: convertOpen,
+    throwOnError: false,
+    staleTime: 60_000,
+  });
+
+  // Conversion lineage row for the open session (drives the Conversion tab)
+  const { data: conversion } = useQuery({
+    queryKey: ["smbw-conversion", sessionId],
+    queryFn: () => conversionFn({ data: { sessionId: sessionId! } }),
+    enabled: !!sessionId,
     throwOnError: false,
     staleTime: 60_000,
   });
@@ -350,6 +490,43 @@ export function SystemMindBuildWorkspacePage() {
       navigate({ to: "/systemmind/build", search: { session: res.sessionId, workflow: undefined, agent: undefined } });
     },
     onError: (e: any) => toast.error("Could not create build session", { description: e?.message }),
+  });
+
+  // Open the converter dialog automatically when arriving via ?convert=1
+  const convertAutoOpenedRef = useRef(false);
+  useEffect(() => {
+    if (search.convert && !convertAutoOpenedRef.current) {
+      convertAutoOpenedRef.current = true;
+      setConvertOpen(true);
+    }
+  }, [search.convert]);
+
+  const runConvert = useMutation({
+    mutationFn: () => {
+      if (!convertType) throw new Error("Pick what you want to convert.");
+      if (convertType === "manual_description") {
+        return convertFn({ data: { sourceType: convertType as any, description: convertDesc.trim(), sourcePage: "systemmind" } });
+      }
+      if (!convertSourceId) throw new Error("Pick the source to convert.");
+      return convertFn({ data: { sourceType: convertType as any, sourceId: convertSourceId, sourcePage: "systemmind" } });
+    },
+    onSuccess: (res: any) => {
+      setConvertOpen(false);
+      setConvertType("");
+      setConvertSourceId("");
+      setConvertDesc("");
+      setSim(null);
+      setTab("conversion");
+      qc.invalidateQueries({ queryKey: ["smbw-sessions"] });
+      const rep = res?.report ?? {};
+      const unsup = (rep.unsupported ?? []).length;
+      toast.success("Converted to a WEBEE draft", {
+        description: `${(rep.converted ?? []).length} element(s) converted${unsup ? `, ${unsup} need manual review` : ""}. The original is untouched.`,
+        duration: 8000,
+      });
+      navigate({ to: "/systemmind/build", search: { session: res.sessionId, workflow: undefined, agent: undefined } });
+    },
+    onError: (e: any) => toast.error("Conversion failed", { description: e?.message, duration: 10000 }),
   });
 
   const sendPrompt = useMutation({
@@ -531,6 +708,15 @@ export function SystemMindBuildWorkspacePage() {
             {newSession.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Plus className="h-3.5 w-3.5" />}
             New build
           </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            className="w-full gap-1.5 text-xs border-sky-500/30 text-sky-400 hover:text-sky-300"
+            onClick={() => setConvertOpen(true)}
+          >
+            <Import className="h-3.5 w-3.5" />
+            Convert legacy logic
+          </Button>
           <div className="min-h-0 flex-1 space-y-1 overflow-y-auto pr-1">
             {sessionsLoading && <p className="px-2 py-4 text-center text-[11px] text-muted-foreground">Loading…</p>}
             {(sessions ?? []).map((s: any) => (
@@ -571,10 +757,24 @@ export function SystemMindBuildWorkspacePage() {
                 nothing goes live without your say-so.
               </p>
             </div>
-            <Button size="sm" className="gap-1.5 text-xs" onClick={() => newSession.mutate()} disabled={newSession.isPending}>
-              {newSession.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Plus className="h-3.5 w-3.5" />}
-              Start a build
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button size="sm" className="gap-1.5 text-xs" onClick={() => newSession.mutate()} disabled={newSession.isPending}>
+                {newSession.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Plus className="h-3.5 w-3.5" />}
+                Start a build
+              </Button>
+              <Button
+                size="sm" variant="outline"
+                className="gap-1.5 text-xs border-sky-500/30 text-sky-400 hover:text-sky-300"
+                onClick={() => setConvertOpen(true)}
+              >
+                <Import className="h-3.5 w-3.5" />
+                Convert legacy logic
+              </Button>
+            </div>
+            <p className="max-w-md text-[11px] text-muted-foreground/70">
+              Convert legacy logic pulls an old setup — an agent flow, an n8n workflow, an email
+              sequence, a WATI campaign, or a process you describe — into an editable draft here.
+            </p>
           </div>
         ) : detailLoading ? (
           <div className="flex flex-1 items-center justify-center">
@@ -674,6 +874,7 @@ export function SystemMindBuildWorkspacePage() {
                     ["test",     FlaskConical, "Test"],
                     ["versions", History,      "Versions"],
                     ["usage",    Gauge,        "Usage"],
+                    ...(conversion ? ([["conversion", Import, "Conversion"]] as const) : []),
                   ] as const).map(([key, Icon, label]) => (
                     <button
                       key={key}
@@ -734,6 +935,12 @@ export function SystemMindBuildWorkspacePage() {
                     config
                       ? <ConfigPreview config={config} />
                       : <p className="py-8 text-center text-[11px] text-muted-foreground">Nothing generated yet — send SystemMind a prompt to create the first version.</p>
+                  )}
+
+                  {tab === "conversion" && (
+                    conversion
+                      ? <ConversionReportView conversion={conversion as Record<string, any>} />
+                      : <p className="py-8 text-center text-[11px] text-muted-foreground">This session was not created by the Legacy Logic Converter.</p>
                   )}
 
                   {tab === "test" && (
@@ -1097,6 +1304,116 @@ export function SystemMindBuildWorkspacePage() {
               </div>
             );
           })()}
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Legacy Logic Converter dialog ── */}
+      <Dialog open={convertOpen} onOpenChange={(o) => { if (!o && !runConvert.isPending) setConvertOpen(false); }}>
+        <DialogContent className="max-h-[85dvh] max-w-lg overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-sm">
+              <Import className="h-4 w-4 text-sky-400" />
+              Convert legacy logic
+            </DialogTitle>
+            <DialogDescription className="text-[11px]">
+              SystemMind reads an old setup and rebuilds it as an editable WEBEE draft.
+              The original is never modified, and nothing goes live until you Apply.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-3">
+            <div className="space-y-1.5">
+              <p className="text-[11px] font-semibold text-foreground/80">What do you want to convert?</p>
+              <Select
+                value={convertType}
+                onValueChange={(v) => { setConvertType(v); setConvertSourceId(""); }}
+                disabled={runConvert.isPending}
+              >
+                <SelectTrigger className="h-8 text-xs">
+                  <SelectValue placeholder="Pick a source type…" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="agent" className="text-xs">Existing agent (call flow → workflow)</SelectItem>
+                  <SelectItem value="workflow" className="text-xs">Existing WEBEE workflow (load for editing)</SelectItem>
+                  <SelectItem value="n8n" className="text-xs">n8n workflow</SelectItem>
+                  <SelectItem value="hexmail_sequence" className="text-xs">Email follow-up sequence</SelectItem>
+                  <SelectItem value="wati_setup" className="text-xs">WATI WhatsApp campaign</SelectItem>
+                  <SelectItem value="webform_auto_call" className="text-xs">Webform + auto-call setup</SelectItem>
+                  <SelectItem value="manual_description" className="text-xs">Describe a process manually</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {convertType && convertType !== "manual_description" && (() => {
+              const options: Array<{ id: string; label: string }> =
+                convertType === "agent"             ? ((convSources?.agents ?? []) as any[]).map((a) => ({ id: a.id, label: `${a.name}${a.agent_type ? ` (${a.agent_type})` : ""}` })) :
+                convertType === "workflow"          ? ((convSources?.workflows ?? []) as any[]).map((w) => ({ id: w.id, label: `${w.name}${w.is_active ? " (active)" : ""}` })) :
+                convertType === "n8n"               ? ((convSources?.n8n ?? []) as any[]).map((n) => ({ id: n.id, label: n.name })) :
+                convertType === "hexmail_sequence"  ? ((convSources?.sequences ?? []) as any[]).map((s) => ({ id: s.id, label: `${s.name}${s.status ? ` (${s.status})` : ""}` })) :
+                convertType === "wati_setup"        ? ((convSources?.wati ?? []) as any[]).map((w) => ({ id: w.id, label: `${w.name}${w.template_name ? ` — ${w.template_name}` : ""}` })) :
+                ((convSources?.webforms ?? []) as any[]).map((w) => ({ id: w.id, label: `${w.name}${w.status ? ` (${w.status})` : ""}` }));
+              return (
+                <div className="space-y-1.5">
+                  <p className="text-[11px] font-semibold text-foreground/80">Pick the source</p>
+                  {convSourcesLoading ? (
+                    <p className="flex items-center gap-2 text-[11px] text-muted-foreground">
+                      <Loader2 className="h-3 w-3 animate-spin" /> Loading your sources…
+                    </p>
+                  ) : options.length === 0 ? (
+                    <p className="text-[11px] text-muted-foreground">
+                      Nothing found for this source type in your workspace.
+                    </p>
+                  ) : (
+                    <Select value={convertSourceId} onValueChange={setConvertSourceId} disabled={runConvert.isPending}>
+                      <SelectTrigger className="h-8 text-xs">
+                        <SelectValue placeholder="Pick one…" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {options.map((o) => (
+                          <SelectItem key={o.id} value={o.id} className="text-xs">{o.label}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
+                </div>
+              );
+            })()}
+
+            {convertType === "manual_description" && (
+              <div className="space-y-1.5">
+                <p className="text-[11px] font-semibold text-foreground/80">Describe the process</p>
+                <Textarea
+                  value={convertDesc}
+                  onChange={(e) => setConvertDesc(e.target.value)}
+                  placeholder="e.g. “When a lead comes in from our website we call them within 5 minutes; if no answer we send a WhatsApp, then email the day after…”"
+                  className="min-h-[100px] resize-none text-xs"
+                  disabled={runConvert.isPending}
+                />
+                <p className="text-[10px] text-muted-foreground/70">
+                  SystemMind will convert this into a workflow draft and clearly mark any assumptions it makes.
+                </p>
+              </div>
+            )}
+
+            <DialogFooter className="gap-2 sm:gap-0">
+              <Button variant="ghost" size="sm" className="text-xs" disabled={runConvert.isPending} onClick={() => setConvertOpen(false)}>
+                Cancel
+              </Button>
+              <Button
+                size="sm"
+                className="gap-1.5 text-xs"
+                disabled={
+                  runConvert.isPending ||
+                  !convertType ||
+                  (convertType === "manual_description" ? convertDesc.trim().length < 20 : !convertSourceId)
+                }
+                onClick={() => runConvert.mutate()}
+              >
+                {runConvert.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Import className="h-3.5 w-3.5" />}
+                {runConvert.isPending ? "Converting…" : "Convert to draft"}
+              </Button>
+            </DialogFooter>
+          </div>
         </DialogContent>
       </Dialog>
     </SystemMindShell>

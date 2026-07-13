@@ -8396,6 +8396,57 @@ export type Database = {
           },
         ]
       }
+      systemmind_conversions: {
+        Row: {
+          converted_by: string
+          created_at: string
+          created_by_user_id: string | null
+          fidelity: string
+          id: string
+          report: Json
+          risk_level: string | null
+          session_id: string | null
+          source_id: string | null
+          source_name: string | null
+          source_type: string
+          source_version: string | null
+          version_id: string | null
+          workspace_id: string
+        }
+        Insert: {
+          converted_by?: string
+          created_at?: string
+          created_by_user_id?: string | null
+          fidelity?: string
+          id?: string
+          report?: Json
+          risk_level?: string | null
+          session_id?: string | null
+          source_id?: string | null
+          source_name?: string | null
+          source_type: string
+          source_version?: string | null
+          version_id?: string | null
+          workspace_id: string
+        }
+        Update: {
+          converted_by?: string
+          created_at?: string
+          created_by_user_id?: string | null
+          fidelity?: string
+          id?: string
+          report?: Json
+          risk_level?: string | null
+          session_id?: string | null
+          source_id?: string | null
+          source_name?: string | null
+          source_type?: string
+          source_version?: string | null
+          version_id?: string | null
+          workspace_id?: string
+        }
+        Relationships: []
+      }
       systemmind_deployment_plans: {
         Row: {
           confidence: number | null

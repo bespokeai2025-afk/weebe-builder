@@ -5,7 +5,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   Plus, Play, Pause, Trash2, BarChart3, CheckCircle2, XCircle, Clock,
   Zap, RefreshCw, ChevronRight, AlertCircle, Loader2, Settings,
-  Activity, TrendingUp, Search, GitBranch, Hammer,
+  Activity, TrendingUp, Search, GitBranch, Hammer, Import,
 } from "lucide-react";
 import { toast } from "sonner";
 import { formatDistanceToNow } from "date-fns";
@@ -192,9 +192,23 @@ export function WorkflowEnginePage() {
             Automate lead management, calling, follow-ups, and CRM updates.
           </p>
         </div>
-        <Button onClick={() => setCreateOpen(true)} className="gap-2 shrink-0">
-          <Plus className="h-4 w-4" /> New Workflow
-        </Button>
+        <div className="flex items-center gap-2 shrink-0">
+          <Button
+            variant="outline"
+            className="gap-2 border-sky-500/30 text-sky-400 hover:text-sky-300"
+            onClick={() =>
+              navigate({
+                to: "/systemmind/build",
+                search: { session: undefined, workflow: undefined, agent: undefined, convert: "1" },
+              })
+            }
+          >
+            <Import className="h-4 w-4" /> Convert legacy logic
+          </Button>
+          <Button onClick={() => setCreateOpen(true)} className="gap-2">
+            <Plus className="h-4 w-4" /> New Workflow
+          </Button>
+        </div>
       </div>
 
       {/* Stats */}

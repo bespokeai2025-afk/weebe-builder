@@ -6,6 +6,7 @@ export const Route = createFileRoute("/_authenticated/systemmind/build")({
     session:  (search.session as string | undefined) || undefined,
     workflow: (search.workflow as string | undefined) || undefined,
     agent:    (search.agent as string | undefined) || undefined,
+    convert:  (search.convert as string | undefined) || undefined,
   }),
   head: () => ({ meta: [{ title: "Build Workspace — SystemMind" }] }),
   component: SystemMindBuildWorkspacePage,

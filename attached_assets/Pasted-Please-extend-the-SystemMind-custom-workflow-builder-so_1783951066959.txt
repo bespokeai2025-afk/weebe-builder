@@ -1,0 +1,472 @@
+Please extend the SystemMind custom workflow builder so it can guide or automate the existing agent deployment flow safely.
+
+Current normal deployment flow:
+
+1. User builds agent in Agent Builder.
+2. User clicks Create Agent.
+3. User normally goes to the Agents page.
+4. User clicks Deploy Agent.
+5. User assigns a phone number by purchasing from Retell via API, or assigns a SIP trunk via API.
+6. User selects the agent type, for example Receptionist, Lead Gen, Qualification, or Custom.
+7. User clicks Go Live.
+
+I want SystemMind to be able to support and streamline this flow for custom workflow agents and prefabricated simple agent setups, but without breaking the existing deployment system.
+
+---
+
+## Main goal
+
+SystemMind should become a deployment orchestrator.
+
+It should be able to:
+
+* detect what deployment steps are required
+* automate safe steps where possible
+* prompt the user where approval or missing setup is required
+* continue to the next step once complete
+* reuse the existing Deploy Agent and Go Live logic
+* save the deployment workflow to the client’s Workflows page
+* keep everything workspace-scoped
+
+SystemMind must not bypass existing safety checks.
+
+---
+
+## Critical rule
+
+SystemMind must never silently purchase numbers, assign SIP trunks, change provider settings, change live agent settings, or click Go Live without explicit user/admin approval.
+
+For anything that affects billing, telephony, phone numbers, SIP trunks, live customer calls, or provider configuration, SystemMind must show a confirmation step first.
+
+---
+
+## Deployment orchestration logic
+
+After an agent is created, SystemMind should check:
+
+* current workspace_id
+* created agent id
+* Retell agent id
+* selected agent type
+* deployment type:
+
+  * receptionist
+  * lead generation
+  * qualification
+  * WhatsApp
+  * SMS
+  * custom workflow
+* whether the agent is already deployed
+* whether a phone number is already assigned
+* whether a SIP trunk is available
+* whether Retell API key exists
+* whether Retell workspace mapping exists
+* whether workspace phone number provider is configured
+* whether required webhooks exist
+* whether post-call extraction is configured
+* whether CRM mapping is configured
+* whether workflow blocks are configured
+* whether Go Live checks pass
+
+Then it should generate a deployment checklist.
+
+---
+
+## Deployment checklist
+
+SystemMind should show a step-by-step checklist:
+
+1. Agent created
+2. Retell agent mapped
+3. Agent type selected
+4. Workflow generated
+5. Post-call extraction configured
+6. CRM mapping configured
+7. Follow-up rules configured
+8. Phone number or SIP trunk required
+9. Phone number/SIP selected
+10. Webhook configured
+11. Test call passed
+12. Go Live ready
+13. User approval required
+14. Go Live
+
+Each step should show:
+
+* complete
+* missing
+* needs approval
+* failed
+* optional
+* blocked
+
+---
+
+## Phone number assignment
+
+SystemMind should support phone number assignment, but safely.
+
+If the workspace has Retell API access and number purchasing is enabled, SystemMind may offer:
+
+* “Purchase and assign new Retell number”
+* “Assign existing workspace number”
+* “Use SIP trunk”
+* “Skip for now”
+
+Before purchasing a number, SystemMind must show:
+
+* country/region
+* number type if available
+* estimated provider cost if available
+* workspace that will own the number
+* agent that will receive the number
+* billing warning
+* approval button
+
+SystemMind must not purchase a number without user/admin approval.
+
+If approval is given, reuse the existing number purchase/assignment API logic.
+
+Do not create duplicate Retell number purchase logic if a service already exists.
+
+---
+
+## SIP trunk assignment
+
+If SIP trunk is selected, SystemMind should check:
+
+* SIP trunk provider exists
+* SIP credentials/settings exist
+* trunk is workspace-scoped
+* trunk is available
+* trunk is compatible with the selected agent
+* required routing config exists
+
+If SIP trunk is missing, SystemMind should show:
+
+“SIP trunk setup is missing for this workspace. Please add SIP trunk settings or choose a Retell number.”
+
+Options:
+
+* Add SIP trunk settings
+* Use existing workspace SIP trunk
+* Purchase Retell number instead
+* Save deployment as draft
+
+Do not silently create SIP trunk settings without approval.
+
+---
+
+## Prompt user and continue
+
+If a required deployment step is missing, SystemMind should pause and prompt the user.
+
+Examples:
+
+### Missing phone number
+
+“This agent needs a phone number before it can go live. Would you like to purchase a Retell number, assign an existing number, or use SIP trunk?”
+
+### Missing Retell key
+
+“This workspace does not have a Retell API key configured. Add the key in Provider Settings before deployment can continue.”
+
+### Missing SIP config
+
+“SIP trunk is selected, but no SIP trunk is configured for this workspace. Add SIP settings or choose Retell number.”
+
+### Missing post-call extraction
+
+“This workflow needs post-call extraction fields before Go Live. I can generate them now as a draft.”
+
+### Missing CRM mapping
+
+“This workflow captures data, but CRM mapping is incomplete. I can map the fields to WEBEE Smart Dash now.”
+
+After the user completes or approves the step, SystemMind should continue to the next checklist item.
+
+---
+
+## Agent type selection
+
+SystemMind should support both prefabricated simple agent types and custom workflow agents.
+
+Agent types:
+
+* Receptionist
+* Lead Generation
+* Qualification
+* WhatsApp
+* SMS
+* Custom Workflow
+
+For prefabricated simple setups like Receptionist:
+
+* use the existing standard deployment template
+* do not overcomplicate the workflow
+* use existing Go Live logic
+* assign phone/SIP if approved
+* create standard workflow records where needed
+
+For custom workflow agents:
+
+* require workflow validation
+* require extraction/CRM mapping validation
+* require simulation/test result
+* require deployment checklist completion
+* then allow Apply & Go Live
+
+---
+
+## Override behaviour
+
+SystemMind may streamline or override manual steps only when safe.
+
+Allowed:
+
+* automatically open the deploy panel after Create Agent
+* preselect the correct agent type based on the build
+* prefill workflow settings
+* prefill extraction fields
+* prefill CRM mappings
+* recommend number/SIP requirement
+* assign existing number after approval
+* purchase number after approval
+* assign SIP trunk after approval
+* trigger existing Go Live logic after approval and validation
+
+Not allowed:
+
+* silently purchase number
+* silently assign SIP trunk
+* silently go live
+* change live agent type without approval
+* overwrite existing number assignment without approval
+* alter another agent’s phone number
+* change another workspace’s telephony config
+* bypass deployment checks
+* bypass billing warnings
+* bypass provider validation
+
+---
+
+## Existing deployment logic must be reused
+
+Do not build a separate deployment path that conflicts with the current system.
+
+Reuse existing services/functions for:
+
+* Create Agent
+* Deploy Agent
+* Retell agent mapping
+* Retell number purchase
+* phone number assignment
+* SIP trunk assignment
+* webhook setup
+* Go Live
+* agent type selection
+* deployment status updates
+
+If current services are missing, create small reusable service functions, but do not duplicate large logic.
+
+---
+
+## Workflows page integration
+
+When SystemMind completes deployment setup, save the workflow/deployment record to the client’s Workflows page.
+
+Record should include:
+
+* workspace_id
+* agent_id
+* Retell agent id
+* agent type
+* deployment type
+* assigned phone number id if applicable
+* SIP trunk id if applicable
+* workflow id
+* extraction config id
+* CRM mapping id
+* deployment status
+* Go Live status
+* approval status
+* created by SystemMind
+* version
+* audit log id
+
+From the Workflows page, user should be able to:
+
+* view deployment workflow
+* edit with SystemMind
+* pause
+* reactivate
+* rollback if supported
+* view assigned number/SIP
+* view audit history
+* view usage/cost impact
+
+---
+
+## Safety checks before Go Live
+
+Before Go Live, SystemMind must validate:
+
+* workspace_id matches signed-in user
+* agent belongs to current workspace
+* Retell agent belongs to current workspace Retell config
+* phone number belongs to current workspace or approved assignment
+* SIP trunk belongs to current workspace or approved assignment
+* agent type selected
+* post-call/post-chat extraction valid
+* CRM mapping valid
+* workflow blocks valid
+* provider credentials present
+* webhook configured
+* no conflicts with existing live agents
+* no number already assigned to another active agent unless explicitly approved
+* no high-risk customer messaging activated without approval
+
+If anything fails, Go Live must be blocked with a clear reason.
+
+---
+
+## Number conflict detection
+
+SystemMind should detect if a phone number is already assigned to another active agent.
+
+If conflict exists, show:
+
+“This number is already assigned to [agent name]. Reassigning it may stop that agent receiving calls. Do you want to choose another number, duplicate the setup, or request approval to reassign?”
+
+Default should be:
+
+Choose another number.
+
+Never silently reassign a number.
+
+---
+
+## Billing and usage warnings
+
+Phone number purchase, SIP usage, Retell usage, voice minutes, WhatsApp, SMS, email, and SystemMind automation usage may create costs.
+
+Before actions that create costs, show:
+
+* estimated cost if available
+* provider involved
+* workspace affected
+* approval required
+
+Send usage/billing events to AccountsMind.
+
+---
+
+## Audit logs
+
+Every deployment orchestration action must create an audit log.
+
+Log:
+
+* workspace_id
+* user_id
+* agent_id
+* workflow_id
+* action type
+* deployment step
+* before state
+* after state
+* approval status
+* approved_by
+* approved_at
+* phone number id
+* SIP trunk id
+* Retell agent id
+* Go Live status
+* error if any
+* token/time usage if SystemMind was involved
+
+---
+
+## UI changes
+
+Add SystemMind deployment guidance in:
+
+1. Agent Builder after Create Agent
+2. SystemMind Build Workspace
+3. Agent Deploy tab
+4. Agents page
+5. Workflows page
+
+Show:
+
+* deployment checklist
+* missing steps
+* phone number/SIP options
+* approval prompts
+* Go Live readiness
+* Apply & Go Live button
+* blockers
+* warnings
+* audit trail
+
+---
+
+## Workspace isolation
+
+Every deployment action must be scoped to the current workspace_id.
+
+SystemMind must never:
+
+* assign another workspace’s number
+* use another workspace’s Retell key
+* use another workspace’s SIP trunk
+* deploy another workspace’s agent
+* change WBAH unless logged into WBAH
+* copy WBAH telephony config to another workspace
+* copy another workspace config into WBAH
+* change global telephony defaults from user prompt
+
+Reject any action where workspace_id is missing, mismatched, or ambiguous.
+
+---
+
+## Do not break existing flow
+
+Do not break the current manual flow:
+
+Agent Builder → Create Agent → Agents page → Deploy Agent → assign phone/SIP → select agent type → Go Live
+
+Users must still be able to deploy manually as before.
+
+SystemMind should enhance and optionally streamline this flow, not replace it completely.
+
+---
+
+## Testing required
+
+Please test:
+
+1. Prefabricated Receptionist agent created manually.
+2. SystemMind opens deployment checklist.
+3. User selects Retell number purchase.
+4. SystemMind requires approval before purchase.
+5. After approval, existing Retell number purchase API is used.
+6. Number is assigned to the correct workspace agent.
+7. Apply & Go Live uses existing Go Live logic.
+8. Custom workflow agent created.
+9. SystemMind validates workflow, extraction, and CRM mapping before Go Live.
+10. Missing phone number blocks Go Live and prompts user.
+11. Missing SIP trunk blocks Go Live and prompts user.
+12. Existing number conflict is detected.
+13. No number is reassigned silently.
+14. Manual deployment flow still works.
+15. WBAH workspace remains isolated.
+16. Standard WEBEE workspaces remain isolated.
+17. No other workspace phone/SIP config is touched.
+18. Workflows page shows the deployed workflow/deployment record.
+19. AccountsMind receives usage/cost events where relevant.
+20. Audit logs are created.
+
+Final instruction:
+
+SystemMind should be able to guide and automate parts of the deploy process, including agent type selection, phone number assignment, SIP trunk selection, and Go Live — but only with strict workspace isolation, validation, cost warnings, and user approval. It must reuse the existing deployment logic and never silently override live telephony or agent settings.

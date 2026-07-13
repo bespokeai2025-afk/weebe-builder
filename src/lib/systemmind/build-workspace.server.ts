@@ -87,7 +87,7 @@ const ModelResponseSchema = z.object({
 });
 
 // ── Validation helpers ─────────────────────────────────────────────────────────
-function validateConfigOrThrow(raw: unknown, label: string): BuildConfig {
+export function validateConfigOrThrow(raw: unknown, label: string): BuildConfig {
   const parsed = BuildConfigSchema.parse(raw);
   parsed.workflow.steps = sanitizeGeneratedSteps(parsed.workflow.steps as GeneratedDraft["steps"]);
   if (parsed.workflow.steps.length === 0) {
@@ -103,7 +103,7 @@ function validateConfigOrThrow(raw: unknown, label: string): BuildConfig {
   return parsed;
 }
 
-function classifyConfigRisk(config: BuildConfig): { riskLevel: "low" | "medium" | "high"; riskReasons: string[] } {
+export function classifyConfigRisk(config: BuildConfig): { riskLevel: "low" | "medium" | "high"; riskReasons: string[] } {
   // Map onto the automation layer's deterministic classifier so build-workspace
   // and hub drafts always agree on what counts as high-risk.
   return classifyDraftRisk({
@@ -428,6 +428,81 @@ export async function createBuildSessionServer(args: {
   });
 
   return { sessionId, seededVersionId };
+}
+
+// ── Create session seeded from a legacy conversion ─────────────────────────────
+// Used by the Legacy Logic Converter (legacy-conversion.server.ts): the caller
+// has already produced a validated BuildConfig from a legacy source. This
+// creates a fresh session whose v1 IS that converted draft — nothing live is
+// ever touched (the standard Apply pipeline handles that later, with all its
+// protection rules).
+export async function createBuildSessionFromConfigServer(args: {
+  workspaceId:      string;
+  userId:           string | null;
+  title:            string;
+  sourcePage?:      string;
+  targetAgentId?:   string | null;
+  config:           BuildConfig;
+  assistantSummary: string;
+  systemNote?:      string;
+}): Promise<{ sessionId: string; versionId: string }> {
+  const sb = supabaseAdmin as any;
+  const { workspaceId, userId } = args;
+  if (!workspaceId) throw new Error("workspace_id missing — refusing to create build session.");
+
+  // Re-validate defensively (schema + sanitiser + credential scan) even though
+  // the converter already did — never trust a config across module boundaries.
+  const config = validateConfigOrThrow(args.config, "Converted build config");
+
+  const sourcePage = ["agent_builder","whatsapp_builder","follow_up_centre","workflows","systemmind","hivemind"]
+    .includes(args.sourcePage ?? "") ? String(args.sourcePage) : "systemmind";
+
+  const { data: session, error } = await sb.from("systemmind_build_sessions").insert({
+    workspace_id:       workspaceId,
+    created_by_user_id: userId,
+    title:              args.title.slice(0, 200),
+    source_page:        sourcePage,
+    target_agent_id:    args.targetAgentId ?? null,
+    linked_workflow_id: null,
+    status:             "active",
+  }).select("id").single();
+  if (error) throw new Error(`Failed to create build session: ${error.message}`);
+  const sessionId = session.id as string;
+
+  const { riskLevel, riskReasons } = classifyConfigRisk(config);
+  const { data: v, error: vErr } = await sb.from("systemmind_build_versions").insert({
+    session_id:         sessionId,
+    workspace_id:       workspaceId,
+    created_by_user_id: userId,
+    version_number:     1,
+    user_prompt:        null,
+    assistant_summary:  args.assistantSummary.slice(0, 4000),
+    generated_config:   config,
+    risk_level:         riskLevel,
+    risk_reasons:       riskReasons,
+    status:             "draft",
+  }).select("id").single();
+  if (vErr) throw new Error(`Failed to seed converted version: ${vErr.message}`);
+  const versionId = v.id as string;
+
+  await sb.from("systemmind_build_sessions")
+    .update({ current_version_id: versionId })
+    .eq("id", sessionId).eq("workspace_id", workspaceId);
+
+  await insertMessage({
+    sessionId, workspaceId, userId, role: "system", versionId,
+    content: (args.systemNote ?? "Session opened from a legacy-logic conversion (v1 = converted draft). The original setup is untouched.").slice(0, 20000),
+  });
+
+  await writeSystemMindAudit({
+    workspaceId, userId,
+    actionType: "build_session_created",
+    targetType: "systemmind_build_session",
+    targetId:   sessionId,
+    finalAfterState: { title: args.title.slice(0, 200), source_page: sourcePage, seeded_from: "legacy_conversion" },
+  });
+
+  return { sessionId, versionId };
 }
 
 // ── Prompt (generation / iteration) ─────────────────────────────────────────────

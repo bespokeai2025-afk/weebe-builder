@@ -15,3 +15,7 @@ node scripts/apply-accountsmind-metric-snapshots-migration.mjs
 # Apply SystemMind Build snapshots (apply-protection rollback) migration
 # idempotently (same pattern — never blocks post-merge).
 node scripts/apply-systemmind-build-snapshots-migration.mjs
+
+# Apply SystemMind Legacy Logic Converter (conversion lineage) migration
+# idempotently (same pattern — never blocks post-merge).
+node scripts/apply-systemmind-conversions-migration.mjs
