@@ -74,6 +74,7 @@ import {
   Link,
 } from "lucide-react";
 import { FlowCanvas } from "./FlowCanvas";
+import { useSystemMindBuildLauncher } from "./SystemMindPromptDock";
 import { NodeEditorDialog } from "./NodeEditorDialog";
 import { ExportJsonDialog } from "./ExportJsonDialog";
 import { ImportJsonDialog } from "./ImportJsonDialog";
@@ -393,6 +394,12 @@ export function Builder({
   const PALETTE = settings.channelType === "whatsapp" ? WA_PALETTE : VOICE_PALETTE;
   const currentAgentRowId = useBuilderStore((s) => s.currentAgentRowId);
   const saveVersion = useBuilderStore((s) => s.saveVersion);
+  // SystemMind Build Workspace entry point (prompt dock + right-side drawer)
+  const smBuild = useSystemMindBuildLauncher({
+    agentRowId: currentAgentRowId ?? null,
+    agentName: settings.agentName,
+    channelType: settings.channelType,
+  });
   const [pendingEngine, setPendingEngine] = useState<DeploymentMode | null>(null);
   const undoToastIdRef = useRef<string | number | null>(null);
   const saveVersionRef = useRef(saveVersion);
@@ -997,6 +1004,7 @@ export function Builder({
                 Components
               </button>
             </div>
+            {smBuild.navEntry}
             <div className="p-1.5 space-y-0.5">
               {tab === "node" ? (
                 PALETTE.map((p) => (
@@ -1125,6 +1133,7 @@ export function Builder({
           </button>
 
           <FlowCanvas canvasRef={canvasRef} onReady={setRf} />
+          {smBuild.dock}
         </div>
 
         {/* Right global settings / live transcript */}
