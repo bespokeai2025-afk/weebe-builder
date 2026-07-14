@@ -282,14 +282,15 @@ export async function getOrCreateDeploymentServer(args: {
 
   // Build Workspace lineage (custom workflow agents built there must go live
   // through Apply & Go Live, never through this orchestrator).
-  const { data: buildSession } = await sb()
+  const { data: buildSession, error: bsErr } = await sb()
     .from("systemmind_build_sessions")
-    .select("id, active_version_id")
+    .select("id, current_version_id")
     .eq("workspace_id", args.workspaceId)
     .eq("target_agent_id", args.agentId)
     .order("created_at", { ascending: false })
     .limit(1)
     .maybeSingle();
+  if (bsErr) throw new Error(`Failed to check Build Workspace lineage: ${bsErr.message}`);
 
   const { data: row, error } = await sb()
     .from("systemmind_deployments")
@@ -305,7 +306,7 @@ export async function getOrCreateDeploymentServer(args: {
       deployment_type: deploymentType,
       phone_number: (settings.phoneNumber as string | undefined) ?? null,
       build_session_id: buildSession?.id ?? null,
-      build_version_id: buildSession?.active_version_id ?? null,
+      build_version_id: buildSession?.current_version_id ?? null,
       status: "in_progress",
     })
     .select("id")
