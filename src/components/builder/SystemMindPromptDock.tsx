@@ -3,7 +3,7 @@
 // Workspace as a right-side drawer, plus the "SystemMind Build" left-nav entry
 // shown while a build session exists for the current agent.
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
@@ -46,12 +46,24 @@ export function useSystemMindBuildLauncher({
   const [initialPrompt, setInitialPrompt] = useState<string | null>(null);
   const [prompt, setPrompt]               = useState("");
 
-  const { data: sessions } = useQuery({
+  const { data: sessions, isPending: sessionsLoading } = useQuery({
     queryKey: ["smbw-sessions"],
     queryFn: () => listFn(),
     throwOnError: false,
     staleTime: 30_000,
   });
+
+  // Reset all transient launcher state when the Builder switches to a different
+  // agent, so a stale session from agent A never receives agent B's prompts.
+  const prevAgentRef = useRef(agentRowId);
+  useEffect(() => {
+    if (prevAgentRef.current === agentRowId) return;
+    prevAgentRef.current = agentRowId;
+    setOpen(false);
+    setSessionId(null);
+    setInitialPrompt(null);
+    setPrompt("");
+  }, [agentRowId]);
 
   // Newest non-archived session already targeting this agent (list is newest-first).
   const existingSession = useMemo(() => {
@@ -78,16 +90,19 @@ export function useSystemMindBuildLauncher({
   });
 
   const launch = (text?: string) => {
+    // Wait for the sessions list before creating, so we never race a reuse
+    // check into a duplicate session for the same agent.
+    if (sessionsLoading) return;
     const p = (text ?? prompt).trim();
     setPrompt("");
     setOpen(true);
     if (existingSession) {
       setSessionId(existingSession.id);
       if (p) setInitialPrompt(p);
-    } else if (!createSession.isPending && !sessionId) {
+    } else if (sessionId) {
+      if (p) setInitialPrompt(p);
+    } else if (!createSession.isPending) {
       createSession.mutate(p);
-    } else if (sessionId && p) {
-      setInitialPrompt(p);
     }
   };
 
@@ -143,7 +158,7 @@ export function useSystemMindBuildLauncher({
             <Button
               type="submit" size="sm"
               className="h-7 gap-1 px-2.5 text-[10px]"
-              disabled={!prompt.trim()}
+              disabled={!prompt.trim() || sessionsLoading}
             >
               {createSession.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : <Send className="h-3 w-3" />}
               Build

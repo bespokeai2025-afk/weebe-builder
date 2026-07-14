@@ -114,3 +114,4 @@
 - [SystemMind Legacy Logic Converter](legacy-conversion-arch.md) — legacy sources → Build Workspace DRAFTS + report; never-overwrite, cred-scrub-before-store, WBAH blocked; hivemind_tasks status must be "suggested"; workspace_workflows has status not is_active.
 - [SystemMind Deployment Orchestrator](deployment-orchestrator-arch.md) — live-recomputed 14-item checklist; atomic single-use approvals w/ post-consume re-validation; reuses manual deploy services.
 - [SystemMind Requirements assistant](systemmind-requirements-assistant.md) — gap-driven interview; deterministic generator, AI only on re-prompt; drafts-until-approval, paused campaigns, WBAH blocked on all entry points.
+- [SystemMind Build embedded launcher](smbw-embedded-launcher.md) — Builder dock→drawer handoff: reset launcher state on agent switch, gate create on sessions-list load, prompt latch resets on null.
