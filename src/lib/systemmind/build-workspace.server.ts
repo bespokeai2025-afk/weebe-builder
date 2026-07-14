@@ -592,6 +592,7 @@ You produce (or revise) ONE complete build config covering:
   Trigger types allowed: lead_added, lead_status_changed, call_completed, manual, scheduled.
   STEP GRAPH RULES: first step MUST be type "trigger" with id "step-1"; every non-terminal step needs "next" OR conditions (branch only); ids "step-1", "step-2", ... unique; keep it 3–12 steps.
 - variables: data the agent/workflow needs at runtime (name + where it comes from). PRE-CALL DYNAMIC VARIABLES: any data point the agent should know BEFORE the call (lead name, company, last call summary, appointment, CSV column, etc.) MUST be a variable with a "source" naming the exact WEBEE place it comes from (e.g. "Leads — full name", "Data — Records column budget", "Calendar — next appointment"). The agent_prompt/script MUST reference each one as a {{snake_case_name}} placeholder (e.g. "Hi {{lead_name}}, calling about {{company_name}}") — never hard-code values that should be dynamic. Pre-call variables are read BEFORE the call; extraction_fields are written POST-CALL — keep the two lists separate.
+- RETELL AGENT SETUPS: you are given the workspace's existing agent setups (names, types, voice providers, deployed Retell agent ids, inbound numbers) as context. Use this knowledge: reference existing agents by their real names in agent_assignment/call steps, respect their types (receptionist, client_qualification, custom, etc.), and never invent agents that don't exist. A "deployed" agent has a live Retell agent id and can place/receive calls; a "draft" agent must be deployed first (mention that in the summary/test_plan when relevant).
 - LEAD INTAKE SOURCE: leads for an agent can come from TWO places — (a) the WEBEE CRM/Leads page (existing records; workflow reads them, e.g. scheduled or manual triggers), or (b) LIVE WEBFORM INTAKE: the workspace's webforms (public form endpoints) create a new lead the instant someone submits, and the workflow starts from it. When the user wants webform intake, set trigger_type to "lead_added" and put {"lead_source": "webform", "webform_name": "<the form's name>"} in trigger_config (omit webform_name if any form). Webform submissions capture name, email, phone, company, notes/message and UTM/source-page tracking — these are available as pre-call variables with sources like "Webform — name" or "Webform — notes". If the user hasn't said where leads come from, ask (or note it in summary) — never silently assume.
 - extraction_fields: fields the agent should capture from conversations. MANDATORY: every extraction field MUST include a "crm_destination" pointing at WEBEE's built-in system. Captured data ALWAYS lands in WEBEE and every data point is written POST-CALL (after the call ends) — this is not optional. Allowed destinations (page — sub-section):
   - Leads — New lead | Interested | Qualified | Not Interested | Callback Requested | Contact Made
@@ -659,9 +660,54 @@ export async function promptBuildSessionServer(args: {
 
   await insertMessage({ sessionId, workspaceId, userId, role: "user", content: prompt });
 
+  // Context: every Retell/voice agent setup in this workspace, so SystemMind is
+  // knowledgeable about what already exists (names, types, providers, deploy
+  // state, numbers — never credentials) and can build consistently around them.
+  let agentsContext = "";
+  try {
+    const { data: agents, count: agentCount } = await sb.from("agents")
+      .select("id, name, retell_agent_id, inbound_phone_number, settings, updated_at", { count: "exact" })
+      .eq("workspace_id", workspaceId)
+      .order("updated_at", { ascending: false })
+      .limit(100);
+    const lines = ((agents ?? []) as any[]).map((a) => {
+      let s: any = {};
+      try { s = typeof a.settings === "string" ? JSON.parse(a.settings) : (a.settings ?? {}); } catch { /* noop */ }
+      const deployedId = s.deployedRetellAgentId || a.retell_agent_id || null;
+      const bits = [
+        `"${String(a.name ?? "unnamed")}"`,
+        `type=${String(s.dashboardAgentType ?? s.agentType ?? "receptionist")}`,
+        `voice_provider=${String(s.voiceProvider ?? "retell")}`,
+        deployedId ? `deployed (retell_agent_id=${String(deployedId)})` : "draft (not deployed)",
+      ];
+      if (a.inbound_phone_number) bits.push(`inbound_number=${String(a.inbound_phone_number)}`);
+      if (s.voiceName || s.voice_id) bits.push(`voice=${String(s.voiceName ?? s.voice_id)}`);
+      if (s.language) bits.push(`language=${String(s.language)}`);
+      return `- ${bits.join(", ")}`;
+    });
+    if (lines.length > 0) {
+      const omitted = Math.max(0, Number(agentCount ?? lines.length) - lines.length);
+      agentsContext =
+        `\n\nEXISTING AGENT SETUPS IN THIS WORKSPACE (Retell/voice — for your awareness; reference them when relevant, never invent agents that don't exist):\n` +
+        lines.join("\n").slice(0, 8000) +
+        (omitted > 0 ? `\n(…plus ${omitted} more agents not listed — most recently updated shown first)` : "");
+    }
+  } catch { /* graceful — context is best-effort */ }
+
+  // Context: SystemMind knowledge (KB RAG + playbooks + patterns) relevant to
+  // this request, so builds are grounded in what SystemMind already knows.
+  let knowledgeContext = "";
+  try {
+    const { querySystemMindKnowledgeContext } = await import("@/lib/systemmind/systemmind-workflow.server");
+    const block = await querySystemMindKnowledgeContext(workspaceId, prompt);
+    if (block) knowledgeContext = `\n\nRELEVANT SYSTEMMIND KNOWLEDGE:\n${block.slice(0, 6000)}`;
+  } catch { /* graceful — context is best-effort */ }
+
+  const contextBlock = `${agentsContext}${knowledgeContext}`;
+
   const userBlock = currentVersion
-    ? `CURRENT CONFIG (version ${currentVersion.version_number}):\n${JSON.stringify(currentVersion.generated_config).slice(0, 24000)}\n\nUSER CHANGE REQUEST:\n"${prompt.slice(0, 4000)}"\n\nReturn the FULL updated config as strict JSON.`
-    : `Design a complete agent/workflow build for this request:\n\n"${prompt.slice(0, 4000)}"\n\nStrict JSON only, whitelisted step types only.`;
+    ? `CURRENT CONFIG (version ${currentVersion.version_number}):\n${JSON.stringify(currentVersion.generated_config).slice(0, 24000)}${contextBlock}\n\nUSER CHANGE REQUEST:\n"${prompt.slice(0, 4000)}"\n\nReturn the FULL updated config as strict JSON.`
+    : `Design a complete agent/workflow build for this request:\n\n"${prompt.slice(0, 4000)}"${contextBlock}\n\nStrict JSON only, whitelisted step types only.`;
 
   const claudeEnabled = isClaudeEnabled();
 
