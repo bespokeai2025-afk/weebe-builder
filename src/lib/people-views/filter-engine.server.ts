@@ -52,6 +52,107 @@ export const FILTER_FIELDS: Record<string, FieldDef> = {
   duplicate_status:     { column: "meta.duplicate_status", kind: "text", label: "Duplicate Status" },
 };
 
+// ── Per-page dataset registries (additive; leads registry stays the default) ─
+
+/** Calls page dataset — real columns on the `calls` table. */
+export const CALL_FILTER_FIELDS: Record<string, FieldDef> = {
+  call_status:          { column: "call_status", kind: "enum", label: "Call Status", enumValues: ["initiated", "ringing", "in_progress", "completed", "failed", "no_answer", "busy", "voicemail"] },
+  call_type:            { column: "call_type", kind: "enum", label: "Call Type", enumValues: ["inbound", "outbound"] },
+  sentiment:            { column: "sentiment", kind: "enum", label: "Sentiment", enumValues: ["positive", "neutral", "negative"] },
+  call_outcome:         { column: "call_outcome", kind: "text", label: "Call Outcome" },
+  disconnection_reason: { column: "disconnection_reason", kind: "text", label: "Disconnection / End Reason" },
+  voicemail:            { column: "is_voicemail", kind: "boolean", label: "Voicemail" },
+  call_successful:      { column: "call_successful", kind: "boolean", label: "Call Successful" },
+  agent_id:             { column: "agent_id", kind: "text", label: "Agent ID" },
+  agent_name:           { column: "agent_name", kind: "text", label: "Agent Name" },
+  from_number:          { column: "from_number", kind: "text", label: "From Number" },
+  to_number:            { column: "to_number", kind: "text", label: "To Number" },
+  provider:             { column: "provider", kind: "text", label: "Provider" },
+  channel_type:         { column: "channel_type", kind: "text", label: "Channel" },
+  duration_seconds:     { column: "duration_seconds", kind: "number", label: "Duration (seconds)" },
+  cost_cents:           { column: "cost_cents", kind: "number", label: "Cost (cents)" },
+  created_date:         { column: "created_at", kind: "date", label: "Created Date" },
+  started_date:         { column: "started_at", kind: "date", label: "Started Date" },
+  ended_date:           { column: "ended_at", kind: "date", label: "Ended Date" },
+};
+
+/** Campaigns page dataset — real columns on the `campaigns` table. */
+export const CAMPAIGN_PAGE_FILTER_FIELDS: Record<string, FieldDef> = {
+  campaign_name:   { column: "name", kind: "text", label: "Campaign Name" },
+  campaign_status: { column: "status", kind: "enum", label: "Campaign Status", enumValues: ["draft", "active", "paused", "completed", "cancelled"] },
+  agent_id:        { column: "agent_id", kind: "text", label: "Agent ID" },
+  created_date:    { column: "created_at", kind: "date", label: "Created Date" },
+  updated_date:    { column: "updated_at", kind: "date", label: "Updated Date" },
+};
+
+/** Workflows page dataset — real columns on `workspace_workflows`. */
+export const WORKFLOW_FILTER_FIELDS: Record<string, FieldDef> = {
+  workflow_name:   { column: "name", kind: "text", label: "Workflow Name" },
+  workflow_status: { column: "status", kind: "text", label: "Workflow Status" },
+  created_date:    { column: "created_at", kind: "date", label: "Created Date" },
+  updated_date:    { column: "updated_at", kind: "date", label: "Updated Date" },
+};
+
+export type PageKey =
+  | "people" | "leads" | "qualified" | "calls" | "data" | "campaigns"
+  | "follow_up_centre" | "workflows" | "analytics" | "custom_people_view"
+  | "custom_campaign_view";
+
+export type PageDataset = {
+  table: string;
+  registry: Record<string, FieldDef>;
+  /** whether meta.<key> custom fields are allowed (leads table only) */
+  allowMeta: boolean;
+  sampleColumns: string;
+  defaultOrderCol: string;
+};
+
+const LEADS_DATASET: PageDataset = {
+  table: "leads",
+  registry: FILTER_FIELDS,
+  allowMeta: true,
+  sampleColumns: "id, full_name, phone, email, status, sentiment, source, created_at",
+  defaultOrderCol: "updated_at",
+};
+const CALLS_DATASET: PageDataset = {
+  table: "calls",
+  registry: CALL_FILTER_FIELDS,
+  allowMeta: false,
+  sampleColumns: "id, to_number, from_number, call_status, call_type, sentiment, is_voicemail, duration_seconds, created_at",
+  defaultOrderCol: "created_at",
+};
+const CAMPAIGNS_DATASET: PageDataset = {
+  table: "campaigns",
+  registry: CAMPAIGN_PAGE_FILTER_FIELDS,
+  allowMeta: false,
+  sampleColumns: "id, name, status, agent_id, created_at",
+  defaultOrderCol: "updated_at",
+};
+const WORKFLOWS_DATASET: PageDataset = {
+  table: "workspace_workflows",
+  registry: WORKFLOW_FILTER_FIELDS,
+  allowMeta: false,
+  sampleColumns: "id, name, status, created_at",
+  defaultOrderCol: "updated_at",
+};
+
+/** Which dataset each page's saved filters run against. */
+export const PAGE_DATASETS: Record<PageKey, PageDataset> = {
+  people: LEADS_DATASET,
+  leads: LEADS_DATASET,
+  qualified: LEADS_DATASET,
+  data: LEADS_DATASET,
+  follow_up_centre: LEADS_DATASET,
+  custom_people_view: LEADS_DATASET,
+  custom_campaign_view: LEADS_DATASET,
+  calls: CALLS_DATASET,
+  analytics: CALLS_DATASET,
+  campaigns: CAMPAIGNS_DATASET,
+  workflows: WORKFLOWS_DATASET,
+};
+
+export const PAGE_KEYS = Object.keys(PAGE_DATASETS) as PageKey[];
+
 export const FILTER_OPERATORS = [
   "equals", "not_equals", "contains", "not_contains",
   "is_empty", "is_not_empty", "greater_than", "less_than",
@@ -111,12 +212,17 @@ function quotePgrstListValue(v: unknown): string {
  * or a list of errors (including unknown fields, so SystemMind can offer to
  * create workspace custom fields).
  */
-export function validateFilterConfig(raw: unknown): {
+export function validateFilterConfig(
+  raw: unknown,
+  opts?: { registry?: Record<string, FieldDef>; allowMeta?: boolean },
+): {
   ok: boolean;
   config?: FilterConfig;
   errors: string[];
   unknownFields: string[];
 } {
+  const registry = opts?.registry ?? FILTER_FIELDS;
+  const allowMeta = opts?.allowMeta ?? true;
   const errors: string[] = [];
   const unknownFields: string[] = [];
   const parsed = filterConfigSchema.safeParse(raw);
@@ -124,8 +230,8 @@ export function validateFilterConfig(raw: unknown): {
     return { ok: false, errors: parsed.error.issues.map((i) => i.message), unknownFields };
   }
   for (const c of parsed.data.conditions) {
-    const def = FILTER_FIELDS[c.field];
-    const isMeta = !def && META_KEY_RE.test(c.field);
+    const def = registry[c.field];
+    const isMeta = !def && allowMeta && META_KEY_RE.test(c.field);
     if (!def && !isMeta) {
       unknownFields.push(c.field);
       errors.push(`Unknown field "${c.field}" — a workspace custom field (meta.${c.field}) can be proposed instead.`);
@@ -159,8 +265,8 @@ export function validateFilterConfig(raw: unknown): {
 
 // ── Query compilation ────────────────────────────────────────────────────────
 
-function pgColumn(field: string): string {
-  const def = FILTER_FIELDS[field];
+function pgColumn(field: string, registry: Record<string, FieldDef> = FILTER_FIELDS): string {
+  const def = registry[field];
   const col = def?.column ?? field; // meta.* passes through
   if (col.startsWith("meta.")) return `meta->>${col.slice(5)}`;
   return col;
@@ -189,15 +295,19 @@ function applyDerivedBoolean(q: any, def: FieldDef, truthy: boolean): any {
  * Applies a validated FilterConfig to a supabase query builder on `leads`.
  * Caller MUST have already applied .eq("workspace_id", ...).
  */
-export function applyFilterToQuery(q: any, config: FilterConfig): any {
+export function applyFilterToQuery(
+  q: any,
+  config: FilterConfig,
+  registry: Record<string, FieldDef> = FILTER_FIELDS,
+): any {
   for (const c of config.conditions) {
-    const def = FILTER_FIELDS[c.field];
+    const def = registry[c.field];
     if (def?.derived && def.kind === "boolean") {
       const truthy = c.value === true || c.value === "true";
       q = applyDerivedBoolean(q, def, truthy);
       continue;
     }
-    const col = pgColumn(c.field);
+    const col = pgColumn(c.field, registry);
     switch (c.operator) {
       case "equals":
         if (def?.kind === "boolean") q = q.eq(col, c.value === true || c.value === "true");
@@ -234,7 +344,7 @@ export function applySafetyExclusions(q: any, safety: SafetyConfig): any {
 
 export type DryRunResult = {
   totalMatching: number;
-  sample: Array<Record<string, unknown>>;
+  sample: Array<Record<string, any>>;
   excludedCount: number;
   exclusionBreakdown: Record<string, number>;
   includesBooked: boolean;
@@ -262,6 +372,60 @@ async function countWith(
   const { count, error } = await build(base);
   if (error) throw new Error(`Dry-run query failed: ${error.message}`);
   return count ?? 0;
+}
+
+/**
+ * Generic, read-only dry run for a page dataset (any PAGE_DATASETS entry).
+ * Counts + samples only; never mutates, calls or messages.
+ */
+export async function runPageFilterDryRun(
+  sb: SupabaseClient,
+  workspaceId: string,
+  pageKey: PageKey,
+  rawConfig: unknown,
+): Promise<DryRunResult> {
+  const ds = PAGE_DATASETS[pageKey];
+  if (!ds) throw new Error(`Unknown page "${pageKey}".`);
+  const validated = validateFilterConfig(rawConfig, { registry: ds.registry, allowMeta: ds.allowMeta });
+  if (!validated.ok || !validated.config) {
+    throw new Error(`Invalid filter config: ${validated.errors.join("; ")}`);
+  }
+  const config = validated.config;
+
+  const base = (sb as any)
+    .from(ds.table)
+    .select("id", { count: "exact", head: true })
+    .eq("workspace_id", workspaceId);
+  const { count, error } = await applyFilterToQuery(base, config, ds.registry);
+  if (error) throw new Error(`Dry-run query failed: ${error.message}`);
+  const totalMatching = count ?? 0;
+
+  let sampleQ = (sb as any)
+    .from(ds.table)
+    .select(ds.sampleColumns)
+    .eq("workspace_id", workspaceId)
+    .limit(5);
+  sampleQ = applyFilterToQuery(sampleQ, config, ds.registry);
+  const { data: sample } = await sampleQ;
+
+  const warnings: string[] = [];
+  if (totalMatching === 0) warnings.push("Filter currently matches no records.");
+
+  return {
+    totalMatching,
+    sample: (sample ?? []) as Array<Record<string, unknown>>,
+    excludedCount: 0,
+    exclusionBreakdown: {},
+    includesBooked: false,
+    includesOptedOut: false,
+    includesDoNotContact: false,
+    includesActiveCampaignLeads: false,
+    includesNoPhone: false,
+    estimatedCallVolume: 0,
+    warnings,
+    riskLevel: "low",
+    ranAt: new Date().toISOString(),
+  };
 }
 
 /**

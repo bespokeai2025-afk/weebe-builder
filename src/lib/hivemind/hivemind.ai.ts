@@ -284,6 +284,13 @@ export async function fetchFullPlatformData(sb: any, workspaceId: string) {
     strategyCentre = await getStrategyCentreSummary(sb, workspaceId);
   } catch {}
 
+  // Campaign reports summary (graceful — migration may not be applied yet)
+  let campaignReports: any = null;
+  try {
+    const { getCampaignReportsSummary } = await import("@/lib/campaign-reports/campaign-reports.server");
+    campaignReports = await getCampaignReportsSummary(workspaceId);
+  } catch {}
+
   return {
     agents, agentScores, cfg,
     mode: cfg.hivemind_mode ?? "assistant",
@@ -539,6 +546,7 @@ export async function fetchFullPlatformData(sb: any, workspaceId: string) {
     })(),
     promptPerformance,
     strategyCentre,
+    campaignReports,
   };
 }
 
@@ -895,6 +903,20 @@ function buildPlatformContext(d: any): string {
     if (pp.lowPerfCount > 0) lines.push(`  ⚠ ${pp.lowPerfCount} template${pp.lowPerfCount !== 1 ? "s" : ""} scoring below 3/10 — critically failing, immediate revision required`);
     if (pp.best?.length  > 0) lines.push(`  Best performers: ${pp.best.map((t: any)  => `"${t.name}" (${t.avgScore}/10)`).join(", ")}`);
     if (pp.worst?.length > 0) lines.push(`  Worst performers: ${pp.worst.map((t: any) => `"${t.name}" (${t.avgScore}/10)`).join(", ")}`);
+  }
+
+  // CAMPAIGN REPORTS (automatic lifecycle reports, last 30 days)
+  if (d.campaignReports && d.campaignReports.totalReports > 0) {
+    const cr = d.campaignReports;
+    lines.push(`\nCAMPAIGN REPORTS (last ${cr.windowDays} days, ${cr.totalReports} reports):`);
+    lines.push(`  By type: ${Object.entries(cr.countsByType).map(([k, v]) => `${k}=${v}`).join(", ")}`);
+    if (cr.recentFailures?.length > 0) {
+      lines.push(`  ⚠ ${cr.recentFailures.length} recent failure report(s):`);
+      for (const f of cr.recentFailures.slice(0, 5)) {
+        lines.push(`    - [${f.type}] ${f.campaign ?? "campaign"}: ${f.reason ?? f.summary ?? ""}`);
+      }
+      lines.push(`  SystemMind can diagnose these and draft a fix for approval.`);
+    }
   }
 
   // STRATEGY CENTRE

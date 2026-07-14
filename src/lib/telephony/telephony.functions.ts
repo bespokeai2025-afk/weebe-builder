@@ -393,6 +393,26 @@ export const updateCampaignStatus = createServerFn({ method: "POST" })
       .eq("id", data.id)
       .eq("workspace_id", workspaceId);
     if (error) throw new Error(error.message);
+
+    // ── Automatic campaign report (additive; never breaks status change) ────
+    const reportType =
+      data.status === "active" ? "activated" :
+      data.status === "paused" ? "paused" :
+      data.status === "completed" ? "completed" :
+      data.status === "cancelled" ? "cancelled" : null;
+    if (reportType) {
+      try {
+        const reports = await import("@/lib/campaign-reports/campaign-reports.server");
+        await reports.reportCampaignLifecycle({
+          workspaceId,
+          campaignId: data.id,
+          reportType: reportType as any,
+          userId: (context as any).userId ?? null,
+        });
+      } catch (err: any) {
+        console.error("[campaign-reports] lifecycle hook failed (non-fatal):", err?.message ?? err);
+      }
+    }
     return { success: true };
   });
 

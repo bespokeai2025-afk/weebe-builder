@@ -19,6 +19,7 @@ import {
   type FilterConfig,
   type SafetyConfig,
 } from "../people-views/filter-engine.server";
+import { safeWriteCampaignReport } from "../campaign-reports/report-writer.shared";
 
 const MARKER = "__sched_v1__";
 const MAX_RECORDS_PER_RUN = 200;
@@ -81,7 +82,7 @@ export type CampaignRunResult = {
   failed: number;
 };
 
-function parseConfig(description: string | null): ScheduleConfig | null {
+export function parseConfig(description: string | null): ScheduleConfig | null {
   if (!description?.startsWith(MARKER)) return null;
   try {
     return JSON.parse(description.slice(MARKER.length)) as ScheduleConfig;
@@ -90,7 +91,7 @@ function parseConfig(description: string | null): ScheduleConfig | null {
   }
 }
 
-function encodeConfig(cfg: ScheduleConfig): string {
+export function encodeConfig(cfg: ScheduleConfig): string {
   return MARKER + JSON.stringify(cfg);
 }
 
@@ -268,11 +269,29 @@ export async function runCampaignTick(opts?: {
           skipped: true,
           skipReason: "attached campaign filter missing or not active",
         });
+        await safeWriteCampaignReport(sb, {
+          workspaceId: campaign.workspace_id,
+          campaignId: campaign.id,
+          agentId: campaign.agent_id ?? null,
+          reportType: "workflow_error",
+          campaignName: campaign.name,
+          failureReason: "Attached campaign filter is missing or not active",
+          failureStage: "filter_load",
+        });
         continue;
       }
       const validated = validateFilterConfig(filterRow.filter_config);
       if (!validated.ok || !validated.config) {
         results.push({ ...base, skipped: true, skipReason: "attached campaign filter invalid" });
+        await safeWriteCampaignReport(sb, {
+          workspaceId: campaign.workspace_id,
+          campaignId: campaign.id,
+          agentId: campaign.agent_id ?? null,
+          reportType: "workflow_error",
+          campaignName: campaign.name,
+          failureReason: "Attached campaign filter failed validation",
+          failureStage: "filter_validation",
+        });
         continue;
       }
       campaignFilter = validated.config;
@@ -465,6 +484,51 @@ export async function runCampaignTick(opts?: {
         (skipped > 0 ? `, skipped(cap): ${skipped}` : "") +
         (failed > 0 ? ` (${total - placed - failed - skipped} still queued)` : ""),
     );
+
+    // ── Automatic run report (additive; never breaks the tick) ─────────────
+    const runKpis = { records_matched: total, calls_placed: placed, calls_failed: failed, skipped_by_cap: skipped };
+    if (total === 0) {
+      await safeWriteCampaignReport(sb, {
+        workspaceId: campaign.workspace_id,
+        campaignId: campaign.id,
+        agentId: campaign.agent_id ?? null,
+        reportType: "no_eligible_leads",
+        campaignName: campaign.name,
+        kpis: runKpis,
+        failureStage: "record_selection",
+      });
+    } else if (placed === 0 && skipped === total) {
+      await safeWriteCampaignReport(sb, {
+        workspaceId: campaign.workspace_id,
+        campaignId: campaign.id,
+        agentId: campaign.agent_id ?? null,
+        reportType: "safety_blocked",
+        campaignName: campaign.name,
+        kpis: runKpis,
+        failureReason: "All matched records were blocked by the daily call cap / safety rules",
+        failureStage: "safety_exclusions",
+      });
+    } else if (placed === 0 && failed > 0) {
+      await safeWriteCampaignReport(sb, {
+        workspaceId: campaign.workspace_id,
+        campaignId: campaign.id,
+        agentId: campaign.agent_id ?? null,
+        reportType: "provider_error",
+        campaignName: campaign.name,
+        kpis: runKpis,
+        failureReason: "Every call attempt failed at the voice provider",
+        failureStage: "call_placement",
+      });
+    } else {
+      await safeWriteCampaignReport(sb, {
+        workspaceId: campaign.workspace_id,
+        campaignId: campaign.id,
+        agentId: campaign.agent_id ?? null,
+        reportType: "run_summary",
+        campaignName: campaign.name,
+        kpis: runKpis,
+      });
+    }
 
     results.push({ ...base, placed, failed });
   }

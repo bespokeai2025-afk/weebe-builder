@@ -1315,6 +1315,87 @@ export type Database = {
           },
         ]
       }
+      campaign_reports: {
+        Row: {
+          agent_id: string | null
+          agent_name: string | null
+          audit_log_id: string | null
+          campaign_id: string | null
+          campaign_name: string | null
+          campaign_status: string | null
+          created_at: string
+          created_by_system: boolean
+          created_by_systemmind: boolean
+          ended_at: string | null
+          error_message: string | null
+          failure_reason: string | null
+          failure_stage: string | null
+          generated_at: string
+          id: string
+          kpi_json: Json
+          recommended_actions_json: Json
+          report_summary: string | null
+          report_type: string
+          started_at: string | null
+          updated_at: string
+          visible_to_roles: string[]
+          workflow_id: string | null
+          workspace_id: string
+        }
+        Insert: {
+          agent_id?: string | null
+          agent_name?: string | null
+          audit_log_id?: string | null
+          campaign_id?: string | null
+          campaign_name?: string | null
+          campaign_status?: string | null
+          created_at?: string
+          created_by_system?: boolean
+          created_by_systemmind?: boolean
+          ended_at?: string | null
+          error_message?: string | null
+          failure_reason?: string | null
+          failure_stage?: string | null
+          generated_at?: string
+          id?: string
+          kpi_json?: Json
+          recommended_actions_json?: Json
+          report_summary?: string | null
+          report_type: string
+          started_at?: string | null
+          updated_at?: string
+          visible_to_roles?: string[]
+          workflow_id?: string | null
+          workspace_id: string
+        }
+        Update: {
+          agent_id?: string | null
+          agent_name?: string | null
+          audit_log_id?: string | null
+          campaign_id?: string | null
+          campaign_name?: string | null
+          campaign_status?: string | null
+          created_at?: string
+          created_by_system?: boolean
+          created_by_systemmind?: boolean
+          ended_at?: string | null
+          error_message?: string | null
+          failure_reason?: string | null
+          failure_stage?: string | null
+          generated_at?: string
+          id?: string
+          kpi_json?: Json
+          recommended_actions_json?: Json
+          report_summary?: string | null
+          report_type?: string
+          started_at?: string | null
+          updated_at?: string
+          visible_to_roles?: string[]
+          workflow_id?: string | null
+          workspace_id?: string
+        }
+        Relationships: []
+      }
       campaigns: {
         Row: {
           agent_id: string | null
@@ -12050,6 +12131,86 @@ export type Database = {
             columns: ["workspace_id"]
             isOneToOne: true
             referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      workspace_page_filters: {
+        Row: {
+          column_config: Json
+          created_at: string
+          created_by_systemmind: boolean
+          created_by_user_id: string | null
+          description: string | null
+          filter_config: Json
+          group_config: Json
+          id: string
+          is_default: boolean
+          last_dry_run: Json | null
+          last_dry_run_at: string | null
+          name: string
+          page_key: string
+          parent_filter_id: string | null
+          sort_config: Json
+          status: string
+          systemmind_prompt: string | null
+          updated_at: string
+          version: number
+          visible_to_roles: string[]
+          workspace_id: string
+        }
+        Insert: {
+          column_config?: Json
+          created_at?: string
+          created_by_systemmind?: boolean
+          created_by_user_id?: string | null
+          description?: string | null
+          filter_config?: Json
+          group_config?: Json
+          id?: string
+          is_default?: boolean
+          last_dry_run?: Json | null
+          last_dry_run_at?: string | null
+          name: string
+          page_key: string
+          parent_filter_id?: string | null
+          sort_config?: Json
+          status?: string
+          systemmind_prompt?: string | null
+          updated_at?: string
+          version?: number
+          visible_to_roles?: string[]
+          workspace_id: string
+        }
+        Update: {
+          column_config?: Json
+          created_at?: string
+          created_by_systemmind?: boolean
+          created_by_user_id?: string | null
+          description?: string | null
+          filter_config?: Json
+          group_config?: Json
+          id?: string
+          is_default?: boolean
+          last_dry_run?: Json | null
+          last_dry_run_at?: string | null
+          name?: string
+          page_key?: string
+          parent_filter_id?: string | null
+          sort_config?: Json
+          status?: string
+          systemmind_prompt?: string | null
+          updated_at?: string
+          version?: number
+          visible_to_roles?: string[]
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "workspace_page_filters_parent_filter_id_fkey"
+            columns: ["parent_filter_id"]
+            isOneToOne: false
+            referencedRelation: "workspace_page_filters"
             referencedColumns: ["id"]
           },
         ]

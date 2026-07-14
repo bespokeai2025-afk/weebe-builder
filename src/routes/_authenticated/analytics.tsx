@@ -25,6 +25,7 @@ import {
   Th as PageTh,
 } from "@/components/dashboard/PageShell";
 import { Button } from "@/components/ui/button";
+import { SavedFiltersSection } from "@/components/people-views/SavedFiltersSection";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { getRetellAnalytics, listVoiceAgents } from "@/lib/dashboard/analytics.functions";
@@ -467,6 +468,12 @@ function AnalyticsPage() {
       />
 
       <ProviderCreditsBar />
+
+      {!isWbah && (
+        <div className="px-6 mt-4">
+          <SavedFiltersSection pageKey="analytics" />
+        </div>
+      )}
 
       {/* ── Top-level tab bar ── */}
       <div className="flex gap-1 px-6 mt-4 border-b border-white/[0.06]">

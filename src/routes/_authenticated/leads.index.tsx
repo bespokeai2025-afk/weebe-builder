@@ -37,6 +37,7 @@ import {
   wbahBookingStatus,
 } from "@/lib/dashboard/wbah-appointment-display";
 import { Button } from "@/components/ui/button";
+import { SavedFiltersSection } from "@/components/people-views/SavedFiltersSection";
 import { DashboardPage, KpiCard, MiniKpiCard, SummaryTooltip, stickyCell, stickyHead } from "@/components/dashboard/PageShell";
 import { cn } from "@/lib/utils";
 import { LoadingProgress } from "@/components/dashboard/LoadingProgress";
@@ -778,6 +779,7 @@ function LeadsPage() {
 
   return (
     <DashboardPage>
+      {!isWbah && <SavedFiltersSection pageKey="leads" />}
       {/* Header */}
       <div className="flex flex-wrap items-start justify-between gap-2">
         <div className="min-w-0">

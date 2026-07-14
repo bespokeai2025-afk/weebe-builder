@@ -1,0 +1,695 @@
+Please extend the Account Settings, Campaign Reports, Notifications, and Team Access system.
+
+I want each workspace to have account-level settings where authorised users can choose who gets notified when important campaign events happen, and I want workspace admins to be able to give staff different levels of access to the WEBEE app.
+
+This is especially important for WBAH, where different staff members may need different access levels to leads, calls, campaigns, reports, CRM data, and settings.
+
+Everything must be workspace-scoped and must never affect another workspace.
+
+---
+
+# 1. Account Settings: Notification Preferences
+
+Add a section inside Account Settings called:
+
+`Notifications`
+
+or
+
+`Campaign Notifications`
+
+Workspace admins should be able to configure email notifications for campaign events.
+
+Notification events should include:
+
+* campaign launched
+* campaign activated
+* campaign paused
+* campaign completed
+* campaign failed
+* campaign blocked
+* campaign has no eligible leads
+* campaign hits daily call cap
+* campaign hits safety cap
+* campaign has provider/API error
+* campaign has workflow error
+* campaign has KPI report available
+* campaign has high negative sentiment
+* campaign has high positive performance
+* campaign generated qualified leads
+* campaign booked appointments
+* campaign created follow-up tasks
+* campaign needs admin attention
+
+---
+
+# 2. Notification recipients
+
+Allow the workspace admin to choose who receives notifications.
+
+Options:
+
+* workspace owner
+* workspace admins
+* selected users
+* selected roles
+* custom email addresses
+* campaign owner
+* assigned agent manager
+* AccountsMind users
+* HiveMind/SystemMind users where relevant
+
+Each event type should allow different recipients.
+
+Example:
+
+Campaign failed:
+
+* owner
+* admins
+* campaign manager
+
+Campaign KPI report:
+
+* owner
+* admins
+* AccountsMind users
+
+Campaign launched:
+
+* owner
+* campaign manager
+
+---
+
+# 3. Suggested table: workspace_notification_settings
+
+Create or verify a table:
+
+## `workspace_notification_settings`
+
+Fields:
+
+* id
+* workspace_id
+* event_key
+* enabled boolean
+* channel_email boolean
+* channel_in_app boolean
+* recipient_roles_json
+* recipient_user_ids_json
+* custom_emails_json
+* frequency:
+
+  * immediate
+  * hourly_digest
+  * daily_digest
+  * weekly_digest
+* created_by_user_id
+* updated_by_user_id
+* created_at
+* updated_at
+
+All records must include workspace_id.
+
+Use existing workspace_members RLS pattern.
+
+Do not allow one workspace to see or edit another workspace’s notification settings.
+
+---
+
+# 4. Suggested table: workspace_notifications
+
+Create or verify a table:
+
+## `workspace_notifications`
+
+Fields:
+
+* id
+* workspace_id
+* event_key
+* object_type
+* object_id
+* campaign_id optional
+* report_id optional
+* title
+* message
+* severity:
+
+  * info
+  * success
+  * warning
+  * error
+  * critical
+* recipient_user_id optional
+* recipient_email optional
+* channel:
+
+  * in_app
+  * email
+* delivery_status:
+
+  * pending
+  * sent
+  * failed
+  * skipped
+* delivery_error
+* created_at
+* sent_at
+
+Notifications should be generated from campaign lifecycle events and report generation events.
+
+---
+
+# 5. Email sending
+
+Use the existing email provider already configured in WEBEE, for example Resend if present.
+
+Do not add a second email system if one already exists.
+
+Email notifications should include:
+
+* workspace name
+* campaign name
+* campaign status
+* event type
+* summary
+* KPI highlights where relevant
+* failure reason where relevant
+* recommended action where relevant
+* link to Campaign Report
+* link to Campaigns page
+* link to SystemMind suggested fix where relevant
+
+If email sending fails:
+
+* log the failure
+* mark notification as failed
+* do not break campaign execution
+* do not retry infinitely
+
+Campaign execution must never fail because notification email failed.
+
+---
+
+# 6. In-app notifications
+
+Add in-app notifications if a notification system exists.
+
+If no notification system exists, create a simple workspace-scoped notification list.
+
+Display notifications in:
+
+* Account/Workspace area
+* Campaigns page
+* SystemMind
+* HiveMind where relevant
+
+High-risk failures should be visible on the Campaigns page.
+
+---
+
+# 7. Notification preferences UI
+
+In Account Settings, add a notification preferences UI.
+
+Suggested layout:
+
+Campaign Notifications:
+
+| Event | In-app | Email | Recipients | Frequency |
+| ----- | ------ | ----- | ---------- | --------- |
+
+Events:
+
+* Campaign launched
+* Campaign failed
+* Campaign completed
+* KPI report ready
+* Safety blocked
+* No eligible leads
+* Provider error
+* Workflow error
+
+Allow:
+
+* enable/disable event
+* select email on/off
+* select in-app on/off
+* choose roles
+* choose users
+* add custom emails
+* choose frequency
+
+Only authorised users should edit this.
+
+---
+
+# 8. Team Access / Staff Permissions
+
+Add a section inside Account Settings called:
+
+`Team Access`
+
+or
+
+`Staff Access`
+
+Workspace owners/admins should be able to manage staff access levels.
+
+They should be able to:
+
+* invite staff users
+* assign roles
+* update roles
+* remove users from workspace
+* restrict page access
+* restrict sensitive actions
+* allow read-only access
+* allow campaign management access
+* allow report-only access
+* allow Agent Builder access
+* allow SystemMind draft-only access
+* allow billing/accounts access
+* allow WBAH-specific role structures
+
+---
+
+# 9. Role levels
+
+Support role-based access.
+
+Base roles:
+
+### Owner
+
+Full workspace access.
+
+Can:
+
+* manage billing
+* manage settings
+* manage users
+* approve high-risk actions
+* deploy/go live
+* manage provider keys
+* manage campaigns
+* view all reports
+* manage SystemMind/HiveMind/GrowthMind/AccountsMind
+
+### Admin
+
+Full operational access, but billing/provider secrets can be restricted if needed.
+
+Can:
+
+* manage campaigns
+* approve workflows
+* deploy agents
+* manage staff below admin
+* view reports
+* edit CRM settings
+
+### Manager
+
+Operational management access.
+
+Can:
+
+* view leads/calls/qualified
+* manage campaigns if permitted
+* view campaign reports
+* create draft workflows
+* request approval
+* use SystemMind in draft mode
+* cannot approve high-risk actions unless explicitly allowed
+
+### Agent Builder
+
+Can:
+
+* build/edit draft agents
+* create workflow drafts
+* run test calls
+* request approval
+* cannot go live unless permitted
+* cannot manage billing/provider keys
+
+### Campaign Manager
+
+Can:
+
+* create campaign drafts
+* run campaign dry-runs
+* view campaign reports
+* request campaign activation
+* cannot override safety blocks unless admin allows
+
+### Reports Only
+
+Can:
+
+* view reports
+* view campaign KPIs
+* view AccountsMind summaries if permitted
+* cannot edit data or campaigns
+
+### Viewer
+
+Read-only access.
+
+### No Access / Suspended
+
+Cannot access workspace.
+
+---
+
+# 10. Page-level permissions
+
+Allow workspace admins to control access to major sections:
+
+* Dashboard
+* People
+* Leads
+* Qualified
+* Calls
+* Data
+* Campaigns
+* Campaign Reports
+* Workflows
+* Follow Up Centre
+* Agent Builder
+* Agent Deploy
+* SystemMind
+* HiveMind
+* GrowthMind
+* AccountsMind
+* Settings
+* Billing
+* Provider Settings
+* Phone Numbers / SIP
+* WhatsApp
+* Email/HexMail
+* Template Studio
+
+Permissions should support:
+
+* hidden
+* view only
+* edit
+* create draft
+* approve
+* activate/go live
+* admin/manage
+
+---
+
+# 11. Action-level permissions
+
+High-risk actions should require the right role/permission.
+
+Actions requiring permission:
+
+* Go Live
+* purchase phone number
+* assign phone number
+* assign SIP trunk
+* edit provider keys
+* activate campaign
+* pause/cancel campaign
+* approve SystemMind workflow
+* apply script changes
+* activate WhatsApp/SMS/email campaign
+* edit CRM mappings
+* change page filters
+* change campaign filters
+* create custom fields
+* invite users
+* remove users
+* change roles
+* view billing
+* change notification settings
+
+---
+
+# 12. Suggested table: workspace_role_permissions
+
+Create or verify a table:
+
+## `workspace_role_permissions`
+
+Fields:
+
+* id
+* workspace_id
+* role_key
+* permissions_json
+* page_access_json
+* action_access_json
+* is_system_default boolean
+* created_by_user_id
+* updated_by_user_id
+* created_at
+* updated_at
+
+Allow workspace-specific role overrides.
+
+Do not change global roles for all workspaces from one workspace’s settings.
+
+---
+
+# 13. Suggested table: workspace_invitations
+
+Create or verify a table:
+
+## `workspace_invitations`
+
+Fields:
+
+* id
+* workspace_id
+* email
+* invited_role
+* invited_by_user_id
+* status:
+
+  * pending
+  * accepted
+  * expired
+  * revoked
+* token_hash
+* expires_at
+* created_at
+* accepted_at
+
+If invitation system already exists, reuse it instead of duplicating.
+
+---
+
+# 14. WBAH-specific access controls
+
+WBAH needs careful access control.
+
+For WBAH, allow workspace admins to create roles such as:
+
+* WBAH Owner
+* WBAH Admin
+* WBAH Sales Manager
+* WBAH Sales Agent
+* WBAH Reports Only
+* WBAH Viewer
+
+WBAH Sales Agent may only need:
+
+* assigned leads
+* relevant calls
+* callback requests
+* appointment booked records
+* limited CRM fields
+* no provider settings
+* no billing
+* no SystemMind high-risk approvals
+* no global filters
+
+WBAH Sales Manager may need:
+
+* team leads
+* campaign reports
+* call outcomes
+* qualified leads
+* staff performance
+* campaign KPIs
+
+WBAH Owner/Admin may need full access.
+
+Do not hardcode WBAH-only logic globally.
+
+Use workspace-specific role config and permissions.
+
+---
+
+# 15. Assigned-record visibility
+
+Add optional assigned-record visibility rules.
+
+For certain roles, especially WBAH Sales Agent:
+
+* only see leads assigned to them
+* only see calls linked to their assigned leads
+* only see follow-ups assigned to them
+* only see campaigns they are assigned to if configured
+* cannot see all workspace records unless permitted
+
+Managers/admins can see all if permitted.
+
+This should be controlled by permissions, not hardcoded.
+
+---
+
+# 16. SystemMind access by role
+
+SystemMind should respect permissions.
+
+Examples:
+
+Viewer:
+
+* can ask questions
+* cannot create/apply changes
+
+Agent Builder:
+
+* can create drafts
+* cannot go live
+
+Manager:
+
+* can create drafts
+* can request approval
+* cannot approve high-risk changes unless permitted
+
+Admin/Owner:
+
+* can approve and apply
+
+SystemMind should refuse actions where the user lacks permission and explain what role/permission is required.
+
+---
+
+# 17. Notification and permission audit logs
+
+Audit all actions:
+
+* notification setting changed
+* notification sent
+* notification failed
+* user invited
+* user role changed
+* user removed
+* permission changed
+* page access changed
+* high-risk action approved/rejected
+* campaign email sent
+* report email sent
+
+Audit logs must include:
+
+* workspace_id
+* acting_user_id
+* target_user_id where relevant
+* object_type
+* object_id
+* action_type
+* before_state
+* after_state
+* created_at
+
+---
+
+# 18. Safety
+
+Do not break current login or workspace membership logic.
+
+Do not break existing owner/admin/member/viewer roles.
+
+Map existing roles into the new permission model carefully.
+
+If a workspace has no custom permissions, use safe defaults.
+
+If permission system fails, do not accidentally grant more access. Fail closed.
+
+Critical:
+
+* never allow a lower role to grant themselves higher permissions
+* never allow cross-workspace invitations
+* never expose provider keys to unauthorised users
+* never expose billing to unauthorised users
+* never allow WBAH staff to access other workspaces
+* never allow other workspace users to access WBAH
+
+---
+
+# 19. Account Settings UI
+
+Add sections:
+
+## Notifications
+
+* campaign event notifications
+* report notifications
+* failure notifications
+* KPI notifications
+* email recipients
+* in-app recipients
+* frequency
+
+## Team Access
+
+* current users
+* roles
+* page access
+* action permissions
+* invite user
+* remove user
+* change role
+* assigned-record visibility
+
+## Approval Settings
+
+* who can approve Go Live
+* who can approve campaigns
+* who can approve SystemMind changes
+* who can approve phone/SIP purchases
+* who can approve provider settings changes
+
+---
+
+# 20. Testing required
+
+Please test:
+
+1. Owner enables email notifications for campaign failures.
+2. Campaign failure generates campaign report.
+3. Email notification is created and sent or queued.
+4. Email failure does not break campaign execution.
+5. KPI report ready notification works.
+6. In-app notification appears for correct users only.
+7. Admin invites a staff user.
+8. Staff user receives correct role.
+9. Viewer cannot edit campaigns.
+10. Campaign Manager can create campaign draft but cannot Go Live unless permitted.
+11. Agent Builder user can create agent draft but cannot approve high-risk deployment.
+12. Reports Only user can see campaign reports but not edit campaigns.
+13. WBAH Sales Agent sees only assigned leads if configured.
+14. WBAH Sales Agent cannot access billing/provider settings/SystemMind approvals.
+15. WBAH Manager can see team reports if configured.
+16. WBAH Admin can manage WBAH users.
+17. Standard WEBEE workspace roles are not affected by WBAH role settings.
+18. Cross-workspace access is blocked.
+19. Permission failure fails closed.
+20. Audit logs are created.
+
+Final instruction:
+
+Add workspace-level notification preferences and staff access controls to Account Settings. Campaign event emails and in-app notifications should be configurable by workspace admins. Team Access should allow different staff roles and page/action permissions, especially for WBAH, while preserving strict workspace isolation and never weakening security.

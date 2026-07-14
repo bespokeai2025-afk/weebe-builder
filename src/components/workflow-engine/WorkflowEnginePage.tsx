@@ -36,6 +36,7 @@ import {
   type WorkflowRun,
 } from "@/lib/workflow-engine/workflow-engine.functions";
 import { WorkflowBuilder } from "@/components/workflow-engine/WorkflowBuilder";
+import { SavedFiltersSection } from "@/components/people-views/SavedFiltersSection";
 import { DeploymentChecklistPanel } from "@/components/systemmind/DeploymentChecklistPanel";
 import {
   listAgentDeployments,
@@ -216,6 +217,8 @@ export function WorkflowEnginePage() {
           </Button>
         </div>
       </div>
+
+      <SavedFiltersSection pageKey="workflows" />
 
       {/* Stats */}
       {stats && (

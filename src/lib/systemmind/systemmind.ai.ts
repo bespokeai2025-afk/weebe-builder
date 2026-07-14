@@ -238,6 +238,18 @@ export const getSystemMindAIResponse = createServerFn({ method: "POST" })
         const { getRetrievedKnowledgeBlock } = await import("@/lib/executives/executive-knowledge.server");
         knowledgeBlock = await getRetrievedKnowledgeBlock({ workspaceId, mindType: "systemmind", query: lastUser, topK: 5 });
       }
+      // Campaign reports (automatic lifecycle reports; graceful if table missing)
+      try {
+        const { getCampaignReportsSummary } = await import("@/lib/campaign-reports/campaign-reports.server");
+        const cr = await getCampaignReportsSummary(workspaceId);
+        if (cr.totalReports > 0) {
+          knowledgeBlock += `\n\nCAMPAIGN REPORTS (last ${cr.windowDays} days): ${cr.totalReports} total — ${Object.entries(cr.countsByType).map(([k, v]) => `${k}=${v}`).join(", ")}.`;
+          if (cr.recentFailures.length > 0) {
+            knowledgeBlock += `\nRecent failures:\n${cr.recentFailures.slice(0, 5).map((f: any) => `- [${f.type}] ${f.campaign ?? "campaign"}: ${f.reason ?? f.summary ?? ""}`).join("\n")}`;
+            knowledgeBlock += `\nYou can diagnose these and draft a schedule/filter fix that requires approval before applying.`;
+          }
+        }
+      } catch {}
     }
 
     const systemPrompt = compileSystemPrompt(data.platformData, data.personality, knowledgeBlock);

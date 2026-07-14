@@ -308,7 +308,22 @@ export const getGrowthMindAIResponse = createServerFn({ method: "POST" })
       workspaceId && sb ? fetchAdsTrendSummary(sb, workspaceId) : Promise.resolve(""),
     ]);
 
-    const systemPrompt = compileSystemPrompt(data.platformData, data.personality, adsTrend) + (knowledgeBlockResult ? `\n\n${knowledgeBlockResult}` : "");
+    // Campaign reports summary (graceful — table may not exist yet)
+    let campaignReportsBlock = "";
+    if (workspaceId) {
+      try {
+        const { getCampaignReportsSummary } = await import("@/lib/campaign-reports/campaign-reports.server");
+        const cr = await getCampaignReportsSummary(workspaceId);
+        if (cr.totalReports > 0) {
+          campaignReportsBlock = `\n\nCAMPAIGN REPORTS (last ${cr.windowDays} days): ${cr.totalReports} total — ${Object.entries(cr.countsByType).map(([k, v]) => `${k}=${v}`).join(", ")}.`;
+          if (cr.recentFailures.length > 0) {
+            campaignReportsBlock += `\nRecent failures: ${cr.recentFailures.slice(0, 3).map((f: any) => `[${f.type}] ${f.campaign ?? "campaign"}`).join("; ")}. Advise the owner — fixes are drafted by SystemMind and require approval.`;
+          }
+        }
+      } catch {}
+    }
+
+    const systemPrompt = compileSystemPrompt(data.platformData, data.personality, adsTrend) + (knowledgeBlockResult ? `\n\n${knowledgeBlockResult}` : "") + campaignReportsBlock;
 
     const res = await fetch("https://api.openai.com/v1/chat/completions", {
       method: "POST",

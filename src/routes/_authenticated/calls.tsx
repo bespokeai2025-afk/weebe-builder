@@ -20,6 +20,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { SavedFiltersSection } from "@/components/people-views/SavedFiltersSection";
 import { RecordingPlayerDialog, PlayRecordingButton } from "@/components/RecordingPlayerDialog";
 import { DashboardPage, KpiCard, SummaryTooltip, stickyCell, stickyHead } from "@/components/dashboard/PageShell";
 import { LoadingProgress } from "@/components/dashboard/LoadingProgress";
@@ -572,6 +573,7 @@ function CallsPage() {
       )}
 
       {/* Header */}
+      {!isWbah && <SavedFiltersSection pageKey="calls" />}
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
           <h1 className="text-sm font-semibold tracking-tight">Calls</h1>

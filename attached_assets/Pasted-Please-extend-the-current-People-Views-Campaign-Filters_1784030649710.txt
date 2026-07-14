@@ -1,0 +1,646 @@
+Please extend the current People Views, Campaign Filters, SystemMind, and Campaigns implementation.
+
+I want SystemMind to be able to safely create and update filters for each relevant page, not only People custom views. I also want automatic campaign reporting as standard every time a campaign is activated, every time a campaign fails, and every time campaign KPI outcomes are available.
+
+This must be fully workspace-scoped and must never affect another user’s workspace.
+
+---
+
+# 1. Page-level filter configuration
+
+Allow SystemMind to create, update, dry-run, version, and roll back filters for each major page.
+
+Supported pages:
+
+* People
+* Leads
+* Qualified
+* Calls
+* Data
+* Campaigns
+* Follow Up Centre
+* Workflows
+* Agent performance / Analytics where relevant
+* Custom People Views
+* Custom campaign views
+
+These filters should be database-backed workspace configs, not hardcoded global page changes.
+
+SystemMind should be able to respond to prompts like:
+
+* “Add a filter to Leads for positive sentiment.”
+* “Create a Qualified page filter for booked appointments.”
+* “Add a Calls filter for voicemail only.”
+* “Add a Data page filter for webform leads.”
+* “Create a Campaigns filter for failed campaigns.”
+* “Show only leads from this campaign.”
+* “Create a filter for leads that need WhatsApp follow-up.”
+* “Add negative reason as a filter on Calls and Leads.”
+
+---
+
+# 2. Suggested table: workspace_page_filters
+
+Create or verify a table:
+
+## `workspace_page_filters`
+
+Fields:
+
+* id
+* workspace_id
+* page_key
+* name
+* description
+* filter_config_json
+* column_config_json
+* sort_config_json
+* group_config_json
+* visible_to_roles
+* is_default boolean
+* created_by_user_id
+* created_by_systemmind boolean
+* status: draft / active / archived
+* version
+* created_at
+* updated_at
+
+Allowed `page_key` examples:
+
+* people
+* leads
+* qualified
+* calls
+* data
+* campaigns
+* follow_up_centre
+* workflows
+* analytics
+* custom_people_view
+
+All filters must include workspace_id.
+
+Do not allow client-supplied workspace_id to override the authenticated workspace.
+
+Use existing workspace_members RLS pattern.
+
+---
+
+# 3. Filter engine reuse
+
+Reuse the same safe filter engine created for People views and campaign filters.
+
+Filters should support:
+
+* sentiment
+* lead status
+* call outcome
+* qualification status
+* appointment booked
+* booking date
+* callback requested
+* callback date/time
+* lead source
+* preferred contact method
+* campaign
+* campaign status
+* campaign outcome
+* assigned agent
+* created date
+* last call date
+* next follow-up date
+* no answer count
+* voicemail
+* email exists
+* phone exists
+* WhatsApp available
+* budget/deal value
+* custom workspace fields from meta JSONB
+* CRM imported fields from meta JSONB
+* opt-out / do not contact
+* duplicate status
+* workflow status
+* follow-up status
+* Retell agent ID
+* phone number
+* call duration
+* cost
+* revenue/deal value where available
+
+Operators:
+
+* equals
+* does not equal
+* contains
+* does not contain
+* is empty
+* is not empty
+* greater than
+* less than
+* between
+* before
+* after
+* in list
+* not in list
+
+Invalid fields/operators must be rejected safely.
+
+---
+
+# 4. Page filter UI
+
+Each relevant page should have a “Saved Filters” or “SystemMind Filters” area.
+
+Show:
+
+* filter name
+* description
+* filter badges
+* matching count
+* status
+* created by SystemMind
+* last updated
+* Edit with SystemMind
+* Duplicate
+* Archive
+* Set as default where permitted
+
+Important:
+
+If no workspace filters exist, the page must behave exactly as it does now.
+
+Do not remove existing filters.
+
+Do not break existing manual status selectors.
+
+Add these filters as an additive layer.
+
+---
+
+# 5. SystemMind page filter actions
+
+Add SystemMind actions:
+
+* create_page_filter
+* update_page_filter
+* archive_page_filter
+* duplicate_page_filter
+* dry_run_page_filter
+* set_default_page_filter
+* rollback_page_filter
+
+SystemMind must always create a draft plan first.
+
+It should show:
+
+* target page
+* proposed filter name
+* filter logic
+* matching count from dry-run
+* affected workspace
+* risk level
+* approval required
+* rollback available
+
+Do not silently change a default page filter without approval.
+
+---
+
+# 6. Campaign reports as standard
+
+Please add automatic campaign reports.
+
+A campaign report should be created every time:
+
+* a campaign is activated
+* a campaign is paused
+* a campaign is completed
+* a campaign fails
+* a campaign is cancelled
+* a campaign is retried
+* a campaign produces KPI results
+* a campaign hits a safety cap
+* a campaign is blocked due to missing config
+* a campaign has no eligible leads
+* a campaign has provider/API failure
+* a campaign causes workflow errors
+
+Reports should be workspace-scoped.
+
+---
+
+# 7. Suggested table: campaign_reports
+
+Create or verify a table:
+
+## `campaign_reports`
+
+Fields:
+
+* id
+* workspace_id
+* campaign_id
+* agent_id
+* workflow_id optional
+* report_type:
+
+  * activated
+  * failed
+  * completed
+  * paused
+  * cancelled
+  * kpi_summary
+  * safety_blocked
+  * no_eligible_leads
+  * provider_error
+  * workflow_error
+* campaign_status
+* campaign_name
+* agent_name
+* started_at
+* ended_at
+* generated_at
+* report_summary
+* kpi_json
+* failure_reason
+* recommended_actions_json
+* created_by_system boolean
+* created_by_systemmind boolean
+* visible_to_roles
+* audit_log_id
+* created_at
+* updated_at
+
+All reports must be scoped to workspace_id.
+
+---
+
+# 8. Campaign KPI metrics
+
+Each campaign report should calculate where data is available:
+
+* total leads targeted
+* eligible leads
+* excluded leads
+* exclusion reasons
+* calls attempted
+* calls connected
+* no answers
+* voicemails
+* failed calls
+* successful calls
+* positive sentiment count
+* neutral sentiment count
+* negative sentiment count
+* appointments booked
+* callback requests
+* qualified leads created
+* leads moved to Qualified
+* follow-ups created
+* opt-outs
+* do-not-contact updates
+* average call duration
+* total minutes used
+* estimated Retell/voice cost
+* estimated SMS/WhatsApp/email cost
+* estimated total campaign cost
+* deal value captured
+* revenue attributed where available
+* cost per call
+* cost per connected call
+* cost per qualified lead
+* cost per booked appointment
+* conversion rate
+* booking rate
+* qualification rate
+* failure rate
+* ROI where revenue/deal value exists
+
+---
+
+# 9. Campaign failure reports
+
+When a campaign fails, immediately generate a failure report.
+
+Failure report should include:
+
+* campaign name
+* workspace_id
+* campaign_id
+* agent_id
+* failure time
+* failure stage
+* failure reason
+* error message
+* affected leads count
+* whether calls/messages were sent
+* whether CRM updates happened
+* whether retry is safe
+* recommended fix
+* SystemMind suggested actions
+
+Possible failure reasons:
+
+* missing Retell API key
+* missing agent ID
+* missing phone number
+* missing SIP trunk
+* webhook failure
+* no eligible leads
+* campaign filter invalid
+* workspace_id mismatch
+* provider rate limit
+* provider API failure
+* CRM mapping failure
+* post-call extraction failure
+* workflow action failure
+* call cap reached
+* invalid campaign schedule
+* opt-out/safety blocker
+* duplicate prevention blocked all leads
+
+---
+
+# 10. Campaign activation reports
+
+When a campaign is activated, create an activation report.
+
+Activation report should include:
+
+* campaign name
+* campaign type
+* agent name
+* agent type
+* selected campaign filter
+* dry-run lead count
+* excluded lead count
+* call schedule
+* daily call cap
+* concurrency limit
+* retry rules
+* follow-up rules
+* phone/SIP used
+* provider used
+* estimated usage
+* estimated cost
+* risk level
+* approval user
+* activation time
+
+---
+
+# 11. KPI summary reports
+
+Generate KPI reports:
+
+* at campaign completion
+* after each campaign run/tick if useful
+* daily for active campaigns
+* when user requests “campaign report”
+* when HiveMind/SystemMind detects meaningful campaign changes
+
+KPI report should be viewable from:
+
+* Campaigns page
+* Workflows page
+* SystemMind
+* HiveMind
+* AccountsMind
+* Reports section if present
+
+---
+
+# 12. Separate report views
+
+Add separate report views so users can see reports by:
+
+* campaign
+* agent
+* workspace
+* campaign status
+* failure type
+* date range
+* report type
+* KPI performance
+* lead source
+* call outcome
+
+Create a “Campaign Reports” tab or page inside the Campaigns section.
+
+Also allow reports to be linked to:
+
+* AccountsMind for cost/revenue/ROI
+* HiveMind for recommendations
+* SystemMind for repair suggestions
+* GrowthMind for campaign improvement suggestions
+
+---
+
+# 13. SystemMind campaign report actions
+
+Add SystemMind actions:
+
+* generate_campaign_report
+* explain_campaign_report
+* diagnose_campaign_failure
+* suggest_campaign_fix
+* create_campaign_fix_draft
+* apply_campaign_fix_after_approval
+* compare_campaign_reports
+* create_campaign_kpi_summary
+
+SystemMind should be able to answer:
+
+* “Why did this campaign fail?”
+* “What were the campaign KPIs?”
+* “Which campaign performed best?”
+* “What should I change before running this again?”
+* “Create a filter from the successful leads.”
+* “Create a follow-up workflow for neutral leads from this campaign.”
+* “Create a People view for booked appointments from this campaign.”
+
+---
+
+# 14. Standard report generation rules
+
+Reports should be generated automatically.
+
+Do not rely only on the user clicking a button.
+
+Trigger reports from campaign lifecycle events:
+
+* on campaign activation
+* on campaign failure
+* on campaign completion
+* on campaign pause/cancel
+* on scheduler failure
+* on provider error
+* on no eligible leads
+* on campaign KPI summary event
+
+If the existing scheduler/executor handles campaigns, add report creation there safely.
+
+Do not change existing campaign execution behaviour except to add report generation and logging.
+
+---
+
+# 15. Notifications
+
+When a campaign fails, notify the user/admin inside the app.
+
+Notification should say:
+
+“Campaign failed: [campaign name]. SystemMind has generated a failure report and suggested fixes.”
+
+For high-risk failures, show on:
+
+* Campaigns page
+* SystemMind
+* HiveMind
+* workspace notifications if present
+
+Do not send external SMS/WhatsApp/email notifications unless already configured and approved.
+
+---
+
+# 16. AccountsMind integration
+
+Send campaign KPI and cost data to AccountsMind.
+
+AccountsMind should use campaign reports to show:
+
+* campaign cost
+* AI minutes used
+* calls made
+* cost per lead
+* cost per qualified lead
+* cost per booking
+* estimated revenue
+* estimated ROI
+* campaign profitability
+* best/worst campaigns
+
+---
+
+# 17. HiveMind / GrowthMind integration
+
+HiveMind should be able to read campaign reports and produce recommendations.
+
+GrowthMind should be able to use campaign KPIs to recommend:
+
+* better lead source
+* better script
+* better sentiment rules
+* better follow-up timing
+* better campaign schedule
+* better filters
+* stop poor campaign
+* scale strong campaign
+
+SystemMind should be able to create draft fixes/workflows from those recommendations.
+
+---
+
+# 18. Safety
+
+Do not break existing campaign execution.
+
+Campaign reports must be additive.
+
+If report generation fails, campaign execution must not fail because of reporting.
+
+Wrap report generation safely and log report errors separately.
+
+Never allow a report job to:
+
+* trigger calls
+* change campaign status
+* update CRM records
+* send messages
+* alter filters
+* alter agents
+* alter workflows
+
+Reports are read-only summaries unless the user explicitly asks SystemMind to create a fix draft.
+
+---
+
+# 19. Workspace isolation
+
+Every filter, report, KPI, recommendation, and notification must be scoped to current workspace_id.
+
+SystemMind must never:
+
+* read another workspace’s campaign reports
+* create filters for another workspace
+* apply WBAH reports to standard workspaces
+* apply standard account reports to WBAH
+* change global filters from a workspace prompt
+* create global report views from a workspace prompt
+
+Reject if workspace_id is missing or mismatched.
+
+---
+
+# 20. Audit logs
+
+Audit all actions:
+
+* page filter created
+* page filter updated
+* page filter archived
+* page filter set as default
+* campaign report generated
+* campaign failure diagnosed
+* campaign fix drafted
+* campaign fix applied
+* campaign KPI summary generated
+
+Audit should include:
+
+* workspace_id
+* user_id if applicable
+* campaign_id if applicable
+* page_key if applicable
+* object_type
+* object_id
+* action_type
+* before_state
+* after_state
+* risk_level
+* approval_status
+* created_at
+
+---
+
+# 21. Testing required
+
+Please test:
+
+1. Create a page filter for Leads only in one workspace.
+2. Confirm the filter does not appear in another workspace.
+3. Create a page filter for Calls with voicemail only.
+4. Create a page filter for Qualified booked appointments.
+5. Confirm existing page filters/manual selectors still work.
+6. Confirm invalid page filter is rejected.
+7. Confirm page filter dry-run works.
+8. Activate a campaign.
+9. Confirm activation report is generated.
+10. Force or simulate a campaign failure safely.
+11. Confirm failure report is generated.
+12. Confirm campaign failure does not break the campaign executor globally.
+13. Complete or simulate a campaign KPI summary.
+14. Confirm KPI report is generated.
+15. Confirm reports appear in Campaign Reports.
+16. Confirm SystemMind can explain a failure report.
+17. Confirm SystemMind can draft a fix but not apply it without approval.
+18. Confirm AccountsMind can access campaign cost/KPI summary.
+19. Confirm HiveMind/GrowthMind can read report summaries.
+20. Confirm WBAH remains isolated.
+21. Confirm standard WEBEE workspaces remain isolated.
+22. Confirm all report generation is additive.
+23. Confirm audit logs are created.
+
+Final instruction:
+
+SystemMind should be able to create safe workspace-specific filters for each major page and campaign area. Campaign reporting should become standard: every activation, failure, completion, and KPI outcome should create a workspace-scoped report. Reports must feed SystemMind, HiveMind, GrowthMind, and AccountsMind, but they must never alter live campaigns or workflows unless the user approves a separate fix draft.

@@ -24,6 +24,8 @@ import {
 
 export type WorkspaceRole = "owner" | "admin" | "member";
 export type ObjectType = "people_view" | "campaign_filter";
+/** Audit log accepts the newer object types too (page filters, campaign reports). */
+export type AuditObjectType = ObjectType | "page_filter" | "campaign_report";
 
 const TABLE: Record<ObjectType, string> = {
   people_view: "workspace_people_views",
@@ -48,7 +50,7 @@ export function assertRole(ok: boolean, action: string): void {
 export async function writeViewAudit(entry: {
   workspaceId: string;
   userId: string | null;
-  objectType: ObjectType;
+  objectType: AuditObjectType;
   objectId: string | null;
   actionType: string;
   prompt?: string | null;

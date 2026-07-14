@@ -24,6 +24,7 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog";
 import { CallSchedulingSection } from "@/components/dashboard/CallSchedulingSection";
+import { SavedFiltersSection } from "@/components/people-views/SavedFiltersSection";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { DashboardPage, KpiCard, SummaryTooltip, stickyCell, stickyHead } from "@/components/dashboard/PageShell";
@@ -505,6 +506,7 @@ function QualifiedPage() {
 
   return (
     <DashboardPage>
+      {!isWbah && <SavedFiltersSection pageKey="qualified" />}
       {/* Header */}
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
