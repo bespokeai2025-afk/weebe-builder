@@ -196,5 +196,5 @@ export function useSystemMindBuildLauncher({
     </div>
   ) : null;
 
-  return { dock, navEntry, hasSession, reopen };
+  return { dock, navEntry, hasSession, reopen, launch };
 }
