@@ -79,6 +79,7 @@ import {
 import { useWbahAgentOptions } from "@/hooks/useWbahAgentOptions";
 import { agentTypeLabel } from "@/components/shared/AgentFilterSelect";
 import { useIsWbahWorkspace } from "@/hooks/useIsWbahWorkspace";
+import { CustomViewsSection } from "@/components/people-views/CustomViewsSection";
 
 export const Route = createFileRoute("/_authenticated/data")({
   head: () => ({ meta: [{ title: "Data Records — Webee" }] }),
@@ -2557,6 +2558,8 @@ function DataPage() {
           </div>
         </>
       )}
+
+      {dataTab === "people" && !isWbah && <CustomViewsSection />}
 
       {dataTab === "people" && !isWbah && (
         <div className="min-w-0 overflow-hidden rounded-xl border border-white/[0.06] bg-card/60">

@@ -13,6 +13,8 @@ type ScheduleConfig = {
   intervalDays: number;
   voicemailEnabled: boolean;
   lastRunDate?: string;
+  /** Optional workspace_campaign_filters id — additive; absent = legacy behaviour. */
+  campaignFilterId?: string | null;
 };
 
 function parseDesc(description: string | null): ScheduleConfig | null {
@@ -102,6 +104,7 @@ const campaignInput = z.object({
   callFrequency: z.enum(["daily", "custom"]).default("daily"),
   intervalDays: z.number().int().min(1).max(365).default(1),
   voicemailEnabled: z.boolean().default(false),
+  campaignFilterId: z.string().uuid().nullable().optional(),
 });
 
 export const createCallCampaign = createServerFn({ method: "POST" })
@@ -119,7 +122,18 @@ export const createCallCampaign = createServerFn({ method: "POST" })
       callFrequency: data.callFrequency,
       intervalDays: data.intervalDays,
       voicemailEnabled: data.voicemailEnabled,
+      campaignFilterId: data.campaignFilterId ?? null,
     };
+    if (data.campaignFilterId) {
+      const { data: f } = await sb
+        .from("workspace_campaign_filters")
+        .select("id, status")
+        .eq("id", data.campaignFilterId)
+        .eq("workspace_id", workspaceId)
+        .maybeSingle();
+      if (!f) throw new Error("Campaign filter not found in this workspace.");
+      if (f.status !== "active") throw new Error("Campaign filter must be active before attaching it to a campaign.");
+    }
     const { data: row, error } = await sb
       .from("campaigns")
       .insert({
@@ -141,7 +155,7 @@ export const updateCallCampaign = createServerFn({ method: "POST" })
     campaignInput.extend({ id: z.string().uuid() }).parse(input),
   )
   .handler(async ({ context, data }) => {
-    const { supabase } = context;
+    const { supabase, workspaceId } = context;
     const sb = supabase as any;
     const config: ScheduleConfig = {
       pageType: data.pageType,
@@ -151,7 +165,18 @@ export const updateCallCampaign = createServerFn({ method: "POST" })
       callFrequency: data.callFrequency,
       intervalDays: data.intervalDays,
       voicemailEnabled: data.voicemailEnabled,
+      campaignFilterId: data.campaignFilterId ?? null,
     };
+    if (data.campaignFilterId) {
+      const { data: f } = await sb
+        .from("workspace_campaign_filters")
+        .select("id, status")
+        .eq("id", data.campaignFilterId)
+        .eq("workspace_id", workspaceId)
+        .maybeSingle();
+      if (!f) throw new Error("Campaign filter not found in this workspace.");
+      if (f.status !== "active") throw new Error("Campaign filter must be active before attaching it to a campaign.");
+    }
     const { error } = await sb
       .from("campaigns")
       .update({

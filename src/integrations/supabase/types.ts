@@ -11791,6 +11791,83 @@ export type Database = {
           },
         ]
       }
+      workspace_campaign_filters: {
+        Row: {
+          agent_id: string | null
+          campaign_id: string | null
+          created_at: string
+          created_by_systemmind: boolean
+          created_by_user_id: string | null
+          description: string | null
+          filter_config: Json
+          id: string
+          last_dry_run: Json | null
+          last_dry_run_at: string | null
+          name: string
+          parent_filter_id: string | null
+          safety_config: Json
+          source_types: string[]
+          status: string
+          systemmind_prompt: string | null
+          updated_at: string
+          version: number
+          visible_to_roles: string[]
+          workspace_id: string
+        }
+        Insert: {
+          agent_id?: string | null
+          campaign_id?: string | null
+          created_at?: string
+          created_by_systemmind?: boolean
+          created_by_user_id?: string | null
+          description?: string | null
+          filter_config?: Json
+          id?: string
+          last_dry_run?: Json | null
+          last_dry_run_at?: string | null
+          name: string
+          parent_filter_id?: string | null
+          safety_config?: Json
+          source_types?: string[]
+          status?: string
+          systemmind_prompt?: string | null
+          updated_at?: string
+          version?: number
+          visible_to_roles?: string[]
+          workspace_id: string
+        }
+        Update: {
+          agent_id?: string | null
+          campaign_id?: string | null
+          created_at?: string
+          created_by_systemmind?: boolean
+          created_by_user_id?: string | null
+          description?: string | null
+          filter_config?: Json
+          id?: string
+          last_dry_run?: Json | null
+          last_dry_run_at?: string | null
+          name?: string
+          parent_filter_id?: string | null
+          safety_config?: Json
+          source_types?: string[]
+          status?: string
+          systemmind_prompt?: string | null
+          updated_at?: string
+          version?: number
+          visible_to_roles?: string[]
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "workspace_campaign_filters_parent_filter_id_fkey"
+            columns: ["parent_filter_id"]
+            isOneToOne: false
+            referencedRelation: "workspace_campaign_filters"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       workspace_health_runs: {
         Row: {
           created_at: string
@@ -11973,6 +12050,89 @@ export type Database = {
             columns: ["workspace_id"]
             isOneToOne: true
             referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      workspace_people_views: {
+        Row: {
+          column_config: Json
+          created_at: string
+          created_by_systemmind: boolean
+          created_by_user_id: string | null
+          description: string | null
+          filter_config: Json
+          group_config: Json
+          icon: string | null
+          id: string
+          last_dry_run: Json | null
+          last_dry_run_at: string | null
+          name: string
+          parent_view_id: string | null
+          slug: string
+          sort_config: Json
+          status: string
+          systemmind_prompt: string | null
+          updated_at: string
+          version: number
+          view_type: string
+          visible_to_roles: string[]
+          workspace_id: string
+        }
+        Insert: {
+          column_config?: Json
+          created_at?: string
+          created_by_systemmind?: boolean
+          created_by_user_id?: string | null
+          description?: string | null
+          filter_config?: Json
+          group_config?: Json
+          icon?: string | null
+          id?: string
+          last_dry_run?: Json | null
+          last_dry_run_at?: string | null
+          name: string
+          parent_view_id?: string | null
+          slug: string
+          sort_config?: Json
+          status?: string
+          systemmind_prompt?: string | null
+          updated_at?: string
+          version?: number
+          view_type?: string
+          visible_to_roles?: string[]
+          workspace_id: string
+        }
+        Update: {
+          column_config?: Json
+          created_at?: string
+          created_by_systemmind?: boolean
+          created_by_user_id?: string | null
+          description?: string | null
+          filter_config?: Json
+          group_config?: Json
+          icon?: string | null
+          id?: string
+          last_dry_run?: Json | null
+          last_dry_run_at?: string | null
+          name?: string
+          parent_view_id?: string | null
+          slug?: string
+          sort_config?: Json
+          status?: string
+          systemmind_prompt?: string | null
+          updated_at?: string
+          version?: number
+          view_type?: string
+          visible_to_roles?: string[]
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "workspace_people_views_parent_view_id_fkey"
+            columns: ["parent_view_id"]
+            isOneToOne: false
+            referencedRelation: "workspace_people_views"
             referencedColumns: ["id"]
           },
         ]
@@ -12329,6 +12489,54 @@ export type Database = {
           title?: string
           updated_at?: string
           version?: number
+          workspace_id?: string
+        }
+        Relationships: []
+      }
+      workspace_view_audit_logs: {
+        Row: {
+          action_type: string
+          after_state: Json | null
+          approval_status: string | null
+          before_state: Json | null
+          created_at: string
+          dry_run_result: Json | null
+          id: string
+          object_id: string | null
+          object_type: string
+          prompt: string | null
+          risk_level: string | null
+          user_id: string | null
+          workspace_id: string
+        }
+        Insert: {
+          action_type: string
+          after_state?: Json | null
+          approval_status?: string | null
+          before_state?: Json | null
+          created_at?: string
+          dry_run_result?: Json | null
+          id?: string
+          object_id?: string | null
+          object_type: string
+          prompt?: string | null
+          risk_level?: string | null
+          user_id?: string | null
+          workspace_id: string
+        }
+        Update: {
+          action_type?: string
+          after_state?: Json | null
+          approval_status?: string | null
+          before_state?: Json | null
+          created_at?: string
+          dry_run_result?: Json | null
+          id?: string
+          object_id?: string | null
+          object_type?: string
+          prompt?: string | null
+          risk_level?: string | null
+          user_id?: string | null
           workspace_id?: string
         }
         Relationships: []

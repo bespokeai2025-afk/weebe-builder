@@ -1,0 +1,358 @@
+Good audit. Proceed with the build, but implement it in controlled phases and keep it safe.
+
+Important: do not change global routes, do not alter WBAH logic, and do not break existing Leads, Qualified, Calls, Data, Campaigns, Workflows, Agent Builder, or SystemMind behaviour.
+
+The implementation should be database-backed, workspace-scoped, additive, versioned, dry-run tested, and reversible.
+
+## Phase 1 — Database-backed workspace views and campaign filters
+
+Create the required tables:
+
+### workspace_people_views
+
+Fields:
+
+* id
+* workspace_id
+* name
+* slug
+* description
+* icon
+* view_type
+* filter_config_json
+* column_config_json
+* sort_config_json
+* group_config_json
+* visible_to_roles
+* created_by_user_id
+* created_by_systemmind boolean
+* status: draft / active / archived
+* version
+* created_at
+* updated_at
+
+### workspace_campaign_filters
+
+Fields:
+
+* id
+* workspace_id
+* name
+* description
+* filter_config_json
+* source_types
+* campaign_id optional
+* agent_id optional
+* visible_to_roles
+* created_by_user_id
+* created_by_systemmind boolean
+* status: draft / active / archived
+* version
+* created_at
+* updated_at
+
+### workspace_view_audit_logs
+
+Fields:
+
+* id
+* workspace_id
+* user_id
+* object_type: people_view / campaign_filter
+* object_id
+* action_type
+* before_state
+* after_state
+* approval_status
+* risk_level
+* created_at
+
+All tables must have RLS using the existing workspace_members pattern.
+
+All records must be scoped to workspace_id.
+
+Do not allow client-supplied workspace_id to override the authenticated workspace.
+
+---
+
+## Phase 2 — Safe filter engine
+
+Create a shared filter engine for leads/people/campaigns.
+
+It should support:
+
+Fields:
+
+* sentiment
+* lead status
+* call outcome
+* qualification status
+* appointment booked
+* booking date
+* callback requested
+* callback date/time
+* lead source
+* preferred contact method
+* campaign
+* assigned agent
+* created date
+* last call date
+* next follow-up date
+* no answer count
+* voicemail
+* email exists
+* phone exists
+* WhatsApp available
+* budget/deal value
+* custom workspace fields from meta JSONB
+* CRM imported fields from meta JSONB
+* opt-out / do not contact
+* duplicate status
+
+Operators:
+
+* equals
+* does not equal
+* contains
+* does not contain
+* is empty
+* is not empty
+* greater than
+* less than
+* between
+* before
+* after
+* in list
+* not in list
+
+The filter engine must validate field names, operators, types, and values before saving or running.
+
+If a custom field does not exist, SystemMind should propose creating a workspace-specific field, not a global field.
+
+---
+
+## Phase 3 — Dry-run before apply
+
+Add a dry-run endpoint/service for People views and campaign filters.
+
+Dry-run should return:
+
+* total matching records
+* sample matching records
+* excluded count
+* exclusion reasons
+* booked leads included yes/no
+* opted-out leads included yes/no
+* do-not-contact leads included yes/no
+* leads already in active campaigns included yes/no
+* leads without phone included yes/no
+* estimated call volume if used for a campaign
+* warnings
+* risk level
+
+Dry-run must not update CRM, trigger calls, send messages, or modify any records.
+
+---
+
+## Phase 4 — People Custom Views UI
+
+In the existing People/Data area, add a Custom Views section without changing the global route structure.
+
+Custom views should appear only for the current workspace.
+
+UI should show:
+
+* All People
+* Leads
+* Qualified
+* existing tabs
+* Custom Views
+
+Each custom view card/tab should show:
+
+* name
+* description
+* filter badges
+* matching count
+* status
+* created by SystemMind
+* last updated
+* Edit with SystemMind
+* Duplicate
+* Archive
+* Convert to Campaign Filter
+
+Important:
+
+* WBAH must remain excluded at first unless explicitly handled later.
+* Do not change WBAH’s current hardcoded/live API tabs.
+* Do not expose WBAH views to standard workspaces.
+
+---
+
+## Phase 5 — Campaign filter integration
+
+Allow workspace_campaign_filters to be selected in campaign setup.
+
+Campaign filters must be additive.
+
+If no campaign filter is selected, existing campaign behaviour must remain exactly as it is today.
+
+Add safe default exclusions:
+
+* exclude booked leads
+* exclude do-not-contact leads
+* exclude opted-out leads
+* exclude leads without phone number
+* exclude leads already in active campaign
+* respect existing 3-calls-per-day cap
+* respect campaign call caps
+* respect workspace call caps if present
+
+Do not change the existing scheduler behaviour unless a campaign filter is attached.
+
+---
+
+## Phase 6 — SystemMind actions
+
+Add SystemMind action kinds:
+
+* create_people_view
+* update_people_view
+* archive_people_view
+* duplicate_people_view
+* create_campaign_filter
+* update_campaign_filter
+* archive_campaign_filter
+* dry_run_filter
+* convert_people_view_to_campaign_filter
+
+SystemMind must always produce a draft plan first.
+
+For example, if the user asks:
+
+“Create a People page for booked appointments and a campaign filter for positive webform leads.”
+
+SystemMind should output:
+
+* proposed People view name
+* proposed filters
+* proposed columns
+* proposed campaign filter
+* safe exclusions
+* dry-run result
+* risk level
+* approval requirement
+
+Then allow:
+
+* Save Draft
+* Dry Run
+* Apply
+* Cancel
+
+Do not silently activate filters that affect active campaigns.
+
+---
+
+## Phase 7 — Permissions
+
+Use existing workspace role logic.
+
+Suggested permissions:
+
+* owner/admin: create, apply, activate, archive
+* member/manager if available: create draft, dry-run, request approval
+* viewer: view only
+
+High-risk campaign filters should require admin approval.
+
+High risk means:
+
+* affects active campaigns
+* could increase call volume
+* includes negative leads
+* includes opted-out leads
+* includes booked leads
+* changes campaign selection logic
+* activates outbound calling
+
+---
+
+## Phase 8 — Versioning and rollback
+
+Every edit must create a new version.
+
+Store:
+
+* previous config
+* new config
+* user/systemmind prompt
+* dry-run result
+* approval status
+* applied_by
+* applied_at
+* rollback id
+
+Add rollback where possible.
+
+Never destroy previous configs.
+
+---
+
+## Phase 9 — Audit logs
+
+Log every action:
+
+* create
+* update
+* dry-run
+* apply
+* archive
+* duplicate
+* convert to campaign filter
+* rollback
+
+Audit should include:
+
+* workspace_id
+* user_id
+* object type
+* object id
+* before state
+* after state
+* risk level
+* approval status
+* dry-run result
+* created_at
+
+---
+
+## Phase 10 — Tests
+
+Please test:
+
+1. Create a People view for booked appointments in one standard workspace.
+2. Confirm it only appears in that workspace.
+3. Confirm it does not appear in another standard workspace.
+4. Confirm it does not affect WBAH.
+5. Create a People view for negative sentiment with negative reason column.
+6. Create a campaign filter for webform leads only.
+7. Dry-run the campaign filter.
+8. Confirm booked leads are excluded by default.
+9. Confirm do-not-contact leads are excluded by default.
+10. Confirm opted-out leads are excluded by default.
+11. Confirm active campaign duplicates are excluded.
+12. Confirm existing campaigns without a selected filter behave exactly as before.
+13. Confirm the scheduler still respects the 3-calls-per-day cap.
+14. Confirm SystemMind can create a draft People view.
+15. Confirm SystemMind can create a draft campaign filter.
+16. Confirm permissions are enforced.
+17. Confirm rollback/version history works.
+18. Confirm audit logs are created.
+19. Confirm no global routes are created.
+20. Confirm no global nav is changed for other users.
+
+Final instruction:
+
+Build this as a safe workspace configuration system, not as global code-generated pages. SystemMind should feel powerful like Replit, but it must operate through controlled workspace-scoped configs, dry-runs, approvals, audit logs, and rollback.

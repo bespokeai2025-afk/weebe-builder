@@ -489,7 +489,7 @@ export async function activateSystemMindAutomation(
   if (
     kind === "whatsapp_setup" || kind === "follow_up_sequence" || kind === "n8n_blueprint" ||
     kind === "accountsmind_config" || kind === "onboarding_plan" || kind === "build_workspace_apply" ||
-    kind === "build_test_override"
+    kind === "build_test_override" || kind === "people_view" || kind === "campaign_filter"
   ) {
     let result: { activatedTargetType: string; activatedTargetId: string; summary: Record<string, unknown> };
     try {
@@ -505,6 +505,12 @@ export async function activateSystemMindAutomation(
       } else if (kind === "build_test_override") {
         const tc = await import("@/lib/systemmind/build-workspace-testcall.server");
         result = await tc.activateBuildTestOverrideKind(workspaceId, generatedActionId);
+      } else if (kind === "people_view") {
+        const pv = await import("@/lib/people-views/people-views-systemmind.server");
+        result = await pv.activatePeopleViewKind(workspaceId, generatedActionId);
+      } else if (kind === "campaign_filter") {
+        const pv = await import("@/lib/people-views/people-views-systemmind.server");
+        result = await pv.activateCampaignFilterKind(workspaceId, generatedActionId);
       } else {
         const gen = await import("@/lib/systemmind/systemmind-generators.server");
         if (kind === "whatsapp_setup") {
