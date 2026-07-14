@@ -1321,7 +1321,12 @@ export function BuildSessionView({
       });
       if (res.requiresApproval) return { ...res, wentLive: false };
       // Reuse the EXISTING Go Live flow — same checks as the Deploy tab.
-      await goLiveFn({ data: { id: session!.target_agent_id, agentType: "receptionist" } });
+      await goLiveFn({
+        data: {
+          id: session!.target_agent_id,
+          agentType: (session!.target_agent_type ?? "receptionist") as any,
+        },
+      });
       await deployedFn({ data: { sessionId, versionId, deployTarget: "agent go-live" } });
       return { ...res, wentLive: true };
     },

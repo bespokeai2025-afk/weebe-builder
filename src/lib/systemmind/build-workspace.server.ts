@@ -794,7 +794,18 @@ export async function getBuildSessionServer(workspaceId: string, sessionId: stri
   ]);
   if (vErr) throw new Error(vErr.message);
   if (mErr) throw new Error(mErr.message);
-  return { session, versions: versions ?? [], messages: messages ?? [], snapshots };
+  let targetAgentType: string | null = null;
+  if (session.target_agent_id) {
+    const { data: agent } = await sb.from("agents")
+      .select("settings")
+      .eq("id", session.target_agent_id).eq("workspace_id", workspaceId)
+      .maybeSingle();
+    targetAgentType = (agent?.settings as any)?.dashboardAgentType ?? "receptionist";
+  }
+  return {
+    session: { ...session, target_agent_type: targetAgentType },
+    versions: versions ?? [], messages: messages ?? [], snapshots,
+  };
 }
 
 // Deploy-tab provenance: latest applied/deployed build version for an agent.
