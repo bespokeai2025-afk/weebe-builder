@@ -37,8 +37,8 @@ const filterConfigInput = z.unknown();
 export const listWorkspacePeopleViews = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
-    const { workspaceId } = await ctxRole(context);
-    return { views: await listPeopleViews(workspaceId) };
+    const { workspaceId, role } = await ctxRole(context);
+    return { views: await listPeopleViews(workspaceId, false, role) };
   });
 
 export const listWorkspaceCampaignFilters = createServerFn({ method: "GET" })
@@ -250,8 +250,8 @@ export const runWorkspacePeopleView = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input) => z.object({ viewId: z.string().uuid(), limit: z.number().int().min(1).max(500).optional() }).parse(input))
   .handler(async ({ context, data }) => {
-    const { workspaceId } = await ctxRole(context);
-    return await runPeopleView(workspaceId, data.viewId, data.limit ?? 200);
+    const { workspaceId, role } = await ctxRole(context);
+    return await runPeopleView(workspaceId, data.viewId, data.limit ?? 200, role);
   });
 
 export const listWorkspaceViewAuditLogs = createServerFn({ method: "POST" })

@@ -109,7 +109,11 @@ async function snapshotRow(objectType: ObjectType, row: any): Promise<string> {
 
 // ── People views ─────────────────────────────────────────────────────────────
 
-export async function listPeopleViews(workspaceId: string, includeArchived = false) {
+export async function listPeopleViews(
+  workspaceId: string,
+  includeArchived = false,
+  role?: WorkspaceRole,
+) {
   let q = (supabaseAdmin as any)
     .from("workspace_people_views")
     .select("*")
@@ -117,6 +121,7 @@ export async function listPeopleViews(workspaceId: string, includeArchived = fal
     .is("parent_view_id", null)
     .order("updated_at", { ascending: false });
   if (!includeArchived) q = q.neq("status", "archived");
+  if (role) q = q.contains("visible_to_roles", [role]);
   const { data, error } = await q;
   if (error) throw new Error(error.message);
   return data ?? [];
@@ -560,16 +565,36 @@ export async function dryRunAndRecord(input: {
   return result;
 }
 
+/** Safe-listed sortable leads columns for saved-view sort_config. */
+const SORTABLE_LEAD_COLUMNS = new Set([
+  "full_name", "status", "sentiment", "source", "call_outcome",
+  "callback_date", "created_at", "updated_at", "last_contacted_at",
+  "lead_score", "attempt_count",
+]);
+
 /** Read-only: run a saved active people view and return matching leads. */
-export async function runPeopleView(workspaceId: string, viewId: string, limit = 200) {
+export async function runPeopleView(
+  workspaceId: string,
+  viewId: string,
+  limit = 200,
+  role?: WorkspaceRole,
+) {
   const view = await getCurrent("people_view", workspaceId, viewId);
+  if (role && Array.isArray(view.visible_to_roles) && !view.visible_to_roles.includes(role)) {
+    throw new Error("This view is not visible to your workspace role.");
+  }
   const v = validateFilterConfig(view.filter_config);
   if (!v.ok || !v.config) throw new Error(`View has an invalid filter: ${v.errors.join("; ")}`);
+
+  const sort = (view.sort_config ?? {}) as { field?: string; direction?: string };
+  const sortCol = sort.field && SORTABLE_LEAD_COLUMNS.has(sort.field) ? sort.field : "updated_at";
+  const ascending = sort.direction === "asc";
+
   let q = (supabaseAdmin as any)
     .from("leads")
     .select("id, full_name, phone, email, status, sentiment, source, call_outcome, callback_requested, callback_date, meeting_requested, created_at, last_contacted_at, meta")
     .eq("workspace_id", workspaceId)
-    .order("updated_at", { ascending: false })
+    .order(sortCol, { ascending })
     .limit(Math.min(limit, 500));
   q = applyFilterToQuery(q, v.config);
   const { data, error } = await q;

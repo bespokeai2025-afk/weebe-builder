@@ -199,6 +199,24 @@ describe("people views CRUD + versioning", () => {
     expect(audit.before_state.viewId).toBe(viewId);
   });
 
+  it("visible_to_roles gates list + run; sort_config is respected", async () => {
+    // restrict the view to admins/owners only
+    await sb.from("workspace_people_views")
+      .update({ visible_to_roles: ["owner", "admin"], sort_config: { field: "full_name", direction: "asc" } })
+      .eq("id", viewId);
+    const memberList = await listPeopleViews(WS, false, "member");
+    expect(memberList.find((v: any) => v.id === viewId)).toBeUndefined();
+    await expect(runPeopleView(WS, viewId, 50, "member")).rejects.toThrow(/not visible/i);
+
+    const adminRun = await runPeopleView(WS, viewId, 50, "admin");
+    expect(adminRun.rows.map((r: any) => r.full_name)).toEqual(["A", "B"]);
+
+    // restore
+    await sb.from("workspace_people_views")
+      .update({ visible_to_roles: ["owner", "admin", "member"], sort_config: {} })
+      .eq("id", viewId);
+  });
+
   it("lists are workspace-scoped", async () => {
     const other = await listPeopleViews(randomUUID());
     expect(other.length).toBe(0);

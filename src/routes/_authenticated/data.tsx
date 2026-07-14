@@ -2559,6 +2559,12 @@ function DataPage() {
         </>
       )}
 
+      {dataTab === "people" && isWbah && (
+        <div className="rounded-xl border border-white/[0.06] bg-card/60 px-3 py-2 text-xs text-muted-foreground">
+          Custom People Views are not enabled for this workspace yet.
+        </div>
+      )}
+
       {dataTab === "people" && !isWbah && <CustomViewsSection />}
 
       {dataTab === "people" && !isWbah && (
