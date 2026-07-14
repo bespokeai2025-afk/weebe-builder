@@ -6,6 +6,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { SidebarProvider, SidebarInset, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/app-sidebar";
 import { ThemeToggle } from "@/components/ThemeToggle";
+import { NotificationsBell } from "@/components/notifications/NotificationsBell";
 import { OnboardingTour } from "@/components/onboarding/OnboardingTour";
 import { OnboardingWelcome } from "@/components/onboarding/OnboardingWelcome";
 import { OnboardingChecklist } from "@/components/onboarding/OnboardingChecklist";
@@ -104,7 +105,8 @@ function AuthenticatedLayout() {
           {!hideHeader && (
             <div className="sticky top-0 z-30 flex h-10 items-center gap-2 border-b border-white/[0.04] bg-background/60 px-2.5 backdrop-blur-xl">
               <SidebarTrigger />
-              <div className="ml-auto">
+              <div className="ml-auto flex items-center gap-1">
+                <NotificationsBell />
                 <ThemeToggle />
               </div>
             </div>
