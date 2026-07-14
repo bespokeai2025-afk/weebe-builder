@@ -788,19 +788,27 @@ function RequiredInputsPanel({
   const creds    = (config?.required_credentials ?? []) as string[];
   const [dest, setDest]         = useState<Record<string, string>>({});
   const [crmField, setCrmField] = useState<Record<string, string>>({});
+  const [extCrm, setExtCrm]     = useState<"" | "yes" | "no">("");
 
   if (unmapped.length === 0 && creds.length === 0) return null;
 
-  const nameOf = (f: any) => String(f.name ?? f.key ?? "unnamed");
-  const allFilled = unmapped.every((f) => !!dest[nameOf(f)]);
+  const nameOf  = (f: any) => String(f.name ?? f.key ?? "unnamed");
+  const destOf  = (n: string) => dest[n] ?? "Leads";
+  const allFilled = unmapped.every((f) => !!destOf(nameOf(f)));
 
   const submit = () => {
     const parts = unmapped.map((f) => {
       const n = nameOf(f);
       const cf = crmField[n]?.trim();
-      return `${n} → ${dest[n]}${cf ? ` (CRM field: ${cf})` : ""}`;
+      return `${n} → ${destOf(n)}${cf ? ` (field name: ${cf})` : ""}`;
     });
-    onSend(`Map these captured fields to the CRM: ${parts.join("; ")}. Update the workflow's CRM mappings accordingly.`);
+    const extNote =
+      extCrm === "yes"
+        ? " The user ALSO wants to sync leads to their external CRM — add a push_to_crm step at the right point in the workflow."
+        : extCrm === "no"
+          ? " The user does NOT want an external CRM sync — keep everything in WEBEE only (no push_to_crm step)."
+          : "";
+    onSend(`Map these captured fields into the WEBEE system: ${parts.join("; ")}. Update the workflow's mappings accordingly.${extNote}`);
   };
 
   return (
@@ -815,7 +823,7 @@ function RequiredInputsPanel({
       {unmapped.length > 0 && (
         <div className="space-y-2">
           <p className="text-[10px] text-muted-foreground">
-            These captured fields need a CRM destination. Fields marked <span className="text-rose-400">*</span> are mandatory.
+            Captured data always lands in your WEBEE system. Fields marked <span className="text-rose-400">*</span> are mandatory — each defaults to Leads; change it if a field belongs somewhere else.
           </p>
           {unmapped.map((f) => {
             const n = nameOf(f);
@@ -824,12 +832,9 @@ function RequiredInputsPanel({
                 <p className="min-w-[110px] text-[11px] font-medium">{n}</p>
                 <div className="flex items-center gap-1">
                   <span className="text-[11px] text-rose-400">*</span>
-                  <Select value={dest[n] ?? ""} onValueChange={(v) => setDest((s) => ({ ...s, [n]: v }))}>
-                    <SelectTrigger className={cn(
-                      "h-7 w-[150px] text-[11px]",
-                      !dest[n] && "border-amber-500/40",
-                    )}>
-                      <SelectValue placeholder="CRM destination…" />
+                  <Select value={destOf(n)} onValueChange={(v) => setDest((s) => ({ ...s, [n]: v }))}>
+                    <SelectTrigger className="h-7 w-[150px] text-[11px]">
+                      <SelectValue placeholder="WEBEE destination…" />
                     </SelectTrigger>
                     <SelectContent>
                       {CRM_DESTINATIONS.map((d) => (
@@ -841,12 +846,34 @@ function RequiredInputsPanel({
                 <Input
                   value={crmField[n] ?? ""}
                   onChange={(e) => setCrmField((s) => ({ ...s, [n]: e.target.value }))}
-                  placeholder="CRM field name (optional)"
+                  placeholder="Field name (optional)"
                   className="h-7 w-[170px] text-[11px]"
                 />
               </div>
             );
           })}
+          <div className="flex flex-wrap items-center gap-2 rounded-md border border-white/[0.06] bg-white/[0.02] px-2.5 py-2">
+            <p className="text-[11px] font-medium">Also sync to an external CRM?</p>
+            <span className="text-[10px] text-muted-foreground">(optional — WEBEE stores everything either way)</span>
+            <div className="flex items-center gap-1.5">
+              <Button
+                size="sm"
+                variant={extCrm === "yes" ? "default" : "outline"}
+                className="h-6 px-2.5 text-[10px]"
+                onClick={() => setExtCrm(extCrm === "yes" ? "" : "yes")}
+              >
+                Yes, connect my CRM
+              </Button>
+              <Button
+                size="sm"
+                variant={extCrm === "no" ? "default" : "outline"}
+                className="h-6 px-2.5 text-[10px]"
+                onClick={() => setExtCrm(extCrm === "no" ? "" : "no")}
+              >
+                No, WEBEE only
+              </Button>
+            </div>
+          </div>
           <Button
             size="sm"
             className="h-7 gap-1.5 px-3 text-[11px]"
@@ -856,9 +883,6 @@ function RequiredInputsPanel({
             {busy ? <Loader2 className="h-3 w-3 animate-spin" /> : <CheckCircle2 className="h-3 w-3" />}
             Save mappings
           </Button>
-          {!allFilled && (
-            <p className="text-[10px] text-amber-300/80">Choose a destination for every field to continue.</p>
-          )}
         </div>
       )}
 
