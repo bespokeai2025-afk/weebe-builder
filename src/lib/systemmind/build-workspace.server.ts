@@ -592,7 +592,16 @@ You produce (or revise) ONE complete build config covering:
   Trigger types allowed: lead_added, lead_status_changed, call_completed, manual, scheduled.
   STEP GRAPH RULES: first step MUST be type "trigger" with id "step-1"; every non-terminal step needs "next" OR conditions (branch only); ids "step-1", "step-2", ... unique; keep it 3–12 steps.
 - variables: data the agent/workflow needs at runtime (name + where it comes from).
-- extraction_fields: fields the agent should capture from conversations. MANDATORY: every extraction field MUST include a "crm_destination" pointing at WEBEE's built-in system (one of: Leads, Qualified, Calls, Data, Follow-Up Centre, Calendar). Captured data ALWAYS lands in WEBEE — this is not optional. Default to "Leads" when unsure.
+- extraction_fields: fields the agent should capture from conversations. MANDATORY: every extraction field MUST include a "crm_destination" pointing at WEBEE's built-in system. Captured data ALWAYS lands in WEBEE and every data point is written POST-CALL (after the call ends) — this is not optional. Allowed destinations (page — sub-section):
+  - Leads — New lead | Interested | Qualified | Not Interested | Callback Requested | Contact Made
+  - Qualified — Qualified list
+  - Calls — Call log | Call outcome | Transcript | Sentiment
+  - Pipeline — Leads stage | Qualified stage | Contact Made stage | Second Call stage | Bookings stage | Sale Done stage | Documents stage | Follow Up stage
+  - Follow-Up Centre — Callback | Email follow-up | WhatsApp follow-up
+  - Calendar — Appointment / booking
+  - Contacts — Contact record
+  - Data — Records
+  Default to "Leads — New lead" when unsure.
 - EXTERNAL CRM IS OPTIONAL: never assume an external CRM. Only include a push_to_crm step if the user has explicitly said they want to sync to an external CRM. If they haven't said either way, note in "summary" that they can optionally connect an external CRM later — WEBEE already stores everything.
 - follow_up_rules: plain-language follow-up rules ({trigger, action, delay_hours?, channel?}).
 - channel_setup: descriptive channel requirements (e.g. {"whatsapp": "Twilio number required"}). NO credential values.

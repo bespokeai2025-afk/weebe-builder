@@ -26,7 +26,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import {
-  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+  Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -770,7 +770,21 @@ function VariablesPanel({ config }: { config: Record<string, any> | null }) {
 // destination yet gets a mandatory box the user must fill in. Submitting sends a
 // plain-language instruction to SystemMind, which generates a new version.
 
-const CRM_DESTINATIONS = ["Leads", "Qualified", "Calls", "Data", "Follow-Up Centre", "Calendar"];
+// Every page relevant to call results, with its sub-sections. Each captured data
+// point maps to one of these and is written POST-CALL (after the call ends).
+const DESTINATION_GROUPS: { page: string; subs: string[] }[] = [
+  { page: "Leads",            subs: ["New lead", "Interested", "Qualified", "Not Interested", "Callback Requested", "Contact Made"] },
+  { page: "Qualified",        subs: ["Qualified list"] },
+  { page: "Calls",            subs: ["Call log", "Call outcome", "Transcript", "Sentiment"] },
+  { page: "Pipeline",         subs: ["Leads stage", "Qualified stage", "Contact Made stage", "Second Call stage", "Bookings stage", "Sale Done stage", "Documents stage", "Follow Up stage"] },
+  { page: "Follow-Up Centre", subs: ["Callback", "Email follow-up", "WhatsApp follow-up"] },
+  { page: "Calendar",         subs: ["Appointment / booking"] },
+  { page: "Contacts",         subs: ["Contact record"] },
+  { page: "Data",             subs: ["Records"] },
+];
+const DEFAULT_DESTINATION = "Leads — New lead";
+const destValue = (page: string, sub: string) =>
+  sub && sub !== page ? `${page} — ${sub}` : page;
 
 export function findUnmappedFields(config: Record<string, any> | null): any[] {
   const fields = (config?.extraction_fields ?? []) as any[];
@@ -793,7 +807,7 @@ function RequiredInputsPanel({
   if (unmapped.length === 0 && creds.length === 0) return null;
 
   const nameOf  = (f: any) => String(f.name ?? f.key ?? "unnamed");
-  const destOf  = (n: string) => dest[n] ?? "Leads";
+  const destOf  = (n: string) => dest[n] ?? DEFAULT_DESTINATION;
   const allFilled = unmapped.every((f) => !!destOf(nameOf(f)));
 
   const submit = () => {
@@ -802,13 +816,14 @@ function RequiredInputsPanel({
       const cf = crmField[n]?.trim();
       return `${n} → ${destOf(n)}${cf ? ` (field name: ${cf})` : ""}`;
     });
+    const postCallNote = " Every mapped data point is written post-call (after the call ends).";
     const extNote =
       extCrm === "yes"
         ? " The user ALSO wants to sync leads to their external CRM — add a push_to_crm step at the right point in the workflow."
         : extCrm === "no"
           ? " The user does NOT want an external CRM sync — keep everything in WEBEE only (no push_to_crm step)."
           : "";
-    onSend(`Map these captured fields into the WEBEE system: ${parts.join("; ")}. Update the workflow's mappings accordingly.${extNote}`);
+    onSend(`Map these captured fields into the WEBEE system: ${parts.join("; ")}. Update the workflow's mappings accordingly.${postCallNote}${extNote}`);
   };
 
   return (
@@ -823,7 +838,7 @@ function RequiredInputsPanel({
       {unmapped.length > 0 && (
         <div className="space-y-2">
           <p className="text-[10px] text-muted-foreground">
-            Captured data always lands in your WEBEE system. Fields marked <span className="text-rose-400">*</span> are mandatory — each defaults to Leads; change it if a field belongs somewhere else.
+            Captured data always lands in your WEBEE system and is written post-call. Fields marked <span className="text-rose-400">*</span> are mandatory — each defaults to Leads → New lead; pick the page and sub-section a field belongs to.
           </p>
           {unmapped.map((f) => {
             const n = nameOf(f);
@@ -833,12 +848,20 @@ function RequiredInputsPanel({
                 <div className="flex items-center gap-1">
                   <span className="text-[11px] text-rose-400">*</span>
                   <Select value={destOf(n)} onValueChange={(v) => setDest((s) => ({ ...s, [n]: v }))}>
-                    <SelectTrigger className="h-7 w-[150px] text-[11px]">
+                    <SelectTrigger className="h-7 w-[210px] text-[11px]">
                       <SelectValue placeholder="WEBEE destination…" />
                     </SelectTrigger>
-                    <SelectContent>
-                      {CRM_DESTINATIONS.map((d) => (
-                        <SelectItem key={d} value={d} className="text-[11px]">{d}</SelectItem>
+                    <SelectContent className="max-h-[300px]">
+                      {DESTINATION_GROUPS.map((g) => (
+                        <SelectGroup key={g.page}>
+                          <SelectLabel className="text-[10px] text-muted-foreground">{g.page}</SelectLabel>
+                          {g.subs.map((s) => {
+                            const v = destValue(g.page, s);
+                            return (
+                              <SelectItem key={v} value={v} className="text-[11px]">{s}</SelectItem>
+                            );
+                          })}
+                        </SelectGroup>
                       ))}
                     </SelectContent>
                   </Select>
