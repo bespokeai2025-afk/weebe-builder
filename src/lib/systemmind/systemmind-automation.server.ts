@@ -488,7 +488,8 @@ export async function activateSystemMindAutomation(
   const kind = String(draft.action_kind ?? "workflow");
   if (
     kind === "whatsapp_setup" || kind === "follow_up_sequence" || kind === "n8n_blueprint" ||
-    kind === "accountsmind_config" || kind === "onboarding_plan" || kind === "build_workspace_apply"
+    kind === "accountsmind_config" || kind === "onboarding_plan" || kind === "build_workspace_apply" ||
+    kind === "build_test_override"
   ) {
     let result: { activatedTargetType: string; activatedTargetId: string; summary: Record<string, unknown> };
     try {
@@ -501,6 +502,9 @@ export async function activateSystemMindAutomation(
       } else if (kind === "build_workspace_apply") {
         const bw = await import("@/lib/systemmind/build-workspace.server");
         result = await bw.activateBuildWorkspaceApplyKind(workspaceId, generatedActionId);
+      } else if (kind === "build_test_override") {
+        const tc = await import("@/lib/systemmind/build-workspace-testcall.server");
+        result = await tc.activateBuildTestOverrideKind(workspaceId, generatedActionId);
       } else {
         const gen = await import("@/lib/systemmind/systemmind-generators.server");
         if (kind === "whatsapp_setup") {

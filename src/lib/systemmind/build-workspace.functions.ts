@@ -397,10 +397,12 @@ export const overrideBuildTestPassed = createServerFn({ method: "POST" })
     }).parse(input),
   )
   .handler(async ({ data, context }) => {
-    const { overrideTestPassedServer } = await import(
+    // Manual passes are a gate decision — they route through HiveMind approval
+    // (action centre) instead of taking effect immediately.
+    const { requestTestOverrideApprovalServer } = await import(
       "@/lib/systemmind/build-workspace-testcall.server"
     );
-    return overrideTestPassedServer({
+    return requestTestOverrideApprovalServer({
       workspaceId: requireWorkspaceId(context.workspaceId),
       userId:      context.userId ?? null,
       sessionId:   data.sessionId,

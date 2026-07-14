@@ -250,6 +250,13 @@ export type SystemMindExecutiveSummary = {
   workflowPatternsCount?: number;
   playbooksCount?:        number;
   relevantPlaybooks?:     Array<{ problem: string; risk_level: string }>;
+  // Build Workspace — optional; populated when build sessions exist
+  buildWorkspace?: {
+    activeSessions:        number;   // build sessions still in progress
+    versionsAwaitingTest:  number;   // applied versions blocked at the test-call gate
+    failedTestCalls:       number;   // sessions whose latest test call failed
+    pendingApprovals:      number;   // build actions waiting in the HiveMind action centre
+  };
 };
 
 export type HiveMindExecutiveSummary = {

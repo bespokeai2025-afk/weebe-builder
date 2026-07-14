@@ -1001,6 +1001,11 @@ function buildSystemCouncilContext(sm: SystemMindExecutiveSummary | null): strin
     const pbc = sm.playbooksCount ?? 0;
     lines.push(`Workflow intelligence: ${wlc} workflow${wlc !== 1 ? "s" : ""} in library, ${wpc} extracted pattern${wpc !== 1 ? "s" : ""}, ${pbc} repair playbook${pbc !== 1 ? "s" : ""}.`);
   }
+  if (sm.buildWorkspace) {
+    const bw = sm.buildWorkspace;
+    lines.push(`Build Workspace: ${bw.activeSessions} active build session${bw.activeSessions !== 1 ? "s" : ""}, ${bw.versionsAwaitingTest} applied version${bw.versionsAwaitingTest !== 1 ? "s" : ""} blocked at the mandatory test-call gate${bw.failedTestCalls > 0 ? ` (${bw.failedTestCalls} failed the last test call)` : ""}, ${bw.pendingApprovals} build decision${bw.pendingApprovals !== 1 ? "s" : ""} waiting for YOUR approval in the Action Centre (/hivemind/actions).`);
+    lines.push(`You control the build pipeline: high-risk applies AND manual test-gate overrides only go live after they're approved in your Action Centre. A validated real test call (or an approved manual pass) is mandatory before any SystemMind-built agent goes live.`);
+  }
   return lines.join("\n");
 }
 

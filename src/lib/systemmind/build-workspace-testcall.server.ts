@@ -316,10 +316,18 @@ export async function overrideTestPassedServer(args: {
   userId: string | null;
   sessionId: string;
   reason: string;
+  // When set, the override is only valid for this exact version — protects
+  // against a stale approval passing a NEWER version that was never reviewed.
+  expectedVersionId?: string | null;
 }): Promise<any> {
   const session = await getSessionOrThrow(args.workspaceId, args.sessionId);
   const version = await getCurrentVersion(args.workspaceId, session);
   if (!version) throw new Error("This session has no version yet.");
+  if (args.expectedVersionId && version.id !== args.expectedVersionId) {
+    throw new Error(
+      "This approval was requested for an older build version. The session has a newer version now — run a fresh test call (or request a new manual pass) for the current version.",
+    );
+  }
   const reason = args.reason.trim();
   if (!reason) throw new Error("A reason is required to mark the test as passed manually.");
 
@@ -349,6 +357,108 @@ export async function overrideTestPassedServer(args: {
     finalAfterState: { session_id: args.sessionId, version_id: version.id, reason: reason.slice(0, 500) },
   });
   return row;
+}
+
+// ── HiveMind-controlled override ───────────────────────────────────────────────
+// A manual "mark the test as passed" is a real gate decision, so it routes
+// through the SystemMind hub + HiveMind action centre like every other
+// build-workspace decision: the request creates a hub draft (action_kind
+// "build_test_override") and a pending hivemind_actions row; ONLY when HiveMind
+// approves does activateBuildTestOverrideKind record the passing override.
+export async function requestTestOverrideApprovalServer(args: {
+  workspaceId: string;
+  userId: string | null;
+  sessionId: string;
+  reason: string;
+}): Promise<{ hubActionId: string; hivemindActionId: string }> {
+  const session = await getSessionOrThrow(args.workspaceId, args.sessionId);
+  const version = await getCurrentVersion(args.workspaceId, session);
+  if (!version) throw new Error("This session has no version yet.");
+  const reason = args.reason.trim();
+  if (!reason) throw new Error("A reason is required to request a manual pass.");
+
+  // One pending request per session at a time.
+  const { data: pending } = await sb().from("systemmind_generated_actions")
+    .select("id")
+    .eq("workspace_id", args.workspaceId)
+    .eq("action_kind", "build_test_override")
+    .eq("status", "pending_approval")
+    .contains("payload", { session_id: args.sessionId })
+    .limit(1);
+  if (pending && pending.length > 0) {
+    throw new Error("A manual-pass request for this session is already waiting for HiveMind approval.");
+  }
+
+  const { data: hubRow, error: hubErr } = await sb().from("systemmind_generated_actions").insert({
+    workspace_id:       args.workspaceId,
+    run_id:             null,
+    created_by_user_id: args.userId,
+    source:             "systemmind",
+    instructed_by:      "user",
+    action_kind:        "build_test_override",
+    title:              `Mark test call as passed (manual) — build session "${(session.title ?? "untitled").slice(0, 120)}"`,
+    purpose:            `Skip the mandatory test-call validation for version ${version.version_number}. Reason given: ${reason.slice(0, 1500)}`,
+    payload: {
+      session_id: args.sessionId,
+      version_id: version.id,
+      reason:     reason.slice(0, 2000),
+    },
+    required_credentials: [],
+    test_plan:            [],
+    risk_level:           "high",
+    risk_reasons:         ["Bypasses the mandatory pre-Go-Live test call validation for a SystemMind-built agent."],
+    approval_required:    true,
+    status:               "draft",
+  }).select("id").single();
+  if (hubErr) throw new Error(`Failed to create approval draft: ${hubErr.message}`);
+
+  const { submitDraftForApprovalServer } = await import("@/lib/systemmind/systemmind-automation.server");
+  let hivemindActionId: string;
+  try {
+    const submitted = await submitDraftForApprovalServer(args.workspaceId, args.userId, hubRow.id as string);
+    hivemindActionId = submitted.hivemindActionId;
+  } catch (err) {
+    await sb().from("systemmind_generated_actions").delete()
+      .eq("id", hubRow.id).eq("workspace_id", args.workspaceId);
+    throw err;
+  }
+
+  await writeSystemMindAudit({
+    workspaceId: args.workspaceId, userId: args.userId,
+    actionType: "test_call_override_requested",
+    targetType: "systemmind_build_session",
+    targetId: args.sessionId,
+    proposedAfterState: { version_id: version.id, reason: reason.slice(0, 500), hivemind_action_id: hivemindActionId },
+    approvalStatus: "pending",
+  });
+  return { hubActionId: hubRow.id as string, hivemindActionId };
+}
+
+// Called ONLY by the hub activation dispatcher after HiveMind approval.
+export async function activateBuildTestOverrideKind(
+  workspaceId: string,
+  generatedActionId: string,
+): Promise<{ activatedTargetType: string; activatedTargetId: string; summary: Record<string, unknown> }> {
+  const { data: draft, error } = await sb().from("systemmind_generated_actions")
+    .select("id, payload, created_by_user_id")
+    .eq("id", generatedActionId).eq("workspace_id", workspaceId)
+    .single();
+  if (error || !draft) throw new Error("Approval draft not found.");
+  const p = (draft.payload ?? {}) as { session_id?: string; version_id?: string; reason?: string };
+  if (!p.session_id || !p.version_id || !p.reason) throw new Error("Approval draft payload is incomplete.");
+
+  const row = await overrideTestPassedServer({
+    workspaceId,
+    userId: draft.created_by_user_id ?? null,
+    sessionId: p.session_id,
+    reason: `Approved by HiveMind: ${p.reason}`,
+    expectedVersionId: p.version_id,
+  });
+  return {
+    activatedTargetType: "systemmind_test_call",
+    activatedTargetId: row.id as string,
+    summary: { session_id: p.session_id, passed: true, manual_override: true },
+  };
 }
 
 // ── Gate state (also used by the deployment checklist) ─────────────────────────

@@ -88,6 +88,8 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
+  await sb.from("hivemind_actions").delete().eq("workspace_id", WS);
+  await sb.from("systemmind_generated_actions").delete().eq("workspace_id", WS);
   await sb.from("systemmind_test_calls").delete().eq("workspace_id", WS);
   await sb.from("systemmind_deployments").delete().eq("workspace_id", WS);
   await sb.from("systemmind_audit_logs").delete().eq("workspace_id", WS);
@@ -223,5 +225,102 @@ describe("standard agents untouched", () => {
     expect(item.status).toBe("missing");
     // NOT a blocker for standard agents — only failed tests block them.
     expect(checklist.blockers.join(" ")).not.toMatch(/test call/i);
+  });
+});
+
+describe("HiveMind-controlled override", () => {
+  let WS2 = "";
+  let SESSION2 = "";
+  let hubId = "";
+  let hmActionId = "";
+
+  beforeAll(async () => {
+    WS2 = randomUUID();
+    await sb.from("workspaces").insert({ id: WS2, name: "e2e tc hm ws", owner_id: OWNER, slug: `e2e-tchm-${WS2.slice(0, 8)}` });
+    const { data: agent } = await sb.from("agents")
+      .insert({ workspace_id: WS2, user_id: OWNER, name: "e2e hm agent", settings: {} })
+      .select("id").single();
+    const { data: session } = await sb.from("systemmind_build_sessions")
+      .insert({ workspace_id: WS2, created_by_user_id: OWNER, title: "e2e hm session", status: "active", source_page: "agent_builder", target_agent_id: agent.id })
+      .select("id").single();
+    SESSION2 = session.id;
+    const { data: version } = await sb.from("systemmind_build_versions")
+      .insert({ session_id: SESSION2, workspace_id: WS2, created_by_user_id: OWNER, version_number: 1, user_prompt: "e2e", assistant_summary: "e2e", generated_config: CONFIG, risk_level: "low", risk_reasons: [], status: "applied" })
+      .select("id").single();
+    await sb.from("systemmind_build_sessions").update({ current_version_id: version.id }).eq("id", SESSION2);
+  });
+
+  afterAll(async () => {
+    for (const t of ["hivemind_actions", "systemmind_generated_actions", "systemmind_test_calls", "systemmind_audit_logs", "systemmind_usage_events", "systemmind_build_messages", "systemmind_build_versions", "systemmind_build_sessions", "agents"]) {
+      await sb.from(t).delete().eq("workspace_id", WS2);
+    }
+    await sb.from("workspaces").delete().eq("id", WS2);
+  });
+
+  it("request creates a pending hub draft + HiveMind action, gate stays closed", async () => {
+    const { requestTestOverrideApprovalServer } = await import("@/lib/systemmind/build-workspace-testcall.server");
+    const res = await requestTestOverrideApprovalServer({ workspaceId: WS2, userId: OWNER, sessionId: SESSION2, reason: "e2e manual pass request" });
+    hubId = res.hubActionId;
+    hmActionId = res.hivemindActionId;
+    expect(hubId).toBeTruthy();
+    expect(hmActionId).toBeTruthy();
+
+    const { data: hub } = await sb.from("systemmind_generated_actions").select("status, action_kind, risk_level").eq("id", hubId).single();
+    expect(hub.status).toBe("pending_approval");
+    expect(hub.action_kind).toBe("build_test_override");
+    expect(hub.risk_level).toBe("high");
+
+    const { data: act } = await sb.from("hivemind_actions").select("status, action_type").eq("id", hmActionId).single();
+    expect(act.status).toBe("pending");
+    expect(act.action_type).toBe("activate_systemmind_automation");
+
+    const gate = await getTestGateForSessionServer({ workspaceId: WS2, sessionId: SESSION2 });
+    expect(gate.status).toBe("not_tested");
+  });
+
+  it("blocks a duplicate pending request for the same session", async () => {
+    const { requestTestOverrideApprovalServer } = await import("@/lib/systemmind/build-workspace-testcall.server");
+    await expect(
+      requestTestOverrideApprovalServer({ workspaceId: WS2, userId: OWNER, sessionId: SESSION2, reason: "duplicate" }),
+    ).rejects.toThrow(/already waiting/i);
+  });
+
+  it("HiveMind approval activates the override and opens the gate", async () => {
+    const { activateSystemMindAutomation } = await import("@/lib/systemmind/systemmind-automation.server");
+    const result = await activateSystemMindAutomation(WS2, hubId, "e2e");
+    expect(result.draft_id).toBe(hubId);
+
+    const gate = await getTestGateForSessionServer({ workspaceId: WS2, sessionId: SESSION2 });
+    expect(gate.status).toBe("passed");
+    expect(gate.latest.is_manual_override).toBe(true);
+    expect(String(gate.latest.diagnosis)).toMatch(/Approved by HiveMind/);
+  });
+
+  it("stale approval cannot pass a newer version (version-binding)", async () => {
+    const { requestTestOverrideApprovalServer } = await import("@/lib/systemmind/build-workspace-testcall.server");
+    const { activateSystemMindAutomation } = await import("@/lib/systemmind/systemmind-automation.server");
+
+    // Request a manual pass for the CURRENT version (v2 of a fresh session state)…
+    const { data: v1 } = await sb.from("systemmind_build_versions")
+      .select("id").eq("workspace_id", WS2).eq("session_id", SESSION2).single();
+    // clear the earlier passed override so the gate is closed again for a new version
+    const { data: v2 } = await sb.from("systemmind_build_versions")
+      .insert({ session_id: SESSION2, workspace_id: WS2, created_by_user_id: OWNER, version_number: 2, user_prompt: "e2e v2", assistant_summary: "e2e v2", generated_config: CONFIG, risk_level: "low", risk_reasons: [], status: "applied" })
+      .select("id").single();
+    await sb.from("systemmind_build_sessions").update({ current_version_id: v2.id }).eq("id", SESSION2);
+
+    const res = await requestTestOverrideApprovalServer({ workspaceId: WS2, userId: OWNER, sessionId: SESSION2, reason: "e2e stale-version request" });
+
+    // …then a NEWER version lands before HiveMind approves.
+    const { data: v3 } = await sb.from("systemmind_build_versions")
+      .insert({ session_id: SESSION2, workspace_id: WS2, created_by_user_id: OWNER, version_number: 3, user_prompt: "e2e v3", assistant_summary: "e2e v3", generated_config: CONFIG, risk_level: "low", risk_reasons: [], status: "applied" })
+      .select("id").single();
+    await sb.from("systemmind_build_sessions").update({ current_version_id: v3.id }).eq("id", SESSION2);
+
+    // Approving the stale request must FAIL and must not open the gate for v3.
+    await expect(activateSystemMindAutomation(WS2, res.hubActionId, "e2e")).rejects.toThrow(/older build version/i);
+    const gate = await getTestGateForSessionServer({ workspaceId: WS2, sessionId: SESSION2, versionId: v3.id });
+    expect(gate.status).toBe("not_tested");
+    expect(v1.id).toBeTruthy();
   });
 });
