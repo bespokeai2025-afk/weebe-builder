@@ -16,7 +16,7 @@ import {
   ShieldAlert, Rocket, GitBranch, Variable, ListChecks, Bell, StickyNote,
   ArrowRight, Bot, Workflow as WorkflowIcon, ExternalLink, ShieldCheck,
   Undo2, GitCompareArrows, FilePlus2, Copy, SendToBack, Import, Info,
-  ClipboardList, Lightbulb, Table2, Eye,
+  ClipboardList, Lightbulb, Table2, Eye, Trash2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { DeploymentChecklistPanel } from "./DeploymentChecklistPanel";
@@ -34,7 +34,7 @@ import {
 } from "@/components/ui/dialog";
 import {
   getBuildSession, promptBuildSession,
-  simulateBuildVersion, applyBuildVersion, restoreBuildVersion,
+  simulateBuildVersion, applyBuildVersion, restoreBuildVersion, deleteBuildSession,
   setBuildVersionNotes, setBuildSessionArchived, markBuildVersionDeployed,
   getSystemMindUsageSummary, getBuildApplySafetyReport, rollbackBuildApply,
 } from "@/lib/systemmind/build-workspace.functions";
@@ -1082,11 +1082,13 @@ export function BuildSessionView({
   embedded = false,
   initialPrompt,
   onInitialPromptConsumed,
+  onDeleted,
 }: {
   sessionId: string;
   embedded?: boolean;
   initialPrompt?: string | null;
   onInitialPromptConsumed?: () => void;
+  onDeleted?: () => void;
 }) {
   const navigate = useNavigate();
   const qc       = useQueryClient();
@@ -1103,6 +1105,7 @@ export function BuildSessionView({
   const goLiveFn   = useServerFn(goLiveAgent);
   const safetyFn   = useServerFn(getBuildApplySafetyReport);
   const rollbackFn = useServerFn(rollbackBuildApply);
+  const deleteFn   = useServerFn(deleteBuildSession);
   const conversionFn = useServerFn(getConversionForSession);
 
   const [prompt, setPrompt]           = useState("");
@@ -1362,6 +1365,19 @@ export function BuildSessionView({
     onError: (e: any) => toast.error("Archive failed", { description: e?.message }),
   });
 
+  const removeSession = useMutation({
+    mutationFn: () => deleteFn({ data: { sessionId } }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["smbw-sessions"] });
+      toast.success("Build session deleted");
+      if (!embedded) {
+        navigate({ to: "/systemmind/build", search: { session: undefined, workflow: undefined, agent: undefined } });
+      }
+      onDeleted?.();
+    },
+    onError: (e: any) => toast.error("Delete failed", { description: e?.message }),
+  });
+
   const busy = sendPrompt.isPending;
 
   if (detailLoading) {
@@ -1420,6 +1436,28 @@ export function BuildSessionView({
               <ExternalLink className="h-3 w-3" /> Open in SystemMind
             </Button>
           )}
+          {(() => {
+            const prev = currentVersion
+              ? versions.find((v) => v.version_number === currentVersion.version_number - 1)
+              : null;
+            return (
+              <Button
+                size="sm" variant="outline"
+                className="h-7 gap-1 px-2 text-[11px]"
+                disabled={!prev || restore.isPending || busy}
+                title={prev ? `Revert to v${prev.version_number}` : "No previous version to revert to"}
+                onClick={() => {
+                  if (!prev) return;
+                  if (window.confirm(`Revert to version v${prev.version_number}? It will be restored as a new version — nothing is lost.`)) {
+                    restore.mutate(prev.id);
+                  }
+                }}
+              >
+                {restore.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : <RotateCcw className="h-3 w-3" />}
+                Revert
+              </Button>
+            );
+          })()}
           <Button
             size="sm" variant="ghost"
             className="h-7 gap-1 px-2 text-[11px] text-muted-foreground"
@@ -1428,6 +1466,19 @@ export function BuildSessionView({
             {session.status === "archived"
               ? (<><ArchiveRestore className="h-3 w-3" /> Restore</>)
               : (<><Archive className="h-3 w-3" /> Archive</>)}
+          </Button>
+          <Button
+            size="sm" variant="ghost"
+            className="h-7 gap-1 px-2 text-[11px] text-rose-400 hover:text-rose-300"
+            disabled={removeSession.isPending || busy}
+            onClick={() => {
+              if (window.confirm("Delete this build session? Its versions and chat history will be removed. Anything already applied to your Workflows stays untouched.")) {
+                removeSession.mutate();
+              }
+            }}
+          >
+            {removeSession.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : <Trash2 className="h-3 w-3" />}
+            Delete
           </Button>
         </div>
       </div>
