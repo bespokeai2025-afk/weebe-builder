@@ -188,6 +188,220 @@ function ConfigPreview({ config }: { config: Record<string, any> }) {
   );
 }
 
+// ── Version-to-version change summary + visual flow diagram ────────────────────
+
+export type ConfigDiffLine = {
+  kind: "added" | "removed" | "changed";
+  label: string;
+};
+
+export type ConfigDiff = {
+  lines:        ConfigDiffLine[];
+  addedSteps:   Set<string>;
+  changedSteps: Set<string>;
+};
+
+function stepFingerprint(s: any): string {
+  return JSON.stringify({
+    type: s.type, title: s.title ?? null, status: s.status ?? null,
+    template: s.template ?? null, next: s.next ?? null,
+    conditions: s.conditions ?? null, config: s.config ?? null,
+  });
+}
+
+export function diffBuildConfigs(
+  prev: Record<string, any> | null,
+  next: Record<string, any>,
+): ConfigDiff {
+  const lines: ConfigDiffLine[] = [];
+  const addedSteps   = new Set<string>();
+  const changedSteps = new Set<string>();
+  const pWf = (prev?.workflow ?? {}) as Record<string, any>;
+  const nWf = (next.workflow ?? {}) as Record<string, any>;
+
+  if (!prev) {
+    lines.push({ kind: "added", label: `Workflow "${nWf.name ?? "Unnamed"}" created with ${(nWf.steps ?? []).length} step(s)` });
+    for (const s of (nWf.steps ?? []) as any[]) addedSteps.add(String(s.id));
+    return { lines, addedSteps, changedSteps };
+  }
+
+  if ((pWf.name ?? "") !== (nWf.name ?? "")) {
+    lines.push({ kind: "changed", label: `Workflow renamed "${pWf.name ?? "?"}" → "${nWf.name ?? "?"}"` });
+  }
+  if ((pWf.trigger_type ?? "") !== (nWf.trigger_type ?? "")) {
+    lines.push({ kind: "changed", label: `Trigger changed ${pWf.trigger_type ?? "none"} → ${nWf.trigger_type ?? "none"}` });
+  }
+
+  const pSteps = new Map(((pWf.steps ?? []) as any[]).map((s) => [String(s.id), s]));
+  const nSteps = new Map(((nWf.steps ?? []) as any[]).map((s) => [String(s.id), s]));
+  for (const [id, s] of nSteps) {
+    const old = pSteps.get(id);
+    if (!old) {
+      addedSteps.add(id);
+      lines.push({ kind: "added", label: `Step "${s.title ?? s.type}" (${s.type})` });
+    } else if (stepFingerprint(old) !== stepFingerprint(s)) {
+      changedSteps.add(id);
+      lines.push({ kind: "changed", label: `Step "${s.title ?? s.type}" (${s.type}) updated` });
+    }
+  }
+  for (const [id, s] of pSteps) {
+    if (!nSteps.has(id)) lines.push({ kind: "removed", label: `Step "${s.title ?? s.type}" (${s.type})` });
+  }
+
+  if ((prev.agent_prompt ?? "") !== (next.agent_prompt ?? "")) {
+    lines.push({ kind: "changed", label: "Agent prompt rewritten" });
+  }
+
+  const nameOf = (v: any) => String(v?.name ?? v?.key ?? "unnamed");
+  const diffNamed = (a: any[], b: any[], noun: string) => {
+    const aSet = new Set(a.map(nameOf));
+    const bSet = new Set(b.map(nameOf));
+    for (const n of bSet) if (!aSet.has(n)) lines.push({ kind: "added", label: `${noun} "${n}"` });
+    for (const n of aSet) if (!bSet.has(n)) lines.push({ kind: "removed", label: `${noun} "${n}"` });
+  };
+  diffNamed((prev.variables ?? []) as any[], (next.variables ?? []) as any[], "Variable");
+  diffNamed((prev.extraction_fields ?? []) as any[], (next.extraction_fields ?? []) as any[], "Extraction field");
+
+  const pRules = JSON.stringify(prev.follow_up_rules ?? []);
+  const nRules = JSON.stringify(next.follow_up_rules ?? []);
+  if (pRules !== nRules) {
+    const pCount = ((prev.follow_up_rules ?? []) as any[]).length;
+    const nCount = ((next.follow_up_rules ?? []) as any[]).length;
+    lines.push({ kind: "changed", label: `Follow-up rules updated (${pCount} → ${nCount})` });
+  }
+
+  return { lines, addedSteps, changedSteps };
+}
+
+const DIFF_KIND_STYLES: Record<string, string> = {
+  added:   "text-emerald-400",
+  removed: "text-red-400",
+  changed: "text-amber-400",
+};
+
+export function ChangeSummary({
+  diff, versionNumber, compact = false,
+}: { diff: ConfigDiff; versionNumber: number; compact?: boolean }) {
+  if (diff.lines.length === 0) {
+    return compact ? null : (
+      <div className="rounded-lg border border-white/[0.06] bg-white/[0.02] p-3">
+        <p className="text-[11px] text-muted-foreground">
+          v{versionNumber}: no structural changes detected against the previous version
+          (wording-only or metadata tweaks).
+        </p>
+      </div>
+    );
+  }
+  const body = (
+    <div className={cn("space-y-0.5", compact && "max-h-24 overflow-y-auto")}>
+      {diff.lines.map((l, i) => (
+        <p key={i} className="text-[11px] text-muted-foreground">
+          <span className={cn("mr-1 font-semibold", DIFF_KIND_STYLES[l.kind])}>{l.kind}</span>
+          {l.label}
+        </p>
+      ))}
+    </div>
+  );
+  if (compact) return body;
+  return (
+    <div className="rounded-lg border border-sky-500/20 bg-sky-500/[0.04] p-3 space-y-2">
+      <div className="flex items-center gap-1.5">
+        <GitCompareArrows className="h-3.5 w-3.5 text-sky-400" />
+        <p className="text-[11px] font-semibold uppercase tracking-wide text-sky-300">
+          What changed in v{versionNumber}
+        </p>
+      </div>
+      {body}
+    </div>
+  );
+}
+
+// Visual representation of the generated workflow: an ordered flow of step
+// nodes with branch fan-outs. Steps added/changed in the latest version are
+// highlighted so you can SEE what each prompt did.
+export function WorkflowFlowDiagram({
+  config, addedSteps, changedSteps,
+}: {
+  config: Record<string, any>;
+  addedSteps?: Set<string>;
+  changedSteps?: Set<string>;
+}) {
+  const steps = ((config.workflow?.steps ?? []) as any[]);
+  if (steps.length === 0) {
+    return <p className="py-8 text-center text-[11px] text-muted-foreground">No steps to draw yet.</p>;
+  }
+  const titleOf = (id: string) => {
+    const s = steps.find((x) => String(x.id) === String(id));
+    return s ? (s.title ?? s.type) : id;
+  };
+  return (
+    <div className="space-y-0">
+      <div className="mb-3 flex flex-wrap items-center gap-3 text-[10px] text-muted-foreground">
+        <span className="inline-flex items-center gap-1"><span className="h-2 w-2 rounded-full border border-emerald-500/60 bg-emerald-500/20" /> new this version</span>
+        <span className="inline-flex items-center gap-1"><span className="h-2 w-2 rounded-full border border-amber-500/60 bg-amber-500/20" /> changed this version</span>
+      </div>
+      {steps.map((s: any, i: number) => {
+        const id = String(s.id);
+        const isAdded   = addedSteps?.has(id);
+        const isChanged = !isAdded && changedSteps?.has(id);
+        const conditions = (s.conditions ?? []) as any[];
+        return (
+          <div key={id} className="flex flex-col items-center">
+            <div
+              className={cn(
+                "w-full max-w-md rounded-lg border px-3 py-2",
+                isAdded
+                  ? "border-emerald-500/50 bg-emerald-500/[0.07]"
+                  : isChanged
+                    ? "border-amber-500/50 bg-amber-500/[0.07]"
+                    : s.type === "trigger"
+                      ? "border-sky-500/40 bg-sky-500/[0.06]"
+                      : s.type === "branch"
+                        ? "border-violet-500/40 bg-violet-500/[0.05]"
+                        : "border-white/[0.08] bg-white/[0.03]",
+              )}
+            >
+              <div className="flex items-center gap-2">
+                <Badge variant="secondary" className="text-[9px] shrink-0">{id}</Badge>
+                <p className="min-w-0 truncate text-[11px] font-medium">
+                  {s.title ?? s.type}
+                </p>
+                <Badge variant="outline" className="ml-auto shrink-0 text-[9px] font-mono">{s.type}</Badge>
+                {isAdded   && <Badge variant="outline" className="shrink-0 border-emerald-500/50 text-[9px] text-emerald-300">new</Badge>}
+                {isChanged && <Badge variant="outline" className="shrink-0 border-amber-500/50 text-[9px] text-amber-300">changed</Badge>}
+              </div>
+              {s.status && <p className="mt-0.5 text-[10px] text-muted-foreground">sets status → {s.status}</p>}
+              {s.template && <p className="mt-0.5 text-[10px] text-muted-foreground">template: {s.template}</p>}
+              {s.type === "branch" && conditions.length > 0 && (
+                <div className="mt-1.5 space-y-1 border-t border-white/[0.06] pt-1.5">
+                  {conditions.map((c: any, ci: number) => (
+                    <p key={ci} className="flex items-center gap-1 text-[10px] text-violet-200/80">
+                      <GitBranch className="h-2.5 w-2.5 shrink-0" />
+                      if {c.field} {c.op} {String(c.value)}
+                      <ArrowRight className="h-2.5 w-2.5 shrink-0 text-muted-foreground/60" />
+                      <span className="truncate text-foreground/80">{titleOf(String(c.next))}</span>
+                    </p>
+                  ))}
+                </div>
+              )}
+              {s.next && (
+                <p className="mt-1 flex items-center gap-1 text-[10px] text-muted-foreground/70">
+                  <ArrowRight className="h-2.5 w-2.5" /> then: <span className="text-foreground/70">{titleOf(String(s.next))}</span>
+                </p>
+              )}
+            </div>
+            {i < steps.length - 1 && (
+              <div className="my-0.5 flex h-4 items-center justify-center">
+                <div className="h-full w-px bg-white/[0.15]" />
+              </div>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 // ── Simulation panel ────────────────────────────────────────────────────────────
 
 function SimulationView({ sim }: { sim: Record<string, any> }) {
@@ -722,6 +936,19 @@ export function BuildSessionView({
   const config = (currentVersion?.generated_config ?? null) as Record<string, any> | null;
   const canApply = currentVersion && ["draft", "testing", "revised"].includes(String(currentVersion.status));
 
+  // What changed in the current version vs the one right before it (by number).
+  const currentDiff = useMemo(() => {
+    if (!currentVersion?.generated_config) return null;
+    const prev = versions.find(
+      (v) => v.version_number === currentVersion.version_number - 1,
+    );
+    return diffBuildConfigs(
+      (prev?.generated_config ?? null) as Record<string, any> | null,
+      currentVersion.generated_config as Record<string, any>,
+    );
+  }, [versions, currentVersion]);
+  const [configView, setConfigView] = useState<"list" | "diagram">("list");
+
   // Read-only review report — fetched only while the Review step is open.
   const { data: reviewReport, isLoading: reviewLoading } = useQuery({
     queryKey: ["smbw-review", sessionId, currentVersion?.id],
@@ -1141,7 +1368,35 @@ export function BuildSessionView({
 
             {tab === "config" && (
               config
-                ? <ConfigPreview config={config} />
+                ? <div className="space-y-3">
+                    {currentDiff && currentVersion && (
+                      <ChangeSummary diff={currentDiff} versionNumber={currentVersion.version_number} />
+                    )}
+                    <div className="flex items-center gap-1 rounded-lg border border-white/[0.06] bg-white/[0.02] p-0.5 w-fit">
+                      {(["list", "diagram"] as const).map((v) => (
+                        <button
+                          key={v}
+                          onClick={() => setConfigView(v)}
+                          className={cn(
+                            "flex items-center gap-1 rounded-md px-2.5 py-1 text-[10px] font-medium transition-colors",
+                            configView === v
+                              ? "bg-sky-500/[0.15] text-sky-200"
+                              : "text-muted-foreground hover:text-foreground",
+                          )}
+                        >
+                          {v === "list" ? <ListChecks className="h-3 w-3" /> : <WorkflowIcon className="h-3 w-3" />}
+                          {v === "list" ? "Details" : "Diagram"}
+                        </button>
+                      ))}
+                    </div>
+                    {configView === "diagram"
+                      ? <WorkflowFlowDiagram
+                          config={config}
+                          addedSteps={currentDiff?.addedSteps}
+                          changedSteps={currentDiff?.changedSteps}
+                        />
+                      : <ConfigPreview config={config} />}
+                  </div>
                 : <p className="py-8 text-center text-[11px] text-muted-foreground">Nothing generated yet — send SystemMind a prompt to create the first version.</p>
             )}
 
@@ -1215,6 +1470,18 @@ export function BuildSessionView({
                     {v.assistant_summary && (
                       <p className="text-[11px] text-muted-foreground line-clamp-3">{v.assistant_summary}</p>
                     )}
+                    {v.generated_config && (() => {
+                      const prevV = versions.find((p: any) => p.version_number === v.version_number - 1);
+                      const d = diffBuildConfigs(
+                        (prevV?.generated_config ?? null) as Record<string, any> | null,
+                        v.generated_config as Record<string, any>,
+                      );
+                      return d.lines.length > 0 ? (
+                        <div className="rounded-md border border-white/[0.05] bg-white/[0.02] px-2 py-1.5">
+                          <ChangeSummary diff={d} versionNumber={v.version_number} compact />
+                        </div>
+                      ) : null;
+                    })()}
                     {Array.isArray(v.risk_reasons) && v.risk_reasons.length > 0 && (
                       <p className="text-[10px] text-amber-300/80">{v.risk_reasons.join(" · ")}</p>
                     )}

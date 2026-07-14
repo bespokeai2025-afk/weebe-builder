@@ -11,7 +11,7 @@ import { useNavigate, useSearch } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
-import { Hammer, Loader2, Plus, Import } from "lucide-react";
+import { Hammer, Loader2, Plus, Import, Trash2, Wand2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { SystemMindShell } from "./SystemMindShell";
 import { BuildSessionView, fmtTime } from "./BuildSessionView";
@@ -23,10 +23,41 @@ import {
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
-import { createBuildSession, listBuildSessions } from "@/lib/systemmind/build-workspace.functions";
+import { createBuildSession, listBuildSessions, deleteBuildSession } from "@/lib/systemmind/build-workspace.functions";
 import {
   listLegacyConversionSources, convertLegacySourceToDraft,
 } from "@/lib/systemmind/legacy-conversion.functions";
+
+// Quick-start presets — merged in from the old Workflow Generator page.
+const WORKFLOW_TYPES = [
+  { value: "receptionist",         label: "Receptionist"          },
+  { value: "lead_qualification",   label: "Lead Qualification"    },
+  { value: "rebooking",            label: "Rebooking"             },
+  { value: "appointment_booking",  label: "Appointment Booking"   },
+  { value: "callback_scheduling",  label: "Callback Scheduling"   },
+  { value: "document_collection",  label: "Document Collection"   },
+  { value: "call_transfer",        label: "Call Transfer"         },
+  { value: "whatsapp_followup",    label: "WhatsApp Follow-up"    },
+  { value: "crm_update",           label: "CRM Update"            },
+  { value: "post_call_summary",    label: "Post-Call Summary"     },
+  { value: "client_intake",        label: "Client Intake"         },
+  { value: "complaint_handling",   label: "Complaint Handling"    },
+  { value: "sales_enquiry",        label: "Sales Enquiry"         },
+  { value: "custom_workflow",      label: "Custom Workflow"       },
+];
+
+const EXAMPLE_PROMPTS: Record<string, string> = {
+  rebooking:
+    "If the caller wants a callback, collect preferred date and time, check calendar availability, confirm the slot, update CRM, and schedule the callback.",
+  appointment_booking:
+    "Greet the caller, collect their name and contact details, ask for their preferred appointment date and time, check availability, confirm the booking, and send a confirmation SMS.",
+  lead_qualification:
+    "Ask the caller about their business needs, budget range, timeline, and decision-making authority. Score the lead and route hot leads to sales, warm leads to nurture campaign.",
+  receptionist:
+    "Welcome callers to the company. Identify their need (sales, support, billing, or general enquiry). Route to the correct department or take a message if unavailable.",
+  complaint_handling:
+    "Listen to the caller's complaint, gather details, apologise empathetically, escalate urgent issues to a human agent, and log the complaint in the CRM.",
+};
 
 // ── Page ────────────────────────────────────────────────────────────────────────
 
@@ -43,10 +74,18 @@ export function SystemMindBuildWorkspacePage() {
   const convSourcesFn = useServerFn(listLegacyConversionSources);
   const convertFn     = useServerFn(convertLegacySourceToDraft);
 
+  const deleteFn = useServerFn(deleteBuildSession);
+
   const [convertOpen, setConvertOpen]         = useState(false);
   const [convertType, setConvertType]         = useState<string>("");
   const [convertSourceId, setConvertSourceId] = useState<string>("");
   const [convertDesc, setConvertDesc]         = useState("");
+
+  // Quick-start (merged Workflow Generator): pick a type, describe it, and the
+  // first prompt is sent automatically once the new session opens.
+  const [quickType, setQuickType]     = useState<string>("");
+  const [quickDesc, setQuickDesc]     = useState("");
+  const [pendingPrompt, setPendingPrompt] = useState<{ sessionId: string; prompt: string } | null>(null);
 
   const { data: sessions, isLoading: sessionsLoading } = useQuery({
     queryKey: ["smbw-sessions"],
@@ -96,6 +135,37 @@ export function SystemMindBuildWorkspacePage() {
       navigate({ to: "/systemmind/build", search: { session: res.sessionId, workflow: undefined, agent: undefined } });
     },
     onError: (e: any) => toast.error("Could not create build session", { description: e?.message }),
+  });
+
+  const quickStart = useMutation({
+    mutationFn: () => {
+      const label = WORKFLOW_TYPES.find((w) => w.value === quickType)?.label;
+      return createFn({ data: { title: label ? `${label} workflow` : undefined, sourcePage: "systemmind" } });
+    },
+    onSuccess: (res: any) => {
+      const label = WORKFLOW_TYPES.find((w) => w.value === quickType)?.label;
+      const prompt = [
+        label && label !== "Custom Workflow" ? `Build a ${label.toLowerCase()} workflow.` : "Build this workflow:",
+        quickDesc.trim(),
+      ].filter(Boolean).join(" ");
+      setPendingPrompt({ sessionId: res.sessionId, prompt });
+      setQuickDesc("");
+      qc.invalidateQueries({ queryKey: ["smbw-sessions"] });
+      navigate({ to: "/systemmind/build", search: { session: res.sessionId, workflow: undefined, agent: undefined } });
+    },
+    onError: (e: any) => toast.error("Could not create build session", { description: e?.message }),
+  });
+
+  const removeSession = useMutation({
+    mutationFn: (id: string) => deleteFn({ data: { sessionId: id } }),
+    onSuccess: (_res, id) => {
+      qc.invalidateQueries({ queryKey: ["smbw-sessions"] });
+      toast.success("Build session deleted");
+      if (id === sessionId) {
+        navigate({ to: "/systemmind/build", search: { session: undefined, workflow: undefined, agent: undefined } });
+      }
+    },
+    onError: (e: any) => toast.error("Could not delete session", { description: e?.message }),
   });
 
   // Open the converter dialog automatically when arriving via ?convert=1
@@ -160,22 +230,41 @@ export function SystemMindBuildWorkspacePage() {
           <div className="min-h-0 flex-1 space-y-1 overflow-y-auto pr-1">
             {sessionsLoading && <p className="px-2 py-4 text-center text-[11px] text-muted-foreground">Loading…</p>}
             {(sessions ?? []).map((s: any) => (
-              <button
+              <div
                 key={s.id}
-                onClick={() => navigate({ to: "/systemmind/build", search: { session: s.id, workflow: undefined, agent: undefined } })}
                 className={cn(
-                  "w-full rounded-lg border px-2.5 py-2 text-left transition-colors",
+                  "group relative w-full rounded-lg border transition-colors",
                   s.id === sessionId
                     ? "border-sky-500/40 bg-sky-500/[0.08]"
                     : "border-white/[0.05] bg-white/[0.02] hover:bg-white/[0.05]",
                   s.status === "archived" && "opacity-50",
                 )}
               >
-                <p className="truncate text-xs font-medium">{s.title}</p>
-                <p className="mt-0.5 text-[10px] text-muted-foreground">
-                  {s.source_page?.replace(/_/g, " ")} · {fmtTime(s.updated_at)}
-                </p>
-              </button>
+                <button
+                  onClick={() => navigate({ to: "/systemmind/build", search: { session: s.id, workflow: undefined, agent: undefined } })}
+                  className="w-full px-2.5 py-2 pr-8 text-left"
+                >
+                  <p className="truncate text-xs font-medium">{s.title}</p>
+                  <p className="mt-0.5 text-[10px] text-muted-foreground">
+                    {s.source_page?.replace(/_/g, " ")} · {fmtTime(s.updated_at)}
+                  </p>
+                </button>
+                <button
+                  title="Delete session"
+                  disabled={removeSession.isPending}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    if (window.confirm(`Delete build session "${s.title}"? Its versions and chat history go with it. Any workflow you already applied to the Workflows page stays untouched.`)) {
+                      removeSession.mutate(s.id);
+                    }
+                  }}
+                  className="absolute right-1.5 top-1/2 -translate-y-1/2 rounded p-1 text-muted-foreground/50 opacity-0 transition-opacity hover:bg-red-500/[0.12] hover:text-red-400 group-hover:opacity-100 disabled:opacity-30"
+                >
+                  {removeSession.isPending && removeSession.variables === s.id
+                    ? <Loader2 className="h-3 w-3 animate-spin" />
+                    : <Trash2 className="h-3 w-3" />}
+                </button>
+              </div>
             ))}
             {!sessionsLoading && (sessions ?? []).length === 0 && (
               <p className="px-2 py-6 text-center text-[11px] text-muted-foreground">
@@ -215,9 +304,62 @@ export function SystemMindBuildWorkspacePage() {
               Convert legacy logic pulls an old setup — an agent flow, an n8n workflow, an email
               sequence, a WATI campaign, or a process you describe — into an editable draft here.
             </p>
+
+            {/* ── Quick-start (merged Workflow Generator) ── */}
+            <div className="mt-2 w-full max-w-md space-y-2 rounded-xl border border-white/[0.06] bg-white/[0.02] p-4 text-left">
+              <p className="flex items-center gap-1.5 text-xs font-semibold">
+                <Wand2 className="h-3.5 w-3.5 text-sky-400" /> Quick-start a workflow
+              </p>
+              <p className="text-[11px] text-muted-foreground">
+                Pick a workflow type, describe it in plain English, and SystemMind generates
+                the first version straight into a new build session.
+              </p>
+              <Select value={quickType} onValueChange={setQuickType} disabled={quickStart.isPending}>
+                <SelectTrigger className="h-8 text-xs">
+                  <SelectValue placeholder="Workflow type…" />
+                </SelectTrigger>
+                <SelectContent>
+                  {WORKFLOW_TYPES.map((wt) => (
+                    <SelectItem key={wt.value} value={wt.value} className="text-xs">{wt.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Textarea
+                value={quickDesc}
+                onChange={(e) => setQuickDesc(e.target.value)}
+                placeholder={EXAMPLE_PROMPTS[quickType] ?? "Describe what the workflow should do, step by step…"}
+                className="min-h-[80px] resize-none text-xs"
+                disabled={quickStart.isPending}
+              />
+              <div className="flex items-center gap-2">
+                <Button
+                  size="sm"
+                  className="gap-1.5 text-xs"
+                  disabled={quickStart.isPending || quickDesc.trim().length < 15}
+                  onClick={() => quickStart.mutate()}
+                >
+                  {quickStart.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Wand2 className="h-3.5 w-3.5" />}
+                  Generate workflow
+                </Button>
+                {EXAMPLE_PROMPTS[quickType] && (
+                  <Button
+                    size="sm" variant="ghost" className="text-[11px] text-muted-foreground"
+                    disabled={quickStart.isPending}
+                    onClick={() => setQuickDesc(EXAMPLE_PROMPTS[quickType])}
+                  >
+                    Use example
+                  </Button>
+                )}
+              </div>
+            </div>
           </div>
         ) : (
-          <BuildSessionView key={sessionId} sessionId={sessionId} />
+          <BuildSessionView
+            key={sessionId}
+            sessionId={sessionId}
+            initialPrompt={pendingPrompt?.sessionId === sessionId ? pendingPrompt.prompt : null}
+            onInitialPromptConsumed={() => setPendingPrompt(null)}
+          />
         )}
       </div>
 

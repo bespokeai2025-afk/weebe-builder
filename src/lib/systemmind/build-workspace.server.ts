@@ -907,6 +907,25 @@ export async function setBuildSessionArchivedServer(args: {
   });
 }
 
+export async function deleteBuildSessionServer(args: {
+  workspaceId: string; userId: string | null; sessionId: string;
+}): Promise<void> {
+  const sb = supabaseAdmin as any;
+  const session = await getSessionOrThrow(args.workspaceId, args.sessionId);
+  const { error } = await sb.from("systemmind_build_sessions")
+    .update({ is_deleted: true, status: "archived" })
+    .eq("id", args.sessionId).eq("workspace_id", args.workspaceId);
+  if (error) throw new Error(error.message);
+  await writeSystemMindAudit({
+    workspaceId: args.workspaceId, userId: args.userId,
+    actionType: "build_session_deleted",
+    targetType: "systemmind_build_session",
+    targetId:   args.sessionId,
+    beforeState: { status: session.status, title: session.title },
+    finalAfterState: { is_deleted: true },
+  });
+}
+
 // ── Simulation (deterministic walk — NO LLM) ────────────────────────────────────
 // Walks the step graph exactly the way the workflow executor would, enumerating
 // every branch path, and cross-checks workspace readiness (providers, agents)

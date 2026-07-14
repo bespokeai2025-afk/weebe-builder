@@ -299,7 +299,7 @@ export function WorkflowDraftsPage() {
           <Button
             size="sm"
             className="shrink-0 bg-sky-600 hover:bg-sky-500 text-white"
-            onClick={() => navigate({ to: "/systemmind/workflow-generator" })}
+            onClick={() => navigate({ to: "/systemmind/build" })}
           >
             <Wand2 className="mr-1.5 h-3.5 w-3.5" />
             Generate New
@@ -345,7 +345,7 @@ export function WorkflowDraftsPage() {
             <Button
               size="sm"
               className="mt-2 bg-sky-600 hover:bg-sky-500 text-white"
-              onClick={() => navigate({ to: "/systemmind/workflow-generator" })}
+              onClick={() => navigate({ to: "/systemmind/build" })}
             >
               <Wand2 className="mr-1.5 h-3.5 w-3.5" />Generate Workflow
             </Button>

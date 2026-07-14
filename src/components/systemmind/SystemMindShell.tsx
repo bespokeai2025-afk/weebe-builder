@@ -34,7 +34,6 @@ const BASE_NAV_GROUPS: Array<{ title?: string; adminOnly?: boolean; items: NavIt
       { label: "Recommendations",     href: "/systemmind/recommendations",     icon: Lightbulb  },
       { label: "Fix Plans",           href: "/systemmind/fix-plans",           icon: Wrench     },
       { label: "Workflows",           href: "/systemmind/workflows",           icon: GitBranch  },
-      { label: "Workflow Generator",  href: "/systemmind/workflow-generator",  icon: Wand2      },
       { label: "Workflow Drafts",     href: "/systemmind/workflow-drafts",     icon: Layers     },
       { label: "Automation",          href: "/systemmind/automation",          icon: Zap        },
       { label: "AccountsMind Setup",  href: "/systemmind/accountsmind-setup",  icon: BarChart3  },

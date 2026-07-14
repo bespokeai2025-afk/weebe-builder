@@ -73,6 +73,23 @@ export const setBuildSessionArchived = createServerFn({ method: "POST" })
     return { ok: true };
   });
 
+export const deleteBuildSession = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) =>
+    z.object({ sessionId: z.string().uuid() }).parse(input),
+  )
+  .handler(async ({ data, context }) => {
+    const { deleteBuildSessionServer } = await import(
+      "@/lib/systemmind/build-workspace.server"
+    );
+    await deleteBuildSessionServer({
+      workspaceId: requireWorkspaceId(context.workspaceId),
+      userId:      context.userId ?? null,
+      sessionId:   data.sessionId,
+    });
+    return { ok: true };
+  });
+
 // ── Prompt (generation / iteration) ───────────────────────────────────────────
 
 export const promptBuildSession = createServerFn({ method: "POST" })
