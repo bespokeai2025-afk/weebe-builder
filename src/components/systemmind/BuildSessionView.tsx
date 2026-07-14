@@ -58,6 +58,70 @@ const ITERATION_PROMPTS = [
   "Add a voicemail branch that sends an SMS instead",
 ];
 
+// ── Live build progress steps ──────────────────────────────────────────────────
+// Shown while SystemMind is generating. The steps advance on a timer (the server
+// call is a single request, so this narrates the phases the generator goes
+// through); the final step stays "in progress" until the response lands.
+
+const BUILD_PHASES_FIRST = [
+  "Reading your request",
+  "Detecting workflow type & trigger",
+  "Designing the workflow steps",
+  "Writing the agent script",
+  "Defining variables & captured fields",
+  "Mapping fields to the CRM",
+  "Running safety & risk checks",
+  "Creating version v1",
+];
+
+const BUILD_PHASES_REVISION = [
+  "Reading your change request",
+  "Comparing against the current version",
+  "Updating the workflow steps",
+  "Rewriting the affected script sections",
+  "Refreshing variables & CRM mappings",
+  "Running safety & risk checks",
+  "Creating the new version",
+];
+
+function BuildProgress({ phases }: { phases: string[] }) {
+  const [step, setStep] = useState(0);
+  useEffect(() => {
+    setStep(0);
+    const t = setInterval(
+      () => setStep((s) => Math.min(s + 1, phases.length - 1)),
+      2200,
+    );
+    return () => clearInterval(t);
+  }, [phases]);
+  return (
+    <div className="max-w-[85%] space-y-1.5 rounded-lg border border-white/[0.06] bg-white/[0.03] px-3 py-2.5">
+      <p className="mb-1 text-[9px] font-semibold uppercase tracking-wider text-muted-foreground">
+        SystemMind is building
+      </p>
+      {phases.map((p, i) => (
+        <div key={p} className="flex items-center gap-2">
+          {i < step ? (
+            <CheckCircle2 className="h-3 w-3 shrink-0 text-emerald-400" />
+          ) : i === step ? (
+            <Loader2 className="h-3 w-3 shrink-0 animate-spin text-sky-300" />
+          ) : (
+            <span className="h-3 w-3 shrink-0 rounded-full border border-white/[0.12]" />
+          )}
+          <p className={cn(
+            "text-[11px]",
+            i < step && "text-muted-foreground",
+            i === step && "text-foreground",
+            i > step && "text-muted-foreground/50",
+          )}>
+            {p}
+          </p>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 // ── Small bits ─────────────────────────────────────────────────────────────────
 
 export function RiskBadge({ risk }: { risk?: string | null }) {
@@ -1412,9 +1476,7 @@ export function BuildSessionView({
               </div>
             ))}
             {busy && (
-              <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
-                <Loader2 className="h-3 w-3 animate-spin" /> SystemMind is building…
-              </div>
+              <BuildProgress phases={versions.length > 0 ? BUILD_PHASES_REVISION : BUILD_PHASES_FIRST} />
             )}
             <div ref={chatEndRef} />
           </div>
