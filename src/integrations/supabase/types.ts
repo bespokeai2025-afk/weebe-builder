@@ -9501,6 +9501,72 @@ export type Database = {
           },
         ]
       }
+      systemmind_test_calls: {
+        Row: {
+          actual_result: Json
+          agent_id: string | null
+          call_id: string | null
+          checks: Json
+          created_at: string
+          diagnosis: string | null
+          expected_result: Json
+          failed_checks: Json
+          id: string
+          is_manual_override: boolean
+          passed: boolean
+          retell_call_id: string | null
+          session_id: string
+          suggested_fix: string | null
+          test_scenario: string
+          tested_by_user_id: string | null
+          version_id: string | null
+          workflow_id: string | null
+          workspace_id: string
+        }
+        Insert: {
+          actual_result?: Json
+          agent_id?: string | null
+          call_id?: string | null
+          checks?: Json
+          created_at?: string
+          diagnosis?: string | null
+          expected_result?: Json
+          failed_checks?: Json
+          id?: string
+          is_manual_override?: boolean
+          passed?: boolean
+          retell_call_id?: string | null
+          session_id: string
+          suggested_fix?: string | null
+          test_scenario?: string
+          tested_by_user_id?: string | null
+          version_id?: string | null
+          workflow_id?: string | null
+          workspace_id: string
+        }
+        Update: {
+          actual_result?: Json
+          agent_id?: string | null
+          call_id?: string | null
+          checks?: Json
+          created_at?: string
+          diagnosis?: string | null
+          expected_result?: Json
+          failed_checks?: Json
+          id?: string
+          is_manual_override?: boolean
+          passed?: boolean
+          retell_call_id?: string | null
+          session_id?: string
+          suggested_fix?: string | null
+          test_scenario?: string
+          tested_by_user_id?: string | null
+          version_id?: string | null
+          workflow_id?: string | null
+          workspace_id?: string
+        }
+        Relationships: []
+      }
       systemmind_usage_events: {
         Row: {
           billable_units: number

@@ -333,3 +333,77 @@ export const saveSystemMindPricing = createServerFn({ method: "POST" })
       pricing: data,
     });
   });
+
+// ── Test Call Validation Loop ─────────────────────────────────────────────────
+
+export const getBuildTestCallState = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) =>
+    z.object({ sessionId: z.string().uuid() }).parse(input),
+  )
+  .handler(async ({ data, context }) => {
+    const { getTestCallStateServer } = await import(
+      "@/lib/systemmind/build-workspace-testcall.server"
+    );
+    return getTestCallStateServer({
+      workspaceId: requireWorkspaceId(context.workspaceId),
+      sessionId:   data.sessionId,
+    });
+  });
+
+export const listBuildTestCallCandidates = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) =>
+    z.object({ sessionId: z.string().uuid() }).parse(input),
+  )
+  .handler(async ({ data, context }) => {
+    const { listTestCallCandidatesServer } = await import(
+      "@/lib/systemmind/build-workspace-testcall.server"
+    );
+    return listTestCallCandidatesServer({
+      workspaceId: requireWorkspaceId(context.workspaceId),
+      sessionId:   data.sessionId,
+    });
+  });
+
+export const analyzeBuildTestCall = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) =>
+    z.object({
+      sessionId: z.string().uuid(),
+      callId:    z.string().uuid(),
+      scenario:  z.string().max(60).default("custom"),
+    }).parse(input),
+  )
+  .handler(async ({ data, context }) => {
+    const { analyzeTestCallServer } = await import(
+      "@/lib/systemmind/build-workspace-testcall.server"
+    );
+    return analyzeTestCallServer({
+      workspaceId: requireWorkspaceId(context.workspaceId),
+      userId:      context.userId ?? null,
+      sessionId:   data.sessionId,
+      callId:      data.callId,
+      scenario:    data.scenario,
+    });
+  });
+
+export const overrideBuildTestPassed = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) =>
+    z.object({
+      sessionId: z.string().uuid(),
+      reason:    z.string().min(5).max(2000),
+    }).parse(input),
+  )
+  .handler(async ({ data, context }) => {
+    const { overrideTestPassedServer } = await import(
+      "@/lib/systemmind/build-workspace-testcall.server"
+    );
+    return overrideTestPassedServer({
+      workspaceId: requireWorkspaceId(context.workspaceId),
+      userId:      context.userId ?? null,
+      sessionId:   data.sessionId,
+      reason:      data.reason,
+    });
+  });

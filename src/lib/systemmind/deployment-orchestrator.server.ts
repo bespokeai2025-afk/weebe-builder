@@ -737,7 +737,64 @@ export async function computeDeploymentChecklistServer(args: {
   });
 
   // 11. Test call
+  // For SystemMind Build Workspace deployments (build_session_id set) the test
+  // call is MANDATORY: it derives from real systemmind_test_calls analysis rows
+  // and "skipped" never satisfies it. Standard agents keep the original
+  // optional/override behaviour — that flow is untouched.
+  const isBuildSessionDeployment = !!dep.build_session_id;
+  let buildTestGate: { status: "passed" | "failed" | "not_tested" } | null = null;
+  if (isBuildSessionDeployment) {
+    try {
+      const { getTestGateForSessionServer } = await import(
+        "@/lib/systemmind/build-workspace-testcall.server"
+      );
+      buildTestGate = await getTestGateForSessionServer({
+        workspaceId: args.workspaceId,
+        sessionId: dep.build_session_id as string,
+        versionId: (dep.build_version_id as string | null) ?? null,
+      });
+    } catch {
+      buildTestGate = { status: "not_tested" };
+    }
+  }
   const testCall = overrides.test_call;
+  if (isBuildSessionDeployment) {
+    // Deliberately IGNORE overrides.test_call here: for SystemMind builds the
+    // gate derives ONLY from systemmind_test_calls rows (real analyses or the
+    // audited overrideTestPassedServer path) — checklist overrides can't
+    // unlock it.
+    const gateStatus =
+      buildTestGate?.status === "passed"
+        ? "passed"
+        : buildTestGate?.status === "failed"
+          ? "failed"
+          : "not_tested";
+    items.push(
+      gateStatus === "passed"
+        ? {
+            key: "test_call_passed",
+            label: "Test call validated (mandatory for SystemMind builds)",
+            status: "complete",
+            detail: "SystemMind validated a test call for this build (or it was marked passed with a reason).",
+            action: null,
+          }
+        : gateStatus === "failed"
+          ? {
+              key: "test_call_passed",
+              label: "Test call validated (mandatory for SystemMind builds)",
+              status: "failed",
+              detail: "The last analyzed test call FAILED. Fix the build and re-test from the session's Test tab before Go Live.",
+              action: "record_test_call",
+            }
+          : {
+              key: "test_call_passed",
+              label: "Test call validated (mandatory for SystemMind builds)",
+              status: "missing",
+              detail: "This agent was built by SystemMind — a validated test call is required before Go Live. Run one from the session's Test tab.",
+              action: "record_test_call",
+            },
+    );
+  } else {
   items.push(
     testCall === "passed"
       ? {
@@ -771,9 +828,12 @@ export async function computeDeploymentChecklistServer(args: {
               action: "record_test_call",
             },
   );
+  }
 
   // 12. Go Live ready — every required item must be complete.
   const requiredKeys = new Set(["retell_agent_mapped", "agent_type_selected"]);
+  // Mandatory test gate for SystemMind-built deployments only.
+  if (isBuildSessionDeployment) requiredKeys.add("test_call_passed");
   if (isCustom) {
     requiredKeys.add("workflow_generated");
     requiredKeys.add("post_call_extraction");
