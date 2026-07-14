@@ -526,6 +526,25 @@ export async function processWebformSubmission(opts: {
   // throws, so this never fails the webform submission.
   if (leadStatus === "created") {
     await triggerAutoCallForNewLead(supabaseAdmin, { workspaceId, leadId });
+
+    // Fire any active lead_added workflows (Build Workspace / Workflow Engine)
+    // that listen for webform intake. Best-effort — never fails the submission.
+    try {
+      const { dispatchLeadAddedWorkflows } = await import("@/lib/workflow-engine/workflow-executor.server");
+      await dispatchLeadAddedWorkflows({
+        workspaceId,
+        leadId,
+        leadSource: "webform",
+        webformName: formName,
+        triggerData: {
+          full_name: full_name ?? null,
+          email:     email ?? null,
+          phone:     phone ?? null,
+        },
+      });
+    } catch (e) {
+      console.error("[WEBFORM] lead_added workflow dispatch failed:", e instanceof Error ? e.message : e);
+    }
   }
 
   return { ok: true, leadId, submissionId: submission?.id, status: leadStatus };

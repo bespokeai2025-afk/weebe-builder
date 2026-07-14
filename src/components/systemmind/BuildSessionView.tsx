@@ -38,6 +38,7 @@ import {
   setBuildVersionNotes, setBuildSessionArchived, markBuildVersionDeployed,
   getSystemMindUsageSummary, getBuildApplySafetyReport, rollbackBuildApply,
 } from "@/lib/systemmind/build-workspace.functions";
+import { listWebformSources } from "@/lib/lead-gen/webforms.functions";
 import { getConversionForSession } from "@/lib/systemmind/legacy-conversion.functions";
 import { goLiveAgent } from "@/lib/agents/agents.functions";
 
@@ -815,7 +816,126 @@ const PRE_CALL_SOURCES: { group: string; items: { label: string; varName: string
       { label: "Record name",        varName: "record_name",       source: "Data — Records name" },
     ],
   },
+  {
+    group: "Webform submission",
+    items: [
+      { label: "Form message / notes", varName: "form_notes",  source: "Webform — notes/message" },
+      { label: "UTM source",           varName: "utm_source",  source: "Webform — utm_source" },
+      { label: "Page submitted from",  varName: "source_page", source: "Webform — source page" },
+    ],
+  },
 ];
+
+// ── Guided lead-intake source chooser ─────────────────────────────────────────
+// Where do this agent's leads come from? Existing CRM/Leads records, or live
+// webform intake (a submission creates the lead and starts the workflow).
+function LeadSourcePanel({
+  config, busy, onSend,
+}: {
+  config: Record<string, any> | null;
+  busy: boolean;
+  onSend: (prompt: string) => void;
+}) {
+  const listFormsFn = useServerFn(listWebformSources);
+  const formsQ = useQuery({
+    queryKey: ["bw-webform-sources"],
+    queryFn: () => listFormsFn(),
+    staleTime: 60_000,
+    throwOnError: false,
+  });
+  const forms = ((formsQ.data as any)?.sources ?? []) as any[];
+  const [choice, setChoice] = useState<"" | "crm" | `wf:${string}`>("");
+
+  const cfgSource = String(
+    (config?.workflow?.trigger_config as any)?.lead_source ?? "",
+  );
+  const cfgFormName = String(
+    (config?.workflow?.trigger_config as any)?.webform_name ?? "",
+  );
+
+  const submit = () => {
+    if (!choice) return;
+    if (choice === "crm") {
+      onSend(
+        "Leads for this agent come from the WEBEE CRM / Leads page (existing records) — not from a webform. Set the workflow trigger and steps accordingly, and remove any webform lead_source from trigger_config. Keep everything else unchanged.",
+      );
+    } else {
+      const name = choice.slice(3);
+      onSend(
+        `Leads for this agent come from live webform intake: the webform "${name}" creates a new lead the moment someone submits, and this workflow should start from it. Set trigger_type to "lead_added" with trigger_config {"lead_source": "webform", "webform_name": "${name}"}, and make the pre-call variables map from the webform submission where relevant. Keep everything else unchanged.`,
+      );
+    }
+    setChoice("");
+  };
+
+  return (
+    <div className="space-y-2 rounded-lg border border-violet-500/25 bg-violet-500/[0.04] p-3">
+      <div className="flex items-center gap-2">
+        <Import className="h-3.5 w-3.5 text-violet-300" />
+        <p className="text-[11px] font-semibold text-violet-200">Lead intake — where do this agent's leads come from?</p>
+        {cfgSource === "webform" && (
+          <Badge variant="outline" className="border-violet-400/40 text-[9px] text-violet-200">
+            current: webform{cfgFormName ? ` — ${cfgFormName}` : ""}
+          </Badge>
+        )}
+      </div>
+      <p className="text-[10px] text-muted-foreground">
+        Choose <span className="font-medium text-foreground">CRM / Leads page</span> to work from
+        records already in WEBEE, or a <span className="font-medium text-foreground">webform</span>{" "}
+        so a live form submission creates the lead and kicks off this agent instantly.
+      </p>
+      <div className="flex flex-wrap gap-1.5">
+        <button
+          type="button"
+          disabled={busy}
+          onClick={() => setChoice(choice === "crm" ? "" : "crm")}
+          className={cn(
+            "rounded-full border px-2.5 py-1 text-[10px] transition-colors",
+            choice === "crm"
+              ? "border-violet-400/60 bg-violet-500/20 text-violet-200"
+              : "border-white/[0.1] bg-white/[0.02] text-muted-foreground hover:text-foreground",
+          )}
+        >
+          CRM / Leads page
+        </button>
+        {forms.map((f) => {
+          const v = `wf:${String(f.name)}` as const;
+          return (
+            <button
+              key={String(f.id)}
+              type="button"
+              disabled={busy}
+              onClick={() => setChoice(choice === v ? "" : v)}
+              title={`Webform "${String(f.name)}" (${String(f.status ?? "active")})`}
+              className={cn(
+                "rounded-full border px-2.5 py-1 text-[10px] transition-colors",
+                choice === v
+                  ? "border-violet-400/60 bg-violet-500/20 text-violet-200"
+                  : "border-white/[0.1] bg-white/[0.02] text-muted-foreground hover:text-foreground",
+              )}
+            >
+              Webform: {String(f.name)}
+            </button>
+          );
+        })}
+        {!formsQ.isLoading && forms.length === 0 && (
+          <span className="self-center text-[10px] text-muted-foreground">
+            No webforms yet — create one under Lead Generation → Webforms to use webform intake.
+          </span>
+        )}
+      </div>
+      <Button
+        size="sm"
+        className="h-7 gap-1.5 px-3 text-[11px]"
+        disabled={busy || !choice}
+        onClick={submit}
+      >
+        {busy ? <Loader2 className="h-3 w-3 animate-spin" /> : <CheckCircle2 className="h-3 w-3" />}
+        Set lead source
+      </Button>
+    </div>
+  );
+}
 
 function PreCallInputsPanel({
   config, busy, onSend,
@@ -1091,6 +1211,7 @@ function MappingPanel({
       <div className="space-y-3">
         {onSend && (
           <>
+            <LeadSourcePanel config={config} busy={!!busy} onSend={onSend} />
             <PreCallInputsPanel config={config} busy={!!busy} onSend={onSend} />
             <RequiredInputsPanel config={config} busy={!!busy} onSend={onSend} />
           </>
@@ -1108,6 +1229,7 @@ function MappingPanel({
     <div className="space-y-2">
       {onSend && (
         <>
+          <LeadSourcePanel config={config} busy={!!busy} onSend={onSend} />
           <PreCallInputsPanel config={config} busy={!!busy} onSend={onSend} />
           <RequiredInputsPanel config={config} busy={!!busy} onSend={onSend} />
         </>
