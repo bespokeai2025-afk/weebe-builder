@@ -331,25 +331,37 @@ export function SystemMindBuildWorkspacePage() {
                 className="min-h-[80px] resize-none text-xs"
                 disabled={quickStart.isPending}
               />
-              <div className="flex items-center gap-2">
-                <Button
-                  size="sm"
-                  className="gap-1.5 text-xs"
-                  disabled={quickStart.isPending || quickDesc.trim().length < 15}
-                  onClick={() => quickStart.mutate()}
-                >
-                  {quickStart.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Wand2 className="h-3.5 w-3.5" />}
-                  Generate workflow
-                </Button>
-                {EXAMPLE_PROMPTS[quickType] && (
-                  <Button
-                    size="sm" variant="ghost" className="text-[11px] text-muted-foreground"
-                    disabled={quickStart.isPending}
-                    onClick={() => setQuickDesc(EXAMPLE_PROMPTS[quickType])}
-                  >
-                    Use example
-                  </Button>
-                )}
+              <Button
+                size="sm"
+                className="gap-1.5 text-xs"
+                disabled={quickStart.isPending || quickDesc.trim().length < 15}
+                onClick={() => quickStart.mutate()}
+              >
+                {quickStart.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Wand2 className="h-3.5 w-3.5" />}
+                Generate workflow
+              </Button>
+
+              {/* Clickable example prompt boxes */}
+              <div className="space-y-1.5 pt-1">
+                <p className="text-[10px] uppercase tracking-wide text-muted-foreground/70">
+                  Example prompts — click to use
+                </p>
+                <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-2">
+                  {(quickType && EXAMPLE_PROMPTS[quickType]
+                    ? [{ value: quickType, label: WORKFLOW_TYPES.find((w) => w.value === quickType)?.label ?? "", prompt: EXAMPLE_PROMPTS[quickType] }]
+                    : WORKFLOW_TYPES.filter((wt) => EXAMPLE_PROMPTS[wt.value]).map((wt) => ({ value: wt.value, label: wt.label, prompt: EXAMPLE_PROMPTS[wt.value] }))
+                  ).map((ex) => (
+                    <button
+                      key={ex.value}
+                      disabled={quickStart.isPending}
+                      onClick={() => { setQuickType(ex.value); setQuickDesc(ex.prompt); }}
+                      className="rounded-lg border border-white/[0.06] bg-white/[0.02] px-3 py-2 text-left transition-colors hover:border-sky-500/30 hover:bg-sky-500/[0.06] disabled:opacity-50"
+                    >
+                      <p className="text-[10px] font-medium text-sky-300">{ex.label}</p>
+                      <p className="mt-0.5 line-clamp-2 text-[11px] leading-relaxed text-muted-foreground">{ex.prompt}</p>
+                    </button>
+                  ))}
+                </div>
               </div>
             </div>
           </div>

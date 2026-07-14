@@ -24,6 +24,10 @@ import { TestCallPanel } from "./TestCallPanel";
 import { RequirementsPanel } from "./RequirementsPanel";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import { Input } from "@/components/ui/input";
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
@@ -36,6 +40,23 @@ import {
 } from "@/lib/systemmind/build-workspace.functions";
 import { getConversionForSession } from "@/lib/systemmind/legacy-conversion.functions";
 import { goLiveAgent } from "@/lib/agents/agents.functions";
+
+// ── Example prompts ────────────────────────────────────────────────────────────
+
+const STARTER_PROMPTS = [
+  "Build a receptionist agent that answers calls, books appointments into the Calendar and saves caller details to Leads.",
+  "Build a lead qualification workflow that asks budget, timeline and location, then saves qualified leads to Qualified.",
+  "Build a rebooking workflow that calls back missed appointments and reschedules them into the Calendar.",
+  "Build a WhatsApp follow-up workflow that messages new leads within 5 minutes and books a discovery call.",
+];
+
+const ITERATION_PROMPTS = [
+  "Add a WhatsApp follow-up step after the call ends",
+  "Ask for the caller's budget and make it a required field",
+  "Map the captured fields to Leads and Qualified",
+  "Make the script shorter and the tone friendlier",
+  "Add a voicemail branch that sends an SMS instead",
+];
 
 // ── Small bits ─────────────────────────────────────────────────────────────────
 
@@ -680,7 +701,125 @@ function VariablesPanel({ config }: { config: Record<string, any> | null }) {
   );
 }
 
-function MappingPanel({ config }: { config: Record<string, any> | null }) {
+// ── Mandatory required-inputs form ────────────────────────────────────────────
+// Like the platform's secret-request boxes: every captured field that has no CRM
+// destination yet gets a mandatory box the user must fill in. Submitting sends a
+// plain-language instruction to SystemMind, which generates a new version.
+
+const CRM_DESTINATIONS = ["Leads", "Qualified", "Calls", "Data", "Follow-Up Centre", "Calendar"];
+
+export function findUnmappedFields(config: Record<string, any> | null): any[] {
+  const fields = (config?.extraction_fields ?? []) as any[];
+  return fields.filter((f) => !(f.crm_destination ?? f.destination ?? f.maps_to));
+}
+
+function RequiredInputsPanel({
+  config, busy, onSend,
+}: {
+  config: Record<string, any> | null;
+  busy: boolean;
+  onSend: (prompt: string) => void;
+}) {
+  const unmapped = findUnmappedFields(config);
+  const creds    = (config?.required_credentials ?? []) as string[];
+  const [dest, setDest]         = useState<Record<string, string>>({});
+  const [crmField, setCrmField] = useState<Record<string, string>>({});
+
+  if (unmapped.length === 0 && creds.length === 0) return null;
+
+  const nameOf = (f: any) => String(f.name ?? f.key ?? "unnamed");
+  const allFilled = unmapped.every((f) => !!dest[nameOf(f)]);
+
+  const submit = () => {
+    const parts = unmapped.map((f) => {
+      const n = nameOf(f);
+      const cf = crmField[n]?.trim();
+      return `${n} → ${dest[n]}${cf ? ` (CRM field: ${cf})` : ""}`;
+    });
+    onSend(`Map these captured fields to the CRM: ${parts.join("; ")}. Update the workflow's CRM mappings accordingly.`);
+  };
+
+  return (
+    <div className="space-y-2 rounded-lg border border-amber-500/25 bg-amber-500/[0.04] p-3">
+      <div className="flex items-center gap-2">
+        <AlertTriangle className="h-3.5 w-3.5 text-amber-400" />
+        <p className="text-[11px] font-semibold text-amber-200">
+          Required before this workflow is ready
+        </p>
+      </div>
+
+      {unmapped.length > 0 && (
+        <div className="space-y-2">
+          <p className="text-[10px] text-muted-foreground">
+            These captured fields need a CRM destination. Fields marked <span className="text-rose-400">*</span> are mandatory.
+          </p>
+          {unmapped.map((f) => {
+            const n = nameOf(f);
+            return (
+              <div key={n} className="flex flex-wrap items-center gap-2 rounded-md border border-white/[0.06] bg-white/[0.02] px-2.5 py-2">
+                <p className="min-w-[110px] text-[11px] font-medium">{n}</p>
+                <div className="flex items-center gap-1">
+                  <span className="text-[11px] text-rose-400">*</span>
+                  <Select value={dest[n] ?? ""} onValueChange={(v) => setDest((s) => ({ ...s, [n]: v }))}>
+                    <SelectTrigger className={cn(
+                      "h-7 w-[150px] text-[11px]",
+                      !dest[n] && "border-amber-500/40",
+                    )}>
+                      <SelectValue placeholder="CRM destination…" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {CRM_DESTINATIONS.map((d) => (
+                        <SelectItem key={d} value={d} className="text-[11px]">{d}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <Input
+                  value={crmField[n] ?? ""}
+                  onChange={(e) => setCrmField((s) => ({ ...s, [n]: e.target.value }))}
+                  placeholder="CRM field name (optional)"
+                  className="h-7 w-[170px] text-[11px]"
+                />
+              </div>
+            );
+          })}
+          <Button
+            size="sm"
+            className="h-7 gap-1.5 px-3 text-[11px]"
+            disabled={!allFilled || busy}
+            onClick={submit}
+          >
+            {busy ? <Loader2 className="h-3 w-3 animate-spin" /> : <CheckCircle2 className="h-3 w-3" />}
+            Save mappings
+          </Button>
+          {!allFilled && (
+            <p className="text-[10px] text-amber-300/80">Choose a destination for every field to continue.</p>
+          )}
+        </div>
+      )}
+
+      {creds.length > 0 && (
+        <div className="space-y-1 pt-1">
+          <p className="text-[10px] text-muted-foreground">Credentials this workflow needs:</p>
+          {creds.map((c, i) => (
+            <p key={i} className="text-[11px] text-amber-200/90">
+              <span className="text-rose-400">*</span> {c}
+              <span className="text-[10px] text-muted-foreground"> — add it in Settings → Integrations. Never paste keys into this chat.</span>
+            </p>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function MappingPanel({
+  config, busy, onSend,
+}: {
+  config: Record<string, any> | null;
+  busy?: boolean;
+  onSend?: (prompt: string) => void;
+}) {
   const fields = (config?.extraction_fields ?? []) as any[];
   const req    = (config?.requirements ?? {}) as Record<string, any>;
   const reqMappings = (req.variable_mappings ?? req.crm_mappings ?? []) as any[];
@@ -689,7 +828,7 @@ function MappingPanel({ config }: { config: Record<string, any> | null }) {
   for (const f of fields) {
     rows.push({
       field:       String(f.name ?? f.key ?? "unnamed"),
-      destination: String(f.crm_destination ?? f.destination ?? f.maps_to ?? "Leads"),
+      destination: String(f.crm_destination ?? f.destination ?? f.maps_to ?? ""),
       crmField:    String(f.crm_field ?? f.field ?? f.name ?? ""),
       usage:       String(f.usage ?? f.description ?? "post-call data"),
     });
@@ -705,16 +844,24 @@ function MappingPanel({ config }: { config: Record<string, any> | null }) {
 
   if (rows.length === 0) {
     return (
-      <p className="py-8 text-center text-[11px] text-muted-foreground">
-        No CRM mappings yet. They are generated with the workflow — answer the Requirements step
-        (it asks where each captured field should land: Calls, Leads, Qualified, Data, Follow-Up
-        Centre, Calendar) or ask SystemMind in the chat, e.g. “map the post-call data to Leads and
-        Qualified”.
-      </p>
+      <div className="space-y-3">
+        {onSend && (
+          <RequiredInputsPanel config={config} busy={!!busy} onSend={onSend} />
+        )}
+        <p className="py-8 text-center text-[11px] text-muted-foreground">
+          No CRM mappings yet. They are generated with the workflow — answer the Requirements step
+          (it asks where each captured field should land: Calls, Leads, Qualified, Data, Follow-Up
+          Centre, Calendar) or ask SystemMind in the chat, e.g. “map the post-call data to Leads and
+          Qualified”.
+        </p>
+      </div>
     );
   }
   return (
     <div className="space-y-2">
+      {onSend && (
+        <RequiredInputsPanel config={config} busy={!!busy} onSend={onSend} />
+      )}
       <div className="overflow-x-auto rounded-lg border border-white/[0.06]">
         <table className="w-full text-left text-[11px]">
           <thead>
@@ -729,7 +876,11 @@ function MappingPanel({ config }: { config: Record<string, any> | null }) {
             {rows.map((r, i) => (
               <tr key={i} className="border-b border-white/[0.04] last:border-0">
                 <td className="px-3 py-2 font-medium">{r.field}</td>
-                <td className="px-3 py-2"><Badge variant="outline" className="text-[9px]">{r.destination}</Badge></td>
+                <td className="px-3 py-2">
+                  {r.destination
+                    ? <Badge variant="outline" className="text-[9px]">{r.destination}</Badge>
+                    : <Badge variant="outline" className="border-amber-500/40 text-[9px] text-amber-300">Unmapped</Badge>}
+                </td>
                 <td className="px-3 py-2 text-muted-foreground">{r.crmField || "—"}</td>
                 <td className="px-3 py-2 text-muted-foreground">{r.usage}</td>
               </tr>
@@ -934,7 +1085,10 @@ export function BuildSessionView({
     [versions, session?.current_version_id],
   );
   const config = (currentVersion?.generated_config ?? null) as Record<string, any> | null;
-  const canApply = currentVersion && ["draft", "testing", "revised"].includes(String(currentVersion.status));
+  const unmappedCount = useMemo(() => findUnmappedFields(config).length, [config]);
+  const canApply = currentVersion
+    && ["draft", "testing", "revised"].includes(String(currentVersion.status))
+    && unmappedCount === 0;
 
   // What changed in the current version vs the one right before it (by number).
   const currentDiff = useMemo(() => {
@@ -1222,10 +1376,23 @@ export function BuildSessionView({
         )}>
           <div className="min-h-0 flex-1 space-y-3 overflow-y-auto p-3">
             {messages.length === 0 && !busy && (
-              <p className="py-8 text-center text-[11px] text-muted-foreground">
-                Tell SystemMind what to build — e.g. “Build me a WhatsApp qualification
-                agent for estate agency leads.”
-              </p>
+              <div className="space-y-3 py-6">
+                <p className="text-center text-[11px] text-muted-foreground">
+                  Tell SystemMind what to build — or start from an example:
+                </p>
+                <div className="space-y-1.5">
+                  {STARTER_PROMPTS.map((p) => (
+                    <button
+                      key={p}
+                      onClick={() => setPrompt(p)}
+                      className="w-full rounded-lg border border-white/[0.06] bg-white/[0.02] px-3 py-2 text-left text-[11px] leading-relaxed text-muted-foreground transition-colors hover:border-sky-500/30 hover:bg-sky-500/[0.06] hover:text-foreground"
+                    >
+                      <Lightbulb className="mr-1.5 inline h-3 w-3 text-sky-300" />
+                      {p}
+                    </button>
+                  ))}
+                </div>
+              </div>
             )}
             {messages.map((m: any) => (
               <div key={m.id} className={cn("flex", m.role === "user" ? "justify-end" : "justify-start")}>
@@ -1252,6 +1419,19 @@ export function BuildSessionView({
             <div ref={chatEndRef} />
           </div>
           <div className="border-t border-white/[0.05] p-2.5">
+            {versions.length > 0 && !prompt && !busy && session.status !== "archived" && (
+              <div className="mb-2 flex flex-wrap gap-1.5">
+                {ITERATION_PROMPTS.map((p) => (
+                  <button
+                    key={p}
+                    onClick={() => setPrompt(p)}
+                    className="rounded-full border border-white/[0.08] bg-white/[0.02] px-2.5 py-1 text-[10px] text-muted-foreground transition-colors hover:border-sky-500/30 hover:bg-sky-500/[0.06] hover:text-foreground"
+                  >
+                    {p}
+                  </button>
+                ))}
+              </div>
+            )}
             <div className="flex items-end gap-2">
               <Textarea
                 value={prompt}
@@ -1343,6 +1523,22 @@ export function BuildSessionView({
             </div>
           </div>
 
+          {unmappedCount > 0 && currentVersion && (
+            <div className="mx-3 mt-2 flex items-center gap-2 rounded-lg border border-amber-500/25 bg-amber-500/[0.05] px-3 py-2">
+              <AlertTriangle className="h-3.5 w-3.5 shrink-0 text-amber-400" />
+              <p className="text-[11px] text-amber-200/90">
+                {unmappedCount} required input{unmappedCount === 1 ? "" : "s"} remaining — Apply is
+                locked until every captured field has a CRM destination.
+              </p>
+              <button
+                onClick={() => setTab("mapping")}
+                className="ml-auto shrink-0 text-[11px] font-medium text-amber-300 underline-offset-2 hover:underline"
+              >
+                Fill them in
+              </button>
+            </div>
+          )}
+
           {currentVersion?.risk_level === "high" && canApply && (
             <div className="mx-3 mt-2 flex items-start gap-2 rounded-lg border border-amber-500/25 bg-amber-500/[0.05] px-3 py-2">
               <ShieldAlert className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-400" />
@@ -1360,7 +1556,13 @@ export function BuildSessionView({
 
             {tab === "variables" && <VariablesPanel config={config} />}
 
-            {tab === "mapping" && <MappingPanel config={config} />}
+            {tab === "mapping" && (
+              <MappingPanel
+                config={config}
+                busy={busy}
+                onSend={(p) => sendPrompt.mutate(p)}
+              />
+            )}
 
             {tab === "review" && (
               <ReviewPanel report={(reviewReport as any) ?? null} loading={reviewLoading} config={config} />
@@ -1371,6 +1573,19 @@ export function BuildSessionView({
                 ? <div className="space-y-3">
                     {currentDiff && currentVersion && (
                       <ChangeSummary diff={currentDiff} versionNumber={currentVersion.version_number} />
+                    )}
+                    {findUnmappedFields(config).length > 0 && (
+                      <button
+                        onClick={() => setTab("mapping")}
+                        className="flex w-full items-center gap-2 rounded-lg border border-amber-500/25 bg-amber-500/[0.05] px-3 py-2 text-left transition-colors hover:bg-amber-500/[0.1]"
+                      >
+                        <AlertTriangle className="h-3.5 w-3.5 shrink-0 text-amber-400" />
+                        <span className="text-[11px] text-amber-200/90">
+                          {findUnmappedFields(config).length} captured field{findUnmappedFields(config).length === 1 ? "" : "s"} still
+                          need a CRM destination — fill them in on the CRM Mapping tab.
+                        </span>
+                        <ArrowRight className="ml-auto h-3 w-3 text-amber-400" />
+                      </button>
                     )}
                     <div className="flex items-center gap-1 rounded-lg border border-white/[0.06] bg-white/[0.02] p-0.5 w-fit">
                       {(["list", "diagram"] as const).map((v) => (
