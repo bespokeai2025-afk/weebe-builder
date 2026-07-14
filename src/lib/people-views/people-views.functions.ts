@@ -250,8 +250,12 @@ export const runWorkspacePeopleView = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input) => z.object({ viewId: z.string().uuid(), limit: z.number().int().min(1).max(500).optional() }).parse(input))
   .handler(async ({ context, data }) => {
-    const { workspaceId, role } = await ctxRole(context);
-    return await runPeopleView(workspaceId, data.viewId, data.limit ?? 200, role);
+    const { workspaceId, userId, role } = await ctxRole(context);
+    // Assigned-records-only roles see only leads assigned to them in saved views.
+    const { resolvePermissions } = await import("@/lib/permissions/permissions.server");
+    const perms = await resolvePermissions(workspaceId, userId);
+    const assignedToUserId = perms.assignedRecordsOnly === true ? userId : null;
+    return await runPeopleView(workspaceId, data.viewId, data.limit ?? 200, role, assignedToUserId);
   });
 
 export const listWorkspaceViewAuditLogs = createServerFn({ method: "POST" })

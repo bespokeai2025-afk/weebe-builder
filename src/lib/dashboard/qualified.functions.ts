@@ -1,6 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { resolvePermissions } from "@/lib/permissions/permissions.server";
 
 export const listQualifiedLeads = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
@@ -14,9 +15,13 @@ export const listQualifiedLeads = createServerFn({ method: "POST" })
       .parse(input ?? {}),
   )
   .handler(async ({ context, data }) => {
-    const { supabase, workspaceId } = context;
+    const { supabase, workspaceId, userId } = context;
     if (!workspaceId) throw new Error("No active workspace");
     const sb = supabase as any;
+
+    // Assigned-records-only roles see only qualified leads assigned to them.
+    const perms = await resolvePermissions(workspaceId, userId);
+    const assignedOnly = perms.assignedRecordsOnly === true;
 
     // WBAH qualifies leads by call sentiment; standard accounts qualify by lead
     // status (interested/qualified) — the SAME definition the dashboard KPI uses
@@ -36,6 +41,7 @@ export const listQualifiedLeads = createServerFn({ method: "POST" })
       .eq("workspace_id", workspaceId)
       .order("updated_at", { ascending: false })
       .limit(data.limit);
+    if (assignedOnly) q = q.eq("assigned_to", userId);
 
     if (isWbah) {
       // Only show leads with positive sentiment (neutral is NOT qualified)
@@ -75,17 +81,36 @@ export const listQualifiedLeads = createServerFn({ method: "POST" })
 export const listQualifiedRecords = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
-    const { supabase, workspaceId } = context;
+    const { supabase, workspaceId, userId } = context;
     if (!workspaceId) throw new Error("No active workspace");
     const sb = supabase as any;
 
-    const { data: calls, error: callsErr } = await sb
+    // Assigned-record visibility: restricted roles only see records reached
+    // through calls of leads assigned to them (same pattern as listCalls —
+    // data_records has no per-user assignment column).
+    const perms = await resolvePermissions(workspaceId, userId);
+    let assignedLeadIds: string[] | null = null;
+    if (perms.assignedRecordsOnly === true) {
+      const { data: myLeads } = await sb
+        .from("leads")
+        .select("id")
+        .eq("workspace_id", workspaceId)
+        .eq("assigned_to", userId)
+        .limit(1000);
+      const ids: string[] = (myLeads ?? []).map((l: any) => l.id);
+      if (ids.length === 0) return [];
+      assignedLeadIds = ids;
+    }
+
+    let callsQ = sb
       .from("calls")
       .select("id, to_number")
       .eq("workspace_id", workspaceId)
       .eq("sentiment", "positive")
       .order("started_at", { ascending: false, nullsFirst: false })
       .limit(2000);
+    if (assignedLeadIds) callsQ = callsQ.in("lead_id", assignedLeadIds);
+    const { data: calls, error: callsErr } = await callsQ;
     if (callsErr) throw new Error(callsErr.message);
 
     const callsList = (calls ?? []) as any[];
@@ -113,16 +138,22 @@ export const listQualifiedRecords = createServerFn({ method: "GET" })
 export const getQualificationStats = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
-    const { supabase, workspaceId } = context;
+    const { supabase, workspaceId, userId } = context;
     if (!workspaceId) throw new Error("No active workspace");
     const sb = supabase as any;
 
+    // Assigned-records-only roles: stats computed over their assigned leads only.
+    const perms = await resolvePermissions(workspaceId, userId);
+    const assignedOnly = perms.assignedRecordsOnly === true;
+
     // Funnel: all leads that have had a qualification call (have a qualification_status)
-    const { data: funnelRows, error: funnelErr } = await sb
+    let funnelQ = sb
       .from("leads")
       .select("status, qualification_status, qualification_score")
       .eq("workspace_id", workspaceId)
       .not("qualification_status", "is", null);
+    if (assignedOnly) funnelQ = funnelQ.eq("assigned_to", userId);
+    const { data: funnelRows, error: funnelErr } = await funnelQ;
     if (funnelErr) throw new Error(funnelErr.message);
 
     const funnel = (funnelRows ?? []) as any[];

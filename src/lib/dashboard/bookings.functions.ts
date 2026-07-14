@@ -57,9 +57,26 @@ export const listBookings = createServerFn({ method: "POST" })
       .parse(input ?? {}),
   )
   .handler(async ({ context, data }) => {
-    const { supabase } = context;
+    const { supabase, userId } = context;
     const workspaceId = context.workspaceId;
     if (!workspaceId) throw new Error("No active workspace");
+
+    // Assigned-records-only roles see only bookings linked to leads assigned
+    // to them (bookings without a lead link are hidden — fail closed).
+    const { resolvePermissions } = await import("@/lib/permissions/permissions.server");
+    const perms = await resolvePermissions(workspaceId, userId);
+    let assignedLeadIds: string[] | null = null;
+    if (perms.assignedRecordsOnly === true) {
+      const { data: myLeads } = await (supabase as any)
+        .from("leads")
+        .select("id")
+        .eq("workspace_id", workspaceId)
+        .eq("assigned_to", userId)
+        .limit(1000);
+      const ids: string[] = (myLeads ?? []).map((l: any) => l.id);
+      if (ids.length === 0) return [];
+      assignedLeadIds = ids;
+    }
 
     let q = supabase
       .from("calendar_bookings" as never)
@@ -67,6 +84,7 @@ export const listBookings = createServerFn({ method: "POST" })
       .eq("workspace_id", workspaceId)
       .order("start_at", { ascending: true })
       .limit(data.limit);
+    if (assignedLeadIds) q = q.in("lead_id" as never, assignedLeadIds as never[]);
     if (data.status && data.status !== "all") q = q.eq("status", data.status as any);
     if (data.from) q = q.gte("start_at", data.from);
     if (data.to) q = q.lte("start_at", data.to);

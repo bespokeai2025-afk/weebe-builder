@@ -580,6 +580,8 @@ export async function runPeopleView(
   viewId: string,
   limit = 200,
   role?: WorkspaceRole,
+  /** When set, only leads assigned to this user are returned (assignedRecordsOnly roles). */
+  assignedToUserId?: string | null,
 ) {
   const view = await getCurrent("people_view", workspaceId, viewId);
   if (role && Array.isArray(view.visible_to_roles) && !view.visible_to_roles.includes(role)) {
@@ -598,6 +600,7 @@ export async function runPeopleView(
     .eq("workspace_id", workspaceId)
     .order(sortCol, { ascending })
     .limit(Math.min(limit, 500));
+  if (assignedToUserId) q = q.eq("assigned_to", assignedToUserId);
   q = applyFilterToQuery(q, v.config);
   const { data, error } = await q;
   if (error) throw new Error(error.message);
