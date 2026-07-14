@@ -20,6 +20,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { DeploymentChecklistPanel } from "./DeploymentChecklistPanel";
+import { TestCallPanel } from "./TestCallPanel";
 import { RequirementsPanel } from "./RequirementsPanel";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -748,6 +749,7 @@ export function BuildSessionView({
       qc.invalidateQueries({ queryKey: ["smbw-sessions"] });
       qc.invalidateQueries({ queryKey: ["smbw-usage"] });
       qc.invalidateQueries({ queryKey: ["smbw-review", sessionId] });
+      qc.invalidateQueries({ queryKey: ["smbw-testcall", sessionId] });
       toast.success(`Version ${res.versionNumber} generated`, {
         description: `${res.riskLevel} risk · ${fmtMs(res.elapsedMs)} · ${res.totalTokens} tokens`,
       });
@@ -1150,23 +1152,32 @@ export function BuildSessionView({
             )}
 
             {tab === "test" && (
-              sim
-                ? <SimulationView sim={sim} />
-                : <div className="py-8 text-center">
-                    <p className="text-[11px] text-muted-foreground">
-                      Run a safe simulation — it walks every workflow path, shows what
-                      would trigger, and checks your workspace setup. Nothing is sent
-                      to real customers.
-                    </p>
-                    <Button
-                      size="sm" variant="outline" className="mt-3 gap-1.5 text-xs"
-                      disabled={!currentVersion || runSim.isPending}
-                      onClick={() => runSim.mutate()}
-                    >
-                      {runSim.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <FlaskConical className="h-3.5 w-3.5" />}
-                      Run simulation
-                    </Button>
-                  </div>
+              <div className="space-y-4">
+                <TestCallPanel
+                  sessionId={sessionId}
+                  fixPending={sendPrompt.isPending}
+                  onAskFix={(p) => sendPrompt.mutate(p)}
+                />
+                <div className="border-t border-white/[0.05] pt-3">
+                  {sim
+                    ? <SimulationView sim={sim} />
+                    : <div className="py-4 text-center">
+                        <p className="text-[11px] text-muted-foreground">
+                          Run a safe simulation — it walks every workflow path, shows what
+                          would trigger, and checks your workspace setup. Nothing is sent
+                          to real customers.
+                        </p>
+                        <Button
+                          size="sm" variant="outline" className="mt-3 gap-1.5 text-xs"
+                          disabled={!currentVersion || runSim.isPending}
+                          onClick={() => runSim.mutate()}
+                        >
+                          {runSim.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <FlaskConical className="h-3.5 w-3.5" />}
+                          Run simulation
+                        </Button>
+                      </div>}
+                </div>
+              </div>
             )}
 
             {tab === "versions" && (

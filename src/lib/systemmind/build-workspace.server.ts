@@ -1407,6 +1407,19 @@ export async function applyBuildVersionServer(args: {
   if (hardBlocks.length > 0) {
     throw buildConflictError(hardBlocks);
   }
+  if (args.goLiveIntent) {
+    // MANDATORY test-call gate — SystemMind-built agents only (standard agents
+    // deploy through the normal manual flow, which is untouched).
+    const { getTestGateForSessionServer } = await import("@/lib/systemmind/build-workspace-testcall.server");
+    const gate = await getTestGateForSessionServer({ workspaceId, sessionId, versionId });
+    if (gate.status !== "passed") {
+      throw new Error(
+        gate.status === "failed"
+          ? "Go Live is blocked: the last test call for this version FAILED. Fix the issues (or ask SystemMind to fix them from the Test tab) and re-test, or mark the test as passed with a reason."
+          : "Go Live is blocked: this version hasn't passed a test call yet. Run a real test call from the Test tab and let SystemMind validate it (or mark it passed with a reason) before going live.",
+      );
+    }
+  }
   if (args.goLiveIntent && !impact.canGoLive) {
     const gates = impact.conflicts.filter((c) => c.severity === "block_go_live" || c.severity === "needs_approval");
     throw new Error(
@@ -1598,6 +1611,19 @@ export async function markBuildVersionDeployedServer(args: {
   const version = await getVersionOrThrow(workspaceId, sessionId, versionId);
   if (version.status !== "applied") {
     throw new Error(`Only an applied version can be marked deployed (status: ${version.status}).`);
+  }
+  // MANDATORY test-call gate for SystemMind builds — a version can only be
+  // marked deployed (live) after its test call passed (or a reasoned override).
+  {
+    const { getTestGateForSessionServer } = await import("@/lib/systemmind/build-workspace-testcall.server");
+    const gate = await getTestGateForSessionServer({ workspaceId, sessionId, versionId });
+    if (gate.status !== "passed") {
+      throw new Error(
+        gate.status === "failed"
+          ? "This version cannot go live: its last test call FAILED. Re-test from the Test tab (or mark it passed with a reason) first."
+          : "This version cannot go live: it hasn't passed a test call yet. Run and validate a test call from the Test tab first.",
+      );
+    }
   }
   const now = new Date().toISOString();
   const { error } = await sb.from("systemmind_build_versions")
