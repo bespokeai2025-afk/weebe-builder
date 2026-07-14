@@ -786,6 +786,139 @@ const DEFAULT_DESTINATION = "Leads — New lead";
 const destValue = (page: string, sub: string) =>
   sub && sub !== page ? `${page} — ${sub}` : page;
 
+// ── Guided pre-call data points ───────────────────────────────────────────────
+// Data the agent should know BEFORE the call. Each becomes a {{dynamic_variable}}
+// in the script, mapped from the matching place in WEBEE (CRM/Leads, Data page…).
+const PRE_CALL_SOURCES: { group: string; items: { label: string; varName: string; source: string }[] }[] = [
+  {
+    group: "Leads / CRM",
+    items: [
+      { label: "Lead name",          varName: "lead_name",         source: "Leads — full name" },
+      { label: "Company",            varName: "company_name",      source: "Leads — company" },
+      { label: "Phone number",       varName: "phone_number",      source: "Leads — phone" },
+      { label: "Email",              varName: "email",             source: "Leads — email" },
+      { label: "Lead status",        varName: "lead_status",       source: "Leads — status" },
+      { label: "Lead source",        varName: "lead_source",       source: "Leads — source" },
+      { label: "Last call summary",  varName: "last_call_summary", source: "Calls — last call summary" },
+      { label: "Notes",              varName: "lead_notes",        source: "Leads — notes" },
+    ],
+  },
+  {
+    group: "Calendar",
+    items: [
+      { label: "Next appointment",   varName: "next_appointment",  source: "Calendar — next appointment" },
+    ],
+  },
+  {
+    group: "Data page (Records / CSV)",
+    items: [
+      { label: "Record name",        varName: "record_name",       source: "Data — Records name" },
+    ],
+  },
+];
+
+function PreCallInputsPanel({
+  config, busy, onSend,
+}: {
+  config: Record<string, any> | null;
+  busy: boolean;
+  onSend: (prompt: string) => void;
+}) {
+  const [picked, setPicked] = useState<Set<string>>(new Set());
+  const [customCols, setCustomCols] = useState("");
+  const existing = new Set(
+    ((config?.variables ?? []) as any[]).map((v) => String(v.name ?? v.key ?? "").toLowerCase()),
+  );
+  const allItems = PRE_CALL_SOURCES.flatMap((g) => g.items);
+  const toggle = (v: string) =>
+    setPicked((s) => { const n = new Set(s); n.has(v) ? n.delete(v) : n.add(v); return n; });
+
+  const submit = () => {
+    const chosen = allItems.filter((i) => picked.has(i.varName));
+    const parts = chosen.map((i) => `{{${i.varName}}} from ${i.source}`);
+    const cols = customCols.trim();
+    const seen = new Set([...existing, ...chosen.map((i) => i.varName)]);
+    if (cols) {
+      for (const c of cols.split(",").map((x) => x.trim().slice(0, 60)).filter(Boolean)) {
+        const vn = c.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "");
+        if (vn && !seen.has(vn)) {
+          seen.add(vn);
+          parts.push(`{{${vn}}} from Data — Records column "${c}"`);
+        }
+      }
+    }
+    if (parts.length === 0) return;
+    onSend(
+      `Before each call, the agent should load these data points and use them as dynamic variables in the script: ${parts.join("; ")}. ` +
+      `Add each one to "variables" with its WEBEE source, and rewrite the agent script so it references them naturally as {{placeholders}} (e.g. greeting the lead by name). Keep everything else unchanged.`,
+    );
+    setPicked(new Set());
+    setCustomCols("");
+  };
+
+  return (
+    <div className="space-y-2 rounded-lg border border-sky-500/25 bg-sky-500/[0.04] p-3">
+      <div className="flex items-center gap-2">
+        <Variable className="h-3.5 w-3.5 text-sky-300" />
+        <p className="text-[11px] font-semibold text-sky-200">Pre-call data (dynamic variables in the script)</p>
+      </div>
+      <p className="text-[10px] text-muted-foreground">
+        Pick what the agent should already know before it dials. Each becomes a{" "}
+        <code className="rounded bg-white/[0.06] px-1">{"{{variable}}"}</code> in the script, filled
+        automatically from the matching place in your WEBEE data — so the script stays personalised
+        without you hard-coding anything. Post-call captured data is mapped separately below.
+      </p>
+      {PRE_CALL_SOURCES.map((g) => (
+        <div key={g.group} className="space-y-1">
+          <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">{g.group}</p>
+          <div className="flex flex-wrap gap-1.5">
+            {g.items.map((i) => {
+              const already = existing.has(i.varName);
+              const on = picked.has(i.varName);
+              return (
+                <button
+                  key={i.varName}
+                  type="button"
+                  disabled={already || busy}
+                  onClick={() => toggle(i.varName)}
+                  title={already ? "Already in this version's variables" : `${i.label} → {{${i.varName}}} (${i.source})`}
+                  className={cn(
+                    "rounded-full border px-2.5 py-1 text-[10px] transition-colors",
+                    already
+                      ? "cursor-default border-emerald-500/30 bg-emerald-500/10 text-emerald-300/80"
+                      : on
+                        ? "border-sky-400/60 bg-sky-500/20 text-sky-200"
+                        : "border-white/[0.1] bg-white/[0.02] text-muted-foreground hover:text-foreground",
+                  )}
+                >
+                  {already ? "✓ " : ""}{i.label}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      ))}
+      <div className="flex flex-wrap items-center gap-2">
+        <Input
+          value={customCols}
+          onChange={(e) => setCustomCols(e.target.value)}
+          placeholder="Custom Data-page columns, comma-separated (e.g. budget, property type)"
+          className="h-7 w-[320px] text-[11px]"
+        />
+        <Button
+          size="sm"
+          className="h-7 gap-1.5 px-3 text-[11px]"
+          disabled={busy || (picked.size === 0 && !customCols.trim())}
+          onClick={submit}
+        >
+          {busy ? <Loader2 className="h-3 w-3 animate-spin" /> : <CheckCircle2 className="h-3 w-3" />}
+          Add to script
+        </Button>
+      </div>
+    </div>
+  );
+}
+
 export function findUnmappedFields(config: Record<string, any> | null): any[] {
   const fields = (config?.extraction_fields ?? []) as any[];
   return fields.filter((f) => !(f.crm_destination ?? f.destination ?? f.maps_to));
@@ -957,7 +1090,10 @@ function MappingPanel({
     return (
       <div className="space-y-3">
         {onSend && (
-          <RequiredInputsPanel config={config} busy={!!busy} onSend={onSend} />
+          <>
+            <PreCallInputsPanel config={config} busy={!!busy} onSend={onSend} />
+            <RequiredInputsPanel config={config} busy={!!busy} onSend={onSend} />
+          </>
         )}
         <p className="py-8 text-center text-[11px] text-muted-foreground">
           No CRM mappings yet. They are generated with the workflow — answer the Requirements step
@@ -971,7 +1107,10 @@ function MappingPanel({
   return (
     <div className="space-y-2">
       {onSend && (
-        <RequiredInputsPanel config={config} busy={!!busy} onSend={onSend} />
+        <>
+          <PreCallInputsPanel config={config} busy={!!busy} onSend={onSend} />
+          <RequiredInputsPanel config={config} busy={!!busy} onSend={onSend} />
+        </>
       )}
       <div className="overflow-x-auto rounded-lg border border-white/[0.06]">
         <table className="w-full text-left text-[11px]">

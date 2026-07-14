@@ -591,7 +591,7 @@ You produce (or revise) ONE complete build config covering:
   - stop_workflow      — terminal step (no params)
   Trigger types allowed: lead_added, lead_status_changed, call_completed, manual, scheduled.
   STEP GRAPH RULES: first step MUST be type "trigger" with id "step-1"; every non-terminal step needs "next" OR conditions (branch only); ids "step-1", "step-2", ... unique; keep it 3–12 steps.
-- variables: data the agent/workflow needs at runtime (name + where it comes from).
+- variables: data the agent/workflow needs at runtime (name + where it comes from). PRE-CALL DYNAMIC VARIABLES: any data point the agent should know BEFORE the call (lead name, company, last call summary, appointment, CSV column, etc.) MUST be a variable with a "source" naming the exact WEBEE place it comes from (e.g. "Leads — full name", "Data — Records column budget", "Calendar — next appointment"). The agent_prompt/script MUST reference each one as a {{snake_case_name}} placeholder (e.g. "Hi {{lead_name}}, calling about {{company_name}}") — never hard-code values that should be dynamic. Pre-call variables are read BEFORE the call; extraction_fields are written POST-CALL — keep the two lists separate.
 - extraction_fields: fields the agent should capture from conversations. MANDATORY: every extraction field MUST include a "crm_destination" pointing at WEBEE's built-in system. Captured data ALWAYS lands in WEBEE and every data point is written POST-CALL (after the call ends) — this is not optional. Allowed destinations (page — sub-section):
   - Leads — New lead | Interested | Qualified | Not Interested | Callback Requested | Contact Made
   - Qualified — Qualified list
