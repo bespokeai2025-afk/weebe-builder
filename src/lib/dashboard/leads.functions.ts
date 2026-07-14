@@ -355,8 +355,13 @@ export const listLeads = createServerFn({ method: "POST" })
       .parse(input ?? {}),
   )
   .handler(async ({ context, data }) => {
-    const { supabase, workspaceId } = context;
+    const { supabase, workspaceId, userId } = context;
     if (!workspaceId) throw new Error("No active workspace");
+
+    // Assigned-records-only roles (e.g. agents) see only leads assigned to them.
+    const { resolvePermissions } = await import("@/lib/permissions/permissions.server");
+    const perms = await resolvePermissions(workspaceId, userId);
+    const assignedOnly = perms.assignedRecordsOnly === true;
 
     // Supabase PostgREST caps single responses at 1000 rows regardless of .limit().
     // For larger requests we page in 1000-row chunks using .range() and combine.
@@ -372,6 +377,7 @@ export const listLeads = createServerFn({ method: "POST" })
         .eq("workspace_id", workspaceId)
         .order("updated_at", { ascending: false })
         .range(offset, offset + batchSize - 1);
+      if (assignedOnly) q = q.eq("assigned_to", userId);
       if (data.qualifiedOnly) q = q.in("status", ["interested", "qualified"]);
       if (data.status && data.status !== "all") q = q.eq("status", data.status);
       if (data.statusCategory && data.statusCategory !== "all") {

@@ -915,6 +915,10 @@ export function AppSidebar() {
               {email}
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
+            <DropdownMenuItem onClick={() => navigate({ to: "/settings/account" })}>
+              <Users className="mr-2 h-4 w-4" />
+              Account Settings
+            </DropdownMenuItem>
             <DropdownMenuItem onClick={() => navigate({ to: "/settings/integrations" })}>
               <Settings className="mr-2 h-4 w-4" />
               Settings

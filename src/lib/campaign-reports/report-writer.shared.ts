@@ -12,6 +12,7 @@
  */
 
 import { isWbahWorkspaceId } from "../wbah-exclusion.shared";
+import { emitCampaignNotification } from "../notifications/notification-engine.shared";
 
 type Sb = any;
 
@@ -198,7 +199,52 @@ export async function writeCampaignReport(sb: Sb, input: CampaignReportInput): P
     } catch { /* non-fatal */ }
   }
 
+  // Campaign notification (in-app + email per workspace settings). Best-effort:
+  // emitCampaignNotification never throws, so it can never break the caller.
+  const eventKey = reportTypeToNotificationEvent(input);
+  if (eventKey) {
+    await emitCampaignNotification(sb, {
+      workspaceId: input.workspaceId,
+      eventKey,
+      campaignId: input.campaignId ?? null,
+      reportId,
+      campaignName: input.campaignName ?? null,
+      campaignStatus: input.campaignStatus ?? null,
+      summary,
+      kpis: input.kpis ?? null,
+      failureReason: input.failureReason ?? input.errorMessage ?? null,
+      recommendedAction: recommended[0]?.action ?? null,
+    });
+  }
+
   return reportId;
+}
+
+/**
+ * Map a campaign report type onto a notification event key. run_summary is
+ * only notified when the whole run was blocked by the daily call cap.
+ */
+function reportTypeToNotificationEvent(input: CampaignReportInput): string | null {
+  switch (input.reportType) {
+    case "activated": return "activated";
+    case "paused": return "paused";
+    case "completed": return "completed";
+    case "cancelled": return "paused";
+    case "failed": return "failed";
+    case "safety_blocked": {
+      const kpis = input.kpis ?? {};
+      const skippedByCap = Number((kpis as any).skipped_by_cap ?? 0);
+      const matched = Number((kpis as any).records_matched ?? 0);
+      return skippedByCap > 0 && skippedByCap >= matched ? "daily_cap_hit" : "safety_blocked";
+    }
+    case "no_eligible_leads": return "no_eligible_leads";
+    case "provider_error": return "provider_error";
+    case "workflow_error": return "workflow_error";
+    case "kpi_summary": return "kpi_report_ready";
+    case "run_summary": return null; // routine — not notified
+    case "retried": return null;
+    default: return null;
+  }
 }
 
 /** Never throws — lifecycle hooks must never break campaign execution. */

@@ -1,6 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { requireAction } from "@/lib/permissions/permissions.server";
 
 const MARKER = "__sched_v1__";
 
@@ -111,8 +112,9 @@ export const createCallCampaign = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input) => campaignInput.parse(input))
   .handler(async ({ context, data }) => {
-    const { supabase, workspaceId } = context;
+    const { supabase, workspaceId, userId } = context;
     if (!workspaceId) throw new Error("No active workspace");
+    await requireAction(workspaceId, userId, "campaign_activation");
     const sb = supabase as any;
     const config: ScheduleConfig = {
       pageType: data.pageType,
@@ -206,9 +208,13 @@ export const toggleCallCampaignPause = createServerFn({ method: "POST" })
     z.object({ id: z.string().uuid(), currentStatus: z.string() }).parse(input),
   )
   .handler(async ({ context, data }) => {
-    const { supabase } = context;
+    const { supabase, workspaceId, userId } = context;
     const sb = supabase as any;
     const next = data.currentStatus === "active" ? "paused" : "active";
+    // Resuming (re-activating) a campaign is a campaign_activation action.
+    if (next === "active") {
+      await requireAction(workspaceId, userId, "campaign_activation");
+    }
     const { error } = await sb.from("campaigns").update({ status: next }).eq("id", data.id);
     if (error) throw new Error(error.message);
     return { ok: true, newStatus: next };

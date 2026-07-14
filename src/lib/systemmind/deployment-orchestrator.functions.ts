@@ -5,6 +5,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { requireAction } from "@/lib/permissions/permissions.server";
 
 function requireWorkspaceId(workspaceId: string | undefined): string {
   if (!workspaceId) throw new Error("No workspace selected — join or create a workspace first.");
@@ -178,6 +179,7 @@ export const decideDeploymentApproval = createServerFn({ method: "POST" })
     z.object({ approvalId: z.string().uuid(), approve: z.boolean() }).parse(input),
   )
   .handler(async ({ data, context }) => {
+    await requireAction(context.workspaceId, context.userId, "systemmind_approval");
     const { decideDeploymentApprovalServer } = await import(
       "@/lib/systemmind/deployment-orchestrator.server"
     );
@@ -194,6 +196,7 @@ export const executeApprovedDeploymentAction = createServerFn({ method: "POST" }
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) => z.object({ approvalId: z.string().uuid() }).parse(input))
   .handler(async ({ data, context }) => {
+    await requireAction(context.workspaceId, context.userId, "systemmind_approval");
     const { executeApprovedDeploymentActionServer } = await import(
       "@/lib/systemmind/deployment-orchestrator.server"
     );

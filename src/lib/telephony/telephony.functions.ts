@@ -385,8 +385,13 @@ export const updateCampaignStatus = createServerFn({ method: "POST" })
       .parse(input ?? {}),
   )
   .handler(async ({ context, data }) => {
-    const { workspaceId } = context;
+    const { workspaceId, userId } = context;
     if (!workspaceId) throw new Error("No active workspace");
+    // Activating a campaign is a gated RBAC action (fail-closed).
+    if (data.status === "active") {
+      const { requireAction } = await import("@/lib/permissions/permissions.server");
+      await requireAction(workspaceId, userId, "campaign_activation");
+    }
     const { error } = await supabaseAdmin
       .from("campaigns")
       .update({ status: data.status, updated_at: new Date().toISOString() })

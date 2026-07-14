@@ -11762,6 +11762,48 @@ export type Database = {
           },
         ]
       }
+      workspace_access_audit_logs: {
+        Row: {
+          acting_user_id: string | null
+          action_type: string
+          after_state: Json | null
+          before_state: Json | null
+          created_at: string
+          id: string
+          object_id: string | null
+          object_type: string
+          risk_level: string
+          target_user_id: string | null
+          workspace_id: string
+        }
+        Insert: {
+          acting_user_id?: string | null
+          action_type: string
+          after_state?: Json | null
+          before_state?: Json | null
+          created_at?: string
+          id?: string
+          object_id?: string | null
+          object_type: string
+          risk_level?: string
+          target_user_id?: string | null
+          workspace_id: string
+        }
+        Update: {
+          acting_user_id?: string | null
+          action_type?: string
+          after_state?: Json | null
+          before_state?: Json | null
+          created_at?: string
+          id?: string
+          object_id?: string | null
+          object_type?: string
+          risk_level?: string
+          target_user_id?: string | null
+          workspace_id?: string
+        }
+        Relationships: []
+      }
       workspace_api_profiles: {
         Row: {
           auth_strategy: string
@@ -11871,6 +11913,33 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      workspace_approval_settings: {
+        Row: {
+          created_at: string
+          id: string
+          settings: Json
+          updated_at: string
+          updated_by_user_id: string | null
+          workspace_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          settings?: Json
+          updated_at?: string
+          updated_by_user_id?: string | null
+          workspace_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          settings?: Json
+          updated_at?: string
+          updated_by_user_id?: string | null
+          workspace_id?: string
+        }
+        Relationships: []
       }
       workspace_campaign_filters: {
         Row: {
@@ -12005,6 +12074,7 @@ export type Database = {
           expires_at: string
           id: string
           invited_by: string
+          invited_role_key: string | null
           role: Database["public"]["Enums"]["workspace_role"]
           token: string
           workspace_id: string
@@ -12016,6 +12086,7 @@ export type Database = {
           expires_at?: string
           id?: string
           invited_by: string
+          invited_role_key?: string | null
           role?: Database["public"]["Enums"]["workspace_role"]
           token?: string
           workspace_id: string
@@ -12027,6 +12098,7 @@ export type Database = {
           expires_at?: string
           id?: string
           invited_by?: string
+          invited_role_key?: string | null
           role?: Database["public"]["Enums"]["workspace_role"]
           token?: string
           workspace_id?: string
@@ -12040,6 +12112,36 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      workspace_member_roles: {
+        Row: {
+          assigned_by_user_id: string | null
+          created_at: string
+          id: string
+          role_key: string
+          updated_at: string
+          user_id: string
+          workspace_id: string
+        }
+        Insert: {
+          assigned_by_user_id?: string | null
+          created_at?: string
+          id?: string
+          role_key: string
+          updated_at?: string
+          user_id: string
+          workspace_id: string
+        }
+        Update: {
+          assigned_by_user_id?: string | null
+          created_at?: string
+          id?: string
+          role_key?: string
+          updated_at?: string
+          user_id?: string
+          workspace_id?: string
+        }
+        Relationships: []
       }
       workspace_members: {
         Row: {
@@ -12072,6 +12174,114 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      workspace_notification_settings: {
+        Row: {
+          created_at: string
+          email_enabled: boolean
+          enabled: boolean
+          event_key: string
+          frequency: string
+          id: string
+          in_app_enabled: boolean
+          recipients: Json
+          updated_at: string
+          updated_by_user_id: string | null
+          workspace_id: string
+        }
+        Insert: {
+          created_at?: string
+          email_enabled?: boolean
+          enabled?: boolean
+          event_key: string
+          frequency?: string
+          id?: string
+          in_app_enabled?: boolean
+          recipients?: Json
+          updated_at?: string
+          updated_by_user_id?: string | null
+          workspace_id: string
+        }
+        Update: {
+          created_at?: string
+          email_enabled?: boolean
+          enabled?: boolean
+          event_key?: string
+          frequency?: string
+          id?: string
+          in_app_enabled?: boolean
+          recipients?: Json
+          updated_at?: string
+          updated_by_user_id?: string | null
+          workspace_id?: string
+        }
+        Relationships: []
+      }
+      workspace_notifications: {
+        Row: {
+          campaign_id: string | null
+          channel: string
+          created_at: string
+          delivery_error: string | null
+          delivery_status: string
+          digest_frequency: string | null
+          event_key: string
+          id: string
+          message: string | null
+          object_id: string | null
+          object_type: string | null
+          read_at: string | null
+          recipient_email: string | null
+          recipient_user_id: string | null
+          report_id: string | null
+          sent_at: string | null
+          severity: string
+          title: string
+          workspace_id: string
+        }
+        Insert: {
+          campaign_id?: string | null
+          channel?: string
+          created_at?: string
+          delivery_error?: string | null
+          delivery_status?: string
+          digest_frequency?: string | null
+          event_key: string
+          id?: string
+          message?: string | null
+          object_id?: string | null
+          object_type?: string | null
+          read_at?: string | null
+          recipient_email?: string | null
+          recipient_user_id?: string | null
+          report_id?: string | null
+          sent_at?: string | null
+          severity?: string
+          title: string
+          workspace_id: string
+        }
+        Update: {
+          campaign_id?: string | null
+          channel?: string
+          created_at?: string
+          delivery_error?: string | null
+          delivery_status?: string
+          digest_frequency?: string | null
+          event_key?: string
+          id?: string
+          message?: string | null
+          object_id?: string | null
+          object_type?: string | null
+          read_at?: string | null
+          recipient_email?: string | null
+          recipient_user_id?: string | null
+          report_id?: string | null
+          sent_at?: string | null
+          severity?: string
+          title?: string
+          workspace_id?: string
+        }
+        Relationships: []
       }
       workspace_onboarding: {
         Row: {
@@ -12328,6 +12538,48 @@ export type Database = {
           updated_at?: string
           user_id?: string
           workspace_name?: string
+        }
+        Relationships: []
+      }
+      workspace_role_permissions: {
+        Row: {
+          action_access: Json
+          assigned_records_only: boolean
+          created_at: string
+          display_name: string | null
+          id: string
+          is_system_default: boolean
+          page_access: Json
+          role_key: string
+          updated_at: string
+          updated_by_user_id: string | null
+          workspace_id: string
+        }
+        Insert: {
+          action_access?: Json
+          assigned_records_only?: boolean
+          created_at?: string
+          display_name?: string | null
+          id?: string
+          is_system_default?: boolean
+          page_access?: Json
+          role_key: string
+          updated_at?: string
+          updated_by_user_id?: string | null
+          workspace_id: string
+        }
+        Update: {
+          action_access?: Json
+          assigned_records_only?: boolean
+          created_at?: string
+          display_name?: string | null
+          id?: string
+          is_system_default?: boolean
+          page_access?: Json
+          role_key?: string
+          updated_at?: string
+          updated_by_user_id?: string | null
+          workspace_id?: string
         }
         Relationships: []
       }

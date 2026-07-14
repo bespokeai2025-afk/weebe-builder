@@ -106,6 +106,25 @@ export const Route = createFileRoute("/api/public/campaign-executor")({
             console.warn("[accountsmind-snapshots] sweep failed:", snapErr?.message ?? snapErr);
           }
 
+          // Notification email digests (hourly/daily/weekly batching).
+          // Best-effort — never blocks the tick.
+          try {
+            const { createClient } = await import("@supabase/supabase-js");
+            const { processNotificationDigests } = await import(
+              "@/lib/notifications/notification-engine.shared"
+            );
+            const url = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
+            if (url && serviceKey) {
+              const digestSb = createClient(url, serviceKey);
+              const digests = await processNotificationDigests(digestSb);
+              if (digests.sent > 0 || digests.failed > 0) {
+                console.log(`[notify-digests] sent=${digests.sent} failed=${digests.failed}`);
+              }
+            }
+          } catch (digestErr: any) {
+            console.warn("[notify-digests] failed:", digestErr?.message ?? digestErr);
+          }
+
           // Daily log-table retention prune (retell_webhook_events,
           // hivemind_events, provider_usage_log, growthmind_generation_logs,
           // growthmind_ad_webhook_events). Once per UTC day; best-effort —

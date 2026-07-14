@@ -1,52 +1,199 @@
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
+import { requireAction, writeAccessAudit } from "@/lib/permissions/permissions.server";
+import { ROLE_KEYS, legacyRoleToRoleKey } from "@/lib/permissions/permissions.shared";
+import { sendResendEmail, escapeHtml, renderBasicEmail } from "@/lib/email/resend.server";
+
+const ROLE_KEY_RE = /^[a-z0-9_]{2,40}$/;
+
+function getAppUrl(): string {
+  return (
+    process.env.PUBLIC_APP_URL ||
+    process.env.VITE_PUBLIC_APP_URL ||
+    "https://webeereceptionist.com"
+  );
+}
 
 /**
- * Create a workspace invite. Accessible by workspace owners/admins.
+ * Create a workspace invite carrying an extended RBAC role. Requires the
+ * `user_management` action grant (owners/admins by default).
  */
 export const createInvite = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: { email: string }) => input)
+  .inputValidator((input: { email: string; roleKey?: string }) => input)
   .handler(async ({ context, data }) => {
     const { userId, workspaceId } = context;
     if (!workspaceId) throw new Error("No active workspace");
+    await requireAction(workspaceId, userId, "user_management");
 
-    const role = "member";
+    const email = data.email?.trim().toLowerCase();
+    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      throw new Error("A valid email address is required");
+    }
 
-    const { data: invite, error } = await supabaseAdmin
+    // Role: owner can never be granted via invite. Custom roles must exist.
+    const roleKey = (data.roleKey ?? "manager").trim();
+    if (!ROLE_KEY_RE.test(roleKey) || roleKey === "owner") throw new Error("Invalid role");
+    if (!(ROLE_KEYS as readonly string[]).includes(roleKey)) {
+      const { data: roleRow } = await supabaseAdmin
+        .from("workspace_role_permissions")
+        .select("id")
+        .eq("workspace_id", workspaceId)
+        .eq("role_key", roleKey)
+        .maybeSingle();
+      if (!roleRow) throw new Error(`Unknown role "${roleKey}" — define its permissions first.`);
+    }
+
+    // Legacy enum column: admin stays admin, everything else is member.
+    const legacyRole = roleKey === "admin" ? "admin" : "member";
+
+    const { data: invite, error } = await (supabaseAdmin as any)
       .from("workspace_invites")
       .insert({
-        email: data.email,
-        role,
+        email,
+        role: legacyRole,
+        invited_role_key: roleKey,
         invited_by: userId,
         workspace_id: workspaceId,
       })
-      .select("id, token, email, expires_at")
+      .select("id, token, email, expires_at, invited_role_key")
       .single();
     if (error) throw error;
+
+    await writeAccessAudit({
+      workspaceId,
+      actingUserId: userId,
+      objectType: "invite",
+      objectId: invite.id,
+      actionType: "create",
+      afterState: { email, roleKey },
+      riskLevel: "medium",
+    });
+
+    // Best-effort invite email — invite still exists if email fails.
+    try {
+      const { data: ws } = await supabaseAdmin
+        .from("workspaces")
+        .select("name")
+        .eq("id", workspaceId)
+        .maybeSingle();
+      const wsName = ws?.name ?? "a WEBEE workspace";
+      const url = `${getAppUrl()}/invite/${invite.token}`;
+      await sendResendEmail({
+        to: email,
+        subject: `You've been invited to join ${wsName}`,
+        html: renderBasicEmail({
+          heading: "You've been invited",
+          bodyHtml: `<p>You've been invited to join <strong>${escapeHtml(wsName)}</strong> as <strong>${escapeHtml(roleKey.replace(/_/g, " "))}</strong>.</p><p style="margin-top:20px;"><a href="${url}" style="background:#6d5df6;color:#ffffff;padding:10px 18px;border-radius:8px;text-decoration:none;font-weight:600;">Accept Invitation</a></p><p style="color:#7c7c8a;font-size:13px;">If you weren't expecting this invitation, you can safely ignore this email.</p>`,
+        }),
+      });
+    } catch (e: any) {
+      console.warn("[invites] invite email failed (non-fatal):", e?.message ?? e);
+    }
 
     return invite;
   });
 
-/**
- * Accept an invite by token. Adds user as workspace member.
- */
-export const acceptInvite = createServerFn({ method: "POST" })
+/** Look up an invite by token (public — used on the accept page). */
+export const getInviteByToken = createServerFn({ method: "GET" })
   .inputValidator((input: { token: string }) => input)
   .handler(async ({ data }) => {
-    const { token } = data;
+    const { data: invite } = await (supabaseAdmin as any)
+      .from("workspace_invites")
+      .select("email, role, invited_role_key, expires_at, accepted_at, workspace_id")
+      .eq("token", data.token)
+      .maybeSingle();
+    if (!invite || invite.accepted_at || new Date(invite.expires_at) < new Date()) {
+      return { valid: false as const };
+    }
+    const { data: ws } = await supabaseAdmin
+      .from("workspaces")
+      .select("name")
+      .eq("id", invite.workspace_id)
+      .maybeSingle();
+    return {
+      valid: true as const,
+      email: invite.email,
+      roleKey: invite.invited_role_key ?? legacyRoleToRoleKey(invite.role),
+      workspaceName: ws?.name ?? "Workspace",
+    };
+  });
 
-    const { data: invite, error: fetchErr } = await supabaseAdmin
+/**
+ * Accept an invite by token: adds the signed-in user as a workspace member
+ * with the invited role. The signed-in email must match the invited email.
+ */
+export const acceptInvite = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: { token: string }) => input)
+  .handler(async ({ context, data }) => {
+    const { userId } = context;
+    const sb = supabaseAdmin as any;
+
+    const { data: invite, error: fetchErr } = await sb
       .from("workspace_invites")
       .select("*")
-      .eq("token", token)
+      .eq("token", data.token)
       .is("accepted_at", null)
       .gt("expires_at", new Date().toISOString())
       .maybeSingle();
     if (fetchErr || !invite) throw new Error("Invalid or expired invite");
 
-    return { workspaceId: invite.workspace_id, role: invite.role };
+    const { data: profile } = await sb
+      .from("profiles")
+      .select("email")
+      .eq("user_id", userId)
+      .maybeSingle();
+    if (!profile?.email || profile.email.toLowerCase() !== String(invite.email).toLowerCase()) {
+      throw new Error("This invite was sent to a different email address.");
+    }
+
+    const roleKey: string = invite.invited_role_key ?? legacyRoleToRoleKey(invite.role);
+    const legacyRole = invite.role === "admin" ? "admin" : "member";
+
+    // Membership (idempotent — cross-workspace impossible: workspace comes from the invite row).
+    const { data: existing } = await sb
+      .from("workspace_members")
+      .select("user_id")
+      .eq("workspace_id", invite.workspace_id)
+      .eq("user_id", userId)
+      .maybeSingle();
+    if (!existing) {
+      const { error: memberErr } = await sb.from("workspace_members").insert({
+        workspace_id: invite.workspace_id,
+        user_id: userId,
+        role: legacyRole,
+      });
+      if (memberErr) throw new Error(memberErr.message);
+    }
+    await sb.from("workspace_member_roles").upsert(
+      {
+        workspace_id: invite.workspace_id,
+        user_id: userId,
+        role_key: roleKey,
+        assigned_by_user_id: invite.invited_by,
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: "workspace_id,user_id" },
+    );
+    await sb
+      .from("workspace_invites")
+      .update({ accepted_at: new Date().toISOString() })
+      .eq("id", invite.id);
+
+    await writeAccessAudit({
+      workspaceId: invite.workspace_id,
+      actingUserId: userId,
+      targetUserId: userId,
+      objectType: "invite",
+      objectId: invite.id,
+      actionType: "accept",
+      afterState: { roleKey },
+      riskLevel: "medium",
+    });
+
+    return { workspaceId: invite.workspace_id, role: legacyRole, roleKey };
   });
 
 /**
@@ -55,11 +202,12 @@ export const acceptInvite = createServerFn({ method: "POST" })
 export const listInvites = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
-    const { supabase, workspaceId } = context;
+    const { supabase, workspaceId, userId } = context;
     if (!workspaceId) throw new Error("No active workspace");
+    await requireAction(workspaceId, userId, "user_management");
     const { data, error } = await supabase
       .from("workspace_invites")
-      .select("*")
+      .select("id, email, role, invited_role_key, accepted_at, expires_at, created_at")
       .eq("workspace_id", workspaceId)
       .order("created_at", { ascending: false });
     if (error) throw error;
@@ -67,19 +215,28 @@ export const listInvites = createServerFn({ method: "GET" })
   });
 
 /**
- * Revoke an invite. Accessible by workspace owners/admins.
+ * Revoke an invite. Requires the user_management grant.
  */
 export const revokeInvite = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: { inviteId: string }) => input)
   .handler(async ({ context, data }) => {
-    const { supabase, workspaceId } = context;
+    const { userId, workspaceId } = context;
     if (!workspaceId) throw new Error("No active workspace");
-    const { error } = await supabase
+    await requireAction(workspaceId, userId, "user_management");
+    const { error } = await (supabaseAdmin as any)
       .from("workspace_invites")
       .delete()
       .eq("id", data.inviteId)
       .eq("workspace_id", workspaceId);
     if (error) throw error;
+    await writeAccessAudit({
+      workspaceId,
+      actingUserId: userId,
+      objectType: "invite",
+      objectId: data.inviteId,
+      actionType: "revoke",
+      riskLevel: "low",
+    });
     return { ok: true };
   });

@@ -782,12 +782,30 @@ export const getHiveMindTasksAndEvents = createServerFn({ method: "GET" })
     const workspaceId = context.workspaceId;
     if (!workspaceId) throw new Error("No workspace");
 
+    // Assigned-record visibility: restricted roles only see follow-up tasks
+    // assigned to them (assigned_to may hold a user id or an email).
+    const { resolvePermissions } = await import("@/lib/permissions/permissions.server");
+    const perms = await resolvePermissions(workspaceId, context.userId);
+    const assignedOnly = perms.assignedRecordsOnly === true;
+    let myEmail: string | null = null;
+    if (assignedOnly && context.userId) {
+      const { data: prof } = await sb
+        .from("profiles").select("email").eq("user_id", context.userId).maybeSingle();
+      myEmail = prof?.email ?? null;
+    }
+
+    let tasksQuery = sb.from("hivemind_tasks")
+      .select("*")
+      .eq("workspace_id", workspaceId)
+      .order("created_at", { ascending: false })
+      .limit(200);
+    if (assignedOnly) {
+      const keys = [context.userId, myEmail].filter(Boolean) as string[];
+      tasksQuery = tasksQuery.in("assigned_to", keys.length ? keys : ["__none__"]);
+    }
+
     const [tasksRes, eventsRes] = await Promise.all([
-      sb.from("hivemind_tasks")
-        .select("*")
-        .eq("workspace_id", workspaceId)
-        .order("created_at", { ascending: false })
-        .limit(200),
+      tasksQuery,
       sb.from("hivemind_events")
         .select("*")
         .eq("workspace_id", workspaceId)

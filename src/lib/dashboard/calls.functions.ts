@@ -2,6 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { cacheWrap } from "@/lib/cache/redis.server";
+import { resolvePermissions } from "@/lib/permissions/permissions.server";
 
 const CALLS_TTL      = 2 * 60;  // 2 minutes
 const TEST_CALLS_TTL = 5 * 60;  // 5 minutes
@@ -22,9 +23,24 @@ export const listCalls = createServerFn({ method: "POST" })
       .parse(input ?? {}),
   )
   .handler(async ({ context, data }) => {
-    const { supabase, workspaceId } = context;
+    const { supabase, workspaceId, userId } = context;
     if (!workspaceId) throw new Error("No active workspace");
-    const cacheKey = `webee:calls:${workspaceId}:vm:${data.voicemailFilter}:st:${data.status ?? ""}:dir:${data.direction ?? ""}:lim:${data.limit}:from:${data.dateFrom ?? ""}:to:${data.dateTo ?? ""}`;
+    // Assigned-record visibility: restricted roles only see calls belonging
+    // to leads assigned to them (calls have no direct assignment column).
+    const perms = await resolvePermissions(workspaceId, userId);
+    const assignedOnly = perms.assignedRecordsOnly === true;
+    let assignedLeadIds: string[] | null = null;
+    if (assignedOnly) {
+      const { data: myLeads } = await (supabase as any)
+        .from("leads")
+        .select("id")
+        .eq("workspace_id", workspaceId)
+        .eq("assigned_to", userId)
+        .limit(1000);
+      assignedLeadIds = (myLeads ?? []).map((l: any) => l.id);
+      if (assignedLeadIds.length === 0) return [];
+    }
+    const cacheKey = `webee:calls:${workspaceId}:${assignedOnly ? `au:${userId}:` : ""}vm:${data.voicemailFilter}:st:${data.status ?? ""}:dir:${data.direction ?? ""}:lim:${data.limit}:from:${data.dateFrom ?? ""}:to:${data.dateTo ?? ""}`;
     return cacheWrap(cacheKey, CALLS_TTL, async () => {
       const sb = supabase as any;
       let q = sb
@@ -47,6 +63,7 @@ export const listCalls = createServerFn({ method: "POST" })
       // "all" applies no filter — all rows including voicemails are returned
       if (data.dateFrom) q = q.gte("started_at", data.dateFrom);
       if (data.dateTo) q = q.lte("started_at", data.dateTo);
+      if (assignedLeadIds) q = q.in("lead_id", assignedLeadIds);
       const { data: rows, error } = await q;
       if (error) throw new Error(error.message);
       return rows ?? [];

@@ -40,6 +40,7 @@ import {
 import { getWbahCampaigns, getWbahAgentsForCampaign, pauseWbahCampaign, resumeWbahCampaign, deleteWbahCampaign } from "@/lib/integrations/webespokeEnterprise/wbah-workspace.server";
 import { SavedFiltersSection } from "@/components/people-views/SavedFiltersSection";
 import { CampaignReportsPanel, CampaignFailureBanner } from "@/components/campaign-reports/CampaignReportsPanel";
+import { CampaignNotificationsBanner } from "@/components/notifications/CampaignNotificationsBanner";
 import { supabase } from "@/integrations/supabase/client";
 
 export const Route = createFileRoute("/_authenticated/campaigns")({
@@ -190,6 +191,8 @@ function CampaignsPage() {
           </button>
         ))}
       </div>
+
+      {!isWbah && <CampaignNotificationsBanner />}
 
       {!isWbah && <CampaignFailureBanner />}
 
