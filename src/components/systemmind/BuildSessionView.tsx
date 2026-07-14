@@ -1507,7 +1507,7 @@ export function BuildSessionView({
       qc.invalidateQueries({ queryKey: ["smbw-review", sessionId] });
       qc.invalidateQueries({ queryKey: ["smbw-testcall", sessionId] });
       toast.success(`Version ${res.versionNumber} generated`, {
-        description: `${res.riskLevel} risk · ${fmtMs(res.elapsedMs)} · ${res.totalTokens} tokens`,
+        description: `${res.riskLevel} risk · ${fmtMs(res.elapsedMs)} · ${res.totalTokens} tokens · ~$${Number(res.estimatedCostUsd ?? 0).toFixed(4)} AI cost`,
       });
     },
     onError: (e: any) => {

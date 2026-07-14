@@ -631,6 +631,7 @@ export type PromptBuildResult = {
   usedFallback:  boolean;
   elapsedMs:     number;
   totalTokens:   number;
+  estimatedCostUsd: number;
 };
 
 export async function promptBuildSessionServer(args: {
@@ -802,6 +803,7 @@ export async function promptBuildSessionServer(args: {
       usedFallback:  routed.usedFallback,
       elapsedMs:     completedAt.getTime() - startedAt.getTime(),
       totalTokens:   routed.inputTokens + routed.outputTokens,
+      estimatedCostUsd: Number(routed.costUsd ?? 0),
     };
   } catch (err: any) {
     const completedAt = new Date();
