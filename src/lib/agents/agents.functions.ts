@@ -118,6 +118,7 @@ export const getWorkspaceAgents = createServerFn({ method: "GET" })
           phoneNumber: (s.phoneNumber as string | undefined) ?? (r.inbound_phone_number as string | null) ?? null,
           isLive:     s.isLive === true,
           isDeployed: !!(s.deployedRetellAgentId || r.retell_agent_id),
+          retellAgentId: (s.deployedRetellAgentId as string | undefined) ?? (r.retell_agent_id as string | null) ?? null,
         };
       });
   });

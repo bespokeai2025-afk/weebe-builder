@@ -77,6 +77,7 @@ import {
   listWbahPeopleCategories,
 } from "@/lib/integrations/webespokeEnterprise/wbah-workspace.server";
 import { useWbahAgentOptions } from "@/hooks/useWbahAgentOptions";
+import { agentTypeLabel } from "@/components/shared/AgentFilterSelect";
 import { useIsWbahWorkspace } from "@/hooks/useIsWbahWorkspace";
 
 export const Route = createFileRoute("/_authenticated/data")({
@@ -1879,7 +1880,7 @@ function DataPage() {
                   </SelectContent>
                 </Select>
                 <Select value={agentFilter} onValueChange={setAgentFilter}>
-                  <SelectTrigger className="h-7 w-[120px] text-xs">
+                  <SelectTrigger className="h-7 w-[150px] text-xs">
                     <SelectValue placeholder="Agent" />
                   </SelectTrigger>
                   <SelectContent>
@@ -1887,6 +1888,7 @@ function DataPage() {
                     {agents.map((a) => (
                       <SelectItem key={a.id} value={a.id}>
                         {a.name}
+                        <span className="ml-1.5 text-[10px] text-muted-foreground">· {agentTypeLabel((a.settings as any)?.dashboardAgentType as string | undefined)}</span>
                       </SelectItem>
                     ))}
                   </SelectContent>

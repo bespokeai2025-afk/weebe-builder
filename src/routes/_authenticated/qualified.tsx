@@ -49,6 +49,7 @@ import { NotesBookingSheet } from "@/components/dashboard/NotesBookingSheet";
 import { PlayRecordingButton } from "@/components/RecordingPlayerDialog";
 import { WbahNotesButton, WbahBookedStickyBadge, WbahCallCountBadge, WbahCalendlyLink, wbahAgentColorMapFromLeads } from "@/components/dashboard/WbahNotesButton";
 import { useWbahAgentOptions } from "@/hooks/useWbahAgentOptions";
+import { useWorkspaceAgentOptions, rowMatchesAgent, agentTypeLabel } from "@/components/shared/AgentFilterSelect";
 import { wbahDateTimeOptions, WBAH_TIMEZONE } from "@/lib/dashboard/wbah-timezone";
 import type { NotesEntityType } from "@/components/dashboard/NotesBookingSheet";
 
@@ -233,6 +234,9 @@ function QualifiedPage() {
   const [search, setSearch] = useState("");
   const [wbahDaysFilter, setWbahDaysFilter] = useState("30");
   const [wbahAgentFilter, setWbahAgentFilter] = useState("all");
+  const [agentFilter, setAgentFilter] = useState("all");
+  const workspaceAgents = useWorkspaceAgentOptions();
+  const selectedAgent = agentFilter !== "all" ? workspaceAgents.find((a) => a.id === agentFilter) ?? null : null;
   const [panel, setPanel] = useState<PanelTarget | null>(null);
   const [wbahTranscript, setWbahTranscript] = useState<string | null>(null);
   const [qualTab, setQualTab] = useState<"contacts" | "campaigns">("contacts");
@@ -359,6 +363,9 @@ function QualifiedPage() {
     if (wbahAgentFilter !== "all") {
       out = out.filter((r: any) => (r.meta?.agent_name ?? "") === wbahAgentFilter);
     }
+    if (!isWbah && selectedAgent) {
+      out = out.filter((r: any) => rowMatchesAgent(selectedAgent, { agentId: r.agent_id ?? r.meta?.agent_id, agentName: r.meta?.agent_name }));
+    }
     if (wbahDaysFilter !== "all") {
       const { dateFrom, dateTo } = filterToDates(wbahDaysFilter);
       out = out.filter((r: any) => {
@@ -391,7 +398,7 @@ function QualifiedPage() {
       });
     }
     return out;
-  }, [rows, search, isWbah, wbahDaysFilter, wbahAgentFilter]);
+  }, [rows, search, isWbah, wbahDaysFilter, wbahAgentFilter, selectedAgent]);
 
   const wbahAgentNamesFromData = useMemo(
     () => (rows as any[]).map((r) => r.meta?.agent_name as string | undefined),
@@ -629,6 +636,19 @@ function QualifiedPage() {
               <option value="all">All agents</option>
               {wbahAgentOptions.map((a) => (
                 <option key={a} value={a}>{a}</option>
+              ))}
+            </select>
+          )}
+          {!isWbah && workspaceAgents.length > 0 && (
+            <select
+              value={agentFilter}
+              onChange={(e) => setAgentFilter(e.target.value)}
+              className="h-6 rounded-md border border-white/[0.08] bg-card/80 px-1.5 text-[11px] text-foreground focus:outline-none focus:ring-1 focus:ring-primary/40"
+              title="Filter by agent"
+            >
+              <option value="all">All agents</option>
+              {workspaceAgents.map((a) => (
+                <option key={a.id} value={a.id}>{a.name} · {agentTypeLabel(a.agentType)}</option>
               ))}
             </select>
           )}

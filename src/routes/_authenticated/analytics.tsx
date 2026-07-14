@@ -4,6 +4,7 @@ import { useQuery, keepPreviousData } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { getDashboardLiveAgents } from "@/lib/agents/agents.functions";
+import { agentTypeLabel } from "@/components/shared/AgentFilterSelect";
 import {
   AreaChart, Area,
   PieChart, Pie, Cell,
@@ -405,22 +406,22 @@ function AnalyticsPage() {
   // whose agents happen to be in the local deployments DB.
   // Supplement with live-agent names from the DB for display.
   const agentList = useMemo(() => {
-    const liveMap: Record<string, string> = {};
+    const liveMap: Record<string, { name: string; agentType?: string }> = {};
     for (const a of liveAgentsQ.data ?? []) {
-      if (a.deployedRetellAgentId) liveMap[a.deployedRetellAgentId] = a.name;
+      if (a.deployedRetellAgentId) liveMap[a.deployedRetellAgentId] = { name: a.name, agentType: (a as any).agentType };
     }
-    const byId = new Map<string, string>();
+    const byId = new Map<string, { name: string; agentType?: string }>();
     // Primary source: the dedicated Retell voice-agents endpoint — every agent
     // on this workspace's Retell account, even ones with no calls in the window.
     for (const a of voiceAgentsQ.data?.agents ?? []) {
-      byId.set(a.agent_id, liveMap[a.agent_id] ?? a.agent_name);
+      byId.set(a.agent_id, liveMap[a.agent_id] ?? { name: a.agent_name });
     }
     // Union with agents that appear in the call data but not the agent list
     // (e.g. VoxStream/ElevenLabs calls carry their own agent_id).
     for (const [id, name] of Object.entries(agentNames)) {
-      if (!byId.has(id)) byId.set(id, liveMap[id] ?? name);
+      if (!byId.has(id)) byId.set(id, liveMap[id] ?? { name });
     }
-    return Array.from(byId.entries()).map(([id, name]) => ({ id, name }));
+    return Array.from(byId.entries()).map(([id, v]) => ({ id, name: v.name, agentType: v.agentType }));
   }, [agentNames, liveAgentsQ.data, voiceAgentsQ.data]);
   const calls    = useMemo(() => {
     let cs = effectiveSelectedAgentId ? allCalls.filter((c) => c.agent_id === effectiveSelectedAgentId) : allCalls;
@@ -514,7 +515,10 @@ function AnalyticsPage() {
                       <div className="px-4 py-2.5 text-sm text-muted-foreground">No Retell agents found for this workspace.</div>
                     )}
                     {agentList.map((a) => (
-                      <button key={a.id} className={`w-full px-4 py-2.5 text-left text-sm hover:bg-muted/60 ${selectedAgentId === a.id ? "text-primary font-medium" : "text-foreground"}`} onClick={() => { setSelectedAgentId(a.id); setSelectorOpen(false); }}>{a.name}</button>
+                      <button key={a.id} className={`w-full px-4 py-2.5 text-left text-sm hover:bg-muted/60 ${selectedAgentId === a.id ? "text-primary font-medium" : "text-foreground"}`} onClick={() => { setSelectedAgentId(a.id); setSelectorOpen(false); }}>
+                        {a.name}
+                        {a.agentType && <span className="ml-1.5 text-[10px] text-muted-foreground">· {agentTypeLabel(a.agentType)}</span>}
+                      </button>
                     ))}
                   </div>
                 )}
