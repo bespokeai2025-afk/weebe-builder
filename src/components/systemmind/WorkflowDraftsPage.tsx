@@ -217,7 +217,7 @@ function DraftCard({
   );
 }
 
-export function WorkflowDraftsPage() {
+export function WorkflowDraftsPage({ embedded = false }: { embedded?: boolean } = {}) {
   const navigate = useNavigate();
   const qc       = useQueryClient();
   const listFn   = useServerFn(listGeneratorDrafts);
@@ -281,8 +281,9 @@ export function WorkflowDraftsPage() {
     archived:       (drafts as WorkflowDraftFull[]).filter((d) => d.status === "archived").length,
   };
 
+  const Wrapper = embedded ? DraftsEmbedded : SystemMindShell;
   return (
-    <SystemMindShell>
+    <Wrapper>
       <div className="p-6 max-w-4xl mx-auto space-y-6">
 
         {/* Header */}
@@ -364,6 +365,10 @@ export function WorkflowDraftsPage() {
           </div>
         )}
       </div>
-    </SystemMindShell>
+    </Wrapper>
   );
+}
+
+function DraftsEmbedded({ children }: { children: React.ReactNode }) {
+  return <>{children}</>;
 }

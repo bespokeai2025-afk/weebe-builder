@@ -1,6 +1,7 @@
-import { createFileRoute } from "@tanstack/react-router";
-import { WorkflowDraftsPage } from "@/components/systemmind/WorkflowDraftsPage";
+import { createFileRoute, redirect } from "@tanstack/react-router";
 
 export const Route = createFileRoute("/_authenticated/systemmind/workflow-drafts")({
-  component: WorkflowDraftsPage,
+  beforeLoad: () => {
+    throw redirect({ to: "/systemmind/build", search: { tab: "drafts" } });
+  },
 });

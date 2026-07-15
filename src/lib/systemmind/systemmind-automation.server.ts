@@ -559,6 +559,21 @@ export async function activateSystemMindAutomation(
       executedAt: activatedAt,
     });
 
+    // Learn from every successful setup — fire-and-forget, never blocks activation.
+    import("@/lib/systemmind/systemmind-setup-learning.server")
+      .then((m) => m.recordSetupSuccessLearning({
+        workspaceId,
+        kind,
+        sourceId: generatedActionId,
+        title: String(draft.title ?? kind),
+        summary: {
+          activated_target_type: result.activatedTargetType,
+          activated_target_id:   result.activatedTargetId,
+          ...result.summary,
+        },
+      }))
+      .catch((e) => console.error("[SetupLearning] failed:", (e as Error)?.message));
+
     // Keep the legacy return shape: workflow_id carries the activated target id
     // so the HiveMind executor needs no changes.
     return { workflow_id: result.activatedTargetId, draft_id: generatedActionId };
@@ -617,6 +632,22 @@ export async function activateSystemMindAutomation(
     approvedBy,
     executedAt: now,
   });
+
+  // Learn from every successful setup — fire-and-forget, never blocks activation.
+  import("@/lib/systemmind/systemmind-setup-learning.server")
+    .then((m) => m.recordSetupSuccessLearning({
+      workspaceId,
+      kind: "workflow",
+      sourceId: generatedActionId,
+      title: String(payload.name ?? draft.title ?? "Workflow automation"),
+      summary: {
+        workflow_id:  wf.id,
+        trigger_type: triggerType,
+        step_count:   safeSteps.length,
+        purpose:      String(payload.purpose ?? "").slice(0, 400),
+      },
+    }))
+    .catch((e) => console.error("[SetupLearning] failed:", (e as Error)?.message));
 
   return { workflow_id: wf.id as string, draft_id: generatedActionId };
 }

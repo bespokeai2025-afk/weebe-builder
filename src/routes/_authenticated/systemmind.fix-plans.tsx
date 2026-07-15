@@ -1,6 +1,7 @@
-import { createFileRoute } from "@tanstack/react-router";
-import { SystemMindFixPlansPage } from "@/components/systemmind/SystemMindFixPlansPage";
+import { createFileRoute, redirect } from "@tanstack/react-router";
 
 export const Route = createFileRoute("/_authenticated/systemmind/fix-plans")({
-  component: SystemMindFixPlansPage,
+  beforeLoad: () => {
+    throw redirect({ to: "/systemmind/build", search: { tab: "fix-plans" } });
+  },
 });

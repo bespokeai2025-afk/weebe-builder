@@ -61,10 +61,10 @@ const EXAMPLE_PROMPTS: Record<string, string> = {
 
 // ── Page ────────────────────────────────────────────────────────────────────────
 
-export function SystemMindBuildWorkspacePage() {
+export function SystemMindBuildWorkspacePage({ embedded = false }: { embedded?: boolean } = {}) {
   const navigate = useNavigate();
   const qc       = useQueryClient();
-  const search   = useSearch({ from: "/_authenticated/systemmind/build" }) as {
+  const search   = useSearch({ strict: false }) as {
     session?: string; workflow?: string; agent?: string; convert?: string;
   };
   const sessionId = search.session;
@@ -203,10 +203,11 @@ export function SystemMindBuildWorkspacePage() {
     onError: (e: any) => toast.error("Conversion failed", { description: e?.message, duration: 10000 }),
   });
 
+  const Wrapper = embedded ? EmbeddedPassthrough : SystemMindShell;
   return (
-    <SystemMindShell>
+    <Wrapper>
       {/* Definite height (not h-full) — see full-height layout trap: 3rem = app header */}
-      <div className="flex h-[calc(100dvh-3rem)] min-h-0 gap-4 p-4">
+      <div className={embedded ? "flex h-[calc(100dvh-9.5rem)] min-h-0 gap-4 py-4" : "flex h-[calc(100dvh-3rem)] min-h-0 gap-4 p-4"}>
         {/* ── Sessions rail ── */}
         <div className="hidden w-60 shrink-0 flex-col gap-2 lg:flex">
           <Button
@@ -276,7 +277,7 @@ export function SystemMindBuildWorkspacePage() {
 
         {/* ── Main ── */}
         {!sessionId ? (
-          <div className="flex flex-1 flex-col items-center justify-center gap-3 rounded-xl border border-white/[0.05] bg-white/[0.01] p-8 text-center">
+          <div className="flex min-h-0 flex-1 flex-col items-center gap-3 overflow-y-auto rounded-xl border border-white/[0.05] bg-white/[0.01] p-8 text-center [&>:first-child]:mt-auto [&>:last-child]:mb-auto">
             <Hammer className="h-8 w-8 text-sky-400/60" />
             <div>
               <p className="text-sm font-semibold">SystemMind Build Workspace</p>
@@ -484,6 +485,10 @@ export function SystemMindBuildWorkspacePage() {
           </div>
         </DialogContent>
       </Dialog>
-    </SystemMindShell>
+    </Wrapper>
   );
+}
+
+function EmbeddedPassthrough({ children }: { children: React.ReactNode }) {
+  return <>{children}</>;
 }

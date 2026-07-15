@@ -1370,8 +1370,8 @@ function RepairTab() {
 
 // ── Main page ─────────────────────────────────────────────────────────────────
 export function SystemMindWorkflowsPage() {
-  const search = useSearch({ from: "/_authenticated/systemmind/workflows" });
-  const initialTab = (TABS as readonly string[]).includes(search.tab) ? search.tab as Tab : "Library";
+  const search = useSearch({ strict: false }) as { wfTab?: string; health?: string };
+  const initialTab = (TABS as readonly string[]).includes(search.wfTab ?? "") ? search.wfTab as Tab : "Library";
   const [activeTab, setActiveTab] = useState<Tab>(initialTab);
   const [generatePrefill, setGeneratePrefill] = useState<{ description: string; category: string } | null>(null);
 
@@ -1407,7 +1407,7 @@ export function SystemMindWorkflowsPage() {
         ))}
       </div>
 
-      {activeTab === "Library"          && <LibraryTab initialHealth={search.health} />}
+      {activeTab === "Library"          && <LibraryTab initialHealth={search.health ?? "all"} />}
       {activeTab === "Score & Health"   && <ScoreHealthTab />}
       {activeTab === "Generate"         && (
         <GenerateTab

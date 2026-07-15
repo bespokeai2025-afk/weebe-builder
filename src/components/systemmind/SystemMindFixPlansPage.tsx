@@ -95,7 +95,7 @@ function FixPlanCard({ plan, onStepToggle }: { plan: any; onStepToggle: (planId:
   );
 }
 
-export function SystemMindFixPlansPage() {
+export function SystemMindFixPlansPage({ embedded = false }: { embedded?: boolean } = {}) {
   const listFn = useServerFn(listSystemMindFixPlans);
   const createFn = useServerFn(generateSystemMindFixPlan);
   const stepFn = useServerFn(updateFixPlanStep);
@@ -131,8 +131,9 @@ export function SystemMindFixPlansPage() {
   const openPlans = (plans as any[] ?? []).filter((p) => p.status !== "done");
   const donePlans = (plans as any[] ?? []).filter((p) => p.status === "done");
 
+  const Wrapper = embedded ? FixPlansEmbedded : SystemMindShell;
   return (
-    <SystemMindShell>
+    <Wrapper>
       <div className="mx-auto max-w-4xl px-4 py-6 md:px-8">
         <div className="flex items-start justify-between gap-4 mb-6">
           <div className="flex items-center gap-3">
@@ -216,6 +217,10 @@ export function SystemMindFixPlansPage() {
           </div>
         )}
       </div>
-    </SystemMindShell>
+    </Wrapper>
   );
+}
+
+function FixPlansEmbedded({ children }: { children: React.ReactNode }) {
+  return <>{children}</>;
 }
