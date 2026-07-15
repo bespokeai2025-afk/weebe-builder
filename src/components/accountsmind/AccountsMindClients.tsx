@@ -6,7 +6,9 @@ import {
   listAccountsClients,
   upsertBillingProfile,
   getBillingProfile,
+  setClientIndustry,
 } from "@/lib/accountsmind/accountsmind.functions";
+import { listIndustryOptions, industryLabel } from "@/lib/accountsmind/industry-presets.shared";
 import { getWebespokeEnterpriseStatus } from "@/lib/integrations/webespokeEnterprise/enterprise.functions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -62,15 +64,37 @@ export function AccountsMindClients() {
   const upsertFn     = useServerFn(upsertBillingProfile);
   const qc           = useQueryClient();
 
+  const setIndustryFn = useServerFn(setClientIndustry);
+
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm]           = useState<BillingForm>(DEFAULTS);
   const [saving, setSaving]       = useState(false);
+  const [industryFilter, setIndustryFilter] = useState<string>("all");
 
   const { data: clients = [], isLoading } = useQuery({
     queryKey: ["accountsmind-clients"],
     queryFn:  () => listFn(),
     throwOnError: false,
   });
+
+  const industryOptions = listIndustryOptions();
+  const visibleClients = (clients as any[]).filter((c) =>
+    industryFilter === "all"
+      ? true
+      : industryFilter === "unset"
+        ? !c.industry
+        : c.industry === industryFilter,
+  );
+
+  const changeIndustry = async (workspaceId: string, industryKey: string) => {
+    try {
+      await setIndustryFn({ data: { workspaceId, industryKey } });
+      qc.invalidateQueries({ queryKey: ["accountsmind-clients"] });
+      toast.success("Client industry updated");
+    } catch (e: any) {
+      toast.error(e?.message ?? "Failed to update industry");
+    }
+  };
 
   const openEdit = async (workspaceId: string) => {
     const profile = await getProfileFn({ data: { workspaceId } });
@@ -205,7 +229,21 @@ export function AccountsMindClients() {
 
       {/* ── Billing Profiles ── */}
       <div>
-        <p className="text-[10px] font-semibold uppercase tracking-widest text-gray-600 mb-2">Billing Profiles</p>
+        <div className="flex items-center justify-between mb-2">
+          <p className="text-[10px] font-semibold uppercase tracking-widest text-gray-600">Billing Profiles</p>
+          <Select value={industryFilter} onValueChange={setIndustryFilter}>
+            <SelectTrigger className="w-56 h-8 bg-gray-900 border-gray-700 text-gray-300 text-xs">
+              <SelectValue placeholder="Filter by industry" />
+            </SelectTrigger>
+            <SelectContent className="bg-gray-800 border-gray-700">
+              <SelectItem value="all">All industries</SelectItem>
+              <SelectItem value="unset">No industry set</SelectItem>
+              {industryOptions.map((o) => (
+                <SelectItem key={o.key} value={o.key}>{o.label}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
 
         {isLoading && (
           <div className="flex items-center gap-2 text-gray-400 text-sm">
@@ -214,7 +252,7 @@ export function AccountsMindClients() {
         )}
 
         <div className="space-y-2">
-          {(clients as any[]).map((c: any) => {
+          {visibleClients.map((c: any) => {
             const profile = c.billing_profile;
             const hasProfile = !!profile;
             return (
@@ -223,11 +261,32 @@ export function AccountsMindClients() {
                 className="bg-gray-900 border border-gray-800 rounded-xl px-4 py-3 flex items-center gap-4"
               >
                 <div className="flex-1 min-w-0">
-                  <div className="text-sm font-medium text-white">{c.name}</div>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-sm font-medium text-white">{c.name}</span>
+                    {c.industry && industryLabel(c.industry) && (
+                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-sky-500/10 text-sky-400 font-medium">
+                        {industryLabel(c.industry)}
+                      </span>
+                    )}
+                  </div>
                   <div className="text-xs text-gray-500 mt-0.5">
                     Created {new Date(c.created_at).toLocaleDateString()}
                   </div>
                 </div>
+
+                <Select
+                  value={c.industry ?? ""}
+                  onValueChange={(v) => changeIndustry(c.id, v)}
+                >
+                  <SelectTrigger className="hidden md:flex w-48 h-8 bg-gray-800 border-gray-700 text-gray-300 text-xs shrink-0">
+                    <SelectValue placeholder="Set industry…" />
+                  </SelectTrigger>
+                  <SelectContent className="bg-gray-800 border-gray-700">
+                    {industryOptions.map((o) => (
+                      <SelectItem key={o.key} value={o.key}>{o.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
 
                 {hasProfile ? (
                   <div className="flex items-center gap-3">

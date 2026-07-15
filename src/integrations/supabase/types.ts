@@ -12834,6 +12834,7 @@ export type Database = {
           hexmail_sendgrid_from_name: string | null
           hivemind_mode: string
           hubspot_api_key: string | null
+          industry: string | null
           last_synced_at: string | null
           lead_auto_call_agent_id: string | null
           lead_auto_call_enabled: boolean
@@ -12902,6 +12903,7 @@ export type Database = {
           hexmail_sendgrid_from_name?: string | null
           hivemind_mode?: string
           hubspot_api_key?: string | null
+          industry?: string | null
           last_synced_at?: string | null
           lead_auto_call_agent_id?: string | null
           lead_auto_call_enabled?: boolean
@@ -12970,6 +12972,7 @@ export type Database = {
           hexmail_sendgrid_from_name?: string | null
           hivemind_mode?: string
           hubspot_api_key?: string | null
+          industry?: string | null
           last_synced_at?: string | null
           lead_auto_call_agent_id?: string | null
           lead_auto_call_enabled?: boolean

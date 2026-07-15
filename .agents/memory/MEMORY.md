@@ -122,3 +122,4 @@
 - [Assigned-records-only pattern](assigned-records-only-pattern.md) — every lead-linked list fn must row-filter for assignedRecordsOnly roles; derived surfaces filter by assigned lead ids, fail closed to [].
 - [Package access & staff seats](package-access-entitlements.md) — role ∩ package cap ∩ user override; code catalog is source of truth (package_definitions unseeded); requireAction is package-aware, don't add bespoke checks.
 - [SystemMind Build Console](systemmind-build-console.md) — one tabbed console at /systemmind/build replaced 5 Improve pages; console owns `tab`, wf sub-tab is `wfTab`; setup-success learning hook on activation.
+- [AccountsMind industry presets](accountsmind-industry-presets.md) — workspace_settings.industry + code-owned non-sensitive presets; apply replaces via versionedInsertConfigRow chain, owner/admin gate via resolvePermissions.

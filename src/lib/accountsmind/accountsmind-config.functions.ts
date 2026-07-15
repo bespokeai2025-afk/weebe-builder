@@ -182,6 +182,44 @@ export const listAccountsMindFieldValues = createServerFn({ method: "POST" })
     );
   });
 
+// ── Industry-aware setup (workspace-scoped; owner/admin only for writes) ─────
+
+export const getAccountsMindIndustryState = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const workspaceId = requireWorkspaceId(context.workspaceId);
+    const [{ getWorkspaceIndustryServer }, { listIndustryOptions }, { resolvePermissions }] =
+      await Promise.all([
+        import("@/lib/accountsmind/industry.server"),
+        import("@/lib/accountsmind/industry-presets.shared"),
+        import("@/lib/permissions/permissions.server"),
+      ]);
+    const [industry, perms] = await Promise.all([
+      getWorkspaceIndustryServer(workspaceId),
+      resolvePermissions(workspaceId, context.userId ?? null),
+    ]);
+    const canManage =
+      perms.isMember && (perms.legacyRole === "owner" || perms.legacyRole === "admin");
+    return { industry, options: listIndustryOptions(), canManage };
+  });
+
+export const applyAccountsMindIndustryPreset = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) =>
+    z.object({ industryKey: z.string().min(1).max(60) }).parse(input),
+  )
+  .handler(async ({ data, context }) => {
+    const workspaceId = requireWorkspaceId(context.workspaceId);
+    const userId = context.userId ?? null;
+    const { resolvePermissions } = await import("@/lib/permissions/permissions.server");
+    const perms = await resolvePermissions(workspaceId, userId);
+    if (!perms.isMember || (perms.legacyRole !== "owner" && perms.legacyRole !== "admin")) {
+      throw new Error("Only a workspace owner or admin can change the dashboard industry setup.");
+    }
+    const { applyIndustryPresetServer } = await import("@/lib/accountsmind/industry.server");
+    return applyIndustryPresetServer({ workspaceId, userId, industryKey: data.industryKey });
+  });
+
 // ── listAvailableMetrics (for the setup UI) ───────────────────────────────────
 export const listAvailableMetrics = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])

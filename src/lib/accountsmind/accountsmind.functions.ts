@@ -221,19 +221,35 @@ export const listClientProfitability = createServerFn({ method: "GET" })
 export const listAccountsClients = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth, requirePlatformAdmin])
   .handler(async () => {
-    const [workspacesRes, profilesRes] = await Promise.all([
+    const [workspacesRes, profilesRes, settingsRes] = await Promise.all([
       supabaseAdmin.from("workspaces").select("id,name,created_at"),
       supabaseAdmin.from("client_billing_profiles").select("*"),
+      supabaseAdmin.from("workspace_settings").select("workspace_id,industry"),
     ]);
 
     const profMap = Object.fromEntries(
       (profilesRes.data ?? []).map((p: any) => [p.workspace_id, p]),
     );
+    const industryMap = Object.fromEntries(
+      ((settingsRes.data ?? []) as any[]).map((s: any) => [s.workspace_id, s.industry ?? null]),
+    );
 
     return (workspacesRes.data ?? []).map((w: any) => ({
       ...w,
       billing_profile: profMap[w.id] ?? null,
+      industry: industryMap[w.id] ?? null,
     }));
+  });
+
+// ── Admin: set a client's industry ───────────────────────────────────────────
+
+export const setClientIndustry = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth, requirePlatformAdmin])
+  .inputValidator((input: { workspaceId: string; industryKey: string }) => input)
+  .handler(async ({ data }) => {
+    const { setWorkspaceIndustryServer } = await import("@/lib/accountsmind/industry.server");
+    await setWorkspaceIndustryServer(data.workspaceId, data.industryKey);
+    return { ok: true };
   });
 
 // ── Client detail ─────────────────────────────────────────────────────────────

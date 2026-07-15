@@ -704,10 +704,25 @@ export async function generateAccountsMindConfigDraftServer(args: GenerateConfig
 
   const claudeEnabled = isClaudeEnabled();
 
+  // Industry seed: if the workspace has recorded its industry, start the
+  // assistant from that industry's preset (labels/KPIs) instead of a blank page.
+  let industrySeed = "";
+  try {
+    const { getWorkspaceIndustryServer } = await import("@/lib/accountsmind/industry.server");
+    const { INDUSTRY_PRESETS } = await import("@/lib/accountsmind/industry-presets.shared");
+    const industry = await getWorkspaceIndustryServer(workspaceId);
+    const preset = industry ? INDUSTRY_PRESETS[industry] : null;
+    if (preset) {
+      const statLines = preset.stats.map((s) => `  - ${s.label} (${s.metric_key})`).join("\n");
+      const widgetLines = preset.widgets.map((w) => `  - ${w.title} (${w.widget_type}, ${w.metric_key})`).join("\n");
+      industrySeed = `\n\nWORKSPACE INDUSTRY: ${preset.label}. ${preset.assistantSeed}\nUse this industry preset as the STARTING POINT — keep its terminology and adapt it to the request:\nPreset stats:\n${statLines}\nPreset widgets:\n${widgetLines}`;
+    }
+  } catch { /* best-effort seed — never block generation */ }
+
   try {
     const routed = await routeGenerate({
       system:      buildSystemPrompt(),
-      user:        `Design AccountsMind configuration for this request:\n\n"${description.slice(0, 3000)}"\n\nRemember: draft only, strict JSON, whitelisted metric keys only.`,
+      user:        `Design AccountsMind configuration for this request:\n\n"${description.slice(0, 3000)}"${industrySeed}\n\nRemember: draft only, strict JSON, whitelisted metric keys only.`,
       contentType: "systemmind_accountsmind_config",
       maxTokens:   4000,
       mode:        "manual",
@@ -857,6 +872,21 @@ async function versionedInsert(
   }).select("id").single();
   if (error) throw new Error(`Failed to insert ${table} row: ${error.message}`);
   return inserted.id as string;
+}
+
+/**
+ * Exported for the deterministic industry-preset apply path
+ * (industry.server.ts) — same archive+version chain as draft activation.
+ */
+export async function versionedInsertConfigRow(
+  sb: Sb,
+  table: string,
+  workspaceId: string,
+  keyCol: string,
+  keyVal: string,
+  row: Record<string, unknown>,
+): Promise<string> {
+  return versionedInsert(sb, table, workspaceId, keyCol, keyVal, row);
 }
 
 export async function activateAccountsMindConfigKind(
