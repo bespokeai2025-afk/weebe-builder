@@ -29,6 +29,7 @@ import { Route as AuthenticatedTemplateStudioRouteImport } from './routes/_authe
 import { Route as AuthenticatedTelephonySettingsRouteImport } from './routes/_authenticated/telephony-settings'
 import { Route as AuthenticatedTelephonyCallsRouteImport } from './routes/_authenticated/telephony-calls'
 import { Route as AuthenticatedSystemmindRouteImport } from './routes/_authenticated/systemmind'
+import { Route as AuthenticatedResellerRouteImport } from './routes/_authenticated/reseller'
 import { Route as AuthenticatedQualifiedRouteImport } from './routes/_authenticated/qualified'
 import { Route as AuthenticatedPipelineRouteImport } from './routes/_authenticated/pipeline'
 import { Route as AuthenticatedPhoneNumbersRouteImport } from './routes/_authenticated/phone-numbers'
@@ -123,6 +124,7 @@ import { Route as AuthenticatedSystemmindAutomationRouteImport } from './routes/
 import { Route as AuthenticatedSystemmindAuditsRouteImport } from './routes/_authenticated/systemmind.audits'
 import { Route as AuthenticatedSystemmindArchitectureRouteImport } from './routes/_authenticated/systemmind.architecture'
 import { Route as AuthenticatedSystemmindAccountsmindSetupRouteImport } from './routes/_authenticated/systemmind.accountsmind-setup'
+import { Route as AuthenticatedSettingsWhiteLabelRouteImport } from './routes/_authenticated/settings.white-label'
 import { Route as AuthenticatedSettingsProvidersRouteImport } from './routes/_authenticated/settings.providers'
 import { Route as AuthenticatedSettingsProductionReadinessRouteImport } from './routes/_authenticated/settings.production-readiness'
 import { Route as AuthenticatedSettingsIntegrationsRouteImport } from './routes/_authenticated/settings.integrations'
@@ -363,6 +365,11 @@ const AuthenticatedTelephonyCallsRoute =
 const AuthenticatedSystemmindRoute = AuthenticatedSystemmindRouteImport.update({
   id: '/systemmind',
   path: '/systemmind',
+  getParentRoute: () => AuthenticatedRoute,
+} as any)
+const AuthenticatedResellerRoute = AuthenticatedResellerRouteImport.update({
+  id: '/reseller',
+  path: '/reseller',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
 const AuthenticatedQualifiedRoute = AuthenticatedQualifiedRouteImport.update({
@@ -881,6 +888,12 @@ const AuthenticatedSystemmindAccountsmindSetupRoute =
     id: '/accountsmind-setup',
     path: '/accountsmind-setup',
     getParentRoute: () => AuthenticatedSystemmindRoute,
+  } as any)
+const AuthenticatedSettingsWhiteLabelRoute =
+  AuthenticatedSettingsWhiteLabelRouteImport.update({
+    id: '/settings/white-label',
+    path: '/settings/white-label',
+    getParentRoute: () => AuthenticatedRoute,
   } as any)
 const AuthenticatedSettingsProvidersRoute =
   AuthenticatedSettingsProvidersRouteImport.update({
@@ -1720,6 +1733,7 @@ export interface FileRoutesByFullPath {
   '/phone-numbers': typeof AuthenticatedPhoneNumbersRoute
   '/pipeline': typeof AuthenticatedPipelineRoute
   '/qualified': typeof AuthenticatedQualifiedRoute
+  '/reseller': typeof AuthenticatedResellerRoute
   '/systemmind': typeof AuthenticatedSystemmindRouteWithChildren
   '/telephony-calls': typeof AuthenticatedTelephonyCallsRoute
   '/telephony-settings': typeof AuthenticatedTelephonySettingsRoute
@@ -1798,6 +1812,7 @@ export interface FileRoutesByFullPath {
   '/settings/integrations': typeof AuthenticatedSettingsIntegrationsRoute
   '/settings/production-readiness': typeof AuthenticatedSettingsProductionReadinessRoute
   '/settings/providers': typeof AuthenticatedSettingsProvidersRouteWithChildren
+  '/settings/white-label': typeof AuthenticatedSettingsWhiteLabelRoute
   '/systemmind/accountsmind-setup': typeof AuthenticatedSystemmindAccountsmindSetupRoute
   '/systemmind/architecture': typeof AuthenticatedSystemmindArchitectureRoute
   '/systemmind/audits': typeof AuthenticatedSystemmindAuditsRoute
@@ -1967,6 +1982,7 @@ export interface FileRoutesByTo {
   '/phone-numbers': typeof AuthenticatedPhoneNumbersRoute
   '/pipeline': typeof AuthenticatedPipelineRoute
   '/qualified': typeof AuthenticatedQualifiedRoute
+  '/reseller': typeof AuthenticatedResellerRoute
   '/telephony-calls': typeof AuthenticatedTelephonyCallsRoute
   '/telephony-settings': typeof AuthenticatedTelephonySettingsRoute
   '/template-studio': typeof AuthenticatedTemplateStudioRoute
@@ -2043,6 +2059,7 @@ export interface FileRoutesByTo {
   '/settings/integrations': typeof AuthenticatedSettingsIntegrationsRoute
   '/settings/production-readiness': typeof AuthenticatedSettingsProductionReadinessRoute
   '/settings/providers': typeof AuthenticatedSettingsProvidersRouteWithChildren
+  '/settings/white-label': typeof AuthenticatedSettingsWhiteLabelRoute
   '/systemmind/accountsmind-setup': typeof AuthenticatedSystemmindAccountsmindSetupRoute
   '/systemmind/architecture': typeof AuthenticatedSystemmindArchitectureRoute
   '/systemmind/audits': typeof AuthenticatedSystemmindAuditsRoute
@@ -2218,6 +2235,7 @@ export interface FileRoutesById {
   '/_authenticated/phone-numbers': typeof AuthenticatedPhoneNumbersRoute
   '/_authenticated/pipeline': typeof AuthenticatedPipelineRoute
   '/_authenticated/qualified': typeof AuthenticatedQualifiedRoute
+  '/_authenticated/reseller': typeof AuthenticatedResellerRoute
   '/_authenticated/systemmind': typeof AuthenticatedSystemmindRouteWithChildren
   '/_authenticated/telephony-calls': typeof AuthenticatedTelephonyCallsRoute
   '/_authenticated/telephony-settings': typeof AuthenticatedTelephonySettingsRoute
@@ -2296,6 +2314,7 @@ export interface FileRoutesById {
   '/_authenticated/settings/integrations': typeof AuthenticatedSettingsIntegrationsRoute
   '/_authenticated/settings/production-readiness': typeof AuthenticatedSettingsProductionReadinessRoute
   '/_authenticated/settings/providers': typeof AuthenticatedSettingsProvidersRouteWithChildren
+  '/_authenticated/settings/white-label': typeof AuthenticatedSettingsWhiteLabelRoute
   '/_authenticated/systemmind/accountsmind-setup': typeof AuthenticatedSystemmindAccountsmindSetupRoute
   '/_authenticated/systemmind/architecture': typeof AuthenticatedSystemmindArchitectureRoute
   '/_authenticated/systemmind/audits': typeof AuthenticatedSystemmindAuditsRoute
@@ -2473,6 +2492,7 @@ export interface FileRouteTypes {
     | '/phone-numbers'
     | '/pipeline'
     | '/qualified'
+    | '/reseller'
     | '/systemmind'
     | '/telephony-calls'
     | '/telephony-settings'
@@ -2551,6 +2571,7 @@ export interface FileRouteTypes {
     | '/settings/integrations'
     | '/settings/production-readiness'
     | '/settings/providers'
+    | '/settings/white-label'
     | '/systemmind/accountsmind-setup'
     | '/systemmind/architecture'
     | '/systemmind/audits'
@@ -2720,6 +2741,7 @@ export interface FileRouteTypes {
     | '/phone-numbers'
     | '/pipeline'
     | '/qualified'
+    | '/reseller'
     | '/telephony-calls'
     | '/telephony-settings'
     | '/template-studio'
@@ -2796,6 +2818,7 @@ export interface FileRouteTypes {
     | '/settings/integrations'
     | '/settings/production-readiness'
     | '/settings/providers'
+    | '/settings/white-label'
     | '/systemmind/accountsmind-setup'
     | '/systemmind/architecture'
     | '/systemmind/audits'
@@ -2970,6 +2993,7 @@ export interface FileRouteTypes {
     | '/_authenticated/phone-numbers'
     | '/_authenticated/pipeline'
     | '/_authenticated/qualified'
+    | '/_authenticated/reseller'
     | '/_authenticated/systemmind'
     | '/_authenticated/telephony-calls'
     | '/_authenticated/telephony-settings'
@@ -3048,6 +3072,7 @@ export interface FileRouteTypes {
     | '/_authenticated/settings/integrations'
     | '/_authenticated/settings/production-readiness'
     | '/_authenticated/settings/providers'
+    | '/_authenticated/settings/white-label'
     | '/_authenticated/systemmind/accountsmind-setup'
     | '/_authenticated/systemmind/architecture'
     | '/_authenticated/systemmind/audits'
@@ -3424,6 +3449,13 @@ declare module '@tanstack/react-router' {
       path: '/systemmind'
       fullPath: '/systemmind'
       preLoaderRoute: typeof AuthenticatedSystemmindRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/reseller': {
+      id: '/_authenticated/reseller'
+      path: '/reseller'
+      fullPath: '/reseller'
+      preLoaderRoute: typeof AuthenticatedResellerRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
     '/_authenticated/qualified': {
@@ -4083,6 +4115,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/systemmind/accountsmind-setup'
       preLoaderRoute: typeof AuthenticatedSystemmindAccountsmindSetupRouteImport
       parentRoute: typeof AuthenticatedSystemmindRoute
+    }
+    '/_authenticated/settings/white-label': {
+      id: '/_authenticated/settings/white-label'
+      path: '/settings/white-label'
+      fullPath: '/settings/white-label'
+      preLoaderRoute: typeof AuthenticatedSettingsWhiteLabelRouteImport
+      parentRoute: typeof AuthenticatedRoute
     }
     '/_authenticated/settings/providers': {
       id: '/_authenticated/settings/providers'
@@ -5505,6 +5544,7 @@ interface AuthenticatedRouteChildren {
   AuthenticatedPhoneNumbersRoute: typeof AuthenticatedPhoneNumbersRoute
   AuthenticatedPipelineRoute: typeof AuthenticatedPipelineRoute
   AuthenticatedQualifiedRoute: typeof AuthenticatedQualifiedRoute
+  AuthenticatedResellerRoute: typeof AuthenticatedResellerRoute
   AuthenticatedSystemmindRoute: typeof AuthenticatedSystemmindRouteWithChildren
   AuthenticatedTelephonyCallsRoute: typeof AuthenticatedTelephonyCallsRoute
   AuthenticatedTelephonySettingsRoute: typeof AuthenticatedTelephonySettingsRoute
@@ -5520,6 +5560,7 @@ interface AuthenticatedRouteChildren {
   AuthenticatedSettingsIntegrationsRoute: typeof AuthenticatedSettingsIntegrationsRoute
   AuthenticatedSettingsProductionReadinessRoute: typeof AuthenticatedSettingsProductionReadinessRoute
   AuthenticatedSettingsProvidersRoute: typeof AuthenticatedSettingsProvidersRouteWithChildren
+  AuthenticatedSettingsWhiteLabelRoute: typeof AuthenticatedSettingsWhiteLabelRoute
 }
 
 const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
@@ -5547,6 +5588,7 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedPhoneNumbersRoute: AuthenticatedPhoneNumbersRoute,
   AuthenticatedPipelineRoute: AuthenticatedPipelineRoute,
   AuthenticatedQualifiedRoute: AuthenticatedQualifiedRoute,
+  AuthenticatedResellerRoute: AuthenticatedResellerRoute,
   AuthenticatedSystemmindRoute: AuthenticatedSystemmindRouteWithChildren,
   AuthenticatedTelephonyCallsRoute: AuthenticatedTelephonyCallsRoute,
   AuthenticatedTelephonySettingsRoute: AuthenticatedTelephonySettingsRoute,
@@ -5565,6 +5607,7 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
     AuthenticatedSettingsProductionReadinessRoute,
   AuthenticatedSettingsProvidersRoute:
     AuthenticatedSettingsProvidersRouteWithChildren,
+  AuthenticatedSettingsWhiteLabelRoute: AuthenticatedSettingsWhiteLabelRoute,
 }
 
 const AuthenticatedRouteWithChildren = AuthenticatedRoute._addFileChildren(

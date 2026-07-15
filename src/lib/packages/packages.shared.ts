@@ -57,6 +57,9 @@ export const FEATURE_KEYS = [
   "approval_settings",
   "api_webhooks",
   "white_labelling",
+  "white_label_custom_domain",
+  "white_label_hide_webee_branding",
+  "reseller_client_accounts",
   "custom_roles",
   "custom_views",
   "page_filters",
@@ -97,6 +100,9 @@ export const FEATURE_LABELS: Record<FeatureKey, string> = {
   approval_settings: "Approval Settings",
   api_webhooks: "API / Webhooks",
   white_labelling: "White Labelling",
+  white_label_custom_domain: "White Label Custom Domain",
+  white_label_hide_webee_branding: "Hide WEBEE Branding",
+  reseller_client_accounts: "Reseller Client Accounts",
   custom_roles: "Custom Roles",
   custom_views: "Custom Views",
   page_filters: "Page Filters",
@@ -107,6 +113,7 @@ export const FEATURE_LABELS: Record<FeatureKey, string> = {
 // ── Add-ons ──────────────────────────────────────────────────────────────────
 
 export const ADDON_EXTRA_STAFF_USER = "extra_staff_user";
+export const ADDON_EXTRA_CHILD_ACCOUNT = "extra_child_account";
 
 export interface AddonDef {
   addonKey: string;
@@ -122,6 +129,13 @@ export const ADDON_CATALOG: AddonDef[] = [
     addonName: "Extra Staff User",
     description: "Adds one additional staff login seat to your workspace.",
     monthlyPricePence: 3900,
+    quantityBased: true,
+  },
+  {
+    addonKey: ADDON_EXTRA_CHILD_ACCOUNT,
+    addonName: "Extra Client Account",
+    description: "Adds one additional reseller child client account slot.",
+    monthlyPricePence: 4900,
     quantityBased: true,
   },
 ];
@@ -141,6 +155,8 @@ export interface PackageLimits {
   maxCustomViews: number | null;
   maxPageFilters: number | null;
   maxCampaignFilters: number | null;
+  /** Reseller child client accounts included (0 = none; null = unlimited). */
+  maxChildAccounts: number | null;
 }
 
 export interface PackageDef {
@@ -187,6 +203,7 @@ export const PACKAGE_CATALOG: PackageDef[] = [
       maxCustomViews: 2,
       maxPageFilters: 2,
       maxCampaignFilters: 0,
+      maxChildAccounts: 0,
     },
     features: [
       ...CORE_FEATURES,
@@ -214,6 +231,7 @@ export const PACKAGE_CATALOG: PackageDef[] = [
       maxCustomViews: 3,
       maxPageFilters: 3,
       maxCampaignFilters: 0,
+      maxChildAccounts: 0,
     },
     features: [
       ...CORE_FEATURES,
@@ -245,6 +263,7 @@ export const PACKAGE_CATALOG: PackageDef[] = [
       maxCustomViews: 10,
       maxPageFilters: 10,
       maxCampaignFilters: 10,
+      maxChildAccounts: 0,
     },
     features: [
       ...CORE_FEATURES,
@@ -287,6 +306,7 @@ export const PACKAGE_CATALOG: PackageDef[] = [
       maxCustomViews: null,
       maxPageFilters: null,
       maxCampaignFilters: null,
+      maxChildAccounts: 0,
     },
     features: [
       ...CORE_FEATURES,
@@ -335,6 +355,7 @@ export const PACKAGE_CATALOG: PackageDef[] = [
       maxCustomViews: null,
       maxPageFilters: null,
       maxCampaignFilters: null,
+      maxChildAccounts: 0,
     },
     features: [
       ...CORE_FEATURES,
@@ -387,6 +408,7 @@ export const PACKAGE_CATALOG: PackageDef[] = [
       maxCustomViews: null,
       maxPageFilters: null,
       maxCampaignFilters: null,
+      maxChildAccounts: 25,
     },
     features: [...FEATURE_KEYS],
     aiDepartments: ["growthmind", "hivemind", "systemmind", "accountsmind"],
@@ -410,8 +432,12 @@ export const PACKAGE_CATALOG: PackageDef[] = [
       maxCustomViews: null,
       maxPageFilters: null,
       maxCampaignFilters: null,
+      maxChildAccounts: 0,
     },
-    features: [...FEATURE_KEYS],
+    features: FEATURE_KEYS.filter(
+      (k) =>
+        !["white_label_custom_domain", "white_label_hide_webee_branding", "reseller_client_accounts"].includes(k),
+    ) as FeatureKey[],
     aiDepartments: ["growthmind", "hivemind", "systemmind", "accountsmind"],
     isActive: true,
   },
@@ -504,6 +530,8 @@ export const ROUTE_FEATURE_MAP: Record<string, FeatureKey> = {
   "/follow-up": "follow_up",
   "/whatsapp": "whatsapp",
   "/billing": "billing",
+  "/reseller": "reseller_client_accounts",
+  "/settings/white-label": "white_labelling",
 };
 
 /**
@@ -632,6 +660,7 @@ export function noEntitlements(): WorkspaceEntitlements {
       maxCustomViews: 0,
       maxPageFilters: 0,
       maxCampaignFilters: 0,
+      maxChildAccounts: 0,
     },
     aiDepartments: [],
     staffSeatAllowance: 1,

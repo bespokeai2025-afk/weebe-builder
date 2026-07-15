@@ -41,6 +41,7 @@ import {
   ArrowRight,
   ClipboardList,
   Building2,
+  Palette,
   Users,
   Clock,
   GitBranch,
@@ -191,6 +192,7 @@ const DEFAULT_NAV_ITEMS: NavItem[] = [
   { title: "Follow-Up",     url: "/follow-up",              icon: Zap },
   { title: "Buzzchat",  url: "/whatsapp",  icon: MessageSquare,  moduleId: "whatsapp" },
   { title: "Billing",   url: "/billing",   icon: CreditCard },
+  { title: "Reseller Portal", url: "/reseller", icon: Building2 },
 ];
 
 const STORAGE_KEY = "sidebar-nav-order-v5";
@@ -993,6 +995,10 @@ export function AppSidebar() {
             <DropdownMenuItem onClick={() => navigate({ to: "/settings/integrations" })}>
               <Settings className="mr-2 h-4 w-4" />
               Settings
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => navigate({ to: "/settings/white-label" })}>
+              <Palette className="mr-2 h-4 w-4" />
+              White Label
             </DropdownMenuItem>
             <DropdownMenuItem onClick={() => navigate({ to: "/settings/crm" })}>
               <Settings className="mr-2 h-4 w-4" />
