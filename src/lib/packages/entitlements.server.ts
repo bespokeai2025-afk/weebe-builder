@@ -68,7 +68,8 @@ export async function getWorkspacePackage(workspaceId: string) {
     .eq("workspace_id", workspaceId)
     .maybeSingle();
   if (error) throw new Error(error.message);
-  const pkg = packageByKey(sub ? sub.package_key : DEFAULT_PACKAGE_KEY);
+  const { packageByKeyServer } = await import("./packages-catalog.server");
+  const pkg = await packageByKeyServer(sub ? sub.package_key : DEFAULT_PACKAGE_KEY);
   return { subscription: sub ?? null, packageDef: pkg };
 }
 
@@ -120,7 +121,8 @@ export async function getWorkspaceEntitlements(
       }
     }
 
-    const value = buildEntitlements(packageByKey(packageKey), {
+    const { packageByKeyServer } = await import("./packages-catalog.server");
+    const value = buildEntitlements(await packageByKeyServer(packageKey), {
       subscriptionStatus: status,
       extraStaffSeats: extraSeats,
       featureOverrides,
@@ -404,8 +406,8 @@ export async function provisionWorkspacePackage(opts: {
  */
 export async function seedNotificationDefaults(workspaceId: string, packageKey: string): Promise<void> {
   try {
-    const { notificationDefaultsForPackage } = await import("@/lib/packages/packages.shared");
-    const defaults = notificationDefaultsForPackage(packageKey);
+    const { notificationDefaultsForPackageServer } = await import("@/lib/packages/packages-catalog.server");
+    const defaults = await notificationDefaultsForPackageServer(packageKey);
     const entries = Object.entries(defaults);
     if (entries.length === 0) return;
     const now = new Date().toISOString();

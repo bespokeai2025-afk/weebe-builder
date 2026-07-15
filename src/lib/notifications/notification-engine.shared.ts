@@ -120,7 +120,25 @@ export async function loadNotificationCaps(sb: Sb, workspaceId: string): Promise
       .eq("workspace_id", workspaceId)
       .maybeSingle();
     if (error) return { emailAllowed: false, customRecipientsAllowed: false };
-    return notificationCapsForPackage(data?.package_key ?? null);
+    const packageKey = data?.package_key ?? null;
+    // Master Admin DB override (package_definitions.notification_caps_json)
+    // wins over the code catalog when both halves are present. Fail closed.
+    if (packageKey) {
+      const { data: def } = await sb
+        .from("package_definitions")
+        .select("notification_caps_json")
+        .eq("package_key", packageKey)
+        .maybeSingle();
+      const raw = (def as any)?.notification_caps_json;
+      if (raw && typeof raw === "object" &&
+          (typeof raw.emailAllowed === "boolean" || typeof raw.customRecipientsAllowed === "boolean")) {
+        return {
+          emailAllowed: raw.emailAllowed === true,
+          customRecipientsAllowed: raw.customRecipientsAllowed === true,
+        };
+      }
+    }
+    return notificationCapsForPackage(packageKey);
   } catch {
     return { emailAllowed: false, customRecipientsAllowed: false };
   }

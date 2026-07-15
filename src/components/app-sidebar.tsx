@@ -773,6 +773,48 @@ export function AppSidebar() {
                   <SidebarMenuItem className="group-data-[collapsible=icon]:w-auto">
                     <SidebarMenuButton
                       asChild
+                      tooltip="Package Matrix"
+                      className={navButtonClasses(isActive("/admin/packages"))}
+                    >
+                      <Link to="/admin/packages" className="flex items-center gap-3">
+                        <Package
+                          className={cn(
+                            "h-[18px] w-[18px] shrink-0",
+                            isActive("/admin/packages")
+                              ? "text-primary"
+                              : "text-muted-foreground group-hover/nav:text-foreground",
+                          )}
+                        />
+                        <span className="truncate group-data-[collapsible=icon]:hidden">
+                          Packages
+                        </span>
+                      </Link>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                  <SidebarMenuItem className="group-data-[collapsible=icon]:w-auto">
+                    <SidebarMenuButton
+                      asChild
+                      tooltip="Resellers"
+                      className={navButtonClasses(isActive("/admin/resellers"))}
+                    >
+                      <Link to="/admin/resellers" className="flex items-center gap-3">
+                        <Globe
+                          className={cn(
+                            "h-[18px] w-[18px] shrink-0",
+                            isActive("/admin/resellers")
+                              ? "text-primary"
+                              : "text-muted-foreground group-hover/nav:text-foreground",
+                          )}
+                        />
+                        <span className="truncate group-data-[collapsible=icon]:hidden">
+                          Resellers
+                        </span>
+                      </Link>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                  <SidebarMenuItem className="group-data-[collapsible=icon]:w-auto">
+                    <SidebarMenuButton
+                      asChild
                       tooltip="White Label"
                       className={navButtonClasses(isActive("/admin/whitelabel"))}
                     >

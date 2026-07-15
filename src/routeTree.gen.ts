@@ -187,7 +187,9 @@ import { Route as AuthenticatedAdminWorkflowTemplatesRouteImport } from './route
 import { Route as AuthenticatedAdminWhitelabelRouteImport } from './routes/_authenticated/admin.whitelabel'
 import { Route as AuthenticatedAdminUsersRouteImport } from './routes/_authenticated/admin.users'
 import { Route as AuthenticatedAdminUserActivityRouteImport } from './routes/_authenticated/admin.user-activity'
+import { Route as AuthenticatedAdminResellersRouteImport } from './routes/_authenticated/admin.resellers'
 import { Route as AuthenticatedAdminPlatformKnowledgeRouteImport } from './routes/_authenticated/admin.platform-knowledge'
+import { Route as AuthenticatedAdminPackagesRouteImport } from './routes/_authenticated/admin.packages'
 import { Route as AuthenticatedAdminCostEngineRouteImport } from './routes/_authenticated/admin.cost-engine'
 import { Route as AuthenticatedAdminChangeRequestsRouteImport } from './routes/_authenticated/admin.change-requests'
 import { Route as AuthenticatedAdminAccountsRouteImport } from './routes/_authenticated/admin.accounts'
@@ -1265,10 +1267,22 @@ const AuthenticatedAdminUserActivityRoute =
     path: '/user-activity',
     getParentRoute: () => AuthenticatedAdminRoute,
   } as any)
+const AuthenticatedAdminResellersRoute =
+  AuthenticatedAdminResellersRouteImport.update({
+    id: '/resellers',
+    path: '/resellers',
+    getParentRoute: () => AuthenticatedAdminRoute,
+  } as any)
 const AuthenticatedAdminPlatformKnowledgeRoute =
   AuthenticatedAdminPlatformKnowledgeRouteImport.update({
     id: '/platform-knowledge',
     path: '/platform-knowledge',
+    getParentRoute: () => AuthenticatedAdminRoute,
+  } as any)
+const AuthenticatedAdminPackagesRoute =
+  AuthenticatedAdminPackagesRouteImport.update({
+    id: '/packages',
+    path: '/packages',
     getParentRoute: () => AuthenticatedAdminRoute,
   } as any)
 const AuthenticatedAdminCostEngineRoute =
@@ -1749,7 +1763,9 @@ export interface FileRoutesByFullPath {
   '/admin/accounts': typeof AuthenticatedAdminAccountsRouteWithChildren
   '/admin/change-requests': typeof AuthenticatedAdminChangeRequestsRoute
   '/admin/cost-engine': typeof AuthenticatedAdminCostEngineRoute
+  '/admin/packages': typeof AuthenticatedAdminPackagesRoute
   '/admin/platform-knowledge': typeof AuthenticatedAdminPlatformKnowledgeRoute
+  '/admin/resellers': typeof AuthenticatedAdminResellersRoute
   '/admin/user-activity': typeof AuthenticatedAdminUserActivityRoute
   '/admin/users': typeof AuthenticatedAdminUsersRoute
   '/admin/whitelabel': typeof AuthenticatedAdminWhitelabelRoute
@@ -1996,7 +2012,9 @@ export interface FileRoutesByTo {
   '/upload/$token': typeof UploadTokenRoute
   '/admin/change-requests': typeof AuthenticatedAdminChangeRequestsRoute
   '/admin/cost-engine': typeof AuthenticatedAdminCostEngineRoute
+  '/admin/packages': typeof AuthenticatedAdminPackagesRoute
   '/admin/platform-knowledge': typeof AuthenticatedAdminPlatformKnowledgeRoute
+  '/admin/resellers': typeof AuthenticatedAdminResellersRoute
   '/admin/user-activity': typeof AuthenticatedAdminUserActivityRoute
   '/admin/users': typeof AuthenticatedAdminUsersRoute
   '/admin/whitelabel': typeof AuthenticatedAdminWhitelabelRoute
@@ -2251,7 +2269,9 @@ export interface FileRoutesById {
   '/_authenticated/admin/accounts': typeof AuthenticatedAdminAccountsRouteWithChildren
   '/_authenticated/admin/change-requests': typeof AuthenticatedAdminChangeRequestsRoute
   '/_authenticated/admin/cost-engine': typeof AuthenticatedAdminCostEngineRoute
+  '/_authenticated/admin/packages': typeof AuthenticatedAdminPackagesRoute
   '/_authenticated/admin/platform-knowledge': typeof AuthenticatedAdminPlatformKnowledgeRoute
+  '/_authenticated/admin/resellers': typeof AuthenticatedAdminResellersRoute
   '/_authenticated/admin/user-activity': typeof AuthenticatedAdminUserActivityRoute
   '/_authenticated/admin/users': typeof AuthenticatedAdminUsersRoute
   '/_authenticated/admin/whitelabel': typeof AuthenticatedAdminWhitelabelRoute
@@ -2508,7 +2528,9 @@ export interface FileRouteTypes {
     | '/admin/accounts'
     | '/admin/change-requests'
     | '/admin/cost-engine'
+    | '/admin/packages'
     | '/admin/platform-knowledge'
+    | '/admin/resellers'
     | '/admin/user-activity'
     | '/admin/users'
     | '/admin/whitelabel'
@@ -2755,7 +2777,9 @@ export interface FileRouteTypes {
     | '/upload/$token'
     | '/admin/change-requests'
     | '/admin/cost-engine'
+    | '/admin/packages'
     | '/admin/platform-knowledge'
+    | '/admin/resellers'
     | '/admin/user-activity'
     | '/admin/users'
     | '/admin/whitelabel'
@@ -3009,7 +3033,9 @@ export interface FileRouteTypes {
     | '/_authenticated/admin/accounts'
     | '/_authenticated/admin/change-requests'
     | '/_authenticated/admin/cost-engine'
+    | '/_authenticated/admin/packages'
     | '/_authenticated/admin/platform-knowledge'
+    | '/_authenticated/admin/resellers'
     | '/_authenticated/admin/user-activity'
     | '/_authenticated/admin/users'
     | '/_authenticated/admin/whitelabel'
@@ -4557,11 +4583,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminUserActivityRouteImport
       parentRoute: typeof AuthenticatedAdminRoute
     }
+    '/_authenticated/admin/resellers': {
+      id: '/_authenticated/admin/resellers'
+      path: '/resellers'
+      fullPath: '/admin/resellers'
+      preLoaderRoute: typeof AuthenticatedAdminResellersRouteImport
+      parentRoute: typeof AuthenticatedAdminRoute
+    }
     '/_authenticated/admin/platform-knowledge': {
       id: '/_authenticated/admin/platform-knowledge'
       path: '/platform-knowledge'
       fullPath: '/admin/platform-knowledge'
       preLoaderRoute: typeof AuthenticatedAdminPlatformKnowledgeRouteImport
+      parentRoute: typeof AuthenticatedAdminRoute
+    }
+    '/_authenticated/admin/packages': {
+      id: '/_authenticated/admin/packages'
+      path: '/packages'
+      fullPath: '/admin/packages'
+      preLoaderRoute: typeof AuthenticatedAdminPackagesRouteImport
       parentRoute: typeof AuthenticatedAdminRoute
     }
     '/_authenticated/admin/cost-engine': {
@@ -5154,7 +5194,9 @@ interface AuthenticatedAdminRouteChildren {
   AuthenticatedAdminAccountsRoute: typeof AuthenticatedAdminAccountsRouteWithChildren
   AuthenticatedAdminChangeRequestsRoute: typeof AuthenticatedAdminChangeRequestsRoute
   AuthenticatedAdminCostEngineRoute: typeof AuthenticatedAdminCostEngineRoute
+  AuthenticatedAdminPackagesRoute: typeof AuthenticatedAdminPackagesRoute
   AuthenticatedAdminPlatformKnowledgeRoute: typeof AuthenticatedAdminPlatformKnowledgeRoute
+  AuthenticatedAdminResellersRoute: typeof AuthenticatedAdminResellersRoute
   AuthenticatedAdminUserActivityRoute: typeof AuthenticatedAdminUserActivityRoute
   AuthenticatedAdminUsersRoute: typeof AuthenticatedAdminUsersRoute
   AuthenticatedAdminWhitelabelRoute: typeof AuthenticatedAdminWhitelabelRoute
@@ -5167,8 +5209,10 @@ const AuthenticatedAdminRouteChildren: AuthenticatedAdminRouteChildren = {
   AuthenticatedAdminAccountsRoute: AuthenticatedAdminAccountsRouteWithChildren,
   AuthenticatedAdminChangeRequestsRoute: AuthenticatedAdminChangeRequestsRoute,
   AuthenticatedAdminCostEngineRoute: AuthenticatedAdminCostEngineRoute,
+  AuthenticatedAdminPackagesRoute: AuthenticatedAdminPackagesRoute,
   AuthenticatedAdminPlatformKnowledgeRoute:
     AuthenticatedAdminPlatformKnowledgeRoute,
+  AuthenticatedAdminResellersRoute: AuthenticatedAdminResellersRoute,
   AuthenticatedAdminUserActivityRoute: AuthenticatedAdminUserActivityRoute,
   AuthenticatedAdminUsersRoute: AuthenticatedAdminUsersRoute,
   AuthenticatedAdminWhitelabelRoute: AuthenticatedAdminWhitelabelRoute,
