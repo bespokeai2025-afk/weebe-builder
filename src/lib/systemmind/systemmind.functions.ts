@@ -178,7 +178,11 @@ export async function computeSystemMindData(workspaceId: string): Promise<System
 export const getSystemMindData = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
-    const { workspaceId } = context;
+    const { workspaceId, userId } = context;
     if (!workspaceId) throw new Error("No workspace");
+    const { requireSystemMindView } = await import(
+      "@/lib/systemmind/systemmind-access.server"
+    );
+    await requireSystemMindView(workspaceId, userId);
     return computeSystemMindData(workspaceId);
   });

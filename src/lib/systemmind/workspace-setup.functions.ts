@@ -16,6 +16,12 @@ export const generateOnboardingPlan = createServerFn({ method: "POST" })
     }).parse(input),
   )
   .handler(async ({ data, context }) => {
+    {
+      const { requireSystemMindEdit } = await import(
+        "@/lib/systemmind/systemmind-access.server"
+      );
+      await requireSystemMindEdit(context.workspaceId, context.userId);
+    }
     const { generateOnboardingPlanServer } = await import(
       "@/lib/systemmind/workspace-setup.server"
     );
@@ -31,6 +37,12 @@ export const generateOnboardingPlan = createServerFn({ method: "POST" })
 export const getSetupChecklist = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
+    {
+      const { requireSystemMindView } = await import(
+        "@/lib/systemmind/systemmind-access.server"
+      );
+      await requireSystemMindView(context.workspaceId, context.userId);
+    }
     const { getSetupChecklistServer } = await import(
       "@/lib/systemmind/workspace-setup.server"
     );
@@ -41,6 +53,12 @@ export const getSetupChecklist = createServerFn({ method: "GET" })
 export const runWorkspaceHealthCheck = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
+    {
+      const { requireSystemMindEdit } = await import(
+        "@/lib/systemmind/systemmind-access.server"
+      );
+      await requireSystemMindEdit(context.workspaceId, context.userId);
+    }
     const { runWorkspaceHealthCheckServer } = await import(
       "@/lib/systemmind/workspace-setup.server"
     );
@@ -54,6 +72,12 @@ export const runWorkspaceHealthCheck = createServerFn({ method: "POST" })
 export const listHealthRuns = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
+    {
+      const { requireSystemMindView } = await import(
+        "@/lib/systemmind/systemmind-access.server"
+      );
+      await requireSystemMindView(context.workspaceId, context.userId);
+    }
     const { listHealthRunsServer } = await import(
       "@/lib/systemmind/workspace-setup.server"
     );

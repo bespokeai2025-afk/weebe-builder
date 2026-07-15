@@ -13,6 +13,7 @@ import { OnboardingChecklist } from "@/components/onboarding/OnboardingChecklist
 import { HiveMindOrb } from "@/components/hivemind/HiveMindOrb";
 import { getOnboardingState } from "@/lib/onboarding/onboarding.server";
 import { PrefetchOnLogin } from "@/components/PrefetchOnLogin";
+import { LockedRouteGuard } from "@/components/shared/LockedRouteGuard";
 
 export const Route = createFileRoute("/_authenticated")({
   component: AuthenticatedLayout,
@@ -111,7 +112,9 @@ function AuthenticatedLayout() {
               </div>
             </div>
           )}
-          <Outlet />
+          <LockedRouteGuard>
+            <Outlet />
+          </LockedRouteGuard>
         </SidebarInset>
       </div>
       {/* Onboarding V2 — path-selection welcome modal (first login only) */}

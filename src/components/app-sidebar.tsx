@@ -98,7 +98,7 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { MODULE_CATALOG, requestModuleUpgrade } from "@/lib/modules/modules.functions";
 import { getMyEntitlements } from "@/lib/packages/packages.functions";
-import { ROUTE_FEATURE_MAP } from "@/lib/packages/packages.shared";
+import { ROUTE_FEATURE_MAP, ROUTE_PAGE_MAP } from "@/lib/packages/packages.shared";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -376,6 +376,7 @@ export function AppSidebar() {
   const [upgradeItem, setUpgradeItem] = useState<NavItem | null>(null);
   const [pkgFeatures, setPkgFeatures] = useState<Record<string, boolean> | null>(null);
   const [pkgName, setPkgName] = useState<string>("");
+  const [pageAccess, setPageAccess] = useState<Record<string, string> | null>(null);
   const [requesting, setRequesting] = useState(false);
   const requestModuleFn = useServerFn(requestModuleUpgrade);
 
@@ -434,6 +435,7 @@ export function AppSidebar() {
         if (!active || !res) return;
         setPkgFeatures(res.entitlements?.features ?? null);
         setPkgName(res.entitlements?.packageName ?? "");
+        setPageAccess((res.pageAccess as Record<string, string>) ?? null);
       } catch {
         // fail open in the UI (backend enforces regardless)
       }
@@ -445,6 +447,15 @@ export function AppSidebar() {
     if (isAdmin || !pkgFeatures) return false;
     const feature = ROUTE_FEATURE_MAP[item.url];
     return !!feature && pkgFeatures[feature] === false;
+  };
+
+  // Role/override page-level gating: items whose effective page access
+  // (role ∩ package ∩ per-user Team Access overrides) is "hidden" are removed
+  // from the nav entirely (server functions enforce regardless).
+  const isRoleHidden = (item: NavItem): boolean => {
+    if (isAdmin || !pageAccess) return false;
+    const page = ROUTE_PAGE_MAP[item.url];
+    return !!page && (pageAccess[page] ?? "hidden") === "hidden";
   };
 
   const handleLockedClick = (item: NavItem) => setUpgradeItem(item);
@@ -614,7 +625,7 @@ export function AppSidebar() {
                 strategy={verticalListSortingStrategy}
               >
                 <SidebarMenu className="gap-1 pl-4 group-data-[collapsible=icon]:items-center group-data-[collapsible=icon]:pl-0">
-                  {navItems.map((item) => {
+                  {navItems.filter((item) => !isRoleHidden(item)).map((item) => {
                     const isLocked =
                       (!isAdmin && !!(item.moduleId && !activeModules.includes(item.moduleId))) ||
                       isPackageLocked(item);

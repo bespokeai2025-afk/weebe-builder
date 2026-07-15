@@ -506,6 +506,44 @@ export const ROUTE_FEATURE_MAP: Record<string, FeatureKey> = {
   "/billing": "billing",
 };
 
+/**
+ * Sidebar/route → RBAC page section (for role/override page-level gating).
+ * Routes not listed have no page-level RBAC gate (feature gate may still apply).
+ */
+export const ROUTE_PAGE_MAP: Record<string, PageKey> = {
+  "/dashboard": "dashboard",
+  "/hivemind": "hivemind",
+  "/growthmind": "growthmind",
+  "/systemmind": "systemmind",
+  "/knowledge-centre": "knowledge",
+  "/analytics": "reports",
+  "/my-agents": "agents",
+  "/builder": "agents",
+  "/templates": "agents",
+  "/data": "data",
+  "/contacts": "crm",
+  "/leads": "leads",
+  "/leads/webforms": "leads",
+  "/pipeline": "pipeline",
+  "/calls": "calls",
+  "/workflow-engine": "workflows",
+  "/billing": "billing",
+};
+
+/** Longest-prefix match of a pathname against a route map (e.g. /systemmind/build). */
+export function matchRouteKey<T>(
+  pathname: string,
+  map: Record<string, T>,
+): T | undefined {
+  let best: string | null = null;
+  for (const route of Object.keys(map)) {
+    if (pathname === route || pathname.startsWith(route + "/")) {
+      if (!best || route.length > best.length) best = route;
+    }
+  }
+  return best ? map[best] : undefined;
+}
+
 // ── Effective entitlement shape ──────────────────────────────────────────────
 
 export interface WorkspaceEntitlements {

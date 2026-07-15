@@ -22,6 +22,12 @@ const SOURCE_TYPES = [
 export const listLegacyConversionSources = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
+    {
+      const { requireSystemMindView } = await import(
+        "@/lib/systemmind/systemmind-access.server"
+      );
+      await requireSystemMindView(context.workspaceId, context.userId);
+    }
     const { listLegacyConversionSourcesServer } = await import(
       "@/lib/systemmind/legacy-conversion.server"
     );
@@ -39,6 +45,12 @@ export const convertLegacySourceToDraft = createServerFn({ method: "POST" })
     }).parse(input),
   )
   .handler(async ({ data, context }) => {
+    {
+      const { requireSystemMindEdit } = await import(
+        "@/lib/systemmind/systemmind-access.server"
+      );
+      await requireSystemMindEdit(context.workspaceId, context.userId);
+    }
     const { convertLegacySourceServer } = await import(
       "@/lib/systemmind/legacy-conversion.server"
     );
@@ -58,6 +70,12 @@ export const getConversionForSession = createServerFn({ method: "GET" })
     z.object({ sessionId: z.string().uuid() }).parse(input),
   )
   .handler(async ({ data, context }) => {
+    {
+      const { requireSystemMindView } = await import(
+        "@/lib/systemmind/systemmind-access.server"
+      );
+      await requireSystemMindView(context.workspaceId, context.userId);
+    }
     const { getConversionForSessionServer } = await import(
       "@/lib/systemmind/legacy-conversion.server"
     );
@@ -67,6 +85,12 @@ export const getConversionForSession = createServerFn({ method: "GET" })
 export const listLegacyConversions = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
+    {
+      const { requireSystemMindView } = await import(
+        "@/lib/systemmind/systemmind-access.server"
+      );
+      await requireSystemMindView(context.workspaceId, context.userId);
+    }
     const { listLegacyConversionsServer } = await import(
       "@/lib/systemmind/legacy-conversion.server"
     );

@@ -13,6 +13,12 @@ export const generateWorkflowDraft = createServerFn({ method: "POST" })
     }),
   )
   .handler(async ({ data, context }) => {
+    {
+      const { requireSystemMindEdit } = await import(
+        "@/lib/systemmind/systemmind-access.server"
+      );
+      await requireSystemMindEdit(context.workspaceId, context.userId);
+    }
     const { generateWorkflowDraftFromDescription } = await import(
       "@/lib/systemmind/systemmind-workflow-generator.server"
     );
@@ -29,6 +35,12 @@ export const generateWorkflowDraft = createServerFn({ method: "POST" })
 export const listGeneratorDrafts = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
+    {
+      const { requireSystemMindView } = await import(
+        "@/lib/systemmind/systemmind-access.server"
+      );
+      await requireSystemMindView(context.workspaceId, context.userId);
+    }
     const { listWorkflowDraftsServer } = await import(
       "@/lib/systemmind/systemmind-workflow-generator.server"
     );
@@ -40,6 +52,12 @@ export const getGeneratorDraftById = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .inputValidator(z.object({ draftId: z.string() }))
   .handler(async ({ data, context }) => {
+    {
+      const { requireSystemMindView } = await import(
+        "@/lib/systemmind/systemmind-access.server"
+      );
+      await requireSystemMindView(context.workspaceId, context.userId);
+    }
     const { getWorkflowDraftByIdServer } = await import(
       "@/lib/systemmind/systemmind-workflow-generator.server"
     );
@@ -51,6 +69,12 @@ export const updateGeneratorDraftStatus = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator(z.object({ draftId: z.string(), status: z.string() }))
   .handler(async ({ data, context }) => {
+    {
+      const { requireSystemMindEdit } = await import(
+        "@/lib/systemmind/systemmind-access.server"
+      );
+      await requireSystemMindEdit(context.workspaceId, context.userId);
+    }
     const { updateWorkflowDraftStatusServer } = await import(
       "@/lib/systemmind/systemmind-workflow-generator.server"
     );
@@ -72,6 +96,12 @@ export const proposeSendDraftToBuilder = createServerFn({ method: "POST" })
     }),
   )
   .handler(async ({ data, context }) => {
+    {
+      const { requireSystemMindEdit } = await import(
+        "@/lib/systemmind/systemmind-access.server"
+      );
+      await requireSystemMindEdit(context.workspaceId, context.userId);
+    }
     const { proposeSendDraftToBuilderServer } = await import(
       "@/lib/systemmind/systemmind-workflow-generator.server"
     );

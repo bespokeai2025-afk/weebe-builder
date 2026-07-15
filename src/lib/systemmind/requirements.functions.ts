@@ -17,6 +17,12 @@ export const startRequirementsInterview = createServerFn({ method: "POST" })
     z.object({ agentId: z.string().uuid() }).parse(input),
   )
   .handler(async ({ data, context }) => {
+    {
+      const { requireSystemMindEdit } = await import(
+        "@/lib/systemmind/systemmind-access.server"
+      );
+      await requireSystemMindEdit(context.workspaceId, context.userId);
+    }
     const { startRequirementsInterviewServer } = await import(
       "@/lib/systemmind/requirements.server"
     );
@@ -33,6 +39,12 @@ export const getRequirementsInterview = createServerFn({ method: "GET" })
     z.object({ interviewId: z.string().uuid() }).parse(input),
   )
   .handler(async ({ data, context }) => {
+    {
+      const { requireSystemMindView } = await import(
+        "@/lib/systemmind/systemmind-access.server"
+      );
+      await requireSystemMindView(context.workspaceId, context.userId);
+    }
     const { getRequirementsInterviewServer } = await import(
       "@/lib/systemmind/requirements.server"
     );
@@ -52,6 +64,12 @@ export const answerRequirementsQuestions = createServerFn({ method: "POST" })
     }).parse(input),
   )
   .handler(async ({ data, context }) => {
+    {
+      const { requireSystemMindEdit } = await import(
+        "@/lib/systemmind/systemmind-access.server"
+      );
+      await requireSystemMindEdit(context.workspaceId, context.userId);
+    }
     const { answerRequirementsQuestionsServer } = await import(
       "@/lib/systemmind/requirements.server"
     );
@@ -69,6 +87,12 @@ export const generateRequirementsVersion = createServerFn({ method: "POST" })
     z.object({ interviewId: z.string().uuid() }).parse(input),
   )
   .handler(async ({ data, context }) => {
+    {
+      const { requireSystemMindEdit } = await import(
+        "@/lib/systemmind/systemmind-access.server"
+      );
+      await requireSystemMindEdit(context.workspaceId, context.userId);
+    }
     const { generateRequirementsVersionServer } = await import(
       "@/lib/systemmind/requirements.server"
     );
@@ -89,6 +113,12 @@ export const setScriptAdditionStatus = createServerFn({ method: "POST" })
     }).parse(input),
   )
   .handler(async ({ data, context }) => {
+    {
+      const { requireSystemMindEdit } = await import(
+        "@/lib/systemmind/systemmind-access.server"
+      );
+      await requireSystemMindEdit(context.workspaceId, context.userId);
+    }
     const { setScriptAdditionStatusServer } = await import(
       "@/lib/systemmind/requirements.server"
     );
@@ -110,6 +140,12 @@ export const simulateRequirements = createServerFn({ method: "POST" })
     }).parse(input),
   )
   .handler(async ({ data, context }) => {
+    {
+      const { requireSystemMindEdit } = await import(
+        "@/lib/systemmind/systemmind-access.server"
+      );
+      await requireSystemMindEdit(context.workspaceId, context.userId);
+    }
     const { simulateRequirementsServer } = await import(
       "@/lib/systemmind/requirements.server"
     );
@@ -130,6 +166,12 @@ export const repromptRequirements = createServerFn({ method: "POST" })
     }).parse(input),
   )
   .handler(async ({ data, context }) => {
+    {
+      const { requireSystemMindEdit } = await import(
+        "@/lib/systemmind/systemmind-access.server"
+      );
+      await requireSystemMindEdit(context.workspaceId, context.userId);
+    }
     const { repromptRequirementsServer } = await import(
       "@/lib/systemmind/requirements.server"
     );

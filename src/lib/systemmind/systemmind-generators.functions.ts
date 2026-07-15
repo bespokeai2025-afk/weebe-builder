@@ -17,6 +17,12 @@ export const generateWhatsAppSetupDraft = createServerFn({ method: "POST" })
     }).parse(input),
   )
   .handler(async ({ data, context }) => {
+    {
+      const { requireSystemMindEdit } = await import(
+        "@/lib/systemmind/systemmind-access.server"
+      );
+      await requireSystemMindEdit(context.workspaceId, context.userId);
+    }
     const { generateWhatsAppSetupDraftServer } = await import(
       "@/lib/systemmind/systemmind-generators.server"
     );
@@ -38,6 +44,12 @@ export const generateFollowUpSequenceDraft = createServerFn({ method: "POST" })
     }).parse(input),
   )
   .handler(async ({ data, context }) => {
+    {
+      const { requireSystemMindEdit } = await import(
+        "@/lib/systemmind/systemmind-access.server"
+      );
+      await requireSystemMindEdit(context.workspaceId, context.userId);
+    }
     const { generateFollowUpSequenceDraftServer } = await import(
       "@/lib/systemmind/systemmind-generators.server"
     );
@@ -58,6 +70,12 @@ export const convertN8nWorkflowToDraft = createServerFn({ method: "POST" })
     }).parse(input),
   )
   .handler(async ({ data, context }) => {
+    {
+      const { requireSystemMindEdit } = await import(
+        "@/lib/systemmind/systemmind-access.server"
+      );
+      await requireSystemMindEdit(context.workspaceId, context.userId);
+    }
     const { convertN8nWorkflowServer } = await import(
       "@/lib/systemmind/systemmind-generators.server"
     );
@@ -76,6 +94,12 @@ export const getAutomationDraftDetail = createServerFn({ method: "GET" })
     z.object({ draftId: z.string().uuid() }).parse(input),
   )
   .handler(async ({ data, context }) => {
+    {
+      const { requireSystemMindView } = await import(
+        "@/lib/systemmind/systemmind-access.server"
+      );
+      await requireSystemMindView(context.workspaceId, context.userId);
+    }
     const { getDraftDetailServer } = await import(
       "@/lib/systemmind/systemmind-generators.server"
     );
@@ -86,6 +110,12 @@ export const getAutomationDraftDetail = createServerFn({ method: "GET" })
 export const listConvertibleN8nWorkflows = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
+    {
+      const { requireSystemMindView } = await import(
+        "@/lib/systemmind/systemmind-access.server"
+      );
+      await requireSystemMindView(context.workspaceId, context.userId);
+    }
     const { listN8nWorkflows } = await import(
       "@/lib/systemmind/n8n-discovery.server"
     );

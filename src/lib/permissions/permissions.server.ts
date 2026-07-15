@@ -13,14 +13,10 @@ import {
   type PageKey,
   type PageLevel,
   type RolePermissions,
-  ACTION_LABELS,
-  PAGE_LABELS,
   NO_ACCESS,
   defaultsForRoleKey,
   legacyRoleToRoleKey,
   mergeRolePermissions,
-  hasAction,
-  hasPageAccess,
 } from "./permissions.shared";
 
 export interface ResolvedPermissions extends RolePermissions {
@@ -98,58 +94,34 @@ export class PermissionDeniedError extends Error {
 }
 
 /**
- * Throw unless the user holds the given high-risk action grant AND the
- * workspace package includes it. Package-aware since the package/seat rollout:
- * every existing call site is automatically entitlement-gated.
+ * Throw unless the user holds the given high-risk action grant, the workspace
+ * package includes it, AND no per-user Team Access override removes it.
+ * Delegates to the override-aware entitlement guard so ALL call sites resolve
+ * the merged role ∩ package ∩ per-user-override result (fail closed) and an
+ * access-denied audit entry is written on refusal.
  */
 export async function requireAction(
   workspaceId: string | null | undefined,
   userId: string | null | undefined,
   action: ActionKey,
 ): Promise<ResolvedPermissions> {
-  const p = await resolvePermissions(workspaceId, userId);
-  if (!hasAction(p, action)) {
-    throw new PermissionDeniedError(
-      action,
-      `Permission denied: your role (${p.roleKey}) does not include "${ACTION_LABELS[action]}". Ask a workspace owner or admin to grant the "${action}" permission.`,
-    );
-  }
-  // Package cap (dynamic import avoids a static circular dependency).
-  const { getWorkspaceEntitlements } = await import("@/lib/packages/entitlements.server");
-  const ent = await getWorkspaceEntitlements(workspaceId);
-  if (ent.actionCaps[action] !== true) {
-    throw new PermissionDeniedError(
-      action,
-      `"${ACTION_LABELS[action]}" is not included in your current package (${ent.packageName}). Upgrade your package to use it.`,
-    );
-  }
-  return p;
+  // Dynamic import avoids a static circular dependency.
+  const { requireActionAccess } = await import("@/lib/packages/entitlements.server");
+  return requireActionAccess(workspaceId, userId, action);
 }
 
-/** Throw unless the user has at least `level` access to `page` (role AND package). */
+/**
+ * Throw unless the user has at least `level` access to `page` after merging
+ * role, package cap AND per-user Team Access overrides (fail closed, audited).
+ */
 export async function requirePageAccess(
   workspaceId: string | null | undefined,
   userId: string | null | undefined,
   page: PageKey,
   level: PageLevel,
 ): Promise<ResolvedPermissions> {
-  const p = await resolvePermissions(workspaceId, userId);
-  if (!hasPageAccess(p, page, level)) {
-    throw new PermissionDeniedError(
-      `${page}:${level}`,
-      `Permission denied: your role (${p.roleKey}) does not have "${level}" access to ${PAGE_LABELS[page]}.`,
-    );
-  }
-  const { getWorkspaceEntitlements } = await import("@/lib/packages/entitlements.server");
-  const { pageLevelRank } = await import("./permissions.shared");
-  const ent = await getWorkspaceEntitlements(workspaceId);
-  if (pageLevelRank(ent.pageAccessCaps[page] ?? "hidden") < pageLevelRank(level)) {
-    throw new PermissionDeniedError(
-      `${page}:${level}`,
-      `${PAGE_LABELS[page]} is not included in your current package (${ent.packageName}). Upgrade your package to use it.`,
-    );
-  }
-  return p;
+  const { requirePageAccessEntitled } = await import("@/lib/packages/entitlements.server");
+  return requirePageAccessEntitled(workspaceId, userId, page, level);
 }
 
 /** Convenience: is the user an owner/admin (legacy) of the workspace? */
