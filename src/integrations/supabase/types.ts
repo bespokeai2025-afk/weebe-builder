@@ -13389,6 +13389,26 @@ export type Database = {
       }
     }
     Functions: {
+      activate_accountsmind_config_draft: {
+        Args: {
+          p_created_by: string
+          p_fields: Json
+          p_source_draft_id: string
+          p_stats: Json
+          p_widgets: Json
+          p_workspace_id: string
+        }
+        Returns: Json
+      }
+      apply_accountsmind_industry_preset: {
+        Args: {
+          p_created_by: string
+          p_stats: Json
+          p_widgets: Json
+          p_workspace_id: string
+        }
+        Returns: Json
+      }
       delete_email: {
         Args: { message_id: number; queue_name: string }
         Returns: boolean

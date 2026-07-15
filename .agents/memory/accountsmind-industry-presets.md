@@ -14,9 +14,11 @@ description: How workspace industry + deterministic dashboard presets work and t
 - **How to apply:** preset apply REPLACES the dashboard atomically — a single
   service_role-only Postgres RPC `apply_accountsmind_industry_preset` (migration
   20260718000000, CREATE OR REPLACE, hooked into post-merge) archives non-preset live rows
-  and versioned-inserts preset rows in ONE transaction, mirroring the `versionedInsert`
-  archive+version chain of SystemMind draft activation. Never insert config rows directly,
-  and never add a row-by-row JS fallback (it would reintroduce half-applied dashboards).
+  and versioned-inserts preset rows in ONE transaction. SystemMind draft activation is
+  atomic too via its own RPC `activate_accountsmind_config_draft` (migration 20260719000000,
+  archives ONLY same-key rows — never touches unrelated live config). Never insert config
+  rows directly, and never add a row-by-row JS fallback (it would reintroduce half-applied
+  dashboards).
   `workspace_settings.industry` is written only AFTER the RPC succeeds so a failed apply
   leaves workspace state fully untouched.
 - Permission gate: no fitting ActionKey exists — user-facing apply uses `resolvePermissions`
