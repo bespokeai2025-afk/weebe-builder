@@ -95,6 +95,15 @@ export async function ensurePersonalWorkspace(
     .update({ default_workspace_id: ws.id })
     .eq("user_id", userId);
 
+  // Package gating: every new workspace gets an explicit subscription row
+  // (trial by default). Best-effort — the resolver fails closed to trial anyway.
+  try {
+    const { provisionWorkspacePackage } = await import("@/lib/packages/entitlements.server");
+    await provisionWorkspacePackage({ workspaceId: ws.id, actingUserId: userId });
+  } catch (e: any) {
+    console.warn("[workspace] package provision failed (non-fatal):", e?.message ?? e);
+  }
+
   return ws.id;
 }
 

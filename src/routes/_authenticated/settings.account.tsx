@@ -63,6 +63,7 @@ import {
   listAccessAuditLog,
 } from "@/lib/permissions/team-access.functions";
 import { createInvite, listInvites, revokeInvite } from "@/lib/workspace/invites.functions";
+import { UserAccessOverrideDialog } from "@/components/settings/UserAccessOverrideDialog";
 import {
   ROLE_KEYS,
   ROLE_LABELS,
@@ -679,6 +680,12 @@ function TeamAccessTab({ canManage }: { canManage: boolean; myUserId: string | n
                       ))}
                     </SelectContent>
                   </Select>
+                  {canManage && !m.isSelf && (
+                    <UserAccessOverrideDialog
+                      targetUserId={m.userId}
+                      targetLabel={m.fullName || m.email || m.userId}
+                    />
+                  )}
                   {canManage && !m.isSelf && (
                     <Button
                       variant="ghost"

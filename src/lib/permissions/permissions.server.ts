@@ -97,7 +97,11 @@ export class PermissionDeniedError extends Error {
   }
 }
 
-/** Throw unless the user holds the given high-risk action grant. */
+/**
+ * Throw unless the user holds the given high-risk action grant AND the
+ * workspace package includes it. Package-aware since the package/seat rollout:
+ * every existing call site is automatically entitlement-gated.
+ */
 export async function requireAction(
   workspaceId: string | null | undefined,
   userId: string | null | undefined,
@@ -110,10 +114,19 @@ export async function requireAction(
       `Permission denied: your role (${p.roleKey}) does not include "${ACTION_LABELS[action]}". Ask a workspace owner or admin to grant the "${action}" permission.`,
     );
   }
+  // Package cap (dynamic import avoids a static circular dependency).
+  const { getWorkspaceEntitlements } = await import("@/lib/packages/entitlements.server");
+  const ent = await getWorkspaceEntitlements(workspaceId);
+  if (ent.actionCaps[action] !== true) {
+    throw new PermissionDeniedError(
+      action,
+      `"${ACTION_LABELS[action]}" is not included in your current package (${ent.packageName}). Upgrade your package to use it.`,
+    );
+  }
   return p;
 }
 
-/** Throw unless the user has at least `level` access to `page`. */
+/** Throw unless the user has at least `level` access to `page` (role AND package). */
 export async function requirePageAccess(
   workspaceId: string | null | undefined,
   userId: string | null | undefined,
@@ -125,6 +138,15 @@ export async function requirePageAccess(
     throw new PermissionDeniedError(
       `${page}:${level}`,
       `Permission denied: your role (${p.roleKey}) does not have "${level}" access to ${PAGE_LABELS[page]}.`,
+    );
+  }
+  const { getWorkspaceEntitlements } = await import("@/lib/packages/entitlements.server");
+  const { pageLevelRank } = await import("./permissions.shared");
+  const ent = await getWorkspaceEntitlements(workspaceId);
+  if (pageLevelRank(ent.pageAccessCaps[page] ?? "hidden") < pageLevelRank(level)) {
+    throw new PermissionDeniedError(
+      `${page}:${level}`,
+      `${PAGE_LABELS[page]} is not included in your current package (${ent.packageName}). Upgrade your package to use it.`,
     );
   }
   return p;

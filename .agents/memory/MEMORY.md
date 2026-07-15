@@ -120,3 +120,4 @@
 - [People Views filter engine](people-views-filter-engine.md) — registry keys not columns; quotePgrstListValue for not_in_list; leads HAS a workspaces FK (e2e needs fixture); vite-config-loaded modules can't use @/ imports.
 - [Campaign notifications + RBAC](campaign-notifications-rbac.md) — sb-injected engine w/ digest_queued rows; fail-closed resolvePermissions; every high-risk server fn needs requireAction, UI gating is not enforcement.
 - [Assigned-records-only pattern](assigned-records-only-pattern.md) — every lead-linked list fn must row-filter for assignedRecordsOnly roles; derived surfaces filter by assigned lead ids, fail closed to [].
+- [Package access & staff seats](package-access-entitlements.md) — role ∩ package cap ∩ user override; code catalog is source of truth (package_definitions unseeded); requireAction is package-aware, don't add bespoke checks.

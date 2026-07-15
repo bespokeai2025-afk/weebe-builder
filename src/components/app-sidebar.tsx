@@ -97,6 +97,8 @@ import {
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { MODULE_CATALOG, requestModuleUpgrade } from "@/lib/modules/modules.functions";
+import { getMyEntitlements } from "@/lib/packages/packages.functions";
+import { ROUTE_FEATURE_MAP } from "@/lib/packages/packages.shared";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -262,8 +264,12 @@ function SortableNavItem({
           >
             <GripVertical className="h-3.5 w-3.5 text-muted-foreground" />
           </button>
-          <SidebarMenuButton asChild tooltip={item.title} className={buttonClass}>
-            <Link to={item.url} className="flex items-center gap-3">
+          <SidebarMenuButton
+            tooltip={item.title}
+            className={buttonClass}
+            onClick={() => onLockedClick(item)}
+          >
+            <span className="flex items-center gap-3">
               <item.icon
                 className={cn(
                   "h-[18px] w-[18px] shrink-0 transition-colors",
@@ -276,7 +282,7 @@ function SortableNavItem({
                   Pro
                 </span>
               </span>
-            </Link>
+            </span>
           </SidebarMenuButton>
         </div>
       </SidebarMenuItem>
@@ -368,6 +374,8 @@ export function AppSidebar() {
   const [activeId, setActiveId] = useState<string | null>(null);
   const [activeModules, setActiveModules] = useState<string[]>([]);
   const [upgradeItem, setUpgradeItem] = useState<NavItem | null>(null);
+  const [pkgFeatures, setPkgFeatures] = useState<Record<string, boolean> | null>(null);
+  const [pkgName, setPkgName] = useState<string>("");
   const [requesting, setRequesting] = useState(false);
   const requestModuleFn = useServerFn(requestModuleUpgrade);
 
@@ -416,6 +424,28 @@ export function AppSidebar() {
     })();
     return () => { active = false; };
   }, []);
+
+  // Fetch package entitlements — locks nav items not included in the package.
+  useEffect(() => {
+    let active = true;
+    (async () => {
+      try {
+        const res = await getMyEntitlements();
+        if (!active || !res) return;
+        setPkgFeatures(res.entitlements?.features ?? null);
+        setPkgName(res.entitlements?.packageName ?? "");
+      } catch {
+        // fail open in the UI (backend enforces regardless)
+      }
+    })();
+    return () => { active = false; };
+  }, []);
+
+  const isPackageLocked = (item: NavItem): boolean => {
+    if (isAdmin || !pkgFeatures) return false;
+    const feature = ROUTE_FEATURE_MAP[item.url];
+    return !!feature && pkgFeatures[feature] === false;
+  };
 
   const handleLockedClick = (item: NavItem) => setUpgradeItem(item);
 
@@ -585,7 +615,9 @@ export function AppSidebar() {
               >
                 <SidebarMenu className="gap-1 pl-4 group-data-[collapsible=icon]:items-center group-data-[collapsible=icon]:pl-0">
                   {navItems.map((item) => {
-                    const isLocked = !isAdmin && !!(item.moduleId && !activeModules.includes(item.moduleId));
+                    const isLocked =
+                      (!isAdmin && !!(item.moduleId && !activeModules.includes(item.moduleId))) ||
+                      isPackageLocked(item);
                     return (
                       <SortableNavItem
                         key={item.url}
@@ -822,6 +854,34 @@ export function AppSidebar() {
       {/* ── Upgrade module dialog ─────────────────────────────────────────── */}
       {upgradeItem && (() => {
         const mod = MODULE_CATALOG.find((m) => m.id === upgradeItem.moduleId);
+        const pkgLocked = isPackageLocked(upgradeItem);
+        if (pkgLocked && !mod) {
+          return (
+            <Dialog open onOpenChange={(o) => !o && setUpgradeItem(null)}>
+              <DialogContent className="max-w-sm">
+                <DialogHeader>
+                  <DialogTitle className="flex items-center gap-2">
+                    <Lock className="h-4 w-4 text-muted-foreground" />
+                    Unlock {upgradeItem.title}
+                  </DialogTitle>
+                </DialogHeader>
+                <div className="space-y-4">
+                  <p className="text-sm text-muted-foreground">
+                    {upgradeItem.title} isn&apos;t included in your current package
+                    {pkgName ? ` (${pkgName})` : ""}. Upgrade your package to unlock it.
+                  </p>
+                  <Button
+                    size="sm"
+                    className="w-full"
+                    onClick={() => { setUpgradeItem(null); navigate({ to: "/billing" }); }}
+                  >
+                    View Packages
+                  </Button>
+                </div>
+              </DialogContent>
+            </Dialog>
+          );
+        }
         return (
           <Dialog open onOpenChange={(o) => !o && setUpgradeItem(null)}>
             <DialogContent className="max-w-sm">

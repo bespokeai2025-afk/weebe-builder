@@ -186,6 +186,8 @@ export const createWorkspaceWorkflow = createServerFn({ method: "POST" })
     const sb = context.supabase as any;
     const workspaceId = context.workspaceId;
     if (!workspaceId) throw new Error("No workspace");
+    const { requireResourceCapacity } = await import("@/lib/packages/entitlements.server");
+    await requireResourceCapacity(workspaceId, "workflows");
 
     let flowDefinition = data.flow_definition ?? {};
     let templateVersion: number | null = null;

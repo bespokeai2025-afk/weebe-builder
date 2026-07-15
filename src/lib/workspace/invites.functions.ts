@@ -27,6 +27,11 @@ export const createInvite = createServerFn({ method: "POST" })
     if (!workspaceId) throw new Error("No active workspace");
     await requireAction(workspaceId, userId, "user_management");
 
+    // Package seat enforcement: block invites once included + purchased extra
+    // seats are used (counts active members + pending invites, fail closed).
+    const { requireStaffSeat } = await import("@/lib/packages/entitlements.server");
+    await requireStaffSeat(workspaceId);
+
     const email = data.email?.trim().toLowerCase();
     if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
       throw new Error("A valid email address is required");
@@ -60,6 +65,19 @@ export const createInvite = createServerFn({ method: "POST" })
       .select("id, token, email, expires_at, invited_role_key")
       .single();
     if (error) throw error;
+
+    // Post-insert re-check (guards against concurrent invite creation racing
+    // past the pre-check). If we've oversubscribed, roll this invite back.
+    {
+      const { getStaffSeatUsage } = await import("@/lib/packages/entitlements.server");
+      const usage = await getStaffSeatUsage(workspaceId);
+      if (usage.used > usage.allowance) {
+        await supabaseAdmin.from("workspace_invites").delete().eq("id", invite.id);
+        throw new Error(
+          `You have reached your staff user limit (${usage.allowance} seat${usage.allowance === 1 ? "" : "s"}). Add extra staff users to invite more people.`,
+        );
+      }
+    }
 
     await writeAccessAudit({
       workspaceId,
@@ -160,12 +178,36 @@ export const acceptInvite = createServerFn({ method: "POST" })
       .eq("user_id", userId)
       .maybeSingle();
     if (!existing) {
+      // Seat re-check at accept time (defence in depth: seats may have been
+      // consumed since the invite was created). Existing members always pass.
+      const { getStaffSeatUsage } = await import("@/lib/packages/entitlements.server");
+      const usage = await getStaffSeatUsage(invite.workspace_id);
+      // This invite is one of the pending ones, so it holds its own seat:
+      // block only if members alone already meet/exceed the allowance.
+      if (usage.activeMembers >= usage.allowance) {
+        throw new Error(
+          "This workspace has no staff seats available. Ask the workspace owner to add extra staff users, then try again.",
+        );
+      }
       const { error: memberErr } = await sb.from("workspace_members").insert({
         workspace_id: invite.workspace_id,
         user_id: userId,
         role: legacyRole,
       });
       if (memberErr) throw new Error(memberErr.message);
+      // Post-insert re-check (guards against concurrent accepts racing past
+      // the pre-check). If members alone now exceed allowance, roll back.
+      const postUsage = await getStaffSeatUsage(invite.workspace_id);
+      if (postUsage.activeMembers > postUsage.allowance) {
+        await sb
+          .from("workspace_members")
+          .delete()
+          .eq("workspace_id", invite.workspace_id)
+          .eq("user_id", userId);
+        throw new Error(
+          "This workspace has no staff seats available. Ask the workspace owner to add extra staff users, then try again.",
+        );
+      }
     }
     await sb.from("workspace_member_roles").upsert(
       {

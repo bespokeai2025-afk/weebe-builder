@@ -145,11 +145,19 @@ async function autoProvisionWorkspace(userId: string): Promise<string | undefine
 
     // Provision telephony config so every workspace is HyperStream-ready
     // immediately — no manual setup required per user.
+    // Insert may conflict with an existing row (unique constraint) — Supabase
+    // builders surface that in { error }, which we intentionally ignore here.
     await supabaseAdmin
       .from("telephony_configs")
-      .insert({ workspace_id: ws.id, provider: "twilio", is_active: true })
-      .then(() => {}) // ignore conflicts (unique constraint)
-      .catch(() => {});
+      .insert({ workspace_id: ws.id, provider: "twilio", is_active: true });
+
+    // Package gating: explicit trial subscription row for the new workspace.
+    try {
+      const { provisionWorkspacePackage } = await import("@/lib/packages/entitlements.server");
+      await provisionWorkspacePackage({ workspaceId: ws.id, actingUserId: userId });
+    } catch (e: any) {
+      console.warn("[resolve-workspace] package provision failed (non-fatal):", e?.message ?? e);
+    }
 
     console.info(`[resolve-workspace] auto-provisioned workspace ${ws.id} for user ${userId}`);
     return ws.id;

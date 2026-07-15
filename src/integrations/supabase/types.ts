@@ -7431,6 +7431,81 @@ export type Database = {
           },
         ]
       }
+      package_definitions: {
+        Row: {
+          action_access_json: Json
+          ai_departments_json: Json
+          annual_price: number | null
+          created_at: string
+          currency: string
+          description: string | null
+          features_json: Json
+          id: string
+          included_staff_users: number
+          included_voice_minutes: number
+          is_active: boolean
+          max_agents: number | null
+          max_campaign_filters: number | null
+          max_campaigns: number | null
+          max_custom_views: number | null
+          max_page_filters: number | null
+          max_workflows: number | null
+          monthly_price: number | null
+          package_key: string
+          package_name: string
+          page_access_json: Json
+          updated_at: string
+        }
+        Insert: {
+          action_access_json?: Json
+          ai_departments_json?: Json
+          annual_price?: number | null
+          created_at?: string
+          currency?: string
+          description?: string | null
+          features_json?: Json
+          id?: string
+          included_staff_users?: number
+          included_voice_minutes?: number
+          is_active?: boolean
+          max_agents?: number | null
+          max_campaign_filters?: number | null
+          max_campaigns?: number | null
+          max_custom_views?: number | null
+          max_page_filters?: number | null
+          max_workflows?: number | null
+          monthly_price?: number | null
+          package_key: string
+          package_name: string
+          page_access_json?: Json
+          updated_at?: string
+        }
+        Update: {
+          action_access_json?: Json
+          ai_departments_json?: Json
+          annual_price?: number | null
+          created_at?: string
+          currency?: string
+          description?: string | null
+          features_json?: Json
+          id?: string
+          included_staff_users?: number
+          included_voice_minutes?: number
+          is_active?: boolean
+          max_agents?: number | null
+          max_campaign_filters?: number | null
+          max_campaigns?: number | null
+          max_custom_views?: number | null
+          max_page_filters?: number | null
+          max_workflows?: number | null
+          monthly_price?: number | null
+          package_key?: string
+          package_name?: string
+          page_access_json?: Json
+          updated_at?: string
+        }
+        Relationships: []
+      }
       phone_numbers: {
         Row: {
           agent_id: string | null
@@ -11804,6 +11879,53 @@ export type Database = {
         }
         Relationships: []
       }
+      workspace_addons: {
+        Row: {
+          addon_key: string
+          addon_name: string
+          billing_provider: string | null
+          billing_subscription_item_id: string | null
+          created_at: string
+          id: string
+          quantity: number
+          status: string
+          updated_at: string
+          workspace_id: string
+        }
+        Insert: {
+          addon_key: string
+          addon_name: string
+          billing_provider?: string | null
+          billing_subscription_item_id?: string | null
+          created_at?: string
+          id?: string
+          quantity?: number
+          status?: string
+          updated_at?: string
+          workspace_id: string
+        }
+        Update: {
+          addon_key?: string
+          addon_name?: string
+          billing_provider?: string | null
+          billing_subscription_item_id?: string | null
+          created_at?: string
+          id?: string
+          quantity?: number
+          status?: string
+          updated_at?: string
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "workspace_addons_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       workspace_api_profiles: {
         Row: {
           auth_strategy: string
@@ -12014,6 +12136,50 @@ export type Database = {
             columns: ["parent_filter_id"]
             isOneToOne: false
             referencedRelation: "workspace_campaign_filters"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      workspace_feature_entitlements: {
+        Row: {
+          created_at: string
+          enabled: boolean
+          feature_key: string
+          id: string
+          limit_value: number | null
+          source: string
+          updated_at: string
+          used_value: number | null
+          workspace_id: string
+        }
+        Insert: {
+          created_at?: string
+          enabled?: boolean
+          feature_key: string
+          id?: string
+          limit_value?: number | null
+          source?: string
+          updated_at?: string
+          used_value?: number | null
+          workspace_id: string
+        }
+        Update: {
+          created_at?: string
+          enabled?: boolean
+          feature_key?: string
+          id?: string
+          limit_value?: number | null
+          source?: string
+          updated_at?: string
+          used_value?: number | null
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "workspace_feature_entitlements_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
             referencedColumns: ["id"]
           },
         ]
@@ -12905,6 +13071,112 @@ export type Database = {
           workspace_id?: string
         }
         Relationships: []
+      }
+      workspace_subscriptions: {
+        Row: {
+          billing_customer_id: string | null
+          billing_provider: string | null
+          billing_subscription_id: string | null
+          created_at: string
+          current_period_end: string | null
+          current_period_start: string | null
+          id: string
+          package_key: string
+          subscription_status: string
+          trial_ends_at: string | null
+          updated_at: string
+          workspace_id: string
+        }
+        Insert: {
+          billing_customer_id?: string | null
+          billing_provider?: string | null
+          billing_subscription_id?: string | null
+          created_at?: string
+          current_period_end?: string | null
+          current_period_start?: string | null
+          id?: string
+          package_key: string
+          subscription_status?: string
+          trial_ends_at?: string | null
+          updated_at?: string
+          workspace_id: string
+        }
+        Update: {
+          billing_customer_id?: string | null
+          billing_provider?: string | null
+          billing_subscription_id?: string | null
+          created_at?: string
+          current_period_end?: string | null
+          current_period_start?: string | null
+          id?: string
+          package_key?: string
+          subscription_status?: string
+          trial_ends_at?: string | null
+          updated_at?: string
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "workspace_subscriptions_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: true
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      workspace_user_access_overrides: {
+        Row: {
+          action_access_json: Json
+          created_at: string
+          created_by_user_id: string | null
+          field_visibility_json: Json
+          id: string
+          page_access_json: Json
+          panel_visibility_json: Json
+          record_visibility_json: Json
+          updated_at: string
+          updated_by_user_id: string | null
+          user_id: string
+          workspace_id: string
+        }
+        Insert: {
+          action_access_json?: Json
+          created_at?: string
+          created_by_user_id?: string | null
+          field_visibility_json?: Json
+          id?: string
+          page_access_json?: Json
+          panel_visibility_json?: Json
+          record_visibility_json?: Json
+          updated_at?: string
+          updated_by_user_id?: string | null
+          user_id: string
+          workspace_id: string
+        }
+        Update: {
+          action_access_json?: Json
+          created_at?: string
+          created_by_user_id?: string | null
+          field_visibility_json?: Json
+          id?: string
+          page_access_json?: Json
+          panel_visibility_json?: Json
+          record_visibility_json?: Json
+          updated_at?: string
+          updated_by_user_id?: string | null
+          user_id?: string
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "workspace_user_access_overrides_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       workspace_view_audit_logs: {
         Row: {

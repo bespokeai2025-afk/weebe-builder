@@ -46,6 +46,8 @@ export const createCampaign = createServerFn({ method: "POST" })
     const { supabase, workspaceId, userId } = context;
     if (!workspaceId) throw new Error("No active workspace");
     await requireAction(workspaceId, userId, "campaign_activation");
+    const { requireResourceCapacity } = await import("@/lib/packages/entitlements.server");
+    await requireResourceCapacity(workspaceId, "campaigns");
     const sb = supabase as any;
     const { data: row, error } = await sb
       .from("campaigns")
