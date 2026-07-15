@@ -200,6 +200,9 @@ const STATUS_OPTIONS = [
 
 const YES_NO = undefined; // boolean type renders its own control
 
+// Standard Operating Procedure order — every agent setup walks these sections
+// top-to-bottom (spec: purpose → source access → data fields → functions →
+// post-call → page filters → documents → follow-ups → sentiment outcomes).
 export function buildRequirementsQuestions(
   detected: DetectedAgentSetup,
   answers: RequirementAnswers = {},
@@ -207,67 +210,114 @@ export function buildRequirementsQuestions(
   const qs: RequirementQuestion[] = [];
   const add = (q: RequirementQuestion) => { qs.push(q); };
 
-  // ── 1. Outcome → CRM mapping (always asked — this is the core of the flow) ──
+  // ── SOP §1. Agent purpose ──
   add({
-    key: "outcome_positive_status", section: "CRM outcome mapping",
-    prompt: "When a call ends with a POSITIVE outcome, what should the lead's CRM status become?",
-    type: "choice", options: STATUS_OPTIONS, recommendedDefault: "interested", required: true,
-    whyAsked: "No CRM outcome mapping exists for this agent yet.",
-  });
-  add({
-    key: "outcome_neutral_status", section: "CRM outcome mapping",
-    prompt: "When a call is NEUTRAL (spoke, but no clear yes/no), what CRM status should be set?",
-    type: "choice", options: STATUS_OPTIONS, recommendedDefault: "contact_made", required: true,
-    whyAsked: "No CRM outcome mapping exists for this agent yet.",
-  });
-  add({
-    key: "outcome_negative_status", section: "CRM outcome mapping",
-    prompt: "When a call ends NEGATIVE (not interested), what CRM status should be set?",
-    type: "choice", options: STATUS_OPTIONS, recommendedDefault: "not_interested", required: true,
-    whyAsked: "No CRM outcome mapping exists for this agent yet.",
-  });
-  add({
-    key: "neutral_callback_hours", section: "CRM outcome mapping",
-    prompt: "For NEUTRAL outcomes, schedule a follow-up callback after how many hours?",
-    type: "number", recommendedDefault: 48, required: false,
-    whyAsked: "Neutral leads are usually worth one more attempt — 48h is the platform default.",
+    key: "agent_purpose", section: "1. Agent purpose",
+    prompt: `SystemMind detected this agent's purpose as: "${detected.detectedPurpose}". Confirm or describe in your own words what this agent is for.`,
+    type: "text", recommendedDefault: detected.detectedPurpose, required: true,
+    whyAsked: "Every setup starts by agreeing the agent's purpose — everything below flows from it.",
   });
 
-  // ── 2. Booked / booking ──
-  if (detected.hasBookingLogic) {
+  // ── SOP §2. Data source & access key ──
+  add({
+    key: "data_source_kind", section: "2. Data source & access",
+    prompt: "Where will this agent get the people it calls (or responds to)? Access to this source is required before the agent can run.",
+    type: "choice",
+    options: [
+      { value: "crm",         label: "CRM system (leads pulled from your CRM)" },
+      { value: "webform",     label: "Webform (leads submitted via a web form)" },
+      { value: "csv_upload",  label: "WEBEE CSV uploader (lists uploaded to the platform)" },
+      { value: "call_source", label: "Call source only (inbound calls / dialer feed)" },
+    ],
+    recommendedDefault: detected.crmMode ? "crm" : "csv_upload", required: true,
+    whyAsked: "The agent cannot be configured without knowing its data source — and which access key it needs.",
+  });
+  const srcKind = String(answers["data_source_kind"] ?? "");
+  if (srcKind === "crm" || srcKind === "call_source") {
     add({
-      key: "outcome_booked_status", section: "Bookings",
-      prompt: "This agent books appointments. When a booking is made, what CRM status should the lead get?",
-      type: "choice", options: STATUS_OPTIONS, recommendedDefault: "qualified", required: true,
-      whyAsked: "Booking logic detected in the agent script/flow, but no booked-outcome CRM rule exists.",
-    });
-    add({
-      key: "booked_create_task", section: "Bookings",
-      prompt: "When a booking is made, should an ops task be created so your team sees it?",
-      type: "boolean", options: YES_NO, recommendedDefault: true, required: false,
-      whyAsked: "Booked appointments usually need a human confirmation step.",
+      key: "data_source_key_name", section: "2. Data source & access",
+      prompt: srcKind === "crm"
+        ? "REQUIRED KEY: what is the CRM access key called (e.g. \"HubSpot API key\")? Enter the key NAME only — you'll add the actual value securely in Settings → Integrations, never here."
+        : "REQUIRED KEY: what is the call-source access key called (e.g. \"Twilio Auth Token\")? Enter the key NAME only — the value is added securely in Settings, never here.",
+      type: "text",
+      recommendedDefault: srcKind === "crm" ? "CRM API key" : "Call source API key",
+      required: true,
+      whyAsked: "This source needs an access key. It will appear as a required-key box on the generated config until provided.",
     });
   }
 
-  // ── 3. Callbacks ──
-  if (detected.hasCallbackLogic) {
+  // ── SOP §3. Data fields / variables to pull when calling ──
+  const knownVars = detected.variables.map((v) => v.name).slice(0, 12).join(", ");
+  add({
+    key: "fields_to_pull", section: "3. Data fields to pull",
+    prompt: `Which fields should the agent pull data points/variables from when calling (comma-separated)? ${knownVars ? `Variables already in the script: ${knownVars}.` : "e.g. name, phone, company, budget."}`,
+    type: "text",
+    recommendedDefault: knownVars || "name, phone",
+    required: true,
+    whyAsked: "The agent must know exactly which source fields feed its call variables — from the CRM, webform or CSV columns.",
+  });
+
+  // ── SOP §4. Agent functions — when & how often to call, concurrency ──
+  add({
+    key: "calling_mode", section: "4. Agent functions & calling",
+    prompt: "When should this agent call people once live?",
+    type: "choice",
+    options: [
+      { value: "draft",     label: "Just save the config for now (recommended — activate later)" },
+      { value: "instant",   label: "Call new leads as they arrive" },
+      { value: "scheduled", label: "Scheduled campaign batches" },
+      { value: "both",      label: "Both instant and scheduled" },
+    ],
+    recommendedDefault: "draft", required: true,
+    whyAsked: "Calling activation is never assumed — you choose it explicitly.",
+  });
+  add({
+    key: "max_attempts_per_lead", section: "4. Agent functions & calling",
+    prompt: "How often should a user be called — maximum call attempts per lead before giving up?",
+    type: "number", recommendedDefault: 3, required: false,
+    whyAsked: "Protects your leads from over-calling; 3 matches the platform daily cap.",
+  });
+  add({
+    key: "max_calls_per_day", section: "4. Agent functions & calling",
+    prompt: "Maximum total calls per day for this agent?",
+    type: "number", recommendedDefault: 50, required: false,
+    whyAsked: "A hard daily budget prevents runaway outbound volume.",
+  });
+  add({
+    key: "concurrent_calls", section: "4. Agent functions & calling",
+    prompt: "How many concurrent calls should this agent be set up with (calls running at the same time)?",
+    type: "number", recommendedDefault: 1, required: false,
+    whyAsked: "Concurrency controls call throughput and provider cost — 1 is the safe default.",
+  });
+  add({
+    key: "calling_window_start", section: "4. Agent functions & calling",
+    prompt: "Earliest time of day calls may start (HH:MM)?",
+    type: "text", recommendedDefault: "09:00", required: false,
+    whyAsked: "Calls outside business hours damage trust (and may breach rules).",
+  });
+  add({
+    key: "calling_window_end", section: "4. Agent functions & calling",
+    prompt: "Latest time of day calls may be placed (HH:MM)?",
+    type: "text", recommendedDefault: "18:00", required: false,
+    whyAsked: "Calls outside business hours damage trust (and may breach rules).",
+  });
+  const mode = String(answers["calling_mode"] ?? "");
+  if (mode === "scheduled" || mode === "both") {
     add({
-      key: "callback_delay_hours", section: "Callbacks",
-      prompt: "When a lead asks for a callback but no specific time is agreed, call back after how many hours?",
-      type: "number", recommendedDefault: 24, required: false,
-      whyAsked: "Callback handling detected in the script, but no default callback delay is configured.",
+      key: "campaign_name", section: "4. Agent functions & calling",
+      prompt: "Name for the calling campaign (it will be created PAUSED — you start it when ready)?",
+      type: "text", recommendedDefault: `${detected.agentName} campaign`, required: false,
+      whyAsked: "Scheduled calling runs through a campaign; it is always created paused.",
     });
   }
-
-  // ── 4. No answer / voicemail ──
   add({
-    key: "no_answer_retry_hours", section: "No answer & voicemail",
+    key: "no_answer_retry_hours", section: "4. Agent functions & calling",
     prompt: "If a call is not answered, retry after how many hours?",
     type: "number", recommendedDefault: 24, required: false,
     whyAsked: "Every calling agent needs a no-answer rule; nothing is configured yet.",
   });
   add({
-    key: "voicemail_behavior", section: "No answer & voicemail",
+    key: "voicemail_behavior", section: "4. Agent functions & calling",
     prompt: "If the call reaches voicemail, what should the agent do?",
     type: "choice",
     options: [
@@ -280,109 +330,181 @@ export function buildRequirementsQuestions(
       ? "Voicemail is mentioned in the script — confirm the behaviour."
       : "No voicemail behaviour is configured.",
   });
-
-  // ── 5. Opt-out ──
+  if (detected.hasCallbackLogic) {
+    add({
+      key: "callback_delay_hours", section: "4. Agent functions & calling",
+      prompt: "When a lead asks for a callback but no specific time is agreed, call back after how many hours?",
+      type: "number", recommendedDefault: 24, required: false,
+      whyAsked: "Callback handling detected in the script, but no default callback delay is configured.",
+    });
+  }
   if (!detected.hasOptOutLogic) {
     add({
-      key: "add_opt_out_handling", section: "Opt-out & compliance",
+      key: "add_opt_out_handling", section: "4. Agent functions & calling",
       prompt: "The script has no opt-out handling (e.g. \"remove me from your list\"). Add it? (A script addition will be drafted for your approval — nothing changes without it.)",
       type: "boolean", recommendedDefault: true, required: false,
       whyAsked: "No opt-out / do-not-call handling was detected — this is a compliance gap.",
     });
   }
 
-  // ── 6. Negative reason capture ──
-  if (!detected.hasNegativeReason) {
-    add({
-      key: "capture_negative_reason", section: "Data capture",
-      prompt: "When someone says no, should the agent capture WHY (a negative_reason field saved to the CRM)? A script addition will be drafted for your approval.",
-      type: "boolean", recommendedDefault: true, required: false,
-      whyAsked: "No negative-reason capture detected — you'd lose the most valuable objection data.",
-    });
-  }
-
-  // ── 7. Call summary ──
+  // ── SOP §5. Post-call — data to extract, destination, custom features ──
   if (!detected.hasSummaryField) {
     add({
-      key: "capture_call_summary", section: "Data capture",
-      prompt: "Save a short call summary to the CRM after every call?",
+      key: "capture_call_summary", section: "5. Post-call data & destination",
+      prompt: "After the call, save a short call summary?",
       type: "boolean", recommendedDefault: true, required: false,
       whyAsked: "No call-summary extraction field exists yet.",
     });
   }
-
-  // ── 8. Unmapped variables ──
+  if (!detected.hasNegativeReason) {
+    add({
+      key: "capture_negative_reason", section: "5. Post-call data & destination",
+      prompt: "When someone says no, should the agent capture WHY (a negative_reason field)? A script addition will be drafted for your approval.",
+      type: "boolean", recommendedDefault: true, required: false,
+      whyAsked: "No negative-reason capture detected — you'd lose the most valuable objection data.",
+    });
+  }
+  add({
+    key: "extra_extraction_fields", section: "5. Post-call data & destination",
+    prompt: "Any OTHER data points to extract from each call (comma-separated, e.g. budget, timeline, decision_maker)? Leave the default if none.",
+    type: "text", recommendedDefault: "none", required: false,
+    whyAsked: "Custom extraction fields are defined up-front so the agent captures them from day one.",
+  });
+  add({
+    key: "data_destination", section: "5. Post-call data & destination",
+    prompt: "Where should the extracted data points go after the call?",
+    type: "choice",
+    options: [
+      { value: "crm",       label: "CRM system" },
+      { value: "dashboard", label: "WEBEE dashboard only" },
+      { value: "both",      label: "Both CRM and dashboard" },
+    ],
+    recommendedDefault: detected.hasCrmFieldMapping ? "both" : "dashboard", required: true,
+    whyAsked: "Every data point needs a destination — CRM, the dashboard, or both.",
+  });
+  add({
+    key: "custom_agent_features", section: "5. Post-call data & destination",
+    prompt: "Any custom agent features you require (describe in plain language, or leave the default)?",
+    type: "text", recommendedDefault: "none", required: false,
+    whyAsked: "Custom requirements are recorded now so they are designed in, not bolted on.",
+  });
   for (const v of detected.variables.filter((x) => !x.mappedTo).slice(0, 10)) {
     add({
-      key: `map_variable_${v.name}`, section: "Variable mapping",
+      key: `map_variable_${v.name}`, section: "5. Post-call data & destination",
       prompt: `The agent uses the variable "{{${v.name}}}" (${v.source.replace("_", " ")}) but it isn't mapped to a CRM field. Where should it be saved?`,
       type: "text", recommendedDefault: `meta.${v.name}`, required: false,
       whyAsked: "Unmapped variables are captured on the call but never reach your CRM.",
     });
   }
 
-  // ── 9. Calling mode & limits ──
+  // ── SOP §6. Page filters ──
   add({
-    key: "calling_mode", section: "Calling & campaigns",
-    prompt: "How should this agent make calls once live?",
-    type: "choice",
-    options: [
-      { value: "draft",     label: "Just save the config for now (recommended — activate later)" },
-      { value: "instant",   label: "Call new leads as they arrive" },
-      { value: "scheduled", label: "Scheduled campaign batches" },
-      { value: "both",      label: "Both instant and scheduled" },
-    ],
-    recommendedDefault: "draft", required: true,
-    whyAsked: "Calling activation is never assumed — you choose it explicitly.",
+    key: "want_page_filters", section: "6. Page filters",
+    prompt: "Should SystemMind draft saved filters for your pages (Leads, Qualified, Calls, Records, People, Calendar) based on this agent's calls?",
+    type: "boolean", recommendedDefault: true, required: false,
+    whyAsked: "Saved filters keep each page focused on this agent's results from day one.",
   });
-  add({
-    key: "max_attempts_per_lead", section: "Calling & campaigns",
-    prompt: "Maximum call attempts per lead before giving up?",
-    type: "number", recommendedDefault: 3, required: false,
-    whyAsked: "Protects your leads from over-calling; 3 matches the platform daily cap.",
-  });
-  add({
-    key: "max_calls_per_day", section: "Calling & campaigns",
-    prompt: "Maximum total calls per day for this agent?",
-    type: "number", recommendedDefault: 50, required: false,
-    whyAsked: "A hard daily budget prevents runaway outbound volume.",
-  });
-  add({
-    key: "calling_window_start", section: "Calling & campaigns",
-    prompt: "Earliest time of day calls may start (HH:MM)?",
-    type: "text", recommendedDefault: "09:00", required: false,
-    whyAsked: "Calls outside business hours damage trust (and may breach rules).",
-  });
-  add({
-    key: "calling_window_end", section: "Calling & campaigns",
-    prompt: "Latest time of day calls may be placed (HH:MM)?",
-    type: "text", recommendedDefault: "18:00", required: false,
-    whyAsked: "Calls outside business hours damage trust (and may breach rules).",
-  });
+  if (answers["want_page_filters"] === true) {
+    const pageDefs: Array<{ key: string; label: string; def: string }> = [
+      { key: "page_filter_leads",     label: "LEADS page",     def: "Leads created or called by this agent" },
+      { key: "page_filter_qualified", label: "QUALIFIED page", def: "Leads this agent marked interested or qualified" },
+      { key: "page_filter_calls",     label: "CALLS page",     def: "Calls made by this agent" },
+      { key: "page_filter_records",   label: "RECORDS page",   def: "none" },
+      { key: "page_filter_people",    label: "PEOPLE page",    def: "Contacts this agent has spoken to" },
+      { key: "page_filter_calendar",  label: "CALENDAR page",  def: detected.hasBookingLogic ? "Appointments booked by this agent" : "none" },
+    ];
+    for (const pd of pageDefs) {
+      add({
+        key: pd.key, section: "6. Page filters",
+        prompt: `${pd.label}: describe the filter this page should have for this agent (or "none").`,
+        type: "text", recommendedDefault: pd.def, required: false,
+        whyAsked: "Each page can carry its own saved filter — you decide what each one shows.",
+      });
+    }
+  }
 
-  const mode = String(answers["calling_mode"] ?? "");
-  if (mode === "scheduled" || mode === "both") {
+  // ── SOP §7. Documents from Template Studio ──
+  add({
+    key: "auto_populate_documents", section: "7. Documents (Template Studio)",
+    prompt: "Should documents auto-populate from the Template Studio after calls (e.g. a call report or booking confirmation)?",
+    type: "boolean", recommendedDefault: false, required: false,
+    whyAsked: "Document automation is optional — only set it up if you need it.",
+  });
+  if (answers["auto_populate_documents"] === true) {
     add({
-      key: "campaign_name", section: "Calling & campaigns",
-      prompt: "Name for the calling campaign (it will be created PAUSED — you start it when ready)?",
-      type: "text", recommendedDefault: `${detected.agentName} campaign`, required: false,
-      whyAsked: "Scheduled calling runs through a campaign; it is always created paused.",
+      key: "document_template_name", section: "7. Documents (Template Studio)",
+      prompt: "Which Template Studio template should be auto-populated (template name)?",
+      type: "text", recommendedDefault: "Call report", required: false,
+      whyAsked: "The template must exist in Template Studio for auto-population to work.",
     });
   }
 
-  // ── 10. Follow-up rules ──
-  if (detected.followUpRulesCount === 0) {
+  // ── SOP §8. Follow-ups per sentiment (email / SMS / WhatsApp) ──
+  const FOLLOW_UP_OPTIONS = [
+    { value: "none",     label: "No follow-up" },
+    { value: "email",    label: "Email" },
+    { value: "sms",      label: "SMS" },
+    { value: "whatsapp", label: "WhatsApp" },
+  ];
+  add({
+    key: "follow_up_positive", section: "8. Follow-ups",
+    prompt: "After a POSITIVE call, send a follow-up via which channel?",
+    type: "choice", options: FOLLOW_UP_OPTIONS,
+    recommendedDefault: "email", required: false,
+    whyAsked: "Positive leads go cold fast without a follow-up.",
+  });
+  add({
+    key: "follow_up_neutral", section: "8. Follow-ups",
+    prompt: "After a NEUTRAL call, send a follow-up via which channel?",
+    type: "choice", options: FOLLOW_UP_OPTIONS,
+    recommendedDefault: "none", required: false,
+    whyAsked: "A light-touch nudge can convert undecided leads.",
+  });
+  add({
+    key: "follow_up_negative", section: "8. Follow-ups",
+    prompt: "After a NEGATIVE call, send a follow-up via which channel?",
+    type: "choice", options: FOLLOW_UP_OPTIONS,
+    recommendedDefault: "none", required: false,
+    whyAsked: "Usually none — but some businesses send a polite thank-you.",
+  });
+
+  // ── SOP §9. Sentiment outcomes → CRM statuses ──
+  add({
+    key: "outcome_positive_status", section: "9. Sentiment outcomes",
+    prompt: "When a call ends with a POSITIVE outcome, what should the lead's CRM status become?",
+    type: "choice", options: STATUS_OPTIONS, recommendedDefault: "interested", required: true,
+    whyAsked: "No CRM outcome mapping exists for this agent yet.",
+  });
+  add({
+    key: "outcome_neutral_status", section: "9. Sentiment outcomes",
+    prompt: "When a call is NEUTRAL (spoke, but no clear yes/no), what CRM status should be set?",
+    type: "choice", options: STATUS_OPTIONS, recommendedDefault: "contact_made", required: true,
+    whyAsked: "No CRM outcome mapping exists for this agent yet.",
+  });
+  add({
+    key: "neutral_callback_hours", section: "9. Sentiment outcomes",
+    prompt: "For NEUTRAL outcomes, schedule a follow-up callback after how many hours?",
+    type: "number", recommendedDefault: 48, required: false,
+    whyAsked: "Neutral leads are usually worth one more attempt — 48h is the platform default.",
+  });
+  add({
+    key: "outcome_negative_status", section: "9. Sentiment outcomes",
+    prompt: "When a call ends NEGATIVE (not interested), what CRM status should be set?",
+    type: "choice", options: STATUS_OPTIONS, recommendedDefault: "not_interested", required: true,
+    whyAsked: "No CRM outcome mapping exists for this agent yet.",
+  });
+  if (detected.hasBookingLogic) {
     add({
-      key: "follow_up_positive", section: "Follow-ups",
-      prompt: "After a POSITIVE call, send a follow-up message?",
-      type: "choice",
-      options: [
-        { value: "none",     label: "No follow-up" },
-        { value: "email",    label: "Email follow-up" },
-        { value: "whatsapp", label: "WhatsApp follow-up" },
-      ],
-      recommendedDefault: "email", required: false,
-      whyAsked: "No follow-up rules configured — positive leads go cold fast.",
+      key: "outcome_booked_status", section: "9. Sentiment outcomes",
+      prompt: "This agent books appointments. When a booking is made, what CRM status should the lead get?",
+      type: "choice", options: STATUS_OPTIONS, recommendedDefault: "qualified", required: true,
+      whyAsked: "Booking logic detected in the agent script/flow, but no booked-outcome CRM rule exists.",
+    });
+    add({
+      key: "booked_create_task", section: "9. Sentiment outcomes",
+      prompt: "When a booking is made, should an ops task be created so your team sees it?",
+      type: "boolean", options: YES_NO, recommendedDefault: true, required: false,
+      whyAsked: "Booked appointments usually need a human confirmation step.",
     });
   }
 

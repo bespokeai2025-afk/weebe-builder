@@ -9,7 +9,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
 import {
-  Bot, CheckCircle2, ChevronDown, FlaskConical, Loader2, RefreshCcw,
+  Bot, CheckCircle2, ChevronDown, FlaskConical, KeyRound, Loader2, RefreshCcw,
   ShieldCheck, Sparkles, Wand2, X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -185,6 +185,31 @@ export function RequirementsPanel({
           </div>
         </div>
       )}
+
+      {/* SOP §2 — REQUIRED KEY box: the chosen data source needs an access key */}
+      {(() => {
+        const src = String(draft["data_source_kind"] ?? answers["data_source_kind"] ?? "");
+        const needsKey = src === "crm" || src === "call_source";
+        const keyName = String(
+          draft["data_source_key_name"] ??
+          (currentRequirements as any)?.data_source?.required_key_name ??
+          answers["data_source_key_name"] ??
+          (src === "crm" ? "CRM API key" : "Call source API key"),
+        );
+        if (!needsKey) return null;
+        return (
+          <div className="rounded-lg border border-amber-400/40 bg-amber-400/[0.06] p-3">
+            <div className="flex items-center gap-2">
+              <KeyRound className="h-3.5 w-3.5 text-amber-300" />
+              <p className="text-[12px] font-medium text-amber-200">Required key: {keyName}</p>
+            </div>
+            <p className="mt-1 text-[11px] text-amber-200/80">
+              This agent pulls its {src === "crm" ? "leads from your CRM" : "calls from your call source"} — access is required before it can go live.
+              Add the actual key value securely in Settings → Integrations. Never paste key values into this assistant.
+            </p>
+          </div>
+        );
+      })()}
 
       {/* Questions, grouped by section */}
       <div className="space-y-2">
