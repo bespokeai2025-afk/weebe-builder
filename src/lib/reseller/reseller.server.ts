@@ -41,6 +41,8 @@ export interface ChildAccountUsage {
   unlimited: boolean;
   used: number;
   remaining: number;
+  /** false when usage could not be verified (reads failed) — treat as no capacity. */
+  verified: boolean;
 }
 
 /** Child-account allowance = package limit + active extra_child_account addons. */
@@ -62,10 +64,10 @@ export async function getChildAccountUsage(workspaceId: string): Promise<ChildAc
     const unlimited = limit === null;
     const allowance = unlimited ? Number.MAX_SAFE_INTEGER : (limit ?? 0) + extra;
     const used = count ?? 0;
-    return { allowance, unlimited, used, remaining: Math.max(allowance - used, 0) };
+    return { allowance, unlimited, used, remaining: Math.max(allowance - used, 0), verified: true };
   } catch {
     // Fail closed: unable to verify → no capacity.
-    return { allowance: 0, unlimited: false, used: 0, remaining: 0 };
+    return { allowance: 0, unlimited: false, used: 0, remaining: 0, verified: false };
   }
 }
 
@@ -274,9 +276,10 @@ export async function createChildClientAccount(input: CreateChildInput) {
       .single();
     if (cErr) throw new Error(cErr.message);
 
-    // Post-insert capacity re-check (racing creates roll back).
+    // Post-insert capacity re-check (racing creates roll back). Unknown usage
+    // (verification failure) is treated as over-capacity — fail closed.
     const usage = await getChildAccountUsage(input.parentWorkspaceId);
-    if (usage.used > usage.allowance) {
+    if (!usage.verified || usage.used > usage.allowance) {
       throw new FeatureLockedError(
         ADDON_EXTRA_CHILD_ACCOUNT,
         `You have reached your client account limit (${usage.allowance}).`,
@@ -406,7 +409,23 @@ export async function setChildAccountSuspended(opts: {
         updated_at: now,
       })
       .eq("workspace_id", client.child_workspace_id);
-    if (subErr) throw new Error(subErr.message);
+    if (subErr) {
+      // Compensate the earlier client + relationship updates so all three
+      // hierarchy states stay consistent.
+      const revertTs = new Date().toISOString();
+      await sb
+        .from("reseller_client_accounts")
+        .update({ status: client.status, updated_at: revertTs })
+        .eq("id", client.id);
+      await sb
+        .from("workspace_relationships")
+        .update({
+          status: client.status === "suspended" ? "suspended" : "active",
+          updated_at: revertTs,
+        })
+        .eq("child_workspace_id", client.child_workspace_id);
+      throw new Error(subErr.message);
+    }
     invalidateEntitlementsCache(client.child_workspace_id);
   }
   await writeAccessAudit({

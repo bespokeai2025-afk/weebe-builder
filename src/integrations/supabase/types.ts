@@ -7994,6 +7994,75 @@ export type Database = {
           },
         ]
       }
+      reseller_client_accounts: {
+        Row: {
+          billing_mode: string
+          branding_mode: string
+          child_workspace_id: string | null
+          client_email: string
+          client_name: string
+          created_at: string
+          created_by: string | null
+          id: string
+          notes: string | null
+          package_key: string
+          parent_workspace_id: string
+          status: string
+          updated_at: string
+          upgrade_requested_at: string | null
+          upgrade_requested_package_key: string | null
+        }
+        Insert: {
+          billing_mode?: string
+          branding_mode?: string
+          child_workspace_id?: string | null
+          client_email: string
+          client_name: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          notes?: string | null
+          package_key: string
+          parent_workspace_id: string
+          status?: string
+          updated_at?: string
+          upgrade_requested_at?: string | null
+          upgrade_requested_package_key?: string | null
+        }
+        Update: {
+          billing_mode?: string
+          branding_mode?: string
+          child_workspace_id?: string | null
+          client_email?: string
+          client_name?: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          notes?: string | null
+          package_key?: string
+          parent_workspace_id?: string
+          status?: string
+          updated_at?: string
+          upgrade_requested_at?: string | null
+          upgrade_requested_package_key?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "reseller_client_accounts_child_workspace_id_fkey"
+            columns: ["child_workspace_id"]
+            isOneToOne: true
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "reseller_client_accounts_parent_workspace_id_fkey"
+            columns: ["parent_workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       retell_webhook_events: {
         Row: {
           error_message: string | null
@@ -12674,6 +12743,54 @@ export type Database = {
           },
         ]
       }
+      workspace_relationships: {
+        Row: {
+          child_workspace_id: string
+          created_at: string
+          created_by: string | null
+          id: string
+          parent_workspace_id: string
+          relationship_type: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          child_workspace_id: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          parent_workspace_id: string
+          relationship_type?: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          child_workspace_id?: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          parent_workspace_id?: string
+          relationship_type?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "workspace_relationships_child_workspace_id_fkey"
+            columns: ["child_workspace_id"]
+            isOneToOne: true
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "workspace_relationships_parent_workspace_id_fkey"
+            columns: ["parent_workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       workspace_requests: {
         Row: {
           created_at: string
@@ -13268,6 +13385,77 @@ export type Database = {
             foreignKeyName: "workspace_webhooks_workspace_id_fkey"
             columns: ["workspace_id"]
             isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      workspace_white_label_settings: {
+        Row: {
+          accent_color: string | null
+          brand_name: string | null
+          child_branding_mode: string
+          created_at: string
+          custom_domain: string | null
+          custom_domain_status: string
+          email_branding_mode: string
+          email_from_name: string | null
+          favicon_url: string | null
+          hide_webee_branding: boolean
+          logo_url: string | null
+          primary_color: string | null
+          reseller_mode: boolean
+          secondary_color: string | null
+          support_email: string | null
+          updated_at: string
+          updated_by: string | null
+          workspace_id: string
+        }
+        Insert: {
+          accent_color?: string | null
+          brand_name?: string | null
+          child_branding_mode?: string
+          created_at?: string
+          custom_domain?: string | null
+          custom_domain_status?: string
+          email_branding_mode?: string
+          email_from_name?: string | null
+          favicon_url?: string | null
+          hide_webee_branding?: boolean
+          logo_url?: string | null
+          primary_color?: string | null
+          reseller_mode?: boolean
+          secondary_color?: string | null
+          support_email?: string | null
+          updated_at?: string
+          updated_by?: string | null
+          workspace_id: string
+        }
+        Update: {
+          accent_color?: string | null
+          brand_name?: string | null
+          child_branding_mode?: string
+          created_at?: string
+          custom_domain?: string | null
+          custom_domain_status?: string
+          email_branding_mode?: string
+          email_from_name?: string | null
+          favicon_url?: string | null
+          hide_webee_branding?: boolean
+          logo_url?: string | null
+          primary_color?: string | null
+          reseller_mode?: boolean
+          secondary_color?: string | null
+          support_email?: string | null
+          updated_at?: string
+          updated_by?: string | null
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "workspace_white_label_settings_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: true
             referencedRelation: "workspaces"
             referencedColumns: ["id"]
           },
