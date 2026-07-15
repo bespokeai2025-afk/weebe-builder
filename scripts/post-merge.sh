@@ -22,3 +22,6 @@ node scripts/apply-systemmind-conversions-migration.mjs
 
 # Apply notifications + team access (RBAC) migration idempotently (same pattern — never blocks post-merge)
 node scripts/apply-notifications-team-access-migration.mjs
+
+# Ensure the atomic industry-preset apply RPC exists (CREATE OR REPLACE — idempotent, never blocks post-merge)
+node scripts/apply-industry-preset-atomic-migration.mjs

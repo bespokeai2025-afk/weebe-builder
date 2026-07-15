@@ -11,10 +11,14 @@ description: How workspace industry + deterministic dashboard presets work and t
   (defence-in-depth) so a preset can never make a billing/cost metric client-visible.
 - **Why:** AccountsMind rows are client-visible; sensitive metrics (costs) must never be
   exposed via a preset shortcut that bypasses the AI-draft scrubber.
-- **How to apply:** preset apply REPLACES the dashboard — archive live stat/widget rows whose
-  keys aren't in the preset, then write preset rows through the same `versionedInsert`
-  archive+version chain as SystemMind draft activation (exported as
-  `versionedInsertConfigRow`). Never insert config rows directly.
+- **How to apply:** preset apply REPLACES the dashboard atomically — a single
+  service_role-only Postgres RPC `apply_accountsmind_industry_preset` (migration
+  20260718000000, CREATE OR REPLACE, hooked into post-merge) archives non-preset live rows
+  and versioned-inserts preset rows in ONE transaction, mirroring the `versionedInsert`
+  archive+version chain of SystemMind draft activation. Never insert config rows directly,
+  and never add a row-by-row JS fallback (it would reintroduce half-applied dashboards).
+  `workspace_settings.industry` is written only AFTER the RPC succeeds so a failed apply
+  leaves workspace state fully untouched.
 - Permission gate: no fitting ActionKey exists — user-facing apply uses `resolvePermissions`
   (fail-closed) and requires `legacyRole` owner|admin; admin-side industry set uses
   `requirePlatformAdmin`. workspace_id always from auth context, never client input.

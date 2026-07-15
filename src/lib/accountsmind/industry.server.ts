@@ -86,73 +86,52 @@ export async function applyIndustryPresetServer(args: {
     throw new Error("Industry preset had no valid items after safety filtering.");
   }
 
+  const sb = sbA();
+
+  // Atomic apply: one Postgres RPC wraps archive + versioned insert in a single
+  // transaction (migration 20260718000000). If anything fails midway, the
+  // previous dashboard is left completely untouched — no half-applied state.
+  // The RPC mirrors versionedInsertConfigRow's archive+version chain exactly
+  // and is service_role-only; there is deliberately NO row-by-row fallback
+  // here (a fallback would reintroduce the half-apply failure mode).
+  const { data: rpcResult, error: rpcError } = await sb.rpc(
+    "apply_accountsmind_industry_preset",
+    {
+      p_workspace_id: workspaceId,
+      p_created_by:   userId,
+      p_stats: stats.map((s) => ({
+        stat_key:    s.stat_key,
+        label:       s.label,
+        metric_key:  s.metric_key,
+        format:      s.format,
+        description: s.description,
+      })),
+      p_widgets: widgets.map((w) => ({
+        widget_key:  w.widget_key,
+        title:       w.title,
+        widget_type: w.widget_type,
+        metric_key:  w.metric_key,
+        format:      w.format,
+        description: w.description,
+      })),
+    },
+  );
+  if (rpcError) {
+    throw new Error(
+      `Industry preset apply failed — your previous dashboard is unchanged. (${rpcError.message})`,
+    );
+  }
+
+  const statsCreated   = Number(rpcResult?.stats_created ?? stats.length);
+  const widgetsCreated = Number(rpcResult?.widgets_created ?? widgets.length);
+
+  // Only record the industry choice once the dashboard swap actually succeeded,
+  // so a failed apply leaves workspace state fully untouched.
   await setWorkspaceIndustryServer(workspaceId, industryKey);
 
-  const sb = sbA();
-  const common = {
-    created_by_user_id: userId,
-    created_by_system:  "industry_preset",
-    source_draft_id:    null,
-  };
-
-  // Same archive+version chain as SystemMind draft activation.
-  const { versionedInsertConfigRow } = await import("@/lib/accountsmind/accountsmind-config.server");
-
-  // Preset apply REPLACES the dashboard: archive live rows whose keys are not
-  // part of the preset (matching keys are archived+re-versioned below).
-  const presetStatKeys = stats.map((x) => x.stat_key);
-  const presetWidgetKeys = widgets.map((x) => x.widget_key);
-  for (const [table, keyCol, keep] of [
-    ["accountsmind_stat_defs", "stat_key", presetStatKeys],
-    ["accountsmind_widget_defs", "widget_key", presetWidgetKeys],
-  ] as const) {
-    const q = sb.from(table)
-      .update({ status: "archived" })
-      .eq("workspace_id", workspaceId)
-      .in("status", ["active", "paused", "hidden"])
-      .eq("is_deleted", false);
-    const { error } = keep.length > 0
-      ? await q.not(keyCol, "in", `(${keep.map((k: string) => `"${k}"`).join(",")})`)
-      : await q;
-    if (error) throw new Error(`Failed to archive previous ${table} rows: ${error.message}`);
-  }
-
-  let order = 0;
-  let statsCreated = 0;
-  for (const s of stats) {
-    await versionedInsertConfigRow(sb, "accountsmind_stat_defs", workspaceId, "stat_key", s.stat_key, {
-      ...common,
-      stat_key:       s.stat_key,
-      label:          s.label,
-      metric_key:     s.metric_key,
-      format:         s.format,
-      description:    s.description,
-      client_visible: true,
-      risk_level:     "low",
-      display_order:  order++,
-    });
-    statsCreated++;
-  }
-
-  order = 0;
-  let widgetsCreated = 0;
-  const trendKeys: string[] = [];
-  for (const w of widgets) {
-    await versionedInsertConfigRow(sb, "accountsmind_widget_defs", workspaceId, "widget_key", w.widget_key, {
-      ...common,
-      widget_key:     w.widget_key,
-      title:          w.title,
-      widget_type:    w.widget_type,
-      metric_key:     w.metric_key,
-      format:         w.format,
-      description:    w.description,
-      client_visible: true,
-      risk_level:     "low",
-      display_order:  order++,
-    });
-    widgetsCreated++;
-    if (w.widget_type === "trend" || w.widget_type === "progress") trendKeys.push(w.metric_key);
-  }
+  const trendKeys = widgets
+    .filter((w) => w.widget_type === "trend" || w.widget_type === "progress")
+    .map((w) => w.metric_key);
 
   // Backfill sparkline history for trend widgets (fire-and-forget).
   if (trendKeys.length > 0) {
