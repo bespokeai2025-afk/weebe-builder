@@ -335,12 +335,28 @@ export const manualTriggerWorkflow = createServerFn({ method: "POST" })
           mode: "live",
         },
       }).eq("id", runId);
+      if (failed.length > 0) {
+        const { notifyWorkflowError } = await import("@/lib/workflow-engine/workflow-executor.server");
+        await notifyWorkflowError({
+          workspaceId,
+          workflowName: wf.name ?? null,
+          runId,
+          errorMessage: failed[0]?.error ?? null,
+        });
+      }
     } catch (e: any) {
       await sb.from("workflow_runs").update({
         status:       "failed",
         completed_at: new Date().toISOString(),
         error:        e?.message ?? String(e),
       }).eq("id", runId);
+      const { notifyWorkflowError } = await import("@/lib/workflow-engine/workflow-executor.server");
+      await notifyWorkflowError({
+        workspaceId,
+        workflowName: wf.name ?? null,
+        runId,
+        errorMessage: e?.message ?? String(e),
+      });
       throw e;
     }
     return { run_id: runId };

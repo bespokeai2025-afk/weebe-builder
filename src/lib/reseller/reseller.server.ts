@@ -335,6 +335,18 @@ export async function createChildClientAccount(input: CreateChildInput) {
       riskLevel: "high",
     });
 
+    // Notify the parent workspace that a client account was created (best-effort).
+    try {
+      const { emitCampaignNotification } = await import("@/lib/notifications/notification-engine.shared");
+      await emitCampaignNotification(sb, {
+        workspaceId: input.parentWorkspaceId,
+        eventKey: "reseller_client_created",
+        summary: `Client account "${clientName}" was created (${clientEmail}, package: ${input.packageKey}). An invite email has been sent to the client.`,
+      });
+    } catch (nErr: any) {
+      console.warn("[reseller] client-created notification failed (non-fatal):", nErr?.message ?? nErr);
+    }
+
     // Best-effort branded invite email.
     try {
       const parentWl = await getWhiteLabelSettings(input.parentWorkspaceId);

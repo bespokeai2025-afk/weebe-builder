@@ -9,7 +9,10 @@ import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { requireAction, resolvePermissions, writeAccessAudit } from "@/lib/permissions/permissions.server";
 import {
   NOTIFICATION_EVENT_KEYS,
+  NOTIFICATION_EVENT_LABELS,
   DEFAULT_EVENT_SETTINGS,
+  loadNotificationCaps,
+  type NotificationEventKey,
   type NotificationRecipientsConfig,
 } from "./notification-engine.shared";
 
@@ -24,16 +27,53 @@ export const listNotificationSettings = createServerFn({ method: "GET" })
     const perms = await resolvePermissions(workspaceId, userId);
     if (!perms.isMember) throw new Error("Not a member of this workspace");
 
-    const { data, error } = await sb
-      .from("workspace_notification_settings")
-      .select("event_key, enabled, email_enabled, in_app_enabled, recipients, frequency")
-      .eq("workspace_id", workspaceId);
+    const [{ data, error }, caps, provider, lastEmailByEvent] = await Promise.all([
+      sb
+        .from("workspace_notification_settings")
+        .select("event_key, enabled, email_enabled, in_app_enabled, recipients, frequency")
+        .eq("workspace_id", workspaceId),
+      loadNotificationCaps(sb, workspaceId),
+      (async () => {
+        try {
+          const { resolveWorkspaceEmailProvider } = await import("@/lib/email/email-dispatch.server");
+          const p = await resolveWorkspaceEmailProvider(sb, workspaceId);
+          return p.source as string;
+        } catch {
+          return "platform_default";
+        }
+      })(),
+      (async () => {
+        // Latest email-channel delivery outcome per event (for the panel).
+        const map = new Map<string, { status: string; error: string | null; at: string | null }>();
+        try {
+          const { data: rows } = await sb
+            .from("workspace_notifications")
+            .select("event_key, delivery_status, delivery_error, sent_at, created_at")
+            .eq("workspace_id", workspaceId)
+            .eq("channel", "email")
+            .order("created_at", { ascending: false })
+            .limit(300);
+          for (const r of rows ?? []) {
+            if (!map.has(r.event_key)) {
+              map.set(r.event_key, {
+                status: r.delivery_status,
+                error: r.delivery_error ?? null,
+                at: r.sent_at ?? r.created_at ?? null,
+              });
+            }
+          }
+        } catch {
+          /* best-effort */
+        }
+        return map;
+      })(),
+    ]);
     if (error) throw new Error(error.message);
     const byEvent = new Map<string, any>((data ?? []).map((r: any) => [r.event_key, r]));
 
-    return NOTIFICATION_EVENT_KEYS.map((eventKey) => {
+    const rows = NOTIFICATION_EVENT_KEYS.map((eventKey) => {
       const row = byEvent.get(eventKey);
-      return row
+      const base = row
         ? {
             eventKey,
             enabled: row.enabled !== false,
@@ -44,7 +84,9 @@ export const listNotificationSettings = createServerFn({ method: "GET" })
             isDefault: false,
           }
         : { eventKey, ...structuredClone(DEFAULT_EVENT_SETTINGS), isDefault: true };
+      return { ...base, lastEmail: lastEmailByEvent.get(eventKey) ?? null };
     });
+    return { rows, caps, providerSource: provider };
   });
 
 export const updateNotificationSetting = createServerFn({ method: "POST" })
@@ -68,6 +110,16 @@ export const updateNotificationSetting = createServerFn({ method: "POST" })
     }
     if (!["immediate", "hourly", "daily", "weekly"].includes(data.frequency)) {
       throw new Error("Invalid frequency");
+    }
+
+    // Package caps — fail closed. Email + custom recipients are locked when
+    // the workspace's package does not include them.
+    const caps = await loadNotificationCaps(sb, workspaceId);
+    if (data.emailEnabled && !caps.emailAllowed) {
+      throw new Error("Email notifications are not included in your current package.");
+    }
+    if ((data.recipients?.customEmails?.length ?? 0) > 0 && !caps.customRecipientsAllowed) {
+      throw new Error("Custom email recipients are not included in your current package.");
     }
 
     const recipients: NotificationRecipientsConfig = {
@@ -189,4 +241,67 @@ export const listCriticalNotifications = createServerFn({ method: "GET" })
       .limit(5);
     if (error) throw new Error(error.message);
     return rows ?? [];
+  });
+
+/**
+ * Send a test notification email for one event to the acting user.
+ * Requires notification_settings grant; respects package caps (fail closed).
+ */
+export const sendTestNotificationEmail = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: { eventKey: string }) => input)
+  .handler(async ({ context, data }) => {
+    const { workspaceId, userId } = context;
+    if (!workspaceId) throw new Error("No active workspace");
+    await requireAction(workspaceId, userId, "notification_settings");
+    if (!(NOTIFICATION_EVENT_KEYS as readonly string[]).includes(data.eventKey)) {
+      throw new Error(`Unknown notification event: ${data.eventKey}`);
+    }
+    const caps = await loadNotificationCaps(sb, workspaceId);
+    if (!caps.emailAllowed) {
+      throw new Error("Email notifications are not included in your current package.");
+    }
+    const { data: profile } = await sb
+      .from("profiles")
+      .select("email")
+      .eq("user_id", userId)
+      .maybeSingle();
+    if (!profile?.email) throw new Error("Your profile has no email address.");
+    const { data: ws } = await sb.from("workspaces").select("name").eq("id", workspaceId).maybeSingle();
+    const workspaceName = ws?.name ?? "Workspace";
+    const label = NOTIFICATION_EVENT_LABELS[data.eventKey as NotificationEventKey] ?? data.eventKey;
+
+    const { sendWorkspaceEmail } = await import("@/lib/email/email-dispatch.server");
+    const { renderBasicEmail, escapeHtml } = await import("@/lib/email/resend.server");
+    const html = renderBasicEmail({
+      heading: `Test notification — ${label}`,
+      bodyHtml:
+        `<p><strong>Workspace:</strong> ${escapeHtml(workspaceName)}</p>` +
+        `<p>This is a test of the “${escapeHtml(label)}” notification email. ` +
+        `If you received this, notification emails are working for your workspace.</p>`,
+    });
+    const result = await sendWorkspaceEmail(sb, {
+      workspaceId,
+      to: profile.email,
+      subject: `[${workspaceName}] Test notification — ${label}`.slice(0, 250),
+      html,
+    });
+    await writeAccessAudit({
+      workspaceId,
+      actingUserId: userId,
+      objectType: "notification",
+      objectId: data.eventKey,
+      actionType: "notification_test_send",
+      afterState: {
+        to: profile.email,
+        success: result.success,
+        providerUsed: (result as any).providerUsed ?? null,
+        ...(result.success ? {} : { error: (result.error ?? "unknown").slice(0, 300) }),
+      },
+      riskLevel: "low",
+    });
+    if (!result.success) {
+      throw new Error(`Test send failed: ${result.error ?? "unknown error"}`);
+    }
+    return { ok: true, to: profile.email, providerUsed: (result as any).providerUsed ?? null };
   });

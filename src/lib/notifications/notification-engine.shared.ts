@@ -12,6 +12,7 @@
  */
 import { escapeHtml, renderBasicEmail } from "../email/resend.server";
 import { sendWorkspaceEmail } from "../email/email-dispatch.server";
+import { notificationCapsForPackage, type NotificationCaps } from "../packages/packages.shared";
 
 type Sb = any;
 
@@ -34,6 +35,10 @@ export const NOTIFICATION_EVENT_KEYS = [
   "appointments_booked",
   "follow_up_tasks_created",
   "needs_admin_attention",
+  "staff_invite_accepted",
+  "systemmind_fix_suggested",
+  "reseller_client_created",
+  "email_provider_failing",
 ] as const;
 export type NotificationEventKey = (typeof NOTIFICATION_EVENT_KEYS)[number];
 
@@ -56,14 +61,19 @@ export const NOTIFICATION_EVENT_LABELS: Record<NotificationEventKey, string> = {
   appointments_booked: "Appointments booked",
   follow_up_tasks_created: "Follow-up tasks created",
   needs_admin_attention: "Needs admin attention",
+  staff_invite_accepted: "Staff invite accepted",
+  systemmind_fix_suggested: "SystemMind fix suggested",
+  reseller_client_created: "Client account created",
+  email_provider_failing: "Email provider failing",
 };
 
 const CRITICAL_EVENTS: ReadonlySet<string> = new Set([
   "failed", "provider_error", "workflow_error", "safety_cap_hit",
+  "email_provider_failing",
 ]);
 const WARNING_EVENTS: ReadonlySet<string> = new Set([
   "paused", "safety_blocked", "no_eligible_leads", "daily_cap_hit",
-  "high_negative_sentiment", "needs_admin_attention",
+  "high_negative_sentiment", "needs_admin_attention", "systemmind_fix_suggested",
 ]);
 
 export function severityForEvent(eventKey: string): "info" | "warning" | "critical" {
@@ -97,6 +107,39 @@ export const DEFAULT_EVENT_SETTINGS: NotificationSettings = {
   recipients: { owner: true, admins: true, userIds: [], roleKeys: [], customEmails: [], campaignOwner: false },
   frequency: "immediate",
 };
+
+/**
+ * Package caps for a workspace, FAIL CLOSED: any lookup problem means no
+ * email + no custom recipients (in-app is unaffected).
+ */
+export async function loadNotificationCaps(sb: Sb, workspaceId: string): Promise<NotificationCaps> {
+  try {
+    const { data, error } = await sb
+      .from("workspace_subscriptions")
+      .select("package_key")
+      .eq("workspace_id", workspaceId)
+      .maybeSingle();
+    if (error) return { emailAllowed: false, customRecipientsAllowed: false };
+    return notificationCapsForPackage(data?.package_key ?? null);
+  } catch {
+    return { emailAllowed: false, customRecipientsAllowed: false };
+  }
+}
+
+/** Clamp settings to package caps (send-time enforcement, fail closed). */
+export function clampSettingsToCaps(
+  settings: NotificationSettings,
+  caps: NotificationCaps,
+): NotificationSettings {
+  return {
+    ...settings,
+    emailEnabled: settings.emailEnabled && caps.emailAllowed,
+    recipients: {
+      ...settings.recipients,
+      customEmails: caps.customRecipientsAllowed ? (settings.recipients.customEmails ?? []) : [],
+    },
+  };
+}
 
 export async function loadEventSettings(
   sb: Sb,
@@ -288,7 +331,9 @@ function getAppUrl(): string {
 export async function emitCampaignNotification(sb: Sb, input: CampaignNotificationInput): Promise<void> {
   try {
     if (!input.workspaceId || !input.eventKey) return;
-    const settings = await loadEventSettings(sb, input.workspaceId, input.eventKey);
+    const rawSettings = await loadEventSettings(sb, input.workspaceId, input.eventKey);
+    const caps = await loadNotificationCaps(sb, input.workspaceId);
+    const settings = clampSettingsToCaps(rawSettings, caps);
     if (!settings.enabled) return;
     if (!settings.inAppEnabled && !settings.emailEnabled) return;
 

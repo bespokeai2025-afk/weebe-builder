@@ -275,7 +275,7 @@ async function emitProviderFailureAlert(
     if (admins.size === 0) return;
     const rows = Array.from(admins).map((uid) => ({
       workspace_id: workspaceId,
-      event_key: "needs_admin_attention",
+      event_key: "email_provider_failing",
       channel: "in_app",
       recipient_user_id: uid,
       title: "Custom email provider is failing",

@@ -4,6 +4,23 @@
  */
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { dispatchCrmPostCall } from "@/lib/crm/crm-dispatch.server";
+import { emitCampaignNotification } from "@/lib/notifications/notification-engine.shared";
+
+/** Best-effort workflow_error notification. Never throws. */
+export async function notifyWorkflowError(opts: {
+  workspaceId: string;
+  workflowName?: string | null;
+  runId?: string | null;
+  errorMessage?: string | null;
+}): Promise<void> {
+  await emitCampaignNotification(supabaseAdmin as any, {
+    workspaceId: opts.workspaceId,
+    eventKey: "workflow_error",
+    summary: `Workflow ${opts.workflowName ? `"${opts.workflowName}" ` : ""}run failed${opts.runId ? ` (run ${opts.runId.slice(0, 8)})` : ""}.`,
+    failureReason: opts.errorMessage?.slice(0, 400) ?? null,
+    recommendedAction: "Open the workflow's run history to review the failed step, then re-run or fix the workflow.",
+  });
+}
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -106,12 +123,26 @@ export async function dispatchLeadAddedWorkflows(opts: {
             mode: "live",
           },
         }).eq("id", runId);
+        if (failed.length > 0) {
+          await notifyWorkflowError({
+            workspaceId: opts.workspaceId,
+            workflowName: wf.name ?? null,
+            runId,
+            errorMessage: failed[0]?.error ?? null,
+          });
+        }
       } catch (e: any) {
         await sb.from("workflow_runs").update({
           status:       "failed",
           completed_at: new Date().toISOString(),
           error:        e?.message ?? String(e),
         }).eq("id", runId);
+        await notifyWorkflowError({
+          workspaceId: opts.workspaceId,
+          workflowName: wf.name ?? null,
+          runId,
+          errorMessage: e?.message ?? String(e),
+        });
       }
     }
   } catch (e) {

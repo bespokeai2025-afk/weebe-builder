@@ -386,6 +386,7 @@ export async function provisionWorkspacePackage(opts: {
     );
   if (error) throw new Error(error.message);
   invalidateEntitlementsCache(opts.workspaceId);
+  await seedNotificationDefaults(opts.workspaceId, packageKey);
   writeAccessAudit({
     workspaceId: opts.workspaceId,
     actingUserId: opts.actingUserId ?? null,
@@ -395,6 +396,36 @@ export async function provisionWorkspacePackage(opts: {
     afterState: { packageKey, status },
     riskLevel: "medium",
   });
+}
+
+/**
+ * Seed package default notification settings. Insert-only (ignoreDuplicates):
+ * rows an admin already customised are NEVER overwritten. Best-effort.
+ */
+export async function seedNotificationDefaults(workspaceId: string, packageKey: string): Promise<void> {
+  try {
+    const { notificationDefaultsForPackage } = await import("@/lib/packages/packages.shared");
+    const defaults = notificationDefaultsForPackage(packageKey);
+    const entries = Object.entries(defaults);
+    if (entries.length === 0) return;
+    const now = new Date().toISOString();
+    const rows = entries.map(([eventKey, d]) => ({
+      workspace_id: workspaceId,
+      event_key: eventKey,
+      enabled: d.enabled !== false,
+      email_enabled: d.emailEnabled === true,
+      in_app_enabled: d.inAppEnabled !== false,
+      recipients: { owner: true, admins: true, userIds: [], roleKeys: [], customEmails: [], campaignOwner: false },
+      frequency: d.frequency ?? "immediate",
+      updated_at: now,
+    }));
+    const { error } = await (supabaseAdmin as any)
+      .from("workspace_notification_settings")
+      .upsert(rows, { onConflict: "workspace_id,event_key", ignoreDuplicates: true });
+    if (error) console.warn("[packages] notification defaults seed failed (non-fatal):", error.message);
+  } catch (err: any) {
+    console.warn("[packages] notification defaults seed failed (non-fatal):", err?.message ?? err);
+  }
 }
 
 /** Throw a clear seat-limit error unless a seat is available. */

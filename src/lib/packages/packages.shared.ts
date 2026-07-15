@@ -575,6 +575,80 @@ export function matchRouteKey<T>(
   return best ? map[best] : undefined;
 }
 
+// ── Notification caps & package defaults ────────────────────────────────────
+//
+// Kept as standalone maps (not PackageDef fields) so this block stays the one
+// source of truth and notification-engine.shared.ts can import it without any
+// import cycle. Unknown package keys FAIL CLOSED (no email, no custom
+// recipients).
+
+export interface NotificationCaps {
+  /** May this package send notification EMAILS at all? (in-app is always allowed) */
+  emailAllowed: boolean;
+  /** May admins add custom (non-member) email recipients? */
+  customRecipientsAllowed: boolean;
+}
+
+const NOTIFICATION_CAPS_BY_PACKAGE: Record<string, NotificationCaps> = {
+  trial: { emailAllowed: false, customRecipientsAllowed: false },
+  none: { emailAllowed: false, customRecipientsAllowed: false },
+  receptionist_lite: { emailAllowed: true, customRecipientsAllowed: false },
+  receptionist_pro: { emailAllowed: true, customRecipientsAllowed: true },
+  executive_suite: { emailAllowed: true, customRecipientsAllowed: true },
+  business_command: { emailAllowed: true, customRecipientsAllowed: true },
+  enterprise: { emailAllowed: true, customRecipientsAllowed: true },
+  legacy_full: { emailAllowed: true, customRecipientsAllowed: true },
+};
+
+/** Fail-closed lookup: unknown packages get no email + no custom recipients. */
+export function notificationCapsForPackage(packageKey: string | null | undefined): NotificationCaps {
+  return NOTIFICATION_CAPS_BY_PACKAGE[packageKey ?? ""] ?? { emailAllowed: false, customRecipientsAllowed: false };
+}
+
+export interface NotificationEventDefault {
+  enabled?: boolean;
+  emailEnabled?: boolean;
+  inAppEnabled?: boolean;
+  frequency?: "immediate" | "hourly" | "daily" | "weekly";
+}
+
+/** Critical operational events every package should surface by default. */
+const CRITICAL_DEFAULT_EVENTS = [
+  "failed",
+  "provider_error",
+  "workflow_error",
+  "safety_cap_hit",
+  "email_provider_failing",
+  "needs_admin_attention",
+] as const;
+
+/**
+ * Per-package default notification settings, applied ONCE at provisioning /
+ * package assignment (never overwrites rows an admin already customised).
+ * Only events listed here get a seeded row; everything else uses the
+ * engine's DEFAULT_EVENT_SETTINGS at read time.
+ */
+export function notificationDefaultsForPackage(
+  packageKey: string | null | undefined,
+): Record<string, NotificationEventDefault> {
+  const caps = notificationCapsForPackage(packageKey);
+  const out: Record<string, NotificationEventDefault> = {};
+  for (const ev of CRITICAL_DEFAULT_EVENTS) {
+    out[ev] = {
+      enabled: true,
+      inAppEnabled: true,
+      emailEnabled: caps.emailAllowed,
+      frequency: "immediate",
+    };
+  }
+  // Growth-oriented digests for packages that can email.
+  if (caps.emailAllowed) {
+    out["qualified_leads_generated"] = { enabled: true, inAppEnabled: true, emailEnabled: true, frequency: "daily" };
+    out["appointments_booked"] = { enabled: true, inAppEnabled: true, emailEnabled: true, frequency: "daily" };
+  }
+  return out;
+}
+
 // ── Effective entitlement shape ──────────────────────────────────────────────
 
 export interface WorkspaceEntitlements {

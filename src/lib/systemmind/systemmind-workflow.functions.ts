@@ -195,7 +195,23 @@ export const inspectWorkflowRepair = createServerFn({ method: "POST" })
     const { analyzeWorkflowRepair } = await import(
       "@/lib/systemmind/systemmind-workflow.server"
     );
-    return analyzeWorkflowRepair(workspaceId, data.agentId, apiKey);
+    const analysis = await analyzeWorkflowRepair(workspaceId, data.agentId, apiKey);
+    // Notify when SystemMind found fixable issues (best-effort, never blocks).
+    try {
+      const issueCount = Array.isArray((analysis as any)?.issues) ? (analysis as any).issues.length : 0;
+      if (issueCount > 0) {
+        const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+        const { emitCampaignNotification } = await import("@/lib/notifications/notification-engine.shared");
+        await emitCampaignNotification(supabaseAdmin as any, {
+          workspaceId,
+          eventKey: "systemmind_fix_suggested",
+          summary: `SystemMind found ${issueCount} issue${issueCount === 1 ? "" : "s"} in an agent workflow and suggested fixes. Review them in SystemMind → Build.`,
+        });
+      }
+    } catch (nErr: any) {
+      console.warn("[systemmind] fix-suggested notification failed (non-fatal):", nErr?.message ?? nErr);
+    }
+    return analysis;
   });
 
 // ── Seed default repair playbooks ─────────────────────────────────────────────

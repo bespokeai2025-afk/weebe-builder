@@ -6,7 +6,9 @@ import {
   ArrowLeft,
   Bell,
   Loader2,
+  Lock,
   Mail,
+  Send,
   ShieldCheck,
   Trash2,
   UserPlus,
@@ -49,7 +51,21 @@ import {
   updateNotificationSetting,
   listWorkspaceNotifications,
   markNotificationsRead,
+  sendTestNotificationEmail,
 } from "@/lib/notifications/notifications.functions";
+
+function providerLabel(source: string): string {
+  switch (source) {
+    case "workspace_custom":
+      return "your workspace's custom email provider";
+    case "parent_custom":
+      return "your reseller's email provider";
+    case "platform_default":
+      return "the WEBEE platform email service";
+    default:
+      return source;
+  }
+}
 import {
   getMyPermissions,
   listTeamMembers,
@@ -198,8 +214,25 @@ function NotificationsTab({ canManage }: { canManage: boolean }) {
     onError: (e: any) => toast.error(e?.message ?? "Failed to save"),
   });
 
+  const testFn = useServerFn(sendTestNotificationEmail);
+  const testM = useMutation({
+    mutationFn: (input: { eventKey: string }) => testFn({ data: input }),
+    onSuccess: (res: any) => {
+      toast.success(
+        `Test email sent to ${res?.to ?? "you"}${res?.providerUsed ? ` via ${providerLabel(res.providerUsed)}` : ""}`,
+      );
+      qc.invalidateQueries({ queryKey: ["notification-settings"] });
+    },
+    onError: (e: any) => toast.error(e?.message ?? "Test send failed"),
+  });
+
   if (settingsQ.isLoading) return <LoadingCard />;
-  const rows = settingsQ.data ?? [];
+  const payload: any = settingsQ.data ?? {};
+  const rows = Array.isArray(payload) ? payload : (payload.rows ?? []);
+  const caps = Array.isArray(payload)
+    ? { emailAllowed: false, customRecipientsAllowed: false, packageKey: null }
+    : (payload.caps ?? { emailAllowed: false, customRecipientsAllowed: false, packageKey: null });
+  const providerSource: string | null = Array.isArray(payload) ? null : (payload.providerSource ?? null);
   const members = membersQ.data ?? [];
 
   return (
@@ -207,11 +240,24 @@ function NotificationsTab({ canManage }: { canManage: boolean }) {
     <NotificationInboxCard />
     <Card>
       <CardHeader>
-        <CardTitle>Campaign event notifications</CardTitle>
+        <CardTitle>Event notifications</CardTitle>
         <CardDescription>
-          Choose which campaign events notify your team, in-app and by email.
+          Choose which events notify your team, in-app and by email.
           {!canManage && " You have read-only access — ask an owner or admin to change these."}
         </CardDescription>
+        <div className="flex flex-wrap items-center gap-2 pt-1 text-xs text-muted-foreground">
+          {providerSource && (
+            <span className="inline-flex items-center gap-1">
+              <Mail className="h-3.5 w-3.5" />
+              Emails sent via {providerLabel(providerSource)}
+            </span>
+          )}
+          {!caps.emailAllowed && (
+            <Badge variant="secondary" className="text-[10px]">
+              Email notifications not included in your package
+            </Badge>
+          )}
+        </div>
       </CardHeader>
       <CardContent className="space-y-3">
         {rows.map((row: any) => (
@@ -223,9 +269,15 @@ function NotificationsTab({ canManage }: { canManage: boolean }) {
               <div className="text-sm font-medium">
                 {(NOTIFICATION_EVENT_LABELS as any)[row.eventKey] ?? row.eventKey}
               </div>
-              {row.isDefault && (
-                <span className="text-xs text-muted-foreground">Default</span>
-              )}
+              <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                {row.isDefault && <span>Default</span>}
+                {row.lastEmail && (
+                  <span className={row.lastEmail.status === "sent" ? "" : "text-destructive"}>
+                    Last email: {row.lastEmail.status === "sent" ? "sent" : "failed"}{" "}
+                    {row.lastEmail.at ? new Date(row.lastEmail.at).toLocaleString() : ""}
+                  </span>
+                )}
+              </div>
             </div>
             <label className="flex items-center gap-1.5 text-xs">
               <Switch
@@ -261,10 +313,13 @@ function NotificationsTab({ canManage }: { canManage: boolean }) {
               />
               In-app
             </label>
-            <label className="flex items-center gap-1.5 text-xs">
+            <label
+              className="flex items-center gap-1.5 text-xs"
+              title={caps.emailAllowed ? undefined : "Email notifications are not included in your package"}
+            >
               <Switch
-                checked={row.emailEnabled}
-                disabled={!canManage || !row.enabled || saveM.isPending}
+                checked={caps.emailAllowed && row.emailEnabled}
+                disabled={!canManage || !row.enabled || !caps.emailAllowed || saveM.isPending}
                 onCheckedChange={(v) =>
                   saveM.mutate({
                     eventKey: row.eventKey,
@@ -277,6 +332,7 @@ function NotificationsTab({ canManage }: { canManage: boolean }) {
                 }
               />
               <Mail className="h-3.5 w-3.5" /> Email
+              {!caps.emailAllowed && <Lock className="h-3 w-3 text-muted-foreground" />}
             </label>
             <Select
               value={row.frequency}
@@ -303,10 +359,23 @@ function NotificationsTab({ canManage }: { canManage: boolean }) {
                 ))}
               </SelectContent>
             </Select>
+            {canManage && caps.emailAllowed && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-8 px-2 text-xs"
+                disabled={testM.isPending}
+                onClick={() => testM.mutate({ eventKey: row.eventKey })}
+                title="Send a test email for this event to your own address"
+              >
+                <Send className="mr-1 h-3.5 w-3.5" /> Test
+              </Button>
+            )}
             <RecipientsEditor
               row={row}
               members={members}
               canManage={canManage}
+              customEmailsAllowed={caps.customRecipientsAllowed}
               onSave={(recipients) =>
                 saveM.mutate({
                   eventKey: row.eventKey,
@@ -341,11 +410,13 @@ function RecipientsEditor({
   row,
   members,
   canManage,
+  customEmailsAllowed = true,
   onSave,
 }: {
   row: any;
   members: any[];
   canManage: boolean;
+  customEmailsAllowed?: boolean;
   onSave: (recipients: any) => void;
 }) {
   const [open, setOpen] = useState(false);
@@ -455,17 +526,26 @@ function RecipientsEditor({
             </div>
           </div>
           <div>
-            <div className="mb-1.5 text-xs font-semibold uppercase text-muted-foreground">
+            <div className="mb-1.5 flex items-center gap-1.5 text-xs font-semibold uppercase text-muted-foreground">
               Custom email addresses
+              {!customEmailsAllowed && <Lock className="h-3 w-3" />}
             </div>
-            <Textarea
-              rows={3}
-              placeholder={"one@example.com\ntwo@example.com"}
-              value={effectiveEmailsText}
-              disabled={!canManage}
-              onChange={(e) => setEmailsText(e.target.value)}
-            />
-            <p className="mt-1 text-xs text-muted-foreground">One address per line.</p>
+            {customEmailsAllowed ? (
+              <>
+                <Textarea
+                  rows={3}
+                  placeholder={"one@example.com\ntwo@example.com"}
+                  value={effectiveEmailsText}
+                  disabled={!canManage}
+                  onChange={(e) => setEmailsText(e.target.value)}
+                />
+                <p className="mt-1 text-xs text-muted-foreground">One address per line.</p>
+              </>
+            ) : (
+              <p className="text-xs text-muted-foreground">
+                Custom email recipients are not included in your current package.
+              </p>
+            )}
           </div>
         </div>
         <DialogFooter>
@@ -475,10 +555,12 @@ function RecipientsEditor({
           <Button
             disabled={!canManage}
             onClick={() => {
-              const customEmails = effectiveEmailsText
-                .split(/[\n,;]+/)
-                .map((e: string) => e.trim())
-                .filter(Boolean);
+              const customEmails = customEmailsAllowed
+                ? effectiveEmailsText
+                    .split(/[\n,;]+/)
+                    .map((e: string) => e.trim())
+                    .filter(Boolean)
+                : [];
               onSave({ ...r, customEmails });
               setOpen(false);
               setDraft(null);

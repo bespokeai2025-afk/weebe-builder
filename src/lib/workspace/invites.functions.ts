@@ -237,6 +237,18 @@ export const acceptInvite = createServerFn({ method: "POST" })
       riskLevel: "medium",
     });
 
+    // Notify workspace admins that the invite was accepted (best-effort).
+    try {
+      const { emitCampaignNotification } = await import("@/lib/notifications/notification-engine.shared");
+      await emitCampaignNotification(supabaseAdmin as any, {
+        workspaceId: invite.workspace_id,
+        eventKey: "staff_invite_accepted",
+        summary: `${profile.email} accepted their invite and joined the workspace (role: ${roleKey}).`,
+      });
+    } catch (nErr: any) {
+      console.warn("[invites] accept notification failed (non-fatal):", nErr?.message ?? nErr);
+    }
+
     return { workspaceId: invite.workspace_id, role: legacyRole, roleKey };
   });
 
