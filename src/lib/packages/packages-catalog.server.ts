@@ -117,6 +117,17 @@ function baseEffective(pkg: PackageDef): EffectivePackage {
   };
 }
 
+/**
+ * Nullable-limit overlay. DB semantics:
+ *   NULL  → not overridden (keep code default)
+ *   -1    → explicitly UNLIMITED (admin cleared the cap)
+ *   n>=0  → cap of n
+ */
+function overlayLimit(dbVal: number | null, baseVal: number | null): number | null {
+  if (dbVal === null || dbVal === undefined) return baseVal;
+  return dbVal === -1 ? null : dbVal;
+}
+
 function overlayRow(base: EffectivePackage, row: DbPackageRow): EffectivePackage {
   const out: EffectivePackage = {
     ...base,
@@ -127,15 +138,15 @@ function overlayRow(base: EffectivePackage, row: DbPackageRow): EffectivePackage
     annualPricePence: row.annual_price ?? base.annualPricePence,
     isActive: row.is_active ?? base.isActive,
     limits: {
-      includedVoiceMinutes: row.included_voice_minutes ?? base.limits.includedVoiceMinutes,
-      includedStaffUsers: row.included_staff_users ?? base.limits.includedStaffUsers,
-      maxAgents: row.max_agents ?? base.limits.maxAgents,
-      maxWorkflows: row.max_workflows ?? base.limits.maxWorkflows,
-      maxCampaigns: row.max_campaigns ?? base.limits.maxCampaigns,
-      maxCustomViews: row.max_custom_views ?? base.limits.maxCustomViews,
-      maxPageFilters: row.max_page_filters ?? base.limits.maxPageFilters,
-      maxCampaignFilters: row.max_campaign_filters ?? base.limits.maxCampaignFilters,
-      maxChildAccounts: row.max_child_accounts ?? base.limits.maxChildAccounts,
+      includedVoiceMinutes: Math.max(0, row.included_voice_minutes ?? base.limits.includedVoiceMinutes),
+      includedStaffUsers: Math.max(0, row.included_staff_users ?? base.limits.includedStaffUsers),
+      maxAgents: overlayLimit(row.max_agents, base.limits.maxAgents),
+      maxWorkflows: overlayLimit(row.max_workflows, base.limits.maxWorkflows),
+      maxCampaigns: overlayLimit(row.max_campaigns, base.limits.maxCampaigns),
+      maxCustomViews: overlayLimit(row.max_custom_views, base.limits.maxCustomViews),
+      maxPageFilters: overlayLimit(row.max_page_filters, base.limits.maxPageFilters),
+      maxCampaignFilters: overlayLimit(row.max_campaign_filters, base.limits.maxCampaignFilters),
+      maxChildAccounts: overlayLimit(row.max_child_accounts, base.limits.maxChildAccounts),
     },
   };
   const feats = sanitizeFeatures(row.features_json);

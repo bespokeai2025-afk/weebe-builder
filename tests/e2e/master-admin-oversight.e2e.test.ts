@@ -89,6 +89,29 @@ describe("effective package catalog (DB overrides code)", () => {
     expect(pkg.notificationCaps).toEqual({ emailAllowed: true, customRecipientsAllowed: false });
   });
 
+  it("-1 limit sentinel means UNLIMITED; page/action caps overlay from DB", async () => {
+    const { error } = await sb
+      .from("package_definitions")
+      .update({
+        max_agents: -1,
+        page_access_json: { dashboard: "view_only" },
+        action_access_json: { create_campaign: false },
+      })
+      .eq("package_key", TEST_PKG);
+    expect(error).toBeNull();
+    invalidatePackageCatalogCache();
+    const pkg = await packageByKeyServer(TEST_PKG);
+    expect(pkg.limits.maxAgents).toBeNull(); // -1 → unlimited
+    expect((pkg.pageAccessCaps as any)?.dashboard).toBe("view_only");
+    expect((pkg.actionCaps as any)?.create_campaign).toBe(false);
+    // restore
+    await sb
+      .from("package_definitions")
+      .update({ max_agents: 2, page_access_json: {}, action_access_json: {} })
+      .eq("package_key", TEST_PKG);
+    invalidatePackageCatalogCache();
+  });
+
   it("unknown package keys fail closed to trial", async () => {
     const pkg = await packageByKeyServer("definitely_not_a_package");
     expect(pkg.packageKey).toBe("trial");

@@ -15,11 +15,20 @@ import { requirePlatformAdmin } from "@/lib/auth/require-platform-admin";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { writeAccessAudit } from "@/lib/permissions/permissions.server";
 import {
+  ACTION_FEATURE_MAP,
   FEATURE_KEYS,
   FEATURE_LABELS,
   LEGACY_PACKAGE_KEY,
   PACKAGE_CATALOG,
+  PAGE_FEATURE_MAP,
 } from "@/lib/packages/packages.shared";
+import {
+  ACTION_KEYS,
+  ACTION_LABELS,
+  PAGE_KEYS,
+  PAGE_LABELS,
+  PAGE_LEVELS,
+} from "@/lib/permissions/permissions.shared";
 import {
   getEffectivePackageCatalog,
   invalidatePackageCatalogCache,
@@ -35,10 +44,22 @@ const adminMw = [requireSupabaseAuth, requirePlatformAdmin] as const;
 
 const SUB_STATUSES = ["trial", "active", "past_due", "cancelled", "suspended"] as const;
 
-function num(v: unknown): number | null {
-  if (v === null || v === undefined || v === "") return null;
+/**
+ * Limit input → DB value. Blank/null from the UI means UNLIMITED, stored as
+ * the explicit sentinel -1 (DB NULL means "not overridden, keep code default").
+ */
+function limitVal(v: unknown): number {
+  if (v === null || v === undefined || v === "" || v === -1) return -1;
   const n = Math.floor(Number(v));
-  return Number.isFinite(n) && n >= 0 ? n : null;
+  if (!Number.isFinite(n) || n < 0 || n > 1_000_000_000) throw new Error("Invalid limit value");
+  return n;
+}
+
+function includedVal(v: unknown, fallback: number): number {
+  if (v === null || v === undefined || v === "") return fallback;
+  const n = Math.floor(Number(v));
+  if (!Number.isFinite(n) || n < 0 || n > 1_000_000_000) throw new Error("Invalid limit value");
+  return n;
 }
 
 // ── Package access matrix ────────────────────────────────────────────────────
@@ -53,8 +74,27 @@ export const adminGetPackageMatrix = createServerFn({ method: "GET" })
     return {
       featureKeys: FEATURE_KEYS,
       featureLabels: FEATURE_LABELS,
+      pageKeys: PAGE_KEYS,
+      pageLabels: PAGE_LABELS,
+      pageLevels: PAGE_LEVELS,
+      actionKeys: ACTION_KEYS,
+      actionLabels: ACTION_LABELS,
       packages: [...catalog.values()].map((p) => ({
         ...p,
+        // Effective (explicit-or-feature-derived) caps so the editor starts
+        // from what actually applies, not a blanket default.
+        effectivePageCaps: Object.fromEntries(
+          PAGE_KEYS.map((k) => [
+            k,
+            p.pageAccessCaps?.[k] ?? (p.features.includes(PAGE_FEATURE_MAP[k]) ? "manage" : "hidden"),
+          ]),
+        ),
+        effectiveActionCaps: Object.fromEntries(
+          ACTION_KEYS.map((k) => [
+            k,
+            p.actionCaps?.[k] ?? p.features.includes(ACTION_FEATURE_MAP[k]),
+          ]),
+        ),
         codeDefault: PACKAGE_CATALOG.some((c) => c.packageKey === p.packageKey),
         updatedAt: meta.get(p.packageKey)?.updated_at ?? null,
       })),
@@ -71,6 +111,8 @@ export const adminUpsertPackageDefinition = createServerFn({ method: "POST" })
       monthlyPricePence?: number | null;
       limits?: Partial<Record<string, number | null>>;
       features?: Record<string, boolean>;
+      pageAccessCaps?: Record<string, string>;
+      actionCaps?: Record<string, boolean>;
       aiDepartments?: string[];
       notificationCaps?: { emailAllowed: boolean; customRecipientsAllowed: boolean } | null;
       notificationDefaults?: Record<string, { enabled?: boolean; emailEnabled?: boolean; inAppEnabled?: boolean; frequency?: string }> | null;
@@ -111,6 +153,22 @@ export const adminUpsertPackageDefinition = createServerFn({ method: "POST" })
     const aiDepts = (data.aiDepartments ?? []).filter((d) =>
       ["growthmind", "hivemind", "systemmind", "accountsmind"].includes(d),
     );
+    const pageCaps: Record<string, string> = {};
+    if (data.pageAccessCaps) {
+      for (const [k, v] of Object.entries(data.pageAccessCaps)) {
+        if (!(PAGE_KEYS as readonly string[]).includes(k)) continue;
+        if (!(PAGE_LEVELS as readonly string[]).includes(String(v))) {
+          throw new Error(`Invalid page level "${v}" for page "${k}"`);
+        }
+        pageCaps[k] = String(v);
+      }
+    }
+    const actionCaps: Record<string, boolean> = {};
+    if (data.actionCaps) {
+      for (const [k, v] of Object.entries(data.actionCaps)) {
+        if ((ACTION_KEYS as readonly string[]).includes(k) && typeof v === "boolean") actionCaps[k] = v;
+      }
+    }
     const lim = data.limits ?? {};
 
     const { data: before } = await sb
@@ -121,16 +179,18 @@ export const adminUpsertPackageDefinition = createServerFn({ method: "POST" })
       package_name: data.packageName?.trim() || before?.package_name || packageKey,
       description: data.description ?? before?.description ?? null,
       monthly_price: data.monthlyPricePence === undefined ? (before?.monthly_price ?? null) : data.monthlyPricePence,
-      included_voice_minutes: num(lim.includedVoiceMinutes) ?? before?.included_voice_minutes ?? 0,
-      included_staff_users: num(lim.includedStaffUsers) ?? before?.included_staff_users ?? 1,
-      max_agents: "maxAgents" in lim ? num(lim.maxAgents) : (before?.max_agents ?? null),
-      max_workflows: "maxWorkflows" in lim ? num(lim.maxWorkflows) : (before?.max_workflows ?? null),
-      max_campaigns: "maxCampaigns" in lim ? num(lim.maxCampaigns) : (before?.max_campaigns ?? null),
-      max_custom_views: "maxCustomViews" in lim ? num(lim.maxCustomViews) : (before?.max_custom_views ?? null),
-      max_page_filters: "maxPageFilters" in lim ? num(lim.maxPageFilters) : (before?.max_page_filters ?? null),
-      max_campaign_filters: "maxCampaignFilters" in lim ? num(lim.maxCampaignFilters) : (before?.max_campaign_filters ?? null),
-      max_child_accounts: "maxChildAccounts" in lim ? num(lim.maxChildAccounts) : (before?.max_child_accounts ?? null),
+      included_voice_minutes: includedVal(lim.includedVoiceMinutes, before?.included_voice_minutes ?? 0),
+      included_staff_users: includedVal(lim.includedStaffUsers, before?.included_staff_users ?? 1),
+      max_agents: "maxAgents" in lim ? limitVal(lim.maxAgents) : (before?.max_agents ?? null),
+      max_workflows: "maxWorkflows" in lim ? limitVal(lim.maxWorkflows) : (before?.max_workflows ?? null),
+      max_campaigns: "maxCampaigns" in lim ? limitVal(lim.maxCampaigns) : (before?.max_campaigns ?? null),
+      max_custom_views: "maxCustomViews" in lim ? limitVal(lim.maxCustomViews) : (before?.max_custom_views ?? null),
+      max_page_filters: "maxPageFilters" in lim ? limitVal(lim.maxPageFilters) : (before?.max_page_filters ?? null),
+      max_campaign_filters: "maxCampaignFilters" in lim ? limitVal(lim.maxCampaignFilters) : (before?.max_campaign_filters ?? null),
+      max_child_accounts: "maxChildAccounts" in lim ? limitVal(lim.maxChildAccounts) : (before?.max_child_accounts ?? null),
       features_json: Object.keys(features).length > 0 ? features : (before?.features_json ?? {}),
+      page_access_json: data.pageAccessCaps ? pageCaps : (before?.page_access_json ?? {}),
+      action_access_json: data.actionCaps ? actionCaps : (before?.action_access_json ?? {}),
       ai_departments_json: data.aiDepartments ? aiDepts : (before?.ai_departments_json ?? []),
       notification_caps_json:
         data.notificationCaps === undefined
@@ -252,6 +312,12 @@ export const adminListResellers = createServerFn({ method: "GET" })
     const wlByWs = new Map<string, any>((wl ?? []).map((w: any) => [w.workspace_id, w]));
     const epByWs = new Map<string, any>((emailProviders ?? []).map((e: any) => [e.workspace_id, e]));
 
+    const ownerIds = [...new Set((wss ?? []).map((w: any) => w.owner_id).filter(Boolean))];
+    const { data: owners } = ownerIds.length
+      ? await sb.from("profiles").select("user_id, email, full_name").in("user_id", ownerIds)
+      : { data: [] };
+    const ownerById = new Map<string, any>((owners ?? []).map((o: any) => [o.user_id, o]));
+
     // Feature-override map (admin_override rows explicitly grant/deny).
     const overrideByWs = new Map<string, boolean>();
     for (const f of feats ?? []) {
@@ -269,6 +335,8 @@ export const adminListResellers = createServerFn({ method: "GET" })
         name: ws.name,
         slug: ws.slug,
         createdAt: ws.created_at,
+        ownerEmail: ownerById.get(ws.owner_id)?.email ?? null,
+        ownerName: ownerById.get(ws.owner_id)?.full_name ?? null,
         packageKey: sub?.package_key ?? null,
         packageName: pkg?.packageName ?? sub?.package_key ?? "—",
         subscriptionStatus: sub?.subscription_status ?? "none",
@@ -315,6 +383,11 @@ export const adminListChildWorkspaces = createServerFn({ method: "GET" })
     ]);
     const wsById = new Map<string, any>((wss ?? []).map((w: any) => [w.id, w]));
     const subByWs = new Map<string, any>((subs ?? []).map((s: any) => [s.workspace_id, s]));
+    const ownerIds = [...new Set((wss ?? []).map((w: any) => w.owner_id).filter(Boolean))];
+    const { data: owners } = ownerIds.length
+      ? await sb.from("profiles").select("user_id, email").in("user_id", ownerIds)
+      : { data: [] };
+    const ownerById = new Map<string, any>((owners ?? []).map((o: any) => [o.user_id, o]));
     const catalog = await getEffectivePackageCatalog();
     const countBy = (list: any[] | null, id: string) =>
       (list ?? []).filter((m: any) => m.workspace_id === id).length;
@@ -327,6 +400,7 @@ export const adminListChildWorkspaces = createServerFn({ method: "GET" })
         clientId: c.id,
         childWorkspaceId: c.child_workspace_id,
         childName: child?.name ?? c.client_name,
+        ownerEmail: child ? (ownerById.get(child.owner_id)?.email ?? null) : null,
         parentWorkspaceId: c.parent_workspace_id,
         parentName: parent?.name ?? "—",
         clientEmail: c.client_email,

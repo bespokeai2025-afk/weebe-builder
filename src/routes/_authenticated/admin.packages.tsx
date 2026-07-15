@@ -68,6 +68,9 @@ function AdminPackagesPage() {
       features: Object.fromEntries(
         (data?.featureKeys ?? []).map((k: string) => [k, pkg.features.includes(k)]),
       ),
+      pageAccessCaps: { ...(pkg.effectivePageCaps ?? {}) },
+      actionCaps: { ...(pkg.effectiveActionCaps ?? {}) },
+      aiDepartments: [...(pkg.aiDepartments ?? [])],
       notificationCaps: { ...pkg.notificationCaps },
       notificationDefaults: { ...pkg.notificationDefaults },
       isActive: pkg.isActive,
@@ -266,6 +269,76 @@ function AdminPackagesPage() {
                         }
                       />
                       <span>{(data?.featureLabels as any)?.[k] ?? k}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <h3 className="text-sm font-medium mb-2">AI departments</h3>
+                <div className="flex flex-wrap gap-4 text-xs">
+                  {["growthmind", "hivemind", "systemmind", "accountsmind"].map((d) => (
+                    <label key={d} className="flex items-center gap-2">
+                      <Switch
+                        checked={draft.aiDepartments.includes(d)}
+                        onCheckedChange={(v) =>
+                          setDraft({
+                            ...draft,
+                            aiDepartments: v
+                              ? [...draft.aiDepartments, d]
+                              : draft.aiDepartments.filter((x: string) => x !== d),
+                          })
+                        }
+                      />
+                      <span className="capitalize">{d}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <h3 className="text-sm font-medium mb-2">Page access caps</h3>
+                <p className="text-xs text-muted-foreground mb-2">
+                  Effective page level = min(role level, package cap).
+                </p>
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-2 max-w-4xl">
+                  {((data?.pageKeys ?? []) as string[]).map((k) => (
+                    <label key={k} className="flex items-center justify-between gap-2 text-xs border rounded px-2 py-1.5">
+                      <span>{(data?.pageLabels as any)?.[k] ?? k}</span>
+                      <select
+                        className="bg-transparent border rounded px-1.5 py-0.5"
+                        value={draft.pageAccessCaps[k] ?? "full"}
+                        onChange={(e) =>
+                          setDraft({
+                            ...draft,
+                            pageAccessCaps: { ...draft.pageAccessCaps, [k]: e.target.value },
+                          })
+                        }
+                      >
+                        {((data?.pageLevels ?? []) as string[]).map((lv) => (
+                          <option key={lv} value={lv}>{lv}</option>
+                        ))}
+                      </select>
+                    </label>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <h3 className="text-sm font-medium mb-2">Action caps</h3>
+                <p className="text-xs text-muted-foreground mb-2">
+                  Actions require both the role grant and the package cap.
+                </p>
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-2 max-w-4xl">
+                  {((data?.actionKeys ?? []) as string[]).map((k) => (
+                    <label key={k} className="flex items-center gap-2 text-xs">
+                      <Switch
+                        checked={draft.actionCaps[k] !== false}
+                        onCheckedChange={(v) =>
+                          setDraft({ ...draft, actionCaps: { ...draft.actionCaps, [k]: v } })
+                        }
+                      />
+                      <span>{(data?.actionLabels as any)?.[k] ?? k}</span>
                     </label>
                   ))}
                 </div>

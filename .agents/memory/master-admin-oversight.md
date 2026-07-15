@@ -27,3 +27,7 @@ write.
   WBAH is skipped by rule; suspension action blocked for WBAH.
 - Oversight fns live in `src/lib/admin/platform-oversight.functions.ts`
   (requireSupabaseAuth + requirePlatformAdmin); UI at /admin/packages and /admin/resellers.
+- Limits use a -1 DB sentinel = UNLIMITED (blank in admin UI → -1); overlayLimit maps -1→null,
+  NULL→code default. page_access_json/action_access_json overlay explicit caps; matrix returns
+  effectivePageCaps/effectiveActionCaps (explicit-or-feature-derived) so the editor never
+  defaults to blanket "full".

@@ -135,6 +135,7 @@ function AdminResellersPage() {
               <thead>
                 <tr className="border-b bg-muted/40 text-left">
                   <th className="p-3">Workspace</th>
+                  <th className="p-3">Owner</th>
                   <th className="p-3">Package</th>
                   <th className="p-3">Status</th>
                   <th className="p-3">Children</th>
@@ -189,7 +190,10 @@ function AdminResellersPage() {
                   <tr key={c.clientId} className="border-b last:border-0">
                     <td className="p-3">
                       <div className="font-medium">{c.childName}</div>
-                      <div className="text-xs text-muted-foreground">{c.clientEmail}</div>
+                      <div className="text-xs text-muted-foreground">{c.ownerEmail ?? c.clientEmail}</div>
+                      <div className="text-xs text-muted-foreground">
+                        created {c.createdAt ? new Date(c.createdAt).toLocaleDateString() : "—"}
+                      </div>
                     </td>
                     <td className="p-3">{c.parentName}</td>
                     <td className="p-3">
@@ -352,7 +356,16 @@ function ResellerRow({
     <tr className={cn("border-b last:border-0", suspended && "opacity-70")}>
       <td className="p-3">
         <div className="font-medium">{r.name}</div>
-        <div className="text-xs text-muted-foreground">{r.slug}</div>
+        <div className="text-xs text-muted-foreground">
+          {r.slug} · created {r.createdAt ? new Date(r.createdAt).toLocaleDateString() : "—"}
+        </div>
+      </td>
+      <td className="p-3 text-xs">
+        <div>{r.ownerName ?? "—"}</div>
+        <div className="text-muted-foreground">{r.ownerEmail ?? ""}</div>
+        <div className="text-muted-foreground">
+          last activity {r.lastActivityAt ? new Date(r.lastActivityAt).toLocaleDateString() : "—"}
+        </div>
       </td>
       <td className="p-3">
         <select

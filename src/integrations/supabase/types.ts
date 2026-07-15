@@ -7447,14 +7447,18 @@ export type Database = {
           max_agents: number | null
           max_campaign_filters: number | null
           max_campaigns: number | null
+          max_child_accounts: number | null
           max_custom_views: number | null
           max_page_filters: number | null
           max_workflows: number | null
           monthly_price: number | null
+          notification_caps_json: Json
+          notification_defaults_json: Json
           package_key: string
           package_name: string
           page_access_json: Json
           updated_at: string
+          updated_by: string | null
         }
         Insert: {
           action_access_json?: Json
@@ -7471,14 +7475,18 @@ export type Database = {
           max_agents?: number | null
           max_campaign_filters?: number | null
           max_campaigns?: number | null
+          max_child_accounts?: number | null
           max_custom_views?: number | null
           max_page_filters?: number | null
           max_workflows?: number | null
           monthly_price?: number | null
+          notification_caps_json?: Json
+          notification_defaults_json?: Json
           package_key: string
           package_name: string
           page_access_json?: Json
           updated_at?: string
+          updated_by?: string | null
         }
         Update: {
           action_access_json?: Json
@@ -7495,14 +7503,18 @@ export type Database = {
           max_agents?: number | null
           max_campaign_filters?: number | null
           max_campaigns?: number | null
+          max_child_accounts?: number | null
           max_custom_views?: number | null
           max_page_filters?: number | null
           max_workflows?: number | null
           monthly_price?: number | null
+          notification_caps_json?: Json
+          notification_defaults_json?: Json
           package_key?: string
           package_name?: string
           page_access_json?: Json
           updated_at?: string
+          updated_by?: string | null
         }
         Relationships: []
       }
@@ -11918,7 +11930,7 @@ export type Database = {
           object_type: string
           risk_level: string
           target_user_id: string | null
-          workspace_id: string
+          workspace_id: string | null
         }
         Insert: {
           acting_user_id?: string | null
@@ -11931,7 +11943,7 @@ export type Database = {
           object_type: string
           risk_level?: string
           target_user_id?: string | null
-          workspace_id: string
+          workspace_id?: string | null
         }
         Update: {
           acting_user_id?: string | null
@@ -11944,7 +11956,7 @@ export type Database = {
           object_type?: string
           risk_level?: string
           target_user_id?: string | null
-          workspace_id?: string
+          workspace_id?: string | null
         }
         Relationships: []
       }
