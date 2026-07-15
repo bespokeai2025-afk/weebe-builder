@@ -75,6 +75,12 @@ import {
   type RoleKey,
 } from "@/lib/permissions/permissions.shared";
 import { NOTIFICATION_EVENT_LABELS } from "@/lib/notifications/notification-engine.shared";
+import { getMyEntitlements } from "@/lib/packages/packages.functions";
+import {
+  getEmailProviderSettings,
+  saveEmailProviderSettings,
+  sendEmailProviderTest,
+} from "@/lib/email/email-provider.functions";
 
 export const Route = createFileRoute("/_authenticated/settings/account")({
   head: () => ({
@@ -103,6 +109,15 @@ function AccountSettingsPage() {
   const canManageUsers = permsQ.data?.actionAccess?.user_management === true;
   const canManageNotifications = permsQ.data?.actionAccess?.notification_settings === true;
 
+  const entitlementsFn = useServerFn(getMyEntitlements);
+  const entQ = useQuery({
+    queryKey: ["my-entitlements"],
+    queryFn: () => entitlementsFn(),
+    throwOnError: false,
+  });
+  const hasCustomEmailProvider =
+    (entQ.data as any)?.entitlements?.features?.custom_email_provider === true;
+
   return (
     <div className="mx-auto w-full max-w-5xl px-4 py-8">
       <div className="mb-6 flex items-center gap-3">
@@ -130,6 +145,11 @@ function AccountSettingsPage() {
           <TabsTrigger value="approvals">
             <ShieldCheck className="mr-1.5 h-4 w-4" /> Approval Settings
           </TabsTrigger>
+          {hasCustomEmailProvider && (
+            <TabsTrigger value="email">
+              <Mail className="mr-1.5 h-4 w-4" /> Email
+            </TabsTrigger>
+          )}
         </TabsList>
         <TabsContent value="notifications" className="mt-4">
           <NotificationsTab canManage={canManageNotifications} />
@@ -140,6 +160,11 @@ function AccountSettingsPage() {
         <TabsContent value="approvals" className="mt-4">
           <ApprovalsTab canManage={canManageUsers} />
         </TabsContent>
+        {hasCustomEmailProvider && (
+          <TabsContent value="email" className="mt-4">
+            <EmailProviderTab />
+          </TabsContent>
+        )}
       </Tabs>
     </div>
   );
@@ -1067,6 +1092,245 @@ function LoadingRow() {
   return (
     <div className="flex items-center justify-center py-6">
       <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+    </div>
+  );
+}
+
+// ── Email provider tab (Task #370 — custom_email_provider package feature) ──
+
+function EmailProviderTab() {
+  const qc = useQueryClient();
+  const getFn = useServerFn(getEmailProviderSettings);
+  const saveFn = useServerFn(saveEmailProviderSettings);
+  const testFn = useServerFn(sendEmailProviderTest);
+
+  const settingsQ = useQuery({
+    queryKey: ["email-provider-settings"],
+    queryFn: () => getFn(),
+    throwOnError: false,
+  });
+
+  const [form, setForm] = useState<null | {
+    sendingMode: "platform_default" | "custom";
+    fromName: string;
+    fromEmail: string;
+    replyToEmail: string;
+    apiKey: string;
+    isActive: boolean;
+    fallbackToPlatform: boolean;
+  }>(null);
+  const [testTo, setTestTo] = useState("");
+
+  const s = settingsQ.data;
+  const view = form ?? (s
+    ? {
+        sendingMode: s.sendingMode,
+        fromName: s.fromName ?? "",
+        fromEmail: s.fromEmail ?? "",
+        replyToEmail: s.replyToEmail ?? "",
+        apiKey: "",
+        isActive: s.isActive,
+        fallbackToPlatform: s.fallbackToPlatform,
+      }
+    : null);
+
+  const saveM = useMutation({
+    mutationFn: (input: any) => saveFn({ data: input }),
+    onSuccess: () => {
+      setForm(null);
+      qc.invalidateQueries({ queryKey: ["email-provider-settings"] });
+      toast.success("Email provider settings saved");
+    },
+    onError: (e: any) => toast.error(e?.message ?? "Failed to save settings"),
+  });
+  const testM = useMutation({
+    mutationFn: (to: string) => testFn({ data: { to } }),
+    onSuccess: (res: any) => {
+      if (res?.success) {
+        toast.success(
+          `Test email sent via ${res.providerUsed === "platform_default" ? "the WEBEE default sender" : "your custom provider"}${res.fellBack ? " (custom provider failed — fell back)" : ""}`,
+        );
+      } else {
+        toast.error(`Test send failed: ${res?.error ?? "unknown error"}`);
+      }
+      qc.invalidateQueries({ queryKey: ["email-provider-settings"] });
+    },
+    onError: (e: any) => toast.error(e?.message ?? "Test send failed"),
+  });
+
+  if (settingsQ.isError) {
+    return (
+      <Card>
+        <CardContent className="py-8 text-sm text-muted-foreground">
+          Email provider settings are not available for this workspace or your role.
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (settingsQ.isLoading || !view) return <LoadingCard />;
+
+  const set = (patch: Partial<NonNullable<typeof form>>) => setForm({ ...view, ...patch });
+  const custom = view.sendingMode === "custom";
+
+  return (
+    <div className="space-y-4">
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Email sending</CardTitle>
+          <CardDescription>
+            By default, automated emails (invites, campaign notifications, lead emails) are sent
+            from the WEBEE platform sender. Switch to a custom Resend account to send from your
+            own domain. Priority: your custom provider → your reseller's provider (if inherited)
+            → WEBEE default.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid gap-2 sm:max-w-xs">
+            <Label>Sending mode</Label>
+            <Select
+              value={view.sendingMode}
+              onValueChange={(v) => set({ sendingMode: v as "platform_default" | "custom" })}
+            >
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="platform_default">WEBEE default sender</SelectItem>
+                <SelectItem value="custom">Custom provider (Resend)</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          {custom && (
+            <>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="grid gap-2">
+                  <Label>From name</Label>
+                  <Input
+                    value={view.fromName}
+                    onChange={(e) => set({ fromName: e.target.value })}
+                    placeholder="Acme Ltd"
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label>From email</Label>
+                  <Input
+                    value={view.fromEmail}
+                    onChange={(e) => set({ fromEmail: e.target.value })}
+                    placeholder="notifications@yourdomain.com"
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label>Reply-to email (optional)</Label>
+                  <Input
+                    value={view.replyToEmail}
+                    onChange={(e) => set({ replyToEmail: e.target.value })}
+                    placeholder="support@yourdomain.com"
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label>Resend API key</Label>
+                  <Input
+                    type="password"
+                    value={view.apiKey}
+                    onChange={(e) => set({ apiKey: e.target.value })}
+                    placeholder={s?.apiKeyHint ? `Saved (${s.apiKeyHint}) — enter to replace` : "re_..."}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Stored encrypted and never shown again. Leave blank to keep the saved key.
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between rounded-lg border p-3">
+                <div>
+                  <div className="text-sm font-medium">Active</div>
+                  <div className="text-xs text-muted-foreground">
+                    When off, everything sends via the WEBEE default.
+                  </div>
+                </div>
+                <Switch checked={view.isActive} onCheckedChange={(v) => set({ isActive: v })} />
+              </div>
+              <div className="flex items-center justify-between rounded-lg border p-3">
+                <div>
+                  <div className="text-sm font-medium">Fall back to WEBEE default on failure</div>
+                  <div className="text-xs text-muted-foreground">
+                    If your provider fails, deliver via the WEBEE sender instead of dropping the email.
+                  </div>
+                </div>
+                <Switch
+                  checked={view.fallbackToPlatform}
+                  onCheckedChange={(v) => set({ fallbackToPlatform: v })}
+                />
+              </div>
+              {s?.exists && (
+                <div className="text-xs text-muted-foreground">
+                  Domain status: <Badge variant="outline">{s.domainStatus}</Badge>
+                  {s.lastSendStatus && (
+                    <span className="ml-3">
+                      Last send: {s.lastSendStatus}
+                      {s.lastSendAt ? ` at ${new Date(s.lastSendAt).toLocaleString()}` : ""}
+                      {s.lastSendStatus === "failed" && s.lastSendError ? ` — ${s.lastSendError}` : ""}
+                    </span>
+                  )}
+                  {(s.consecutiveFailures ?? 0) > 0 && (
+                    <span className="ml-3 text-destructive">
+                      {s.consecutiveFailures} consecutive failure{s.consecutiveFailures === 1 ? "" : "s"}
+                    </span>
+                  )}
+                </div>
+              )}
+            </>
+          )}
+
+          <div className="flex gap-2">
+            <Button
+              onClick={() =>
+                saveM.mutate({
+                  sendingMode: view.sendingMode,
+                  fromName: view.fromName || null,
+                  fromEmail: view.fromEmail || null,
+                  replyToEmail: view.replyToEmail || null,
+                  apiKey: view.apiKey || null,
+                  isActive: custom ? view.isActive : false,
+                  fallbackToPlatform: view.fallbackToPlatform,
+                })
+              }
+              disabled={saveM.isPending || !form}
+            >
+              {saveM.isPending && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />}
+              Save settings
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Send a test email</CardTitle>
+          <CardDescription>
+            Sends through the currently effective provider (saved settings, not unsaved edits).
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="flex flex-wrap items-end gap-2">
+          <div className="grid gap-2">
+            <Label>Recipient</Label>
+            <Input
+              className="w-64"
+              value={testTo}
+              onChange={(e) => setTestTo(e.target.value)}
+              placeholder="you@yourdomain.com"
+            />
+          </div>
+          <Button
+            variant="secondary"
+            onClick={() => testM.mutate(testTo)}
+            disabled={testM.isPending || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(testTo)}
+          >
+            {testM.isPending && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />}
+            Send test
+          </Button>
+        </CardContent>
+      </Card>
     </div>
   );
 }

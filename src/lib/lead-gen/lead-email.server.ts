@@ -11,6 +11,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { escapeHtml, renderBasicEmail } from "@/lib/email/resend.server";
+import { sendWorkspaceEmail } from "@/lib/email/email-dispatch.server";
 import { splitEmailContent } from "@/lib/hexmail/vars-helpers";
 
 export type LeadEmailTrigger = "manual_compose" | "manual_template" | "auto_new_lead";
@@ -27,7 +28,13 @@ interface SendResult {
   error?: string;
 }
 
-async function resolveWorkspaceEmailSender(
+/**
+ * HexMail per-workspace creds only (highest priority for lead emails).
+ * All other sending goes through the Task #370 dispatch layer
+ * (sendWorkspaceEmail: workspace custom → reseller parent → platform default)
+ * so failure bookkeeping/fallback/alerts stay consistent.
+ */
+async function resolveHexmailSender(
   sb: any,
   workspaceId: string,
 ): Promise<ResolvedSender | null> {
@@ -37,16 +44,16 @@ async function resolveWorkspaceEmailSender(
     .eq("workspace_id", workspaceId)
     .maybeSingle();
 
-  const apiKey = data?.hexmail_resend_api_key || process.env.RESEND_API_KEY;
-  if (!apiKey) return null;
-
-  const fromEmail = data?.hexmail_resend_from_email as string | null | undefined;
-  const fromName = data?.hexmail_resend_from_name as string | null | undefined;
-  const from = fromEmail
-    ? (fromName ? `${fromName} <${fromEmail}>` : fromEmail)
-    : (process.env.RESEND_FROM ?? "Webespoke AI <onboarding@resend.dev>");
-
-  return { apiKey, from, provider: "resend" };
+  // 1) HexMail per-workspace creds (existing behavior, highest priority here).
+  if (data?.hexmail_resend_api_key) {
+    const fromEmail = data?.hexmail_resend_from_email as string | null | undefined;
+    const fromName = data?.hexmail_resend_from_name as string | null | undefined;
+    const from = fromEmail
+      ? (fromName ? `${fromName} <${fromEmail}>` : fromEmail)
+      : (process.env.RESEND_FROM ?? "Webespoke AI <onboarding@resend.dev>");
+    return { apiKey: data.hexmail_resend_api_key, from, provider: "resend" };
+  }
+  return null;
 }
 
 async function sendViaResend(
@@ -131,36 +138,38 @@ export async function sendEmailToLeadCore(
     createdBy?: string | null;
   },
 ): Promise<SendResult> {
-  const sender = await resolveWorkspaceEmailSender(sb, params.workspaceId);
-  if (!sender) {
-    const error = "No email provider configured (add a Resend API key in HexMail Settings, or set RESEND_API_KEY)";
-    await logLeadEmail(sb, {
-      workspaceId: params.workspaceId,
-      leadId: params.leadId,
-      templateId: params.templateId,
-      trigger: params.trigger,
-      provider: null,
-      toEmail: params.toEmail,
-      subject: params.subject,
-      status: "failed",
-      error,
-      createdBy: params.createdBy,
-    });
-    return { success: false, error };
-  }
-
   const html = renderBasicEmail({
     heading: params.subject,
     bodyHtml: escapeHtml(params.bodyText).replace(/\n/g, "<br/>"),
   });
-  const result = await sendViaResend(sender, params.toEmail, params.subject, html, params.bodyText);
+
+  // HexMail per-workspace creds keep highest priority (existing behavior);
+  // everything else goes through the dispatch layer so custom-provider
+  // failure bookkeeping / fallback / admin alerts apply to lead emails too.
+  const hexmail = await resolveHexmailSender(sb, params.workspaceId);
+  let result: SendResult;
+  let providerLabel: string;
+  if (hexmail) {
+    result = await sendViaResend(hexmail, params.toEmail, params.subject, html, params.bodyText);
+    providerLabel = "resend";
+  } else {
+    const dispatched = await sendWorkspaceEmail(sb, {
+      workspaceId: params.workspaceId,
+      to: params.toEmail,
+      subject: params.subject,
+      html,
+      text: params.bodyText,
+    });
+    result = { success: dispatched.success, id: dispatched.id, error: dispatched.error };
+    providerLabel = `resend:${dispatched.providerUsed}${dispatched.fellBack ? ":fallback" : ""}`;
+  }
 
   await logLeadEmail(sb, {
     workspaceId: params.workspaceId,
     leadId: params.leadId,
     templateId: params.templateId,
     trigger: params.trigger,
-    provider: sender.provider,
+    provider: providerLabel,
     toEmail: params.toEmail,
     subject: params.subject,
     status: result.success ? "sent" : "failed",

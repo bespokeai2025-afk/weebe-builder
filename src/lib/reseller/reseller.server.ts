@@ -24,7 +24,8 @@ import {
   invalidateEntitlementsCache,
   provisionWorkspacePackage,
 } from "@/lib/packages/entitlements.server";
-import { sendResendEmail, escapeHtml, renderBasicEmail } from "@/lib/email/resend.server";
+import { escapeHtml, renderBasicEmail } from "@/lib/email/resend.server";
+import { sendWorkspaceEmail } from "@/lib/email/email-dispatch.server";
 
 const sb = supabaseAdmin as any;
 
@@ -340,7 +341,8 @@ export async function createChildClientAccount(input: CreateChildInput) {
       const brand =
         input.brandingMode !== "webee" && parentWl?.brand_name ? parentWl.brand_name : "WEBEE";
       const url = `${getAppUrl()}/invite/${invite.token}`;
-      await sendResendEmail({
+      await sendWorkspaceEmail(sb, {
+        workspaceId: input.parentWorkspaceId,
         to: clientEmail,
         subject: `Your ${brand} account is ready`,
         html: renderBasicEmail({

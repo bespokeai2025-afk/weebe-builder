@@ -10,7 +10,8 @@
  *     'failed' + delivery_error) and are NOT retried.
  *   • Everything is scoped by workspace_id.
  */
-import { sendResendEmail, escapeHtml, renderBasicEmail } from "../email/resend.server";
+import { escapeHtml, renderBasicEmail } from "../email/resend.server";
+import { sendWorkspaceEmail } from "../email/email-dispatch.server";
 
 type Sb = any;
 
@@ -368,7 +369,8 @@ export async function emitCampaignNotification(sb: Sb, input: CampaignNotificati
         if (settings.frequency !== "immediate") continue;
 
         const html = buildEmailHtml(input, workspaceName, getAppUrl());
-        const result = await sendResendEmail({
+        const result = await sendWorkspaceEmail(sb, {
+          workspaceId: input.workspaceId,
           to: r.email!,
           subject: `[${workspaceName}] ${title}`.slice(0, 250),
           html,
@@ -449,7 +451,8 @@ export async function processNotificationDigests(sb: Sb): Promise<{ sent: number
         heading: `Campaign notification digest (${frequency})`,
         bodyHtml: `<p><strong>Workspace:</strong> ${escapeHtml(workspaceName)}</p><ul>${items}</ul><p style="margin-top:20px;"><a href="${getAppUrl()}/campaigns" style="background:#6d5df6;color:#ffffff;padding:10px 18px;border-radius:8px;text-decoration:none;font-weight:600;">View Campaigns</a></p>`,
       });
-      const result = await sendResendEmail({
+      const result = await sendWorkspaceEmail(sb, {
+        workspaceId,
         to: email,
         subject: `[${workspaceName}] Campaign digest — ${group.length} notification${group.length === 1 ? "" : "s"}`,
         html,

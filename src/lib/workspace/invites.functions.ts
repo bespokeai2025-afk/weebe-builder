@@ -3,7 +3,8 @@ import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { requireAction, writeAccessAudit } from "@/lib/permissions/permissions.server";
 import { ROLE_KEYS, legacyRoleToRoleKey } from "@/lib/permissions/permissions.shared";
-import { sendResendEmail, escapeHtml, renderBasicEmail } from "@/lib/email/resend.server";
+import { escapeHtml, renderBasicEmail } from "@/lib/email/resend.server";
+import { sendWorkspaceEmail } from "@/lib/email/email-dispatch.server";
 
 const ROLE_KEY_RE = /^[a-z0-9_]{2,40}$/;
 
@@ -98,7 +99,8 @@ export const createInvite = createServerFn({ method: "POST" })
         .maybeSingle();
       const wsName = ws?.name ?? "a WEBEE workspace";
       const url = `${getAppUrl()}/invite/${invite.token}`;
-      await sendResendEmail({
+      await sendWorkspaceEmail(supabaseAdmin, {
+        workspaceId,
         to: email,
         subject: `You've been invited to join ${wsName}`,
         html: renderBasicEmail({

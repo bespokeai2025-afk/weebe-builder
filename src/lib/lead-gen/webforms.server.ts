@@ -3,6 +3,7 @@
 
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { sendResendEmail, escapeHtml, renderBasicEmail } from "@/lib/email/resend.server";
+import { sendWorkspaceEmail } from "@/lib/email/email-dispatch.server";
 import { sendTemplateEmailToLeadCore } from "@/lib/lead-gen/lead-email.server";
 import { triggerAutoCallForNewLead } from "@/lib/qualification/auto-call.server";
 
@@ -478,7 +479,8 @@ export async function processWebformSubmission(opts: {
         ${utmRows ? `<hr style="border:none;border-top:1px solid #2a2a36;margin:16px 0"><table style="border-collapse:collapse;width:100%">${utmRows}</table>` : ""}
       `,
     });
-    await sendResendEmail({
+    await sendWorkspaceEmail(supabaseAdmin, {
+      workspaceId,
       to: notifyEmail,
       subject: `New webform lead: ${full_name ?? email ?? phone ?? "Unknown"} — ${formName}`,
       html,

@@ -60,6 +60,7 @@ export const FEATURE_KEYS = [
   "white_label_custom_domain",
   "white_label_hide_webee_branding",
   "reseller_client_accounts",
+  "custom_email_provider",
   "custom_roles",
   "custom_views",
   "page_filters",
@@ -103,6 +104,7 @@ export const FEATURE_LABELS: Record<FeatureKey, string> = {
   white_label_custom_domain: "White Label Custom Domain",
   white_label_hide_webee_branding: "Hide WEBEE Branding",
   reseller_client_accounts: "Reseller Client Accounts",
+  custom_email_provider: "Custom Email Provider",
   custom_roles: "Custom Roles",
   custom_views: "Custom Views",
   page_filters: "Page Filters",
@@ -389,6 +391,7 @@ export const PACKAGE_CATALOG: PackageDef[] = [
       "page_filters",
       "integrations",
       "custom_roles",
+      "custom_email_provider",
     ],
     aiDepartments: ["growthmind", "hivemind", "systemmind", "accountsmind"],
     isActive: true,
@@ -436,7 +439,7 @@ export const PACKAGE_CATALOG: PackageDef[] = [
     },
     features: FEATURE_KEYS.filter(
       (k) =>
-        !["white_label_custom_domain", "white_label_hide_webee_branding", "reseller_client_accounts"].includes(k),
+        !["white_label_custom_domain", "white_label_hide_webee_branding", "reseller_client_accounts", "custom_email_provider"].includes(k),
     ) as FeatureKey[],
     aiDepartments: ["growthmind", "hivemind", "systemmind", "accountsmind"],
     isActive: true,

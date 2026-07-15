@@ -12209,6 +12209,80 @@ export type Database = {
           },
         ]
       }
+      workspace_email_provider_settings: {
+        Row: {
+          consecutive_failures: number
+          created_at: string
+          created_by: string | null
+          domain_status: string
+          encrypted_config: Json
+          fallback_to_platform: boolean
+          from_email: string | null
+          from_name: string | null
+          id: string
+          is_active: boolean
+          last_send_at: string | null
+          last_send_error: string | null
+          last_send_provider: string | null
+          last_send_status: string | null
+          provider: string
+          reply_to_email: string | null
+          sending_mode: string
+          updated_at: string
+          workspace_id: string
+        }
+        Insert: {
+          consecutive_failures?: number
+          created_at?: string
+          created_by?: string | null
+          domain_status?: string
+          encrypted_config?: Json
+          fallback_to_platform?: boolean
+          from_email?: string | null
+          from_name?: string | null
+          id?: string
+          is_active?: boolean
+          last_send_at?: string | null
+          last_send_error?: string | null
+          last_send_provider?: string | null
+          last_send_status?: string | null
+          provider?: string
+          reply_to_email?: string | null
+          sending_mode?: string
+          updated_at?: string
+          workspace_id: string
+        }
+        Update: {
+          consecutive_failures?: number
+          created_at?: string
+          created_by?: string | null
+          domain_status?: string
+          encrypted_config?: Json
+          fallback_to_platform?: boolean
+          from_email?: string | null
+          from_name?: string | null
+          id?: string
+          is_active?: boolean
+          last_send_at?: string | null
+          last_send_error?: string | null
+          last_send_provider?: string | null
+          last_send_status?: string | null
+          provider?: string
+          reply_to_email?: string | null
+          sending_mode?: string
+          updated_at?: string
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "workspace_email_provider_settings_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: true
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       workspace_feature_entitlements: {
         Row: {
           created_at: string
