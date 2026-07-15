@@ -32,26 +32,43 @@ async function ctxRole(context: any): Promise<{ workspaceId: string; userId: str
   return { workspaceId: ws.workspaceId, userId: userId ?? null, role: ws.workspaceRole };
 }
 
+/**
+ * Entitlement gate (package ∩ role ∩ per-user override, fail-closed) for
+ * People Views / Campaign Filters — enforced BEFORE the legacy role checks
+ * inside people-views.server.ts. Saved views live under the People/Data area.
+ */
+async function ctxEntitled(
+  context: any,
+  level: "view" | "edit",
+): Promise<{ workspaceId: string; userId: string | null; role: WorkspaceRole }> {
+  const ctx = await ctxRole(context);
+  const { requirePageAccessEntitled } = await import(
+    "@/lib/packages/entitlements.server"
+  );
+  await requirePageAccessEntitled(ctx.workspaceId, ctx.userId, "data", level);
+  return ctx;
+}
+
 const filterConfigInput = z.unknown();
 
 export const listWorkspacePeopleViews = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
-    const { workspaceId, role } = await ctxRole(context);
+    const { workspaceId, role } = await ctxEntitled(context, "view");
     return { views: await listPeopleViews(workspaceId, false, role) };
   });
 
 export const listWorkspaceCampaignFilters = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
-    const { workspaceId } = await ctxRole(context);
+    const { workspaceId } = await ctxEntitled(context, "view");
     return { filters: await listCampaignFilters(workspaceId) };
   });
 
 export const getFilterFieldCatalog = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
-    const { workspaceId } = await ctxRole(context);
+    const { workspaceId } = await ctxEntitled(context, "view");
     // Include this workspace's meta.* custom fields.
     const { data: leads } = await (supabaseAdmin as any)
       .from("leads")
@@ -89,7 +106,7 @@ export const createWorkspacePeopleView = createServerFn({ method: "POST" })
     }).parse(input),
   )
   .handler(async ({ context, data }) => {
-    const { workspaceId, userId, role } = await ctxRole(context);
+    const { workspaceId, userId, role } = await ctxEntitled(context, "edit");
     return {
       view: await createPeopleView({
         workspaceId, userId, role,
@@ -121,7 +138,7 @@ export const updateWorkspacePeopleView = createServerFn({ method: "POST" })
     }).parse(input),
   )
   .handler(async ({ context, data }) => {
-    const { workspaceId, userId, role } = await ctxRole(context);
+    const { workspaceId, userId, role } = await ctxEntitled(context, "edit");
     return { view: await updatePeopleView({ workspaceId, userId, role, id: data.id, patch: data.patch as any }) };
   });
 
@@ -129,7 +146,7 @@ export const duplicateWorkspacePeopleView = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input) => z.object({ id: z.string().uuid() }).parse(input))
   .handler(async ({ context, data }) => {
-    const { workspaceId, userId, role } = await ctxRole(context);
+    const { workspaceId, userId, role } = await ctxEntitled(context, "edit");
     return { view: await duplicatePeopleView({ workspaceId, userId, role, id: data.id }) };
   });
 
@@ -146,7 +163,13 @@ export const createWorkspaceCampaignFilter = createServerFn({ method: "POST" })
     }).parse(input),
   )
   .handler(async ({ context, data }) => {
-    const { workspaceId, userId, role } = await ctxRole(context);
+    const { workspaceId, userId, role } = await ctxEntitled(context, "edit");
+    if (data.status === "active") {
+      const { requireActionAccess } = await import(
+        "@/lib/packages/entitlements.server"
+      );
+      await requireActionAccess(workspaceId, userId, "campaign_activation");
+    }
     return {
       filter: await createCampaignFilter({
         workspaceId, userId, role,
@@ -176,7 +199,13 @@ export const updateWorkspaceCampaignFilter = createServerFn({ method: "POST" })
     }).parse(input),
   )
   .handler(async ({ context, data }) => {
-    const { workspaceId, userId, role } = await ctxRole(context);
+    const { workspaceId, userId, role } = await ctxEntitled(context, "edit");
+    if (data.patch.status === "active") {
+      const { requireActionAccess } = await import(
+        "@/lib/packages/entitlements.server"
+      );
+      await requireActionAccess(workspaceId, userId, "campaign_activation");
+    }
     return { filter: await updateCampaignFilter({ workspaceId, userId, role, id: data.id, patch: data.patch as any }) };
   });
 
@@ -184,7 +213,7 @@ export const convertPeopleViewToCampaignFilter = createServerFn({ method: "POST"
   .middleware([requireSupabaseAuth])
   .inputValidator((input) => z.object({ viewId: z.string().uuid() }).parse(input))
   .handler(async ({ context, data }) => {
-    const { workspaceId, userId, role } = await ctxRole(context);
+    const { workspaceId, userId, role } = await ctxEntitled(context, "edit");
     return { filter: await convertViewToCampaignFilter({ workspaceId, userId, role, viewId: data.viewId }) };
   });
 
@@ -199,7 +228,7 @@ export const dryRunWorkspaceFilter = createServerFn({ method: "POST" })
     }).parse(input),
   )
   .handler(async ({ context, data }) => {
-    const { workspaceId, userId } = await ctxRole(context);
+    const { workspaceId, userId } = await ctxEntitled(context, "edit");
     return {
       result: await dryRunAndRecord({
         objectType: data.objectType,
@@ -221,7 +250,7 @@ export const listWorkspaceViewVersions = createServerFn({ method: "POST" })
     }).parse(input),
   )
   .handler(async ({ context, data }) => {
-    const { workspaceId } = await ctxRole(context);
+    const { workspaceId } = await ctxEntitled(context, "view");
     return { versions: await listVersions(data.objectType, workspaceId, data.id) };
   });
 
@@ -235,7 +264,7 @@ export const rollbackWorkspaceViewVersion = createServerFn({ method: "POST" })
     }).parse(input),
   )
   .handler(async ({ context, data }) => {
-    const { workspaceId, userId, role } = await ctxRole(context);
+    const { workspaceId, userId, role } = await ctxEntitled(context, "edit");
     return {
       record: await rollbackObject({
         objectType: data.objectType,
@@ -250,11 +279,14 @@ export const runWorkspacePeopleView = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input) => z.object({ viewId: z.string().uuid(), limit: z.number().int().min(1).max(500).optional() }).parse(input))
   .handler(async ({ context, data }) => {
-    const { workspaceId, userId, role } = await ctxRole(context);
-    // Assigned-records-only roles see only leads assigned to them in saved views.
-    const { resolvePermissions } = await import("@/lib/permissions/permissions.server");
-    const perms = await resolvePermissions(workspaceId, userId);
-    const assignedToUserId = perms.assignedRecordsOnly === true ? userId : null;
+    const { workspaceId, userId, role } = await ctxEntitled(context, "view");
+    // Assigned-records-only visibility must honour per-user overrides too —
+    // use effective access (package ∩ role ∩ override), not role-only perms.
+    const { resolveEffectiveAccess } = await import(
+      "@/lib/packages/entitlements.server"
+    );
+    const eff = await resolveEffectiveAccess(workspaceId, userId);
+    const assignedToUserId = eff.assignedRecordsOnly === true ? userId : null;
     return await runPeopleView(workspaceId, data.viewId, data.limit ?? 200, role, assignedToUserId);
   });
 
@@ -264,7 +296,7 @@ export const listWorkspaceViewAuditLogs = createServerFn({ method: "POST" })
     z.object({ objectId: z.string().uuid().nullish(), limit: z.number().int().min(1).max(200).optional() }).parse(input ?? {}),
   )
   .handler(async ({ context, data }) => {
-    const { workspaceId } = await ctxRole(context);
+    const { workspaceId } = await ctxEntitled(context, "view");
     let q = (supabaseAdmin as any)
       .from("workspace_view_audit_logs")
       .select("*")

@@ -147,6 +147,39 @@ describe("access enforcement (role ∩ package ∩ overrides)", () => {
     await expect(requireSystemMindView(WS, memberUserId)).rejects.toThrow();
   });
 
+  it("People Views: data page + campaign activation honour package and overrides", async () => {
+    await setPackage("business_command");
+    // Admin can view/edit the data page (People Views funnel) on a full package.
+    await expect(
+      requirePageAccessEntitled(WS, memberUserId, "data", "edit"),
+    ).resolves.toBeTruthy();
+    await expect(
+      requireActionAccess(WS, memberUserId, "campaign_activation"),
+    ).resolves.toBeTruthy();
+    // Per-user override hides the data page and blocks activation for the admin.
+    await setOverride(memberUserId, {
+      page_access_json: { data: "hidden" },
+      action_access_json: { campaign_activation: false },
+    });
+    await expect(
+      requirePageAccessEntitled(WS, memberUserId, "data", "view"),
+    ).rejects.toThrow();
+    await expect(
+      requireActionAccess(WS, memberUserId, "campaign_activation"),
+    ).rejects.toThrow();
+    // Owner stays unaffected by role/override restrictions.
+    await expect(
+      requirePageAccessEntitled(WS, ownerUserId, "data", "edit"),
+    ).resolves.toBeTruthy();
+    // Effective access exposes override-aware assignedRecordsOnly for saved views.
+    await setOverride(memberUserId, {
+      record_visibility_json: { assignedRecordsOnly: true },
+    });
+    const eff = await resolveEffectiveAccess(WS, memberUserId);
+    expect(eff.assignedRecordsOnly).toBe(true);
+    await clearOverrides();
+  });
+
   it("denials are audited", async () => {
     const { data: audits } = await sb
       .from("workspace_access_audit_logs")
