@@ -92,7 +92,9 @@ function LockScreen({
             {isPackage && (
               <>
                 <Button asChild>
-                  <Link to="/billing">View Packages</Link>
+                  <Link to="/billing" search={{ checkout: undefined }}>
+                    View Packages
+                  </Link>
                 </Button>
                 <Button
                   variant="outline"

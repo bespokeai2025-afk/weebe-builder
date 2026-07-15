@@ -32,6 +32,7 @@ import { Route as AuthenticatedSystemmindRouteImport } from './routes/_authentic
 import { Route as AuthenticatedQualifiedRouteImport } from './routes/_authenticated/qualified'
 import { Route as AuthenticatedPipelineRouteImport } from './routes/_authenticated/pipeline'
 import { Route as AuthenticatedPhoneNumbersRouteImport } from './routes/_authenticated/phone-numbers'
+import { Route as AuthenticatedNotificationsRouteImport } from './routes/_authenticated/notifications'
 import { Route as AuthenticatedMyAgentsRouteImport } from './routes/_authenticated/my-agents'
 import { Route as AuthenticatedLeadsRouteImport } from './routes/_authenticated/leads'
 import { Route as AuthenticatedKnowledgeCentreRouteImport } from './routes/_authenticated/knowledge-centre'
@@ -378,6 +379,12 @@ const AuthenticatedPhoneNumbersRoute =
   AuthenticatedPhoneNumbersRouteImport.update({
     id: '/phone-numbers',
     path: '/phone-numbers',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
+const AuthenticatedNotificationsRoute =
+  AuthenticatedNotificationsRouteImport.update({
+    id: '/notifications',
+    path: '/notifications',
     getParentRoute: () => AuthenticatedRoute,
   } as any)
 const AuthenticatedMyAgentsRoute = AuthenticatedMyAgentsRouteImport.update({
@@ -1709,6 +1716,7 @@ export interface FileRoutesByFullPath {
   '/knowledge-centre': typeof AuthenticatedKnowledgeCentreRouteWithChildren
   '/leads': typeof AuthenticatedLeadsRouteWithChildren
   '/my-agents': typeof AuthenticatedMyAgentsRoute
+  '/notifications': typeof AuthenticatedNotificationsRoute
   '/phone-numbers': typeof AuthenticatedPhoneNumbersRoute
   '/pipeline': typeof AuthenticatedPipelineRoute
   '/qualified': typeof AuthenticatedQualifiedRoute
@@ -1955,6 +1963,7 @@ export interface FileRoutesByTo {
   '/enterprise': typeof AuthenticatedEnterpriseRouteWithChildren
   '/follow-up': typeof AuthenticatedFollowUpRoute
   '/my-agents': typeof AuthenticatedMyAgentsRoute
+  '/notifications': typeof AuthenticatedNotificationsRoute
   '/phone-numbers': typeof AuthenticatedPhoneNumbersRoute
   '/pipeline': typeof AuthenticatedPipelineRoute
   '/qualified': typeof AuthenticatedQualifiedRoute
@@ -2205,6 +2214,7 @@ export interface FileRoutesById {
   '/_authenticated/knowledge-centre': typeof AuthenticatedKnowledgeCentreRouteWithChildren
   '/_authenticated/leads': typeof AuthenticatedLeadsRouteWithChildren
   '/_authenticated/my-agents': typeof AuthenticatedMyAgentsRoute
+  '/_authenticated/notifications': typeof AuthenticatedNotificationsRoute
   '/_authenticated/phone-numbers': typeof AuthenticatedPhoneNumbersRoute
   '/_authenticated/pipeline': typeof AuthenticatedPipelineRoute
   '/_authenticated/qualified': typeof AuthenticatedQualifiedRoute
@@ -2459,6 +2469,7 @@ export interface FileRouteTypes {
     | '/knowledge-centre'
     | '/leads'
     | '/my-agents'
+    | '/notifications'
     | '/phone-numbers'
     | '/pipeline'
     | '/qualified'
@@ -2705,6 +2716,7 @@ export interface FileRouteTypes {
     | '/enterprise'
     | '/follow-up'
     | '/my-agents'
+    | '/notifications'
     | '/phone-numbers'
     | '/pipeline'
     | '/qualified'
@@ -2954,6 +2966,7 @@ export interface FileRouteTypes {
     | '/_authenticated/knowledge-centre'
     | '/_authenticated/leads'
     | '/_authenticated/my-agents'
+    | '/_authenticated/notifications'
     | '/_authenticated/phone-numbers'
     | '/_authenticated/pipeline'
     | '/_authenticated/qualified'
@@ -3432,6 +3445,13 @@ declare module '@tanstack/react-router' {
       path: '/phone-numbers'
       fullPath: '/phone-numbers'
       preLoaderRoute: typeof AuthenticatedPhoneNumbersRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/notifications': {
+      id: '/_authenticated/notifications'
+      path: '/notifications'
+      fullPath: '/notifications'
+      preLoaderRoute: typeof AuthenticatedNotificationsRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
     '/_authenticated/my-agents': {
@@ -5481,6 +5501,7 @@ interface AuthenticatedRouteChildren {
   AuthenticatedKnowledgeCentreRoute: typeof AuthenticatedKnowledgeCentreRouteWithChildren
   AuthenticatedLeadsRoute: typeof AuthenticatedLeadsRouteWithChildren
   AuthenticatedMyAgentsRoute: typeof AuthenticatedMyAgentsRoute
+  AuthenticatedNotificationsRoute: typeof AuthenticatedNotificationsRoute
   AuthenticatedPhoneNumbersRoute: typeof AuthenticatedPhoneNumbersRoute
   AuthenticatedPipelineRoute: typeof AuthenticatedPipelineRoute
   AuthenticatedQualifiedRoute: typeof AuthenticatedQualifiedRoute
@@ -5522,6 +5543,7 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
     AuthenticatedKnowledgeCentreRouteWithChildren,
   AuthenticatedLeadsRoute: AuthenticatedLeadsRouteWithChildren,
   AuthenticatedMyAgentsRoute: AuthenticatedMyAgentsRoute,
+  AuthenticatedNotificationsRoute: AuthenticatedNotificationsRoute,
   AuthenticatedPhoneNumbersRoute: AuthenticatedPhoneNumbersRoute,
   AuthenticatedPipelineRoute: AuthenticatedPipelineRoute,
   AuthenticatedQualifiedRoute: AuthenticatedQualifiedRoute,

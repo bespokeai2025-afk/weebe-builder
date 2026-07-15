@@ -355,6 +355,12 @@ export const createAdminChangeRequestFn = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: any) => d)
   .handler(async ({ context, data }: any) => {
+    {
+      const { requirePageAccessEntitled } = await import(
+        "@/lib/packages/entitlements.server"
+      );
+      await requirePageAccessEntitled((context as any).workspaceId, (context as any).userId, "agents", "edit");
+    }
     const {
       requestType,
       title,

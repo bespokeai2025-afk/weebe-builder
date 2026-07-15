@@ -1,4 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { Bell, Check, CheckCheck, AlertTriangle, Info, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -156,6 +157,14 @@ export function NotificationsBell() {
             </div>
           )}
         </ScrollArea>
+        <div className="border-t px-3 py-2">
+          <Link
+            to="/notifications"
+            className="block text-center text-xs font-medium text-primary hover:underline"
+          >
+            View all in Notification Centre
+          </Link>
+        </div>
       </PopoverContent>
     </Popover>
   );

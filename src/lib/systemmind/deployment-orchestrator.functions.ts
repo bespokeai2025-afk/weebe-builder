@@ -47,6 +47,12 @@ export const startAgentDeployment = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data, context }) => {
+    {
+      const { requireSystemMindEdit } = await import(
+        "@/lib/systemmind/systemmind-access.server"
+      );
+      await requireSystemMindEdit(context.workspaceId, context.userId);
+    }
     const { getOrCreateDeploymentServer } = await import(
       "@/lib/systemmind/deployment-orchestrator.server"
     );
@@ -62,6 +68,12 @@ export const getDeploymentChecklist = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) => z.object({ deploymentId: z.string().uuid() }).parse(input))
   .handler(async ({ data, context }) => {
+    {
+      const { requireSystemMindView } = await import(
+        "@/lib/systemmind/systemmind-access.server"
+      );
+      await requireSystemMindView(context.workspaceId, context.userId);
+    }
     const { computeDeploymentChecklistServer } = await import(
       "@/lib/systemmind/deployment-orchestrator.server"
     );
@@ -75,6 +87,12 @@ export const getDeploymentForAgent = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) => z.object({ agentId: z.string().uuid() }).parse(input))
   .handler(async ({ data, context }) => {
+    {
+      const { requireSystemMindView } = await import(
+        "@/lib/systemmind/systemmind-access.server"
+      );
+      await requireSystemMindView(context.workspaceId, context.userId);
+    }
     const workspaceId = requireWorkspaceId(context.workspaceId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { data: row } = await (supabaseAdmin as any)
@@ -92,6 +110,12 @@ export const getDeploymentForAgent = createServerFn({ method: "GET" })
 export const listAgentDeployments = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
+    {
+      const { requireSystemMindView } = await import(
+        "@/lib/systemmind/systemmind-access.server"
+      );
+      await requireSystemMindView(context.workspaceId, context.userId);
+    }
     const { listDeploymentsServer } = await import(
       "@/lib/systemmind/deployment-orchestrator.server"
     );
@@ -117,6 +141,12 @@ export const setDeploymentChecklistOverride = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data, context }) => {
+    {
+      const { requireSystemMindApproval } = await import(
+        "@/lib/systemmind/systemmind-access.server"
+      );
+      await requireSystemMindApproval(context.workspaceId, context.userId);
+    }
     const { setChecklistOverrideServer } = await import(
       "@/lib/systemmind/deployment-orchestrator.server"
     );
@@ -135,6 +165,12 @@ export const setDeploymentActive = createServerFn({ method: "POST" })
     z.object({ deploymentId: z.string().uuid(), active: z.boolean() }).parse(input),
   )
   .handler(async ({ data, context }) => {
+    {
+      const { requireSystemMindApproval } = await import(
+        "@/lib/systemmind/systemmind-access.server"
+      );
+      await requireSystemMindApproval(context.workspaceId, context.userId);
+    }
     const { setDeploymentActiveServer } = await import(
       "@/lib/systemmind/deployment-orchestrator.server"
     );
@@ -161,6 +197,12 @@ export const requestDeploymentApproval = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data, context }) => {
+    {
+      const { requireSystemMindEdit } = await import(
+        "@/lib/systemmind/systemmind-access.server"
+      );
+      await requireSystemMindEdit(context.workspaceId, context.userId);
+    }
     const { requestDeploymentApprovalServer } = await import(
       "@/lib/systemmind/deployment-orchestrator.server"
     );
@@ -216,6 +258,12 @@ export const listDeploymentWorkspaceNumbers = createServerFn({ method: "POST" })
     z.object({ agentRowId: z.string().uuid().optional() }).parse(input),
   )
   .handler(async ({ data, context }) => {
+    {
+      const { requireSystemMindView } = await import(
+        "@/lib/systemmind/systemmind-access.server"
+      );
+      await requireSystemMindView(context.workspaceId, context.userId);
+    }
     const { listWorkspaceNumbersServer } = await import(
       "@/lib/systemmind/deployment-orchestrator.server"
     );
