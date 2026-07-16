@@ -19,6 +19,22 @@ let _redis: any = null;
 let _initialized = false;
 let _initPromise: Promise<any | null> | null = null;
 
+// Secrets are sometimes pasted with the variable name and/or quotes included
+// (e.g. the value is literally `UPSTASH_REDIS_REST_URL="https://..."`), which
+// silently disables caching in prod. Strip those artifacts defensively.
+function cleanEnvValue(name: string): string | undefined {
+  let v = process.env[name]?.trim();
+  if (!v) return undefined;
+  if (v.startsWith(`${name}=`)) v = v.slice(name.length + 1).trim();
+  if (
+    (v.startsWith('"') && v.endsWith('"')) ||
+    (v.startsWith("'") && v.endsWith("'"))
+  ) {
+    v = v.slice(1, -1).trim();
+  }
+  return v || undefined;
+}
+
 // Lazy async initializer. This file runs in an ESM runtime where CommonJS
 // `require` is undefined, so the Upstash client MUST be loaded via a dynamic
 // `import()` (a string-literal specifier so the prod Rollup build resolves it).
@@ -28,8 +44,8 @@ async function getRedis(): Promise<any | null> {
   if (_initPromise) return _initPromise;
 
   _initPromise = (async () => {
-    const url   = process.env.UPSTASH_REDIS_REST_URL?.trim();
-    const token = process.env.UPSTASH_REDIS_REST_TOKEN?.trim();
+    const url   = cleanEnvValue("UPSTASH_REDIS_REST_URL");
+    const token = cleanEnvValue("UPSTASH_REDIS_REST_TOKEN");
 
     if (!url || !token) {
       _initialized = true;
