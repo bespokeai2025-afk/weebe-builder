@@ -1,0 +1,830 @@
+Please upgrade the WEBEE Analytics Centre into a much deeper business intelligence and reporting centre.
+
+The Analytics Centre should analyse calls, leads, qualified leads, campaigns, agents, workflows, follow-ups, bookings, costs, revenue, ROI, and AI department recommendations.
+
+It should also generate reports and send automated campaign result reports using the WEBEE admin Resend account by default, or a workspace/reseller custom email provider if configured and allowed by package.
+
+Everything must be workspace-scoped, package-gated, role-permission checked, and safe.
+
+---
+
+# 1. Main goal
+
+Upgrade Analytics Centre from basic stats into a full analytics/reporting hub.
+
+It should include:
+
+* Executive Overview
+* Campaign Analytics
+* Agent Performance
+* Lead Source Analytics
+* Call Analytics
+* Sentiment Analytics
+* Booking Analytics
+* Workflow Analytics
+* Follow-up Analytics
+* CRM Pipeline Analytics
+* Financial / AccountsMind Analytics
+* Reports Centre
+* Automated Report Scheduling
+* SystemMind / HiveMind / GrowthMind insights
+
+---
+
+# 2. Data sources
+
+Analytics should pull from existing workspace-scoped data sources:
+
+* calls
+* leads
+* qualified leads
+* data_records
+* campaigns
+* campaign_reports
+* workflow execution logs
+* agent records
+* Retell call data
+* post-call extraction fields
+* CRM mappings
+* Follow Up Centre tasks/sequences
+* WhatsApp/SMS/email events
+* bookings/calendar records
+* usage/cost records
+* AccountsMind metrics
+* HiveMind recommendations
+* GrowthMind recommendations
+* SystemMind audit logs
+* workspace package/add-on limits
+
+Do not read across workspaces.
+
+Do not expose WBAH analytics to standard workspaces.
+
+Do not expose standard workspace analytics to WBAH.
+
+---
+
+# 3. Executive Overview dashboard
+
+Create a high-level overview showing:
+
+* total leads
+* new leads
+* qualified leads
+* total calls
+* connected calls
+* missed/no answer calls
+* voicemails
+* failed calls
+* positive sentiment count/rate
+* neutral sentiment count/rate
+* negative sentiment count/rate
+* appointments booked
+* callbacks requested
+* follow-ups created
+* campaign conversion rate
+* booking rate
+* qualification rate
+* cost per lead
+* cost per qualified lead
+* cost per booked appointment
+* estimated revenue
+* estimated ROI
+* best performing campaign
+* worst performing campaign
+* best performing agent
+* biggest current issue
+* SystemMind recommended next action
+
+Allow date range filters:
+
+* today
+* yesterday
+* last 7 days
+* last 30 days
+* this month
+* last month
+* custom range
+
+---
+
+# 4. Campaign Analytics
+
+For each campaign, show:
+
+* campaign status
+* campaign type
+* agent used
+* lead source
+* selected campaign filter
+* launch date
+* completion date
+* leads targeted
+* eligible leads
+* excluded leads
+* exclusion reasons
+* calls attempted
+* calls connected
+* failed calls
+* no answers
+* voicemails
+* positive sentiment
+* neutral sentiment
+* negative sentiment
+* qualified leads created
+* appointments booked
+* callback requests
+* follow-ups created
+* opt-outs
+* do-not-contact updates
+* average call duration
+* total minutes used
+* estimated cost
+* cost per call
+* cost per connected call
+* cost per qualified lead
+* cost per booked appointment
+* conversion rate
+* booking rate
+* qualification rate
+* failure rate
+* ROI where revenue/deal value exists
+* recommended fixes
+* next best action
+
+Add campaign comparison:
+
+* compare campaigns side by side
+* compare by lead source
+* compare by agent
+* compare by date range
+* compare by package/workspace if Master Admin
+* compare conversion rate
+* compare cost per booked appointment
+* compare ROI
+
+---
+
+# 5. Campaign failure analytics
+
+For failed campaigns, show:
+
+* failure time
+* failure stage
+* failure reason
+* affected leads count
+* provider/API error if any
+* workflow error if any
+* CRM mapping error if any
+* phone/SIP issue if any
+* no eligible leads reason
+* safety block reason
+* whether retry is safe
+* SystemMind suggested fix
+* Create Fix Draft button
+* Retry after approval button where safe
+
+Common failure categories:
+
+* missing Retell API key
+* missing agent ID
+* missing phone number
+* missing SIP trunk
+* invalid campaign filter
+* no eligible leads
+* workspace_id mismatch
+* provider rate limit
+* provider API failure
+* webhook failure
+* CRM mapping failure
+* post-call extraction failure
+* workflow action failure
+* call cap reached
+* schedule invalid
+* duplicate prevention blocked all leads
+* opt-out/safety blocker
+
+---
+
+# 6. Agent Performance Analytics
+
+For each agent, show:
+
+* total calls
+* connected calls
+* no answers
+* failed calls
+* positive rate
+* neutral rate
+* negative rate
+* booking rate
+* qualification rate
+* average call duration
+* average lead score
+* extraction success rate
+* missing extraction fields
+* CRM mapping success rate
+* workflow success rate
+* test call pass/fail history
+* script weak points
+* objection handling issues
+* most common negative reasons
+* most common callback reasons
+* cost per outcome
+* revenue/deal value attributed
+* recommended script improvements
+* recommended workflow improvements
+
+---
+
+# 7. Lead Source Analytics
+
+Show performance by lead source:
+
+* webform
+* CRM import
+* CSV upload
+* manual lead
+* API lead
+* WhatsApp
+* referral
+* paid ads
+* campaign
+* other custom sources
+
+Metrics:
+
+* lead count
+* call count
+* connected rate
+* positive sentiment rate
+* qualified rate
+* booking rate
+* follow-up rate
+* opt-out rate
+* cost per lead
+* cost per booking
+* estimated revenue
+* ROI
+* best performing source
+* worst performing source
+
+---
+
+# 8. Call Analytics
+
+Show:
+
+* call volume by day/time
+* connection rate
+* no answer rate
+* voicemail rate
+* failed call rate
+* average call duration
+* longest calls
+* shortest calls
+* calls by agent
+* calls by campaign
+* calls by source
+* sentiment by call length
+* booking by call length
+* best time to call
+* worst time to call
+* number performance
+* SIP/phone number performance
+* provider performance
+* Retell workspace performance
+
+---
+
+# 9. Sentiment Analytics
+
+Show:
+
+* positive count/rate
+* neutral count/rate
+* negative count/rate
+* sentiment by campaign
+* sentiment by agent
+* sentiment by source
+* sentiment by time/day
+* sentiment trend over time
+* negative reason breakdown
+* top objections
+* callback reason breakdown
+* opt-out reason breakdown
+* sentiment impact on bookings
+* sentiment impact on qualification
+
+---
+
+# 10. Booking Analytics
+
+Show:
+
+* total appointments booked
+* booking rate
+* bookings by campaign
+* bookings by agent
+* bookings by lead source
+* bookings by day/time
+* no-show if data exists
+* cancelled bookings if data exists
+* rebookings
+* appointment_booked status usage
+* booking slot captured rate
+* calendar provider performance
+* confirmation follow-up success
+* booked but not qualified anomalies
+
+---
+
+# 11. Workflow Analytics
+
+For each workflow, show:
+
+* trigger count
+* success count
+* failure count
+* success rate
+* average execution time
+* failed action count
+* failed action type
+* CRM update success
+* follow-up task creation success
+* email send success
+* WhatsApp send success
+* SMS send success
+* booking update success
+* cost/usage
+* common error messages
+* SystemMind repair suggestions
+* last run
+* last failure
+
+---
+
+# 12. Follow-up Analytics
+
+Show:
+
+* follow-ups created
+* follow-ups completed
+* overdue follow-ups
+* response rate
+* booking after follow-up
+* qualified after follow-up
+* positive after follow-up
+* channel performance:
+
+  * call
+  * WhatsApp
+  * SMS
+  * email
+* best follow-up delay
+* best sequence
+* leads lost due to no follow-up
+* 7-day sequence performance
+* 30-day sequence performance
+* 90-day sequence performance
+
+---
+
+# 13. Financial / AccountsMind Analytics
+
+Show:
+
+* AI voice minutes used
+* included minutes remaining
+* overage risk
+* Retell/voice cost
+* WhatsApp cost
+* SMS cost
+* email cost
+* SystemMind usage cost
+* total campaign cost
+* cost per lead
+* cost per qualified lead
+* cost per booked appointment
+* estimated revenue
+* deal value captured
+* ROI
+* profit margin
+* cost trend
+* campaign profitability
+* best ROI campaign
+* worst ROI campaign
+* package limit usage
+* add-on usage
+* recommended package upgrade/downgrade
+* billing alerts
+
+AccountsMind should be able to read and use these analytics.
+
+---
+
+# 14. Reports Centre
+
+Add a Reports Centre inside Analytics.
+
+Report types:
+
+* Campaign Launch Report
+* Campaign Failure Report
+* Campaign Completion Report
+* Campaign KPI Report
+* Daily Campaign Summary
+* Weekly Workspace Report
+* Monthly ROI Report
+* Agent Performance Report
+* Lead Source Report
+* Workflow Failure Report
+* Follow-up Performance Report
+* AccountsMind Cost Report
+* HiveMind Executive Briefing
+* GrowthMind Campaign Improvement Report
+* SystemMind Fix Report
+
+Reports should be stored, viewable, searchable, downloadable later, and sendable.
+
+Suggested table:
+
+## `analytics_reports`
+
+Fields:
+
+* id
+* workspace_id
+* report_type
+* report_name
+* report_status:
+
+  * draft
+  * generated
+  * sent
+  * failed
+* related_campaign_id
+* related_agent_id
+* related_workflow_id
+* date_range_start
+* date_range_end
+* report_summary
+* metrics_json
+* insights_json
+* recommendations_json
+* generated_by:
+
+  * system
+  * systemmind
+  * hivemind
+  * growthmind
+  * accountsmind
+  * user
+* created_by_user_id optional
+* sent_to_json
+* delivery_status
+* created_at
+* updated_at
+
+---
+
+# 15. Automated campaign reports
+
+Campaign reports should be generated automatically.
+
+Generate reports when:
+
+* campaign is activated
+* campaign is paused
+* campaign is completed
+* campaign fails
+* campaign is cancelled
+* campaign is retried
+* campaign has no eligible leads
+* campaign hits safety cap
+* campaign hits daily call cap
+* campaign produces KPI results
+* provider/API error occurs
+* workflow error occurs
+
+Campaign report generation must be additive.
+
+If report generation fails, campaign execution must not fail.
+
+Log report generation failures separately.
+
+---
+
+# 16. Automated report sending
+
+Reports should be sendable automatically based on notification settings.
+
+Use provider priority:
+
+1. Workspace custom email provider if active and package allows.
+2. Reseller parent custom email provider if child inherits parent email mode and package allows.
+3. WEBEE admin Resend account as default fallback.
+
+Default should be WEBEE admin Resend.
+
+Use:
+
+* `WEBEE_RESEND_API_KEY`
+* `WEBEE_DEFAULT_FROM_EMAIL`
+* `WEBEE_DEFAULT_FROM_NAME`
+
+Do not expose the WEBEE Resend key.
+
+Notification/report settings should decide:
+
+* which reports are emailed
+* who receives them
+* frequency:
+
+  * immediate
+  * hourly digest
+  * daily digest
+  * weekly digest
+
+If email fails:
+
+* mark as failed
+* log error
+* show in-app warning
+* do not break campaign execution
+
+---
+
+# 17. Scheduled reports
+
+Allow workspace admins to schedule reports.
+
+Examples:
+
+* daily campaign report at 8am
+* weekly performance report every Monday
+* monthly ROI report on the 1st
+* campaign failure report immediately
+* campaign completion report immediately
+* WBAH weekly sales performance report
+* reseller child workspace monthly summary
+
+Suggested table:
+
+## `analytics_report_schedules`
+
+Fields:
+
+* id
+* workspace_id
+* report_type
+* name
+* frequency:
+
+  * daily
+  * weekly
+  * monthly
+  * custom
+* schedule_config_json
+* recipients_json
+* filters_json
+* enabled
+* created_by_user_id
+* created_at
+* updated_at
+
+---
+
+# 18. SystemMind report actions
+
+SystemMind should support:
+
+* generate_report
+* explain_report
+* schedule_report
+* send_report
+* compare_reports
+* diagnose_campaign_report
+* create_fix_from_report
+* create_people_view_from_report
+* create_campaign_filter_from_report
+* create_follow_up_sequence_from_report
+
+Example user prompts:
+
+* “Generate a report for this campaign.”
+* “Why did this campaign fail?”
+* “Send me a weekly report every Monday.”
+* “Compare my last 3 campaigns.”
+* “Create a People view from the booked appointments in this campaign.”
+* “Create a follow-up sequence for neutral leads.”
+* “Explain why cost per booking increased.”
+
+SystemMind must respect package and user permissions.
+
+---
+
+# 19. HiveMind / GrowthMind integration
+
+HiveMind should use analytics to generate executive recommendations:
+
+* what changed
+* what is failing
+* what needs attention
+* where money is being lost
+* which campaign should be paused
+* which campaign should be scaled
+* which agent needs improvement
+
+GrowthMind should use analytics to improve:
+
+* lead sources
+* campaign targeting
+* follow-up timings
+* scripts
+* messaging
+* conversion rates
+
+SystemMind should create draft fixes from these recommendations.
+
+---
+
+# 20. Master Admin analytics
+
+Master Admin should have a higher-level analytics view.
+
+Master Admin can see:
+
+* all workspaces
+* package usage
+* usage by client
+* reseller usage
+* child workspace usage
+* campaign volume
+* voice minute usage
+* add-on usage
+* staff seat usage
+* revenue/usage risk
+* failed campaigns by workspace
+* report delivery failures
+* provider failures
+* WBAH separately where needed
+
+Master Admin must be able to filter by:
+
+* workspace
+* package
+* reseller
+* child workspace
+* date range
+* campaign type
+* agent type
+* status
+
+---
+
+# 21. Package gating
+
+Advanced Analytics and Reports should be package-controlled.
+
+Feature keys:
+
+* analytics_basic
+* analytics_advanced
+* analytics_campaign_reports
+* analytics_financial
+* analytics_scheduled_reports
+* analytics_ai_insights
+* analytics_master_admin
+* analytics_reseller_child_reports
+* automated_report_emails
+
+If package does not allow a feature, show upgrade prompt and block backend access.
+
+---
+
+# 22. UI
+
+Analytics Centre should have tabs:
+
+* Overview
+* Campaigns
+* Agents
+* Lead Sources
+* Calls
+* Sentiment
+* Bookings
+* Workflows
+* Follow-ups
+* Financial / ROI
+* Reports
+* AI Insights
+
+Each tab should include:
+
+* filters
+* date range
+* export/report button
+* send report button where allowed
+* schedule report button where allowed
+* SystemMind insight button
+* HiveMind recommendation panel
+* GrowthMind recommendation panel where relevant
+
+---
+
+# 23. Safety
+
+Analytics must be read-only unless the user explicitly creates a draft action from an insight.
+
+Analytics should never directly:
+
+* trigger calls
+* send messages
+* alter campaigns
+* alter agents
+* alter workflows
+* change CRM records
+* change package/access settings
+
+Any action from analytics should create a draft through SystemMind and require approval.
+
+---
+
+# 24. Workspace isolation
+
+All analytics must be scoped to workspace_id.
+
+Do not cross workspaces except Master Admin views.
+
+Do not expose WBAH analytics to standard workspaces.
+
+Do not expose reseller child analytics to sibling child workspaces.
+
+Reseller parent can only see child workspace analytics if permission and package allow.
+
+Master Admin can see all.
+
+---
+
+# 25. Audit logs
+
+Audit:
+
+* report generated
+* report sent
+* report failed
+* scheduled report created
+* scheduled report changed
+* analytics access denied
+* SystemMind report action created
+* report-based fix drafted
+* report-based fix applied
+* exported report
+* Master Admin analytics viewed
+
+Include:
+
+* workspace_id
+* user_id
+* report_id
+* action_type
+* before_state
+* after_state
+* created_at
+
+---
+
+# 26. Testing required
+
+Please test:
+
+1. Analytics Overview loads for a standard workspace.
+2. Campaign Analytics shows campaign KPIs.
+3. Agent Analytics shows agent performance.
+4. Lead Source Analytics shows source conversion.
+5. Workflow Analytics shows success/failure.
+6. Financial Analytics shows cost per lead/booking where data exists.
+7. Campaign activation generates report.
+8. Campaign failure generates report.
+9. Campaign completion generates KPI report.
+10. Report generation failure does not break campaign execution.
+11. Email report uses WEBEE Resend by default.
+12. Workspace custom email provider is used only if active and allowed.
+13. Scheduled report sends to correct recipients.
+14. Reports appear in Reports Centre.
+15. SystemMind can explain report.
+16. SystemMind can draft fix from report.
+17. HiveMind can read executive insights.
+18. GrowthMind can read campaign insights.
+19. AccountsMind can read cost/ROI analytics.
+20. Package without advanced analytics is blocked.
+21. Direct URL access to locked analytics is blocked.
+22. WBAH remains isolated.
+23. Reseller parent can see child analytics only if allowed.
+24. Master Admin can see all workspace analytics.
+25. Audit logs are created.
+
+Final instruction:
+
+Upgrade Analytics Centre into a deep WEBEE business intelligence hub with campaign, agent, workflow, lead source, call, sentiment, booking, follow-up, cost, ROI, and AI insight analytics. It must generate and send automated reports from campaign results, failures, completions, and KPI outcomes, using WEBEE Resend by default and custom workspace/reseller email providers only when allowed.

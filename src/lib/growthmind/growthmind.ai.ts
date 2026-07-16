@@ -323,7 +323,26 @@ export const getGrowthMindAIResponse = createServerFn({ method: "POST" })
       } catch {}
     }
 
-    const systemPrompt = compileSystemPrompt(data.platformData, data.personality, adsTrend) + (knowledgeBlockResult ? `\n\n${knowledgeBlockResult}` : "") + campaignReportsBlock;
+    // Analytics Hub snapshot (graceful — read-only compact overview)
+    let analyticsBlock = "";
+    if (workspaceId) {
+      try {
+        const { getAnalyticsSnapshotForExec } = await import("@/lib/analytics-hub/analytics-hub.server");
+        const a = await getAnalyticsSnapshotForExec(workspaceId);
+        if (a && !a.error) {
+          const bits: string[] = [];
+          if (a.rates) bits.push(`conversion ${a.rates.conversion}%, booking ${a.rates.booking}%, qualification ${a.rates.qualification}%`);
+          if (a.cost) bits.push(`ROI ${a.cost.roi}%, est. revenue £${((a.cost.estRevenueCents ?? 0) / 100).toFixed(0)}`);
+          if (a.bestCampaign) bits.push(`best campaign "${a.bestCampaign}"`);
+          if (a.worstCampaign) bits.push(`worst campaign "${a.worstCampaign}"`);
+          analyticsBlock = `\n\nANALYTICS HUB (${a.windowDays ?? 30}d): ${bits.join("; ")}.`;
+          if (a.biggestIssue) analyticsBlock += `\nBiggest issue: ${a.biggestIssue.type}${a.biggestIssue.campaign ? ` on "${a.biggestIssue.campaign}"` : ""}${a.biggestIssue.reason ? ` — ${a.biggestIssue.reason}` : ""}.`;
+          if (a.nextAction) analyticsBlock += `\nRecommended next action: ${a.nextAction.title}.`;
+        }
+      } catch {}
+    }
+
+    const systemPrompt = compileSystemPrompt(data.platformData, data.personality, adsTrend) + (knowledgeBlockResult ? `\n\n${knowledgeBlockResult}` : "") + campaignReportsBlock + analyticsBlock;
 
     const res = await fetch("https://api.openai.com/v1/chat/completions", {
       method: "POST",

@@ -683,3 +683,145 @@ export const adminRunPackageMigrationReport = createServerFn({ method: "POST" })
       rows: report,
     };
   });
+
+// ── Platform analytics oversight ─────────────────────────────────────────────
+
+/**
+ * Cross-workspace analytics oversight for Master Admin.
+ *
+ * Per-workspace: usage cost (current month), campaign volume, failed campaigns,
+ * report volume + report delivery failures. WBAH is aggregated but flagged so it
+ * can be surfaced separately in the UI. Read-only, audited (workspace_id null).
+ */
+export const adminGetPlatformAnalytics = createServerFn({ method: "GET" })
+  .middleware([...adminMw])
+  .inputValidator(
+    (d?: { search?: string | null; windowDays?: number | null; includeWbah?: boolean | null }) =>
+      d ?? {},
+  )
+  .handler(async ({ context, data }) => {
+    const windowDays = Math.min(365, Math.max(1, Math.floor(Number(data?.windowDays ?? 30))));
+    const sinceIso = new Date(Date.now() - windowDays * 24 * 60 * 60 * 1000).toISOString();
+    const monthStr = new Date(new Date().getFullYear(), new Date().getMonth(), 1)
+      .toISOString()
+      .split("T")[0];
+    const search = (data?.search ?? "").trim().toLowerCase();
+
+    const [wsRes, reportsRes, campaignsRes, costsRes] = await Promise.all([
+      sb.from("workspaces").select("id, name, created_at"),
+      sb
+        .from("analytics_reports")
+        .select("workspace_id, report_status, delivery_status, created_at")
+        .gte("created_at", sinceIso),
+      sb.from("campaigns").select("workspace_id, status"),
+      sb
+        .from("client_monthly_costs")
+        .select("workspace_id, total_cost_cents, monthly_charge_cents")
+        .eq("month", monthStr),
+    ]);
+
+    const workspaces = wsRes.data ?? [];
+    const reports = reportsRes.data ?? [];
+    const campaigns = campaignsRes.data ?? [];
+    const costs = costsRes.data ?? [];
+
+    const costByWs = new Map<string, any>(costs.map((c: any) => [c.workspace_id, c]));
+
+    type Agg = {
+      reportsTotal: number;
+      reportsFailed: number;
+      reportDeliveryFailures: number;
+      campaignsTotal: number;
+      campaignsFailed: number;
+    };
+    const aggByWs = new Map<string, Agg>();
+    const ensure = (id: string): Agg => {
+      let a = aggByWs.get(id);
+      if (!a) {
+        a = {
+          reportsTotal: 0,
+          reportsFailed: 0,
+          reportDeliveryFailures: 0,
+          campaignsTotal: 0,
+          campaignsFailed: 0,
+        };
+        aggByWs.set(id, a);
+      }
+      return a;
+    };
+
+    for (const r of reports) {
+      if (!r.workspace_id) continue;
+      const a = ensure(r.workspace_id);
+      a.reportsTotal++;
+      if (r.report_status === "failed") a.reportsFailed++;
+      if (r.delivery_status === "failed") a.reportDeliveryFailures++;
+    }
+    const FAILED_CAMPAIGN_STATUSES = ["failed", "error", "safety_blocked", "provider_error"];
+    for (const c of campaigns) {
+      if (!c.workspace_id) continue;
+      const a = ensure(c.workspace_id);
+      a.campaignsTotal++;
+      if (FAILED_CAMPAIGN_STATUSES.includes(String(c.status ?? ""))) a.campaignsFailed++;
+    }
+
+    const buildRow = (ws: any) => {
+      const a = ensure(ws.id);
+      const cost = costByWs.get(ws.id);
+      return {
+        workspaceId: ws.id,
+        name: ws.name ?? "Unnamed",
+        isWbah: isWbahWorkspaceId(ws.id),
+        usageCostCents: cost?.total_cost_cents ?? 0,
+        monthlyChargeCents: cost?.monthly_charge_cents ?? 0,
+        campaignVolume: a.campaignsTotal,
+        failedCampaigns: a.campaignsFailed,
+        reportVolume: a.reportsTotal,
+        reportsFailed: a.reportsFailed,
+        reportDeliveryFailures: a.reportDeliveryFailures,
+      };
+    };
+
+    const allRows = workspaces.map(buildRow);
+    const wbahRow = allRows.find((r: any) => r.isWbah) ?? null;
+    let standardRows = allRows.filter((r: any) => !r.isWbah);
+    if (search) {
+      standardRows = standardRows.filter((r: any) => r.name.toLowerCase().includes(search));
+    }
+    standardRows.sort((a: any, b: any) => b.reportDeliveryFailures - a.reportDeliveryFailures || b.campaignVolume - a.campaignVolume);
+
+    const totals = standardRows.reduce(
+      (acc: any, r: any) => {
+        acc.usageCostCents += r.usageCostCents;
+        acc.campaignVolume += r.campaignVolume;
+        acc.failedCampaigns += r.failedCampaigns;
+        acc.reportVolume += r.reportVolume;
+        acc.reportDeliveryFailures += r.reportDeliveryFailures;
+        return acc;
+      },
+      {
+        usageCostCents: 0,
+        campaignVolume: 0,
+        failedCampaigns: 0,
+        reportVolume: 0,
+        reportDeliveryFailures: 0,
+      },
+    );
+
+    await writeAccessAudit({
+      workspaceId: null as any,
+      actingUserId: context.userId,
+      objectType: "platform_analytics",
+      objectId: "adminGetPlatformAnalytics",
+      actionType: "read",
+      afterState: { windowDays, workspaces: standardRows.length },
+      riskLevel: "low",
+    });
+
+    return {
+      windowDays,
+      totals,
+      rows: standardRows,
+      wbah: wbahRow,
+    };
+  });

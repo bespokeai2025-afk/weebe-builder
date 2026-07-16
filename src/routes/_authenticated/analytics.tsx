@@ -18,12 +18,27 @@ import {
   ArrowDownLeft, ArrowUpRight, Megaphone,
   Search, Mail, MessageSquare, BarChart2, DollarSign,
   Eye, MousePointerClick, Target, PauseCircle, BookOpen, Send, CheckCheck,
-  CreditCard, Wallet,
+  CreditCard, Wallet, LayoutDashboard, Users, Filter, Smile, CalendarCheck,
+  Workflow as WorkflowIcon, Repeat, FileText, Sparkles, Lock,
 } from "lucide-react";
 import {
   PageHeader, PanelCard, StatCard, EmptyState, TableHead,
   Th as PageTh,
 } from "@/components/dashboard/PageShell";
+import {
+  useAnalyticsFilter, useAnalyticsEntitlements, DateRangeControl, LockedTab,
+} from "@/components/analytics-hub/shared";
+import { OverviewTab } from "@/components/analytics-hub/OverviewTab";
+import { CampaignsTab } from "@/components/analytics-hub/CampaignsTab";
+import { AgentsTab } from "@/components/analytics-hub/AgentsTab";
+import { LeadSourcesTab } from "@/components/analytics-hub/LeadSourcesTab";
+import { SentimentTab } from "@/components/analytics-hub/SentimentTab";
+import { BookingsTab } from "@/components/analytics-hub/BookingsTab";
+import { WorkflowsTab } from "@/components/analytics-hub/WorkflowsTab";
+import { FollowUpsTab } from "@/components/analytics-hub/FollowUpsTab";
+import { FinancialTab } from "@/components/analytics-hub/FinancialTab";
+import { ReportsTab } from "@/components/analytics-hub/ReportsTab";
+import { AiInsightsTab } from "@/components/analytics-hub/AiInsightsTab";
 import { Button } from "@/components/ui/button";
 import { SavedFiltersSection } from "@/components/people-views/SavedFiltersSection";
 import { Badge } from "@/components/ui/badge";
@@ -355,15 +370,34 @@ function computeAnalytics(allCalls: any[], includeVoicemails = false) {
 }
 
 // ── Page ──────────────────────────────────────────────────────────────────────
+/**
+ * Analytics Centre — a tabbed BI hub. Each tab declares:
+ *  - feature: entitlement key gating it (locked → upgrade prompt)
+ *  - filtered: uses the shared date-range filter (hub tabs) vs its own controls
+ *  - campaignStyle: hidden for WBAH workspaces (campaign/lead/workflow/follow-up)
+ */
 const MAIN_TABS = [
-  { key: "calls",     label: "Call Analytics", icon: PhoneCall },
-  { key: "marketing", label: "Marketing",       icon: Megaphone },
-  { key: "credits",   label: "Credits",         icon: CreditCard },
+  { key: "overview",    label: "Overview",       icon: LayoutDashboard, feature: "analytics",           filtered: true },
+  { key: "campaigns",   label: "Campaigns",      icon: Megaphone,       feature: "analytics_advanced",  filtered: true, campaignStyle: true },
+  { key: "agents",      label: "Agents",         icon: Users,           feature: "analytics_advanced",  filtered: true },
+  { key: "leadsources", label: "Lead Sources",   icon: Filter,          feature: "analytics_advanced",  filtered: true, campaignStyle: true },
+  { key: "calls",       label: "Calls",          icon: PhoneCall,       feature: "analytics" },
+  { key: "sentiment",   label: "Sentiment",      icon: Smile,           feature: "analytics_advanced",  filtered: true },
+  { key: "bookings",    label: "Bookings",       icon: CalendarCheck,   feature: "analytics_advanced",  filtered: true },
+  { key: "workflows",   label: "Workflows",      icon: WorkflowIcon,    feature: "analytics_advanced",  filtered: true, campaignStyle: true },
+  { key: "followups",   label: "Follow-ups",     icon: Repeat,          feature: "analytics_advanced",  filtered: true, campaignStyle: true },
+  { key: "financial",   label: "Financial",      icon: DollarSign,      feature: "analytics_financial", filtered: true },
+  { key: "reports",     label: "Reports",        icon: FileText,        feature: "analytics",           filtered: true },
+  { key: "aiinsights",  label: "AI Insights",    icon: Sparkles,        feature: "analytics_ai_insights", filtered: true },
+  { key: "marketing",   label: "Marketing",      icon: Megaphone,       feature: "analytics" },
+  { key: "credits",     label: "Credits",        icon: CreditCard,      feature: "analytics" },
 ] as const;
 type MainTabKey = typeof MAIN_TABS[number]["key"];
 
 function AnalyticsPage() {
-  const [mainTab, setMainTab] = useState<MainTabKey>("calls");
+  const [mainTab, setMainTab] = useState<MainTabKey>("overview");
+  const { state: filter, setState: setFilter } = useAnalyticsFilter("30d");
+  const { has, packageName } = useAnalyticsEntitlements();
 
   // ── Call analytics state ──
   const fn              = useServerFn(getRetellAnalytics);
@@ -456,15 +490,22 @@ function AnalyticsPage() {
   const creditsFn = useServerFn(getWbahCredits);
   const creditsQ = useQuery({ queryKey: ["wbah-credits"], queryFn: () => creditsFn(), staleTime: 5 * 60_000, enabled: mainTab === "credits" && isWbah, throwOnError: false });
 
-  const visibleTabs = MAIN_TABS.filter((t) => t.key !== "credits" || isWbah);
+  // Credits is WBAH-only; campaign-style tabs are hidden for WBAH.
+  const visibleTabs = MAIN_TABS.filter((t) => {
+    if (t.key === "credits") return isWbah;
+    if (isWbah && (t as any).campaignStyle) return false;
+    return true;
+  });
+  const activeTabMeta = MAIN_TABS.find((t) => t.key === mainTab);
+  const activeLocked = activeTabMeta ? !has(activeTabMeta.feature) : false;
 
   return (
     <div className="pb-8">
       <PageHeader
-        title="Analytics"
-        subtitle="Call performance metrics and marketing channel intelligence"
+        title="Analytics Centre"
+        subtitle="Executive BI hub — campaigns, agents, sentiment, bookings, financials & reports"
         icon={BarChart3}
-        onRefresh={() => mainTab === "calls" ? q.refetch() : mainTab === "credits" ? creditsQ.refetch() : mktQ.refetch()}
+        onRefresh={() => mainTab === "calls" ? q.refetch() : mainTab === "credits" ? creditsQ.refetch() : mainTab === "marketing" ? mktQ.refetch() : undefined}
       />
 
       <ProviderCreditsBar />
@@ -476,21 +517,55 @@ function AnalyticsPage() {
       )}
 
       {/* ── Top-level tab bar ── */}
-      <div className="flex gap-1 px-6 mt-4 border-b border-white/[0.06]">
-        {visibleTabs.map(({ key, label, icon: Icon }) => (
-          <button
-            key={key}
-            onClick={() => setMainTab(key)}
-            className={cn(
-              "flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium border-b-2 -mb-px transition-colors",
-              mainTab === key ? "border-primary text-foreground" : "border-transparent text-muted-foreground hover:text-foreground",
-            )}
-          >
-            <Icon className="h-3.5 w-3.5" />
-            {label}
-          </button>
-        ))}
+      <div className="flex gap-1 px-6 mt-4 overflow-x-auto border-b border-white/[0.06]">
+        {visibleTabs.map(({ key, label, icon: Icon, feature }) => {
+          const locked = !has(feature);
+          return (
+            <button
+              key={key}
+              onClick={() => setMainTab(key)}
+              className={cn(
+                "flex shrink-0 items-center gap-1.5 whitespace-nowrap px-4 py-2.5 text-sm font-medium border-b-2 -mb-px transition-colors",
+                mainTab === key ? "border-primary text-foreground" : "border-transparent text-muted-foreground hover:text-foreground",
+              )}
+            >
+              <Icon className="h-3.5 w-3.5" />
+              {label}
+              {locked && <Lock className="h-3 w-3 text-muted-foreground/70" />}
+            </button>
+          );
+        })}
       </div>
+
+      {/* ── Shared date-range filter (hub tabs) ── */}
+      {Boolean((activeTabMeta as { filtered?: boolean } | undefined)?.filtered) && !activeLocked && (
+        <div className="flex items-center justify-end px-6 pt-4">
+          <DateRangeControl value={filter} onChange={setFilter} />
+        </div>
+      )}
+
+      {/* ── Entitlement lock (upgrade prompt) ── */}
+      {activeLocked && <LockedTab feature={activeTabMeta!.feature} packageName={packageName} />}
+
+      {/* ── Analytics Centre hub tabs ── */}
+      {!activeLocked && mainTab === "overview"    && <OverviewTab    filter={filter} />}
+      {!activeLocked && mainTab === "campaigns"   && <CampaignsTab   filter={filter} />}
+      {!activeLocked && mainTab === "agents"      && <AgentsTab      filter={filter} />}
+      {!activeLocked && mainTab === "leadsources" && <LeadSourcesTab filter={filter} />}
+      {!activeLocked && mainTab === "sentiment"   && <SentimentTab   filter={filter} />}
+      {!activeLocked && mainTab === "bookings"    && <BookingsTab    filter={filter} />}
+      {!activeLocked && mainTab === "workflows"   && <WorkflowsTab   filter={filter} />}
+      {!activeLocked && mainTab === "followups"   && <FollowUpsTab   filter={filter} />}
+      {!activeLocked && mainTab === "financial"   && <FinancialTab   filter={filter} />}
+      {!activeLocked && mainTab === "aiinsights"  && <AiInsightsTab  filter={filter} />}
+      {!activeLocked && mainTab === "reports"     && (
+        <ReportsTab
+          filter={filter}
+          canGenerate={has("analytics_campaign_reports")}
+          canSchedule={has("analytics_scheduled_reports")}
+          canEmail={has("automated_report_emails")}
+        />
+      )}
 
       {/* ── CALL ANALYTICS TAB ── */}
       {mainTab === "calls" && (

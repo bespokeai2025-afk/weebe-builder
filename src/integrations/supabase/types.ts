@@ -598,6 +598,129 @@ export type Database = {
           },
         ]
       }
+      analytics_report_schedules: {
+        Row: {
+          created_at: string
+          created_by_user_id: string | null
+          enabled: boolean
+          filters_json: Json
+          frequency: string
+          id: string
+          last_error: string | null
+          last_run_at: string | null
+          name: string
+          recipients_json: Json
+          report_type: string
+          schedule_config_json: Json
+          updated_at: string
+          workspace_id: string
+        }
+        Insert: {
+          created_at?: string
+          created_by_user_id?: string | null
+          enabled?: boolean
+          filters_json?: Json
+          frequency?: string
+          id?: string
+          last_error?: string | null
+          last_run_at?: string | null
+          name: string
+          recipients_json?: Json
+          report_type: string
+          schedule_config_json?: Json
+          updated_at?: string
+          workspace_id: string
+        }
+        Update: {
+          created_at?: string
+          created_by_user_id?: string | null
+          enabled?: boolean
+          filters_json?: Json
+          frequency?: string
+          id?: string
+          last_error?: string | null
+          last_run_at?: string | null
+          name?: string
+          recipients_json?: Json
+          report_type?: string
+          schedule_config_json?: Json
+          updated_at?: string
+          workspace_id?: string
+        }
+        Relationships: []
+      }
+      analytics_reports: {
+        Row: {
+          created_at: string
+          created_by_user_id: string | null
+          date_range_end: string | null
+          date_range_start: string | null
+          delivery_error: string | null
+          delivery_status: string | null
+          generated_by: string
+          id: string
+          insights_json: Json
+          metrics_json: Json
+          recommendations_json: Json
+          related_agent_id: string | null
+          related_campaign_id: string | null
+          related_workflow_id: string | null
+          report_name: string
+          report_status: string
+          report_summary: string | null
+          report_type: string
+          sent_to_json: Json
+          updated_at: string
+          workspace_id: string
+        }
+        Insert: {
+          created_at?: string
+          created_by_user_id?: string | null
+          date_range_end?: string | null
+          date_range_start?: string | null
+          delivery_error?: string | null
+          delivery_status?: string | null
+          generated_by?: string
+          id?: string
+          insights_json?: Json
+          metrics_json?: Json
+          recommendations_json?: Json
+          related_agent_id?: string | null
+          related_campaign_id?: string | null
+          related_workflow_id?: string | null
+          report_name: string
+          report_status?: string
+          report_summary?: string | null
+          report_type: string
+          sent_to_json?: Json
+          updated_at?: string
+          workspace_id: string
+        }
+        Update: {
+          created_at?: string
+          created_by_user_id?: string | null
+          date_range_end?: string | null
+          date_range_start?: string | null
+          delivery_error?: string | null
+          delivery_status?: string | null
+          generated_by?: string
+          id?: string
+          insights_json?: Json
+          metrics_json?: Json
+          recommendations_json?: Json
+          related_agent_id?: string | null
+          related_campaign_id?: string | null
+          related_workflow_id?: string | null
+          report_name?: string
+          report_status?: string
+          report_summary?: string | null
+          report_type?: string
+          sent_to_json?: Json
+          updated_at?: string
+          workspace_id?: string
+        }
+        Relationships: []
+      }
       api_engine_logs: {
         Row: {
           data_source_key: string

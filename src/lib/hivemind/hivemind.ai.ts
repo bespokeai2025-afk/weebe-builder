@@ -291,6 +291,13 @@ export async function fetchFullPlatformData(sb: any, workspaceId: string) {
     campaignReports = await getCampaignReportsSummary(workspaceId);
   } catch {}
 
+  // Analytics Hub snapshot (graceful — read-only compact overview)
+  let analyticsSnapshot: any = null;
+  try {
+    const { getAnalyticsSnapshotForExec } = await import("@/lib/analytics-hub/analytics-hub.server");
+    analyticsSnapshot = await getAnalyticsSnapshotForExec(workspaceId);
+  } catch {}
+
   return {
     agents, agentScores, cfg,
     mode: cfg.hivemind_mode ?? "assistant",
@@ -547,6 +554,7 @@ export async function fetchFullPlatformData(sb: any, workspaceId: string) {
     promptPerformance,
     strategyCentre,
     campaignReports,
+    analyticsSnapshot,
   };
 }
 
@@ -762,6 +770,18 @@ function buildPlatformContext(d: any): string {
 
   // COSTS
   lines.push(`\nAI CALL COSTS (30d): ${d.costs.totalMinutes} mins | $${d.costs.totalDollars} total | $${d.costs.costPerLead} per lead this month`);
+
+  // ANALYTICS HUB SNAPSHOT (Analytics Centre — read-only)
+  if (d.analyticsSnapshot && !d.analyticsSnapshot.error) {
+    const a = d.analyticsSnapshot;
+    lines.push(`\nANALYTICS HUB (${a.windowDays ?? 30}d):`);
+    if (a.rates) lines.push(`  Conversion: ${a.rates.conversion}% | Booking: ${a.rates.booking}% | Qualification: ${a.rates.qualification}% | Connection: ${a.rates.connection}%`);
+    if (a.cost) lines.push(`  Est. revenue: £${((a.cost.estRevenueCents ?? 0) / 100).toFixed(0)} | ROI: ${a.cost.roi}% | Total cost: £${((a.cost.totalCents ?? 0) / 100).toFixed(0)}`);
+    if (a.bestCampaign) lines.push(`  Best campaign: ${a.bestCampaign}${a.worstCampaign ? ` | Worst: ${a.worstCampaign}` : ""}`);
+    if (a.bestAgent) lines.push(`  Best agent: ${a.bestAgent}`);
+    if (a.biggestIssue) lines.push(`  ⚠ Biggest issue: ${a.biggestIssue.type}${a.biggestIssue.campaign ? ` on "${a.biggestIssue.campaign}"` : ""}${a.biggestIssue.reason ? ` — ${a.biggestIssue.reason}` : ""}`);
+    if (a.nextAction) lines.push(`  Recommended next action: ${a.nextAction.title}`);
+  }
 
   // DOCUMENTS & KBs
   if (d.documents?.length > 0) lines.push(`\nDOCUMENTS: ${d.documents.slice(0, 6).map((n: string) => `"${n}"`).join(", ")}${d.documents.length > 6 ? ` +${d.documents.length - 6} more` : ""}`);

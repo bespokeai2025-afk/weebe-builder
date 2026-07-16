@@ -1,0 +1,14 @@
+---
+name: Analytics Hub architecture
+description: Analytics Centre BI hub — tabs, report engine, schedules, gating, WBAH isolation, tick claim pattern
+---
+
+# Analytics Hub (Analytics Centre BI + reporting upgrade)
+
+- Two tables (migration `20260729000000_analytics_hub.sql`, applied via `scripts/apply-analytics-hub-migration.mjs`): `analytics_reports`, `analytics_report_schedules`. RLS: members read, service-role writes.
+- Feature keys: `analytics_advanced`, `analytics_campaign_reports`, `analytics_financial`, `analytics_scheduled_reports`, `analytics_ai_insights`, `automated_report_emails` — gated server-side in `analytics-hub.functions.ts` / `reports.functions.ts`; UI tab locks are cosmetic only.
+- Aggregation layer (`analytics-hub.server.ts`) is fail-closed: every helper catches and returns zeroed structures with an `error` field; leads table only counted head:true or window-bounded limit(1000); WBAH branches read `wbah_calls` and hide campaign/workflow/lead-source/follow-up sections.
+- Report generator (15 types) NEVER throws — returns row id or null, so campaign lifecycle hooks are fire-and-forget. WBAH refuses campaign-lifecycle report kinds.
+- **Schedule tick claim pattern**: `processAnalyticsReportSchedules` (campaign-executor tick) claims each due schedule with a compare-and-set update on `last_run_at` (`.eq` prior value or `.is null`) BEFORE generating/sending. **Why:** Supabase writes return `{error}` without throwing; treating a failed `last_run_at` write as success re-sends the report every 5-min tick (email spam). **How to apply:** any future scheduled-send sweep must claim-first with CAS, and check `{error}` on every state write.
+- Email path: gate `automated_report_emails` → provider priority handled by `sendWorkspaceEmail` (workspace custom → reseller parent → WEBEE Resend); all user values escaped.
+- e2e: `tests/e2e/analytics-hub.e2e.test.ts` (random-UUID workspace, cleans up).

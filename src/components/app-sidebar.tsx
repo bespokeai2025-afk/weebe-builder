@@ -794,6 +794,27 @@ export function AppSidebar() {
                   <SidebarMenuItem className="group-data-[collapsible=icon]:w-auto">
                     <SidebarMenuButton
                       asChild
+                      tooltip="Platform Analytics"
+                      className={navButtonClasses(isActive("/admin/analytics"))}
+                    >
+                      <Link to="/admin/analytics" className="flex items-center gap-3">
+                        <BarChart3
+                          className={cn(
+                            "h-[18px] w-[18px] shrink-0",
+                            isActive("/admin/analytics")
+                              ? "text-primary"
+                              : "text-muted-foreground group-hover/nav:text-foreground",
+                          )}
+                        />
+                        <span className="truncate group-data-[collapsible=icon]:hidden">
+                          Platform Analytics
+                        </span>
+                      </Link>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                  <SidebarMenuItem className="group-data-[collapsible=icon]:w-auto">
+                    <SidebarMenuButton
+                      asChild
                       tooltip="Resellers"
                       className={navButtonClasses(isActive("/admin/resellers"))}
                     >

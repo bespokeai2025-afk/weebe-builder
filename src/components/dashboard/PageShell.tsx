@@ -139,6 +139,7 @@ export function StatCard({
   value: string | number;
   hint?: string;
   tone?: keyof typeof toneStyles;
+  icon?: React.ComponentType<{ className?: string }>;
 }) {
   return (
     <div className={cn("relative min-w-0 overflow-hidden rounded-xl border border-white/[0.06] bg-card/60 p-3 backdrop-blur", toneStyles[tone].split(" ").slice(2).join(" "))}>

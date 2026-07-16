@@ -192,6 +192,7 @@ import { Route as AuthenticatedAdminPlatformKnowledgeRouteImport } from './route
 import { Route as AuthenticatedAdminPackagesRouteImport } from './routes/_authenticated/admin.packages'
 import { Route as AuthenticatedAdminCostEngineRouteImport } from './routes/_authenticated/admin.cost-engine'
 import { Route as AuthenticatedAdminChangeRequestsRouteImport } from './routes/_authenticated/admin.change-requests'
+import { Route as AuthenticatedAdminAnalyticsRouteImport } from './routes/_authenticated/admin.analytics'
 import { Route as AuthenticatedAdminAccountsRouteImport } from './routes/_authenticated/admin.accounts'
 import { Route as AuthenticatedSystemmindClientsIndexRouteImport } from './routes/_authenticated/systemmind.clients.index'
 import { Route as AuthenticatedAdminAccountsIndexRouteImport } from './routes/_authenticated/admin.accounts.index'
@@ -1297,6 +1298,12 @@ const AuthenticatedAdminChangeRequestsRoute =
     path: '/change-requests',
     getParentRoute: () => AuthenticatedAdminRoute,
   } as any)
+const AuthenticatedAdminAnalyticsRoute =
+  AuthenticatedAdminAnalyticsRouteImport.update({
+    id: '/analytics',
+    path: '/analytics',
+    getParentRoute: () => AuthenticatedAdminRoute,
+  } as any)
 const AuthenticatedAdminAccountsRoute =
   AuthenticatedAdminAccountsRouteImport.update({
     id: '/accounts',
@@ -1761,6 +1768,7 @@ export interface FileRoutesByFullPath {
   '/invite/$token': typeof InviteTokenRoute
   '/upload/$token': typeof UploadTokenRoute
   '/admin/accounts': typeof AuthenticatedAdminAccountsRouteWithChildren
+  '/admin/analytics': typeof AuthenticatedAdminAnalyticsRoute
   '/admin/change-requests': typeof AuthenticatedAdminChangeRequestsRoute
   '/admin/cost-engine': typeof AuthenticatedAdminCostEngineRoute
   '/admin/packages': typeof AuthenticatedAdminPackagesRoute
@@ -2010,6 +2018,7 @@ export interface FileRoutesByTo {
   '/email/unsubscribe': typeof EmailUnsubscribeRoute
   '/invite/$token': typeof InviteTokenRoute
   '/upload/$token': typeof UploadTokenRoute
+  '/admin/analytics': typeof AuthenticatedAdminAnalyticsRoute
   '/admin/change-requests': typeof AuthenticatedAdminChangeRequestsRoute
   '/admin/cost-engine': typeof AuthenticatedAdminCostEngineRoute
   '/admin/packages': typeof AuthenticatedAdminPackagesRoute
@@ -2267,6 +2276,7 @@ export interface FileRoutesById {
   '/invite/$token': typeof InviteTokenRoute
   '/upload/$token': typeof UploadTokenRoute
   '/_authenticated/admin/accounts': typeof AuthenticatedAdminAccountsRouteWithChildren
+  '/_authenticated/admin/analytics': typeof AuthenticatedAdminAnalyticsRoute
   '/_authenticated/admin/change-requests': typeof AuthenticatedAdminChangeRequestsRoute
   '/_authenticated/admin/cost-engine': typeof AuthenticatedAdminCostEngineRoute
   '/_authenticated/admin/packages': typeof AuthenticatedAdminPackagesRoute
@@ -2526,6 +2536,7 @@ export interface FileRouteTypes {
     | '/invite/$token'
     | '/upload/$token'
     | '/admin/accounts'
+    | '/admin/analytics'
     | '/admin/change-requests'
     | '/admin/cost-engine'
     | '/admin/packages'
@@ -2775,6 +2786,7 @@ export interface FileRouteTypes {
     | '/email/unsubscribe'
     | '/invite/$token'
     | '/upload/$token'
+    | '/admin/analytics'
     | '/admin/change-requests'
     | '/admin/cost-engine'
     | '/admin/packages'
@@ -3031,6 +3043,7 @@ export interface FileRouteTypes {
     | '/invite/$token'
     | '/upload/$token'
     | '/_authenticated/admin/accounts'
+    | '/_authenticated/admin/analytics'
     | '/_authenticated/admin/change-requests'
     | '/_authenticated/admin/cost-engine'
     | '/_authenticated/admin/packages'
@@ -4618,6 +4631,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminChangeRequestsRouteImport
       parentRoute: typeof AuthenticatedAdminRoute
     }
+    '/_authenticated/admin/analytics': {
+      id: '/_authenticated/admin/analytics'
+      path: '/analytics'
+      fullPath: '/admin/analytics'
+      preLoaderRoute: typeof AuthenticatedAdminAnalyticsRouteImport
+      parentRoute: typeof AuthenticatedAdminRoute
+    }
     '/_authenticated/admin/accounts': {
       id: '/_authenticated/admin/accounts'
       path: '/accounts'
@@ -5192,6 +5212,7 @@ const AuthenticatedAdminAccountsRouteWithChildren =
 
 interface AuthenticatedAdminRouteChildren {
   AuthenticatedAdminAccountsRoute: typeof AuthenticatedAdminAccountsRouteWithChildren
+  AuthenticatedAdminAnalyticsRoute: typeof AuthenticatedAdminAnalyticsRoute
   AuthenticatedAdminChangeRequestsRoute: typeof AuthenticatedAdminChangeRequestsRoute
   AuthenticatedAdminCostEngineRoute: typeof AuthenticatedAdminCostEngineRoute
   AuthenticatedAdminPackagesRoute: typeof AuthenticatedAdminPackagesRoute
@@ -5207,6 +5228,7 @@ interface AuthenticatedAdminRouteChildren {
 
 const AuthenticatedAdminRouteChildren: AuthenticatedAdminRouteChildren = {
   AuthenticatedAdminAccountsRoute: AuthenticatedAdminAccountsRouteWithChildren,
+  AuthenticatedAdminAnalyticsRoute: AuthenticatedAdminAnalyticsRoute,
   AuthenticatedAdminChangeRequestsRoute: AuthenticatedAdminChangeRequestsRoute,
   AuthenticatedAdminCostEngineRoute: AuthenticatedAdminCostEngineRoute,
   AuthenticatedAdminPackagesRoute: AuthenticatedAdminPackagesRoute,

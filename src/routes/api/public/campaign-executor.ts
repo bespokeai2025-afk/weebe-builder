@@ -143,6 +143,22 @@ export const Route = createFileRoute("/api/public/campaign-executor")({
           } catch (retErr: any) {
             console.warn("[log-retention] sweep failed:", retErr?.message ?? retErr);
           }
+          // Scheduled analytics reports (once-per-tick due check). Best-effort —
+          // never blocks the tick.
+          try {
+            const { processAnalyticsReportSchedules } = await import(
+              "@/lib/analytics-hub/report-schedule-tick"
+            );
+            const sched = await processAnalyticsReportSchedules();
+            if (sched.ran > 0 || sched.failed > 0) {
+              console.log(
+                `[analytics-schedules] scanned=${sched.scanned} ran=${sched.ran} failed=${sched.failed}`,
+              );
+            }
+          } catch (schedErr: any) {
+            console.warn("[analytics-schedules] sweep failed:", schedErr?.message ?? schedErr);
+          }
+
           console.log(
             `[campaign-executor] ran=${due.length} skipped=${skipped.length}`,
           );

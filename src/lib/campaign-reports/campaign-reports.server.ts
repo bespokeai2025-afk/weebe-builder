@@ -66,7 +66,7 @@ export async function reportCampaignLifecycle(args: {
           })
         : { ...(args.extraKpis ?? {}) };
 
-    return await safeWriteCampaignReport(sb, {
+    const reportId = await safeWriteCampaignReport(sb, {
       workspaceId: args.workspaceId,
       campaignId: campaign.id,
       agentId: campaign.agent_id ?? null,
@@ -79,6 +79,34 @@ export async function reportCampaignLifecycle(args: {
       errorMessage: args.errorMessage ?? null,
       userId: args.userId ?? null,
     });
+
+    // Additive Analytics Hub report (fire-and-forget). Campaign execution must
+    // never fail because of this — generateAnalyticsReport never throws.
+    try {
+      const { generateAnalyticsReport, campaignLifecycleToAnalyticsType } = await import(
+        "@/lib/analytics-hub/report-generator.server"
+      );
+      const analyticsType = campaignLifecycleToAnalyticsType(args.reportType);
+      if (analyticsType) {
+        void generateAnalyticsReport({
+          workspaceId: args.workspaceId,
+          reportType: analyticsType,
+          relatedCampaignId: campaign.id,
+          relatedAgentId: campaign.agent_id ?? null,
+          generatedBy: args.userId ? "user" : "system",
+          createdByUserId: args.userId ?? null,
+          failureReason: args.failureReason ?? null,
+          errorMessage: args.errorMessage ?? null,
+        });
+      }
+    } catch (hookErr: any) {
+      console.error(
+        "[campaign-reports] analytics report hook failed (non-fatal):",
+        hookErr?.message ?? hookErr,
+      );
+    }
+
+    return reportId;
   } catch (err: any) {
     console.error("[campaign-reports] lifecycle report failed (non-fatal):", err?.message ?? err);
     return null;
