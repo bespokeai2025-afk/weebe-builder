@@ -125,6 +125,7 @@
 - [Access enforcement (pkg∩role∩override)](access-enforcement-arch.md) — every sensitive server fn needs an entitlement guard (auth middleware ≠ enforcement); 30s cache needs invalidate on changes; UI lock layer fails open by design.
 - [Master Admin oversight & package matrix](master-admin-oversight.md) — package_definitions DB rows override code catalog; use packageByKeyServer + invalidate both caches after writes.
 - [WBAH campaign run reporting](wbah-campaign-run-reporting.md) — snapshot refreshed only on user page reads (never poll WeeBespoke); attribution = agent + latest London slot; extend WBAH_ONLY_REPORT_TYPES for new WBAH-only kinds.
+- [AccountsMind invoice generator](accountsmind-invoice-generator.md) — DOCX templating via docxtemplater; reserve invoice number by insert-first + 23505 retry, upload to per-row path, never upsert.
 - [AccountsMind industry presets](accountsmind-industry-presets.md) — workspace_settings.industry + code-owned non-sensitive presets; apply replaces via versionedInsertConfigRow chain, owner/admin gate via resolvePermissions.
 - [Reseller & white-label hierarchy](reseller-whitelabel-hierarchy.md) — parent/child workspaces; capacity = maxChildAccounts + addon (fail closed); children never inherit reseller powers; legacy_full excludes new keys.
 - [Workspace email provider dispatch](workspace-email-provider-dispatch.md) — all workspace email via sendWorkspaceEmail (own custom → reseller parent → platform); never-throw, fallback, alert at 3 fails.

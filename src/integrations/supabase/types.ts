@@ -192,6 +192,101 @@ export type Database = {
           },
         ]
       }
+      accountsmind_invoice_templates: {
+        Row: {
+          created_at: string
+          file_name: string
+          id: string
+          name: string
+          placeholders_json: Json
+          storage_path: string
+          uploaded_by_user_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          file_name: string
+          id?: string
+          name: string
+          placeholders_json?: Json
+          storage_path: string
+          uploaded_by_user_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          file_name?: string
+          id?: string
+          name?: string
+          placeholders_json?: Json
+          storage_path?: string
+          uploaded_by_user_id?: string | null
+        }
+        Relationships: []
+      }
+      accountsmind_invoices: {
+        Row: {
+          client_name: string
+          created_at: string
+          currency: string
+          data_json: Json
+          generated_by_user_id: string | null
+          id: string
+          invoice_month: string
+          invoice_number: string
+          line_items_json: Json
+          storage_path: string
+          subtotal_cents: number
+          tax_cents: number
+          tax_rate_percent: number
+          template_id: string | null
+          total_cents: number
+          workspace_id: string
+        }
+        Insert: {
+          client_name: string
+          created_at?: string
+          currency?: string
+          data_json?: Json
+          generated_by_user_id?: string | null
+          id?: string
+          invoice_month: string
+          invoice_number: string
+          line_items_json?: Json
+          storage_path: string
+          subtotal_cents?: number
+          tax_cents?: number
+          tax_rate_percent?: number
+          template_id?: string | null
+          total_cents?: number
+          workspace_id: string
+        }
+        Update: {
+          client_name?: string
+          created_at?: string
+          currency?: string
+          data_json?: Json
+          generated_by_user_id?: string | null
+          id?: string
+          invoice_month?: string
+          invoice_number?: string
+          line_items_json?: Json
+          storage_path?: string
+          subtotal_cents?: number
+          tax_cents?: number
+          tax_rate_percent?: number
+          template_id?: string | null
+          total_cents?: number
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "accountsmind_invoices_template_id_fkey"
+            columns: ["template_id"]
+            isOneToOne: false
+            referencedRelation: "accountsmind_invoice_templates"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       accountsmind_metric_snapshots: {
         Row: {
           captured_on: string

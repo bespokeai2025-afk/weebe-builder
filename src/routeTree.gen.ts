@@ -256,6 +256,7 @@ import { Route as AuthenticatedAdminAccountsSystemmindRouteImport } from './rout
 import { Route as AuthenticatedAdminAccountsSettingsRouteImport } from './routes/_authenticated/admin.accounts.settings'
 import { Route as AuthenticatedAdminAccountsRechargesRouteImport } from './routes/_authenticated/admin.accounts.recharges'
 import { Route as AuthenticatedAdminAccountsProfitabilityRouteImport } from './routes/_authenticated/admin.accounts.profitability'
+import { Route as AuthenticatedAdminAccountsInvoicesRouteImport } from './routes/_authenticated/admin.accounts.invoices'
 import { Route as AuthenticatedAdminAccountsCostsRouteImport } from './routes/_authenticated/admin.accounts.costs'
 import { Route as AuthenticatedAdminAccountsClientsRouteImport } from './routes/_authenticated/admin.accounts.clients'
 import { Route as AuthenticatedAdminAccountsAlertsRouteImport } from './routes/_authenticated/admin.accounts.alerts'
@@ -1663,6 +1664,12 @@ const AuthenticatedAdminAccountsProfitabilityRoute =
     path: '/profitability',
     getParentRoute: () => AuthenticatedAdminAccountsRoute,
   } as any)
+const AuthenticatedAdminAccountsInvoicesRoute =
+  AuthenticatedAdminAccountsInvoicesRouteImport.update({
+    id: '/invoices',
+    path: '/invoices',
+    getParentRoute: () => AuthenticatedAdminAccountsRoute,
+  } as any)
 const AuthenticatedAdminAccountsCostsRoute =
   AuthenticatedAdminAccountsCostsRouteImport.update({
     id: '/costs',
@@ -1911,6 +1918,7 @@ export interface FileRoutesByFullPath {
   '/admin/accounts/alerts': typeof AuthenticatedAdminAccountsAlertsRoute
   '/admin/accounts/clients': typeof AuthenticatedAdminAccountsClientsRouteWithChildren
   '/admin/accounts/costs': typeof AuthenticatedAdminAccountsCostsRoute
+  '/admin/accounts/invoices': typeof AuthenticatedAdminAccountsInvoicesRoute
   '/admin/accounts/profitability': typeof AuthenticatedAdminAccountsProfitabilityRoute
   '/admin/accounts/recharges': typeof AuthenticatedAdminAccountsRechargesRoute
   '/admin/accounts/settings': typeof AuthenticatedAdminAccountsSettingsRoute
@@ -2159,6 +2167,7 @@ export interface FileRoutesByTo {
   '/systemmind': typeof AuthenticatedSystemmindIndexRoute
   '/admin/accounts/alerts': typeof AuthenticatedAdminAccountsAlertsRoute
   '/admin/accounts/costs': typeof AuthenticatedAdminAccountsCostsRoute
+  '/admin/accounts/invoices': typeof AuthenticatedAdminAccountsInvoicesRoute
   '/admin/accounts/profitability': typeof AuthenticatedAdminAccountsProfitabilityRoute
   '/admin/accounts/recharges': typeof AuthenticatedAdminAccountsRechargesRoute
   '/admin/accounts/settings': typeof AuthenticatedAdminAccountsSettingsRoute
@@ -2419,6 +2428,7 @@ export interface FileRoutesById {
   '/_authenticated/admin/accounts/alerts': typeof AuthenticatedAdminAccountsAlertsRoute
   '/_authenticated/admin/accounts/clients': typeof AuthenticatedAdminAccountsClientsRouteWithChildren
   '/_authenticated/admin/accounts/costs': typeof AuthenticatedAdminAccountsCostsRoute
+  '/_authenticated/admin/accounts/invoices': typeof AuthenticatedAdminAccountsInvoicesRoute
   '/_authenticated/admin/accounts/profitability': typeof AuthenticatedAdminAccountsProfitabilityRoute
   '/_authenticated/admin/accounts/recharges': typeof AuthenticatedAdminAccountsRechargesRoute
   '/_authenticated/admin/accounts/settings': typeof AuthenticatedAdminAccountsSettingsRoute
@@ -2679,6 +2689,7 @@ export interface FileRouteTypes {
     | '/admin/accounts/alerts'
     | '/admin/accounts/clients'
     | '/admin/accounts/costs'
+    | '/admin/accounts/invoices'
     | '/admin/accounts/profitability'
     | '/admin/accounts/recharges'
     | '/admin/accounts/settings'
@@ -2927,6 +2938,7 @@ export interface FileRouteTypes {
     | '/systemmind'
     | '/admin/accounts/alerts'
     | '/admin/accounts/costs'
+    | '/admin/accounts/invoices'
     | '/admin/accounts/profitability'
     | '/admin/accounts/recharges'
     | '/admin/accounts/settings'
@@ -3186,6 +3198,7 @@ export interface FileRouteTypes {
     | '/_authenticated/admin/accounts/alerts'
     | '/_authenticated/admin/accounts/clients'
     | '/_authenticated/admin/accounts/costs'
+    | '/_authenticated/admin/accounts/invoices'
     | '/_authenticated/admin/accounts/profitability'
     | '/_authenticated/admin/accounts/recharges'
     | '/_authenticated/admin/accounts/settings'
@@ -5079,6 +5092,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminAccountsProfitabilityRouteImport
       parentRoute: typeof AuthenticatedAdminAccountsRoute
     }
+    '/_authenticated/admin/accounts/invoices': {
+      id: '/_authenticated/admin/accounts/invoices'
+      path: '/invoices'
+      fullPath: '/admin/accounts/invoices'
+      preLoaderRoute: typeof AuthenticatedAdminAccountsInvoicesRouteImport
+      parentRoute: typeof AuthenticatedAdminAccountsRoute
+    }
     '/_authenticated/admin/accounts/costs': {
       id: '/_authenticated/admin/accounts/costs'
       path: '/costs'
@@ -5174,6 +5194,7 @@ interface AuthenticatedAdminAccountsRouteChildren {
   AuthenticatedAdminAccountsAlertsRoute: typeof AuthenticatedAdminAccountsAlertsRoute
   AuthenticatedAdminAccountsClientsRoute: typeof AuthenticatedAdminAccountsClientsRouteWithChildren
   AuthenticatedAdminAccountsCostsRoute: typeof AuthenticatedAdminAccountsCostsRoute
+  AuthenticatedAdminAccountsInvoicesRoute: typeof AuthenticatedAdminAccountsInvoicesRoute
   AuthenticatedAdminAccountsProfitabilityRoute: typeof AuthenticatedAdminAccountsProfitabilityRoute
   AuthenticatedAdminAccountsRechargesRoute: typeof AuthenticatedAdminAccountsRechargesRoute
   AuthenticatedAdminAccountsSettingsRoute: typeof AuthenticatedAdminAccountsSettingsRoute
@@ -5190,6 +5211,8 @@ const AuthenticatedAdminAccountsRouteChildren: AuthenticatedAdminAccountsRouteCh
     AuthenticatedAdminAccountsClientsRoute:
       AuthenticatedAdminAccountsClientsRouteWithChildren,
     AuthenticatedAdminAccountsCostsRoute: AuthenticatedAdminAccountsCostsRoute,
+    AuthenticatedAdminAccountsInvoicesRoute:
+      AuthenticatedAdminAccountsInvoicesRoute,
     AuthenticatedAdminAccountsProfitabilityRoute:
       AuthenticatedAdminAccountsProfitabilityRoute,
     AuthenticatedAdminAccountsRechargesRoute:
