@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { Megaphone, AlertTriangle } from "lucide-react";
+import { Megaphone, AlertTriangle, CalendarClock, CheckCircle2, Clock, PauseCircle } from "lucide-react";
 import { getCampaignAnalytics } from "@/lib/analytics-hub/analytics-hub.functions";
 import { LoadingProgress } from "@/components/dashboard/LoadingProgress";
 import { EmptyState, TableHead, Th } from "@/components/dashboard/PageShell";
@@ -27,9 +27,49 @@ export function CampaignsTab({ filter }: { filter: AnalyticsFilterState }) {
 
   const campaigns: any[] = d.campaigns ?? [];
   const failures: any[] = d.failures ?? [];
+  const schedule: any[] = d.schedule ?? [];
 
   return (
     <div className="space-y-5 px-6 pt-5">
+      <ChartCard title="Today's Schedule" icon={CalendarClock} color={CHART.primary}>
+        {schedule.length === 0 ? (
+          <EmptyState
+            icon={CalendarClock}
+            title="No scheduled campaigns"
+            message="No campaigns have a daily call schedule set up. Schedule one from the Data, Qualified or Leads pages."
+          />
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <TableHead>
+                <Th>Campaign</Th><Th>Runs at</Th><Th>Frequency</Th><Th>Last run</Th><Th>Today</Th>
+              </TableHead>
+              <tbody>
+                {schedule.map((s) => (
+                  <tr key={s.id} className="h-11 border-b border-white/[0.04] hover:bg-white/[0.02]">
+                    <td className="px-3 py-2.5 font-medium">{s.name}</td>
+                    <td className="px-3 py-2.5 tabular-nums">{s.callTime} <span className="text-xs text-muted-foreground">({s.timezone})</span></td>
+                    <td className="px-3 py-2.5 capitalize">{s.frequency}</td>
+                    <td className="px-3 py-2.5 tabular-nums text-muted-foreground">{s.lastRunDate ?? "Never"}</td>
+                    <td className="px-3 py-2.5">
+                      {!s.active ? (
+                        <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground"><PauseCircle className="h-3.5 w-3.5" /> Paused</span>
+                      ) : s.ranToday ? (
+                        <span className="inline-flex items-center gap-1.5 text-xs text-emerald-400"><CheckCircle2 className="h-3.5 w-3.5" /> Ran today</span>
+                      ) : s.runsToday ? (
+                        <span className="inline-flex items-center gap-1.5 text-xs text-sky-400"><Clock className="h-3.5 w-3.5" /> Runs today at {s.callTime}</span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground"><Clock className="h-3.5 w-3.5" /> Not due today</span>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </ChartCard>
+
       <ChartCard title="Campaign Performance" icon={Megaphone} color={CHART.primary}>
         {campaigns.length === 0 ? (
           <EmptyState icon={Megaphone} title="No campaigns" message="No campaigns found in this range." />

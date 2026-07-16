@@ -397,6 +397,25 @@ const MAIN_TABS = [
 ] as const;
 type MainTabKey = typeof MAIN_TABS[number]["key"];
 
+/** Top-level sections: everything lives under one Analytics dashboard with
+ *  toggleable sub-tabs, apart from Marketing and Sales which get their own
+ *  top-level tabs. Sales groups the revenue-facing views. */
+const TAB_GROUPS = [
+  { key: "analytics", label: "Analytics", icon: BarChart3 },
+  { key: "sales",     label: "Sales",     icon: DollarSign },
+  { key: "marketing", label: "Marketing", icon: Megaphone },
+] as const;
+type TabGroupKey = typeof TAB_GROUPS[number]["key"];
+
+const GROUP_OF: Record<MainTabKey, TabGroupKey> = {
+  overview: "analytics", campaigns: "analytics", agents: "analytics",
+  leadsources: "analytics", calls: "analytics", sentiment: "analytics",
+  workflows: "analytics", followups: "analytics", reports: "analytics",
+  aiinsights: "analytics", credits: "analytics",
+  leads: "sales", bookings: "sales", financial: "sales",
+  marketing: "marketing",
+};
+
 /** Which shared filters each hub tab actually honors server-side — only those
  *  selects render, so users never see a filter that silently does nothing. */
 const TAB_FILTER_SUPPORTS: Partial<Record<MainTabKey, { agent?: boolean; campaign?: boolean; source?: boolean }>> = {
@@ -416,6 +435,7 @@ const TAB_FILTER_SUPPORTS: Partial<Record<MainTabKey, { agent?: boolean; campaig
 
 function AnalyticsPage() {
   const [mainTab, setMainTab] = useState<MainTabKey>("overview");
+  const activeGroup: TabGroupKey = GROUP_OF[mainTab];
   const { state: filter, setState: setFilter } = useAnalyticsFilter("30d");
   const { has, packageName } = useAnalyticsEntitlements();
   const filterOptionsFn = useServerFn(getAnalyticsFilterOptions);
@@ -550,26 +570,51 @@ function AnalyticsPage() {
         </div>
       )}
 
-      {/* ── Top-level tab bar ── */}
+      {/* ── Top-level section bar: Analytics | Sales | Marketing ── */}
       <div className="flex gap-1 px-6 mt-4 overflow-x-auto border-b border-white/[0.06]">
-        {visibleTabs.map(({ key, label, icon: Icon, feature }) => {
-          const locked = !has(feature);
+        {TAB_GROUPS.map(({ key, label, icon: Icon }) => {
+          const firstTab = visibleTabs.find((t) => GROUP_OF[t.key] === key);
+          if (!firstTab) return null;
           return (
             <button
               key={key}
-              onClick={() => setMainTab(key)}
+              onClick={() => setMainTab(GROUP_OF[mainTab] === key ? mainTab : firstTab.key)}
               className={cn(
                 "flex shrink-0 items-center gap-1.5 whitespace-nowrap px-4 py-2.5 text-sm font-medium border-b-2 -mb-px transition-colors",
-                mainTab === key ? "border-primary text-foreground" : "border-transparent text-muted-foreground hover:text-foreground",
+                activeGroup === key ? "border-primary text-foreground" : "border-transparent text-muted-foreground hover:text-foreground",
               )}
             >
               <Icon className="h-3.5 w-3.5" />
               {label}
-              {locked && <Lock className="h-3 w-3 text-muted-foreground/70" />}
             </button>
           );
         })}
       </div>
+
+      {/* ── Sub-tab toggle for the active section (Marketing has its own internal tabs) ── */}
+      {activeGroup !== "marketing" && (
+        <div className="flex flex-wrap gap-1.5 px-6 pt-3">
+          {visibleTabs.filter((t) => GROUP_OF[t.key] === activeGroup).map(({ key, label, icon: Icon, feature }) => {
+            const locked = !has(feature);
+            return (
+              <button
+                key={key}
+                onClick={() => setMainTab(key)}
+                className={cn(
+                  "flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border px-3.5 py-1.5 text-xs font-medium transition-colors",
+                  mainTab === key
+                    ? "border-primary/60 bg-primary/15 text-foreground"
+                    : "border-white/[0.08] bg-card/40 text-muted-foreground hover:text-foreground hover:bg-card/70",
+                )}
+              >
+                <Icon className="h-3.5 w-3.5" />
+                {label}
+                {locked && <Lock className="h-3 w-3 text-muted-foreground/70" />}
+              </button>
+            );
+          })}
+        </div>
+      )}
 
       {/* ── Shared filters (hub tabs) — full FilterBar for standard workspaces,
            date range only for WBAH (agent/campaign/source filters N/A). ── */}

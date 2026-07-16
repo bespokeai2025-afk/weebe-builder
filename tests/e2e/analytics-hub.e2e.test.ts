@@ -23,6 +23,7 @@ import { sendAnalyticsReportEmail } from "@/lib/analytics-hub/report-email.serve
 import { isDue, processAnalyticsReportSchedules } from "@/lib/analytics-hub/report-schedule-tick";
 import {
   getAnalyticsOverviewData,
+  getCampaignAnalyticsData,
   getFinancialAnalyticsData,
   getAnalyticsSnapshotForExec,
 } from "@/lib/analytics-hub/analytics-hub.server";
@@ -237,5 +238,45 @@ describe("analytics aggregations (fail-closed, workspace-scoped)", () => {
   it("exec snapshot never throws", async () => {
     const snap: any = await getAnalyticsSnapshotForExec(WS);
     expect(snap).toBeTruthy();
+  });
+
+  it("campaign analytics returns a schedule array with the expected shape", async () => {
+    const empty: any = await getCampaignAnalyticsData(WS, { dateFilter: "30d" });
+    expect(empty.error).toBeNull();
+    expect(Array.isArray(empty.schedule)).toBe(true);
+    expect(empty.schedule.length).toBe(0);
+
+    // Insert a scheduled (__sched_v1__) campaign and assert derived fields.
+    const sb: any = supabaseAdmin;
+    const cfg = {
+      pageType: "leads", leadStatusFilter: null, callTime: "09:00",
+      timezone: "Europe/London", callFrequency: "custom", intervalDays: 3,
+      voicemailEnabled: false, lastRunDate: "2026-01-01",
+    };
+    const { data: row, error } = await sb.from("campaigns").insert({
+      workspace_id: WS, name: "sched-e2e", status: "active",
+      description: "__sched_v1__" + JSON.stringify(cfg),
+    }).select("id").single();
+    expect(error).toBeNull();
+    try {
+      const d: any = await getCampaignAnalyticsData(WS, { dateFilter: "30d" });
+      expect(d.error).toBeNull();
+      const s = d.schedule.find((x: any) => x.id === row.id);
+      expect(s).toBeTruthy();
+      expect(s.callTime).toBe("09:00");
+      expect(s.frequency).toBe("every 3 days");
+      expect(s.lastRunDate).toBe("2026-01-01");
+      expect(s.ranToday).toBe(false);
+      // last run long past + active → due to run today
+      expect(s.runsToday).toBe(true);
+    } finally {
+      await sb.from("campaigns").delete().eq("id", row.id);
+    }
+  });
+
+  it("WBAH campaign analytics still returns not_available_for_wbah (no schedule leak)", async () => {
+    const d: any = await getCampaignAnalyticsData(WBAH_WORKSPACE_ID);
+    expect(d.error).toBe("not_available_for_wbah");
+    expect(d.schedule.length).toBe(0);
   });
 });

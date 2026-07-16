@@ -363,11 +363,11 @@ export async function getCampaignAnalyticsData(
 ) {
   const sb = supabaseAdmin as any;
   const range = resolveDateRange(filters);
-  const base = { workspaceId, range, campaigns: [] as any[], failures: [] as any[], compare: null as any, error: null as string | null };
+  const base = { workspaceId, range, campaigns: [] as any[], failures: [] as any[], schedule: [] as any[], compare: null as any, error: null as string | null };
   if (isWbahWorkspaceId(workspaceId)) return { ...base, error: "not_available_for_wbah" };
   try {
     let cq = sb.from("campaigns")
-      .select("id, name, status, agent_id, created_at, updated_at, stats")
+      .select("id, name, status, agent_id, created_at, updated_at, stats, description")
       .eq("workspace_id", workspaceId)
       .order("created_at", { ascending: false })
       .limit(200);
@@ -422,7 +422,46 @@ export async function getCampaignAnalyticsData(
       ? rows.filter((r) => opts.compareIds!.includes(r.id))
       : null;
 
-    return { ...base, campaigns: rows, failures, compare };
+    // ── Today's schedule — scheduled (__sched_v1__) campaigns and whether they
+    //    run today (already ran / still due / not due this interval). ──
+    const { parseConfig } = await import("@/lib/campaign-scheduler/executor");
+    const schedule = ((campaigns ?? []) as any[])
+      .map((c) => {
+        const cfg = parseConfig(c.description ?? null);
+        if (!cfg) return null;
+        const tz = cfg.timezone || "UTC";
+        let today: string;
+        try {
+          today = new Intl.DateTimeFormat("en-CA", { timeZone: tz }).format(new Date());
+        } catch {
+          today = new Date().toISOString().slice(0, 10);
+        }
+        const ranToday = cfg.lastRunDate === today;
+        let dueToday = true;
+        if (cfg.callFrequency === "custom" && cfg.lastRunDate && !ranToday) {
+          const msPerDay = 86_400_000;
+          const last = new Date(cfg.lastRunDate + "T00:00:00Z").getTime();
+          const now = new Date(today + "T00:00:00Z").getTime();
+          dueToday = (now - last) / msPerDay >= Math.max(1, cfg.intervalDays || 1);
+        }
+        const active = String(c.status ?? "").toLowerCase() === "active";
+        return {
+          id: c.id,
+          name: c.name,
+          status: c.status,
+          active,
+          callTime: cfg.callTime,
+          timezone: tz,
+          frequency: cfg.callFrequency === "custom" ? `every ${Math.max(1, cfg.intervalDays || 1)} days` : "daily",
+          lastRunDate: cfg.lastRunDate ?? null,
+          ranToday,
+          runsToday: active && !ranToday && dueToday,
+        };
+      })
+      .filter(Boolean)
+      .sort((a: any, b: any) => String(a.callTime).localeCompare(String(b.callTime)));
+
+    return { ...base, campaigns: rows, failures, schedule, compare };
   } catch (err: any) {
     return { ...base, error: err?.message ?? "Campaign analytics unavailable" };
   }
