@@ -14,6 +14,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import {
+  invalidatePermissionsCache,
   requireAction,
   resolvePermissions,
   writeAccessAudit,
@@ -156,6 +157,7 @@ export const setMemberRole = createServerFn({ method: "POST" })
       .eq("workspace_id", workspaceId)
       .eq("user_id", data.targetUserId)
       .neq("role", "owner");
+    invalidatePermissionsCache(workspaceId);
 
     await writeAccessAudit({
       workspaceId,
@@ -201,6 +203,7 @@ export const removeMember = createServerFn({ method: "POST" })
       .delete()
       .eq("workspace_id", workspaceId)
       .eq("user_id", data.targetUserId);
+    invalidatePermissionsCache(workspaceId);
 
     await writeAccessAudit({
       workspaceId,
@@ -308,6 +311,7 @@ export const upsertRolePermissions = createServerFn({ method: "POST" })
       .from("workspace_role_permissions")
       .upsert(row, { onConflict: "workspace_id,role_key" });
     if (error) throw new Error(error.message);
+    invalidatePermissionsCache(workspaceId);
 
     await writeAccessAudit({
       workspaceId,
@@ -346,6 +350,7 @@ export const resetRolePermissions = createServerFn({ method: "POST" })
       .eq("workspace_id", workspaceId)
       .eq("role_key", data.roleKey);
     if (error) throw new Error(error.message);
+    invalidatePermissionsCache(workspaceId);
     await writeAccessAudit({
       workspaceId,
       actingUserId: userId,

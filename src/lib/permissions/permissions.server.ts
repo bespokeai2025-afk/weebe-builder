@@ -9,6 +9,11 @@
  */
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import {
+  SIGNAL_PERMISSIONS,
+  bumpCacheSignal,
+  checkCacheSignal,
+} from "@/lib/packages/cache-signals.server";
+import {
   type ActionKey,
   type PageKey,
   type PageLevel,
@@ -31,16 +36,53 @@ const NO_ACCESS_RESOLVED: ResolvedPermissions = {
   isMember: false,
 };
 
+// ── Short in-process cache (resolver runs on nearly every server fn) ────────
+// Guarded by the shared "permissions" DB signal so role edits on ANY instance
+// reach every other instance within ~5s instead of the full TTL.
+const CACHE_TTL_MS = 30_000;
+const permCache = new Map<
+  string,
+  { at: number; signal: number | null; value: ResolvedPermissions }
+>();
+
+/**
+ * Drop cached resolved permissions. When `broadcast` (default) also bumps the
+ * shared DB signal so OTHER instances drop ALL their cached entries promptly
+ * (coarse but safe — role/permission writes are rare and rebuilds are cheap).
+ * Pass a workspaceId to only clear that workspace's entries locally.
+ */
+export function invalidatePermissionsCache(
+  workspaceId?: string,
+  opts?: { broadcast?: boolean },
+) {
+  if (workspaceId) {
+    for (const key of permCache.keys()) {
+      if (key.startsWith(`${workspaceId}:`)) permCache.delete(key);
+    }
+  } else {
+    permCache.clear();
+  }
+  if (opts?.broadcast !== false) void bumpCacheSignal(SIGNAL_PERMISSIONS);
+}
+
 /**
  * Resolve the effective permissions of a user inside a workspace.
  * NEVER throws — returns NO_ACCESS on any error (fail closed).
+ * Successful member resolutions are cached briefly (TTL + shared signal);
+ * NO_ACCESS results are never cached so new members/recoveries apply instantly.
  */
 export async function resolvePermissions(
   workspaceId: string | null | undefined,
   userId: string | null | undefined,
 ): Promise<ResolvedPermissions> {
+  if (!workspaceId || !userId) return NO_ACCESS_RESOLVED;
+  const cacheKey = `${workspaceId}:${userId}`;
+  const signal = await checkCacheSignal(SIGNAL_PERMISSIONS);
+  const hit = permCache.get(cacheKey);
+  if (hit && Date.now() - hit.at < CACHE_TTL_MS && hit.signal === signal) {
+    return hit.value;
+  }
   try {
-    if (!workspaceId || !userId) return NO_ACCESS_RESOLVED;
     const sb = supabaseAdmin as any;
 
     const [{ data: member, error: memberErr }, { data: extRole, error: extErr }] =
@@ -78,7 +120,13 @@ export async function resolvePermissions(
     if (ovErr) return NO_ACCESS_RESOLVED;
 
     const merged = mergeRolePermissions(defaultsForRoleKey(roleKey), override);
-    return { ...merged, legacyRole: member.role ?? null, isMember: true };
+    const value: ResolvedPermissions = {
+      ...merged,
+      legacyRole: member.role ?? null,
+      isMember: true,
+    };
+    permCache.set(cacheKey, { at: Date.now(), signal, value });
+    return value;
   } catch {
     return NO_ACCESS_RESOLVED;
   }

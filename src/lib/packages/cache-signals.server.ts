@@ -17,6 +17,7 @@ import { supabaseAdmin } from "@/integrations/supabase/client.server";
 
 export const SIGNAL_PACKAGE_CATALOG = "package_catalog";
 export const SIGNAL_ENTITLEMENTS = "entitlements";
+export const SIGNAL_PERMISSIONS = "permissions";
 
 const SIGNAL_CHECK_MS = 5_000;
 

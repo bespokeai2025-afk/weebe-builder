@@ -221,6 +221,14 @@ export const acceptInvite = createServerFn({ method: "POST" })
       },
       { onConflict: "workspace_id,user_id" },
     );
+    {
+      // The accept may change an EXISTING member's role — drop cached
+      // resolved permissions everywhere (new members are never cached).
+      const { invalidatePermissionsCache } = await import(
+        "@/lib/permissions/permissions.server"
+      );
+      invalidatePermissionsCache(invite.workspace_id);
+    }
     await sb
       .from("workspace_invites")
       .update({ accepted_at: new Date().toISOString() })
