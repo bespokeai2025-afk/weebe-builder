@@ -143,6 +143,22 @@ export const Route = createFileRoute("/api/public/campaign-executor")({
           } catch (retErr: any) {
             console.warn("[log-retention] sweep failed:", retErr?.message ?? retErr);
           }
+          // WBAH dialler campaign start/finish reports. Best-effort — never
+          // blocks the tick, never opens a WeeBespoke session.
+          try {
+            const { runWbahCampaignRunTick } = await import(
+              "@/lib/integrations/webespokeEnterprise/wbah-campaign-reporting.server"
+            );
+            const wbahRuns = await runWbahCampaignRunTick();
+            if (wbahRuns.started > 0 || wbahRuns.finished > 0 || wbahRuns.errors > 0) {
+              console.log(
+                `[wbah-campaign-runs] started=${wbahRuns.started} finished=${wbahRuns.finished} watching=${wbahRuns.watching} errors=${wbahRuns.errors}`,
+              );
+            }
+          } catch (wbahErr: any) {
+            console.warn("[wbah-campaign-runs] tick failed:", wbahErr?.message ?? wbahErr);
+          }
+
           // Scheduled analytics reports (once-per-tick due check). Best-effort —
           // never blocks the tick.
           try {

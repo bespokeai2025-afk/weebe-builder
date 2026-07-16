@@ -34,7 +34,9 @@ export type AnalyticsReportType =
   | "hivemind_briefing"
   | "growthmind_improvement"
   | "systemmind_fix"
-  | "wbah_dialler_summary";
+  | "wbah_dialler_summary"
+  | "wbah_campaign_start"
+  | "wbah_campaign_end";
 
 export const ANALYTICS_REPORT_TYPES: readonly AnalyticsReportType[] = [
   "campaign_launch",
@@ -53,7 +55,16 @@ export const ANALYTICS_REPORT_TYPES: readonly AnalyticsReportType[] = [
   "growthmind_improvement",
   "systemmind_fix",
   "wbah_dialler_summary",
+  "wbah_campaign_start",
+  "wbah_campaign_end",
 ];
+
+/** Report kinds that only make sense for the WBAH workspace. */
+export const WBAH_ONLY_REPORT_TYPES: ReadonlySet<AnalyticsReportType> = new Set([
+  "wbah_dialler_summary",
+  "wbah_campaign_start",
+  "wbah_campaign_end",
+]);
 
 /** Campaign-lifecycle report kinds — excluded for WBAH workspaces. */
 const CAMPAIGN_LIFECYCLE_TYPES: ReadonlySet<AnalyticsReportType> = new Set([
@@ -425,6 +436,21 @@ async function buildReportContent(
         metrics.sentiment_neutral = w.sentiment?.neutral ?? 0;
         metrics.sentiment_negative = w.sentiment?.negative ?? 0;
         metrics.converted_positive_leads = (w.converted ?? []).length;
+        if (Array.isArray(w.campaigns) && w.campaigns.length > 0) {
+          metrics.campaigns = w.campaigns;
+          if (w.campaignsUnattributed > 0) {
+            metrics.campaigns_unattributed_calls = w.campaignsUnattributed;
+          }
+          for (const camp of w.campaigns) {
+            insights.push({
+              title: `Campaign: ${camp.name}${camp.scheduledTime ? ` (${camp.scheduledTime} UK)` : ""}`,
+              detail:
+                `${camp.calls} calls, ${camp.connected} connected (${camp.connectionRate}%), ` +
+                `${camp.positive} positive, ${camp.booked} booked, ${camp.voicemail} voicemails` +
+                (camp.leadStatus ? ` — targets "${camp.leadStatus}" leads.` : "."),
+            });
+          }
+        }
         if (w.truncated) metrics.data_truncated = true;
         summary = `${w.total} calls dialled, ${w.connected} connected (${w.connectionRate}%), ${(w.converted ?? []).length} positive-sentiment leads, ${w.booked} booked, ${w.voicemail} voicemails.`;
 
@@ -449,6 +475,57 @@ async function buildReportContent(
         }
       } catch (err: any) {
         metrics.wbah_dialler_error = err?.message ?? "dialler aggregation unavailable";
+      }
+      break;
+    }
+    case "wbah_campaign_start": {
+      const cName = String(args.extraMetrics?.campaign_name ?? "Dialler campaign");
+      const slot = args.extraMetrics?.scheduled_time_london;
+      const target = args.extraMetrics?.target_lead_status;
+      defaultName = `Campaign Started — ${cName}`;
+      summary =
+        `WeeBespoke dialler campaign "${cName}" started its scheduled run` +
+        (slot ? ` (${slot} UK time)` : "") +
+        (target ? `, targeting "${target}" leads` : "") +
+        ". A finish report with full KPIs will follow when dialling completes.";
+      insights.push({
+        title: "Run started",
+        detail: `Agent ${args.extraMetrics?.campaign_agent_id ?? "unknown"} is dialling now. KPIs are reported when the run finishes.`,
+      });
+      break;
+    }
+    case "wbah_campaign_end": {
+      const cName = String(args.extraMetrics?.campaign_name ?? "Dialler campaign");
+      const em = (args.extraMetrics ?? {}) as Record<string, any>;
+      defaultName = `Campaign Finished — ${cName}`;
+      summary =
+        `WeeBespoke dialler campaign "${cName}" finished: ` +
+        `${em.calls_dialled ?? 0} calls dialled, ${em.calls_connected ?? 0} connected (${em.connection_rate_pct ?? 0}%), ` +
+        `${em.sentiment_positive ?? 0} positive, ${em.booked ?? 0} booked, ${em.voicemail_hits ?? 0} voicemails.`;
+      if (em.run_ended_by === "time_cap") {
+        insights.push({
+          title: "Run closed by time cap",
+          detail: "No quiet period was detected within 3 hours — the run was closed at the cap. KPIs cover all attributed calls in the window.",
+        });
+      }
+      for (const l of (Array.isArray(em.positive_leads) ? em.positive_leads : []).slice(0, 15)) {
+        insights.push({
+          title: `Positive lead: ${l.name ?? "Unknown"}`,
+          detail: `${l.phone ?? "no phone"}${l.booked ? " — BOOKED" : ""}`,
+        });
+      }
+      const negEnd = Number(em.sentiment_negative ?? 0);
+      if (negEnd > 0) {
+        recommendations.push({
+          action: "Review negative-sentiment calls from this run",
+          detail: `${negEnd} call(s) in this run ended with negative sentiment.`,
+        });
+      }
+      if (Number(em.calls_dialled ?? 0) === 0) {
+        insights.push({
+          title: "No calls attributed to this run",
+          detail: "The dialler placed no calls in this campaign's window (empty lead pool, or the dialler was paused).",
+        });
       }
       break;
     }
@@ -496,8 +573,8 @@ export async function generateAnalyticsReport(
     if (isWbahWorkspaceId(args.workspaceId) && isCampaignLifecycleReportType(args.reportType)) {
       return null;
     }
-    // The WBAH dialler summary only makes sense for the WBAH workspace.
-    if (args.reportType === "wbah_dialler_summary" && !isWbahWorkspaceId(args.workspaceId)) {
+    // WBAH-only report kinds are refused for every other workspace.
+    if (WBAH_ONLY_REPORT_TYPES.has(args.reportType) && !isWbahWorkspaceId(args.workspaceId)) {
       return null;
     }
     const sb = supabaseAdmin as any;

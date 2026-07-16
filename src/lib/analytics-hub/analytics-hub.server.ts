@@ -167,7 +167,7 @@ export async function getWbahDiallerAnalytics(sb: Sb, workspaceId: string, range
   for (let p = 0; p < MAX_PAGES; p++) {
     const { data, error } = await sb
       .from("wbah_calls")
-      .select("id, customer_name, phone, sentiment, call_status, disconnection_reason, end_reason, booking_status, appointment_date, duration_seconds, started_at")
+      .select("id, customer_name, phone, sentiment, call_status, disconnection_reason, end_reason, booking_status, appointment_date, duration_seconds, started_at, meta")
       .eq("workspace_id", workspaceId)
       .gte("started_at", range.startIso)
       .lte("started_at", range.endIso)
@@ -183,6 +183,31 @@ export async function getWbahDiallerAnalytics(sb: Sb, workspaceId: string, range
     const r = String(c.disconnection_reason ?? c.end_reason ?? "").toLowerCase();
     return r.includes("voicemail");
   };
+
+  // Campaign attribution: match meta.agent_id to the WeeBespoke campaign
+  // snapshot; agents shared across campaigns disambiguate by nearest scheduled
+  // call time (Europe/London). Best-effort — attribution failure never breaks
+  // the aggregates.
+  let snapshotCampaigns: any[] = [];
+  let attributeCampaign: ((agentId: any, startedAt: any) => any) | null = null;
+  try {
+    const mod = await import(
+      "@/lib/integrations/webespokeEnterprise/wbah-campaign-reporting.server"
+    );
+    snapshotCampaigns = await mod.loadWbahCampaignSnapshot(sb);
+    if (snapshotCampaigns.length > 0) {
+      attributeCampaign = (agentId, startedAt) =>
+        mod.attributeWbahCampaign(snapshotCampaigns, agentId, startedAt);
+    }
+  } catch {
+    /* snapshot unavailable — skip per-campaign breakdown */
+  }
+  const byCampaign: Record<string, {
+    id: string; name: string; leadStatus: string | null; scheduledTime: string | null;
+    calls: number; connected: number; voicemail: number; booked: number;
+    positive: number; neutral: number; negative: number;
+  }> = {};
+  let unattributed = 0;
 
   let connected = 0, voicemail = 0, positive = 0, neutral = 0, negative = 0, booked = 0;
   const byReason: Record<string, number> = {};
@@ -205,6 +230,30 @@ export async function getWbahDiallerAnalytics(sb: Sb, workspaceId: string, range
     else if (s === "neutral") neutral++;
     if (c.booking_status || c.appointment_date) booked++;
     byReason[reason] = (byReason[reason] ?? 0) + 1;
+    if (attributeCampaign) {
+      const camp = attributeCampaign((c.meta as any)?.agent_id ?? null, c.started_at);
+      if (camp) {
+        const entry = (byCampaign[camp.id] ??= {
+          id: camp.id,
+          name: camp.name,
+          leadStatus: camp.lead_status ?? null,
+          scheduledTime: camp.call_hour != null
+            ? `${String(camp.call_hour).padStart(2, "0")}:${String(camp.call_minute ?? 0).padStart(2, "0")}`
+            : null,
+          calls: 0, connected: 0, voicemail: 0, booked: 0,
+          positive: 0, neutral: 0, negative: 0,
+        });
+        entry.calls++;
+        if (conn) entry.connected++;
+        if (vm) entry.voicemail++;
+        if (c.booking_status || c.appointment_date) entry.booked++;
+        if (s === "positive") entry.positive++;
+        else if (s === "negative") entry.negative++;
+        else if (s === "neutral") entry.neutral++;
+      } else {
+        unattributed++;
+      }
+    }
     if (day) {
       const d = byDay[day] ?? { calls: 0, connected: 0, voicemail: 0, positive: 0, negative: 0 };
       d.calls++; if (conn) d.connected++; if (vm) d.voicemail++;
@@ -233,12 +282,22 @@ export async function getWbahDiallerAnalytics(sb: Sb, workspaceId: string, range
     .sort((a, b) => b.count - a.count);
   const trend = Object.keys(byDay).sort().map((day) => ({ day, ...byDay[day] }));
 
+  const campaigns = Object.values(byCampaign)
+    .map((c) => ({
+      ...c,
+      connectionRate: rate(c.connected, c.calls),
+      voicemailRate: rate(c.voicemail, c.calls),
+    }))
+    .sort((a, b) => b.calls - a.calls);
+
   return {
     total, connected, voicemail, booked,
     connectionRate: rate(connected, total),
     voicemailRate: rate(voicemail, total),
     sentiment: { positive, neutral, negative, unknown: total - positive - neutral - negative },
     reasons, trend, converted, negatives,
+    campaigns,
+    campaignsUnattributed: unattributed,
     truncated: rows.length >= PAGE * MAX_PAGES,
   };
 }

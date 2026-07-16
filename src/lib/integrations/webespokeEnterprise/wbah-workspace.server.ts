@@ -679,7 +679,9 @@ export const getWbahCampaigns = createServerFn({ method: "GET" })
     try {
       const routed = await getCampaignData(WBAH_WORKSPACE_ID);
       if (routed.source === "engine") {
-        return Array.isArray(routed.rows) ? routed.rows.map(normalizeWbahCampaign) : [];
+        const rows = Array.isArray(routed.rows) ? routed.rows.map(normalizeWbahCampaign) : [];
+        void refreshCampaignSnapshot(rows);
+        return rows;
       }
     } catch {
       /* fall through to direct call */
@@ -697,8 +699,28 @@ export const getWbahCampaigns = createServerFn({ method: "GET" })
           "Failed to load campaigns from UAT. Check WEBESPOKE_ADMIN_EMAIL and WEBESPOKE_ADMIN_PASSWORD in .env.",
       );
     }
-    return extractWbahArray(res.data).map(normalizeWbahCampaign);
+    const campaigns = extractWbahArray(res.data).map(normalizeWbahCampaign);
+    void refreshCampaignSnapshot(campaigns);
+    return campaigns;
   });
+
+/**
+ * Opportunistic campaign-snapshot refresh: whenever the campaigns page does a
+ * live read, persist the list into wbah_campaign_snapshot so the start/finish
+ * report tick can run WITHOUT ever opening its own WeeBespoke session
+ * (single-session — background logins would kick the human admin out).
+ * Fire-and-forget; never blocks or fails the page read.
+ */
+async function refreshCampaignSnapshot(campaigns: any[]): Promise<void> {
+  try {
+    const { upsertWbahCampaignSnapshot } = await import(
+      "@/lib/integrations/webespokeEnterprise/wbah-campaign-reporting.server"
+    );
+    await upsertWbahCampaignSnapshot(campaigns);
+  } catch (err: any) {
+    console.warn("[wbah-campaigns] snapshot refresh failed:", err?.message ?? err);
+  }
+}
 
 // ── Credits / Minute Allocation Dashboard ─────────────────────────────────────
 // Powers the Analytics → Credits tab. Fetches the WeeBespoke credit summary,

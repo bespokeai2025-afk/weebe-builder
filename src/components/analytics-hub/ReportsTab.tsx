@@ -30,7 +30,16 @@ const REPORT_TYPES: Array<{ key: string; label: string }> = [
   { key: "accountsmind_cost",      label: "Cost / AccountsMind" },
   { key: "wbah_dialler_summary",   label: "Dialler Success & KPIs" },
 ];
-const TYPE_LABEL: Record<string, string> = Object.fromEntries(REPORT_TYPES.map((t) => [t.key, t.label]));
+// WBAH-only kinds generated automatically by the campaign run tick — shown in
+// the report list (labels) but not offered in the generate/schedule pickers.
+const AUTO_TYPE_LABELS: Record<string, string> = {
+  wbah_campaign_start: "Campaign Started",
+  wbah_campaign_end:   "Campaign Finished",
+};
+const TYPE_LABEL: Record<string, string> = {
+  ...Object.fromEntries(REPORT_TYPES.map((t) => [t.key, t.label])),
+  ...AUTO_TYPE_LABELS,
+};
 
 const FREQUENCIES = ["daily", "weekly", "monthly", "custom"] as const;
 

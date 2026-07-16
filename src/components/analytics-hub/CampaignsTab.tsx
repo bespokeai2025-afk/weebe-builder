@@ -133,6 +133,7 @@ function WbahDiallerView({ w }: { w: any }) {
   const total = Number(w.total ?? 0);
   const sent = w.sentiment ?? {};
   const reasons: any[] = w.reasons ?? [];
+  const campaigns: any[] = w.campaigns ?? [];
   const converted: any[] = w.converted ?? [];
   const negatives: any[] = w.negatives ?? [];
   const when = (iso: string | null) =>
@@ -161,6 +162,37 @@ function WbahDiallerView({ w }: { w: any }) {
         <InsightCard tone="warning" icon={AlertTriangle} title="Large date range">
           This range has more calls than can be analysed in one pass — numbers cover the most recent calls only. Narrow the date range for exact figures.
         </InsightCard>
+      )}
+
+      {campaigns.length > 0 && (
+        <ChartCard title="Performance by Dialler Campaign" icon={Megaphone} color={CHART.primary}>
+          <div className="max-h-80 overflow-auto">
+            <table className="w-full text-sm">
+              <TableHead>
+                <Th>Campaign</Th><Th>Runs at</Th><Th>Targets</Th><Th>Calls</Th><Th>Connected</Th><Th>Positive</Th><Th>Booked</Th><Th>Voicemail</Th>
+              </TableHead>
+              <tbody>
+                {campaigns.map((c: any) => (
+                  <tr key={c.id} className="h-10 border-b border-white/[0.04] hover:bg-white/[0.02]">
+                    <td className="px-3 py-2 font-medium">{c.name}</td>
+                    <td className="px-3 py-2 tabular-nums text-muted-foreground">{c.scheduledTime ? `${c.scheduledTime} UK` : "—"}</td>
+                    <td className="px-3 py-2 text-xs text-muted-foreground">{c.leadStatus ?? "—"}</td>
+                    <td className="px-3 py-2 tabular-nums">{fmtInt(c.calls)}</td>
+                    <td className="px-3 py-2 tabular-nums">{fmtInt(c.connected)} <span className="text-xs text-muted-foreground">({pct(c.connectionRate)})</span></td>
+                    <td className="px-3 py-2 tabular-nums text-emerald-400">{fmtInt(c.positive)}</td>
+                    <td className="px-3 py-2 tabular-nums">{fmtInt(c.booked)}</td>
+                    <td className="px-3 py-2 tabular-nums text-muted-foreground">{fmtInt(c.voicemail)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          {Number(w.campaignsUnattributed ?? 0) > 0 && (
+            <p className="mt-2 text-xs text-muted-foreground">
+              {fmtInt(w.campaignsUnattributed)} call(s) could not be matched to a campaign (agent not linked to any scheduled campaign).
+            </p>
+          )}
+        </ChartCard>
       )}
 
       <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">

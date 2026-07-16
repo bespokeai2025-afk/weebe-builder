@@ -15,14 +15,15 @@ import { requireAction, writeAccessAudit } from "@/lib/permissions/permissions.s
 import {
   generateAnalyticsReport,
   ANALYTICS_REPORT_TYPES,
+  WBAH_ONLY_REPORT_TYPES,
   type AnalyticsReportType,
 } from "./report-generator.server";
 import { sendAnalyticsReportEmail } from "./report-email.server";
 import { isWbahWorkspaceId } from "@/lib/wbah-exclusion.shared";
 
-/** wbah_dialler_summary is WBAH-only — reject at creation, not just generation. */
+/** WBAH-only report kinds are rejected at creation, not just generation. */
 function assertReportTypeAllowed(workspaceId: string, reportType: string): void {
-  if (reportType === "wbah_dialler_summary" && !isWbahWorkspaceId(workspaceId)) {
+  if (WBAH_ONLY_REPORT_TYPES.has(reportType as AnalyticsReportType) && !isWbahWorkspaceId(workspaceId)) {
     throw new Error("This report type is not available for this workspace.");
   }
 }
