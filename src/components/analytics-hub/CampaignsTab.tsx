@@ -1,12 +1,14 @@
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { Megaphone, AlertTriangle, CalendarClock, CheckCircle2, Clock, PauseCircle } from "lucide-react";
+import { Megaphone, AlertTriangle, CalendarClock, CheckCircle2, Clock, PauseCircle, PhoneCall, PhoneOff, Voicemail, Smile, Frown, CalendarCheck } from "lucide-react";
 import { getCampaignAnalytics } from "@/lib/analytics-hub/analytics-hub.functions";
+import { wbahDateTimeOptions } from "@/lib/dashboard/wbah-timezone";
 import { LoadingProgress } from "@/components/dashboard/LoadingProgress";
 import { EmptyState, TableHead, Th } from "@/components/dashboard/PageShell";
 import {
   type AnalyticsFilterState, filterPayload, filterKey,
-  ChartCard, InsightCard, TabError, CHART, gbp, pct, fmtInt,
+  ChartCard, InsightCard, TabError, MetricTile, CompactDonut,
+  CHART, SENTIMENT_COLORS, gbp, pct, fmtInt, fmtSecs,
 } from "./shared";
 
 export function CampaignsTab({ filter }: { filter: AnalyticsFilterState }) {
@@ -24,6 +26,7 @@ export function CampaignsTab({ filter }: { filter: AnalyticsFilterState }) {
   if (d.error === "not_available_for_wbah")
     return <div className="px-6 pt-6"><EmptyState icon={Megaphone} title="Not available" message="Campaign analytics is not applicable to this workspace." /></div>;
   if (d.error) return <TabError message={`Campaign error: ${d.error}`} />;
+  if (d.mode === "wbah_dialler") return <WbahDiallerView w={d.wbah ?? {}} />;
 
   const campaigns: any[] = d.campaigns ?? [];
   const failures: any[] = d.failures ?? [];
@@ -121,6 +124,128 @@ export function CampaignsTab({ filter }: { filter: AnalyticsFilterState }) {
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+/** WBAH — WeeBespoke dialler activity report (WBAH has no WEBEE campaigns). */
+function WbahDiallerView({ w }: { w: any }) {
+  const total = Number(w.total ?? 0);
+  const sent = w.sentiment ?? {};
+  const reasons: any[] = w.reasons ?? [];
+  const converted: any[] = w.converted ?? [];
+  const negatives: any[] = w.negatives ?? [];
+  const when = (iso: string | null) =>
+    iso ? new Date(iso).toLocaleString("en-GB", wbahDateTimeOptions(true, { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })) : "—";
+
+  if (total === 0) {
+    return (
+      <div className="px-6 pt-6">
+        <EmptyState icon={PhoneCall} title="No dialler activity" message="No WeeBespoke dialler calls found in this date range." />
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-5 px-6 pt-5">
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
+        <MetricTile label="Calls dialled" value={fmtInt(total)} icon={PhoneCall} color={CHART.primary} />
+        <MetricTile label="Connected" value={fmtInt(w.connected)} sub={`${pct(w.connectionRate)} connect rate`} icon={PhoneCall} color={CHART.success} />
+        <MetricTile label="Voicemail" value={fmtInt(w.voicemail)} sub={`${pct(w.voicemailRate)} of dials`} icon={Voicemail} color={CHART.warning} />
+        <MetricTile label="Positive sentiment" value={fmtInt(sent.positive)} icon={Smile} color={CHART.success} />
+        <MetricTile label="Negative sentiment" value={fmtInt(sent.negative)} icon={Frown} color={CHART.danger} />
+        <MetricTile label="Booked" value={fmtInt(w.booked)} icon={CalendarCheck} color={CHART.accent} />
+      </div>
+
+      {w.truncated && (
+        <InsightCard tone="warning" icon={AlertTriangle} title="Large date range">
+          This range has more calls than can be analysed in one pass — numbers cover the most recent calls only. Narrow the date range for exact figures.
+        </InsightCard>
+      )}
+
+      <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
+        <ChartCard title="Sentiment Breakdown" icon={Smile} color={CHART.success}>
+          <CompactDonut
+            data={[
+              { name: "Positive", value: Number(sent.positive ?? 0) },
+              { name: "Neutral", value: Number(sent.neutral ?? 0) },
+              { name: "Negative", value: Number(sent.negative ?? 0) },
+              { name: "No sentiment", value: Number(sent.unknown ?? 0) },
+            ]}
+            colors={SENTIMENT_COLORS}
+            centerLabel="Calls"
+            centerValue={fmtInt(total)}
+          />
+        </ChartCard>
+
+        <ChartCard title="Disconnection Reasons" icon={PhoneOff} color={CHART.danger}>
+          <div className="max-h-64 space-y-2 overflow-y-auto pr-1">
+            {reasons.map((r) => (
+              <div key={r.reason} className="flex items-center gap-3">
+                <span className="w-44 shrink-0 truncate text-xs text-muted-foreground" title={r.reason}>{r.reason.replace(/_/g, " ")}</span>
+                <div className="h-2 flex-1 overflow-hidden rounded-full bg-white/[0.05]">
+                  <div className="h-full rounded-full" style={{ width: `${Math.max(2, r.pct)}%`, background: CHART.primary }} />
+                </div>
+                <span className="w-20 shrink-0 text-right text-xs tabular-nums">{fmtInt(r.count)} ({pct(r.pct)})</span>
+              </div>
+            ))}
+          </div>
+        </ChartCard>
+      </div>
+
+      <ChartCard title={`Converted Leads — Positive Sentiment (${fmtInt(converted.length)})`} icon={Smile} color={CHART.success}>
+        {converted.length === 0 ? (
+          <EmptyState icon={Smile} title="None yet" message="No positive-sentiment calls in this range." />
+        ) : (
+          <div className="max-h-80 overflow-auto">
+            <table className="w-full text-sm">
+              <TableHead>
+                <Th>Name</Th><Th>Phone</Th><Th>Booked</Th><Th>Duration</Th><Th>When</Th>
+              </TableHead>
+              <tbody>
+                {converted.map((c) => (
+                  <tr key={c.id} className="h-10 border-b border-white/[0.04] hover:bg-white/[0.02]">
+                    <td className="px-3 py-2 font-medium">{c.name}</td>
+                    <td className="px-3 py-2 tabular-nums text-muted-foreground">{c.phone ?? "—"}</td>
+                    <td className="px-3 py-2">
+                      {c.booked
+                        ? <span className="inline-flex items-center gap-1 text-xs text-emerald-400"><CalendarCheck className="h-3.5 w-3.5" /> Booked{c.appointmentDate ? ` · ${c.appointmentDate}` : ""}</span>
+                        : <span className="text-xs text-muted-foreground">Not booked</span>}
+                    </td>
+                    <td className="px-3 py-2 tabular-nums">{fmtSecs(c.durationSeconds)}</td>
+                    <td className="px-3 py-2 tabular-nums text-muted-foreground">{when(c.at)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </ChartCard>
+
+      <ChartCard title={`Negative Sentiment Calls (${fmtInt(negatives.length)})`} icon={Frown} color={CHART.danger}>
+        {negatives.length === 0 ? (
+          <EmptyState icon={Frown} title="None" message="No negative-sentiment calls in this range." />
+        ) : (
+          <div className="max-h-80 overflow-auto">
+            <table className="w-full text-sm">
+              <TableHead>
+                <Th>Name</Th><Th>Phone</Th><Th>Disconnection reason</Th><Th>Duration</Th><Th>When</Th>
+              </TableHead>
+              <tbody>
+                {negatives.map((c) => (
+                  <tr key={c.id} className="h-10 border-b border-white/[0.04] hover:bg-white/[0.02]">
+                    <td className="px-3 py-2 font-medium">{c.name}</td>
+                    <td className="px-3 py-2 tabular-nums text-muted-foreground">{c.phone ?? "—"}</td>
+                    <td className="px-3 py-2 text-xs text-muted-foreground">{String(c.reason ?? "unknown").replace(/_/g, " ")}</td>
+                    <td className="px-3 py-2 tabular-nums">{fmtSecs(c.durationSeconds)}</td>
+                    <td className="px-3 py-2 tabular-nums text-muted-foreground">{when(c.at)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </ChartCard>
     </div>
   );
 }

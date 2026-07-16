@@ -274,9 +274,19 @@ describe("analytics aggregations (fail-closed, workspace-scoped)", () => {
     }
   });
 
-  it("WBAH campaign analytics still returns not_available_for_wbah (no schedule leak)", async () => {
-    const d: any = await getCampaignAnalyticsData(WBAH_WORKSPACE_ID);
-    expect(d.error).toBe("not_available_for_wbah");
+  it("WBAH campaign analytics returns the dialler report, never WEBEE campaigns", async () => {
+    const d: any = await getCampaignAnalyticsData(WBAH_WORKSPACE_ID, { dateFilter: "7d" });
+    expect(d.mode).toBe("wbah_dialler");
+    expect(d.campaigns.length).toBe(0);
     expect(d.schedule.length).toBe(0);
+    expect(d.error).toBeNull();
+    const w = d.wbah;
+    expect(w).toBeTruthy();
+    expect(typeof w.total).toBe("number");
+    expect(w.total).toBeGreaterThan(0);
+    expect(w.sentiment.positive + w.sentiment.neutral + w.sentiment.negative + w.sentiment.unknown).toBe(w.total);
+    expect(Array.isArray(w.reasons)).toBe(true);
+    expect(w.voicemail).toBeGreaterThanOrEqual(0);
+    for (const c of w.converted) expect(String(c.id)).toBeTruthy();
   });
 });

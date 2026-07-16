@@ -380,7 +380,8 @@ function computeAnalytics(allCalls: any[], includeVoicemails = false) {
  */
 const MAIN_TABS = [
   { key: "overview",    label: "Overview",       icon: LayoutDashboard, feature: "analytics",           filtered: true },
-  { key: "campaigns",   label: "Campaigns",      icon: Megaphone,       feature: "analytics_advanced",  filtered: true, campaignStyle: true },
+  // Visible for WBAH too — there it reports the WeeBespoke dialler activity.
+  { key: "campaigns",   label: "Campaigns",      icon: Megaphone,       feature: "analytics_advanced",  filtered: true },
   { key: "agents",      label: "Agents",         icon: Users,           feature: "analytics_advanced",  filtered: true },
   { key: "leadsources", label: "Lead Sources",   icon: Filter,          feature: "analytics_advanced",  filtered: true, campaignStyle: true },
   { key: "calls",       label: "Calls",          icon: PhoneCall,       feature: "analytics" },

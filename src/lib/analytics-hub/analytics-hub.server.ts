@@ -155,6 +155,94 @@ async function fetchWbahCalls(sb: Sb, workspaceId: string, range: ResolvedRange)
   return (data ?? []) as any[];
 }
 
+/**
+ * WBAH dialler analytics — aggregates the WeeBespoke dialler activity in
+ * wbah_calls (WBAH has no WEBEE campaigns). Paged fetch (wbah_calls exceeds
+ * PostgREST's 1000-row cap for a 30d window) with a hard page cap.
+ */
+async function getWbahDiallerAnalytics(sb: Sb, workspaceId: string, range: ResolvedRange) {
+  const PAGE = 1000;
+  const MAX_PAGES = 25;
+  const rows: any[] = [];
+  for (let p = 0; p < MAX_PAGES; p++) {
+    const { data, error } = await sb
+      .from("wbah_calls")
+      .select("id, customer_name, phone, sentiment, call_status, disconnection_reason, end_reason, booking_status, appointment_date, duration_seconds, started_at")
+      .eq("workspace_id", workspaceId)
+      .gte("started_at", range.startIso)
+      .lte("started_at", range.endIso)
+      .order("started_at", { ascending: false })
+      .range(p * PAGE, p * PAGE + PAGE - 1);
+    if (error) throw new Error(error.message);
+    const batch = (data ?? []) as any[];
+    rows.push(...batch);
+    if (batch.length < PAGE) break;
+  }
+
+  const isVoicemail = (c: any) => {
+    const r = String(c.disconnection_reason ?? c.end_reason ?? "").toLowerCase();
+    return r.includes("voicemail");
+  };
+
+  let connected = 0, voicemail = 0, positive = 0, neutral = 0, negative = 0, booked = 0;
+  const byReason: Record<string, number> = {};
+  const byDay: Record<string, { calls: number; connected: number; voicemail: number; positive: number; negative: number }> = {};
+  const converted: any[] = [];
+  const negatives: any[] = [];
+
+  for (const c of rows) {
+    const vm = isVoicemail(c);
+    const st = String(c.call_status ?? "").toLowerCase();
+    const conn = !vm && (st === "completed" || st === "answered" || st === "connected");
+    const s = String(c.sentiment ?? "").toLowerCase();
+    const reason = String(c.disconnection_reason ?? c.end_reason ?? "unknown");
+    const day = dayKey(c.started_at);
+
+    if (vm) voicemail++;
+    if (conn) connected++;
+    if (s === "positive") positive++;
+    else if (s === "negative") negative++;
+    else if (s === "neutral") neutral++;
+    if (c.booking_status || c.appointment_date) booked++;
+    byReason[reason] = (byReason[reason] ?? 0) + 1;
+    if (day) {
+      const d = byDay[day] ?? { calls: 0, connected: 0, voicemail: 0, positive: 0, negative: 0 };
+      d.calls++; if (conn) d.connected++; if (vm) d.voicemail++;
+      if (s === "positive") d.positive++; if (s === "negative") d.negative++;
+      byDay[day] = d;
+    }
+    if (s === "positive" && converted.length < 100) {
+      converted.push({
+        id: c.id, name: c.customer_name ?? "Unknown", phone: c.phone ?? null,
+        booked: Boolean(c.booking_status || c.appointment_date),
+        appointmentDate: c.appointment_date ?? null,
+        durationSeconds: c.duration_seconds ?? 0, at: c.started_at,
+      });
+    }
+    if (s === "negative" && negatives.length < 100) {
+      negatives.push({
+        id: c.id, name: c.customer_name ?? "Unknown", phone: c.phone ?? null,
+        reason, durationSeconds: c.duration_seconds ?? 0, at: c.started_at,
+      });
+    }
+  }
+
+  const total = rows.length;
+  const reasons = Object.entries(byReason)
+    .map(([reason, count]) => ({ reason, count, pct: rate(count, total) }))
+    .sort((a, b) => b.count - a.count);
+  const trend = Object.keys(byDay).sort().map((day) => ({ day, ...byDay[day] }));
+
+  return {
+    total, connected, voicemail, booked,
+    connectionRate: rate(connected, total),
+    voicemailRate: rate(voicemail, total),
+    sentiment: { positive, neutral, negative, unknown: total - positive - neutral - negative },
+    reasons, trend, converted, negatives,
+    truncated: rows.length >= PAGE * MAX_PAGES,
+  };
+}
+
 // ── Cost helpers ──────────────────────────────────────────────────────────────
 async function fetchCostTotals(sb: Sb, workspaceId: string, range: ResolvedRange) {
   const out = {
@@ -363,8 +451,17 @@ export async function getCampaignAnalyticsData(
 ) {
   const sb = supabaseAdmin as any;
   const range = resolveDateRange(filters);
-  const base = { workspaceId, range, campaigns: [] as any[], failures: [] as any[], schedule: [] as any[], compare: null as any, error: null as string | null };
-  if (isWbahWorkspaceId(workspaceId)) return { ...base, error: "not_available_for_wbah" };
+  const base = { workspaceId, range, campaigns: [] as any[], failures: [] as any[], schedule: [] as any[], compare: null as any, mode: "standard" as "standard" | "wbah_dialler", wbah: null as any, error: null as string | null };
+  if (isWbahWorkspaceId(workspaceId)) {
+    // WBAH runs its calling on the external WeeBespoke dialler, not WEBEE
+    // campaigns — report on the dialler activity from wbah_calls instead.
+    try {
+      const wbah = await getWbahDiallerAnalytics(sb, workspaceId, range);
+      return { ...base, mode: "wbah_dialler" as const, wbah };
+    } catch (err: any) {
+      return { ...base, mode: "wbah_dialler" as const, error: err?.message ?? "Dialler analytics unavailable" };
+    }
+  }
   try {
     let cq = sb.from("campaigns")
       .select("id, name, status, agent_id, created_at, updated_at, stats, description")
