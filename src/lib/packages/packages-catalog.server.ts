@@ -26,6 +26,11 @@ import {
   packageByKey,
 } from "./packages.shared";
 import { NOTIFICATION_EVENT_KEYS } from "@/lib/notifications/notification-engine.shared";
+import {
+  SIGNAL_PACKAGE_CATALOG,
+  bumpCacheSignal,
+  checkCacheSignal,
+} from "./cache-signals.server";
 
 interface DbPackageRow {
   package_key: string;
@@ -59,10 +64,16 @@ export interface EffectivePackage extends PackageDef {
 }
 
 const CACHE_TTL_MS = 30_000;
-let cache: { at: number; value: Map<string, EffectivePackage> } | null = null;
+let cache: { at: number; signal: number | null; value: Map<string, EffectivePackage> } | null = null;
 
-export function invalidatePackageCatalogCache() {
+/**
+ * Drop the in-process cache. When `broadcast` (default) also bumps the shared
+ * DB signal so OTHER instances drop theirs promptly. Pass
+ * `{ broadcast: false }` for read-path freshness (no admin write happened).
+ */
+export function invalidatePackageCatalogCache(opts?: { broadcast?: boolean }) {
   cache = null;
+  if (opts?.broadcast !== false) void bumpCacheSignal(SIGNAL_PACKAGE_CATALOG);
 }
 
 function asObject(v: unknown): Record<string, unknown> {
@@ -170,7 +181,10 @@ function overlayRow(base: EffectivePackage, row: DbPackageRow): EffectivePackage
 
 /** Effective catalog map (code catalog + DB overlays). Cached ~30s. */
 export async function getEffectivePackageCatalog(): Promise<Map<string, EffectivePackage>> {
-  if (cache && Date.now() - cache.at < CACHE_TTL_MS) return cache.value;
+  const signal = await checkCacheSignal(SIGNAL_PACKAGE_CATALOG);
+  if (cache && Date.now() - cache.at < CACHE_TTL_MS && cache.signal === signal) {
+    return cache.value;
+  }
   const map = new Map<string, EffectivePackage>();
   for (const pkg of PACKAGE_CATALOG) map.set(pkg.packageKey, baseEffective(pkg));
   try {
@@ -182,7 +196,7 @@ export async function getEffectivePackageCatalog(): Promise<Map<string, Effectiv
         const base = map.get(row.package_key) ?? baseEffective(packageByKey(DEFAULT_PACKAGE_KEY));
         map.set(row.package_key, overlayRow({ ...base, packageKey: row.package_key }, row));
       }
-      cache = { at: Date.now(), value: map };
+      cache = { at: Date.now(), signal, value: map };
     }
   } catch {
     // DB unavailable → code catalog only (no cache so we retry next call).

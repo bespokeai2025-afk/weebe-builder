@@ -39,6 +39,11 @@ import {
   PermissionDeniedError,
   writeAccessAudit,
 } from "@/lib/permissions/permissions.server";
+import {
+  SIGNAL_ENTITLEMENTS,
+  bumpCacheSignal,
+  checkCacheSignal,
+} from "./cache-signals.server";
 
 export class FeatureLockedError extends Error {
   readonly featureKey: string;
@@ -52,11 +57,17 @@ export class FeatureLockedError extends Error {
 
 // ── Short in-process cache (entitlements change rarely; guards run often) ────
 const CACHE_TTL_MS = 30_000;
-const cache = new Map<string, { at: number; value: WorkspaceEntitlements }>();
+const cache = new Map<string, { at: number; signal: number | null; value: WorkspaceEntitlements }>();
 
-export function invalidateEntitlementsCache(workspaceId?: string) {
+/**
+ * Drop cached entitlements. When `broadcast` (default) also bumps the shared
+ * DB signal so OTHER instances drop ALL their cached entitlements promptly
+ * (coarse but safe — entitlement writes are rare and rebuilds are cheap).
+ */
+export function invalidateEntitlementsCache(workspaceId?: string, opts?: { broadcast?: boolean }) {
   if (workspaceId) cache.delete(workspaceId);
   else cache.clear();
+  if (opts?.broadcast !== false) void bumpCacheSignal(SIGNAL_ENTITLEMENTS);
 }
 
 /** Package row for a workspace (subscription + resolved package def). */
@@ -81,8 +92,9 @@ export async function getWorkspaceEntitlements(
   workspaceId: string | null | undefined,
 ): Promise<WorkspaceEntitlements> {
   if (!workspaceId) return noEntitlements();
+  const signal = await checkCacheSignal(SIGNAL_ENTITLEMENTS);
   const hit = cache.get(workspaceId);
-  if (hit && Date.now() - hit.at < CACHE_TTL_MS) return hit.value;
+  if (hit && Date.now() - hit.at < CACHE_TTL_MS && hit.signal === signal) return hit.value;
   try {
     const sb = supabaseAdmin as any;
     const [{ data: sub, error: subErr }, { data: addons, error: addErr }, { data: feats, error: featErr }] =
@@ -127,7 +139,7 @@ export async function getWorkspaceEntitlements(
       extraStaffSeats: extraSeats,
       featureOverrides,
     });
-    cache.set(workspaceId, { at: Date.now(), value });
+    cache.set(workspaceId, { at: Date.now(), signal, value });
     return value;
   } catch {
     return noEntitlements();

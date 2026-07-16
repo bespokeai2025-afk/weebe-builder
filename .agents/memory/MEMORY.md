@@ -129,3 +129,4 @@
 - [Workspace email provider dispatch](workspace-email-provider-dispatch.md) — all workspace email via sendWorkspaceEmail (own custom → reseller parent → platform); never-throw, fallback, alert at 3 fails.
 - [Notification prefs & package caps](notification-prefs-packages.md) — new event keys need BOTH shared catalog + DB check-constraint migration; caps fail closed; defaults seed insert-only.
 - [Analytics Hub architecture](analytics-hub-arch.md) — 12-tab BI hub + 15-type report engine; schedule tick MUST claim via CAS on last_run_at before sending or ticks re-send every 5 min.
+- [Cross-instance cache signals](cross-instance-cache-signals.md) — platform_cache_signals version row + throttled check makes package/entitlement caches multi-instance safe; reuse for new server caches.

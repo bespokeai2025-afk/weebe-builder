@@ -7708,6 +7708,24 @@ export type Database = {
           },
         ]
       }
+      platform_cache_signals: {
+        Row: {
+          signal_key: string
+          updated_at: string
+          version: number
+        }
+        Insert: {
+          signal_key: string
+          updated_at?: string
+          version?: number
+        }
+        Update: {
+          signal_key?: string
+          updated_at?: string
+          version?: number
+        }
+        Relationships: []
+      }
       production_webhook_updates: {
         Row: {
           created_at: string

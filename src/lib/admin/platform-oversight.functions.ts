@@ -67,7 +67,7 @@ function includedVal(v: unknown, fallback: number): number {
 export const adminGetPackageMatrix = createServerFn({ method: "GET" })
   .middleware([...adminMw])
   .handler(async () => {
-    invalidatePackageCatalogCache(); // admin always sees fresh state
+    invalidatePackageCatalogCache({ broadcast: false }); // read path: fresh locally, no cross-instance bump
     const catalog = await getEffectivePackageCatalog();
     const { data: rows } = await sb.from("package_definitions").select("package_key, updated_at, updated_by");
     const meta = new Map<string, any>((rows ?? []).map((r: any) => [r.package_key, r]));
