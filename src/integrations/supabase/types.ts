@@ -10885,6 +10885,111 @@ export type Database = {
         }
         Relationships: []
       }
+      wbah_campaign_runs: {
+        Row: {
+          agent_id: string | null
+          campaign_id: string
+          campaign_name: string | null
+          created_at: string
+          end_report_id: string | null
+          id: string
+          kpis: Json | null
+          run_date: string
+          start_report_id: string | null
+          status: string
+          updated_at: string
+          window_end: string | null
+          window_start: string
+          workspace_id: string
+        }
+        Insert: {
+          agent_id?: string | null
+          campaign_id: string
+          campaign_name?: string | null
+          created_at?: string
+          end_report_id?: string | null
+          id?: string
+          kpis?: Json | null
+          run_date: string
+          start_report_id?: string | null
+          status?: string
+          updated_at?: string
+          window_end?: string | null
+          window_start: string
+          workspace_id: string
+        }
+        Update: {
+          agent_id?: string | null
+          campaign_id?: string
+          campaign_name?: string | null
+          created_at?: string
+          end_report_id?: string | null
+          id?: string
+          kpis?: Json | null
+          run_date?: string
+          start_report_id?: string | null
+          status?: string
+          updated_at?: string
+          window_end?: string | null
+          window_start?: string
+          workspace_id?: string
+        }
+        Relationships: []
+      }
+      wbah_campaign_snapshot: {
+        Row: {
+          agent_id: string | null
+          call_hour: number | null
+          call_minute: number | null
+          frequency: string | null
+          id: string
+          interval_days: number | null
+          is_active: boolean | null
+          is_deleted: boolean | null
+          lead_status: string | null
+          name: string
+          raw: Json | null
+          status: string | null
+          synced_at: string
+          timezone: string | null
+          workspace_id: string
+        }
+        Insert: {
+          agent_id?: string | null
+          call_hour?: number | null
+          call_minute?: number | null
+          frequency?: string | null
+          id: string
+          interval_days?: number | null
+          is_active?: boolean | null
+          is_deleted?: boolean | null
+          lead_status?: string | null
+          name: string
+          raw?: Json | null
+          status?: string | null
+          synced_at?: string
+          timezone?: string | null
+          workspace_id: string
+        }
+        Update: {
+          agent_id?: string | null
+          call_hour?: number | null
+          call_minute?: number | null
+          frequency?: string | null
+          id?: string
+          interval_days?: number | null
+          is_active?: boolean | null
+          is_deleted?: boolean | null
+          lead_status?: string | null
+          name?: string
+          raw?: Json | null
+          status?: string | null
+          synced_at?: string
+          timezone?: string | null
+          workspace_id?: string
+        }
+        Relationships: []
+      }
       wbah_categorized_leads: {
         Row: {
           address: string | null
