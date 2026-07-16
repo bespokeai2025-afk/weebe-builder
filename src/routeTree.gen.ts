@@ -90,6 +90,7 @@ import { Route as ApiPublicCampaignExecutorRouteImport } from './routes/api/publ
 import { Route as ApiPublicApproveUserRouteImport } from './routes/api/public/approve-user'
 import { Route as ApiPublicAdsSyncRouteImport } from './routes/api/public/ads-sync'
 import { Route as ApiMonitoringHealthRouteImport } from './routes/api/monitoring/health'
+import { Route as ApiMonitoringClientErrorRouteImport } from './routes/api/monitoring/client-error'
 import { Route as ApiDashboardLiveCallsSseRouteImport } from './routes/api/dashboard/live-calls-sse'
 import { Route as ApiBuilderScriptTemplateRouteImport } from './routes/api/builder/script-template'
 import { Route as ApiBuilderScanPdfRouteImport } from './routes/api/builder/scan-pdf'
@@ -691,6 +692,12 @@ const ApiMonitoringHealthRoute = ApiMonitoringHealthRouteImport.update({
   path: '/api/monitoring/health',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiMonitoringClientErrorRoute =
+  ApiMonitoringClientErrorRouteImport.update({
+    id: '/api/monitoring/client-error',
+    path: '/api/monitoring/client-error',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiDashboardLiveCallsSseRoute =
   ApiDashboardLiveCallsSseRouteImport.update({
     id: '/api/dashboard/live-calls-sse',
@@ -1878,6 +1885,7 @@ export interface FileRoutesByFullPath {
   '/api/builder/scan-pdf': typeof ApiBuilderScanPdfRoute
   '/api/builder/script-template': typeof ApiBuilderScriptTemplateRoute
   '/api/dashboard/live-calls-sse': typeof ApiDashboardLiveCallsSseRoute
+  '/api/monitoring/client-error': typeof ApiMonitoringClientErrorRoute
   '/api/monitoring/health': typeof ApiMonitoringHealthRoute
   '/api/public/ads-sync': typeof ApiPublicAdsSyncRoute
   '/api/public/approve-user': typeof ApiPublicApproveUserRoute
@@ -2128,6 +2136,7 @@ export interface FileRoutesByTo {
   '/api/builder/scan-pdf': typeof ApiBuilderScanPdfRoute
   '/api/builder/script-template': typeof ApiBuilderScriptTemplateRoute
   '/api/dashboard/live-calls-sse': typeof ApiDashboardLiveCallsSseRoute
+  '/api/monitoring/client-error': typeof ApiMonitoringClientErrorRoute
   '/api/monitoring/health': typeof ApiMonitoringHealthRoute
   '/api/public/ads-sync': typeof ApiPublicAdsSyncRoute
   '/api/public/approve-user': typeof ApiPublicApproveUserRoute
@@ -2388,6 +2397,7 @@ export interface FileRoutesById {
   '/api/builder/scan-pdf': typeof ApiBuilderScanPdfRoute
   '/api/builder/script-template': typeof ApiBuilderScriptTemplateRoute
   '/api/dashboard/live-calls-sse': typeof ApiDashboardLiveCallsSseRoute
+  '/api/monitoring/client-error': typeof ApiMonitoringClientErrorRoute
   '/api/monitoring/health': typeof ApiMonitoringHealthRoute
   '/api/public/ads-sync': typeof ApiPublicAdsSyncRoute
   '/api/public/approve-user': typeof ApiPublicApproveUserRoute
@@ -2649,6 +2659,7 @@ export interface FileRouteTypes {
     | '/api/builder/scan-pdf'
     | '/api/builder/script-template'
     | '/api/dashboard/live-calls-sse'
+    | '/api/monitoring/client-error'
     | '/api/monitoring/health'
     | '/api/public/ads-sync'
     | '/api/public/approve-user'
@@ -2899,6 +2910,7 @@ export interface FileRouteTypes {
     | '/api/builder/scan-pdf'
     | '/api/builder/script-template'
     | '/api/dashboard/live-calls-sse'
+    | '/api/monitoring/client-error'
     | '/api/monitoring/health'
     | '/api/public/ads-sync'
     | '/api/public/approve-user'
@@ -3158,6 +3170,7 @@ export interface FileRouteTypes {
     | '/api/builder/scan-pdf'
     | '/api/builder/script-template'
     | '/api/dashboard/live-calls-sse'
+    | '/api/monitoring/client-error'
     | '/api/monitoring/health'
     | '/api/public/ads-sync'
     | '/api/public/approve-user'
@@ -3289,6 +3302,7 @@ export interface RootRouteChildren {
   ApiBuilderScanPdfRoute: typeof ApiBuilderScanPdfRoute
   ApiBuilderScriptTemplateRoute: typeof ApiBuilderScriptTemplateRoute
   ApiDashboardLiveCallsSseRoute: typeof ApiDashboardLiveCallsSseRoute
+  ApiMonitoringClientErrorRoute: typeof ApiMonitoringClientErrorRoute
   ApiMonitoringHealthRoute: typeof ApiMonitoringHealthRoute
   ApiPublicAdsSyncRoute: typeof ApiPublicAdsSyncRoute
   ApiPublicApproveUserRoute: typeof ApiPublicApproveUserRoute
@@ -3928,6 +3942,13 @@ declare module '@tanstack/react-router' {
       path: '/api/monitoring/health'
       fullPath: '/api/monitoring/health'
       preLoaderRoute: typeof ApiMonitoringHealthRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/monitoring/client-error': {
+      id: '/api/monitoring/client-error'
+      path: '/api/monitoring/client-error'
+      fullPath: '/api/monitoring/client-error'
+      preLoaderRoute: typeof ApiMonitoringClientErrorRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/dashboard/live-calls-sse': {
@@ -5885,6 +5906,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiBuilderScanPdfRoute: ApiBuilderScanPdfRoute,
   ApiBuilderScriptTemplateRoute: ApiBuilderScriptTemplateRoute,
   ApiDashboardLiveCallsSseRoute: ApiDashboardLiveCallsSseRoute,
+  ApiMonitoringClientErrorRoute: ApiMonitoringClientErrorRoute,
   ApiMonitoringHealthRoute: ApiMonitoringHealthRoute,
   ApiPublicAdsSyncRoute: ApiPublicAdsSyncRoute,
   ApiPublicApproveUserRoute: ApiPublicApproveUserRoute,

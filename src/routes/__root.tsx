@@ -50,8 +50,28 @@ function autoReloadOnce(): boolean {
   return false;
 }
 
+function reportClientError(error: Error) {
+  try {
+    const key = "client-error-reported-ts";
+    const last = parseInt(sessionStorage.getItem(key) || "0", 10);
+    if (Date.now() - last < 5000) return;
+    sessionStorage.setItem(key, String(Date.now()));
+    fetch("/api/monitoring/client-error", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        message: error?.message ?? String(error),
+        stack: (error as any)?.stack ?? "",
+        url: window.location.href,
+      }),
+      keepalive: true,
+    }).catch(() => {});
+  } catch {}
+}
+
 function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
   console.error(error);
+  if (typeof window !== "undefined") reportClientError(error);
 
   // IMPORTANT: no hooks in this component. It renders in error-recovery
   // contexts where React hooks can be invalid ("Invalid hook call") — a hook
