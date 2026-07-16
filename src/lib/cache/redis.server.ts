@@ -19,13 +19,16 @@ let _redis: any = null;
 let _initialized = false;
 let _initPromise: Promise<any | null> | null = null;
 
-// Secrets are sometimes pasted with the variable name and/or quotes included
-// (e.g. the value is literally `UPSTASH_REDIS_REST_URL="https://..."`), which
-// silently disables caching in prod. Strip those artifacts defensively.
+// Secrets are sometimes pasted with variable names, quotes, or even the whole
+// multi-line .env block included (verified in this project: the TOKEN secret
+// contained `UPSTASH_REDIS_REST_URL="..." UPSTASH_REDIS_REST_TOKEN="..."`).
+// Extract the value anchored to the requested name if present; otherwise
+// strip surrounding quotes.
 function cleanEnvValue(name: string): string | undefined {
   let v = process.env[name]?.trim();
   if (!v) return undefined;
-  if (v.startsWith(`${name}=`)) v = v.slice(name.length + 1).trim();
+  const anchored = new RegExp(`${name}\\s*=\\s*("([^"]*)"|'([^']*)'|(\\S+))`).exec(v);
+  if (anchored) v = (anchored[2] ?? anchored[3] ?? anchored[4] ?? "").trim();
   if (
     (v.startsWith('"') && v.endsWith('"')) ||
     (v.startsWith("'") && v.endsWith("'"))
@@ -74,6 +77,27 @@ async function getRedis(): Promise<any | null> {
 /**
  * Read a value from Redis. Returns null on miss or when Redis is unavailable.
  */
+// If Upstash rejects our credentials (WRONGPASS / unauthorized), every cache
+// call is a guaranteed-failing HTTP round trip that only adds latency. Disable
+// the client for the rest of the process lifetime and log once.
+let _authFailureLogged = false;
+function disableOnAuthError(e: any): boolean {
+  const msg = String(e?.message ?? e ?? "");
+  if (/WRONGPASS|unauthorized|invalid or missing auth token/i.test(msg)) {
+    _redis = null;
+    if (!_authFailureLogged) {
+      _authFailureLogged = true;
+      console.error(
+        "[cache] Upstash rejected the credentials (WRONGPASS). Caching DISABLED for this process. " +
+        "Fix: re-enter UPSTASH_REDIS_REST_URL and UPSTASH_REDIS_REST_TOKEN in deployment secrets " +
+        "(values only — no variable name, no quotes) from the same Upstash database, then republish.",
+      );
+    }
+    return true;
+  }
+  return false;
+}
+
 export async function cacheGet<T>(key: string): Promise<T | null> {
   const redis = await getRedis();
   if (!redis) return null;
@@ -82,7 +106,7 @@ export async function cacheGet<T>(key: string): Promise<T | null> {
     if (val === null || val === undefined) return null;
     return val as T;
   } catch (e) {
-    console.warn("[cache] cacheGet error:", key, e);
+    if (!disableOnAuthError(e)) console.warn("[cache] cacheGet error:", key, e);
     return null;
   }
 }
@@ -144,6 +168,7 @@ export async function cacheSet(key: string, ttlSeconds: number, value: unknown):
   try {
     await redis.set(key, value, { ex: ttlSeconds });
   } catch (e: any) {
+    if (disableOnAuthError(e)) return;
     console.error(`[redis] SET FAILED key=${key} bytes=${size} sizeMB=${mb(size)} msg=${e?.message}`);
     if (e?.stack) console.error(e.stack);
   }
@@ -168,7 +193,7 @@ export async function cacheDel(...keys: string[]): Promise<void> {
       }
     }
   } catch (e) {
-    console.warn("[cache] cacheDel error:", keys, e);
+    if (!disableOnAuthError(e)) console.warn("[cache] cacheDel error:", keys, e);
   }
 }
 
