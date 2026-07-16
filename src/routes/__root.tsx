@@ -3,11 +3,9 @@ import {
   Outlet,
   Link,
   createRootRouteWithContext,
-  useRouter,
   HeadContent,
   Scripts,
 } from "@tanstack/react-router";
-import { useEffect } from "react";
 import { Toaster } from "@/components/ui/sonner";
 
 import appCss from "../styles.css?url";
@@ -54,21 +52,33 @@ function autoReloadOnce(): boolean {
 
 function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
   console.error(error);
-  const router = useRouter();
 
-  // Stale-deploy errors: hard-reload once so the browser picks up the fresh
-  // build instead of showing a dead error page after every republish.
+  // IMPORTANT: no hooks in this component. It renders in error-recovery
+  // contexts where React hooks can be invalid ("Invalid hook call") — a hook
+  // here would crash the error page itself and kill the auto-reload.
   const msg = `${error?.message ?? ""} ${(error as any)?.stack ?? ""}`;
   const isStale = typeof window !== "undefined" && STALE_BUILD_RE.test(msg);
-  useEffect(() => {
-    if (isStale) autoReloadOnce();
-  }, [isStale]);
-  if (isStale) {
-    return (
-      <div className="flex min-h-screen items-center justify-center bg-background px-4">
-        <p className="text-sm text-muted-foreground">Updating to the latest version…</p>
-      </div>
-    );
+
+  // Any render/route error gets ONE automatic hard reload (20s guard in
+  // autoReloadOnce). Stale-deploy errors are always fixed by this; transient
+  // hydration/render errors usually are too. If it recurs within 20s we fall
+  // through and show the error screen with diagnostics.
+  if (typeof window !== "undefined") {
+    const k = "chunk-autoreload-ts";
+    let last = 0;
+    try {
+      last = parseInt(sessionStorage.getItem(k) || "0", 10);
+    } catch {}
+    if (Date.now() - last > 20000) {
+      setTimeout(() => autoReloadOnce(), 250);
+      return (
+        <div className="flex min-h-screen items-center justify-center bg-background px-4">
+          <p className="text-sm text-muted-foreground">
+            {isStale ? "Updating to the latest version…" : "Reloading…"}
+          </p>
+        </div>
+      );
+    }
   }
 
   return (
@@ -80,16 +90,19 @@ function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
         <p className="mt-2 text-sm text-muted-foreground">
           Something went wrong on our end. You can try refreshing or head back home.
         </p>
+        {error?.message ? (
+          <p className="mt-3 break-words rounded-md bg-muted px-3 py-2 text-left text-xs text-muted-foreground">
+            {String(error.message).slice(0, 300)}
+          </p>
+        ) : null}
         <div className="mt-6 flex flex-wrap justify-center gap-2">
           <button
             onClick={() => {
-              // Full reload — router.invalidate()+reset() re-runs the SAME
-              // (possibly stale) client code and just fails again after a
-              // republish. A hard reload always fetches the current build.
+              // Full reload — anything else re-runs the SAME (possibly stale)
+              // client code and just fails again after a republish.
               try {
                 window.location.reload();
               } catch {
-                router.invalidate();
                 reset();
               }
             }}
