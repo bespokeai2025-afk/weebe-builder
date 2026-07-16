@@ -22,3 +22,11 @@ description: Per-campaign attribution + automatic start/finish emailed reports f
 - Dev tick loads the module via `server.ssrLoadModule(...)` in campaign-scheduler.plugin —
   plain imports from vite-config context can't resolve `@/` aliases.
 - Verified live 2026-07-16: 9 AM + 11 AM runs auto-detected, finished, and emailed.
+
+**Report setup area (client email preferences):** start/finish email prefs live as
+analytics_report_schedules rows of type wbah_campaign_start / wbah_campaign_end — preference-only,
+event-driven. The periodic sweep (report-schedule-tick EVENT_REPORT_TYPES) must never generate them;
+only the campaign run tick reads them at send time. Resolution: exact-kind row wins (disabled = report
+recorded but not emailed); no row → fall back to enabled wbah_dialler_summary recipients. Row selection
+is NEWEST-first (created_at desc) on BOTH the sender and the Reports-tab UI so duplicates can't make the
+UI edit one row while emails follow another.

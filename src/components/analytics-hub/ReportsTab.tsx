@@ -1,9 +1,9 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
 import {
-  FileText, Plus, Send, Eye, Trash2, Clock, X, Search,
+  FileText, Plus, Send, Eye, Trash2, Clock, X, Search, Settings2,
 } from "lucide-react";
 import {
   listAnalyticsReports, getAnalyticsReport, generateReportNow, sendReport,
@@ -129,6 +129,17 @@ export function ReportsTab({
 
   return (
     <div className="space-y-5 px-6 pt-5">
+      {isWbah && (
+        <DiallerReportSetup
+          schedules={schedules}
+          loading={schedQ.isLoading}
+          canSchedule={canSchedule}
+          onCreate={(v: any) => createSchedMut.mutate(v)}
+          onUpdate={(v: any) => updateSchedMut.mutate(v)}
+          pending={createSchedMut.isPending || updateSchedMut.isPending}
+        />
+      )}
+
       {/* Controls */}
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex flex-wrap items-center gap-2">
@@ -256,6 +267,236 @@ export function ReportsTab({
       {viewId && <ReportViewModal q={viewQ} onClose={() => setViewId(null)} />}
       {showGen && <GenerateModal reportTypes={reportTypes} onClose={() => setShowGen(false)} onSubmit={(v) => genMut.mutate({ ...v, ...filterPayload(filter) })} pending={genMut.isPending} />}
       {showSched && <ScheduleModal reportTypes={reportTypes} onClose={() => setShowSched(false)} onSubmit={(v) => createSchedMut.mutate(v)} pending={createSchedMut.isPending} />}
+    </div>
+  );
+}
+
+/**
+ * WBAH-only setup card: tailor which automatic dialler reports get emailed and
+ * to whom. Campaign start/finish preferences are stored as schedule rows of
+ * type wbah_campaign_start / wbah_campaign_end (event-driven — the periodic
+ * schedule sweep skips them; the campaign run tick reads them). The recurring
+ * summary row (wbah_dialler_summary) is managed here too (daily or weekly).
+ */
+function DiallerReportSetup({
+  schedules,
+  loading,
+  canSchedule,
+  onCreate,
+  onUpdate,
+  pending,
+}: {
+  schedules: any[];
+  loading: boolean;
+  canSchedule: boolean;
+  onCreate: (v: any) => void;
+  onUpdate: (v: any) => void;
+  pending: boolean;
+}) {
+  const startRow = schedules.find((s) => s.report_type === "wbah_campaign_start") ?? null;
+  const endRow = schedules.find((s) => s.report_type === "wbah_campaign_end") ?? null;
+  const summaryRow = schedules.find((s) => s.report_type === "wbah_dialler_summary") ?? null;
+  const fallbackRecipients: string[] = Array.isArray(summaryRow?.recipients_json) ? summaryRow.recipients_json : [];
+
+  return (
+    <ChartCard title="Dialler Report Setup" icon={Settings2} color={CHART.accent}>
+      {loading ? (
+        <LoadingProgress label="Loading report settings" estimatedMs={4000} />
+      ) : (
+        <div className="space-y-4">
+          <p className="text-xs text-muted-foreground">
+            Choose which dialler campaign reports are emailed automatically, and to whom. Campaign start and finish emails are sent the moment a scheduled dialler run begins or completes.
+          </p>
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+            <EventPrefTile
+              label="When a campaign starts"
+              description="A short heads-up email when a scheduled dialler run begins."
+              row={startRow}
+              reportType="wbah_campaign_start"
+              defaultName="Campaign start email"
+              fallbackRecipients={fallbackRecipients}
+              canSchedule={canSchedule}
+              onCreate={onCreate}
+              onUpdate={onUpdate}
+              pending={pending}
+            />
+            <EventPrefTile
+              label="When a campaign finishes"
+              description="Full KPI report emailed as soon as a run completes."
+              row={endRow}
+              reportType="wbah_campaign_end"
+              defaultName="Campaign finish email"
+              fallbackRecipients={fallbackRecipients}
+              canSchedule={canSchedule}
+              onCreate={onCreate}
+              onUpdate={onUpdate}
+              pending={pending}
+            />
+            <SummaryPrefTile
+              row={summaryRow}
+              canSchedule={canSchedule}
+              onCreate={onCreate}
+              onUpdate={onUpdate}
+              pending={pending}
+            />
+          </div>
+        </div>
+      )}
+    </ChartCard>
+  );
+}
+
+function PrefToggle({ on, disabled, onClick }: { on: boolean; disabled: boolean; onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      disabled={disabled}
+      onClick={onClick}
+      className={`relative h-5 w-9 shrink-0 rounded-full transition-colors disabled:opacity-50 ${on ? "bg-primary" : "bg-white/[0.12]"}`}
+      aria-pressed={on}
+    >
+      <span className={`absolute top-0.5 h-4 w-4 rounded-full bg-white transition-all ${on ? "left-[18px]" : "left-0.5"}`} />
+    </button>
+  );
+}
+
+function RecipientsEditor({
+  value,
+  placeholder,
+  disabled,
+  onSave,
+  pending,
+}: {
+  value: string[];
+  placeholder: string;
+  disabled: boolean;
+  onSave: (recipients: string[]) => void;
+  pending: boolean;
+}) {
+  const [text, setText] = useState(value.join(", "));
+  useEffect(() => { setText(value.join(", ")); }, [value.join(",")]);
+  const parsed = useMemo(() => text.split(",").map((s) => s.trim()).filter(Boolean), [text]);
+  const dirty = parsed.join(",") !== value.join(",");
+  return (
+    <div className="space-y-1.5">
+      <input
+        value={text}
+        onChange={(e) => setText(e.target.value)}
+        placeholder={placeholder}
+        disabled={disabled}
+        className="w-full rounded-lg border border-white/[0.1] bg-card/60 px-2.5 py-1.5 text-xs disabled:opacity-50"
+      />
+      {dirty && !disabled && (
+        <Button size="sm" variant="outline" className="h-6 px-2 text-[11px]" disabled={pending} onClick={() => onSave(parsed)}>
+          {pending ? "Saving…" : "Save recipients"}
+        </Button>
+      )}
+    </div>
+  );
+}
+
+function EventPrefTile({
+  label, description, row, reportType, defaultName, fallbackRecipients,
+  canSchedule, onCreate, onUpdate, pending,
+}: {
+  label: string;
+  description: string;
+  row: any | null;
+  reportType: string;
+  defaultName: string;
+  fallbackRecipients: string[];
+  canSchedule: boolean;
+  onCreate: (v: any) => void;
+  onUpdate: (v: any) => void;
+  pending: boolean;
+}) {
+  // No row yet = emails ON by default (they go to the daily summary recipients).
+  const enabled = row ? !!row.enabled : true;
+  const recipients: string[] = row && Array.isArray(row.recipients_json) ? row.recipients_json : [];
+  const ensureRow = (patch: { enabled?: boolean; recipients?: string[] }) => {
+    if (row) onUpdate({ id: row.id, ...patch });
+    else {
+      onCreate({
+        reportType,
+        name: defaultName,
+        frequency: "custom",
+        scheduleConfig: { event: true },
+        recipients: patch.recipients ?? fallbackRecipients,
+        enabled: patch.enabled ?? true,
+      });
+    }
+  };
+  return (
+    <div className="rounded-xl border border-white/[0.08] bg-card/40 p-3.5">
+      <div className="mb-1.5 flex items-center justify-between gap-2">
+        <span className="text-sm font-medium">{label}</span>
+        <PrefToggle on={enabled} disabled={!canSchedule || pending} onClick={() => ensureRow({ enabled: !enabled })} />
+      </div>
+      <p className="mb-2.5 text-[11px] leading-snug text-muted-foreground">{description}</p>
+      <RecipientsEditor
+        value={recipients}
+        placeholder={fallbackRecipients.length > 0 ? `Default: ${fallbackRecipients.join(", ")}` : "email@example.com"}
+        disabled={!canSchedule}
+        onSave={(r) => ensureRow({ recipients: r, enabled })}
+        pending={pending}
+      />
+      {!row && recipients.length === 0 && fallbackRecipients.length > 0 && (
+        <p className="mt-1.5 text-[11px] text-muted-foreground">Currently sent to the daily summary recipients.</p>
+      )}
+    </div>
+  );
+}
+
+function SummaryPrefTile({
+  row, canSchedule, onCreate, onUpdate, pending,
+}: {
+  row: any | null;
+  canSchedule: boolean;
+  onCreate: (v: any) => void;
+  onUpdate: (v: any) => void;
+  pending: boolean;
+}) {
+  const enabled = row ? !!row.enabled : false;
+  const frequency = row?.frequency === "weekly" ? "weekly" : "daily";
+  const recipients: string[] = row && Array.isArray(row.recipients_json) ? row.recipients_json : [];
+  const ensureRow = (patch: { enabled?: boolean; recipients?: string[]; frequency?: string }) => {
+    if (row) onUpdate({ id: row.id, ...patch });
+    else {
+      onCreate({
+        reportType: "wbah_dialler_summary",
+        name: "Dialler Success & KPIs",
+        frequency: patch.frequency ?? "daily",
+        recipients: patch.recipients ?? [],
+        enabled: patch.enabled ?? true,
+      });
+    }
+  };
+  return (
+    <div className="rounded-xl border border-white/[0.08] bg-card/40 p-3.5">
+      <div className="mb-1.5 flex items-center justify-between gap-2">
+        <span className="text-sm font-medium">Recurring summary</span>
+        <PrefToggle on={enabled} disabled={!canSchedule || pending} onClick={() => ensureRow({ enabled: !enabled })} />
+      </div>
+      <p className="mb-2.5 text-[11px] leading-snug text-muted-foreground">Dialler Success &amp; KPIs report, sent on a schedule.</p>
+      <div className="mb-2 flex items-center gap-2">
+        <span className="text-[11px] text-muted-foreground">Send</span>
+        <select
+          value={frequency}
+          disabled={!canSchedule || pending}
+          onChange={(e) => ensureRow({ frequency: e.target.value })}
+          className="rounded-lg border border-white/[0.1] bg-card/60 px-2 py-1 text-xs capitalize disabled:opacity-50"
+        >
+          <option value="daily">Daily</option>
+          <option value="weekly">Weekly</option>
+        </select>
+      </div>
+      <RecipientsEditor
+        value={recipients}
+        placeholder="email@example.com"
+        disabled={!canSchedule}
+        onSave={(r) => ensureRow({ recipients: r, enabled })}
+        pending={pending}
+      />
     </div>
   );
 }

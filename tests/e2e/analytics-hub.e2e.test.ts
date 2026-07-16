@@ -172,6 +172,14 @@ describe("schedule due logic", () => {
     expect(isDue(ran, at("2026-07-16T06:01:00Z"))).toBe(true);
   });
 
+  it("event report kinds (campaign start/end prefs) are never due in the sweep", () => {
+    const base = { frequency: "custom", schedule_config_json: { intervalHours: 1 }, last_run_at: null };
+    expect(isDue({ ...base, report_type: "wbah_campaign_start" }, new Date())).toBe(false);
+    expect(isDue({ ...base, report_type: "wbah_campaign_end" }, new Date())).toBe(false);
+    // sanity: same shape without an event kind IS due
+    expect(isDue({ ...base, report_type: "wbah_dialler_summary" }, new Date())).toBe(true);
+  });
+
   it("unknown frequency is never due", () => {
     expect(isDue({ frequency: "hourly", schedule_config_json: {} }, new Date())).toBe(false);
   });

@@ -177,23 +177,62 @@ export interface WbahCampaignRunTickResult {
   errors: number;
 }
 
-async function getReportRecipients(sb: Sb): Promise<{ recipients: string[]; actingUserId: string | null }> {
+interface EmailPrefs {
+  recipients: string[];
+  actingUserId: string | null;
+  /** true when a preference row for this exact kind exists but is disabled. */
+  muted: boolean;
+}
+
+/**
+ * Per-kind email preferences for auto campaign reports, configurable from the
+ * Reports tab "Dialler Report Setup" card:
+ * - A schedule row for the exact kind (wbah_campaign_start / wbah_campaign_end)
+ *   wins: disabled row = report still recorded in-app but NOT emailed; enabled
+ *   row = email its recipients_json.
+ * - No row for the kind → fall back to the enabled wbah_dialler_summary
+ *   schedule's recipients (original behavior).
+ *
+ * Row selection is NEWEST-first (created_at desc) to match the Reports tab UI,
+ * which lists schedules newest-first and edits the first match — so if
+ * duplicate rows ever exist for a type, the row the client sees/edits is the
+ * row that governs emails.
+ */
+async function getReportRecipients(
+  sb: Sb,
+  kind: "wbah_campaign_start" | "wbah_campaign_end",
+): Promise<EmailPrefs> {
   try {
+    const { data: own } = await sb
+      .from("analytics_report_schedules")
+      .select("recipients_json, created_by_user_id, enabled")
+      .eq("workspace_id", WBAH_WORKSPACE_ID)
+      .eq("report_type", kind)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (own) {
+      if (!own.enabled) return { recipients: [], actingUserId: null, muted: true };
+      const recipients = Array.isArray(own.recipients_json)
+        ? own.recipients_json.map((r: any) => String(r)).filter(Boolean)
+        : [];
+      return { recipients, actingUserId: own.created_by_user_id ?? null, muted: false };
+    }
     const { data } = await sb
       .from("analytics_report_schedules")
       .select("recipients_json, created_by_user_id")
       .eq("workspace_id", WBAH_WORKSPACE_ID)
       .eq("report_type", "wbah_dialler_summary")
       .eq("enabled", true)
-      .order("created_at", { ascending: true })
+      .order("created_at", { ascending: false })
       .limit(1)
       .maybeSingle();
     const recipients = Array.isArray(data?.recipients_json)
       ? data.recipients_json.map((r: any) => String(r)).filter(Boolean)
       : [];
-    return { recipients, actingUserId: data?.created_by_user_id ?? null };
+    return { recipients, actingUserId: data?.created_by_user_id ?? null, muted: false };
   } catch {
-    return { recipients: [], actingUserId: null };
+    return { recipients: [], actingUserId: null, muted: false };
   }
 }
 
@@ -252,8 +291,12 @@ export async function runWbahCampaignRunTick(): Promise<WbahCampaignRunTickResul
 
     const { generateAnalyticsReport } = await import("@/lib/analytics-hub/report-generator.server");
     const { sendAnalyticsReportEmail } = await import("@/lib/analytics-hub/report-email.server");
-    let recipientsPromise: Promise<{ recipients: string[]; actingUserId: string | null }> | null = null;
-    const getRecipients = () => (recipientsPromise ??= getReportRecipients(sb));
+    const prefsCache = new Map<string, Promise<EmailPrefs>>();
+    const getRecipients = (kind: "wbah_campaign_start" | "wbah_campaign_end") => {
+      let p = prefsCache.get(kind);
+      if (!p) { p = getReportRecipients(sb, kind); prefsCache.set(kind, p); }
+      return p;
+    };
 
     // ── 1. Start detection: window opened, no run row yet ────────────────────
     for (const c of campaigns) {
@@ -316,7 +359,7 @@ export async function runWbahCampaignRunTick(): Promise<WbahCampaignRunTickResul
             .from("wbah_campaign_runs")
             .update({ start_report_id: reportId, updated_at: new Date().toISOString() })
             .eq("id", run.id);
-          const { recipients, actingUserId } = await getRecipients();
+          const { recipients, actingUserId } = await getRecipients("wbah_campaign_start");
           if (recipients.length > 0) {
             await sendAnalyticsReportEmail(reportId, recipients, { actingUserId });
           }
@@ -412,7 +455,7 @@ export async function runWbahCampaignRunTick(): Promise<WbahCampaignRunTickResul
             .from("wbah_campaign_runs")
             .update({ end_report_id: reportId, updated_at: new Date().toISOString() })
             .eq("id", run.id);
-          const { recipients, actingUserId } = await getRecipients();
+          const { recipients, actingUserId } = await getRecipients("wbah_campaign_end");
           if (recipients.length > 0) {
             await sendAnalyticsReportEmail(reportId, recipients, { actingUserId });
           }
