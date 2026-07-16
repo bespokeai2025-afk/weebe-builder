@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
   RefreshCw, TrendingUp, TrendingDown, AlertTriangle,
-  ChevronLeft, BarChart3, Mic, Brain, Phone, MessageSquare, Mail, Video, Image, HardDrive,
+  ChevronLeft, BarChart3, Mic, Brain, Phone, MessageSquare, Mail, Video, Image, HardDrive, Receipt,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -90,6 +90,12 @@ export function AccountsMindClientDetail({ workspaceId }: Props) {
           <h1 className="text-xl font-bold text-white">{ws?.name ?? "Client"}</h1>
           <p className="text-xs text-gray-500">Workspace ID: {workspaceId}</p>
         </div>
+        <Link
+          to="/admin/accounts/invoices"
+          className="inline-flex items-center gap-1.5 h-8 px-3 rounded-md text-sm text-sky-300 border border-sky-800/60 hover:bg-sky-900/30"
+        >
+          <Receipt className="w-3.5 h-3.5" /> Generate invoice
+        </Link>
         <Button
           size="sm"
           onClick={() => compute.mutate()}

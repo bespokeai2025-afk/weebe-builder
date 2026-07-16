@@ -217,6 +217,11 @@ export function AccountsMindInvoices() {
               <option value="">Select template…</option>
               {templates.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
             </select>
+            {templates.length === 0 && (
+              <p className="text-[11px] text-amber-400">
+                No templates yet — upload a .docx template in the “Invoice templates” section above first.
+              </p>
+            )}
           </div>
           <div className="space-y-1">
             <label className="text-xs text-slate-400">Client</label>
