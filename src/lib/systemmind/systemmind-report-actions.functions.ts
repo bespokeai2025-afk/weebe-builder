@@ -86,6 +86,68 @@ export const systemMindGenerateReport = createServerFn({ method: "POST" })
     return { ok: true as const, reportId };
   });
 
+// ── setup_campaign_report_schedule ───────────────────────────────────────────
+/**
+ * Set up the automated "campaign success + KPI report, emailed daily" schedule
+ * for the current workspace. Idempotent — reuses an existing enabled schedule.
+ * WBAH gets the dialler summary; every other workspace gets the daily campaign
+ * summary. Recipients default to the workspace owner + admin emails.
+ */
+export const systemMindSetupCampaignReportSchedule = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) =>
+    z
+      .object({
+        recipients: z.array(z.string().email()).max(50).nullish(),
+        frequency: z.enum(["daily", "weekly", "monthly"]).nullish(),
+        hour: z.number().int().min(0).max(23).nullish(),
+      })
+      .parse(input ?? {}),
+  )
+  .handler(async ({ data, context }) => {
+    {
+      const { requireSystemMindEdit } = await import(
+        "@/lib/systemmind/systemmind-access.server"
+      );
+      await requireSystemMindEdit(context.workspaceId, context.userId);
+    }
+    const workspaceId = requireWorkspaceId(context.workspaceId);
+
+    const { requireFeatureAccess } = await import("@/lib/packages/entitlements.server");
+    await requireFeatureAccess(workspaceId, context.userId ?? null, "analytics_scheduled_reports");
+    const { requireAction } = await import("@/lib/permissions/permissions.server");
+    await requireAction(workspaceId, context.userId ?? null, "notification_settings");
+
+    const { ensureAutomatedCampaignReportSchedule } = await import(
+      "@/lib/analytics-hub/report-schedule-setup.server"
+    );
+    const result = await ensureAutomatedCampaignReportSchedule(workspaceId, {
+      recipients: data.recipients ?? undefined,
+      frequency: data.frequency ?? undefined,
+      hour: data.hour ?? undefined,
+      createdByUserId: context.userId ?? null,
+    });
+    if (!result.ok) return { ok: false as const, error: result.error ?? "setup_failed" };
+
+    const { writeAccessAudit } = await import("@/lib/permissions/permissions.server");
+    writeAccessAudit({
+      workspaceId,
+      actingUserId: context.userId ?? null,
+      objectType: "analytics_report_schedule",
+      objectId: result.scheduleId,
+      actionType: result.created ? "schedule_created" : "schedule_reused",
+      afterState: { reportType: result.reportType, recipients: result.recipients.length, via: "systemmind" },
+      riskLevel: "low",
+    });
+    return {
+      ok: true as const,
+      created: result.created,
+      scheduleId: result.scheduleId,
+      reportType: result.reportType,
+      recipients: result.recipients,
+    };
+  });
+
 // ── explain_report ────────────────────────────────────────────────────────────
 export const systemMindExplainReport = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])

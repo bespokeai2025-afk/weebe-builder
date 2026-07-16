@@ -122,7 +122,12 @@ export async function processAnalyticsReportSchedules(): Promise<ScheduleTickRes
           generatedBy: "system",
         });
 
-        if (reportId && recipients.length > 0) {
+        if (!reportId) {
+          // Generation refused or failed (generateAnalyticsReport never throws).
+          // Surface it instead of silently marking the run successful.
+          throw new Error("report_generation_failed_or_disallowed");
+        }
+        if (recipients.length > 0) {
           await sendAnalyticsReportEmail(reportId, recipients, {
             actingUserId: schedule.created_by_user_id ?? null,
           });

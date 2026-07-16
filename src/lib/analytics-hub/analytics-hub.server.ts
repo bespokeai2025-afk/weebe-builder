@@ -160,7 +160,7 @@ async function fetchWbahCalls(sb: Sb, workspaceId: string, range: ResolvedRange)
  * wbah_calls (WBAH has no WEBEE campaigns). Paged fetch (wbah_calls exceeds
  * PostgREST's 1000-row cap for a 30d window) with a hard page cap.
  */
-async function getWbahDiallerAnalytics(sb: Sb, workspaceId: string, range: ResolvedRange) {
+export async function getWbahDiallerAnalytics(sb: Sb, workspaceId: string, range: ResolvedRange) {
   const PAGE = 1000;
   const MAX_PAGES = 25;
   const rows: any[] = [];

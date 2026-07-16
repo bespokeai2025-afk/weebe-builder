@@ -28,6 +28,7 @@ const REPORT_TYPES: Array<{ key: string; label: string }> = [
   { key: "workflow_failure",       label: "Workflow Failures" },
   { key: "follow_up_performance",  label: "Follow-up Performance" },
   { key: "accountsmind_cost",      label: "Cost / AccountsMind" },
+  { key: "wbah_dialler_summary",   label: "Dialler Success & KPIs" },
 ];
 const TYPE_LABEL: Record<string, string> = Object.fromEntries(REPORT_TYPES.map((t) => [t.key, t.label]));
 
@@ -38,12 +39,18 @@ export function ReportsTab({
   canGenerate,
   canSchedule,
   canEmail,
+  isWbah = false,
 }: {
   filter: AnalyticsFilterState;
   canGenerate: boolean;
   canSchedule: boolean;
   canEmail: boolean;
+  isWbah?: boolean;
 }) {
+  const reportTypes = useMemo(
+    () => REPORT_TYPES.filter((t) => (t.key === "wbah_dialler_summary" ? isWbah : true)),
+    [isWbah],
+  );
   const qc = useQueryClient();
   const listFn = useServerFn(listAnalyticsReports);
   const getFn = useServerFn(getAnalyticsReport);
@@ -131,7 +138,7 @@ export function ReportsTab({
             className="rounded-lg border border-white/[0.1] bg-card/60 px-2.5 py-1.5 text-sm text-foreground"
           >
             <option value="">All types</option>
-            {REPORT_TYPES.map((t) => <option key={t.key} value={t.key}>{t.label}</option>)}
+            {reportTypes.map((t) => <option key={t.key} value={t.key}>{t.label}</option>)}
           </select>
         </div>
         <div className="flex gap-2">
@@ -238,8 +245,8 @@ export function ReportsTab({
       </ChartCard>
 
       {viewId && <ReportViewModal q={viewQ} onClose={() => setViewId(null)} />}
-      {showGen && <GenerateModal onClose={() => setShowGen(false)} onSubmit={(v) => genMut.mutate({ ...v, ...filterPayload(filter) })} pending={genMut.isPending} />}
-      {showSched && <ScheduleModal onClose={() => setShowSched(false)} onSubmit={(v) => createSchedMut.mutate(v)} pending={createSchedMut.isPending} />}
+      {showGen && <GenerateModal reportTypes={reportTypes} onClose={() => setShowGen(false)} onSubmit={(v) => genMut.mutate({ ...v, ...filterPayload(filter) })} pending={genMut.isPending} />}
+      {showSched && <ScheduleModal reportTypes={reportTypes} onClose={() => setShowSched(false)} onSubmit={(v) => createSchedMut.mutate(v)} pending={createSchedMut.isPending} />}
     </div>
   );
 }
@@ -301,8 +308,8 @@ function ReportViewModal({ q, onClose }: { q: any; onClose: () => void }) {
   );
 }
 
-function GenerateModal({ onClose, onSubmit, pending }: { onClose: () => void; onSubmit: (v: any) => void; pending: boolean }) {
-  const [reportType, setReportType] = useState(REPORT_TYPES[0].key);
+function GenerateModal({ onClose, onSubmit, pending, reportTypes }: { onClose: () => void; onSubmit: (v: any) => void; pending: boolean; reportTypes: Array<{ key: string; label: string }> }) {
+  const [reportType, setReportType] = useState(reportTypes[0].key);
   const [name, setName] = useState("");
   return (
     <ModalShell title="Generate report" onClose={onClose}>
@@ -310,7 +317,7 @@ function GenerateModal({ onClose, onSubmit, pending }: { onClose: () => void; on
         <label className="block text-sm">
           <span className="mb-1 block text-xs font-medium text-muted-foreground">Report type</span>
           <select value={reportType} onChange={(e) => setReportType(e.target.value)} className="w-full rounded-lg border border-white/[0.1] bg-card/60 px-3 py-2 text-sm">
-            {REPORT_TYPES.map((t) => <option key={t.key} value={t.key}>{t.label}</option>)}
+            {reportTypes.map((t) => <option key={t.key} value={t.key}>{t.label}</option>)}
           </select>
         </label>
         <label className="block text-sm">
@@ -326,8 +333,8 @@ function GenerateModal({ onClose, onSubmit, pending }: { onClose: () => void; on
   );
 }
 
-function ScheduleModal({ onClose, onSubmit, pending }: { onClose: () => void; onSubmit: (v: any) => void; pending: boolean }) {
-  const [reportType, setReportType] = useState(REPORT_TYPES[0].key);
+function ScheduleModal({ onClose, onSubmit, pending, reportTypes }: { onClose: () => void; onSubmit: (v: any) => void; pending: boolean; reportTypes: Array<{ key: string; label: string }> }) {
+  const [reportType, setReportType] = useState(reportTypes[0].key);
   const [name, setName] = useState("");
   const [frequency, setFrequency] = useState<(typeof FREQUENCIES)[number]>("weekly");
   const [recipients, setRecipients] = useState("");
@@ -342,7 +349,7 @@ function ScheduleModal({ onClose, onSubmit, pending }: { onClose: () => void; on
         <label className="block text-sm">
           <span className="mb-1 block text-xs font-medium text-muted-foreground">Report type</span>
           <select value={reportType} onChange={(e) => setReportType(e.target.value)} className="w-full rounded-lg border border-white/[0.1] bg-card/60 px-3 py-2 text-sm">
-            {REPORT_TYPES.map((t) => <option key={t.key} value={t.key}>{t.label}</option>)}
+            {reportTypes.map((t) => <option key={t.key} value={t.key}>{t.label}</option>)}
           </select>
         </label>
         <label className="block text-sm">

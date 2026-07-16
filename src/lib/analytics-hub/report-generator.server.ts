@@ -33,7 +33,8 @@ export type AnalyticsReportType =
   | "accountsmind_cost"
   | "hivemind_briefing"
   | "growthmind_improvement"
-  | "systemmind_fix";
+  | "systemmind_fix"
+  | "wbah_dialler_summary";
 
 export const ANALYTICS_REPORT_TYPES: readonly AnalyticsReportType[] = [
   "campaign_launch",
@@ -51,6 +52,7 @@ export const ANALYTICS_REPORT_TYPES: readonly AnalyticsReportType[] = [
   "hivemind_briefing",
   "growthmind_improvement",
   "systemmind_fix",
+  "wbah_dialler_summary",
 ];
 
 /** Campaign-lifecycle report kinds — excluded for WBAH workspaces. */
@@ -396,6 +398,60 @@ async function buildReportContent(
       defaultName = "GrowthMind Campaign Improvement Report";
       summary = "Marketing / conversion improvement opportunities.";
       break;
+    case "wbah_dialler_summary": {
+      defaultName = "WBAH Dialler Summary";
+      summary = "WeeBespoke dialler activity — successful calls & KPIs.";
+      try {
+        const { getWbahDiallerAnalytics } = await import(
+          "@/lib/analytics-hub/analytics-hub.server"
+        );
+        const days = Math.max(
+          1,
+          Math.round((new Date(endIso).getTime() - new Date(startIso).getTime()) / 86_400_000),
+        );
+        const w: any = await getWbahDiallerAnalytics(sb, workspaceId, {
+          startIso,
+          endIso,
+          filter: args.dateFilter ?? "custom",
+          days,
+        } as any);
+        metrics.calls_dialled = w.total;
+        metrics.calls_connected = w.connected;
+        metrics.connection_rate_pct = w.connectionRate;
+        metrics.voicemail_hits = w.voicemail;
+        metrics.voicemail_rate_pct = w.voicemailRate;
+        metrics.booked = w.booked;
+        metrics.sentiment_positive = w.sentiment?.positive ?? 0;
+        metrics.sentiment_neutral = w.sentiment?.neutral ?? 0;
+        metrics.sentiment_negative = w.sentiment?.negative ?? 0;
+        metrics.converted_positive_leads = (w.converted ?? []).length;
+        if (w.truncated) metrics.data_truncated = true;
+        summary = `${w.total} calls dialled, ${w.connected} connected (${w.connectionRate}%), ${(w.converted ?? []).length} positive-sentiment leads, ${w.booked} booked, ${w.voicemail} voicemails.`;
+
+        for (const r of (w.reasons ?? []).slice(0, 5)) {
+          insights.push({
+            title: `Disconnection: ${String(r.reason).replace(/_/g, " ")}`,
+            detail: `${r.count} calls (${r.pct}% of dials).`,
+          });
+        }
+        for (const c of (w.converted ?? []).slice(0, 15)) {
+          insights.push({
+            title: `Converted lead: ${c.name}`,
+            detail: `${c.phone ?? "no phone"}${c.booked ? ` — BOOKED${c.appointmentDate ? ` (${c.appointmentDate})` : ""}` : ""}`,
+          });
+        }
+        const neg = Number(w.sentiment?.negative ?? 0);
+        if (neg > 0) {
+          recommendations.push({
+            action: "Review negative-sentiment calls",
+            detail: `${neg} call(s) ended with negative sentiment — check the Campaigns tab for the full list.`,
+          });
+        }
+      } catch (err: any) {
+        metrics.wbah_dialler_error = err?.message ?? "dialler aggregation unavailable";
+      }
+      break;
+    }
     case "systemmind_fix":
       defaultName = "SystemMind Fix Report";
       summary = "Detected issues and suggested fixes (drafts only).";
@@ -438,6 +494,10 @@ export async function generateAnalyticsReport(
     if (!args.workspaceId) return null;
     // WBAH isolation: campaign-lifecycle report kinds are refused for WBAH.
     if (isWbahWorkspaceId(args.workspaceId) && isCampaignLifecycleReportType(args.reportType)) {
+      return null;
+    }
+    // The WBAH dialler summary only makes sense for the WBAH workspace.
+    if (args.reportType === "wbah_dialler_summary" && !isWbahWorkspaceId(args.workspaceId)) {
       return null;
     }
     const sb = supabaseAdmin as any;

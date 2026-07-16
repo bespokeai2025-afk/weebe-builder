@@ -28,6 +28,7 @@ import {
   getAnalyticsSnapshotForExec,
 } from "@/lib/analytics-hub/analytics-hub.server";
 import { WBAH_WORKSPACE_ID } from "@/lib/wbah-exclusion.shared";
+import { ensureAutomatedCampaignReportSchedule } from "@/lib/analytics-hub/report-schedule-setup.server";
 import { invalidateEntitlementsCache } from "@/lib/packages/entitlements.server";
 
 const sb = supabaseAdmin as any;
@@ -288,5 +289,60 @@ describe("analytics aggregations (fail-closed, workspace-scoped)", () => {
     expect(Array.isArray(w.reasons)).toBe(true);
     expect(w.voicemail).toBeGreaterThanOrEqual(0);
     for (const c of w.converted) expect(String(c.id)).toBeTruthy();
+  });
+
+  it("wbah_dialler_summary report generates for WBAH with dialler metrics", async () => {
+    const id = await generateAnalyticsReport({
+      workspaceId: WBAH_WORKSPACE_ID,
+      reportType: "wbah_dialler_summary",
+      dateFilter: "7d",
+      generatedBy: "system",
+    });
+    expect(id).toBeTruthy();
+    const { data: row } = await sb
+      .from("analytics_reports")
+      .select("metrics_json, report_summary, report_name")
+      .eq("id", id)
+      .maybeSingle();
+    const m = row?.metrics_json ?? {};
+    expect(m.wbah_dialler_error).toBeUndefined();
+    expect(typeof m.calls_dialled).toBe("number");
+    expect(m.calls_dialled).toBeGreaterThan(0);
+    expect(typeof m.voicemail_hits).toBe("number");
+    expect(row.report_summary).toContain("dialled");
+    await sb.from("analytics_reports").delete().eq("id", id);
+  });
+
+  it("wbah_dialler_summary is refused for non-WBAH workspaces", async () => {
+    const id = await generateAnalyticsReport({
+      workspaceId: WS,
+      reportType: "wbah_dialler_summary",
+      dateFilter: "7d",
+    });
+    expect(id).toBeNull();
+  });
+
+  it("ensureAutomatedCampaignReportSchedule is idempotent and WBAH-aware", async () => {
+    // Standard workspace → daily_campaign_summary, explicit recipients.
+    const r1 = await ensureAutomatedCampaignReportSchedule(WS, {
+      recipients: ["e2e-anhub@example.com"],
+      createdByUserId: ownerUserId,
+    });
+    expect(r1.ok).toBe(true);
+    expect(r1.created).toBe(true);
+    expect(r1.reportType).toBe("daily_campaign_summary");
+    const r2 = await ensureAutomatedCampaignReportSchedule(WS, {
+      recipients: ["e2e-anhub@example.com"],
+    });
+    expect(r2.ok).toBe(true);
+    expect(r2.created).toBe(false);
+    expect(r2.scheduleId).toBe(r1.scheduleId);
+
+    // WBAH → wbah_dialler_summary; live schedule already exists → reused, never duplicated.
+    const rw = await ensureAutomatedCampaignReportSchedule(WBAH_WORKSPACE_ID, {});
+    expect(rw.ok).toBe(true);
+    expect(rw.created).toBe(false);
+    expect(rw.reportType).toBe("wbah_dialler_summary");
+    expect(rw.recipients.length).toBeGreaterThan(0);
   });
 });

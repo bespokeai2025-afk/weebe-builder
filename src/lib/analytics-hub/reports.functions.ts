@@ -18,6 +18,14 @@ import {
   type AnalyticsReportType,
 } from "./report-generator.server";
 import { sendAnalyticsReportEmail } from "./report-email.server";
+import { isWbahWorkspaceId } from "@/lib/wbah-exclusion.shared";
+
+/** wbah_dialler_summary is WBAH-only — reject at creation, not just generation. */
+function assertReportTypeAllowed(workspaceId: string, reportType: string): void {
+  if (reportType === "wbah_dialler_summary" && !isWbahWorkspaceId(workspaceId)) {
+    throw new Error("This report type is not available for this workspace.");
+  }
+}
 
 async function ctxWs(context: any): Promise<{ workspaceId: string; role: string; userId: string }> {
   const { supabase, workspaceId, userId } = context;
@@ -100,6 +108,7 @@ export const generateReportNow = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     const { workspaceId, userId } = await ctxWs(context);
     await requireFeatureAccess(workspaceId, userId, "analytics_campaign_reports");
+    assertReportTypeAllowed(workspaceId, data.reportType);
 
     const reportId = await generateAnalyticsReport({
       workspaceId,
@@ -193,6 +202,7 @@ export const createReportSchedule = createServerFn({ method: "POST" })
     const { workspaceId, userId } = await ctxWs(context);
     await requireFeatureAccess(workspaceId, userId, "analytics_scheduled_reports");
     await requireAction(workspaceId, userId, "notification_settings");
+    assertReportTypeAllowed(workspaceId, data.reportType);
 
     const { data: row, error } = await (supabaseAdmin as any)
       .from("analytics_report_schedules")

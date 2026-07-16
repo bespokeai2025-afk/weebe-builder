@@ -656,6 +656,7 @@ function AnalyticsPage() {
           canGenerate={has("analytics_campaign_reports")}
           canSchedule={has("analytics_scheduled_reports")}
           canEmail={has("automated_report_emails")}
+          isWbah={isWbah}
         />
       )}
 
