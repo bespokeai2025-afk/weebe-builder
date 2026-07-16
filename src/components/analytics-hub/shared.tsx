@@ -40,6 +40,9 @@ export interface AnalyticsFilterState {
   dateFilter: string;
   customStart: string | null;
   customEnd: string | null;
+  campaignId: string | null;
+  agentId: string | null;
+  source: string | null;
 }
 
 export const DATE_FILTERS: Array<{ key: string; label: string }> = [
@@ -58,16 +61,22 @@ export function filterPayload(f: AnalyticsFilterState) {
     dateFilter: f.dateFilter as import("@/lib/analytics-hub/analytics-hub.server").AnalyticsDateFilter,
     customStart: f.dateFilter === "custom" ? f.customStart : null,
     customEnd: f.dateFilter === "custom" ? f.customEnd : null,
+    campaignId: f.campaignId ?? null,
+    agentId: f.agentId ?? null,
+    source: f.source ?? null,
   };
 }
 
 /** Stable key fragment for react-query keys (includes the filter). */
 export function filterKey(f: AnalyticsFilterState) {
-  return `${f.dateFilter}:${f.customStart ?? ""}:${f.customEnd ?? ""}`;
+  return `${f.dateFilter}:${f.customStart ?? ""}:${f.customEnd ?? ""}:${f.campaignId ?? ""}:${f.agentId ?? ""}:${f.source ?? ""}`;
 }
 
 export function useAnalyticsFilter(initial = "30d") {
-  const [state, setState] = useState<AnalyticsFilterState>({ dateFilter: initial, customStart: null, customEnd: null });
+  const [state, setState] = useState<AnalyticsFilterState>({
+    dateFilter: initial, customStart: null, customEnd: null,
+    campaignId: null, agentId: null, source: null,
+  });
   return { state, setState };
 }
 
@@ -110,6 +119,78 @@ export function DateRangeControl({
           />
         </div>
       )}
+    </div>
+  );
+}
+
+// ── Shared compact FilterBar (agent / campaign / source + date range) ─────────
+export interface AnalyticsFilterOption { id: string; name: string }
+export interface AnalyticsFilterOptions {
+  agents: AnalyticsFilterOption[];
+  campaigns: AnalyticsFilterOption[];
+  sources: Array<{ value: string; label: string }>;
+}
+
+const SELECT_CLS =
+  "rounded-lg border border-white/[0.1] bg-card/60 px-2.5 py-1.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary/40";
+
+/** Which of the shared selects a tab actually honors server-side. */
+export interface FilterBarSupports { agent?: boolean; campaign?: boolean; source?: boolean }
+
+export function FilterBar({
+  value,
+  onChange,
+  options,
+  loading,
+  supports,
+}: {
+  value: AnalyticsFilterState;
+  onChange: (next: AnalyticsFilterState) => void;
+  options?: AnalyticsFilterOptions | null;
+  loading?: boolean;
+  /** Only render selects the current tab honors server-side (default: all). */
+  supports?: FilterBarSupports;
+}) {
+  const agents = options?.agents ?? [];
+  const campaigns = options?.campaigns ?? [];
+  const sources = options?.sources ?? [];
+  const show = { agent: supports?.agent !== false, campaign: supports?.campaign !== false, source: supports?.source !== false };
+  return (
+    <div className="flex flex-wrap items-center justify-end gap-2">
+      {show.agent && (
+        <select
+          className={SELECT_CLS}
+          value={value.agentId ?? ""}
+          disabled={loading}
+          onChange={(e) => onChange({ ...value, agentId: e.target.value || null })}
+        >
+          <option value="">All agents</option>
+          {agents.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
+        </select>
+      )}
+      {show.campaign && (
+        <select
+          className={SELECT_CLS}
+          value={value.campaignId ?? ""}
+          disabled={loading}
+          onChange={(e) => onChange({ ...value, campaignId: e.target.value || null })}
+        >
+          <option value="">All campaigns</option>
+          {campaigns.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+        </select>
+      )}
+      {show.source && (
+        <select
+          className={SELECT_CLS}
+          value={value.source ?? ""}
+          disabled={loading}
+          onChange={(e) => onChange({ ...value, source: e.target.value || null })}
+        >
+          <option value="">All sources</option>
+          {sources.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
+        </select>
+      )}
+      <DateRangeControl value={value} onChange={onChange} />
     </div>
   );
 }

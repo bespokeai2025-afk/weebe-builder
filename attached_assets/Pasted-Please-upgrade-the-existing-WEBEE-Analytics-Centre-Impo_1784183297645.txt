@@ -1,0 +1,830 @@
+Please upgrade the existing WEBEE Analytics Centre.
+
+Important context:
+
+The Analytics Centre already pulls some analytics from Retell AI. Do not remove or replace the existing Retell analytics integration. Instead, audit it, improve it, normalise the data, and combine it with WEBEE’s own CRM, leads, campaigns, workflows, follow-ups, bookings, costs, and reports.
+
+The goal is to turn Analytics Centre into a deep business intelligence hub for each workspace.
+
+Everything must be workspace-scoped, package-gated, role-permission checked, and safe.
+
+Do not expose one workspace’s analytics to another workspace.
+
+Do not break WBAH.
+
+---
+
+# 1. First audit current Analytics Centre
+
+Before making changes, audit the current analytics setup.
+
+Audit:
+
+* current Analytics Centre routes/pages
+* current Retell analytics API integration
+* where Retell data is stored
+* how agents are filtered
+* how workspace_id is applied
+* how Retell workspace API keys are selected
+* how date ranges are handled
+* how calls are matched to agents
+* how calls are matched to leads
+* how calls are matched to campaigns
+* how calls are matched to workflows
+* existing analytics cards/charts
+* existing campaign analytics
+* existing reports if any
+* existing AccountsMind cost data
+* existing HiveMind/GrowthMind/SystemMind links
+* WBAH-specific analytics logic
+* standard WEBEE workspace analytics logic
+
+Return a short audit report first showing:
+
+* what already works
+* what is missing
+* what is inaccurate
+* what is duplicated
+* what could break
+* recommended safe implementation plan
+
+Do not make destructive changes during the audit.
+
+---
+
+# 2. Preserve current Retell analytics
+
+Retell analytics is already partially working.
+
+Keep it.
+
+Improve it by making sure:
+
+* Retell data is pulled using the current workspace’s Retell API key
+* Retell workspace mapping is correct
+* agents shown belong only to the current workspace
+* agent filters show the correct agents
+* calls are not mixed across workspaces
+* WBAH Retell data does not appear in standard WEBEE accounts
+* standard WEBEE Retell data does not appear in WBAH
+* date filters work correctly
+* pagination/rate limits are handled safely
+* API failures do not break the whole analytics page
+* cached/stored data is refreshed safely
+* Retell cost/minute data can feed AccountsMind where available
+
+If Retell data is missing or stale, show a clear warning, not broken UI.
+
+---
+
+# 3. Normalised analytics layer
+
+Create a normalised analytics layer that can combine:
+
+* Retell calls
+* local calls table
+* leads
+* qualified leads
+* data_records
+* campaigns
+* campaign reports
+* workflow execution logs
+* post-call extraction fields
+* CRM mappings
+* Follow Up Centre tasks
+* bookings
+* phone/SIP usage
+* WhatsApp/SMS/email events where available
+* AccountsMind cost/usage
+* HiveMind recommendations
+* GrowthMind recommendations
+* SystemMind audit logs
+
+Do not rely only on Retell.
+
+Retell should be the voice/call analytics source, but WEBEE should add the business outcomes.
+
+---
+
+# 4. Analytics Centre tabs
+
+Upgrade the Analytics Centre with these tabs:
+
+1. Overview
+2. Campaigns
+3. Agents
+4. Calls
+5. Leads
+6. Lead Sources
+7. Sentiment
+8. Bookings
+9. Workflows
+10. Follow-ups
+11. Financial / ROI
+12. Reports
+13. AI Insights
+
+Each tab should support:
+
+* date range filter
+* agent filter
+* campaign filter
+* lead source filter
+* workspace-safe filters
+* export/report button where allowed
+* send report button where allowed
+* schedule report button where allowed
+* SystemMind insight button
+
+---
+
+# 5. Overview dashboard
+
+Add an Executive Overview with:
+
+* total calls
+* connected calls
+* no answers
+* voicemails
+* failed calls
+* total leads
+* new leads
+* qualified leads
+* positive sentiment count/rate
+* neutral sentiment count/rate
+* negative sentiment count/rate
+* appointments booked
+* callback requests
+* follow-ups created
+* campaign conversion rate
+* booking rate
+* qualification rate
+* average call duration
+* total minutes used
+* estimated Retell/voice cost
+* cost per lead
+* cost per qualified lead
+* cost per booked appointment
+* estimated deal value
+* estimated ROI
+* best performing campaign
+* worst performing campaign
+* best performing agent
+* biggest issue detected
+* SystemMind recommended next action
+
+Date ranges:
+
+* today
+* yesterday
+* last 7 days
+* last 30 days
+* this month
+* last month
+* custom range
+
+---
+
+# 6. Campaign Analytics
+
+For each campaign show:
+
+* campaign name
+* campaign status
+* agent used
+* agent type
+* selected campaign filter
+* launched date
+* completed date
+* leads targeted
+* eligible leads
+* excluded leads
+* exclusion reasons
+* calls attempted
+* calls connected
+* no answers
+* voicemails
+* failed calls
+* successful calls
+* positive sentiment
+* neutral sentiment
+* negative sentiment
+* qualified leads created
+* appointments booked
+* callback requests
+* follow-ups created
+* opt-outs
+* do-not-contact updates
+* average call duration
+* total minutes used
+* estimated cost
+* cost per call
+* cost per connected call
+* cost per qualified lead
+* cost per booked appointment
+* conversion rate
+* booking rate
+* qualification rate
+* failure rate
+* ROI where revenue/deal value exists
+* SystemMind recommended fix/action
+
+Add campaign comparison:
+
+* compare campaigns side by side
+* compare by agent
+* compare by lead source
+* compare by date range
+* compare cost per booked appointment
+* compare ROI
+* compare booking rate
+
+---
+
+# 7. Agent Performance Analytics
+
+For each agent show:
+
+* total calls
+* connected calls
+* no answers
+* failed calls
+* positive sentiment rate
+* neutral sentiment rate
+* negative sentiment rate
+* booking rate
+* qualification rate
+* average call duration
+* total minutes used
+* estimated cost
+* extraction success rate
+* missing extraction fields
+* CRM mapping success rate
+* workflow success rate
+* test call pass/fail history
+* common objections
+* common negative reasons
+* common callback reasons
+* best performing script section where detectable
+* weak points detected from transcripts
+* recommended script improvements
+* recommended workflow improvements
+
+Use Retell data where available, but link to WEBEE outcomes where possible.
+
+---
+
+# 8. Call Analytics
+
+Show:
+
+* call volume by day
+* call volume by hour
+* connected rate
+* no answer rate
+* voicemail rate
+* failed call rate
+* average call duration
+* calls by agent
+* calls by campaign
+* calls by lead source
+* sentiment by call length
+* booking rate by call length
+* best time to call
+* worst time to call
+* phone number performance
+* SIP trunk performance
+* Retell workspace performance
+* provider error trends
+
+---
+
+# 9. Lead and Lead Source Analytics
+
+Show lead performance by:
+
+* webform
+* CRM import
+* CSV upload
+* manual lead
+* API lead
+* WhatsApp
+* referral
+* paid ads
+* campaign
+* custom source
+
+Metrics:
+
+* lead count
+* call count
+* connected rate
+* positive sentiment rate
+* qualification rate
+* booking rate
+* follow-up rate
+* opt-out rate
+* cost per lead
+* cost per booking
+* estimated revenue
+* ROI
+* best lead source
+* worst lead source
+
+---
+
+# 10. Sentiment Analytics
+
+Show:
+
+* positive count/rate
+* neutral count/rate
+* negative count/rate
+* sentiment trend over time
+* sentiment by campaign
+* sentiment by agent
+* sentiment by lead source
+* sentiment by call time
+* negative reason breakdown
+* objection breakdown
+* callback reason breakdown
+* opt-out reason breakdown
+* sentiment impact on bookings
+* sentiment impact on qualification
+
+---
+
+# 11. Booking Analytics
+
+Show:
+
+* total appointments booked
+* booking rate
+* bookings by campaign
+* bookings by agent
+* bookings by lead source
+* bookings by date/time
+* booking slot captured rate
+* calendar provider performance
+* confirmation follow-up success
+* rebooking count
+* booked but not qualified anomalies
+* appointment_booked status usage
+* appointments that incorrectly became needs_to_call
+
+Important rule:
+
+Booked appointments must not be marked as `needs_to_call`.
+
+Analytics should detect and flag this as an anomaly.
+
+---
+
+# 12. Workflow Analytics
+
+For each workflow show:
+
+* trigger count
+* success count
+* failure count
+* success rate
+* average execution time
+* failed action count
+* failed action type
+* CRM update success
+* follow-up creation success
+* email send success
+* WhatsApp send success
+* SMS send success
+* booking update success
+* cost/usage
+* common error messages
+* last run
+* last failure
+* SystemMind repair suggestion
+
+---
+
+# 13. Follow-up Analytics
+
+Show:
+
+* follow-ups created
+* follow-ups completed
+* overdue follow-ups
+* reply rate
+* booking after follow-up
+* qualification after follow-up
+* positive sentiment after follow-up
+* channel performance:
+
+  * call
+  * WhatsApp
+  * SMS
+  * email
+* best follow-up delay
+* best sequence
+* leads lost due to no follow-up
+* 7-day sequence performance
+* 30-day sequence performance
+* 90-day sequence performance
+
+---
+
+# 14. Financial / ROI Analytics
+
+Use AccountsMind-compatible metrics.
+
+Show:
+
+* AI voice minutes used
+* included minutes remaining
+* overage risk
+* Retell/voice cost
+* WhatsApp cost
+* SMS cost
+* email cost
+* SystemMind usage cost
+* total campaign cost
+* cost per lead
+* cost per qualified lead
+* cost per booked appointment
+* estimated deal value
+* estimated revenue
+* estimated ROI
+* margin where available
+* campaign profitability
+* best ROI campaign
+* worst ROI campaign
+* package limit usage
+* add-on usage
+* recommended package upgrade/downgrade
+
+If exact revenue is not available, clearly label values as estimated.
+
+---
+
+# 15. Reports Centre
+
+Add a Reports tab inside Analytics.
+
+Report types:
+
+* Campaign Launch Report
+* Campaign Failure Report
+* Campaign Completion Report
+* Campaign KPI Report
+* Daily Campaign Summary
+* Weekly Workspace Report
+* Monthly ROI Report
+* Agent Performance Report
+* Lead Source Report
+* Workflow Failure Report
+* Follow-up Performance Report
+* AccountsMind Cost Report
+* HiveMind Executive Briefing
+* GrowthMind Campaign Improvement Report
+* SystemMind Fix Report
+
+Reports should be:
+
+* stored
+* viewable
+* searchable
+* filterable
+* sendable by email
+* available to SystemMind/HiveMind/GrowthMind/AccountsMind
+* downloadable later if export exists
+
+---
+
+# 16. Automated campaign reports
+
+Generate reports automatically when:
+
+* campaign is activated
+* campaign is paused
+* campaign is completed
+* campaign fails
+* campaign is cancelled
+* campaign is retried
+* campaign has no eligible leads
+* campaign hits safety cap
+* campaign hits daily call cap
+* campaign produces KPI results
+* provider/API error occurs
+* workflow error occurs
+
+Report generation must be additive.
+
+If report generation fails, campaign execution must not fail.
+
+Log the report error separately.
+
+---
+
+# 17. Suggested analytics_reports table
+
+Create or verify:
+
+## `analytics_reports`
+
+Fields:
+
+* id
+* workspace_id
+* report_type
+* report_name
+* report_status:
+
+  * draft
+  * generated
+  * sent
+  * failed
+* related_campaign_id
+* related_agent_id
+* related_workflow_id
+* date_range_start
+* date_range_end
+* report_summary
+* metrics_json
+* insights_json
+* recommendations_json
+* generated_by:
+
+  * system
+  * systemmind
+  * hivemind
+  * growthmind
+  * accountsmind
+  * user
+* created_by_user_id optional
+* sent_to_json
+* delivery_status
+* created_at
+* updated_at
+
+All records must include workspace_id.
+
+---
+
+# 18. Automated report sending
+
+Reports should send according to workspace notification settings.
+
+Email provider priority:
+
+1. Workspace custom email provider if active and package allows.
+2. Reseller parent custom provider if child inherits parent email mode and package allows.
+3. WEBEE admin Resend account as default fallback.
+
+Default should be WEBEE admin Resend.
+
+Use:
+
+* `WEBEE_RESEND_API_KEY`
+* `WEBEE_DEFAULT_FROM_EMAIL`
+* `WEBEE_DEFAULT_FROM_NAME`
+
+Never expose the WEBEE Resend key to users.
+
+If sending fails:
+
+* mark as failed
+* log error
+* show in-app warning
+* do not break campaign execution
+
+---
+
+# 19. Scheduled reports
+
+Allow scheduled reports where package allows.
+
+Examples:
+
+* daily campaign report at 8am
+* weekly performance report every Monday
+* monthly ROI report on the 1st
+* campaign failure report immediately
+* campaign completion report immediately
+* WBAH weekly sales performance report
+* reseller child workspace monthly summary
+
+Suggested table:
+
+## `analytics_report_schedules`
+
+Fields:
+
+* id
+* workspace_id
+* report_type
+* name
+* frequency:
+
+  * daily
+  * weekly
+  * monthly
+  * custom
+* schedule_config_json
+* recipients_json
+* filters_json
+* enabled
+* created_by_user_id
+* created_at
+* updated_at
+
+---
+
+# 20. AI Insights
+
+Add AI Insights tab/panel.
+
+HiveMind should show executive insights:
+
+* what changed
+* what is failing
+* what needs attention
+* where money is being lost
+* which campaign should be paused
+* which campaign should be scaled
+* which agent needs improvement
+
+GrowthMind should show campaign improvement insights:
+
+* better lead source
+* better call time
+* better follow-up timing
+* better script angle
+* better targeting
+* better campaign filter
+
+SystemMind should create draft fixes from analytics:
+
+* fix failed workflow
+* improve campaign filter
+* add missing CRM mapping
+* add post-call extraction field
+* create People view
+* create follow-up sequence
+* suggest script change
+
+No analytics insight should directly change live systems without approval.
+
+---
+
+# 21. Package gating
+
+Analytics features should be controlled by package.
+
+Feature keys:
+
+* analytics_basic
+* analytics_advanced
+* analytics_campaign_reports
+* analytics_financial
+* analytics_scheduled_reports
+* analytics_ai_insights
+* analytics_reseller_child_reports
+* automated_report_emails
+
+If package does not allow a feature:
+
+* hide/lock in UI
+* block backend access
+* show upgrade prompt
+
+Do not rely only on frontend hiding.
+
+---
+
+# 22. Master Admin analytics
+
+Master Admin should have platform-level analytics.
+
+Master Admin can see:
+
+* all workspaces
+* direct WEBEE clients
+* reseller workspaces
+* child workspaces
+* package usage
+* voice minute usage
+* staff seat usage
+* add-on usage
+* campaign volume
+* failed campaigns
+* report delivery failures
+* provider failures
+* WBAH separately where needed
+
+Filters:
+
+* workspace
+* package
+* reseller
+* child workspace
+* date range
+* campaign type
+* agent type
+* status
+
+Master Admin access must remain separate from normal workspace access.
+
+---
+
+# 23. WBAH rule
+
+Do not break WBAH analytics.
+
+WBAH must remain isolated.
+
+If WBAH analytics currently uses special tables/API logic, preserve it.
+
+Do not mix WBAH analytics with standard WEBEE analytics.
+
+If Retell analytics for WBAH uses a separate key/workspace, keep it separate.
+
+---
+
+# 24. Safety
+
+Analytics must be read-only unless the user explicitly creates a draft action from an insight.
+
+Analytics should never directly:
+
+* trigger calls
+* send messages
+* alter campaigns
+* alter agents
+* alter workflows
+* change CRM records
+* change package settings
+* change user access
+
+Any action from analytics must go through SystemMind as a draft and require approval.
+
+---
+
+# 25. Audit logs
+
+Audit:
+
+* report generated
+* report sent
+* report failed
+* scheduled report created
+* scheduled report changed
+* analytics access denied
+* SystemMind report action created
+* report-based fix drafted
+* report-based fix applied
+* report exported
+* Master Admin analytics viewed
+
+Include:
+
+* workspace_id
+* user_id
+* report_id
+* action_type
+* before_state
+* after_state
+* created_at
+
+---
+
+# 26. Testing required
+
+Please test:
+
+1. Existing Retell analytics still loads.
+2. Retell agent filters show only current workspace agents.
+3. Standard WEBEE workspace does not see WBAH analytics.
+4. WBAH does not see standard workspace analytics.
+5. Overview dashboard loads.
+6. Campaign Analytics shows campaign KPIs.
+7. Agent Performance uses Retell call data plus WEBEE outcomes.
+8. Call Analytics shows connection/no-answer/voicemail/failed rates.
+9. Lead Source Analytics shows source conversion.
+10. Booking Analytics detects appointment_booked correctly.
+11. Workflow Analytics shows success/failure where data exists.
+12. Financial Analytics shows estimated costs where data exists.
+13. Campaign activation generates report.
+14. Campaign failure generates report.
+15. Campaign completion generates KPI report.
+16. Report generation failure does not break campaign execution.
+17. Email report uses WEBEE Resend by default.
+18. Custom email provider is used only if allowed and active.
+19. Reports appear in Reports Centre.
+20. Scheduled reports work if package allows.
+21. Package without advanced analytics is blocked.
+22. Direct URL access to locked analytics is blocked.
+23. SystemMind can explain a report and create a draft fix.
+24. HiveMind/GrowthMind/AccountsMind can read summaries.
+25. Audit logs are created.
+
+Final instruction:
+
+Upgrade Analytics Centre around the existing Retell analytics integration. Retell should remain the call analytics source, while WEBEE adds the business outcome layer: CRM, leads, qualified, campaigns, workflows, bookings, follow-ups, costs, ROI, reports, and AI insights. Do not replace the current Retell integration; fix and extend it safely.

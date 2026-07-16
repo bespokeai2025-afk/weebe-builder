@@ -696,8 +696,13 @@ export const adminRunPackageMigrationReport = createServerFn({ method: "POST" })
 export const adminGetPlatformAnalytics = createServerFn({ method: "GET" })
   .middleware([...adminMw])
   .inputValidator(
-    (d?: { search?: string | null; windowDays?: number | null; includeWbah?: boolean | null }) =>
-      d ?? {},
+    (d?: {
+      search?: string | null;
+      windowDays?: number | null;
+      includeWbah?: boolean | null;
+      packageKey?: string | null;
+      resellerParentId?: string | null;
+    }) => d ?? {},
   )
   .handler(async ({ context, data }) => {
     const windowDays = Math.min(365, Math.max(1, Math.floor(Number(data?.windowDays ?? 30))));
@@ -707,7 +712,7 @@ export const adminGetPlatformAnalytics = createServerFn({ method: "GET" })
       .split("T")[0];
     const search = (data?.search ?? "").trim().toLowerCase();
 
-    const [wsRes, reportsRes, campaignsRes, costsRes] = await Promise.all([
+    const [wsRes, reportsRes, campaignsRes, costsRes, subsRes, relsRes] = await Promise.all([
       sb.from("workspaces").select("id, name, created_at"),
       sb
         .from("analytics_reports")
@@ -718,6 +723,11 @@ export const adminGetPlatformAnalytics = createServerFn({ method: "GET" })
         .from("client_monthly_costs")
         .select("workspace_id, total_cost_cents, monthly_charge_cents")
         .eq("month", monthStr),
+      sb.from("workspace_subscriptions").select("workspace_id, package_key"),
+      sb
+        .from("workspace_relationships")
+        .select("parent_workspace_id, child_workspace_id, status")
+        .eq("status", "active"),
     ]);
 
     const workspaces = wsRes.data ?? [];
@@ -726,6 +736,20 @@ export const adminGetPlatformAnalytics = createServerFn({ method: "GET" })
     const costs = costsRes.data ?? [];
 
     const costByWs = new Map<string, any>(costs.map((c: any) => [c.workspace_id, c]));
+    const pkgByWs = new Map<string, string>(
+      (subsRes.data ?? []).map((s: any) => [s.workspace_id, String(s.package_key ?? "")]),
+    );
+    const wsNameById = new Map<string, string>(
+      workspaces.map((w: any) => [w.id, w.name ?? "Unnamed"]),
+    );
+    const parentByChild = new Map<string, string>();
+    for (const r of relsRes.data ?? []) {
+      if (r.parent_workspace_id && r.child_workspace_id) {
+        parentByChild.set(r.child_workspace_id, r.parent_workspace_id);
+      }
+    }
+    const filterPackageKey = (data?.packageKey ?? "").trim();
+    const filterResellerParentId = (data?.resellerParentId ?? "").trim();
 
     type Agg = {
       reportsTotal: number;
@@ -779,6 +803,11 @@ export const adminGetPlatformAnalytics = createServerFn({ method: "GET" })
         reportVolume: a.reportsTotal,
         reportsFailed: a.reportsFailed,
         reportDeliveryFailures: a.reportDeliveryFailures,
+        packageKey: pkgByWs.get(ws.id) ?? null,
+        resellerParentId: parentByChild.get(ws.id) ?? null,
+        resellerParentName: parentByChild.has(ws.id)
+          ? (wsNameById.get(parentByChild.get(ws.id)!) ?? null)
+          : null,
       };
     };
 
@@ -787,6 +816,16 @@ export const adminGetPlatformAnalytics = createServerFn({ method: "GET" })
     let standardRows = allRows.filter((r: any) => !r.isWbah);
     if (search) {
       standardRows = standardRows.filter((r: any) => r.name.toLowerCase().includes(search));
+    }
+    if (filterPackageKey) {
+      standardRows = standardRows.filter((r: any) => r.packageKey === filterPackageKey);
+    }
+    if (filterResellerParentId) {
+      standardRows = standardRows.filter(
+        (r: any) =>
+          r.resellerParentId === filterResellerParentId ||
+          r.workspaceId === filterResellerParentId,
+      );
     }
     standardRows.sort((a: any, b: any) => b.reportDeliveryFailures - a.reportDeliveryFailures || b.campaignVolume - a.campaignVolume);
 

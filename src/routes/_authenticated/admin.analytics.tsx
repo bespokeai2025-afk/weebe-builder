@@ -23,6 +23,8 @@ function AdminAnalyticsPage() {
   const getAnalytics = useServerFn(adminGetPlatformAnalytics);
   const [search, setSearch] = useState("");
   const [windowDays, setWindowDays] = useState<number>(30);
+  const [pkgFilter, setPkgFilter] = useState<string>("");
+  const [resellerFilter, setResellerFilter] = useState<string>("");
 
   const { data, isLoading, isFetching, refetch } = useQuery({
     queryKey: ["admin-platform-analytics", windowDays],
@@ -33,8 +35,24 @@ function AdminAnalyticsPage() {
 
   const totals = data?.totals;
   const wbah = data?.wbah;
-  const rows = (data?.rows ?? []).filter((r: any) =>
-    search.trim() ? r.name.toLowerCase().includes(search.trim().toLowerCase()) : true,
+  const allRows = data?.rows ?? [];
+  const packageOptions = Array.from(
+    new Set(allRows.map((r: any) => r.packageKey).filter(Boolean)),
+  ).sort() as string[];
+  const resellerOptions = Array.from(
+    new Map(
+      allRows
+        .filter((r: any) => r.resellerParentId)
+        .map((r: any) => [r.resellerParentId, r.resellerParentName ?? r.resellerParentId]),
+    ).entries(),
+  ).sort((a, b) => String(a[1]).localeCompare(String(b[1]))) as [string, string][];
+  const rows = allRows.filter(
+    (r: any) =>
+      (search.trim() ? r.name.toLowerCase().includes(search.trim().toLowerCase()) : true) &&
+      (pkgFilter ? r.packageKey === pkgFilter : true) &&
+      (resellerFilter
+        ? r.resellerParentId === resellerFilter || r.workspaceId === resellerFilter
+        : true),
   );
 
   return (
@@ -99,13 +117,53 @@ function AdminAnalyticsPage() {
         </div>
       ) : null}
 
-      {/* Filter */}
-      <Input
-        placeholder="Filter workspaces…"
-        value={search}
-        onChange={(e) => setSearch(e.target.value)}
-        className="max-w-sm"
-      />
+      {/* Filters */}
+      <div className="flex flex-wrap items-center gap-2">
+        <Input
+          placeholder="Filter workspaces…"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          className="max-w-sm"
+        />
+        <select
+          value={pkgFilter}
+          onChange={(e) => setPkgFilter(e.target.value)}
+          className="h-9 rounded-md border bg-background px-2 text-sm"
+          aria-label="Filter by package"
+        >
+          <option value="">All packages</option>
+          {packageOptions.map((p) => (
+            <option key={p} value={p}>
+              {p}
+            </option>
+          ))}
+        </select>
+        <select
+          value={resellerFilter}
+          onChange={(e) => setResellerFilter(e.target.value)}
+          className="h-9 rounded-md border bg-background px-2 text-sm"
+          aria-label="Filter by reseller"
+        >
+          <option value="">All resellers</option>
+          {resellerOptions.map(([id, name]) => (
+            <option key={id} value={id}>
+              {name}
+            </option>
+          ))}
+        </select>
+        {(pkgFilter || resellerFilter) && (
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => {
+              setPkgFilter("");
+              setResellerFilter("");
+            }}
+          >
+            Clear
+          </Button>
+        )}
+      </div>
 
       {/* Table */}
       <div className="overflow-x-auto rounded-lg border">

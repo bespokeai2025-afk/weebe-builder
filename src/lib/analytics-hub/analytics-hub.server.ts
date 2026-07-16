@@ -107,6 +107,17 @@ function dayKey(iso: string | null | undefined): string | null {
 
 const VOICEMAIL_STATUSES = new Set(["voicemail"]);
 
+// Static enum lists — mirror the DB enums (lead_status / lead_source). We use a
+// static list rather than scanning the giant leads table for distinct values.
+export const LEAD_STATUS_VALUES = [
+  "need_to_call", "calling", "completed", "interested",
+  "not_interested", "not_connected", "do_not_call", "qualified",
+] as const;
+export const LEAD_SOURCE_VALUES = [
+  "website", "inbound", "outbound", "referral", "import",
+  "website_form", "facebook_lead_form", "google_ads_lead_form", "webee_website_form",
+] as const;
+
 function classifyStandardCall(c: any): "voicemail" | "connected" | "missed" | "failed" | "other" {
   if (c.is_voicemail === true || c.in_voicemail === true || VOICEMAIL_STATUSES.has(c.call_status)) return "voicemail";
   if (c.call_status === "completed") return "connected";
@@ -361,6 +372,8 @@ export async function getCampaignAnalyticsData(
       .order("created_at", { ascending: false })
       .limit(200);
     if (opts?.compareIds && opts.compareIds.length > 0) cq = cq.in("id", opts.compareIds);
+    if (filters?.campaignId) cq = cq.eq("id", filters.campaignId);
+    if (filters?.agentId) cq = cq.eq("agent_id", filters.agentId);
     const { data: campaigns } = await cq;
 
     const { data: reports } = await sb.from("campaign_reports")
@@ -639,6 +652,7 @@ export async function getBookingAnalyticsData(workspaceId: string, filters?: Ana
     byStatus: {} as Record<string, number>,
     bySource: [] as Array<{ source: string; count: number }>,
     byDay: [] as Array<{ day: string; count: number }>,
+    anomalies: { count: 0, sampleLeadIds: [] as string[] },
     error: null as string | null,
   };
   try {
@@ -657,7 +671,7 @@ export async function getBookingAnalyticsData(workspaceId: string, filters?: Ana
       return { ...base, total, byStatus, byDay: Object.entries(byDay).map(([day, count]) => ({ day, count })).sort((a, b) => a.day.localeCompare(b.day)) };
     }
     const { data: bookings } = await sb.from("calendar_bookings")
-      .select("id, status, source, start_at, created_at")
+      .select("id, status, source, start_at, created_at, lead_id")
       .eq("workspace_id", workspaceId)
       .gte("created_at", range.startIso).lte("created_at", range.endIso)
       .order("created_at", { ascending: false }).limit(ROW_CAP);
@@ -670,8 +684,29 @@ export async function getBookingAnalyticsData(workspaceId: string, filters?: Ana
       const src = String(b.source ?? "unknown"); bySource[src] = (bySource[src] ?? 0) + 1;
       const dk = dayKey(b.created_at); if (dk) byDay[dk] = (byDay[dk] ?? 0) + 1;
     }
+
+    // Booking anomaly: a lead still marked "need_to_call" despite an existing
+    // booking (calendar_bookings row). Mirrors the booking detection above
+    // (calendar_bookings.lead_id) — never row-fetches the giant leads table:
+    // we only look up the specific booked lead ids (bounded to ROW_CAP rows).
+    const anomalies = { count: 0, sampleLeadIds: [] as string[] };
+    try {
+      const bookedLeadIds = Array.from(new Set(rows.map((b) => b.lead_id).filter(Boolean))) as string[];
+      if (bookedLeadIds.length > 0) {
+        const { data: staleLeads } = await sb.from("leads")
+          .select("id")
+          .eq("workspace_id", workspaceId)
+          .eq("status", "need_to_call")
+          .in("id", bookedLeadIds.slice(0, ROW_CAP))
+          .limit(ROW_CAP);
+        const ids = ((staleLeads ?? []) as any[]).map((l) => String(l.id));
+        anomalies.count = ids.length;
+        anomalies.sampleLeadIds = ids.slice(0, 20);
+      }
+    } catch { /* anomaly detection optional */ }
+
     return {
-      ...base, total: rows.length, byStatus,
+      ...base, total: rows.length, byStatus, anomalies,
       bySource: Object.entries(bySource).map(([source, count]) => ({ source, count })).sort((a, b) => b.count - a.count),
       byDay: Object.entries(byDay).map(([day, count]) => ({ day, count })).sort((a, b) => a.day.localeCompare(b.day)),
     };
@@ -835,6 +870,96 @@ export async function getFinancialAnalyticsData(workspaceId: string, filters?: A
     };
   } catch (err: any) {
     return { ...base, error: err?.message ?? "Financial analytics unavailable" };
+  }
+}
+
+// ── 11. Lead Analytics ────────────────────────────────────────────────────────
+/**
+ * Lead-focused analytics: counts by status/source, new vs qualified, and
+ * conversion-to-booking. Uses count(head:true) buckets only — never row-fetches
+ * the giant leads table. Status/source buckets iterate the static enum lists.
+ */
+export async function getLeadAnalyticsData(workspaceId: string, filters?: AnalyticsFilters) {
+  const sb = supabaseAdmin as any;
+  const range = resolveDateRange(filters);
+  const base = {
+    workspaceId, range,
+    total: 0, newInRange: 0, qualified: 0, bookings: 0,
+    byStatus: [] as Array<{ status: string; count: number }>,
+    bySource: [] as Array<{ source: string; count: number }>,
+    conversionRate: 0, qualificationRate: 0,
+    error: null as string | null,
+  };
+  if (isWbahWorkspaceId(workspaceId)) return { ...base, error: "not_available_for_wbah" };
+  try {
+    const countWindow = (extra: (q: any) => any) =>
+      extra(sb.from("leads").select("id", { count: "exact", head: true })
+        .eq("workspace_id", workspaceId)
+        .gte("created_at", range.startIso).lte("created_at", range.endIso));
+
+    const srcFilter = filters?.source ?? null;
+
+    const [newRes, qualRes, bookingsRes, statusResults, sourceResults] = await Promise.all([
+      countWindow((q: any) => (srcFilter ? q.eq("source", srcFilter) : q)),
+      countWindow((q: any) => { let x = q.eq("qualification_status", "qualified"); if (srcFilter) x = x.eq("source", srcFilter); return x; })
+        .then((r: any) => r, () => ({ count: 0 })),
+      sb.from("calendar_bookings").select("id", { count: "exact", head: true })
+        .eq("workspace_id", workspaceId)
+        .gte("created_at", range.startIso).lte("created_at", range.endIso),
+      Promise.all(LEAD_STATUS_VALUES.map((st) =>
+        countWindow((q: any) => { let x = q.eq("status", st); if (srcFilter) x = x.eq("source", srcFilter); return x; })
+          .then((r: any) => ({ status: st, count: r.count ?? 0 }), () => ({ status: st, count: 0 })))),
+      Promise.all((srcFilter ? [srcFilter] : LEAD_SOURCE_VALUES).map((src) =>
+        countWindow((q: any) => q.eq("source", src))
+          .then((r: any) => ({ source: src, count: r.count ?? 0 }), () => ({ source: src, count: 0 })))),
+    ]);
+
+    const newInRange = newRes.count ?? 0;
+    const qualified = qualRes.count ?? 0;
+    const bookings = bookingsRes.count ?? 0;
+    const byStatus = statusResults.filter((s: any) => s.count > 0).sort((a: any, b: any) => b.count - a.count);
+    const bySource = sourceResults.filter((s: any) => s.count > 0).sort((a: any, b: any) => b.count - a.count);
+
+    return {
+      ...base,
+      total: newInRange, newInRange, qualified, bookings,
+      byStatus, bySource,
+      conversionRate: rate(bookings, newInRange),
+      qualificationRate: rate(qualified, newInRange),
+    };
+  } catch (err: any) {
+    return { ...base, error: err?.message ?? "Lead analytics unavailable" };
+  }
+}
+
+// ── Filter options (agents / campaigns / lead sources) ────────────────────────
+/**
+ * Options for the shared analytics FilterBar. Agents from the agents table,
+ * campaigns from the campaigns table (bounded), sources from the static
+ * lead_source enum list (never scans the giant leads table). Fails closed.
+ */
+export async function getAnalyticsFilterOptionsData(workspaceId: string) {
+  const sb = supabaseAdmin as any;
+  const base = {
+    workspaceId,
+    agents: [] as Array<{ id: string; name: string }>,
+    campaigns: [] as Array<{ id: string; name: string }>,
+    sources: LEAD_SOURCE_VALUES.map((s) => ({ value: s, label: s.replace(/_/g, " ") })),
+    error: null as string | null,
+  };
+  if (isWbahWorkspaceId(workspaceId)) return { ...base, error: "not_available_for_wbah" };
+  try {
+    const [{ data: agents }, { data: campaigns }] = await Promise.all([
+      sb.from("agents").select("id, name").eq("workspace_id", workspaceId).order("name", { ascending: true }).limit(200),
+      sb.from("campaigns").select("id, name").eq("workspace_id", workspaceId).order("created_at", { ascending: false }).limit(200),
+    ]);
+    return {
+      ...base,
+      agents: ((agents ?? []) as any[]).map((a) => ({ id: String(a.id), name: String(a.name ?? a.id) })),
+      campaigns: ((campaigns ?? []) as any[]).map((c) => ({ id: String(c.id), name: String(c.name ?? c.id) })),
+    };
+  } catch (err: any) {
+    return { ...base, error: err?.message ?? "Filter options unavailable" };
   }
 }
 

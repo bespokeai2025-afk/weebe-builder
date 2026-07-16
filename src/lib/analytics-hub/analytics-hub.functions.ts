@@ -23,6 +23,8 @@ import {
   getWorkflowAnalyticsData,
   getFollowUpAnalyticsData,
   getFinancialAnalyticsData,
+  getLeadAnalyticsData,
+  getAnalyticsFilterOptionsData,
 } from "./analytics-hub.server";
 
 interface AnalyticsInput extends AnalyticsFilters {
@@ -153,4 +155,20 @@ export const getFinancialAnalytics = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     const ws = await guard(context, data, "analytics_financial");
     return getFinancialAnalyticsData(ws, filtersOf(data));
+  });
+
+export const getLeadAnalytics = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: AnalyticsInput) => input)
+  .handler(async ({ data, context }) => {
+    const ws = await guard(context, data, "analytics_advanced");
+    return getLeadAnalyticsData(ws, filtersOf(data));
+  });
+
+export const getAnalyticsFilterOptions = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: AnalyticsInput) => input)
+  .handler(async ({ data, context }) => {
+    const ws = await guard(context, data, "analytics_advanced");
+    return getAnalyticsFilterOptionsData(ws);
   });

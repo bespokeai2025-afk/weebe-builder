@@ -26,12 +26,14 @@ import {
   Th as PageTh,
 } from "@/components/dashboard/PageShell";
 import {
-  useAnalyticsFilter, useAnalyticsEntitlements, DateRangeControl, LockedTab,
+  useAnalyticsFilter, useAnalyticsEntitlements, DateRangeControl, FilterBar, LockedTab,
 } from "@/components/analytics-hub/shared";
+import { getAnalyticsFilterOptions } from "@/lib/analytics-hub/analytics-hub.functions";
 import { OverviewTab } from "@/components/analytics-hub/OverviewTab";
 import { CampaignsTab } from "@/components/analytics-hub/CampaignsTab";
 import { AgentsTab } from "@/components/analytics-hub/AgentsTab";
 import { LeadSourcesTab } from "@/components/analytics-hub/LeadSourcesTab";
+import { LeadsTab } from "@/components/analytics-hub/LeadsTab";
 import { SentimentTab } from "@/components/analytics-hub/SentimentTab";
 import { BookingsTab } from "@/components/analytics-hub/BookingsTab";
 import { WorkflowsTab } from "@/components/analytics-hub/WorkflowsTab";
@@ -382,6 +384,7 @@ const MAIN_TABS = [
   { key: "agents",      label: "Agents",         icon: Users,           feature: "analytics_advanced",  filtered: true },
   { key: "leadsources", label: "Lead Sources",   icon: Filter,          feature: "analytics_advanced",  filtered: true, campaignStyle: true },
   { key: "calls",       label: "Calls",          icon: PhoneCall,       feature: "analytics" },
+  { key: "leads",       label: "Leads",          icon: Users,           feature: "analytics_advanced",  filtered: true, campaignStyle: true },
   { key: "sentiment",   label: "Sentiment",      icon: Smile,           feature: "analytics_advanced",  filtered: true },
   { key: "bookings",    label: "Bookings",       icon: CalendarCheck,   feature: "analytics_advanced",  filtered: true },
   { key: "workflows",   label: "Workflows",      icon: WorkflowIcon,    feature: "analytics_advanced",  filtered: true, campaignStyle: true },
@@ -394,10 +397,28 @@ const MAIN_TABS = [
 ] as const;
 type MainTabKey = typeof MAIN_TABS[number]["key"];
 
+/** Which shared filters each hub tab actually honors server-side — only those
+ *  selects render, so users never see a filter that silently does nothing. */
+const TAB_FILTER_SUPPORTS: Partial<Record<MainTabKey, { agent?: boolean; campaign?: boolean; source?: boolean }>> = {
+  overview:    { agent: true,  campaign: false, source: false },
+  campaigns:   { agent: true,  campaign: true,  source: false },
+  agents:      { agent: true,  campaign: false, source: false },
+  leadsources: { agent: false, campaign: false, source: false },
+  leads:       { agent: false, campaign: false, source: true },
+  sentiment:   { agent: true,  campaign: false, source: false },
+  bookings:    { agent: false, campaign: false, source: false },
+  workflows:   { agent: false, campaign: false, source: false },
+  followups:   { agent: false, campaign: false, source: false },
+  financial:   { agent: true,  campaign: false, source: false },
+  reports:     { agent: false, campaign: false, source: false },
+  aiinsights:  { agent: false, campaign: false, source: false },
+};
+
 function AnalyticsPage() {
   const [mainTab, setMainTab] = useState<MainTabKey>("overview");
   const { state: filter, setState: setFilter } = useAnalyticsFilter("30d");
   const { has, packageName } = useAnalyticsEntitlements();
+  const filterOptionsFn = useServerFn(getAnalyticsFilterOptions);
 
   // ── Call analytics state ──
   const fn              = useServerFn(getRetellAnalytics);
@@ -490,6 +511,19 @@ function AnalyticsPage() {
   const creditsFn = useServerFn(getWbahCredits);
   const creditsQ = useQuery({ queryKey: ["wbah-credits"], queryFn: () => creditsFn(), staleTime: 5 * 60_000, enabled: mainTab === "credits" && isWbah, throwOnError: false });
 
+  // Shared FilterBar options (agents / campaigns / lead sources). Hidden for
+  // WBAH; only fetched once advanced analytics is available.
+  const filterOptionsQ = useQuery({
+    queryKey: ["analytics-filter-options"],
+    queryFn: () => filterOptionsFn({ data: {} }),
+    staleTime: 5 * 60_000,
+    enabled: !isWbah && has("analytics_advanced"),
+    throwOnError: false,
+  });
+  const filterOptions = (filterOptionsQ.data && !(filterOptionsQ.data as any).error)
+    ? (filterOptionsQ.data as any)
+    : null;
+
   // Credits is WBAH-only; campaign-style tabs are hidden for WBAH.
   const visibleTabs = MAIN_TABS.filter((t) => {
     if (t.key === "credits") return isWbah;
@@ -537,10 +571,21 @@ function AnalyticsPage() {
         })}
       </div>
 
-      {/* ── Shared date-range filter (hub tabs) ── */}
+      {/* ── Shared filters (hub tabs) — full FilterBar for standard workspaces,
+           date range only for WBAH (agent/campaign/source filters N/A). ── */}
       {Boolean((activeTabMeta as { filtered?: boolean } | undefined)?.filtered) && !activeLocked && (
         <div className="flex items-center justify-end px-6 pt-4">
-          <DateRangeControl value={filter} onChange={setFilter} />
+          {isWbah ? (
+            <DateRangeControl value={filter} onChange={setFilter} />
+          ) : (
+            <FilterBar
+              value={filter}
+              onChange={setFilter}
+              options={filterOptions}
+              loading={filterOptionsQ.isLoading}
+              supports={TAB_FILTER_SUPPORTS[mainTab] ?? { agent: false, campaign: false, source: false }}
+            />
+          )}
         </div>
       )}
 
@@ -552,6 +597,7 @@ function AnalyticsPage() {
       {!activeLocked && mainTab === "campaigns"   && <CampaignsTab   filter={filter} />}
       {!activeLocked && mainTab === "agents"      && <AgentsTab      filter={filter} />}
       {!activeLocked && mainTab === "leadsources" && <LeadSourcesTab filter={filter} />}
+      {!activeLocked && mainTab === "leads"       && <LeadsTab       filter={filter} />}
       {!activeLocked && mainTab === "sentiment"   && <SentimentTab   filter={filter} />}
       {!activeLocked && mainTab === "bookings"    && <BookingsTab    filter={filter} />}
       {!activeLocked && mainTab === "workflows"   && <WorkflowsTab   filter={filter} />}
@@ -626,9 +672,13 @@ function AnalyticsPage() {
             </div>
           </div>
 
-          {result?.error && (
+          {(q.isError || result?.error) && (
             <div className="mx-6 mt-4 flex items-center gap-3 rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-200">
-              <AlertTriangle className="h-4 w-4" /><span>Analytics error: {result.error}</span>
+              <AlertTriangle className="h-4 w-4" />
+              <span>
+                Voice analytics data is stale or unavailable — showing the most recent data we could load.
+                {result?.error ? ` (${result.error})` : ""}
+              </span>
             </div>
           )}
 

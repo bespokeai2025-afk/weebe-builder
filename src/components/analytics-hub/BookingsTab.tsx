@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { CalendarCheck } from "lucide-react";
+import { CalendarCheck, AlertTriangle } from "lucide-react";
 import { getBookingAnalytics } from "@/lib/analytics-hub/analytics-hub.functions";
 import { LoadingProgress } from "@/components/dashboard/LoadingProgress";
 import { StatCard, EmptyState, TableHead, Th } from "@/components/dashboard/PageShell";
@@ -25,9 +25,26 @@ export function BookingsTab({ filter }: { filter: AnalyticsFilterState }) {
   const byStatus: Record<string, number> = d.byStatus ?? {};
   const bySource: any[] = d.bySource ?? [];
   const statusData = Object.entries(byStatus).map(([name, value]) => ({ name, value: Number(value) }));
+  const anomalies = d.anomalies ?? { count: 0, sampleLeadIds: [] };
 
   return (
     <div className="space-y-5 px-6 pt-5">
+      {anomalies.count > 0 && (
+        <div className="flex items-start gap-3 rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-200">
+          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+          <div>
+            <p className="font-semibold">Booked but marked need-to-call</p>
+            <p className="mt-0.5 text-amber-200/80">
+              {anomalies.count} lead{anomalies.count === 1 ? "" : "s"} {anomalies.count === 1 ? "has" : "have"} a booking but {anomalies.count === 1 ? "is" : "are"} still marked “need to call”. Review these to avoid duplicate outreach.
+            </p>
+            {anomalies.sampleLeadIds.length > 0 && (
+              <p className="mt-1 font-mono text-[11px] text-amber-200/60">
+                {anomalies.sampleLeadIds.slice(0, 20).join(", ")}
+              </p>
+            )}
+          </div>
+        </div>
+      )}
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
         <StatCard label="Total bookings" tone="success" value={fmtInt(d.total)} />
         {statusData.slice(0, 3).map((s) => (
