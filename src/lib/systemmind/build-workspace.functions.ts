@@ -21,6 +21,12 @@ export const createBuildSession = createServerFn({ method: "POST" })
     }).parse(input ?? {}),
   )
   .handler(async ({ data, context }) => {
+    {
+      const { requireSystemMindEdit } = await import(
+        "@/lib/systemmind/systemmind-access.server"
+      );
+      await requireSystemMindEdit(context.workspaceId, context.userId);
+    }
     const { createBuildSessionServer } = await import(
       "@/lib/systemmind/build-workspace.server"
     );
@@ -37,6 +43,12 @@ export const createBuildSession = createServerFn({ method: "POST" })
 export const listBuildSessions = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
+    {
+      const { requireSystemMindView } = await import(
+        "@/lib/systemmind/systemmind-access.server"
+      );
+      await requireSystemMindView(context.workspaceId, context.userId);
+    }
     const { listBuildSessionsServer } = await import(
       "@/lib/systemmind/build-workspace.server"
     );
@@ -49,6 +61,12 @@ export const getBuildSession = createServerFn({ method: "GET" })
     z.object({ sessionId: z.string().uuid() }).parse(input),
   )
   .handler(async ({ data, context }) => {
+    {
+      const { requireSystemMindView } = await import(
+        "@/lib/systemmind/systemmind-access.server"
+      );
+      await requireSystemMindView(context.workspaceId, context.userId);
+    }
     const { getBuildSessionServer } = await import(
       "@/lib/systemmind/build-workspace.server"
     );
@@ -61,6 +79,12 @@ export const setBuildSessionArchived = createServerFn({ method: "POST" })
     z.object({ sessionId: z.string().uuid(), archived: z.boolean() }).parse(input),
   )
   .handler(async ({ data, context }) => {
+    {
+      const { requireSystemMindEdit } = await import(
+        "@/lib/systemmind/systemmind-access.server"
+      );
+      await requireSystemMindEdit(context.workspaceId, context.userId);
+    }
     const { setBuildSessionArchivedServer } = await import(
       "@/lib/systemmind/build-workspace.server"
     );
@@ -69,6 +93,29 @@ export const setBuildSessionArchived = createServerFn({ method: "POST" })
       userId:      context.userId ?? null,
       sessionId:   data.sessionId,
       archived:    data.archived,
+    });
+    return { ok: true };
+  });
+
+export const deleteBuildSession = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) =>
+    z.object({ sessionId: z.string().uuid() }).parse(input),
+  )
+  .handler(async ({ data, context }) => {
+    {
+      const { requireSystemMindEdit } = await import(
+        "@/lib/systemmind/systemmind-access.server"
+      );
+      await requireSystemMindEdit(context.workspaceId, context.userId);
+    }
+    const { deleteBuildSessionServer } = await import(
+      "@/lib/systemmind/build-workspace.server"
+    );
+    await deleteBuildSessionServer({
+      workspaceId: requireWorkspaceId(context.workspaceId),
+      userId:      context.userId ?? null,
+      sessionId:   data.sessionId,
     });
     return { ok: true };
   });
@@ -84,6 +131,12 @@ export const promptBuildSession = createServerFn({ method: "POST" })
     }).parse(input),
   )
   .handler(async ({ data, context }) => {
+    {
+      const { requireSystemMindEdit } = await import(
+        "@/lib/systemmind/systemmind-access.server"
+      );
+      await requireSystemMindEdit(context.workspaceId, context.userId);
+    }
     const { promptBuildSessionServer } = await import(
       "@/lib/systemmind/build-workspace.server"
     );
@@ -103,6 +156,12 @@ export const restoreBuildVersion = createServerFn({ method: "POST" })
     z.object({ sessionId: z.string().uuid(), versionId: z.string().uuid() }).parse(input),
   )
   .handler(async ({ data, context }) => {
+    {
+      const { requireSystemMindEdit } = await import(
+        "@/lib/systemmind/systemmind-access.server"
+      );
+      await requireSystemMindEdit(context.workspaceId, context.userId);
+    }
     const { restoreBuildVersionServer } = await import(
       "@/lib/systemmind/build-workspace.server"
     );
@@ -124,6 +183,12 @@ export const setBuildVersionNotes = createServerFn({ method: "POST" })
     }).parse(input),
   )
   .handler(async ({ data, context }) => {
+    {
+      const { requireSystemMindEdit } = await import(
+        "@/lib/systemmind/systemmind-access.server"
+      );
+      await requireSystemMindEdit(context.workspaceId, context.userId);
+    }
     const { setBuildVersionNotesServer } = await import(
       "@/lib/systemmind/build-workspace.server"
     );
@@ -145,6 +210,12 @@ export const simulateBuildVersion = createServerFn({ method: "POST" })
     z.object({ sessionId: z.string().uuid(), versionId: z.string().uuid() }).parse(input),
   )
   .handler(async ({ data, context }) => {
+    {
+      const { requireSystemMindEdit } = await import(
+        "@/lib/systemmind/systemmind-access.server"
+      );
+      await requireSystemMindEdit(context.workspaceId, context.userId);
+    }
     const { simulateBuildVersionServer } = await import(
       "@/lib/systemmind/build-workspace.server"
     );
@@ -162,6 +233,12 @@ export const getBuildApplySafetyReport = createServerFn({ method: "POST" })
     z.object({ sessionId: z.string().uuid(), versionId: z.string().uuid() }).parse(input),
   )
   .handler(async ({ data, context }) => {
+    {
+      const { requireSystemMindEdit } = await import(
+        "@/lib/systemmind/systemmind-access.server"
+      );
+      await requireSystemMindEdit(context.workspaceId, context.userId);
+    }
     const { getBuildApplySafetyReportServer } = await import(
       "@/lib/systemmind/build-workspace.server"
     );
@@ -184,6 +261,15 @@ export const applyBuildVersion = createServerFn({ method: "POST" })
     }).parse(input),
   )
   .handler(async ({ data, context }) => {
+    {
+      // "propose" only drafts an approval request; everything else goes live.
+      const access = await import("@/lib/systemmind/systemmind-access.server");
+      if (data.mode === "propose") {
+        await access.requireSystemMindEdit(context.workspaceId, context.userId);
+      } else {
+        await access.requireSystemMindApproval(context.workspaceId, context.userId);
+      }
+    }
     const { applyBuildVersionServer } = await import(
       "@/lib/systemmind/build-workspace.server"
     );
@@ -203,6 +289,12 @@ export const rollbackBuildApply = createServerFn({ method: "POST" })
     z.object({ sessionId: z.string().uuid(), snapshotId: z.string().uuid() }).parse(input),
   )
   .handler(async ({ data, context }) => {
+    {
+      const { requireSystemMindApproval } = await import(
+        "@/lib/systemmind/systemmind-access.server"
+      );
+      await requireSystemMindApproval(context.workspaceId, context.userId);
+    }
     const { rollbackBuildApplyServer } = await import(
       "@/lib/systemmind/build-workspace.server"
     );
@@ -224,6 +316,12 @@ export const markBuildVersionDeployed = createServerFn({ method: "POST" })
     }).parse(input),
   )
   .handler(async ({ data, context }) => {
+    {
+      const { requireSystemMindApproval } = await import(
+        "@/lib/systemmind/systemmind-access.server"
+      );
+      await requireSystemMindApproval(context.workspaceId, context.userId);
+    }
     const { markBuildVersionDeployedServer } = await import(
       "@/lib/systemmind/build-workspace.server"
     );
@@ -245,6 +343,12 @@ export const getBuildProvenanceForAgent = createServerFn({ method: "GET" })
     z.object({ agentId: z.string().uuid() }).parse(input),
   )
   .handler(async ({ data, context }) => {
+    {
+      const { requireSystemMindView } = await import(
+        "@/lib/systemmind/systemmind-access.server"
+      );
+      await requireSystemMindView(context.workspaceId, context.userId);
+    }
     const { getBuildProvenanceForAgentServer } = await import(
       "@/lib/systemmind/build-workspace.server"
     );
@@ -262,6 +366,12 @@ export const getSystemMindUsageSummary = createServerFn({ method: "GET" })
     z.object({ days: z.number().int().min(1).max(365).default(30) }).parse(input ?? {}),
   )
   .handler(async ({ data, context }) => {
+    {
+      const { requireSystemMindView } = await import(
+        "@/lib/systemmind/systemmind-access.server"
+      );
+      await requireSystemMindView(context.workspaceId, context.userId);
+    }
     const { getSystemMindUsageSummaryServer } = await import(
       "@/lib/systemmind/build-workspace.server"
     );
@@ -342,6 +452,12 @@ export const getBuildTestCallState = createServerFn({ method: "GET" })
     z.object({ sessionId: z.string().uuid() }).parse(input),
   )
   .handler(async ({ data, context }) => {
+    {
+      const { requireSystemMindView } = await import(
+        "@/lib/systemmind/systemmind-access.server"
+      );
+      await requireSystemMindView(context.workspaceId, context.userId);
+    }
     const { getTestCallStateServer } = await import(
       "@/lib/systemmind/build-workspace-testcall.server"
     );
@@ -357,6 +473,12 @@ export const listBuildTestCallCandidates = createServerFn({ method: "GET" })
     z.object({ sessionId: z.string().uuid() }).parse(input),
   )
   .handler(async ({ data, context }) => {
+    {
+      const { requireSystemMindView } = await import(
+        "@/lib/systemmind/systemmind-access.server"
+      );
+      await requireSystemMindView(context.workspaceId, context.userId);
+    }
     const { listTestCallCandidatesServer } = await import(
       "@/lib/systemmind/build-workspace-testcall.server"
     );
@@ -376,6 +498,12 @@ export const analyzeBuildTestCall = createServerFn({ method: "POST" })
     }).parse(input),
   )
   .handler(async ({ data, context }) => {
+    {
+      const { requireSystemMindEdit } = await import(
+        "@/lib/systemmind/systemmind-access.server"
+      );
+      await requireSystemMindEdit(context.workspaceId, context.userId);
+    }
     const { analyzeTestCallServer } = await import(
       "@/lib/systemmind/build-workspace-testcall.server"
     );
@@ -397,10 +525,18 @@ export const overrideBuildTestPassed = createServerFn({ method: "POST" })
     }).parse(input),
   )
   .handler(async ({ data, context }) => {
-    const { overrideTestPassedServer } = await import(
+    {
+      const { requireSystemMindEdit } = await import(
+        "@/lib/systemmind/systemmind-access.server"
+      );
+      await requireSystemMindEdit(context.workspaceId, context.userId);
+    }
+    // Manual passes are a gate decision — they route through HiveMind approval
+    // (action centre) instead of taking effect immediately.
+    const { requestTestOverrideApprovalServer } = await import(
       "@/lib/systemmind/build-workspace-testcall.server"
     );
-    return overrideTestPassedServer({
+    return requestTestOverrideApprovalServer({
       workspaceId: requireWorkspaceId(context.workspaceId),
       userId:      context.userId ?? null,
       sessionId:   data.sessionId,

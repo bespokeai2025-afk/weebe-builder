@@ -209,6 +209,24 @@ export function buildRequirementsFromAnswers(
   const num = (k: string, d: number) => (Number.isFinite(Number(a[k])) ? Number(a[k]) : d);
   const bool = (k: string, d: boolean) => (typeof a[k] === "boolean" ? (a[k] as boolean) : d);
 
+  // ── SOP §1–3: purpose, data source (+ required key name), fields to pull ──
+  const purpose = str("agent_purpose", detected.detectedPurpose).slice(0, 1000);
+  const srcKind = str("data_source_kind", "");
+  const parseList = (raw: string): string[] =>
+    raw.trim().toLowerCase() === "none"
+      ? []
+      : raw.split(",").map((x) => x.trim()).filter(Boolean).slice(0, 40);
+  const dataSource = (["crm", "webform", "csv_upload", "call_source"] as const).includes(srcKind as any)
+    ? {
+        kind: srcKind as "crm" | "webform" | "csv_upload" | "call_source",
+        required_key_name:
+          srcKind === "crm" || srcKind === "call_source"
+            ? str("data_source_key_name", srcKind === "crm" ? "CRM API key" : "Call source API key").slice(0, 120)
+            : null,
+        fields_to_pull: parseList(str("fields_to_pull", "")),
+      }
+    : undefined;
+
   const rules: OutcomeRule[] = [];
   rules.push({
     outcome: "positive", crm_status: str("outcome_positive_status", "interested") as OutcomeRule["crm_status"],
@@ -265,6 +283,9 @@ export function buildRequirementsFromAnswers(
   if (detected.hasBookingLogic) {
     addField("appointment_datetime", "string", "The agreed appointment date/time, if one was booked.");
   }
+  for (const name of parseList(str("extra_extraction_fields", "none")).slice(0, 20)) {
+    addField(name.slice(0, 120).replace(/\s+/g, "_"), "string", "Custom data point requested during agent setup.");
+  }
 
   // Variable mappings: explicit answers first, then sane defaults for the
   // fields this assistant introduces.
@@ -287,6 +308,7 @@ export function buildRequirementsFromAnswers(
     mode,
     max_attempts_per_lead: Math.min(10, Math.max(1, Math.round(num("max_attempts_per_lead", 3)))),
     max_calls_per_day:     Math.min(500, Math.max(1, Math.round(num("max_calls_per_day", 50)))),
+    concurrent_calls:      Math.min(20, Math.max(1, Math.round(num("concurrent_calls", 1)))),
     calling_window:        { start: windowStart, end: windowEnd, timezone: "Europe/London" },
     retry_spacing_hours:   Math.min(168, Math.max(1, Math.round(num("no_answer_retry_hours", 24)))),
     voicemail_behavior:    (["hang_up", "leave_message", "retry_later"].includes(str("voicemail_behavior", "retry_later"))
@@ -331,8 +353,43 @@ export function buildRequirementsFromAnswers(
     });
   }
 
+  // ── SOP §5–8: post-call destination, page filters, documents, follow-ups ──
+  const destRaw = str("data_destination", detected.hasCrmFieldMapping ? "both" : "dashboard");
+  const postCall = {
+    data_destination: (["crm", "dashboard", "both"].includes(destRaw) ? destRaw : "both") as "crm" | "dashboard" | "both",
+    custom_features: (() => { const v = str("custom_agent_features", "none"); return v.toLowerCase() === "none" ? "" : v.slice(0, 2000); })(),
+  };
+
+  const pageFilters: Array<{ page: "leads" | "qualified" | "calls" | "records" | "people" | "calendar"; description: string }> = [];
+  if (bool("want_page_filters", false)) {
+    for (const page of ["leads", "qualified", "calls", "records", "people", "calendar"] as const) {
+      const desc = str(`page_filter_${page}`, "none");
+      if (desc.trim() && desc.trim().toLowerCase() !== "none") {
+        pageFilters.push({ page, description: desc.slice(0, 500) });
+      }
+    }
+  }
+
+  const documentAutomation = bool("auto_populate_documents", false)
+    ? { enabled: true, template_name: str("document_template_name", "Call report").slice(0, 200) }
+    : undefined;
+
+  const sentimentFollowUps: Array<{ sentiment: "positive" | "neutral" | "negative"; channel: "none" | "email" | "sms" | "whatsapp" }> = [];
+  for (const sentiment of ["positive", "neutral", "negative"] as const) {
+    const ch = str(`follow_up_${sentiment}`, "none");
+    if (["email", "sms", "whatsapp"].includes(ch)) {
+      sentimentFollowUps.push({ sentiment, channel: ch as "email" | "sms" | "whatsapp" });
+    }
+  }
+
   return RequirementsSchema.parse({
     version: 1,
+    purpose,
+    data_source: dataSource,
+    post_call: postCall,
+    page_filters: pageFilters,
+    document_automation: documentAutomation,
+    sentiment_follow_ups: sentimentFollowUps,
     outcome_rules: rules,
     extraction_fields: fields,
     variable_mappings: mappings,
@@ -439,7 +496,11 @@ export async function generateRequirementsVersionServer(args: {
     extraction_fields: requirements.extraction_fields.map((f) => ({ name: f.name, type: f.type, description: f.description })),
     follow_up_rules: buildFollowUpRules(answers),
     channel_setup: {},
-    required_credentials: [],
+    // SOP §2 — the data source's access key surfaces as a required-credential
+    // box on the generated config (NAME only, never a value).
+    required_credentials: requirements.data_source?.required_key_name
+      ? [requirements.data_source.required_key_name]
+      : [],
     risks: buildRiskList(requirements),
     test_plan: [
       "Run a simulated positive call and confirm the lead status changes as configured.",
@@ -471,14 +532,24 @@ export async function generateRequirementsVersionServer(args: {
 
 function buildFollowUpRules(answers: RequirementAnswers): Array<{ trigger: string; action: string; delay_hours?: number; channel?: string }> {
   const rules: Array<{ trigger: string; action: string; delay_hours?: number; channel?: string }> = [];
-  const fu = String(answers["follow_up_positive"] ?? "");
-  if (fu === "email" || fu === "whatsapp") {
-    rules.push({
-      trigger: "Call ends with a positive outcome",
-      action:  `Send a ${fu === "email" ? "follow-up email" : "WhatsApp follow-up message"} thanking them and confirming next steps`,
-      delay_hours: 1,
-      channel: fu,
-    });
+  const channelLabel: Record<string, string> = {
+    email: "follow-up email", sms: "follow-up SMS", whatsapp: "WhatsApp follow-up message",
+  };
+  const sentimentAction: Record<string, string> = {
+    positive: "thanking them and confirming next steps",
+    neutral:  "with a gentle nudge and an easy way to say yes",
+    negative: "politely thanking them for their time",
+  };
+  for (const sentiment of ["positive", "neutral", "negative"] as const) {
+    const fu = String(answers[`follow_up_${sentiment}`] ?? "");
+    if (channelLabel[fu]) {
+      rules.push({
+        trigger: `Call ends with a ${sentiment} outcome`,
+        action:  `Send a ${channelLabel[fu]} ${sentimentAction[sentiment]}`,
+        delay_hours: 1,
+        channel: fu,
+      });
+    }
   }
   return rules;
 }
@@ -499,10 +570,23 @@ function buildRiskList(req: AgentRequirements): string[] {
 
 function buildGenerationSummary(detected: DetectedAgentSetup, req: AgentRequirements): string {
   const bits: string[] = [];
-  bits.push(`Requirements generated for "${detected.agentName}" (${detected.detectedPurpose}).`);
+  bits.push(`Requirements generated for "${detected.agentName}" (${req.purpose || detected.detectedPurpose}).`);
+  if (req.data_source) {
+    const srcLabel: Record<string, string> = {
+      crm: "CRM system", webform: "webform", csv_upload: "WEBEE CSV uploader", call_source: "call source",
+    };
+    bits.push(`Data source: ${srcLabel[req.data_source.kind] ?? req.data_source.kind}${req.data_source.fields_to_pull.length ? `, pulling ${req.data_source.fields_to_pull.length} field(s): ${req.data_source.fields_to_pull.slice(0, 8).join(", ")}` : ""}.`);
+    if (req.data_source.required_key_name) {
+      bits.push(`REQUIRED KEY: "${req.data_source.required_key_name}" must be provided (in Settings — never in chat) before this agent can go live.`);
+    }
+  }
   bits.push(`${req.outcome_rules.length} call-outcome rules map results to CRM statuses.`);
   bits.push(`${req.extraction_fields.length} extraction fields, ${Object.keys(req.variable_mappings).length} variable mappings.`);
-  bits.push(`Calling mode: ${req.calling?.mode ?? "draft"}${req.campaign ? ` with paused campaign "${req.campaign.name}"` : ""}.`);
+  bits.push(`Calling mode: ${req.calling?.mode ?? "draft"}, ${req.calling?.concurrent_calls ?? 1} concurrent call(s)${req.campaign ? `, with paused campaign "${req.campaign.name}"` : ""}.`);
+  if (req.post_call) bits.push(`Extracted data points go to: ${req.post_call.data_destination === "both" ? "CRM and dashboard" : req.post_call.data_destination === "crm" ? "the CRM" : "the WEBEE dashboard"}.`);
+  if (req.page_filters.length > 0) bits.push(`${req.page_filters.length} page filter(s) specified (${req.page_filters.map((f) => f.page).join(", ")}) — drafted for the saved-filters system, applied only on approval.`);
+  if (req.document_automation?.enabled) bits.push(`Documents auto-populate from Template Studio template "${req.document_automation.template_name}".`);
+  if (req.sentiment_follow_ups.length > 0) bits.push(`Follow-ups: ${req.sentiment_follow_ups.map((f) => `${f.sentiment} → ${f.channel}`).join(", ")}.`);
   const proposed = req.script_additions.filter((s) => s.status === "proposed").length;
   if (proposed > 0) bits.push(`${proposed} script addition${proposed === 1 ? "" : "s"} drafted — review and approve them before they touch the script.`);
   bits.push("Nothing is live yet: Apply saves the configuration, and calling is never activated automatically.");
@@ -588,7 +672,7 @@ export function simulateRequirementsOutcome(
     const mode = req.calling?.mode ?? "draft";
     const actions: SimulatedAction[] = [{ action: "create_lead", detail: "New lead created from the webform submission." }];
     if (mode === "instant" || mode === "both") {
-      actions.push({ action: "queue_instant_call", detail: `Lead queued for an immediate call (respecting the ${req.calling?.calling_window_start ?? "09:00"}–${req.calling?.calling_window_end ?? "18:00"} window and ${req.calling?.max_calls_per_day ?? 50}/day cap).` });
+      actions.push({ action: "queue_instant_call", detail: `Lead queued for an immediate call (respecting the ${req.calling?.calling_window?.start ?? "09:00"}–${req.calling?.calling_window?.end ?? "18:00"} window and ${req.calling?.max_calls_per_day ?? 50}/day cap).` });
     }
     if (mode === "scheduled" || mode === "both") {
       actions.push({ action: "add_to_campaign", detail: `Lead added to the "${req.campaign?.name ?? "campaign"}" campaign (created paused — calls start only when you activate it).` });

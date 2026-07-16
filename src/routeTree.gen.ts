@@ -18,6 +18,7 @@ import { Route as ApiDocsRouteImport } from './routes/api-docs'
 import { Route as AuthenticatedRouteImport } from './routes/_authenticated'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as UploadTokenRouteImport } from './routes/upload.$token'
+import { Route as InviteTokenRouteImport } from './routes/invite.$token'
 import { Route as EmailUnsubscribeRouteImport } from './routes/email/unsubscribe'
 import { Route as AuthCallbackRouteImport } from './routes/auth/callback'
 import { Route as ApiVoiceCopilotRouteImport } from './routes/api/voice-copilot'
@@ -28,9 +29,11 @@ import { Route as AuthenticatedTemplateStudioRouteImport } from './routes/_authe
 import { Route as AuthenticatedTelephonySettingsRouteImport } from './routes/_authenticated/telephony-settings'
 import { Route as AuthenticatedTelephonyCallsRouteImport } from './routes/_authenticated/telephony-calls'
 import { Route as AuthenticatedSystemmindRouteImport } from './routes/_authenticated/systemmind'
+import { Route as AuthenticatedResellerRouteImport } from './routes/_authenticated/reseller'
 import { Route as AuthenticatedQualifiedRouteImport } from './routes/_authenticated/qualified'
 import { Route as AuthenticatedPipelineRouteImport } from './routes/_authenticated/pipeline'
 import { Route as AuthenticatedPhoneNumbersRouteImport } from './routes/_authenticated/phone-numbers'
+import { Route as AuthenticatedNotificationsRouteImport } from './routes/_authenticated/notifications'
 import { Route as AuthenticatedMyAgentsRouteImport } from './routes/_authenticated/my-agents'
 import { Route as AuthenticatedLeadsRouteImport } from './routes/_authenticated/leads'
 import { Route as AuthenticatedKnowledgeCentreRouteImport } from './routes/_authenticated/knowledge-centre'
@@ -121,12 +124,14 @@ import { Route as AuthenticatedSystemmindAutomationRouteImport } from './routes/
 import { Route as AuthenticatedSystemmindAuditsRouteImport } from './routes/_authenticated/systemmind.audits'
 import { Route as AuthenticatedSystemmindArchitectureRouteImport } from './routes/_authenticated/systemmind.architecture'
 import { Route as AuthenticatedSystemmindAccountsmindSetupRouteImport } from './routes/_authenticated/systemmind.accountsmind-setup'
+import { Route as AuthenticatedSettingsWhiteLabelRouteImport } from './routes/_authenticated/settings.white-label'
 import { Route as AuthenticatedSettingsProvidersRouteImport } from './routes/_authenticated/settings.providers'
 import { Route as AuthenticatedSettingsProductionReadinessRouteImport } from './routes/_authenticated/settings.production-readiness'
 import { Route as AuthenticatedSettingsIntegrationsRouteImport } from './routes/_authenticated/settings.integrations'
 import { Route as AuthenticatedSettingsDeveloperRouteImport } from './routes/_authenticated/settings.developer'
 import { Route as AuthenticatedSettingsCrmRouteImport } from './routes/_authenticated/settings.crm'
 import { Route as AuthenticatedSettingsCalendarRouteImport } from './routes/_authenticated/settings.calendar'
+import { Route as AuthenticatedSettingsAccountRouteImport } from './routes/_authenticated/settings.account'
 import { Route as AuthenticatedLeadsWebformsRouteImport } from './routes/_authenticated/leads.webforms'
 import { Route as AuthenticatedKnowledgeCentreSlugRouteImport } from './routes/_authenticated/knowledge-centre.$slug'
 import { Route as AuthenticatedHivemindWorkflowIntelligenceRouteImport } from './routes/_authenticated/hivemind.workflow-intelligence'
@@ -182,9 +187,12 @@ import { Route as AuthenticatedAdminWorkflowTemplatesRouteImport } from './route
 import { Route as AuthenticatedAdminWhitelabelRouteImport } from './routes/_authenticated/admin.whitelabel'
 import { Route as AuthenticatedAdminUsersRouteImport } from './routes/_authenticated/admin.users'
 import { Route as AuthenticatedAdminUserActivityRouteImport } from './routes/_authenticated/admin.user-activity'
+import { Route as AuthenticatedAdminResellersRouteImport } from './routes/_authenticated/admin.resellers'
 import { Route as AuthenticatedAdminPlatformKnowledgeRouteImport } from './routes/_authenticated/admin.platform-knowledge'
+import { Route as AuthenticatedAdminPackagesRouteImport } from './routes/_authenticated/admin.packages'
 import { Route as AuthenticatedAdminCostEngineRouteImport } from './routes/_authenticated/admin.cost-engine'
 import { Route as AuthenticatedAdminChangeRequestsRouteImport } from './routes/_authenticated/admin.change-requests'
+import { Route as AuthenticatedAdminAnalyticsRouteImport } from './routes/_authenticated/admin.analytics'
 import { Route as AuthenticatedAdminAccountsRouteImport } from './routes/_authenticated/admin.accounts'
 import { Route as AuthenticatedSystemmindClientsIndexRouteImport } from './routes/_authenticated/systemmind.clients.index'
 import { Route as AuthenticatedAdminAccountsIndexRouteImport } from './routes/_authenticated/admin.accounts.index'
@@ -303,6 +311,11 @@ const UploadTokenRoute = UploadTokenRouteImport.update({
   path: '/upload/$token',
   getParentRoute: () => rootRouteImport,
 } as any)
+const InviteTokenRoute = InviteTokenRouteImport.update({
+  id: '/invite/$token',
+  path: '/invite/$token',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const EmailUnsubscribeRoute = EmailUnsubscribeRouteImport.update({
   id: '/email/unsubscribe',
   path: '/email/unsubscribe',
@@ -357,6 +370,11 @@ const AuthenticatedSystemmindRoute = AuthenticatedSystemmindRouteImport.update({
   path: '/systemmind',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
+const AuthenticatedResellerRoute = AuthenticatedResellerRouteImport.update({
+  id: '/reseller',
+  path: '/reseller',
+  getParentRoute: () => AuthenticatedRoute,
+} as any)
 const AuthenticatedQualifiedRoute = AuthenticatedQualifiedRouteImport.update({
   id: '/qualified',
   path: '/qualified',
@@ -371,6 +389,12 @@ const AuthenticatedPhoneNumbersRoute =
   AuthenticatedPhoneNumbersRouteImport.update({
     id: '/phone-numbers',
     path: '/phone-numbers',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
+const AuthenticatedNotificationsRoute =
+  AuthenticatedNotificationsRouteImport.update({
+    id: '/notifications',
+    path: '/notifications',
     getParentRoute: () => AuthenticatedRoute,
   } as any)
 const AuthenticatedMyAgentsRoute = AuthenticatedMyAgentsRouteImport.update({
@@ -868,6 +892,12 @@ const AuthenticatedSystemmindAccountsmindSetupRoute =
     path: '/accountsmind-setup',
     getParentRoute: () => AuthenticatedSystemmindRoute,
   } as any)
+const AuthenticatedSettingsWhiteLabelRoute =
+  AuthenticatedSettingsWhiteLabelRouteImport.update({
+    id: '/settings/white-label',
+    path: '/settings/white-label',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
 const AuthenticatedSettingsProvidersRoute =
   AuthenticatedSettingsProvidersRouteImport.update({
     id: '/settings/providers',
@@ -902,6 +932,12 @@ const AuthenticatedSettingsCalendarRoute =
   AuthenticatedSettingsCalendarRouteImport.update({
     id: '/settings/calendar',
     path: '/settings/calendar',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
+const AuthenticatedSettingsAccountRoute =
+  AuthenticatedSettingsAccountRouteImport.update({
+    id: '/settings/account',
+    path: '/settings/account',
     getParentRoute: () => AuthenticatedRoute,
   } as any)
 const AuthenticatedLeadsWebformsRoute =
@@ -1232,10 +1268,22 @@ const AuthenticatedAdminUserActivityRoute =
     path: '/user-activity',
     getParentRoute: () => AuthenticatedAdminRoute,
   } as any)
+const AuthenticatedAdminResellersRoute =
+  AuthenticatedAdminResellersRouteImport.update({
+    id: '/resellers',
+    path: '/resellers',
+    getParentRoute: () => AuthenticatedAdminRoute,
+  } as any)
 const AuthenticatedAdminPlatformKnowledgeRoute =
   AuthenticatedAdminPlatformKnowledgeRouteImport.update({
     id: '/platform-knowledge',
     path: '/platform-knowledge',
+    getParentRoute: () => AuthenticatedAdminRoute,
+  } as any)
+const AuthenticatedAdminPackagesRoute =
+  AuthenticatedAdminPackagesRouteImport.update({
+    id: '/packages',
+    path: '/packages',
     getParentRoute: () => AuthenticatedAdminRoute,
   } as any)
 const AuthenticatedAdminCostEngineRoute =
@@ -1248,6 +1296,12 @@ const AuthenticatedAdminChangeRequestsRoute =
   AuthenticatedAdminChangeRequestsRouteImport.update({
     id: '/change-requests',
     path: '/change-requests',
+    getParentRoute: () => AuthenticatedAdminRoute,
+  } as any)
+const AuthenticatedAdminAnalyticsRoute =
+  AuthenticatedAdminAnalyticsRouteImport.update({
+    id: '/analytics',
+    path: '/analytics',
     getParentRoute: () => AuthenticatedAdminRoute,
   } as any)
 const AuthenticatedAdminAccountsRoute =
@@ -1696,9 +1750,11 @@ export interface FileRoutesByFullPath {
   '/knowledge-centre': typeof AuthenticatedKnowledgeCentreRouteWithChildren
   '/leads': typeof AuthenticatedLeadsRouteWithChildren
   '/my-agents': typeof AuthenticatedMyAgentsRoute
+  '/notifications': typeof AuthenticatedNotificationsRoute
   '/phone-numbers': typeof AuthenticatedPhoneNumbersRoute
   '/pipeline': typeof AuthenticatedPipelineRoute
   '/qualified': typeof AuthenticatedQualifiedRoute
+  '/reseller': typeof AuthenticatedResellerRoute
   '/systemmind': typeof AuthenticatedSystemmindRouteWithChildren
   '/telephony-calls': typeof AuthenticatedTelephonyCallsRoute
   '/telephony-settings': typeof AuthenticatedTelephonySettingsRoute
@@ -1709,11 +1765,15 @@ export interface FileRoutesByFullPath {
   '/api/voice-copilot': typeof ApiVoiceCopilotRoute
   '/auth/callback': typeof AuthCallbackRoute
   '/email/unsubscribe': typeof EmailUnsubscribeRoute
+  '/invite/$token': typeof InviteTokenRoute
   '/upload/$token': typeof UploadTokenRoute
   '/admin/accounts': typeof AuthenticatedAdminAccountsRouteWithChildren
+  '/admin/analytics': typeof AuthenticatedAdminAnalyticsRoute
   '/admin/change-requests': typeof AuthenticatedAdminChangeRequestsRoute
   '/admin/cost-engine': typeof AuthenticatedAdminCostEngineRoute
+  '/admin/packages': typeof AuthenticatedAdminPackagesRoute
   '/admin/platform-knowledge': typeof AuthenticatedAdminPlatformKnowledgeRoute
+  '/admin/resellers': typeof AuthenticatedAdminResellersRoute
   '/admin/user-activity': typeof AuthenticatedAdminUserActivityRoute
   '/admin/users': typeof AuthenticatedAdminUsersRoute
   '/admin/whitelabel': typeof AuthenticatedAdminWhitelabelRoute
@@ -1769,12 +1829,14 @@ export interface FileRoutesByFullPath {
   '/hivemind/workflow-intelligence': typeof AuthenticatedHivemindWorkflowIntelligenceRoute
   '/knowledge-centre/$slug': typeof AuthenticatedKnowledgeCentreSlugRoute
   '/leads/webforms': typeof AuthenticatedLeadsWebformsRoute
+  '/settings/account': typeof AuthenticatedSettingsAccountRoute
   '/settings/calendar': typeof AuthenticatedSettingsCalendarRoute
   '/settings/crm': typeof AuthenticatedSettingsCrmRoute
   '/settings/developer': typeof AuthenticatedSettingsDeveloperRoute
   '/settings/integrations': typeof AuthenticatedSettingsIntegrationsRoute
   '/settings/production-readiness': typeof AuthenticatedSettingsProductionReadinessRoute
   '/settings/providers': typeof AuthenticatedSettingsProvidersRouteWithChildren
+  '/settings/white-label': typeof AuthenticatedSettingsWhiteLabelRoute
   '/systemmind/accountsmind-setup': typeof AuthenticatedSystemmindAccountsmindSetupRoute
   '/systemmind/architecture': typeof AuthenticatedSystemmindArchitectureRoute
   '/systemmind/audits': typeof AuthenticatedSystemmindAuditsRoute
@@ -1940,9 +2002,11 @@ export interface FileRoutesByTo {
   '/enterprise': typeof AuthenticatedEnterpriseRouteWithChildren
   '/follow-up': typeof AuthenticatedFollowUpRoute
   '/my-agents': typeof AuthenticatedMyAgentsRoute
+  '/notifications': typeof AuthenticatedNotificationsRoute
   '/phone-numbers': typeof AuthenticatedPhoneNumbersRoute
   '/pipeline': typeof AuthenticatedPipelineRoute
   '/qualified': typeof AuthenticatedQualifiedRoute
+  '/reseller': typeof AuthenticatedResellerRoute
   '/telephony-calls': typeof AuthenticatedTelephonyCallsRoute
   '/telephony-settings': typeof AuthenticatedTelephonySettingsRoute
   '/template-studio': typeof AuthenticatedTemplateStudioRoute
@@ -1952,10 +2016,14 @@ export interface FileRoutesByTo {
   '/api/voice-copilot': typeof ApiVoiceCopilotRoute
   '/auth/callback': typeof AuthCallbackRoute
   '/email/unsubscribe': typeof EmailUnsubscribeRoute
+  '/invite/$token': typeof InviteTokenRoute
   '/upload/$token': typeof UploadTokenRoute
+  '/admin/analytics': typeof AuthenticatedAdminAnalyticsRoute
   '/admin/change-requests': typeof AuthenticatedAdminChangeRequestsRoute
   '/admin/cost-engine': typeof AuthenticatedAdminCostEngineRoute
+  '/admin/packages': typeof AuthenticatedAdminPackagesRoute
   '/admin/platform-knowledge': typeof AuthenticatedAdminPlatformKnowledgeRoute
+  '/admin/resellers': typeof AuthenticatedAdminResellersRoute
   '/admin/user-activity': typeof AuthenticatedAdminUserActivityRoute
   '/admin/users': typeof AuthenticatedAdminUsersRoute
   '/admin/whitelabel': typeof AuthenticatedAdminWhitelabelRoute
@@ -2011,12 +2079,14 @@ export interface FileRoutesByTo {
   '/hivemind/workflow-intelligence': typeof AuthenticatedHivemindWorkflowIntelligenceRoute
   '/knowledge-centre/$slug': typeof AuthenticatedKnowledgeCentreSlugRoute
   '/leads/webforms': typeof AuthenticatedLeadsWebformsRoute
+  '/settings/account': typeof AuthenticatedSettingsAccountRoute
   '/settings/calendar': typeof AuthenticatedSettingsCalendarRoute
   '/settings/crm': typeof AuthenticatedSettingsCrmRoute
   '/settings/developer': typeof AuthenticatedSettingsDeveloperRoute
   '/settings/integrations': typeof AuthenticatedSettingsIntegrationsRoute
   '/settings/production-readiness': typeof AuthenticatedSettingsProductionReadinessRoute
   '/settings/providers': typeof AuthenticatedSettingsProvidersRouteWithChildren
+  '/settings/white-label': typeof AuthenticatedSettingsWhiteLabelRoute
   '/systemmind/accountsmind-setup': typeof AuthenticatedSystemmindAccountsmindSetupRoute
   '/systemmind/architecture': typeof AuthenticatedSystemmindArchitectureRoute
   '/systemmind/audits': typeof AuthenticatedSystemmindAuditsRoute
@@ -2188,9 +2258,11 @@ export interface FileRoutesById {
   '/_authenticated/knowledge-centre': typeof AuthenticatedKnowledgeCentreRouteWithChildren
   '/_authenticated/leads': typeof AuthenticatedLeadsRouteWithChildren
   '/_authenticated/my-agents': typeof AuthenticatedMyAgentsRoute
+  '/_authenticated/notifications': typeof AuthenticatedNotificationsRoute
   '/_authenticated/phone-numbers': typeof AuthenticatedPhoneNumbersRoute
   '/_authenticated/pipeline': typeof AuthenticatedPipelineRoute
   '/_authenticated/qualified': typeof AuthenticatedQualifiedRoute
+  '/_authenticated/reseller': typeof AuthenticatedResellerRoute
   '/_authenticated/systemmind': typeof AuthenticatedSystemmindRouteWithChildren
   '/_authenticated/telephony-calls': typeof AuthenticatedTelephonyCallsRoute
   '/_authenticated/telephony-settings': typeof AuthenticatedTelephonySettingsRoute
@@ -2201,11 +2273,15 @@ export interface FileRoutesById {
   '/api/voice-copilot': typeof ApiVoiceCopilotRoute
   '/auth/callback': typeof AuthCallbackRoute
   '/email/unsubscribe': typeof EmailUnsubscribeRoute
+  '/invite/$token': typeof InviteTokenRoute
   '/upload/$token': typeof UploadTokenRoute
   '/_authenticated/admin/accounts': typeof AuthenticatedAdminAccountsRouteWithChildren
+  '/_authenticated/admin/analytics': typeof AuthenticatedAdminAnalyticsRoute
   '/_authenticated/admin/change-requests': typeof AuthenticatedAdminChangeRequestsRoute
   '/_authenticated/admin/cost-engine': typeof AuthenticatedAdminCostEngineRoute
+  '/_authenticated/admin/packages': typeof AuthenticatedAdminPackagesRoute
   '/_authenticated/admin/platform-knowledge': typeof AuthenticatedAdminPlatformKnowledgeRoute
+  '/_authenticated/admin/resellers': typeof AuthenticatedAdminResellersRoute
   '/_authenticated/admin/user-activity': typeof AuthenticatedAdminUserActivityRoute
   '/_authenticated/admin/users': typeof AuthenticatedAdminUsersRoute
   '/_authenticated/admin/whitelabel': typeof AuthenticatedAdminWhitelabelRoute
@@ -2261,12 +2337,14 @@ export interface FileRoutesById {
   '/_authenticated/hivemind/workflow-intelligence': typeof AuthenticatedHivemindWorkflowIntelligenceRoute
   '/_authenticated/knowledge-centre/$slug': typeof AuthenticatedKnowledgeCentreSlugRoute
   '/_authenticated/leads/webforms': typeof AuthenticatedLeadsWebformsRoute
+  '/_authenticated/settings/account': typeof AuthenticatedSettingsAccountRoute
   '/_authenticated/settings/calendar': typeof AuthenticatedSettingsCalendarRoute
   '/_authenticated/settings/crm': typeof AuthenticatedSettingsCrmRoute
   '/_authenticated/settings/developer': typeof AuthenticatedSettingsDeveloperRoute
   '/_authenticated/settings/integrations': typeof AuthenticatedSettingsIntegrationsRoute
   '/_authenticated/settings/production-readiness': typeof AuthenticatedSettingsProductionReadinessRoute
   '/_authenticated/settings/providers': typeof AuthenticatedSettingsProvidersRouteWithChildren
+  '/_authenticated/settings/white-label': typeof AuthenticatedSettingsWhiteLabelRoute
   '/_authenticated/systemmind/accountsmind-setup': typeof AuthenticatedSystemmindAccountsmindSetupRoute
   '/_authenticated/systemmind/architecture': typeof AuthenticatedSystemmindArchitectureRoute
   '/_authenticated/systemmind/audits': typeof AuthenticatedSystemmindAuditsRoute
@@ -2440,9 +2518,11 @@ export interface FileRouteTypes {
     | '/knowledge-centre'
     | '/leads'
     | '/my-agents'
+    | '/notifications'
     | '/phone-numbers'
     | '/pipeline'
     | '/qualified'
+    | '/reseller'
     | '/systemmind'
     | '/telephony-calls'
     | '/telephony-settings'
@@ -2453,11 +2533,15 @@ export interface FileRouteTypes {
     | '/api/voice-copilot'
     | '/auth/callback'
     | '/email/unsubscribe'
+    | '/invite/$token'
     | '/upload/$token'
     | '/admin/accounts'
+    | '/admin/analytics'
     | '/admin/change-requests'
     | '/admin/cost-engine'
+    | '/admin/packages'
     | '/admin/platform-knowledge'
+    | '/admin/resellers'
     | '/admin/user-activity'
     | '/admin/users'
     | '/admin/whitelabel'
@@ -2513,12 +2597,14 @@ export interface FileRouteTypes {
     | '/hivemind/workflow-intelligence'
     | '/knowledge-centre/$slug'
     | '/leads/webforms'
+    | '/settings/account'
     | '/settings/calendar'
     | '/settings/crm'
     | '/settings/developer'
     | '/settings/integrations'
     | '/settings/production-readiness'
     | '/settings/providers'
+    | '/settings/white-label'
     | '/systemmind/accountsmind-setup'
     | '/systemmind/architecture'
     | '/systemmind/audits'
@@ -2684,9 +2770,11 @@ export interface FileRouteTypes {
     | '/enterprise'
     | '/follow-up'
     | '/my-agents'
+    | '/notifications'
     | '/phone-numbers'
     | '/pipeline'
     | '/qualified'
+    | '/reseller'
     | '/telephony-calls'
     | '/telephony-settings'
     | '/template-studio'
@@ -2696,10 +2784,14 @@ export interface FileRouteTypes {
     | '/api/voice-copilot'
     | '/auth/callback'
     | '/email/unsubscribe'
+    | '/invite/$token'
     | '/upload/$token'
+    | '/admin/analytics'
     | '/admin/change-requests'
     | '/admin/cost-engine'
+    | '/admin/packages'
     | '/admin/platform-knowledge'
+    | '/admin/resellers'
     | '/admin/user-activity'
     | '/admin/users'
     | '/admin/whitelabel'
@@ -2755,12 +2847,14 @@ export interface FileRouteTypes {
     | '/hivemind/workflow-intelligence'
     | '/knowledge-centre/$slug'
     | '/leads/webforms'
+    | '/settings/account'
     | '/settings/calendar'
     | '/settings/crm'
     | '/settings/developer'
     | '/settings/integrations'
     | '/settings/production-readiness'
     | '/settings/providers'
+    | '/settings/white-label'
     | '/systemmind/accountsmind-setup'
     | '/systemmind/architecture'
     | '/systemmind/audits'
@@ -2931,9 +3025,11 @@ export interface FileRouteTypes {
     | '/_authenticated/knowledge-centre'
     | '/_authenticated/leads'
     | '/_authenticated/my-agents'
+    | '/_authenticated/notifications'
     | '/_authenticated/phone-numbers'
     | '/_authenticated/pipeline'
     | '/_authenticated/qualified'
+    | '/_authenticated/reseller'
     | '/_authenticated/systemmind'
     | '/_authenticated/telephony-calls'
     | '/_authenticated/telephony-settings'
@@ -2944,11 +3040,15 @@ export interface FileRouteTypes {
     | '/api/voice-copilot'
     | '/auth/callback'
     | '/email/unsubscribe'
+    | '/invite/$token'
     | '/upload/$token'
     | '/_authenticated/admin/accounts'
+    | '/_authenticated/admin/analytics'
     | '/_authenticated/admin/change-requests'
     | '/_authenticated/admin/cost-engine'
+    | '/_authenticated/admin/packages'
     | '/_authenticated/admin/platform-knowledge'
+    | '/_authenticated/admin/resellers'
     | '/_authenticated/admin/user-activity'
     | '/_authenticated/admin/users'
     | '/_authenticated/admin/whitelabel'
@@ -3004,12 +3104,14 @@ export interface FileRouteTypes {
     | '/_authenticated/hivemind/workflow-intelligence'
     | '/_authenticated/knowledge-centre/$slug'
     | '/_authenticated/leads/webforms'
+    | '/_authenticated/settings/account'
     | '/_authenticated/settings/calendar'
     | '/_authenticated/settings/crm'
     | '/_authenticated/settings/developer'
     | '/_authenticated/settings/integrations'
     | '/_authenticated/settings/production-readiness'
     | '/_authenticated/settings/providers'
+    | '/_authenticated/settings/white-label'
     | '/_authenticated/systemmind/accountsmind-setup'
     | '/_authenticated/systemmind/architecture'
     | '/_authenticated/systemmind/audits'
@@ -3167,6 +3269,7 @@ export interface RootRouteChildren {
   ApiVoiceCopilotRoute: typeof ApiVoiceCopilotRoute
   AuthCallbackRoute: typeof AuthCallbackRoute
   EmailUnsubscribeRoute: typeof EmailUnsubscribeRoute
+  InviteTokenRoute: typeof InviteTokenRoute
   UploadTokenRoute: typeof UploadTokenRoute
   ApiAdminTestRetellWebhookRoute: typeof ApiAdminTestRetellWebhookRoute
   ApiBuilderImportPdfRoute: typeof ApiBuilderImportPdfRoute
@@ -3310,6 +3413,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof UploadTokenRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/invite/$token': {
+      id: '/invite/$token'
+      path: '/invite/$token'
+      fullPath: '/invite/$token'
+      preLoaderRoute: typeof InviteTokenRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/email/unsubscribe': {
       id: '/email/unsubscribe'
       path: '/email/unsubscribe'
@@ -3380,6 +3490,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedSystemmindRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
+    '/_authenticated/reseller': {
+      id: '/_authenticated/reseller'
+      path: '/reseller'
+      fullPath: '/reseller'
+      preLoaderRoute: typeof AuthenticatedResellerRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
     '/_authenticated/qualified': {
       id: '/_authenticated/qualified'
       path: '/qualified'
@@ -3399,6 +3516,13 @@ declare module '@tanstack/react-router' {
       path: '/phone-numbers'
       fullPath: '/phone-numbers'
       preLoaderRoute: typeof AuthenticatedPhoneNumbersRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/notifications': {
+      id: '/_authenticated/notifications'
+      path: '/notifications'
+      fullPath: '/notifications'
+      preLoaderRoute: typeof AuthenticatedNotificationsRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
     '/_authenticated/my-agents': {
@@ -4031,6 +4155,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedSystemmindAccountsmindSetupRouteImport
       parentRoute: typeof AuthenticatedSystemmindRoute
     }
+    '/_authenticated/settings/white-label': {
+      id: '/_authenticated/settings/white-label'
+      path: '/settings/white-label'
+      fullPath: '/settings/white-label'
+      preLoaderRoute: typeof AuthenticatedSettingsWhiteLabelRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
     '/_authenticated/settings/providers': {
       id: '/_authenticated/settings/providers'
       path: '/settings/providers'
@@ -4071,6 +4202,13 @@ declare module '@tanstack/react-router' {
       path: '/settings/calendar'
       fullPath: '/settings/calendar'
       preLoaderRoute: typeof AuthenticatedSettingsCalendarRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/settings/account': {
+      id: '/_authenticated/settings/account'
+      path: '/settings/account'
+      fullPath: '/settings/account'
+      preLoaderRoute: typeof AuthenticatedSettingsAccountRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
     '/_authenticated/leads/webforms': {
@@ -4458,11 +4596,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminUserActivityRouteImport
       parentRoute: typeof AuthenticatedAdminRoute
     }
+    '/_authenticated/admin/resellers': {
+      id: '/_authenticated/admin/resellers'
+      path: '/resellers'
+      fullPath: '/admin/resellers'
+      preLoaderRoute: typeof AuthenticatedAdminResellersRouteImport
+      parentRoute: typeof AuthenticatedAdminRoute
+    }
     '/_authenticated/admin/platform-knowledge': {
       id: '/_authenticated/admin/platform-knowledge'
       path: '/platform-knowledge'
       fullPath: '/admin/platform-knowledge'
       preLoaderRoute: typeof AuthenticatedAdminPlatformKnowledgeRouteImport
+      parentRoute: typeof AuthenticatedAdminRoute
+    }
+    '/_authenticated/admin/packages': {
+      id: '/_authenticated/admin/packages'
+      path: '/packages'
+      fullPath: '/admin/packages'
+      preLoaderRoute: typeof AuthenticatedAdminPackagesRouteImport
       parentRoute: typeof AuthenticatedAdminRoute
     }
     '/_authenticated/admin/cost-engine': {
@@ -4477,6 +4629,13 @@ declare module '@tanstack/react-router' {
       path: '/change-requests'
       fullPath: '/admin/change-requests'
       preLoaderRoute: typeof AuthenticatedAdminChangeRequestsRouteImport
+      parentRoute: typeof AuthenticatedAdminRoute
+    }
+    '/_authenticated/admin/analytics': {
+      id: '/_authenticated/admin/analytics'
+      path: '/analytics'
+      fullPath: '/admin/analytics'
+      preLoaderRoute: typeof AuthenticatedAdminAnalyticsRouteImport
       parentRoute: typeof AuthenticatedAdminRoute
     }
     '/_authenticated/admin/accounts': {
@@ -5053,9 +5212,12 @@ const AuthenticatedAdminAccountsRouteWithChildren =
 
 interface AuthenticatedAdminRouteChildren {
   AuthenticatedAdminAccountsRoute: typeof AuthenticatedAdminAccountsRouteWithChildren
+  AuthenticatedAdminAnalyticsRoute: typeof AuthenticatedAdminAnalyticsRoute
   AuthenticatedAdminChangeRequestsRoute: typeof AuthenticatedAdminChangeRequestsRoute
   AuthenticatedAdminCostEngineRoute: typeof AuthenticatedAdminCostEngineRoute
+  AuthenticatedAdminPackagesRoute: typeof AuthenticatedAdminPackagesRoute
   AuthenticatedAdminPlatformKnowledgeRoute: typeof AuthenticatedAdminPlatformKnowledgeRoute
+  AuthenticatedAdminResellersRoute: typeof AuthenticatedAdminResellersRoute
   AuthenticatedAdminUserActivityRoute: typeof AuthenticatedAdminUserActivityRoute
   AuthenticatedAdminUsersRoute: typeof AuthenticatedAdminUsersRoute
   AuthenticatedAdminWhitelabelRoute: typeof AuthenticatedAdminWhitelabelRoute
@@ -5066,10 +5228,13 @@ interface AuthenticatedAdminRouteChildren {
 
 const AuthenticatedAdminRouteChildren: AuthenticatedAdminRouteChildren = {
   AuthenticatedAdminAccountsRoute: AuthenticatedAdminAccountsRouteWithChildren,
+  AuthenticatedAdminAnalyticsRoute: AuthenticatedAdminAnalyticsRoute,
   AuthenticatedAdminChangeRequestsRoute: AuthenticatedAdminChangeRequestsRoute,
   AuthenticatedAdminCostEngineRoute: AuthenticatedAdminCostEngineRoute,
+  AuthenticatedAdminPackagesRoute: AuthenticatedAdminPackagesRoute,
   AuthenticatedAdminPlatformKnowledgeRoute:
     AuthenticatedAdminPlatformKnowledgeRoute,
+  AuthenticatedAdminResellersRoute: AuthenticatedAdminResellersRoute,
   AuthenticatedAdminUserActivityRoute: AuthenticatedAdminUserActivityRoute,
   AuthenticatedAdminUsersRoute: AuthenticatedAdminUsersRoute,
   AuthenticatedAdminWhitelabelRoute: AuthenticatedAdminWhitelabelRoute,
@@ -5441,9 +5606,11 @@ interface AuthenticatedRouteChildren {
   AuthenticatedKnowledgeCentreRoute: typeof AuthenticatedKnowledgeCentreRouteWithChildren
   AuthenticatedLeadsRoute: typeof AuthenticatedLeadsRouteWithChildren
   AuthenticatedMyAgentsRoute: typeof AuthenticatedMyAgentsRoute
+  AuthenticatedNotificationsRoute: typeof AuthenticatedNotificationsRoute
   AuthenticatedPhoneNumbersRoute: typeof AuthenticatedPhoneNumbersRoute
   AuthenticatedPipelineRoute: typeof AuthenticatedPipelineRoute
   AuthenticatedQualifiedRoute: typeof AuthenticatedQualifiedRoute
+  AuthenticatedResellerRoute: typeof AuthenticatedResellerRoute
   AuthenticatedSystemmindRoute: typeof AuthenticatedSystemmindRouteWithChildren
   AuthenticatedTelephonyCallsRoute: typeof AuthenticatedTelephonyCallsRoute
   AuthenticatedTelephonySettingsRoute: typeof AuthenticatedTelephonySettingsRoute
@@ -5452,12 +5619,14 @@ interface AuthenticatedRouteChildren {
   AuthenticatedWhatsappRoute: typeof AuthenticatedWhatsappRoute
   AuthenticatedWorkflowEngineRoute: typeof AuthenticatedWorkflowEngineRoute
   AuthenticatedAgentsNewRoute: typeof AuthenticatedAgentsNewRoute
+  AuthenticatedSettingsAccountRoute: typeof AuthenticatedSettingsAccountRoute
   AuthenticatedSettingsCalendarRoute: typeof AuthenticatedSettingsCalendarRoute
   AuthenticatedSettingsCrmRoute: typeof AuthenticatedSettingsCrmRoute
   AuthenticatedSettingsDeveloperRoute: typeof AuthenticatedSettingsDeveloperRoute
   AuthenticatedSettingsIntegrationsRoute: typeof AuthenticatedSettingsIntegrationsRoute
   AuthenticatedSettingsProductionReadinessRoute: typeof AuthenticatedSettingsProductionReadinessRoute
   AuthenticatedSettingsProvidersRoute: typeof AuthenticatedSettingsProvidersRouteWithChildren
+  AuthenticatedSettingsWhiteLabelRoute: typeof AuthenticatedSettingsWhiteLabelRoute
 }
 
 const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
@@ -5481,9 +5650,11 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
     AuthenticatedKnowledgeCentreRouteWithChildren,
   AuthenticatedLeadsRoute: AuthenticatedLeadsRouteWithChildren,
   AuthenticatedMyAgentsRoute: AuthenticatedMyAgentsRoute,
+  AuthenticatedNotificationsRoute: AuthenticatedNotificationsRoute,
   AuthenticatedPhoneNumbersRoute: AuthenticatedPhoneNumbersRoute,
   AuthenticatedPipelineRoute: AuthenticatedPipelineRoute,
   AuthenticatedQualifiedRoute: AuthenticatedQualifiedRoute,
+  AuthenticatedResellerRoute: AuthenticatedResellerRoute,
   AuthenticatedSystemmindRoute: AuthenticatedSystemmindRouteWithChildren,
   AuthenticatedTelephonyCallsRoute: AuthenticatedTelephonyCallsRoute,
   AuthenticatedTelephonySettingsRoute: AuthenticatedTelephonySettingsRoute,
@@ -5492,6 +5663,7 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedWhatsappRoute: AuthenticatedWhatsappRoute,
   AuthenticatedWorkflowEngineRoute: AuthenticatedWorkflowEngineRoute,
   AuthenticatedAgentsNewRoute: AuthenticatedAgentsNewRoute,
+  AuthenticatedSettingsAccountRoute: AuthenticatedSettingsAccountRoute,
   AuthenticatedSettingsCalendarRoute: AuthenticatedSettingsCalendarRoute,
   AuthenticatedSettingsCrmRoute: AuthenticatedSettingsCrmRoute,
   AuthenticatedSettingsDeveloperRoute: AuthenticatedSettingsDeveloperRoute,
@@ -5501,6 +5673,7 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
     AuthenticatedSettingsProductionReadinessRoute,
   AuthenticatedSettingsProvidersRoute:
     AuthenticatedSettingsProvidersRouteWithChildren,
+  AuthenticatedSettingsWhiteLabelRoute: AuthenticatedSettingsWhiteLabelRoute,
 }
 
 const AuthenticatedRouteWithChildren = AuthenticatedRoute._addFileChildren(
@@ -5682,6 +5855,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiVoiceCopilotRoute: ApiVoiceCopilotRoute,
   AuthCallbackRoute: AuthCallbackRoute,
   EmailUnsubscribeRoute: EmailUnsubscribeRoute,
+  InviteTokenRoute: InviteTokenRoute,
   UploadTokenRoute: UploadTokenRoute,
   ApiAdminTestRetellWebhookRoute: ApiAdminTestRetellWebhookRoute,
   ApiBuilderImportPdfRoute: ApiBuilderImportPdfRoute,

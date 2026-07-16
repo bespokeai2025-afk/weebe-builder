@@ -488,7 +488,9 @@ export async function activateSystemMindAutomation(
   const kind = String(draft.action_kind ?? "workflow");
   if (
     kind === "whatsapp_setup" || kind === "follow_up_sequence" || kind === "n8n_blueprint" ||
-    kind === "accountsmind_config" || kind === "onboarding_plan" || kind === "build_workspace_apply"
+    kind === "accountsmind_config" || kind === "onboarding_plan" || kind === "build_workspace_apply" ||
+    kind === "build_test_override" || kind === "people_view" || kind === "campaign_filter" ||
+    kind === "page_filter" || kind === "campaign_fix"
   ) {
     let result: { activatedTargetType: string; activatedTargetId: string; summary: Record<string, unknown> };
     try {
@@ -501,6 +503,21 @@ export async function activateSystemMindAutomation(
       } else if (kind === "build_workspace_apply") {
         const bw = await import("@/lib/systemmind/build-workspace.server");
         result = await bw.activateBuildWorkspaceApplyKind(workspaceId, generatedActionId);
+      } else if (kind === "build_test_override") {
+        const tc = await import("@/lib/systemmind/build-workspace-testcall.server");
+        result = await tc.activateBuildTestOverrideKind(workspaceId, generatedActionId);
+      } else if (kind === "people_view") {
+        const pv = await import("@/lib/people-views/people-views-systemmind.server");
+        result = await pv.activatePeopleViewKind(workspaceId, generatedActionId);
+      } else if (kind === "campaign_filter") {
+        const pv = await import("@/lib/people-views/people-views-systemmind.server");
+        result = await pv.activateCampaignFilterKind(workspaceId, generatedActionId);
+      } else if (kind === "page_filter") {
+        const pf = await import("@/lib/people-views/page-filters-systemmind.server");
+        result = await pf.activatePageFilterKind(workspaceId, generatedActionId);
+      } else if (kind === "campaign_fix") {
+        const cr = await import("@/lib/campaign-reports/campaign-reports-systemmind.server");
+        result = await cr.activateCampaignFixKind(workspaceId, generatedActionId);
       } else {
         const gen = await import("@/lib/systemmind/systemmind-generators.server");
         if (kind === "whatsapp_setup") {
@@ -541,6 +558,21 @@ export async function activateSystemMindAutomation(
       approvedBy,
       executedAt: activatedAt,
     });
+
+    // Learn from every successful setup — fire-and-forget, never blocks activation.
+    import("@/lib/systemmind/systemmind-setup-learning.server")
+      .then((m) => m.recordSetupSuccessLearning({
+        workspaceId,
+        kind,
+        sourceId: generatedActionId,
+        title: String(draft.title ?? kind),
+        summary: {
+          activated_target_type: result.activatedTargetType,
+          activated_target_id:   result.activatedTargetId,
+          ...result.summary,
+        },
+      }))
+      .catch((e) => console.error("[SetupLearning] failed:", (e as Error)?.message));
 
     // Keep the legacy return shape: workflow_id carries the activated target id
     // so the HiveMind executor needs no changes.
@@ -600,6 +632,22 @@ export async function activateSystemMindAutomation(
     approvedBy,
     executedAt: now,
   });
+
+  // Learn from every successful setup — fire-and-forget, never blocks activation.
+  import("@/lib/systemmind/systemmind-setup-learning.server")
+    .then((m) => m.recordSetupSuccessLearning({
+      workspaceId,
+      kind: "workflow",
+      sourceId: generatedActionId,
+      title: String(payload.name ?? draft.title ?? "Workflow automation"),
+      summary: {
+        workflow_id:  wf.id,
+        trigger_type: triggerType,
+        step_count:   safeSteps.length,
+        purpose:      String(payload.purpose ?? "").slice(0, 400),
+      },
+    }))
+    .catch((e) => console.error("[SetupLearning] failed:", (e as Error)?.message));
 
   return { workflow_id: wf.id as string, draft_id: generatedActionId };
 }

@@ -1,0 +1,1126 @@
+Please build a complete Master Admin controlled Package Access, Staff Access, Notification, White Label, and Reseller/Client Account system for WEBEE.
+
+This must combine:
+
+1. Package-based access for all new signups.
+2. Staff logins as chargeable add-ons.
+3. Panel/page/action visibility controls.
+4. Account Settings notification preferences.
+5. White Label package controls.
+6. Reseller ability for selected clients to create white-label client accounts.
+7. Master Admin oversight over all workspaces, reseller accounts, child client accounts, usage, billing, branding, notifications, and access.
+8. Standard WEBEE automated emails sent through the admin WEBEE Resend account by default.
+9. Optional workspace/reseller custom email provider settings if they prefer to send branded emails from their own domain/provider.
+
+Everything must be workspace-scoped, tenant-safe, auditable, reversible, and enforced on the backend.
+
+---
+
+# 1. Core access model
+
+Create a clear hierarchy:
+
+## WEBEE Master Admin
+
+The top-level owner/admin layer.
+
+Can:
+
+* manage all packages
+* manage all workspaces
+* manage direct clients
+* manage white label clients
+* manage reseller accounts
+* manage reseller child workspaces
+* view usage across all accounts
+* control package entitlements
+* grant/revoke white label access
+* grant/revoke reseller access
+* view billing/usage
+* view audit logs
+* suspend workspaces
+* override access
+* configure default notification/email settings
+* configure platform-wide Resend/admin email account
+
+## Direct WEBEE Client Workspace
+
+A normal client account sold directly by WEBEE.
+
+Access is controlled by:
+
+* package
+* add-ons
+* staff seats
+* user role
+* page/action permissions
+* panel visibility
+
+## White Label / Reseller Workspace
+
+A client who has permission to create their own branded client accounts.
+
+Access is controlled by:
+
+* package
+* white label entitlement
+* reseller entitlement
+* add-ons
+* limits
+* Master Admin approval/override
+
+## Reseller Child Client Workspace
+
+A workspace created by a reseller for their own client.
+
+This workspace should:
+
+* inherit reseller branding where configured
+* be linked to the reseller parent workspace
+* still be visible to WEBEE Master Admin
+* still be auditable by WEBEE Master Admin
+* still have package/add-on/usage tracking
+* still respect WEBEE platform security
+* never bypass Master Admin control
+
+---
+
+# 2. Master Admin package access matrix
+
+Create or update Master Admin section:
+
+`Package Access Matrix`
+
+Master Admin should configure what each package unlocks.
+
+Each package should control:
+
+* Dashboard
+* WEBEE Receptionist
+* Agent Builder
+* Agent Deploy
+* Phone Numbers / SIP
+* Calls
+* Leads
+* Qualified
+* Data
+* People
+* Custom People Views
+* Page Filters
+* Campaigns
+* Campaign Filters
+* Campaign Reports
+* Workflows
+* Follow Up Centre
+* WhatsApp Centre / BuzzChat
+* HexMail / Email Centre
+* Template Studio
+* Video & Creative Studio
+* WEBEE CRM
+* GrowthMind
+* HiveMind
+* SystemMind
+* AccountsMind
+* Analytics
+* Settings
+* Billing
+* Team Access
+* Approval Settings
+* Provider Settings
+* API / Webhooks
+* White Label
+* Reseller Portal
+* Client Account Creation
+* White Label Client Portal
+* Custom Email Sending
+* Custom Domain
+* Remove WEBEE branding
+
+Package limits should include:
+
+* included staff users
+* extra staff user allowed yes/no
+* max agents
+* max live agents
+* max workflows
+* max campaigns
+* max active campaigns
+* max custom People views
+* max page filters
+* max campaign filters
+* included AI voice minutes
+* SystemMind usage allowance
+* campaign reports allowed
+* white label allowed
+* reseller allowed
+* max reseller child accounts
+* max white label brands
+* custom email provider allowed
+* custom domain allowed
+
+Do not give full WEBEE access by default.
+
+---
+
+# 3. Suggested database tables
+
+Create or verify these tables.
+
+## `package_definitions`
+
+Fields:
+
+* id
+* package_key
+* package_name
+* description
+* monthly_price
+* annual_price
+* currency
+* included_voice_minutes
+* included_staff_users
+* max_agents
+* max_live_agents
+* max_workflows
+* max_campaigns
+* max_active_campaigns
+* max_custom_views
+* max_page_filters
+* max_campaign_filters
+* max_reseller_child_accounts
+* max_white_label_brands
+* features_json
+* page_access_json
+* action_access_json
+* ai_departments_json
+* addon_options_json
+* white_label_options_json
+* reseller_options_json
+* email_options_json
+* is_active
+* created_at
+* updated_at
+
+## `workspace_subscriptions`
+
+Fields:
+
+* id
+* workspace_id
+* package_key
+* subscription_status:
+
+  * trial
+  * active
+  * past_due
+  * cancelled
+  * suspended
+* billing_provider
+* billing_customer_id
+* billing_subscription_id
+* trial_ends_at
+* current_period_start
+* current_period_end
+* created_at
+* updated_at
+
+## `workspace_feature_entitlements`
+
+Fields:
+
+* id
+* workspace_id
+* source:
+
+  * package
+  * addon
+  * master_admin_override
+  * reseller_parent
+* feature_key
+* enabled
+* limit_value
+* used_value
+* created_at
+* updated_at
+
+## `workspace_addons`
+
+Fields:
+
+* id
+* workspace_id
+* addon_key
+* addon_name
+* quantity
+* status:
+
+  * active
+  * pending
+  * cancelled
+  * suspended
+* billing_provider
+* billing_subscription_item_id
+* created_at
+* updated_at
+
+## `workspace_role_permissions`
+
+Fields:
+
+* id
+* workspace_id
+* role_key
+* permissions_json
+* page_access_json
+* action_access_json
+* panel_visibility_json
+* record_visibility_json
+* field_visibility_json
+* is_system_default
+* created_by_user_id
+* updated_by_user_id
+* created_at
+* updated_at
+
+## `workspace_user_access_overrides`
+
+Fields:
+
+* id
+* workspace_id
+* user_id
+* page_access_json
+* action_access_json
+* field_visibility_json
+* panel_visibility_json
+* record_visibility_json
+* created_by_user_id
+* updated_by_user_id
+* created_at
+* updated_at
+
+---
+
+# 4. Reseller / white label hierarchy tables
+
+Create these tables if they do not already exist.
+
+## `workspace_relationships`
+
+Purpose: link child client workspaces to parent reseller/white-label workspaces and WEBEE Master Admin oversight.
+
+Fields:
+
+* id
+* parent_workspace_id
+* child_workspace_id
+* relationship_type:
+
+  * reseller_child
+  * white_label_child
+  * agency_client
+  * master_admin_managed
+* created_by_user_id
+* status:
+
+  * active
+  * suspended
+  * archived
+* created_at
+* updated_at
+
+Rules:
+
+* every reseller child workspace must have a parent_workspace_id
+* WEBEE Master Admin must be able to see relationship hierarchy
+* child workspaces must never see sibling workspace data
+* parent reseller can only see child workspaces they created or are assigned to
+* Master Admin can see all
+
+## `workspace_white_label_settings`
+
+Fields:
+
+* id
+* workspace_id
+* brand_name
+* logo_url
+* favicon_url
+* primary_colour
+* secondary_colour
+* accent_colour
+* custom_domain
+* domain_status:
+
+  * not_configured
+  * pending_dns
+  * verifying
+  * active
+  * failed
+* email_from_name
+* email_from_domain
+* email_branding_json
+* client_portal_branding_json
+* hide_webee_branding
+* reseller_mode_enabled
+* child_workspace_branding_mode:
+
+  * inherit_parent
+  * custom_per_child
+  * webee_default
+* status:
+
+  * draft
+  * active
+  * suspended
+* created_by_user_id
+* updated_by_user_id
+* created_at
+* updated_at
+
+## `reseller_client_accounts`
+
+Fields:
+
+* id
+* reseller_workspace_id
+* child_workspace_id
+* client_name
+* client_email
+* client_company_name
+* client_package_key
+* client_status:
+
+  * invited
+  * active
+  * suspended
+  * cancelled
+* branding_mode:
+
+  * inherit_reseller
+  * custom_child_brand
+  * webee_default
+* billing_mode:
+
+  * billed_by_webee
+  * billed_by_reseller
+  * internal_only
+* created_by_user_id
+* created_at
+* updated_at
+
+---
+
+# 5. Reseller Portal
+
+If a workspace has reseller entitlement, show a `Reseller Portal` or `Client Accounts` panel.
+
+Reseller can:
+
+* create client workspace
+* invite client owner/admin
+* assign client package
+* choose branding mode
+* choose whether child uses reseller branding
+* view child account status
+* view child usage summary
+* view child campaign reports if permitted
+* manage child account settings within permission limits
+* suspend child access if allowed
+* request upgrade/add-ons
+
+Reseller must not be able to:
+
+* bypass WEBEE Master Admin billing/usage tracking
+* create unlimited child accounts beyond package/add-on limits
+* see unrelated workspaces
+* see other reseller accounts
+* access WEBEE Master Admin tools
+* change global WEBEE package rules
+* change global WEBEE branding
+* hide child workspaces from Master Admin
+
+---
+
+# 6. Master Admin oversight
+
+In WEBEE Master Admin, add:
+
+## Reseller Management
+
+Show:
+
+* all reseller workspaces
+* package
+* status
+* child account count
+* allowed child account limit
+* usage summary
+* billing status
+* white label status
+* custom domain status
+* email provider mode
+* last activity
+* audit log
+
+Actions:
+
+* approve reseller access
+* revoke reseller access
+* change package
+* change limits
+* suspend reseller
+* view child workspaces
+* view usage
+* view audit logs
+* grant override
+* revoke override
+
+## Child Workspace Management
+
+Master Admin should see:
+
+* child workspace name
+* parent reseller
+* package
+* status
+* usage
+* branding mode
+* billing mode
+* owner
+* created date
+* reports
+* audit logs
+
+Master Admin must always retain oversight.
+
+---
+
+# 7. Staff logins as chargeable add-on
+
+Staff logins should be controlled by package and add-on.
+
+Addon key:
+
+`extra_staff_user`
+
+Rules:
+
+* package includes a base number of users
+* extra staff users require add-on quantity
+* invite/activation must be blocked if seat limit exceeded
+* Master Admin can override
+* billing integration if available
+* internal billing pending if not ready
+
+In Account Settings → Team Access, show:
+
+* included seats
+* active seats
+* pending invites
+* extra paid seats
+* available seats
+* add staff seat button/request
+
+---
+
+# 8. Staff panel visibility
+
+Workspace owner/admin can control what staff see.
+
+Sections:
+
+* Dashboard
+* People
+* Leads
+* Qualified
+* Calls
+* Data
+* Campaigns
+* Campaign Reports
+* Workflows
+* Follow Up Centre
+* Agent Builder
+* Agent Deploy
+* SystemMind
+* HiveMind
+* GrowthMind
+* AccountsMind
+* White Label
+* Reseller Portal
+* Billing
+* Provider Settings
+* Phone Numbers / SIP
+* Notifications
+* Team Access
+* API / Webhooks
+
+Visibility levels:
+
+* hidden
+* view only
+* edit
+* create draft
+* approve
+* activate/go live
+* admin/manage
+
+Enforce both frontend and backend.
+
+---
+
+# 9. Email sending architecture
+
+Automated emails should be sent through the WEBEE admin Resend account by default.
+
+Default provider:
+
+`WEBEE Admin Resend`
+
+Used for:
+
+* staff invite emails
+* campaign notification emails
+* report notification emails
+* password/onboarding emails where applicable
+* SystemMind notification emails
+* billing/admin emails where applicable
+* default client emails if no custom provider is configured
+
+Environment/config:
+
+* `WEBEE_RESEND_API_KEY`
+* `WEBEE_DEFAULT_FROM_EMAIL`
+* `WEBEE_DEFAULT_FROM_NAME`
+
+Do not expose the WEBEE admin Resend key to users.
+
+---
+
+# 10. Optional custom email provider per workspace
+
+Users/resellers may add their own email provider if their package allows it.
+
+Feature key:
+
+`custom_email_provider`
+
+Provider settings should be workspace-scoped.
+
+Supported option initially:
+
+* Resend custom API key/domain
+
+Optional future providers:
+
+* SMTP
+* SendGrid
+* Mailgun
+
+Create or verify table:
+
+## `workspace_email_provider_settings`
+
+Fields:
+
+* id
+* workspace_id
+* provider:
+
+  * webee_default_resend
+  * custom_resend
+  * smtp
+  * sendgrid
+  * mailgun
+* sending_mode:
+
+  * platform_default
+  * workspace_custom
+  * reseller_parent_custom
+* from_email
+* from_name
+* reply_to_email
+* provider_config_encrypted
+* domain_status:
+
+  * not_configured
+  * pending_dns
+  * verifying
+  * active
+  * failed
+* is_active
+* created_by_user_id
+* updated_by_user_id
+* created_at
+* updated_at
+
+Security:
+
+* encrypt provider credentials
+* never show full API keys after saving
+* backend only
+* permission-gated
+* package-gated
+* audit logged
+
+---
+
+# 11. Email sending priority
+
+When sending automated emails, choose provider in this priority:
+
+1. Child workspace custom provider, if active and package allows.
+2. Reseller parent custom provider, if child inherits parent email mode and package allows.
+3. WEBEE admin Resend account as default fallback.
+
+Never fail campaign execution because an email failed.
+
+If custom provider fails:
+
+* log error
+* mark notification failed
+* optionally fallback to WEBEE default if workspace setting allows fallback
+* notify admin in-app
+* do not expose secrets
+
+---
+
+# 12. Account Settings → Notifications
+
+Workspace owners/admins should configure notifications.
+
+Events:
+
+* campaign launched
+* campaign activated
+* campaign paused
+* campaign completed
+* campaign failed
+* campaign blocked
+* no eligible leads
+* safety cap reached
+* daily call cap reached
+* provider/API error
+* workflow error
+* KPI report ready
+* high negative sentiment
+* high positive performance
+* qualified leads created
+* appointments booked
+* follow-up tasks created
+* SystemMind fix suggested
+* staff invite accepted
+* reseller child account created
+* child workspace suspended
+* white label domain failed
+* custom email provider failed
+
+For each event:
+
+* enabled yes/no
+* in-app yes/no
+* email yes/no
+* recipients by role
+* recipients by user
+* custom emails
+* frequency:
+
+  * immediate
+  * hourly digest
+  * daily digest
+  * weekly digest
+
+---
+
+# 13. Notification tables
+
+Create or verify:
+
+## `workspace_notification_settings`
+
+Fields:
+
+* id
+* workspace_id
+* event_key
+* enabled
+* channel_email
+* channel_in_app
+* recipient_roles_json
+* recipient_user_ids_json
+* custom_emails_json
+* frequency
+* created_by_user_id
+* updated_by_user_id
+* created_at
+* updated_at
+
+## `workspace_notifications`
+
+Fields:
+
+* id
+* workspace_id
+* event_key
+* object_type
+* object_id
+* campaign_id
+* report_id
+* title
+* message
+* severity:
+
+  * info
+  * success
+  * warning
+  * error
+  * critical
+* recipient_user_id
+* recipient_email
+* channel:
+
+  * in_app
+  * email
+* delivery_status:
+
+  * pending
+  * sent
+  * failed
+  * skipped
+* delivery_error
+* provider_used:
+
+  * webee_default_resend
+  * workspace_custom
+  * reseller_parent_custom
+* created_at
+* sent_at
+
+---
+
+# 14. Notification UI
+
+In Account Settings → Notifications, show:
+
+| Event | In-app | Email | Recipients | Frequency | Provider |
+
+Allow:
+
+* enable/disable event
+* select recipients
+* select roles
+* add custom emails
+* choose frequency
+* send test notification
+* view last sent status
+* view provider used
+
+If package does not allow email notifications or custom recipients, show locked state.
+
+---
+
+# 15. Master Admin notification defaults
+
+Master Admin should define default notification settings by package.
+
+Example:
+
+Basic package:
+
+* in-app failure notifications only
+
+Pro/Scale:
+
+* in-app and email campaign failure notifications
+* KPI report ready notifications
+
+Enterprise/White Label:
+
+* full notification controls
+* custom recipients
+* custom provider allowed
+* digest settings
+
+Workspace admins can customise within package limits.
+
+---
+
+# 16. White Label access controls
+
+Feature keys:
+
+* `white_label`
+* `white_label_basic_branding`
+* `white_label_custom_logo`
+* `white_label_custom_colours`
+* `white_label_custom_domain`
+* `white_label_email_branding`
+* `white_label_client_portal`
+* `white_label_reseller_mode`
+* `white_label_hide_webee_branding`
+* `reseller_client_accounts`
+* `custom_email_provider`
+
+White Label must be package/add-on/admin-override controlled.
+
+Do not allow every user to access it.
+
+---
+
+# 17. Reseller child account limits
+
+Reseller package or add-on should control:
+
+* can_create_child_accounts
+* max_child_accounts
+* child account packages allowed
+* branding inheritance allowed
+* custom branding per child allowed
+* billing mode allowed
+* custom email provider allowed
+* child staff seat limits
+* child campaign limits
+* child SystemMind limits
+
+If reseller exceeds child account limit, block creation and show upgrade/add-on prompt.
+
+---
+
+# 18. Billing and add-ons
+
+Create add-ons:
+
+* `extra_staff_user`
+* `white_label`
+* `white_label_custom_domain`
+* `custom_email_provider`
+* `reseller_client_accounts`
+* `extra_reseller_child_account`
+* `extra_campaign_capacity`
+* `extra_voice_minutes`
+
+If billing integration is not ready:
+
+* create internal add-on record
+* mark billing_status = pending
+* do not silently make paid features free unless Master Admin override is enabled
+
+---
+
+# 19. Signup behaviour
+
+When a user signs up:
+
+1. Detect selected package.
+2. Create workspace.
+3. Create owner membership.
+4. Create subscription.
+5. Apply entitlements.
+6. Apply package notification defaults.
+7. Apply included staff seats.
+8. Apply package page access.
+9. Apply package action access.
+10. Apply allowed AI departments.
+11. Set email provider to WEBEE admin Resend default.
+12. Lock unavailable features.
+13. Show upgrade prompts where relevant.
+
+If selected package is missing, assign lowest safe package/trial.
+
+Do not grant full WEBEE access by default.
+
+---
+
+# 20. Backend enforcement
+
+Every sensitive action must check:
+
+* workspace_id
+* package entitlement
+* add-on entitlement
+* user role
+* panel/page/action permission
+* parent/child workspace relationship where relevant
+
+Sensitive actions include:
+
+* create agent
+* deploy agent
+* Go Live
+* purchase phone number
+* assign SIP
+* activate campaign
+* create workflow
+* apply SystemMind change
+* create People view
+* create page filter
+* create campaign filter
+* create report
+* send notification
+* invite staff
+* create reseller child workspace
+* edit White Label
+* edit email provider
+* edit billing/settings
+* view Master Admin data
+
+Fail closed if permission cannot be verified.
+
+---
+
+# 21. SystemMind behaviour
+
+SystemMind must respect package, role, and reseller permissions.
+
+Examples:
+
+* If user asks to create child client account but reseller feature is not enabled, SystemMind should show upgrade/admin approval prompt.
+* If user lacks White Label permission, SystemMind should refuse.
+* If user lacks package access for custom email provider, SystemMind should say it is locked.
+* If user can draft but not apply, SystemMind should create a draft and request approval.
+* If reseller child account limit is reached, SystemMind should block and suggest add-on/upgrade.
+* If custom email provider fails, SystemMind should suggest fix without exposing secrets.
+
+SystemMind must never change global WEBEE settings from a workspace prompt.
+
+---
+
+# 22. Master Admin visibility and reporting
+
+Master Admin must be able to see:
+
+* all workspaces
+* direct WEBEE clients
+* reseller workspaces
+* child workspaces
+* package per workspace
+* add-ons per workspace
+* usage per workspace
+* staff seat usage
+* child account count
+* notification settings summary
+* email provider mode
+* white label status
+* campaign reports
+* audit logs
+* security/access issues
+
+Master Admin must be able to:
+
+* suspend workspace
+* revoke reseller access
+* revoke white label access
+* change package
+* grant override
+* remove override
+* inspect child account hierarchy
+* view billing/usage
+
+---
+
+# 23. Audit logs
+
+Audit every relevant action:
+
+* package created/edited
+* package assigned
+* entitlement changed
+* add-on added/removed
+* staff invite sent/accepted
+* staff role changed
+* staff visibility changed
+* child workspace created
+* child workspace suspended
+* reseller access granted/revoked
+* white label changed
+* custom domain changed
+* email provider changed
+* notification setting changed
+* notification sent/failed
+* access denied
+* upgrade requested
+* SystemMind blocked
+* Master Admin override applied/removed
+
+Audit fields:
+
+* workspace_id
+* parent_workspace_id where relevant
+* child_workspace_id where relevant
+* acting_user_id
+* target_user_id
+* object_type
+* object_id
+* action_type
+* before_state
+* after_state
+* entitlement_source
+* risk_level
+* created_at
+
+---
+
+# 24. WBAH rule
+
+WBAH must remain isolated.
+
+Do not change WBAH data access unexpectedly.
+
+Do not copy WBAH branding, filters, roles, staff settings, reports, notifications, or provider settings to other workspaces.
+
+Do not copy other workspace settings to WBAH.
+
+If WBAH has special access/admin requirements, preserve them and layer the new permission system carefully.
+
+---
+
+# 25. Migration
+
+For existing workspaces:
+
+* create migration report
+* assign current equivalent package or Master Admin override
+* preserve owner/admin access
+* preserve WBAH access
+* preserve existing White Label access if present
+* preserve existing staff access where needed
+* do not lock out owners
+* do not remove access without Master Admin review
+
+---
+
+# 26. Testing required
+
+Please test:
+
+1. Master Admin creates package with no White Label.
+2. New signup on that package cannot access White Label.
+3. Master Admin creates package with White Label.
+4. New signup on that package can access White Label.
+5. Master Admin enables reseller feature for a workspace.
+6. Reseller can create a child client workspace within limit.
+7. Reseller cannot exceed child account limit.
+8. Child workspace inherits reseller branding if selected.
+9. Child workspace remains visible to Master Admin.
+10. Child workspace cannot see sibling workspace data.
+11. Reseller cannot see unrelated workspaces.
+12. Master Admin can revoke reseller access.
+13. Staff invite is blocked when seat limit exceeded.
+14. Staff add-on increases seat allowance.
+15. Notification emails use WEBEE admin Resend by default.
+16. Workspace custom Resend provider can be added only if package allows.
+17. Custom provider keys are encrypted and hidden after save.
+18. Failed custom email provider does not break campaign execution.
+19. Notification fallback to WEBEE default works if enabled.
+20. Account Settings notification panel works.
+21. Team Access panel visibility works.
+22. SystemMind respects reseller and White Label entitlements.
+23. Direct URL access to locked panels is blocked.
+24. Backend actions are blocked when package does not allow them.
+25. WBAH remains isolated.
+26. Migration does not lock out existing owners.
+27. Audit logs are created for all key actions.
+
+Final instruction:
+
+Build this as a Master Admin controlled hierarchy. WEBEE Master Admin must always retain oversight of all direct clients, white label clients, reseller workspaces, and reseller-created child client accounts. Resellers can create branded client accounts only if their package/add-on/override allows it, and all child accounts must filter back to Master Admin for usage, billing, audit, support, and security. Automated emails should use the WEBEE admin Resend account by default, with optional workspace/reseller custom email providers only where package permissions allow.

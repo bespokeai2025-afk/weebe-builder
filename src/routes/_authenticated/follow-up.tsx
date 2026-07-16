@@ -6,6 +6,7 @@ import { CampaignCalendar } from "@/components/hexmail/CampaignCalendar";
 import { CampaignBuilderPage } from "@/components/hexmail/CampaignBuilderPage";
 import { CampaignBuilder } from "@/components/hexmail/CampaignBuilder";
 import { cn } from "@/lib/utils";
+import { SavedFiltersSection } from "@/components/people-views/SavedFiltersSection";
 
 export const Route = createFileRoute("/_authenticated/follow-up")({
   head: () => ({
@@ -74,6 +75,8 @@ function FollowUpPage() {
           ))}
         </div>
       </div>
+
+      <SavedFiltersSection pageKey="follow_up_centre" />
 
       {/* Content */}
       <div className={cn("flex-1 min-h-0", isVisual ? "overflow-hidden flex flex-col" : "overflow-y-auto")}>

@@ -14,6 +14,8 @@ import { createBillingPortalSession, getBillingSummary } from "@/lib/billing/bil
 import { planByPriceId, type Plan, formatGBP } from "@/lib/billing/plans";
 import { getStripeEnvironment } from "@/lib/stripe";
 
+import { getWorkspacePackageSummary, setAddonQuantity } from "@/lib/packages/packages.functions";
+import { ADDON_EXTRA_STAFF_USER } from "@/lib/packages/packages.shared";
 import { PaymentTestModeBanner } from "@/components/billing/PaymentTestModeBanner";
 import { PricingCards } from "@/components/billing/PricingCards";
 import { UsageCards } from "@/components/billing/UsageCards";
@@ -168,6 +170,9 @@ function BillingPage() {
         )}
       </section>
 
+      {/* Package & staff seats */}
+      <PackageSeatsSection />
+
       {/* Usage */}
       <section>
         <h3 className="mb-3 text-sm font-medium uppercase tracking-[0.14em] text-muted-foreground">
@@ -239,6 +244,7 @@ function BillingPage() {
       </section>
 
       {/* Checkout dialog */}
+      {/* (package section rendered above) */}
       <Dialog open={!!checkoutPlan} onOpenChange={(o) => !o && setCheckoutPlan(null)}>
         <DialogContent className="max-w-2xl p-0">
           <DialogHeader className="border-b border-white/[0.06] px-6 py-4">
@@ -255,5 +261,121 @@ function BillingPage() {
         </DialogContent>
       </Dialog>
     </div>
+  );
+}
+
+// ── Package & staff seats ─────────────────────────────────────────────────────
+
+function PackageSeatsSection() {
+  const qc = useQueryClient();
+  const summaryFn = useServerFn(getWorkspacePackageSummary);
+  const setAddonFn = useServerFn(setAddonQuantity);
+
+  const pkgQ = useQuery({
+    queryKey: ["package-summary"],
+    queryFn: () => summaryFn(),
+    throwOnError: false,
+  });
+
+  const seatM = useMutation({
+    mutationFn: (quantity: number) =>
+      setAddonFn({ data: { addonKey: ADDON_EXTRA_STAFF_USER, quantity } }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["package-summary"] });
+      toast.success("Staff seats updated");
+    },
+    onError: (e: Error) => toast.error(e?.message ?? "Failed to update seats"),
+  });
+
+  const data = pkgQ.data;
+  if (pkgQ.isLoading) {
+    return (
+      <section>
+        <h3 className="mb-3 text-sm font-medium uppercase tracking-[0.14em] text-muted-foreground">
+          Package & staff seats
+        </h3>
+        <Skeleton className="h-32" />
+      </section>
+    );
+  }
+  if (!data) return null;
+
+  const ent = data.entitlements;
+  const seats = data.seatUsage;
+  const extraAddon = (data.addons as any[]).find(
+    (a) => a.addon_key === ADDON_EXTRA_STAFF_USER && a.status === "active",
+  );
+  const extraQty = extraAddon?.quantity ?? 0;
+  const seatPrice = data.addonCatalog.find(
+    (a: any) => a.addonKey === ADDON_EXTRA_STAFF_USER,
+  )?.monthlyPricePence ?? 3900;
+
+  return (
+    <section>
+      <h3 className="mb-3 text-sm font-medium uppercase tracking-[0.14em] text-muted-foreground">
+        Package & staff seats
+      </h3>
+      <div className="grid gap-4 lg:grid-cols-2">
+        <div className="rounded-2xl border border-white/[0.06] bg-card/40 p-5">
+          <div className="text-xs uppercase tracking-[0.14em] text-muted-foreground">
+            Current package
+          </div>
+          <div className="mt-1.5 flex items-baseline gap-3">
+            <div className="text-xl font-semibold text-foreground">{ent?.packageName ?? "—"}</div>
+            {ent?.subscriptionStatus && ent.subscriptionStatus !== "none" && (
+              <Badge variant="secondary" className="capitalize">
+                {String(ent.subscriptionStatus).replace("_", " ")}
+              </Badge>
+            )}
+          </div>
+          <p className="mt-2 text-sm text-muted-foreground">
+            {ent
+              ? `${Object.values(ent.features).filter(Boolean).length} features enabled · ${ent.limits.includedStaffUsers} staff seat${ent.limits.includedStaffUsers === 1 ? "" : "s"} included`
+              : "Package details unavailable."}
+          </p>
+        </div>
+
+        <div className="rounded-2xl border border-white/[0.06] bg-card/40 p-5">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <div className="text-xs uppercase tracking-[0.14em] text-muted-foreground">
+                Staff seats
+              </div>
+              <div className="mt-1.5 text-xl font-semibold text-foreground">
+                {seats ? `${seats.used} / ${seats.allowance} used` : "—"}
+              </div>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Includes active members and pending invites. Extra seats are{" "}
+                {formatGBP(seatPrice)} / month each.
+              </p>
+            </div>
+          </div>
+          {data.canManageBilling && (
+            <div className="mt-4 flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={seatM.isPending || extraQty <= 0}
+                onClick={() => seatM.mutate(extraQty - 1)}
+              >
+                −
+              </Button>
+              <div className="min-w-[110px] text-center text-sm text-foreground">
+                {extraQty} extra seat{extraQty === 1 ? "" : "s"}
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={seatM.isPending}
+                onClick={() => seatM.mutate(extraQty + 1)}
+              >
+                +
+              </Button>
+              {seatM.isPending && <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />}
+            </div>
+          )}
+        </div>
+      </div>
+    </section>
   );
 }

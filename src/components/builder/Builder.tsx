@@ -88,7 +88,6 @@ import { PostCallAnalysis } from "./PostCallAnalysis";
 import { BookingConfigSection } from "./BookingConfigSection";
 import { LeadGenSection } from "./LeadGenSection";
 import { ClientQualificationSection } from "./ClientQualificationSection";
-import { CustomAgentPanel } from "./CustomAgentPanel";
 import type { BuilderSettings, NodeKind } from "@/lib/builder/types";
 import { cn } from "@/lib/utils";
 import { MODELS, HYPERSTREAM_MODELS } from "@/lib/builder/pricing";
@@ -1961,7 +1960,12 @@ export function Builder({
               <CollapsibleContent className="space-y-1.5 px-2.5 pb-2.5">
                 <Select
                   value={settings.agentType ?? "receptionist"}
-                  onValueChange={(v) => setSettings({ agentType: v as BuilderSettings["agentType"] })}
+                  onValueChange={(v) => {
+                    setSettings({ agentType: v as BuilderSettings["agentType"] });
+                    // Custom agents are built through the SystemMind Build Workspace —
+                    // open the drawer straight away instead of a template panel.
+                    if (v === "custom") smBuild.launch();
+                  }}
                 >
                   <SelectTrigger className="h-6 text-[10px]"><SelectValue /></SelectTrigger>
                   <SelectContent>
@@ -1978,22 +1982,19 @@ export function Builder({
                   <p className="text-[10px] text-blue-500 dark:text-blue-400">Client Qualification sections active ↓</p>
                 )}
                 {settings.agentType === "custom" && (
-                  <p className="text-[10px] text-emerald-500 dark:text-emerald-400">Custom workflow builder active ↓</p>
+                  <button
+                    type="button"
+                    onClick={() => smBuild.launch()}
+                    className="text-[10px] text-sky-500 dark:text-sky-400 underline-offset-2 hover:underline text-left"
+                  >
+                    Custom agents are built with SystemMind — open the build panel
+                  </button>
                 )}
               </CollapsibleContent>
             </Collapsible>
 
             {settings.agentType === "lead_generation" && <LeadGenSection />}
             {settings.agentType === "client_qualification" && <ClientQualificationSection />}
-            {settings.agentType === "custom" && (
-              <div className="rounded-lg border border-white/[0.06] bg-white/[0.01] px-2.5 pb-2.5 pt-2">
-                <p className="text-[10px] font-medium text-muted-foreground mb-2 flex items-center gap-1.5">
-                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 inline-block" />
-                  Custom Agent Config
-                </p>
-                <CustomAgentPanel />
-              </div>
-            )}
 
             <Collapsible className="rounded-lg border border-white/[0.06] bg-white/[0.01]">
               <CollapsibleTrigger className="group flex w-full min-h-[44px] items-center justify-between px-2.5 py-0 text-[11px] font-medium text-muted-foreground hover:text-foreground transition-colors">

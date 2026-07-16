@@ -217,7 +217,7 @@ function DraftCard({
   );
 }
 
-export function WorkflowDraftsPage() {
+export function WorkflowDraftsPage({ embedded = false }: { embedded?: boolean } = {}) {
   const navigate = useNavigate();
   const qc       = useQueryClient();
   const listFn   = useServerFn(listGeneratorDrafts);
@@ -281,8 +281,9 @@ export function WorkflowDraftsPage() {
     archived:       (drafts as WorkflowDraftFull[]).filter((d) => d.status === "archived").length,
   };
 
+  const Wrapper = embedded ? DraftsEmbedded : SystemMindShell;
   return (
-    <SystemMindShell>
+    <Wrapper>
       <div className="p-6 max-w-4xl mx-auto space-y-6">
 
         {/* Header */}
@@ -299,7 +300,7 @@ export function WorkflowDraftsPage() {
           <Button
             size="sm"
             className="shrink-0 bg-sky-600 hover:bg-sky-500 text-white"
-            onClick={() => navigate({ to: "/systemmind/workflow-generator" })}
+            onClick={() => navigate({ to: "/systemmind/build" })}
           >
             <Wand2 className="mr-1.5 h-3.5 w-3.5" />
             Generate New
@@ -345,7 +346,7 @@ export function WorkflowDraftsPage() {
             <Button
               size="sm"
               className="mt-2 bg-sky-600 hover:bg-sky-500 text-white"
-              onClick={() => navigate({ to: "/systemmind/workflow-generator" })}
+              onClick={() => navigate({ to: "/systemmind/build" })}
             >
               <Wand2 className="mr-1.5 h-3.5 w-3.5" />Generate Workflow
             </Button>
@@ -364,6 +365,10 @@ export function WorkflowDraftsPage() {
           </div>
         )}
       </div>
-    </SystemMindShell>
+    </Wrapper>
   );
+}
+
+function DraftsEmbedded({ children }: { children: React.ReactNode }) {
+  return <>{children}</>;
 }

@@ -246,6 +246,70 @@ async function scanPlatform(sb: any, workspaceId: string): Promise<ScanFinding[]
     }
   } catch {}
 
+  // 8. Build Workspace test-call gate — surface SystemMind builds that are
+  // applied but blocked before Go Live because the mandatory test call hasn't
+  // passed yet (or failed). Recommendation only — HiveMind never runs tests.
+  try {
+    const { data: appliedVersions } = await sb.from("systemmind_build_versions")
+      .select("id, session_id, version_number, applied_at, status")
+      .eq("workspace_id", workspaceId)
+      .eq("status", "applied")
+      .order("created_at", { ascending: false })
+      .limit(25);
+    const applied = appliedVersions ?? [];
+    if (applied.length > 0) {
+      const [tcRes, sessRes] = await Promise.all([
+        sb.from("systemmind_test_calls")
+          .select("version_id, passed, diagnosis, created_at")
+          .eq("workspace_id", workspaceId)
+          .in("version_id", applied.map((v: any) => v.id))
+          .order("created_at", { ascending: false })
+          .limit(200),
+        sb.from("systemmind_build_sessions")
+          .select("id, title")
+          .eq("workspace_id", workspaceId)
+          .in("id", applied.map((v: any) => v.session_id)),
+      ]);
+      const latestByVersion = new Map<string, { passed: boolean; diagnosis: string | null }>();
+      for (const row of tcRes.data ?? []) {
+        if (!latestByVersion.has(row.version_id)) {
+          latestByVersion.set(row.version_id, { passed: !!row.passed, diagnosis: row.diagnosis ?? null });
+        }
+      }
+      const sessionTitle = new Map<string, string>((sessRes.data ?? []).map((s: any) => [s.id, s.title ?? "Untitled build"]));
+      for (const v of applied) {
+        const latest = latestByVersion.get(v.id);
+        if (latest?.passed) continue;
+        const title = sessionTitle.get(v.session_id) ?? "Untitled build";
+        if (latest && !latest.passed) {
+          results.push({
+            trigger_type: "build_test_call_failed",
+            entity_type:  "build_version",
+            entity_id:    v.id,
+            entity_name:  `${title} (v${v.version_number})`,
+            title:        `Build "${title}" failed its test call`,
+            description:  `Version ${v.version_number} of build "${title}" is applied but its latest test call FAILED, so it cannot go live. ${latest.diagnosis ? `Diagnosis: ${String(latest.diagnosis).slice(0, 300)}` : "Open the build session to review the diagnosis and ask SystemMind to fix it."}`,
+            priority:     "high",
+            severity:     "warning",
+            metadata:     { session_id: v.session_id, version_id: v.id, version_number: v.version_number, href: "/systemmind/build" },
+          });
+        } else {
+          results.push({
+            trigger_type: "build_awaiting_test_call",
+            entity_type:  "build_version",
+            entity_id:    v.id,
+            entity_name:  `${title} (v${v.version_number})`,
+            title:        `Build "${title}" is waiting on its test call`,
+            description:  `Version ${v.version_number} of build "${title}" is applied but no test call has been validated yet — a passed real test call (or a HiveMind-approved manual pass) is mandatory before it can go live. Run a test call from the build session's Test panel.`,
+            priority:     "medium",
+            severity:     "info",
+            metadata:     { session_id: v.session_id, version_id: v.id, version_number: v.version_number, href: "/systemmind/build" },
+          });
+        }
+      }
+    }
+  } catch {}
+
   // GrowthMind intelligence scan
   try {
     const gmFindings = await scanGrowthMind(sb, workspaceId);
@@ -718,12 +782,30 @@ export const getHiveMindTasksAndEvents = createServerFn({ method: "GET" })
     const workspaceId = context.workspaceId;
     if (!workspaceId) throw new Error("No workspace");
 
+    // Assigned-record visibility: restricted roles only see follow-up tasks
+    // assigned to them (assigned_to may hold a user id or an email).
+    const { resolvePermissions } = await import("@/lib/permissions/permissions.server");
+    const perms = await resolvePermissions(workspaceId, context.userId);
+    const assignedOnly = perms.assignedRecordsOnly === true;
+    let myEmail: string | null = null;
+    if (assignedOnly && context.userId) {
+      const { data: prof } = await sb
+        .from("profiles").select("email").eq("user_id", context.userId).maybeSingle();
+      myEmail = prof?.email ?? null;
+    }
+
+    let tasksQuery = sb.from("hivemind_tasks")
+      .select("*")
+      .eq("workspace_id", workspaceId)
+      .order("created_at", { ascending: false })
+      .limit(200);
+    if (assignedOnly) {
+      const keys = [context.userId, myEmail].filter(Boolean) as string[];
+      tasksQuery = tasksQuery.in("assigned_to", keys.length ? keys : ["__none__"]);
+    }
+
     const [tasksRes, eventsRes] = await Promise.all([
-      sb.from("hivemind_tasks")
-        .select("*")
-        .eq("workspace_id", workspaceId)
-        .order("created_at", { ascending: false })
-        .limit(200),
+      tasksQuery,
       sb.from("hivemind_events")
         .select("*")
         .eq("workspace_id", workspaceId)

@@ -118,6 +118,7 @@ export const getWorkspaceAgents = createServerFn({ method: "GET" })
           phoneNumber: (s.phoneNumber as string | undefined) ?? (r.inbound_phone_number as string | null) ?? null,
           isLive:     s.isLive === true,
           isDeployed: !!(s.deployedRetellAgentId || r.retell_agent_id),
+          retellAgentId: (s.deployedRetellAgentId as string | undefined) ?? (r.retell_agent_id as string | null) ?? null,
         };
       });
   });
@@ -477,6 +478,9 @@ export const upsertMyAgent = createServerFn({ method: "POST" })
         if (error) throw new Error(error.message);
         savedId = (row?.id as string) ?? existingId;
       } else {
+        // Brand-new agent — enforce the package's agent limit.
+        const { requireResourceCapacity } = await import("@/lib/packages/entitlements.server");
+        await requireResourceCapacity(workspaceId, "agents");
         const { data: row, error } = await supabase
           .from("agents")
           .insert(base)

@@ -186,6 +186,9 @@ export async function applyQualificationToLead(
   if (matched) {
     await (supabaseAdmin.from("leads") as any).update(patch).eq("id", matched.id as string);
     console.log("[QUALIFY] Lead updated", { leadId: matched.id, status: finalStatus, score: finalScore });
+    if (finalStatus === "qualified") {
+      await notifyQualifiedLead(workspaceId, hints?.contactName ?? null, phone, finalScore);
+    }
     return;
   }
 
@@ -220,6 +223,30 @@ export async function applyQualificationToLead(
     console.error("[QUALIFY] Auto-create lead failed", insertErr.message, { phone, workspaceId });
   } else {
     console.log("[QUALIFY] Lead auto-created", { leadId: inserted?.id, status: finalStatus, score: finalScore });
+    if (finalStatus === "qualified") {
+      await notifyQualifiedLead(workspaceId, fullName, phone, finalScore);
+    }
+  }
+}
+
+/** Best-effort qualified_leads_generated notification. Never throws. */
+async function notifyQualifiedLead(
+  workspaceId: string,
+  name: string | null,
+  phone: string,
+  score: number,
+): Promise<void> {
+  try {
+    const { isWbahWorkspaceId } = await import("@/lib/wbah-exclusion.shared");
+    if (isWbahWorkspaceId(workspaceId)) return;
+    const { emitCampaignNotification } = await import("@/lib/notifications/notification-engine.shared");
+    await emitCampaignNotification(supabaseAdmin as any, {
+      workspaceId,
+      eventKey: "qualified_leads_generated",
+      summary: `${name || phone} was qualified after a call (score ${score}).`,
+    });
+  } catch (err: any) {
+    console.warn("[QUALIFY] qualified-lead notification failed (non-fatal):", err?.message ?? err);
   }
 }
 

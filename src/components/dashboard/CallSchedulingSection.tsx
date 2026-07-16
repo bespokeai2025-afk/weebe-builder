@@ -43,6 +43,7 @@ import {
   toggleCallCampaignPause,
   type CallCampaign,
 } from "@/lib/dashboard/call-campaigns.functions";
+import { listWorkspaceCampaignFilters } from "@/lib/people-views/people-views.functions";
 
 const TIMEZONES = [
   { value: "Europe/London", label: "London (GMT/BST)" },
@@ -81,6 +82,7 @@ const BLANK = {
   callFrequency: "daily" as "daily" | "custom",
   intervalDays: 1,
   voicemailEnabled: false,
+  campaignFilterId: "",
 };
 
 type Props = {
@@ -96,6 +98,7 @@ export function CallSchedulingSection({ pageType, statusOptions, agents }: Props
   const updateFn = useServerFn(updateCallCampaign);
   const deleteFn = useServerFn(deleteCallCampaign);
   const toggleFn = useServerFn(toggleCallCampaignPause);
+  const listFiltersFn = useServerFn(listWorkspaceCampaignFilters);
 
   const [search, setSearch] = useState("");
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -113,6 +116,18 @@ export function CallSchedulingSection({ pageType, statusOptions, agents }: Props
   });
 
   const campaigns = (campaignsQ.data ?? []) as CallCampaign[];
+
+  // Workspace campaign filters (optional, additive; leads/qualified only).
+  const filtersQ = useQuery({
+    queryKey: ["workspace-campaign-filters"],
+    queryFn: () => listFiltersFn(),
+    enabled: pageType !== "data",
+    staleTime: 60_000,
+    refetchOnWindowFocus: false,
+    throwOnError: false,
+  });
+  const availableFilters = (((filtersQ.data as any)?.filters ?? []) as Array<{ id: string; name: string; status: string }>)
+    .filter((f) => f.status === "active");
 
   const filtered = search.trim()
     ? campaigns.filter((c) => c.name.toLowerCase().includes(search.toLowerCase()))
@@ -139,6 +154,7 @@ export function CallSchedulingSection({ pageType, statusOptions, agents }: Props
       callFrequency: c.config?.callFrequency ?? "daily",
       intervalDays: c.config?.intervalDays ?? 1,
       voicemailEnabled: c.config?.voicemailEnabled ?? false,
+      campaignFilterId: c.config?.campaignFilterId ?? "",
     });
     setDialogOpen(true);
   }
@@ -157,6 +173,7 @@ export function CallSchedulingSection({ pageType, statusOptions, agents }: Props
         callFrequency: form.callFrequency,
         intervalDays: form.intervalDays,
         voicemailEnabled: form.voicemailEnabled,
+        campaignFilterId: pageType !== "data" && form.campaignFilterId ? form.campaignFilterId : null,
       };
       if (editTarget) {
         await updateFn({ data: { id: editTarget.id, ...payload } });
@@ -207,6 +224,7 @@ export function CallSchedulingSection({ pageType, statusOptions, agents }: Props
           callFrequency: c.config?.callFrequency ?? "daily",
           intervalDays: c.config?.intervalDays ?? 1,
           voicemailEnabled: !c.config?.voicemailEnabled,
+          campaignFilterId: c.config?.campaignFilterId ?? null,
         },
       });
       qc.invalidateQueries({ queryKey: QK });
@@ -477,6 +495,29 @@ export function CallSchedulingSection({ pageType, statusOptions, agents }: Props
                   </SelectContent>
                 </Select>
               </div>
+              {pageType !== "data" && availableFilters.length > 0 && (
+                <div>
+                  <Label className="text-xs">Campaign Filter (optional)</Label>
+                  <Select
+                    value={form.campaignFilterId || "__none__"}
+                    onValueChange={(v) => setForm((f) => ({ ...f, campaignFilterId: v === "__none__" ? "" : v }))}
+                  >
+                    <SelectTrigger className="mt-1 h-8 text-xs">
+                      <SelectValue placeholder="No filter" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="__none__">No filter (default behaviour)</SelectItem>
+                      {availableFilters.map((f) => (
+                        <SelectItem key={f.id} value={f.id}>{f.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <p className="mt-1 text-[10px] text-muted-foreground">
+                    Workspace filters narrow which leads this campaign calls. Leaving it off keeps
+                    the campaign exactly as before.
+                  </p>
+                </div>
+              )}
             </div>
 
             {/* Schedule Configuration */}

@@ -1,6 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
+import { requireAction } from "@/lib/permissions/permissions.server";
 import { buildBookingTools } from "@/lib/calendar/booking-tools.server";
 import { buildDocumentTools } from "@/lib/documents/document-tools.server";
 import {
@@ -161,6 +162,8 @@ export const deployAgentToRetell = createServerFn({ method: "POST" })
     }) => input,
   )
   .handler(async ({ data, context }) => {
+    // Go Live is a high-risk RBAC action — fail-closed permission check.
+    await requireAction(context.workspaceId, context.userId, "go_live");
     const agent = { ...data.agent };
     const cf = { ...((agent.conversationFlow as Record<string, unknown>) ?? {}) };
     delete agent.conversationFlow;

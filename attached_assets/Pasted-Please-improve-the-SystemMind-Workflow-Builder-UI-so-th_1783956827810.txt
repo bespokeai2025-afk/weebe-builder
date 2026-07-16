@@ -1,0 +1,436 @@
+Please improve the SystemMind Workflow Builder UI so the prompt box on the Agent Builder page opens a proper SystemMind Build Workspace interface.
+
+The current Agent Builder page has or should have a prompt box where users can ask SystemMind to configure the agent workflow. This prompt box should not just return a simple answer. It should open a structured workspace where the user can review, answer requirements, map CRM fields, test, approve, apply, and deploy the workflow.
+
+## Main goal
+
+Create a connected UI experience between:
+
+* Agent Builder page
+* SystemMind Build Workspace
+* SystemMind page
+* Workflows page
+* Agent Deploy tab
+
+The user should be able to start from the Builder page, use SystemMind to configure the workflow, then save/apply it to the Workflows page and optionally deploy/go live.
+
+---
+
+## 1. Builder page prompt entry
+
+On the Agent Builder page, add or update the SystemMind prompt box.
+
+Suggested placeholder:
+
+“Ask SystemMind to configure this agent workflow…”
+
+Example helper prompts:
+
+* “Map the post-call data to Leads and Qualified.”
+* “Create a workflow for positive and neutral leads.”
+* “Add negative reason capture.”
+* “Set this agent to call new webform leads instantly.”
+* “Create a scheduled campaign with 50 calls per day.”
+* “Create a 7-day follow-up sequence.”
+* “Use WATI for WhatsApp follow-ups.”
+* “Do not mark booked appointments as needs_to_call.”
+
+When the user submits a prompt, open the SystemMind Build Workspace UI.
+
+---
+
+## 2. SystemMind Build Workspace UI
+
+Create the Build Workspace as a large right-side drawer on desktop.
+
+Recommended desktop behaviour:
+
+* Opens from the right.
+* Width: around 70–80% of viewport.
+* Does not navigate away from the Builder page.
+* Keeps the current agent context visible if possible.
+* Can be expanded to full screen.
+
+Mobile behaviour:
+
+* Open as full-screen modal.
+
+Title:
+
+“SystemMind Workflow Builder”
+
+Subtitle:
+
+“Configuring workflow for: [Agent Name]”
+
+Show current context:
+
+* agent name
+* agent type
+* creation method
+* workspace name
+* Retell agent ID if available
+* live/draft status
+* workflow status
+
+---
+
+## 3. Build Workspace tabs/steps
+
+Inside the drawer/modal, use step tabs.
+
+### Step 1 — Brief
+
+Show:
+
+* user’s original prompt
+* what SystemMind understood
+* detected agent purpose
+* recommended workflow type
+* missing information
+* confidence score
+
+### Step 2 — Requirements
+
+SystemMind should ask setup questions:
+
+* what should positive sentiment do?
+* what should neutral sentiment do?
+* what should negative sentiment do?
+* should negative reason be captured?
+* should booked appointments go to Qualified?
+* should booked appointments avoid needs_to_call?
+* should the agent call instantly, run on campaign schedule, or both?
+* how many calls per day?
+* what call windows?
+* what retry rules?
+* what follow-up rules?
+
+Allow the user to answer inline.
+
+### Step 3 — Variables
+
+Show detected variables from the existing agent setup.
+
+For each variable show:
+
+* variable key
+* detected label
+* type
+* source
+* required/optional
+* confidence
+* suggested extraction field
+* suggested CRM destination
+
+Allow:
+
+* add variable
+* remove variable
+* rename variable
+* make optional/required
+* ask SystemMind to add missing script question if needed
+
+### Step 4 — CRM Mapping
+
+Show mapping table:
+
+* extracted field
+* CRM destination
+* CRM field
+* create custom field yes/no
+* workflow usage
+* required approval
+
+Destinations:
+
+* Calls
+* Leads
+* Qualified
+* Data
+* Client/accounts
+* Follow Up Centre
+* Calendar/bookings
+* AccountsMind
+* HiveMind recommendations
+
+### Step 5 — Workflow
+
+Show generated WEBEE-native workflow blocks.
+
+Include:
+
+* trigger
+* conditions
+* actions
+* stop conditions
+* duplicate prevention
+* campaign/calling rules
+* follow-up rules
+* provider requirements
+
+Use visual workflow cards if possible.
+
+Example:
+
+Trigger: Retell call completed
+Condition: sentiment is positive or neutral
+Condition: appointment_booked is true
+Action: create/update lead
+Action: status = appointment_booked
+Action: move to Qualified
+Action: save booking slot
+Action: stop future calls
+
+### Step 6 — Test / Dry Run
+
+Allow safe simulation with no real calls/messages.
+
+Test scenarios:
+
+* positive booked call
+* neutral follow-up call
+* negative call with reason
+* callback requested
+* no answer
+* voicemail
+* duplicate lead
+* opt-out
+* new webform lead
+
+Show expected outcome:
+
+* CRM fields updated
+* lead status
+* qualified result
+* follow-up result
+* workflow path
+* warnings
+* estimated call/message volume
+* estimated cost
+
+### Step 7 — Review
+
+Show final review before Apply:
+
+* requirements summary
+* field mappings
+* workflow blocks
+* script additions
+* deployment blockers
+* cost forecast
+* compliance/consent checks
+* risk level
+* rollback availability
+* audit log preview
+
+Require confirmation before Apply.
+
+### Step 8 — Apply / Deploy
+
+Buttons:
+
+* Save Draft
+* Apply
+* Apply & Go Live
+* Open in SystemMind
+* View in Workflows
+
+Apply & Go Live should remain disabled until all checks pass.
+
+---
+
+## 4. Link to full SystemMind page
+
+Add a button inside the drawer:
+
+“Open in SystemMind”
+
+When clicked:
+
+* save current build session
+* navigate to SystemMind page
+* open the same build session
+* preserve all messages, mappings, workflow drafts, variables, tests, versions, and status
+
+The user should be able to continue the exact same setup from the SystemMind page.
+
+---
+
+## 5. Link to Workflows page
+
+After Apply or Save Draft, the workflow should appear on the Workflows page.
+
+The Workflows page should include:
+
+* workflow name
+* agent name
+* status
+* source = SystemMind
+* version
+* last edited
+* risk level
+* approval status
+* live status
+* usage/cost summary
+
+Actions:
+
+* View
+* Edit with SystemMind
+* Duplicate
+* Pause
+* Activate
+* Rollback
+* View audit log
+
+When user clicks Edit with SystemMind:
+
+* open the SystemMind Build Workspace
+* load the existing workflow session
+* allow re-prompting and versioning
+* do not overwrite live workflow until Apply
+
+---
+
+## 6. Builder left-hand navigation
+
+When a SystemMind build session exists for the current agent, show a temporary sub-tab in the Builder left navigation:
+
+“SystemMind Build”
+
+Clicking it should reopen the drawer/workspace for that agent.
+
+If the user closes the drawer, the sub-tab remains while the build session is active.
+
+---
+
+## 7. Persistent build sessions
+
+Create or reuse persistent build session records.
+
+Every SystemMind workflow build should be stored as a session.
+
+Session should include:
+
+* id
+* workspace_id
+* user_id
+* agent_id
+* workflow_id if created
+* current step
+* prompt history
+* detected variables
+* CRM mappings
+* workflow blocks
+* requirements answers
+* simulation results
+* script additions
+* deployment checklist
+* approval status
+* risk level
+* version
+* status
+* created_at
+* updated_at
+
+Do not rely on temporary frontend state only.
+
+---
+
+## 8. Safety requirements
+
+The Build Workspace must enforce:
+
+* workspace_id isolation
+* no cross-workspace edits
+* no global code changes
+* no silent live agent changes
+* no silent workflow overwrites
+* no phone/SIP assignment without approval
+* no Go Live without validation
+* no outbound campaign activation without approval
+* no customer messaging without approval
+* rollback snapshot before applying changes to existing live setup
+
+---
+
+## 9. UI status badges
+
+Use status badges throughout:
+
+* Draft
+* Needs Info
+* In Review
+* Ready to Apply
+* Applied
+* Ready to Go Live
+* Live
+* Blocked
+* Failed
+* Paused
+
+Also show risk badges:
+
+* Low risk
+* Medium risk
+* High risk
+* Requires approval
+
+---
+
+## 10. Do not break
+
+Do not break:
+
+* existing Agent Builder
+* manual builder
+* document uploader
+* voice command prompt builder
+* custom prompt engine
+* Create Agent button
+* Agents page
+* Deploy Agent flow
+* Go Live flow
+* Workflows page
+* SystemMind page
+* Follow Up Centre
+* Retell workspace mapping
+* phone number assignment
+* SIP trunk assignment
+* WBAH workspace
+* standard WEBEE accounts
+* workspace scoping
+* Supabase RLS
+* existing lead/call/qualified/data logic
+
+---
+
+## 11. Testing required
+
+Please test:
+
+1. User opens Agent Builder.
+2. User enters prompt in SystemMind prompt box.
+3. Right-side Build Workspace opens.
+4. Agent context is loaded correctly.
+5. Build session is created with correct workspace_id.
+6. Requirements step asks the correct questions.
+7. Variables step shows detected variables.
+8. CRM Mapping step allows field destinations.
+9. Workflow step shows generated workflow blocks.
+10. Dry Run step simulates safely.
+11. Review step shows risk, blockers, and cost forecast.
+12. Apply saves workflow to current workspace.
+13. Workflow appears on Workflows page.
+14. Open in SystemMind continues same build session.
+15. Edit with SystemMind from Workflows opens same workspace.
+16. Closing and reopening preserves progress.
+17. Apply & Go Live is disabled until checks pass.
+18. No other workspace is affected.
+19. WBAH remains isolated.
+20. Existing manual deploy flow still works.
+
+Final instruction:
+
+The Agent Builder prompt box should act as an entry point into a full SystemMind Build Workspace, not a simple chat response. The workspace should be accessible from Builder, SystemMind, and Workflows, with persistent sessions, requirements questions, variable mapping, CRM mapping, workflow generation, dry-run testing, approval, Apply, and Apply & Go Live.

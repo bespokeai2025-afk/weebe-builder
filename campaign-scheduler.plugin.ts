@@ -71,6 +71,24 @@ export function campaignSchedulerPlugin(): Plugin {
         } catch (e: any) {
           console.error("[campaign-scheduler] unexpected error:", e?.message ?? e);
         }
+
+        // WBAH dialler campaign start/finish reports (mirrors the prod
+        // campaign-executor endpoint). Loaded via ssrLoadModule because the
+        // module (and its report-generator imports) use "@/" aliases that
+        // plain vite-config-context imports can't resolve. Best-effort.
+        try {
+          const { runWbahCampaignRunTick } = (await server.ssrLoadModule(
+            "/src/lib/integrations/webespokeEnterprise/wbah-campaign-reporting.server.ts",
+          )) as typeof import("./src/lib/integrations/webespokeEnterprise/wbah-campaign-reporting.server");
+          const wbahRuns = await runWbahCampaignRunTick();
+          if (wbahRuns.started > 0 || wbahRuns.finished > 0 || wbahRuns.errors > 0) {
+            console.log(
+              `[wbah-campaign-runs] started=${wbahRuns.started} finished=${wbahRuns.finished} watching=${wbahRuns.watching} errors=${wbahRuns.errors}`,
+            );
+          }
+        } catch (e: any) {
+          console.warn("[wbah-campaign-runs] dev tick failed:", e?.message ?? e);
+        }
       }
 
       timeoutId = setTimeout(() => {

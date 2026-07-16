@@ -49,6 +49,7 @@ import {
   type WbahAgentStyle,
 } from "@/lib/dashboard/wbah-agent-colors";
 import { useWbahAgentOptions } from "@/hooks/useWbahAgentOptions";
+import { useWorkspaceAgentOptions, agentTypeLabel } from "@/components/shared/AgentFilterSelect";
 
 export const Route = createFileRoute("/_authenticated/calendar")({
   head: () => ({ meta: [{ title: "Calendar — Webee" }] }),
@@ -322,7 +323,20 @@ function CalendarPage() {
   );
   const { options: wbahAgentOptions } = useWbahAgentOptions(bookingAgentNames, !!data?.isWbah);
 
-  const legendAgentNames = data?.isWbah ? wbahAgentOptions : bookingAgentNames;
+  // Non-WBAH: include every workspace agent (even ones with no bookings yet)
+  // so newly added agents show up in the filter immediately.
+  const workspaceAgents = useWorkspaceAgentOptions();
+  const legendAgentNames = useMemo(() => {
+    if (data?.isWbah) return wbahAgentOptions;
+    const names = new Set(bookingAgentNames);
+    for (const a of workspaceAgents) names.add(a.name);
+    return Array.from(names);
+  }, [data?.isWbah, wbahAgentOptions, bookingAgentNames, workspaceAgents]);
+  const agentTypeByName = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const a of workspaceAgents) m.set(a.name, agentTypeLabel(a.agentType));
+    return m;
+  }, [workspaceAgents]);
 
   const agentColorMap = useMemo(() => buildWbahAgentColorMap(legendAgentNames), [legendAgentNames]);
 
@@ -472,6 +486,9 @@ function CalendarPage() {
                   : <Bot className="h-2.5 w-2.5" />
                 }
                 {entry.label}
+                {!entry.isManual && !data?.isWbah && agentTypeByName.has(entry.key) && (
+                  <span className="text-[9px] opacity-70">· {agentTypeByName.get(entry.key)}</span>
+                )}
                 <span className="ml-0.5 rounded-full bg-white/10 px-1 text-[10px] tabular-nums">{entry.count}</span>
               </button>
             );

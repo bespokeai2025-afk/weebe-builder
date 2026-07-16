@@ -106,6 +106,25 @@ export const Route = createFileRoute("/api/public/campaign-executor")({
             console.warn("[accountsmind-snapshots] sweep failed:", snapErr?.message ?? snapErr);
           }
 
+          // Notification email digests (hourly/daily/weekly batching).
+          // Best-effort — never blocks the tick.
+          try {
+            const { createClient } = await import("@supabase/supabase-js");
+            const { processNotificationDigests } = await import(
+              "@/lib/notifications/notification-engine.shared"
+            );
+            const url = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
+            if (url && serviceKey) {
+              const digestSb = createClient(url, serviceKey);
+              const digests = await processNotificationDigests(digestSb);
+              if (digests.sent > 0 || digests.failed > 0) {
+                console.log(`[notify-digests] sent=${digests.sent} failed=${digests.failed}`);
+              }
+            }
+          } catch (digestErr: any) {
+            console.warn("[notify-digests] failed:", digestErr?.message ?? digestErr);
+          }
+
           // Daily log-table retention prune (retell_webhook_events,
           // hivemind_events, provider_usage_log, growthmind_generation_logs,
           // growthmind_ad_webhook_events). Once per UTC day; best-effort —
@@ -124,6 +143,38 @@ export const Route = createFileRoute("/api/public/campaign-executor")({
           } catch (retErr: any) {
             console.warn("[log-retention] sweep failed:", retErr?.message ?? retErr);
           }
+          // WBAH dialler campaign start/finish reports. Best-effort — never
+          // blocks the tick, never opens a WeeBespoke session.
+          try {
+            const { runWbahCampaignRunTick } = await import(
+              "@/lib/integrations/webespokeEnterprise/wbah-campaign-reporting.server"
+            );
+            const wbahRuns = await runWbahCampaignRunTick();
+            if (wbahRuns.started > 0 || wbahRuns.finished > 0 || wbahRuns.errors > 0) {
+              console.log(
+                `[wbah-campaign-runs] started=${wbahRuns.started} finished=${wbahRuns.finished} watching=${wbahRuns.watching} errors=${wbahRuns.errors}`,
+              );
+            }
+          } catch (wbahErr: any) {
+            console.warn("[wbah-campaign-runs] tick failed:", wbahErr?.message ?? wbahErr);
+          }
+
+          // Scheduled analytics reports (once-per-tick due check). Best-effort —
+          // never blocks the tick.
+          try {
+            const { processAnalyticsReportSchedules } = await import(
+              "@/lib/analytics-hub/report-schedule-tick"
+            );
+            const sched = await processAnalyticsReportSchedules();
+            if (sched.ran > 0 || sched.failed > 0) {
+              console.log(
+                `[analytics-schedules] scanned=${sched.scanned} ran=${sched.ran} failed=${sched.failed}`,
+              );
+            }
+          } catch (schedErr: any) {
+            console.warn("[analytics-schedules] sweep failed:", schedErr?.message ?? schedErr);
+          }
+
           console.log(
             `[campaign-executor] ran=${due.length} skipped=${skipped.length}`,
           );

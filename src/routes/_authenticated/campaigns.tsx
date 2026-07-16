@@ -19,6 +19,7 @@ import {
   UserCheck,
   PhoneOutgoing,
   Building2,
+  FileText,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -37,6 +38,9 @@ import {
   type CallCampaignWithAgent,
 } from "@/lib/dashboard/call-campaigns.functions";
 import { getWbahCampaigns, getWbahAgentsForCampaign, pauseWbahCampaign, resumeWbahCampaign, deleteWbahCampaign } from "@/lib/integrations/webespokeEnterprise/wbah-workspace.server";
+import { SavedFiltersSection } from "@/components/people-views/SavedFiltersSection";
+import { CampaignReportsPanel, CampaignFailureBanner } from "@/components/campaign-reports/CampaignReportsPanel";
+import { CampaignNotificationsBanner } from "@/components/notifications/CampaignNotificationsBanner";
 import { supabase } from "@/integrations/supabase/client";
 
 export const Route = createFileRoute("/_authenticated/campaigns")({
@@ -63,7 +67,7 @@ function fmtDate(d: string) {
   return new Date(d).toLocaleDateString();
 }
 
-type CampaignsTab = "telephony" | "scheduled" | "wbah";
+type CampaignsTab = "telephony" | "scheduled" | "wbah" | "reports";
 
 function CampaignsPage() {
   const [activeTab, setActiveTab] = useState<CampaignsTab>("scheduled");
@@ -144,6 +148,7 @@ function CampaignsPage() {
     { key: "scheduled", label: "Scheduled Campaigns", icon: <CalendarClock className="h-3.5 w-3.5" /> },
     { key: "telephony", label: "Telephony Campaigns", icon: <PhoneOutgoing className="h-3.5 w-3.5" /> },
     ...(isWbah ? [{ key: "wbah" as CampaignsTab, label: "WeeBespoke Campaigns", icon: <Building2 className="h-3.5 w-3.5" /> }] : []),
+    ...(!isWbah ? [{ key: "reports" as CampaignsTab, label: "Reports", icon: <FileText className="h-3.5 w-3.5" /> }] : []),
   ];
 
   return (
@@ -187,9 +192,17 @@ function CampaignsPage() {
         ))}
       </div>
 
+      {!isWbah && <CampaignNotificationsBanner />}
+
+      {!isWbah && <CampaignFailureBanner />}
+
+      {!isWbah && <SavedFiltersSection pageKey="campaigns" />}
+
       {activeTab === "scheduled" && <ScheduledCampaignsTab />}
 
       {activeTab === "wbah" && <WbahCampaignsTab />}
+
+      {activeTab === "reports" && !isWbah && <CampaignReportsPanel />}
 
       {activeTab === "telephony" && (<>
         {(showCreate || editCampaign) && (

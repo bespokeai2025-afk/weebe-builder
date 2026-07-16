@@ -19,3 +19,12 @@ node scripts/apply-systemmind-build-snapshots-migration.mjs
 # Apply SystemMind Legacy Logic Converter (conversion lineage) migration
 # idempotently (same pattern — never blocks post-merge).
 node scripts/apply-systemmind-conversions-migration.mjs
+
+# Apply notifications + team access (RBAC) migration idempotently (same pattern — never blocks post-merge)
+node scripts/apply-notifications-team-access-migration.mjs
+
+# Ensure the atomic industry-preset apply RPC exists (CREATE OR REPLACE — idempotent, never blocks post-merge)
+node scripts/apply-industry-preset-atomic-migration.mjs
+
+# Ensure the atomic AccountsMind config-draft activation RPC exists (CREATE OR REPLACE — idempotent, never blocks post-merge)
+node scripts/apply-accountsmind-config-atomic-activation-migration.mjs

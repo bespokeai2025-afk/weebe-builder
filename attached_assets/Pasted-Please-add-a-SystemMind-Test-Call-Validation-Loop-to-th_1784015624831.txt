@@ -1,0 +1,553 @@
+Please add a SystemMind Test Call Validation Loop to the Agent Workflow Builder.
+
+The goal is for SystemMind to guide the user to run a test call after an agent/workflow is built, then check whether the workflow, post-call extraction, CRM mapping, lead creation, qualified logic, follow-up rules, and deployment behaviour worked correctly.
+
+If something did not work, SystemMind should diagnose the issue, suggest the required changes, create a draft fix, and only execute/apply the fix after user approval.
+
+SystemMind must not silently edit live agents, workflows, extraction fields, CRM mappings, phone/SIP settings, or deployment settings.
+
+---
+
+## 1. Main flow
+
+After SystemMind builds or updates an agent workflow, show a required or recommended step:
+
+“Run a test call”
+
+The flow should be:
+
+1. SystemMind builds workflow draft.
+2. User reviews requirements and applies draft to test mode.
+3. SystemMind prompts user to initiate a test call.
+4. User clicks “Start Test Call” or manually makes a test call.
+5. SystemMind waits for the call to complete.
+6. SystemMind retrieves the test call result.
+7. SystemMind checks:
+
+   * transcript
+   * recording link if available
+   * call summary
+   * post-call extraction fields
+   * sentiment
+   * dynamic variables
+   * CRM updates
+   * lead creation/update
+   * qualified lead creation
+   * booking status
+   * follow-up tasks/sequences
+   * workflow events
+   * errors
+8. SystemMind compares actual result against expected workflow behaviour.
+9. If correct, mark workflow as “Test Passed”.
+10. If incorrect, SystemMind creates a diagnosis and draft fix.
+11. User approves fix.
+12. SystemMind applies fix safely.
+13. User runs another test call.
+14. Repeat until test passes.
+15. Only then allow Apply & Go Live.
+
+---
+
+## 2. UI: Test Call step
+
+Add a “Test Call” step inside the SystemMind Build Workspace.
+
+Show:
+
+* agent name
+* agent id
+* Retell agent id
+* workflow version
+* test mode status
+* phone/SIP assignment status
+* expected CRM outcome
+* expected extraction fields
+* expected workflow actions
+
+Buttons:
+
+* Start Test Call
+* I made the test call
+* Check Latest Test Call
+* Re-run Analysis
+* Apply Suggested Fix
+* Run Another Test
+* Mark as Passed
+* Block Go Live Until Passed toggle
+
+For high-risk workflows, enable:
+
+“Require test pass before Go Live”
+
+by default.
+
+---
+
+## 3. Starting a test call
+
+If the system can start a test call through the existing call initiation service, allow:
+
+“Start Test Call”
+
+Before starting, ask for:
+
+* test phone number
+* test customer name
+* optional test scenario:
+
+  * positive booked
+  * neutral follow-up
+  * negative reason
+  * callback requested
+  * no answer
+  * voicemail
+  * opt-out
+  * custom scenario
+
+Use the current workspace only.
+
+Do not trigger production campaign calling.
+
+Mark the call as:
+
+* test_call = true
+* source = systemmind_test
+* workflow_version_id = current draft version
+* workspace_id = current workspace
+
+Test calls should not create real customer-facing follow-ups unless explicitly in test mode/sandbox.
+
+---
+
+## 4. If user manually makes the test call
+
+If the user manually calls the assigned number, provide an option:
+
+“I made the test call”
+
+Then SystemMind should fetch the latest call for:
+
+* current workspace_id
+* current agent id / Retell agent id
+* recent time window
+* test mode if available
+* matching phone number if provided
+
+If multiple calls are found, show a list and ask the user to select the correct test call.
+
+---
+
+## 5. Test call result retrieval
+
+SystemMind should retrieve:
+
+* Retell call id
+* call timestamp
+* call duration
+* transcript
+* recording URL if available
+* call summary
+* sentiment
+* call outcome
+* post-call extraction output
+* dynamic variables extracted
+* webhook processing status
+* workflow execution log
+* CRM write log
+* lead/qualified record created or updated
+* follow-up tasks created
+* errors/warnings
+
+Do not expose API keys or provider secrets.
+
+---
+
+## 6. Expected vs actual validation
+
+SystemMind should compare the expected workflow rules against the actual test result.
+
+Examples:
+
+### Positive booked test
+
+Expected:
+
+* sentiment = positive
+* appointment_booked = true
+* booking_slot saved
+* lead created/updated
+* status = appointment_booked
+* should not be needs_to_call
+* qualified record created if rule says so
+* confirmation follow-up created or drafted
+
+Actual validation should check each item.
+
+### Neutral follow-up test
+
+Expected:
+
+* sentiment = neutral
+* lead created/updated
+* status = follow_up_required or selected neutral status
+* follow-up task created
+* no qualified record unless configured
+
+### Negative reason test
+
+Expected:
+
+* sentiment = negative
+* negative_reason extracted
+* call saved
+* no qualified record
+* no active campaign follow-up unless configured
+* suppress future calls if configured
+
+### Callback test
+
+Expected:
+
+* callback_requested = true
+* callback_date/time saved
+* Follow Up Centre task created
+* status = callback_scheduled
+* not appointment_booked unless confirmed
+
+### No answer / voicemail
+
+Expected:
+
+* call logged
+* no qualified lead
+* retry rule applied
+* voicemail ignored or logged based on user setting
+
+---
+
+## 7. Diagnosis if test fails
+
+If the test does not match expectations, SystemMind should diagnose the root cause.
+
+Possible causes:
+
+* agent did not ask the required question
+* variable missing from agent script
+* post-call extraction field missing
+* extraction description unclear
+* field type wrong
+* CRM mapping missing
+* CRM field does not exist
+* workflow condition too strict
+* workflow condition too loose
+* sentiment mapping wrong
+* booking logic wrong
+* duplicate prevention blocked update
+* webhook failed
+* Retell post-call webhook not firing
+* workspace_id mismatch
+* provider mapping wrong
+* phone/SIP not assigned correctly
+* follow-up sequence not active
+* status mapping invalid
+* Go Live/deploy config incomplete
+
+SystemMind should show:
+
+* what failed
+* why it likely failed
+* evidence from transcript/extraction/logs
+* recommended fix
+* risk level
+* whether script edit is needed
+* whether extraction edit is needed
+* whether CRM mapping edit is needed
+* whether workflow rule edit is needed
+* whether provider/deploy config edit is needed
+
+---
+
+## 8. Fix generation
+
+When SystemMind suggests a fix, it should create a draft patch.
+
+Patch types:
+
+* script addition
+* script wording edit
+* new dynamic variable
+* new post-call extraction field
+* extraction description update
+* CRM mapping update
+* workflow condition update
+* workflow action update
+* status mapping update
+* follow-up sequence update
+* deployment/provider config task
+* webhook repair task
+* phone/SIP setup task
+
+Do not apply automatically.
+
+Show:
+
+* before
+* proposed after
+* affected objects
+* risk
+* rollback point
+* approval required
+
+Buttons:
+
+* Apply Suggested Fix
+* Save Fix as Draft
+* Reject Fix
+* Ask SystemMind to Try Another Fix
+
+---
+
+## 9. Script edits from failed test
+
+If the test failed because the agent did not ask the right question, SystemMind may propose a script edit.
+
+Example:
+
+Expected `negative_reason`, but call transcript never captured a reason.
+
+SystemMind should suggest:
+
+“Add this question after the customer says they are not interested: ‘No problem, may I ask the main reason this is not suitable right now?’”
+
+Then generate:
+
+* script patch
+* variable `negative_reason`
+* extraction field
+* CRM mapping
+* workflow usage
+
+Do not edit the live script without approval.
+
+---
+
+## 10. Apply fix safely
+
+When the user approves a fix:
+
+1. Validate workspace_id.
+2. Validate affected agent/workflow belongs to current workspace.
+3. Create rollback snapshot.
+4. Apply patch to draft or approved version.
+5. Update version number.
+6. Save audit log.
+7. Mark as “Needs Retest”.
+8. Prompt user to run another test call.
+
+Do not mark test as passed until retest succeeds or user manually approves override.
+
+---
+
+## 11. Test pass gate before Go Live
+
+Add optional or default test gate:
+
+* Go Live blocked until test passed
+* Go Live allowed with warning
+* Go Live manually approved by admin despite failed test
+
+For high-risk workflows, default to:
+
+“Go Live blocked until test passed”
+
+High-risk workflows include:
+
+* outbound calling
+* WhatsApp broadcasts
+* SMS campaigns
+* email campaigns
+* CRM sync updates
+* paid phone number/SIP changes
+* live customer follow-ups
+* booking automation
+
+---
+
+## 12. Test call history
+
+Store test call history per workflow version.
+
+Fields:
+
+* workspace_id
+* agent_id
+* workflow_id
+* workflow_version_id
+* retell_call_id
+* test_scenario
+* expected_result
+* actual_result
+* passed
+* failed_checks
+* diagnosis
+* suggested_fix_id
+* applied_fix_id
+* tested_by_user_id
+* created_at
+
+Show history in:
+
+* SystemMind Build Workspace
+* Agent Deploy tab
+* Workflows page
+
+---
+
+## 13. Integration with Workflows page
+
+On the Workflows page, show:
+
+* Test status:
+
+  * Not tested
+  * Test failed
+  * Needs retest
+  * Test passed
+* Last test call
+* Failed checks
+* Edit with SystemMind
+* Run test call
+* Apply suggested fix
+* Go Live readiness
+
+---
+
+## 14. Integration with Agent Deploy tab
+
+In Agent Deploy tab, show:
+
+* workflow test status
+* last test result
+* Go Live blockers
+* missing extraction fields
+* missing CRM mappings
+* failed webhook status
+* phone/SIP status
+
+If test failed, show:
+
+“SystemMind found issues in the test call. Review fixes before going live.”
+
+---
+
+## 15. User-facing language
+
+SystemMind should explain clearly:
+
+* “The test call did not create a qualified lead because sentiment mapping is missing.”
+* “The booking slot was not saved because the extraction field does not exist.”
+* “The customer gave a negative reason, but the CRM field is not mapped.”
+* “The workflow expected appointment_booked=true, but the call only mentioned a callback.”
+* “The agent did not ask for preferred contact method, so I can add that question to the script.”
+
+Keep explanations plain English.
+
+---
+
+## 16. Workspace isolation
+
+All test calls, test results, workflow patches, logs, fixes, and audit records must be scoped to current workspace_id.
+
+SystemMind must not:
+
+* read test calls from another workspace
+* patch another workspace’s agent
+* apply WBAH test results to standard WEBEE accounts
+* apply standard account logic to WBAH
+* modify global workflow logic from a test result
+
+Reject any action where workspace_id is missing or mismatched.
+
+---
+
+## 17. Token/time/cost tracking
+
+Track SystemMind usage for:
+
+* test call analysis
+* diagnosis
+* fix generation
+* patch application
+* retest analysis
+
+Store:
+
+* workspace_id
+* user_id
+* workflow_id
+* test_call_id
+* elapsed_seconds
+* prompt_tokens
+* completion_tokens
+* total_tokens
+* model/provider
+* estimated provider cost
+* billable cost
+* status
+
+Send this to AccountsMind usage tracking.
+
+---
+
+## 18. Do not break
+
+Do not break:
+
+* existing Agent Builder
+* Create Agent
+* Agents page
+* Deploy Agent
+* Go Live
+* Retell call flows
+* post-call webhook
+* Calls page
+* Leads page
+* Qualified page
+* Data page
+* Follow Up Centre
+* Workflows page
+* SystemMind Build Workspace
+* WBAH workspace
+* standard WEBEE accounts
+* workspace scoping
+* Supabase RLS
+
+---
+
+## 19. Testing required
+
+Please test:
+
+1. SystemMind builds workflow.
+2. User starts a test call.
+3. Test call is marked as test_call.
+4. Call completes.
+5. SystemMind retrieves call transcript and extraction output.
+6. SystemMind compares expected vs actual.
+7. Positive booked test passes when all fields are correct.
+8. Negative reason test fails when negative_reason is missing.
+9. SystemMind suggests script/extraction/CRM mapping fix.
+10. User approves fix.
+11. Fix applies to draft version only.
+12. Retest is required.
+13. Go Live is blocked until test passes for high-risk workflow.
+14. Workflows page shows test status.
+15. Agent Deploy tab shows test status.
+16. No other workspace is affected.
+17. WBAH remains isolated.
+18. Audit logs are created.
+19. Usage/cost is tracked.
+
+Final instruction:
+
+SystemMind should guide the user to run test calls, check whether the workflow worked correctly, diagnose failures, suggest fixes, apply approved draft changes, and repeat until the workflow is ready. It must never silently alter live agents or workflows without approval.

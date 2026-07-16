@@ -385,14 +385,39 @@ export const updateCampaignStatus = createServerFn({ method: "POST" })
       .parse(input ?? {}),
   )
   .handler(async ({ context, data }) => {
-    const { workspaceId } = context;
+    const { workspaceId, userId } = context;
     if (!workspaceId) throw new Error("No active workspace");
+    // Activating a campaign is a gated RBAC action (fail-closed).
+    if (data.status === "active") {
+      const { requireAction } = await import("@/lib/permissions/permissions.server");
+      await requireAction(workspaceId, userId, "campaign_activation");
+    }
     const { error } = await supabaseAdmin
       .from("campaigns")
       .update({ status: data.status, updated_at: new Date().toISOString() })
       .eq("id", data.id)
       .eq("workspace_id", workspaceId);
     if (error) throw new Error(error.message);
+
+    // ── Automatic campaign report (additive; never breaks status change) ────
+    const reportType =
+      data.status === "active" ? "activated" :
+      data.status === "paused" ? "paused" :
+      data.status === "completed" ? "completed" :
+      data.status === "cancelled" ? "cancelled" : null;
+    if (reportType) {
+      try {
+        const reports = await import("@/lib/campaign-reports/campaign-reports.server");
+        await reports.reportCampaignLifecycle({
+          workspaceId,
+          campaignId: data.id,
+          reportType: reportType as any,
+          userId: (context as any).userId ?? null,
+        });
+      } catch (err: any) {
+        console.error("[campaign-reports] lifecycle hook failed (non-fatal):", err?.message ?? err);
+      }
+    }
     return { success: true };
   });
 

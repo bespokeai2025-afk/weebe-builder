@@ -622,7 +622,7 @@ const MODE_PLACEHOLDERS: Record<GeneratorMode, string> = {
   n8n:      "",
 };
 
-export function SystemMindAutomationPage() {
+export function SystemMindAutomationPage({ embedded = false }: { embedded?: boolean } = {}) {
   const qc = useQueryClient();
   const [mode, setMode] = useState<GeneratorMode>("workflow");
   const [description, setDescription] = useState("");
@@ -703,8 +703,9 @@ export function SystemMindAutomationPage() {
     }
   }
 
+  const Wrapper = embedded ? AutomationEmbedded : SystemMindShell;
   return (
-    <SystemMindShell>
+    <Wrapper>
       <div className="space-y-6">
         {/* Header */}
         <div>
@@ -860,6 +861,10 @@ export function SystemMindAutomationPage() {
           )}
         </div>
       </div>
-    </SystemMindShell>
+    </Wrapper>
   );
+}
+
+function AutomationEmbedded({ children }: { children: React.ReactNode }) {
+  return <>{children}</>;
 }

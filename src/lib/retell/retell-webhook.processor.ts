@@ -886,8 +886,23 @@ export async function processRetellWebhook(
           attendee_phone: pick("attendee_phone", "phone") ?? contactPhone,
           status: "accepted",
         } as never);
-        if (bookingError)
+        if (bookingError) {
           console.error("[RETELL WEBHOOK] Booking insert failed", bookingError.message);
+        } else {
+          try {
+            const { isWbahWorkspaceId } = await import("@/lib/wbah-exclusion.shared");
+            if (!isWbahWorkspaceId(workspaceId)) {
+              const { emitCampaignNotification } = await import("@/lib/notifications/notification-engine.shared");
+              await emitCampaignNotification(supabaseAdmin as any, {
+                workspaceId,
+                eventKey: "appointments_booked",
+                summary: `An appointment was booked during a call${attendeeName ? ` with ${attendeeName}` : ""} (starts ${new Date(startMs).toLocaleString("en-GB")}).`,
+              });
+            }
+          } catch (nErr: any) {
+            console.warn("[RETELL WEBHOOK] appointment notification failed (non-fatal):", nErr?.message ?? nErr);
+          }
+        }
       }
     }
   }

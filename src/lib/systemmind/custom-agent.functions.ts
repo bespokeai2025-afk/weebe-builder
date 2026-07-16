@@ -70,6 +70,12 @@ export const generateCustomWorkflowFn = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: any) => d)
   .handler(async ({ context, data }: any) => {
+    {
+      const { requirePageAccessEntitled } = await import(
+        "@/lib/packages/entitlements.server"
+      );
+      await requirePageAccessEntitled((context as any).workspaceId, (context as any).userId, "agents", "edit");
+    }
     const { description, category = "custom" } = data as {
       description: string;
       category?: string;
@@ -109,6 +115,12 @@ export const analyzeScriptFn = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: any) => d)
   .handler(async ({ context, data }: any) => {
+    {
+      const { requirePageAccessEntitled } = await import(
+        "@/lib/packages/entitlements.server"
+      );
+      await requirePageAccessEntitled((context as any).workspaceId, (context as any).userId, "agents", "edit");
+    }
     const {
       scriptText,
       crmMode = "webee",
@@ -254,6 +266,12 @@ export const saveCustomAgentConfigFn = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: any) => d)
   .handler(async ({ context, data }: any) => {
+    {
+      const { requirePageAccessEntitled } = await import(
+        "@/lib/packages/entitlements.server"
+      );
+      await requirePageAccessEntitled((context as any).workspaceId, (context as any).userId, "agents", "edit");
+    }
     const { agentId, title, config, crm_mode, source_script, existingId } = data as {
       agentId?: string;
       title: string;
@@ -311,6 +329,12 @@ export const getCustomAgentConfigFn = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: any) => d)
   .handler(async ({ context, data }: any) => {
+    {
+      const { requirePageAccessEntitled } = await import(
+        "@/lib/packages/entitlements.server"
+      );
+      await requirePageAccessEntitled((context as any).workspaceId, (context as any).userId, "agents", "view");
+    }
     const { agentId } = data as { agentId: string };
     const { supabase, workspaceId } = context as any;
 
@@ -331,6 +355,12 @@ export const createAdminChangeRequestFn = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: any) => d)
   .handler(async ({ context, data }: any) => {
+    {
+      const { requirePageAccessEntitled } = await import(
+        "@/lib/packages/entitlements.server"
+      );
+      await requirePageAccessEntitled((context as any).workspaceId, (context as any).userId, "agents", "edit");
+    }
     const {
       requestType,
       title,

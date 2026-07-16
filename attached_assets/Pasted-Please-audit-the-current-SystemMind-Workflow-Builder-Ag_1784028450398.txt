@@ -1,0 +1,591 @@
+Please audit the current SystemMind, Workflow Builder, Agent Builder, People section, CRM, and campaign filter setup, then extend SystemMind so it can safely create workspace-specific People subpages and campaign filters.
+
+The goal is to make SystemMind powerful, similar to Replit, but safely constrained to the current user’s workspace.
+
+SystemMind should be able to inspect the current setup, understand what exists, suggest improvements, create new workspace-level CRM views/subpages/filters, and configure campaign filters — but it must never break global app pages, other workspaces, WBAH, existing agents, existing workflows, or existing CRM logic.
+
+---
+
+## 1. First audit current state
+
+Before building new features, perform an audit of the existing implementation.
+
+Audit:
+
+* SystemMind Build Workspace
+* Agent Builder
+* Agent creation flow
+* Agent Deploy tab
+* Workflows page
+* People section
+* Leads page
+* Qualified page
+* Calls page
+* Data page
+* Campaigns
+* campaign filters
+* CRM field system
+* workspace custom fields
+* workspace_id scoping
+* Supabase RLS policies
+* current route structure
+* current navigation structure
+* current role/permission logic
+* current workflow config storage
+* current audit logging
+* current WBAH workspace logic
+* current standard WEBEE workspace logic
+
+Return an audit report before making changes.
+
+The audit report should include:
+
+* what already exists
+* what is missing
+* what is partially implemented
+* what could break
+* where workspace isolation is currently enforced
+* where workspace isolation is weak
+* recommended database tables
+* recommended UI changes
+* recommended service changes
+* safe implementation plan
+
+Do not make destructive changes during audit.
+
+---
+
+## 2. Main feature: workspace-specific People subpages
+
+Allow SystemMind to create new subpages or saved views inside the People section for the current workspace only.
+
+These should be workspace-configured views, not new global hardcoded app pages unless absolutely required.
+
+Examples of People subpages:
+
+* Hot Leads
+* Booked Appointments
+* Positive Leads
+* Neutral Leads
+* Negative Leads
+* Callback Requests
+* No Answer
+* Needs Follow Up
+* Qualified Sellers
+* Qualified Buyers
+* Webform Leads
+* CRM Imported Leads
+* WhatsApp Leads
+* Campaign Leads
+* Rebookings
+* Do Not Contact
+* High Value Leads
+* Custom Client View
+
+The user should be able to ask SystemMind:
+
+* “Create a People subpage for booked appointments.”
+* “Create a view for positive sentiment leads.”
+* “Create a page for callback requests.”
+* “Create a campaign filter for webform leads only.”
+* “Create a subpage for leads where budget is over £500,000.”
+* “Create a page for negative sentiment and show negative reason.”
+* “Make a page for leads that need WhatsApp follow-up.”
+
+SystemMind should turn this into a workspace-specific saved view.
+
+---
+
+## 3. Do not create unsafe global pages by default
+
+Do not modify the global route structure for every user unless admin explicitly chooses to create a global feature.
+
+Default behaviour should be:
+
+* create workspace-specific saved view
+* show it as a subpage/tab in the People section for that workspace only
+* store configuration in the database
+* do not touch other workspaces
+* do not alter global navigation for everyone
+
+If a true app-level route is needed, SystemMind should create a proposed developer task, not silently edit production routing.
+
+---
+
+## 4. Suggested data model
+
+Add or verify tables like:
+
+### `workspace_people_views`
+
+Fields:
+
+* id
+* workspace_id
+* name
+* slug
+* description
+* icon
+* view_type
+* filter_config_json
+* column_config_json
+* sort_config_json
+* group_config_json
+* visible_to_roles
+* created_by_user_id
+* created_by_systemmind boolean
+* status: draft / active / archived
+* version
+* created_at
+* updated_at
+
+### `workspace_campaign_filters`
+
+Fields:
+
+* id
+* workspace_id
+* name
+* description
+* filter_config_json
+* source_types
+* campaign_id optional
+* agent_id optional
+* visible_to_roles
+* created_by_user_id
+* created_by_systemmind boolean
+* status: draft / active / archived
+* version
+* created_at
+* updated_at
+
+### `workspace_view_audit_logs`
+
+Fields:
+
+* id
+* workspace_id
+* user_id
+* object_type: people_view / campaign_filter
+* object_id
+* action_type
+* before_state
+* after_state
+* approval_status
+* risk_level
+* created_at
+
+All records must include workspace_id.
+
+---
+
+## 5. People view/filter builder
+
+SystemMind should be able to create views using safe filter logic.
+
+Supported filters:
+
+* sentiment
+* lead status
+* call outcome
+* qualification status
+* appointment booked
+* booking date
+* callback requested
+* callback date/time
+* lead source
+* preferred contact method
+* campaign
+* assigned agent
+* created date
+* last call date
+* next follow-up date
+* no answer count
+* voicemail
+* email exists
+* phone exists
+* WhatsApp available
+* budget/deal value
+* custom workspace fields
+* CRM imported fields
+* opt-out/do not contact
+* duplicate status
+
+Supported operators:
+
+* equals
+* does not equal
+* contains
+* does not contain
+* is empty
+* is not empty
+* greater than
+* less than
+* between
+* before
+* after
+* in list
+* not in list
+
+SystemMind must validate all filters before saving.
+
+If a field does not exist, it should offer to create a workspace-specific custom field, not a global field.
+
+---
+
+## 6. Campaign filter builder
+
+Allow SystemMind to create campaign filters for the current workspace.
+
+Example filters:
+
+* call only new webform leads
+* call only positive/neutral leads
+* exclude booked appointments
+* exclude do-not-contact
+* exclude already called today
+* exclude active follow-up sequence
+* call only leads with phone number
+* call only leads created in last 7 days
+* call only CRM imported leads
+* call only leads from selected source
+* call only leads with status `ready_to_call`
+* call only leads not in another active campaign
+* call only high-priority leads
+* call only callback requests due today
+
+Campaign filters should be usable by:
+
+* Agent Builder
+* Workflows page
+* Campaigns page
+* Follow Up Centre
+* SystemMind Build Workspace
+* Agent Deploy tab
+
+---
+
+## 7. Duplicate prevention and safety
+
+Campaign filters must include duplicate prevention options.
+
+SystemMind should ask:
+
+* Should booked leads be excluded?
+* Should opt-out leads be excluded?
+* Should negative leads be excluded?
+* Should leads already in another campaign be excluded?
+* Should leads called today be excluded?
+* Should leads with active follow-up be excluded?
+* Should leads without phone numbers be excluded?
+* Should leads outside calling hours be excluded?
+* Should max calls per day apply?
+
+Default safe settings:
+
+* exclude booked leads
+* exclude do-not-contact
+* exclude opted-out leads
+* exclude active campaign leads
+* exclude leads without phone number
+* respect workspace call caps
+* respect campaign call caps
+
+---
+
+## 8. SystemMind prompt behaviour
+
+SystemMind should be able to receive a user prompt such as:
+
+“Create a People page for booked appointments and make a campaign filter that only calls positive webform leads who have not booked yet.”
+
+SystemMind should respond with a draft plan:
+
+* People view name
+* People view filters
+* columns to show
+* campaign filter name
+* campaign filter rules
+* excluded lead types
+* affected workspace
+* risk level
+* expected result
+* approval required
+
+Then allow:
+
+* Save as draft
+* Apply
+* Test filter
+* Edit rules
+* Cancel
+
+Do not silently apply if the filter affects active campaigns.
+
+---
+
+## 9. Filter dry-run
+
+Before applying a People view or campaign filter, run a dry-run.
+
+Dry-run should show:
+
+* number of matching people/leads
+* example matching records
+* number excluded
+* reasons excluded
+* whether any active campaign is affected
+* whether any booked/opted-out/negative leads would be included
+* warnings
+* estimated call volume if used in campaign
+
+No calls or updates should happen during dry-run.
+
+---
+
+## 10. UI in People section
+
+In the People section, add workspace-specific subpage navigation.
+
+Possible layout:
+
+People
+
+* All People
+* Leads
+* Qualified
+* Booked
+* Follow Up
+* Callbacks
+* Negative
+* Custom Views
+
+Custom SystemMind-created views should appear under:
+
+“Custom Views”
+
+Each custom view should show:
+
+* name
+* description
+* filter badges
+* matching count
+* last updated
+* created by SystemMind
+* status
+* edit button
+* hide/archive button
+
+Users should be able to:
+
+* open view
+* edit with SystemMind
+* duplicate view
+* archive view
+* convert view into campaign filter
+* export if existing permissions allow
+
+---
+
+## 11. UI in Campaigns / Workflows
+
+Campaign filters created by SystemMind should be selectable when configuring:
+
+* outbound calling campaigns
+* instant lead calling
+* scheduled campaigns
+* Follow Up Centre campaigns
+* WhatsApp campaigns
+* SMS campaigns
+* email campaigns
+
+Show:
+
+* filter name
+* matching count
+* exclusions
+* safety warnings
+* last dry-run date
+* workspace_id
+* created by SystemMind
+
+---
+
+## 12. Permissions
+
+Only authorised users should create or activate views/filters.
+
+Suggested permissions:
+
+* Workspace Admin: create, apply, activate, archive
+* Manager: create draft, request approval
+* Agent Builder user: create draft only
+* Viewer: view only
+
+High-risk filters that affect active campaigns should require admin approval.
+
+---
+
+## 13. SystemMind should be powerful but not dangerous
+
+SystemMind should be able to:
+
+* inspect current workspace data structure
+* suggest new People views
+* create workspace-specific CRM views
+* create campaign filters
+* create custom fields if approved
+* test filters with dry-run
+* link views to workflows
+* link views to campaigns
+* save versions
+* rollback changes
+* explain what it created
+* improve views from user prompts
+
+SystemMind must not:
+
+* edit the global application route structure from a user prompt
+* affect other workspaces
+* change WBAH unless logged into WBAH
+* change standard accounts when working in WBAH
+* delete fields globally
+* rename fields globally
+* alter active campaigns without approval
+* include opted-out leads by default
+* include booked leads by default
+* include do-not-contact leads by default
+* bypass Supabase RLS
+* bypass workspace_id checks
+
+---
+
+## 14. Versioning and rollback
+
+Every People view and campaign filter should have versions.
+
+When edited:
+
+* create new version
+* keep old version
+* allow rollback
+* audit who changed it
+* audit SystemMind prompt used
+* audit before/after filter config
+
+Do not destroy old config.
+
+---
+
+## 15. Integration with SystemMind Build Workspace
+
+Add a section in SystemMind Build Workspace:
+
+“People Views & Campaign Filters”
+
+From here, users can:
+
+* create People subpage
+* create campaign filter
+* test filter
+* link filter to workflow
+* link filter to campaign
+* edit with SystemMind
+* save as template
+* apply after approval
+
+---
+
+## 16. Workspace templates
+
+Allow safe template saving.
+
+A user may save a view/filter as:
+
+* private workspace template
+* company template
+* global WEBEE template, admin approval only
+
+Global template must strip workspace-specific data and private fields.
+
+Never expose WBAH data or custom fields to other workspaces.
+
+---
+
+## 17. Audit logging
+
+Log every action:
+
+* workspace_id
+* user_id
+* action
+* prompt
+* generated config
+* before state
+* after state
+* approval status
+* dry-run result
+* affected records count
+* version
+* rollback id
+* risk level
+* timestamp
+
+---
+
+## 18. Do not break existing pages
+
+Do not break:
+
+* People section
+* Leads page
+* Qualified page
+* Calls page
+* Data page
+* Campaigns
+* Workflows page
+* Follow Up Centre
+* Agent Builder
+* Agent Deploy tab
+* Go Live
+* SystemMind
+* HiveMind
+* GrowthMind
+* AccountsMind
+* WBAH workspace
+* standard WEBEE workspaces
+* Supabase RLS
+* existing filters
+* existing manual status selectors
+* existing CRM mappings
+
+---
+
+## 19. Testing required
+
+Please test:
+
+1. Audit current People and campaign filter setup.
+2. Create a People view for booked appointments in one workspace.
+3. Confirm it appears only in that workspace.
+4. Confirm it does not appear in another workspace.
+5. Create a People view for negative sentiment with negative reason column.
+6. Create a campaign filter for webform leads only.
+7. Dry-run campaign filter before applying.
+8. Confirm booked leads are excluded by default.
+9. Confirm do-not-contact leads are excluded by default.
+10. Confirm opted-out leads are excluded by default.
+11. Confirm active campaign duplicates are excluded.
+12. Confirm filter can be edited with SystemMind.
+13. Confirm versions are stored.
+14. Confirm rollback works.
+15. Confirm WBAH is not affected unless logged into WBAH.
+16. Confirm standard WEBEE accounts are not affected by WBAH changes.
+17. Confirm no global routes are created from workspace prompt.
+18. Confirm permissions are enforced.
+19. Confirm audit logs are created.
+20. Confirm existing manual flows still work.
+
+Final instruction:
+
+SystemMind should be powerful enough to create workspace-specific People subpages, CRM views, and campaign filters from user prompts, but it must do this through safe database-backed configuration, not destructive global code changes. Every change must be workspace-scoped, dry-run tested, versioned, auditable, and reversible.

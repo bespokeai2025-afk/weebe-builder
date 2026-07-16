@@ -37,6 +37,7 @@ import {
   wbahBookingStatus,
 } from "@/lib/dashboard/wbah-appointment-display";
 import { Button } from "@/components/ui/button";
+import { SavedFiltersSection } from "@/components/people-views/SavedFiltersSection";
 import { DashboardPage, KpiCard, MiniKpiCard, SummaryTooltip, stickyCell, stickyHead } from "@/components/dashboard/PageShell";
 import { cn } from "@/lib/utils";
 import { LoadingProgress } from "@/components/dashboard/LoadingProgress";
@@ -89,6 +90,7 @@ import { CallSchedulingSection } from "@/components/dashboard/CallSchedulingSect
 import { StartCallsDialog } from "@/components/dashboard/StartCallsDialog";
 import { useTablePagination, TablePagBar } from "@/components/ui/table-pagination";
 import { useWbahAgentOptions } from "@/hooks/useWbahAgentOptions";
+import { useWorkspaceAgentOptions, rowMatchesAgent, agentTypeLabel } from "@/components/shared/AgentFilterSelect";
 import { wbahDateTimeOptions } from "@/lib/dashboard/wbah-timezone";
 
 export const Route = createFileRoute("/_authenticated/leads/")({
@@ -350,6 +352,9 @@ function LeadsPage() {
   const [leadsFrom, setLeadsFrom]         = useState("");  // yyyy-mm-dd
   const [leadsTo, setLeadsTo]             = useState("");
   const [wbahAgentFilter, setWbahAgentFilter] = useState("all");
+  const [agentFilter, setAgentFilter] = useState("all");
+  const workspaceAgents = useWorkspaceAgentOptions();
+  const selectedAgent = agentFilter !== "all" ? workspaceAgents.find((a) => a.id === agentFilter) ?? null : null;
 
   // Effective {dateFrom,dateTo}: "custom" uses the Between inputs, else a preset.
   const leadsDateRange = useMemo<{ dateFrom?: string; dateTo?: string }>(() => {
@@ -557,6 +562,7 @@ function LeadsPage() {
       if (cs !== callStatusFilter) return false;
     }
     if (wbahAgentFilter !== "all" && (l.meta?.agent_name ?? "") !== wbahAgentFilter) return false;
+    if (!isWbah && selectedAgent && !rowMatchesAgent(selectedAgent, { agentId: l.agent_id ?? l.meta?.agent_id, agentName: l.meta?.agent_name })) return false;
     // Call duration greater than N minutes.
     if (leadsDuration) {
       const minDur = parseInt(leadsDuration, 10);
@@ -629,7 +635,7 @@ function LeadsPage() {
       leads.length, pos, neu, neg, unk);
   }, [isWbah, leads]);
 
-  const hasLeadFilters = search.trim() || statusFilter || leadStatusCat !== "all" || sentimentFilter || callStatusFilter || quickFilter || leadsDuration || leadsOutcome || wbahDaysFilter === "custom" || wbahAgentFilter !== "all";
+  const hasLeadFilters = search.trim() || statusFilter || leadStatusCat !== "all" || sentimentFilter || callStatusFilter || quickFilter || leadsDuration || leadsOutcome || wbahDaysFilter === "custom" || wbahAgentFilter !== "all" || agentFilter !== "all";
 
   const positive = leads.filter((l: any) => normalizeSentiment(l.sentiment) === "positive").length;
   const withScore = leads.filter((l: any) => l.lead_score != null);
@@ -773,6 +779,7 @@ function LeadsPage() {
 
   return (
     <DashboardPage>
+      {!isWbah && <SavedFiltersSection pageKey="leads" />}
       {/* Header */}
       <div className="flex flex-wrap items-start justify-between gap-2">
         <div className="min-w-0">
@@ -1028,12 +1035,25 @@ function LeadsPage() {
                   ))}
                 </select>
               )}
+              {!isWbah && workspaceAgents.length > 0 && (
+                <select
+                  value={agentFilter}
+                  onChange={(e) => setAgentFilter(e.target.value)}
+                  className="h-6 rounded-md border border-white/[0.08] bg-card/80 px-1.5 text-[11px] text-foreground focus:outline-none focus:ring-1 focus:ring-primary/40"
+                  title="Filter by agent"
+                >
+                  <option value="all">All agents</option>
+                  {workspaceAgents.map((a) => (
+                    <option key={a.id} value={a.id}>{a.name} · {agentTypeLabel(a.agentType)}</option>
+                  ))}
+                </select>
+              )}
               {hasLeadFilters && (
                 <Button
                   size="sm"
                   variant="ghost"
                   className="h-7 text-xs text-muted-foreground hover:text-foreground"
-                  onClick={() => { setSearch(""); setStatusFilter(""); setLeadStatusCat("all"); setSentimentFilter(""); setCallStatusFilter(""); setQuickFilter(""); setLeadsDuration(""); setLeadsOutcome(""); setWbahAgentFilter("all"); }}
+                  onClick={() => { setSearch(""); setStatusFilter(""); setLeadStatusCat("all"); setSentimentFilter(""); setCallStatusFilter(""); setQuickFilter(""); setLeadsDuration(""); setLeadsOutcome(""); setWbahAgentFilter("all"); setAgentFilter("all"); }}
                 >
                   Clear filters
                 </Button>

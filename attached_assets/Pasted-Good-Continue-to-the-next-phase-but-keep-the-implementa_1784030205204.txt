@@ -1,0 +1,203 @@
+Good. Continue to the next phase, but keep the implementation controlled and do not make destructive changes.
+
+Before writing code, confirm the current status of Phase 1 and Phase 2:
+
+1. Confirm tables created:
+
+   * workspace_people_views
+   * workspace_campaign_filters
+   * workspace_view_audit_logs
+
+2. Confirm RLS is active and uses the existing workspace_members pattern.
+
+3. Confirm all reads/writes use the authenticated user’s current workspace_id from server auth, not from client input.
+
+4. Confirm the filter engine exists and validates:
+
+   * allowed fields
+   * allowed operators
+   * value types
+   * custom meta JSONB fields
+   * invalid fields/operators rejected safely
+
+5. Confirm no existing Leads, Qualified, Calls, Data, Campaigns, WBAH, Workflows, or Agent Builder behaviour has changed.
+
+After confirming, implement Phase 3 and Phase 4 only.
+
+---
+
+# Phase 3 — Filter Dry Run
+
+Add a safe dry-run service for People views and campaign filters.
+
+The dry-run must not:
+
+* update records
+* trigger calls
+* send messages
+* change campaign status
+* create follow-ups
+* write CRM updates
+* activate anything
+
+The dry-run should return:
+
+* total matching records
+* sample matching records
+* excluded count
+* exclusion reasons
+* booked leads included yes/no
+* opted-out leads included yes/no
+* do-not-contact leads included yes/no
+* leads already in active campaigns included yes/no
+* leads without phone included yes/no
+* estimated call volume if used in campaign
+* risk level
+* warnings
+
+Add a clear backend function/service for this.
+
+Suggested function names:
+
+* `dryRunPeopleViewFilter`
+* `dryRunCampaignFilter`
+* `evaluateWorkspaceFilter`
+* `getFilterExclusionReasons`
+
+The dry-run must always be scoped to the current workspace_id.
+
+---
+
+# Phase 4 — People Custom Views UI
+
+Add workspace-specific Custom Views inside the existing People/Data area without creating global routes.
+
+Do not create new hardcoded routes per workspace.
+
+The UI should display database-backed saved views only for the current workspace.
+
+Add a section called:
+
+`Custom Views`
+
+Each view should show:
+
+* view name
+* description
+* status
+* matching count
+* filter badges
+* created by SystemMind
+* last updated
+* Edit with SystemMind
+* Duplicate
+* Archive
+* Convert to Campaign Filter
+
+The view should support:
+
+* opening the saved view
+* loading filtered people/leads
+* showing selected columns
+* respecting column_config_json
+* respecting sort_config_json
+* respecting visible_to_roles
+* dry-running before apply if still draft
+
+---
+
+# Important WBAH rule
+
+Do not change WBAH People/Data behaviour in this phase.
+
+WBAH currently uses its own gated/live API/hardcoded tabs.
+
+For now:
+
+* exclude WBAH from custom People views
+* show custom views only for standard WEBEE workspaces
+* do not alter WBAH tabs
+* do not touch WBAH CRM API logic
+* do not expose WBAH views to other workspaces
+
+If the logged-in workspace is WBAH, show:
+
+“Custom People Views are not enabled for this workspace yet.”
+
+---
+
+# UI safety
+
+The Custom Views feature must be additive.
+
+Do not remove or alter:
+
+* existing Data page tabs
+* existing Leads page
+* existing Qualified page
+* existing Calls page
+* existing manual status selectors
+* existing filters
+* existing WBAH tabs
+* existing campaign status logic
+
+If there are no custom views, the UI should behave exactly as it does now.
+
+---
+
+# Audit logs
+
+Every custom view action must create an audit log:
+
+* create
+* update
+* dry-run
+* duplicate
+* archive
+* convert to campaign filter
+
+Audit log must include:
+
+* workspace_id
+* user_id
+* object_type
+* object_id
+* action_type
+* before_state
+* after_state
+* risk_level
+* approval_status
+* dry_run_result where relevant
+* created_at
+
+---
+
+# Testing required
+
+Please test:
+
+1. Standard workspace with no custom views still loads normally.
+2. Create a custom People view for booked appointments.
+3. View appears only in the current workspace.
+4. View does not appear in another workspace.
+5. WBAH workspace is not affected.
+6. Dry-run returns matching count and sample records.
+7. Dry-run does not update anything.
+8. Invalid filter field is rejected.
+9. Invalid operator is rejected.
+10. Custom meta JSONB field filter works.
+11. Archive hides the view but does not delete it.
+12. Duplicate creates a new workspace-scoped view.
+13. Audit logs are created.
+14. Existing Leads, Qualified, Calls, Data pages still work.
+15. Existing campaigns still behave exactly as before.
+
+Pause after Phase 3 and Phase 4 are implemented and provide a summary of:
+
+* files changed
+* tables used
+* functions added
+* test results
+* any risks found
+
+Do not continue to campaign filter activation until I approve the next phase.

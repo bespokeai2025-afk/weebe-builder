@@ -120,6 +120,7 @@ export function SystemMindBuildDrawer({
               embedded
               initialPrompt={initialPrompt}
               onInitialPromptConsumed={onInitialPromptConsumed}
+              onDeleted={() => onOpenChange(false)}
             />
           ) : (
             <div className="flex flex-1 items-center justify-center text-xs text-muted-foreground">

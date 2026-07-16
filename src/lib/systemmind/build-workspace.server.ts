@@ -591,8 +591,20 @@ You produce (or revise) ONE complete build config covering:
   - stop_workflow      — terminal step (no params)
   Trigger types allowed: lead_added, lead_status_changed, call_completed, manual, scheduled.
   STEP GRAPH RULES: first step MUST be type "trigger" with id "step-1"; every non-terminal step needs "next" OR conditions (branch only); ids "step-1", "step-2", ... unique; keep it 3–12 steps.
-- variables: data the agent/workflow needs at runtime (name + where it comes from).
-- extraction_fields: fields the agent should capture from conversations.
+- variables: data the agent/workflow needs at runtime (name + where it comes from). PRE-CALL DYNAMIC VARIABLES: any data point the agent should know BEFORE the call (lead name, company, last call summary, appointment, CSV column, etc.) MUST be a variable with a "source" naming the exact WEBEE place it comes from (e.g. "Leads — full name", "Data — Records column budget", "Calendar — next appointment"). The agent_prompt/script MUST reference each one as a {{snake_case_name}} placeholder (e.g. "Hi {{lead_name}}, calling about {{company_name}}") — never hard-code values that should be dynamic. Pre-call variables are read BEFORE the call; extraction_fields are written POST-CALL — keep the two lists separate.
+- RETELL AGENT SETUPS: you are given the workspace's existing agent setups (names, types, voice providers, deployed Retell agent ids, inbound numbers) as context. Use this knowledge: reference existing agents by their real names in agent_assignment/call steps, respect their types (receptionist, client_qualification, custom, etc.), and never invent agents that don't exist. A "deployed" agent has a live Retell agent id and can place/receive calls; a "draft" agent must be deployed first (mention that in the summary/test_plan when relevant).
+- LEAD INTAKE SOURCE: leads for an agent can come from TWO places — (a) the WEBEE CRM/Leads page (existing records; workflow reads them, e.g. scheduled or manual triggers), or (b) LIVE WEBFORM INTAKE: the workspace's webforms (public form endpoints) create a new lead the instant someone submits, and the workflow starts from it. When the user wants webform intake, set trigger_type to "lead_added" and put {"lead_source": "webform", "webform_name": "<the form's name>"} in trigger_config (omit webform_name if any form). Webform submissions capture name, email, phone, company, notes/message and UTM/source-page tracking — these are available as pre-call variables with sources like "Webform — name" or "Webform — notes". If the user hasn't said where leads come from, ask (or note it in summary) — never silently assume.
+- extraction_fields: fields the agent should capture from conversations. MANDATORY: every extraction field MUST include a "crm_destination" pointing at WEBEE's built-in system. Captured data ALWAYS lands in WEBEE and every data point is written POST-CALL (after the call ends) — this is not optional. Allowed destinations (page — sub-section):
+  - Leads — New lead | Interested | Qualified | Not Interested | Callback Requested | Contact Made
+  - Qualified — Qualified list
+  - Calls — Call log | Call outcome | Transcript | Sentiment
+  - Pipeline — Leads stage | Qualified stage | Contact Made stage | Second Call stage | Bookings stage | Sale Done stage | Documents stage | Follow Up stage
+  - Follow-Up Centre — Callback | Email follow-up | WhatsApp follow-up
+  - Calendar — Appointment / booking
+  - Contacts — Contact record
+  - Data — Records
+  Default to "Leads — New lead" when unsure.
+- EXTERNAL CRM IS OPTIONAL: never assume an external CRM. Only include a push_to_crm step if the user has explicitly said they want to sync to an external CRM. If they haven't said either way, note in "summary" that they can optionally connect an external CRM later — WEBEE already stores everything.
 - follow_up_rules: plain-language follow-up rules ({trigger, action, delay_hours?, channel?}).
 - channel_setup: descriptive channel requirements (e.g. {"whatsapp": "Twilio number required"}). NO credential values.
 - required_credentials: credential NAMES only (e.g. "Twilio Auth Token") — NEVER values.
@@ -619,6 +631,7 @@ export type PromptBuildResult = {
   usedFallback:  boolean;
   elapsedMs:     number;
   totalTokens:   number;
+  estimatedCostUsd: number;
 };
 
 export async function promptBuildSessionServer(args: {
@@ -648,9 +661,54 @@ export async function promptBuildSessionServer(args: {
 
   await insertMessage({ sessionId, workspaceId, userId, role: "user", content: prompt });
 
+  // Context: every Retell/voice agent setup in this workspace, so SystemMind is
+  // knowledgeable about what already exists (names, types, providers, deploy
+  // state, numbers — never credentials) and can build consistently around them.
+  let agentsContext = "";
+  try {
+    const { data: agents, count: agentCount } = await sb.from("agents")
+      .select("id, name, retell_agent_id, inbound_phone_number, settings, updated_at", { count: "exact" })
+      .eq("workspace_id", workspaceId)
+      .order("updated_at", { ascending: false })
+      .limit(100);
+    const lines = ((agents ?? []) as any[]).map((a) => {
+      let s: any = {};
+      try { s = typeof a.settings === "string" ? JSON.parse(a.settings) : (a.settings ?? {}); } catch { /* noop */ }
+      const deployedId = s.deployedRetellAgentId || a.retell_agent_id || null;
+      const bits = [
+        `"${String(a.name ?? "unnamed")}"`,
+        `type=${String(s.dashboardAgentType ?? s.agentType ?? "receptionist")}`,
+        `voice_provider=${String(s.voiceProvider ?? "retell")}`,
+        deployedId ? `deployed (retell_agent_id=${String(deployedId)})` : "draft (not deployed)",
+      ];
+      if (a.inbound_phone_number) bits.push(`inbound_number=${String(a.inbound_phone_number)}`);
+      if (s.voiceName || s.voice_id) bits.push(`voice=${String(s.voiceName ?? s.voice_id)}`);
+      if (s.language) bits.push(`language=${String(s.language)}`);
+      return `- ${bits.join(", ")}`;
+    });
+    if (lines.length > 0) {
+      const omitted = Math.max(0, Number(agentCount ?? lines.length) - lines.length);
+      agentsContext =
+        `\n\nEXISTING AGENT SETUPS IN THIS WORKSPACE (Retell/voice — for your awareness; reference them when relevant, never invent agents that don't exist):\n` +
+        lines.join("\n").slice(0, 8000) +
+        (omitted > 0 ? `\n(…plus ${omitted} more agents not listed — most recently updated shown first)` : "");
+    }
+  } catch { /* graceful — context is best-effort */ }
+
+  // Context: SystemMind knowledge (KB RAG + playbooks + patterns) relevant to
+  // this request, so builds are grounded in what SystemMind already knows.
+  let knowledgeContext = "";
+  try {
+    const { querySystemMindKnowledgeContext } = await import("@/lib/systemmind/systemmind-workflow.server");
+    const block = await querySystemMindKnowledgeContext(workspaceId, prompt);
+    if (block) knowledgeContext = `\n\nRELEVANT SYSTEMMIND KNOWLEDGE:\n${block.slice(0, 6000)}`;
+  } catch { /* graceful — context is best-effort */ }
+
+  const contextBlock = `${agentsContext}${knowledgeContext}`;
+
   const userBlock = currentVersion
-    ? `CURRENT CONFIG (version ${currentVersion.version_number}):\n${JSON.stringify(currentVersion.generated_config).slice(0, 24000)}\n\nUSER CHANGE REQUEST:\n"${prompt.slice(0, 4000)}"\n\nReturn the FULL updated config as strict JSON.`
-    : `Design a complete agent/workflow build for this request:\n\n"${prompt.slice(0, 4000)}"\n\nStrict JSON only, whitelisted step types only.`;
+    ? `CURRENT CONFIG (version ${currentVersion.version_number}):\n${JSON.stringify(currentVersion.generated_config).slice(0, 24000)}${contextBlock}\n\nUSER CHANGE REQUEST:\n"${prompt.slice(0, 4000)}"\n\nReturn the FULL updated config as strict JSON.`
+    : `Design a complete agent/workflow build for this request:\n\n"${prompt.slice(0, 4000)}"${contextBlock}\n\nStrict JSON only, whitelisted step types only.`;
 
   const claudeEnabled = isClaudeEnabled();
 
@@ -745,6 +803,7 @@ export async function promptBuildSessionServer(args: {
       usedFallback:  routed.usedFallback,
       elapsedMs:     completedAt.getTime() - startedAt.getTime(),
       totalTokens:   routed.inputTokens + routed.outputTokens,
+      estimatedCostUsd: Number(routed.costUsd ?? 0),
     };
   } catch (err: any) {
     const completedAt = new Date();
@@ -793,7 +852,18 @@ export async function getBuildSessionServer(workspaceId: string, sessionId: stri
   ]);
   if (vErr) throw new Error(vErr.message);
   if (mErr) throw new Error(mErr.message);
-  return { session, versions: versions ?? [], messages: messages ?? [], snapshots };
+  let targetAgentType: string | null = null;
+  if (session.target_agent_id) {
+    const { data: agent } = await sb.from("agents")
+      .select("settings")
+      .eq("id", session.target_agent_id).eq("workspace_id", workspaceId)
+      .maybeSingle();
+    targetAgentType = (agent?.settings as any)?.dashboardAgentType ?? "receptionist";
+  }
+  return {
+    session: { ...session, target_agent_type: targetAgentType },
+    versions: versions ?? [], messages: messages ?? [], snapshots,
+  };
 }
 
 // Deploy-tab provenance: latest applied/deployed build version for an agent.
@@ -904,6 +974,25 @@ export async function setBuildSessionArchivedServer(args: {
     targetId:   args.sessionId,
     beforeState: { status: session.status },
     finalAfterState: { status: to },
+  });
+}
+
+export async function deleteBuildSessionServer(args: {
+  workspaceId: string; userId: string | null; sessionId: string;
+}): Promise<void> {
+  const sb = supabaseAdmin as any;
+  const session = await getSessionOrThrow(args.workspaceId, args.sessionId);
+  const { error } = await sb.from("systemmind_build_sessions")
+    .update({ is_deleted: true, status: "archived" })
+    .eq("id", args.sessionId).eq("workspace_id", args.workspaceId);
+  if (error) throw new Error(error.message);
+  await writeSystemMindAudit({
+    workspaceId: args.workspaceId, userId: args.userId,
+    actionType: "build_session_deleted",
+    targetType: "systemmind_build_session",
+    targetId:   args.sessionId,
+    beforeState: { status: session.status, title: session.title },
+    finalAfterState: { is_deleted: true },
   });
 }
 

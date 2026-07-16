@@ -7,6 +7,12 @@ import { supabaseAdmin } from "@/integrations/supabase/client.server";
 export const scanAgentWorkflows = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
+    {
+      const { requireSystemMindEdit } = await import(
+        "@/lib/systemmind/systemmind-access.server"
+      );
+      await requireSystemMindEdit(context.workspaceId, context.userId);
+    }
     const { workspaceId } = context;
     if (!workspaceId) throw new Error("No workspace");
     const { scanAndStoreAgentWorkflows } = await import(
@@ -22,6 +28,12 @@ export const getWorkflowLibrary = createServerFn({ method: "POST" })
     z.object({ category: z.string().optional() }).parse(input ?? {}),
   )
   .handler(async ({ context, data }) => {
+    {
+      const { requireSystemMindView } = await import(
+        "@/lib/systemmind/systemmind-access.server"
+      );
+      await requireSystemMindView(context.workspaceId, context.userId);
+    }
     const { workspaceId } = context;
     if (!workspaceId) throw new Error("No workspace");
     const sb = supabaseAdmin as any;
@@ -43,6 +55,12 @@ export const extractWorkflowPatterns = createServerFn({ method: "POST" })
     z.object({ category: z.string().optional() }).parse(input ?? {}),
   )
   .handler(async ({ context, data }) => {
+    {
+      const { requireSystemMindEdit } = await import(
+        "@/lib/systemmind/systemmind-access.server"
+      );
+      await requireSystemMindEdit(context.workspaceId, context.userId);
+    }
     const { workspaceId } = context;
     if (!workspaceId) throw new Error("No workspace");
     const settings = (context as any).settings ?? {};
@@ -61,6 +79,12 @@ export const getWorkflowPatterns = createServerFn({ method: "POST" })
     z.object({ category: z.string().optional() }).parse(input ?? {}),
   )
   .handler(async ({ context, data }) => {
+    {
+      const { requireSystemMindView } = await import(
+        "@/lib/systemmind/systemmind-access.server"
+      );
+      await requireSystemMindView(context.workspaceId, context.userId);
+    }
     const { workspaceId } = context;
     if (!workspaceId) throw new Error("No workspace");
     const sb = supabaseAdmin as any;
@@ -87,6 +111,12 @@ export const createWorkflowDraft = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ context, data }) => {
+    {
+      const { requireSystemMindEdit } = await import(
+        "@/lib/systemmind/systemmind-access.server"
+      );
+      await requireSystemMindEdit(context.workspaceId, context.userId);
+    }
     const { workspaceId } = context;
     if (!workspaceId) throw new Error("No workspace");
     const settings = (context as any).settings ?? {};
@@ -102,6 +132,12 @@ export const createWorkflowDraft = createServerFn({ method: "POST" })
 export const getWorkflowDrafts = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
+    {
+      const { requireSystemMindView } = await import(
+        "@/lib/systemmind/systemmind-access.server"
+      );
+      await requireSystemMindView(context.workspaceId, context.userId);
+    }
     const { workspaceId } = context;
     if (!workspaceId) throw new Error("No workspace");
     const sb = supabaseAdmin as any;
@@ -123,6 +159,12 @@ export const deleteWorkflowDraft = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input) => z.object({ id: z.string().uuid() }).parse(input))
   .handler(async ({ context, data }) => {
+    {
+      const { requireSystemMindEdit } = await import(
+        "@/lib/systemmind/systemmind-access.server"
+      );
+      await requireSystemMindEdit(context.workspaceId, context.userId);
+    }
     const { workspaceId } = context;
     if (!workspaceId) throw new Error("No workspace");
     const sb = supabaseAdmin as any;
@@ -140,6 +182,12 @@ export const inspectWorkflowRepair = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input) => z.object({ agentId: z.string().uuid() }).parse(input))
   .handler(async ({ context, data }) => {
+    {
+      const { requireSystemMindView } = await import(
+        "@/lib/systemmind/systemmind-access.server"
+      );
+      await requireSystemMindView(context.workspaceId, context.userId);
+    }
     const { workspaceId } = context;
     if (!workspaceId) throw new Error("No workspace");
     const settings = (context as any).settings ?? {};
@@ -147,13 +195,35 @@ export const inspectWorkflowRepair = createServerFn({ method: "POST" })
     const { analyzeWorkflowRepair } = await import(
       "@/lib/systemmind/systemmind-workflow.server"
     );
-    return analyzeWorkflowRepair(workspaceId, data.agentId, apiKey);
+    const analysis = await analyzeWorkflowRepair(workspaceId, data.agentId, apiKey);
+    // Notify when SystemMind found fixable issues (best-effort, never blocks).
+    try {
+      const issueCount = Array.isArray((analysis as any)?.issues) ? (analysis as any).issues.length : 0;
+      if (issueCount > 0) {
+        const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+        const { emitCampaignNotification } = await import("@/lib/notifications/notification-engine.shared");
+        await emitCampaignNotification(supabaseAdmin as any, {
+          workspaceId,
+          eventKey: "systemmind_fix_suggested",
+          summary: `SystemMind found ${issueCount} issue${issueCount === 1 ? "" : "s"} in an agent workflow and suggested fixes. Review them in SystemMind → Build.`,
+        });
+      }
+    } catch (nErr: any) {
+      console.warn("[systemmind] fix-suggested notification failed (non-fatal):", nErr?.message ?? nErr);
+    }
+    return analysis;
   });
 
 // ── Seed default repair playbooks ─────────────────────────────────────────────
 export const seedSystemMindPlaybooks = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
+    {
+      const { requireSystemMindEdit } = await import(
+        "@/lib/systemmind/systemmind-access.server"
+      );
+      await requireSystemMindEdit(context.workspaceId, context.userId);
+    }
     const { workspaceId } = context;
     if (!workspaceId) throw new Error("No workspace");
     const { seedRepairPlaybooks } = await import(
@@ -169,6 +239,12 @@ export const seedSystemMindKbs = createServerFn({ method: "POST" })
     z.object({ limit: z.number().int().min(1).max(10).optional() }).parse(input ?? {}),
   )
   .handler(async ({ context, data }) => {
+    {
+      const { requireSystemMindEdit } = await import(
+        "@/lib/systemmind/systemmind-access.server"
+      );
+      await requireSystemMindEdit(context.workspaceId, context.userId);
+    }
     const { workspaceId } = context;
     if (!workspaceId) throw new Error("No workspace");
     const { seedSystemMindKnowledgeBases } = await import(
@@ -190,6 +266,12 @@ export const getRepairPlaybooks = createServerFn({ method: "POST" })
       .parse(input ?? {}),
   )
   .handler(async ({ context, data }) => {
+    {
+      const { requireSystemMindView } = await import(
+        "@/lib/systemmind/systemmind-access.server"
+      );
+      await requireSystemMindView(context.workspaceId, context.userId);
+    }
     const { workspaceId } = context;
     if (!workspaceId) throw new Error("No workspace");
     const sb = supabaseAdmin as any;
@@ -211,6 +293,12 @@ export const getRepairPlaybooks = createServerFn({ method: "POST" })
 export const getSystemMindAgentList = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
+    {
+      const { requireSystemMindView } = await import(
+        "@/lib/systemmind/systemmind-access.server"
+      );
+      await requireSystemMindView(context.workspaceId, context.userId);
+    }
     const { workspaceId } = context;
     if (!workspaceId) throw new Error("No workspace");
     const sb = supabaseAdmin as any;
@@ -227,6 +315,12 @@ export const getSystemMindAgentList = createServerFn({ method: "POST" })
 export const getWorkflowIntelligence = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
+    {
+      const { requireSystemMindView } = await import(
+        "@/lib/systemmind/systemmind-access.server"
+      );
+      await requireSystemMindView(context.workspaceId, context.userId);
+    }
     const { workspaceId } = context;
     if (!workspaceId) throw new Error("No workspace");
     const { getWorkflowIntelligenceServer } = await import(
@@ -242,6 +336,12 @@ export const cloneWorkflowToDraft = createServerFn({ method: "POST" })
     z.object({ agentId: z.string().uuid(), newTitle: z.string().optional() }).parse(input),
   )
   .handler(async ({ context, data }) => {
+    {
+      const { requireSystemMindEdit } = await import(
+        "@/lib/systemmind/systemmind-access.server"
+      );
+      await requireSystemMindEdit(context.workspaceId, context.userId);
+    }
     const { workspaceId } = context;
     if (!workspaceId) throw new Error("No workspace");
     const { cloneWorkflowToDraftServer } = await import(
@@ -257,6 +357,12 @@ export const compareWorkflows = createServerFn({ method: "POST" })
     z.object({ agentIdA: z.string().uuid(), agentIdB: z.string().uuid() }).parse(input),
   )
   .handler(async ({ context, data }) => {
+    {
+      const { requireSystemMindView } = await import(
+        "@/lib/systemmind/systemmind-access.server"
+      );
+      await requireSystemMindView(context.workspaceId, context.userId);
+    }
     const { workspaceId } = context;
     if (!workspaceId) throw new Error("No workspace");
     const settings = (context as any).settings ?? {};
@@ -280,6 +386,12 @@ export const generateFromExample = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ context, data }) => {
+    {
+      const { requireSystemMindEdit } = await import(
+        "@/lib/systemmind/systemmind-access.server"
+      );
+      await requireSystemMindEdit(context.workspaceId, context.userId);
+    }
     const { workspaceId } = context;
     if (!workspaceId) throw new Error("No workspace");
     const settings = (context as any).settings ?? {};
@@ -295,6 +407,12 @@ export const generateFromExample = createServerFn({ method: "POST" })
 export const getWorkflowSuccessRates = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
+    {
+      const { requireSystemMindView } = await import(
+        "@/lib/systemmind/systemmind-access.server"
+      );
+      await requireSystemMindView(context.workspaceId, context.userId);
+    }
     const { workspaceId } = context;
     if (!workspaceId) throw new Error("No workspace");
     const { getWorkflowSuccessRatesServer } = await import(
@@ -326,6 +444,12 @@ export const previewAndApplyWorkflowFix = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ context, data }) => {
+    {
+      const { requireSystemMindApproval } = await import(
+        "@/lib/systemmind/systemmind-access.server"
+      );
+      await requireSystemMindApproval(context.workspaceId, context.userId);
+    }
     const { workspaceId } = context;
     if (!workspaceId) throw new Error("No workspace");
     const { applyWorkflowFix } = await import(
@@ -347,6 +471,12 @@ export const submitRepairPlanToHiveMind = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ context, data }) => {
+    {
+      const { requireSystemMindEdit } = await import(
+        "@/lib/systemmind/systemmind-access.server"
+      );
+      await requireSystemMindEdit(context.workspaceId, context.userId);
+    }
     const { workspaceId } = context;
     if (!workspaceId) throw new Error("No workspace");
     try {

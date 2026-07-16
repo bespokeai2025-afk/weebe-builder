@@ -284,6 +284,20 @@ export async function fetchFullPlatformData(sb: any, workspaceId: string) {
     strategyCentre = await getStrategyCentreSummary(sb, workspaceId);
   } catch {}
 
+  // Campaign reports summary (graceful — migration may not be applied yet)
+  let campaignReports: any = null;
+  try {
+    const { getCampaignReportsSummary } = await import("@/lib/campaign-reports/campaign-reports.server");
+    campaignReports = await getCampaignReportsSummary(workspaceId);
+  } catch {}
+
+  // Analytics Hub snapshot (graceful — read-only compact overview)
+  let analyticsSnapshot: any = null;
+  try {
+    const { getAnalyticsSnapshotForExec } = await import("@/lib/analytics-hub/analytics-hub.server");
+    analyticsSnapshot = await getAnalyticsSnapshotForExec(workspaceId);
+  } catch {}
+
   return {
     agents, agentScores, cfg,
     mode: cfg.hivemind_mode ?? "assistant",
@@ -539,6 +553,8 @@ export async function fetchFullPlatformData(sb: any, workspaceId: string) {
     })(),
     promptPerformance,
     strategyCentre,
+    campaignReports,
+    analyticsSnapshot,
   };
 }
 
@@ -755,6 +771,18 @@ function buildPlatformContext(d: any): string {
   // COSTS
   lines.push(`\nAI CALL COSTS (30d): ${d.costs.totalMinutes} mins | $${d.costs.totalDollars} total | $${d.costs.costPerLead} per lead this month`);
 
+  // ANALYTICS HUB SNAPSHOT (Analytics Centre — read-only)
+  if (d.analyticsSnapshot && !d.analyticsSnapshot.error) {
+    const a = d.analyticsSnapshot;
+    lines.push(`\nANALYTICS HUB (${a.windowDays ?? 30}d):`);
+    if (a.rates) lines.push(`  Conversion: ${a.rates.conversion}% | Booking: ${a.rates.booking}% | Qualification: ${a.rates.qualification}% | Connection: ${a.rates.connection}%`);
+    if (a.cost) lines.push(`  Est. revenue: £${((a.cost.estRevenueCents ?? 0) / 100).toFixed(0)} | ROI: ${a.cost.roi}% | Total cost: £${((a.cost.totalCents ?? 0) / 100).toFixed(0)}`);
+    if (a.bestCampaign) lines.push(`  Best campaign: ${a.bestCampaign}${a.worstCampaign ? ` | Worst: ${a.worstCampaign}` : ""}`);
+    if (a.bestAgent) lines.push(`  Best agent: ${a.bestAgent}`);
+    if (a.biggestIssue) lines.push(`  ⚠ Biggest issue: ${a.biggestIssue.type}${a.biggestIssue.campaign ? ` on "${a.biggestIssue.campaign}"` : ""}${a.biggestIssue.reason ? ` — ${a.biggestIssue.reason}` : ""}`);
+    if (a.nextAction) lines.push(`  Recommended next action: ${a.nextAction.title}`);
+  }
+
   // DOCUMENTS & KBs
   if (d.documents?.length > 0) lines.push(`\nDOCUMENTS: ${d.documents.slice(0, 6).map((n: string) => `"${n}"`).join(", ")}${d.documents.length > 6 ? ` +${d.documents.length - 6} more` : ""}`);
   if (d.knowledgeBases?.length > 0) lines.push(`KNOWLEDGE BASES: ${d.knowledgeBases.join(", ")}`);
@@ -897,6 +925,20 @@ function buildPlatformContext(d: any): string {
     if (pp.worst?.length > 0) lines.push(`  Worst performers: ${pp.worst.map((t: any) => `"${t.name}" (${t.avgScore}/10)`).join(", ")}`);
   }
 
+  // CAMPAIGN REPORTS (automatic lifecycle reports, last 30 days)
+  if (d.campaignReports && d.campaignReports.totalReports > 0) {
+    const cr = d.campaignReports;
+    lines.push(`\nCAMPAIGN REPORTS (last ${cr.windowDays} days, ${cr.totalReports} reports):`);
+    lines.push(`  By type: ${Object.entries(cr.countsByType).map(([k, v]) => `${k}=${v}`).join(", ")}`);
+    if (cr.recentFailures?.length > 0) {
+      lines.push(`  ⚠ ${cr.recentFailures.length} recent failure report(s):`);
+      for (const f of cr.recentFailures.slice(0, 5)) {
+        lines.push(`    - [${f.type}] ${f.campaign ?? "campaign"}: ${f.reason ?? f.summary ?? ""}`);
+      }
+      lines.push(`  SystemMind can diagnose these and draft a fix for approval.`);
+    }
+  }
+
   // STRATEGY CENTRE
   if (d.strategyCentre) {
     const sc = d.strategyCentre;
@@ -1000,6 +1042,11 @@ function buildSystemCouncilContext(sm: SystemMindExecutiveSummary | null): strin
     const wpc = sm.workflowPatternsCount ?? 0;
     const pbc = sm.playbooksCount ?? 0;
     lines.push(`Workflow intelligence: ${wlc} workflow${wlc !== 1 ? "s" : ""} in library, ${wpc} extracted pattern${wpc !== 1 ? "s" : ""}, ${pbc} repair playbook${pbc !== 1 ? "s" : ""}.`);
+  }
+  if (sm.buildWorkspace) {
+    const bw = sm.buildWorkspace;
+    lines.push(`Build Workspace: ${bw.activeSessions} active build session${bw.activeSessions !== 1 ? "s" : ""}, ${bw.versionsAwaitingTest} applied version${bw.versionsAwaitingTest !== 1 ? "s" : ""} blocked at the mandatory test-call gate${bw.failedTestCalls > 0 ? ` (${bw.failedTestCalls} failed the last test call)` : ""}, ${bw.pendingApprovals} build decision${bw.pendingApprovals !== 1 ? "s" : ""} waiting for YOUR approval in the Action Centre (/hivemind/actions).`);
+    lines.push(`You control the build pipeline: high-risk applies AND manual test-gate overrides only go live after they're approved in your Action Centre. A validated real test call (or an approved manual pass) is mandatory before any SystemMind-built agent goes live.`);
   }
   return lines.join("\n");
 }

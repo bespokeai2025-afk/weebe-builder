@@ -4,6 +4,23 @@
  */
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { dispatchCrmPostCall } from "@/lib/crm/crm-dispatch.server";
+import { emitCampaignNotification } from "@/lib/notifications/notification-engine.shared";
+
+/** Best-effort workflow_error notification. Never throws. */
+export async function notifyWorkflowError(opts: {
+  workspaceId: string;
+  workflowName?: string | null;
+  runId?: string | null;
+  errorMessage?: string | null;
+}): Promise<void> {
+  await emitCampaignNotification(supabaseAdmin as any, {
+    workspaceId: opts.workspaceId,
+    eventKey: "workflow_error",
+    summary: `Workflow ${opts.workflowName ? `"${opts.workflowName}" ` : ""}run failed${opts.runId ? ` (run ${opts.runId.slice(0, 8)})` : ""}.`,
+    failureReason: opts.errorMessage?.slice(0, 400) ?? null,
+    recommendedAction: "Open the workflow's run history to review the failed step, then re-run or fix the workflow.",
+  });
+}
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -41,6 +58,96 @@ export interface StepResult {
   status:    "ok" | "skipped" | "error";
   output:    Record<string, unknown>;
   error?:    string;
+}
+
+// ── lead_added trigger dispatch ────────────────────────────────────────────────
+// Fires all ACTIVE workflows with trigger_type "lead_added" for a workspace when
+// a new lead is created (e.g. from a webform submission). Workflows whose
+// trigger_config declares a lead_source only run when it matches; a declared
+// webform_name further narrows to that specific form. Best-effort — never throws.
+export async function dispatchLeadAddedWorkflows(opts: {
+  workspaceId: string;
+  leadId:      string;
+  leadSource:  "webform" | "crm" | "manual";
+  webformName?: string;
+  triggerData?: Record<string, unknown>;
+}): Promise<void> {
+  const sb = supabaseAdmin as any;
+  try {
+    const { data: wfs } = await sb
+      .from("workspace_workflows")
+      .select("id, name, flow_definition, trigger_config, status")
+      .eq("workspace_id", opts.workspaceId)
+      .eq("trigger_type", "lead_added")
+      .eq("status", "active")
+      .limit(20);
+    for (const wf of (wfs ?? []) as any[]) {
+      const tc = (wf.trigger_config ?? {}) as Record<string, unknown>;
+      const wantSource = String(tc.lead_source ?? "").toLowerCase();
+      if (wantSource && wantSource !== opts.leadSource) continue;
+      const wantForm = String(tc.webform_name ?? "").trim().toLowerCase();
+      if (wantForm && wantForm !== String(opts.webformName ?? "").trim().toLowerCase()) continue;
+
+      const { data: run, error: runErr } = await sb.from("workflow_runs").insert({
+        workspace_id: opts.workspaceId,
+        workflow_id:  wf.id,
+        trigger_type: "lead_added",
+        trigger_data: { lead_source: opts.leadSource, webform_name: opts.webformName ?? null, ...(opts.triggerData ?? {}) },
+        status:       "running",
+      }).select("id").maybeSingle();
+      if (runErr || !run?.id) {
+        console.error(`[workflow-engine] lead_added run insert failed for ${wf.id}:`, runErr?.message);
+        continue;
+      }
+      const runId = run.id as string;
+      try {
+        const results = await executeWorkflowRun(
+          wf.flow_definition as Record<string, unknown>,
+          {
+            workspaceId: opts.workspaceId,
+            runId,
+            triggerData: { trigger_type: "lead_added", lead_source: opts.leadSource, ...(opts.triggerData ?? {}) },
+            leadId: opts.leadId,
+          },
+        );
+        const failed = results.filter(r => r.status === "error");
+        await sb.from("workflow_runs").update({
+          status:       failed.length > 0 ? "failed" : "completed",
+          completed_at: new Date().toISOString(),
+          error:        failed[0]?.error ?? null,
+          summary: {
+            steps_total:   results.length,
+            steps_ok:      results.filter(r => r.status === "ok").length,
+            steps_failed:  failed.length,
+            steps_skipped: results.filter(r => r.status === "skipped").length,
+            mode: "live",
+          },
+        }).eq("id", runId);
+        if (failed.length > 0) {
+          await notifyWorkflowError({
+            workspaceId: opts.workspaceId,
+            workflowName: wf.name ?? null,
+            runId,
+            errorMessage: failed[0]?.error ?? null,
+          });
+        }
+      } catch (e: any) {
+        await sb.from("workflow_runs").update({
+          status:       "failed",
+          completed_at: new Date().toISOString(),
+          error:        e?.message ?? String(e),
+        }).eq("id", runId);
+        await notifyWorkflowError({
+          workspaceId: opts.workspaceId,
+          workflowName: wf.name ?? null,
+          runId,
+          errorMessage: e?.message ?? String(e),
+        });
+      }
+    }
+  } catch (e) {
+    console.error("[workflow-engine] dispatchLeadAddedWorkflows failed:", e instanceof Error ? e.message : e);
+  }
 }
 
 // ── Main executor ──────────────────────────────────────────────────────────────

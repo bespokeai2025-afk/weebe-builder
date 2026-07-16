@@ -1,7 +1,13 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { requireAction } from "@/lib/permissions/permissions.server";
 
+// NOTE on assigned-record visibility: the campaigns table has no per-user
+// assignment column, so campaign visibility for restricted roles is governed
+// by their `campaigns` page-access level (hidden / view_only) rather than a
+// row-level assignment filter. Leads, calls and follow-up tasks — which DO
+// carry assignment — are row-filtered for assignedRecordsOnly roles.
 export const listCampaigns = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
@@ -37,8 +43,11 @@ export const createCampaign = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ context, data }) => {
-    const { supabase, workspaceId } = context;
+    const { supabase, workspaceId, userId } = context;
     if (!workspaceId) throw new Error("No active workspace");
+    await requireAction(workspaceId, userId, "campaign_activation");
+    const { requireResourceCapacity } = await import("@/lib/packages/entitlements.server");
+    await requireResourceCapacity(workspaceId, "campaigns");
     const sb = supabase as any;
     const { data: row, error } = await sb
       .from("campaigns")

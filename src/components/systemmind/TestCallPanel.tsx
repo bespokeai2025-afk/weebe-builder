@@ -100,9 +100,9 @@ export function TestCallPanel({
       setOverrideOpen(false);
       setOverrideReason("");
       invalidate();
-      toast.success("Test marked as passed", { description: "Recorded as a manual override with your reason." });
+      toast.success("Sent to HiveMind for approval", { description: "The manual pass takes effect once it's approved in the HiveMind action centre." });
     },
-    onError: (e: any) => toast.error("Could not mark as passed", { description: e?.message }),
+    onError: (e: any) => toast.error("Could not request a manual pass", { description: e?.message }),
   });
 
   if (isLoading) {
@@ -144,23 +144,23 @@ export function TestCallPanel({
         </div>
         {gate?.status !== "passed" && (
           <Button size="sm" variant="ghost" className="h-6 px-2 text-[10px]" onClick={() => setOverrideOpen((v) => !v)}>
-            Mark as passed
+            Request manual pass
           </Button>
         )}
       </div>
 
       {overrideOpen && (
         <div className="space-y-2 rounded-lg border border-white/[0.06] bg-white/[0.02] p-3">
-          <p className="text-[11px] font-medium">Mark test as passed (manual override)</p>
+          <p className="text-[11px] font-medium">Request a manual pass (HiveMind approval required)</p>
           <Textarea
             value={overrideReason}
             onChange={(e) => setOverrideReason(e.target.value)}
-            placeholder="Why are you overriding the test gate? (required — recorded in the audit log)"
+            placeholder="Why should the test gate be skipped? (required — sent to HiveMind and recorded in the audit log)"
             className="min-h-[60px] text-[11px]"
           />
           <div className="flex gap-2">
             <Button size="sm" className="h-7 text-[11px]" disabled={overrideReason.trim().length < 5 || override.isPending} onClick={() => override.mutate()}>
-              {override.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : "Confirm override"}
+              {override.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : "Send to HiveMind"}
             </Button>
             <Button size="sm" variant="ghost" className="h-7 text-[11px]" onClick={() => setOverrideOpen(false)}>Cancel</Button>
           </div>

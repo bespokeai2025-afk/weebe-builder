@@ -221,19 +221,35 @@ export const listClientProfitability = createServerFn({ method: "GET" })
 export const listAccountsClients = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth, requirePlatformAdmin])
   .handler(async () => {
-    const [workspacesRes, profilesRes] = await Promise.all([
+    const [workspacesRes, profilesRes, settingsRes] = await Promise.all([
       supabaseAdmin.from("workspaces").select("id,name,created_at"),
       supabaseAdmin.from("client_billing_profiles").select("*"),
+      supabaseAdmin.from("workspace_settings").select("workspace_id,industry"),
     ]);
 
     const profMap = Object.fromEntries(
       (profilesRes.data ?? []).map((p: any) => [p.workspace_id, p]),
     );
+    const industryMap = Object.fromEntries(
+      ((settingsRes.data ?? []) as any[]).map((s: any) => [s.workspace_id, s.industry ?? null]),
+    );
 
     return (workspacesRes.data ?? []).map((w: any) => ({
       ...w,
       billing_profile: profMap[w.id] ?? null,
+      industry: industryMap[w.id] ?? null,
     }));
+  });
+
+// ── Admin: set a client's industry ───────────────────────────────────────────
+
+export const setClientIndustry = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth, requirePlatformAdmin])
+  .inputValidator((input: { workspaceId: string; industryKey: string }) => input)
+  .handler(async ({ data }) => {
+    const { setWorkspaceIndustryServer } = await import("@/lib/accountsmind/industry.server");
+    await setWorkspaceIndustryServer(data.workspaceId, data.industryKey);
+    return { ok: true };
   });
 
 // ── Client detail ─────────────────────────────────────────────────────────────
@@ -374,15 +390,27 @@ export const getProviderCostSummary = createServerFn({ method: "GET" })
     const now = new Date();
     const start = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
 
-    const { data: rows } = await supabaseAdmin
-      .from("provider_usage_log")
-      .select("provider_category,provider_name,cost_usd")
-      .gte("created_at", start);
+    const [{ data: rows }, { data: buildRows }] = await Promise.all([
+      supabaseAdmin
+        .from("provider_usage_log")
+        .select("provider_category,provider_name,cost_usd")
+        .gte("created_at", start),
+      // SystemMind Build Workspace prompt generations (AI model spend)
+      supabaseAdmin
+        .from("growthmind_generation_logs")
+        .select("task_type,provider,model,estimated_cost_usd")
+        .eq("task_type", "systemmind_build_workspace")
+        .gte("created_at", start),
+    ]);
 
     const totals: Record<string, number> = {};
     for (const r of rows ?? []) {
       const key = `${r.provider_category}::${r.provider_name}`;
       totals[key] = (totals[key] ?? 0) + Math.round((r.cost_usd ?? 0) * 100);
+    }
+    for (const r of (buildRows ?? []) as any[]) {
+      const key = `systemmind build::${r.provider ?? "ai"}/${r.model ?? "model"}`;
+      totals[key] = (totals[key] ?? 0) + Math.round((r.estimated_cost_usd ?? 0) * 100);
     }
 
     return Object.entries(totals)

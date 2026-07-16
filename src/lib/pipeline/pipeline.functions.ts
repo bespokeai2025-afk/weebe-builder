@@ -390,9 +390,15 @@ async function getWbahLeadDetail(leadId: string, phone: string | null, workspace
 export const getPipelineLeads = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }): Promise<PipelineLead[]> => {
-    const { supabase, workspaceId } = context;
+    const { supabase, workspaceId, userId } = context;
     if (!workspaceId) return [];
     const sb = supabase as any;
+
+    // Assigned-records-only roles see only pipeline cards for leads assigned
+    // to them (same rule as listLeads).
+    const { resolvePermissions } = await import("@/lib/permissions/permissions.server");
+    const perms = await resolvePermissions(workspaceId, userId);
+    const assignedOnly = perms.assignedRecordsOnly === true;
 
     // WBAH reads from wbah_calls (its leads table is too large to order).
     const { data: wsRow } = await sb
@@ -401,6 +407,9 @@ export const getPipelineLeads = createServerFn({ method: "GET" })
       .eq("id", workspaceId)
       .maybeSingle();
     if (wsRow?.slug === "webuyanyhouse") {
+      // WBAH pipeline rows are derived from wbah_calls, which carry no
+      // per-user assignment — fail closed for restricted roles.
+      if (assignedOnly) return [];
       return getWbahPipelineLeads(workspaceId);
     }
 
@@ -408,13 +417,15 @@ export const getPipelineLeads = createServerFn({ method: "GET" })
     // hard-coded column list — a single missing optional column used to make all
     // fallback tiers fail and break the whole page. mapLead reads fields
     // defensively, so unknown/absent columns are simply ignored.
+    let leadsQ = sb
+      .from("leads")
+      .select("*")
+      .eq("workspace_id", workspaceId)
+      .order("created_at", { ascending: false })
+      .limit(1000);
+    if (assignedOnly) leadsQ = leadsQ.eq("assigned_to", userId);
     const [r1, indicators] = await Promise.all([
-      sb
-        .from("leads")
-        .select("*")
-        .eq("workspace_id", workspaceId)
-        .order("created_at", { ascending: false })
-        .limit(1000),
+      leadsQ,
       fetchIndicators(sb, workspaceId),
     ]);
     if (r1.error) throw new Error(r1.error.message);

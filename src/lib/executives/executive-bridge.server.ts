@@ -556,6 +556,65 @@ export async function buildSystemMindExecutiveSummary(
     summary.playbooksCount        = pbResult.count  ?? 0;
   } catch { /* graceful — tables not yet migrated */ }
 
+  // Enrich with Build Workspace + test-call gate state (graceful — tables may
+  // not yet exist). Gives HiveMind (COO) live visibility into what SystemMind
+  // is building and which builds are blocked at the mandatory test-call gate.
+  try {
+    const sb = supabaseAdmin as any;
+    const [sessResult, appliedVersions, pendingResult] = await Promise.all([
+      sb.from("systemmind_build_sessions")
+        .select("id", { count: "exact", head: true })
+        .eq("workspace_id", workspaceId).eq("status", "active").eq("is_deleted", false),
+      sb.from("systemmind_build_versions")
+        .select("id, session_id")
+        .eq("workspace_id", workspaceId).eq("status", "applied")
+        .order("created_at", { ascending: false }).limit(50),
+      sb.from("systemmind_generated_actions")
+        .select("id", { count: "exact", head: true })
+        .eq("workspace_id", workspaceId).eq("status", "pending_approval")
+        .in("action_kind", ["build_workspace_apply", "build_test_override"]),
+    ]);
+
+    const applied: Array<{ id: string; session_id: string }> = appliedVersions.data ?? [];
+    let awaitingTest = 0;
+    let failedTests  = 0;
+    if (applied.length > 0) {
+      const { data: tcRows } = await sb.from("systemmind_test_calls")
+        .select("version_id, passed, created_at")
+        .eq("workspace_id", workspaceId)
+        .in("version_id", applied.map((v) => v.id))
+        .order("created_at", { ascending: false })
+        .limit(500);
+      const latestByVersion = new Map<string, boolean>();
+      for (const row of tcRows ?? []) {
+        if (!latestByVersion.has(row.version_id)) latestByVersion.set(row.version_id, !!row.passed);
+      }
+      for (const v of applied) {
+        const latest = latestByVersion.get(v.id);
+        if (latest === undefined) awaitingTest += 1;
+        else if (latest === false) { awaitingTest += 1; failedTests += 1; }
+      }
+    }
+
+    const bw = {
+      activeSessions:       sessResult.count ?? 0,
+      versionsAwaitingTest: awaitingTest,
+      failedTestCalls:      failedTests,
+      pendingApprovals:     pendingResult.count ?? 0,
+    };
+    if (bw.activeSessions > 0 || bw.versionsAwaitingTest > 0 || bw.pendingApprovals > 0) {
+      summary.buildWorkspace = bw;
+      if (bw.versionsAwaitingTest > 0) {
+        summary.topRisks.unshift({
+          id:       "build-test-gate-blocked",
+          severity: bw.failedTestCalls > 0 ? "high" : "medium",
+          title:    "Builds blocked at the test-call gate",
+          detail:   `${bw.versionsAwaitingTest} applied build version${bw.versionsAwaitingTest !== 1 ? "s are" : " is"} waiting on a validated test call before Go Live${bw.failedTestCalls > 0 ? ` (${bw.failedTestCalls} failed the last test)` : ""}.`,
+        } as any);
+      }
+    }
+  } catch { /* graceful — tables not yet migrated */ }
+
   return summary;
 }
 

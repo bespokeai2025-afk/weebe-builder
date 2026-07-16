@@ -28,6 +28,12 @@ const DataRowSchema = z.object({
   meta: z.record(z.string(), z.string()).optional(),
 });
 
+// NOTE on assigned-record visibility: data_records has no per-user assignment
+// column (assigned_agent_id points at an AI agent, not a workspace member), so
+// row-level assignedRecordsOnly filtering does not apply here. Visibility for
+// restricted roles is governed by their `data` page-access level instead.
+// Leads, calls, bookings and qualified lists — which DO carry (or derive from)
+// lead assignment — are row-filtered for assignedRecordsOnly roles.
 export const listDataRecords = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input) =>

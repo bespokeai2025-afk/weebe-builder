@@ -10,6 +10,16 @@
  */
 
 import { createClient } from "@supabase/supabase-js";
+import {
+  validateFilterConfig,
+  applyFilterToQuery,
+  applySafetyExclusions,
+  safetyConfigSchema,
+  DEFAULT_SAFETY,
+  type FilterConfig,
+  type SafetyConfig,
+} from "../people-views/filter-engine.server";
+import { safeWriteCampaignReport } from "../campaign-reports/report-writer.shared";
 
 const MARKER = "__sched_v1__";
 const MAX_RECORDS_PER_RUN = 200;
@@ -54,6 +64,13 @@ export type ScheduleConfig = {
   intervalDays: number;
   voicemailEnabled: boolean;
   lastRunDate?: string;
+  /**
+   * Optional workspace_campaign_filters id. Additive: when absent, the
+   * scheduler behaves exactly as before. When present (and the filter row is
+   * active in the same workspace), the filter's conditions + safety
+   * exclusions are applied to lead selection.
+   */
+  campaignFilterId?: string | null;
 };
 
 export type CampaignRunResult = {
@@ -65,7 +82,7 @@ export type CampaignRunResult = {
   failed: number;
 };
 
-function parseConfig(description: string | null): ScheduleConfig | null {
+export function parseConfig(description: string | null): ScheduleConfig | null {
   if (!description?.startsWith(MARKER)) return null;
   try {
     return JSON.parse(description.slice(MARKER.length)) as ScheduleConfig;
@@ -74,7 +91,7 @@ function parseConfig(description: string | null): ScheduleConfig | null {
   }
 }
 
-function encodeConfig(cfg: ScheduleConfig): string {
+export function encodeConfig(cfg: ScheduleConfig): string {
   return MARKER + JSON.stringify(cfg);
 }
 
@@ -234,6 +251,64 @@ export async function runCampaignTick(opts?: {
       continue;
     }
 
+    // ── Optional workspace campaign filter (additive) ────────────────────
+    // Loaded only when the campaign explicitly references a filter id; the
+    // filter must be active and belong to the campaign's own workspace.
+    let campaignFilter: FilterConfig | null = null;
+    let campaignSafety: SafetyConfig | null = null;
+    if (cfg.campaignFilterId) {
+      const { data: filterRow } = await sb
+        .from("workspace_campaign_filters")
+        .select("id, status, filter_config, safety_config")
+        .eq("id", cfg.campaignFilterId)
+        .eq("workspace_id", campaign.workspace_id)
+        .maybeSingle();
+      if (!filterRow || filterRow.status !== "active") {
+        results.push({
+          ...base,
+          skipped: true,
+          skipReason: "attached campaign filter missing or not active",
+        });
+        await safeWriteCampaignReport(sb, {
+          workspaceId: campaign.workspace_id,
+          campaignId: campaign.id,
+          agentId: campaign.agent_id ?? null,
+          reportType: "workflow_error",
+          campaignName: campaign.name,
+          failureReason: "Attached campaign filter is missing or not active",
+          failureStage: "filter_load",
+        });
+        continue;
+      }
+      const validated = validateFilterConfig(filterRow.filter_config);
+      if (!validated.ok || !validated.config) {
+        results.push({ ...base, skipped: true, skipReason: "attached campaign filter invalid" });
+        await safeWriteCampaignReport(sb, {
+          workspaceId: campaign.workspace_id,
+          campaignId: campaign.id,
+          agentId: campaign.agent_id ?? null,
+          reportType: "workflow_error",
+          campaignName: campaign.name,
+          failureReason: "Attached campaign filter failed validation",
+          failureStage: "filter_validation",
+        });
+        continue;
+      }
+      campaignFilter = validated.config;
+      const parsedSafety = safetyConfigSchema.safeParse(filterRow.safety_config ?? {});
+      campaignSafety = parsedSafety.success ? parsedSafety.data : DEFAULT_SAFETY;
+      if (cfg.pageType === "data") {
+        // Filter engine targets the leads table only — never silently call
+        // an unfiltered data_records batch when a filter was requested.
+        results.push({
+          ...base,
+          skipped: true,
+          skipReason: "campaign filters are not supported for data_records campaigns",
+        });
+        continue;
+      }
+    }
+
     let records: Array<{ id: string; phone: string; tableSource: "data_records" | "leads" }> = [];
 
     if (cfg.pageType === "data") {
@@ -262,6 +337,10 @@ export async function runCampaignTick(opts?: {
       if (cfg.leadStatusFilter) {
         q = q.eq("status", cfg.leadStatusFilter);
       }
+      if (campaignFilter) {
+        q = applyFilterToQuery(q, campaignFilter);
+        q = applySafetyExclusions(q, campaignSafety ?? DEFAULT_SAFETY);
+      }
       const { data } = await q;
       records = (data ?? [])
         .filter((r: any) => r.phone)
@@ -275,6 +354,10 @@ export async function runCampaignTick(opts?: {
         .limit(MAX_RECORDS_PER_RUN);
       if (cfg.leadStatusFilter) {
         q = q.eq("qualification_status", cfg.leadStatusFilter);
+      }
+      if (campaignFilter) {
+        q = applyFilterToQuery(q, campaignFilter);
+        q = applySafetyExclusions(q, campaignSafety ?? DEFAULT_SAFETY);
       }
       const { data } = await q;
       records = (data ?? [])
@@ -304,13 +387,17 @@ export async function runCampaignTick(opts?: {
         // Lead / qualified campaigns share the platform daily call cap so
         // repeated runs never dial the same number more than 3x per UTC day.
         if (record.tableSource === "leads") {
+          // Standard cap: 3 calls/number/day. If the attached campaign
+          // filter opts into excludeCalledToday, tighten to 1 (skip anyone
+          // already called today).
+          const dailyCap = campaignSafety?.excludeCalledToday ? 1 : 3;
           const { count: attemptsToday } = await sb
             .from("calls")
             .select("id", { count: "exact", head: true })
             .eq("workspace_id", campaign.workspace_id)
             .eq("to_number", record.phone)
             .gte("created_at", todayUtcIso);
-          if ((attemptsToday ?? 0) >= 3) {
+          if ((attemptsToday ?? 0) >= dailyCap) {
             skipped++;
             return;
           }
@@ -397,6 +484,51 @@ export async function runCampaignTick(opts?: {
         (skipped > 0 ? `, skipped(cap): ${skipped}` : "") +
         (failed > 0 ? ` (${total - placed - failed - skipped} still queued)` : ""),
     );
+
+    // ── Automatic run report (additive; never breaks the tick) ─────────────
+    const runKpis = { records_matched: total, calls_placed: placed, calls_failed: failed, skipped_by_cap: skipped };
+    if (total === 0) {
+      await safeWriteCampaignReport(sb, {
+        workspaceId: campaign.workspace_id,
+        campaignId: campaign.id,
+        agentId: campaign.agent_id ?? null,
+        reportType: "no_eligible_leads",
+        campaignName: campaign.name,
+        kpis: runKpis,
+        failureStage: "record_selection",
+      });
+    } else if (placed === 0 && skipped === total) {
+      await safeWriteCampaignReport(sb, {
+        workspaceId: campaign.workspace_id,
+        campaignId: campaign.id,
+        agentId: campaign.agent_id ?? null,
+        reportType: "safety_blocked",
+        campaignName: campaign.name,
+        kpis: runKpis,
+        failureReason: "All matched records were blocked by the daily call cap / safety rules",
+        failureStage: "safety_exclusions",
+      });
+    } else if (placed === 0 && failed > 0) {
+      await safeWriteCampaignReport(sb, {
+        workspaceId: campaign.workspace_id,
+        campaignId: campaign.id,
+        agentId: campaign.agent_id ?? null,
+        reportType: "provider_error",
+        campaignName: campaign.name,
+        kpis: runKpis,
+        failureReason: "Every call attempt failed at the voice provider",
+        failureStage: "call_placement",
+      });
+    } else {
+      await safeWriteCampaignReport(sb, {
+        workspaceId: campaign.workspace_id,
+        campaignId: campaign.id,
+        agentId: campaign.agent_id ?? null,
+        reportType: "run_summary",
+        campaignName: campaign.name,
+        kpis: runKpis,
+      });
+    }
 
     results.push({ ...base, placed, failed });
   }

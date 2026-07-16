@@ -704,10 +704,25 @@ export async function generateAccountsMindConfigDraftServer(args: GenerateConfig
 
   const claudeEnabled = isClaudeEnabled();
 
+  // Industry seed: if the workspace has recorded its industry, start the
+  // assistant from that industry's preset (labels/KPIs) instead of a blank page.
+  let industrySeed = "";
+  try {
+    const { getWorkspaceIndustryServer } = await import("@/lib/accountsmind/industry.server");
+    const { INDUSTRY_PRESETS } = await import("@/lib/accountsmind/industry-presets.shared");
+    const industry = await getWorkspaceIndustryServer(workspaceId);
+    const preset = industry ? INDUSTRY_PRESETS[industry] : null;
+    if (preset) {
+      const statLines = preset.stats.map((s) => `  - ${s.label} (${s.metric_key})`).join("\n");
+      const widgetLines = preset.widgets.map((w) => `  - ${w.title} (${w.widget_type}, ${w.metric_key})`).join("\n");
+      industrySeed = `\n\nWORKSPACE INDUSTRY: ${preset.label}. ${preset.assistantSeed}\nUse this industry preset as the STARTING POINT — keep its terminology and adapt it to the request:\nPreset stats:\n${statLines}\nPreset widgets:\n${widgetLines}`;
+    }
+  } catch { /* best-effort seed — never block generation */ }
+
   try {
     const routed = await routeGenerate({
       system:      buildSystemPrompt(),
-      user:        `Design AccountsMind configuration for this request:\n\n"${description.slice(0, 3000)}"\n\nRemember: draft only, strict JSON, whitelisted metric keys only.`,
+      user:        `Design AccountsMind configuration for this request:\n\n"${description.slice(0, 3000)}"${industrySeed}\n\nRemember: draft only, strict JSON, whitelisted metric keys only.`,
       contentType: "systemmind_accountsmind_config",
       maxTokens:   4000,
       mode:        "manual",
@@ -859,6 +874,21 @@ async function versionedInsert(
   return inserted.id as string;
 }
 
+/**
+ * Exported for the deterministic industry-preset apply path
+ * (industry.server.ts) — same archive+version chain as draft activation.
+ */
+export async function versionedInsertConfigRow(
+  sb: Sb,
+  table: string,
+  workspaceId: string,
+  keyCol: string,
+  keyVal: string,
+  row: Record<string, unknown>,
+): Promise<string> {
+  return versionedInsert(sb, table, workspaceId, keyCol, keyVal, row);
+}
+
 export async function activateAccountsMindConfigKind(
   workspaceId: string,
   generatedActionId: string,
@@ -891,61 +921,57 @@ export async function activateAccountsMindConfigKind(
   }
 
   const createdBy = draft.created_by_user_id ?? null;
-  const common = {
-    created_by_user_id: createdBy,
-    created_by_system:  "systemmind",
-    source_draft_id:    generatedActionId,
-  };
 
-  const fieldIds: string[] = [];
-  let order = 0;
-  for (const f of cfg.fields) {
-    fieldIds.push(await versionedInsert(sb, "accountsmind_field_defs", workspaceId, "field_key", f.field_key, {
-      ...common,
-      field_key:      f.field_key,
-      label:          f.label,
-      field_type:     f.field_type,
-      entity_type:    f.entity_type,
-      appears_in:     f.appears_in,
-      required:       f.required,
-      options:        f.options,
-      client_visible: f.client_visible,
-      risk_level:     f.field_type === "currency" ? "medium" : "low",
-      display_order:  order++,
-    }));
-  }
-
-  const statIds: string[] = [];
-  order = 0;
-  for (const s of cfg.stats) {
-    statIds.push(await versionedInsert(sb, "accountsmind_stat_defs", workspaceId, "stat_key", s.stat_key, {
-      ...common,
-      stat_key:       s.stat_key,
-      label:          s.label,
-      metric_key:     s.metric_key,
-      format:         s.format,
-      description:    s.description ?? null,
-      client_visible: s.client_visible,
-      risk_level:     METRIC_REGISTRY[s.metric_key]?.sensitive ? "high" : "low",
-      display_order:  order++,
-    }));
-  }
-
-  const widgetIds: string[] = [];
-  order = 0;
-  for (const w of cfg.widgets) {
-    widgetIds.push(await versionedInsert(sb, "accountsmind_widget_defs", workspaceId, "widget_key", w.widget_key, {
-      ...common,
-      widget_key:     w.widget_key,
-      title:          w.title,
-      widget_type:    w.widget_type,
-      metric_key:     w.metric_key,
-      format:         w.format,
-      description:    w.description ?? null,
-      client_visible: w.client_visible,
-      risk_level:     METRIC_REGISTRY[w.metric_key]?.sensitive ? "high" : "low",
-      display_order:  order++,
-    }));
+  // Atomic activation: one Postgres RPC wraps every field/stat/widget
+  // archive + versioned insert in a single transaction (migration
+  // 20260719000000). If anything fails midway, the previous dashboard is
+  // left completely untouched — no half-applied config. The RPC mirrors
+  // versionedInsert's archive+version chain exactly (only same-key live
+  // rows are archived; unrelated live config is never touched) and is
+  // service_role-only. There is deliberately NO row-by-row fallback here —
+  // a fallback would reintroduce the half-apply failure mode.
+  const { data: rpcResult, error: rpcError } = await sb.rpc(
+    "activate_accountsmind_config_draft",
+    {
+      p_workspace_id:    workspaceId,
+      p_created_by:      createdBy,
+      p_source_draft_id: generatedActionId,
+      p_fields: cfg.fields.map((f) => ({
+        field_key:      f.field_key,
+        label:          f.label,
+        field_type:     f.field_type,
+        entity_type:    f.entity_type,
+        appears_in:     f.appears_in,
+        required:       f.required,
+        options:        f.options,
+        client_visible: f.client_visible,
+        risk_level:     f.field_type === "currency" ? "medium" : "low",
+      })),
+      p_stats: cfg.stats.map((s) => ({
+        stat_key:       s.stat_key,
+        label:          s.label,
+        metric_key:     s.metric_key,
+        format:         s.format,
+        description:    s.description ?? null,
+        client_visible: s.client_visible,
+        risk_level:     METRIC_REGISTRY[s.metric_key]?.sensitive ? "high" : "low",
+      })),
+      p_widgets: cfg.widgets.map((w) => ({
+        widget_key:     w.widget_key,
+        title:          w.title,
+        widget_type:    w.widget_type,
+        metric_key:     w.metric_key,
+        format:         w.format,
+        description:    w.description ?? null,
+        client_visible: w.client_visible,
+        risk_level:     METRIC_REGISTRY[w.metric_key]?.sensitive ? "high" : "low",
+      })),
+    },
+  );
+  if (rpcError) {
+    throw new Error(
+      `Config activation failed — the previous dashboard is unchanged. (${rpcError.message})`,
+    );
   }
 
   // On-widget-creation backfill: fill past daily history for the newly
@@ -962,9 +988,9 @@ export async function activateAccountsMindConfigKind(
     activatedTargetType: "accountsmind_config",
     activatedTargetId:   generatedActionId,
     summary: {
-      fields_created:  fieldIds.length,
-      stats_created:   statIds.length,
-      widgets_created: widgetIds.length,
+      fields_created:  Number(rpcResult?.fields_created ?? cfg.fields.length),
+      stats_created:   Number(rpcResult?.stats_created ?? cfg.stats.length),
+      widgets_created: Number(rpcResult?.widgets_created ?? cfg.widgets.length),
     },
   };
 }

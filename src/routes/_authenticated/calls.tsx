@@ -20,6 +20,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { SavedFiltersSection } from "@/components/people-views/SavedFiltersSection";
 import { RecordingPlayerDialog, PlayRecordingButton } from "@/components/RecordingPlayerDialog";
 import { DashboardPage, KpiCard, SummaryTooltip, stickyCell, stickyHead } from "@/components/dashboard/PageShell";
 import { LoadingProgress } from "@/components/dashboard/LoadingProgress";
@@ -34,6 +35,7 @@ import { RelativeTime } from "@/components/ui/relative-time";
 import { supabase } from "@/integrations/supabase/client";
 import { useTablePagination, TablePagBar } from "@/components/ui/table-pagination";
 import { useWbahAgentOptions } from "@/hooks/useWbahAgentOptions";
+import { useWorkspaceAgentOptions, rowMatchesAgent, agentTypeLabel } from "@/components/shared/AgentFilterSelect";
 import { WBAH_TIMEZONE } from "@/lib/dashboard/wbah-timezone";
 
 export const Route = createFileRoute("/_authenticated/calls")({
@@ -416,6 +418,9 @@ function CallsPage() {
   const [callTypeFilter, setCallTypeFilter] = useState("");
   const [sentimentFilter, setSentimentFilter] = useState("");
   const [wbahAgentFilter, setWbahAgentFilter] = useState("all");
+  const [agentFilter, setAgentFilter] = useState("all");
+  const workspaceAgents = useWorkspaceAgentOptions();
+  const selectedAgent = agentFilter !== "all" ? workspaceAgents.find((a) => a.id === agentFilter) ?? null : null;
 
   const filteredRows = useMemo(() => {
     const { dateFrom: cutFrom, dateTo: cutTo } = effectiveDateRange;
@@ -431,6 +436,7 @@ function CallsPage() {
       if (callTypeFilter && r.call_type !== callTypeFilter) return false;
       if (sentimentFilter && r.sentiment !== sentimentFilter) return false;
       if (wbahAgentFilter !== "all" && (r.agent_name ?? "") !== wbahAgentFilter) return false;
+      if (!isWbah && selectedAgent && !rowMatchesAgent(selectedAgent, { agentId: r.agent_id, agentName: r.agent_name })) return false;
       // Call duration greater than N minutes.
       if (minDur > 0 && (r.duration_seconds ?? 0) < minDur) return false;
       // Call outcome: successful = completed; unsuccessful = failed/no-answer/busy.
@@ -446,11 +452,11 @@ function CallsPage() {
       }
       return true;
     });
-  }, [rows, search, effectiveDateRange, statusFilter, callTypeFilter, sentimentFilter, durationFilter, outcomeFilter, isWbah, wbahAgentFilter]);
+  }, [rows, search, effectiveDateRange, statusFilter, callTypeFilter, sentimentFilter, durationFilter, outcomeFilter, isWbah, wbahAgentFilter, selectedAgent]);
 
   const callsPag = useTablePagination(filteredRows);
 
-  const hasCallFilters = search.trim() || statusFilter || callTypeFilter || sentimentFilter || durationFilter || outcomeFilter || daysFilter === "custom" || wbahAgentFilter !== "all";
+  const hasCallFilters = search.trim() || statusFilter || callTypeFilter || sentimentFilter || durationFilter || outcomeFilter || daysFilter === "custom" || wbahAgentFilter !== "all" || agentFilter !== "all";
 
   function openPanel(c: any) {
     const inbound = c.call_type === "inbound";
@@ -567,6 +573,7 @@ function CallsPage() {
       )}
 
       {/* Header */}
+      {!isWbah && <SavedFiltersSection pageKey="calls" />}
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
           <h1 className="text-sm font-semibold tracking-tight">Calls</h1>
@@ -685,6 +692,19 @@ function CallsPage() {
                 ))}
               </select>
             )}
+            {!isWbah && workspaceAgents.length > 0 && (
+              <select
+                value={agentFilter}
+                onChange={(e) => setAgentFilter(e.target.value)}
+                className="h-6 rounded-md border border-white/[0.08] bg-card/80 px-1.5 text-[11px] text-foreground focus:outline-none focus:ring-1 focus:ring-primary/40"
+                title="Filter by agent"
+              >
+                <option value="all">All agents</option>
+                {workspaceAgents.map((a) => (
+                  <option key={a.id} value={a.id}>{a.name} · {agentTypeLabel(a.agentType)}</option>
+                ))}
+              </select>
+            )}
             <select
               value={durationFilter}
               onChange={(e) => setDurationFilter(e.target.value)}
@@ -776,7 +796,7 @@ function CallsPage() {
                 size="sm"
                 variant="ghost"
                 className="h-6 text-[11px] text-muted-foreground hover:text-foreground"
-                onClick={() => { setSearch(""); setStatusFilter(""); setCallTypeFilter(""); setSentimentFilter(""); setDurationFilter(""); setOutcomeFilter(""); setWbahAgentFilter("all"); }}
+                onClick={() => { setSearch(""); setStatusFilter(""); setCallTypeFilter(""); setSentimentFilter(""); setDurationFilter(""); setOutcomeFilter(""); setWbahAgentFilter("all"); setAgentFilter("all"); }}
               >
                 Clear filters
               </Button>

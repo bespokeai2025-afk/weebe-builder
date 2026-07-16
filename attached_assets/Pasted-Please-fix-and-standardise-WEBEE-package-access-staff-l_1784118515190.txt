@@ -1,0 +1,648 @@
+Please fix and standardise WEBEE package access, staff login access, and Account Settings visibility controls.
+
+The goal is to make new signups automatically receive access only to the areas of WEBEE included in their package from the website/pricing setup, while allowing workspace owners/admins to add staff users as a chargeable add-on and control what those staff members can see inside the app.
+
+This must be workspace-scoped, secure, and must not affect WBAH or any other workspace incorrectly.
+
+---
+
+# 1. Main goal
+
+Create a proper access control system based on:
+
+1. Workspace package / subscription plan
+2. Paid add-ons
+3. Number of allowed staff users
+4. User role
+5. Page-level access
+6. Action-level permissions
+7. Owner/admin visibility settings
+
+A new signup should not automatically access the full WEBEE system unless their package allows it.
+
+---
+
+# 2. Package-based feature access
+
+New signups should be assigned a package.
+
+Package access should control which WEBEE areas they can use.
+
+WEBEE areas to control:
+
+* Dashboard
+* WEBEE Receptionist
+* Agent Builder
+* Agent Deploy
+* Phone Numbers / SIP
+* Calls
+* Leads
+* Qualified
+* Data
+* People
+* Campaigns
+* Campaign Reports
+* Workflows
+* Follow Up Centre
+* WhatsApp Centre / BuzzChat
+* HexMail / Email Centre
+* Template Studio
+* Video & Creative Studio
+* WEBEE CRM
+* GrowthMind
+* HiveMind
+* SystemMind
+* AccountsMind
+* Analytics
+* Settings
+* Billing
+* Provider Settings
+* Team Access
+* Approval Settings
+* API / Webhooks
+* White labelling
+
+The package should define:
+
+* allowed pages
+* allowed features
+* allowed AI departments
+* allowed number of agents
+* allowed number of workflows
+* allowed number of campaigns
+* allowed number of staff users
+* included AI voice minutes
+* included messaging/email features
+* allowed integrations
+* allowed custom fields/views/filters
+* allowed SystemMind usage
+* allowed campaign reports
+* allowed CRM modules
+
+---
+
+# 3. Do not hardcode package rules in UI only
+
+Do not only hide buttons on the frontend.
+
+Package access must be enforced on the backend as well.
+
+Every sensitive server action should check:
+
+* workspace_id
+* current package
+* active subscription status
+* allowed feature
+* allowed action
+* user role/permission
+* add-on entitlement
+
+If not allowed, return a clear blocked response:
+
+“This feature is not included in your current package.”
+
+or
+
+“You need the Staff Access add-on to add more users.”
+
+---
+
+# 4. Suggested tables
+
+Create or verify these tables.
+
+## `package_definitions`
+
+Fields:
+
+* id
+* package_key
+* package_name
+* description
+* monthly_price
+* annual_price optional
+* currency
+* included_voice_minutes
+* included_staff_users
+* max_agents
+* max_workflows
+* max_campaigns
+* max_custom_views
+* max_page_filters
+* max_campaign_filters
+* features_json
+* page_access_json
+* action_access_json
+* ai_departments_json
+* is_active
+* created_at
+* updated_at
+
+## `workspace_subscriptions`
+
+Fields:
+
+* id
+* workspace_id
+* package_key
+* subscription_status:
+
+  * trial
+  * active
+  * past_due
+  * cancelled
+  * suspended
+* billing_provider
+* billing_customer_id
+* billing_subscription_id
+* trial_ends_at
+* current_period_start
+* current_period_end
+* created_at
+* updated_at
+
+## `workspace_addons`
+
+Fields:
+
+* id
+* workspace_id
+* addon_key
+* addon_name
+* quantity
+* status:
+
+  * active
+  * pending
+  * cancelled
+  * suspended
+* billing_provider
+* billing_subscription_item_id optional
+* created_at
+* updated_at
+
+## `workspace_feature_entitlements`
+
+Fields:
+
+* id
+* workspace_id
+* source:
+
+  * package
+  * addon
+  * admin_override
+* feature_key
+* enabled boolean
+* limit_value optional
+* used_value optional
+* created_at
+* updated_at
+
+## `workspace_user_access_overrides`
+
+Fields:
+
+* id
+* workspace_id
+* user_id
+* page_access_json
+* action_access_json
+* field_visibility_json
+* panel_visibility_json
+* record_visibility_json
+* created_by_user_id
+* updated_by_user_id
+* created_at
+* updated_at
+
+All tables must use workspace_id and RLS.
+
+Do not allow client-supplied workspace_id to override the authenticated workspace.
+
+---
+
+# 5. Staff logins as chargeable add-on
+
+Staff logins should be chargeable.
+
+Each package should include a base number of users.
+
+Example:
+
+* package includes 1 user
+* extra staff users require add-on
+* owner/admin can invite staff only up to included + paid add-on allowance
+
+Add a Staff Access add-on.
+
+Suggested addon:
+
+`extra_staff_user`
+
+Config:
+
+* charged per extra user
+* quantity based
+* workspace-scoped
+* visible in Account Settings / Billing
+* enforced before invitation is accepted or activated
+
+If a workspace tries to invite more users than allowed, show:
+
+“You have reached your included staff user limit. Add extra staff users to continue.”
+
+Do not silently allow unlimited staff logins.
+
+---
+
+# 6. Account Settings: Team Access panel visibility
+
+Workspace owners/admins should be able to control what staff users see in the app.
+
+Inside Account Settings → Team Access, add controls for each staff user or role.
+
+Control visibility for:
+
+* main sidebar sections
+* dashboard panels
+* CRM panels
+* Campaigns panels
+* Reports panels
+* AccountsMind panels
+* HiveMind panels
+* SystemMind panels
+* GrowthMind panels
+* Agent Builder sections
+* Agent Deploy sections
+* Billing panels
+* Provider Settings panels
+* Phone/SIP panels
+* API/Webhook panels
+* WBAH-specific CRM panels where applicable
+
+Visibility options:
+
+* hidden
+* view only
+* edit
+* create draft
+* approve
+* activate/go live
+* admin/manage
+
+The panel visibility must be enforced in both frontend and backend.
+
+---
+
+# 7. Staff login creation
+
+Workspace owners/admins should be able to create/invite staff logins.
+
+In Account Settings → Team Access, allow:
+
+* Invite staff by email
+* Assign role
+* Assign page access
+* Assign panel visibility
+* Assign record visibility
+* Set whether they can approve actions
+* Set whether they can see billing
+* Set whether they can see provider settings
+* Set whether they can see all records or only assigned records
+
+The invite system should:
+
+* create workspace invitation
+* send invite email
+* allow user to create login
+* add them to workspace_members only after acceptance
+* apply role/permissions
+* enforce staff seat allowance
+* log audit event
+
+---
+
+# 8. Staff access roles
+
+Support default roles:
+
+* Owner
+* Admin
+* Manager
+* Agent Builder
+* Campaign Manager
+* Reports Only
+* Accounts Only
+* Sales Agent
+* Viewer
+* Suspended / No Access
+
+Each role should have default permissions.
+
+Workspace admins can customise role permissions if their package allows custom roles.
+
+---
+
+# 9. WBAH-specific importance
+
+This is especially important for WBAH.
+
+WBAH should be able to create staff logins for:
+
+* WBAH Owner
+* WBAH Admin
+* WBAH Sales Manager
+* WBAH Sales Agent
+* WBAH Reports Only
+* WBAH Viewer
+
+WBAH Sales Agent should be able to be limited to:
+
+* assigned leads only
+* assigned calls only
+* callback requests assigned to them
+* booked appointments assigned to them
+* limited CRM fields
+* no billing
+* no provider settings
+* no SystemMind approvals
+* no campaign activation unless permitted
+* no team access settings
+
+WBAH Sales Manager may see:
+
+* team leads
+* team calls
+* team reports
+* campaign reports
+* assigned staff performance
+* qualified leads if allowed
+
+WBAH Owner/Admin may see all WBAH workspace data.
+
+Do not hardcode WBAH logic globally.
+
+Use workspace-specific permission configuration.
+
+---
+
+# 10. Package gating for new signups
+
+When a new workspace signs up:
+
+1. Detect selected package.
+2. Create workspace.
+3. Create workspace subscription record.
+4. Apply package entitlements.
+5. Set included staff user limit.
+6. Set page access based on package.
+7. Set feature access based on package.
+8. Set allowed AI departments based on package.
+9. Hide/disable locked features.
+10. Backend-block locked actions.
+11. Show upgrade prompts for locked features.
+
+If package is missing, default to lowest safe package or trial package.
+
+Do not give full access by default.
+
+---
+
+# 11. Package definitions should match website pricing
+
+Package definitions should be sourced from the existing pricing/package configuration used by the website or admin pricing system.
+
+Do not hardcode old pricing values into multiple places.
+
+Create a single source of truth for package rules.
+
+If pricing currently only exists on the marketing website, create a synced internal package config and document how it is maintained.
+
+The system should allow package rules to be updated without editing multiple files.
+
+---
+
+# 12. Locked feature UI
+
+When a user tries to access a locked feature, show a clean upgrade state.
+
+Example:
+
+“This feature is not included in your current WEBEE package.”
+
+Buttons:
+
+* View Packages
+* Request Upgrade
+* Contact Admin
+* Back to Dashboard
+
+For staff users:
+
+“You do not have permission to access this area. Ask your workspace admin for access.”
+
+Do not show technical errors.
+
+---
+
+# 13. Billing/add-on handling
+
+Staff logins must be chargeable as add-ons.
+
+If billing integration exists, connect extra staff users to the billing provider.
+
+If billing provider integration is not ready, create internal add-on records and mark billing integration as pending.
+
+Do not block the whole system if billing provider is not connected, but do not silently make paid add-ons free unless explicitly in admin override/dev mode.
+
+Add Account Settings → Billing display:
+
+* current package
+* included staff users
+* active staff users
+* extra staff users
+* staff add-on cost
+* active add-ons
+* locked features
+* upgrade options
+
+---
+
+# 14. Backend enforcement
+
+Add a central permission/entitlement helper.
+
+Suggested functions:
+
+* `getWorkspacePackage(workspaceId)`
+* `getWorkspaceEntitlements(workspaceId)`
+* `canAccessFeature(workspaceId, userId, featureKey)`
+* `canAccessPage(workspaceId, userId, pageKey)`
+* `canPerformAction(workspaceId, userId, actionKey)`
+* `canInviteStaff(workspaceId)`
+* `getStaffSeatUsage(workspaceId)`
+* `requireFeatureAccess(featureKey)`
+* `requireActionAccess(actionKey)`
+* `requirePageAccess(pageKey)`
+
+Use these checks in server functions for:
+
+* creating agents
+* deploying agents
+* purchasing numbers
+* assigning SIP
+* activating campaigns
+* creating workflows
+* using SystemMind
+* creating reports
+* creating People views
+* creating page filters
+* inviting staff
+* changing settings
+* accessing billing
+* accessing provider settings
+
+---
+
+# 15. SystemMind must respect package and role access
+
+SystemMind should not perform actions that the workspace package or user role does not allow.
+
+Examples:
+
+* If package does not include Campaigns, SystemMind cannot create a live campaign.
+* If package does not include SystemMind, user cannot use SystemMind beyond allowed trial/preview.
+* If user lacks Go Live permission, SystemMind can only create a draft and request approval.
+* If staff add-on is not active, SystemMind cannot invite extra staff.
+* If package does not include WhatsApp, SystemMind can suggest upgrade but not activate WhatsApp workflow.
+
+SystemMind should explain:
+
+“This package does not include this feature.”
+
+or
+
+“You do not have permission to apply this. I can create a draft for an admin to approve.”
+
+---
+
+# 16. Approval settings
+
+Workspace owners/admins should control who can approve:
+
+* Go Live
+* campaign activation
+* phone number purchase
+* SIP assignment
+* provider settings changes
+* SystemMind workflow apply
+* CRM mapping changes
+* page filter default changes
+* staff invitations
+* package/add-on changes
+
+High-risk approval must require allowed permission.
+
+---
+
+# 17. Audit logs
+
+Audit all access and billing-related actions:
+
+* package assigned
+* package changed
+* entitlement changed
+* add-on added
+* add-on removed
+* staff invite sent
+* staff invite accepted
+* staff role changed
+* staff access changed
+* panel visibility changed
+* page access denied
+* action denied
+* feature locked
+* upgrade requested
+* SystemMind blocked due to package
+* SystemMind blocked due to role
+
+Audit log must include:
+
+* workspace_id
+* acting_user_id
+* target_user_id where relevant
+* package_key
+* addon_key where relevant
+* action_type
+* before_state
+* after_state
+* created_at
+
+---
+
+# 18. Fail closed
+
+If package or permission data cannot be loaded:
+
+* do not grant access by default
+* show a safe error
+* allow owner/admin to access Account Settings only if safe
+* log the error
+
+Never fail open.
+
+---
+
+# 19. Do not break existing users
+
+Migrate existing workspaces safely.
+
+For existing active workspaces:
+
+* assign current equivalent package or admin override
+* preserve current access initially where required
+* do not lock out owners
+* do not break WBAH
+* do not remove access without migration review
+* create a migration report
+
+For WBAH:
+
+* preserve existing admin access
+* add staff access controls carefully
+* do not change current CRM/data access until roles are configured
+
+---
+
+# 20. Testing required
+
+Please test:
+
+1. New signup on lowest package only sees allowed areas.
+2. New signup cannot access locked pages by URL.
+3. Backend blocks locked feature actions.
+4. Upgrade prompt appears for locked features.
+5. Owner can invite staff only within seat allowance.
+6. Extra staff beyond allowance requires add-on.
+7. Staff add-on increases seat allowance.
+8. Staff user login works after invite accepted.
+9. Staff user only sees permitted sidebar/panels.
+10. Viewer cannot edit campaigns.
+11. Campaign Manager cannot access billing/provider settings.
+12. Agent Builder user can create draft but cannot Go Live unless allowed.
+13. Reports Only user sees reports only.
+14. WBAH Sales Agent sees only assigned records if configured.
+15. WBAH Manager sees team records if configured.
+16. WBAH Admin can manage staff.
+17. Standard WEBEE workspace cannot see WBAH settings.
+18. Permission system fails closed.
+19. Existing owner/admin users are not locked out.
+20. Audit logs are created.
+21. SystemMind respects package and role limits.
+22. Staff panel visibility controls work.
+23. Direct URL access to locked pages is blocked.
+
+Final instruction:
+
+Standardise WEBEE access by package for all new signups. Add chargeable staff logins as workspace add-ons. Allow workspace owners/admins to control exactly what staff users see in the app, including panels, pages, records, and actions. Enforce everything on the backend as well as the UI. Preserve existing workspaces safely, especially WBAH.

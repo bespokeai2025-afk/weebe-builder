@@ -308,7 +308,41 @@ export const getGrowthMindAIResponse = createServerFn({ method: "POST" })
       workspaceId && sb ? fetchAdsTrendSummary(sb, workspaceId) : Promise.resolve(""),
     ]);
 
-    const systemPrompt = compileSystemPrompt(data.platformData, data.personality, adsTrend) + (knowledgeBlockResult ? `\n\n${knowledgeBlockResult}` : "");
+    // Campaign reports summary (graceful — table may not exist yet)
+    let campaignReportsBlock = "";
+    if (workspaceId) {
+      try {
+        const { getCampaignReportsSummary } = await import("@/lib/campaign-reports/campaign-reports.server");
+        const cr = await getCampaignReportsSummary(workspaceId);
+        if (cr.totalReports > 0) {
+          campaignReportsBlock = `\n\nCAMPAIGN REPORTS (last ${cr.windowDays} days): ${cr.totalReports} total — ${Object.entries(cr.countsByType).map(([k, v]) => `${k}=${v}`).join(", ")}.`;
+          if (cr.recentFailures.length > 0) {
+            campaignReportsBlock += `\nRecent failures: ${cr.recentFailures.slice(0, 3).map((f: any) => `[${f.type}] ${f.campaign ?? "campaign"}`).join("; ")}. Advise the owner — fixes are drafted by SystemMind and require approval.`;
+          }
+        }
+      } catch {}
+    }
+
+    // Analytics Hub snapshot (graceful — read-only compact overview)
+    let analyticsBlock = "";
+    if (workspaceId) {
+      try {
+        const { getAnalyticsSnapshotForExec } = await import("@/lib/analytics-hub/analytics-hub.server");
+        const a = await getAnalyticsSnapshotForExec(workspaceId);
+        if (a && !a.error) {
+          const bits: string[] = [];
+          if (a.rates) bits.push(`conversion ${a.rates.conversion}%, booking ${a.rates.booking}%, qualification ${a.rates.qualification}%`);
+          if (a.cost) bits.push(`ROI ${a.cost.roi}%, est. revenue £${((a.cost.estRevenueCents ?? 0) / 100).toFixed(0)}`);
+          if (a.bestCampaign) bits.push(`best campaign "${a.bestCampaign}"`);
+          if (a.worstCampaign) bits.push(`worst campaign "${a.worstCampaign}"`);
+          analyticsBlock = `\n\nANALYTICS HUB (${a.windowDays ?? 30}d): ${bits.join("; ")}.`;
+          if (a.biggestIssue) analyticsBlock += `\nBiggest issue: ${a.biggestIssue.type}${a.biggestIssue.campaign ? ` on "${a.biggestIssue.campaign}"` : ""}${a.biggestIssue.reason ? ` — ${a.biggestIssue.reason}` : ""}.`;
+          if (a.nextAction) analyticsBlock += `\nRecommended next action: ${a.nextAction.title}.`;
+        }
+      } catch {}
+    }
+
+    const systemPrompt = compileSystemPrompt(data.platformData, data.personality, adsTrend) + (knowledgeBlockResult ? `\n\n${knowledgeBlockResult}` : "") + campaignReportsBlock + analyticsBlock;
 
     const res = await fetch("https://api.openai.com/v1/chat/completions", {
       method: "POST",

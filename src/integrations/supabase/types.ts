@@ -598,6 +598,129 @@ export type Database = {
           },
         ]
       }
+      analytics_report_schedules: {
+        Row: {
+          created_at: string
+          created_by_user_id: string | null
+          enabled: boolean
+          filters_json: Json
+          frequency: string
+          id: string
+          last_error: string | null
+          last_run_at: string | null
+          name: string
+          recipients_json: Json
+          report_type: string
+          schedule_config_json: Json
+          updated_at: string
+          workspace_id: string
+        }
+        Insert: {
+          created_at?: string
+          created_by_user_id?: string | null
+          enabled?: boolean
+          filters_json?: Json
+          frequency?: string
+          id?: string
+          last_error?: string | null
+          last_run_at?: string | null
+          name: string
+          recipients_json?: Json
+          report_type: string
+          schedule_config_json?: Json
+          updated_at?: string
+          workspace_id: string
+        }
+        Update: {
+          created_at?: string
+          created_by_user_id?: string | null
+          enabled?: boolean
+          filters_json?: Json
+          frequency?: string
+          id?: string
+          last_error?: string | null
+          last_run_at?: string | null
+          name?: string
+          recipients_json?: Json
+          report_type?: string
+          schedule_config_json?: Json
+          updated_at?: string
+          workspace_id?: string
+        }
+        Relationships: []
+      }
+      analytics_reports: {
+        Row: {
+          created_at: string
+          created_by_user_id: string | null
+          date_range_end: string | null
+          date_range_start: string | null
+          delivery_error: string | null
+          delivery_status: string | null
+          generated_by: string
+          id: string
+          insights_json: Json
+          metrics_json: Json
+          recommendations_json: Json
+          related_agent_id: string | null
+          related_campaign_id: string | null
+          related_workflow_id: string | null
+          report_name: string
+          report_status: string
+          report_summary: string | null
+          report_type: string
+          sent_to_json: Json
+          updated_at: string
+          workspace_id: string
+        }
+        Insert: {
+          created_at?: string
+          created_by_user_id?: string | null
+          date_range_end?: string | null
+          date_range_start?: string | null
+          delivery_error?: string | null
+          delivery_status?: string | null
+          generated_by?: string
+          id?: string
+          insights_json?: Json
+          metrics_json?: Json
+          recommendations_json?: Json
+          related_agent_id?: string | null
+          related_campaign_id?: string | null
+          related_workflow_id?: string | null
+          report_name: string
+          report_status?: string
+          report_summary?: string | null
+          report_type: string
+          sent_to_json?: Json
+          updated_at?: string
+          workspace_id: string
+        }
+        Update: {
+          created_at?: string
+          created_by_user_id?: string | null
+          date_range_end?: string | null
+          date_range_start?: string | null
+          delivery_error?: string | null
+          delivery_status?: string | null
+          generated_by?: string
+          id?: string
+          insights_json?: Json
+          metrics_json?: Json
+          recommendations_json?: Json
+          related_agent_id?: string | null
+          related_campaign_id?: string | null
+          related_workflow_id?: string | null
+          report_name?: string
+          report_status?: string
+          report_summary?: string | null
+          report_type?: string
+          sent_to_json?: Json
+          updated_at?: string
+          workspace_id?: string
+        }
+        Relationships: []
+      }
       api_engine_logs: {
         Row: {
           data_source_key: string
@@ -1314,6 +1437,87 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      campaign_reports: {
+        Row: {
+          agent_id: string | null
+          agent_name: string | null
+          audit_log_id: string | null
+          campaign_id: string | null
+          campaign_name: string | null
+          campaign_status: string | null
+          created_at: string
+          created_by_system: boolean
+          created_by_systemmind: boolean
+          ended_at: string | null
+          error_message: string | null
+          failure_reason: string | null
+          failure_stage: string | null
+          generated_at: string
+          id: string
+          kpi_json: Json
+          recommended_actions_json: Json
+          report_summary: string | null
+          report_type: string
+          started_at: string | null
+          updated_at: string
+          visible_to_roles: string[]
+          workflow_id: string | null
+          workspace_id: string
+        }
+        Insert: {
+          agent_id?: string | null
+          agent_name?: string | null
+          audit_log_id?: string | null
+          campaign_id?: string | null
+          campaign_name?: string | null
+          campaign_status?: string | null
+          created_at?: string
+          created_by_system?: boolean
+          created_by_systemmind?: boolean
+          ended_at?: string | null
+          error_message?: string | null
+          failure_reason?: string | null
+          failure_stage?: string | null
+          generated_at?: string
+          id?: string
+          kpi_json?: Json
+          recommended_actions_json?: Json
+          report_summary?: string | null
+          report_type: string
+          started_at?: string | null
+          updated_at?: string
+          visible_to_roles?: string[]
+          workflow_id?: string | null
+          workspace_id: string
+        }
+        Update: {
+          agent_id?: string | null
+          agent_name?: string | null
+          audit_log_id?: string | null
+          campaign_id?: string | null
+          campaign_name?: string | null
+          campaign_status?: string | null
+          created_at?: string
+          created_by_system?: boolean
+          created_by_systemmind?: boolean
+          ended_at?: string | null
+          error_message?: string | null
+          failure_reason?: string | null
+          failure_stage?: string | null
+          generated_at?: string
+          id?: string
+          kpi_json?: Json
+          recommended_actions_json?: Json
+          report_summary?: string | null
+          report_type?: string
+          started_at?: string | null
+          updated_at?: string
+          visible_to_roles?: string[]
+          workflow_id?: string | null
+          workspace_id?: string
+        }
+        Relationships: []
       }
       campaigns: {
         Row: {
@@ -7350,6 +7554,93 @@ export type Database = {
           },
         ]
       }
+      package_definitions: {
+        Row: {
+          action_access_json: Json
+          ai_departments_json: Json
+          annual_price: number | null
+          created_at: string
+          currency: string
+          description: string | null
+          features_json: Json
+          id: string
+          included_staff_users: number
+          included_voice_minutes: number
+          is_active: boolean
+          max_agents: number | null
+          max_campaign_filters: number | null
+          max_campaigns: number | null
+          max_child_accounts: number | null
+          max_custom_views: number | null
+          max_page_filters: number | null
+          max_workflows: number | null
+          monthly_price: number | null
+          notification_caps_json: Json
+          notification_defaults_json: Json
+          package_key: string
+          package_name: string
+          page_access_json: Json
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          action_access_json?: Json
+          ai_departments_json?: Json
+          annual_price?: number | null
+          created_at?: string
+          currency?: string
+          description?: string | null
+          features_json?: Json
+          id?: string
+          included_staff_users?: number
+          included_voice_minutes?: number
+          is_active?: boolean
+          max_agents?: number | null
+          max_campaign_filters?: number | null
+          max_campaigns?: number | null
+          max_child_accounts?: number | null
+          max_custom_views?: number | null
+          max_page_filters?: number | null
+          max_workflows?: number | null
+          monthly_price?: number | null
+          notification_caps_json?: Json
+          notification_defaults_json?: Json
+          package_key: string
+          package_name: string
+          page_access_json?: Json
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          action_access_json?: Json
+          ai_departments_json?: Json
+          annual_price?: number | null
+          created_at?: string
+          currency?: string
+          description?: string | null
+          features_json?: Json
+          id?: string
+          included_staff_users?: number
+          included_voice_minutes?: number
+          is_active?: boolean
+          max_agents?: number | null
+          max_campaign_filters?: number | null
+          max_campaigns?: number | null
+          max_child_accounts?: number | null
+          max_custom_views?: number | null
+          max_page_filters?: number | null
+          max_workflows?: number | null
+          monthly_price?: number | null
+          notification_caps_json?: Json
+          notification_defaults_json?: Json
+          package_key?: string
+          package_name?: string
+          page_access_json?: Json
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: []
+      }
       phone_numbers: {
         Row: {
           agent_id: string | null
@@ -7416,6 +7707,24 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      platform_cache_signals: {
+        Row: {
+          signal_key: string
+          updated_at: string
+          version: number
+        }
+        Insert: {
+          signal_key: string
+          updated_at?: string
+          version?: number
+        }
+        Update: {
+          signal_key?: string
+          updated_at?: string
+          version?: number
+        }
+        Relationships: []
       }
       production_webhook_updates: {
         Row: {
@@ -7832,6 +8141,75 @@ export type Database = {
           {
             foreignKeyName: "provider_usage_log_workspace_id_fkey"
             columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      reseller_client_accounts: {
+        Row: {
+          billing_mode: string
+          branding_mode: string
+          child_workspace_id: string | null
+          client_email: string
+          client_name: string
+          created_at: string
+          created_by: string | null
+          id: string
+          notes: string | null
+          package_key: string
+          parent_workspace_id: string
+          status: string
+          updated_at: string
+          upgrade_requested_at: string | null
+          upgrade_requested_package_key: string | null
+        }
+        Insert: {
+          billing_mode?: string
+          branding_mode?: string
+          child_workspace_id?: string | null
+          client_email: string
+          client_name: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          notes?: string | null
+          package_key: string
+          parent_workspace_id: string
+          status?: string
+          updated_at?: string
+          upgrade_requested_at?: string | null
+          upgrade_requested_package_key?: string | null
+        }
+        Update: {
+          billing_mode?: string
+          branding_mode?: string
+          child_workspace_id?: string | null
+          client_email?: string
+          client_name?: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          notes?: string | null
+          package_key?: string
+          parent_workspace_id?: string
+          status?: string
+          updated_at?: string
+          upgrade_requested_at?: string | null
+          upgrade_requested_package_key?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "reseller_client_accounts_child_workspace_id_fkey"
+            columns: ["child_workspace_id"]
+            isOneToOne: true
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "reseller_client_accounts_parent_workspace_id_fkey"
+            columns: ["parent_workspace_id"]
             isOneToOne: false
             referencedRelation: "workspaces"
             referencedColumns: ["id"]
@@ -10507,6 +10885,111 @@ export type Database = {
         }
         Relationships: []
       }
+      wbah_campaign_runs: {
+        Row: {
+          agent_id: string | null
+          campaign_id: string
+          campaign_name: string | null
+          created_at: string
+          end_report_id: string | null
+          id: string
+          kpis: Json | null
+          run_date: string
+          start_report_id: string | null
+          status: string
+          updated_at: string
+          window_end: string | null
+          window_start: string
+          workspace_id: string
+        }
+        Insert: {
+          agent_id?: string | null
+          campaign_id: string
+          campaign_name?: string | null
+          created_at?: string
+          end_report_id?: string | null
+          id?: string
+          kpis?: Json | null
+          run_date: string
+          start_report_id?: string | null
+          status?: string
+          updated_at?: string
+          window_end?: string | null
+          window_start: string
+          workspace_id: string
+        }
+        Update: {
+          agent_id?: string | null
+          campaign_id?: string
+          campaign_name?: string | null
+          created_at?: string
+          end_report_id?: string | null
+          id?: string
+          kpis?: Json | null
+          run_date?: string
+          start_report_id?: string | null
+          status?: string
+          updated_at?: string
+          window_end?: string | null
+          window_start?: string
+          workspace_id?: string
+        }
+        Relationships: []
+      }
+      wbah_campaign_snapshot: {
+        Row: {
+          agent_id: string | null
+          call_hour: number | null
+          call_minute: number | null
+          frequency: string | null
+          id: string
+          interval_days: number | null
+          is_active: boolean | null
+          is_deleted: boolean | null
+          lead_status: string | null
+          name: string
+          raw: Json | null
+          status: string | null
+          synced_at: string
+          timezone: string | null
+          workspace_id: string
+        }
+        Insert: {
+          agent_id?: string | null
+          call_hour?: number | null
+          call_minute?: number | null
+          frequency?: string | null
+          id: string
+          interval_days?: number | null
+          is_active?: boolean | null
+          is_deleted?: boolean | null
+          lead_status?: string | null
+          name: string
+          raw?: Json | null
+          status?: string | null
+          synced_at?: string
+          timezone?: string | null
+          workspace_id: string
+        }
+        Update: {
+          agent_id?: string | null
+          call_hour?: number | null
+          call_minute?: number | null
+          frequency?: string | null
+          id?: string
+          interval_days?: number | null
+          is_active?: boolean | null
+          is_deleted?: boolean | null
+          lead_status?: string | null
+          name?: string
+          raw?: Json | null
+          status?: string | null
+          synced_at?: string
+          timezone?: string | null
+          workspace_id?: string
+        }
+        Relationships: []
+      }
       wbah_categorized_leads: {
         Row: {
           address: string | null
@@ -11681,6 +12164,95 @@ export type Database = {
           },
         ]
       }
+      workspace_access_audit_logs: {
+        Row: {
+          acting_user_id: string | null
+          action_type: string
+          after_state: Json | null
+          before_state: Json | null
+          created_at: string
+          id: string
+          object_id: string | null
+          object_type: string
+          risk_level: string
+          target_user_id: string | null
+          workspace_id: string | null
+        }
+        Insert: {
+          acting_user_id?: string | null
+          action_type: string
+          after_state?: Json | null
+          before_state?: Json | null
+          created_at?: string
+          id?: string
+          object_id?: string | null
+          object_type: string
+          risk_level?: string
+          target_user_id?: string | null
+          workspace_id?: string | null
+        }
+        Update: {
+          acting_user_id?: string | null
+          action_type?: string
+          after_state?: Json | null
+          before_state?: Json | null
+          created_at?: string
+          id?: string
+          object_id?: string | null
+          object_type?: string
+          risk_level?: string
+          target_user_id?: string | null
+          workspace_id?: string | null
+        }
+        Relationships: []
+      }
+      workspace_addons: {
+        Row: {
+          addon_key: string
+          addon_name: string
+          billing_provider: string | null
+          billing_subscription_item_id: string | null
+          created_at: string
+          id: string
+          quantity: number
+          status: string
+          updated_at: string
+          workspace_id: string
+        }
+        Insert: {
+          addon_key: string
+          addon_name: string
+          billing_provider?: string | null
+          billing_subscription_item_id?: string | null
+          created_at?: string
+          id?: string
+          quantity?: number
+          status?: string
+          updated_at?: string
+          workspace_id: string
+        }
+        Update: {
+          addon_key?: string
+          addon_name?: string
+          billing_provider?: string | null
+          billing_subscription_item_id?: string | null
+          created_at?: string
+          id?: string
+          quantity?: number
+          status?: string
+          updated_at?: string
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "workspace_addons_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       workspace_api_profiles: {
         Row: {
           auth_strategy: string
@@ -11791,6 +12363,228 @@ export type Database = {
           },
         ]
       }
+      workspace_approval_settings: {
+        Row: {
+          created_at: string
+          id: string
+          settings: Json
+          updated_at: string
+          updated_by_user_id: string | null
+          workspace_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          settings?: Json
+          updated_at?: string
+          updated_by_user_id?: string | null
+          workspace_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          settings?: Json
+          updated_at?: string
+          updated_by_user_id?: string | null
+          workspace_id?: string
+        }
+        Relationships: []
+      }
+      workspace_campaign_filters: {
+        Row: {
+          agent_id: string | null
+          campaign_id: string | null
+          created_at: string
+          created_by_systemmind: boolean
+          created_by_user_id: string | null
+          description: string | null
+          filter_config: Json
+          id: string
+          last_dry_run: Json | null
+          last_dry_run_at: string | null
+          name: string
+          parent_filter_id: string | null
+          safety_config: Json
+          source_types: string[]
+          status: string
+          systemmind_prompt: string | null
+          updated_at: string
+          version: number
+          visible_to_roles: string[]
+          workspace_id: string
+        }
+        Insert: {
+          agent_id?: string | null
+          campaign_id?: string | null
+          created_at?: string
+          created_by_systemmind?: boolean
+          created_by_user_id?: string | null
+          description?: string | null
+          filter_config?: Json
+          id?: string
+          last_dry_run?: Json | null
+          last_dry_run_at?: string | null
+          name: string
+          parent_filter_id?: string | null
+          safety_config?: Json
+          source_types?: string[]
+          status?: string
+          systemmind_prompt?: string | null
+          updated_at?: string
+          version?: number
+          visible_to_roles?: string[]
+          workspace_id: string
+        }
+        Update: {
+          agent_id?: string | null
+          campaign_id?: string | null
+          created_at?: string
+          created_by_systemmind?: boolean
+          created_by_user_id?: string | null
+          description?: string | null
+          filter_config?: Json
+          id?: string
+          last_dry_run?: Json | null
+          last_dry_run_at?: string | null
+          name?: string
+          parent_filter_id?: string | null
+          safety_config?: Json
+          source_types?: string[]
+          status?: string
+          systemmind_prompt?: string | null
+          updated_at?: string
+          version?: number
+          visible_to_roles?: string[]
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "workspace_campaign_filters_parent_filter_id_fkey"
+            columns: ["parent_filter_id"]
+            isOneToOne: false
+            referencedRelation: "workspace_campaign_filters"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      workspace_email_provider_settings: {
+        Row: {
+          consecutive_failures: number
+          created_at: string
+          created_by: string | null
+          domain_status: string
+          encrypted_config: Json
+          fallback_to_platform: boolean
+          from_email: string | null
+          from_name: string | null
+          id: string
+          is_active: boolean
+          last_send_at: string | null
+          last_send_error: string | null
+          last_send_provider: string | null
+          last_send_status: string | null
+          provider: string
+          reply_to_email: string | null
+          sending_mode: string
+          updated_at: string
+          workspace_id: string
+        }
+        Insert: {
+          consecutive_failures?: number
+          created_at?: string
+          created_by?: string | null
+          domain_status?: string
+          encrypted_config?: Json
+          fallback_to_platform?: boolean
+          from_email?: string | null
+          from_name?: string | null
+          id?: string
+          is_active?: boolean
+          last_send_at?: string | null
+          last_send_error?: string | null
+          last_send_provider?: string | null
+          last_send_status?: string | null
+          provider?: string
+          reply_to_email?: string | null
+          sending_mode?: string
+          updated_at?: string
+          workspace_id: string
+        }
+        Update: {
+          consecutive_failures?: number
+          created_at?: string
+          created_by?: string | null
+          domain_status?: string
+          encrypted_config?: Json
+          fallback_to_platform?: boolean
+          from_email?: string | null
+          from_name?: string | null
+          id?: string
+          is_active?: boolean
+          last_send_at?: string | null
+          last_send_error?: string | null
+          last_send_provider?: string | null
+          last_send_status?: string | null
+          provider?: string
+          reply_to_email?: string | null
+          sending_mode?: string
+          updated_at?: string
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "workspace_email_provider_settings_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: true
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      workspace_feature_entitlements: {
+        Row: {
+          created_at: string
+          enabled: boolean
+          feature_key: string
+          id: string
+          limit_value: number | null
+          source: string
+          updated_at: string
+          used_value: number | null
+          workspace_id: string
+        }
+        Insert: {
+          created_at?: string
+          enabled?: boolean
+          feature_key: string
+          id?: string
+          limit_value?: number | null
+          source?: string
+          updated_at?: string
+          used_value?: number | null
+          workspace_id: string
+        }
+        Update: {
+          created_at?: string
+          enabled?: boolean
+          feature_key?: string
+          id?: string
+          limit_value?: number | null
+          source?: string
+          updated_at?: string
+          used_value?: number | null
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "workspace_feature_entitlements_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       workspace_health_runs: {
         Row: {
           created_at: string
@@ -11847,6 +12641,7 @@ export type Database = {
           expires_at: string
           id: string
           invited_by: string
+          invited_role_key: string | null
           role: Database["public"]["Enums"]["workspace_role"]
           token: string
           workspace_id: string
@@ -11858,6 +12653,7 @@ export type Database = {
           expires_at?: string
           id?: string
           invited_by: string
+          invited_role_key?: string | null
           role?: Database["public"]["Enums"]["workspace_role"]
           token?: string
           workspace_id: string
@@ -11869,6 +12665,7 @@ export type Database = {
           expires_at?: string
           id?: string
           invited_by?: string
+          invited_role_key?: string | null
           role?: Database["public"]["Enums"]["workspace_role"]
           token?: string
           workspace_id?: string
@@ -11882,6 +12679,36 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      workspace_member_roles: {
+        Row: {
+          assigned_by_user_id: string | null
+          created_at: string
+          id: string
+          role_key: string
+          updated_at: string
+          user_id: string
+          workspace_id: string
+        }
+        Insert: {
+          assigned_by_user_id?: string | null
+          created_at?: string
+          id?: string
+          role_key: string
+          updated_at?: string
+          user_id: string
+          workspace_id: string
+        }
+        Update: {
+          assigned_by_user_id?: string | null
+          created_at?: string
+          id?: string
+          role_key?: string
+          updated_at?: string
+          user_id?: string
+          workspace_id?: string
+        }
+        Relationships: []
       }
       workspace_members: {
         Row: {
@@ -11914,6 +12741,114 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      workspace_notification_settings: {
+        Row: {
+          created_at: string
+          email_enabled: boolean
+          enabled: boolean
+          event_key: string
+          frequency: string
+          id: string
+          in_app_enabled: boolean
+          recipients: Json
+          updated_at: string
+          updated_by_user_id: string | null
+          workspace_id: string
+        }
+        Insert: {
+          created_at?: string
+          email_enabled?: boolean
+          enabled?: boolean
+          event_key: string
+          frequency?: string
+          id?: string
+          in_app_enabled?: boolean
+          recipients?: Json
+          updated_at?: string
+          updated_by_user_id?: string | null
+          workspace_id: string
+        }
+        Update: {
+          created_at?: string
+          email_enabled?: boolean
+          enabled?: boolean
+          event_key?: string
+          frequency?: string
+          id?: string
+          in_app_enabled?: boolean
+          recipients?: Json
+          updated_at?: string
+          updated_by_user_id?: string | null
+          workspace_id?: string
+        }
+        Relationships: []
+      }
+      workspace_notifications: {
+        Row: {
+          campaign_id: string | null
+          channel: string
+          created_at: string
+          delivery_error: string | null
+          delivery_status: string
+          digest_frequency: string | null
+          event_key: string
+          id: string
+          message: string | null
+          object_id: string | null
+          object_type: string | null
+          read_at: string | null
+          recipient_email: string | null
+          recipient_user_id: string | null
+          report_id: string | null
+          sent_at: string | null
+          severity: string
+          title: string
+          workspace_id: string
+        }
+        Insert: {
+          campaign_id?: string | null
+          channel?: string
+          created_at?: string
+          delivery_error?: string | null
+          delivery_status?: string
+          digest_frequency?: string | null
+          event_key: string
+          id?: string
+          message?: string | null
+          object_id?: string | null
+          object_type?: string | null
+          read_at?: string | null
+          recipient_email?: string | null
+          recipient_user_id?: string | null
+          report_id?: string | null
+          sent_at?: string | null
+          severity?: string
+          title: string
+          workspace_id: string
+        }
+        Update: {
+          campaign_id?: string | null
+          channel?: string
+          created_at?: string
+          delivery_error?: string | null
+          delivery_status?: string
+          digest_frequency?: string | null
+          event_key?: string
+          id?: string
+          message?: string | null
+          object_id?: string | null
+          object_type?: string | null
+          read_at?: string | null
+          recipient_email?: string | null
+          recipient_user_id?: string | null
+          report_id?: string | null
+          sent_at?: string | null
+          severity?: string
+          title?: string
+          workspace_id?: string
+        }
+        Relationships: []
       }
       workspace_onboarding: {
         Row: {
@@ -11977,6 +12912,217 @@ export type Database = {
           },
         ]
       }
+      workspace_page_filters: {
+        Row: {
+          column_config: Json
+          created_at: string
+          created_by_systemmind: boolean
+          created_by_user_id: string | null
+          description: string | null
+          filter_config: Json
+          group_config: Json
+          id: string
+          is_default: boolean
+          last_dry_run: Json | null
+          last_dry_run_at: string | null
+          name: string
+          page_key: string
+          parent_filter_id: string | null
+          sort_config: Json
+          status: string
+          systemmind_prompt: string | null
+          updated_at: string
+          version: number
+          visible_to_roles: string[]
+          workspace_id: string
+        }
+        Insert: {
+          column_config?: Json
+          created_at?: string
+          created_by_systemmind?: boolean
+          created_by_user_id?: string | null
+          description?: string | null
+          filter_config?: Json
+          group_config?: Json
+          id?: string
+          is_default?: boolean
+          last_dry_run?: Json | null
+          last_dry_run_at?: string | null
+          name: string
+          page_key: string
+          parent_filter_id?: string | null
+          sort_config?: Json
+          status?: string
+          systemmind_prompt?: string | null
+          updated_at?: string
+          version?: number
+          visible_to_roles?: string[]
+          workspace_id: string
+        }
+        Update: {
+          column_config?: Json
+          created_at?: string
+          created_by_systemmind?: boolean
+          created_by_user_id?: string | null
+          description?: string | null
+          filter_config?: Json
+          group_config?: Json
+          id?: string
+          is_default?: boolean
+          last_dry_run?: Json | null
+          last_dry_run_at?: string | null
+          name?: string
+          page_key?: string
+          parent_filter_id?: string | null
+          sort_config?: Json
+          status?: string
+          systemmind_prompt?: string | null
+          updated_at?: string
+          version?: number
+          visible_to_roles?: string[]
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "workspace_page_filters_parent_filter_id_fkey"
+            columns: ["parent_filter_id"]
+            isOneToOne: false
+            referencedRelation: "workspace_page_filters"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      workspace_people_views: {
+        Row: {
+          column_config: Json
+          created_at: string
+          created_by_systemmind: boolean
+          created_by_user_id: string | null
+          description: string | null
+          filter_config: Json
+          group_config: Json
+          icon: string | null
+          id: string
+          last_dry_run: Json | null
+          last_dry_run_at: string | null
+          name: string
+          parent_view_id: string | null
+          slug: string
+          sort_config: Json
+          status: string
+          systemmind_prompt: string | null
+          updated_at: string
+          version: number
+          view_type: string
+          visible_to_roles: string[]
+          workspace_id: string
+        }
+        Insert: {
+          column_config?: Json
+          created_at?: string
+          created_by_systemmind?: boolean
+          created_by_user_id?: string | null
+          description?: string | null
+          filter_config?: Json
+          group_config?: Json
+          icon?: string | null
+          id?: string
+          last_dry_run?: Json | null
+          last_dry_run_at?: string | null
+          name: string
+          parent_view_id?: string | null
+          slug: string
+          sort_config?: Json
+          status?: string
+          systemmind_prompt?: string | null
+          updated_at?: string
+          version?: number
+          view_type?: string
+          visible_to_roles?: string[]
+          workspace_id: string
+        }
+        Update: {
+          column_config?: Json
+          created_at?: string
+          created_by_systemmind?: boolean
+          created_by_user_id?: string | null
+          description?: string | null
+          filter_config?: Json
+          group_config?: Json
+          icon?: string | null
+          id?: string
+          last_dry_run?: Json | null
+          last_dry_run_at?: string | null
+          name?: string
+          parent_view_id?: string | null
+          slug?: string
+          sort_config?: Json
+          status?: string
+          systemmind_prompt?: string | null
+          updated_at?: string
+          version?: number
+          view_type?: string
+          visible_to_roles?: string[]
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "workspace_people_views_parent_view_id_fkey"
+            columns: ["parent_view_id"]
+            isOneToOne: false
+            referencedRelation: "workspace_people_views"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      workspace_relationships: {
+        Row: {
+          child_workspace_id: string
+          created_at: string
+          created_by: string | null
+          id: string
+          parent_workspace_id: string
+          relationship_type: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          child_workspace_id: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          parent_workspace_id: string
+          relationship_type?: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          child_workspace_id?: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          parent_workspace_id?: string
+          relationship_type?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "workspace_relationships_child_workspace_id_fkey"
+            columns: ["child_workspace_id"]
+            isOneToOne: true
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "workspace_relationships_parent_workspace_id_fkey"
+            columns: ["parent_workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       workspace_requests: {
         Row: {
           created_at: string
@@ -12007,6 +13153,48 @@ export type Database = {
           updated_at?: string
           user_id?: string
           workspace_name?: string
+        }
+        Relationships: []
+      }
+      workspace_role_permissions: {
+        Row: {
+          action_access: Json
+          assigned_records_only: boolean
+          created_at: string
+          display_name: string | null
+          id: string
+          is_system_default: boolean
+          page_access: Json
+          role_key: string
+          updated_at: string
+          updated_by_user_id: string | null
+          workspace_id: string
+        }
+        Insert: {
+          action_access?: Json
+          assigned_records_only?: boolean
+          created_at?: string
+          display_name?: string | null
+          id?: string
+          is_system_default?: boolean
+          page_access?: Json
+          role_key: string
+          updated_at?: string
+          updated_by_user_id?: string | null
+          workspace_id: string
+        }
+        Update: {
+          action_access?: Json
+          assigned_records_only?: boolean
+          created_at?: string
+          display_name?: string | null
+          id?: string
+          is_system_default?: boolean
+          page_access?: Json
+          role_key?: string
+          updated_at?: string
+          updated_by_user_id?: string | null
+          workspace_id?: string
         }
         Relationships: []
       }
@@ -12095,6 +13283,7 @@ export type Database = {
           hexmail_sendgrid_from_name: string | null
           hivemind_mode: string
           hubspot_api_key: string | null
+          industry: string | null
           last_synced_at: string | null
           lead_auto_call_agent_id: string | null
           lead_auto_call_enabled: boolean
@@ -12163,6 +13352,7 @@ export type Database = {
           hexmail_sendgrid_from_name?: string | null
           hivemind_mode?: string
           hubspot_api_key?: string | null
+          industry?: string | null
           last_synced_at?: string | null
           lead_auto_call_agent_id?: string | null
           lead_auto_call_enabled?: boolean
@@ -12231,6 +13421,7 @@ export type Database = {
           hexmail_sendgrid_from_name?: string | null
           hivemind_mode?: string
           hubspot_api_key?: string | null
+          industry?: string | null
           last_synced_at?: string | null
           lead_auto_call_agent_id?: string | null
           lead_auto_call_enabled?: boolean
@@ -12333,6 +13524,160 @@ export type Database = {
         }
         Relationships: []
       }
+      workspace_subscriptions: {
+        Row: {
+          billing_customer_id: string | null
+          billing_provider: string | null
+          billing_subscription_id: string | null
+          created_at: string
+          current_period_end: string | null
+          current_period_start: string | null
+          id: string
+          package_key: string
+          subscription_status: string
+          trial_ends_at: string | null
+          updated_at: string
+          workspace_id: string
+        }
+        Insert: {
+          billing_customer_id?: string | null
+          billing_provider?: string | null
+          billing_subscription_id?: string | null
+          created_at?: string
+          current_period_end?: string | null
+          current_period_start?: string | null
+          id?: string
+          package_key: string
+          subscription_status?: string
+          trial_ends_at?: string | null
+          updated_at?: string
+          workspace_id: string
+        }
+        Update: {
+          billing_customer_id?: string | null
+          billing_provider?: string | null
+          billing_subscription_id?: string | null
+          created_at?: string
+          current_period_end?: string | null
+          current_period_start?: string | null
+          id?: string
+          package_key?: string
+          subscription_status?: string
+          trial_ends_at?: string | null
+          updated_at?: string
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "workspace_subscriptions_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: true
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      workspace_user_access_overrides: {
+        Row: {
+          action_access_json: Json
+          created_at: string
+          created_by_user_id: string | null
+          field_visibility_json: Json
+          id: string
+          page_access_json: Json
+          panel_visibility_json: Json
+          record_visibility_json: Json
+          updated_at: string
+          updated_by_user_id: string | null
+          user_id: string
+          workspace_id: string
+        }
+        Insert: {
+          action_access_json?: Json
+          created_at?: string
+          created_by_user_id?: string | null
+          field_visibility_json?: Json
+          id?: string
+          page_access_json?: Json
+          panel_visibility_json?: Json
+          record_visibility_json?: Json
+          updated_at?: string
+          updated_by_user_id?: string | null
+          user_id: string
+          workspace_id: string
+        }
+        Update: {
+          action_access_json?: Json
+          created_at?: string
+          created_by_user_id?: string | null
+          field_visibility_json?: Json
+          id?: string
+          page_access_json?: Json
+          panel_visibility_json?: Json
+          record_visibility_json?: Json
+          updated_at?: string
+          updated_by_user_id?: string | null
+          user_id?: string
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "workspace_user_access_overrides_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      workspace_view_audit_logs: {
+        Row: {
+          action_type: string
+          after_state: Json | null
+          approval_status: string | null
+          before_state: Json | null
+          created_at: string
+          dry_run_result: Json | null
+          id: string
+          object_id: string | null
+          object_type: string
+          prompt: string | null
+          risk_level: string | null
+          user_id: string | null
+          workspace_id: string
+        }
+        Insert: {
+          action_type: string
+          after_state?: Json | null
+          approval_status?: string | null
+          before_state?: Json | null
+          created_at?: string
+          dry_run_result?: Json | null
+          id?: string
+          object_id?: string | null
+          object_type: string
+          prompt?: string | null
+          risk_level?: string | null
+          user_id?: string | null
+          workspace_id: string
+        }
+        Update: {
+          action_type?: string
+          after_state?: Json | null
+          approval_status?: string | null
+          before_state?: Json | null
+          created_at?: string
+          dry_run_result?: Json | null
+          id?: string
+          object_id?: string | null
+          object_type?: string
+          prompt?: string | null
+          risk_level?: string | null
+          user_id?: string | null
+          workspace_id?: string
+        }
+        Relationships: []
+      }
       workspace_webhooks: {
         Row: {
           active: boolean
@@ -12372,6 +13717,77 @@ export type Database = {
             foreignKeyName: "workspace_webhooks_workspace_id_fkey"
             columns: ["workspace_id"]
             isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      workspace_white_label_settings: {
+        Row: {
+          accent_color: string | null
+          brand_name: string | null
+          child_branding_mode: string
+          created_at: string
+          custom_domain: string | null
+          custom_domain_status: string
+          email_branding_mode: string
+          email_from_name: string | null
+          favicon_url: string | null
+          hide_webee_branding: boolean
+          logo_url: string | null
+          primary_color: string | null
+          reseller_mode: boolean
+          secondary_color: string | null
+          support_email: string | null
+          updated_at: string
+          updated_by: string | null
+          workspace_id: string
+        }
+        Insert: {
+          accent_color?: string | null
+          brand_name?: string | null
+          child_branding_mode?: string
+          created_at?: string
+          custom_domain?: string | null
+          custom_domain_status?: string
+          email_branding_mode?: string
+          email_from_name?: string | null
+          favicon_url?: string | null
+          hide_webee_branding?: boolean
+          logo_url?: string | null
+          primary_color?: string | null
+          reseller_mode?: boolean
+          secondary_color?: string | null
+          support_email?: string | null
+          updated_at?: string
+          updated_by?: string | null
+          workspace_id: string
+        }
+        Update: {
+          accent_color?: string | null
+          brand_name?: string | null
+          child_branding_mode?: string
+          created_at?: string
+          custom_domain?: string | null
+          custom_domain_status?: string
+          email_branding_mode?: string
+          email_from_name?: string | null
+          favicon_url?: string | null
+          hide_webee_branding?: boolean
+          logo_url?: string | null
+          primary_color?: string | null
+          reseller_mode?: boolean
+          secondary_color?: string | null
+          support_email?: string | null
+          updated_at?: string
+          updated_by?: string | null
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "workspace_white_label_settings_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: true
             referencedRelation: "workspaces"
             referencedColumns: ["id"]
           },
@@ -12493,6 +13909,26 @@ export type Database = {
       }
     }
     Functions: {
+      activate_accountsmind_config_draft: {
+        Args: {
+          p_created_by: string
+          p_fields: Json
+          p_source_draft_id: string
+          p_stats: Json
+          p_widgets: Json
+          p_workspace_id: string
+        }
+        Returns: Json
+      }
+      apply_accountsmind_industry_preset: {
+        Args: {
+          p_created_by: string
+          p_stats: Json
+          p_widgets: Json
+          p_workspace_id: string
+        }
+        Returns: Json
+      }
       delete_email: {
         Args: { message_id: number; queue_name: string }
         Returns: boolean

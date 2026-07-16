@@ -5,6 +5,7 @@ import { RefreshCw, DollarSign } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const CATEGORY_COLORS: Record<string, string> = {
+  systemmind: "bg-indigo-500",
   voice:     "bg-blue-500",
   llm:       "bg-purple-500",
   telephony: "bg-orange-500",

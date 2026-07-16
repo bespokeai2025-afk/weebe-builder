@@ -77,7 +77,9 @@ import {
   listWbahPeopleCategories,
 } from "@/lib/integrations/webespokeEnterprise/wbah-workspace.server";
 import { useWbahAgentOptions } from "@/hooks/useWbahAgentOptions";
+import { agentTypeLabel } from "@/components/shared/AgentFilterSelect";
 import { useIsWbahWorkspace } from "@/hooks/useIsWbahWorkspace";
+import { CustomViewsSection } from "@/components/people-views/CustomViewsSection";
 
 export const Route = createFileRoute("/_authenticated/data")({
   head: () => ({ meta: [{ title: "Data Records — Webee" }] }),
@@ -1879,7 +1881,7 @@ function DataPage() {
                   </SelectContent>
                 </Select>
                 <Select value={agentFilter} onValueChange={setAgentFilter}>
-                  <SelectTrigger className="h-7 w-[120px] text-xs">
+                  <SelectTrigger className="h-7 w-[150px] text-xs">
                     <SelectValue placeholder="Agent" />
                   </SelectTrigger>
                   <SelectContent>
@@ -1887,6 +1889,7 @@ function DataPage() {
                     {agents.map((a) => (
                       <SelectItem key={a.id} value={a.id}>
                         {a.name}
+                        <span className="ml-1.5 text-[10px] text-muted-foreground">· {agentTypeLabel((a.settings as any)?.dashboardAgentType as string | undefined)}</span>
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -2555,6 +2558,14 @@ function DataPage() {
           </div>
         </>
       )}
+
+      {dataTab === "people" && isWbah && (
+        <div className="rounded-xl border border-white/[0.06] bg-card/60 px-3 py-2 text-xs text-muted-foreground">
+          Custom People Views are not enabled for this workspace yet.
+        </div>
+      )}
+
+      {dataTab === "people" && !isWbah && <CustomViewsSection />}
 
       {dataTab === "people" && !isWbah && (
         <div className="min-w-0 overflow-hidden rounded-xl border border-white/[0.06] bg-card/60">

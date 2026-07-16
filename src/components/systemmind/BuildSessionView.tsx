@@ -16,7 +16,7 @@ import {
   ShieldAlert, Rocket, GitBranch, Variable, ListChecks, Bell, StickyNote,
   ArrowRight, Bot, Workflow as WorkflowIcon, ExternalLink, ShieldCheck,
   Undo2, GitCompareArrows, FilePlus2, Copy, SendToBack, Import, Info,
-  ClipboardList, Lightbulb, Table2, Eye,
+  ClipboardList, Lightbulb, Table2, Eye, Trash2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { DeploymentChecklistPanel } from "./DeploymentChecklistPanel";
@@ -24,18 +24,104 @@ import { TestCallPanel } from "./TestCallPanel";
 import { RequirementsPanel } from "./RequirementsPanel";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import { Input } from "@/components/ui/input";
+import {
+  Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue,
+} from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
 } from "@/components/ui/dialog";
 import {
   getBuildSession, promptBuildSession,
-  simulateBuildVersion, applyBuildVersion, restoreBuildVersion,
+  simulateBuildVersion, applyBuildVersion, restoreBuildVersion, deleteBuildSession,
   setBuildVersionNotes, setBuildSessionArchived, markBuildVersionDeployed,
   getSystemMindUsageSummary, getBuildApplySafetyReport, rollbackBuildApply,
 } from "@/lib/systemmind/build-workspace.functions";
+import { listWebformSources } from "@/lib/lead-gen/webforms.functions";
 import { getConversionForSession } from "@/lib/systemmind/legacy-conversion.functions";
 import { goLiveAgent } from "@/lib/agents/agents.functions";
+
+// ── Example prompts ────────────────────────────────────────────────────────────
+
+const STARTER_PROMPTS = [
+  "Build a receptionist agent that answers calls, books appointments into the Calendar and saves caller details to Leads.",
+  "Build a lead qualification workflow that asks budget, timeline and location, then saves qualified leads to Qualified.",
+  "Build a rebooking workflow that calls back missed appointments and reschedules them into the Calendar.",
+  "Build a WhatsApp follow-up workflow that messages new leads within 5 minutes and books a discovery call.",
+];
+
+const ITERATION_PROMPTS = [
+  "Add a WhatsApp follow-up step after the call ends",
+  "Ask for the caller's budget and make it a required field",
+  "Map the captured fields to Leads and Qualified",
+  "Make the script shorter and the tone friendlier",
+  "Add a voicemail branch that sends an SMS instead",
+];
+
+// ── Live build progress steps ──────────────────────────────────────────────────
+// Shown while SystemMind is generating. The steps advance on a timer (the server
+// call is a single request, so this narrates the phases the generator goes
+// through); the final step stays "in progress" until the response lands.
+
+const BUILD_PHASES_FIRST = [
+  "Reading your request",
+  "Detecting workflow type & trigger",
+  "Designing the workflow steps",
+  "Writing the agent script",
+  "Defining variables & captured fields",
+  "Mapping fields to the CRM",
+  "Running safety & risk checks",
+  "Creating version v1",
+];
+
+const BUILD_PHASES_REVISION = [
+  "Reading your change request",
+  "Comparing against the current version",
+  "Updating the workflow steps",
+  "Rewriting the affected script sections",
+  "Refreshing variables & CRM mappings",
+  "Running safety & risk checks",
+  "Creating the new version",
+];
+
+function BuildProgress({ phases }: { phases: string[] }) {
+  const [step, setStep] = useState(0);
+  useEffect(() => {
+    setStep(0);
+    const t = setInterval(
+      () => setStep((s) => Math.min(s + 1, phases.length - 1)),
+      2200,
+    );
+    return () => clearInterval(t);
+  }, [phases]);
+  return (
+    <div className="max-w-[85%] space-y-1.5 rounded-lg border border-white/[0.06] bg-white/[0.03] px-3 py-2.5">
+      <p className="mb-1 text-[9px] font-semibold uppercase tracking-wider text-muted-foreground">
+        SystemMind is building
+      </p>
+      {phases.map((p, i) => (
+        <div key={p} className="flex items-center gap-2">
+          {i < step ? (
+            <CheckCircle2 className="h-3 w-3 shrink-0 text-emerald-400" />
+          ) : i === step ? (
+            <Loader2 className="h-3 w-3 shrink-0 animate-spin text-sky-300" />
+          ) : (
+            <span className="h-3 w-3 shrink-0 rounded-full border border-white/[0.12]" />
+          )}
+          <p className={cn(
+            "text-[11px]",
+            i < step && "text-muted-foreground",
+            i === step && "text-foreground",
+            i > step && "text-muted-foreground/50",
+          )}>
+            {p}
+          </p>
+        </div>
+      ))}
+    </div>
+  );
+}
 
 // ── Small bits ─────────────────────────────────────────────────────────────────
 
@@ -184,6 +270,220 @@ function ConfigPreview({ config }: { config: Record<string, any> }) {
           {tests.map((t, i) => <p key={i} className="text-[11px] text-muted-foreground">{i + 1}. {t}</p>)}
         </Section>
       )}
+    </div>
+  );
+}
+
+// ── Version-to-version change summary + visual flow diagram ────────────────────
+
+export type ConfigDiffLine = {
+  kind: "added" | "removed" | "changed";
+  label: string;
+};
+
+export type ConfigDiff = {
+  lines:        ConfigDiffLine[];
+  addedSteps:   Set<string>;
+  changedSteps: Set<string>;
+};
+
+function stepFingerprint(s: any): string {
+  return JSON.stringify({
+    type: s.type, title: s.title ?? null, status: s.status ?? null,
+    template: s.template ?? null, next: s.next ?? null,
+    conditions: s.conditions ?? null, config: s.config ?? null,
+  });
+}
+
+export function diffBuildConfigs(
+  prev: Record<string, any> | null,
+  next: Record<string, any>,
+): ConfigDiff {
+  const lines: ConfigDiffLine[] = [];
+  const addedSteps   = new Set<string>();
+  const changedSteps = new Set<string>();
+  const pWf = (prev?.workflow ?? {}) as Record<string, any>;
+  const nWf = (next.workflow ?? {}) as Record<string, any>;
+
+  if (!prev) {
+    lines.push({ kind: "added", label: `Workflow "${nWf.name ?? "Unnamed"}" created with ${(nWf.steps ?? []).length} step(s)` });
+    for (const s of (nWf.steps ?? []) as any[]) addedSteps.add(String(s.id));
+    return { lines, addedSteps, changedSteps };
+  }
+
+  if ((pWf.name ?? "") !== (nWf.name ?? "")) {
+    lines.push({ kind: "changed", label: `Workflow renamed "${pWf.name ?? "?"}" → "${nWf.name ?? "?"}"` });
+  }
+  if ((pWf.trigger_type ?? "") !== (nWf.trigger_type ?? "")) {
+    lines.push({ kind: "changed", label: `Trigger changed ${pWf.trigger_type ?? "none"} → ${nWf.trigger_type ?? "none"}` });
+  }
+
+  const pSteps = new Map(((pWf.steps ?? []) as any[]).map((s) => [String(s.id), s]));
+  const nSteps = new Map(((nWf.steps ?? []) as any[]).map((s) => [String(s.id), s]));
+  for (const [id, s] of nSteps) {
+    const old = pSteps.get(id);
+    if (!old) {
+      addedSteps.add(id);
+      lines.push({ kind: "added", label: `Step "${s.title ?? s.type}" (${s.type})` });
+    } else if (stepFingerprint(old) !== stepFingerprint(s)) {
+      changedSteps.add(id);
+      lines.push({ kind: "changed", label: `Step "${s.title ?? s.type}" (${s.type}) updated` });
+    }
+  }
+  for (const [id, s] of pSteps) {
+    if (!nSteps.has(id)) lines.push({ kind: "removed", label: `Step "${s.title ?? s.type}" (${s.type})` });
+  }
+
+  if ((prev.agent_prompt ?? "") !== (next.agent_prompt ?? "")) {
+    lines.push({ kind: "changed", label: "Agent prompt rewritten" });
+  }
+
+  const nameOf = (v: any) => String(v?.name ?? v?.key ?? "unnamed");
+  const diffNamed = (a: any[], b: any[], noun: string) => {
+    const aSet = new Set(a.map(nameOf));
+    const bSet = new Set(b.map(nameOf));
+    for (const n of bSet) if (!aSet.has(n)) lines.push({ kind: "added", label: `${noun} "${n}"` });
+    for (const n of aSet) if (!bSet.has(n)) lines.push({ kind: "removed", label: `${noun} "${n}"` });
+  };
+  diffNamed((prev.variables ?? []) as any[], (next.variables ?? []) as any[], "Variable");
+  diffNamed((prev.extraction_fields ?? []) as any[], (next.extraction_fields ?? []) as any[], "Extraction field");
+
+  const pRules = JSON.stringify(prev.follow_up_rules ?? []);
+  const nRules = JSON.stringify(next.follow_up_rules ?? []);
+  if (pRules !== nRules) {
+    const pCount = ((prev.follow_up_rules ?? []) as any[]).length;
+    const nCount = ((next.follow_up_rules ?? []) as any[]).length;
+    lines.push({ kind: "changed", label: `Follow-up rules updated (${pCount} → ${nCount})` });
+  }
+
+  return { lines, addedSteps, changedSteps };
+}
+
+const DIFF_KIND_STYLES: Record<string, string> = {
+  added:   "text-emerald-400",
+  removed: "text-red-400",
+  changed: "text-amber-400",
+};
+
+export function ChangeSummary({
+  diff, versionNumber, compact = false,
+}: { diff: ConfigDiff; versionNumber: number; compact?: boolean }) {
+  if (diff.lines.length === 0) {
+    return compact ? null : (
+      <div className="rounded-lg border border-white/[0.06] bg-white/[0.02] p-3">
+        <p className="text-[11px] text-muted-foreground">
+          v{versionNumber}: no structural changes detected against the previous version
+          (wording-only or metadata tweaks).
+        </p>
+      </div>
+    );
+  }
+  const body = (
+    <div className={cn("space-y-0.5", compact && "max-h-24 overflow-y-auto")}>
+      {diff.lines.map((l, i) => (
+        <p key={i} className="text-[11px] text-muted-foreground">
+          <span className={cn("mr-1 font-semibold", DIFF_KIND_STYLES[l.kind])}>{l.kind}</span>
+          {l.label}
+        </p>
+      ))}
+    </div>
+  );
+  if (compact) return body;
+  return (
+    <div className="rounded-lg border border-sky-500/20 bg-sky-500/[0.04] p-3 space-y-2">
+      <div className="flex items-center gap-1.5">
+        <GitCompareArrows className="h-3.5 w-3.5 text-sky-400" />
+        <p className="text-[11px] font-semibold uppercase tracking-wide text-sky-300">
+          What changed in v{versionNumber}
+        </p>
+      </div>
+      {body}
+    </div>
+  );
+}
+
+// Visual representation of the generated workflow: an ordered flow of step
+// nodes with branch fan-outs. Steps added/changed in the latest version are
+// highlighted so you can SEE what each prompt did.
+export function WorkflowFlowDiagram({
+  config, addedSteps, changedSteps,
+}: {
+  config: Record<string, any>;
+  addedSteps?: Set<string>;
+  changedSteps?: Set<string>;
+}) {
+  const steps = ((config.workflow?.steps ?? []) as any[]);
+  if (steps.length === 0) {
+    return <p className="py-8 text-center text-[11px] text-muted-foreground">No steps to draw yet.</p>;
+  }
+  const titleOf = (id: string) => {
+    const s = steps.find((x) => String(x.id) === String(id));
+    return s ? (s.title ?? s.type) : id;
+  };
+  return (
+    <div className="space-y-0">
+      <div className="mb-3 flex flex-wrap items-center gap-3 text-[10px] text-muted-foreground">
+        <span className="inline-flex items-center gap-1"><span className="h-2 w-2 rounded-full border border-emerald-500/60 bg-emerald-500/20" /> new this version</span>
+        <span className="inline-flex items-center gap-1"><span className="h-2 w-2 rounded-full border border-amber-500/60 bg-amber-500/20" /> changed this version</span>
+      </div>
+      {steps.map((s: any, i: number) => {
+        const id = String(s.id);
+        const isAdded   = addedSteps?.has(id);
+        const isChanged = !isAdded && changedSteps?.has(id);
+        const conditions = (s.conditions ?? []) as any[];
+        return (
+          <div key={id} className="flex flex-col items-center">
+            <div
+              className={cn(
+                "w-full max-w-md rounded-lg border px-3 py-2",
+                isAdded
+                  ? "border-emerald-500/50 bg-emerald-500/[0.07]"
+                  : isChanged
+                    ? "border-amber-500/50 bg-amber-500/[0.07]"
+                    : s.type === "trigger"
+                      ? "border-sky-500/40 bg-sky-500/[0.06]"
+                      : s.type === "branch"
+                        ? "border-violet-500/40 bg-violet-500/[0.05]"
+                        : "border-white/[0.08] bg-white/[0.03]",
+              )}
+            >
+              <div className="flex items-center gap-2">
+                <Badge variant="secondary" className="text-[9px] shrink-0">{id}</Badge>
+                <p className="min-w-0 truncate text-[11px] font-medium">
+                  {s.title ?? s.type}
+                </p>
+                <Badge variant="outline" className="ml-auto shrink-0 text-[9px] font-mono">{s.type}</Badge>
+                {isAdded   && <Badge variant="outline" className="shrink-0 border-emerald-500/50 text-[9px] text-emerald-300">new</Badge>}
+                {isChanged && <Badge variant="outline" className="shrink-0 border-amber-500/50 text-[9px] text-amber-300">changed</Badge>}
+              </div>
+              {s.status && <p className="mt-0.5 text-[10px] text-muted-foreground">sets status → {s.status}</p>}
+              {s.template && <p className="mt-0.5 text-[10px] text-muted-foreground">template: {s.template}</p>}
+              {s.type === "branch" && conditions.length > 0 && (
+                <div className="mt-1.5 space-y-1 border-t border-white/[0.06] pt-1.5">
+                  {conditions.map((c: any, ci: number) => (
+                    <p key={ci} className="flex items-center gap-1 text-[10px] text-violet-200/80">
+                      <GitBranch className="h-2.5 w-2.5 shrink-0" />
+                      if {c.field} {c.op} {String(c.value)}
+                      <ArrowRight className="h-2.5 w-2.5 shrink-0 text-muted-foreground/60" />
+                      <span className="truncate text-foreground/80">{titleOf(String(c.next))}</span>
+                    </p>
+                  ))}
+                </div>
+              )}
+              {s.next && (
+                <p className="mt-1 flex items-center gap-1 text-[10px] text-muted-foreground/70">
+                  <ArrowRight className="h-2.5 w-2.5" /> then: <span className="text-foreground/70">{titleOf(String(s.next))}</span>
+                </p>
+              )}
+            </div>
+            {i < steps.length - 1 && (
+              <div className="my-0.5 flex h-4 items-center justify-center">
+                <div className="h-full w-px bg-white/[0.15]" />
+              </div>
+            )}
+          </div>
+        );
+      })}
     </div>
   );
 }
@@ -466,7 +766,424 @@ function VariablesPanel({ config }: { config: Record<string, any> | null }) {
   );
 }
 
-function MappingPanel({ config }: { config: Record<string, any> | null }) {
+// ── Mandatory required-inputs form ────────────────────────────────────────────
+// Like the platform's secret-request boxes: every captured field that has no CRM
+// destination yet gets a mandatory box the user must fill in. Submitting sends a
+// plain-language instruction to SystemMind, which generates a new version.
+
+// Every page relevant to call results, with its sub-sections. Each captured data
+// point maps to one of these and is written POST-CALL (after the call ends).
+const DESTINATION_GROUPS: { page: string; subs: string[] }[] = [
+  { page: "Leads",            subs: ["New lead", "Interested", "Qualified", "Not Interested", "Callback Requested", "Contact Made"] },
+  { page: "Qualified",        subs: ["Qualified list"] },
+  { page: "Calls",            subs: ["Call log", "Call outcome", "Transcript", "Sentiment"] },
+  { page: "Pipeline",         subs: ["Leads stage", "Qualified stage", "Contact Made stage", "Second Call stage", "Bookings stage", "Sale Done stage", "Documents stage", "Follow Up stage"] },
+  { page: "Follow-Up Centre", subs: ["Callback", "Email follow-up", "WhatsApp follow-up"] },
+  { page: "Calendar",         subs: ["Appointment / booking"] },
+  { page: "Contacts",         subs: ["Contact record"] },
+  { page: "Data",             subs: ["Records"] },
+];
+const DEFAULT_DESTINATION = "Leads — New lead";
+const destValue = (page: string, sub: string) =>
+  sub && sub !== page ? `${page} — ${sub}` : page;
+
+// ── Guided pre-call data points ───────────────────────────────────────────────
+// Data the agent should know BEFORE the call. Each becomes a {{dynamic_variable}}
+// in the script, mapped from the matching place in WEBEE (CRM/Leads, Data page…).
+const PRE_CALL_SOURCES: { group: string; items: { label: string; varName: string; source: string }[] }[] = [
+  {
+    group: "Leads / CRM",
+    items: [
+      { label: "Lead name",          varName: "lead_name",         source: "Leads — full name" },
+      { label: "Company",            varName: "company_name",      source: "Leads — company" },
+      { label: "Phone number",       varName: "phone_number",      source: "Leads — phone" },
+      { label: "Email",              varName: "email",             source: "Leads — email" },
+      { label: "Lead status",        varName: "lead_status",       source: "Leads — status" },
+      { label: "Lead source",        varName: "lead_source",       source: "Leads — source" },
+      { label: "Last call summary",  varName: "last_call_summary", source: "Calls — last call summary" },
+      { label: "Notes",              varName: "lead_notes",        source: "Leads — notes" },
+    ],
+  },
+  {
+    group: "Calendar",
+    items: [
+      { label: "Next appointment",   varName: "next_appointment",  source: "Calendar — next appointment" },
+    ],
+  },
+  {
+    group: "Data page (Records / CSV)",
+    items: [
+      { label: "Record name",        varName: "record_name",       source: "Data — Records name" },
+    ],
+  },
+  {
+    group: "Webform submission",
+    items: [
+      { label: "Form message / notes", varName: "form_notes",  source: "Webform — notes/message" },
+      { label: "UTM source",           varName: "utm_source",  source: "Webform — utm_source" },
+      { label: "Page submitted from",  varName: "source_page", source: "Webform — source page" },
+    ],
+  },
+];
+
+// ── Guided lead-intake source chooser ─────────────────────────────────────────
+// Where do this agent's leads come from? Existing CRM/Leads records, or live
+// webform intake (a submission creates the lead and starts the workflow).
+function LeadSourcePanel({
+  config, busy, onSend,
+}: {
+  config: Record<string, any> | null;
+  busy: boolean;
+  onSend: (prompt: string) => void;
+}) {
+  const listFormsFn = useServerFn(listWebformSources);
+  const formsQ = useQuery({
+    queryKey: ["bw-webform-sources"],
+    queryFn: () => listFormsFn(),
+    staleTime: 60_000,
+    throwOnError: false,
+  });
+  const forms = ((formsQ.data as any)?.sources ?? []) as any[];
+  const [choice, setChoice] = useState<"" | "crm" | `wf:${string}`>("");
+
+  const cfgSource = String(
+    (config?.workflow?.trigger_config as any)?.lead_source ?? "",
+  );
+  const cfgFormName = String(
+    (config?.workflow?.trigger_config as any)?.webform_name ?? "",
+  );
+
+  const submit = () => {
+    if (!choice) return;
+    if (choice === "crm") {
+      onSend(
+        "Leads for this agent come from the WEBEE CRM / Leads page (existing records) — not from a webform. Set the workflow trigger and steps accordingly, and remove any webform lead_source from trigger_config. Keep everything else unchanged.",
+      );
+    } else {
+      const name = choice.slice(3);
+      onSend(
+        `Leads for this agent come from live webform intake: the webform "${name}" creates a new lead the moment someone submits, and this workflow should start from it. Set trigger_type to "lead_added" with trigger_config {"lead_source": "webform", "webform_name": "${name}"}, and make the pre-call variables map from the webform submission where relevant. Keep everything else unchanged.`,
+      );
+    }
+    setChoice("");
+  };
+
+  return (
+    <div className="space-y-2 rounded-lg border border-violet-500/25 bg-violet-500/[0.04] p-3">
+      <div className="flex items-center gap-2">
+        <Import className="h-3.5 w-3.5 text-violet-300" />
+        <p className="text-[11px] font-semibold text-violet-200">Lead intake — where do this agent's leads come from?</p>
+        {cfgSource === "webform" && (
+          <Badge variant="outline" className="border-violet-400/40 text-[9px] text-violet-200">
+            current: webform{cfgFormName ? ` — ${cfgFormName}` : ""}
+          </Badge>
+        )}
+      </div>
+      <p className="text-[10px] text-muted-foreground">
+        Choose <span className="font-medium text-foreground">CRM / Leads page</span> to work from
+        records already in WEBEE, or a <span className="font-medium text-foreground">webform</span>{" "}
+        so a live form submission creates the lead and kicks off this agent instantly.
+      </p>
+      <div className="flex flex-wrap gap-1.5">
+        <button
+          type="button"
+          disabled={busy}
+          onClick={() => setChoice(choice === "crm" ? "" : "crm")}
+          className={cn(
+            "rounded-full border px-2.5 py-1 text-[10px] transition-colors",
+            choice === "crm"
+              ? "border-violet-400/60 bg-violet-500/20 text-violet-200"
+              : "border-white/[0.1] bg-white/[0.02] text-muted-foreground hover:text-foreground",
+          )}
+        >
+          CRM / Leads page
+        </button>
+        {forms.map((f) => {
+          const v = `wf:${String(f.name)}` as const;
+          return (
+            <button
+              key={String(f.id)}
+              type="button"
+              disabled={busy}
+              onClick={() => setChoice(choice === v ? "" : v)}
+              title={`Webform "${String(f.name)}" (${String(f.status ?? "active")})`}
+              className={cn(
+                "rounded-full border px-2.5 py-1 text-[10px] transition-colors",
+                choice === v
+                  ? "border-violet-400/60 bg-violet-500/20 text-violet-200"
+                  : "border-white/[0.1] bg-white/[0.02] text-muted-foreground hover:text-foreground",
+              )}
+            >
+              Webform: {String(f.name)}
+            </button>
+          );
+        })}
+        {!formsQ.isLoading && forms.length === 0 && (
+          <span className="self-center text-[10px] text-muted-foreground">
+            No webforms yet — create one under Lead Generation → Webforms to use webform intake.
+          </span>
+        )}
+      </div>
+      <Button
+        size="sm"
+        className="h-7 gap-1.5 px-3 text-[11px]"
+        disabled={busy || !choice}
+        onClick={submit}
+      >
+        {busy ? <Loader2 className="h-3 w-3 animate-spin" /> : <CheckCircle2 className="h-3 w-3" />}
+        Set lead source
+      </Button>
+    </div>
+  );
+}
+
+function PreCallInputsPanel({
+  config, busy, onSend,
+}: {
+  config: Record<string, any> | null;
+  busy: boolean;
+  onSend: (prompt: string) => void;
+}) {
+  const [picked, setPicked] = useState<Set<string>>(new Set());
+  const [customCols, setCustomCols] = useState("");
+  const existing = new Set(
+    ((config?.variables ?? []) as any[]).map((v) => String(v.name ?? v.key ?? "").toLowerCase()),
+  );
+  const allItems = PRE_CALL_SOURCES.flatMap((g) => g.items);
+  const toggle = (v: string) =>
+    setPicked((s) => { const n = new Set(s); n.has(v) ? n.delete(v) : n.add(v); return n; });
+
+  const submit = () => {
+    const chosen = allItems.filter((i) => picked.has(i.varName));
+    const parts = chosen.map((i) => `{{${i.varName}}} from ${i.source}`);
+    const cols = customCols.trim();
+    const seen = new Set([...existing, ...chosen.map((i) => i.varName)]);
+    if (cols) {
+      for (const c of cols.split(",").map((x) => x.trim().slice(0, 60)).filter(Boolean)) {
+        const vn = c.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "");
+        if (vn && !seen.has(vn)) {
+          seen.add(vn);
+          parts.push(`{{${vn}}} from Data — Records column "${c}"`);
+        }
+      }
+    }
+    if (parts.length === 0) return;
+    onSend(
+      `Before each call, the agent should load these data points and use them as dynamic variables in the script: ${parts.join("; ")}. ` +
+      `Add each one to "variables" with its WEBEE source, and rewrite the agent script so it references them naturally as {{placeholders}} (e.g. greeting the lead by name). Keep everything else unchanged.`,
+    );
+    setPicked(new Set());
+    setCustomCols("");
+  };
+
+  return (
+    <div className="space-y-2 rounded-lg border border-sky-500/25 bg-sky-500/[0.04] p-3">
+      <div className="flex items-center gap-2">
+        <Variable className="h-3.5 w-3.5 text-sky-300" />
+        <p className="text-[11px] font-semibold text-sky-200">Pre-call data (dynamic variables in the script)</p>
+      </div>
+      <p className="text-[10px] text-muted-foreground">
+        Pick what the agent should already know before it dials. Each becomes a{" "}
+        <code className="rounded bg-white/[0.06] px-1">{"{{variable}}"}</code> in the script, filled
+        automatically from the matching place in your WEBEE data — so the script stays personalised
+        without you hard-coding anything. Post-call captured data is mapped separately below.
+      </p>
+      {PRE_CALL_SOURCES.map((g) => (
+        <div key={g.group} className="space-y-1">
+          <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">{g.group}</p>
+          <div className="flex flex-wrap gap-1.5">
+            {g.items.map((i) => {
+              const already = existing.has(i.varName);
+              const on = picked.has(i.varName);
+              return (
+                <button
+                  key={i.varName}
+                  type="button"
+                  disabled={already || busy}
+                  onClick={() => toggle(i.varName)}
+                  title={already ? "Already in this version's variables" : `${i.label} → {{${i.varName}}} (${i.source})`}
+                  className={cn(
+                    "rounded-full border px-2.5 py-1 text-[10px] transition-colors",
+                    already
+                      ? "cursor-default border-emerald-500/30 bg-emerald-500/10 text-emerald-300/80"
+                      : on
+                        ? "border-sky-400/60 bg-sky-500/20 text-sky-200"
+                        : "border-white/[0.1] bg-white/[0.02] text-muted-foreground hover:text-foreground",
+                  )}
+                >
+                  {already ? "✓ " : ""}{i.label}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      ))}
+      <div className="flex flex-wrap items-center gap-2">
+        <Input
+          value={customCols}
+          onChange={(e) => setCustomCols(e.target.value)}
+          placeholder="Custom Data-page columns, comma-separated (e.g. budget, property type)"
+          className="h-7 w-[320px] text-[11px]"
+        />
+        <Button
+          size="sm"
+          className="h-7 gap-1.5 px-3 text-[11px]"
+          disabled={busy || (picked.size === 0 && !customCols.trim())}
+          onClick={submit}
+        >
+          {busy ? <Loader2 className="h-3 w-3 animate-spin" /> : <CheckCircle2 className="h-3 w-3" />}
+          Add to script
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+export function findUnmappedFields(config: Record<string, any> | null): any[] {
+  const fields = (config?.extraction_fields ?? []) as any[];
+  return fields.filter((f) => !(f.crm_destination ?? f.destination ?? f.maps_to));
+}
+
+function RequiredInputsPanel({
+  config, busy, onSend,
+}: {
+  config: Record<string, any> | null;
+  busy: boolean;
+  onSend: (prompt: string) => void;
+}) {
+  const unmapped = findUnmappedFields(config);
+  const creds    = (config?.required_credentials ?? []) as string[];
+  const [dest, setDest]         = useState<Record<string, string>>({});
+  const [crmField, setCrmField] = useState<Record<string, string>>({});
+  const [extCrm, setExtCrm]     = useState<"" | "yes" | "no">("");
+
+  if (unmapped.length === 0 && creds.length === 0) return null;
+
+  const nameOf  = (f: any) => String(f.name ?? f.key ?? "unnamed");
+  const destOf  = (n: string) => dest[n] ?? DEFAULT_DESTINATION;
+  const allFilled = unmapped.every((f) => !!destOf(nameOf(f)));
+
+  const submit = () => {
+    const parts = unmapped.map((f) => {
+      const n = nameOf(f);
+      const cf = crmField[n]?.trim();
+      return `${n} → ${destOf(n)}${cf ? ` (field name: ${cf})` : ""}`;
+    });
+    const postCallNote = " Every mapped data point is written post-call (after the call ends).";
+    const extNote =
+      extCrm === "yes"
+        ? " The user ALSO wants to sync leads to their external CRM — add a push_to_crm step at the right point in the workflow."
+        : extCrm === "no"
+          ? " The user does NOT want an external CRM sync — keep everything in WEBEE only (no push_to_crm step)."
+          : "";
+    onSend(`Map these captured fields into the WEBEE system: ${parts.join("; ")}. Update the workflow's mappings accordingly.${postCallNote}${extNote}`);
+  };
+
+  return (
+    <div className="space-y-2 rounded-lg border border-amber-500/25 bg-amber-500/[0.04] p-3">
+      <div className="flex items-center gap-2">
+        <AlertTriangle className="h-3.5 w-3.5 text-amber-400" />
+        <p className="text-[11px] font-semibold text-amber-200">
+          Required before this workflow is ready
+        </p>
+      </div>
+
+      {unmapped.length > 0 && (
+        <div className="space-y-2">
+          <p className="text-[10px] text-muted-foreground">
+            Captured data always lands in your WEBEE system and is written post-call. Fields marked <span className="text-rose-400">*</span> are mandatory — each defaults to Leads → New lead; pick the page and sub-section a field belongs to.
+          </p>
+          {unmapped.map((f) => {
+            const n = nameOf(f);
+            return (
+              <div key={n} className="flex flex-wrap items-center gap-2 rounded-md border border-white/[0.06] bg-white/[0.02] px-2.5 py-2">
+                <p className="min-w-[110px] text-[11px] font-medium">{n}</p>
+                <div className="flex items-center gap-1">
+                  <span className="text-[11px] text-rose-400">*</span>
+                  <Select value={destOf(n)} onValueChange={(v) => setDest((s) => ({ ...s, [n]: v }))}>
+                    <SelectTrigger className="h-7 w-[210px] text-[11px]">
+                      <SelectValue placeholder="WEBEE destination…" />
+                    </SelectTrigger>
+                    <SelectContent className="max-h-[300px]">
+                      {DESTINATION_GROUPS.map((g) => (
+                        <SelectGroup key={g.page}>
+                          <SelectLabel className="text-[10px] text-muted-foreground">{g.page}</SelectLabel>
+                          {g.subs.map((s) => {
+                            const v = destValue(g.page, s);
+                            return (
+                              <SelectItem key={v} value={v} className="text-[11px]">{s}</SelectItem>
+                            );
+                          })}
+                        </SelectGroup>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <Input
+                  value={crmField[n] ?? ""}
+                  onChange={(e) => setCrmField((s) => ({ ...s, [n]: e.target.value }))}
+                  placeholder="Field name (optional)"
+                  className="h-7 w-[170px] text-[11px]"
+                />
+              </div>
+            );
+          })}
+          <div className="flex flex-wrap items-center gap-2 rounded-md border border-white/[0.06] bg-white/[0.02] px-2.5 py-2">
+            <p className="text-[11px] font-medium">Also sync to an external CRM?</p>
+            <span className="text-[10px] text-muted-foreground">(optional — WEBEE stores everything either way)</span>
+            <div className="flex items-center gap-1.5">
+              <Button
+                size="sm"
+                variant={extCrm === "yes" ? "default" : "outline"}
+                className="h-6 px-2.5 text-[10px]"
+                onClick={() => setExtCrm(extCrm === "yes" ? "" : "yes")}
+              >
+                Yes, connect my CRM
+              </Button>
+              <Button
+                size="sm"
+                variant={extCrm === "no" ? "default" : "outline"}
+                className="h-6 px-2.5 text-[10px]"
+                onClick={() => setExtCrm(extCrm === "no" ? "" : "no")}
+              >
+                No, WEBEE only
+              </Button>
+            </div>
+          </div>
+          <Button
+            size="sm"
+            className="h-7 gap-1.5 px-3 text-[11px]"
+            disabled={!allFilled || busy}
+            onClick={submit}
+          >
+            {busy ? <Loader2 className="h-3 w-3 animate-spin" /> : <CheckCircle2 className="h-3 w-3" />}
+            Save mappings
+          </Button>
+        </div>
+      )}
+
+      {creds.length > 0 && (
+        <div className="space-y-1 pt-1">
+          <p className="text-[10px] text-muted-foreground">Credentials this workflow needs:</p>
+          {creds.map((c, i) => (
+            <p key={i} className="text-[11px] text-amber-200/90">
+              <span className="text-rose-400">*</span> {c}
+              <span className="text-[10px] text-muted-foreground"> — add it in Settings → Integrations. Never paste keys into this chat.</span>
+            </p>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function MappingPanel({
+  config, busy, onSend,
+}: {
+  config: Record<string, any> | null;
+  busy?: boolean;
+  onSend?: (prompt: string) => void;
+}) {
   const fields = (config?.extraction_fields ?? []) as any[];
   const req    = (config?.requirements ?? {}) as Record<string, any>;
   const reqMappings = (req.variable_mappings ?? req.crm_mappings ?? []) as any[];
@@ -475,7 +1192,7 @@ function MappingPanel({ config }: { config: Record<string, any> | null }) {
   for (const f of fields) {
     rows.push({
       field:       String(f.name ?? f.key ?? "unnamed"),
-      destination: String(f.crm_destination ?? f.destination ?? f.maps_to ?? "Leads"),
+      destination: String(f.crm_destination ?? f.destination ?? f.maps_to ?? ""),
       crmField:    String(f.crm_field ?? f.field ?? f.name ?? ""),
       usage:       String(f.usage ?? f.description ?? "post-call data"),
     });
@@ -491,16 +1208,32 @@ function MappingPanel({ config }: { config: Record<string, any> | null }) {
 
   if (rows.length === 0) {
     return (
-      <p className="py-8 text-center text-[11px] text-muted-foreground">
-        No CRM mappings yet. They are generated with the workflow — answer the Requirements step
-        (it asks where each captured field should land: Calls, Leads, Qualified, Data, Follow-Up
-        Centre, Calendar) or ask SystemMind in the chat, e.g. “map the post-call data to Leads and
-        Qualified”.
-      </p>
+      <div className="space-y-3">
+        {onSend && (
+          <>
+            <LeadSourcePanel config={config} busy={!!busy} onSend={onSend} />
+            <PreCallInputsPanel config={config} busy={!!busy} onSend={onSend} />
+            <RequiredInputsPanel config={config} busy={!!busy} onSend={onSend} />
+          </>
+        )}
+        <p className="py-8 text-center text-[11px] text-muted-foreground">
+          No CRM mappings yet. They are generated with the workflow — answer the Requirements step
+          (it asks where each captured field should land: Calls, Leads, Qualified, Data, Follow-Up
+          Centre, Calendar) or ask SystemMind in the chat, e.g. “map the post-call data to Leads and
+          Qualified”.
+        </p>
+      </div>
     );
   }
   return (
     <div className="space-y-2">
+      {onSend && (
+        <>
+          <LeadSourcePanel config={config} busy={!!busy} onSend={onSend} />
+          <PreCallInputsPanel config={config} busy={!!busy} onSend={onSend} />
+          <RequiredInputsPanel config={config} busy={!!busy} onSend={onSend} />
+        </>
+      )}
       <div className="overflow-x-auto rounded-lg border border-white/[0.06]">
         <table className="w-full text-left text-[11px]">
           <thead>
@@ -515,7 +1248,11 @@ function MappingPanel({ config }: { config: Record<string, any> | null }) {
             {rows.map((r, i) => (
               <tr key={i} className="border-b border-white/[0.04] last:border-0">
                 <td className="px-3 py-2 font-medium">{r.field}</td>
-                <td className="px-3 py-2"><Badge variant="outline" className="text-[9px]">{r.destination}</Badge></td>
+                <td className="px-3 py-2">
+                  {r.destination
+                    ? <Badge variant="outline" className="text-[9px]">{r.destination}</Badge>
+                    : <Badge variant="outline" className="border-amber-500/40 text-[9px] text-amber-300">Unmapped</Badge>}
+                </td>
                 <td className="px-3 py-2 text-muted-foreground">{r.crmField || "—"}</td>
                 <td className="px-3 py-2 text-muted-foreground">{r.usage}</td>
               </tr>
@@ -653,11 +1390,13 @@ export function BuildSessionView({
   embedded = false,
   initialPrompt,
   onInitialPromptConsumed,
+  onDeleted,
 }: {
   sessionId: string;
   embedded?: boolean;
   initialPrompt?: string | null;
   onInitialPromptConsumed?: () => void;
+  onDeleted?: () => void;
 }) {
   const navigate = useNavigate();
   const qc       = useQueryClient();
@@ -674,6 +1413,7 @@ export function BuildSessionView({
   const goLiveFn   = useServerFn(goLiveAgent);
   const safetyFn   = useServerFn(getBuildApplySafetyReport);
   const rollbackFn = useServerFn(rollbackBuildApply);
+  const deleteFn   = useServerFn(deleteBuildSession);
   const conversionFn = useServerFn(getConversionForSession);
 
   const [prompt, setPrompt]           = useState("");
@@ -720,7 +1460,23 @@ export function BuildSessionView({
     [versions, session?.current_version_id],
   );
   const config = (currentVersion?.generated_config ?? null) as Record<string, any> | null;
-  const canApply = currentVersion && ["draft", "testing", "revised"].includes(String(currentVersion.status));
+  const unmappedCount = useMemo(() => findUnmappedFields(config).length, [config]);
+  const canApply = currentVersion
+    && ["draft", "testing", "revised"].includes(String(currentVersion.status))
+    && unmappedCount === 0;
+
+  // What changed in the current version vs the one right before it (by number).
+  const currentDiff = useMemo(() => {
+    if (!currentVersion?.generated_config) return null;
+    const prev = versions.find(
+      (v) => v.version_number === currentVersion.version_number - 1,
+    );
+    return diffBuildConfigs(
+      (prev?.generated_config ?? null) as Record<string, any> | null,
+      currentVersion.generated_config as Record<string, any>,
+    );
+  }, [versions, currentVersion]);
+  const [configView, setConfigView] = useState<"list" | "diagram">("list");
 
   // Read-only review report — fetched only while the Review step is open.
   const { data: reviewReport, isLoading: reviewLoading } = useQuery({
@@ -751,7 +1507,7 @@ export function BuildSessionView({
       qc.invalidateQueries({ queryKey: ["smbw-review", sessionId] });
       qc.invalidateQueries({ queryKey: ["smbw-testcall", sessionId] });
       toast.success(`Version ${res.versionNumber} generated`, {
-        description: `${res.riskLevel} risk · ${fmtMs(res.elapsedMs)} · ${res.totalTokens} tokens`,
+        description: `${res.riskLevel} risk · ${fmtMs(res.elapsedMs)} · ${res.totalTokens} tokens · ~$${Number(res.estimatedCostUsd ?? 0).toFixed(4)} AI cost`,
       });
     },
     onError: (e: any) => {
@@ -849,7 +1605,12 @@ export function BuildSessionView({
       });
       if (res.requiresApproval) return { ...res, wentLive: false };
       // Reuse the EXISTING Go Live flow — same checks as the Deploy tab.
-      await goLiveFn({ data: { id: session!.target_agent_id, agentType: "receptionist" } });
+      await goLiveFn({
+        data: {
+          id: session!.target_agent_id,
+          agentType: (session!.target_agent_type ?? "receptionist") as any,
+        },
+      });
       await deployedFn({ data: { sessionId, versionId, deployTarget: "agent go-live" } });
       return { ...res, wentLive: true };
     },
@@ -917,6 +1678,19 @@ export function BuildSessionView({
     onError: (e: any) => toast.error("Archive failed", { description: e?.message }),
   });
 
+  const removeSession = useMutation({
+    mutationFn: () => deleteFn({ data: { sessionId } }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["smbw-sessions"] });
+      toast.success("Build session deleted");
+      if (!embedded) {
+        navigate({ to: "/systemmind/build", search: { session: undefined, workflow: undefined, agent: undefined } });
+      }
+      onDeleted?.();
+    },
+    onError: (e: any) => toast.error("Delete failed", { description: e?.message }),
+  });
+
   const busy = sendPrompt.isPending;
 
   if (detailLoading) {
@@ -975,6 +1749,28 @@ export function BuildSessionView({
               <ExternalLink className="h-3 w-3" /> Open in SystemMind
             </Button>
           )}
+          {(() => {
+            const prev = currentVersion
+              ? versions.find((v) => v.version_number === currentVersion.version_number - 1)
+              : null;
+            return (
+              <Button
+                size="sm" variant="outline"
+                className="h-7 gap-1 px-2 text-[11px]"
+                disabled={!prev || restore.isPending || busy}
+                title={prev ? `Revert to v${prev.version_number}` : "No previous version to revert to"}
+                onClick={() => {
+                  if (!prev) return;
+                  if (window.confirm(`Revert to version v${prev.version_number}? It will be restored as a new version — nothing is lost.`)) {
+                    restore.mutate(prev.id);
+                  }
+                }}
+              >
+                {restore.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : <RotateCcw className="h-3 w-3" />}
+                Revert
+              </Button>
+            );
+          })()}
           <Button
             size="sm" variant="ghost"
             className="h-7 gap-1 px-2 text-[11px] text-muted-foreground"
@@ -983,6 +1779,19 @@ export function BuildSessionView({
             {session.status === "archived"
               ? (<><ArchiveRestore className="h-3 w-3" /> Restore</>)
               : (<><Archive className="h-3 w-3" /> Archive</>)}
+          </Button>
+          <Button
+            size="sm" variant="ghost"
+            className="h-7 gap-1 px-2 text-[11px] text-rose-400 hover:text-rose-300"
+            disabled={removeSession.isPending || busy}
+            onClick={() => {
+              if (window.confirm("Delete this build session? Its versions and chat history will be removed. Anything already applied to your Workflows stays untouched.")) {
+                removeSession.mutate();
+              }
+            }}
+          >
+            {removeSession.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : <Trash2 className="h-3 w-3" />}
+            Delete
           </Button>
         </div>
       </div>
@@ -995,10 +1804,23 @@ export function BuildSessionView({
         )}>
           <div className="min-h-0 flex-1 space-y-3 overflow-y-auto p-3">
             {messages.length === 0 && !busy && (
-              <p className="py-8 text-center text-[11px] text-muted-foreground">
-                Tell SystemMind what to build — e.g. “Build me a WhatsApp qualification
-                agent for estate agency leads.”
-              </p>
+              <div className="space-y-3 py-6">
+                <p className="text-center text-[11px] text-muted-foreground">
+                  Tell SystemMind what to build — or start from an example:
+                </p>
+                <div className="space-y-1.5">
+                  {STARTER_PROMPTS.map((p) => (
+                    <button
+                      key={p}
+                      onClick={() => setPrompt(p)}
+                      className="w-full rounded-lg border border-white/[0.06] bg-white/[0.02] px-3 py-2 text-left text-[11px] leading-relaxed text-muted-foreground transition-colors hover:border-sky-500/30 hover:bg-sky-500/[0.06] hover:text-foreground"
+                    >
+                      <Lightbulb className="mr-1.5 inline h-3 w-3 text-sky-300" />
+                      {p}
+                    </button>
+                  ))}
+                </div>
+              </div>
             )}
             {messages.map((m: any) => (
               <div key={m.id} className={cn("flex", m.role === "user" ? "justify-end" : "justify-start")}>
@@ -1018,13 +1840,24 @@ export function BuildSessionView({
               </div>
             ))}
             {busy && (
-              <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
-                <Loader2 className="h-3 w-3 animate-spin" /> SystemMind is building…
-              </div>
+              <BuildProgress phases={versions.length > 0 ? BUILD_PHASES_REVISION : BUILD_PHASES_FIRST} />
             )}
             <div ref={chatEndRef} />
           </div>
           <div className="border-t border-white/[0.05] p-2.5">
+            {versions.length > 0 && !prompt && !busy && session.status !== "archived" && (
+              <div className="mb-2 flex flex-wrap gap-1.5">
+                {ITERATION_PROMPTS.map((p) => (
+                  <button
+                    key={p}
+                    onClick={() => setPrompt(p)}
+                    className="rounded-full border border-white/[0.08] bg-white/[0.02] px-2.5 py-1 text-[10px] text-muted-foreground transition-colors hover:border-sky-500/30 hover:bg-sky-500/[0.06] hover:text-foreground"
+                  >
+                    {p}
+                  </button>
+                ))}
+              </div>
+            )}
             <div className="flex items-end gap-2">
               <Textarea
                 value={prompt}
@@ -1116,6 +1949,22 @@ export function BuildSessionView({
             </div>
           </div>
 
+          {unmappedCount > 0 && currentVersion && (
+            <div className="mx-3 mt-2 flex items-center gap-2 rounded-lg border border-amber-500/25 bg-amber-500/[0.05] px-3 py-2">
+              <AlertTriangle className="h-3.5 w-3.5 shrink-0 text-amber-400" />
+              <p className="text-[11px] text-amber-200/90">
+                {unmappedCount} required input{unmappedCount === 1 ? "" : "s"} remaining — Apply is
+                locked until every captured field has a CRM destination.
+              </p>
+              <button
+                onClick={() => setTab("mapping")}
+                className="ml-auto shrink-0 text-[11px] font-medium text-amber-300 underline-offset-2 hover:underline"
+              >
+                Fill them in
+              </button>
+            </div>
+          )}
+
           {currentVersion?.risk_level === "high" && canApply && (
             <div className="mx-3 mt-2 flex items-start gap-2 rounded-lg border border-amber-500/25 bg-amber-500/[0.05] px-3 py-2">
               <ShieldAlert className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-400" />
@@ -1133,7 +1982,13 @@ export function BuildSessionView({
 
             {tab === "variables" && <VariablesPanel config={config} />}
 
-            {tab === "mapping" && <MappingPanel config={config} />}
+            {tab === "mapping" && (
+              <MappingPanel
+                config={config}
+                busy={busy}
+                onSend={(p) => sendPrompt.mutate(p)}
+              />
+            )}
 
             {tab === "review" && (
               <ReviewPanel report={(reviewReport as any) ?? null} loading={reviewLoading} config={config} />
@@ -1141,7 +1996,48 @@ export function BuildSessionView({
 
             {tab === "config" && (
               config
-                ? <ConfigPreview config={config} />
+                ? <div className="space-y-3">
+                    {currentDiff && currentVersion && (
+                      <ChangeSummary diff={currentDiff} versionNumber={currentVersion.version_number} />
+                    )}
+                    {findUnmappedFields(config).length > 0 && (
+                      <button
+                        onClick={() => setTab("mapping")}
+                        className="flex w-full items-center gap-2 rounded-lg border border-amber-500/25 bg-amber-500/[0.05] px-3 py-2 text-left transition-colors hover:bg-amber-500/[0.1]"
+                      >
+                        <AlertTriangle className="h-3.5 w-3.5 shrink-0 text-amber-400" />
+                        <span className="text-[11px] text-amber-200/90">
+                          {findUnmappedFields(config).length} captured field{findUnmappedFields(config).length === 1 ? "" : "s"} still
+                          need a CRM destination — fill them in on the CRM Mapping tab.
+                        </span>
+                        <ArrowRight className="ml-auto h-3 w-3 text-amber-400" />
+                      </button>
+                    )}
+                    <div className="flex items-center gap-1 rounded-lg border border-white/[0.06] bg-white/[0.02] p-0.5 w-fit">
+                      {(["list", "diagram"] as const).map((v) => (
+                        <button
+                          key={v}
+                          onClick={() => setConfigView(v)}
+                          className={cn(
+                            "flex items-center gap-1 rounded-md px-2.5 py-1 text-[10px] font-medium transition-colors",
+                            configView === v
+                              ? "bg-sky-500/[0.15] text-sky-200"
+                              : "text-muted-foreground hover:text-foreground",
+                          )}
+                        >
+                          {v === "list" ? <ListChecks className="h-3 w-3" /> : <WorkflowIcon className="h-3 w-3" />}
+                          {v === "list" ? "Details" : "Diagram"}
+                        </button>
+                      ))}
+                    </div>
+                    {configView === "diagram"
+                      ? <WorkflowFlowDiagram
+                          config={config}
+                          addedSteps={currentDiff?.addedSteps}
+                          changedSteps={currentDiff?.changedSteps}
+                        />
+                      : <ConfigPreview config={config} />}
+                  </div>
                 : <p className="py-8 text-center text-[11px] text-muted-foreground">Nothing generated yet — send SystemMind a prompt to create the first version.</p>
             )}
 
@@ -1215,6 +2111,18 @@ export function BuildSessionView({
                     {v.assistant_summary && (
                       <p className="text-[11px] text-muted-foreground line-clamp-3">{v.assistant_summary}</p>
                     )}
+                    {v.generated_config && (() => {
+                      const prevV = versions.find((p: any) => p.version_number === v.version_number - 1);
+                      const d = diffBuildConfigs(
+                        (prevV?.generated_config ?? null) as Record<string, any> | null,
+                        v.generated_config as Record<string, any>,
+                      );
+                      return d.lines.length > 0 ? (
+                        <div className="rounded-md border border-white/[0.05] bg-white/[0.02] px-2 py-1.5">
+                          <ChangeSummary diff={d} versionNumber={v.version_number} compact />
+                        </div>
+                      ) : null;
+                    })()}
                     {Array.isArray(v.risk_reasons) && v.risk_reasons.length > 0 && (
                       <p className="text-[10px] text-amber-300/80">{v.risk_reasons.join(" · ")}</p>
                     )}

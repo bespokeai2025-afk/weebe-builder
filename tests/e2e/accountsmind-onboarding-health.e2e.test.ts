@@ -228,6 +228,54 @@ describe("accountsmind_config activation lifecycle", () => {
     expect(vals.find((v: any) => v.field_def_id === panel.id)?.value).toBe("mono");
   });
 
+  it("rolls back the ENTIRE activation when one insert fails midway (atomicity)", async () => {
+    // Snapshot current rows across all three tables.
+    const snapshot = async () => {
+      const out: Record<string, any[]> = {};
+      for (const t of ["accountsmind_field_defs", "accountsmind_stat_defs", "accountsmind_widget_defs"]) {
+        const { data } = await sb.from(t).select("id, status, version").eq("workspace_id", WS).order("id");
+        out[t] = data ?? [];
+      }
+      return out;
+    };
+    const before = await snapshot();
+
+    // Call the RPC directly with a stat that would insert fine followed by a
+    // widget that violates a NOT NULL constraint. The whole transaction must
+    // roll back — including the stat inserted earlier in the same call.
+    // (The JS path's zod/sanitiser gates make this unreachable from a draft,
+    // so the failure is injected at the RPC boundary.)
+    const probeArgs = {
+      p_workspace_id: WS,
+      p_created_by: null,
+      p_source_draft_id: null,
+      p_fields: [],
+      p_stats: [{ stat_key: "atomic_probe_stat2", label: "Probe2", metric_key: SAFE_KEY, format: "count", description: null, client_visible: false, risk_level: "low" }],
+      p_widgets: [{ widget_key: null, title: null, widget_type: "stat_card", metric_key: SAFE_KEY }],
+    };
+    const { error: rpcErr } = await sb.rpc("activate_accountsmind_config_draft", probeArgs);
+    expect(rpcErr).toBeTruthy(); // widget insert must fail (NOT NULL violation)
+
+    const after = await snapshot();
+    // Zero net change anywhere: the stat inserted earlier in the same
+    // transaction must have been rolled back too.
+    expect(after).toEqual(before);
+    const { data: leaked } = await sb.from("accountsmind_stat_defs")
+      .select("id").eq("workspace_id", WS).eq("stat_key", "atomic_probe_stat2");
+    expect(leaked ?? []).toHaveLength(0);
+
+    // Happy-path counterpart: the same shape activates fine when valid.
+    const draftId = await insertDraft("accountsmind_config", baseCfg({
+      name: "Atomicity probe",
+      stats: [{ stat_key: "atomic_probe_stat", label: "Probe", metric_key: SAFE_KEY, format: "count", client_visible: false }],
+      widgets: [{ widget_key: "atomic_probe_widget", title: "Probe widget", widget_type: "stat_card", metric_key: SAFE_KEY, format: "count", client_visible: false }],
+    }));
+    await activateAccountsMindConfigKind(WS, draftId);
+    const cfg = await listActiveConfigServer(WS, { includeNonActive: true });
+    expect(cfg.stats.find((s: any) => s.stat_key === "atomic_probe_stat")).toBeTruthy();
+    expect(cfg.widgets.find((w: any) => w.widget_key === "atomic_probe_widget")).toBeTruthy();
+  });
+
   it("refuses to activate an empty/invalid payload", async () => {
     const draftId = await insertDraft("accountsmind_config", baseCfg({
       name: "Empty config",

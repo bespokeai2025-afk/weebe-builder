@@ -16,6 +16,10 @@ export const generateAutomationDraft = createServerFn({ method: "POST" })
     }).parse(input),
   )
   .handler(async ({ data, context }) => {
+    const { requireSystemMindEdit } = await import(
+      "@/lib/systemmind/systemmind-access.server"
+    );
+    await requireSystemMindEdit(context.workspaceId, context.userId);
     const { generateAutomationDraftServer } = await import(
       "@/lib/systemmind/systemmind-automation.server"
     );
@@ -31,6 +35,10 @@ export const generateAutomationDraft = createServerFn({ method: "POST" })
 export const listAutomationDrafts = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
+    const { requireSystemMindView } = await import(
+      "@/lib/systemmind/systemmind-access.server"
+    );
+    await requireSystemMindView(context.workspaceId, context.userId);
     const { listAutomationDraftsServer, isClaudeEnabled } = await import(
       "@/lib/systemmind/systemmind-automation.server"
     );
@@ -42,6 +50,10 @@ export const listAutomationDrafts = createServerFn({ method: "GET" })
 export const listAutomationRuns = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
+    const { requireSystemMindView } = await import(
+      "@/lib/systemmind/systemmind-access.server"
+    );
+    await requireSystemMindView(context.workspaceId, context.userId);
     const { listAutomationRunsServer } = await import(
       "@/lib/systemmind/systemmind-automation.server"
     );
@@ -55,6 +67,10 @@ export const listAutomationAudit = createServerFn({ method: "GET" })
     z.object({ targetId: z.string().optional() }).parse(input ?? {}),
   )
   .handler(async ({ data, context }) => {
+    const { requireSystemMindView } = await import(
+      "@/lib/systemmind/systemmind-access.server"
+    );
+    await requireSystemMindView(context.workspaceId, context.userId);
     const { listAutomationAuditServer } = await import(
       "@/lib/systemmind/systemmind-automation.server"
     );
@@ -68,6 +84,10 @@ export const submitDraftForApproval = createServerFn({ method: "POST" })
     z.object({ draftId: z.string().uuid() }).parse(input),
   )
   .handler(async ({ data, context }) => {
+    const { requireSystemMindEdit } = await import(
+      "@/lib/systemmind/systemmind-access.server"
+    );
+    await requireSystemMindEdit(context.workspaceId, context.userId);
     const { submitDraftForApprovalServer } = await import(
       "@/lib/systemmind/systemmind-automation.server"
     );
@@ -81,6 +101,10 @@ export const rejectAutomationDraft = createServerFn({ method: "POST" })
     z.object({ draftId: z.string().uuid() }).parse(input),
   )
   .handler(async ({ data, context }) => {
+    const { requireSystemMindApproval } = await import(
+      "@/lib/systemmind/systemmind-access.server"
+    );
+    await requireSystemMindApproval(context.workspaceId, context.userId);
     const { rejectDraftServer } = await import(
       "@/lib/systemmind/systemmind-automation.server"
     );
@@ -95,6 +119,10 @@ export const setAutomationPaused = createServerFn({ method: "POST" })
     z.object({ draftId: z.string().uuid(), paused: z.boolean() }).parse(input),
   )
   .handler(async ({ data, context }) => {
+    const { requireSystemMindApproval } = await import(
+      "@/lib/systemmind/systemmind-access.server"
+    );
+    await requireSystemMindApproval(context.workspaceId, context.userId);
     const { setDraftPausedServer } = await import(
       "@/lib/systemmind/systemmind-automation.server"
     );
