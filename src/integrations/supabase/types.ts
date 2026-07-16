@@ -228,11 +228,15 @@ export type Database = {
           created_at: string
           currency: string
           data_json: Json
+          due_date: string | null
           generated_by_user_id: string | null
           id: string
           invoice_month: string
           invoice_number: string
           line_items_json: Json
+          paid_at: string | null
+          status: string
+          status_updated_at: string | null
           storage_path: string
           subtotal_cents: number
           tax_cents: number
@@ -246,11 +250,15 @@ export type Database = {
           created_at?: string
           currency?: string
           data_json?: Json
+          due_date?: string | null
           generated_by_user_id?: string | null
           id?: string
           invoice_month: string
           invoice_number: string
           line_items_json?: Json
+          paid_at?: string | null
+          status?: string
+          status_updated_at?: string | null
           storage_path: string
           subtotal_cents?: number
           tax_cents?: number
@@ -264,11 +272,15 @@ export type Database = {
           created_at?: string
           currency?: string
           data_json?: Json
+          due_date?: string | null
           generated_by_user_id?: string | null
           id?: string
           invoice_month?: string
           invoice_number?: string
           line_items_json?: Json
+          paid_at?: string | null
+          status?: string
+          status_updated_at?: string | null
           storage_path?: string
           subtotal_cents?: number
           tax_cents?: number

@@ -9,6 +9,8 @@ import {
   listInvoices,
   getInvoiceDownloadUrl,
   deleteInvoice,
+  updateInvoiceStatus,
+  INVOICE_STATUSES,
 } from "@/lib/accountsmind/invoices.functions";
 import { listAccountsClients } from "@/lib/accountsmind/accountsmind.functions";
 import { Button } from "@/components/ui/button";
@@ -16,7 +18,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import {
-  FileText, Upload, Trash2, Download, Loader2, Plus, X, Receipt,
+  FileText, Upload, Trash2, Download, Loader2, Plus, X, Receipt, CheckCircle2,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -26,6 +28,14 @@ function currentMonth(): string {
   const d = new Date();
   return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}`;
 }
+
+const STATUS_STYLES: Record<string, string> = {
+  unpaid:    "bg-amber-500/15 text-amber-300 border-amber-500/30",
+  sent:      "bg-sky-500/15 text-sky-300 border-sky-500/30",
+  paid:      "bg-emerald-500/15 text-emerald-300 border-emerald-500/30",
+  overdue:   "bg-red-500/15 text-red-300 border-red-500/30",
+  cancelled: "bg-slate-500/15 text-slate-400 border-slate-500/30",
+};
 
 const PLACEHOLDER_HELP = [
   "{invoice_number}", "{invoice_date}", "{due_date}", "{client_name}",
@@ -41,6 +51,7 @@ export function AccountsMindInvoices() {
   const listInvFn = useServerFn(listInvoices);
   const dlFn = useServerFn(getInvoiceDownloadUrl);
   const delInvFn = useServerFn(deleteInvoice);
+  const statusFn = useServerFn(updateInvoiceStatus);
   const clientsFn = useServerFn(listAccountsClients);
 
   const { data: tplData } = useQuery({
@@ -140,6 +151,29 @@ export function AccountsMindInvoices() {
   const money = (cents: number, cur: string) =>
     `${cur === "GBP" ? "£" : cur === "USD" ? "$" : cur === "EUR" ? "€" : cur + " "}${(cents / 100).toLocaleString("en-GB", { minimumFractionDigits: 2 })}`;
 
+  const statusMut = useMutation({
+    mutationFn: async ({ id, status }: { id: string; status: string }) => {
+      const res: any = await statusFn({ data: { id, status } });
+      if (!res?.ok) throw new Error(res?.error ?? "Status update failed");
+      return res;
+    },
+    onSuccess: (res: any) => {
+      toast.success(res.invoice?.status === "paid" ? "Invoice marked as paid" : "Invoice status updated");
+      qc.invalidateQueries({ queryKey: ["am-invoices"] });
+      qc.invalidateQueries({ queryKey: ["accountsmind-dashboard"] });
+    },
+    onError: (e: any) => toast.error(e?.message ?? "Status update failed"),
+  });
+
+  // ── KPI totals — from the full-table server aggregate (the invoice listing
+  // itself is capped at 200 rows and must not be used for totals).
+  const summary: any = (invData as any)?.summary ?? null;
+  const kpiCurrency = summary?.currency ?? invoices[0]?.currency ?? "GBP";
+  const totalInvoiced = summary?.totalInvoicedCents ?? 0;
+  const paidTotal = summary?.paidSalesCents ?? 0;
+  const outstandingTotal = summary?.outstandingCents ?? 0;
+  const overdueTotal = summary?.overdueCents ?? 0;
+
   return (
     <div className="space-y-8">
       <div>
@@ -150,6 +184,23 @@ export function AccountsMindInvoices() {
           Upload a Word (.docx) invoice template with placeholders, then generate filled invoices per client and month.
         </p>
       </div>
+
+      {/* KPIs */}
+      {invoices.length > 0 && (
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          {[
+            { label: "Total invoiced", value: money(totalInvoiced, kpiCurrency), cls: "text-white" },
+            { label: "Paid (total sales)", value: money(paidTotal, kpiCurrency), cls: "text-emerald-400" },
+            { label: "Outstanding", value: money(outstandingTotal, kpiCurrency), cls: "text-amber-400" },
+            { label: "Overdue", value: money(overdueTotal, kpiCurrency), cls: overdueTotal > 0 ? "text-red-400" : "text-slate-400" },
+          ].map((k) => (
+            <div key={k.label} className="rounded-xl border border-slate-800 bg-slate-900/60 p-4">
+              <p className="text-xs text-slate-500">{k.label}</p>
+              <p className={`text-lg font-semibold mt-1 ${k.cls}`}>{k.value}</p>
+            </div>
+          ))}
+        </div>
+      )}
 
       {/* Templates */}
       <section className="rounded-xl border border-slate-800 bg-slate-900/60 p-4 space-y-4">
@@ -291,6 +342,7 @@ export function AccountsMindInvoices() {
                   <th className="py-2 pr-4">Client</th>
                   <th className="py-2 pr-4">Period</th>
                   <th className="py-2 pr-4">Total</th>
+                  <th className="py-2 pr-4">Status</th>
                   <th className="py-2 pr-4">Created</th>
                   <th className="py-2" />
                 </tr>
@@ -302,6 +354,29 @@ export function AccountsMindInvoices() {
                     <td className="py-2 pr-4 text-slate-300">{inv.client_name}</td>
                     <td className="py-2 pr-4 text-slate-400">{inv.invoice_month}</td>
                     <td className="py-2 pr-4 text-slate-300">{money(inv.total_cents ?? 0, inv.currency ?? "GBP")}</td>
+                    <td className="py-2 pr-4">
+                      <div className="flex items-center gap-1.5">
+                        <select
+                          value={inv.status ?? "unpaid"}
+                          disabled={statusMut.isPending}
+                          onChange={(e) => statusMut.mutate({ id: inv.id, status: e.target.value })}
+                          className={`h-7 rounded-md border px-2 text-xs capitalize bg-slate-950 ${STATUS_STYLES[inv.status ?? "unpaid"] ?? STATUS_STYLES.unpaid}`}
+                          title={inv.paid_at ? `Paid ${new Date(inv.paid_at).toLocaleDateString("en-GB")}` : inv.due_date ? `Due ${new Date(inv.due_date).toLocaleDateString("en-GB")}` : undefined}
+                        >
+                          {INVOICE_STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}
+                        </select>
+                        {inv.status !== "paid" && inv.status !== "cancelled" && (
+                          <Button
+                            size="sm" variant="ghost" className="h-7 px-1.5 text-emerald-400 hover:text-emerald-300"
+                            title="Mark as paid"
+                            disabled={statusMut.isPending}
+                            onClick={() => statusMut.mutate({ id: inv.id, status: "paid" })}
+                          >
+                            <CheckCircle2 className="w-4 h-4" />
+                          </Button>
+                        )}
+                      </div>
+                    </td>
                     <td className="py-2 pr-4 text-slate-500">{new Date(inv.created_at).toLocaleDateString("en-GB")}</td>
                     <td className="py-2 text-right whitespace-nowrap">
                       <Button size="sm" variant="ghost" className="text-sky-400" onClick={() => download(inv.id)}><Download className="w-4 h-4" /></Button>

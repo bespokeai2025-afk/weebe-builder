@@ -248,6 +248,8 @@ export const generateInvoice = createServerFn({ method: "POST" })
           line_items_json: items,
           data_json: {},
           storage_path: "pending",
+          status: "unpaid",
+          due_date: due.toISOString().slice(0, 10),
           generated_by_user_id: userId,
         })
         .select("*")
@@ -335,12 +337,58 @@ export const listInvoices = createServerFn({ method: "GET" })
   .handler(async () => {
     const { data, error } = await (supabaseAdmin as any)
       .from("accountsmind_invoices")
-      .select("id,invoice_number,invoice_month,client_name,workspace_id,currency,subtotal_cents,tax_cents,total_cents,created_at")
+      .select("id,invoice_number,invoice_month,client_name,workspace_id,currency,subtotal_cents,tax_cents,total_cents,status,due_date,paid_at,created_at")
       .neq("storage_path", "pending")
       .order("created_at", { ascending: false })
       .limit(200);
-    if (error) return { invoices: [], error: error.message };
-    return { invoices: data ?? [] };
+    if (error) return { invoices: [], summary: null, error: error.message };
+    // Full-table aggregate for KPI cards — the listing above is capped at the
+    // 200 most recent rows and must not be used for totals.
+    let summary = null;
+    try {
+      const { getInvoiceSalesSummary } = await import("@/lib/accountsmind/invoice-sales.server");
+      summary = await getInvoiceSalesSummary();
+    } catch {}
+    return { invoices: data ?? [], summary };
+  });
+
+export const INVOICE_STATUSES = ["unpaid", "sent", "paid", "overdue", "cancelled"] as const;
+
+export const updateInvoiceStatus = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth, requirePlatformAdmin])
+  .inputValidator((input) =>
+    z
+      .object({
+        id: z.string().uuid(),
+        status: z.enum(INVOICE_STATUSES),
+      })
+      .parse(input),
+  )
+  .handler(async ({ data }) => {
+    const sb = supabaseAdmin as any;
+    const patch: Record<string, any> = {
+      status: data.status,
+      status_updated_at: new Date().toISOString(),
+      paid_at: data.status === "paid" ? new Date().toISOString() : null,
+    };
+    const { data: row, error } = await sb
+      .from("accountsmind_invoices")
+      .update(patch)
+      .eq("id", data.id)
+      .neq("storage_path", "pending")
+      .select("id,status,paid_at,workspace_id")
+      .maybeSingle();
+    if (error) return { ok: false as const, error: error.message };
+    if (!row) return { ok: false as const, error: "Invoice not found." };
+    // Bust the workspace's cached HiveMind platform data so executive views
+    // reflect the new paid/sales figures immediately.
+    if (row.workspace_id) {
+      try {
+        const { cacheDel } = await import("@/lib/cache/redis.server");
+        await cacheDel(`webee:hivemind:${row.workspace_id}:platform:v3`);
+      } catch {}
+    }
+    return { ok: true as const, invoice: row };
   });
 
 export const getInvoiceDownloadUrl = createServerFn({ method: "POST" })

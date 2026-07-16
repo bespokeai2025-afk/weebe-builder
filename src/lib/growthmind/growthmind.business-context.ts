@@ -3,6 +3,7 @@
 // a rich, AI-ready context object consumed by the CMO engines.
 
 import { buildGrowthMindData } from "./growthmind.functions";
+import type { InvoiceSalesSummary } from "@/lib/accountsmind/invoice-sales.server";
 
 export type PipelineStageSnapshot = {
   stage:     string;
@@ -71,6 +72,8 @@ export type BusinessContext = {
   campaignPerformance: CampaignPerformanceDelta;
   hexmailEnrolments:  number;
   waReplyRate:        number | null;       // inbound/outbound ratio (%) last 30d
+  // Invoiced sales (AccountsMind invoices billed to this workspace)
+  invoiceSales:       InvoiceSalesSummary | null;
   // Raw helpers
   systemHealth:       Record<string, boolean>;
 };
@@ -85,7 +88,7 @@ export async function buildBusinessContext(sb: any, workspaceId: string): Promis
   const s30 = new Date(now.getTime() - 30 * 86400000).toISOString();
   const s60 = new Date(now.getTime() - 60 * 86400000).toISOString();
 
-  const [growthData, dnaRes, allLeadsRes, recentCallsRes, campaignsRes, hexmailEnrolRes, waRes] = await Promise.all([
+  const [growthData, dnaRes, allLeadsRes, recentCallsRes, campaignsRes, hexmailEnrolRes, waRes, invoiceSales] = await Promise.all([
     buildGrowthMindData(sb, workspaceId),
     sb.from("growthmind_business_dna")
       .select("*")
@@ -125,6 +128,11 @@ export async function buildBusinessContext(sb: any, workspaceId: string): Promis
       .gte("created_at", s30)
       .limit(1000)
       .catch(() => ({ data: [] })),
+    // Paid-invoice sales figures for this workspace (dynamic import keeps the
+    // admin client out of any client bundle that transitively imports this file).
+    import("@/lib/accountsmind/invoice-sales.server")
+      .then((m) => m.getInvoiceSalesSummary(workspaceId))
+      .catch(() => null),
   ]);
 
   const dna: any = (dnaRes as any)?.data ?? null;
@@ -225,6 +233,7 @@ export async function buildBusinessContext(sb: any, workspaceId: string): Promis
     campaignPerformance,
     hexmailEnrolments:    hexEnrols.length,
     waReplyRate,
+    invoiceSales:         invoiceSales ?? null,
     systemHealth:         d.systemHealth ?? {},
   };
 }
@@ -271,5 +280,11 @@ export function formatContextForAI(ctx: BusinessContext): string {
     lines.push(`  Email Sequence Enrolments (30d): ${ctx.campaignPerformance.emailEnrolmentsLast30d}`);
   }
   lines.push(`  Active Campaigns: ${ctx.campaignPerformance.activeCampaigns} (${ctx.campaignPerformance.campaignsLast30d} new this month)`);
+  if (ctx.invoiceSales && ctx.invoiceSales.invoiceCount > 0) {
+    const inv = ctx.invoiceSales;
+    const fmt = (c: number) => `${inv.currency} ${(c / 100).toLocaleString("en-GB", { minimumFractionDigits: 2 })}`;
+    lines.push(`  Invoiced Sales: ${fmt(inv.paidSalesCents)} paid (${inv.paidCount}/${inv.invoiceCount} invoices), ${fmt(inv.outstandingCents)} outstanding${inv.overdueCount > 0 ? `, ${fmt(inv.overdueCents)} overdue (${inv.overdueCount})` : ""}`);
+    if (inv.paidThisMonthCents > 0) lines.push(`  Invoice Payments This Month: ${fmt(inv.paidThisMonthCents)}`);
+  }
   return lines.join("\n");
 }
