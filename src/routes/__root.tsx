@@ -127,11 +127,19 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
 
 const themeInitScript = `(function(){try{var t=localStorage.getItem('theme');var d=t?t==='dark':true;document.documentElement.classList.toggle('dark',d);}catch(e){document.documentElement.classList.add('dark');}})();`;
 
+// After a republish, browsers holding the previous build's HTML/JS request old
+// hashed chunks (e.g. assets/builder-XXXX.js) that no longer exist → 404 → the
+// route (e.g. /builder) never loads. Vite fires "vite:preloadError" when a
+// dynamic chunk import fails; reload once (timestamp-guarded, max once/20s) so
+// the browser picks up the fresh build instead of showing a dead page.
+const chunkReloadScript = `(function(){function guard(){try{var k='chunk-autoreload-ts';var last=parseInt(sessionStorage.getItem(k)||'0',10);if(Date.now()-last>20000){sessionStorage.setItem(k,String(Date.now()));window.location.reload();return true;}}catch(e){}return false;}window.addEventListener('vite:preloadError',function(e){if(guard()&&e&&e.preventDefault)e.preventDefault();});window.addEventListener('error',function(e){var m=(e&&e.message)||'';if(/Failed to fetch dynamically imported module|Importing a module script failed|error loading dynamically imported module/i.test(m))guard();},true);window.addEventListener('unhandledrejection',function(e){var m=String((e&&e.reason&&e.reason.message)||e.reason||'');if(/Failed to fetch dynamically imported module|Importing a module script failed|error loading dynamically imported module/i.test(m))guard();});})();`;
+
 function RootShell({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
         <script dangerouslySetInnerHTML={{ __html: themeInitScript }} />
+        <script dangerouslySetInnerHTML={{ __html: chunkReloadScript }} />
         <HeadContent />
       </head>
       <body>
