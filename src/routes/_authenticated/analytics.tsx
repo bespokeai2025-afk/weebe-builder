@@ -49,7 +49,6 @@ import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
 import { getRetellAnalytics, listVoiceAgents } from "@/lib/dashboard/analytics.functions";
 import { getWbahCredits } from "@/lib/integrations/webespokeEnterprise/wbah-workspace.server";
-import { ProviderCreditsBar } from "@/components/providers/ProviderCreditsBar";
 import { LoadingProgress } from "@/components/dashboard/LoadingProgress";
 
 export const Route = createFileRoute("/_authenticated/analytics")({
@@ -700,8 +699,6 @@ function AnalyticsPage() {
         icon={BarChart3}
         onRefresh={() => mainTab === "calls" ? q.refetch() : mainTab === "credits" ? creditsQ.refetch() : mainTab === "marketing" ? mktQ.refetch() : undefined}
       />
-
-      <ProviderCreditsBar />
 
       {!isWbah && (
         <div className="px-6 mt-4">
