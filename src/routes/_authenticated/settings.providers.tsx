@@ -40,6 +40,7 @@ import {
   syncAllWebespokeEnterpriseData,
 } from "@/lib/integrations/webespokeEnterprise/enterprise.functions";
 import { reconcileWbahRetellAgents } from "@/lib/integrations/webespokeEnterprise/wbah-workspace.server";
+import { getMyAdminStatus } from "@/lib/auth/auth.functions";
 
 export const Route = createFileRoute("/_authenticated/settings/providers")({
   head: () => ({ meta: [{ title: "Provider Settings — Webee" }] }),
@@ -1132,6 +1133,14 @@ function ProvidersSettingsPage() {
     throwOnError: false,
   });
 
+  const { data: adminStatus } = useQuery({
+    queryKey: ["my-admin-status"],
+    queryFn: () => getMyAdminStatus().catch(() => ({ isAdmin: false })),
+    staleTime: 300_000,
+    throwOnError: false,
+  });
+  const isPlatformAdmin = adminStatus?.isAdmin === true;
+
   const mutation = useMutation({
     mutationFn: async (
       action:
@@ -1232,11 +1241,16 @@ function ProvidersSettingsPage() {
               ))}
             </div>
 
-            {/* Enterprise Integrations section */}
-            <WebespokeEnterpriseSection />
+            {/* Platform-admin-only sections (hidden from customer accounts) */}
+            {isPlatformAdmin && (
+              <>
+                {/* Enterprise Integrations section */}
+                <WebespokeEnterpriseSection />
 
-            {/* WBAH agents ↔ Retell reconciliation */}
-            <WbahAgentReconcileSection />
+                {/* WBAH agents ↔ Retell reconciliation */}
+                <WbahAgentReconcileSection />
+              </>
+            )}
 
             {/* Category sections */}
             {categoryOrder.map((cat) => {
