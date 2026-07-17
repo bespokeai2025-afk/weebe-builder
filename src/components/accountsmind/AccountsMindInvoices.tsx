@@ -107,6 +107,7 @@ export function AccountsMindInvoices() {
 
   // ── Generate state ──
   const [templateId, setTemplateId] = useState("");
+  const [format, setFormat] = useState<"docx" | "pdf">("docx");
   const [workspaceId, setWorkspaceId] = useState("");
   const [month, setMonth] = useState(currentMonth());
   const [taxRate, setTaxRate] = useState("20");
@@ -117,11 +118,12 @@ export function AccountsMindInvoices() {
 
   const genMut = useMutation({
     mutationFn: async () => {
-      if (!templateId) throw new Error("Pick a template.");
+      if (format === "docx" && !templateId) throw new Error("Pick a template.");
       if (!workspaceId) throw new Error("Pick a client.");
       const res: any = await genFn({
         data: {
-          templateId,
+          templateId: format === "docx" ? templateId : null,
+          format,
           workspaceId,
           month,
           taxRatePercent: Number(taxRate) || 0,
@@ -181,7 +183,7 @@ export function AccountsMindInvoices() {
           <Receipt className="w-5 h-5 text-emerald-400" /> Invoices
         </h1>
         <p className="text-sm text-slate-400 mt-1">
-          Upload a Word (.docx) invoice template with placeholders, then generate filled invoices per client and month.
+          Generate invoices per client and month — as PDF (built-in layout) or Word (.docx) from an uploaded placeholder template.
         </p>
       </div>
 
@@ -263,17 +265,26 @@ export function AccountsMindInvoices() {
         </h2>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
           <div className="space-y-1">
-            <label className="text-xs text-slate-400">Template</label>
-            <select value={templateId} onChange={(e) => setTemplateId(e.target.value)} className="w-full h-9 rounded-md bg-slate-950 border border-slate-700 text-sm text-white px-2">
-              <option value="">Select template…</option>
-              {templates.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
+            <label className="text-xs text-slate-400">Format</label>
+            <select value={format} onChange={(e) => setFormat(e.target.value as "docx" | "pdf")} className="w-full h-9 rounded-md bg-slate-950 border border-slate-700 text-sm text-white px-2">
+              <option value="docx">Word (.docx) — from uploaded template</option>
+              <option value="pdf">PDF (.pdf) — built-in layout, no template needed</option>
             </select>
-            {templates.length === 0 && (
-              <p className="text-[11px] text-amber-400">
-                No templates yet — upload a .docx template in the “Invoice templates” section above first.
-              </p>
-            )}
           </div>
+          {format === "docx" && (
+            <div className="space-y-1">
+              <label className="text-xs text-slate-400">Template</label>
+              <select value={templateId} onChange={(e) => setTemplateId(e.target.value)} className="w-full h-9 rounded-md bg-slate-950 border border-slate-700 text-sm text-white px-2">
+                <option value="">Select template…</option>
+                {templates.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
+              </select>
+              {templates.length === 0 && (
+                <p className="text-[11px] text-amber-400">
+                  No templates yet — upload a .docx template above, or switch format to PDF.
+                </p>
+              )}
+            </div>
+          )}
           <div className="space-y-1">
             <label className="text-xs text-slate-400">Client</label>
             <select value={workspaceId} onChange={(e) => setWorkspaceId(e.target.value)} className="w-full h-9 rounded-md bg-slate-950 border border-slate-700 text-sm text-white px-2">
@@ -323,7 +334,7 @@ export function AccountsMindInvoices() {
           <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={2} className="bg-slate-950 border-slate-700 text-white" />
         </div>
 
-        <Button disabled={genMut.isPending || !templateId || !workspaceId} onClick={() => genMut.mutate()} className="bg-emerald-600 hover:bg-emerald-500">
+        <Button disabled={genMut.isPending || (format === "docx" && !templateId) || !workspaceId} onClick={() => genMut.mutate()} className="bg-emerald-600 hover:bg-emerald-500">
           {genMut.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Receipt className="w-4 h-4" />} Generate invoice
         </Button>
       </section>
