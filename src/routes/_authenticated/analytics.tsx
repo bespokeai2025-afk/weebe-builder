@@ -872,6 +872,34 @@ function AnalyticsPage() {
             </div>
           </div>
 
+          {rangeKey === "custom" && (
+            <div className="mx-6 mt-3 flex flex-wrap items-end gap-3 rounded-xl border border-white/[0.06] bg-card/40 px-4 py-3">
+              <div className="space-y-1.5">
+                <Label htmlFor="analytics-start" className="text-xs text-muted-foreground">From</Label>
+                <Input
+                  id="analytics-start"
+                  type="datetime-local"
+                  value={customStart}
+                  onChange={(e) => setCustomStart(e.target.value)}
+                  className="w-[220px] bg-background/60"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="analytics-end" className="text-xs text-muted-foreground">To</Label>
+                <Input
+                  id="analytics-end"
+                  type="datetime-local"
+                  value={customEnd}
+                  onChange={(e) => setCustomEnd(e.target.value)}
+                  className="w-[220px] bg-background/60"
+                />
+              </div>
+              {customRangeInvalid && (
+                <p className="text-xs text-amber-300">Pick a valid start and end time (end must be after start, max 90 days).</p>
+              )}
+            </div>
+          )}
+
           {result?.error && (
             <div className="mx-6 mt-4 flex items-center gap-3 rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-200">
               <AlertTriangle className="h-4 w-4" />
