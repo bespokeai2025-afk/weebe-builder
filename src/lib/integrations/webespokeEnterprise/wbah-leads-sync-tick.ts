@@ -174,7 +174,9 @@ function buildLeadRow(raw: any, workspaceId: string) {
     source:               "import",
     source_detail:        SOURCE_DETAIL,
     notes:                pickStr(raw, "notes", "description", "comments"),
-    call_summary:         pickStr(raw, "transcript", "callSummary", "summary"),
+    call_summary:
+      pickStr(raw, "callSummary", "call_summary", "summary") ??
+      null,
     callback_date:        callbackAt ?? null,
     meta: {
       wbah_external_id:     externalId,
@@ -418,7 +420,10 @@ function buildCallRow(raw: any, workspaceId: string) {
     started_at:           startedAt,
     recording_url:        raw.recording_url ?? raw.recordingUrl ?? null,
     transcript:           raw.transcript ?? raw.callTranscript ?? null,
-    call_summary:         raw.transcript ?? raw.callTranscript ?? raw.callSummary ?? null,
+    call_summary:
+      (raw.call_summary && String(raw.call_summary).trim()) ||
+      (raw.callSummary && String(raw.callSummary).trim()) ||
+      null,
     disconnection_reason: raw.disconnection_reason ?? raw.disconnectionReason ?? null,
     end_reason:           raw.end_reason ?? raw.endReason ?? null,
     appointment_date:     raw.call_appointment_date ?? raw.appointmentDate ?? raw.appointment_date ?? null,

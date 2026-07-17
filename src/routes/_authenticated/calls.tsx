@@ -359,7 +359,11 @@ function CallsPage() {
 
   const [recordingPlayer, setRecordingPlayer] = useState<{ url: string; contact: string } | null>(null);
   const [panel, setPanel] = useState<PanelTarget | null>(null);
-  const [wbahTranscript, setWbahTranscript] = useState<{ text: string; name: string } | null>(null);
+  const [wbahTranscript, setWbahTranscript] = useState<{
+    text: string;
+    name: string;
+    summary: string | null;
+  } | null>(null);
   const [callHistory, setCallHistory] = useState<{ name: string; phone: string; loading: boolean; calls: any[] } | null>(null);
   const getWbahCallDetailFn = useServerFn(getWbahCallDetail);
   const getContactHistoryFn = useServerFn(getWbahContactCallHistory);
@@ -403,14 +407,25 @@ function CallsPage() {
 
   // Transcripts are omitted from the list payload — load on demand when opened.
   async function openWbahTranscript(c: any, name: string) {
-    if (c?.transcript) { setWbahTranscript({ text: c.transcript, name }); return; }
+    const inlineSummary =
+      (c?.call_summary && String(c.call_summary).trim()) ||
+      (c?.callSummary && String(c.callSummary).trim()) ||
+      null;
+    if (c?.transcript) {
+      setWbahTranscript({ text: c.transcript, name, summary: inlineSummary });
+      return;
+    }
     if (!c?.id) return;
-    setWbahTranscript({ text: "Loading transcript…", name });
+    setWbahTranscript({ text: "Loading transcript…", name, summary: inlineSummary });
     try {
       const d = await getWbahCallDetailFn({ data: { id: String(c.id) } });
-      setWbahTranscript({ text: (d as any)?.transcript || "No transcript available.", name });
+      setWbahTranscript({
+        text: (d as any)?.transcript || "No transcript available.",
+        name,
+        summary: inlineSummary ?? (d as any)?.callSummary ?? null,
+      });
     } catch {
-      setWbahTranscript({ text: "Failed to load transcript.", name });
+      setWbahTranscript({ text: "Failed to load transcript.", name, summary: inlineSummary });
     }
   }
   const [search, setSearch] = useState("");
@@ -500,13 +515,26 @@ function CallsPage() {
           >
             <div className="mb-3 flex items-start justify-between gap-3">
               <div>
-                <h2 className="text-sm font-semibold">Transcript</h2>
+                <h2 className="text-sm font-semibold">Call details</h2>
                 <p className="text-xs text-muted-foreground mt-0.5">{wbahTranscript.name}</p>
               </div>
               <button onClick={() => setWbahTranscript(null)} className="rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground">
                 <X className="h-4 w-4" />
               </button>
             </div>
+            {wbahTranscript.summary ? (
+              <div className="mb-3 rounded-lg border border-white/[0.06] bg-white/[0.02] p-3">
+                <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-1.5">
+                  Call summary
+                </p>
+                <p className="text-xs text-foreground/90 whitespace-pre-wrap leading-relaxed">
+                  {wbahTranscript.summary}
+                </p>
+              </div>
+            ) : null}
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-1.5">
+              Transcript
+            </p>
             <div className="max-h-96 overflow-y-auto rounded-lg bg-black/30 border border-white/[0.06] p-3 font-mono text-[11px] leading-relaxed text-muted-foreground whitespace-pre-wrap">
               {wbahTranscript.text || "No transcript available."}
             </div>

@@ -23,10 +23,19 @@ import {
   Eye,
 } from "lucide-react";
 import { WbahCallSchedulingSection } from "@/components/dashboard/WbahCallSchedulingSection";
+import { WbahCallbacksPanel } from "@/components/dashboard/WbahCallbacksPanel";
 import { StartCallsDialog } from "@/components/dashboard/StartCallsDialog";
 import { DashboardPage, KpiCard, stickyCell, stickyHead } from "@/components/dashboard/PageShell";
 import { PlayRecordingButton } from "@/components/RecordingPlayerDialog";
 import { wbahDateTimeOptions } from "@/lib/dashboard/wbah-timezone";
+import {
+  dqReasonLabel,
+  isWbahLeadCallable,
+  isWbahLeadDisqualified,
+  parseWbahCrmData,
+  wbahCrmDetailWithoutDisqualification,
+  type WbahCrmData,
+} from "@/lib/integrations/webespokeEnterprise/wbah-crm-data.types";
 import { cn } from "@/lib/utils";
 import { LoadingProgress } from "@/components/dashboard/LoadingProgress";
 import { Card, CardContent } from "@/components/ui/card";
@@ -75,7 +84,9 @@ import {
   getWbahCallDetail,
   listWbahCategorizedLeads,
   listWbahPeopleCategories,
+  getWbahCallbackSummary,
 } from "@/lib/integrations/webespokeEnterprise/wbah-workspace.server";
+import type { CallbackSummary } from "@/lib/integrations/webespokeEnterprise/wbah-callbacks.types";
 import { useWbahAgentOptions } from "@/hooks/useWbahAgentOptions";
 import { agentTypeLabel } from "@/components/shared/AgentFilterSelect";
 import { useIsWbahWorkspace } from "@/hooks/useIsWbahWorkspace";
@@ -303,6 +314,12 @@ function wbahSentimentBadge(sentiment: string | null | undefined): { label: stri
   return { label: sentiment ? sentiment : "N/A", cls: "text-muted-foreground" };
 }
 
+function truncateDqReason(text: string | null | undefined, max = 36): string {
+  if (!text) return "—";
+  if (text.length <= max) return text;
+  return `${text.slice(0, max - 1)}…`;
+}
+
 // Normalize the many raw/normalized call statuses into a few filter buckets so
 // the same Status filter works across both Leads (raw API statuses) and Calls
 // (normalized statuses).
@@ -381,6 +398,11 @@ function wbahCallDetailFromRow(r: any): Record<string, unknown> {
     AppointmentTime: r.appointmentTime ?? raw.appointment_time ?? null,
     BookingStatus: r.bookingStatus ?? raw.booking_status ?? null,
     CalendlyBookingUrl: r.calendlyBookingUrl ?? raw.calendly_booking_url ?? null,
+    CallSummary:
+      r.callSummary ??
+      raw.callSummary ??
+      raw.call_summary ??
+      null,
   };
 }
 
@@ -392,6 +414,55 @@ function WbahLeadDetailModal({
   onClose: () => void;
 }) {
   if (!detail) return null;
+
+  const crmParsed = parseWbahCrmData(detail.crm ?? null);
+  const crmForDump = wbahCrmDetailWithoutDisqualification(detail.crm ?? null);
+
+  function renderDisqualification(crm: WbahCrmData | null) {
+    if (!crm || (!crm.disqualification_reason && !crm.disqualified_at && !isWbahLeadDisqualified(crm))) {
+      return null;
+    }
+    const rows: Array<{ label: string; value: string }> = [
+      { label: "Lead status", value: crm.lead_status },
+      { label: "Reason", value: dqReasonLabel(crm) },
+      {
+        label: "Full reason",
+        value: crm.disqualification_reason ?? "—",
+      },
+      {
+        label: "Reason code",
+        value:
+          crm.new_disqualifiedreason_code != null
+            ? String(crm.new_disqualifiedreason_code)
+            : "—",
+      },
+      {
+        label: "Disqualified at",
+        value: crm.disqualified_at ? fmtDate(crm.disqualified_at, true) : "—",
+      },
+      { label: "Source", value: crm.disqualification_source ?? "—" },
+      { label: "Need to call", value: crm.need_to_call ? "Yes" : "No" },
+      {
+        label: "Callable",
+        value: isWbahLeadCallable(crm) ? "Yes (Disqualified campaigns)" : "No",
+      },
+    ];
+    return (
+      <div className="space-y-2">
+        <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+          Disqualification
+        </p>
+        <div className="rounded-lg border border-white/[0.06] divide-y divide-white/[0.04]">
+          {rows.map((row) => (
+            <div key={row.label} className="grid grid-cols-[minmax(8rem,34%)_1fr] gap-3 px-3 py-2">
+              <p className="text-[11px] font-medium text-foreground">{row.label}</p>
+              <p className="text-[11px] text-muted-foreground break-all">{row.value}</p>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
 
   function renderSection(title: string, data?: Record<string, unknown> | null) {
     if (!data) return null;
@@ -414,6 +485,33 @@ function WbahLeadDetailModal({
     );
   }
 
+  function renderCallSummaryBlock(summary: string | null | undefined) {
+    if (!summary?.trim()) return null;
+    return (
+      <div className="space-y-2">
+        <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+          Call summary
+        </p>
+        <div className="rounded-lg border border-white/[0.06] bg-white/[0.02] px-3 py-2.5">
+          <p className="text-[11px] text-foreground/90 whitespace-pre-wrap leading-relaxed">
+            {summary.trim()}
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  const callSummaryRaw = detail.call?.CallSummary ?? detail.call?.call_summary;
+  const callSummary =
+    typeof callSummaryRaw === "string" && callSummaryRaw.trim() ? callSummaryRaw.trim() : null;
+  const callForDump = detail.call
+    ? Object.fromEntries(
+        Object.entries(detail.call).filter(
+          ([k]) => k !== "CallSummary" && k !== "call_summary" && k !== "Transcript",
+        ),
+      )
+    : null;
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
       <div className="w-full max-w-3xl rounded-xl border border-white/[0.08] bg-card flex flex-col max-h-[85vh]">
@@ -427,8 +525,10 @@ function WbahLeadDetailModal({
           </button>
         </div>
         <div className="overflow-y-auto px-5 py-4 space-y-5 flex-1">
-          {renderSection("Call data", detail.call)}
-          {renderSection("CRM data", detail.crm)}
+          {renderCallSummaryBlock(callSummary)}
+          {renderSection("Call data", callForDump)}
+          {renderDisqualification(crmParsed)}
+          {renderSection("CRM data", crmForDump)}
           {!detail.call && !detail.crm && (
             <p className="text-xs text-muted-foreground">No detail fields available for this row.</p>
           )}
@@ -514,6 +614,8 @@ const WBAH_PEOPLE_TABS: { name: string; count: number }[] = [
   { name: "Callback Request", count: 0 },
 ];
 
+const WBAH_CALLBACK_TAB = "Callback Request";
+
 const WBAH_CAT_FALLBACK_STYLES: WbahCatStyle[] = [
   {
     active: "border-blue-400 text-blue-300",
@@ -568,7 +670,21 @@ function wbahRowPasses(
     if (!(r.name ?? "").toLowerCase().includes(q) && !String(r.contact ?? "").includes(q))
       return false;
   }
-  if (statusF !== "all" && wbahStatusKey(r.callStatus) !== statusF) return false;
+  if (statusF !== "all") {
+    if (statusF === "need_to_call") {
+      const callable = r.isCallable === true || r.needToCall === true;
+      const callNeed = wbahStatusKey(r.callStatus) === "need_to_call";
+      if (!callable && !callNeed) return false;
+    } else if (statusF === "disqualified") {
+      const crmDq =
+        isWbahLeadDisqualified(r._crm) ||
+        (r.leadStatus ?? "").toLowerCase() === "disqualified";
+      const callDq = wbahStatusKey(r.callStatus) === "disqualified";
+      if (!crmDq && !callDq) return false;
+    } else if (wbahStatusKey(r.callStatus) !== statusF) {
+      return false;
+    }
+  }
   if (sentimentF !== "all" && !(r.sentimentAnalysis ?? "").toLowerCase().includes(sentimentF))
     return false;
   if (dateCutoff > 0) {
@@ -792,7 +908,12 @@ function DataPage() {
   const [wbahAgentFilter, setWbahAgentFilter] = useState("all");
   const [wbahSelected, setWbahSelected] = useState<Set<string>>(new Set());
   const [wbahQualAgentId, setWbahQualAgentId] = useState<string>("");
-  const [wbahTranscript, setWbahTranscript] = useState<{ name: string; text: string } | null>(null);
+  const [wbahCallDetailView, setWbahCallDetailView] = useState<{
+    name: string;
+    summary: string | null;
+    transcript: string | null;
+    loading?: boolean;
+  } | null>(null);
   const [wbahLeadDetail, setWbahLeadDetail] = useState<WbahLeadDetailView | null>(null);
   const [wbahImporting, setWbahImporting] = useState(false);
 
@@ -822,6 +943,7 @@ function DataPage() {
   const listWbahCallsCountFn = useServerFn(listWbahCallsCount);
   const listWbahCategorizedLeadsFn = useServerFn(listWbahCategorizedLeads);
   const listWbahPeopleCategoriesFn = useServerFn(listWbahPeopleCategories);
+  const getWbahCallbackSummaryFn = useServerFn(getWbahCallbackSummary);
   const qc = useQueryClient();
 
   const filters = useMemo(() => {
@@ -1311,6 +1433,10 @@ function DataPage() {
 
   function mapWbahCatRow(r: any, idx: number) {
     const raw = (r.meta?.raw_lead ?? {}) as any;
+    const crm =
+      (r.meta?.crm as WbahCrmData | null | undefined) ??
+      parseWbahCrmData((r.meta?.raw_crm ?? null) as Record<string, unknown> | null);
+    const dqReasonShort = crm ? dqReasonLabel(crm) : null;
     return {
       id: r.id,
       srNo: idx + 1,
@@ -1319,6 +1445,12 @@ function DataPage() {
       email: r.email,
       callType: r.external_status_label ?? "Lead",
       callStatus: raw.callStatus ?? null,
+      leadStatus: crm?.lead_status ?? r.meta?.lead_status ?? null,
+      needToCall: crm?.need_to_call ?? null,
+      isCallable: isWbahLeadCallable(crm),
+      dqReason: dqReasonShort,
+      dqReasonFull: crm?.disqualification_reason ?? null,
+      disqualifiedAt: crm?.disqualified_at ?? null,
       sentimentAnalysis: raw.sentimentAnalysis ?? null,
       disconnectionReason: raw.disconnectionReason ?? null,
       appointmentDate: r.meta?.appointment_date ?? raw.appointment_date ?? null,
@@ -1330,10 +1462,17 @@ function DataPage() {
       durationMs: raw.durationMs ? Number(raw.durationMs) : null,
       recordingUrl: r.meta?.recording_url ?? raw.recordingUrl ?? null,
       transcript: raw.transcript ?? null,
+      callSummary:
+        raw.callSummary ??
+        raw.call_summary ??
+        (r.meta?.raw_call as Record<string, unknown> | null | undefined)?.call_summary ??
+        (r.meta?.raw_call as Record<string, unknown> | null | undefined)?.callSummary ??
+        null,
       endReason: raw.endReason ?? null,
       loadedAt: r.meta?.crm_loaded_at ?? r.created_at ?? null,
       wbahCallId: raw.wbah_call_id ?? null,
       hasTranscript: !!(raw.wbah_call_id || raw.has_transcript),
+      _crm: crm,
       _rawCrm: (r.meta?.raw_crm ?? null) as Record<string, unknown> | null,
       _rawCall: (r.meta?.raw_call ?? null) as Record<string, unknown> | null,
       _rawLead: raw,
@@ -1357,14 +1496,21 @@ function DataPage() {
     setWbahCategories(WBAH_PEOPLE_TABS);
     setWbahPeopleSubTab((prev) => prev || WBAH_PEOPLE_TABS[0]?.name || "");
     try {
-      const res = await listWbahPeopleCategoriesFn();
+      const [res, callbackSummary] = await Promise.all([
+        listWbahPeopleCategoriesFn(),
+        getWbahCallbackSummaryFn().catch(() => null),
+      ]);
       const cats = ((res as any)?.categories ?? []) as { name: string; count: number }[];
-      if (cats.length > 0) {
+      const pendingCallbacks = (callbackSummary as CallbackSummary | null)?.pending;
+      if (cats.length > 0 || typeof pendingCallbacks === "number") {
         const byName = new Map(cats.map((c) => [c.name, c.count]));
         setWbahCategories(
           WBAH_PEOPLE_TABS.map((tab) => ({
             name: tab.name,
-            count: Math.max(0, byName.get(tab.name) ?? tab.count),
+            count:
+              tab.name === WBAH_CALLBACK_TAB && typeof pendingCallbacks === "number"
+                ? Math.max(0, pendingCallbacks)
+                : Math.max(0, byName.get(tab.name) ?? tab.count),
           })),
         );
       }
@@ -1375,8 +1521,17 @@ function DataPage() {
     }
   }
 
+  const handleCallbackSummaryChange = (summary: CallbackSummary) => {
+    setWbahCategories((prev) => {
+      const base = prev.length > 0 ? prev : WBAH_PEOPLE_TABS;
+      return base.map((c) =>
+        c.name === WBAH_CALLBACK_TAB ? { ...c, count: Math.max(0, summary.pending) } : c,
+      );
+    });
+  };
+
   async function handleFetchWbahCategory(cat: string, page = 1, pageSize = wbahCatPageSize) {
-    if (!cat || cat === "calls") return;
+    if (!cat || cat === "calls" || cat === WBAH_CALLBACK_TAB) return;
     setWbahCatLoadingMap((m) => ({ ...m, [cat]: true }));
     setWbahCatErrorMap((m) => ({ ...m, [cat]: null }));
     try {
@@ -1440,22 +1595,38 @@ function DataPage() {
     }
   }
 
-  // Open a call's transcript — fetched on demand (never in the list payload).
-  async function openWbahTranscript(r: any) {
-    if (r?.transcript) {
-      setWbahTranscript({ name: r.name || "Record", text: r.transcript });
-      return;
-    }
-    if (!r?.id && !r?.wbahCallId) return;
-    setWbahTranscript({ name: r.name || "Record", text: "Loading transcript…" });
+  // Call detail — summary from list payload; transcript on demand when omitted.
+  async function openWbahCallDetail(r: any) {
+    const name = r.name || "Record";
+    const inlineSummary =
+      (r.callSummary && String(r.callSummary).trim()) ||
+      (r.call_summary && String(r.call_summary).trim()) ||
+      null;
+
+    setWbahCallDetailView({
+      name,
+      summary: inlineSummary,
+      transcript: r.transcript ?? null,
+      loading: !r.transcript && !!(r.id || r.wbahCallId),
+    });
+
+    if (r.transcript || (!r?.id && !r?.wbahCallId)) return;
+
     try {
       const d = await getWbahCallDetailFn({ data: { id: String(r.wbahCallId ?? r.id) } });
-      setWbahTranscript({
-        name: r.name || "Record",
-        text: (d as any)?.transcript || "No transcript available.",
+      setWbahCallDetailView({
+        name,
+        summary:
+          inlineSummary ??
+          ((d as { callSummary?: string | null })?.callSummary?.trim() || null),
+        transcript: (d as { transcript?: string | null })?.transcript || "No transcript available.",
       });
     } catch {
-      setWbahTranscript({ name: r.name || "Record", text: "Failed to load transcript." });
+      setWbahCallDetailView({
+        name,
+        summary: inlineSummary,
+        transcript: r.transcript ?? "Failed to load call details.",
+      });
     }
   }
 
@@ -1503,7 +1674,13 @@ function DataPage() {
 
   // Load the active category sub-tab's rows when it changes (Calls handled below).
   useEffect(() => {
-    if (!isWbah || dataTab !== "people" || !wbahPeopleSubTab || wbahPeopleSubTab === "calls")
+    if (
+      !isWbah ||
+      dataTab !== "people" ||
+      !wbahPeopleSubTab ||
+      wbahPeopleSubTab === "calls" ||
+      wbahPeopleSubTab === WBAH_CALLBACK_TAB
+    )
       return;
     setWbahSelected(new Set());
     setWbahQualAgentId("");
@@ -1647,7 +1824,7 @@ function DataPage() {
           <h1 className="text-sm font-semibold tracking-tight">Data Records</h1>
           <p className="mt-0.5 text-[10px] text-muted-foreground">
             {isWbah
-              ? "Manage calling data, import records, and control outbound campaigns"
+              ? "Manage calling data, people, and campaigns"
               : "Pull inbound leads from your CRM and manage people"}
           </p>
         </div>
@@ -1680,8 +1857,10 @@ function DataPage() {
 
       {/* Tabs — Records + Campaigns only for WBAH; People for all */}
       <div className="flex gap-1 overflow-x-auto border-b border-white/[0.06]">
-        {(isWbah ? (["records", "people", "campaigns"] as const) : (["people"] as const)).map(
-          (t) => (
+        {(isWbah
+          ? (["records", "people", "campaigns"] as const)
+          : (["people"] as const)
+        ).map((t) => (
             <button
               key={t}
               onClick={() => setDataTab(t)}
@@ -1705,8 +1884,7 @@ function DataPage() {
                 </span>
               )}
             </button>
-          ),
-        )}
+          ))}
       </div>
 
       {dataTab === "campaigns" && <WbahCallSchedulingSection />}
@@ -1938,21 +2116,44 @@ function DataPage() {
 
       {dataTab === "people" && isWbah && (
         <>
-          {/* ── Transcript modal ────────────────────────────────────────── */}
-          {wbahTranscript && (
+          {/* ── Call detail modal (summary + transcript) ───────────────── */}
+          {wbahCallDetailView && (
             <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
               <div className="w-full max-w-2xl rounded-xl border border-white/[0.08] bg-card flex flex-col max-h-[80vh]">
                 <div className="flex items-center justify-between px-5 py-3.5 border-b border-white/[0.06]">
-                  <p className="text-sm font-semibold">{wbahTranscript.name} — Transcript</p>
+                  <p className="text-sm font-semibold">{wbahCallDetailView.name} — Call details</p>
                   <button
-                    onClick={() => setWbahTranscript(null)}
+                    onClick={() => setWbahCallDetailView(null)}
                     className="text-muted-foreground hover:text-foreground transition-colors"
                   >
                     <X className="h-4 w-4" />
                   </button>
                 </div>
-                <div className="overflow-y-auto px-5 py-4 text-xs text-muted-foreground whitespace-pre-wrap leading-relaxed flex-1">
-                  {wbahTranscript.text || "No transcript available."}
+                <div className="overflow-y-auto px-5 py-4 space-y-4 flex-1">
+                  {wbahCallDetailView.summary ? (
+                    <div className="space-y-2">
+                      <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                        Call summary
+                      </p>
+                      <div className="rounded-lg border border-white/[0.06] bg-white/[0.02] px-3 py-2.5">
+                        <p className="text-xs text-foreground/90 whitespace-pre-wrap leading-relaxed">
+                          {wbahCallDetailView.summary}
+                        </p>
+                      </div>
+                    </div>
+                  ) : null}
+                  <div className="space-y-2">
+                    <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                      Transcript
+                    </p>
+                    <div className="rounded-lg border border-white/[0.06] bg-white/[0.02] px-3 py-2.5">
+                      <p className="text-xs text-muted-foreground whitespace-pre-wrap leading-relaxed">
+                        {wbahCallDetailView.loading
+                          ? "Loading transcript…"
+                          : wbahCallDetailView.transcript || "No transcript available."}
+                      </p>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
@@ -2047,8 +2248,8 @@ function DataPage() {
                     </span>
                   )}
                 </p>
-                {/* Search */}
-                {wbahAnyPeopleData && (
+                {/* Search — Callback tab has its own search in WbahCallbacksPanel */}
+                {wbahAnyPeopleData && wbahPeopleSubTab !== WBAH_CALLBACK_TAB && (
                   <div className="relative">
                     <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3 w-3 text-muted-foreground pointer-events-none" />
                     <input
@@ -2067,8 +2268,8 @@ function DataPage() {
                     )}
                   </div>
                 )}
-                {/* Filters — apply across all People sub-tabs */}
-                {isWbah && dataTab === "people" && (
+                {/* Filters — apply across People sub-tabs except Callback dashboard */}
+                {isWbah && dataTab === "people" && wbahPeopleSubTab !== WBAH_CALLBACK_TAB && (
                   <>
                     <Select value={wbahStatusFilter} onValueChange={setWbahStatusFilter}>
                       <SelectTrigger className="h-7 w-[140px] text-xs">
@@ -2216,6 +2417,7 @@ function DataPage() {
                 )}
                 {wbahPeopleSubTab &&
                   wbahPeopleSubTab !== "calls" &&
+                  wbahPeopleSubTab !== WBAH_CALLBACK_TAB &&
                   (() => {
                     const cat = wbahPeopleSubTab;
                     const loading = !!wbahCatLoadingMap[cat];
@@ -2252,10 +2454,14 @@ function DataPage() {
             </div>
 
             {/* ── Table body ─────────────────────────────────────────────── */}
-            {(() => {
+            {wbahPeopleSubTab === WBAH_CALLBACK_TAB ? (
+              <WbahCallbacksPanel onSummaryChange={handleCallbackSummaryChange} />
+            ) : (
+            (() => {
               const isLeads = false;
               const isCalls = wbahPeopleSubTab === "calls";
               const isCat = !isCalls && !!wbahPeopleSubTab;
+              const isDisqualifiedTab = wbahPeopleSubTab === "Disqualified";
 
               const loading = isCalls ? wbahCallsLoading : !!wbahCatLoadingMap[wbahPeopleSubTab];
               const error = isCalls ? wbahCallsError : (wbahCatErrorMap[wbahPeopleSubTab] ?? null);
@@ -2337,6 +2543,7 @@ function DataPage() {
                             "TYPE",
                             "LAST CALLED AT",
                             "CALL STATUS",
+                            ...(isDisqualifiedTab ? ["DQ REASON", "DISQUALIFIED AT"] : []),
                             "DURATION",
                             "RECORDING",
                             "TRANSCRIPT",
@@ -2469,6 +2676,21 @@ function DataPage() {
                                 {statusBadge.label}
                               </span>
                             </td>
+                            {isDisqualifiedTab && (
+                              <>
+                                <td
+                                  className="px-2 py-0.5 text-[10px] text-muted-foreground max-w-[140px] truncate"
+                                  title={r.dqReasonFull ?? r.dqReason ?? undefined}
+                                >
+                                  {r.dqReason && r.dqReason !== "—"
+                                    ? truncateDqReason(r.dqReasonFull ?? r.dqReason, 40)
+                                    : "—"}
+                                </td>
+                                <td className="px-2 py-0.5 text-[10px] text-muted-foreground whitespace-nowrap">
+                                  {r.disqualifiedAt ? fmtDate(r.disqualifiedAt, true) : "—"}
+                                </td>
+                              </>
+                            )}
                             <td className="px-2 py-0.5 text-muted-foreground text-[11px] whitespace-nowrap">
                               {fmtMs(r.durationMs)}
                             </td>
@@ -2487,9 +2709,9 @@ function DataPage() {
                               )}
                             </td>
                             <td className="px-2 py-0.5">
-                              {r.transcript || r.hasTranscript ? (
+                              {r.transcript || r.hasTranscript || r.callSummary ? (
                                 <button
-                                  onClick={() => openWbahTranscript(r)}
+                                  onClick={() => openWbahCallDetail(r)}
                                   className="inline-flex items-center gap-1 rounded-md bg-muted/60 px-2 py-1 text-[10px] font-medium text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
                                 >
                                   <FileText className="h-3 w-3" /> View
@@ -2554,7 +2776,7 @@ function DataPage() {
                   )}
                 </div>
               );
-            })()}
+            })())}
           </div>
         </>
       )}

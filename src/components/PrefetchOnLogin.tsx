@@ -35,6 +35,7 @@ import {
   listWbahQualifiedLeads,
   listWbahCategorizedLeads,
   listWbahCallsCount,
+  getWbahCallbackSummary,
 } from "@/lib/integrations/webespokeEnterprise/wbah-workspace.server";
 
 const STALE = 5 * 60 * 1000;
@@ -67,6 +68,7 @@ export function PrefetchOnLogin({ authed }: Props) {
   const wbahQualifiedFn  = useServerFn(listWbahQualifiedLeads);
   const wbahCatFn        = useServerFn(listWbahCategorizedLeads);
   const wbahCallsCountFn = useServerFn(listWbahCallsCount);
+  const wbahCallbackSummaryFn = useServerFn(getWbahCallbackSummary);
   const wbahAccessFn     = useServerFn(resolveWbahUiAccess);
   const getMyContextFn   = useServerFn(getMyContext);
 
@@ -129,7 +131,7 @@ export function PrefetchOnLogin({ authed }: Props) {
           await wbahCatFn({ data: { category: "disqualified", page: 1, limit: 1 } });
           await wbahCatFn({ data: { category: "tried_to_contact", page: 1, limit: 1 } });
           await wbahCatFn({ data: { category: "rebook_initial_consultation", page: 1, limit: 1 } });
-          await wbahCatFn({ data: { category: "callback_request", page: 1, limit: 1 } });
+          await wbahCallbackSummaryFn();
         } catch {
           /* warming is best-effort; ignore failures */
         }

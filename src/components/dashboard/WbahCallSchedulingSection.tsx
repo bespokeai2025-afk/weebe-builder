@@ -51,11 +51,16 @@ import {
   getWbahCampaignDynamicsSyncAccess,
   previewWbahDynamicsCategorySync,
   syncWbahDynamicsCategories,
+  getWbahCampaignScheduleOptions,
+  getWbahCampaignLeadStatusOptions,
 } from "@/lib/integrations/webespokeEnterprise/wbah-workspace.server";
 import type { DynamicsCategorySyncResult } from "@/lib/integrations/webespokeEnterprise/wbah-campaign-sync.types";
 import {
   DYNAMICS_CATEGORY_LABELS,
   WBAH_CAMPAIGN_LEAD_STATUS_OPTIONS,
+  formatCampaignScheduleSummary,
+  isCampaignScheduleExpired,
+  resolveCampaignScheduleOptions,
 } from "@/lib/integrations/webespokeEnterprise/wbah-campaign-sync.types";
 
 const TIMEZONES = [
@@ -74,13 +79,6 @@ const TIMEZONES = [
 
 const CAMPAIGN_LEAD_STATUS_OPTIONS = WBAH_CAMPAIGN_LEAD_STATUS_OPTIONS;
 
-function fmt12(time24: string) {
-  const [h, m] = time24.split(":").map(Number);
-  const ampm = h >= 12 ? "PM" : "AM";
-  const h12 = h % 12 || 12;
-  return `${h12}:${String(m).padStart(2, "0")} ${ampm}`;
-}
-
 type WbahCampaign = {
   _id?: string;
   id?: string;
@@ -90,9 +88,14 @@ type WbahCampaign = {
   agent_id?: string | null;
   lead_status?: string | null;
   call_time?: string;
+  call_hour?: number;
+  call_minute?: number;
   timezone?: string;
   frequency_type?: "daily" | "custom";
   interval_days?: number;
+  start_date?: string | null;
+  end_date?: string | null;
+  days_of_week_list?: number[] | null;
   voicemail_enabled?: boolean;
 };
 
@@ -112,20 +115,31 @@ const BLANK = {
   timezone: "Europe/London",
   frequency_type: "daily" as "daily" | "custom",
   interval_days: 1,
+  start_date: "" as string,
+  end_date: "" as string,
+  days_of_week: null as number[] | null,
   voicemail_enabled: false,
 };
 
-function campaignId(c: WbahCampaign) { return c._id ?? c.id ?? ""; }
-function campaignName(c: WbahCampaign) { return c.campaign_name ?? c.name ?? "Untitled"; }
-function campaignStatus(c: WbahCampaign) { return (c.status ?? "active").toLowerCase(); }
-function scheduleLabel(c: WbahCampaign) {
-  const t = c.call_time ?? "09:00";
-  if ((c.frequency_type ?? "daily") === "daily") return `Every 1 day(s) at ${fmt12(t)}`;
-  return `Every ${c.interval_days ?? 1} day(s) at ${fmt12(t)}`;
+function campaignId(c: WbahCampaign) {
+  return c._id ?? c.id ?? "";
+}
+function campaignName(c: WbahCampaign) {
+  return c.campaign_name ?? c.name ?? "Untitled";
+}
+function campaignStatus(c: WbahCampaign) {
+  return (c.status ?? "active").toLowerCase();
+}
+
+function showIntervalDaysForCampaign(c: WbahCampaign): boolean {
+  const hasWeekdays = (c.days_of_week_list?.length ?? 0) > 0;
+  return (c.frequency_type ?? "daily") === "custom" && !hasWeekdays;
 }
 
 const QK_CAMPAIGNS = ["wbah-campaigns"];
 const QK_AGENTS    = ["wbah-campaign-agents"];
+const QK_SCHEDULE_OPTIONS = ["wbah-campaign-schedule-options"];
+const QK_LEAD_STATUS_OPTIONS = ["wbah-campaign-lead-status-options"];
 
 export function WbahCallSchedulingSection() {
   const qc = useQueryClient();
@@ -141,6 +155,8 @@ export function WbahCallSchedulingSection() {
   const syncAccessFn = useServerFn(getWbahCampaignDynamicsSyncAccess);
   const previewSyncFn = useServerFn(previewWbahDynamicsCategorySync);
   const liveSyncFn = useServerFn(syncWbahDynamicsCategories);
+  const scheduleOptionsFn = useServerFn(getWbahCampaignScheduleOptions);
+  const leadStatusOptionsFn = useServerFn(getWbahCampaignLeadStatusOptions);
 
   const [search, setSearch] = useState("");
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -176,12 +192,35 @@ export function WbahCallSchedulingSection() {
     throwOnError: false,
   });
 
+  const scheduleOptionsQ = useQuery({
+    queryKey: QK_SCHEDULE_OPTIONS,
+    queryFn: () => scheduleOptionsFn(),
+    staleTime: 10 * 60_000,
+    throwOnError: false,
+  });
+
+  const leadStatusOptionsQ = useQuery({
+    queryKey: QK_LEAD_STATUS_OPTIONS,
+    queryFn: () => leadStatusOptionsFn(),
+    staleTime: 10 * 60_000,
+    throwOnError: false,
+  });
+
   const canPreviewSync = syncAccessQ.data?.canPreview ?? true;
   const canLiveSync = syncAccessQ.data?.canSync ?? true;
 
   const campaigns = (campaignsQ.data ?? []) as WbahCampaign[];
   const agents    = (agentsQ.data ?? []) as WbahAgent[];
-  const leadStatusOptions = CAMPAIGN_LEAD_STATUS_OPTIONS;
+  const leadStatusOptions =
+    (leadStatusOptionsQ.data?.length ?? 0) > 0
+      ? (leadStatusOptionsQ.data as { value: string; label: string }[])
+      : CAMPAIGN_LEAD_STATUS_OPTIONS;
+  const scheduleResolved = resolveCampaignScheduleOptions(scheduleOptionsQ.data ?? null);
+  const scheduleWeekdays = scheduleResolved.weekdays;
+  const scheduleExamples = scheduleResolved.examples;
+  const weekdayShortByValue = Object.fromEntries(
+    scheduleWeekdays.map((d) => [d.value, d.short]),
+  );
 
   const filtered = search.trim()
     ? campaigns.filter((c) => campaignName(c).toLowerCase().includes(search.toLowerCase()))
@@ -196,6 +235,7 @@ export function WbahCallSchedulingSection() {
     setForm(BLANK);
     setDialogOpen(true);
     void qc.invalidateQueries({ queryKey: QK_AGENTS });
+    void qc.invalidateQueries({ queryKey: QK_SCHEDULE_OPTIONS });
   }
 
   function openEdit(c: WbahCampaign) {
@@ -212,11 +252,34 @@ export function WbahCallSchedulingSection() {
       timezone:         c.timezone ?? "Europe/London",
       frequency_type:   c.frequency_type ?? "daily",
       interval_days:    c.interval_days ?? 1,
+      start_date:       c.start_date ?? "",
+      end_date:         c.end_date ?? "",
+      days_of_week:     c.days_of_week_list ?? null,
       voicemail_enabled: c.voicemail_enabled ?? false,
     });
     setDialogOpen(true);
     void qc.invalidateQueries({ queryKey: QK_AGENTS });
+    void qc.invalidateQueries({ queryKey: QK_SCHEDULE_OPTIONS });
   }
+
+  function applyWeekdayPreset(days: number[] | null) {
+    setForm((f) => ({ ...f, days_of_week: days }));
+  }
+
+  function toggleWeekday(day: number) {
+    setForm((f) => {
+      const current = f.days_of_week ?? [];
+      const next = current.includes(day)
+        ? current.filter((d) => d !== day)
+        : [...current, day].sort((a, b) => a - b);
+      return { ...f, days_of_week: next.length === 0 ? null : next };
+    });
+  }
+
+  const hasWeekdaySelection = (form.days_of_week?.length ?? 0) > 0;
+  const showIntervalDays = form.frequency_type === "custom" && !hasWeekdaySelection;
+  const dateRangeInvalid =
+    !!form.start_date && !!form.end_date && form.end_date < form.start_date;
 
   async function handlePreviewSync() {
     setPreviewing(true);
@@ -292,8 +355,15 @@ export function WbahCallSchedulingSection() {
 
   async function handleSave() {
     if (!form.campaign_name.trim()) { toast.error("Campaign name is required"); return; }
-    if (!form.lead_status || !CAMPAIGN_LEAD_STATUS_OPTIONS.some((o) => o.value === form.lead_status)) {
-      toast.error("Select a lead category (Disqualified, Tried To Contact, or Rebook Initial Consultation)");
+    if (
+      !form.lead_status ||
+      !leadStatusOptions.some((o) => o.value === form.lead_status)
+    ) {
+      toast.error("Select a target lead status for this campaign");
+      return;
+    }
+    if (dateRangeInvalid) {
+      toast.error("End date must be on or after start date");
       return;
     }
     setSaving(true);
@@ -306,6 +376,9 @@ export function WbahCallSchedulingSection() {
         timezone:         form.timezone,
         frequency_type:   form.frequency_type,
         interval_days:    form.interval_days,
+        start_date:       form.start_date || null,
+        end_date:         form.end_date || null,
+        days_of_week:     form.days_of_week,
         voicemail_enabled: form.voicemail_enabled,
       };
       if (editTarget) {
@@ -533,6 +606,11 @@ export function WbahCallSchedulingSection() {
                   )}>
                     {campaignStatus(c) === "active" ? "● Active" : "● Paused"}
                   </span>
+                  {isCampaignScheduleExpired(c.end_date) && (
+                    <span className="rounded-full bg-amber-500/15 px-2 py-0.5 text-[10px] font-semibold text-amber-400">
+                      Schedule expired
+                    </span>
+                  )}
                   <button
                     title={campaignStatus(c) === "active" ? "Pause" : "Resume"}
                     onClick={() => handleToggle(c)}
@@ -568,7 +646,9 @@ export function WbahCallSchedulingSection() {
                 </div>
                 <div>
                   <p className="text-muted-foreground">Schedule</p>
-                  <p className="font-medium text-foreground mt-0.5">{scheduleLabel(c)}</p>
+                  <p className="font-medium text-foreground mt-0.5">
+                    {formatCampaignScheduleSummary(c, weekdayShortByValue)}
+                  </p>
                 </div>
                 <div>
                   <p className="text-muted-foreground">Timezone</p>
@@ -577,17 +657,27 @@ export function WbahCallSchedulingSection() {
               </div>
 
               <div className="mt-3 flex items-center justify-between border-t border-white/[0.04] pt-2.5">
-                <div className="flex items-center gap-4 text-[10px] text-muted-foreground">
+                <div className="flex items-center gap-4 text-[10px] text-muted-foreground flex-wrap">
                   <span>
                     Frequency:{" "}
                     <span className="text-foreground font-medium">
                       {(c.frequency_type ?? "daily") === "custom" ? "Custom" : "Daily"}
                     </span>
                   </span>
-                  {c.frequency_type === "custom" && (
+                  {showIntervalDaysForCampaign(c) && (
                     <span>
-                      Interval days:{" "}
-                      <span className="text-foreground font-medium">{c.interval_days ?? 1}</span>
+                      Interval:{" "}
+                      <span className="text-foreground font-medium">{c.interval_days ?? 1} days</span>
+                    </span>
+                  )}
+                  {(c.days_of_week_list?.length ?? 0) > 0 && (
+                    <span>
+                      Weekdays:{" "}
+                      <span className="text-foreground font-medium">
+                        {(c.days_of_week_list ?? [])
+                          .map((d) => weekdayShortByValue[d] ?? `Day ${d}`)
+                          .join(", ")}
+                      </span>
                     </span>
                   )}
                 </div>
@@ -607,7 +697,7 @@ export function WbahCallSchedulingSection() {
 
       {/* Create / Edit Dialog */}
       <Dialog open={dialogOpen} onOpenChange={(o) => { if (!o) setDialogOpen(false); }}>
-        <DialogContent className="max-w-md flex flex-col max-h-[85vh]">
+        <DialogContent className="max-w-lg flex flex-col max-h-[85vh]">
           <DialogHeader className="shrink-0">
             <DialogTitle className="flex items-center gap-2 text-sm">
               {editTarget ? "Edit Campaign" : "Create Call Campaign"}
@@ -695,6 +785,18 @@ export function WbahCallSchedulingSection() {
                     ))}
                   </SelectContent>
                 </Select>
+                {form.lead_status === "Callback Request" ? (
+                  <p className="mt-1.5 text-[10px] text-muted-foreground">
+                    Targets leads with a pending callback request (is_callback_pending). Includes
+                    leads from Dynamics sync and AI call webhooks. Calls fire at the requested time
+                    via the callback scheduler.
+                  </p>
+                ) : (
+                  <p className="mt-1.5 text-[10px] text-muted-foreground">
+                    Leads auto-moved from Tried To Contact (negative sentiment) remain callable under
+                    Disqualified campaigns.
+                  </p>
+                )}
               </div>
             </div>
 
@@ -702,8 +804,139 @@ export function WbahCallSchedulingSection() {
             <div className="rounded-xl border border-white/[0.06] bg-card/40 p-4 space-y-3">
               <div className="flex items-center gap-2 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
                 <Clock className="h-3.5 w-3.5 text-emerald-400" />
-                Schedule Configuration
+                Schedule
               </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <Label className="text-xs">Start date (optional)</Label>
+                  <Input
+                    type="date"
+                    className="mt-1 h-8 text-xs"
+                    value={form.start_date}
+                    onChange={(e) => setForm((f) => ({ ...f, start_date: e.target.value }))}
+                  />
+                </div>
+                <div>
+                  <Label className="text-xs">End date (optional)</Label>
+                  <Input
+                    type="date"
+                    className="mt-1 h-8 text-xs"
+                    value={form.end_date}
+                    min={form.start_date || undefined}
+                    onChange={(e) => setForm((f) => ({ ...f, end_date: e.target.value }))}
+                  />
+                  {dateRangeInvalid && (
+                    <p className="mt-1 text-[10px] text-amber-400">End date must be on or after start date</p>
+                  )}
+                </div>
+              </div>
+
+              <div>
+                <Label className="text-xs mb-1.5 block">Days of week</Label>
+                {scheduleOptionsQ.isError && (
+                  <p className="mb-1.5 text-[10px] text-amber-400">
+                    Could not load weekday labels from API — using defaults.
+                  </p>
+                )}
+                <>
+                  <div className="flex flex-wrap gap-1.5 mb-2">
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant={form.days_of_week == null ? "secondary" : "outline"}
+                      className="h-7 text-[10px]"
+                      onClick={() => applyWeekdayPreset(scheduleExamples.everyDay)}
+                    >
+                      Every day
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant={
+                        JSON.stringify(form.days_of_week) === JSON.stringify(scheduleExamples.mondayToFriday)
+                          ? "secondary"
+                          : "outline"
+                      }
+                      className="h-7 text-[10px]"
+                      onClick={() => applyWeekdayPreset(scheduleExamples.mondayToFriday)}
+                    >
+                      Mon–Fri
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant={
+                        JSON.stringify(form.days_of_week) === JSON.stringify(scheduleExamples.weekends)
+                          ? "secondary"
+                          : "outline"
+                      }
+                      className="h-7 text-[10px]"
+                      onClick={() => applyWeekdayPreset(scheduleExamples.weekends)}
+                    >
+                      Weekends
+                    </Button>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                    {scheduleWeekdays.map((d) => (
+                      <label
+                        key={d.value}
+                        className="flex items-center gap-2 rounded-md border border-white/[0.06] px-2 py-1.5 text-[11px] cursor-pointer hover:bg-white/[0.03]"
+                      >
+                        <Checkbox
+                          checked={form.days_of_week?.includes(d.value) ?? false}
+                          onCheckedChange={() => toggleWeekday(d.value)}
+                        />
+                        <span>{d.short}</span>
+                      </label>
+                    ))}
+                  </div>
+                  <p className="mt-1.5 text-[10px] text-muted-foreground">
+                    {hasWeekdaySelection
+                      ? "Calls run only on selected days at the call time below."
+                      : "No days selected — campaign runs every day."}
+                  </p>
+                </>
+              </div>
+
+              <div>
+                <Label className="text-xs mb-1 block">Frequency</Label>
+                <div className="flex rounded-lg border border-white/[0.08] overflow-hidden">
+                  {(["daily", "custom"] as const).map((freq) => (
+                    <button
+                      key={freq}
+                      type="button"
+                      onClick={() => setForm((f) => ({ ...f, frequency_type: freq }))}
+                      className={cn(
+                        "flex-1 py-1.5 text-xs font-medium transition-colors",
+                        form.frequency_type === freq
+                          ? "bg-primary text-primary-foreground"
+                          : "text-muted-foreground hover:text-foreground",
+                      )}
+                    >
+                      {freq === "daily" ? "Daily" : "Custom"}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {showIntervalDays && (
+                <div>
+                  <Label className="text-xs">Repeat every N days</Label>
+                  <Input
+                    type="number"
+                    min={1}
+                    max={365}
+                    className="mt-1 h-8 text-xs w-32"
+                    value={form.interval_days}
+                    onChange={(e) => setForm((f) => ({ ...f, interval_days: Math.max(1, Number(e.target.value) || 1) }))}
+                  />
+                  <p className="mt-1 text-[10px] text-muted-foreground">
+                    Used when no specific weekdays are selected.
+                  </p>
+                </div>
+              )}
+
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <Label className="text-xs">Call Time</Label>
@@ -733,39 +966,7 @@ export function WbahCallSchedulingSection() {
                   </Select>
                 </div>
               </div>
-              <div>
-                <Label className="text-xs mb-1 block">Call Frequency</Label>
-                <div className="flex rounded-lg border border-white/[0.08] overflow-hidden">
-                  {(["daily", "custom"] as const).map((freq) => (
-                    <button
-                      key={freq}
-                      type="button"
-                      onClick={() => setForm((f) => ({ ...f, frequency_type: freq }))}
-                      className={cn(
-                        "flex-1 py-1.5 text-xs font-medium transition-colors",
-                        form.frequency_type === freq
-                          ? "bg-primary text-primary-foreground"
-                          : "text-muted-foreground hover:text-foreground",
-                      )}
-                    >
-                      {freq === "daily" ? "Daily" : "Custom Interval"}
-                    </button>
-                  ))}
-                </div>
-              </div>
-              {form.frequency_type === "custom" && (
-                <div>
-                  <Label className="text-xs">Interval (days)</Label>
-                  <Input
-                    type="number"
-                    min={1}
-                    max={365}
-                    className="mt-1 h-8 text-xs w-32"
-                    value={form.interval_days}
-                    onChange={(e) => setForm((f) => ({ ...f, interval_days: Math.max(1, Number(e.target.value) || 1) }))}
-                  />
-                </div>
-              )}
+
               <div className="flex items-center justify-between pt-1">
                 <div>
                   <Label className="text-xs">Voicemail detection</Label>
@@ -783,7 +984,7 @@ export function WbahCallSchedulingSection() {
             <Button variant="outline" size="sm" onClick={() => setDialogOpen(false)} disabled={saving}>
               Cancel
             </Button>
-            <Button size="sm" onClick={handleSave} disabled={saving}>
+            <Button size="sm" onClick={handleSave} disabled={saving || dateRangeInvalid}>
               {saving ? "Saving…" : editTarget ? "Save Changes" : "Launch Campaign"}
             </Button>
           </DialogFooter>

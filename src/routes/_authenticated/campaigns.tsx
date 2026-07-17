@@ -37,7 +37,12 @@ import {
   deleteCallCampaign,
   type CallCampaignWithAgent,
 } from "@/lib/dashboard/call-campaigns.functions";
-import { getWbahCampaigns, getWbahAgentsForCampaign, pauseWbahCampaign, resumeWbahCampaign, deleteWbahCampaign } from "@/lib/integrations/webespokeEnterprise/wbah-workspace.server";
+import { getWbahCampaigns, getWbahAgentsForCampaign, getWbahCampaignScheduleOptions, pauseWbahCampaign, resumeWbahCampaign, deleteWbahCampaign } from "@/lib/integrations/webespokeEnterprise/wbah-workspace.server";
+import {
+  formatCampaignScheduleSummary,
+  isCampaignScheduleExpired,
+  resolveCampaignScheduleOptions,
+} from "@/lib/integrations/webespokeEnterprise/wbah-campaign-sync.types";
 import { SavedFiltersSection } from "@/components/people-views/SavedFiltersSection";
 import { CampaignReportsPanel, CampaignFailureBanner } from "@/components/campaign-reports/CampaignReportsPanel";
 import { CampaignNotificationsBanner } from "@/components/notifications/CampaignNotificationsBanner";
@@ -663,6 +668,7 @@ function WbahCampaignsTab() {
   const qc = useQueryClient();
   const getFn    = useServerFn(getWbahCampaigns);
   const agentsFn = useServerFn(getWbahAgentsForCampaign);
+  const scheduleOptionsFn = useServerFn(getWbahCampaignScheduleOptions);
   const pauseFn  = useServerFn(pauseWbahCampaign);
   const resumeFn = useServerFn(resumeWbahCampaign);
   const delFn    = useServerFn(deleteWbahCampaign);
@@ -681,6 +687,17 @@ function WbahCampaignsTab() {
     staleTime: 60_000,
     throwOnError: false,
   });
+
+  const { data: scheduleOptions } = useQuery({
+    queryKey: ["wbah-campaign-schedule-options"],
+    queryFn: () => scheduleOptionsFn(),
+    staleTime: 10 * 60_000,
+    throwOnError: false,
+  });
+
+  const weekdayShortByValue = Object.fromEntries(
+    resolveCampaignScheduleOptions(scheduleOptions ?? null).weekdays.map((d) => [d.value, d.short]),
+  );
 
   // Campaigns carry only agent_id; resolve it to a readable name via the agents list.
   const resolveAgentName = (c: any): string | null => {
@@ -734,8 +751,17 @@ function WbahCampaignsTab() {
                 <div className="flex items-center gap-2 flex-wrap">
                   <h3 className="font-semibold truncate">{c.name ?? c.campaign_name ?? `Campaign ${c.id}`}</h3>
                   {wbahStatusBadge(c.status ?? c.campaign_status ?? "unknown")}
+                  {isCampaignScheduleExpired(c.end_date) && (
+                    <span className="inline-flex rounded-full bg-amber-500/15 px-2 py-0.5 text-xs font-medium text-amber-400">
+                      Schedule expired
+                    </span>
+                  )}
                 </div>
                 {c.description && <p className="mt-1 text-sm text-muted-foreground">{c.description}</p>}
+                <p className="mt-1.5 text-xs text-foreground/90">
+                  <Clock className="inline h-3.5 w-3.5 mr-1 text-muted-foreground" />
+                  {formatCampaignScheduleSummary(c, weekdayShortByValue)}
+                </p>
                 <div className="mt-2 flex items-center gap-4 text-xs text-muted-foreground flex-wrap">
                   {resolveAgentName(c) && <span className="flex items-center gap-1"><Users className="h-3.5 w-3.5" /> {resolveAgentName(c)}</span>}
                   {c.phoneNumber && <span className="flex items-center gap-1"><Phone className="h-3.5 w-3.5" /> {c.phoneNumber}</span>}

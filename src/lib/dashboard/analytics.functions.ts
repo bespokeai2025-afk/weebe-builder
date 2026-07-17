@@ -7,7 +7,11 @@ import { cacheWrap } from "@/lib/cache/redis.server";
 const RETELL_ANALYTICS_TTL = 15 * 60; // 15 minutes
 const RETELL_AGENTS_TTL = 5 * 60; // 5 minutes
 
-function retellAnalyticsKey(workspaceId: string, days: number) {
+type RetellAnalyticsRange =
+  | { kind: "days"; days: number }
+  | { kind: "custom"; startMs: number; endMs: number };
+
+function retellAnalyticsKey(workspaceId: string, range: RetellAnalyticsRange) {
   // v2: WBAH no longer merges the Retell API page (dedup + agent attribution fix).
   // v3: standard (platform-key) workspaces now fail closed to deployed agents
   // only. Bump so any previously-cached cross-workspace entries are not served
@@ -19,7 +23,11 @@ function retellAnalyticsKey(workspaceId: string, days: number) {
   // only) — different totals + real per-agent attribution, so v4 must not serve.
   // v6: call payloads are now trimmed server-side (transcript dropped,
   // _isVoicemail precomputed) — the shape changed, so v5 entries must not serve.
-  return `webee:analytics:${workspaceId}:retell:v6:${days}d`;
+  // v7: optional custom startMs/endMs window (Retell upper_threshold filter).
+  if (range.kind === "custom") {
+    return `webee:analytics:${workspaceId}:retell:v7:range:${range.startMs}-${range.endMs}`;
+  }
+  return `webee:analytics:${workspaceId}:retell:v7:${range.days}d`;
 }
 
 function retellAgentsKey(workspaceId: string) {
@@ -342,14 +350,41 @@ export const syncRetellReceptionist = createServerFn({ method: "GET" })
     };
   });
 
+const MAX_ANALYTICS_RANGE_MS = 90 * 24 * 60 * 60 * 1000;
+
 export const getRetellAnalytics = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: any) =>
     z
       .object({
         days: z.number().int().min(1).max(90).default(30),
+        startMs: z.number().int().positive().optional(),
+        endMs: z.number().int().positive().optional(),
         // Debug-only cache bypass (?fresh=true). Honoured in non-prod only.
         fresh: z.boolean().default(false),
+      })
+      .superRefine((value, ctx) => {
+        const hasCustom = value.startMs != null || value.endMs != null;
+        if (hasCustom && (value.startMs == null || value.endMs == null)) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: "Custom range requires both startMs and endMs",
+          });
+          return;
+        }
+        if (hasCustom && value.endMs! <= value.startMs!) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: "endMs must be after startMs",
+          });
+          return;
+        }
+        if (hasCustom && value.endMs! - value.startMs! > MAX_ANALYTICS_RANGE_MS) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: "Custom range cannot exceed 90 days",
+          });
+        }
       })
       .parse(input ?? {}),
   )
@@ -366,17 +401,31 @@ export const getRetellAnalytics = createServerFn({ method: "POST" })
         (new URL(url, "http://x").searchParams.has("bust") ||
           new URL(url, "http://x").searchParams.has("fresh")));
 
+    const cacheRange: RetellAnalyticsRange =
+      data.startMs != null && data.endMs != null
+        ? { kind: "custom", startMs: data.startMs, endMs: data.endMs }
+        : { kind: "days", days: data.days ?? 30 };
+
     return cacheWrap(
-      retellAnalyticsKey(workspaceId, data.days),
+      retellAnalyticsKey(workspaceId, cacheRange),
       RETELL_ANALYTICS_TTL,
       async () => {
     const startedAtMs = Date.now();
-    // Whole-day window in UTC: 00:00:00 UTC of the day (days-1) days ago → now.
-    // Charts, the byDay buckets and the client-side "Today" narrowing are all
-    // UTC-based, so the window boundary must be UTC too — otherwise "Today" and
-    // the trend buckets disagree. days=1 therefore means "since 00:00 UTC today".
-    const sinceMs = startOfUtcDayMs(Date.now()) - (data.days - 1) * 24 * 60 * 60 * 1000;
+    const nowMs = Date.now();
+    // Preset windows floor to whole UTC days (00:00 UTC of day (days-1) ago → now).
+    // Custom windows honour exact startMs/endMs (Retell upper_threshold + client filter).
+    let sinceMs: number;
+    let untilMs: number;
+    if (data.startMs != null && data.endMs != null) {
+      sinceMs = data.startMs;
+      untilMs = Math.min(data.endMs, nowMs);
+    } else {
+      const days = data.days ?? 30;
+      sinceMs = startOfUtcDayMs(nowMs) - (days - 1) * 24 * 60 * 60 * 1000;
+      untilMs = nowMs;
+    }
     const sinceIso = new Date(sinceMs).toISOString();
+    const untilIso = new Date(untilMs).toISOString();
 
     // Resolve the workspace's Retell key + agent allow-list. Prefers the
     // workspace's OWN key (all agents belong to it); falls back to the shared
@@ -438,10 +487,9 @@ export const getRetellAnalytics = createServerFn({ method: "POST" })
         const PAGE_SIZE = 1000;
         const CHUNK_MS = 30 * 24 * 60 * 60 * 1000;
         const MAX_PAGES_PER_CHUNK = 15; // 15k calls/chunk — far above real volumes
-        const nowMs = Date.now();
         const windows: Array<[number, number]> = [];
-        for (let lo = sinceMs; lo < nowMs; lo += CHUNK_MS) {
-          windows.push([lo, Math.min(lo + CHUNK_MS, nowMs)]);
+        for (let lo = sinceMs; lo < untilMs; lo += CHUNK_MS) {
+          windows.push([lo, Math.min(lo + CHUNK_MS, untilMs)]);
         }
         try {
           const results = await Promise.all(
@@ -492,6 +540,7 @@ export const getRetellAnalytics = createServerFn({ method: "POST" })
         .eq("provider" as never, "ELEVENLABS" as never)
         .eq("is_voicemail" as never, false as never)
         .gte("started_at", sinceIso)
+        .lte("started_at", untilIso)
         .order("started_at", { ascending: false })
         .limit(10000);
 
@@ -549,7 +598,11 @@ export const getRetellAnalytics = createServerFn({ method: "POST" })
     // heuristic incl. transcript) before trimming, so this is the exact count.
     const vmFromApi = calls.filter((c: any) => c._isVoicemail === true).length;
     if (vmFromApi > 0) {
-      console.debug(`[voicemail] getRetellAnalytics: ${vmFromApi} voicemail calls from Retell API will be excluded in computeAnalytics (${data.days}d window, workspace ${workspaceId})`);
+      const rangeLabel =
+        data.startMs != null && data.endMs != null
+          ? `${new Date(data.startMs).toISOString()}..${new Date(data.endMs).toISOString()}`
+          : `${data.days ?? 30}d`;
+      console.debug(`[voicemail] getRetellAnalytics: ${vmFromApi} voicemail calls from Retell API will be excluded in computeAnalytics (${rangeLabel}, workspace ${workspaceId})`);
     }
 
     // Reconciliation meta — counts per source so a mismatch between "All agents"
@@ -566,7 +619,7 @@ export const getRetellAnalytics = createServerFn({ method: "POST" })
       elapsedMs: Date.now() - startedAtMs,
     };
     console.log(
-      `[analytics] getRetellAnalytics workspace=${workspaceId} slug=${workspaceSlug ?? "?"} keySource=${keySource} hasKey=${!!apiKey} days=${data.days} pages=${retellPages}${retellTruncated ? "(truncated)" : ""} retell=${calls.length} el=${elCalls.length} wbah=${wbahCalls.length} total=${allCalls.length} ${meta.elapsedMs}ms`,
+      `[analytics] getRetellAnalytics workspace=${workspaceId} slug=${workspaceSlug ?? "?"} keySource=${keySource} hasKey=${!!apiKey} range=${data.startMs != null ? `${sinceMs}-${untilMs}` : `${data.days ?? 30}d`} pages=${retellPages}${retellTruncated ? "(truncated)" : ""} retell=${calls.length} el=${elCalls.length} wbah=${wbahCalls.length} total=${allCalls.length} ${meta.elapsedMs}ms`,
     );
 
     if (!configured) {
