@@ -12,6 +12,9 @@ export interface InvoicePdfInput {
   invoiceDate: string;
   dueDate: string;
   clientName: string;
+  fromName?: string;
+  fromAddress?: string;
+  toAddress?: string;
   period: string;
   currency: string;
   items: Array<{ description: string; quantity: number; unitPrice: string; amount: string }>;
@@ -75,6 +78,23 @@ export async function renderInvoicePdf(inp: InvoicePdfInput): Promise<Buffer> {
   hline(y);
   y -= 24;
 
+  // Sender ("From") block
+  if (inp.fromName?.trim() || inp.fromAddress?.trim()) {
+    text("From", margin, 9, font, MUTED);
+    y -= 14;
+    if (inp.fromName?.trim()) {
+      text(inp.fromName, margin, 11, bold);
+      y -= 14;
+    }
+    for (const rawLn of (inp.fromAddress ?? "").split(/\r?\n/).map((l) => l.trim()).filter(Boolean)) {
+      for (const ln of wrap(rawLn, font, 9, pageW - margin * 2 - 160)) {
+        text(ln, margin, 9, font, MUTED);
+        y -= 12;
+      }
+    }
+    y -= 12;
+  }
+
   // Meta block
   text("Billed to", margin, 9, font, MUTED);
   rightText("Invoice date", pageW - margin - 120, 9, font, MUTED);
@@ -84,6 +104,13 @@ export async function renderInvoicePdf(inp: InvoicePdfInput): Promise<Buffer> {
   rightText("Due date", pageW - margin - 120, 9, font, MUTED);
   page.drawText(sanitize(inp.dueDate), { x: pageW - margin - 110, y, size: 9, font });
   y -= 16;
+  for (const rawLn of (inp.toAddress ?? "").split(/\r?\n/).map((l) => l.trim()).filter(Boolean)) {
+    for (const ln of wrap(rawLn, font, 9, pageW - margin * 2 - 160)) {
+      text(ln, margin, 9, font, MUTED);
+      y -= 12;
+    }
+  }
+  y -= 4;
   text(`Billing period: ${inp.period}`, margin, 10, font, MUTED);
   y -= 30;
 

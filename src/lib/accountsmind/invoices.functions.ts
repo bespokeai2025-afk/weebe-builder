@@ -175,13 +175,14 @@ export const generateInvoice = createServerFn({ method: "POST" })
       return { ok: false as const, error: "Pick a Word template, or choose PDF format (built-in layout)." };
     }
 
-    const [{ data: tpl }, { data: ws }, { data: profile }, { data: monthCosts }] = await Promise.all([
+    const [{ data: tpl }, { data: ws }, { data: profile }, { data: monthCosts }, { data: sender }] = await Promise.all([
       data.templateId
         ? sb.from("accountsmind_invoice_templates").select("*").eq("id", data.templateId).maybeSingle()
         : Promise.resolve({ data: null }),
       sb.from("workspaces").select("id,name").eq("id", data.workspaceId).maybeSingle(),
       sb.from("client_billing_profiles").select("*").eq("workspace_id", data.workspaceId).maybeSingle(),
       sb.from("client_monthly_costs").select("*").eq("workspace_id", data.workspaceId).eq("month", data.month).maybeSingle(),
+      sb.from("accountsmind_invoice_settings").select("from_name,from_address").eq("id", 1).maybeSingle(),
     ]);
     if (format === "docx" && !tpl) return { ok: false as const, error: "Template not found." };
     if (!ws) return { ok: false as const, error: "Client workspace not found." };
@@ -275,6 +276,9 @@ export const generateInvoice = createServerFn({ method: "POST" })
       invoice_date: fmt(today),
       due_date: fmt(due),
       client_name: ws.name ?? "Client",
+      from_name: String(sender?.from_name ?? ""),
+      from_address: String(sender?.from_address ?? ""),
+      to_address: String(profile?.billing_address ?? ""),
       period: periodLabel,
       billing_month: data.month,
       currency,
@@ -305,6 +309,9 @@ export const generateInvoice = createServerFn({ method: "POST" })
           invoiceDate: fmt(today),
           dueDate: fmt(due),
           clientName: ws.name ?? "Client",
+          fromName: payload.from_name,
+          fromAddress: payload.from_address,
+          toAddress: payload.to_address,
           period: periodLabel,
           currency,
           items: payload.items.map((i: any) => ({

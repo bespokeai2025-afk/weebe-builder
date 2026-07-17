@@ -12,7 +12,11 @@ import {
   updateInvoiceStatus,
   INVOICE_STATUSES,
 } from "@/lib/accountsmind/invoices.functions";
-import { listAccountsClients } from "@/lib/accountsmind/accountsmind.functions";
+import {
+  listAccountsClients,
+  getInvoiceSenderSettings,
+  upsertInvoiceSenderSettings,
+} from "@/lib/accountsmind/accountsmind.functions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -39,6 +43,7 @@ const STATUS_STYLES: Record<string, string> = {
 
 const PLACEHOLDER_HELP = [
   "{invoice_number}", "{invoice_date}", "{due_date}", "{client_name}",
+  "{from_name}", "{from_address}", "{to_address}",
   "{period}", "{currency}", "{subtotal}", "{tax_rate}", "{tax}", "{total}", "{notes}",
 ];
 
@@ -53,6 +58,34 @@ export function AccountsMindInvoices() {
   const delInvFn = useServerFn(deleteInvoice);
   const statusFn = useServerFn(updateInvoiceStatus);
   const clientsFn = useServerFn(listAccountsClients);
+  const senderGetFn = useServerFn(getInvoiceSenderSettings);
+  const senderSaveFn = useServerFn(upsertInvoiceSenderSettings);
+
+  // ── Sender ("From") details ──
+  const [fromName, setFromName] = useState("");
+  const [fromAddress, setFromAddress] = useState("");
+  const [senderLoaded, setSenderLoaded] = useState(false);
+  useQuery({
+    queryKey: ["am-invoice-sender"],
+    queryFn: async () => {
+      const s: any = await senderGetFn();
+      if (!senderLoaded) {
+        setFromName(s?.fromName ?? "");
+        setFromAddress(s?.fromAddress ?? "");
+        setSenderLoaded(true);
+      }
+      return s;
+    },
+    throwOnError: false,
+  });
+  const senderMut = useMutation({
+    mutationFn: () => senderSaveFn({ data: { fromName: fromName.trim(), fromAddress: fromAddress.trim() } }),
+    onSuccess: () => {
+      toast.success("Sender details saved");
+      qc.invalidateQueries({ queryKey: ["am-invoice-sender"] });
+    },
+    onError: (e: any) => toast.error(e?.message ?? "Save failed"),
+  });
 
   const { data: tplData } = useQuery({
     queryKey: ["am-invoice-templates"],
@@ -206,6 +239,31 @@ export function AccountsMindInvoices() {
           ))}
         </div>
       )}
+
+      {/* Sender details */}
+      <section className="rounded-xl border border-slate-800 bg-slate-900/60 p-4 space-y-3">
+        <h2 className="text-sm font-medium text-white flex items-center gap-2">
+          <Receipt className="w-4 h-4 text-emerald-400" /> Your details (invoice "From")
+        </h2>
+        <p className="text-[11px] text-slate-500">
+          Shown on every invoice — as the From block on built-in PDFs, and via <code className="text-slate-400">{"{from_name}"}</code> and{" "}
+          <code className="text-slate-400">{"{from_address}"}</code> in Word templates. The client's address comes from their billing profile
+          (Clients page) and fills <code className="text-slate-400">{"{to_address}"}</code>.
+        </p>
+        <div className="flex flex-wrap items-start gap-3">
+          <div className="space-y-1">
+            <label className="text-xs text-slate-400">Business name</label>
+            <Input value={fromName} onChange={(e) => setFromName(e.target.value)} placeholder="WEBEE Ltd" className="w-56 bg-slate-950 border-slate-700 text-white" />
+          </div>
+          <div className="space-y-1 flex-1 min-w-[260px]">
+            <label className="text-xs text-slate-400">Address</label>
+            <Textarea value={fromAddress} onChange={(e) => setFromAddress(e.target.value)} placeholder={"1 Example Road\nLondon\nSW1A 1AA\nVAT: GB123456789"} rows={3} className="bg-slate-950 border-slate-700 text-white" />
+          </div>
+          <Button size="sm" disabled={senderMut.isPending} onClick={() => senderMut.mutate()} className="bg-emerald-600 hover:bg-emerald-500 mt-5">
+            {senderMut.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />} Save
+          </Button>
+        </div>
+      </section>
 
       {/* Templates */}
       <section className="rounded-xl border border-slate-800 bg-slate-900/60 p-4 space-y-4">
