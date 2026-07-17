@@ -192,6 +192,27 @@ export type Database = {
           },
         ]
       }
+      accountsmind_invoice_settings: {
+        Row: {
+          from_address: string
+          from_name: string
+          id: number
+          updated_at: string
+        }
+        Insert: {
+          from_address?: string
+          from_name?: string
+          id?: number
+          updated_at?: string
+        }
+        Update: {
+          from_address?: string
+          from_name?: string
+          id?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
       accountsmind_invoice_templates: {
         Row: {
           created_at: string
@@ -1814,6 +1835,7 @@ export type Database = {
       }
       client_billing_profiles: {
         Row: {
+          billing_address: string
           billing_cycle: string
           contract_end_date: string | null
           contract_start_date: string | null
@@ -1833,6 +1855,7 @@ export type Database = {
           workspace_id: string
         }
         Insert: {
+          billing_address?: string
           billing_cycle?: string
           contract_end_date?: string | null
           contract_start_date?: string | null
@@ -1852,6 +1875,7 @@ export type Database = {
           workspace_id: string
         }
         Update: {
+          billing_address?: string
           billing_cycle?: string
           contract_end_date?: string | null
           contract_start_date?: string | null
