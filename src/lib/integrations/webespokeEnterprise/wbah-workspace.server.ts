@@ -29,9 +29,10 @@ import { cacheWrap, cacheGet, cacheSet } from "@/lib/cache/redis.server";
 import * as api from "./client.server";
 import { wbahCallsParamTest, wbahCallsPostPage, wbahLeadsParamTest } from "./client.server";
 import { getCampaignData } from "@/lib/api-engine/data-source-router.server";
-import type { DynamicsCategorySyncResult } from "./wbah-campaign-sync.types";
+import type { CampaignScheduleOptions, DynamicsCategorySyncResult } from "./wbah-campaign-sync.types";
 import {
   WBAH_CAMPAIGN_LEAD_STATUS_OPTIONS,
+  resolveCampaignScheduleOptions,
 } from "./wbah-campaign-sync.types";
 
 // ── Internal: require webuyanyhouse membership + get API token callbacks ───────
@@ -554,6 +555,13 @@ function normalizeWbahCampaign(raw: any): any {
   if (out.frequency_type == null && raw.frequency != null) {
     out.frequency_type = String(raw.frequency).toLowerCase() === "custom" ? "custom" : "daily";
   }
+  if (out.start_date == null && raw.start_date != null) out.start_date = raw.start_date;
+  if (out.end_date == null && raw.end_date != null) out.end_date = raw.end_date;
+  if (out.days_of_week_list == null && raw.days_of_week_list != null) {
+    out.days_of_week_list = raw.days_of_week_list;
+  } else if (out.days_of_week_list == null && Array.isArray(raw.days_of_week)) {
+    out.days_of_week_list = raw.days_of_week;
+  }
   if (out.created_at == null && raw.createdAt != null) out.created_at = raw.createdAt;
   if (typeof raw.status === "string") out.status = raw.status.toLowerCase();
   return out;
@@ -563,24 +571,49 @@ const wbahCampaignLeadStatusValues = WBAH_CAMPAIGN_LEAD_STATUS_OPTIONS.map(
   (o) => o.value,
 ) as [string, string, string];
 
-const wbahCampaignFormSchema = z.object({
+const wbahDateOnly = z
+  .union([z.literal(""), z.null(), z.string().regex(/^\d{4}-\d{2}-\d{2}$/)])
+  .optional()
+  .transform((v) => (v === "" || v == null ? null : v));
+
+const wbahCampaignFormFields = z.object({
   campaign_name: z.string().min(1).max(120),
   agent_id: z.string().nullable().optional(),
   lead_status: z.enum(wbahCampaignLeadStatusValues),
   call_time: z.string().default("09:00"),
   timezone: z.string().default("Europe/London"),
   frequency_type: z.enum(["daily", "custom"]).default("daily"),
-  interval_days: z.number().int().min(1).max(365).optional(),
+  interval_days: z.number().int().min(1).max(365).default(1),
+  start_date: wbahDateOnly,
+  end_date: wbahDateOnly,
+  days_of_week: z.array(z.number().int().min(1).max(7)).nullable().optional(),
   voicemail_enabled: z.boolean().optional(),
 });
 
+function refineCampaignDateRange(
+  data: { start_date?: string | null; end_date?: string | null },
+  ctx: z.RefinementCtx,
+) {
+  if (data.start_date && data.end_date && data.end_date < data.start_date) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "End date must be on or after start date",
+      path: ["end_date"],
+    });
+  }
+}
+
+const wbahCampaignFormSchema = wbahCampaignFormFields.superRefine(refineCampaignDateRange);
+
 /** Map WEBEE campaign form fields → UAT API body (`name`, `call_hour`, `frequency`, …). */
 function uiCampaignFormToUatPayload(
-  data: z.infer<typeof wbahCampaignFormSchema>,
+  data: z.infer<typeof wbahCampaignFormFields>,
 ): Record<string, unknown> {
   const [hhRaw, mmRaw] = (data.call_time ?? "09:00").split(":");
   const call_hour = Math.min(23, Math.max(0, parseInt(hhRaw, 10) || 0));
   const call_minute = Math.min(59, Math.max(0, parseInt(mmRaw, 10) || 0));
+  const weekdays =
+    data.days_of_week && data.days_of_week.length > 0 ? data.days_of_week : null;
   return {
     name: data.campaign_name.trim(),
     agent_id: data.agent_id || null,
@@ -590,6 +623,9 @@ function uiCampaignFormToUatPayload(
     timezone: data.timezone ?? "Europe/London",
     frequency: data.frequency_type === "custom" ? "Custom" : "Daily",
     interval_days: data.interval_days ?? 1,
+    start_date: data.start_date ?? null,
+    end_date: data.end_date ?? null,
+    days_of_week: weekdays,
     voicemail_enabled: data.voicemail_enabled ?? false,
   };
 }
@@ -741,7 +777,7 @@ export const getWbahCredits = createServerFn({ method: "GET" })
     // other WBAH read passes reloginFn for exactly this reason). Doing it first
     // also lets the remaining three calls reuse the refreshed token instead of
     // racing four parallel 401→relogin attempts against the single-session limit.
-    const summaryR = await api.wbahGetCreditSummary(gt, st, rl);
+    const summaryR = await api.wbahGetCreditSummary("cycle", gt, st, rl);
     if (!summaryR.ok) {
       // Surface the failure instead of silently returning a null summary, which
       // rendered every tile as 0 with no error (the original bug).
@@ -752,7 +788,7 @@ export const getWbahCredits = createServerFn({ method: "GET" })
     }
 
     const [monthlyR, historyR, retellR] = await Promise.all([
-      api.wbahGetMonthlyUsage(gt, st, rl),
+      api.wbahGetMonthlyUsage("month", gt, st, rl),
       api.wbahGetCreditHistory(gt, st, rl),
       api.wbahGetRetellUsage(gt, st, rl),
     ]);
@@ -866,13 +902,84 @@ export const getWbahCredits = createServerFn({ method: "GET" })
 
 export const getWbahCampaignLeadStatusOptions = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
-  .handler(async () => {
-    // Campaigns dial only the three Dynamics-synced CRM cohorts.
+  .handler(async ({ context }) => {
+    await requireWbahView(context.userId);
+    const cbs = await requireWbahCbs(context.userId);
+    try {
+      const res = await api.wbahGetCampaignLeadStatusOptions(
+        cbs.getTokens,
+        cbs.saveNewAccessToken,
+        cbs.reloginFn,
+      );
+      if (res.ok && res.data) {
+        const envelope = res.data as Record<string, unknown>;
+        const inner = Array.isArray(envelope.data)
+          ? envelope.data
+          : Array.isArray(envelope)
+            ? envelope
+            : null;
+        if (inner && inner.length > 0) {
+          return inner.map((o: any) => ({
+            value: String(o.value ?? o.label ?? ""),
+            label: String(o.label ?? o.value ?? ""),
+            source: (o.source as string | undefined) ?? "dynamics",
+          }));
+        }
+      }
+    } catch {
+      /* fall through to static list */
+    }
     return WBAH_CAMPAIGN_LEAD_STATUS_OPTIONS.map((o) => ({
       value: o.value,
       label: o.label,
       source: "dynamics" as const,
     }));
+  });
+
+export const getWbahCampaignScheduleOptions = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const cbs = await requireWbahCbs(context.userId);
+    try {
+      const res = await api.wbahGetCampaignScheduleOptions(
+        cbs.getTokens,
+        cbs.saveNewAccessToken,
+        cbs.reloginFn,
+      );
+      if (!res.ok) {
+        console.warn(
+          "[wbah] GET /campaigns/schedule-options failed:",
+          res.status,
+          res.error?.slice(0, 120),
+        );
+        return { ...resolveCampaignScheduleOptions(null), fromApi: false as const };
+      }
+      const envelope = res.data as Record<string, unknown> | null;
+      // UAT envelope: { result, data: { weekdays, examples, … } }
+      let inner: Record<string, unknown> | null = null;
+      if (envelope?.data && typeof envelope.data === "object" && !Array.isArray(envelope.data)) {
+        inner = envelope.data as Record<string, unknown>;
+      } else if (envelope && typeof envelope === "object") {
+        inner = envelope;
+      }
+      const weekdays = Array.isArray(inner?.weekdays) ? inner.weekdays : [];
+      const examplesRaw = inner?.examples as Record<string, unknown> | undefined;
+      return {
+        ...resolveCampaignScheduleOptions({
+          weekdays: weekdays as CampaignScheduleOptions["weekdays"],
+          weekdayConvention:
+            typeof inner?.weekdayConvention === "string" ? inner.weekdayConvention : undefined,
+          examples:
+            examplesRaw && typeof examplesRaw === "object"
+              ? (examplesRaw as CampaignScheduleOptions["examples"])
+              : undefined,
+        }),
+        fromApi: weekdays.length > 0,
+      };
+    } catch (e) {
+      console.warn("[wbah] schedule-options error:", (e as Error).message);
+      return { ...resolveCampaignScheduleOptions(null), fromApi: false as const };
+    }
   });
 
 export const createWbahCampaign = createServerFn({ method: "POST" })
@@ -937,7 +1044,12 @@ export const deleteWbahCampaign = createServerFn({ method: "POST" })
 
 export const updateWbahCampaignSettings = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((i) => wbahCampaignFormSchema.extend({ id: z.string().min(1) }).parse(i ?? {}))
+  .inputValidator((i) =>
+    wbahCampaignFormFields
+      .extend({ id: z.string().min(1) })
+      .superRefine(refineCampaignDateRange)
+      .parse(i ?? {}),
+  )
   .handler(async ({ context, data }) => {
     const { id, ...form } = data;
     const cbs = await requireWbahCbs(context.userId);
@@ -1862,7 +1974,10 @@ function normaliseWbahCall(r: any, idx: number): Record<string, unknown> {
     ended_at: null,
     recording_url: r.recording_url ?? r.recordingUrl ?? null,
     transcript: r.transcript ?? r.callTranscript ?? null,
-    call_summary: r.transcript ?? r.callTranscript ?? r.callSummary ?? null,
+    call_summary:
+      (r.call_summary && String(r.call_summary).trim()) ||
+      (r.callSummary && String(r.callSummary).trim()) ||
+      null,
     from_number: callType === "inbound" ? phone : null,
     to_number: callType === "outbound" ? phone : null,
     sentiment,
@@ -2096,7 +2211,7 @@ export const listWbahCallsPaged = createServerFn({ method: "POST" })
         // transcript is selected only to derive `hasTranscript`; it is NOT
         // returned in the response (fetched on demand via getWbahCallDetail).
         .select(
-          "id, customer_name, phone, agent_name, call_status, call_type, sentiment, duration_seconds, started_at, recording_url, transcript, disconnection_reason, end_reason, appointment_date, appointment_time, booking_status, calendly_booking_url, call_count",
+          "id, customer_name, phone, agent_name, call_status, call_type, sentiment, duration_seconds, started_at, recording_url, transcript, call_summary, disconnection_reason, end_reason, appointment_date, appointment_time, booking_status, calendly_booking_url, call_count",
           { count: "exact" },
         )
         .eq("workspace_id", workspaceId);
@@ -2133,6 +2248,10 @@ export const listWbahCallsPaged = createServerFn({ method: "POST" })
         durationMs: r.duration_seconds ? r.duration_seconds * 1000 : null,
         recordingUrl: r.recording_url ?? null,
         endReason: r.end_reason ?? null,
+        callSummary:
+          r.call_summary && String(r.call_summary).trim()
+            ? String(r.call_summary).trim()
+            : null,
         hasTranscript: !!(r.transcript && String(r.transcript).trim()),
       }));
 
@@ -3023,6 +3142,83 @@ export const listWbahCategorizedLeads = createServerFn({ method: "POST" })
     );
     const rows = await enrichPeopleCrmRowsWithWbahCalls(workspaceId, result.rows);
     return { ...result, rows };
+  });
+
+// ── Callback dashboard (UAT /call-output-data/callbacks/*) ────────────────────
+
+const wbahCallbackStatusSchema = z.enum(["pending", "due", "upcoming", "completed"]);
+
+export const getWbahCallbackSummary = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const wsId = await requireWbahView(context.userId);
+    const cbs = await requireWbahCbs(context.userId);
+    const { normalizeCallbackSummary, unwrapWbahEnvelope } = await import(
+      "./wbah-callbacks.types"
+    );
+    return cacheWrap(`webee:wbah-callback-summary:${wsId}`, 30, async () => {
+      const res = await api.wbahGetCallbackSummary(
+        cbs.getTokens,
+        cbs.saveNewAccessToken,
+        cbs.reloginFn,
+      );
+      if (!res.ok) throw new Error(res.error ?? "Failed to fetch callback summary");
+      const raw = unwrapWbahEnvelope<unknown>(res.data);
+      return normalizeCallbackSummary(raw);
+    });
+  });
+
+export const listWbahCallbacks = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator(
+    z.object({
+      status: wbahCallbackStatusSchema.default("pending"),
+      page: z.coerce.number().int().min(1).default(1),
+      pageSize: z.coerce.number().int().min(1).max(200).default(50),
+      search: z.string().trim().max(120).optional(),
+    }),
+  )
+  .handler(async ({ data, context }) => {
+    const wsId = await requireWbahView(context.userId);
+    const cbs = await requireWbahCbs(context.userId);
+    const { normalizeCallbackRow, unwrapWbahEnvelope } = await import("./wbah-callbacks.types");
+    const searchKey = (data.search ?? "").slice(0, 40);
+    const key = `webee:wbah-callbacks:${wsId}:${data.status}:p${data.page}:ps${data.pageSize}:q${searchKey}`;
+    return cacheWrap(key, 30, async () => {
+      const res = await api.wbahGetCallbacks(
+        {
+          status: data.status,
+          page: data.page,
+          pageSize: data.pageSize,
+          search: data.search,
+        },
+        cbs.getTokens,
+        cbs.saveNewAccessToken,
+        cbs.reloginFn,
+      );
+      if (!res.ok) throw new Error(res.error ?? "Failed to fetch callbacks");
+      const envelope = res.data as Record<string, unknown> | null;
+      const itemsRaw = Array.isArray(envelope?.data)
+        ? envelope.data
+        : Array.isArray(unwrapWbahEnvelope<unknown[]>(envelope))
+          ? (unwrapWbahEnvelope<unknown[]>(envelope) as unknown[])
+          : [];
+      const paginationRaw =
+        (envelope?.pagination as Record<string, unknown> | undefined) ??
+        (unwrapWbahEnvelope<Record<string, unknown>>(envelope)?.pagination as
+          | Record<string, unknown>
+          | undefined);
+      const pagination = {
+        totalItems: Number(paginationRaw?.totalItems ?? paginationRaw?.total_items ?? itemsRaw.length),
+        totalPages: Number(paginationRaw?.totalPages ?? paginationRaw?.total_pages ?? 1),
+        currentPage: Number(paginationRaw?.currentPage ?? paginationRaw?.current_page ?? data.page),
+        pageSize: Number(paginationRaw?.pageSize ?? paginationRaw?.page_size ?? data.pageSize),
+      };
+      return {
+        items: itemsRaw.map((row, i) => normalizeCallbackRow(row, i)),
+        pagination,
+      };
+    });
   });
 
 // ── WBAH seller leads from DB (synced by wbah-leads-sync plugin) ──────────────

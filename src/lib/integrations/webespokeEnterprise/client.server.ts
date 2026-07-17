@@ -246,6 +246,24 @@ export const wbahGetUserCallLeadAll = (gt: GetTokens, st: SaveToken) =>
 export const wbahGetPendingCallbacks = (gt: GetTokens, st: SaveToken) =>
   aGet("/call-output-data/callbacks/pending", gt, st);
 
+export const wbahGetCallbackSummary = (gt: GetTokens, st: SaveToken, rl?: Relogin) =>
+  aGet("/call-output-data/callbacks/summary", gt, st, rl);
+
+export const wbahGetCallbacks = (
+  params: { status: string; page?: number; pageSize?: number; search?: string },
+  gt: GetTokens,
+  st: SaveToken,
+  rl?: Relogin,
+) => {
+  const q = new URLSearchParams({
+    status: params.status,
+    page: String(params.page ?? 1),
+    pageSize: String(params.pageSize ?? 50),
+  });
+  if (params.search?.trim()) q.set("search", params.search.trim());
+  return aGet(`/call-output-data/callbacks?${q}`, gt, st, rl);
+};
+
 export const wbahGetAllCallOutput = (gt: GetTokens, st: SaveToken) =>
   aGet("/call-output-data/all", gt, st);
 
@@ -300,6 +318,9 @@ export const wbahGetCampaigns = (gt: GetTokens, st: SaveToken, rl?: Relogin) =>
 
 export const wbahGetCampaignLeadStatusOptions = (gt: GetTokens, st: SaveToken, rl?: Relogin) =>
   aGet("/campaigns/lead-status-options", gt, st, rl);
+
+export const wbahGetCampaignScheduleOptions = (gt: GetTokens, st: SaveToken, rl?: Relogin) =>
+  aGet("/campaigns/schedule-options", gt, st, rl);
 
 export const wbahCreateCampaign = (payload: Record<string, unknown>, gt: GetTokens, st: SaveToken, rl?: Relogin) =>
   aPost("/campaigns", payload, gt, st, rl);
@@ -385,14 +406,22 @@ export const wbahPhoneVoicemailSetting = (id: string, payload: Record<string, un
 
 // ── Credits ───────────────────────────────────────────────────────────────────
 
-export const wbahGetCreditSummary = (gt: GetTokens, st: SaveToken, rl?: Relogin) =>
-  aGet("/credits/summary", gt, st, rl);
+export const wbahGetCreditSummary = (
+  period: "cycle" | "week" | "month" | "year",
+  gt: GetTokens,
+  st: SaveToken,
+  rl?: Relogin,
+) => aGet(`/credits/summary?period=${period}`, gt, st, rl);
 
 export const wbahGetCreditHistory = (gt: GetTokens, st: SaveToken, rl?: Relogin) =>
   aGet("/credits/history", gt, st, rl);
 
-export const wbahGetMonthlyUsage = (gt: GetTokens, st: SaveToken, rl?: Relogin) =>
-  aGet("/credits/monthly-usage", gt, st, rl);
+export const wbahGetMonthlyUsage = (
+  granularity: "week" | "month" | "year",
+  gt: GetTokens,
+  st: SaveToken,
+  rl?: Relogin,
+) => aGet(`/credits/monthly-usage?granularity=${granularity}`, gt, st, rl);
 
 export const wbahGetRetellUsage = (gt: GetTokens, st: SaveToken, rl?: Relogin) =>
   aGet("/credits/retell-usage", gt, st, rl);

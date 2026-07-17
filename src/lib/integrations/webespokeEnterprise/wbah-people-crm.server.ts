@@ -5,6 +5,7 @@
 import * as api from "./client.server";
 import { phoneDigits } from "@/lib/dashboard/wbah-booking-meta";
 import { DYNAMICS_CATEGORY_LABELS, type DynamicsCategorySlug } from "./wbah-campaign-sync.types";
+import { parseWbahCrmData, type WbahCrmData } from "./wbah-crm-data.types";
 
 export type WbahPeopleCategoryRow = {
   id: string;
@@ -26,6 +27,7 @@ export type WbahPeopleCategoryRow = {
     raw_crm?: Record<string, unknown>;
     raw_call?: Record<string, unknown>;
     lead_status: string;
+    crm?: WbahCrmData | null;
     appointment_date: string | null;
     booking_status: string | null;
     recording_url: string | null;
@@ -211,6 +213,7 @@ function mapCrmRow(raw: Record<string, unknown>, categoryLabel: string): WbahPeo
     pickStr(raw, "category_first_seen_at", "categoryFirstSeenAt", "first_seen", "firstSeen", "createdAt", "created_at", "synced_at") ??
     new Date().toISOString();
   const leadStatus = pickStr(raw, "lead_status", "leadStatus") ?? categoryLabel;
+  const crm = parseWbahCrmData(raw);
 
   const rawLead: Record<string, unknown> = {
     callStatus: raw.callStatus ?? raw.call_status ?? null,
@@ -228,6 +231,8 @@ function mapCrmRow(raw: Record<string, unknown>, categoryLabel: string): WbahPeo
     transcript: raw.transcript ?? null,
     is_callback_pending: raw.is_callback_pending ?? raw.isCallbackPending ?? null,
     category_slug: raw.category_slug ?? raw.categorySlug ?? null,
+    need_to_call: crm?.need_to_call ?? raw.need_to_call ?? raw.needToCall ?? null,
+    lead_status: leadStatus,
   };
 
   return {
@@ -248,6 +253,8 @@ function mapCrmRow(raw: Record<string, unknown>, categoryLabel: string): WbahPeo
     meta: {
       raw_lead: rawLead,
       raw_crm: { ...raw },
+      raw_call: undefined,
+      crm,
       lead_status: leadStatus,
       appointment_date: (rawLead.appointment_date as string | null) ?? null,
       booking_status: (rawLead.booking_status as string | null) ?? null,
@@ -335,8 +342,15 @@ function mergeWbahCallIntoRawLead(
         : (raw.startTimestamp ?? null),
     durationMs: durationMs != null ? String(durationMs) : (raw.durationMs ?? null),
     recordingUrl: call.recording_url ?? raw.recordingUrl ?? null,
+    callSummary: call.call_summary ?? raw.callSummary ?? raw.call_summary ?? null,
+    call_summary: call.call_summary ?? raw.call_summary ?? raw.callSummary ?? null,
     wbah_call_id: call.id ?? raw.wbah_call_id ?? null,
-    has_transcript: !!(call.recording_url ?? raw.recordingUrl ?? raw.has_transcript),
+    has_transcript: !!(
+      (call.transcript && String(call.transcript).trim()) ||
+      call.recording_url ||
+      raw.recordingUrl ||
+      raw.has_transcript
+    ),
   };
 }
 

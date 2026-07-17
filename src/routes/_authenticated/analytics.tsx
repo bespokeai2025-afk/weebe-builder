@@ -44,6 +44,8 @@ import { AiInsightsTab } from "@/components/analytics-hub/AiInsightsTab";
 import { Button } from "@/components/ui/button";
 import { SavedFiltersSection } from "@/components/people-views/SavedFiltersSection";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
 import { getRetellAnalytics, listVoiceAgents } from "@/lib/dashboard/analytics.functions";
 import { getWbahCredits } from "@/lib/integrations/webespokeEnterprise/wbah-workspace.server";
@@ -62,7 +64,54 @@ const RANGES = [
   { label: "30d",   key: "30d",   days: 30 },
   { label: "60d",   key: "60d",   days: 60 },
   { label: "90d",   key: "90d",   days: 90 },
+  { label: "Custom", key: "custom", days: 0 },
 ];
+
+const HOURLY_TREND_MAX_MS = 48 * 60 * 60 * 1000;
+
+function startOfUtcDayMs(ms: number): number {
+  const d = new Date(ms);
+  d.setUTCHours(0, 0, 0, 0);
+  return d.getTime();
+}
+
+function toDatetimeLocalValue(d: Date): string {
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+function defaultCustomRange(): { start: string; end: string } {
+  const end = new Date();
+  const start = new Date();
+  start.setHours(0, 0, 0, 0);
+  return { start: toDatetimeLocalValue(start), end: toDatetimeLocalValue(end) };
+}
+
+function parseDatetimeLocalValue(value: string): number | null {
+  if (!value) return null;
+  const ms = new Date(value).getTime();
+  return Number.isNaN(ms) ? null : ms;
+}
+
+function hourSlotKey(ts: number): string {
+  return new Date(ts).toISOString().slice(0, 13);
+}
+
+function generateHourSlots(startMs: number, endMs: number): string[] {
+  const slots: string[] = [];
+  const cursor = new Date(startMs);
+  cursor.setUTCMinutes(0, 0, 0);
+  while (cursor.getTime() <= endMs) {
+    slots.push(cursor.toISOString().slice(0, 13));
+    cursor.setUTCHours(cursor.getUTCHours() + 1);
+  }
+  return slots;
+}
+
+function shortHourSlot(key: string): string {
+  const d = new Date(`${key}:00:00.000Z`);
+  return d.toLocaleString(undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit", hour12: false, timeZone: "UTC" });
+}
 
 const CHART = {
   primary:     "#8B5CF6",
@@ -338,6 +387,10 @@ function computeAnalytics(allCalls: any[], includeVoicemails = false) {
   const byDayOutcome:  Record<string, { success: number; unsuccessful: number; voicemail: number }> = {};
   const byDayLatency:  Record<string, { llm: number[]; e2e: number[]; tts: number[] }> = {};
   const byHour:        Record<number, number> = {};
+  const byHourSlot:         Record<string, number> = {};
+  const byHourSlotDuration: Record<string, { total: number; count: number }> = {};
+  const byHourSlotOutcome:  Record<string, { success: number; unsuccessful: number; voicemail: number }> = {};
+  const byHourSlotLatency:  Record<string, { llm: number[]; e2e: number[]; tts: number[] }> = {};
   let totalDurationSec = 0, successCount = 0, unsuccessCount = 0, voicemailCount = 0, transferCount = 0;
   const llmLatencies: number[] = [], e2eLatencies: number[] = [], ttsLatencies: number[] = [];
 
@@ -358,17 +411,25 @@ function computeAnalytics(allCalls: any[], includeVoicemails = false) {
     if (llm != null) llmLatencies.push(llm); if (e2e != null) e2eLatencies.push(e2e); if (tts != null) ttsLatencies.push(tts);
     if (c.start_timestamp) {
       const d = new Date(c.start_timestamp); const key = d.toISOString().slice(0, 10); const hr = d.getUTCHours();
+      const hourKey = hourSlotKey(c.start_timestamp);
       byDay[key] = (byDay[key] ?? 0) + 1; byHour[hr] = (byHour[hr] ?? 0) + 1;
+      byHourSlot[hourKey] = (byHourSlot[hourKey] ?? 0) + 1;
       const dd = byDayDuration[key] ?? { total: 0, count: 0 }; dd.total += durSec; dd.count++; byDayDuration[key] = dd;
+      const hdd = byHourSlotDuration[hourKey] ?? { total: 0, count: 0 }; hdd.total += durSec; hdd.count++; byHourSlotDuration[hourKey] = hdd;
       const do_ = byDayOutcome[key] ?? { success: 0, unsuccessful: 0, voicemail: 0 };
       if (c.call_analysis?.call_successful === true) do_.success++; else if (c.call_analysis?.call_successful === false) do_.unsuccessful++;
       if (c.call_analysis?.in_voicemail) do_.voicemail++; byDayOutcome[key] = do_;
+      const ho_ = byHourSlotOutcome[hourKey] ?? { success: 0, unsuccessful: 0, voicemail: 0 };
+      if (c.call_analysis?.call_successful === true) ho_.success++; else if (c.call_analysis?.call_successful === false) ho_.unsuccessful++;
+      if (c.call_analysis?.in_voicemail) ho_.voicemail++; byHourSlotOutcome[hourKey] = ho_;
       const dl = byDayLatency[key] ?? { llm: [], e2e: [], tts: [] };
       if (llm != null) dl.llm.push(llm); if (e2e != null) dl.e2e.push(e2e); if (tts != null) dl.tts.push(tts); byDayLatency[key] = dl;
+      const hl = byHourSlotLatency[hourKey] ?? { llm: [], e2e: [], tts: [] };
+      if (llm != null) hl.llm.push(llm); if (e2e != null) hl.e2e.push(e2e); if (tts != null) hl.tts.push(tts); byHourSlotLatency[hourKey] = hl;
     }
   }
   const avg = (arr: number[]) => (arr.length ? arr.reduce((a, b) => a + b, 0) / arr.length : 0);
-  return { total, inbound, outbound, webCalls, byStatus, byDisconnect, bySentiment, byAgent, byDay, byDayDuration, byDayOutcome, byDayLatency, byHour, totalDurationSec, totalMinutes: Math.round(totalDurationSec / 60), avgDuration: total ? totalDurationSec / total : 0, successCount, unsuccessCount, voicemailCount, voicemailTotal, voicemailScreenedCount: voicemailCount_excluded, transferCount, successRate: total ? (successCount / total) * 100 : 0, avgLlmLatency: avg(llmLatencies), avgE2eLatency: avg(e2eLatencies), avgTtsLatency: avg(ttsLatencies) };
+  return { total, inbound, outbound, webCalls, byStatus, byDisconnect, bySentiment, byAgent, byDay, byDayDuration, byDayOutcome, byDayLatency, byHour, byHourSlot, byHourSlotDuration, byHourSlotOutcome, byHourSlotLatency, totalDurationSec, totalMinutes: Math.round(totalDurationSec / 60), avgDuration: total ? totalDurationSec / total : 0, successCount, unsuccessCount, voicemailCount, voicemailTotal, voicemailScreenedCount: voicemailCount_excluded, transferCount, successRate: total ? (successCount / total) * 100 : 0, avgLlmLatency: avg(llmLatencies), avgE2eLatency: avg(e2eLatencies), avgTtsLatency: avg(ttsLatencies) };
 }
 
 // ── Page ──────────────────────────────────────────────────────────────────────
@@ -446,21 +507,51 @@ function AnalyticsPage() {
   const getLiveAgentsFn = useServerFn(getDashboardLiveAgents);
   const listVoiceAgentsFn = useServerFn(listVoiceAgents);
   const [rangeKey, setRangeKey] = useState("30d");
+  const [customStart, setCustomStart] = useState("");
+  const [customEnd, setCustomEnd] = useState("");
   const activeRange = RANGES.find((r) => r.key === rangeKey) ?? RANGES[2];
   const days = activeRange.days;
-  const todayOnly = rangeKey === "today";
-  // Start of today in UTC — charts and the call breakdown are UTC-based, so
-  // "Today" means calls since 00:00 UTC. The server fetches a 1-day window
-  // (days=1) and we narrow it to today client-side for an exact boundary.
-  const startOfTodayMs = useMemo(() => {
-    const d = new Date();
-    d.setUTCHours(0, 0, 0, 0);
-    return d.getTime();
-  }, [rangeKey]);
+
+  const { rangeStartMs, rangeEndMs, queryParams, customRangeInvalid } = useMemo(() => {
+    const now = Date.now();
+    if (rangeKey === "custom") {
+      const startMs = parseDatetimeLocalValue(customStart);
+      const endMs = parseDatetimeLocalValue(customEnd);
+      if (startMs == null || endMs == null || endMs <= startMs) {
+        return { rangeStartMs: null, rangeEndMs: null, queryParams: null, customRangeInvalid: true };
+      }
+      const cappedEnd = Math.min(endMs, now);
+      if (cappedEnd <= startMs) {
+        return { rangeStartMs: null, rangeEndMs: null, queryParams: null, customRangeInvalid: true };
+      }
+      return {
+        rangeStartMs: startMs,
+        rangeEndMs: cappedEnd,
+        queryParams: { startMs, endMs: cappedEnd },
+        customRangeInvalid: false,
+      };
+    }
+    if (rangeKey === "today") {
+      const start = startOfUtcDayMs(now);
+      return { rangeStartMs: start, rangeEndMs: now, queryParams: { days: 1 }, customRangeInvalid: false };
+    }
+    const start = startOfUtcDayMs(now) - (days - 1) * 24 * 60 * 60 * 1000;
+    return { rangeStartMs: start, rangeEndMs: now, queryParams: { days }, customRangeInvalid: false };
+  }, [rangeKey, customStart, customEnd, days]);
+
+  const hourlyTrends = rangeStartMs != null && rangeEndMs != null && (rangeEndMs - rangeStartMs) <= HOURLY_TREND_MAX_MS;
   const [selectedAgentId, setSelectedAgentId] = useState<string | null>(null);
   const [selectorOpen, setSelectorOpen] = useState(false);
 
-  const q = useQuery({ queryKey: ["retell-analytics", days], queryFn: () => fn({ data: { days } }), staleTime: 15 * 60_000, refetchOnWindowFocus: false, throwOnError: false, placeholderData: keepPreviousData });
+  const q = useQuery({
+    queryKey: ["retell-analytics", queryParams],
+    queryFn: () => fn({ data: queryParams ?? { days: 30 } }),
+    enabled: queryParams != null,
+    staleTime: 15 * 60_000,
+    refetchOnWindowFocus: false,
+    throwOnError: false,
+    placeholderData: keepPreviousData,
+  });
   const liveAgentsQ = useQuery({ queryKey: ["dashboard-live-agents"], queryFn: () => getLiveAgentsFn({ data: undefined }), staleTime: 60_000 ,
     throwOnError: false,
   });
@@ -502,20 +593,67 @@ function AnalyticsPage() {
   }, [agentNames, liveAgentsQ.data, voiceAgentsQ.data]);
   const calls    = useMemo(() => {
     let cs = effectiveSelectedAgentId ? allCalls.filter((c) => c.agent_id === effectiveSelectedAgentId) : allCalls;
-    if (todayOnly) cs = cs.filter((c) => c.start_timestamp != null && c.start_timestamp >= startOfTodayMs);
+    if (rangeStartMs != null && rangeEndMs != null) {
+      cs = cs.filter((c) => c.start_timestamp != null && c.start_timestamp >= rangeStartMs && c.start_timestamp <= rangeEndMs);
+    }
     return cs;
-  }, [allCalls, effectiveSelectedAgentId, todayOnly, startOfTodayMs]);
+  }, [allCalls, effectiveSelectedAgentId, rangeStartMs, rangeEndMs]);
   const analytics = useMemo(() => computeAnalytics(calls, includeVm), [calls, includeVm]);
   const sortedDays = useMemo(() => Object.keys(analytics.byDay).sort(), [analytics.byDay]);
-  // Trend charts span the full selected window (7/30/60/90d) — the server already
-  // scopes calls to `days`, so cap to `days` so each range renders distinctly
-  // instead of being frozen at the last 30 days.
-  const trendDays = useMemo(() => sortedDays.slice(-days), [sortedDays, days]);
-  const callsPerDayData   = useMemo(() => trendDays.map((d) => ({ day: shortDay(d), calls: analytics.byDay[d] ?? 0 })), [trendDays, analytics.byDay]);
-  const durationTrendData = useMemo(() => trendDays.map((d) => { const dd = analytics.byDayDuration[d]; return { day: shortDay(d), avg: dd && dd.count ? Math.round(dd.total / dd.count) : 0 }; }), [trendDays, analytics.byDayDuration]);
-  const outcomeTrendData  = useMemo(() => trendDays.map((d) => { const o = analytics.byDayOutcome[d] ?? { success: 0, unsuccessful: 0, voicemail: 0 }; return { day: shortDay(d), ...o }; }), [trendDays, analytics.byDayOutcome]);
-  const latencyTrendData  = useMemo(() => trendDays.map((d) => { const dl = analytics.byDayLatency[d] ?? { llm: [], e2e: [], tts: [] }; const a = (arr: number[]) => (arr.length ? Math.round(arr.reduce((x, y) => x + y, 0) / arr.length) : null); return { day: shortDay(d), LLM: a(dl.llm), E2E: a(dl.e2e), TTS: a(dl.tts) }; }), [trendDays, analytics.byDayLatency]);
-  const hourData = useMemo(() => Array.from({ length: 24 }, (_, h) => ({ hour: `${h}h`, calls: analytics.byHour[h] ?? 0 })), [analytics.byHour]);
+  const trendHours = useMemo(
+    () => (rangeStartMs != null && rangeEndMs != null ? generateHourSlots(rangeStartMs, rangeEndMs) : []),
+    [rangeStartMs, rangeEndMs],
+  );
+  const trendDays = useMemo(() => sortedDays.slice(-days || sortedDays.length), [sortedDays, days]);
+  const avgBucket = (arr: number[]) => (arr.length ? Math.round(arr.reduce((x, y) => x + y, 0) / arr.length) : null);
+  const callsPerDayData   = useMemo(() => {
+    if (hourlyTrends) {
+      return trendHours.map((h) => ({ day: shortHourSlot(h), calls: analytics.byHourSlot[h] ?? 0 }));
+    }
+    return trendDays.map((d) => ({ day: shortDay(d), calls: analytics.byDay[d] ?? 0 }));
+  }, [hourlyTrends, trendHours, trendDays, analytics.byHourSlot, analytics.byDay]);
+  const durationTrendData = useMemo(() => {
+    if (hourlyTrends) {
+      return trendHours.map((h) => {
+        const dd = analytics.byHourSlotDuration[h];
+        return { day: shortHourSlot(h), avg: dd && dd.count ? Math.round(dd.total / dd.count) : 0 };
+      });
+    }
+    return trendDays.map((d) => {
+      const dd = analytics.byDayDuration[d];
+      return { day: shortDay(d), avg: dd && dd.count ? Math.round(dd.total / dd.count) : 0 };
+    });
+  }, [hourlyTrends, trendHours, trendDays, analytics.byHourSlotDuration, analytics.byDayDuration]);
+  const outcomeTrendData  = useMemo(() => {
+    if (hourlyTrends) {
+      return trendHours.map((h) => {
+        const o = analytics.byHourSlotOutcome[h] ?? { success: 0, unsuccessful: 0, voicemail: 0 };
+        return { day: shortHourSlot(h), ...o };
+      });
+    }
+    return trendDays.map((d) => {
+      const o = analytics.byDayOutcome[d] ?? { success: 0, unsuccessful: 0, voicemail: 0 };
+      return { day: shortDay(d), ...o };
+    });
+  }, [hourlyTrends, trendHours, trendDays, analytics.byHourSlotOutcome, analytics.byDayOutcome]);
+  const latencyTrendData  = useMemo(() => {
+    if (hourlyTrends) {
+      return trendHours.map((h) => {
+        const dl = analytics.byHourSlotLatency[h] ?? { llm: [], e2e: [], tts: [] };
+        return { day: shortHourSlot(h), LLM: avgBucket(dl.llm), E2E: avgBucket(dl.e2e), TTS: avgBucket(dl.tts) };
+      });
+    }
+    return trendDays.map((d) => {
+      const dl = analytics.byDayLatency[d] ?? { llm: [], e2e: [], tts: [] };
+      return { day: shortDay(d), LLM: avgBucket(dl.llm), E2E: avgBucket(dl.e2e), TTS: avgBucket(dl.tts) };
+    });
+  }, [hourlyTrends, trendHours, trendDays, analytics.byHourSlotLatency, analytics.byDayLatency]);
+  const hourData = useMemo(() => {
+    if (hourlyTrends && trendHours.length > 0) {
+      return trendHours.map((h) => ({ hour: shortHourSlot(h), calls: analytics.byHourSlot[h] ?? 0 }));
+    }
+    return Array.from({ length: 24 }, (_, hr) => ({ hour: `${hr}h`, calls: analytics.byHour[hr] ?? 0 }));
+  }, [hourlyTrends, trendHours, analytics.byHourSlot, analytics.byHour]);
   const successRate    = analytics.total ? Math.round((analytics.successCount / analytics.total) * 100) : 0;
   const transferRate   = analytics.total ? ((analytics.transferCount / analytics.total) * 100).toFixed(1) : "0";
   const unknownSuccess = Math.max(0, analytics.total - analytics.successCount - analytics.unsuccessCount);
@@ -664,7 +802,7 @@ function AnalyticsPage() {
       {mainTab === "calls" && (
         <>
           {/* Controls row */}
-          <div className="flex items-center justify-end gap-2 px-6 pt-4">
+          <div className="flex flex-wrap items-center justify-end gap-2 px-6 pt-4">
             <div className="relative">
                 <button
                   onClick={() => setSelectorOpen((o) => !o)}
@@ -714,12 +852,27 @@ function AnalyticsPage() {
             )}
             <div className="flex gap-1 rounded-lg border border-white/[0.06] bg-card/40 p-1">
               {RANGES.map((r) => (
-                <Button key={r.key} size="sm" variant={rangeKey === r.key ? "secondary" : "ghost"} onClick={() => setRangeKey(r.key)} className={rangeKey === r.key ? "bg-primary/20 text-primary" : ""}>{r.label}</Button>
+                <Button
+                  key={r.key}
+                  size="sm"
+                  variant={rangeKey === r.key ? "secondary" : "ghost"}
+                  onClick={() => {
+                    setRangeKey(r.key);
+                    if (r.key === "custom" && !customStart && !customEnd) {
+                      const { start, end } = defaultCustomRange();
+                      setCustomStart(start);
+                      setCustomEnd(end);
+                    }
+                  }}
+                  className={rangeKey === r.key ? "bg-primary/20 text-primary" : ""}
+                >
+                  {r.label}
+                </Button>
               ))}
             </div>
           </div>
 
-          {(q.isError || result?.error) && (
+          {result?.error && (
             <div className="mx-6 mt-4 flex items-center gap-3 rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-200">
               <AlertTriangle className="h-4 w-4" />
               <span>
@@ -729,7 +882,17 @@ function AnalyticsPage() {
             </div>
           )}
 
-          {result && !result.configured ? (
+          {customRangeInvalid ? (
+            <div className="px-6 pt-5">
+              <PanelCard>
+                <EmptyState
+                  icon={BarChart3}
+                  title="Select a time range"
+                  message="Choose a start and end date/time above to load analytics for that window (up to 90 days)."
+                />
+              </PanelCard>
+            </div>
+          ) : result && !result.configured ? (
             <div className="px-6 pt-5">
               <PanelCard><EmptyState icon={BarChart3} title="No deployed agents" message="Deploy a voice agent to start collecting analytics." /></PanelCard>
             </div>
@@ -755,9 +918,11 @@ function AnalyticsPage() {
                       message={
                         !includeVm && analytics.voicemailTotal > 0
                           ? `Every call in this range (${analytics.voicemailTotal}) went to voicemail and is currently hidden. Turn on “Voicemails: shown” to include them.`
-                          : todayOnly
+                          : rangeKey === "today"
                             ? "No calls have come in yet today. Try a wider range like 7 or 30 days."
-                            : effectiveSelectedAgentId
+                            : rangeKey === "custom"
+                              ? "No calls were found between the selected start and end times."
+                              : effectiveSelectedAgentId
                               ? "This agent has no calls in the selected range. Pick “All agents” or a wider range."
                               : "No calls were found in the selected range. Try a wider range."
                       }
@@ -783,7 +948,7 @@ function AnalyticsPage() {
               </div>
 
               <div className="px-6 pt-4">
-                <ChartCard title="Call Counts" icon={Activity} color={CHART.primary}>
+                <ChartCard title={hourlyTrends ? "Call Counts by Hour (UTC)" : "Call Counts"} icon={Activity} color={CHART.primary}>
                   {callsPerDayData.length === 0 ? <NoData /> : (
                     <div className="h-52 w-full">
                       <ResponsiveContainer>
@@ -817,7 +982,7 @@ function AnalyticsPage() {
                 <ChartCard title="Phone Inbound / Outbound" icon={Phone} color={CHART.accent}>
                   <CompactDonut data={[{ name: "Inbound", value: analytics.inbound }, { name: "Outbound", value: analytics.outbound }, { name: "Web", value: analytics.webCalls }]} colors={DIRECTION_COLORS} centerLabel="Total" centerValue={analytics.total} />
                 </ChartCard>
-                <ChartCard title="Avg Call Duration (s)" icon={Clock} color={CHART.accent}>
+                <ChartCard title={hourlyTrends ? "Avg Call Duration by Hour (s)" : "Avg Call Duration (s)"} icon={Clock} color={CHART.accent}>
                   {durationTrendData.length === 0 ? <NoData /> : (
                     <div className="h-48 w-full">
                       <ResponsiveContainer>
@@ -833,7 +998,7 @@ function AnalyticsPage() {
                     </div>
                   )}
                 </ChartCard>
-                <ChartCard title="Call Success Rate (%)" icon={TrendingUp} color={CHART.success}>
+                <ChartCard title={hourlyTrends ? "Call Success Rate by Hour (%)" : "Call Success Rate (%)"} icon={TrendingUp} color={CHART.success}>
                   {outcomeTrendData.length === 0 ? <NoData /> : (
                     <div className="h-48 w-full">
                       <ResponsiveContainer>
@@ -851,7 +1016,7 @@ function AnalyticsPage() {
               </div>
 
               <div className="px-6 pt-4">
-                <ChartCard title="Latency Trends — LLM / TTS / E2E (ms p50)" icon={Zap} color={CHART.warning}>
+                <ChartCard title={hourlyTrends ? "Latency Trends by Hour — LLM / TTS / E2E (ms p50)" : "Latency Trends — LLM / TTS / E2E (ms p50)"} icon={Zap} color={CHART.warning}>
                   {latencyTrendData.every((d) => d.LLM == null && d.E2E == null && d.TTS == null) ? <NoData /> : (
                     <div className="h-52 w-full">
                       <ResponsiveContainer>
@@ -872,7 +1037,7 @@ function AnalyticsPage() {
               </div>
 
               <div className="grid grid-cols-1 gap-4 px-6 pt-4 md:grid-cols-2">
-                <ChartCard title="Daily Call Outcomes" icon={BarChart3} color={CHART.success}>
+                <ChartCard title={hourlyTrends ? "Call Outcomes by Hour" : "Daily Call Outcomes"} icon={BarChart3} color={CHART.success}>
                   {outcomeTrendData.length === 0 ? <NoData /> : (
                     <div className="h-52 w-full">
                       <ResponsiveContainer>
@@ -890,7 +1055,7 @@ function AnalyticsPage() {
                     </div>
                   )}
                 </ChartCard>
-                <ChartCard title="Call Volume by Hour (UTC)" icon={Clock} color={CHART.primary}>
+                <ChartCard title={hourlyTrends ? "Call Volume by Hour (UTC)" : "Call Volume by Hour (UTC)"} icon={Clock} color={CHART.primary}>
                   {hourData.every((d) => d.calls === 0) ? <NoData /> : (
                     <div className="h-52 w-full">
                       <ResponsiveContainer>

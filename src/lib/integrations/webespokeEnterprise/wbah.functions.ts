@@ -236,8 +236,8 @@ function buildLeadRow(raw: any, workspaceId: string) {
     source:                "import",
     source_detail:         SOURCE_DETAIL,
     notes:                 pickStr(raw, "notes", "description", "comments"),
-    // Use WeeBespoke transcript as call summary
-    call_summary:          pickStr(raw, "transcript", "callSummary", "summary"),
+    call_summary:
+      pickStr(raw, "callSummary", "call_summary", "summary") ?? null,
     callback_date:         (isCallbackRequested(raw) && callbackAt) ? callbackAt : null,
     meta: {
       wbah_external_id:    externalId,

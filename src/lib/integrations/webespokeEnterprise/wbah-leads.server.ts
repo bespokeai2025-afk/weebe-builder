@@ -425,7 +425,7 @@ export async function getWbahCalendarBookings(
 }
 
 const PEOPLE_CALL_LOOKUP_COLS =
-  "id, phone, agent_name, call_status, sentiment, duration_seconds, started_at, recording_url, disconnection_reason, end_reason, appointment_date, appointment_time, booking_status, calendly_booking_url";
+  "id, phone, agent_name, call_status, sentiment, duration_seconds, started_at, recording_url, call_summary, transcript, disconnection_reason, end_reason, appointment_date, appointment_time, booking_status, calendly_booking_url";
 
 const PEOPLE_CALL_LOOKUP_TTL = 120;
 
