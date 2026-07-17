@@ -2584,7 +2584,10 @@ export function RetellDeployDialog({
       }
       const { agentJson } = result;
       const parsed = importAgentJson(agentJson);
-      loadFlow(parsed);
+      // Clear any stale row id from a previously open agent BEFORE loading —
+      // persistAgent below re-links to the correct local row for this Retell
+      // agent, so the SystemMind dock never targets the wrong agent.
+      loadFlow({ ...parsed, agentRowId: null });
       await persistAgent(id);
       toast.success("Agent loaded", { description: id });
       setLoadOpen(false);
@@ -2604,7 +2607,7 @@ export function RetellDeployDialog({
     try {
       const { nodes: n, edges: e, settings: s, variables: v } = useBuilderStore.getState();
       const existing = await getAgentByRetellId({ data: { retellAgentId } });
-      await upsertAgent({
+      const saved = await upsertAgent({
         data: {
           id: existing?.id,
           retellAgentId,
@@ -2614,6 +2617,11 @@ export function RetellDeployDialog({
           variables: v as never,
         },
       });
+      // Point the builder at the row we just saved so every downstream
+      // consumer (SystemMind dock, deploy, save) targets THIS agent.
+      if ((saved as any)?.id) {
+        useBuilderStore.getState().setCurrentAgentRowId((saved as any).id);
+      }
       qc.invalidateQueries({ queryKey: ["my-agents"] });
     } catch (err) {
       console.warn("persistAgent failed:", (err as Error).message);

@@ -422,7 +422,33 @@ export async function createBuildSessionServer(args: {
     seedWorkflow = wf;
   }
 
-  const title = (args.title ?? (seedWorkflow ? `Edit: ${seedWorkflow.name}` : "Untitled build")).slice(0, 200);
+  // Agent-linked sessions: validate the target agent actually exists in THIS
+  // workspace (a stale/foreign id must fail loudly, never silently build for
+  // the wrong agent) and anchor the session title to the agent's real name.
+  let targetAgent: any = null;
+  if (args.targetAgentId) {
+    const { data: agentRow, error: agErr } = await sb.from("agents")
+      .select("id, name")
+      .eq("id", args.targetAgentId).eq("workspace_id", workspaceId)
+      .maybeSingle();
+    if (agErr) throw new Error(agErr.message);
+    if (!agentRow) {
+      throw new Error(
+        "The agent open in the Builder could not be found in this workspace. " +
+        "Reload the agent from My Agents and try again.",
+      );
+    }
+    targetAgent = agentRow;
+  }
+
+  const title = (
+    args.title ??
+    (seedWorkflow
+      ? `Edit: ${seedWorkflow.name}`
+      : targetAgent
+        ? `Build: ${String(targetAgent.name ?? "agent")}`
+        : "Untitled build")
+  ).slice(0, 200);
   const sourcePage = ["agent_builder","whatsapp_builder","follow_up_centre","workflows","systemmind","hivemind"]
     .includes(args.sourcePage ?? "") ? String(args.sourcePage) : "agent_builder";
 
@@ -620,6 +646,15 @@ SAFETY RULES (mandatory): NEVER include API keys, tokens, passwords, or any cred
 Return ONLY valid JSON:
 { "summary": "...", "config": { "agent_prompt": "...", "workflow": { "name": "...", "purpose": "...", "trigger_type": "lead_added", "trigger_config": {}, "steps": [...] }, "variables": [...], "extraction_fields": [...], "follow_up_rules": [...], "channel_setup": {...}, "required_credentials": [...], "risks": [...], "test_plan": [...] } }`;
 
+// Returned instead of a build when required context is missing — SystemMind
+// asks its clarifying questions FIRST and only builds once the context is
+// confirmed (or the user explicitly chooses to build anyway).
+export type ContextGateResult = {
+  contextGateBlocked: true;
+  message: string;
+  missingRequired: { group: string; groupLabel: string; label: string; helper: string }[];
+};
+
 export type PromptBuildResult = {
   versionId:     string;
   versionNumber: number;
@@ -639,13 +674,57 @@ export async function promptBuildSessionServer(args: {
   userId:      string | null;
   sessionId:   string;
   prompt:      string;
-}): Promise<PromptBuildResult> {
+  skipContextGate?: boolean;
+}): Promise<PromptBuildResult | ContextGateResult> {
   const sb = supabaseAdmin as any;
   const { workspaceId, userId, sessionId } = args;
   const prompt = args.prompt.trim();
   if (!prompt) throw new Error("Describe what you want SystemMind to build or change.");
   const session = await getSessionOrThrow(workspaceId, sessionId);
   if (session.status !== "active") throw new Error("This build session is archived — restore it first.");
+
+  // ── Required-context question gate ─────────────────────────────────────────
+  // "SystemMind never builds on unconfirmed context." For agent-linked sessions,
+  // before generating ANYTHING we check the Required Context. If required items
+  // are missing and the context hasn't been confirmed, SystemMind responds with
+  // its clarifying questions instead of building. The user can answer them in
+  // the Required Context tab (or in chat) — or explicitly choose "Build anyway".
+  if (!args.skipContextGate && session.target_agent_id) {
+    const { getSetupStateServer, computeContextCompleteness } = await import(
+      "@/lib/systemmind/setup-console.server"
+    );
+    const setupState = await getSetupStateServer(workspaceId, sessionId);
+    const confirmed = (setupState?.context as any)?.confirmed === true;
+    const cc = computeContextCompleteness(setupState);
+    const missingRequired = cc.items
+      .filter((i) => i.required && !i.done && i.group !== "confirm")
+      .map((i) => ({ group: i.group, groupLabel: i.groupLabel, label: i.label, helper: i.helper }));
+
+    if (!confirmed && missingRequired.length > 0) {
+      await insertMessage({ sessionId, workspaceId, userId, role: "user", content: prompt });
+
+      const byGroup = new Map<string, { groupLabel: string; qs: string[] }>();
+      for (const m of missingRequired) {
+        const g = byGroup.get(m.group) ?? { groupLabel: m.groupLabel, qs: [] };
+        g.qs.push(m.helper ? `${m.label} — ${m.helper}` : m.label);
+        byGroup.set(m.group, g);
+      }
+      const questionLines = [...byGroup.values()]
+        .map((g) => `${g.groupLabel}:\n${g.qs.map((q) => `  • ${q}`).join("\n")}`)
+        .join("\n\n");
+      const message =
+        `Before I build anything, I need a few answers so I configure this for the right outcome ` +
+        `(I never build on unconfirmed context):\n\n${questionLines}\n\n` +
+        `Fill these in on the Required Context tab, press "Confirm Context", then send your request again. ` +
+        `If you'd rather I proceed with sensible assumptions, use "Build anyway".`;
+
+      await insertMessage({
+        sessionId, workspaceId, userId: null, role: "systemmind", content: message,
+      });
+
+      return { contextGateBlocked: true, message, missingRequired };
+    }
+  }
 
   const startedAt = new Date();
 
@@ -1487,6 +1566,14 @@ export async function applyBuildVersionServer(args: {
 
   // Never trust what sat in the DB: full re-validation + credential guard.
   const config = validateConfigOrThrow(version.generated_config, "Apply build config");
+
+  // Setup Console gate: when a setup state exists for this session, every
+  // required input (credentials tested, mappings approved, trigger codes,
+  // test run + approval) must be complete before ANY apply.
+  {
+    const { assertSetupCompleteForApply } = await import("@/lib/systemmind/setup-console.server");
+    await assertSetupCompleteForApply(workspaceId, sessionId);
+  }
   const { riskLevel, riskReasons } = classifyConfigRisk(config);
 
   // Impact analysis + hard protection rules — ALWAYS run, every apply.

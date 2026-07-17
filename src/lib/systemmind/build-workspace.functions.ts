@@ -128,6 +128,7 @@ export const promptBuildSession = createServerFn({ method: "POST" })
     z.object({
       sessionId: z.string().uuid(),
       prompt:    z.string().min(3).max(8000),
+      skipContextGate: z.boolean().optional(),
     }).parse(input),
   )
   .handler(async ({ data, context }) => {
@@ -145,6 +146,7 @@ export const promptBuildSession = createServerFn({ method: "POST" })
       userId:      context.userId ?? null,
       sessionId:   data.sessionId,
       prompt:      data.prompt,
+      skipContextGate: data.skipContextGate === true,
     });
   });
 

@@ -16,8 +16,14 @@ import {
   ShieldAlert, Rocket, GitBranch, Variable, ListChecks, Bell, StickyNote,
   ArrowRight, Bot, Workflow as WorkflowIcon, ExternalLink, ShieldCheck,
   Undo2, GitCompareArrows, FilePlus2, Copy, SendToBack, Import, Info,
-  ClipboardList, Lightbulb, Table2, Eye, Trash2,
+  ClipboardList, Lightbulb, Table2, Eye, Trash2, KeyRound, Zap, BookOpenCheck,
 } from "lucide-react";
+import {
+  useSetupConsole, missingRequiredCount, LinkedAgentCard, CredentialsPanel,
+  DetectedVariablesPanel, TriggerRulesPanel, SetupTestPanel, RequiredInputsPanel,
+} from "./SetupConsolePanel";
+import { scanAgentForSetup } from "@/lib/systemmind/setup-console.functions";
+import { RequiredContextPanel } from "./RequiredContextPanel";
 import { cn } from "@/lib/utils";
 import { DeploymentChecklistPanel } from "./DeploymentChecklistPanel";
 import { TestCallPanel } from "./TestCallPanel";
@@ -65,6 +71,7 @@ const ITERATION_PROMPTS = [
 // through); the final step stays "in progress" until the response lands.
 
 const BUILD_PHASES_FIRST = [
+  "Checking required context",
   "Reading your request",
   "Detecting workflow type & trigger",
   "Designing the workflow steps",
@@ -76,6 +83,7 @@ const BUILD_PHASES_FIRST = [
 ];
 
 const BUILD_PHASES_REVISION = [
+  "Checking required context",
   "Reading your change request",
   "Comparing against the current version",
   "Updating the workflow steps",
@@ -1044,7 +1052,7 @@ export function findUnmappedFields(config: Record<string, any> | null): any[] {
   return fields.filter((f) => !(f.crm_destination ?? f.destination ?? f.maps_to));
 }
 
-function RequiredInputsPanel({
+function ChatRequiredInputsPanel({
   config, busy, onSend,
 }: {
   config: Record<string, any> | null;
@@ -1213,7 +1221,7 @@ function MappingPanel({
           <>
             <LeadSourcePanel config={config} busy={!!busy} onSend={onSend} />
             <PreCallInputsPanel config={config} busy={!!busy} onSend={onSend} />
-            <RequiredInputsPanel config={config} busy={!!busy} onSend={onSend} />
+            <ChatRequiredInputsPanel config={config} busy={!!busy} onSend={onSend} />
           </>
         )}
         <p className="py-8 text-center text-[11px] text-muted-foreground">
@@ -1231,7 +1239,7 @@ function MappingPanel({
         <>
           <LeadSourcePanel config={config} busy={!!busy} onSend={onSend} />
           <PreCallInputsPanel config={config} busy={!!busy} onSend={onSend} />
-          <RequiredInputsPanel config={config} busy={!!busy} onSend={onSend} />
+          <ChatRequiredInputsPanel config={config} busy={!!busy} onSend={onSend} />
         </>
       )}
       <div className="overflow-x-auto rounded-lg border border-white/[0.06]">
@@ -1382,7 +1390,8 @@ function ReviewPanel({
 // ── Session view ────────────────────────────────────────────────────────────────
 
 type Tab =
-  | "brief" | "requirements" | "variables" | "mapping" | "config" | "test"
+  | "brief" | "context" | "requirements" | "agent" | "credentials" | "triggers"
+  | "variables" | "mapping" | "config" | "test"
   | "review" | "deploy" | "versions" | "usage" | "conversion";
 
 export function BuildSessionView({
@@ -1461,9 +1470,28 @@ export function BuildSessionView({
   );
   const config = (currentVersion?.generated_config ?? null) as Record<string, any> | null;
   const unmappedCount = useMemo(() => findUnmappedFields(config).length, [config]);
+
+  // Setup Console state (agent scan, mappings, CRM access, triggers, test).
+  const setup = useSetupConsole(sessionId);
+  const setupMissing = setup.state ? missingRequiredCount(setup.requiredInputs) : 0;
+
   const canApply = currentVersion
     && ["draft", "testing", "revised"].includes(String(currentVersion.status))
-    && unmappedCount === 0;
+    && unmappedCount === 0
+    && setupMissing === 0;
+
+  // Auto-scan once when an agent is already linked but no setup state exists yet.
+  const scanSetupFn = useServerFn(scanAgentForSetup);
+  const autoScanRef = useRef(false);
+  useEffect(() => {
+    if (autoScanRef.current) return;
+    if (!session?.target_agent_id || setup.isLoading || setup.state) return;
+    autoScanRef.current = true;
+    scanSetupFn({ data: { sessionId, agentId: null } })
+      .then(() => setup.invalidate())
+      .catch(() => { /* surfaced when the user opens the Linked Agent tab */ });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [session?.target_agent_id, setup.isLoading, setup.state, sessionId]);
 
   // What changed in the current version vs the one right before it (by number).
   const currentDiff = useMemo(() => {
@@ -1491,18 +1519,36 @@ export function BuildSessionView({
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages.length]);
 
+  // When SystemMind pauses a build to ask its Required Context questions, we
+  // keep the blocked prompt so the user can either fill the context in and
+  // resend, or explicitly "Build anyway".
+  const [gateBlockedPrompt, setGateBlockedPrompt] = useState<string | null>(null);
+
   const sendPrompt = useMutation({
-    mutationFn: async (text?: string) => {
+    mutationFn: async (vars?: string | { text?: string; force?: boolean }) => {
+      const text  = typeof vars === "string" ? vars : vars?.text;
+      const force = typeof vars === "object" && vars?.force === true;
       const p = (text ?? prompt).trim();
       if (!p) throw new Error("Describe what you want SystemMind to build or change.");
-      return promptFn({ data: { sessionId, prompt: p } });
+      const res: any = await promptFn({ data: { sessionId, prompt: p, skipContextGate: force } });
+      return { ...res, _prompt: p };
     },
     onSuccess: (res: any) => {
       setPrompt("");
-      setSim(null);
-      setTab("config");
       qc.invalidateQueries({ queryKey: ["smbw-session", sessionId] });
       qc.invalidateQueries({ queryKey: ["smbw-sessions"] });
+      if (res?.contextGateBlocked) {
+        // SystemMind asked its clarifying questions instead of building.
+        setGateBlockedPrompt(res._prompt ?? null);
+        toast.info("SystemMind has some questions first", {
+          description: "Answer them on the Required Context tab, then confirm and resend — or choose Build anyway.",
+        });
+        setTab("context");
+        return;
+      }
+      setGateBlockedPrompt(null);
+      setSim(null);
+      setTab("config");
       qc.invalidateQueries({ queryKey: ["smbw-usage"] });
       qc.invalidateQueries({ queryKey: ["smbw-review", sessionId] });
       qc.invalidateQueries({ queryKey: ["smbw-testcall", sessionId] });
@@ -1710,9 +1756,13 @@ export function BuildSessionView({
 
   const stepTabs: Array<readonly [Tab, React.ElementType, string]> = [
     ["brief",  Lightbulb, "Brief"],
+    ["context", BookOpenCheck, "Required Context"],
+    ["agent",  Bot, "Linked Agent"],
     ...(session.target_agent_id ? ([["requirements", ClipboardList, "Requirements"]] as const) : []),
+    ["credentials", KeyRound, "CRM Access"],
     ["variables", Variable, "Variables"],
     ["mapping",   Table2,   "CRM Mapping"],
+    ["triggers",  Zap,      "Triggers"],
     ["config",    FileCode2, "Workflow"],
     ["test",      FlaskConical, "Test"],
     ["review",    Eye,      "Review"],
@@ -1845,6 +1895,30 @@ export function BuildSessionView({
             <div ref={chatEndRef} />
           </div>
           <div className="border-t border-white/[0.05] p-2.5">
+            {gateBlockedPrompt && !busy && session.status !== "archived" && (
+              <div className="mb-2 flex flex-wrap items-center gap-2 rounded-lg border border-amber-500/25 bg-amber-500/[0.06] px-2.5 py-2">
+                <p className="min-w-0 flex-1 text-[10px] leading-snug text-amber-200/90">
+                  SystemMind paused this build to ask questions. Answer them on the Required
+                  Context tab and press Confirm Context, then resend — or build anyway with assumptions.
+                </p>
+                <div className="flex shrink-0 gap-1.5">
+                  <Button
+                    size="sm" variant="outline"
+                    className="h-6 px-2 text-[10px]"
+                    onClick={() => sendPrompt.mutate({ text: gateBlockedPrompt })}
+                  >
+                    Resend
+                  </Button>
+                  <Button
+                    size="sm"
+                    className="h-6 px-2 text-[10px]"
+                    onClick={() => sendPrompt.mutate({ text: gateBlockedPrompt, force: true })}
+                  >
+                    Build anyway
+                  </Button>
+                </div>
+              </div>
+            )}
             {versions.length > 0 && !prompt && !busy && session.status !== "archived" && (
               <div className="mb-2 flex flex-wrap gap-1.5">
                 {ITERATION_PROMPTS.map((p) => (
@@ -1949,6 +2023,22 @@ export function BuildSessionView({
             </div>
           </div>
 
+          {setupMissing > 0 && currentVersion && (
+            <div className="mx-3 mt-2 flex items-center gap-2 rounded-lg border border-amber-500/25 bg-amber-500/[0.05] px-3 py-2">
+              <AlertTriangle className="h-3.5 w-3.5 shrink-0 text-amber-400" />
+              <p className="text-[11px] text-amber-200/90">
+                {setupMissing} required setup input{setupMissing === 1 ? "" : "s"} remaining — Apply is
+                locked until required context, credentials, mappings, triggers and the setup test are complete.
+              </p>
+              <button
+                onClick={() => setTab("agent")}
+                className="ml-auto shrink-0 text-[11px] font-medium text-amber-300 underline-offset-2 hover:underline"
+              >
+                Fill them in
+              </button>
+            </div>
+          )}
+
           {unmappedCount > 0 && currentVersion && (
             <div className="mx-3 mt-2 flex items-center gap-2 rounded-lg border border-amber-500/25 bg-amber-500/[0.05] px-3 py-2">
               <AlertTriangle className="h-3.5 w-3.5 shrink-0 text-amber-400" />
@@ -1980,14 +2070,45 @@ export function BuildSessionView({
               <BriefPanel messages={messages} currentVersion={currentVersion} config={config} />
             )}
 
-            {tab === "variables" && <VariablesPanel config={config} />}
+            {tab === "context" && (
+              <RequiredContextPanel sessionId={sessionId} setup={setup} onGoToTab={(t) => setTab(t as Tab)} />
+            )}
+
+            {tab === "agent" && (
+              <div className="space-y-3">
+                <LinkedAgentCard sessionId={sessionId} session={session} setup={setup} />
+                <RequiredInputsPanel setup={setup} onGoToTab={(t) => setTab(t as Tab)} />
+              </div>
+            )}
+
+            {tab === "credentials" && (
+              <CredentialsPanel sessionId={sessionId} setup={setup} />
+            )}
+
+            {tab === "triggers" && (
+              <TriggerRulesPanel sessionId={sessionId} setup={setup} />
+            )}
+
+            {tab === "variables" && (
+              <div className="space-y-3">
+                {setup.state
+                  ? <DetectedVariablesPanel sessionId={sessionId} setup={setup} />
+                  : null}
+                <VariablesPanel config={config} />
+              </div>
+            )}
 
             {tab === "mapping" && (
-              <MappingPanel
-                config={config}
-                busy={busy}
-                onSend={(p) => sendPrompt.mutate(p)}
-              />
+              <div className="space-y-3">
+                {setup.state
+                  ? <DetectedVariablesPanel sessionId={sessionId} setup={setup} crmFocus />
+                  : null}
+                <MappingPanel
+                  config={config}
+                  busy={busy}
+                  onSend={(p) => sendPrompt.mutate(p)}
+                />
+              </div>
             )}
 
             {tab === "review" && (
@@ -2049,6 +2170,7 @@ export function BuildSessionView({
 
             {tab === "test" && (
               <div className="space-y-4">
+                {setup.state && <SetupTestPanel sessionId={sessionId} setup={setup} />}
                 <TestCallPanel
                   sessionId={sessionId}
                   fixPending={sendPrompt.isPending}
@@ -2211,6 +2333,7 @@ export function BuildSessionView({
 
             {tab === "deploy" && session.target_agent_id && (
               <div className="space-y-3">
+                <RequiredInputsPanel setup={setup} onGoToTab={(t) => setTab(t as Tab)} />
                 <div className="flex flex-wrap items-center gap-2 rounded-lg border border-white/[0.06] bg-white/[0.02] p-3">
                   <Rocket className="h-4 w-4 text-emerald-400" />
                   <p className="text-xs font-medium">Apply &amp; deploy</p>

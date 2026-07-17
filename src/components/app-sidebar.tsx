@@ -45,6 +45,7 @@ import {
   Users,
   Clock,
   GitBranch,
+  Lock,
 } from "lucide-react";
 import {
   DndContext,

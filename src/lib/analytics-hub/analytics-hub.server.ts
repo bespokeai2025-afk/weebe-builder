@@ -126,33 +126,49 @@ function classifyStandardCall(c: any): "voicemail" | "connected" | "missed" | "f
   return "other";
 }
 
-// ── Standard-workspace call fetch (bounded) ───────────────────────────────────
+// ── Standard-workspace call fetch (paged — PostgREST caps single responses at
+// 1000 rows, so busy workspaces need chunked .range() fetches) ────────────────
+const CALL_FETCH_PAGE = 1000;
+const CALL_FETCH_MAX_PAGES = 25;
+
 async function fetchStandardCalls(sb: Sb, workspaceId: string, range: ResolvedRange, filters?: AnalyticsFilters) {
-  let q = sb
-    .from("calls")
-    .select("id, agent_id, agent_name, call_status, call_successful, sentiment, is_voicemail, in_voicemail, duration_seconds, cost_cents, disconnection_reason, created_at, started_at, lead_id, provider")
-    .eq("workspace_id", workspaceId)
-    .gte("created_at", range.startIso)
-    .lte("created_at", range.endIso)
-    .order("created_at", { ascending: false })
-    .limit(ROW_CAP);
-  if (filters?.agentId) q = q.eq("agent_id", filters.agentId);
-  const { data, error } = await q;
-  if (error) throw new Error(error.message);
-  return (data ?? []) as any[];
+  const rows: any[] = [];
+  for (let p = 0; p < CALL_FETCH_MAX_PAGES; p++) {
+    let q = sb
+      .from("calls")
+      .select("id, agent_id, agent_name, call_status, call_successful, sentiment, is_voicemail, in_voicemail, duration_seconds, cost_cents, disconnection_reason, created_at, started_at, lead_id, provider")
+      .eq("workspace_id", workspaceId)
+      .gte("created_at", range.startIso)
+      .lte("created_at", range.endIso)
+      .order("created_at", { ascending: false })
+      .range(p * CALL_FETCH_PAGE, p * CALL_FETCH_PAGE + CALL_FETCH_PAGE - 1);
+    if (filters?.agentId) q = q.eq("agent_id", filters.agentId);
+    const { data, error } = await q;
+    if (error) throw new Error(error.message);
+    const batch = (data ?? []) as any[];
+    rows.push(...batch);
+    if (batch.length < CALL_FETCH_PAGE) break;
+  }
+  return rows;
 }
 
 async function fetchWbahCalls(sb: Sb, workspaceId: string, range: ResolvedRange) {
-  const { data, error } = await sb
-    .from("wbah_calls")
-    .select("id, agent_name, call_status, sentiment, duration_seconds, booking_status, appointment_date, disconnection_reason, started_at, synced_at, call_count")
-    .eq("workspace_id", workspaceId)
-    .gte("started_at", range.startIso)
-    .lte("started_at", range.endIso)
-    .order("started_at", { ascending: false })
-    .limit(ROW_CAP);
-  if (error) throw new Error(error.message);
-  return (data ?? []) as any[];
+  const rows: any[] = [];
+  for (let p = 0; p < CALL_FETCH_MAX_PAGES; p++) {
+    const { data, error } = await sb
+      .from("wbah_calls")
+      .select("id, agent_name, call_status, sentiment, duration_seconds, booking_status, appointment_date, disconnection_reason, started_at, synced_at, call_count")
+      .eq("workspace_id", workspaceId)
+      .gte("started_at", range.startIso)
+      .lte("started_at", range.endIso)
+      .order("started_at", { ascending: false })
+      .range(p * CALL_FETCH_PAGE, p * CALL_FETCH_PAGE + CALL_FETCH_PAGE - 1);
+    if (error) throw new Error(error.message);
+    const batch = (data ?? []) as any[];
+    rows.push(...batch);
+    if (batch.length < CALL_FETCH_PAGE) break;
+  }
+  return rows;
 }
 
 /**

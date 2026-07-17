@@ -11,8 +11,8 @@ import {
 const HIVEMIND_PLATFORM_TTL = 5 * 60; // 5 minutes
 
 function hivemindPlatformKey(workspaceId: string) {
-  // v2: response shape gained the `setup` summary (setup-assistant completion)
-  return `webee:hivemind:${workspaceId}:platform:v2`;
+  // v3: response shape gained the `invoiceSales` summary (AccountsMind invoices)
+  return `webee:hivemind:${workspaceId}:platform:v3`;
 }
 
 export type HiveMindTask = {
@@ -147,6 +147,17 @@ export const getHiveMindPlatformData = createServerFn({ method: "GET" })
         };
       } catch (e: any) {
         console.error("[HiveMind pages] setup summary error:", e?.message ?? e);
+        return null;
+      }
+    })();
+
+    // Paid-invoice sales (AccountsMind invoices billed to this workspace).
+    const invoiceSalesPromise = (async () => {
+      try {
+        const { getInvoiceSalesSummary } = await import("@/lib/accountsmind/invoice-sales.server");
+        return await getInvoiceSalesSummary(workspaceId);
+      } catch (e: any) {
+        console.error("[HiveMind] invoice sales summary error:", e?.message ?? e);
         return null;
       }
     })();
@@ -405,6 +416,7 @@ export const getHiveMindPlatformData = createServerFn({ method: "GET" })
       systemHealth,
       settings,
       tasks,
+      invoiceSales: await invoiceSalesPromise,
       setup: await setupPromise,
     };
   }, bust);

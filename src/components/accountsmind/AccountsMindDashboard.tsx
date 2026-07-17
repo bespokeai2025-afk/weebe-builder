@@ -77,6 +77,12 @@ export function AccountsMindDashboard() {
     { label: "Avg Margin",        value: `${d.avgMarginPercent.toFixed(1)}%`, icon: BarChart3, color: d.avgMarginPercent >= 30 ? "text-emerald-400" : "text-yellow-400" },
     { label: "Active Clients",    value: String(d.clientCount),      icon: Users, color: "text-blue-400" },
     { label: "Costliest Provider",value: d.mostExpensiveProvider,    icon: Zap, color: "text-purple-400" },
+    ...((d as any).invoiceSales
+      ? [
+          { label: "Invoice Sales (paid)", value: fmt((d as any).invoiceSales.paidSalesCents), icon: DollarSign, color: "text-emerald-400" },
+          { label: "Invoices Outstanding", value: fmt((d as any).invoiceSales.outstandingCents), icon: AlertTriangle, color: (d as any).invoiceSales.overdueCents > 0 ? "text-red-400" : "text-yellow-400" },
+        ]
+      : []),
   ];
 
   return (

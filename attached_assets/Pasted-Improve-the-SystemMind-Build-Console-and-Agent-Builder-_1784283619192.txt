@@ -1,0 +1,703 @@
+Improve the SystemMind Build Console and Agent Builder setup experience so it is no longer messy, vague, or chat-only.
+
+Current problem:
+The SystemMind Build Console currently shows vague setup warnings like “required inputs remaining” but it does not clearly show where the user must enter CRM access details, CRM field codes, status trigger fields, variable mappings, webhook details, or calendar details.
+
+The Agent Builder page also has complex scripts/flows with variables, but SystemMind is not scanning the selected agent/script properly and turning those variables into clear mapping requirements.
+
+Goal:
+Make SystemMind work like a proper setup console, similar to how Replit asks for missing API keys/secrets with a clear credential input box.
+
+SystemMind should:
+1. Detect the selected/linked agent.
+2. Scan the agent script, prompt, nodes, tools, functions, post-call extraction, webhook payloads, and templates for variables.
+3. Show a clean setup panel with required input boxes.
+4. Ask for CRM credentials in a dedicated credential box.
+5. Ask for variable mappings in a clear mapping table.
+6. Ask for CRM status trigger rules in a clear trigger mapping table.
+7. Block Apply / Go Live until every required credential, mapping, and trigger field is complete.
+8. Keep everything workspace-scoped and agent-specific.
+
+Do not just add more chat messages. Add proper UI components.
+
+The core user experience should be:
+
+User opens SystemMind Build Console or Agent Builder.
+User selects or is already inside an agent.
+SystemMind scans the agent.
+SystemMind says:
+
+“I found this agent, scanned the workflow, and detected these variables and setup requirements.”
+
+Then SystemMind opens a clear setup panel showing:
+
+- Agent linked
+- CRM access required
+- Variables detected
+- CRM field mappings needed
+- Status triggers needed
+- Calendar/booking config needed if applicable
+- Webhook/API config needed if applicable
+- Test payload
+- Apply locked until complete
+
+1. Add a clear “Linked Agent” card
+
+At the top of the SystemMind setup panel, show:
+
+Linked Agent
+
+Fields:
+- Agent name
+- Agent ID
+- Workspace
+- Agent type
+- Channel
+- Status: draft / test / live
+- Last scanned
+- Variables detected count
+- Required mappings count
+- Missing inputs count
+
+Buttons:
+- Change Agent
+- Scan Agent
+- View Agent
+- Open Builder
+- Test Agent
+
+If SystemMind is opened from the Agent Builder page, automatically link the current agent.
+
+If no agent is selected, show a large empty state:
+
+“No agent linked yet. Select the agent this workflow should configure.”
+
+Do not allow Apply until an agent is linked.
+
+2. Add an “Agent Scan” system
+
+SystemMind must scan the selected agent from the builder.
+
+It should detect variables from:
+
+- Global prompt
+- Agent script
+- Conversation nodes
+- Extract Variable nodes
+- Post-call data extraction settings
+- Tool/function definitions
+- HTTP request payloads
+- Webhook bodies
+- CRM sync nodes
+- Calendar/booking nodes
+- WhatsApp/SMS/email templates
+- Transition conditions
+- Dynamic variables using {{variable_name}}
+- Any saved agent JSON/config
+
+Detect examples like:
+
+- {{first_name}}
+- {{last_name}}
+- {{full_name}}
+- {{email}}
+- {{phone_number}}
+- {{company_name}}
+- {{budget}}
+- {{booking_slot}}
+- {{appointment_date}}
+- {{appointment_time}}
+- {{postcode}}
+- {{property_type}}
+- {{lead_status}}
+- {{sentiment}}
+- {{qualification_status}}
+- {{call_summary}}
+- {{call_transcript}}
+- {{call_recording_url}}
+- {{preferred_contact_method}}
+
+SystemMind should classify each detected variable as:
+
+- Contact field
+- Lead field
+- Booking field
+- CRM field
+- Call outcome field
+- Post-call extraction field
+- Custom field
+- Unknown
+
+3. Add a “Detected Variables” table
+
+Create a visible section called:
+
+Detected Agent Variables
+
+Columns:
+
+- Variable
+- Found in
+- Type
+- Required?
+- Example value
+- Save to WEBEE field
+- CRM field
+- Status
+
+Example:
+
+Variable: {{budget}}
+Found in: Extract Variable node
+Type: number
+Required: optional
+Save to WEBEE field: lead.meta.budget
+CRM field: new_budget
+Status: mapped
+
+Variable: {{booking_slot}}
+Found in: Booking node
+Type: datetime
+Required: required
+Save to WEBEE field: appointment.datetime
+CRM field: new_appointmentdatetime
+Status: missing CRM field
+
+Variable: {{phone_number}}
+Found in: Agent prompt / lead input
+Type: phone
+Required: required
+Save to WEBEE field: lead.phone
+CRM field: mobilephone
+Status: mapped
+
+Use clear status badges:
+
+- Mapped
+- Missing CRM field
+- Missing WEBEE destination
+- Missing type
+- Required
+- Optional
+- Ignored
+
+The user must be able to edit each mapping directly from this table.
+
+4. Add Replit-style credential boxes
+
+Create dedicated credential setup boxes, similar to Replit’s missing secrets UI.
+
+Section name:
+
+CRM Access Required
+
+If CRM access is needed, show a clean credential card.
+
+Example for Microsoft Dynamics:
+
+Microsoft Dynamics CRM Credentials
+
+Required fields:
+- Tenant ID
+- Client ID
+- Client Secret
+- Organization URL
+- Environment URL
+- Default owner/user ID
+- Default pipeline ID
+- Default source code
+
+Buttons:
+- Save Credentials
+- Test Connection
+- Reconnect
+- View Setup Guide
+
+Rules:
+- Secrets must never be displayed after saving.
+- Show saved secrets as “••••••••”.
+- Store credentials securely server-side only.
+- Never put secrets in frontend state, logs, or normal JSON payload previews.
+- Credentials must be scoped by workspace_id.
+- Do not use credentials from another workspace.
+
+Connection status should show:
+
+- Not connected
+- Missing credentials
+- Testing connection
+- Connected
+- Failed
+- Expired
+- Permission issue
+
+If CRM credentials are missing, SystemMind should say:
+
+“CRM access is required before this workflow can be applied. Enter your Microsoft Dynamics credentials below.”
+
+Do not bury this inside chat.
+
+5. Add CRM provider selector
+
+In the credential section, allow CRM provider selection:
+
+- WEBEE CRM
+- Microsoft Dynamics
+- HubSpot
+- Salesforce
+- Pipedrive
+- Zoho
+- Custom API
+- None
+
+When a provider is selected, show only the relevant credential fields.
+
+For Custom API, show:
+
+- Base URL
+- Auth type
+- API key / bearer token
+- Headers
+- Test endpoint
+- Create lead endpoint
+- Update lead endpoint
+- Status update endpoint
+
+6. Add “CRM Field Mapping” table
+
+Create a visible mapping table called:
+
+CRM Field Mapping
+
+Columns:
+
+- Agent / WEBEE Variable
+- WEBEE Destination
+- CRM Field Label
+- CRM Field API Code
+- Field Type
+- Required
+- Default Value
+- Transformation
+- Status
+
+Example mappings:
+
+{{first_name}} → lead.first_name → First Name → firstname
+{{last_name}} → lead.last_name → Last Name → lastname
+{{email}} → lead.email → Email → emailaddress1
+{{phone_number}} → lead.phone → Mobile Phone → mobilephone
+{{budget}} → lead.meta.budget → Budget → new_budget
+{{booking_slot}} → appointment.datetime → Appointment Date → new_appointmentdatetime
+{{call_summary}} → call.summary → Call Summary → new_callsummary
+{{qualification_status}} → lead.qualification_status → Qualification Status → new_qualificationstatus
+
+The user must be able to type CRM field API codes directly into the table.
+
+Add buttons:
+- Auto-suggest mappings
+- Import CRM fields
+- Add custom field
+- Ignore optional field
+- Validate mappings
+
+SystemMind can auto-suggest mappings, but the user must approve them.
+
+7. Add “Status Trigger Mapping” section
+
+This is important for workflows that trigger based on lead status changes.
+
+Create a section called:
+
+Workflow Trigger Rules
+
+This section should show exactly where the workflow should trigger from.
+
+Inputs:
+
+- Trigger source:
+  - WEBEE lead status
+  - WEBEE qualified pipeline
+  - CRM lead status
+  - CRM deal stage
+  - CRM appointment status
+  - Campaign event
+  - Call outcome
+  - Custom webhook
+
+- Trigger object/table:
+  - Lead
+  - Contact
+  - Deal
+  - Appointment
+  - Campaign Lead
+  - Custom
+
+- Trigger field label
+- Trigger field API code
+- Trigger status value
+- Trigger status code
+- Trigger condition
+- Action to run
+- Workspace
+- Linked agent
+
+Example table:
+
+Trigger Source | Object | Field API Code | Status Name | Status Code | Action
+
+WEBEE Lead Status | Lead | status | Positive | positive | Start follow-up workflow
+
+Microsoft Dynamics | Lead | statuscode | Qualified | 100000001 | Push to qualified pipeline
+
+Microsoft Dynamics | Lead | statuscode | No Answer | 100000004 | Create follow-up task
+
+WEBEE Call Outcome | Call | outcome | Appointment Booked | appointment_booked | Save booking and stop follow-up
+
+SystemMind must ask for the actual CRM status code if the workflow uses an external CRM.
+
+Do not allow Apply if required status codes are missing.
+
+8. Add “Required Inputs” panel
+
+On the right side of the Build Console, replace vague warnings with a proper required inputs panel.
+
+Section name:
+
+Required Setup Inputs
+
+Show grouped missing inputs:
+
+Agent
+- Agent selected: complete
+- Agent scanned: complete
+
+CRM Access
+- Microsoft Dynamics credentials: missing
+- CRM connection test: missing
+
+Variable Mapping
+- {{budget}} CRM field: missing
+- {{booking_slot}} CRM field: missing
+- {{qualification_status}} status mapping: missing
+
+Trigger Rules
+- Trigger field API code: missing
+- Trigger status code: missing
+
+Testing
+- Test payload generated: missing
+- Test run: missing
+- User approval: missing
+
+Each item should have a button:
+
+“Fill in”
+
+When clicked, it should scroll to or open the exact field where the user enters the data.
+
+Do not just show a warning. Every missing requirement must have a direct place to enter it.
+
+9. Add field-level helper boxes
+
+For every required input, add helper text.
+
+Examples:
+
+CRM Field API Code helper:
+“Enter the exact API/schema name used by your CRM, for example mobilephone, emailaddress1, new_budget, or statuscode.”
+
+CRM Status Code helper:
+“Enter the CRM’s internal status code, not just the display name. For example Qualified may display as ‘Qualified’ but have a code like 100000001.”
+
+Trigger Source helper:
+“Choose where this workflow should start from. For example, when a WEBEE lead becomes Positive, or when a Dynamics lead status changes to Qualified.”
+
+Variable helper:
+“This variable was detected in your agent script. Choose where it should be saved and whether it should also be sent to your CRM.”
+
+10. Improve the Build Console layout
+
+The current Build Console is too vague and cramped.
+
+Use this layout:
+
+Left column:
+- Build list
+- New build
+- Saved drafts
+- Setup progress
+
+Middle column:
+- Current build details
+- Linked agent card
+- Credential boxes
+- CRM field mapping
+- Status trigger mapping
+- Variable mapping
+- Calendar setup
+- Follow-up setup
+
+Right column:
+- Required inputs
+- Detected variables
+- Test payload
+- Warnings
+- Apply status
+
+Tabs should be clearer:
+
+1. Brief
+2. Linked Agent
+3. Credentials
+4. Variables
+5. CRM Mapping
+6. Trigger Rules
+7. Workflow
+8. Test
+9. Review
+10. Usage
+
+The Apply button must remain disabled until all required tabs are complete.
+
+11. Improve the Agent Builder bottom SystemMind input
+
+On the Agent Builder page, the bottom input currently says something like:
+
+“Ask SystemMind to configure this agent workflow…”
+
+Improve this so when the user asks for a workflow setup from the builder, it opens the setup wizard directly.
+
+Example:
+
+User types:
+“Set this up to push positive leads to Dynamics and book appointments.”
+
+SystemMind should:
+- Link to the current agent automatically.
+- Scan the agent.
+- Detect variables.
+- Open the setup wizard.
+- Show missing CRM credentials.
+- Show missing CRM field mappings.
+- Show missing trigger status codes.
+
+It should not just generate a vague workflow draft.
+
+12. Add specific variable scanning from script
+
+SystemMind must be able to scan agent scripts and extract variables from text.
+
+Example script text:
+
+“Ask the caller for their budget and save it as {{budget}}. Confirm their email as {{email}} and phone as {{phone_number}}. If they want to book, save the time as {{booking_slot}}.”
+
+SystemMind should automatically detect:
+
+- {{budget}}
+- {{email}}
+- {{phone_number}}
+- {{booking_slot}}
+
+Then it should create mapping rows automatically:
+
+{{budget}} needs WEBEE destination and optional CRM field
+{{email}} maps to lead.email
+{{phone_number}} maps to lead.phone
+{{booking_slot}} maps to appointment.datetime and CRM appointment field
+
+13. Add mapping approval
+
+SystemMind can suggest mappings, but the user must approve before Apply.
+
+For each suggested mapping, show:
+
+Suggested by SystemMind
+Confidence: high / medium / low
+Approve / Edit / Ignore
+
+Do not silently apply guessed CRM field codes.
+
+14. Add import options
+
+Allow user to import CRM field details from:
+
+- CRM connection metadata
+- Pasted CRM field list
+- Uploaded CSV
+- Sample CRM payload
+- Existing webhook payload
+- Previous workspace setup template
+
+After import, SystemMind should suggest mappings.
+
+15. Add templates for common CRM setups
+
+Create reusable mapping templates:
+
+- Microsoft Dynamics lead sync
+- HubSpot contact/deal sync
+- Salesforce lead sync
+- Pipedrive deal sync
+- WEBEE CRM only
+- Custom webhook
+
+Templates should fill common fields but still require review.
+
+16. Add validation rules
+
+Before Apply, validate:
+
+- Agent is selected
+- Agent belongs to current workspace
+- Agent scan completed
+- Required variables mapped
+- Required CRM credentials saved
+- CRM connection tested
+- Required CRM field API codes filled
+- Required status trigger codes filled
+- Required booking fields filled if booking is enabled
+- Test payload generated
+- Test run completed
+- User approved
+
+If validation fails, show exact missing fields and link to each field.
+
+17. Add test payload preview
+
+Add a test payload preview panel.
+
+Example:
+
+{
+  "workspace_id": "...",
+  "agent_id": "...",
+  "trigger": {
+    "source": "crm_status_change",
+    "object": "lead",
+    "field": "statuscode",
+    "value": "100000001"
+  },
+  "variables": {
+    "email": "test@example.com",
+    "phone_number": "+447000000000",
+    "budget": "250000",
+    "booking_slot": "2026-07-17T14:00:00Z"
+  },
+  "crm_mapping": {
+    "email": "emailaddress1",
+    "phone_number": "mobilephone",
+    "budget": "new_budget",
+    "booking_slot": "new_appointmentdatetime"
+  }
+}
+
+Buttons:
+- Generate Test Payload
+- Run Test
+- View Logs
+- Approve
+
+18. Store all setup data properly
+
+Create or update database storage:
+
+systemmind_setup_sessions:
+- id
+- workspace_id
+- title
+- setup_type
+- linked_agent_id
+- linked_agent_name
+- linked_agent_type
+- linked_agent_channel
+- status
+- scan_status
+- detected_variables_json
+- variable_mappings_json
+- crm_provider
+- crm_connection_id
+- crm_field_mappings_json
+- status_trigger_mappings_json
+- calendar_config_json
+- webhook_config_json
+- followup_config_json
+- required_inputs_json
+- missing_inputs_json
+- test_payload_json
+- test_results_json
+- approved_by
+- approved_at
+- created_by
+- created_at
+- updated_at
+
+systemmind_credentials:
+- id
+- workspace_id
+- provider
+- credential_type
+- encrypted_credentials_json
+- status
+- last_tested_at
+- created_by
+- created_at
+- updated_at
+
+systemmind_setup_audit_log:
+- id
+- workspace_id
+- setup_session_id
+- action
+- before_json
+- after_json
+- created_by
+- created_at
+
+All credentials must be encrypted or stored using the existing secure secret management pattern.
+
+19. Workspace isolation
+
+Critical:
+Everything must be scoped by workspace_id.
+
+Do not show agents, CRM credentials, mappings, statuses, workflows, or setup sessions from another workspace.
+
+Do not let Webespoke AI setup affect WeBuyAnyHouse or any other client workspace.
+
+Do not break:
+- Existing Agent Builder
+- Existing Retell integration
+- Existing Cal.com integration
+- Existing n8n workflows
+- Existing analytics
+- Existing leads
+- Existing campaigns
+- Existing WBAH logic
+- Existing SystemMind chat
+
+20. Final behaviour
+
+SystemMind should no longer say vague things like:
+
+“9 required inputs remaining.”
+
+Instead, it should say:
+
+“9 required inputs remaining. Fill them in below.”
+
+Then show clickable missing fields:
+
+- Microsoft Dynamics Tenant ID
+- Microsoft Dynamics Client ID
+- Microsoft Dynamics Client Secret
+- Microsoft Dynamics Organization URL
+- CRM trigger field API code
+- CRM trigger status code for Qualified
+- CRM field code for {{budget}}
+- CRM field code for {{booking_slot}}
+- CRM field code for {{qualification_status}}
+
+Each missing input must have a visible input field and a “Fill in” shortcut.
+
+SystemMind should feel like a setup assistant and workflow console, not just a chatbot.

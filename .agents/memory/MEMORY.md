@@ -125,9 +125,14 @@
 - [Access enforcement (pkg∩role∩override)](access-enforcement-arch.md) — every sensitive server fn needs an entitlement guard (auth middleware ≠ enforcement); 30s cache needs invalidate on changes; UI lock layer fails open by design.
 - [Master Admin oversight & package matrix](master-admin-oversight.md) — package_definitions DB rows override code catalog; use packageByKeyServer + invalidate both caches after writes.
 - [WBAH campaign run reporting](wbah-campaign-run-reporting.md) — snapshot refreshed only on user page reads (never poll WeeBespoke); attribution = agent + latest London slot; extend WBAH_ONLY_REPORT_TYPES for new WBAH-only kinds.
+- [AccountsMind invoice generator](accountsmind-invoice-generator.md) — DOCX templating via docxtemplater; reserve invoice number by insert-first + 23505 retry, upload to per-row path, never upsert.
+- [Analytics row cap + stale chunk reload](analytics-hub-row-cap.md) — analytics totals must page past PostgREST's 1000-row cap; root-level vite:preloadError reload guard fixes post-republish dead routes.
 - [AccountsMind industry presets](accountsmind-industry-presets.md) — workspace_settings.industry + code-owned non-sensitive presets; apply replaces via versionedInsertConfigRow chain, owner/admin gate via resolvePermissions.
 - [Reseller & white-label hierarchy](reseller-whitelabel-hierarchy.md) — parent/child workspaces; capacity = maxChildAccounts + addon (fail closed); children never inherit reseller powers; legacy_full excludes new keys.
 - [Workspace email provider dispatch](workspace-email-provider-dispatch.md) — all workspace email via sendWorkspaceEmail (own custom → reseller parent → platform); never-throw, fallback, alert at 3 fails.
 - [Notification prefs & package caps](notification-prefs-packages.md) — new event keys need BOTH shared catalog + DB check-constraint migration; caps fail closed; defaults seed insert-only.
 - [Analytics Hub architecture](analytics-hub-arch.md) — 12-tab BI hub + 15-type report engine; schedule tick MUST claim via CAS on last_run_at before sending or ticks re-send every 5 min.
 - [Cross-instance cache signals](cross-instance-cache-signals.md) — platform_cache_signals version row + throttled check makes package/entitlement caches multi-instance safe; reuse for new server caches.
+- [JSX global fallback crash](jsx-global-fallback-illegal-constructor.md) — unimported JSX name (e.g. Lock) resolves to a browser global → "Illegal constructor" render crash; TS won't catch; use /api/monitoring/client-error reporter to find it.
+- [AccountsMind invoice status](accountsmind-invoice-status.md) — only status=paid counts as sales, cancelled excluded; single summary fn consumed by HiveMind/GrowthMind/dashboard via graceful dynamic import.
+- [SystemMind Build Setup Console](systemmind-setup-console.md) — per-session setup state gates Apply only when a row exists; secrets never in setup table; extend computeRequiredInputs for new checks.

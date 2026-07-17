@@ -43,6 +43,16 @@ const TYPE_LABEL: Record<string, string> = {
 
 const FREQUENCIES = ["daily", "weekly", "monthly", "custom"] as const;
 
+// Campaign-lifecycle kinds are refused by the report generator for the WBAH
+// workspace (WBAH has its own dialler report kinds), so don't offer them there.
+const CAMPAIGN_LIFECYCLE_KEYS = new Set([
+  "campaign_launch",
+  "campaign_failure",
+  "campaign_completion",
+  "campaign_kpi",
+  "daily_campaign_summary",
+]);
+
 export function ReportsTab({
   filter,
   canGenerate,
@@ -57,7 +67,12 @@ export function ReportsTab({
   isWbah?: boolean;
 }) {
   const reportTypes = useMemo(
-    () => REPORT_TYPES.filter((t) => (t.key === "wbah_dialler_summary" ? isWbah : true)),
+    () =>
+      REPORT_TYPES.filter((t) => {
+        if (t.key === "wbah_dialler_summary") return isWbah;
+        if (isWbah && CAMPAIGN_LIFECYCLE_KEYS.has(t.key)) return false;
+        return true;
+      }),
     [isWbah],
   );
   const qc = useQueryClient();

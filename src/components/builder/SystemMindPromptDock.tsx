@@ -6,8 +6,9 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
+import { useNavigate } from "@tanstack/react-router";
 import { toast } from "sonner";
-import { Bot, Hammer, Lightbulb, Loader2, Send } from "lucide-react";
+import { Bot, GitBranch, Hammer, Lightbulb, Loader2, Send } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import {
@@ -38,6 +39,7 @@ export function useSystemMindBuildLauncher({
   channelType?: string | null;
 }) {
   const qc       = useQueryClient();
+  const navigate = useNavigate();
   const listFn   = useServerFn(listBuildSessions);
   const createFn = useServerFn(createBuildSession);
 
@@ -90,6 +92,16 @@ export function useSystemMindBuildLauncher({
   });
 
   const launch = (text?: string) => {
+    // Hard guard: the dock must always know exactly which agent it is building
+    // for. With no saved agent row there is nothing safe to target — never
+    // create an unlinked session that could attach to the wrong agent.
+    if (!agentRowId) {
+      toast.error("Save this agent first", {
+        description:
+          "SystemMind needs to know which agent it's building for. Save the agent (or open one from My Agents), then try again.",
+      });
+      return;
+    }
     // Wait for the sessions list before creating, so we never race a reuse
     // check into a duplicate session for the same agent.
     if (sessionsLoading) return;
@@ -131,6 +143,19 @@ export function useSystemMindBuildLauncher({
               placeholder="Ask SystemMind to configure this agent workflow…"
               className="min-w-0 flex-1 bg-transparent text-[11px] text-foreground placeholder:text-muted-foreground/70 focus:outline-none"
             />
+            <Button
+              type="button" size="sm" variant="ghost"
+              className="h-7 gap-1 px-2 text-[10px] text-muted-foreground hover:text-foreground"
+              title="Open the SystemMind Workflows tab"
+              onClick={() =>
+                navigate({
+                  to: "/systemmind/build",
+                  search: { tab: "workflows" } as never,
+                })
+              }
+            >
+              <GitBranch className="h-3 w-3" /> Workflows
+            </Button>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button

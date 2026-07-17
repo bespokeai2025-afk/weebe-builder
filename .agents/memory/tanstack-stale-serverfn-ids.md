@@ -21,3 +21,8 @@ TanStack Start returns its HTML "This page didn't load" error page instead of a 
 **Why:** Server function IDs are compiled into the client bundle. When the server reloads a module, IDs may change. The browser still uses the old IDs from the pre-restart bundle.
 
 **How to apply:** When debugging "Generation failed" + HTML errors, check server logs first. If "Invalid server function ID" appears with no actual provider log lines, the issue is a stale browser — not the API or server logic.
+
+Update (2026-07-16): the inline preload-error reload script alone is NOT enough — the root route errorComponent catches stale-build errors (chunk 404s, "Invalid server function", HTML-instead-of-JSON) before the script helps. Fix: the error boundary itself must pattern-match stale-build errors and hard-reload once (sessionStorage timestamp guard), and "Try again" must be a full location.reload(), never router.invalidate()+reset() (re-runs the same stale code).
+
+## Error boundary must be hook-free
+Root/route errorComponents render in error-recovery contexts where React hooks can be invalid ("Invalid hook call") — a useEffect-based auto-reload never fires and the user stays stuck on the error screen. Pattern: no hooks; read sessionStorage guard in render body and `setTimeout(() => location.reload())`. Applied in __root.tsx ErrorComponent and qualified.tsx fallback.

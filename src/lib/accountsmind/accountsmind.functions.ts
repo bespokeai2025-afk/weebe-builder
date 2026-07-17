@@ -139,6 +139,11 @@ export const getAccountsDashboard = createServerFn({ method: "GET" })
         .select("id,name"),
     ]);
 
+    // Paid-invoice sales across all clients (platform-wide).
+    const invoiceSales = await import("@/lib/accountsmind/invoice-sales.server")
+      .then((m) => m.getInvoiceSalesSummary())
+      .catch(() => null);
+
     const costs      = monthCostsRes.data  ?? [];
     const workspaces = workspacesRes.data  ?? [];
     const wsMap      = Object.fromEntries(workspaces.map((w: any) => [w.id, w.name]));
@@ -179,6 +184,7 @@ export const getAccountsDashboard = createServerFn({ method: "GET" })
       recentRecharges:      rechargesRes.data ?? [],
       clients:              costsWithNames,
       providerTotals,
+      invoiceSales,
     };
   });
 

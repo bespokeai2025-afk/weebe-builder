@@ -5,7 +5,7 @@
 
 import { useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
-import { Bot, ExternalLink, Maximize2, Minimize2, Phone, Radio } from "lucide-react";
+import { Bot, ExternalLink, GitBranch, Maximize2, Minimize2, Phone, Radio } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -85,6 +85,19 @@ export function SystemMindBuildDrawer({
             )}
           </div>
           <div className="ml-auto flex items-center gap-1">
+            <Button
+              size="sm" variant="outline"
+              className="h-7 gap-1 px-2 text-[11px] text-muted-foreground hover:text-foreground"
+              onClick={() => {
+                onOpenChange(false);
+                navigate({
+                  to: "/systemmind/build",
+                  search: { tab: "workflows" } as never,
+                });
+              }}
+            >
+              <GitBranch className="h-3 w-3" /> Workflows
+            </Button>
             {sessionId && (
               <Button
                 size="sm" variant="outline"

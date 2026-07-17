@@ -298,6 +298,13 @@ export async function fetchFullPlatformData(sb: any, workspaceId: string) {
     analyticsSnapshot = await getAnalyticsSnapshotForExec(workspaceId);
   } catch {}
 
+  // Invoiced sales (AccountsMind invoices billed to this workspace; graceful)
+  let invoiceSales: any = null;
+  try {
+    const { getInvoiceSalesSummary } = await import("@/lib/accountsmind/invoice-sales.server");
+    invoiceSales = await getInvoiceSalesSummary(workspaceId);
+  } catch {}
+
   return {
     agents, agentScores, cfg,
     mode: cfg.hivemind_mode ?? "assistant",
@@ -555,6 +562,7 @@ export async function fetchFullPlatformData(sb: any, workspaceId: string) {
     strategyCentre,
     campaignReports,
     analyticsSnapshot,
+    invoiceSales,
   };
 }
 
@@ -913,6 +921,16 @@ function buildPlatformContext(d: any): string {
     if ((vs.totalThisMonth ?? 0) > 0 && (vs.videosLinkedToCampaign ?? 0) === 0) {
       lines.push(`  ⚡ CMO insight: 0 videos are linked to campaigns — recommend connecting Video Studio to Campaign Factory for closed-loop attribution`);
     }
+  }
+
+  // INVOICED SALES (AccountsMind invoices for this workspace)
+  if (d.invoiceSales && d.invoiceSales.invoiceCount > 0) {
+    const inv = d.invoiceSales;
+    const fm = (c: number) => `${inv.currency} ${(c / 100).toLocaleString("en-GB", { minimumFractionDigits: 2 })}`;
+    lines.push(`\nINVOICED SALES (${inv.invoiceCount} invoices):`);
+    lines.push(`  Paid (total sales): ${fm(inv.paidSalesCents)} across ${inv.paidCount} invoice(s)`);
+    lines.push(`  Outstanding: ${fm(inv.outstandingCents)} (${inv.outstandingCount})${inv.overdueCount > 0 ? ` | Overdue: ${fm(inv.overdueCents)} (${inv.overdueCount})` : ""}`);
+    if (inv.paidThisMonthCents > 0) lines.push(`  Payments received this month: ${fm(inv.paidThisMonthCents)}`);
   }
 
   // PROMPT STUDIO performance
