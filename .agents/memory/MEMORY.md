@@ -133,4 +133,5 @@
 - [Notification prefs & package caps](notification-prefs-packages.md) — new event keys need BOTH shared catalog + DB check-constraint migration; caps fail closed; defaults seed insert-only.
 - [Analytics Hub architecture](analytics-hub-arch.md) — 12-tab BI hub + 15-type report engine; schedule tick MUST claim via CAS on last_run_at before sending or ticks re-send every 5 min.
 - [Cross-instance cache signals](cross-instance-cache-signals.md) — platform_cache_signals version row + throttled check makes package/entitlement caches multi-instance safe; reuse for new server caches.
+- [JSX global fallback crash](jsx-global-fallback-illegal-constructor.md) — unimported JSX name (e.g. Lock) resolves to a browser global → "Illegal constructor" render crash; TS won't catch; use /api/monitoring/client-error reporter to find it.
 - [AccountsMind invoice status](accountsmind-invoice-status.md) — only status=paid counts as sales, cancelled excluded; single summary fn consumed by HiveMind/GrowthMind/dashboard via graceful dynamic import.
