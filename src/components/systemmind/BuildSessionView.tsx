@@ -71,6 +71,7 @@ const ITERATION_PROMPTS = [
 // through); the final step stays "in progress" until the response lands.
 
 const BUILD_PHASES_FIRST = [
+  "Checking required context",
   "Reading your request",
   "Detecting workflow type & trigger",
   "Designing the workflow steps",
@@ -82,6 +83,7 @@ const BUILD_PHASES_FIRST = [
 ];
 
 const BUILD_PHASES_REVISION = [
+  "Checking required context",
   "Reading your change request",
   "Comparing against the current version",
   "Updating the workflow steps",
@@ -1517,18 +1519,36 @@ export function BuildSessionView({
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages.length]);
 
+  // When SystemMind pauses a build to ask its Required Context questions, we
+  // keep the blocked prompt so the user can either fill the context in and
+  // resend, or explicitly "Build anyway".
+  const [gateBlockedPrompt, setGateBlockedPrompt] = useState<string | null>(null);
+
   const sendPrompt = useMutation({
-    mutationFn: async (text?: string) => {
+    mutationFn: async (vars?: string | { text?: string; force?: boolean }) => {
+      const text  = typeof vars === "string" ? vars : vars?.text;
+      const force = typeof vars === "object" && vars?.force === true;
       const p = (text ?? prompt).trim();
       if (!p) throw new Error("Describe what you want SystemMind to build or change.");
-      return promptFn({ data: { sessionId, prompt: p } });
+      const res: any = await promptFn({ data: { sessionId, prompt: p, skipContextGate: force } });
+      return { ...res, _prompt: p };
     },
     onSuccess: (res: any) => {
       setPrompt("");
-      setSim(null);
-      setTab("config");
       qc.invalidateQueries({ queryKey: ["smbw-session", sessionId] });
       qc.invalidateQueries({ queryKey: ["smbw-sessions"] });
+      if (res?.contextGateBlocked) {
+        // SystemMind asked its clarifying questions instead of building.
+        setGateBlockedPrompt(res._prompt ?? null);
+        toast.info("SystemMind has some questions first", {
+          description: "Answer them on the Required Context tab, then confirm and resend — or choose Build anyway.",
+        });
+        setTab("context");
+        return;
+      }
+      setGateBlockedPrompt(null);
+      setSim(null);
+      setTab("config");
       qc.invalidateQueries({ queryKey: ["smbw-usage"] });
       qc.invalidateQueries({ queryKey: ["smbw-review", sessionId] });
       qc.invalidateQueries({ queryKey: ["smbw-testcall", sessionId] });
@@ -1875,6 +1895,30 @@ export function BuildSessionView({
             <div ref={chatEndRef} />
           </div>
           <div className="border-t border-white/[0.05] p-2.5">
+            {gateBlockedPrompt && !busy && session.status !== "archived" && (
+              <div className="mb-2 flex flex-wrap items-center gap-2 rounded-lg border border-amber-500/25 bg-amber-500/[0.06] px-2.5 py-2">
+                <p className="min-w-0 flex-1 text-[10px] leading-snug text-amber-200/90">
+                  SystemMind paused this build to ask questions. Answer them on the Required
+                  Context tab and press Confirm Context, then resend — or build anyway with assumptions.
+                </p>
+                <div className="flex shrink-0 gap-1.5">
+                  <Button
+                    size="sm" variant="outline"
+                    className="h-6 px-2 text-[10px]"
+                    onClick={() => sendPrompt.mutate({ text: gateBlockedPrompt })}
+                  >
+                    Resend
+                  </Button>
+                  <Button
+                    size="sm"
+                    className="h-6 px-2 text-[10px]"
+                    onClick={() => sendPrompt.mutate({ text: gateBlockedPrompt, force: true })}
+                  >
+                    Build anyway
+                  </Button>
+                </div>
+              </div>
+            )}
             {versions.length > 0 && !prompt && !busy && session.status !== "archived" && (
               <div className="mb-2 flex flex-wrap gap-1.5">
                 {ITERATION_PROMPTS.map((p) => (

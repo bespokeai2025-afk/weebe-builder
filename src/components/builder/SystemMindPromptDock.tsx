@@ -90,6 +90,16 @@ export function useSystemMindBuildLauncher({
   });
 
   const launch = (text?: string) => {
+    // Hard guard: the dock must always know exactly which agent it is building
+    // for. With no saved agent row there is nothing safe to target — never
+    // create an unlinked session that could attach to the wrong agent.
+    if (!agentRowId) {
+      toast.error("Save this agent first", {
+        description:
+          "SystemMind needs to know which agent it's building for. Save the agent (or open one from My Agents), then try again.",
+      });
+      return;
+    }
     // Wait for the sessions list before creating, so we never race a reuse
     // check into a duplicate session for the same agent.
     if (sessionsLoading) return;

@@ -23,5 +23,20 @@ correct:
    next handed-off prompt also auto-sends — a never-resetting boolean silently
    drops all prompts after the first while the view stays mounted.
 
+4. **Hard-anchor the target agent, ask questions before building.** The dock
+   refuses to launch with no saved `agentRowId`; session creation validates the
+   target agent exists in the workspace and titles the session "Build: <agent>".
+   `promptBuildSessionServer` gates agent-linked builds behind the Required
+   Context: if unconfirmed with missing required items it returns
+   `{contextGateBlocked:true}` + a questions chat message instead of building
+   (`skipContextGate` = explicit "Build anyway"). **Why:** users saw builds run
+   against the wrong agent and without any clarifying questions.
+
+5. **Retell load-by-ID must re-link the store.** `loadFlow` keeps the old
+   `currentAgentRowId` when `agentRowId` is omitted — any flow that loads a
+   *different* agent into the builder must pass `agentRowId: null` and set the
+   correct row id after persisting, or the dock silently targets the previous
+   agent.
+
 **How to apply:** reuse this pattern for any future "embed a session-based
 workspace inside another page" feature (drawer + launcher hook + prompt handoff).
