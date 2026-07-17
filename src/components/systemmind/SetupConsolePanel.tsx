@@ -31,6 +31,7 @@ import {
 import {
   scanAgentForSetup, getSetupState, updateSetupState, refreshSetupCrmStatus,
   generateSetupTestPayload, runSetupTest, approveSetup, listAgentsForSetup,
+  saveSetupContext, autoSuggestSetupContext, confirmSetupContext,
 } from "@/lib/systemmind/setup-console.functions";
 import {
   saveProviderCredentials, testProviderConnection,
@@ -58,6 +59,7 @@ export function useSetupConsole(sessionId: string) {
   return {
     state: (query.data as any)?.state ?? null,
     requiredInputs: ((query.data as any)?.requiredInputs ?? []) as any[],
+    contextCompleteness: ((query.data as any)?.contextCompleteness ?? null) as any,
     isLoading: query.isLoading,
     invalidate,
     setData,
@@ -829,8 +831,8 @@ export function SetupTestPanel({
 // ── Required inputs panel ──────────────────────────────────────────────────────
 
 const GROUP_LABEL: Record<string, string> = {
-  agent: "Agent", crm_access: "CRM Access", variables: "Variable Mapping",
-  triggers: "Trigger Rules", testing: "Testing",
+  context: "Required Context", agent: "Agent", crm_access: "CRM Access",
+  variables: "Variable Mapping", triggers: "Trigger Rules", testing: "Testing",
 };
 
 export function RequiredInputsPanel({

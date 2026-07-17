@@ -9819,6 +9819,7 @@ export type Database = {
       systemmind_setup_states: {
         Row: {
           agent_id: string | null
+          context: Json
           created_at: string
           created_by: string | null
           crm: Json
@@ -9833,6 +9834,7 @@ export type Database = {
         }
         Insert: {
           agent_id?: string | null
+          context?: Json
           created_at?: string
           created_by?: string | null
           crm?: Json
@@ -9847,6 +9849,7 @@ export type Database = {
         }
         Update: {
           agent_id?: string | null
+          context?: Json
           created_at?: string
           created_by?: string | null
           crm?: Json

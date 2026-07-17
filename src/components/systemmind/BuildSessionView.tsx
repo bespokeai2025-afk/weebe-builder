@@ -16,13 +16,14 @@ import {
   ShieldAlert, Rocket, GitBranch, Variable, ListChecks, Bell, StickyNote,
   ArrowRight, Bot, Workflow as WorkflowIcon, ExternalLink, ShieldCheck,
   Undo2, GitCompareArrows, FilePlus2, Copy, SendToBack, Import, Info,
-  ClipboardList, Lightbulb, Table2, Eye, Trash2, KeyRound, Zap,
+  ClipboardList, Lightbulb, Table2, Eye, Trash2, KeyRound, Zap, BookOpenCheck,
 } from "lucide-react";
 import {
   useSetupConsole, missingRequiredCount, LinkedAgentCard, CredentialsPanel,
   DetectedVariablesPanel, TriggerRulesPanel, SetupTestPanel, RequiredInputsPanel,
 } from "./SetupConsolePanel";
 import { scanAgentForSetup } from "@/lib/systemmind/setup-console.functions";
+import { RequiredContextPanel } from "./RequiredContextPanel";
 import { cn } from "@/lib/utils";
 import { DeploymentChecklistPanel } from "./DeploymentChecklistPanel";
 import { TestCallPanel } from "./TestCallPanel";
@@ -1387,7 +1388,7 @@ function ReviewPanel({
 // ── Session view ────────────────────────────────────────────────────────────────
 
 type Tab =
-  | "brief" | "requirements" | "agent" | "credentials" | "triggers"
+  | "brief" | "context" | "requirements" | "agent" | "credentials" | "triggers"
   | "variables" | "mapping" | "config" | "test"
   | "review" | "deploy" | "versions" | "usage" | "conversion";
 
@@ -1735,6 +1736,7 @@ export function BuildSessionView({
 
   const stepTabs: Array<readonly [Tab, React.ElementType, string]> = [
     ["brief",  Lightbulb, "Brief"],
+    ["context", BookOpenCheck, "Required Context"],
     ["agent",  Bot, "Linked Agent"],
     ...(session.target_agent_id ? ([["requirements", ClipboardList, "Requirements"]] as const) : []),
     ["credentials", KeyRound, "CRM Access"],
@@ -1982,7 +1984,7 @@ export function BuildSessionView({
               <AlertTriangle className="h-3.5 w-3.5 shrink-0 text-amber-400" />
               <p className="text-[11px] text-amber-200/90">
                 {setupMissing} required setup input{setupMissing === 1 ? "" : "s"} remaining — Apply is
-                locked until credentials, mappings, triggers and the setup test are complete.
+                locked until required context, credentials, mappings, triggers and the setup test are complete.
               </p>
               <button
                 onClick={() => setTab("agent")}
@@ -2022,6 +2024,10 @@ export function BuildSessionView({
           <div className="min-h-0 flex-1 overflow-y-auto p-3">
             {tab === "brief" && (
               <BriefPanel messages={messages} currentVersion={currentVersion} config={config} />
+            )}
+
+            {tab === "context" && (
+              <RequiredContextPanel sessionId={sessionId} setup={setup} onGoToTab={(t) => setTab(t as Tab)} />
             )}
 
             {tab === "agent" && (

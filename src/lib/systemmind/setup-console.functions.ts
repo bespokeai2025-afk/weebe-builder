@@ -44,9 +44,9 @@ export const getSetupState = createServerFn({ method: "GET" })
       const { requireSystemMindView } = await import("@/lib/systemmind/systemmind-access.server");
       await requireSystemMindView(context.workspaceId, context.userId);
     }
-    const { getSetupStateServer, computeRequiredInputs } = await import("@/lib/systemmind/setup-console.server");
+    const { getSetupStateServer, computeRequiredInputs, computeContextCompleteness } = await import("@/lib/systemmind/setup-console.server");
     const state = await getSetupStateServer(requireWorkspaceId(context.workspaceId), data.sessionId);
-    return { state, requiredInputs: computeRequiredInputs(state) };
+    return { state, requiredInputs: computeRequiredInputs(state), contextCompleteness: computeContextCompleteness(state) };
   });
 
 const NO_SECRET_STRING = z.string().max(400);
@@ -100,7 +100,7 @@ export const updateSetupState = createServerFn({ method: "POST" })
       const { requireSystemMindEdit } = await import("@/lib/systemmind/systemmind-access.server");
       await requireSystemMindEdit(context.workspaceId, context.userId);
     }
-    const { updateSetupStateServer, computeRequiredInputs } = await import("@/lib/systemmind/setup-console.server");
+    const { updateSetupStateServer, computeRequiredInputs, computeContextCompleteness } = await import("@/lib/systemmind/setup-console.server");
     const state = await updateSetupStateServer({
       workspaceId: requireWorkspaceId(context.workspaceId),
       userId: context.userId!,
@@ -109,7 +109,7 @@ export const updateSetupState = createServerFn({ method: "POST" })
       crmPatch: data.crmPatch,
       triggers: data.triggers,
     });
-    return { state, requiredInputs: computeRequiredInputs(state) };
+    return { state, requiredInputs: computeRequiredInputs(state), contextCompleteness: computeContextCompleteness(state) };
   });
 
 export const refreshSetupCrmStatus = createServerFn({ method: "POST" })
@@ -122,13 +122,13 @@ export const refreshSetupCrmStatus = createServerFn({ method: "POST" })
       const { requireSystemMindEdit } = await import("@/lib/systemmind/systemmind-access.server");
       await requireSystemMindEdit(context.workspaceId, context.userId);
     }
-    const { refreshSetupCrmStatusServer, computeRequiredInputs } = await import("@/lib/systemmind/setup-console.server");
+    const { refreshSetupCrmStatusServer, computeRequiredInputs, computeContextCompleteness } = await import("@/lib/systemmind/setup-console.server");
     const state = await refreshSetupCrmStatusServer({
       workspaceId: requireWorkspaceId(context.workspaceId),
       userId: context.userId!,
       sessionId: data.sessionId,
     });
-    return { state, requiredInputs: computeRequiredInputs(state) };
+    return { state, requiredInputs: computeRequiredInputs(state), contextCompleteness: computeContextCompleteness(state) };
   });
 
 export const generateSetupTestPayload = createServerFn({ method: "POST" })
@@ -141,13 +141,13 @@ export const generateSetupTestPayload = createServerFn({ method: "POST" })
       const { requireSystemMindEdit } = await import("@/lib/systemmind/systemmind-access.server");
       await requireSystemMindEdit(context.workspaceId, context.userId);
     }
-    const { generateSetupTestPayloadServer, computeRequiredInputs } = await import("@/lib/systemmind/setup-console.server");
+    const { generateSetupTestPayloadServer, computeRequiredInputs, computeContextCompleteness } = await import("@/lib/systemmind/setup-console.server");
     const state = await generateSetupTestPayloadServer({
       workspaceId: requireWorkspaceId(context.workspaceId),
       userId: context.userId!,
       sessionId: data.sessionId,
     });
-    return { state, requiredInputs: computeRequiredInputs(state) };
+    return { state, requiredInputs: computeRequiredInputs(state), contextCompleteness: computeContextCompleteness(state) };
   });
 
 export const runSetupTest = createServerFn({ method: "POST" })
@@ -160,13 +160,13 @@ export const runSetupTest = createServerFn({ method: "POST" })
       const { requireSystemMindEdit } = await import("@/lib/systemmind/systemmind-access.server");
       await requireSystemMindEdit(context.workspaceId, context.userId);
     }
-    const { runSetupTestServer, computeRequiredInputs } = await import("@/lib/systemmind/setup-console.server");
+    const { runSetupTestServer, computeRequiredInputs, computeContextCompleteness } = await import("@/lib/systemmind/setup-console.server");
     const state = await runSetupTestServer({
       workspaceId: requireWorkspaceId(context.workspaceId),
       userId: context.userId!,
       sessionId: data.sessionId,
     });
-    return { state, requiredInputs: computeRequiredInputs(state) };
+    return { state, requiredInputs: computeRequiredInputs(state), contextCompleteness: computeContextCompleteness(state) };
   });
 
 export const approveSetup = createServerFn({ method: "POST" })
@@ -179,13 +179,121 @@ export const approveSetup = createServerFn({ method: "POST" })
       const { requireSystemMindEdit } = await import("@/lib/systemmind/systemmind-access.server");
       await requireSystemMindEdit(context.workspaceId, context.userId);
     }
-    const { approveSetupServer, computeRequiredInputs } = await import("@/lib/systemmind/setup-console.server");
+    const { approveSetupServer, computeRequiredInputs, computeContextCompleteness } = await import("@/lib/systemmind/setup-console.server");
     const state = await approveSetupServer({
       workspaceId: requireWorkspaceId(context.workspaceId),
       userId: context.userId!,
       sessionId: data.sessionId,
     });
-    return { state, requiredInputs: computeRequiredInputs(state) };
+    return { state, requiredInputs: computeRequiredInputs(state), contextCompleteness: computeContextCompleteness(state) };
+  });
+
+// ── Required Context fns ──────────────────────────────────────────────────────
+// Schema duplicated inline (keep in sync with ContextPatchSchema in
+// setup-console.server.ts) — importing the server module here would pull it
+// into the client bundle.
+
+const CTX_STR = z.string().max(2000);
+const CTX_ARR = z.array(z.string().max(200)).max(60);
+const ContextPatchInputSchema = z.object({
+  business: z.object({
+    businessName: CTX_STR, industry: CTX_STR, mainGoal: CTX_STR, problem: CTX_STR,
+    audience: CTX_STR, desiredOutcome: CTX_STR, onSuccess: CTX_STR, onFailure: CTX_STR,
+  }).partial().optional(),
+  agent: z.object({
+    channel: CTX_STR, direction: CTX_STR, lifecycle: CTX_STR, updateMode: CTX_STR, scanTarget: CTX_STR,
+  }).partial().optional(),
+  data: z.object({
+    requiredFields: CTX_ARR, optionalFields: CTX_ARR, preProvidedFields: CTX_ARR, postCallFields: CTX_ARR,
+    saveToWebee: z.boolean().nullable(), sendToCrm: z.boolean().nullable(), fieldsConfirmed: z.boolean(),
+  }).partial().optional(),
+  crm: z.object({
+    syncRequired: z.boolean().nullable(), objectTable: CTX_STR, pipeline: CTX_STR, owner: CTX_STR,
+    sourceCode: CTX_STR, duplicateRule: CTX_STR, updateFields: CTX_STR, triggerStatuses: CTX_STR,
+  }).partial().optional(),
+  trigger: z.object({
+    source: CTX_STR, object: CTX_STR, field: CTX_STR, value: CTX_STR,
+    frequency: CTX_STR, timing: CTX_STR, scopeFilter: CTX_STR,
+  }).partial().optional(),
+  outcome: z.object({ finalAction: CTX_STR, actions: CTX_ARR, notes: CTX_STR }).partial().optional(),
+  booking: z.object({
+    required: z.boolean().nullable(), calendarProvider: CTX_STR, eventType: CTX_STR, bookingVariable: CTX_STR,
+    duration: CTX_STR, timezone: CTX_STR, availabilityRules: CTX_STR, confirmationMessage: CTX_STR,
+    rebookingRules: CTX_STR, cancellationHandling: CTX_STR, crmAppointmentField: CTX_STR,
+  }).partial().optional(),
+  followup: z.object({
+    enabled: z.boolean().nullable(), channel: CTX_STR, delay: CTX_STR, attempts: CTX_STR,
+    stopConditions: CTX_STR, templates: CTX_STR, owner: CTX_STR, stopStatuses: CTX_STR,
+  }).partial().optional(),
+  compliance: z.object({
+    canContact: z.boolean().nullable(), consentSource: CTX_STR, dncRules: CTX_STR, region: CTX_STR,
+    callingHours: CTX_STR, disclaimers: CTX_STR, escalationRules: CTX_STR, handoverRules: CTX_STR,
+  }).partial().optional(),
+  success: z.object({
+    definition: CTX_STR, testProves: CTX_STR, webeeExpectation: CTX_STR,
+    crmExpectation: CTX_STR, mustNotHappen: CTX_STR, approver: CTX_STR,
+  }).partial().optional(),
+});
+
+export const saveSetupContext = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) =>
+    z.object({ sessionId: z.string().uuid(), patch: ContextPatchInputSchema }).parse(input),
+  )
+  .handler(async ({ data, context }) => {
+    {
+      const { requireSystemMindEdit } = await import("@/lib/systemmind/systemmind-access.server");
+      await requireSystemMindEdit(context.workspaceId, context.userId);
+    }
+    const { saveSetupContextServer, computeRequiredInputs, computeContextCompleteness } =
+      await import("@/lib/systemmind/setup-console.server");
+    const state = await saveSetupContextServer({
+      workspaceId: requireWorkspaceId(context.workspaceId),
+      userId: context.userId!,
+      sessionId: data.sessionId,
+      patch: data.patch,
+    });
+    return { state, requiredInputs: computeRequiredInputs(state), contextCompleteness: computeContextCompleteness(state) };
+  });
+
+export const autoSuggestSetupContext = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) =>
+    z.object({ sessionId: z.string().uuid() }).parse(input),
+  )
+  .handler(async ({ data, context }) => {
+    {
+      const { requireSystemMindEdit } = await import("@/lib/systemmind/systemmind-access.server");
+      await requireSystemMindEdit(context.workspaceId, context.userId);
+    }
+    const { autoSuggestSetupContextServer, computeRequiredInputs, computeContextCompleteness } =
+      await import("@/lib/systemmind/setup-console.server");
+    const state = await autoSuggestSetupContextServer({
+      workspaceId: requireWorkspaceId(context.workspaceId),
+      userId: context.userId!,
+      sessionId: data.sessionId,
+    });
+    return { state, requiredInputs: computeRequiredInputs(state), contextCompleteness: computeContextCompleteness(state) };
+  });
+
+export const confirmSetupContext = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) =>
+    z.object({ sessionId: z.string().uuid() }).parse(input),
+  )
+  .handler(async ({ data, context }) => {
+    {
+      const { requireSystemMindEdit } = await import("@/lib/systemmind/systemmind-access.server");
+      await requireSystemMindEdit(context.workspaceId, context.userId);
+    }
+    const { confirmSetupContextServer, computeRequiredInputs, computeContextCompleteness } =
+      await import("@/lib/systemmind/setup-console.server");
+    const state = await confirmSetupContextServer({
+      workspaceId: requireWorkspaceId(context.workspaceId),
+      userId: context.userId!,
+      sessionId: data.sessionId,
+    });
+    return { state, requiredInputs: computeRequiredInputs(state), contextCompleteness: computeContextCompleteness(state) };
   });
 
 // Lightweight agent list for the "Change Agent" picker (workspace-scoped).
