@@ -1,7 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
-import { cacheWrap } from "@/lib/cache/redis.server";
+import { cacheWrap, cacheDel } from "@/lib/cache/redis.server";
 import { resolvePermissions } from "@/lib/permissions/permissions.server";
 
 const CALLS_TTL      = 2 * 60;  // 2 minutes
@@ -110,6 +110,32 @@ export const listTestCalls = createServerFn({ method: "POST" })
       cost_cents: number | null;
     }>;
     });
+  });
+
+export const deleteTestCalls = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input) =>
+    z
+      .object({ ids: z.array(z.string().uuid()).min(1).max(500) })
+      .parse(input),
+  )
+  .handler(async ({ context, data }) => {
+    const { supabase, workspaceId } = context;
+    if (!workspaceId) throw new Error("No active workspace");
+    const sb = supabase as any;
+    // Only test/builder calls (to_number = "unknown") in the caller's own
+    // workspace can be deleted — live call records are never touched.
+    const { data: deleted, error } = await sb
+      .from("calls")
+      .delete()
+      .eq("workspace_id", workspaceId)
+      .eq("to_number", "unknown")
+      .in("id", data.ids)
+      .select("id");
+    if (error) throw new Error(error.message);
+    // Invalidate the cached test-calls list (UI always requests the default limit).
+    await cacheDel(`webee:calls:test:${workspaceId}:lim:5000`).catch(() => {});
+    return { deletedCount: (deleted ?? []).length };
   });
 
 export const listCalledQualifiedRecords = createServerFn({ method: "GET" })
