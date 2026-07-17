@@ -9816,6 +9816,51 @@ export type Database = {
         }
         Relationships: []
       }
+      systemmind_setup_states: {
+        Row: {
+          agent_id: string | null
+          created_at: string
+          created_by: string | null
+          crm: Json
+          id: string
+          mappings: Json
+          scan: Json
+          session_id: string
+          test: Json
+          triggers: Json
+          updated_at: string
+          workspace_id: string
+        }
+        Insert: {
+          agent_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          crm?: Json
+          id?: string
+          mappings?: Json
+          scan?: Json
+          session_id: string
+          test?: Json
+          triggers?: Json
+          updated_at?: string
+          workspace_id: string
+        }
+        Update: {
+          agent_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          crm?: Json
+          id?: string
+          mappings?: Json
+          scan?: Json
+          session_id?: string
+          test?: Json
+          triggers?: Json
+          updated_at?: string
+          workspace_id?: string
+        }
+        Relationships: []
+      }
       systemmind_tasks: {
         Row: {
           created_at: string
