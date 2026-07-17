@@ -16,8 +16,13 @@ import {
   ShieldAlert, Rocket, GitBranch, Variable, ListChecks, Bell, StickyNote,
   ArrowRight, Bot, Workflow as WorkflowIcon, ExternalLink, ShieldCheck,
   Undo2, GitCompareArrows, FilePlus2, Copy, SendToBack, Import, Info,
-  ClipboardList, Lightbulb, Table2, Eye, Trash2,
+  ClipboardList, Lightbulb, Table2, Eye, Trash2, KeyRound, Zap,
 } from "lucide-react";
+import {
+  useSetupConsole, missingRequiredCount, LinkedAgentCard, CredentialsPanel,
+  DetectedVariablesPanel, TriggerRulesPanel, SetupTestPanel, RequiredInputsPanel,
+} from "./SetupConsolePanel";
+import { scanAgentForSetup } from "@/lib/systemmind/setup-console.functions";
 import { cn } from "@/lib/utils";
 import { DeploymentChecklistPanel } from "./DeploymentChecklistPanel";
 import { TestCallPanel } from "./TestCallPanel";
@@ -1382,7 +1387,8 @@ function ReviewPanel({
 // ── Session view ────────────────────────────────────────────────────────────────
 
 type Tab =
-  | "brief" | "requirements" | "variables" | "mapping" | "config" | "test"
+  | "brief" | "requirements" | "agent" | "credentials" | "triggers"
+  | "variables" | "mapping" | "config" | "test"
   | "review" | "deploy" | "versions" | "usage" | "conversion";
 
 export function BuildSessionView({
@@ -1461,9 +1467,28 @@ export function BuildSessionView({
   );
   const config = (currentVersion?.generated_config ?? null) as Record<string, any> | null;
   const unmappedCount = useMemo(() => findUnmappedFields(config).length, [config]);
+
+  // Setup Console state (agent scan, mappings, CRM access, triggers, test).
+  const setup = useSetupConsole(sessionId);
+  const setupMissing = setup.state ? missingRequiredCount(setup.requiredInputs) : 0;
+
   const canApply = currentVersion
     && ["draft", "testing", "revised"].includes(String(currentVersion.status))
-    && unmappedCount === 0;
+    && unmappedCount === 0
+    && setupMissing === 0;
+
+  // Auto-scan once when an agent is already linked but no setup state exists yet.
+  const scanSetupFn = useServerFn(scanAgentForSetup);
+  const autoScanRef = useRef(false);
+  useEffect(() => {
+    if (autoScanRef.current) return;
+    if (!session?.target_agent_id || setup.isLoading || setup.state) return;
+    autoScanRef.current = true;
+    scanSetupFn({ data: { sessionId, agentId: null } })
+      .then(() => setup.invalidate())
+      .catch(() => { /* surfaced when the user opens the Linked Agent tab */ });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [session?.target_agent_id, setup.isLoading, setup.state, sessionId]);
 
   // What changed in the current version vs the one right before it (by number).
   const currentDiff = useMemo(() => {
@@ -1710,9 +1735,12 @@ export function BuildSessionView({
 
   const stepTabs: Array<readonly [Tab, React.ElementType, string]> = [
     ["brief",  Lightbulb, "Brief"],
+    ["agent",  Bot, "Linked Agent"],
     ...(session.target_agent_id ? ([["requirements", ClipboardList, "Requirements"]] as const) : []),
+    ["credentials", KeyRound, "CRM Access"],
     ["variables", Variable, "Variables"],
     ["mapping",   Table2,   "CRM Mapping"],
+    ["triggers",  Zap,      "Triggers"],
     ["config",    FileCode2, "Workflow"],
     ["test",      FlaskConical, "Test"],
     ["review",    Eye,      "Review"],
@@ -1949,6 +1977,22 @@ export function BuildSessionView({
             </div>
           </div>
 
+          {setupMissing > 0 && currentVersion && (
+            <div className="mx-3 mt-2 flex items-center gap-2 rounded-lg border border-amber-500/25 bg-amber-500/[0.05] px-3 py-2">
+              <AlertTriangle className="h-3.5 w-3.5 shrink-0 text-amber-400" />
+              <p className="text-[11px] text-amber-200/90">
+                {setupMissing} required setup input{setupMissing === 1 ? "" : "s"} remaining — Apply is
+                locked until credentials, mappings, triggers and the setup test are complete.
+              </p>
+              <button
+                onClick={() => setTab("agent")}
+                className="ml-auto shrink-0 text-[11px] font-medium text-amber-300 underline-offset-2 hover:underline"
+              >
+                Fill them in
+              </button>
+            </div>
+          )}
+
           {unmappedCount > 0 && currentVersion && (
             <div className="mx-3 mt-2 flex items-center gap-2 rounded-lg border border-amber-500/25 bg-amber-500/[0.05] px-3 py-2">
               <AlertTriangle className="h-3.5 w-3.5 shrink-0 text-amber-400" />
@@ -1980,14 +2024,41 @@ export function BuildSessionView({
               <BriefPanel messages={messages} currentVersion={currentVersion} config={config} />
             )}
 
-            {tab === "variables" && <VariablesPanel config={config} />}
+            {tab === "agent" && (
+              <div className="space-y-3">
+                <LinkedAgentCard sessionId={sessionId} session={session} setup={setup} />
+                <RequiredInputsPanel setup={setup} onGoToTab={(t) => setTab(t as Tab)} />
+              </div>
+            )}
+
+            {tab === "credentials" && (
+              <CredentialsPanel sessionId={sessionId} setup={setup} />
+            )}
+
+            {tab === "triggers" && (
+              <TriggerRulesPanel sessionId={sessionId} setup={setup} />
+            )}
+
+            {tab === "variables" && (
+              <div className="space-y-3">
+                {setup.state
+                  ? <DetectedVariablesPanel sessionId={sessionId} setup={setup} />
+                  : null}
+                <VariablesPanel config={config} />
+              </div>
+            )}
 
             {tab === "mapping" && (
-              <MappingPanel
-                config={config}
-                busy={busy}
-                onSend={(p) => sendPrompt.mutate(p)}
-              />
+              <div className="space-y-3">
+                {setup.state
+                  ? <DetectedVariablesPanel sessionId={sessionId} setup={setup} crmFocus />
+                  : null}
+                <MappingPanel
+                  config={config}
+                  busy={busy}
+                  onSend={(p) => sendPrompt.mutate(p)}
+                />
+              </div>
             )}
 
             {tab === "review" && (
@@ -2049,6 +2120,7 @@ export function BuildSessionView({
 
             {tab === "test" && (
               <div className="space-y-4">
+                {setup.state && <SetupTestPanel sessionId={sessionId} setup={setup} />}
                 <TestCallPanel
                   sessionId={sessionId}
                   fixPending={sendPrompt.isPending}
@@ -2211,6 +2283,7 @@ export function BuildSessionView({
 
             {tab === "deploy" && session.target_agent_id && (
               <div className="space-y-3">
+                <RequiredInputsPanel setup={setup} onGoToTab={(t) => setTab(t as Tab)} />
                 <div className="flex flex-wrap items-center gap-2 rounded-lg border border-white/[0.06] bg-white/[0.02] p-3">
                   <Rocket className="h-4 w-4 text-emerald-400" />
                   <p className="text-xs font-medium">Apply &amp; deploy</p>

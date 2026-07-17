@@ -1,0 +1,356 @@
+Improve SystemMind so every agent/workflow setup clearly shows the required context before asking for technical configuration.
+
+Current issue:
+SystemMind is still too vague when setting up agents and workflows. It jumps into setup warnings, CRM fields, variables, or workflow drafts without clearly showing the required business and technical context needed for the setup.
+
+Goal:
+Before SystemMind builds or configures anything, it must show a clear “Required Context for This Setup” panel.
+
+This should make it obvious what information is needed, why it is needed, where to enter it, and whether it is complete.
+
+Add a new section/tab called:
+
+Required Context
+
+This should appear before:
+- Credentials
+- Variables
+- CRM Mapping
+- Trigger Rules
+- Workflow
+- Test
+- Review
+
+Recommended tab order:
+
+1. Brief
+2. Required Context
+3. Linked Agent
+4. Credentials
+5. Variables
+6. CRM Mapping
+7. Trigger Rules
+8. Workflow
+9. Test
+10. Review
+
+The Required Context tab should show clear grouped context cards.
+
+1. Business Context
+
+Fields:
+- Business / client name
+- Workspace
+- Industry
+- Main goal of the agent
+- What problem is this solving?
+- Who is the agent speaking to?
+- What is the desired outcome?
+- What should happen after a successful call/message?
+- What should happen after an unsuccessful call/message?
+
+Example helper text:
+“Tell SystemMind what this agent is for before technical setup begins. Example: This is a client qualification agent for estate agency leads. It should qualify sellers, collect property details, book appointments, and push qualified leads to Dynamics.”
+
+2. Agent Context
+
+Fields:
+- Linked agent
+- Agent name
+- Agent ID
+- Agent type
+- Channel: phone, WhatsApp, SMS, email, mixed
+- New agent or existing agent
+- Is this inbound or outbound?
+- Is the agent live, draft, or test?
+- Should this setup update the existing agent or create a new workflow?
+- What script/prompt should be scanned?
+
+If no agent is selected, show:
+“Select the agent first so SystemMind can scan its script, prompt, variables, and connected tools.”
+
+3. Data Collection Context
+
+Fields:
+- What information must the agent collect?
+- Which fields are required?
+- Which fields are optional?
+- Which fields are already provided before the call/message?
+- Which fields must be extracted after the call?
+- Which fields must be saved to WEBEE?
+- Which fields must be sent to the CRM?
+
+Show detected variables here after scanning the agent.
+
+Example:
+Detected from agent:
+- {{email}}
+- {{phone_number}}
+- {{budget}}
+- {{booking_slot}}
+- {{qualification_status}}
+
+SystemMind should explain:
+“These variables were found in the linked agent. Confirm whether each one should be saved, mapped to CRM, used for booking, or ignored.”
+
+4. CRM Context
+
+Fields:
+- Is CRM sync required?
+- CRM provider
+- CRM connection
+- CRM object/table
+- CRM pipeline
+- CRM owner
+- Source/campaign code
+- Duplicate handling rule
+- Which CRM fields must be updated?
+- Which CRM statuses/stages should trigger the workflow?
+
+Helper text:
+“CRM context tells SystemMind where the agent data should go and what CRM statuses should start or stop the workflow.”
+
+5. Trigger Context
+
+Fields:
+- What starts this workflow?
+- Trigger source
+- Trigger object
+- Trigger field
+- Trigger value/status
+- Should it trigger once or every time?
+- Should it trigger immediately or after delay?
+- Should it only trigger for specific campaigns, agents, or lead sources?
+
+Examples:
+- When WEBEE lead status becomes Positive
+- When Dynamics lead status becomes Qualified
+- When call outcome is Appointment Booked
+- When campaign lead changes to No Answer
+- When a new website form lead is created
+- When a booking slot is confirmed
+
+6. Outcome Context
+
+Fields:
+- What should SystemMind do after the trigger?
+- Create/update lead?
+- Move lead to pipeline?
+- Create appointment?
+- Send WhatsApp?
+- Send SMS?
+- Send email?
+- Start follow-up sequence?
+- Assign to user?
+- Stop contact?
+- Generate report?
+- Notify admin?
+
+Helper text:
+“Outcome context defines what success looks like and what action should happen after the agent completes its job.”
+
+7. Booking Context
+
+Only show if the setup involves appointments or booking variables.
+
+Fields:
+- Is booking required?
+- Calendar provider
+- Event type
+- Booking field/variable
+- Appointment duration
+- Timezone
+- Availability rules
+- Confirmation message
+- Rebooking rules
+- Cancellation/reschedule handling
+- CRM appointment field
+
+8. Follow-Up Context
+
+Only show if the setup involves follow-up.
+
+Fields:
+- Should follow-up be enabled?
+- Follow-up channel
+- Delay before first follow-up
+- Number of attempts
+- Stop conditions
+- Follow-up message templates
+- Who owns the follow-up?
+- What statuses stop the follow-up?
+
+9. Compliance / Safety Context
+
+Fields:
+- Can the agent call this lead?
+- Consent source
+- Do-not-contact rules
+- Region/country
+- Calling hours
+- Required disclaimers
+- Escalation rules
+- Human handover rules
+
+10. Success Criteria
+
+Fields:
+- What does a successful setup mean?
+- What should the test prove?
+- What should appear in WEBEE after the test?
+- What should appear in the CRM after the test?
+- What should not happen?
+- Who must approve before go-live?
+
+Example:
+Success criteria:
+- Agent collects name, email, phone, budget, and booking slot
+- Lead is updated in WEBEE
+- Dynamics lead receives correct mapped fields
+- Qualified leads move to the right CRM stage
+- No-answer leads receive follow-up
+- Test payload passes
+- User approves before go-live
+
+Required behaviour:
+
+SystemMind must not show only vague messages like:
+“Required context missing.”
+
+Instead, it must show:
+
+“Required Context Missing”
+Then grouped missing items with direct input fields:
+
+Business Context:
+- Business goal is missing
+- Desired outcome is missing
+
+Agent Context:
+- Linked agent is missing
+- Agent scan has not been run
+
+Data Context:
+- Required collected fields have not been confirmed
+
+CRM Context:
+- CRM provider is missing
+- CRM object/table is missing
+
+Trigger Context:
+- Trigger source is missing
+- Trigger status code is missing
+
+Outcome Context:
+- Final action is missing
+
+Every missing context item must have:
+- A visible input field, dropdown, checkbox, or mapping row
+- A helper explanation
+- A “Fill in” shortcut from the Required Inputs panel
+
+Add a “Context Completeness Score” at the top:
+
+Example:
+Context completeness: 62%
+Missing: 8 items
+Required before build: 5 items
+Optional: 3 items
+
+Use status badges:
+- Complete
+- Missing
+- Optional
+- Needs review
+- Confirmed
+
+Add buttons:
+- Save Context
+- Scan Agent for Context
+- Auto-suggest From Agent
+- Confirm Context
+- Continue to Credentials
+
+SystemMind can auto-suggest context from the agent script, prompt, variables, and workflow request, but it must ask the user to confirm before using it.
+
+Example SystemMind response:
+
+“I can set this up, but I need the required context first. I’ve scanned the linked agent and found that this appears to be a client qualification and booking workflow. Before I continue, please confirm the business goal, trigger status, CRM destination, and desired outcome in the Required Context tab.”
+
+Apply/Go Live rules:
+
+Do not allow Apply, Build, or Go Live until required context is complete.
+
+Required context for all setups:
+- Workspace
+- Linked agent
+- Agent type
+- Business goal
+- Desired outcome
+- Required collected fields
+- Save destination
+- Trigger source
+- Success criteria
+- User approval
+
+Additional required context for CRM workflows:
+- CRM provider
+- CRM object/table
+- CRM field mapping
+- Trigger/status mapping
+- Duplicate handling rule
+
+Additional required context for booking workflows:
+- Calendar provider
+- Booking variable
+- Event type or booking link
+- Timezone
+- Confirmation handling
+
+Additional required context for follow-up workflows:
+- Follow-up channel
+- Delay
+- Attempt count
+- Stop conditions
+
+Update database/session storage to include:
+
+required_context_json
+business_context_json
+agent_context_json
+data_collection_context_json
+crm_context_json
+trigger_context_json
+outcome_context_json
+booking_context_json
+followup_context_json
+success_criteria_json
+context_completion_status
+context_missing_items_json
+context_confirmed_by
+context_confirmed_at
+
+Everything must remain workspace-scoped.
+
+Do not break:
+- Existing SystemMind chat
+- Existing Build Console
+- Existing Agent Builder
+- Existing Retell integration
+- Existing Cal.com integration
+- Existing CRM integrations
+- Existing WBAH workspace logic
+- Existing analytics
+- Existing workflows
+
+The final experience should feel like:
+
+1. SystemMind understands the request
+2. SystemMind links the agent
+3. SystemMind scans the script and variables
+4. SystemMind shows the Required Context panel
+5. User confirms business, data, CRM, trigger, outcome, and success context
+6. SystemMind then asks for credentials and field mappings
+7. SystemMind tests the workflow
+8. User approves
+9. Only then can SystemMind apply or go live

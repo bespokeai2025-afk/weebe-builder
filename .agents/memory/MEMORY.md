@@ -135,3 +135,4 @@
 - [Cross-instance cache signals](cross-instance-cache-signals.md) — platform_cache_signals version row + throttled check makes package/entitlement caches multi-instance safe; reuse for new server caches.
 - [JSX global fallback crash](jsx-global-fallback-illegal-constructor.md) — unimported JSX name (e.g. Lock) resolves to a browser global → "Illegal constructor" render crash; TS won't catch; use /api/monitoring/client-error reporter to find it.
 - [AccountsMind invoice status](accountsmind-invoice-status.md) — only status=paid counts as sales, cancelled excluded; single summary fn consumed by HiveMind/GrowthMind/dashboard via graceful dynamic import.
+- [SystemMind Build Setup Console](systemmind-setup-console.md) — per-session setup state gates Apply only when a row exists; secrets never in setup table; extend computeRequiredInputs for new checks.

@@ -1487,6 +1487,14 @@ export async function applyBuildVersionServer(args: {
 
   // Never trust what sat in the DB: full re-validation + credential guard.
   const config = validateConfigOrThrow(version.generated_config, "Apply build config");
+
+  // Setup Console gate: when a setup state exists for this session, every
+  // required input (credentials tested, mappings approved, trigger codes,
+  // test run + approval) must be complete before ANY apply.
+  {
+    const { assertSetupCompleteForApply } = await import("@/lib/systemmind/setup-console.server");
+    await assertSetupCompleteForApply(workspaceId, sessionId);
+  }
   const { riskLevel, riskReasons } = classifyConfigRisk(config);
 
   // Impact analysis + hard protection rules — ALWAYS run, every apply.
