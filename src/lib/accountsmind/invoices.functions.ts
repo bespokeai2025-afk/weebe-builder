@@ -29,7 +29,7 @@ async function ensureBucket(): Promise<void> {
 
 const lineItemSchema = z.object({
   description: z.string().min(1).max(300),
-  quantity: z.number().finite().nonnegative(),
+  quantity: z.number().finite().positive(),
   unit_price: z.number().finite(), // major units (e.g. pounds)
 });
 

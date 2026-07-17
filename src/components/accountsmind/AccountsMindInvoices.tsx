@@ -120,6 +120,9 @@ export function AccountsMindInvoices() {
     mutationFn: async () => {
       if (format === "docx" && !templateId) throw new Error("Pick a template.");
       if (!workspaceId) throw new Error("Pick a client.");
+      const filledExtras = extras.filter((e) => e.description.trim());
+      const badLine = filledExtras.find((e) => !(e.quantity > 0));
+      if (badLine) throw new Error(`Line "${badLine.description}" needs a quantity greater than 0.`);
       const res: any = await genFn({
         data: {
           templateId: format === "docx" ? templateId : null,
@@ -129,7 +132,7 @@ export function AccountsMindInvoices() {
           taxRatePercent: Number(taxRate) || 0,
           dueInDays: Number(dueDays) || 30,
           includeUsageCosts: includeUsage,
-          extraLineItems: extras.filter((e) => e.description.trim()),
+          extraLineItems: filledExtras,
           notes: notes.trim() || null,
         },
       });
@@ -291,6 +294,23 @@ export function AccountsMindInvoices() {
               <option value="">Select client…</option>
               {(clients as any[]).map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
             </select>
+            {(() => {
+              const sel: any = (clients as any[]).find((c: any) => c.id === workspaceId);
+              if (!sel) return null;
+              const charge = Number(sel.billing_profile?.monthly_charge_cents ?? 0);
+              if (charge > 0) {
+                return (
+                  <p className="text-[11px] text-slate-500">
+                    Monthly charge {money(charge, sel.billing_profile?.currency ?? "GBP")} will be added automatically.
+                  </p>
+                );
+              }
+              return (
+                <p className="text-[11px] text-amber-400">
+                  This client has no billing profile / monthly charge — the invoice will only contain usage costs (if enabled) and the manual line items you add below.
+                </p>
+              );
+            })()}
           </div>
           <div className="space-y-1">
             <label className="text-xs text-slate-400">Billing month</label>
@@ -324,6 +344,14 @@ export function AccountsMindInvoices() {
               <Input placeholder="Description" value={li.description} onChange={(e) => setExtras((x) => x.map((v, j) => j === i ? { ...v, description: e.target.value } : v))} className="flex-1 bg-slate-950 border-slate-700 text-white" />
               <Input type="number" placeholder="Qty" value={li.quantity} onChange={(e) => setExtras((x) => x.map((v, j) => j === i ? { ...v, quantity: Number(e.target.value) || 0 } : v))} className="w-20 bg-slate-950 border-slate-700 text-white" />
               <Input type="number" placeholder="Unit price" value={li.unit_price} onChange={(e) => setExtras((x) => x.map((v, j) => j === i ? { ...v, unit_price: Number(e.target.value) || 0 } : v))} className="w-28 bg-slate-950 border-slate-700 text-white" />
+              <span className={`w-24 text-right text-xs tabular-nums ${li.quantity > 0 && li.unit_price ? "text-slate-300" : "text-amber-400"}`}>
+                {li.quantity > 0
+                  ? money(
+                      Math.round(li.quantity * li.unit_price * 100),
+                      (clients as any[]).find((c: any) => c.id === workspaceId)?.billing_profile?.currency ?? "GBP",
+                    )
+                  : "qty > 0?"}
+              </span>
               <Button size="sm" variant="ghost" className="text-red-400" onClick={() => setExtras((x) => x.filter((_, j) => j !== i))}><X className="w-4 h-4" /></Button>
             </div>
           ))}
