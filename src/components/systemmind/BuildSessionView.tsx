@@ -1050,7 +1050,7 @@ export function findUnmappedFields(config: Record<string, any> | null): any[] {
   return fields.filter((f) => !(f.crm_destination ?? f.destination ?? f.maps_to));
 }
 
-function RequiredInputsPanel({
+function ChatRequiredInputsPanel({
   config, busy, onSend,
 }: {
   config: Record<string, any> | null;
@@ -1219,7 +1219,7 @@ function MappingPanel({
           <>
             <LeadSourcePanel config={config} busy={!!busy} onSend={onSend} />
             <PreCallInputsPanel config={config} busy={!!busy} onSend={onSend} />
-            <RequiredInputsPanel config={config} busy={!!busy} onSend={onSend} />
+            <ChatRequiredInputsPanel config={config} busy={!!busy} onSend={onSend} />
           </>
         )}
         <p className="py-8 text-center text-[11px] text-muted-foreground">
@@ -1237,7 +1237,7 @@ function MappingPanel({
         <>
           <LeadSourcePanel config={config} busy={!!busy} onSend={onSend} />
           <PreCallInputsPanel config={config} busy={!!busy} onSend={onSend} />
-          <RequiredInputsPanel config={config} busy={!!busy} onSend={onSend} />
+          <ChatRequiredInputsPanel config={config} busy={!!busy} onSend={onSend} />
         </>
       )}
       <div className="overflow-x-auto rounded-lg border border-white/[0.06]">
