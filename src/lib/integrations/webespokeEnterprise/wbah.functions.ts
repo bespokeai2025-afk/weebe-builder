@@ -943,7 +943,12 @@ export const resolveWbahUiAccess = createServerFn({ method: "GET" })
     );
     const activeSlug = activeWsRes.data?.slug ?? null;
 
+    // WBAH-specific UI must only appear when the ACTIVE workspace is WBAH.
+    // Being a platform admin or WBAH member in another workspace must not
+    // pull WBAH tabs/data into that workspace's pages.
     return {
-      isWbah: isPlatformAdmin || hasWbahMembership || activeSlug === WBAH_SLUG,
+      isWbah: activeSlug
+        ? activeSlug === WBAH_SLUG
+        : isPlatformAdmin || hasWbahMembership,
     };
   });
