@@ -235,6 +235,16 @@ export async function updateLeadIntelligence(
     console.error("[LEAD-GEN] Auto-create lead failed", insertErr.message, { phone, workspaceId });
   } else {
     console.log("[LEAD-GEN] Lead auto-created from call", { leadId: inserted?.id, workspaceId, phone });
+    if (inserted?.id) {
+      try {
+        const { notifyNewLead } = await import("@/lib/lead-gen/lead-notify.server");
+        await notifyNewLead({
+          workspaceId, leadId: inserted.id as string,
+          name: fullName, phone,
+          source: "Inbound/outbound call",
+        });
+      } catch { /* best-effort */ }
+    }
   }
 }
 

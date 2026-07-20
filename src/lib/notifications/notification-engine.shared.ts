@@ -39,6 +39,7 @@ export const NOTIFICATION_EVENT_KEYS = [
   "systemmind_fix_suggested",
   "reseller_client_created",
   "email_provider_failing",
+  "lead_created",
 ] as const;
 export type NotificationEventKey = (typeof NOTIFICATION_EVENT_KEYS)[number];
 
@@ -65,6 +66,7 @@ export const NOTIFICATION_EVENT_LABELS: Record<NotificationEventKey, string> = {
   systemmind_fix_suggested: "SystemMind fix suggested",
   reseller_client_created: "Client account created",
   email_provider_failing: "Email provider failing",
+  lead_created: "New lead captured",
 };
 
 const CRITICAL_EVENTS: ReadonlySet<string> = new Set([
@@ -305,9 +307,11 @@ function buildEmailHtml(input: CampaignNotificationInput, workspaceName: string,
   }
   if (input.failureReason) parts.push(`<p><strong>Failure reason:</strong> ${escapeHtml(input.failureReason)}</p>`);
   if (input.recommendedAction) parts.push(`<p><strong>Recommended action:</strong> ${escapeHtml(input.recommendedAction)}</p>`);
-  const campaignsUrl = `${appUrl}/campaigns`;
+  const isLeadEvent = input.eventKey === "lead_created";
+  const ctaUrl = isLeadEvent ? `${appUrl}/leads` : `${appUrl}/campaigns`;
+  const ctaLabel = isLeadEvent ? "View Leads" : "View Campaigns &amp; Reports";
   parts.push(
-    `<p style="margin-top:20px;"><a href="${campaignsUrl}" style="background:#6d5df6;color:#ffffff;padding:10px 18px;border-radius:8px;text-decoration:none;font-weight:600;">View Campaigns &amp; Reports</a></p>`,
+    `<p style="margin-top:20px;"><a href="${ctaUrl}" style="background:#6d5df6;color:#ffffff;padding:10px 18px;border-radius:8px;text-decoration:none;font-weight:600;">${ctaLabel}</a></p>`,
   );
   return renderBasicEmail({ heading: label, bodyHtml: parts.join("\n") });
 }

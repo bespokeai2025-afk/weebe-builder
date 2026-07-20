@@ -418,6 +418,14 @@ export async function processWebformSubmission(opts: {
       .single();
     if (error) return { ok: false, status: "failed", error: error.message };
     leadId = newLead!.id;
+    try {
+      const { notifyNewLead } = await import("@/lib/lead-gen/lead-notify.server");
+      await notifyNewLead({
+        workspaceId, leadId,
+        name: full_name ?? null, phone: phone ?? null, email: email ?? null,
+        source: `Webform: ${formName}`,
+      });
+    } catch { /* best-effort */ }
   }
 
   // Add note to entity notes (best-effort — never fail the submission over it)

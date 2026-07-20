@@ -462,6 +462,14 @@ export const upsertLead = createServerFn({ method: "POST" })
       .single();
     if (error) throw new Error(error.message);
     invalidateDashboardCache(workspaceId);
+    try {
+      const { notifyNewLead } = await import("@/lib/lead-gen/lead-notify.server");
+      await notifyNewLead({
+        workspaceId, leadId: row!.id as string,
+        name: data.full_name ?? null, phone: data.phone, email: data.email || null,
+        source: data.source ?? "Manual entry",
+      });
+    } catch { /* best-effort */ }
     const { triggerAutoCallForNewLead } = await import("@/lib/qualification/auto-call.server");
     await triggerAutoCallForNewLead(supabase as any, { workspaceId, leadId: row!.id as string });
     return { id: row!.id as string };
