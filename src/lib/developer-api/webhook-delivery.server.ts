@@ -8,7 +8,7 @@
 import { createClient } from "@supabase/supabase-js";
 import { createHmac } from "node:crypto";
 
-const SUPABASE_URL = process.env.SUPABASE_URL ?? "";
+const SUPABASE_URL = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || "";
 const SERVICE_KEY  = process.env.SUPABASE_SERVICE_ROLE_KEY ?? "";
 
 const RETRY_DELAYS_SECONDS = [30, 120, 600, 3600]; // 30s, 2m, 10m, 1h

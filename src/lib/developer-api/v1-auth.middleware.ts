@@ -10,6 +10,7 @@
  *   - When Redis is unavailable, rate limiting falls back to api_rate_limit_log DB table
  *   - api_rate_limit_log table kept intact for the fallback path
  */
+import { createHash } from "node:crypto";
 import { createClient } from "@supabase/supabase-js";
 import { cacheGet, cacheSet, cacheDel, redisRateLimit } from "@/lib/cache/redis.server";
 
@@ -51,7 +52,6 @@ function adminSb() {
 }
 
 function hashToken(token: string): string {
-  const { createHash } = require("node:crypto");
   return createHash("sha256").update(token).digest("hex");
 }
 

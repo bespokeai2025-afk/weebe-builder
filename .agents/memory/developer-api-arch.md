@@ -27,3 +27,5 @@ description: Customer-facing /api/v1/* REST API, auth middleware, rate limiting,
 `src/lib/workspace/api-tokens.functions.ts` — `createToken` only takes `{ name: string }` (no permissions yet — DEVELOPER_API_MIGRATION.sql adds permissions_json column, apply migration first). Returns `{ id, name, prefix, created_at, plaintext }` — `plaintext` is the full `lvb_xxx` token shown once.
 
 **How to apply:** When calling `createFn({ data: { name } })`, extract `result.plaintext` for display.
+
+- 2 latent launch bugs fixed 2026-07-20: hashToken used require() in ESM (every authed v1 request crashed) and most v1 routes lacked the VITE_SUPABASE_URL fallback. Lesson: any new v1 route must copy the env-fallback + top-level-import pattern from leads.ts; the API had never been exercised end-to-end before.
