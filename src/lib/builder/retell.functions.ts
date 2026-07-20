@@ -962,6 +962,123 @@ export const fetchRetellAgent = createServerFn({ method: "POST" })
   });
 
 /**
+ * Resolve the workspace's OWN Retell API key (admin-provisioned, stored in
+ * workspace_settings.retell_workspace_id). Returns undefined when the
+ * workspace has no dedicated key — callers must fail closed in that case
+ * (never fall back to the shared platform key, which would expose other
+ * tenants' agents).
+ */
+async function getWorkspaceOwnRetellKey(workspaceId: string | null | undefined): Promise<string | undefined> {
+  if (!workspaceId) return undefined;
+  const { data: ws } = await supabaseAdmin
+    .from("workspace_settings")
+    .select("retell_workspace_id")
+    .eq("workspace_id", workspaceId)
+    .maybeSingle();
+  const key = ws?.retell_workspace_id?.trim();
+  return key && key.startsWith("key_") ? key : undefined;
+}
+
+/**
+ * List the agents that live in THIS workspace's own Retell account so the
+ * builder can offer them for direct loading (Import dialog → "Load from your
+ * voice workspace"). Only available for workspaces provisioned with their own
+ * Retell key; fails closed otherwise (the shared platform key holds agents
+ * from many tenants).
+ */
+export const listWorkspaceRetellAgents = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const key = await getWorkspaceOwnRetellKey(context.workspaceId);
+    if (!key) {
+      return {
+        ok: false as const,
+        agents: [] as Array<{ agentId: string; name: string; isFlow: boolean; lastModified: number | null }>,
+        error: "This workspace does not have its own voice workspace key configured.",
+      };
+    }
+    try {
+      const resp = await retellFetch(`/list-agents`, undefined, "GET", key);
+      const rows = Array.isArray(resp) ? (resp as Array<Record<string, unknown>>) : [];
+      // Retell returns one row per published version — keep the newest per agent_id.
+      const byId = new Map<string, Record<string, unknown>>();
+      for (const a of rows) {
+        const id = String(a.agent_id ?? "");
+        if (!id) continue;
+        const prev = byId.get(id);
+        const ts = Number(a.last_modification_timestamp ?? 0);
+        if (!prev || ts > Number(prev.last_modification_timestamp ?? 0)) byId.set(id, a);
+      }
+      const agents = Array.from(byId.values())
+        .map((a) => {
+          const engine = (a.response_engine ?? {}) as Record<string, unknown>;
+          return {
+            agentId: String(a.agent_id),
+            name: String(a.agent_name ?? a.agent_id),
+            isFlow: Boolean(engine.conversation_flow_id),
+            lastModified: a.last_modification_timestamp != null ? Number(a.last_modification_timestamp) : null,
+          };
+        })
+        .sort((x, y) => (y.lastModified ?? 0) - (x.lastModified ?? 0));
+      return { ok: true as const, agents, error: null };
+    } catch (err) {
+      return {
+        ok: false as const,
+        agents: [] as Array<{ agentId: string; name: string; isFlow: boolean; lastModified: number | null }>,
+        error: (err as Error).message,
+      };
+    }
+  });
+
+/**
+ * Fetch an agent (and its conversation flow) from THIS workspace's own Retell
+ * account so it can be loaded into the builder. Authorization comes from the
+ * workspace key itself: only agents visible under that key can be read, and
+ * there is deliberately NO platform-key fallback (fail closed).
+ */
+export const fetchWorkspaceRetellAgent = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: { agentId: string }) => input)
+  .handler(async ({ data, context }) => {
+    const agentId = (data.agentId ?? "").trim();
+    if (!agentId.startsWith("agent_")) {
+      return { ok: false as const, error: `Invalid agent ID "${agentId}".` };
+    }
+    const key = await getWorkspaceOwnRetellKey(context.workspaceId);
+    if (!key) {
+      return {
+        ok: false as const,
+        error: "This workspace does not have its own voice workspace key configured.",
+      };
+    }
+    try {
+      const agent = await retellFetch(`/get-agent/${agentId}`, undefined, "GET", key);
+      const engine = (agent.response_engine ?? {}) as Record<string, unknown>;
+      const cfId = String(engine.conversation_flow_id ?? "");
+      if (!cfId) {
+        return {
+          ok: false as const,
+          error: "This agent is not a conversation-flow agent and cannot be loaded into the builder.",
+        };
+      }
+      const cf = await retellFetch(`/get-conversation-flow/${cfId}`, undefined, "GET", key);
+      return {
+        ok: true as const,
+        agentJson: JSON.stringify({ ...agent, conversationFlow: cf }),
+        agentId,
+        conversationFlowId: cfId,
+      };
+    } catch (err) {
+      const status = err instanceof RetellApiError ? err.status : undefined;
+      const message =
+        status === 404
+          ? `Agent ${agentId} was not found in this workspace's voice account.`
+          : (err as Error).message;
+      return { ok: false as const, error: message };
+    }
+  });
+
+/**
  * Clone a custom voice in Retell from an uploaded audio sample.
  * Client sends base64-encoded audio + filename/mime; we forward as multipart
  * to Retell's POST /clone-voice endpoint and return the new voice_id.
