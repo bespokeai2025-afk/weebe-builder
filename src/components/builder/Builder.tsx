@@ -837,6 +837,9 @@ export function Builder({
                 <DropdownMenuItem onSelect={() => setImportOpen(true)}>
                   <Upload className="mr-2 h-3.5 w-3.5" /> Import JSON
                 </DropdownMenuItem>
+                <DropdownMenuItem onSelect={() => setImportOpen(true)}>
+                  <Download className="mr-2 h-3.5 w-3.5 text-emerald-400" /> Load Live Agent
+                </DropdownMenuItem>
                 {settings.channelType !== "whatsapp" && (
                   <DropdownMenuItem onSelect={() => setImportPdfOpen(true)}>
                     <FileUp className="mr-2 h-3.5 w-3.5" /> Upload Script (PDF)
