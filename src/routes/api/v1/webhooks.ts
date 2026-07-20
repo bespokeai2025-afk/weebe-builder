@@ -81,6 +81,21 @@ export const Route = createFileRoute("/api/v1/webhooks")({
         if (process.env.NODE_ENV === "production" && parsedUrl.protocol !== "https:") {
           return jsonErr("target_url must use HTTPS in production");
         }
+        if (parsedUrl.protocol !== "https:" && parsedUrl.protocol !== "http:") {
+          return jsonErr("target_url must be an http(s) URL");
+        }
+        // SSRF guard: refuse loopback/private/link-local/internal targets so a
+        // webhook can't be pointed at internal services or cloud metadata.
+        {
+          const host = parsedUrl.hostname.toLowerCase();
+          const privateHost =
+            host === "localhost" || host === "0.0.0.0" || host === "[::1]" || host === "::1" ||
+            host.endsWith(".local") || host.endsWith(".internal") ||
+            /^127\./.test(host) || /^10\./.test(host) || /^192\.168\./.test(host) ||
+            /^172\.(1[6-9]|2\d|3[01])\./.test(host) || /^169\.254\./.test(host) ||
+            /^fe80:/i.test(host) || /^f[cd][0-9a-f]{2}:/i.test(host);
+          if (privateHost) return jsonErr("target_url must be a public internet address");
+        }
 
         const { data, error } = await sb().from("workspace_webhooks").insert({
           workspace_id: workspaceId,
