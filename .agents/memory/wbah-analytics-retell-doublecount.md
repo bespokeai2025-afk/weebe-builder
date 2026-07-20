@@ -47,3 +47,6 @@ would double-count. The fix keeps `wbahCalls` as a hard-coded empty array in
   for the TTL after deploy.
 - Consequence of the user decision: if the WBAH Retell fetch fails, the page shows
   "not configured" instead of falling back to wbah_calls. Accepted.
+
+## WBAH UI gating on the Analytics page
+The Credits tab (and other WBAH-specific UI) must gate on `useIsWbahWorkspace()` (fast active-workspace slug resolver), NOT on `workspaceSlug` from the heavy getRetellAnalytics payload — if that load is slow/fails, the tab silently disappears ("credits page gone" bug, fixed 2026-07-20). Keep the payload slug only as a pre-resolve fallback.
