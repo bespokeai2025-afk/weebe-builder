@@ -104,6 +104,8 @@ function buildRetellCallRow(c: any, workspaceId: string) {
       in_voicemail:    c.call_analysis?.in_voicemail ?? null,
       lead_id:         dv.lead_id ?? null,
       agent_id:        c.agent_id ?? null,
+      custom_analysis: c.call_analysis?.custom_analysis_data ?? null,
+      dynamic_variables: dv,
     },
     synced_at:            new Date().toISOString(),
   };

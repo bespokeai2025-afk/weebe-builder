@@ -14,7 +14,14 @@ export function isWbahWorkspaceId(workspaceId: string | null | undefined): boole
   return workspaceId === WBAH_WORKSPACE_ID;
 }
 
-/** Throws if the workspace is WBAH — use at server entry points. */
+/** Throws unless the user's active workspace is WBAH — use at WBAH server entry points. */
+export function requireActiveWbahWorkspace(workspaceId: string | null | undefined): void {
+  if (!isWbahWorkspaceId(workspaceId)) {
+    throw new Error("Switch to the Webuyanyhouse workspace to use WBAH features.");
+  }
+}
+
+/** Throws if the workspace is WBAH — use at generic client server entry points. */
 export function assertNotWbahWorkspace(workspaceId: string | null | undefined): void {
   if (isWbahWorkspaceId(workspaceId)) {
     throw new Error("This feature is not available for the WBAH workspace.");

@@ -910,40 +910,19 @@ export const checkWebuyanyhouseWorkspace = createServerFn({ method: "GET" })
     };
   });
 
-/** Whether the signed-in user should see WBAH-specific UI (People Dynamics tabs, etc.). */
+/** Whether WBAH-specific UI should show — active workspace only (not membership/admin). */
 export const resolveWbahUiAccess = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
-    const userId = context.userId;
-    const [profileRes, roleRes, membershipsRes, activeWsRes] = await Promise.all([
-      (supabaseAdmin as any).from("profiles").select("user_type").eq("user_id", userId).maybeSingle(),
-      (supabaseAdmin as any)
-        .from("user_roles")
-        .select("role")
-        .eq("user_id", userId)
-        .eq("role", "admin")
-        .maybeSingle(),
-      (supabaseAdmin as any)
-        .from("workspace_members")
-        .select("workspace_id, workspaces!inner(slug)")
-        .eq("user_id", userId),
-      context.workspaceId
-        ? (supabaseAdmin as any)
-            .from("workspaces")
-            .select("slug")
-            .eq("id", context.workspaceId)
-            .maybeSingle()
-        : Promise.resolve({ data: null }),
-    ]);
+    if (!context.workspaceId) return { isWbah: false };
 
-    const isPlatformAdmin =
-      profileRes.data?.user_type === "admin" || !!roleRes.data;
-    const hasWbahMembership = (membershipsRes.data ?? []).some(
-      (m: any) => m.workspaces?.slug === WBAH_SLUG,
-    );
-    const activeSlug = activeWsRes.data?.slug ?? null;
+    const { data } = await (supabaseAdmin as any)
+      .from("workspaces")
+      .select("slug")
+      .eq("id", context.workspaceId)
+      .maybeSingle();
 
     return {
-      isWbah: isPlatformAdmin || hasWbahMembership || activeSlug === WBAH_SLUG,
+      isWbah: data?.slug === WBAH_SLUG,
     };
   });

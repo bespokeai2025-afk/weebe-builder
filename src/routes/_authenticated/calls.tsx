@@ -37,6 +37,12 @@ import { useTablePagination, TablePagBar } from "@/components/ui/table-paginatio
 import { useWbahAgentOptions } from "@/hooks/useWbahAgentOptions";
 import { useWorkspaceAgentOptions, rowMatchesAgent, agentTypeLabel } from "@/components/shared/AgentFilterSelect";
 import { WBAH_TIMEZONE } from "@/lib/dashboard/wbah-timezone";
+import {
+  wbahAppointmentDateCell,
+  wbahAppointmentTimeCell,
+  wbahBookingStatusCell,
+  wbahCalendlyCell,
+} from "@/lib/dashboard/wbah-call-booking-display";
 
 export const Route = createFileRoute("/_authenticated/calls")({
   head: () => ({ meta: [{ title: "Calls — Webee" }] }),
@@ -925,13 +931,11 @@ function CallsPage() {
                           <td className="px-2 py-0.5" onClick={(e) => e.stopPropagation()}>
                             <button onClick={() => openPanel(c)} className="inline-flex items-center gap-1 text-[11px] rounded border border-white/20 px-2 py-0.5 text-muted-foreground hover:text-foreground hover:border-white/40 whitespace-nowrap transition-colors">View</button>
                           </td>
-                          <td className="px-2 py-0.5 text-[11px] text-muted-foreground whitespace-nowrap">{c.appointment_date ?? "N/A"}</td>
-                          <td className="px-2 py-0.5 text-[11px] text-muted-foreground whitespace-nowrap">{c.appointment_time ?? "N/A"}</td>
-                          <td className="px-2 py-0.5 text-[11px] text-muted-foreground whitespace-nowrap">{c.booking_status ?? "N/A"}</td>
+                          <td className="px-2 py-0.5 text-[11px] text-muted-foreground whitespace-nowrap">{wbahAppointmentDateCell(c)}</td>
+                          <td className="px-2 py-0.5 text-[11px] text-muted-foreground whitespace-nowrap">{wbahAppointmentTimeCell(c)}</td>
+                          <td className="px-2 py-0.5 text-[11px] text-muted-foreground whitespace-nowrap">{wbahBookingStatusCell(c)}</td>
                           <td className="px-2 py-0.5 text-[11px] text-muted-foreground whitespace-nowrap">
-                            {c.calendly_booking_url
-                              ? <a href={c.calendly_booking_url} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">Link</a>
-                              : "N/A"}
+                            {wbahCalendlyCell(c)}
                           </td>
                           <td className="px-2 py-0.5 text-[11px] text-muted-foreground whitespace-nowrap">{c.end_reason ?? "N/A"}</td>
                           <td className="px-2 py-0.5 text-[11px] text-muted-foreground whitespace-nowrap">{c.disconnection_reason ?? "N/A"}</td>

@@ -3,7 +3,9 @@
  * Dynamics FetchXML sync runs on the backend; WEBEE only calls JWT/CRM APIs.
  */
 import * as api from "./client.server";
-import { phoneDigits } from "@/lib/dashboard/wbah-booking-meta";
+import { phoneDigits, loadWbahCrmBookingByDigits, resolveWbahBookingFields } from "@/lib/dashboard/wbah-booking-meta";
+import { mergeInferredWbahBookingFields } from "@/lib/dashboard/wbah-call-booking-display";
+import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { DYNAMICS_CATEGORY_LABELS, type DynamicsCategorySlug } from "./wbah-campaign-sync.types";
 import { parseWbahCrmData, type WbahCrmData } from "./wbah-crm-data.types";
 
@@ -325,8 +327,19 @@ function mergeWbahCallIntoRawLead(
   const startedMs = call.started_at ? new Date(String(call.started_at)).getTime() : null;
   const durationMs =
     call.duration_seconds != null ? Number(call.duration_seconds) * 1000 : null;
+  const callMeta = (call.meta ?? {}) as Record<string, unknown>;
+  const postCall =
+    callMeta.custom_analysis && typeof callMeta.custom_analysis === "object"
+      ? (callMeta.custom_analysis as Record<string, unknown>)
+      : {};
+  const dynamicVars =
+    callMeta.dynamic_variables && typeof callMeta.dynamic_variables === "object"
+      ? (callMeta.dynamic_variables as Record<string, unknown>)
+      : {};
   return {
     ...raw,
+    ...postCall,
+    ...dynamicVars,
     callStatus: call.call_status ?? raw.callStatus ?? null,
     sentimentAnalysis: call.sentiment ?? raw.sentimentAnalysis ?? null,
     disconnectionReason: call.disconnection_reason ?? raw.disconnectionReason ?? null,
@@ -354,6 +367,33 @@ function mergeWbahCallIntoRawLead(
   };
 }
 
+function applyBookingFieldsToRawLead(
+  rawLead: Record<string, unknown>,
+): Record<string, unknown> {
+  const merged = mergeInferredWbahBookingFields({
+    event: null,
+    appointment_date: strOrNull(rawLead.appointment_date),
+    appointment_time: strOrNull(rawLead.appointment_time),
+    booking_status: strOrNull(rawLead.booking_status),
+    sentimentAnalysis: strOrNull(rawLead.sentimentAnalysis),
+    calendly_booking_url: strOrNull(rawLead.calendly_booking_url),
+    call_summary: strOrNull(rawLead.callSummary ?? rawLead.call_summary),
+    call_status: strOrNull(rawLead.callStatus),
+  });
+  return {
+    ...rawLead,
+    appointment_date: merged.appointment_date,
+    appointment_time: merged.appointment_time,
+    booking_status: merged.booking_status,
+  };
+}
+
+function strOrNull(v: unknown): string | null {
+  if (v == null || v === "") return null;
+  const s = String(v).trim();
+  return s || null;
+}
+
 /** Overlay latest wbah_calls row per phone onto imported CRM cohort rows. */
 export async function enrichPeopleCrmRowsWithWbahCalls(
   workspaceId: string,
@@ -361,26 +401,46 @@ export async function enrichPeopleCrmRowsWithWbahCalls(
 ): Promise<WbahPeopleCategoryRow[]> {
   if (!rows.length) return rows;
   const { getLatestWbahCallsForPhones } = await import("./wbah-leads.server");
-  const lookup = await getLatestWbahCallsForPhones(
-    workspaceId,
-    rows.map((r) => r.phone),
-  );
-  if (lookup.size === 0) return rows;
+  const [lookup, crmBookingByDigits] = await Promise.all([
+    getLatestWbahCallsForPhones(
+      workspaceId,
+      rows.map((r) => r.phone),
+    ),
+    loadWbahCrmBookingByDigits(supabaseAdmin, workspaceId),
+  ]);
+  if (lookup.size === 0 && crmBookingByDigits.size === 0) return rows;
 
   return rows.map((row) => {
     const digits = phoneDigits(row.phone);
     const call =
       (digits ? lookup.get(digits) : undefined) ??
       lookup.get(String(row.phone ?? "").slice(-10));
-    if (!call) return row;
+    const crm = digits ? crmBookingByDigits.get(digits) ?? null : null;
 
-    const rawLead = mergeWbahCallIntoRawLead(row.meta.raw_lead, call);
+    let rawLead = row.meta.raw_lead;
+    if (call) {
+      const appt = resolveWbahBookingFields(call, call, crm);
+      rawLead = mergeWbahCallIntoRawLead(rawLead, { ...call, ...appt });
+    } else if (crm) {
+      rawLead = {
+        ...rawLead,
+        appointment_date: crm.appointment_date ?? rawLead.appointment_date ?? null,
+        appointment_time: crm.appointment_time ?? rawLead.appointment_time ?? null,
+        booking_status: crm.booking_status ?? rawLead.booking_status ?? null,
+        calendly_booking_url:
+          crm.calendly_booking_url ?? rawLead.calendly_booking_url ?? null,
+        agentName: crm.agent_name ?? rawLead.agentName ?? null,
+      };
+    }
+
+    rawLead = applyBookingFieldsToRawLead(rawLead);
+
     return {
       ...row,
       meta: {
         ...row.meta,
         raw_lead: rawLead,
-        raw_call: { ...call },
+        raw_call: call ? { ...call, ...resolveWbahBookingFields(call, call, crm) } : row.meta.raw_call,
         appointment_date: (rawLead.appointment_date as string | null) ?? row.meta.appointment_date,
         booking_status: (rawLead.booking_status as string | null) ?? row.meta.booking_status,
         recording_url: (rawLead.recordingUrl as string | null) ?? row.meta.recording_url,

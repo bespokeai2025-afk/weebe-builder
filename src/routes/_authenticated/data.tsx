@@ -33,7 +33,8 @@ import {
   isWbahLeadCallable,
   isWbahLeadDisqualified,
   parseWbahCrmData,
-  wbahCrmDetailWithoutDisqualification,
+  buildWbahLeadCrmProfile,
+  buildWbahLeadCallProfile,
   type WbahCrmData,
 } from "@/lib/integrations/webespokeEnterprise/wbah-crm-data.types";
 import { cn } from "@/lib/utils";
@@ -91,6 +92,16 @@ import { useWbahAgentOptions } from "@/hooks/useWbahAgentOptions";
 import { agentTypeLabel } from "@/components/shared/AgentFilterSelect";
 import { useIsWbahWorkspace } from "@/hooks/useIsWbahWorkspace";
 import { CustomViewsSection } from "@/components/people-views/CustomViewsSection";
+import { WbahCallBookingSection } from "@/components/dashboard/WbahCallBookingSection";
+import {
+  extractWbahCallBookingFields,
+  isWbahCallAnalysisComplete,
+  isWbahCallAnalysisPending,
+  wbahAppointmentDateCell,
+  wbahAppointmentTimeCell,
+  wbahBookingStatusCell,
+  wbahCalendlyCell,
+} from "@/lib/dashboard/wbah-call-booking-display";
 
 export const Route = createFileRoute("/_authenticated/data")({
   head: () => ({ meta: [{ title: "Data Records — Webee" }] }),
@@ -358,51 +369,80 @@ type WbahLeadDetailView = {
   name: string;
   call?: Record<string, unknown> | null;
   crm?: Record<string, unknown> | null;
+  postCall?: Record<string, unknown> | null;
+  loadingCall?: boolean;
+  row?: { name?: string | null; contact?: string | null; email?: string | null };
 };
 
-function wbahDetailLabel(key: string): string {
-  return key
-    .replace(/_/g, " ")
-    .replace(/([a-z])([A-Z])/g, "$1 $2")
-    .replace(/\b\w/g, (c) => c.toUpperCase());
-}
-
-function wbahDetailValue(val: unknown): string {
-  if (val == null || val === "") return "N/A";
-  if (typeof val === "boolean") return val ? "True" : "False";
-  if (typeof val === "object") return JSON.stringify(val);
-  return String(val);
-}
-
 function wbahCallDetailFromRow(r: any): Record<string, unknown> {
-  if (r?._rawCall && typeof r._rawCall === "object") return { ...r._rawCall };
+  const overlay = {
+    Id: r.wbahCallId ?? r.id ?? null,
+    CallId: r.wbahCallId ?? r.id ?? null,
+    CallType: r.callType ?? null,
+    AgentName: r.agentName ?? null,
+    Name: r.name ?? null,
+    CallStatus: r.callStatus ?? null,
+    StartTimestamp: r.startTimestamp ?? null,
+    DurationMs: r.durationMs ?? null,
+    Transcript: r.transcript ?? null,
+    ToNumber: r.contact ?? null,
+    RecordingUrl: r.recordingUrl ?? null,
+    DisconnectionReason: r.disconnectionReason ?? null,
+    SentimentAnalysis: r.sentimentAnalysis ?? r.sentiment ?? null,
+    Event: r.callStatus ?? null,
+    Email: r.email ?? null,
+    AppointmentDate: r.appointmentDate ?? r.appointment_date ?? null,
+    AppointmentTime: r.appointmentTime ?? r.appointment_time ?? null,
+    BookingStatus: r.bookingStatus ?? r.booking_status ?? null,
+    CalendlyBookingUrl: r.calendlyBookingUrl ?? r.calendly_booking_url ?? null,
+    appointment_date: r.appointmentDate ?? r.appointment_date ?? null,
+    appointment_time: r.appointmentTime ?? r.appointment_time ?? null,
+    booking_status: r.bookingStatus ?? r.booking_status ?? null,
+    calendly_booking_url: r.calendlyBookingUrl ?? r.calendly_booking_url ?? null,
+    sentimentAnalysis: r.sentimentAnalysis ?? r.sentiment ?? null,
+    call_status: r.callStatus ?? null,
+    EndReason: r.endReason ?? null,
+    CallSummary: r.callSummary ?? r.call_summary ?? null,
+    call_summary: r.callSummary ?? r.call_summary ?? null,
+  };
+
+  if (r?._rawCall && typeof r._rawCall === "object") {
+    return { ...(r._rawCall as Record<string, unknown>), ...overlay };
+  }
+
   const raw = (r?._rawLead ?? {}) as Record<string, unknown>;
   return {
-    Id: raw.wbah_call_id ?? r.wbahCallId ?? null,
-    CallId: raw.callId ?? raw.call_id ?? null,
-    CallType: r.callType ?? raw.callType ?? raw.call_type ?? null,
-    AgentName: r.agentName ?? raw.agentName ?? raw.agent_name ?? null,
-    Name: r.name ?? null,
-    CallStatus: r.callStatus ?? raw.callStatus ?? raw.call_status ?? null,
-    StartTimestamp: r.startTimestamp ?? raw.startTimestamp ?? raw.start_timestamp ?? null,
-    DurationMs: r.durationMs ?? raw.durationMs ?? raw.duration_ms ?? null,
-    Transcript: r.transcript ?? raw.transcript ?? null,
-    ToNumber: r.contact ?? raw.toNumber ?? raw.phone ?? null,
-    RecordingUrl: r.recordingUrl ?? raw.recordingUrl ?? raw.recording_url ?? null,
-    DisconnectionReason: r.disconnectionReason ?? raw.disconnectionReason ?? null,
-    SentimentAnalysis: r.sentimentAnalysis ?? raw.sentimentAnalysis ?? raw.sentiment ?? null,
-    EndReason: r.endReason ?? raw.endReason ?? raw.end_reason ?? null,
-    Email: r.email ?? raw.email ?? null,
+    ...overlay,
+    Id: overlay.Id ?? raw.wbah_call_id ?? null,
+    CallId: overlay.CallId ?? raw.callId ?? raw.call_id ?? null,
+    CallType: overlay.CallType ?? raw.callType ?? raw.call_type ?? null,
+    AgentName: overlay.AgentName ?? raw.agentName ?? raw.agent_name ?? null,
+    CallStatus: overlay.CallStatus ?? raw.callStatus ?? raw.call_status ?? null,
+    StartTimestamp: overlay.StartTimestamp ?? raw.startTimestamp ?? raw.start_timestamp ?? null,
+    DurationMs: overlay.DurationMs ?? raw.durationMs ?? raw.duration_ms ?? null,
+    Transcript: overlay.Transcript ?? raw.transcript ?? null,
+    ToNumber: overlay.ToNumber ?? raw.toNumber ?? raw.phone ?? null,
+    RecordingUrl: overlay.RecordingUrl ?? raw.recordingUrl ?? raw.recording_url ?? null,
+    DisconnectionReason:
+      overlay.DisconnectionReason ?? raw.disconnectionReason ?? raw.disconnection_reason ?? null,
+    SentimentAnalysis:
+      overlay.SentimentAnalysis ?? raw.sentimentAnalysis ?? raw.sentiment ?? null,
+    Event: overlay.Event ?? raw.event ?? raw.callStatus ?? raw.call_status ?? null,
+    Email: overlay.Email ?? raw.email ?? null,
     LeadId: raw.lead_id ?? raw.leadId ?? null,
-    AppointmentDate: r.appointmentDate ?? raw.appointment_date ?? null,
-    AppointmentTime: r.appointmentTime ?? raw.appointment_time ?? null,
-    BookingStatus: r.bookingStatus ?? raw.booking_status ?? null,
-    CalendlyBookingUrl: r.calendlyBookingUrl ?? raw.calendly_booking_url ?? null,
+    AppointmentDate: overlay.AppointmentDate ?? raw.appointment_date ?? null,
+    AppointmentTime: overlay.AppointmentTime ?? raw.appointment_time ?? null,
+    BookingStatus: overlay.BookingStatus ?? raw.booking_status ?? null,
+    CalendlyBookingUrl: overlay.CalendlyBookingUrl ?? raw.calendly_booking_url ?? null,
+    appointment_date: overlay.appointment_date ?? raw.appointment_date ?? null,
+    appointment_time: overlay.appointment_time ?? raw.appointment_time ?? null,
+    booking_status: overlay.booking_status ?? raw.booking_status ?? null,
+    calendly_booking_url: overlay.calendly_booking_url ?? raw.calendly_booking_url ?? null,
+    sentimentAnalysis: overlay.sentimentAnalysis ?? raw.sentimentAnalysis ?? raw.sentiment ?? null,
+    call_status: overlay.call_status ?? raw.callStatus ?? raw.call_status ?? null,
+    EndReason: overlay.EndReason ?? raw.endReason ?? raw.end_reason ?? null,
     CallSummary:
-      r.callSummary ??
-      raw.callSummary ??
-      raw.call_summary ??
-      null,
+      overlay.CallSummary ?? raw.callSummary ?? raw.call_summary ?? null,
   };
 }
 
@@ -416,7 +456,30 @@ function WbahLeadDetailModal({
   if (!detail) return null;
 
   const crmParsed = parseWbahCrmData(detail.crm ?? null);
-  const crmForDump = wbahCrmDetailWithoutDisqualification(detail.crm ?? null);
+  const crmProfile = buildWbahLeadCrmProfile(detail.crm ?? null, {
+    postCall: detail.postCall ?? null,
+    row: detail.row,
+  });
+  const callProfile = buildWbahLeadCallProfile(detail.call ?? null);
+
+  function renderProfileSection(title: string, rows: { label: string; value: string }[]) {
+    if (!rows.length) return null;
+    return (
+      <div className="space-y-2">
+        <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+          {title}
+        </p>
+        <div className="rounded-lg border border-white/[0.06] divide-y divide-white/[0.04]">
+          {rows.map((row) => (
+            <div key={row.label} className="grid grid-cols-[minmax(8rem,34%)_1fr] gap-3 px-3 py-2">
+              <p className="text-[11px] font-medium text-foreground">{row.label}</p>
+              <p className="text-[11px] text-muted-foreground break-all">{row.value}</p>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
 
   function renderDisqualification(crm: WbahCrmData | null) {
     if (!crm || (!crm.disqualification_reason && !crm.disqualified_at && !isWbahLeadDisqualified(crm))) {
@@ -464,27 +527,6 @@ function WbahLeadDetailModal({
     );
   }
 
-  function renderSection(title: string, data?: Record<string, unknown> | null) {
-    if (!data) return null;
-    const entries = Object.entries(data).filter(([k, v]) => !k.startsWith("_") && v !== undefined);
-    if (!entries.length) return null;
-    return (
-      <div className="space-y-2">
-        <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-          {title}
-        </p>
-        <div className="rounded-lg border border-white/[0.06] divide-y divide-white/[0.04]">
-          {entries.map(([key, val]) => (
-            <div key={key} className="grid grid-cols-[minmax(8rem,34%)_1fr] gap-3 px-3 py-2">
-              <p className="text-[11px] font-medium text-foreground">{wbahDetailLabel(key)}</p>
-              <p className="text-[11px] text-muted-foreground break-all">{wbahDetailValue(val)}</p>
-            </div>
-          ))}
-        </div>
-      </div>
-    );
-  }
-
   function renderCallSummaryBlock(summary: string | null | undefined) {
     if (!summary?.trim()) return null;
     return (
@@ -504,13 +546,6 @@ function WbahLeadDetailModal({
   const callSummaryRaw = detail.call?.CallSummary ?? detail.call?.call_summary;
   const callSummary =
     typeof callSummaryRaw === "string" && callSummaryRaw.trim() ? callSummaryRaw.trim() : null;
-  const callForDump = detail.call
-    ? Object.fromEntries(
-        Object.entries(detail.call).filter(
-          ([k]) => k !== "CallSummary" && k !== "call_summary" && k !== "Transcript",
-        ),
-      )
-    : null;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
@@ -526,9 +561,10 @@ function WbahLeadDetailModal({
         </div>
         <div className="overflow-y-auto px-5 py-4 space-y-5 flex-1">
           {renderCallSummaryBlock(callSummary)}
-          {renderSection("Call data", callForDump)}
+          <WbahCallBookingSection callRow={detail.call ?? null} polling={detail.loadingCall} />
+          {renderProfileSection("Call", callProfile)}
           {renderDisqualification(crmParsed)}
-          {renderSection("CRM data", crmForDump)}
+          {renderProfileSection("Lead & CRM", crmProfile)}
           {!detail.call && !detail.crm && (
             <p className="text-xs text-muted-foreground">No detail fields available for this row.</p>
           )}
@@ -913,6 +949,9 @@ function DataPage() {
     summary: string | null;
     transcript: string | null;
     loading?: boolean;
+    polling?: boolean;
+    callId?: string;
+    callRow?: Record<string, unknown>;
   } | null>(null);
   const [wbahLeadDetail, setWbahLeadDetail] = useState<WbahLeadDetailView | null>(null);
   const [wbahImporting, setWbahImporting] = useState(false);
@@ -1442,7 +1481,7 @@ function DataPage() {
       srNo: idx + 1,
       name: r.full_name,
       contact: r.phone,
-      email: r.email,
+      email: r.email ?? raw.email ?? raw.emailAddress ?? null,
       callType: r.external_status_label ?? "Lead",
       callStatus: raw.callStatus ?? null,
       leadStatus: crm?.lead_status ?? r.meta?.lead_status ?? null,
@@ -1451,12 +1490,17 @@ function DataPage() {
       dqReason: dqReasonShort,
       dqReasonFull: crm?.disqualification_reason ?? null,
       disqualifiedAt: crm?.disqualified_at ?? null,
-      sentimentAnalysis: raw.sentimentAnalysis ?? null,
       disconnectionReason: raw.disconnectionReason ?? null,
       appointmentDate: r.meta?.appointment_date ?? raw.appointment_date ?? null,
-      appointmentTime: raw.appointment_time ?? null,
+      appointmentTime: raw.appointment_time ?? r.meta?.appointment_time ?? null,
       bookingStatus: r.meta?.booking_status ?? raw.booking_status ?? null,
-      calendlyBookingUrl: raw.calendly_booking_url ?? null,
+      calendlyBookingUrl: raw.calendly_booking_url ?? r.meta?.calendly_booking_url ?? null,
+      appointment_date: r.meta?.appointment_date ?? raw.appointment_date ?? null,
+      appointment_time: raw.appointment_time ?? r.meta?.appointment_time ?? null,
+      booking_status: r.meta?.booking_status ?? raw.booking_status ?? null,
+      calendly_booking_url: raw.calendly_booking_url ?? r.meta?.calendly_booking_url ?? null,
+      call_status: raw.callStatus ?? r.callStatus ?? null,
+      sentimentAnalysis: raw.sentimentAnalysis ?? r.sentimentAnalysis ?? null,
       agentName: raw.agentName ?? null,
       startTimestamp: raw.startTimestamp ? Number(raw.startTimestamp) : null,
       durationMs: raw.durationMs ? Number(raw.durationMs) : null,
@@ -1467,6 +1511,11 @@ function DataPage() {
         raw.call_summary ??
         (r.meta?.raw_call as Record<string, unknown> | null | undefined)?.call_summary ??
         (r.meta?.raw_call as Record<string, unknown> | null | undefined)?.callSummary ??
+        null,
+      call_summary:
+        raw.call_summary ??
+        raw.callSummary ??
+        (r.meta?.raw_call as Record<string, unknown> | null | undefined)?.call_summary ??
         null,
       endReason: raw.endReason ?? null,
       loadedAt: r.meta?.crm_loaded_at ?? r.created_at ?? null,
@@ -1480,11 +1529,65 @@ function DataPage() {
   }
 
   function openWbahLeadDetail(r: any) {
+    const callId = String(r.wbahCallId ?? r._rawCall?.id ?? "");
     setWbahLeadDetail({
       name: r.name || "Lead",
       call: wbahCallDetailFromRow(r),
       crm: r._rawCrm ?? null,
+      postCall: null,
+      loadingCall: !!callId,
+      row: { name: r.name, contact: r.contact, email: r.email },
     });
+
+    if (!callId) return;
+
+    void (async () => {
+      try {
+        const d = (await getWbahCallDetailFn({ data: { id: callId } })) as Record<
+          string,
+          unknown
+        >;
+        const postCall = (d.postCall as Record<string, unknown> | null) ?? null;
+        setWbahLeadDetail((prev) => {
+          if (!prev) return prev;
+          const merged = {
+            ...r,
+            wbahCallId: callId,
+            appointmentDate: d.appointment_date ?? r.appointmentDate,
+            appointmentTime: d.appointment_time ?? r.appointmentTime,
+            bookingStatus: d.booking_status ?? r.bookingStatus,
+            calendlyBookingUrl: d.calendly_booking_url ?? r.calendlyBookingUrl,
+            callSummary: d.callSummary ?? r.callSummary,
+            call_summary: d.callSummary ?? r.call_summary,
+            sentimentAnalysis: d.sentiment ?? r.sentimentAnalysis,
+            sentiment: d.sentiment ?? r.sentiment,
+            callStatus: d.callStatus ?? r.callStatus,
+            transcript: d.transcript ?? r.transcript,
+            recordingUrl: d.recordingUrl ?? r.recordingUrl,
+            email:
+              (postCall?.email as string | undefined) ??
+              (postCall?.emailAddress as string | undefined) ??
+              r.email,
+          };
+          return {
+            ...prev,
+            loadingCall: false,
+            postCall,
+            row: {
+              name: r.name,
+              contact: r.contact,
+              email: merged.email ?? r.email,
+            },
+            call: {
+              ...wbahCallDetailFromRow(merged),
+              transcript: d.transcript ?? prev.call?.transcript ?? null,
+            },
+          };
+        });
+      } catch {
+        setWbahLeadDetail((prev) => (prev ? { ...prev, loadingCall: false } : prev));
+      }
+    })();
   }
 
   // Fetch the list of lead-filter categories (drives the People sub-tabs) and
@@ -1595,9 +1698,70 @@ function DataPage() {
     }
   }
 
-  // Call detail — summary from list payload; transcript on demand when omitted.
+  // Poll call detail until WeeBespoke analysis lands (call_analyzed fields).
+  useEffect(() => {
+    const callId = wbahCallDetailView?.callId;
+    if (!callId || !wbahCallDetailView) return;
+
+    const fields = extractWbahCallBookingFields(wbahCallDetailView.callRow ?? {});
+    if (!isWbahCallAnalysisPending(fields)) return;
+
+    let attempts = 0;
+    const maxAttempts = 24;
+    setWbahCallDetailView((prev) => (prev ? { ...prev, polling: true } : prev));
+
+    const timer = window.setInterval(async () => {
+      attempts += 1;
+      try {
+        const d = (await getWbahCallDetailFn({ data: { id: callId } })) as Record<string, unknown>;
+        const merged: Record<string, unknown> = {
+          sentimentAnalysis: d.sentiment,
+          appointment_date: d.appointment_date,
+          appointment_time: d.appointment_time,
+          booking_status: d.booking_status,
+          call_status: d.callStatus,
+          call_summary: d.callSummary,
+        };
+        const done =
+          isWbahCallAnalysisComplete(extractWbahCallBookingFields(merged)) ||
+          attempts >= maxAttempts;
+
+        setWbahCallDetailView((prev) => {
+          if (!prev) return prev;
+          const nextRow: Record<string, unknown> = {
+            ...(prev.callRow ?? {}),
+            ...d,
+            sentimentAnalysis: d.sentiment ?? prev.callRow?.sentimentAnalysis,
+            call_status: d.callStatus ?? prev.callRow?.call_status,
+          };
+          return {
+            ...prev,
+            callRow: nextRow,
+            summary:
+              prev.summary ??
+              (typeof d.callSummary === "string" ? d.callSummary.trim() || null : null),
+            transcript:
+              (typeof d.transcript === "string" && d.transcript) ||
+              prev.transcript ||
+              null,
+            loading: false,
+            polling: !done,
+          };
+        });
+
+        if (done) window.clearInterval(timer);
+      } catch {
+        if (attempts >= maxAttempts) window.clearInterval(timer);
+      }
+    }, 5000);
+
+    return () => window.clearInterval(timer);
+  }, [wbahCallDetailView?.callId, getWbahCallDetailFn]);
+
+  // Call detail — summary from list payload; transcript + booking on demand.
   async function openWbahCallDetail(r: any) {
     const name = r.name || "Record";
+    const callId = String(r.wbahCallId ?? r.id ?? "");
     const inlineSummary =
       (r.callSummary && String(r.callSummary).trim()) ||
       (r.call_summary && String(r.call_summary).trim()) ||
@@ -1607,26 +1771,55 @@ function DataPage() {
       name,
       summary: inlineSummary,
       transcript: r.transcript ?? null,
-      loading: !r.transcript && !!(r.id || r.wbahCallId),
+      loading: !r.transcript && !!callId,
+      callId: callId || undefined,
+      callRow: { ...r, ...wbahCallDetailFromRow(r) },
+      polling: false,
     });
 
-    if (r.transcript || (!r?.id && !r?.wbahCallId)) return;
+    if (r.transcript || !callId) return;
 
     try {
-      const d = await getWbahCallDetailFn({ data: { id: String(r.wbahCallId ?? r.id) } });
-      setWbahCallDetailView({
-        name,
-        summary:
-          inlineSummary ??
-          ((d as { callSummary?: string | null })?.callSummary?.trim() || null),
-        transcript: (d as { transcript?: string | null })?.transcript || "No transcript available.",
-      });
+      const d = (await getWbahCallDetailFn({ data: { id: callId } })) as Record<string, unknown>;
+      const postCall = (d.postCall as Record<string, unknown> | null) ?? null;
+      setWbahCallDetailView((prev) =>
+        prev
+          ? {
+              ...prev,
+              summary:
+                inlineSummary ??
+                (typeof d.callSummary === "string" ? d.callSummary.trim() || null : null),
+              transcript:
+                (typeof d.transcript === "string" && d.transcript) ||
+                "No transcript available.",
+              loading: false,
+              callRow: {
+                ...(prev.callRow ?? {}),
+                ...d,
+                sentimentAnalysis: d.sentiment,
+                call_status: d.callStatus,
+              },
+              polling: isWbahCallAnalysisPending(
+                extractWbahCallBookingFields({
+                  ...(prev.callRow ?? {}),
+                  ...d,
+                  ...(postCall ?? {}),
+                  sentimentAnalysis: d.sentiment,
+                }),
+              ),
+            }
+          : null,
+      );
     } catch {
-      setWbahCallDetailView({
-        name,
-        summary: inlineSummary,
-        transcript: r.transcript ?? "Failed to load call details.",
-      });
+      setWbahCallDetailView((prev) =>
+        prev
+          ? {
+              ...prev,
+              loading: false,
+              transcript: r.transcript ?? "Failed to load call details.",
+            }
+          : null,
+      );
     }
   }
 
@@ -2130,6 +2323,10 @@ function DataPage() {
                   </button>
                 </div>
                 <div className="overflow-y-auto px-5 py-4 space-y-4 flex-1">
+                  <WbahCallBookingSection
+                    callRow={wbahCallDetailView.callRow ?? null}
+                    polling={wbahCallDetailView.polling}
+                  />
                   {wbahCallDetailView.summary ? (
                     <div className="space-y-2">
                       <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
@@ -2726,33 +2923,33 @@ function DataPage() {
                               {sentBadge.label}
                             </td>
                             <td className="px-2 py-0.5 text-muted-foreground text-[11px] whitespace-nowrap">
-                              {r.appointmentDate || "—"}
+                              {wbahAppointmentDateCell(r)}
                             </td>
                             <td className="px-2 py-0.5 text-muted-foreground text-[11px] whitespace-nowrap">
-                              {r.appointmentTime || "—"}
+                              {wbahAppointmentTimeCell(r)}
                             </td>
                             <td className="px-2 py-0.5">
-                              {r.bookingStatus ? (
-                                <span className="inline-flex items-center rounded-full bg-muted px-2 py-0.5 text-[10px] font-medium text-muted-foreground ring-1 ring-white/[0.06] capitalize">
-                                  {r.bookingStatus.replace(/_/g, " ")}
-                                </span>
-                              ) : (
-                                <span className="text-muted-foreground/40 text-[11px]">—</span>
-                              )}
+                              {(() => {
+                                const statusText = wbahBookingStatusCell(r);
+                                if (statusText === "—") {
+                                  return <span className="text-muted-foreground/40 text-[11px]">—</span>;
+                                }
+                                if (statusText.includes("no booking")) {
+                                  return (
+                                    <span className="text-[10px] text-muted-foreground italic">
+                                      {statusText}
+                                    </span>
+                                  );
+                                }
+                                return (
+                                  <span className="inline-flex items-center rounded-full bg-muted px-2 py-0.5 text-[10px] font-medium text-muted-foreground ring-1 ring-white/[0.06] capitalize">
+                                    {statusText}
+                                  </span>
+                                );
+                              })()}
                             </td>
-                            <td className="px-2 py-0.5">
-                              {r.calendlyBookingUrl ? (
-                                <a
-                                  href={r.calendlyBookingUrl}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="inline-flex items-center gap-1 text-[11px] text-primary hover:underline"
-                                >
-                                  <ExternalLink className="h-3 w-3" /> Link
-                                </a>
-                              ) : (
-                                <span className="text-muted-foreground/40 text-[11px]">—</span>
-                              )}
+                            <td className="px-2 py-0.5 text-[11px] text-muted-foreground whitespace-nowrap">
+                              {wbahCalendlyCell(r)}
                             </td>
                             <td className="px-2 py-0.5 text-muted-foreground text-[11px] whitespace-nowrap capitalize max-w-[120px] truncate">
                               {r.endReason ? r.endReason.replace(/_/g, " ") : "—"}
