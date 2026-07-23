@@ -1,7 +1,8 @@
 import type { AdProvider, AdCampaignStats } from "../interface";
+import { GADS_BASE } from "../../../growthmind/gads-live-core.server";
 
 /**
- * Google Ads API v17 adapter.
+ * Google Ads API adapter (version from shared GADS_BASE config).
  * Auth priority: refreshToken + clientId + clientSecret → exchanged for accessToken.
  * Fallback: static accessToken (short-lived, manual entry).
  * Requires: developerToken, customerId, plus one of the above auth paths.
@@ -74,7 +75,7 @@ export class GoogleAdsAdapter implements AdProvider {
     const token = await this.resolveToken();
 
     const resp = await fetch(
-      `https://googleads.googleapis.com/v17/customers/${this.cid}/googleAds:search`,
+      `${GADS_BASE}/customers/${this.cid}/googleAds:search`,
       {
         method: "POST",
         headers: this.baseHeaders(token),
@@ -119,7 +120,7 @@ export class GoogleAdsAdapter implements AdProvider {
     const dateTo   = to.replace(/-/g, "");
 
     const resp = await fetch(
-      `https://googleads.googleapis.com/v17/customers/${this.cid}/googleAds:search`,
+      `${GADS_BASE}/customers/${this.cid}/googleAds:search`,
       {
         method: "POST",
         headers: this.baseHeaders(token),
@@ -150,7 +151,7 @@ export class GoogleAdsAdapter implements AdProvider {
       // listAccessibleCustomers doesn't require a valid customer ID —
       // it's the canonical credentials liveness check.
       const resp = await fetch(
-        "https://googleads.googleapis.com/v17/customers:listAccessibleCustomers",
+        `${GADS_BASE}/customers:listAccessibleCustomers`,
         { method: "GET", headers: this.baseHeaders(token) },
       );
       return resp.ok;

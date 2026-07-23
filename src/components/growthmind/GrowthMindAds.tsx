@@ -673,7 +673,13 @@ function PlatformCard({ platform, accounts, onConnect, onEdit, onDelete, extra }
                 <LinkIcon className="h-3 w-3 text-muted-foreground/60 shrink-0" />
                 <div className="flex-1 min-w-0">
                   <span className="text-xs font-medium">{acct.label}</span>
-                  <span className="text-[10px] text-muted-foreground ml-2">ID: {acct.account_id}</span>
+                  <span className="text-[10px] text-muted-foreground ml-2">
+                    {acct.account_id?.includes("@")
+                      ? <>Connected as: {acct.account_id}</>
+                      : acct.account_id === "pending-selection"
+                        ? "Account selection required"
+                        : <>Customer ID: {acct.account_id}</>}
+                  </span>
                   {acct.has_token && (
                     <span className="text-[10px] text-emerald-400/60 ml-2 inline-flex items-center gap-0.5">
                       <CheckCircle2 className="h-2.5 w-2.5" /> token

@@ -13,6 +13,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   __expireGadsTokenCache,
   getGadsAccessToken,
+  GADS_API_VERSION,
+  normalizeGadsCustomerId,
+  parseGoogleAdsFailure,
   type GadsCreds,
 } from "@/lib/growthmind/gads-live-core.server";
 
@@ -102,5 +105,44 @@ describe("Google Ads token refresh (deliberately expired access token)", () => {
     failWith = null;
     const t = await getGadsAccessToken(WS, creds);
     expect(t).toMatch(/^fresh-token-/);
+  });
+});
+
+describe("Google Ads API version + identifier hygiene", () => {
+  it("uses a supported API version (v20 was sunset by Google)", () => {
+    const n = Number(GADS_API_VERSION.replace(/^v/, ""));
+    expect(Number.isFinite(n)).toBe(true);
+    expect(n).toBeGreaterThanOrEqual(21);
+  });
+
+  it("never accepts an email or connected identity as a customer ID", () => {
+    expect(normalizeGadsCustomerId("admin@webespokeai.com")).toBeNull();
+    expect(normalizeGadsCustomerId("pending-selection")).toBeNull();
+    expect(normalizeGadsCustomerId("")).toBeNull();
+    expect(normalizeGadsCustomerId(null)).toBeNull();
+  });
+
+  it("normalises hyphens, spaces and customers/ prefixes to bare digits", () => {
+    expect(normalizeGadsCustomerId("123-456-7890")).toBe("1234567890");
+    expect(normalizeGadsCustomerId("customers/1234567890")).toBe("1234567890");
+    expect(normalizeGadsCustomerId(" 123 456 7890 ")).toBe("1234567890");
+    expect(normalizeGadsCustomerId("1234567890")).toBe("1234567890");
+  });
+
+  it("extracts GoogleAdsFailure error codes, messages and requestId", () => {
+    const body = JSON.stringify({
+      error: {
+        code: 400, status: "INVALID_ARGUMENT", message: "Request contains an invalid argument.",
+        details: [{
+          "@type": "type.googleapis.com/google.ads.googleads.v20.errors.GoogleAdsFailure",
+          errors: [{ errorCode: { requestError: "UNSUPPORTED_VERSION" }, message: "Version v20 is deprecated. Requests to this version will be blocked." }],
+          requestId: "abc123",
+        }],
+      },
+    });
+    const parsed = parseGoogleAdsFailure(body);
+    expect(parsed.codes).toContain("requestError:UNSUPPORTED_VERSION");
+    expect(parsed.messages[0]).toMatch(/deprecated/);
+    expect(parsed.requestId).toBe("abc123");
   });
 });

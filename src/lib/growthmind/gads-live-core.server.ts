@@ -26,8 +26,10 @@ function admin(): any {
   return _admin;
 }
 
-const GADS_API_VERSION = process.env.GOOGLE_ADS_API_VERSION?.trim() || "v20";
-const GADS_BASE = `https://googleads.googleapis.com/${GADS_API_VERSION}`;
+// Single source of truth for the Google Ads API version across the codebase.
+// v20 was sunset by Google (UNSUPPORTED_VERSION — requests blocked); v21+ works.
+export const GADS_API_VERSION = process.env.GOOGLE_ADS_API_VERSION?.trim() || "v21";
+export const GADS_BASE = `https://googleads.googleapis.com/${GADS_API_VERSION}`;
 
 // ── Credential loading ────────────────────────────────────────────────────────
 
@@ -124,7 +126,47 @@ async function gadsFetch(url: string, init: RequestInit, attempt = 0): Promise<R
   return res;
 }
 
+/** Extract structured GoogleAdsFailure details (error codes, messages, requestId). */
+export function parseGoogleAdsFailure(body: string): { codes: string[]; messages: string[]; requestId: string | null } {
+  try {
+    const json = JSON.parse(body);
+    const details: any[] = json?.error?.details ?? [];
+    const codes: string[] = [];
+    const messages: string[] = [];
+    let requestId: string | null = null;
+    for (const d of details) {
+      if (d.requestId) requestId = d.requestId;
+      for (const e of d.errors ?? []) {
+        const codeObj = e.errorCode ?? {};
+        for (const k of Object.keys(codeObj)) codes.push(`${k}:${codeObj[k]}`);
+        if (e.message) messages.push(String(e.message));
+      }
+    }
+    return { codes, messages, requestId };
+  } catch {
+    return { codes: [], messages: [], requestId: null };
+  }
+}
+
 function friendlyApiError(status: number, body: string): string {
+  const parsed = parseGoogleAdsFailure(body);
+  if (parsed.codes.length || parsed.messages.length) {
+    // Structured server-side log (no tokens/secrets — only error metadata)
+    console.error("[gads] GoogleAdsFailure", JSON.stringify({
+      apiVersion: GADS_API_VERSION,
+      httpStatus:  status,
+      errorCodes:  parsed.codes,
+      messages:    parsed.messages.map(m => m.slice(0, 200)),
+      requestId:   parsed.requestId,
+    }));
+    if (parsed.codes.some(c => c.endsWith("UNSUPPORTED_VERSION"))) {
+      return `Google Ads API version ${GADS_API_VERSION} is no longer supported by Google — set GOOGLE_ADS_API_VERSION to a current version. (${parsed.messages[0] ?? ""})`.trim();
+    }
+    const b0 = body;
+    if (!b0.includes("DEVELOPER_TOKEN") && !b0.includes("CUSTOMER_NOT_FOUND") && !b0.includes("USER_PERMISSION_DENIED") && !b0.includes("NOT_ADS_USER")) {
+      return `Google Ads error [${parsed.codes.join(", ") || status}]: ${(parsed.messages[0] ?? "request failed").slice(0, 200)}${parsed.requestId ? ` (request ${parsed.requestId})` : ""}`;
+    }
+  }
   const b = body.slice(0, 400);
   if (b.includes("DEVELOPER_TOKEN_NOT_APPROVED")) return "Google Ads developer token is not approved for this account level (test tokens can only access test accounts).";
   if (b.includes("DEVELOPER_TOKEN_PROHIBITED"))   return "Developer token is prohibited from accessing this account.";
@@ -144,13 +186,22 @@ export interface GaqlOptions {
   creds?:           GadsCreds;
 }
 
+/** Normalise a Google Ads customer ID: strip hyphens/spaces/"customers/" prefix; must be all digits. */
+export function normalizeGadsCustomerId(raw: string | null | undefined): string | null {
+  if (!raw) return null;
+  const v = String(raw).replace(/^customers\//, "").replace(/[-\s]/g, "");
+  if (!/^\d{5,12}$/.test(v)) return null; // rejects emails and any non-numeric identity
+  return v;
+}
+
 /** Run a GAQL query via googleAds:search with pagination. */
 export async function gaqlSearch(opts: GaqlOptions, query: string): Promise<any[]> {
   const creds = opts.creds ?? await loadGadsCreds(opts.workspaceId);
   if (!creds.developerToken) throw new Error("GADS_NO_DEV_TOKEN: Google Ads developer token missing in provider settings");
   const token = await getGadsAccessToken(opts.workspaceId, creds);
-  const cid   = opts.customerId.replace(/-/g, "");
-  const login = (opts.loginCustomerId ?? creds.managerId ?? "").replace(/-/g, "");
+  const cid   = normalizeGadsCustomerId(opts.customerId);
+  if (!cid) throw new Error(`GADS_BAD_CUSTOMER_ID: "${String(opts.customerId).slice(0, 40)}" is not a numeric Google Ads customer ID — select an advertising account via discovery.`);
+  const login = normalizeGadsCustomerId(opts.loginCustomerId ?? creds.managerId) ?? "";
 
   const rows: any[] = [];
   let pageToken: string | undefined;
