@@ -199,6 +199,17 @@ function SocialAccountsPage() {
                   {(c.capabilities as any)?.publishing && <span className="text-[11px] text-muted-foreground">· publishing</span>}
                   {(c.capabilities as any)?.analytics && <span className="text-[11px] text-muted-foreground">· insights</span>}
                 </div>
+                {(c.permissions as any)?.length > 0 && (
+                  <div className="flex items-center gap-1 mt-1 flex-wrap">
+                    <span className="text-[10px] text-muted-foreground">Permissions:</span>
+                    {(c.permissions as string[]).map(p => (
+                      <span key={p} className="text-[10px] px-1.5 py-0.5 rounded bg-white/[0.05] text-muted-foreground">{p}</span>
+                    ))}
+                  </div>
+                )}
+                <p className="text-[10px] text-muted-foreground mt-1">
+                  Last sync: {c.last_sync_at ? (mounted ? new Date(c.last_sync_at).toLocaleString() : "") : "never"}
+                </p>
                 {c.last_error && <p className="text-[11px] text-amber-400 mt-1 truncate">{c.last_error}</p>}
               </div>
               {needsAttention && (

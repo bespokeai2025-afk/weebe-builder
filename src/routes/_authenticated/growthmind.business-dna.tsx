@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { Dna, Save, RefreshCw, CheckCircle2, AlertCircle, Loader2, ChevronDown, ChevronUp, Sparkles, History, Check, X } from "lucide-react";
 import { GrowthMindShell } from "@/components/growthmind/GrowthMindShell";
@@ -74,6 +74,8 @@ function BusinessDnaPage() {
   const [generating,  setGenerating]  = useState(false);
   const [resolvingId, setResolvingId] = useState<string | null>(null);
   const [showHistory, setShowHistory] = useState(false);
+  const [mounted,     setMounted]     = useState(false);
+  useEffect(() => { setMounted(true); }, []);
   const [sections,    setSections]    = useState<SectionState>({
     company: true, products: true, customers: false,
     financials: false, strategy: false, brand: false,
@@ -574,7 +576,7 @@ function BusinessDnaPage() {
                     <span className="text-muted-foreground">{v.changed_by === "growthmind" ? "GrowthMind (approved proposal)" : "Manual save"}</span>
                     {v.change_summary && <span className="text-muted-foreground truncate max-w-[280px]">— {v.change_summary}</span>}
                   </div>
-                  <span className="text-muted-foreground tabular-nums">{new Date(v.created_at).toLocaleString()}</span>
+                  <span className="text-muted-foreground tabular-nums">{mounted ? new Date(v.created_at).toLocaleString() : ""}</span>
                 </div>
               ))}
             </div>
