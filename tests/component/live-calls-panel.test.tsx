@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, act, cleanup } from "@testing-library/react";
+import { render, screen, act, cleanup, fireEvent } from "@testing-library/react";
 import React from "react";
 
 type AuthCallback = (
@@ -254,5 +254,176 @@ describe("LiveCallsPanel session recovery", () => {
     expect(screen.getByText("1 active")).toBeTruthy();
     expect(screen.getByText("Ava")).toBeTruthy();
     expect(screen.getByText("Hello, this is Ava.")).toBeTruthy();
+  });
+});
+
+type TranscriptLine = { role: string; content: string };
+
+function makeCall(overrides: Record<string, unknown> = {}) {
+  return {
+    call_id: "c1",
+    agent_name: "Ava",
+    status: "live",
+    call_status: "in_progress",
+    direction: "inbound",
+    call_type: "phone_call",
+    from_number: "+441234567890",
+    to_number: null,
+    lead_name: "Jane Doe",
+    start_timestamp: Date.now(),
+    current_node_label: null,
+    transcript: [] as TranscriptLine[],
+    ...overrides,
+  };
+}
+
+async function openStreamAndSend(calls: Record<string, unknown>[]) {
+  authState.session = { access_token: "tok-1" };
+  render(<LiveCallsPanel />);
+  await flush();
+  const es = lastEs();
+  await act(async () => {
+    es.onopen?.();
+  });
+  await act(async () => {
+    es.onmessage?.({ data: JSON.stringify({ calls }) });
+  });
+  return es;
+}
+
+async function sendCalls(es: MockEventSource, calls: Record<string, unknown>[]) {
+  await act(async () => {
+    es.onmessage?.({ data: JSON.stringify({ calls }) });
+  });
+}
+
+const OVERDUE_RE = /Live transcript unavailable/;
+const WAITING_RE = /Waiting for Retell transcript_updated event/;
+
+function getTranscriptContainer(): HTMLDivElement {
+  const el = document.querySelector<HTMLDivElement>("div[style*='max-height']");
+  if (!el) throw new Error("transcript container not found");
+  return el;
+}
+
+describe("CallCard transcript-overdue warning", () => {
+  it("shows the waiting indicator (not the warning) before 20s on a live call with no transcript", async () => {
+    await openStreamAndSend([makeCall()]);
+
+    expect(screen.getByText(WAITING_RE)).toBeTruthy();
+    expect(screen.queryByText(OVERDUE_RE)).toBeNull();
+
+    // Still under the 20s threshold.
+    await advance(19_000);
+    expect(screen.getByText(WAITING_RE)).toBeTruthy();
+    expect(screen.queryByText(OVERDUE_RE)).toBeNull();
+  });
+
+  it("shows the webhook warning after 20s on a live call with an empty transcript", async () => {
+    await openStreamAndSend([makeCall()]);
+
+    await advance(21_000);
+    expect(screen.getByText(OVERDUE_RE)).toBeTruthy();
+    expect(screen.queryByText(WAITING_RE)).toBeNull();
+  });
+
+  it("never shows the warning once transcript lines exist, even after 20s", async () => {
+    const es = await openStreamAndSend([makeCall()]);
+
+    await sendCalls(es, [
+      makeCall({
+        transcript: [{ role: "agent", content: "Hello, this is Ava." }],
+      }),
+    ]);
+    await advance(25_000);
+
+    expect(screen.getByText("Hello, this is Ava.")).toBeTruthy();
+    expect(screen.queryByText(OVERDUE_RE)).toBeNull();
+  });
+
+  it("shows 'No transcript recorded' (not the warning) for a completed call with no transcript", async () => {
+    await openStreamAndSend([
+      makeCall({
+        status: "completed",
+        call_status: "ended",
+        start_timestamp: Date.now() - 60_000,
+      }),
+    ]);
+
+    expect(screen.getByText(/No transcript recorded/)).toBeTruthy();
+    expect(screen.queryByText(OVERDUE_RE)).toBeNull();
+
+    await advance(25_000);
+    expect(screen.getByText(/No transcript recorded/)).toBeTruthy();
+    expect(screen.queryByText(OVERDUE_RE)).toBeNull();
+  });
+});
+
+describe("CallCard transcript auto-scroll", () => {
+  function mockScrollMetrics(el: HTMLElement, scrollHeight: number, clientHeight: number) {
+    Object.defineProperty(el, "scrollHeight", {
+      configurable: true,
+      get: () => scrollHeight,
+    });
+    Object.defineProperty(el, "clientHeight", {
+      configurable: true,
+      get: () => clientHeight,
+    });
+  }
+
+  function linesFor(n: number): TranscriptLine[] {
+    return Array.from({ length: n }, (_, i) => ({
+      role: i % 2 === 0 ? "agent" : "user",
+      content: `Line ${i + 1}`,
+    }));
+  }
+
+  it("sticks to the bottom when new transcript lines arrive and the user hasn't scrolled up", async () => {
+    const es = await openStreamAndSend([makeCall({ transcript: linesFor(5) })]);
+
+    const container = getTranscriptContainer();
+    mockScrollMetrics(container, 600, 220);
+    container.scrollTop = 380; // exactly at the bottom
+
+    await sendCalls(es, [makeCall({ transcript: linesFor(6) })]);
+
+    // Pinned to the (mocked) full scroll height.
+    expect(container.scrollTop).toBe(600);
+    expect(screen.getByText("Line 6")).toBeTruthy();
+  });
+
+  it("stays put when the user has scrolled up to read older lines", async () => {
+    const es = await openStreamAndSend([makeCall({ transcript: linesFor(5) })]);
+
+    const container = getTranscriptContainer();
+    mockScrollMetrics(container, 600, 220);
+
+    // User scrolls up well past the 40px stickiness threshold.
+    container.scrollTop = 100;
+    fireEvent.scroll(container);
+
+    await sendCalls(es, [makeCall({ transcript: linesFor(6) })]);
+
+    // New line rendered, but the scroll position was not yanked to the bottom.
+    expect(screen.getByText("Line 6")).toBeTruthy();
+    expect(container.scrollTop).toBe(100);
+  });
+
+  it("re-engages auto-scroll after the user scrolls back near the bottom", async () => {
+    const es = await openStreamAndSend([makeCall({ transcript: linesFor(5) })]);
+
+    const container = getTranscriptContainer();
+    mockScrollMetrics(container, 600, 220);
+
+    // Scroll up (unstick)…
+    container.scrollTop = 100;
+    fireEvent.scroll(container);
+    // …then back to within 40px of the bottom (re-stick).
+    container.scrollTop = 350;
+    fireEvent.scroll(container);
+
+    await sendCalls(es, [makeCall({ transcript: linesFor(6) })]);
+
+    expect(container.scrollTop).toBe(600);
   });
 });
