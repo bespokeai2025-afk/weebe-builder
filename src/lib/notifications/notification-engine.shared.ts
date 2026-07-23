@@ -347,12 +347,78 @@ function getAppUrl(): string {
 }
 
 /**
+ * Notification event keys mirrored into the HiveMind executive event stream,
+ * mapped to executive event types. Keys not listed are notification-only.
+ */
+const EXEC_MIRROR_MAP: Record<string, string> = {
+  failed:                   "campaign_failed",
+  completed:                "campaign_completed",
+  workflow_error:           "workflow_failed",
+  provider_error:           "provider_error",
+  email_provider_failing:   "email_delivery_failed",
+  lead_created:             "lead_created",
+  qualified_leads_generated: "lead_qualified",
+  systemmind_fix_suggested: "systemmind_incident",
+};
+
+/** Mirror a notification into the executive event stream. NEVER throws. */
+async function mirrorToExecutiveStream(sb: Sb, input: CampaignNotificationInput): Promise<void> {
+  try {
+    const meta = ((input as any).metadata ?? {}) as Record<string, unknown>;
+    let execType = EXEC_MIRROR_MAP[input.eventKey];
+    if (!execType && input.eventKey === "needs_admin_attention") {
+      execType = meta.source === "growthmind_gads" ? "growthmind_recommendation" : "accountsmind_warning";
+    }
+    if (!execType) return;
+
+    const day = new Date().toISOString().slice(0, 10);
+    const anchor =
+      (typeof meta.dedupe_key === "string" && meta.dedupe_key) ||
+      input.campaignId ||
+      input.reportId ||
+      (input.summary ?? "").slice(0, 120) ||
+      "general";
+    const { publishExecutiveEvent } = await import("../hivemind/executive-events.shared");
+    await publishExecutiveEvent(sb, {
+      workspaceId: input.workspaceId,
+      eventType: execType,
+      sourceSystem: "notifications",
+      title: input.campaignName
+        ? `${input.eventKey} — ${input.campaignName}`
+        : input.summary?.slice(0, 200) ?? input.eventKey,
+      summary: [input.summary, input.failureReason ? `Reason: ${input.failureReason}` : null]
+        .filter(Boolean)
+        .join("\n") || null,
+      severity: input.severity as any,
+      entityType: input.campaignId ? "campaign" : input.reportId ? "report" : null,
+      entityId: input.campaignId ?? input.reportId ?? null,
+      dedupKey: `${execType}:${anchor}:${day}`,
+      correlationKey: input.campaignId ? `campaign:${input.campaignId}` : null,
+      evidence: {
+        notificationEventKey: input.eventKey,
+        failureReason: input.failureReason ?? null,
+        recommendedAction: input.recommendedAction ?? null,
+        ...(meta.source ? { source: meta.source } : {}),
+      },
+    });
+  } catch (err: any) {
+    console.warn("[notify] executive-stream mirror failed (non-fatal):", err?.message ?? err);
+  }
+}
+
+/**
  * Emit a campaign notification: write in-app + email rows per recipient and
  * send immediate emails. NEVER throws.
  */
 export async function emitCampaignNotification(sb: Sb, input: CampaignNotificationInput): Promise<void> {
   try {
     if (!input.workspaceId || !input.eventKey) return;
+
+    // Mirror significant events into the HiveMind executive event stream —
+    // BEFORE notification settings checks, since the executive stream is
+    // independent of per-user notification preferences. Best-effort.
+    await mirrorToExecutiveStream(sb, input);
+
     const rawSettings = await loadEventSettings(sb, input.workspaceId, input.eventKey);
     const caps = await loadNotificationCaps(sb, input.workspaceId);
     const settings = clampSettingsToCaps(rawSettings, caps);

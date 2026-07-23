@@ -53,6 +53,9 @@ const RETENTION_RULES: RetentionRule[] = [
   // schema is ground truth here).
   { table: "growthmind_ad_webhook_events", column: "created_at",  days: 90 },
   { table: "hivemind_events",              column: "created_at",  days: 180 },
+  // Executive event stream — reasoning/briefings only read bounded recent
+  // windows; dedup keys are day-scoped so old rows never suppress new events.
+  { table: "hivemind_executive_events",    column: "created_at",  days: 180 },
   { table: "provider_usage_log",           column: "created_at",  days: 400 },
   { table: "growthmind_generation_logs",   column: "created_at",  days: 400 },
 ];

@@ -7589,6 +7589,115 @@ export type Database = {
           },
         ]
       }
+      hivemind_executive_events: {
+        Row: {
+          classification: string | null
+          classified_at: string | null
+          correlation_key: string | null
+          created_at: string
+          dedup_key: string
+          entity_id: string | null
+          entity_type: string | null
+          event_type: string
+          evidence: Json
+          id: string
+          occurred_at: string
+          processing_status: string
+          severity: string
+          source_system: string
+          summary: string | null
+          title: string
+          workspace_id: string
+        }
+        Insert: {
+          classification?: string | null
+          classified_at?: string | null
+          correlation_key?: string | null
+          created_at?: string
+          dedup_key: string
+          entity_id?: string | null
+          entity_type?: string | null
+          event_type: string
+          evidence?: Json
+          id?: string
+          occurred_at?: string
+          processing_status?: string
+          severity?: string
+          source_system?: string
+          summary?: string | null
+          title: string
+          workspace_id: string
+        }
+        Update: {
+          classification?: string | null
+          classified_at?: string | null
+          correlation_key?: string | null
+          created_at?: string
+          dedup_key?: string
+          entity_id?: string | null
+          entity_type?: string | null
+          event_type?: string
+          evidence?: Json
+          id?: string
+          occurred_at?: string
+          processing_status?: string
+          severity?: string
+          source_system?: string
+          summary?: string | null
+          title?: string
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "hivemind_executive_events_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      hivemind_reconciliation_state: {
+        Row: {
+          created_at: string
+          id: string
+          job_key: string
+          last_detail: Json
+          last_run_at: string | null
+          last_status: string | null
+          updated_at: string
+          workspace_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          job_key: string
+          last_detail?: Json
+          last_run_at?: string | null
+          last_status?: string | null
+          updated_at?: string
+          workspace_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          job_key?: string
+          last_detail?: Json
+          last_run_at?: string | null
+          last_status?: string | null
+          updated_at?: string
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "hivemind_reconciliation_state_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       hivemind_tasks: {
         Row: {
           assigned_to: string | null

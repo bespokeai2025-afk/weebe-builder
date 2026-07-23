@@ -119,6 +119,19 @@ export const Route = createFileRoute("/api/public/hyperstream/book")({
             meeting_url: booking.meetingUrl ?? null,
             notes: d.notes ?? null,
           });
+          try {
+            const { publishExecutiveEvent } = await import("@/lib/hivemind/executive-events.shared");
+            await publishExecutiveEvent(supabaseAdmin, {
+              workspaceId: agentRow.workspace_id,
+              eventType: "booking_created",
+              sourceSystem: "hyperstream",
+              title: `Appointment booked with ${d.name}`,
+              summary: `Booked for ${booking.startTime} via voice agent.`,
+              entityType: "booking",
+              entityId: String(booking.uid ?? booking.id),
+              evidence: { source: "hyperstream", start: booking.startTime, attendee: d.name },
+            });
+          } catch { /* best-effort */ }
           cacheDel(
             `webee:hivemind:${agentRow.workspace_id}:platform`,
             `webee:growthmind:${agentRow.workspace_id}:platform`,

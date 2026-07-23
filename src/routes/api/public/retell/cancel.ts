@@ -92,6 +92,18 @@ export const Route = createFileRoute("/api/public/retell/cancel")({
             .from("calendar_bookings")
             .update({ status: "cancelled" })
             .eq("id", bookingRow.id);
+          try {
+            const { publishExecutiveEvent } = await import("@/lib/hivemind/executive-events.shared");
+            await publishExecutiveEvent(supabaseAdmin, {
+              workspaceId: bkWsId,
+              eventType: "booking_cancelled",
+              sourceSystem: "retell",
+              title: "Appointment cancelled via voice agent",
+              entityType: "booking",
+              entityId: String(parsed.data.booking_id),
+              evidence: { source: "retell", reason: parsed.data.reason ?? null },
+            });
+          } catch { /* best-effort */ }
           return new Response(JSON.stringify({ ok: true }), {
             status: 200,
             headers: { ...CORS, "Content-Type": "application/json" },

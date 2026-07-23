@@ -752,6 +752,48 @@ export async function processRetellWebhook(
   }
   invalidateDashboardCache(workspaceId);
 
+  // ── Executive event stream (best-effort, never blocks processing) ─────────
+  // One event per call lifecycle: call_analyzed → completed/positive,
+  // call_failed → failed. Dedup key is the Retell call id, so retries and
+  // duplicate webhooks are silent no-ops.
+  if (event === "call_analyzed" || event === "call_failed") {
+    try {
+      const { publishExecutiveEvent } = await import("@/lib/hivemind/executive-events.shared");
+      const sentiment = mapSentiment(call.call_analysis?.user_sentiment);
+      const execType =
+        event === "call_failed"
+          ? "call_failed"
+          : sentiment === "positive"
+            ? "call_positive"
+            : "call_completed";
+      await publishExecutiveEvent(supabaseAdmin, {
+        workspaceId,
+        eventType: execType,
+        sourceSystem: "retell",
+        title:
+          event === "call_failed"
+            ? `Call failed${contactPhone ? ` with ${contactPhone}` : ""}`
+            : `${callType === "inbound" ? "Inbound" : "Outbound"} call ${sentiment === "positive" ? "went well" : "completed"}${contactPhone ? ` (${contactPhone})` : ""}`,
+        summary: call.call_analysis?.call_summary?.slice(0, 1000) ?? null,
+        entityType: "call",
+        entityId: callId,
+        dedupKey: `${event}:call:${callId}`,
+        correlationKey: leadId ? `lead:${leadId}` : null,
+        evidence: {
+          callId,
+          callType,
+          sentiment,
+          durationSeconds,
+          isVoicemail,
+          disconnectionReason: call.disconnection_reason ?? null,
+          leadId,
+        },
+      });
+    } catch (execErr) {
+      console.warn("[RETELL WEBHOOK] Executive event publish failed (non-fatal)", execErr);
+    }
+  }
+
   if (
     contactPhone &&
     ["call_ended", "call_analyzed", "call_failed"].includes(event) &&

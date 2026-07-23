@@ -159,6 +159,23 @@ export const Route = createFileRoute("/api/public/campaign-executor")({
             console.warn("[wbah-campaign-runs] tick failed:", wbahErr?.message ?? wbahErr);
           }
 
+          // HiveMind executive event reconciliation + classification.
+          // CAS-claimed per workspace/job cadence. Best-effort — never blocks
+          // the tick.
+          try {
+            const { runExecutiveEventsTick } = await import(
+              "@/lib/hivemind/executive-reconciliation.server"
+            );
+            const execEvents = await runExecutiveEventsTick();
+            if (execEvents.jobsRun > 0 || execEvents.eventsPublished > 0 || execEvents.eventsClassified > 0) {
+              console.log(
+                `[exec-events] ws=${execEvents.workspacesScanned} jobs=${execEvents.jobsRun} published=${execEvents.eventsPublished} classified=${execEvents.eventsClassified} errors=${execEvents.errors}`,
+              );
+            }
+          } catch (execErr: any) {
+            console.warn("[exec-events] tick failed:", execErr?.message ?? execErr);
+          }
+
           // Scheduled analytics reports (once-per-tick due check). Best-effort —
           // never blocks the tick.
           try {
