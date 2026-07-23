@@ -25,3 +25,9 @@ description: Architecture and hard constraints of the live Google Ads integratio
 - `normalizeGadsCustomerId()` guards gaqlSearch: only 5-12 digit IDs accepted (emails / "pending-selection"
   rejected loudly). The email in growthmind_ads_accounts.account_id was ever only a display label,
   never sent to the API.
+
+## Evidence gate + CRM lead-quality loop (July 2026)
+- Every RecDraft passes `validateRecDraft` (specific entity, ≥2 finite numeric evidence metrics, action ≥25 chars, finite confidence 0–1, vague phrases rejected) then `capRecDrafts` (3 critical / 5 high / 10 total) before upsert. Never store raw drafts.
+- CRM lead-quality loop attributes paid leads via `attributePaidLeadsToCampaigns`: one lead → at most one campaign; exact normalized utm_campaign match wins; containment only when unambiguous. The SQL prefilter must include `meta->>gclid.not.is.null` or gclid-only leads are dropped.
+- Fresh CRITICAL inserts emit a `needs_admin_attention` notification (dynamic relative import, best-effort). HiveMind ingests recs via scanGrowthMind findings, chat context (`gadsLive` block with the "tell user specifically what needs doing" rule), and briefing snapshot.
+- Unit tests: `tests/e2e/gads-rec-quality.e2e.test.ts` (pure, no DB).

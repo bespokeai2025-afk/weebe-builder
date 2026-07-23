@@ -298,6 +298,37 @@ export async function fetchFullPlatformData(sb: any, workspaceId: string) {
     analyticsSnapshot = await getAnalyticsSnapshotForExec(workspaceId);
   } catch {}
 
+  // Live Google Ads (GrowthMind) — connection state, pending recommendations and
+  // approved-but-not-implemented change requests, so HiveMind can tell the user
+  // exactly what needs to be done when they ask about their campaigns.
+  let gadsLive: any = null;
+  try {
+    const [gadsAcctRes, gadsRecsRes, gadsCrRes] = await Promise.all([
+      sb.from("growthmind_ads_accounts")
+        .select("id,label,connection_state,sync_status,sync_error,last_synced_at,descriptive_name,currency_code")
+        .eq("workspace_id", workspaceId).eq("platform", "google").eq("status", "active")
+        .order("created_at", { ascending: false }).limit(1).maybeSingle(),
+      sb.from("growthmind_gads_recommendations")
+        .select("id,title,priority,section,campaign_name,recommended_action,expected_benefit,status,confidence")
+        .eq("workspace_id", workspaceId).in("status", ["new", "under_review", "approved"])
+        .order("created_at", { ascending: false }).limit(15),
+      sb.from("growthmind_gads_change_requests")
+        .select("id,status,created_at").eq("workspace_id", workspaceId)
+        .eq("status", "approved").limit(20),
+    ]);
+    if (gadsAcctRes.data) {
+      const recsAll = gadsRecsRes.data ?? [];
+      const prioOrder: Record<string, number> = { critical: 0, high: 1, medium: 2, low: 3 };
+      gadsLive = {
+        account: gadsAcctRes.data,
+        pendingRecs: recsAll.filter((r: any) => r.status === "new" || r.status === "under_review")
+          .sort((a: any, b: any) => (prioOrder[a.priority] ?? 9) - (prioOrder[b.priority] ?? 9)),
+        approvedRecs: recsAll.filter((r: any) => r.status === "approved"),
+        openChangeRequests: (gadsCrRes.data ?? []).length,
+      };
+    }
+  } catch { /* live gads tables optional */ }
+
   // Invoiced sales (AccountsMind invoices billed to this workspace; graceful)
   let invoiceSales: any = null;
   try {
@@ -563,6 +594,7 @@ export async function fetchFullPlatformData(sb: any, workspaceId: string) {
     campaignReports,
     analyticsSnapshot,
     invoiceSales,
+    gadsLive,
   };
 }
 
@@ -858,6 +890,32 @@ function buildPlatformContext(d: any): string {
     if (ae.staleAccounts.length > 0) lines.push(`  ⚠ Stale sync (>24h): ${ae.staleAccounts.map((a: any) => `${a.platform} "${a.label}"`).join(", ")}`);
   } else {
     lines.push(`\nPAID ADS: no accounts connected`);
+  }
+
+  // LIVE GOOGLE ADS (GrowthMind evidence-based engine)
+  if (d.gadsLive) {
+    const g = d.gadsLive;
+    const acct = g.account;
+    lines.push(`\nLIVE GOOGLE ADS (GrowthMind CMO — evidence-based, approval-gated):`);
+    const sync = acct.sync_status === "error"
+      ? `SYNC FAILING${acct.sync_error ? ` (${String(acct.sync_error).slice(0, 120)})` : ""}`
+      : acct.connection_state === "sync_healthy"
+        ? `healthy${acct.last_synced_at ? `, last synced ${acct.last_synced_at}` : ""}`
+        : `setup incomplete (${acct.connection_state ?? "unknown"})`;
+    lines.push(`  Account: ${acct.descriptive_name ?? acct.label ?? "Google Ads"} | Sync: ${sync}`);
+    if (g.pendingRecs.length > 0) {
+      lines.push(`  PENDING RECOMMENDATIONS AWAITING USER DECISION (${g.pendingRecs.length}) — the user must approve/dismiss these in GrowthMind → Ads:`);
+      for (const r of g.pendingRecs.slice(0, 8)) {
+        lines.push(`    • [${String(r.priority).toUpperCase()}] ${r.title}`);
+        lines.push(`      Action: ${String(r.recommended_action ?? "").slice(0, 220)}`);
+        if (r.expected_benefit) lines.push(`      Expected benefit: ${String(r.expected_benefit).slice(0, 160)}`);
+      }
+    } else {
+      lines.push(`  No pending recommendations right now.`);
+    }
+    if (g.approvedRecs.length > 0) lines.push(`  Approved recommendations awaiting implementation in Google Ads: ${g.approvedRecs.length}`);
+    if (g.openChangeRequests > 0) lines.push(`  Open change requests (approved, to be applied manually in Google Ads): ${g.openChangeRequests}`);
+    lines.push(`  RULE: when the user mentions their campaigns/ads, tell them SPECIFICALLY what needs doing from the list above (cite the evidence-backed actions); NEVER invent generic ads advice; WEBEE never changes campaigns without user approval.`);
   }
 
   // SEO HEALTH

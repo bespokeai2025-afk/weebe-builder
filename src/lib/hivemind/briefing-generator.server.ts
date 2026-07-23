@@ -61,6 +61,19 @@ async function pullSnapshot(workspaceId: string, dayRange: number) {
         .limit(10),
     ]);
 
+  // Live Google Ads pending recommendations (graceful — table may not exist)
+  let gadsRecs: any[] = [];
+  try {
+    const { data } = await sb.from("growthmind_gads_recommendations")
+      .select("title, priority, campaign_name, recommended_action, expected_benefit")
+      .eq("workspace_id", workspaceId)
+      .in("status", ["new", "under_review"])
+      .in("priority", ["critical", "high"])
+      .order("created_at", { ascending: false })
+      .limit(5);
+    gadsRecs = data ?? [];
+  } catch { /* optional */ }
+
   const leads       = leadsRes.data ?? [];
   const calls       = callsRes.data ?? [];
   const campaigns   = campaignsRes.data ?? [];
@@ -84,6 +97,7 @@ async function pullSnapshot(workspaceId: string, dayRange: number) {
     dna,
     campaigns,
     opps,
+    gadsRecs,
     lastBriefingSummary: lastBriefing?.summary ?? "",
   };
 }
@@ -120,6 +134,9 @@ ACTIVE CAMPAIGNS: ${snap.campaigns.map((c: any) => `${c.campaign_type}: ${c.titl
 
 TOP OPPORTUNITIES:
 ${snap.opps.map((o: any) => `- ${o.title} (${o.urgency} urgency, ${Math.round(o.confidence_score * 100)}% confidence)`).join("\n") || "None detected"}
+
+LIVE GOOGLE ADS — PENDING EVIDENCE-BASED RECOMMENDATIONS (require the owner's approval in GrowthMind → Ads):
+${(snap.gadsRecs ?? []).map((r: any) => `- [${String(r.priority).toUpperCase()}] ${r.title}${r.campaign_name ? ` (campaign: ${r.campaign_name})` : ""} → ${String(r.recommended_action ?? "").slice(0, 180)}`).join("\n") || "None pending"}
 
 PREVIOUS BRIEFING SUMMARY: ${snap.lastBriefingSummary.slice(0, 300) || "No previous briefing"}
 

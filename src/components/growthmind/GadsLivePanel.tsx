@@ -530,12 +530,14 @@ export function GadsLivePanel({ onConnectClick }: { onConnectClick: () => void }
                     GrowthMind recommendations ({recommendations.length})
                   </p>
                   <p className="text-[10px] text-muted-foreground/60 mb-2.5">
-                    Approving logs a change request for your team — WEBEE never edits your live Google Ads account.
+                    Every recommendation is generated deterministically from your synced Google Ads data (and CRM lead outcomes where attribution exists) — each one carries its numeric evidence.
+                    Approving logs a change request for your team — WEBEE never edits your live Google Ads account. Critical findings are also forwarded to HiveMind.
                   </p>
                   <div className="space-y-2">
                     {recommendations.map((r: any) => (
                       <div key={r.id} className={cn(
                         "rounded-lg border px-3 py-2.5",
+                        r.priority === "critical" ? "border-red-500/25 bg-red-500/[0.06]" :
                         r.priority === "high"   ? "border-orange-500/20 bg-orange-500/[0.05]" :
                         r.priority === "medium" ? "border-amber-500/15 bg-amber-500/[0.04]" :
                                                   "border-white/[0.06] bg-white/[0.02]",
@@ -543,7 +545,7 @@ export function GadsLivePanel({ onConnectClick }: { onConnectClick: () => void }
                         <div className="flex items-start gap-2.5">
                           <AlertTriangle className={cn(
                             "h-3.5 w-3.5 shrink-0 mt-0.5",
-                            r.priority === "high" ? "text-orange-400" : r.priority === "medium" ? "text-amber-400" : "text-slate-400",
+                            r.priority === "critical" ? "text-red-400" : r.priority === "high" ? "text-orange-400" : r.priority === "medium" ? "text-amber-400" : "text-slate-400",
                           )} />
                           <div className="flex-1 min-w-0">
                             <p className="text-xs font-semibold leading-snug">

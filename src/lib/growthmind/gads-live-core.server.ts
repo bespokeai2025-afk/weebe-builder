@@ -670,7 +670,7 @@ export async function runGadsSync(
 
 // ── Deterministic analysis → approval-gated recommendations ──────────────────
 
-interface RecDraft {
+export interface RecDraft {
   section:  "immediate_attention" | "wasted_spend" | "budget_opportunity" | "growth" | "conversion" | "tracking_quality";
   priority: "critical" | "high" | "medium" | "low";
   confidence: number;
@@ -681,6 +681,84 @@ interface RecDraft {
   expected_benefit: string;
   recommended_action: string;
   dedupe_key: string;
+}
+
+// ── Recommendation quality gate ──────────────────────────────────────────────
+// A recommendation must reference a specific entity, carry measurable evidence
+// (>= 2 numeric metrics), a specific action and a confidence score. Vague
+// "optimise your campaign" advice fails validation and is never stored.
+const VAGUE_PHRASES = [
+  "improve targeting", "optimise your campaign", "optimize your campaign",
+  "consider changing your budget", "try different keywords", "improve your landing page",
+  "test new ads", "monitor performance", "increase engagement",
+];
+
+export function validateRecDraft(r: RecDraft): boolean {
+  if (!r.title || !r.recommended_action || !r.dedupe_key) return false;
+  if (typeof r.confidence !== "number" || !Number.isFinite(r.confidence) || r.confidence <= 0 || r.confidence > 1) return false;
+  // Specific entity: a campaign, a keyword/search-term, or an explicit account-level check
+  const acctLevel = r.dedupe_key.includes(":acct:");
+  if (!acctLevel && !r.campaign_id) return false;
+  // Measurable evidence: at least 2 numeric metrics
+  const numericMetrics = Object.values(r.evidence ?? {}).filter(v => typeof v === "number" && Number.isFinite(v));
+  if (numericMetrics.length < 2) return false;
+  // Action must be specific (length + not a bare vague phrase)
+  const action = r.recommended_action.trim().toLowerCase();
+  if (action.length < 25) return false;
+  if (VAGUE_PHRASES.some(p => action === p || action === `${p}.`)) return false;
+  return true;
+}
+
+/**
+ * Deterministic lead→campaign attribution. A lead is assigned to at most ONE
+ * campaign: exact normalized utm_campaign match wins; otherwise a containment
+ * match is used only when it is unambiguous (exactly one candidate campaign).
+ * Leads without a resolvable single campaign are left unattributed.
+ */
+export function attributePaidLeadsToCampaigns(
+  paidLeads: Array<{ id: string; utm_campaign?: string | null }>,
+  campaigns: Array<{ id: string; name: string }>,
+): Map<string, any[]> {
+  const norm = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, "");
+  const byExact = new Map<string, string[]>();
+  for (const c of campaigns) {
+    const k = norm(c.name);
+    if (!k) continue;
+    byExact.set(k, [...(byExact.get(k) ?? []), c.id]);
+  }
+  const out = new Map<string, any[]>();
+  for (const l of paidLeads) {
+    const u = norm(String(l.utm_campaign ?? ""));
+    if (!u) continue;
+    // Exact match (must be unique among campaigns too)
+    const exact = byExact.get(u);
+    let target: string | null = exact && exact.length === 1 ? exact[0] : null;
+    if (!target && u.length >= 4) {
+      // Containment either direction, accepted only if exactly one campaign matches
+      const matches = campaigns.filter(c => {
+        const n = norm(c.name);
+        return n.length >= 4 && (n.includes(u) || u.includes(n));
+      });
+      if (matches.length === 1) target = matches[0].id;
+    }
+    if (target) out.set(target, [...(out.get(target) ?? []), l]);
+  }
+  return out;
+}
+
+/** Cap active output: max 3 critical, 5 high, 10 total (per account, per run). */
+export function capRecDrafts(recs: RecDraft[]): RecDraft[] {
+  const order: Record<string, number> = { critical: 0, high: 1, medium: 2, low: 3 };
+  const sorted = [...recs].sort((a, b) => (order[a.priority] - order[b.priority]) || (b.confidence - a.confidence));
+  const out: RecDraft[] = [];
+  let crit = 0, high = 0;
+  for (const r of sorted) {
+    if (out.length >= 10) break;
+    if (r.priority === "critical") { if (crit >= 3) continue; crit++; }
+    if (r.priority === "high")     { if (high >= 5) continue; high++; }
+    out.push(r);
+  }
+  return out;
 }
 
 export async function runGadsAnalysis(workspaceId: string, accountRowId: string): Promise<{ generated: number }> {
@@ -702,19 +780,24 @@ export async function runGadsAnalysis(workspaceId: string, accountRowId: string)
     .gte("date", prev60)
     .limit(20000);
 
-  interface Agg { name: string; status: string | null; spend: number; impr: number; clicks: number; conv: number; value: number; prevSpend: number; prevConv: number; budget: number | null }
+  const since7  = daysAgo(7);
+  const since14 = daysAgo(14);
+  interface Agg { name: string; status: string | null; spend: number; impr: number; clicks: number; conv: number; value: number; prevSpend: number; prevConv: number; budget: number | null; spend7: number; spendPrev7: number; conv7: number; convPrev7: number; activeDays30: number }
   const camps = new Map<string, Agg>();
   for (const d of dailies ?? []) {
-    const c = camps.get(d.campaign_id) ?? { name: d.name, status: d.status, spend: 0, impr: 0, clicks: 0, conv: 0, value: 0, prevSpend: 0, prevConv: 0, budget: null };
+    const c = camps.get(d.campaign_id) ?? { name: d.name, status: d.status, spend: 0, impr: 0, clicks: 0, conv: 0, value: 0, prevSpend: 0, prevConv: 0, budget: null, spend7: 0, spendPrev7: 0, conv7: 0, convPrev7: 0, activeDays30: 0 };
     const spend = Number(d.cost_micros ?? 0) / 1_000_000;
     if (d.date >= since30) {
       c.spend += spend; c.impr += Number(d.impressions ?? 0); c.clicks += Number(d.clicks ?? 0);
       c.conv += Number(d.conversions ?? 0); c.value += Number(d.conversions_value ?? 0);
       c.name = d.name; c.status = d.status;
       if (d.budget_micros != null) c.budget = Number(d.budget_micros) / 1_000_000;
+      if (spend > 0 || Number(d.impressions ?? 0) > 0) c.activeDays30++;
     } else {
       c.prevSpend += spend; c.prevConv += Number(d.conversions ?? 0);
     }
+    if (d.date >= since7) { c.spend7 += spend; c.conv7 += Number(d.conversions ?? 0); }
+    else if (d.date >= since14) { c.spendPrev7 += spend; c.convPrev7 += Number(d.conversions ?? 0); }
     camps.set(d.campaign_id, c);
   }
 
@@ -770,6 +853,55 @@ export async function runGadsAnalysis(workspaceId: string, accountRowId: string)
       });
     }
 
+    // Spend spike: last 7 days vs the 7 days before, with a meaningful base
+    if (c.spendPrev7 >= 20 && c.spend7 >= c.spendPrev7 * 1.6 && c.spend7 - c.spendPrev7 >= 20) {
+      const convHeldUp = c.convPrev7 > 0 ? c.conv7 >= c.convPrev7 : c.conv7 > 0;
+      recs.push({
+        section: convHeldUp ? "growth" : "immediate_attention",
+        priority: convHeldUp ? "medium" : "high",
+        confidence: 0.7,
+        title: `"${c.name}" spend jumped ${Math.round((c.spend7 / c.spendPrev7 - 1) * 100)}% week-on-week${convHeldUp ? "" : " without more conversions"}`,
+        campaign_id: id, campaign_name: c.name,
+        evidence: { spendLast7d: +c.spend7.toFixed(2), spendPrev7d: +c.spendPrev7.toFixed(2), conversionsLast7d: +c.conv7.toFixed(1), conversionsPrev7d: +c.convPrev7.toFixed(1) },
+        expected_benefit: convHeldUp
+          ? "Confirms scaling is holding efficiency — worth continuing deliberately"
+          : `Contain up to ${cur}${(c.spend7 - c.spendPrev7).toFixed(0)}/week of unplanned spend growth`,
+        recommended_action: convHeldUp
+          ? `Spend on "${c.name}" rose to ${cur}${c.spend7.toFixed(0)}/week and conversions kept pace — verify the increase was intentional and set a budget ceiling.`
+          : `Review "${c.name}" bidding and recent search terms: weekly spend rose to ${cur}${c.spend7.toFixed(0)} while conversions did not increase. Cap the daily budget until efficiency recovers.`,
+        dedupe_key: `gads:${acc.customer_id}:${id}:spend_spike`,
+      });
+    }
+
+    // Strong campaign limited by budget: spend near the 30-day budget ceiling with good return
+    if (c.budget != null && c.budget > 0 && c.activeDays30 >= 7) {
+      const ceiling = c.budget * c.activeDays30;
+      if (ceiling > 0 && c.spend >= ceiling * 0.9 && roas !== null && roas >= 2) {
+        recs.push({
+          section: "budget_opportunity", priority: "high", confidence: 0.75,
+          title: `"${c.name}" is spending ${Math.round((c.spend / ceiling) * 100)}% of its budget ceiling at ${roas.toFixed(1)}x ROAS`,
+          campaign_id: id, campaign_name: c.name,
+          evidence: { spend30d: +c.spend.toFixed(2), budgetCeiling30d: +ceiling.toFixed(2), dailyBudget: +c.budget.toFixed(2), roas: +roas.toFixed(2), activeDays30: c.activeDays30 },
+          expected_benefit: `Budget is capping a campaign returning ${cur}${roas.toFixed(1)} per ${cur}1 — raising it should add conversion value at similar efficiency`,
+          recommended_action: `"${c.name}" is budget-limited: raise the daily budget from ${cur}${c.budget.toFixed(0)} in ~20% steps and watch ROAS weekly.`,
+          dedupe_key: `gads:${acc.customer_id}:${id}:budget_limited`,
+        });
+      }
+
+      // Under-delivery: enabled with a real budget but barely spending
+      if (c.status === "enabled" && c.activeDays30 >= 7 && ceiling >= 50 && c.spend < ceiling * 0.2 && c.impr < 500) {
+        recs.push({
+          section: "immediate_attention", priority: "medium", confidence: 0.65,
+          title: `"${c.name}" is only spending ${Math.round((c.spend / ceiling) * 100)}% of its available budget`,
+          campaign_id: id, campaign_name: c.name,
+          evidence: { spend30d: +c.spend.toFixed(2), budgetCeiling30d: +ceiling.toFixed(2), impressions30d: c.impr, activeDays30: c.activeDays30 },
+          expected_benefit: "An enabled campaign that cannot spend is usually blocked by bids, targeting, or ad approval — fixing it unlocks paid volume you already budgeted for",
+          recommended_action: `Check "${c.name}" for disapproved ads, overly narrow targeting or bids below the auction floor — it served only ${c.impr} impressions in 30 days against a ${cur}${ceiling.toFixed(0)} budget ceiling.`,
+          dedupe_key: `gads:${acc.customer_id}:${id}:under_delivery`,
+        });
+      }
+    }
+
     // Growth: conversions trending up strongly vs previous 30 days
     if (c.prevConv > 0 && c.conv >= c.prevConv * 1.5 && c.conv >= 5) {
       recs.push({
@@ -810,6 +942,58 @@ export async function runGadsAnalysis(workspaceId: string, accountRowId: string)
     }
   } catch { /* dimension stats may be empty */ }
 
+  // Lead-quality loop: connect campaign spend to WEBEE CRM leads (UTM / gclid
+  // attribution). Google conversion counts alone can mislead — cross-check what
+  // the CRM actually received. Only fires when attribution data exists.
+  try {
+    const { data: crmLeads } = await sb
+      .from("leads")
+      .select("id, status, utm_source, utm_medium, utm_campaign, meta, created_at")
+      .eq("workspace_id", workspaceId)
+      .gte("created_at", new Date(Date.now() - 30 * 24 * 3600 * 1000).toISOString())
+      .or("utm_medium.ilike.%cpc%,utm_medium.ilike.%paid%,utm_medium.ilike.%ppc%,utm_source.ilike.%google%,meta->>gclid.not.is.null,meta->>gclsrc.not.is.null")
+      .limit(2000);
+    const paidLeads = (crmLeads ?? []).filter((l: any) =>
+      String(l.utm_source ?? "").toLowerCase().includes("google") ||
+      String(l.utm_medium ?? "").toLowerCase().match(/cpc|paid|ppc/) ||
+      (l.meta && typeof l.meta === "object" && (l.meta.gclid || l.meta.gclsrc)));
+    if (paidLeads.length >= 5) {
+      const qualifiedStatuses = new Set(["interested", "qualified", "sale_done", "completed", "contact_made"]);
+      const campaignList = [...active.entries()].map(([cid, c]) => ({ id: cid, name: c.name }));
+      const attribution = attributePaidLeadsToCampaigns(paidLeads as any, campaignList);
+      for (const [id, c] of active) {
+        if (c.spend < 30) continue;
+        const cLeads = attribution.get(id) ?? [];
+        if (cLeads.length < 5) continue;
+        const qualified = cLeads.filter((l: any) => qualifiedStatuses.has(String(l.status)));
+        const qualRate = qualified.length / cLeads.length;
+        const costPerLead = c.spend / cLeads.length;
+        const costPerQualified = qualified.length > 0 ? c.spend / qualified.length : null;
+        if (qualRate < 0.15 && c.conv >= 5) {
+          recs.push({
+            section: "conversion", priority: "high", confidence: 0.7,
+            title: `"${c.name}" converts in Google Ads but only ${Math.round(qualRate * 100)}% of its CRM leads qualify`,
+            campaign_id: id, campaign_name: c.name,
+            evidence: { crmLeads30d: cLeads.length, qualifiedLeads30d: qualified.length, qualifiedRatePct: +(qualRate * 100).toFixed(1), googleConversions30d: +c.conv.toFixed(1), costPerLead: +costPerLead.toFixed(2), spend30d: +c.spend.toFixed(2) },
+            expected_benefit: `Shifting this spend toward higher-qualifying traffic could recover most of ${cur}${c.spend.toFixed(0)}/month currently buying unqualified leads`,
+            recommended_action: `Google reports ${c.conv.toFixed(0)} conversions for "${c.name}" but the CRM qualified only ${qualified.length} of ${cLeads.length} leads — tighten search terms and audiences toward the queries producing qualified leads, and review lead-form quality.`,
+            dedupe_key: `gads:${acc.customer_id}:${id}:low_lead_quality`,
+          });
+        } else if (qualRate >= 0.3 && costPerQualified !== null) {
+          recs.push({
+            section: "growth", priority: "medium", confidence: 0.7,
+            title: `"${c.name}" produces qualified CRM leads at ${cur}${costPerQualified.toFixed(0)} each`,
+            campaign_id: id, campaign_name: c.name,
+            evidence: { crmLeads30d: cLeads.length, qualifiedLeads30d: qualified.length, qualifiedRatePct: +(qualRate * 100).toFixed(1), costPerQualifiedLead: +costPerQualified.toFixed(2), spend30d: +c.spend.toFixed(2) },
+            expected_benefit: `CRM data confirms real qualified demand — budget here buys qualified pipeline at a known ${cur}${costPerQualified.toFixed(0)}/lead`,
+            recommended_action: `"${c.name}" has a ${Math.round(qualRate * 100)}% CRM qualification rate — prioritise it in budget allocation before scaling weaker campaigns.`,
+            dedupe_key: `gads:${acc.customer_id}:${id}:strong_lead_quality`,
+          });
+        }
+      }
+    }
+  } catch { /* leads attribution optional */ }
+
   // Tracking quality: clicks but zero conversions account-wide
   if (totClicks >= 100 && totConv === 0) {
     recs.push({
@@ -823,10 +1007,15 @@ export async function runGadsAnalysis(workspaceId: string, accountRowId: string)
     });
   }
 
+  // Quality gate + volume caps: drop anything vague / evidence-free, then keep
+  // at most 3 critical, 5 high, 10 total active recommendations per account.
+  const finalRecs = capRecDrafts(recs.filter(validateRecDraft));
+
   // Upsert by dedupe_key (update evidence on refresh, keep review status)
   let generated = 0;
-  const freshKeys = new Set(recs.map(r => r.dedupe_key));
-  for (const r of recs) {
+  const freshKeys = new Set(finalRecs.map(r => r.dedupe_key));
+  const freshCritical: RecDraft[] = [];
+  for (const r of finalRecs) {
     const { data: existing } = await sb
       .from("growthmind_gads_recommendations")
       .select("id, status")
@@ -846,8 +1035,28 @@ export async function runGadsAnalysis(workspaceId: string, accountRowId: string)
         recommended_action: r.recommended_action, status: "new", dedupe_key: r.dedupe_key,
         expires_at: new Date(Date.now() + 14 * 24 * 3600 * 1000).toISOString(),
       });
-      if (!error) generated++;
+      if (!error) {
+        generated++;
+        if (r.priority === "critical") freshCritical.push(r);
+      }
     }
+  }
+
+  // Proactively alert on genuinely NEW critical findings (never on refreshes —
+  // the dedupe_key upsert guarantees one alert per finding lifecycle).
+  for (const r of freshCritical) {
+    try {
+      const { emitCampaignNotification } = await import("../notifications/notification-engine.shared");
+      await emitCampaignNotification(sb, {
+        workspaceId,
+        eventKey: "needs_admin_attention",
+        campaignName: r.campaign_name ?? "Google Ads account",
+        summary: `GrowthMind (Google Ads): ${r.title}`,
+        recommendedAction: r.recommended_action,
+        severity: "critical",
+        metadata: { source: "growthmind_gads", section: r.section, dedupe_key: r.dedupe_key },
+      } as any);
+    } catch { /* notifications are best-effort */ }
   }
 
   // Expire stale "new" recommendations no longer produced by analysis
