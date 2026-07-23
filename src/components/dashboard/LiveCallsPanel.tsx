@@ -227,20 +227,49 @@ export function LiveCallsPanel() {
     }
 
     let active = true;
+    let failedAttempts = 0;
+    let connecting = false;
+    let retryTimer: ReturnType<typeof setTimeout> | null = null;
+
+    function scheduleRetry(delay: number) {
+      if (retryTimer) clearTimeout(retryTimer);
+      retryTimer = setTimeout(() => {
+        retryTimer = null;
+        if (active) connect();
+      }, delay);
+    }
 
     async function connect() {
-      if (!active) return;
+      // Single-flight guard: never allow overlapping attempts or a second
+      // EventSource while one is being established.
+      if (!active || connecting || esRef.current) return;
+      connecting = true;
       setStatus("connecting");
 
-      const { data } = await supabase.auth.getSession();
-      const token = data.session?.access_token;
+      // After a failed attempt the cached token may be stale/revoked (the
+      // server 401s and EventSource can't tell us why) — force a refresh so
+      // reconnects never loop forever on a dead token.
+      let token: string | undefined;
+      if (failedAttempts > 0) {
+        const { data: refreshed } = await supabase.auth.refreshSession();
+        token = refreshed.session?.access_token;
+      }
+      if (!token) {
+        const { data } = await supabase.auth.getSession();
+        token = data.session?.access_token;
+      }
       if (!token || !active) {
+        connecting = false;
+        if (!active) return;
         setStatus("error");
+        // No usable session — retry slowly (e.g. user logged out / auth down).
+        scheduleRetry(15_000);
         return;
       }
 
       const es = new EventSource(`/api/dashboard/live-calls-sse?token=${encodeURIComponent(token)}`);
       esRef.current = es;
+      connecting = false;
 
       es.onopen = () => { if (active) setStatus("live"); };
 
@@ -249,6 +278,7 @@ export function LiveCallsPanel() {
         try {
           const payload = JSON.parse(evt.data);
           if (Array.isArray(payload?.calls)) {
+            failedAttempts = 0;
             setCalls(payload.calls);
             setStatus("live");
           }
@@ -260,7 +290,11 @@ export function LiveCallsPanel() {
         esRef.current = null;
         if (!active) return;
         setStatus("error");
-        setTimeout(() => { if (active) connect(); }, 3000);
+        failedAttempts += 1;
+        // Exponential backoff (3s → 6s → 12s → 24s → 30s cap) so a dead
+        // server/DB isn't hammered every 3s indefinitely.
+        const delay = Math.min(30_000, 3000 * 2 ** Math.min(failedAttempts - 1, 4));
+        scheduleRetry(delay);
       };
     }
 
@@ -268,6 +302,10 @@ export function LiveCallsPanel() {
 
     return () => {
       active = false;
+      if (retryTimer) {
+        clearTimeout(retryTimer);
+        retryTimer = null;
+      }
       if (esRef.current) {
         esRef.current.close();
         esRef.current = null;

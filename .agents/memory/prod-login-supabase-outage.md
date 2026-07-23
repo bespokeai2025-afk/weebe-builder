@@ -25,6 +25,18 @@ to any real auth user — automated logins with them always 400. The real worksp
 emails (find them by joining `workspaces.slug` → `workspace_members.user_id` → admin API user lookup).
 Don't treat those secrets as valid login creds.
 
+**Agent-side restart:** the Management API can restart the project without the dashboard:
+`POST https://api.supabase.com/v1/projects/{ref}/restart` with `SUPABASE_ACCESS_TOKEN`. Status goes
+RESTARTING → ACTIVE_HEALTHY in ~2–5 min; poll `GET /v1/projects/{ref}` and
+`/v1/projects/{ref}/health?services=db,rest,auth`. A Cloudflare **522** on every REST call is the
+same "project down" signal as PGRST002/503.
+
+**Live Calls panel symptom:** a Supabase outage surfaces in the dashboard as the Live Calls panel
+stuck on "reconnecting…" (the SSE endpoint 401s because token/membership/key lookups all fail).
+The panel now force-refreshes the auth token after a failed attempt and backs off 3s→30s, so it
+self-recovers once the project is healthy — but a stale/revoked session before that fix looped 401
+forever with the same dead token.
+
 **Why:** during the outage the failure looked like a login bug, but auth/credentials were fine; the only
 real blocker was the database being offline. Confirming project health first avoids chasing phantom
 code/password fixes.
