@@ -89,6 +89,7 @@ import { Route as ApiPublicContactRouteImport } from './routes/api/public/contac
 import { Route as ApiPublicCampaignExecutorRouteImport } from './routes/api/public/campaign-executor'
 import { Route as ApiPublicApproveUserRouteImport } from './routes/api/public/approve-user'
 import { Route as ApiPublicAdsSyncRouteImport } from './routes/api/public/ads-sync'
+import { Route as ApiOauthMetaCallbackRouteImport } from './routes/api/oauth/meta-callback'
 import { Route as ApiOauthGoogleAdsCallbackRouteImport } from './routes/api/oauth/google-ads-callback'
 import { Route as ApiMonitoringHealthRouteImport } from './routes/api/monitoring/health'
 import { Route as ApiMonitoringClientErrorRouteImport } from './routes/api/monitoring/client-error'
@@ -155,6 +156,8 @@ import { Route as AuthenticatedHexmailDeliverabilityRouteImport } from './routes
 import { Route as AuthenticatedGrowthmindVideoStudioRouteImport } from './routes/_authenticated/growthmind.video-studio'
 import { Route as AuthenticatedGrowthmindStrategyCentreRouteImport } from './routes/_authenticated/growthmind.strategy-centre'
 import { Route as AuthenticatedGrowthmindStrategyRouteImport } from './routes/_authenticated/growthmind.strategy'
+import { Route as AuthenticatedGrowthmindSocialAccountsRouteImport } from './routes/_authenticated/growthmind.social-accounts'
+import { Route as AuthenticatedGrowthmindSettingsRouteImport } from './routes/_authenticated/growthmind.settings'
 import { Route as AuthenticatedGrowthmindSeoRouteImport } from './routes/_authenticated/growthmind.seo'
 import { Route as AuthenticatedGrowthmindReportsRouteImport } from './routes/_authenticated/growthmind.reports'
 import { Route as AuthenticatedGrowthmindRecommendationsRouteImport } from './routes/_authenticated/growthmind.recommendations'
@@ -688,6 +691,11 @@ const ApiPublicAdsSyncRoute = ApiPublicAdsSyncRouteImport.update({
   path: '/api/public/ads-sync',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiOauthMetaCallbackRoute = ApiOauthMetaCallbackRouteImport.update({
+  id: '/api/oauth/meta-callback',
+  path: '/api/oauth/meta-callback',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiOauthGoogleAdsCallbackRoute =
   ApiOauthGoogleAdsCallbackRouteImport.update({
     id: '/api/oauth/google-ads-callback',
@@ -1079,6 +1087,18 @@ const AuthenticatedGrowthmindStrategyRoute =
   AuthenticatedGrowthmindStrategyRouteImport.update({
     id: '/strategy',
     path: '/strategy',
+    getParentRoute: () => AuthenticatedGrowthmindRoute,
+  } as any)
+const AuthenticatedGrowthmindSocialAccountsRoute =
+  AuthenticatedGrowthmindSocialAccountsRouteImport.update({
+    id: '/social-accounts',
+    path: '/social-accounts',
+    getParentRoute: () => AuthenticatedGrowthmindRoute,
+  } as any)
+const AuthenticatedGrowthmindSettingsRoute =
+  AuthenticatedGrowthmindSettingsRouteImport.update({
+    id: '/settings',
+    path: '/settings',
     getParentRoute: () => AuthenticatedGrowthmindRoute,
   } as any)
 const AuthenticatedGrowthmindSeoRoute =
@@ -1829,6 +1849,8 @@ export interface FileRoutesByFullPath {
   '/growthmind/recommendations': typeof AuthenticatedGrowthmindRecommendationsRoute
   '/growthmind/reports': typeof AuthenticatedGrowthmindReportsRoute
   '/growthmind/seo': typeof AuthenticatedGrowthmindSeoRoute
+  '/growthmind/settings': typeof AuthenticatedGrowthmindSettingsRoute
+  '/growthmind/social-accounts': typeof AuthenticatedGrowthmindSocialAccountsRoute
   '/growthmind/strategy': typeof AuthenticatedGrowthmindStrategyRoute
   '/growthmind/strategy-centre': typeof AuthenticatedGrowthmindStrategyCentreRoute
   '/growthmind/video-studio': typeof AuthenticatedGrowthmindVideoStudioRoute
@@ -1895,6 +1917,7 @@ export interface FileRoutesByFullPath {
   '/api/monitoring/client-error': typeof ApiMonitoringClientErrorRoute
   '/api/monitoring/health': typeof ApiMonitoringHealthRoute
   '/api/oauth/google-ads-callback': typeof ApiOauthGoogleAdsCallbackRoute
+  '/api/oauth/meta-callback': typeof ApiOauthMetaCallbackRoute
   '/api/public/ads-sync': typeof ApiPublicAdsSyncRoute
   '/api/public/approve-user': typeof ApiPublicApproveUserRoute
   '/api/public/campaign-executor': typeof ApiPublicCampaignExecutorRoute
@@ -2082,6 +2105,8 @@ export interface FileRoutesByTo {
   '/growthmind/recommendations': typeof AuthenticatedGrowthmindRecommendationsRoute
   '/growthmind/reports': typeof AuthenticatedGrowthmindReportsRoute
   '/growthmind/seo': typeof AuthenticatedGrowthmindSeoRoute
+  '/growthmind/settings': typeof AuthenticatedGrowthmindSettingsRoute
+  '/growthmind/social-accounts': typeof AuthenticatedGrowthmindSocialAccountsRoute
   '/growthmind/strategy': typeof AuthenticatedGrowthmindStrategyRoute
   '/growthmind/strategy-centre': typeof AuthenticatedGrowthmindStrategyCentreRoute
   '/growthmind/video-studio': typeof AuthenticatedGrowthmindVideoStudioRoute
@@ -2147,6 +2172,7 @@ export interface FileRoutesByTo {
   '/api/monitoring/client-error': typeof ApiMonitoringClientErrorRoute
   '/api/monitoring/health': typeof ApiMonitoringHealthRoute
   '/api/oauth/google-ads-callback': typeof ApiOauthGoogleAdsCallbackRoute
+  '/api/oauth/meta-callback': typeof ApiOauthMetaCallbackRoute
   '/api/public/ads-sync': typeof ApiPublicAdsSyncRoute
   '/api/public/approve-user': typeof ApiPublicApproveUserRoute
   '/api/public/campaign-executor': typeof ApiPublicCampaignExecutorRoute
@@ -2343,6 +2369,8 @@ export interface FileRoutesById {
   '/_authenticated/growthmind/recommendations': typeof AuthenticatedGrowthmindRecommendationsRoute
   '/_authenticated/growthmind/reports': typeof AuthenticatedGrowthmindReportsRoute
   '/_authenticated/growthmind/seo': typeof AuthenticatedGrowthmindSeoRoute
+  '/_authenticated/growthmind/settings': typeof AuthenticatedGrowthmindSettingsRoute
+  '/_authenticated/growthmind/social-accounts': typeof AuthenticatedGrowthmindSocialAccountsRoute
   '/_authenticated/growthmind/strategy': typeof AuthenticatedGrowthmindStrategyRoute
   '/_authenticated/growthmind/strategy-centre': typeof AuthenticatedGrowthmindStrategyCentreRoute
   '/_authenticated/growthmind/video-studio': typeof AuthenticatedGrowthmindVideoStudioRoute
@@ -2409,6 +2437,7 @@ export interface FileRoutesById {
   '/api/monitoring/client-error': typeof ApiMonitoringClientErrorRoute
   '/api/monitoring/health': typeof ApiMonitoringHealthRoute
   '/api/oauth/google-ads-callback': typeof ApiOauthGoogleAdsCallbackRoute
+  '/api/oauth/meta-callback': typeof ApiOauthMetaCallbackRoute
   '/api/public/ads-sync': typeof ApiPublicAdsSyncRoute
   '/api/public/approve-user': typeof ApiPublicApproveUserRoute
   '/api/public/campaign-executor': typeof ApiPublicCampaignExecutorRoute
@@ -2606,6 +2635,8 @@ export interface FileRouteTypes {
     | '/growthmind/recommendations'
     | '/growthmind/reports'
     | '/growthmind/seo'
+    | '/growthmind/settings'
+    | '/growthmind/social-accounts'
     | '/growthmind/strategy'
     | '/growthmind/strategy-centre'
     | '/growthmind/video-studio'
@@ -2672,6 +2703,7 @@ export interface FileRouteTypes {
     | '/api/monitoring/client-error'
     | '/api/monitoring/health'
     | '/api/oauth/google-ads-callback'
+    | '/api/oauth/meta-callback'
     | '/api/public/ads-sync'
     | '/api/public/approve-user'
     | '/api/public/campaign-executor'
@@ -2859,6 +2891,8 @@ export interface FileRouteTypes {
     | '/growthmind/recommendations'
     | '/growthmind/reports'
     | '/growthmind/seo'
+    | '/growthmind/settings'
+    | '/growthmind/social-accounts'
     | '/growthmind/strategy'
     | '/growthmind/strategy-centre'
     | '/growthmind/video-studio'
@@ -2924,6 +2958,7 @@ export interface FileRouteTypes {
     | '/api/monitoring/client-error'
     | '/api/monitoring/health'
     | '/api/oauth/google-ads-callback'
+    | '/api/oauth/meta-callback'
     | '/api/public/ads-sync'
     | '/api/public/approve-user'
     | '/api/public/campaign-executor'
@@ -3119,6 +3154,8 @@ export interface FileRouteTypes {
     | '/_authenticated/growthmind/recommendations'
     | '/_authenticated/growthmind/reports'
     | '/_authenticated/growthmind/seo'
+    | '/_authenticated/growthmind/settings'
+    | '/_authenticated/growthmind/social-accounts'
     | '/_authenticated/growthmind/strategy'
     | '/_authenticated/growthmind/strategy-centre'
     | '/_authenticated/growthmind/video-studio'
@@ -3185,6 +3222,7 @@ export interface FileRouteTypes {
     | '/api/monitoring/client-error'
     | '/api/monitoring/health'
     | '/api/oauth/google-ads-callback'
+    | '/api/oauth/meta-callback'
     | '/api/public/ads-sync'
     | '/api/public/approve-user'
     | '/api/public/campaign-executor'
@@ -3318,6 +3356,7 @@ export interface RootRouteChildren {
   ApiMonitoringClientErrorRoute: typeof ApiMonitoringClientErrorRoute
   ApiMonitoringHealthRoute: typeof ApiMonitoringHealthRoute
   ApiOauthGoogleAdsCallbackRoute: typeof ApiOauthGoogleAdsCallbackRoute
+  ApiOauthMetaCallbackRoute: typeof ApiOauthMetaCallbackRoute
   ApiPublicAdsSyncRoute: typeof ApiPublicAdsSyncRoute
   ApiPublicApproveUserRoute: typeof ApiPublicApproveUserRoute
   ApiPublicCampaignExecutorRoute: typeof ApiPublicCampaignExecutorRoute
@@ -3951,6 +3990,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicAdsSyncRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/oauth/meta-callback': {
+      id: '/api/oauth/meta-callback'
+      path: '/api/oauth/meta-callback'
+      fullPath: '/api/oauth/meta-callback'
+      preLoaderRoute: typeof ApiOauthMetaCallbackRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/oauth/google-ads-callback': {
       id: '/api/oauth/google-ads-callback'
       path: '/api/oauth/google-ads-callback'
@@ -4411,6 +4457,20 @@ declare module '@tanstack/react-router' {
       path: '/strategy'
       fullPath: '/growthmind/strategy'
       preLoaderRoute: typeof AuthenticatedGrowthmindStrategyRouteImport
+      parentRoute: typeof AuthenticatedGrowthmindRoute
+    }
+    '/_authenticated/growthmind/social-accounts': {
+      id: '/_authenticated/growthmind/social-accounts'
+      path: '/social-accounts'
+      fullPath: '/growthmind/social-accounts'
+      preLoaderRoute: typeof AuthenticatedGrowthmindSocialAccountsRouteImport
+      parentRoute: typeof AuthenticatedGrowthmindRoute
+    }
+    '/_authenticated/growthmind/settings': {
+      id: '/_authenticated/growthmind/settings'
+      path: '/settings'
+      fullPath: '/growthmind/settings'
+      preLoaderRoute: typeof AuthenticatedGrowthmindSettingsRouteImport
       parentRoute: typeof AuthenticatedGrowthmindRoute
     }
     '/_authenticated/growthmind/seo': {
@@ -5365,6 +5425,8 @@ interface AuthenticatedGrowthmindRouteChildren {
   AuthenticatedGrowthmindRecommendationsRoute: typeof AuthenticatedGrowthmindRecommendationsRoute
   AuthenticatedGrowthmindReportsRoute: typeof AuthenticatedGrowthmindReportsRoute
   AuthenticatedGrowthmindSeoRoute: typeof AuthenticatedGrowthmindSeoRoute
+  AuthenticatedGrowthmindSettingsRoute: typeof AuthenticatedGrowthmindSettingsRoute
+  AuthenticatedGrowthmindSocialAccountsRoute: typeof AuthenticatedGrowthmindSocialAccountsRoute
   AuthenticatedGrowthmindStrategyRoute: typeof AuthenticatedGrowthmindStrategyRoute
   AuthenticatedGrowthmindStrategyCentreRoute: typeof AuthenticatedGrowthmindStrategyCentreRoute
   AuthenticatedGrowthmindVideoStudioRoute: typeof AuthenticatedGrowthmindVideoStudioRoute
@@ -5418,6 +5480,9 @@ const AuthenticatedGrowthmindRouteChildren: AuthenticatedGrowthmindRouteChildren
       AuthenticatedGrowthmindRecommendationsRoute,
     AuthenticatedGrowthmindReportsRoute: AuthenticatedGrowthmindReportsRoute,
     AuthenticatedGrowthmindSeoRoute: AuthenticatedGrowthmindSeoRoute,
+    AuthenticatedGrowthmindSettingsRoute: AuthenticatedGrowthmindSettingsRoute,
+    AuthenticatedGrowthmindSocialAccountsRoute:
+      AuthenticatedGrowthmindSocialAccountsRoute,
     AuthenticatedGrowthmindStrategyRoute: AuthenticatedGrowthmindStrategyRoute,
     AuthenticatedGrowthmindStrategyCentreRoute:
       AuthenticatedGrowthmindStrategyCentreRoute,
@@ -5930,6 +5995,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiMonitoringClientErrorRoute: ApiMonitoringClientErrorRoute,
   ApiMonitoringHealthRoute: ApiMonitoringHealthRoute,
   ApiOauthGoogleAdsCallbackRoute: ApiOauthGoogleAdsCallbackRoute,
+  ApiOauthMetaCallbackRoute: ApiOauthMetaCallbackRoute,
   ApiPublicAdsSyncRoute: ApiPublicAdsSyncRoute,
   ApiPublicApproveUserRoute: ApiPublicApproveUserRoute,
   ApiPublicCampaignExecutorRoute: ApiPublicCampaignExecutorRoute,

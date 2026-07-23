@@ -58,6 +58,10 @@ const RETENTION_RULES: RetentionRule[] = [
   { table: "hivemind_executive_events",    column: "created_at",  days: 180 },
   { table: "provider_usage_log",           column: "created_at",  days: 400 },
   { table: "growthmind_generation_logs",   column: "created_at",  days: 400 },
+  // Content Intelligence audit trail — keep a year of activity.
+  { table: "growthmind_activity_log",          column: "created_at", days: 365 },
+  // Post-publish metric snapshots — bounded history for learning loops.
+  { table: "growthmind_performance_snapshots", column: "created_at", days: 400 },
 ];
 
 /** Rows deleted per batch (bounded so a single statement can't time out). */

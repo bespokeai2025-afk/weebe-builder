@@ -4071,6 +4071,51 @@ export type Database = {
           },
         ]
       }
+      growthmind_activity_log: {
+        Row: {
+          action: string
+          actor: string
+          actor_user_id: string | null
+          category: string
+          created_at: string
+          detail: Json
+          entity_id: string | null
+          entity_type: string | null
+          id: string
+          mode_at_time: string | null
+          summary: string | null
+          workspace_id: string
+        }
+        Insert: {
+          action: string
+          actor?: string
+          actor_user_id?: string | null
+          category: string
+          created_at?: string
+          detail?: Json
+          entity_id?: string | null
+          entity_type?: string | null
+          id?: string
+          mode_at_time?: string | null
+          summary?: string | null
+          workspace_id: string
+        }
+        Update: {
+          action?: string
+          actor?: string
+          actor_user_id?: string | null
+          category?: string
+          created_at?: string
+          detail?: Json
+          entity_id?: string | null
+          entity_type?: string | null
+          id?: string
+          mode_at_time?: string | null
+          summary?: string | null
+          workspace_id?: string
+        }
+        Relationships: []
+      }
       growthmind_ad_budget_alerts: {
         Row: {
           acknowledged: boolean
@@ -4411,16 +4456,25 @@ export type Database = {
       }
       growthmind_business_dna: {
         Row: {
+          approved_claims: string | null
+          approved_voices: string | null
           average_deal_value: number | null
+          avoid_topics: string | null
           best_customers: string
+          brand_assets: Json
           brand_style: string
           brand_voice: string
           business_goals: string
+          buying_triggers: string | null
           case_studies: string
+          commercial_objectives: string | null
+          common_objections: string | null
           company_name: string
           competitors_summary: string
           compliance_notes: string
           confidence_scores: Json
+          content_objectives: string | null
+          content_styles: string | null
           country: string
           created_at: string
           current_ad_platforms: string
@@ -4428,8 +4482,10 @@ export type Database = {
           current_calendar: string
           current_crm: string
           current_telephony: string
+          customer_pain_points: string | null
           discovery_run_count: number
           discovery_sources: Json
+          dna_version: number
           growth_targets: string
           id: string
           ideal_customer_profiles: string
@@ -4441,10 +4497,15 @@ export type Database = {
           marketing_goals: string
           monthly_marketing_budget: number | null
           offers: string
+          preferred_ctas: string | null
           pricing: string
+          priority_topics: string | null
           products: string
           profit_margin_pct: number | null
+          proof_points: string | null
           qualification_criteria: string
+          restricted_claims: string | null
+          restricted_topics: string | null
           revenue_goals: string
           risk_tolerance: string
           sales_process: string
@@ -4463,16 +4524,25 @@ export type Database = {
           worst_customers: string
         }
         Insert: {
+          approved_claims?: string | null
+          approved_voices?: string | null
           average_deal_value?: number | null
+          avoid_topics?: string | null
           best_customers?: string
+          brand_assets?: Json
           brand_style?: string
           brand_voice?: string
           business_goals?: string
+          buying_triggers?: string | null
           case_studies?: string
+          commercial_objectives?: string | null
+          common_objections?: string | null
           company_name?: string
           competitors_summary?: string
           compliance_notes?: string
           confidence_scores?: Json
+          content_objectives?: string | null
+          content_styles?: string | null
           country?: string
           created_at?: string
           current_ad_platforms?: string
@@ -4480,8 +4550,10 @@ export type Database = {
           current_calendar?: string
           current_crm?: string
           current_telephony?: string
+          customer_pain_points?: string | null
           discovery_run_count?: number
           discovery_sources?: Json
+          dna_version?: number
           growth_targets?: string
           id?: string
           ideal_customer_profiles?: string
@@ -4493,10 +4565,15 @@ export type Database = {
           marketing_goals?: string
           monthly_marketing_budget?: number | null
           offers?: string
+          preferred_ctas?: string | null
           pricing?: string
+          priority_topics?: string | null
           products?: string
           profit_margin_pct?: number | null
+          proof_points?: string | null
           qualification_criteria?: string
+          restricted_claims?: string | null
+          restricted_topics?: string | null
           revenue_goals?: string
           risk_tolerance?: string
           sales_process?: string
@@ -4515,16 +4592,25 @@ export type Database = {
           worst_customers?: string
         }
         Update: {
+          approved_claims?: string | null
+          approved_voices?: string | null
           average_deal_value?: number | null
+          avoid_topics?: string | null
           best_customers?: string
+          brand_assets?: Json
           brand_style?: string
           brand_voice?: string
           business_goals?: string
+          buying_triggers?: string | null
           case_studies?: string
+          commercial_objectives?: string | null
+          common_objections?: string | null
           company_name?: string
           competitors_summary?: string
           compliance_notes?: string
           confidence_scores?: Json
+          content_objectives?: string | null
+          content_styles?: string | null
           country?: string
           created_at?: string
           current_ad_platforms?: string
@@ -4532,8 +4618,10 @@ export type Database = {
           current_calendar?: string
           current_crm?: string
           current_telephony?: string
+          customer_pain_points?: string | null
           discovery_run_count?: number
           discovery_sources?: Json
+          dna_version?: number
           growth_targets?: string
           id?: string
           ideal_customer_profiles?: string
@@ -4545,10 +4633,15 @@ export type Database = {
           marketing_goals?: string
           monthly_marketing_budget?: number | null
           offers?: string
+          preferred_ctas?: string | null
           pricing?: string
+          priority_topics?: string | null
           products?: string
           profit_margin_pct?: number | null
+          proof_points?: string | null
           qualification_criteria?: string
+          restricted_claims?: string | null
+          restricted_topics?: string | null
           revenue_goals?: string
           risk_tolerance?: string
           sales_process?: string
@@ -5145,6 +5238,96 @@ export type Database = {
           },
         ]
       }
+      growthmind_content_links: {
+        Row: {
+          created_at: string
+          id: string
+          metadata: Json
+          recommendation_id: string
+          status: string
+          studio_kind: string
+          studio_ref_id: string
+          updated_at: string
+          workspace_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          metadata?: Json
+          recommendation_id: string
+          status?: string
+          studio_kind: string
+          studio_ref_id: string
+          updated_at?: string
+          workspace_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          metadata?: Json
+          recommendation_id?: string
+          status?: string
+          studio_kind?: string
+          studio_ref_id?: string
+          updated_at?: string
+          workspace_id?: string
+        }
+        Relationships: []
+      }
+      growthmind_content_recommendations: {
+        Row: {
+          angle: string | null
+          brief: string | null
+          created_at: string
+          created_by: string
+          format: string | null
+          id: string
+          payload: Json
+          risk_flags: Json
+          scores: Json
+          status: string
+          target_platform: string | null
+          title: string
+          trend_item_id: string | null
+          updated_at: string
+          workspace_id: string
+        }
+        Insert: {
+          angle?: string | null
+          brief?: string | null
+          created_at?: string
+          created_by?: string
+          format?: string | null
+          id?: string
+          payload?: Json
+          risk_flags?: Json
+          scores?: Json
+          status?: string
+          target_platform?: string | null
+          title: string
+          trend_item_id?: string | null
+          updated_at?: string
+          workspace_id: string
+        }
+        Update: {
+          angle?: string | null
+          brief?: string | null
+          created_at?: string
+          created_by?: string
+          format?: string | null
+          id?: string
+          payload?: Json
+          risk_flags?: Json
+          scores?: Json
+          status?: string
+          target_platform?: string | null
+          title?: string
+          trend_item_id?: string | null
+          updated_at?: string
+          workspace_id?: string
+        }
+        Relationships: []
+      }
       growthmind_content_series: {
         Row: {
           cadence: string
@@ -5232,6 +5415,81 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      growthmind_dna_proposals: {
+        Row: {
+          created_at: string
+          field_changes: Json
+          id: string
+          proposed_by: string
+          rationale: string | null
+          resolved_at: string | null
+          resolved_by_user_id: string | null
+          source: string | null
+          status: string
+          updated_at: string
+          workspace_id: string
+        }
+        Insert: {
+          created_at?: string
+          field_changes?: Json
+          id?: string
+          proposed_by?: string
+          rationale?: string | null
+          resolved_at?: string | null
+          resolved_by_user_id?: string | null
+          source?: string | null
+          status?: string
+          updated_at?: string
+          workspace_id: string
+        }
+        Update: {
+          created_at?: string
+          field_changes?: Json
+          id?: string
+          proposed_by?: string
+          rationale?: string | null
+          resolved_at?: string | null
+          resolved_by_user_id?: string | null
+          source?: string | null
+          status?: string
+          updated_at?: string
+          workspace_id?: string
+        }
+        Relationships: []
+      }
+      growthmind_dna_versions: {
+        Row: {
+          change_summary: string | null
+          changed_by: string
+          changed_by_user_id: string | null
+          created_at: string
+          id: string
+          snapshot: Json
+          version: number
+          workspace_id: string
+        }
+        Insert: {
+          change_summary?: string | null
+          changed_by?: string
+          changed_by_user_id?: string | null
+          created_at?: string
+          id?: string
+          snapshot?: Json
+          version: number
+          workspace_id: string
+        }
+        Update: {
+          change_summary?: string | null
+          changed_by?: string
+          changed_by_user_id?: string | null
+          created_at?: string
+          id?: string
+          snapshot?: Json
+          version?: number
+          workspace_id?: string
+        }
+        Relationships: []
       }
       growthmind_domain_warmups: {
         Row: {
@@ -6295,6 +6553,51 @@ export type Database = {
           },
         ]
       }
+      growthmind_monitored_sources: {
+        Row: {
+          added_by_user_id: string | null
+          created_at: string
+          id: string
+          label: string | null
+          notes: string | null
+          platform: string | null
+          priority: number
+          source_kind: string
+          status: string
+          updated_at: string
+          value: string
+          workspace_id: string
+        }
+        Insert: {
+          added_by_user_id?: string | null
+          created_at?: string
+          id?: string
+          label?: string | null
+          notes?: string | null
+          platform?: string | null
+          priority?: number
+          source_kind: string
+          status?: string
+          updated_at?: string
+          value: string
+          workspace_id: string
+        }
+        Update: {
+          added_by_user_id?: string | null
+          created_at?: string
+          id?: string
+          label?: string | null
+          notes?: string | null
+          platform?: string | null
+          priority?: number
+          source_kind?: string
+          status?: string
+          updated_at?: string
+          value?: string
+          workspace_id?: string
+        }
+        Relationships: []
+      }
       growthmind_opportunities: {
         Row: {
           category: string
@@ -6359,6 +6662,42 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      growthmind_performance_snapshots: {
+        Row: {
+          captured_at: string
+          connection_id: string | null
+          created_at: string
+          external_post_id: string | null
+          id: string
+          metrics: Json
+          platform: string | null
+          publishing_job_id: string | null
+          workspace_id: string
+        }
+        Insert: {
+          captured_at?: string
+          connection_id?: string | null
+          created_at?: string
+          external_post_id?: string | null
+          id?: string
+          metrics?: Json
+          platform?: string | null
+          publishing_job_id?: string | null
+          workspace_id: string
+        }
+        Update: {
+          captured_at?: string
+          connection_id?: string | null
+          created_at?: string
+          external_post_id?: string | null
+          id?: string
+          metrics?: Json
+          platform?: string | null
+          publishing_job_id?: string | null
+          workspace_id?: string
+        }
+        Relationships: []
       }
       growthmind_playbooks: {
         Row: {
@@ -6719,6 +7058,69 @@ export type Database = {
           },
         ]
       }
+      growthmind_publishing_jobs: {
+        Row: {
+          approved_by_user_id: string | null
+          attempts: number
+          connection_id: string | null
+          created_at: string
+          created_by: string
+          error_message: string | null
+          external_post_id: string | null
+          id: string
+          payload: Json
+          platform: string
+          published_at: string | null
+          recommendation_id: string | null
+          scheduled_at: string | null
+          status: string
+          target_type: string
+          updated_at: string
+          validation: Json
+          workspace_id: string
+        }
+        Insert: {
+          approved_by_user_id?: string | null
+          attempts?: number
+          connection_id?: string | null
+          created_at?: string
+          created_by?: string
+          error_message?: string | null
+          external_post_id?: string | null
+          id?: string
+          payload?: Json
+          platform: string
+          published_at?: string | null
+          recommendation_id?: string | null
+          scheduled_at?: string | null
+          status?: string
+          target_type?: string
+          updated_at?: string
+          validation?: Json
+          workspace_id: string
+        }
+        Update: {
+          approved_by_user_id?: string | null
+          attempts?: number
+          connection_id?: string | null
+          created_at?: string
+          created_by?: string
+          error_message?: string | null
+          external_post_id?: string | null
+          id?: string
+          payload?: Json
+          platform?: string
+          published_at?: string | null
+          recommendation_id?: string | null
+          scheduled_at?: string | null
+          status?: string
+          target_type?: string
+          updated_at?: string
+          validation?: Json
+          workspace_id?: string
+        }
+        Relationships: []
+      }
       growthmind_recommendations: {
         Row: {
           action_href: string | null
@@ -6951,6 +7353,75 @@ export type Database = {
           scores?: Json
           service_name?: string
           total_score?: number
+          workspace_id?: string
+        }
+        Relationships: []
+      }
+      growthmind_social_connections: {
+        Row: {
+          access_token_encrypted: string | null
+          account_name: string | null
+          account_type: string
+          capabilities: Json
+          connected_by_user_id: string | null
+          created_at: string
+          external_account_id: string
+          id: string
+          last_error: string | null
+          last_sync_at: string | null
+          metadata: Json
+          permissions: Json
+          profile_picture_url: string | null
+          provider: string
+          status: string
+          token_expires_at: string | null
+          token_type: string
+          updated_at: string
+          username: string | null
+          workspace_id: string
+        }
+        Insert: {
+          access_token_encrypted?: string | null
+          account_name?: string | null
+          account_type: string
+          capabilities?: Json
+          connected_by_user_id?: string | null
+          created_at?: string
+          external_account_id: string
+          id?: string
+          last_error?: string | null
+          last_sync_at?: string | null
+          metadata?: Json
+          permissions?: Json
+          profile_picture_url?: string | null
+          provider?: string
+          status?: string
+          token_expires_at?: string | null
+          token_type?: string
+          updated_at?: string
+          username?: string | null
+          workspace_id: string
+        }
+        Update: {
+          access_token_encrypted?: string | null
+          account_name?: string | null
+          account_type?: string
+          capabilities?: Json
+          connected_by_user_id?: string | null
+          created_at?: string
+          external_account_id?: string
+          id?: string
+          last_error?: string | null
+          last_sync_at?: string | null
+          metadata?: Json
+          permissions?: Json
+          profile_picture_url?: string | null
+          provider?: string
+          status?: string
+          token_expires_at?: string | null
+          token_type?: string
+          updated_at?: string
+          username?: string | null
           workspace_id?: string
         }
         Relationships: []
@@ -7310,6 +7781,72 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      growthmind_trend_items: {
+        Row: {
+          author_handle: string | null
+          author_name: string | null
+          caption: string | null
+          content_hash: string | null
+          discovered_at: string
+          external_id: string | null
+          id: string
+          media_type: string | null
+          metrics: Json
+          platform: string
+          published_at: string | null
+          raw: Json
+          scores: Json
+          source_id: string | null
+          status: string
+          title: string | null
+          updated_at: string
+          url: string | null
+          workspace_id: string
+        }
+        Insert: {
+          author_handle?: string | null
+          author_name?: string | null
+          caption?: string | null
+          content_hash?: string | null
+          discovered_at?: string
+          external_id?: string | null
+          id?: string
+          media_type?: string | null
+          metrics?: Json
+          platform: string
+          published_at?: string | null
+          raw?: Json
+          scores?: Json
+          source_id?: string | null
+          status?: string
+          title?: string | null
+          updated_at?: string
+          url?: string | null
+          workspace_id: string
+        }
+        Update: {
+          author_handle?: string | null
+          author_name?: string | null
+          caption?: string | null
+          content_hash?: string | null
+          discovered_at?: string
+          external_id?: string | null
+          id?: string
+          media_type?: string | null
+          metrics?: Json
+          platform?: string
+          published_at?: string | null
+          raw?: Json
+          scores?: Json
+          source_id?: string | null
+          status?: string
+          title?: string | null
+          updated_at?: string
+          url?: string | null
+          workspace_id?: string
+        }
+        Relationships: []
       }
       growthmind_trend_signals: {
         Row: {
@@ -14606,6 +15143,12 @@ export type Database = {
           generation_limits: Json
           ghl_api_key: string | null
           ghl_location_id: string | null
+          growthmind_ci_limits: Json
+          growthmind_mode: string
+          growthmind_operator_enabled: boolean
+          growthmind_operator_enabled_at: string | null
+          growthmind_operator_enabled_by: string | null
+          growthmind_operator_permissions: Json
           growthmind_settings: Json
           gsc_access_token: string | null
           gsc_auto_matched: boolean | null
@@ -14679,6 +15222,12 @@ export type Database = {
           generation_limits?: Json
           ghl_api_key?: string | null
           ghl_location_id?: string | null
+          growthmind_ci_limits?: Json
+          growthmind_mode?: string
+          growthmind_operator_enabled?: boolean
+          growthmind_operator_enabled_at?: string | null
+          growthmind_operator_enabled_by?: string | null
+          growthmind_operator_permissions?: Json
           growthmind_settings?: Json
           gsc_access_token?: string | null
           gsc_auto_matched?: boolean | null
@@ -14752,6 +15301,12 @@ export type Database = {
           generation_limits?: Json
           ghl_api_key?: string | null
           ghl_location_id?: string | null
+          growthmind_ci_limits?: Json
+          growthmind_mode?: string
+          growthmind_operator_enabled?: boolean
+          growthmind_operator_enabled_at?: string | null
+          growthmind_operator_enabled_by?: string | null
+          growthmind_operator_permissions?: Json
           growthmind_settings?: Json
           gsc_access_token?: string | null
           gsc_auto_matched?: boolean | null
