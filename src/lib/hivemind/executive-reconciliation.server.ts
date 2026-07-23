@@ -119,11 +119,11 @@ const missedAppointmentsJob: ReconJob = {
     const windowStart = new Date(Date.now() - 3 * 24 * HOUR).toISOString();
     const { data: rows, error } = await sb
       .from("calendar_bookings")
-      .select("id, title, start_time, status")
+      .select("id, title, start_at, status")
       .eq("workspace_id", workspaceId)
-      .in("status", ["confirmed", "pending"])
-      .gte("start_time", windowStart)
-      .lt("start_time", now)
+      .in("status", ["pending", "accepted"])
+      .gte("start_at", windowStart)
+      .lt("start_at", now)
       .limit(20);
     if (error) throw new Error(error.message);
     for (const b of rows ?? []) {
@@ -132,10 +132,10 @@ const missedAppointmentsJob: ReconJob = {
         eventType: "booking_missed",
         sourceSystem: "reconciliation",
         title: `Appointment${b.title ? ` "${String(b.title).slice(0, 80)}"` : ""} passed while still ${b.status}`,
-        summary: `Booking start time ${b.start_time} has passed but its status is still "${b.status}".`,
+        summary: `Booking start time ${b.start_at} has passed but its status is still "${b.status}".`,
         entityType: "calendar_booking",
         entityId: String(b.id),
-        evidence: { bookingId: b.id, startTime: b.start_time, status: b.status },
+        evidence: { bookingId: b.id, startAt: b.start_at, status: b.status },
       });
     }
     return { missed: (rows ?? []).length };
@@ -181,6 +181,9 @@ const RECON_JOBS: ReconJob[] = [
   integrationFailuresJob,
   staleLeadsJob,
 ];
+
+/** Exported for e2e tests only — validates jobs against the real schema. */
+export const RECON_JOBS_FOR_TEST: ReconJob[] = RECON_JOBS;
 
 // ── CAS claim ─────────────────────────────────────────────────────────────────
 

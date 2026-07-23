@@ -28,3 +28,6 @@ node scripts/apply-industry-preset-atomic-migration.mjs
 
 # Ensure the atomic AccountsMind config-draft activation RPC exists (CREATE OR REPLACE — idempotent, never blocks post-merge)
 node scripts/apply-accountsmind-config-atomic-activation-migration.mjs
+
+# Apply HiveMind executive event stream tables (idempotent)
+node scripts/apply-executive-events-migration.mjs

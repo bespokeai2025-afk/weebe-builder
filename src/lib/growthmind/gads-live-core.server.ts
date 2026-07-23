@@ -1038,6 +1038,23 @@ export async function runGadsAnalysis(workspaceId: string, accountRowId: string)
       if (!error) {
         generated++;
         if (r.priority === "critical") freshCritical.push(r);
+        // Executive event stream — one event per finding lifecycle (the
+        // dedupe_key already guarantees the insert branch runs once).
+        try {
+          const { publishExecutiveEvent } = await import("../hivemind/executive-events.shared");
+          await publishExecutiveEvent(sb, {
+            workspaceId,
+            eventType: "growthmind_recommendation",
+            sourceSystem: "growthmind_gads",
+            title: r.title,
+            summary: r.recommended_action ?? null,
+            severity: r.priority === "critical" ? "warning" : "info",
+            entityType: "gads_recommendation",
+            entityId: r.dedupe_key,
+            dedupKey: `growthmind_recommendation:${r.dedupe_key}`,
+            evidence: { section: r.section, priority: r.priority, confidence: r.confidence, campaign: r.campaign_name ?? null },
+          });
+        } catch { /* best-effort */ }
       }
     }
   }
