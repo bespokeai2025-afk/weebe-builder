@@ -5322,6 +5322,132 @@ export type Database = {
         }
         Relationships: []
       }
+      growthmind_content_projects: {
+        Row: {
+          anatomy_id: string | null
+          approval_action_id: string | null
+          approval_flags: Json
+          approved_at: string | null
+          approved_by: string | null
+          approved_version: Json | null
+          asset_id: string | null
+          brand_kit: Json
+          caption: string | null
+          created_at: string
+          created_by: string
+          cta: string | null
+          format: string
+          hashtags: Json
+          id: string
+          inspiration: Json
+          media_is_ai: boolean
+          media_source: string | null
+          media_type: string | null
+          media_url: string | null
+          recommendation_id: string | null
+          recommended_time: string | null
+          required_assets: Json
+          scene_timeline: Json
+          script: string | null
+          status: string
+          status_history: Json
+          subtitles: string | null
+          target_connection_id: string | null
+          target_platform: string
+          thumbnail_text: string | null
+          thumbnail_url: string | null
+          title: string
+          trend_item_id: string | null
+          updated_at: string
+          voiceover_is_ai: boolean
+          voiceover_script: string | null
+          voiceover_url: string | null
+          workspace_id: string
+        }
+        Insert: {
+          anatomy_id?: string | null
+          approval_action_id?: string | null
+          approval_flags?: Json
+          approved_at?: string | null
+          approved_by?: string | null
+          approved_version?: Json | null
+          asset_id?: string | null
+          brand_kit?: Json
+          caption?: string | null
+          created_at?: string
+          created_by?: string
+          cta?: string | null
+          format?: string
+          hashtags?: Json
+          id?: string
+          inspiration?: Json
+          media_is_ai?: boolean
+          media_source?: string | null
+          media_type?: string | null
+          media_url?: string | null
+          recommendation_id?: string | null
+          recommended_time?: string | null
+          required_assets?: Json
+          scene_timeline?: Json
+          script?: string | null
+          status?: string
+          status_history?: Json
+          subtitles?: string | null
+          target_connection_id?: string | null
+          target_platform?: string
+          thumbnail_text?: string | null
+          thumbnail_url?: string | null
+          title: string
+          trend_item_id?: string | null
+          updated_at?: string
+          voiceover_is_ai?: boolean
+          voiceover_script?: string | null
+          voiceover_url?: string | null
+          workspace_id: string
+        }
+        Update: {
+          anatomy_id?: string | null
+          approval_action_id?: string | null
+          approval_flags?: Json
+          approved_at?: string | null
+          approved_by?: string | null
+          approved_version?: Json | null
+          asset_id?: string | null
+          brand_kit?: Json
+          caption?: string | null
+          created_at?: string
+          created_by?: string
+          cta?: string | null
+          format?: string
+          hashtags?: Json
+          id?: string
+          inspiration?: Json
+          media_is_ai?: boolean
+          media_source?: string | null
+          media_type?: string | null
+          media_url?: string | null
+          recommendation_id?: string | null
+          recommended_time?: string | null
+          required_assets?: Json
+          scene_timeline?: Json
+          script?: string | null
+          status?: string
+          status_history?: Json
+          subtitles?: string | null
+          target_connection_id?: string | null
+          target_platform?: string
+          thumbnail_text?: string | null
+          thumbnail_url?: string | null
+          title?: string
+          trend_item_id?: string | null
+          updated_at?: string
+          voiceover_is_ai?: boolean
+          voiceover_script?: string | null
+          voiceover_url?: string | null
+          workspace_id?: string
+        }
+        Relationships: []
+      }
       growthmind_content_recommendations: {
         Row: {
           angle: string | null
@@ -7157,15 +7283,23 @@ export type Database = {
       growthmind_publishing_jobs: {
         Row: {
           approved_by_user_id: string | null
+          attempt_history: Json
           attempts: number
           connection_id: string | null
           created_at: string
           created_by: string
           error_message: string | null
+          external_permalink: string | null
           external_post_id: string | null
+          guidance: string | null
           id: string
+          idempotency_key: string | null
+          last_error_code: string | null
+          max_attempts: number
+          next_attempt_at: string | null
           payload: Json
           platform: string
+          project_id: string | null
           published_at: string | null
           recommendation_id: string | null
           scheduled_at: string | null
@@ -7177,15 +7311,23 @@ export type Database = {
         }
         Insert: {
           approved_by_user_id?: string | null
+          attempt_history?: Json
           attempts?: number
           connection_id?: string | null
           created_at?: string
           created_by?: string
           error_message?: string | null
+          external_permalink?: string | null
           external_post_id?: string | null
+          guidance?: string | null
           id?: string
+          idempotency_key?: string | null
+          last_error_code?: string | null
+          max_attempts?: number
+          next_attempt_at?: string | null
           payload?: Json
           platform: string
+          project_id?: string | null
           published_at?: string | null
           recommendation_id?: string | null
           scheduled_at?: string | null
@@ -7197,15 +7339,23 @@ export type Database = {
         }
         Update: {
           approved_by_user_id?: string | null
+          attempt_history?: Json
           attempts?: number
           connection_id?: string | null
           created_at?: string
           created_by?: string
           error_message?: string | null
+          external_permalink?: string | null
           external_post_id?: string | null
+          guidance?: string | null
           id?: string
+          idempotency_key?: string | null
+          last_error_code?: string | null
+          max_attempts?: number
+          next_attempt_at?: string | null
           payload?: Json
           platform?: string
+          project_id?: string | null
           published_at?: string | null
           recommendation_id?: string | null
           scheduled_at?: string | null

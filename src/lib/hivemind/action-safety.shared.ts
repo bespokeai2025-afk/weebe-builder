@@ -59,6 +59,7 @@ export const OPERATOR_CATEGORIES = [
   "campaigns",       // campaign drafts (still sensitive-gated for launch)
   "content",         // content/video generation drafts
   "sync",            // data syncs
+  "publishing",      // social publishing of rule-cleared, approved content
 ] as const;
 export type OperatorCategory = (typeof OPERATOR_CATEGORIES)[number];
 
@@ -69,6 +70,11 @@ export const ACTION_OPERATOR_CATEGORY: Record<string, OperatorCategory> = {
   assign_knowledge_base:    "crm",
   sync_ad_stats:            "sync",
   send_workflow_draft_to_builder: "content",
+  // Content publishing: workspace approval rules decide sensitivity at
+  // proposal time (rule-triggered publishes are inserted with sensitive=true
+  // and always need a human). Only rule-cleared publishes may auto-execute,
+  // and only when this operator category is explicitly enabled.
+  growthmind_publish_content: "publishing",
 };
 
 export const HIVEMIND_MODES = ["observe", "recommend", "assistant", "operator"] as const;

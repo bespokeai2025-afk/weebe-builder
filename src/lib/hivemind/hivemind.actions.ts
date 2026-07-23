@@ -140,6 +140,7 @@ function expectedResultFor(action: HiveMindAction): string {
     case "assign_knowledge_base":     return "Agent keeps the assigned knowledge base and uses it on calls.";
     case "activate_lead_intake_workflow": return "New leads are auto-called and the need-to-call backlog shrinks.";
     case "sync_ad_stats":             return "Ad accounts sync successfully and stats stay fresh.";
+    case "growthmind_publish_content": return "Content is published to the connected social account and the post stays live.";
     default:                          return "The action's change persists and produces the described benefit.";
   }
 }
@@ -369,6 +370,23 @@ async function executeAction(sb: any, workspaceId: string, action: HiveMindActio
       }
 
       return { enabled: true, agent_id: agentId, workflow_id: workflowId, template_id: templateId };
+    }
+
+    case "growthmind_publish_content": {
+      const projectId = String(p.project_id ?? "");
+      if (!projectId) throw new Error("project_id required");
+      const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+      const { approveContentProjectPublish } = await import(
+        "@/lib/growthmind/meta-content-publish.server"
+      );
+      // Re-validates connection/media/approval state server-side, creates the
+      // idempotent publishing job and schedules or immediately publishes it.
+      return await approveContentProjectPublish(supabaseAdmin as any, workspaceId, {
+        projectId,
+        actionId: action.id,
+        approvedBy: (action as any).approved_by ?? "User",
+        scheduledAt: typeof p.scheduled_at === "string" && p.scheduled_at ? p.scheduled_at : null,
+      });
     }
 
     case "activate_systemmind_automation": {

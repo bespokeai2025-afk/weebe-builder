@@ -169,6 +169,20 @@ export const Route = createFileRoute("/api/public/campaign-executor")({
             console.warn("[wbah-campaign-runs] tick failed:", wbahErr?.message ?? wbahErr);
           }
 
+          // GrowthMind content publishing (Meta reels/feed jobs with backoff
+          // retries). Best-effort — never blocks the tick.
+          try {
+            const { runContentPublishTick } = await import(
+              "@/lib/growthmind/meta-content-publish.server"
+            );
+            const pub = await runContentPublishTick();
+            if (pub.processed > 0) {
+              console.log(`[content-publish] processed=${pub.processed} published=${pub.published}`);
+            }
+          } catch (pubErr: any) {
+            console.warn("[content-publish] tick failed:", pubErr?.message ?? pubErr);
+          }
+
           // HiveMind executive event reconciliation + classification.
           // CAS-claimed per workspace/job cadence. Best-effort — never blocks
           // the tick.

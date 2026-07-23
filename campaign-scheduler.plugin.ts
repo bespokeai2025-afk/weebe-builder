@@ -90,6 +90,21 @@ export function campaignSchedulerPlugin(): Plugin {
           console.warn("[wbah-campaign-runs] dev tick failed:", e?.message ?? e);
         }
 
+        // GrowthMind content publishing (mirrors the prod campaign-executor
+        // endpoint). Loaded via ssrLoadModule because the module uses "@/"
+        // aliases. Best-effort — failed jobs retry with backoff.
+        try {
+          const { runContentPublishTick } = (await server.ssrLoadModule(
+            "/src/lib/growthmind/meta-content-publish.server.ts",
+          )) as typeof import("./src/lib/growthmind/meta-content-publish.server");
+          const pub = await runContentPublishTick();
+          if (pub.processed > 0) {
+            console.log(`[content-publish] processed=${pub.processed} published=${pub.published}`);
+          }
+        } catch (e: any) {
+          console.warn("[content-publish] dev tick failed:", e?.message ?? e);
+        }
+
         // Supabase DB health watchdog (mirrors the prod campaign-executor
         // endpoint). Loaded via ssrLoadModule so it shares module state with
         // server functions (admin banner reads the same snapshot). Best-effort.
