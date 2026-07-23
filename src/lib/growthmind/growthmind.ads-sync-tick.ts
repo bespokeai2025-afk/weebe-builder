@@ -310,7 +310,7 @@ async function syncWorkspace(sb: ReturnType<typeof getAdminClient>, workspaceId:
   try {
     const { data: gadsAccounts } = await sb
       .from("growthmind_ads_accounts")
-      .select("id, customer_id")
+      .select("id, customer_id, sync_config")
       .eq("workspace_id", workspaceId)
       .eq("platform", "google")
       .eq("status", "active")
@@ -319,7 +319,36 @@ async function syncWorkspace(sb: ReturnType<typeof getAdminClient>, workspaceId:
       googleHandledByLiveEngine = true;
       const { runGadsSync } = await import("./gads-live-core.server");
       for (const acc of gadsAccounts) {
-        const r = await runGadsSync(workspaceId, (acc as any).id, "incremental");
+        // Cadence is configurable per account via sync_config (JSON):
+        //   incrementalMinutes (default 15) — min gap between incremental runs
+        //   historicalHours    (default 24) — gap between 35-day historical refreshes
+        const cfg = ((acc as any).sync_config ?? {}) as Record<string, unknown>;
+        const incMinutes  = Math.max(5, Number(cfg.incrementalMinutes ?? 15) || 15);
+        const histHours   = Math.max(1, Number(cfg.historicalHours ?? 24) || 24);
+
+        const { data: recentRuns } = await sb
+          .from("growthmind_gads_sync_runs")
+          .select("run_type, status, started_at")
+          .eq("account_row_id", (acc as any).id)
+          .eq("status", "success")
+          .order("started_at", { ascending: false })
+          .limit(30);
+        const ageMin = (ts?: string | null) =>
+          ts ? (Date.now() - new Date(ts).getTime()) / 60000 : Infinity;
+        const lastOf = (...types: string[]) =>
+          (recentRuns ?? []).find(r => types.includes((r as any).run_type))?.started_at as string | undefined;
+
+        // Daily historical refresh takes priority; otherwise incremental at the
+        // configured cadence; otherwise skip this tick quietly.
+        let runType: "historical" | "incremental" | null = null;
+        if (ageMin(lastOf("historical", "initial")) >= histHours * 60) runType = "historical";
+        else if (ageMin(lastOf("incremental", "manual", "historical", "initial")) >= incMinutes) runType = "incremental";
+
+        if (!runType) {
+          results.push({ platform: "google", workspaceId, campaignsSynced: 0, spendTotal: 0, impressionsTotal: 0, clicksTotal: 0, conversionsTotal: 0, status: "skipped", error: `Next sync not due yet (every ${incMinutes} min, historical every ${histHours}h)` });
+          continue;
+        }
+        const r = await runGadsSync(workspaceId, (acc as any).id, runType);
         results.push({
           platform: "google", workspaceId,
           campaignsSynced: r.campaigns, spendTotal: r.spend,

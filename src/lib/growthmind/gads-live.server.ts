@@ -60,6 +60,10 @@ export const getGadsConnection = createServerFn({ method: "GET" })
         currencyCode: acc.currency_code, timeZone: acc.time_zone,
         lastSyncedAt: acc.last_synced_at, syncStatus: acc.sync_status, syncError: acc.sync_error,
         accessibleCustomers: acc.accessible_customers ?? null,
+        syncConfig: {
+          incrementalMinutes: Math.max(5, Number((acc.sync_config as any)?.incrementalMinutes ?? 15) || 15),
+          historicalHours:    Math.max(1, Number((acc.sync_config as any)?.historicalHours ?? 24) || 24),
+        },
       } : null,
     };
   });

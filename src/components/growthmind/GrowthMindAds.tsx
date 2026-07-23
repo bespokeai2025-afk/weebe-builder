@@ -475,7 +475,10 @@ function AccountDetail({ account, onEdit, onDelete }: {
       {/* Campaign table header */}
       <div className="px-4 py-2.5 flex items-center justify-between border-t border-white/[0.05]">
         <p className="text-xs font-semibold text-muted-foreground uppercase tracking-[0.08em]">
-          Campaigns ({campaigns.length})
+          Manual campaigns ({campaigns.length})
+          <span className="ml-2 normal-case font-normal tracking-normal text-[10px] text-muted-foreground/70">
+            logged by hand — live synced campaigns appear in the panel above
+          </span>
         </p>
         <div className="flex items-center gap-2">
           <Button size="sm" variant="outline" className="h-6 text-[11px] gap-1" onClick={loadRecos} disabled={recosLoading}>

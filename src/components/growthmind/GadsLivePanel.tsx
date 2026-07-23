@@ -599,6 +599,10 @@ export function GadsLivePanel({ onConnectClick }: { onConnectClick: () => void }
                   Sync history
                   {showRuns ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
                 </button>
+                <p className="mt-1 text-[10px] text-muted-foreground/60">
+                  Auto-refreshes every {conn.account?.syncConfig?.incrementalMinutes ?? 15} minutes ·
+                  full 35-day history refresh every {conn.account?.syncConfig?.historicalHours ?? 24} hours
+                </p>
                 {showRuns && (
                   <div className="mt-2 space-y-1">
                     {syncRuns.length === 0 && <p className="text-[11px] text-muted-foreground">No syncs recorded yet.</p>}

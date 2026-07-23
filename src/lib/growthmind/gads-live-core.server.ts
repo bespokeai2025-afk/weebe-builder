@@ -267,7 +267,7 @@ export async function discoverAccessibleCustomers(workspaceId: string): Promise<
                customer_client.currency_code, customer_client.time_zone, customer_client.status,
                customer_client.level
         FROM customer_client
-        WHERE customer_client.level <= 1
+        WHERE customer_client.level <= 5
       `.trim());
       for (const r of rows) {
         const cc = r.customerClient ?? {};
@@ -894,7 +894,7 @@ export async function getGoogleAccountRow(workspaceId: string): Promise<any | nu
   const sb = admin();
   const { data } = await sb
     .from("growthmind_ads_accounts")
-    .select("id, workspace_id, label, account_id, status, customer_id, login_customer_id, descriptive_name, currency_code, time_zone, connection_state, accessible_customers, sync_status, sync_error, last_synced_at, total_spend_synced")
+    .select("id, workspace_id, label, account_id, status, customer_id, login_customer_id, descriptive_name, currency_code, time_zone, connection_state, accessible_customers, sync_status, sync_error, last_synced_at, total_spend_synced, sync_config")
     .eq("workspace_id", workspaceId)
     .eq("platform", "google")
     .order("created_at", { ascending: false })
