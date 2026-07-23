@@ -170,6 +170,16 @@ const STYLES: Record<NodeKind, Style> = {
   },
 };
 
+function resolveNodeKind(data: FlowNode["data"] | undefined): NodeKind {
+  const kind = data?.kind;
+  if (kind && Object.prototype.hasOwnProperty.call(STYLES, kind)) return kind;
+  return "conversation";
+}
+
+function resolveNodeStyle(data: FlowNode["data"] | undefined): Style {
+  return STYLES[resolveNodeKind(data)];
+}
+
 /**
  * Conversation-style node matching the dashboard UI:
  * - Pink-tinted header with # icon + node name
@@ -181,19 +191,21 @@ function ConversationStyleNode({ id, data }: NodeProps<FlowNode>) {
   const deleteNode = useBuilderStore((s) => s.deleteNode);
   const updateNode = useBuilderStore((s) => s.updateNode);
   const isActive = useBuilderStore((s) => s.activeNodeId === id);
-  const style = STYLES[data.kind];
+  const nodeData = data ?? ({} as FlowNode["data"]);
+  const kind = resolveNodeKind(nodeData);
+  const style = resolveNodeStyle(nodeData);
 
   const addTransition = () =>
     updateNode(id, {
       transitions: [
-        ...data.transitions,
+        ...(nodeData.transitions ?? []),
         { id: `t-${Date.now().toString(36)}`, condition: "", target: null },
       ],
     });
 
   return (
     <div className="relative group">
-      {data.isStart && (
+      {nodeData.isStart && (
         <div className="absolute -top-7 -left-2 z-10 flex items-center gap-1 rounded-md bg-violet-500 px-2 py-0.5 text-[10px] font-medium text-white shadow">
           <Flag className="h-3 w-3" /> Begin
         </div>
@@ -264,7 +276,7 @@ function ConversationStyleNode({ id, data }: NodeProps<FlowNode>) {
         </div>
 
         {/* Transitions section */}
-        {data.kind !== "ending" && data.kind !== "note" && (
+        {kind !== "ending" && kind !== "note" && (
           <div className="mx-2 mb-2 rounded-lg bg-muted/40 border border-muted">
             <div className="flex items-center justify-between px-3 py-1.5 text-xs text-muted-foreground">
               <span className="inline-flex items-center gap-1">
@@ -286,9 +298,9 @@ function ConversationStyleNode({ id, data }: NodeProps<FlowNode>) {
                 <Plus className="h-3 w-3" />
               </button>
             </div>
-            {data.transitions.length > 0 && (
+            {(nodeData.transitions ?? []).length > 0 && (
               <div className="px-1 pb-1 space-y-1">
-                {data.transitions.map((t) => (
+                {(nodeData.transitions ?? []).map((t) => (
                   <div
                     key={t.id}
                     className="relative flex items-center gap-2 rounded-md bg-background border px-2 py-1.5 text-xs"
@@ -327,8 +339,10 @@ function SimpleNode({ id, data }: NodeProps<FlowNode>) {
   const selectNode = useBuilderStore((s) => s.selectNode);
   const deleteNode = useBuilderStore((s) => s.deleteNode);
   const isActive = useBuilderStore((s) => s.activeNodeId === id);
-  const style = STYLES[data.kind];
-  const isNote = data.kind === "note";
+  const nodeData = data ?? ({} as FlowNode["data"]);
+  const kind = resolveNodeKind(nodeData);
+  const style = resolveNodeStyle(nodeData);
+  const isNote = kind === "note";
 
   return (
     <div className="relative group">

@@ -25,6 +25,7 @@ import { HubSpotAdapter } from "@/lib/crm/hubspot.adapter";
 import { GoHighLevelAdapter } from "@/lib/crm/gohighlevel.adapter";
 import { SalesforceAdapter } from "@/lib/providers/crm/adapters/salesforce.adapter";
 import { PipedriveAdapter } from "@/lib/providers/crm/adapters/pipedrive.adapter";
+import { DynamicsAdapter, dynamicsConfigFromStored } from "@/lib/providers/crm/adapters/dynamics.adapter";
 import { upsertProviderSetting } from "./usage.server";
 
 export interface HealthCheckResult {
@@ -267,6 +268,21 @@ async function dispatchHealthCheck(
       const apiToken = str(stored.apiToken) || str((ws as any).pipedrive_api_token);
       if (!apiToken) return false;
       return new PipedriveAdapter(apiToken).healthCheck();
+    }
+    case "crm:dynamics": {
+      const cfg = dynamicsConfigFromStored(stored);
+      if (!cfg) {
+        throw new Error(
+          "Missing Dynamics credentials — enter Tenant ID, Client ID, Client Secret, and Organization URL, then Save.",
+        );
+      }
+      const ok = await new DynamicsAdapter(cfg).healthCheck();
+      if (!ok) {
+        throw new Error(
+          "Dynamics connection failed — check Azure app registration, client secret, org URL, and Dataverse application user permissions.",
+        );
+      }
+      return true;
     }
 
     // ── Telephony ──────────────────────────────────────────────────────────────

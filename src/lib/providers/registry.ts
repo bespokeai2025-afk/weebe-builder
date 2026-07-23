@@ -143,7 +143,7 @@ const STATIC_PROVIDERS: RegistryEntry[] = [
   { category: "crm", name: "gohighlevel", label: "GoHighLevel",        description: "GoHighLevel CRM & automation",              status: "disconnected", priority: 2 },
   { category: "crm", name: "salesforce",  label: "Salesforce",         description: "Salesforce CRM",                            status: "available",    priority: 3 },
   { category: "crm", name: "pipedrive",   label: "Pipedrive",          description: "Pipedrive sales CRM",                       status: "available",    priority: 4 },
-  { category: "crm", name: "dynamics",    label: "Microsoft Dynamics", description: "Microsoft Dynamics 365 CRM",                status: "coming_soon",  priority: 5 },
+  { category: "crm", name: "dynamics",    label: "Microsoft Dynamics", description: "Microsoft Dynamics 365 CRM (Dataverse OAuth)", status: "disconnected", priority: 5 },
 
   // Calendar
   { category: "calendar", name: "calcom",  label: "Cal.com",         description: "Cal.com open-source scheduling",    status: "disconnected", isDefault: true, priority: 1 },

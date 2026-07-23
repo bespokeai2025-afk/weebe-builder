@@ -37,17 +37,23 @@ function NotFoundComponent() {
 const STALE_BUILD_RE =
   /Failed to fetch dynamically imported module|Importing a module script failed|error loading dynamically imported module|Loading (CSS )?chunk|Invalid server function|Unexpected token '<'|is not valid JSON|Unexpected end of JSON|MIME type/i;
 
-function autoReloadOnce(): boolean {
+function hardReloadForStaleBuild(): boolean {
   try {
     const k = "chunk-autoreload-ts";
     const last = parseInt(sessionStorage.getItem(k) || "0", 10);
     if (Date.now() - last > 20000) {
       sessionStorage.setItem(k, String(Date.now()));
-      window.location.reload();
+      const url = new URL(window.location.href);
+      url.searchParams.set("_v", String(Date.now()));
+      window.location.replace(url.toString());
       return true;
     }
   } catch {}
   return false;
+}
+
+function autoReloadOnce(): boolean {
+  return hardReloadForStaleBuild();
 }
 
 function reportClientError(error: Error) {
@@ -115,13 +121,19 @@ function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
             {String(error.message).slice(0, 300)}
           </p>
         ) : null}
+        {isStale ? (
+          <p className="mt-2 text-xs text-amber-500/90">
+            A new version was deployed — reloading should fix this. If it persists, hard-refresh
+            (Ctrl+Shift+R) or open in a private window.
+          </p>
+        ) : null}
         <div className="mt-6 flex flex-wrap justify-center gap-2">
           <button
             onClick={() => {
-              // Full reload — anything else re-runs the SAME (possibly stale)
-              // client code and just fails again after a republish.
               try {
-                window.location.reload();
+                const url = new URL(window.location.href);
+                url.searchParams.set("_v", String(Date.now()));
+                window.location.replace(url.toString());
               } catch {
                 reset();
               }
@@ -206,7 +218,7 @@ const themeInitScript = `(function(){try{var t=localStorage.getItem('theme');var
 // route (e.g. /builder) never loads. Vite fires "vite:preloadError" when a
 // dynamic chunk import fails; reload once (timestamp-guarded, max once/20s) so
 // the browser picks up the fresh build instead of showing a dead page.
-const chunkReloadScript = `(function(){function guard(){try{var k='chunk-autoreload-ts';var last=parseInt(sessionStorage.getItem(k)||'0',10);if(Date.now()-last>20000){sessionStorage.setItem(k,String(Date.now()));window.location.reload();return true;}}catch(e){}return false;}window.addEventListener('vite:preloadError',function(e){if(guard()&&e&&e.preventDefault)e.preventDefault();});window.addEventListener('error',function(e){var m=(e&&e.message)||'';if(/Failed to fetch dynamically imported module|Importing a module script failed|error loading dynamically imported module|Loading (CSS )?chunk|Invalid server function|Unexpected token '<'|is not valid JSON|Unexpected end of JSON|MIME type/i.test(m))guard();},true);window.addEventListener('unhandledrejection',function(e){var m=String((e&&e.reason&&e.reason.message)||e.reason||'');if(/Failed to fetch dynamically imported module|Importing a module script failed|error loading dynamically imported module|Loading (CSS )?chunk|Invalid server function|Unexpected token '<'|is not valid JSON|Unexpected end of JSON|MIME type/i.test(m))guard();});})();`;
+const chunkReloadScript = `(function(){function guard(){try{var k='chunk-autoreload-ts';var last=parseInt(sessionStorage.getItem(k)||'0',10);if(Date.now()-last>20000){sessionStorage.setItem(k,String(Date.now()));var u=new URL(window.location.href);u.searchParams.set('_v',String(Date.now()));window.location.replace(u.toString());return true;}}catch(e){}return false;}window.addEventListener('vite:preloadError',function(e){if(guard()&&e&&e.preventDefault)e.preventDefault();});window.addEventListener('error',function(e){var m=(e&&e.message)||'';if(/Failed to fetch dynamically imported module|Importing a module script failed|error loading dynamically imported module|Loading (CSS )?chunk|Invalid server function|Unexpected token '<'|is not valid JSON|Unexpected end of JSON|MIME type/i.test(m))guard();},true);window.addEventListener('unhandledrejection',function(e){var m=String((e&&e.reason&&e.reason.message)||e.reason||'');if(/Failed to fetch dynamically imported module|Importing a module script failed|error loading dynamically imported module|Loading (CSS )?chunk|Invalid server function|Unexpected token '<'|is not valid JSON|Unexpected end of JSON|MIME type/i.test(m))guard();});})();`;
 
 // Some browsers hold a stale service worker / CacheStorage from an earlier
 // build of this domain, which keeps serving months-old JS and crashes with

@@ -15,6 +15,10 @@ import {
 import { listLeadWhatsappMessages, sendLeadWhatsappTemplate } from "@/lib/dashboard/whatsapp.functions";
 import { getWatiConnection, listWatiTemplates } from "@/lib/whatsapp/wati.functions";
 import { checkWebuyanyhouseWorkspace } from "@/lib/integrations/webespokeEnterprise/wbah.functions";
+import {
+  defaultWatiTemplateParamMapping,
+  extractWatiTemplateParamSlots,
+} from "@/lib/whatsapp/wati-template-params.shared";
 import { toast } from "sonner";
 
 const LEAD_PARAM_FIELDS: Array<{ value: string; label: string }> = [
@@ -28,15 +32,8 @@ const LEAD_PARAM_FIELDS: Array<{ value: string; label: string }> = [
   { value: "notes", label: "Notes" },
 ];
 
-function watiTemplateParamSlots(components: unknown): string[] {
-  const comps = Array.isArray(components) ? components : [];
-  const slots = new Set<string>();
-  for (const c of comps) {
-    const text = (c as { text?: string; body?: string })?.text ?? (c as { body?: string })?.body ?? "";
-    const matches = String(text).match(/\{\{(\d+)\}\}/g) ?? [];
-    for (const m of matches) slots.add(m.replace(/\{\{|\}\}/g, ""));
-  }
-  return [...slots].sort((a, b) => Number(a) - Number(b));
+function watiTemplateParamSlots(template: Record<string, unknown> | null | undefined): string[] {
+  return extractWatiTemplateParamSlots(template ?? undefined);
 }
 
 export interface LeadWhatsAppPanelProps {
@@ -84,7 +81,7 @@ export function LeadWhatsAppPanel({ leadId, phone }: LeadWhatsAppPanelProps) {
   });
 
   const selectedTemplate = (watiTemplates as any[]).find((t) => t.name === templateName);
-  const paramSlots = selectedTemplate ? watiTemplateParamSlots(selectedTemplate.components) : [];
+  const paramSlots = watiTemplateParamSlots(selectedTemplate);
 
   const send = useMutation({
     mutationFn: () =>
@@ -162,7 +159,8 @@ export function LeadWhatsAppPanel({ leadId, phone }: LeadWhatsAppPanelProps) {
           value={templateName}
           onValueChange={(v) => {
             setTemplateName(v);
-            setParamMapping({});
+            const tpl = (watiTemplates as any[]).find((t) => t.name === v);
+            setParamMapping(defaultWatiTemplateParamMapping(watiTemplateParamSlots(tpl)));
           }}
         >
           <SelectTrigger className="h-8 text-xs">

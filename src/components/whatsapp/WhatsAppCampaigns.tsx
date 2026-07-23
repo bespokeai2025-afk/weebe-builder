@@ -1,7 +1,20 @@
 import { useRef, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Plus, Trash2, Megaphone, Clock, CheckCircle2, AlertCircle, PlayCircle, Rocket, Loader2, Upload, FileSpreadsheet, X } from "lucide-react";
+import {
+  Plus,
+  Trash2,
+  Megaphone,
+  Clock,
+  CheckCircle2,
+  AlertCircle,
+  PlayCircle,
+  Rocket,
+  Loader2,
+  Upload,
+  FileSpreadsheet,
+  X,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { RelativeTime } from "@/components/ui/relative-time";
 import { Input } from "@/components/ui/input";
@@ -9,17 +22,35 @@ import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
-  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
 } from "@/components/ui/dialog";
 import {
-  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
-  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import {
-  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
 } from "@/components/ui/select";
 import {
-  listWACampaigns, createWACampaign, deleteWACampaign, listWATemplates, launchWACampaign,
+  listWACampaigns,
+  createWACampaign,
+  deleteWACampaign,
+  listWATemplates,
+  launchWACampaign,
   importWatiCampaignLeadsCsv,
 } from "@/lib/dashboard/whatsapp.functions";
 import { getWatiConnection, listWatiTemplates } from "@/lib/whatsapp/wati.functions";
@@ -29,6 +60,11 @@ import {
   parseCsvText,
   type CsvColumnMapping,
 } from "@/lib/whatsapp/csv-leads.shared";
+import {
+  defaultWatiTemplateParamMapping,
+  extractWatiTemplateParamSlots,
+  validateWatiTemplateParamMapping,
+} from "@/lib/whatsapp/wati-template-params.shared";
 import { toast } from "sonner";
 
 const TYPE_LABELS: Record<string, string> = {
@@ -38,12 +74,12 @@ const TYPE_LABELS: Record<string, string> = {
 };
 
 const STATUS_CONFIG: Record<string, { label: string; color: string; icon: typeof AlertCircle }> = {
-  draft:     { label: "Draft",     color: "secondary",    icon: AlertCircle },
-  scheduled: { label: "Scheduled", color: "outline",      icon: Clock },
-  running:   { label: "Running",   color: "default",      icon: PlayCircle },
-  active:    { label: "Running",   color: "default",      icon: PlayCircle },
-  completed: { label: "Completed", color: "secondary",    icon: CheckCircle2 },
-  failed:    { label: "Failed",    color: "destructive",  icon: AlertCircle },
+  draft: { label: "Draft", color: "secondary", icon: AlertCircle },
+  scheduled: { label: "Scheduled", color: "outline", icon: Clock },
+  running: { label: "Running", color: "default", icon: PlayCircle },
+  active: { label: "Running", color: "default", icon: PlayCircle },
+  completed: { label: "Completed", color: "secondary", icon: CheckCircle2 },
+  failed: { label: "Failed", color: "destructive", icon: AlertCircle },
 };
 
 const LEAD_PARAM_FIELDS: Array<{ value: string; label: string }> = [
@@ -95,15 +131,8 @@ function emptyForm(): CampaignForm {
   };
 }
 
-function watiTemplateParamSlots(components: unknown): string[] {
-  const comps = Array.isArray(components) ? components : [];
-  const slots = new Set<string>();
-  for (const c of comps) {
-    const text = (c as { text?: string; body?: string })?.text ?? (c as { body?: string })?.body ?? "";
-    const matches = String(text).match(/\{\{(\d+)\}\}/g) ?? [];
-    for (const m of matches) slots.add(m.replace(/\{\{|\}\}/g, ""));
-  }
-  return [...slots].sort((a, b) => Number(a) - Number(b));
+function watiTemplateParamSlots(template: Record<string, unknown> | null | undefined): string[] {
+  return extractWatiTemplateParamSlots(template ?? undefined);
 }
 
 function buildAudienceFilter(form: CampaignForm, csvLeadIds: string[]) {
@@ -125,15 +154,15 @@ function buildAudienceFilter(form: CampaignForm, csvLeadIds: string[]) {
 
 export function WhatsAppCampaigns() {
   const qc = useQueryClient();
-  const listFn        = useServerFn(listWACampaigns);
-  const createFn      = useServerFn(createWACampaign);
-  const deleteFn      = useServerFn(deleteWACampaign);
-  const tmplFn        = useServerFn(listWATemplates);
-  const launchFn      = useServerFn(launchWACampaign);
-  const watiConnFn    = useServerFn(getWatiConnection);
-  const watiListFn    = useServerFn(listWatiTemplates);
-  const importCsvFn   = useServerFn(importWatiCampaignLeadsCsv);
-  const csvInputRef   = useRef<HTMLInputElement>(null);
+  const listFn = useServerFn(listWACampaigns);
+  const createFn = useServerFn(createWACampaign);
+  const deleteFn = useServerFn(deleteWACampaign);
+  const tmplFn = useServerFn(listWATemplates);
+  const launchFn = useServerFn(launchWACampaign);
+  const watiConnFn = useServerFn(getWatiConnection);
+  const watiListFn = useServerFn(listWatiTemplates);
+  const importCsvFn = useServerFn(importWatiCampaignLeadsCsv);
+  const csvInputRef = useRef<HTMLInputElement>(null);
 
   const { data: campaigns = [], isLoading } = useQuery({
     queryKey: ["wa-campaigns"],
@@ -160,13 +189,18 @@ export function WhatsAppCampaigns() {
     throwOnError: false,
   });
 
-  const [open, setOpen]           = useState(false);
-  const [deleteId, setDeleteId]   = useState<string | null>(null);
-  const [launchId, setLaunchId]   = useState<string | null>(null);
+  const [open, setOpen] = useState(false);
+  const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [launchId, setLaunchId] = useState<string | null>(null);
   const [launchCampaign, setLaunchCampaign] = useState<any>(null);
-  const [form, setForm]           = useState(emptyForm());
+  const [form, setForm] = useState(emptyForm());
   const [csvLeadIds, setCsvLeadIds] = useState<string[]>([]);
-  const [csvStats, setCsvStats] = useState<{ inserted: number; updated: number; skipped: number; total: number } | null>(null);
+  const [csvStats, setCsvStats] = useState<{
+    inserted: number;
+    updated: number;
+    skipped: number;
+    total: number;
+  } | null>(null);
   const [csvHeaders, setCsvHeaders] = useState<string[]>([]);
   const [csvRows, setCsvRows] = useState<Record<string, string>[]>([]);
   const [csvMapping, setCsvMapping] = useState<CsvColumnMapping | null>(null);
@@ -191,13 +225,18 @@ export function WhatsAppCampaigns() {
     setOpen(true);
   }
 
-  const selectedWatiTemplate = (watiTemplates as any[]).find((t) => t.name === form.wati_template_name);
-  const paramSlots = selectedWatiTemplate ? watiTemplateParamSlots(selectedWatiTemplate.components) : [];
+  const selectedWatiTemplate = (watiTemplates as any[]).find(
+    (t) => t.name === form.wati_template_name,
+  );
+  const paramSlots = watiTemplateParamSlots(selectedWatiTemplate);
+  const paramMappingError = validateWatiTemplateParamMapping(paramSlots, form.template_params);
 
   const create = useMutation({
     mutationFn: () => {
       const audience_filter = buildAudienceFilter(form, csvLeadIds);
-      const template_params = Object.keys(form.template_params).length ? form.template_params : undefined;
+      const template_params = Object.keys(form.template_params).length
+        ? form.template_params
+        : undefined;
       return createFn({
         data: {
           name: form.name,
@@ -206,7 +245,7 @@ export function WhatsAppCampaigns() {
           scheduled_at: form.scheduled_at || undefined,
           provider: watiConnected ? "wati" : undefined,
           wati_template_name: watiConnected ? form.wati_template_name || undefined : undefined,
-          wati_broadcast_name: watiConnected ? (form.wati_broadcast_name || form.name) : undefined,
+          wati_broadcast_name: watiConnected ? form.wati_broadcast_name || form.name : undefined,
           template_params,
           audience_filter,
         },
@@ -239,7 +278,11 @@ export function WhatsAppCampaigns() {
       qc.invalidateQueries({ queryKey: ["wa-campaigns"] });
       setLaunchId(null);
       setLaunchCampaign(null);
-      toast.success(`Campaign launched — ${res.sent ?? 0} sent, ${res.failed ?? 0} failed`);
+      const errHint =
+        res.failed > 0 && res.sent === 0 && Array.isArray(res.errors) && res.errors[0]
+          ? ` — ${res.errors[0]}`
+          : "";
+      toast.success(`Campaign launched — ${res.sent ?? 0} sent, ${res.failed ?? 0} failed${errHint}`);
     },
     onError: (e: Error) => {
       setLaunchId(null);
@@ -252,7 +295,8 @@ export function WhatsAppCampaigns() {
     !!form.name &&
     (watiConnected
       ? !!form.wati_template_name &&
-        (form.audienceMode === "filters" || csvLeadIds.length > 0)
+        (form.audienceMode === "filters" || csvLeadIds.length > 0) &&
+        !paramMappingError
       : true);
 
   async function handleCsvFile(e: React.ChangeEvent<HTMLInputElement>) {
@@ -339,7 +383,8 @@ export function WhatsAppCampaigns() {
           </p>
           {watiConnected && (
             <p className="text-[11px] text-muted-foreground/70 mt-1">
-              Upload a CSV audience or filter existing leads. Sync WATI templates under Templates first.
+              Upload a CSV audience or filter existing leads. Sync WATI templates under Templates
+              first.
             </p>
           )}
         </div>
@@ -365,8 +410,23 @@ export function WhatsAppCampaigns() {
           <table className="w-full text-sm">
             <thead className="bg-muted/50 border-b border-border">
               <tr>
-                {["Name", "Type", "Template", "Provider", "Status", "Sent", "Replied", "Created", ""].map((h) => (
-                  <th key={h} className="px-4 py-2.5 text-left text-xs font-medium text-muted-foreground">{h}</th>
+                {[
+                  "Name",
+                  "Type",
+                  "Template",
+                  "Provider",
+                  "Status",
+                  "Sent",
+                  "Replied",
+                  "Created",
+                  "",
+                ].map((h) => (
+                  <th
+                    key={h}
+                    className="px-4 py-2.5 text-left text-xs font-medium text-muted-foreground"
+                  >
+                    {h}
+                  </th>
                 ))}
               </tr>
             </thead>
@@ -380,15 +440,25 @@ export function WhatsAppCampaigns() {
                   <tr key={c.id} className="hover:bg-muted/20 transition-colors">
                     <td className="px-4 py-2.5 font-medium">{c.name}</td>
                     <td className="px-4 py-2.5">
-                      <Badge variant="outline" className="text-[10px]">{TYPE_LABELS[c.type] ?? c.type}</Badge>
+                      <Badge variant="outline" className="text-[10px]">
+                        {TYPE_LABELS[c.type] ?? c.type}
+                      </Badge>
                     </td>
-                    <td className="px-4 py-2.5 text-xs text-muted-foreground">{templateLabel(c)}</td>
-                    <td className="px-4 py-2.5">
-                      <Badge variant="outline" className="text-[10px] uppercase">{c.provider ?? "twilio"}</Badge>
+                    <td className="px-4 py-2.5 text-xs text-muted-foreground">
+                      {templateLabel(c)}
                     </td>
                     <td className="px-4 py-2.5">
-                      <Badge variant={sc.color as "secondary" | "outline" | "default" | "destructive"} className="gap-1 text-[10px]">
-                        <Icon className="h-3 w-3" />{sc.label}
+                      <Badge variant="outline" className="text-[10px] uppercase">
+                        {c.provider ?? "twilio"}
+                      </Badge>
+                    </td>
+                    <td className="px-4 py-2.5">
+                      <Badge
+                        variant={sc.color as "secondary" | "outline" | "default" | "destructive"}
+                        className="gap-1 text-[10px]"
+                      >
+                        <Icon className="h-3 w-3" />
+                        {sc.label}
                       </Badge>
                     </td>
                     <td className="px-4 py-2.5 text-xs tabular-nums">{stats.sent ?? 0}</td>
@@ -400,7 +470,9 @@ export function WhatsAppCampaigns() {
                       <div className="flex items-center gap-1">
                         {isDraft && (
                           <Button
-                            variant="ghost" size="icon" className="h-7 w-7 text-green-500 hover:text-green-400"
+                            variant="ghost"
+                            size="icon"
+                            className="h-7 w-7 text-green-500 hover:text-green-400"
                             title="Launch campaign"
                             onClick={() => openLaunchDialog(c)}
                           >
@@ -408,7 +480,9 @@ export function WhatsAppCampaigns() {
                           </Button>
                         )}
                         <Button
-                          variant="ghost" size="icon" className="h-7 w-7 text-destructive hover:text-destructive"
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7 text-destructive hover:text-destructive"
                           onClick={() => setDeleteId(c.id)}
                         >
                           <Trash2 className="h-3.5 w-3.5" />
@@ -433,14 +507,21 @@ export function WhatsAppCampaigns() {
               <Label className="text-xs">Campaign Name *</Label>
               <Input
                 value={form.name}
-                onChange={(e) => setForm({ ...form, name: e.target.value, wati_broadcast_name: e.target.value })}
+                onChange={(e) =>
+                  setForm({ ...form, name: e.target.value, wati_broadcast_name: e.target.value })
+                }
                 placeholder="e.g. Summer Promo 2026"
               />
             </div>
             <div className="space-y-1.5">
               <Label className="text-xs">Type</Label>
-              <Select value={form.type} onValueChange={(v: CampaignForm["type"]) => setForm({ ...form, type: v })}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
+              <Select
+                value={form.type}
+                onValueChange={(v: CampaignForm["type"]) => setForm({ ...form, type: v })}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="broadcast">Broadcast — send to lead audience</SelectItem>
                   <SelectItem value="follow_up">Follow-up</SelectItem>
@@ -455,14 +536,26 @@ export function WhatsAppCampaigns() {
                   <Label className="text-xs">WATI Template *</Label>
                   <Select
                     value={form.wati_template_name}
-                    onValueChange={(v) => setForm({ ...form, wati_template_name: v, template_params: {} })}
+                    onValueChange={(v) => {
+                      const tpl = (watiTemplates as any[]).find((t) => t.name === v);
+                      const slots = watiTemplateParamSlots(tpl);
+                      setForm({
+                        ...form,
+                        wati_template_name: v,
+                        template_params: defaultWatiTemplateParamMapping(slots),
+                      });
+                    }}
                   >
-                    <SelectTrigger><SelectValue placeholder="Choose approved template…" /></SelectTrigger>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Choose approved template…" />
+                    </SelectTrigger>
                     <SelectContent>
                       {(watiTemplates as any[])
                         .filter((t) => !t.status || String(t.status).toLowerCase() === "approved")
                         .map((t) => (
-                          <SelectItem key={t.id} value={t.name}>{t.name}</SelectItem>
+                          <SelectItem key={t.id} value={t.name}>
+                            {t.name}
+                          </SelectItem>
                         ))}
                     </SelectContent>
                   </Select>
@@ -488,12 +581,17 @@ export function WhatsAppCampaigns() {
                           </SelectTrigger>
                           <SelectContent>
                             {LEAD_PARAM_FIELDS.map((f) => (
-                              <SelectItem key={f.value} value={f.value}>{f.label}</SelectItem>
+                              <SelectItem key={f.value} value={f.value}>
+                                {f.label}
+                              </SelectItem>
                             ))}
                           </SelectContent>
                         </Select>
                       </div>
                     ))}
+                    {paramMappingError && (
+                      <p className="text-[11px] text-destructive">{paramMappingError}</p>
+                    )}
                   </div>
                 )}
 
@@ -567,10 +665,14 @@ export function WhatsAppCampaigns() {
                             value={csvMapping.phone}
                             onValueChange={(v) => setCsvMapping({ ...csvMapping, phone: v })}
                           >
-                            <SelectTrigger className="h-7 text-xs"><SelectValue placeholder="Phone column *" /></SelectTrigger>
+                            <SelectTrigger className="h-7 text-xs">
+                              <SelectValue placeholder="Phone column *" />
+                            </SelectTrigger>
                             <SelectContent>
                               {csvHeaders.map((h) => (
-                                <SelectItem key={h} value={h}>{h}</SelectItem>
+                                <SelectItem key={h} value={h}>
+                                  {h}
+                                </SelectItem>
                               ))}
                             </SelectContent>
                           </Select>
@@ -583,11 +685,15 @@ export function WhatsAppCampaigns() {
                               })
                             }
                           >
-                            <SelectTrigger className="h-7 text-xs"><SelectValue placeholder="Name column (optional)" /></SelectTrigger>
+                            <SelectTrigger className="h-7 text-xs">
+                              <SelectValue placeholder="Name column (optional)" />
+                            </SelectTrigger>
                             <SelectContent>
                               <SelectItem value="__none__">— None —</SelectItem>
                               {csvHeaders.map((h) => (
-                                <SelectItem key={h} value={h}>{h}</SelectItem>
+                                <SelectItem key={h} value={h}>
+                                  {h}
+                                </SelectItem>
                               ))}
                             </SelectContent>
                           </Select>
@@ -611,7 +717,8 @@ export function WhatsAppCampaigns() {
                         </div>
                       )}
                       <p className="text-[10px] text-muted-foreground leading-relaxed">
-                        CSV needs a phone column. Optional: name, email, company, notes. Duplicates are merged by phone.
+                        CSV needs a phone column. Optional: name, email, company, notes. Duplicates
+                        are merged by phone.
                       </p>
                     </div>
                   ) : (
@@ -621,7 +728,10 @@ export function WhatsAppCampaigns() {
                           placeholder="Status (optional)"
                           value={form.audience.status}
                           onChange={(e) =>
-                            setForm({ ...form, audience: { ...form.audience, status: e.target.value } })
+                            setForm({
+                              ...form,
+                              audience: { ...form.audience, status: e.target.value },
+                            })
                           }
                           className="h-8 text-xs"
                         />
@@ -629,7 +739,10 @@ export function WhatsAppCampaigns() {
                           placeholder="Pipeline stage (optional)"
                           value={form.audience.pipeline_stage}
                           onChange={(e) =>
-                            setForm({ ...form, audience: { ...form.audience, pipeline_stage: e.target.value } })
+                            setForm({
+                              ...form,
+                              audience: { ...form.audience, pipeline_stage: e.target.value },
+                            })
                           }
                           className="h-8 text-xs"
                         />
@@ -637,7 +750,10 @@ export function WhatsAppCampaigns() {
                           placeholder="Qualification (optional)"
                           value={form.audience.qualification_status}
                           onChange={(e) =>
-                            setForm({ ...form, audience: { ...form.audience, qualification_status: e.target.value } })
+                            setForm({
+                              ...form,
+                              audience: { ...form.audience, qualification_status: e.target.value },
+                            })
                           }
                           className="h-8 text-xs col-span-2"
                         />
@@ -661,11 +777,18 @@ export function WhatsAppCampaigns() {
             ) : (
               <div className="space-y-1.5">
                 <Label className="text-xs">Template (optional)</Label>
-                <Select value={form.template_id} onValueChange={(v) => setForm({ ...form, template_id: v })}>
-                  <SelectTrigger><SelectValue placeholder="Choose a template…" /></SelectTrigger>
+                <Select
+                  value={form.template_id}
+                  onValueChange={(v) => setForm({ ...form, template_id: v })}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Choose a template…" />
+                  </SelectTrigger>
                   <SelectContent>
                     {(templates as any[]).map((t: any) => (
-                      <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
+                      <SelectItem key={t.id} value={t.id}>
+                        {t.name}
+                      </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
@@ -684,7 +807,9 @@ export function WhatsAppCampaigns() {
             )}
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
+            <Button variant="outline" onClick={() => setOpen(false)}>
+              Cancel
+            </Button>
             <Button onClick={() => create.mutate()} disabled={!canCreate || create.isPending}>
               {create.isPending ? "Creating…" : "Create Campaign"}
             </Button>
@@ -700,14 +825,25 @@ export function WhatsAppCampaigns() {
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={() => del.mutate()} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+            <AlertDialogAction
+              onClick={() => del.mutate()}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
               Delete
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
 
-      <AlertDialog open={!!launchId} onOpenChange={(o) => { if (!o) { setLaunchId(null); setLaunchCampaign(null); } }}>
+      <AlertDialog
+        open={!!launchId}
+        onOpenChange={(o) => {
+          if (!o) {
+            setLaunchId(null);
+            setLaunchCampaign(null);
+          }
+        }}
+      >
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle className="flex items-center gap-2">

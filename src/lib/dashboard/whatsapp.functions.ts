@@ -10,10 +10,20 @@ import {
   phoneTail,
   resolveCampaignAudienceLeads,
   sendWatiTemplateMessage,
+  sendWatiTemplateMessagesBatch,
   type CampaignAudienceFilter,
 } from "@/lib/whatsapp/wati-campaign.server";
 import type { CsvLeadRow } from "@/lib/whatsapp/csv-leads.shared";
+import {
+  extractWatiTemplateParamSlots,
+  validateWatiTemplateParamMapping,
+} from "@/lib/whatsapp/wati-template-params.shared";
 import { assertNotWbahWorkspace } from "@/lib/wbah-exclusion.shared";
+import {
+  forceSyncWatiCampaigns,
+  maybeAutoSyncWatiCampaigns,
+} from "@/lib/whatsapp/wati-sync.server";
+import { reconcileWatiOutboundMessageStatuses } from "@/lib/whatsapp/wati-message-status.server";
 
 // ── Inbox ─────────────────────────────────────────────────────────────────────
 
@@ -387,20 +397,64 @@ export const getWAAnalytics = createServerFn({ method: "GET" })
     if (!workspaceId) return null;
     const sb = supabase as any;
 
-    const { data: msgs } = await sb
-      .from("whatsapp_messages")
-      .select("direction, status, sent_at")
-      .eq("workspace_id", workspaceId);
+    const { data: watiConnRow } = await sb
+      .from("wati_connections")
+      .select("status")
+      .eq("workspace_id", workspaceId)
+      .maybeSingle();
+    if (watiConnRow?.status === "connected") {
+      await maybeAutoSyncWatiCampaigns(workspaceId);
+      try {
+        await reconcileWatiOutboundMessageStatuses(workspaceId);
+      } catch (e) {
+        console.warn("[WA analytics] WATI status reconcile failed:", (e as Error).message);
+      }
+    }
+
+    const [{ data: msgs }, { data: campaigns }, { data: watiCamps }, { data: watiConn }] = await Promise.all([
+      sb.from("whatsapp_messages").select("direction, status, sent_at, provider").eq("workspace_id", workspaceId),
+      sb.from("whatsapp_campaigns").select("stats, provider").eq("workspace_id", workspaceId),
+      sb.from("wati_campaigns").select("sent, delivered, read_count").eq("workspace_id", workspaceId),
+      sb.from("wati_connections").select("status").eq("workspace_id", workspaceId).maybeSingle(),
+    ]);
 
     const all      = (msgs ?? []) as any[];
     const outbound = all.filter((m) => m.direction === "outbound");
     const inbound  = all.filter((m) => m.direction === "inbound");
 
-    const sent      = outbound.length;
-    const delivered = outbound.filter((m) => ["delivered", "read"].includes(m.status)).length;
-    const read      = outbound.filter((m) => m.status === "read").length;
+    let sent      = outbound.length;
+    let delivered = outbound.filter((m) => ["delivered", "read"].includes(m.status)).length;
+    let read      = outbound.filter((m) => m.status === "read").length;
     const responses = inbound.length;
-    const convRate  = sent > 0 ? Math.round((responses / sent) * 100) : 0;
+
+    // Supplement from Webee campaign stats (WATI launches write sent count here)
+    let campaignSent = 0;
+    let campaignDelivered = 0;
+    let campaignRead = 0;
+    for (const c of (campaigns ?? []) as Array<{ stats?: Record<string, number> | null }>) {
+      const s = c.stats ?? {};
+      campaignSent += s.sent ?? 0;
+      campaignDelivered += s.delivered ?? 0;
+      campaignRead += s.read ?? 0;
+    }
+
+    let watiSyncedSent = 0;
+    let watiSyncedDelivered = 0;
+    let watiSyncedRead = 0;
+    for (const c of (watiCamps ?? []) as Array<{ sent?: number; delivered?: number; read_count?: number }>) {
+      watiSyncedSent += c.sent ?? 0;
+      watiSyncedDelivered += c.delivered ?? 0;
+      watiSyncedRead += c.read_count ?? 0;
+    }
+
+    sent = Math.max(sent, campaignSent, watiSyncedSent);
+    delivered = Math.max(delivered, campaignDelivered, watiSyncedDelivered);
+    read = Math.max(read, campaignRead, watiSyncedRead);
+
+    const watiOutbound = outbound.filter((m) => m.provider === "wati");
+    const twilioOutbound = outbound.filter((m) => !m.provider || m.provider === "twilio");
+
+    const convRate = sent > 0 ? Math.round((responses / sent) * 100) : 0;
 
     const now  = new Date();
     const days: { date: string; sent: number; received: number }[] = [];
@@ -416,7 +470,45 @@ export const getWAAnalytics = createServerFn({ method: "GET" })
       });
     }
 
-    return { sent, delivered, read, responses, convRate, days, total: all.length };
+    const watiConnected = watiConn?.status === "connected";
+    const hasData = all.length > 0 || sent > 0 || watiSyncedSent > 0;
+
+    return {
+      sent,
+      delivered,
+      read,
+      responses,
+      convRate,
+      days,
+      total: all.length,
+      watiConnected,
+      hasData,
+      providers: {
+        twilio: {
+          sent: twilioOutbound.length,
+          delivered: twilioOutbound.filter((m) => ["delivered", "read"].includes(m.status)).length,
+          read: twilioOutbound.filter((m) => m.status === "read").length,
+        },
+        wati: {
+          sent: Math.max(watiOutbound.length, campaignSent, watiSyncedSent),
+          delivered: Math.max(
+            watiOutbound.filter((m) => ["delivered", "read"].includes(m.status)).length,
+            campaignDelivered,
+            watiSyncedDelivered,
+          ),
+          read: Math.max(
+            watiOutbound.filter((m) => m.status === "read").length,
+            campaignRead,
+            watiSyncedRead,
+          ),
+        },
+        messages: {
+          sent: outbound.length,
+          delivered: outbound.filter((m) => ["delivered", "read"].includes(m.status)).length,
+          read: outbound.filter((m) => m.status === "read").length,
+        },
+      },
+    };
   });
 
 // ── WhatsApp Agents ───────────────────────────────────────────────────────────
@@ -693,7 +785,7 @@ async function launchWatiCampaignFromWebee(
   sb: any,
   workspaceId: string,
   campaign: Record<string, unknown>,
-): Promise<{ ok: true; sent: number; failed: number; total: number }> {
+): Promise<{ ok: true; sent: number; failed: number; total: number; errors?: string[] }> {
   assertNotWbahWorkspace(workspaceId);
   const conn = await getWatiConnectionForWorkspace(sb, workspaceId);
   if (!conn) throw new Error("WATI not connected — go to Buzzchat → Settings");
@@ -713,6 +805,17 @@ async function launchWatiCampaignFromWebee(
   const broadcastName = String(campaign.wati_broadcast_name ?? campaign.name ?? "webee_campaign");
   const campaignId = String(campaign.id);
 
+  const { data: tplRow } = await sb
+    .from("wati_templates")
+    .select("components, name")
+    .eq("workspace_id", workspaceId)
+    .eq("name", templateName)
+    .maybeSingle();
+
+  const paramSlots = extractWatiTemplateParamSlots(tplRow ?? { name: templateName });
+  const mappingError = validateWatiTemplateParamMapping(paramSlots, mapping);
+  if (mappingError) throw new Error(mappingError);
+
   await sb
     .from("whatsapp_campaigns")
     .update({ status: "running", started_at: new Date().toISOString() })
@@ -722,47 +825,63 @@ async function launchWatiCampaignFromWebee(
   let failed = 0;
   const errors: string[] = [];
 
-  for (const lead of leads) {
-    const phone = normalizeWhatsAppPhone(String(lead.phone ?? ""));
-    if (!phone) {
-      failed++;
-      continue;
-    }
+  const sendItems = leads
+    .map((lead) => {
+      const phone = normalizeWhatsAppPhone(String(lead.phone ?? ""));
+      if (!phone) return null;
+      const parameters = buildWatiTemplateParams(lead, mapping);
+      const bodyPreview =
+        `[Template: ${templateName}] ${parameters.map((p) => p.value).filter(Boolean).join(" · ") || ""}`.trim();
+      return {
+        phone,
+        parameters,
+        leadId: String(lead.id),
+        contactName: (lead.full_name as string | null) ?? null,
+        bodyPreview,
+      };
+    })
+    .filter(Boolean) as Array<{
+    phone: string;
+    parameters: Array<{ name: string; value: string }>;
+    leadId: string;
+    contactName: string | null;
+    bodyPreview: string;
+  }>;
 
-    const parameters = buildWatiTemplateParams(lead, mapping);
-    const result = await sendWatiTemplateMessage({
-      tenantId: conn.tenant_id,
-      apiKey: conn.api_key,
-      toPhone: phone,
-      templateName,
-      parameters,
-      broadcastName,
-    });
+  failed += leads.length - sendItems.length;
 
-    const bodyPreview = `[Template: ${templateName}] ${parameters.map((p) => p.value).filter(Boolean).join(" · ") || ""}`.trim();
+  const { results: sendResults } = await sendWatiTemplateMessagesBatch({
+    tenantId: conn.tenant_id,
+    apiKey: conn.api_key,
+    apiHost: conn.api_host,
+    templateName,
+    broadcastName,
+    items: sendItems,
+  });
 
-    if (result.ok) {
+  const itemByPhone = new Map(sendItems.map((item) => [item.phone, item]));
+
+  for (const result of sendResults) {
+    const item = itemByPhone.get(result.phone);
+    if (result.ok && result.messageId) {
       sent++;
       await sb.from("whatsapp_messages").insert({
         workspace_id: workspaceId,
         external_id: result.messageId,
-        contact_phone: phone,
-        contact_name: (lead.full_name as string | null) ?? null,
-        lead_id: lead.id,
+        contact_phone: result.phone,
+        contact_name: item?.contactName ?? null,
+        lead_id: result.leadId ?? item?.leadId ?? null,
         campaign_id: campaignId,
         direction: "outbound",
-        body: bodyPreview,
+        body: item?.bodyPreview ?? `[Template: ${templateName}]`,
         status: "sent",
         provider: "wati",
         sent_at: new Date().toISOString(),
       });
     } else {
       failed++;
-      if (result.error) errors.push(`${phone}: ${result.error}`);
+      if (result.error) errors.push(`${result.phone}: ${result.error}`);
     }
-
-    // Gentle rate limit — WATI may throttle bulk sends
-    await new Promise((r) => setTimeout(r, 120));
   }
 
   const status = failed > 0 && sent === 0 ? "failed" : "completed";
@@ -782,7 +901,9 @@ async function launchWatiCampaignFromWebee(
     })
     .eq("id", campaignId);
 
-  return { ok: true, sent, failed, total: leads.length };
+  await forceSyncWatiCampaigns(workspaceId);
+
+  return { ok: true, sent, failed, total: leads.length, errors: errors.slice(0, 5) };
 }
 
 export const launchWACampaign = createServerFn({ method: "POST" })
@@ -1075,13 +1196,26 @@ export const sendLeadWhatsappTemplate = createServerFn({ method: "POST" })
     if (!phone) throw new Error("Lead has no phone number");
 
     const mapping = data.templateParams ?? {};
+    const templateName = data.templateName.trim();
+
+    const { data: tplRow } = await sb
+      .from("wati_templates")
+      .select("components, name")
+      .eq("workspace_id", workspaceId)
+      .eq("name", templateName)
+      .maybeSingle();
+
+    const paramSlots = extractWatiTemplateParamSlots(tplRow ?? { name: templateName });
+    const mappingError = validateWatiTemplateParamMapping(paramSlots, mapping);
+    if (mappingError) throw new Error(mappingError);
+
     const parameters = buildWatiTemplateParams(lead, mapping);
     const broadcastName = data.broadcastName ?? `lead_${data.leadId.slice(0, 8)}`;
-    const templateName = data.templateName.trim();
 
     const result = await sendWatiTemplateMessage({
       tenantId: conn.tenant_id,
       apiKey: conn.api_key,
+      apiHost: conn.api_host,
       toPhone: phone,
       templateName,
       parameters,
