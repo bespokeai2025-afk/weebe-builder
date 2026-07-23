@@ -336,6 +336,40 @@ export async function fetchFullPlatformData(sb: any, workspaceId: string) {
     invoiceSales = await getInvoiceSalesSummary(workspaceId);
   } catch {}
 
+  // ── Executive intelligence blocks + data-source health ───────────────────────
+  // Each block is independently wrapped: one failed source degrades honestly to
+  // null (and is listed in dataHealth as degraded) instead of failing the fetch.
+  let calendarIntelligence: any = null;
+  let emailIntelligence: any = null;
+  let onboardingPipeline: any = null;
+  let billingSignals: any = null;
+  let dataHealth: any = null;
+  try {
+    const intel = await import("@/lib/hivemind/exec-intelligence.server");
+    const health = await import("@/lib/hivemind/data-health.server");
+    const [calR, emR, obR, biR, dhR] = await Promise.allSettled([
+      intel.getCalendarIntelligence(workspaceId, isWbah),
+      intel.getEmailIntelligence(workspaceId, isWbah),
+      intel.getOnboardingPipeline(workspaceId),
+      intel.getBillingSignals(workspaceId),
+      health.getWorkspaceDataHealth(workspaceId, isWbah),
+    ]);
+    if (calR.status === "fulfilled") calendarIntelligence = calR.value;
+    else console.error("[HiveMind] calendarIntelligence failed:", (calR as any).reason?.message);
+    if (emR.status === "fulfilled") emailIntelligence = emR.value;
+    else console.error("[HiveMind] emailIntelligence failed:", (emR as any).reason?.message);
+    if (obR.status === "fulfilled") onboardingPipeline = obR.value;
+    else console.error("[HiveMind] onboardingPipeline failed:", (obR as any).reason?.message);
+    if (biR.status === "fulfilled") billingSignals = biR.value;
+    else console.error("[HiveMind] billingSignals failed:", (biR as any).reason?.message);
+    if (dhR.status === "fulfilled") dataHealth = dhR.value;
+    else console.error("[HiveMind] dataHealth failed:", (dhR as any).reason?.message);
+  } catch (e: any) {
+    // Server-only modules unavailable (e.g. called from a context without them) —
+    // blocks stay null and the prompt reports them as unavailable.
+    console.error("[HiveMind] intelligence layer import failed:", e?.message ?? e);
+  }
+
   return {
     agents, agentScores, cfg,
     mode: cfg.hivemind_mode ?? "assistant",
@@ -595,6 +629,11 @@ export async function fetchFullPlatformData(sb: any, workspaceId: string) {
     analyticsSnapshot,
     invoiceSales,
     gadsLive,
+    calendarIntelligence,
+    emailIntelligence,
+    onboardingPipeline,
+    billingSignals,
+    dataHealth,
   };
 }
 
@@ -680,6 +719,27 @@ function buildHiveMindRetrievalQuery(d: any): string {
     if (!d.systemHealth.openai)     gaps.push("OpenAI API key not configured");
     if (!d.systemHealth.whatsapp)   gaps.push("WhatsApp channel not connected");
     if (gaps.length) parts.push(`Provider issues requiring resolution: ${gaps.join(", ")}`);
+  }
+
+  // Data-source freshness gaps + executive exceptions
+  if (d.dataHealth?.sources?.length) {
+    const bad = d.dataHealth.sources.filter((s: any) => s.status === "degraded" || s.status === "disconnected" || s.status === "stale");
+    if (bad.length) parts.push(`Data sources needing attention (${bad.map((s: any) => `${s.source}: ${s.status}`).join(", ")}) — data pipeline and integration troubleshooting`);
+  }
+  if (d.calendarIntelligence) {
+    const ci = d.calendarIntelligence;
+    if (ci.conflicts?.length) parts.push("double-booked calendar appointments — scheduling conflict resolution");
+    if (ci.qualifiedNoBooking?.length) parts.push(`${ci.qualifiedNoBooking.length} qualified leads without a booking — booking conversion tactics`);
+    if (ci.noShows30d > 0) parts.push("appointment no-shows — confirmation and reminder strategies");
+  }
+  if (d.emailIntelligence) {
+    const ei = d.emailIntelligence;
+    if (ei.emails?.failed > 0) parts.push("failed email deliveries — deliverability troubleshooting");
+    if (ei.followUps?.stalled > 0) parts.push("stalled follow-up sequences — sequence recovery");
+    if (ei.conversations?.awaitingReplyCount > 0) parts.push("customer replies awaiting a human response — response time management");
+  }
+  if (d.billingSignals?.flags?.length) {
+    parts.push(`Commercial flags: ${d.billingSignals.flags.join(", ")} — margin management, plan upsell and renewal strategies`);
   }
 
   // Paid ads efficiency
@@ -851,6 +911,65 @@ export function buildPlatformContext(d: any): string {
   const connected = Object.entries(health).filter(([, v]) => v).map(([k]) => k);
   const missing   = Object.entries(health).filter(([, v]) => !v).map(([k]) => k);
   lines.push(`\nSYSTEM: Connected — ${connected.join(", ") || "nothing"}${missing.length ? ` | NOT connected — ${missing.join(", ")}` : ""}`);
+
+  // DATA-SOURCE HEALTH (freshness/degradation — be honest about gaps and staleness)
+  if (d.dataHealth?.sources?.length) {
+    lines.push(`\nDATA-SOURCE HEALTH (computed ${d.dataHealth.computedAt}):`);
+    for (const s of d.dataHealth.sources) {
+      const mark = s.status === "healthy" ? "OK" : s.status.toUpperCase();
+      lines.push(`  • ${s.source}: [${mark}] ${s.detail}`);
+    }
+    lines.push(`  RULE: when a source is stale/degraded/disconnected, say so explicitly instead of presenting its numbers as current; when a block below is unavailable, tell the user which data source is down.`);
+  } else {
+    lines.push(`\nDATA-SOURCE HEALTH: unavailable (health service could not run) — treat per-source freshness as unknown.`);
+  }
+
+  // CALENDAR INTELLIGENCE
+  if (d.calendarIntelligence) {
+    const ci = d.calendarIntelligence;
+    lines.push(`\nCALENDAR INTELLIGENCE:`);
+    lines.push(`  Today: ${ci.todayCount} appointment${ci.todayCount !== 1 ? "s" : ""}${ci.today.length ? ` — ${ci.today.slice(0, 5).map((b: any) => `"${b.title}"${b.attendee ? ` w/ ${b.attendee}` : ""} at ${b.start}`).join("; ")}` : ""}`);
+    lines.push(`  Next 7 days: ${ci.upcoming7d} | Cancellations (30d): ${ci.cancellations30d} | No-shows (30d): ${ci.noShows30d}`);
+    if (ci.unconfirmedSoon?.length) lines.push(`  ⚠ UNCONFIRMED within 48h: ${ci.unconfirmedSoon.map((b: any) => `"${b.title}" at ${b.start}`).join("; ")}`);
+    if (ci.conflicts?.length) lines.push(`  ⚠ DOUBLE-BOOKINGS: ${ci.conflicts.map((c: any) => `"${c.a}" overlaps "${c.b}" (${c.startA})`).join("; ")}`);
+    if (!ci.isWbah && ci.qualifiedNoBooking?.length) lines.push(`  ⚠ Qualified leads with NO booking (${ci.qualifiedNoBooking.length}): ${ci.qualifiedNoBooking.slice(0, 8).map((l: any) => `"${l.name}"`).join(", ")}`);
+    if (ci.avgLeadToBookingHours !== null) lines.push(`  Avg lead→booking lag: ${ci.avgLeadToBookingHours}h`);
+    if (ci.avgBookingToApptHours !== null) lines.push(`  Avg booking→appointment lead time: ${ci.avgBookingToApptHours}h`);
+    if (ci.isWbah) lines.push(`  NOTE (WBAH): bookings derive from wbah_calls, not this calendar — use the bookings figures above for WBAH appointment questions.`);
+  }
+
+  // EMAIL & FOLLOW-UP EXCEPTIONS
+  if (d.emailIntelligence) {
+    const ei = d.emailIntelligence;
+    lines.push(`\nEMAIL & FOLLOW-UP EXCEPTIONS (last ${ei.windowDays}d):`);
+    lines.push(`  Lead emails: ${ei.emails.sent} sent | ${ei.emails.failed} failed${ei.emails.suppressedRecipients.length ? ` | ${ei.emails.suppressedRecipients.length} recipient(s) on the suppression list` : ""}`);
+    if (ei.emails.failedSample?.length) lines.push(`  ⚠ Recent failures: ${ei.emails.failedSample.slice(0, 4).map((f: any) => `${f.to} (${f.error || "unknown"})`).join("; ")}`);
+    lines.push(`  Follow-up sequences: ${ei.followUps.activeEnrollments} active enrollment${ei.followUps.activeEnrollments !== 1 ? "s" : ""}${ei.followUps.stalled ? ` | ⚠ ${ei.followUps.stalled} stalled 7d+ without executing` : ""}`);
+    if (ei.conversations.awaitingReplyCount > 0) {
+      lines.push(`  ⚠ WHATSAPP REPLIES AWAITING HUMAN ACTION (${ei.conversations.awaitingReplyCount}, longest-waiting first):`);
+      for (const c of ei.conversations.awaitingReply.slice(0, 6)) lines.push(`    – ${c.name ?? c.contact}: waiting ${c.waitingHours}h`);
+    }
+    if (ei.conversations.silentCount > 0) lines.push(`  Silent WhatsApp conversations (outbound only, no reply): ${ei.conversations.silentCount}`);
+  }
+
+  // ONBOARDING / SIGNUP PIPELINE
+  if (d.onboardingPipeline) {
+    const ob = d.onboardingPipeline;
+    lines.push(`\nONBOARDING PIPELINE:`);
+    lines.push(`  Checklists: ${ob.checklists} | Incomplete: ${ob.incomplete}${Object.keys(ob.blockedStepCounts ?? {}).length ? ` | Blocked on: ${Object.entries(ob.blockedStepCounts).map(([s, n]) => `${s} (${n})`).join(", ")}` : ""}`);
+    lines.push(`  First campaign created: ${ob.hasFirstCampaign ? "yes" : "NO"} | Calls in last 30d: ${ob.hasRecentCalls ? "yes" : "NO"}`);
+    if (ob.pendingWorkspaceRequests !== null && ob.pendingWorkspaceRequests > 0) lines.push(`  Platform-wide: ${ob.pendingWorkspaceRequests} pending workspace signup request(s) awaiting admin decision.`);
+  }
+
+  // BILLING / COMMERCIAL SIGNALS
+  if (d.billingSignals) {
+    const bs = d.billingSignals;
+    lines.push(`\nBILLING & COMMERCIAL (${bs.month}):`);
+    if (bs.plan) lines.push(`  Plan: ${(bs.plan.chargeCents / 100).toFixed(2)} ${bs.plan.currency}/mo (${bs.plan.status})${bs.plan.contractEndDate ? ` | contract ends ${bs.plan.contractEndDate}` : ""}`);
+    if (bs.currentMonth) lines.push(`  This month: cost ${(bs.currentMonth.totalCostCents / 100).toFixed(2)} | gross profit ${(bs.currentMonth.grossProfitCents / 100).toFixed(2)} | margin ${bs.currentMonth.grossMarginPercent}%`);
+    if (bs.usage.includedMinutes > 0) lines.push(`  Voice minutes: ${bs.usage.minutesUsed} used of ${bs.usage.includedMinutes} included (projected ${bs.usage.projectedMinutes} by month end)`);
+    if (bs.flags.length) lines.push(`  ⚠ FLAGS: ${bs.flags.join(", ")}`);
+  }
 
   // GROWTHMIND EXECUTIVE SUMMARY (injected from marketing intelligence engine)
   if (d.growthMind) {
