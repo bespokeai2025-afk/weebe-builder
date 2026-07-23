@@ -111,6 +111,51 @@ export type Database = {
           },
         ]
       }
+      accountsmind_credit_notes: {
+        Row: {
+          amount_cents: number
+          created_at: string
+          created_by_user_id: string | null
+          credit_note_number: string
+          currency: string
+          id: string
+          invoice_id: string
+          kind: string
+          reason: string
+          status: string
+          updated_at: string
+          workspace_id: string
+        }
+        Insert: {
+          amount_cents: number
+          created_at?: string
+          created_by_user_id?: string | null
+          credit_note_number: string
+          currency?: string
+          id?: string
+          invoice_id: string
+          kind?: string
+          reason: string
+          status?: string
+          updated_at?: string
+          workspace_id: string
+        }
+        Update: {
+          amount_cents?: number
+          created_at?: string
+          created_by_user_id?: string | null
+          credit_note_number?: string
+          currency?: string
+          id?: string
+          invoice_id?: string
+          kind?: string
+          reason?: string
+          status?: string
+          updated_at?: string
+          workspace_id?: string
+        }
+        Relationships: []
+      }
       accountsmind_field_defs: {
         Row: {
           appears_in: string
@@ -382,29 +427,35 @@ export type Database = {
       accountsmind_invoice_templates: {
         Row: {
           created_at: string
+          fields_json: Json
           file_name: string
           id: string
           name: string
           placeholders_json: Json
           storage_path: string
+          template_type: string
           uploaded_by_user_id: string | null
         }
         Insert: {
           created_at?: string
+          fields_json?: Json
           file_name: string
           id?: string
           name: string
           placeholders_json?: Json
           storage_path: string
+          template_type?: string
           uploaded_by_user_id?: string | null
         }
         Update: {
           created_at?: string
+          fields_json?: Json
           file_name?: string
           id?: string
           name?: string
           placeholders_json?: Json
           storage_path?: string
+          template_type?: string
           uploaded_by_user_id?: string | null
         }
         Relationships: []
@@ -415,6 +466,7 @@ export type Database = {
           client_name: string
           client_reference: string
           created_at: string
+          credited_cents: number
           currency: string
           customer_notes: string
           data_json: Json
@@ -427,12 +479,16 @@ export type Database = {
           invoice_number: string
           is_imported: boolean
           issue_date: string | null
+          last_emailed_at: string | null
+          last_emailed_to: string | null
           line_items_json: Json
           paid_at: string | null
           payment_profile_id: string | null
           payment_terms: string
           po_number: string
+          recurring_id: string | null
           sent_at: string | null
+          source: string
           status: string
           status_updated_at: string | null
           storage_path: string
@@ -449,6 +505,7 @@ export type Database = {
           client_name: string
           client_reference?: string
           created_at?: string
+          credited_cents?: number
           currency?: string
           customer_notes?: string
           data_json?: Json
@@ -461,12 +518,16 @@ export type Database = {
           invoice_number: string
           is_imported?: boolean
           issue_date?: string | null
+          last_emailed_at?: string | null
+          last_emailed_to?: string | null
           line_items_json?: Json
           paid_at?: string | null
           payment_profile_id?: string | null
           payment_terms?: string
           po_number?: string
+          recurring_id?: string | null
           sent_at?: string | null
+          source?: string
           status?: string
           status_updated_at?: string | null
           storage_path: string
@@ -483,6 +544,7 @@ export type Database = {
           client_name?: string
           client_reference?: string
           created_at?: string
+          credited_cents?: number
           currency?: string
           customer_notes?: string
           data_json?: Json
@@ -495,12 +557,16 @@ export type Database = {
           invoice_number?: string
           is_imported?: boolean
           issue_date?: string | null
+          last_emailed_at?: string | null
+          last_emailed_to?: string | null
           line_items_json?: Json
           paid_at?: string | null
           payment_profile_id?: string | null
           payment_terms?: string
           po_number?: string
+          recurring_id?: string | null
           sent_at?: string | null
+          source?: string
           status?: string
           status_updated_at?: string | null
           storage_path?: string
@@ -619,6 +685,66 @@ export type Database = {
           sort_code?: string
           swift_bic?: string
           updated_at?: string
+        }
+        Relationships: []
+      }
+      accountsmind_recurring_invoices: {
+        Row: {
+          active: boolean
+          created_at: string
+          created_by_user_id: string | null
+          currency: string
+          customer_notes: string
+          day_of_month: number
+          due_days: number
+          id: string
+          items_json: Json
+          last_generated_month: string | null
+          name: string
+          payment_profile_id: string | null
+          payment_terms: string
+          tax_mode: string
+          template_id: string | null
+          updated_at: string
+          workspace_id: string
+        }
+        Insert: {
+          active?: boolean
+          created_at?: string
+          created_by_user_id?: string | null
+          currency?: string
+          customer_notes?: string
+          day_of_month?: number
+          due_days?: number
+          id?: string
+          items_json?: Json
+          last_generated_month?: string | null
+          name: string
+          payment_profile_id?: string | null
+          payment_terms?: string
+          tax_mode?: string
+          template_id?: string | null
+          updated_at?: string
+          workspace_id: string
+        }
+        Update: {
+          active?: boolean
+          created_at?: string
+          created_by_user_id?: string | null
+          currency?: string
+          customer_notes?: string
+          day_of_month?: number
+          due_days?: number
+          id?: string
+          items_json?: Json
+          last_generated_month?: string | null
+          name?: string
+          payment_profile_id?: string | null
+          payment_terms?: string
+          tax_mode?: string
+          template_id?: string | null
+          updated_at?: string
+          workspace_id?: string
         }
         Relationships: []
       }

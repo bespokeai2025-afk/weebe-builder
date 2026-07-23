@@ -18,8 +18,10 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { Loader2, Plus, Copy, Archive, ArchiveRestore, Pencil, Users, Trash2 } from "lucide-react";
+import { Loader2, Plus, Copy, Archive, ArchiveRestore, Pencil, Users, Trash2, FileDown, FileUp } from "lucide-react";
 import { toast } from "sonner";
+import { useRef } from "react";
+import { exportServicesCsv, importServicesCsv } from "@/lib/accountsmind/invoice-suite-phase3.functions";
 
 const emptySvc = () => ({
   id: null as string | null,
@@ -48,6 +50,81 @@ export function ServicesTab() {
   const savePriceFn = useServerFn(saveClientServicePrice);
   const delPriceFn = useServerFn(deleteClientServicePrice);
   const clientsFn = useServerFn(listAccountsClients);
+  const exportCsvFn = useServerFn(exportServicesCsv);
+  const importCsvFn = useServerFn(importServicesCsv);
+  const fileRef = useRef<HTMLInputElement | null>(null);
+  const [csvBusy, setCsvBusy] = useState(false);
+
+  const exportCsv = async () => {
+    setCsvBusy(true);
+    try {
+      const res: any = await exportCsvFn();
+      if (!res?.ok) { toast.error(res?.error ?? "Export failed"); return; }
+      const blob = new Blob([res.csv], { type: "text/csv;charset=utf-8" });
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = `services-${new Date().toISOString().slice(0, 10)}.csv`;
+      a.click();
+      URL.revokeObjectURL(a.href);
+      toast.success(`Exported ${res.count} services`);
+    } finally { setCsvBusy(false); }
+  };
+
+  const parseCsvLine = (line: string): string[] => {
+    const out: string[] = [];
+    let cur = "", inQ = false;
+    for (let i = 0; i < line.length; i++) {
+      const ch = line[i];
+      if (inQ) {
+        if (ch === '"' && line[i + 1] === '"') { cur += '"'; i++; }
+        else if (ch === '"') inQ = false;
+        else cur += ch;
+      } else if (ch === '"') inQ = true;
+      else if (ch === ",") { out.push(cur); cur = ""; }
+      else cur += ch;
+    }
+    out.push(cur);
+    return out;
+  };
+
+  const importCsv = async (file: File) => {
+    setCsvBusy(true);
+    try {
+      const text = await file.text();
+      const lines = text.split(/\r?\n/).filter((l) => l.trim());
+      if (lines.length < 2) { toast.error("CSV needs a header row plus at least one service row."); return; }
+      const header = parseCsvLine(lines[0]).map((h) => h.trim().toLowerCase().replace(/[^a-z0-9]/g, ""));
+      const col = (name: string) => header.indexOf(name);
+      const iName = col("name"), iSku = col("sku"), iCat = col("category"), iUnit = col("unit"),
+        iPrice = header.findIndex((h) => h.includes("price")), iCur = col("currency"),
+        iTax = header.findIndex((h) => h.includes("tax") || h.includes("vat"));
+      if (iName < 0 || iPrice < 0) { toast.error('CSV must have "name" and a price column (e.g. "unit_price").'); return; }
+      const rows = lines.slice(1).map((l) => {
+        const c = parseCsvLine(l);
+        const priceRaw = (c[iPrice] ?? "0").replace(/[£$€,\s]/g, "");
+        return {
+          name: (c[iName] ?? "").trim(),
+          sku: iSku >= 0 ? (c[iSku] ?? "").trim() : "",
+          category: iCat >= 0 ? (c[iCat] ?? "").trim() : "",
+          unit: iUnit >= 0 && (c[iUnit] ?? "").trim() ? (c[iUnit] ?? "").trim() : "each",
+          unitPriceCents: Math.round(Number(priceRaw || 0) * 100),
+          currency: iCur >= 0 && (c[iCur] ?? "").trim() ? (c[iCur] ?? "").trim().toUpperCase() : "GBP",
+          taxRatePercent: iTax >= 0 && (c[iTax] ?? "").trim() !== "" ? Number(c[iTax]) : 20,
+        };
+      }).filter((r) => r.name && Number.isFinite(r.unitPriceCents) && r.unitPriceCents >= 0);
+      if (rows.length === 0) { toast.error("No valid service rows found in the CSV."); return; }
+      const res: any = await importCsvFn({ data: { rows } });
+      if (!res?.ok) { toast.error(res?.error ?? "Import failed"); return; }
+      toast.success(`Imported: ${res.created} new, ${res.updated} updated${res.failed?.length ? `, ${res.failed.length} failed` : ""}`);
+      if (res.failed?.length) console.warn("Service CSV import failures:", res.failed);
+      invalidate();
+    } catch (e: any) {
+      toast.error(e?.message ?? "Import failed");
+    } finally {
+      setCsvBusy(false);
+      if (fileRef.current) fileRef.current.value = "";
+    }
+  };
 
   const [showArchived, setShowArchived] = useState(false);
   const { data } = useQuery({
@@ -147,6 +224,13 @@ export function ServicesTab() {
           <label className="flex items-center gap-2 text-xs text-slate-400">
             <Switch checked={showArchived} onCheckedChange={setShowArchived} /> Show archived
           </label>
+          <input ref={fileRef} type="file" accept=".csv" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) importCsv(f); }} />
+          <Button size="sm" variant="outline" disabled={csvBusy} className="border-slate-700 text-slate-300 hover:bg-slate-800" onClick={() => fileRef.current?.click()}>
+            {csvBusy ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileUp className="w-4 h-4" />} Import CSV
+          </Button>
+          <Button size="sm" variant="outline" disabled={csvBusy} className="border-slate-700 text-slate-300 hover:bg-slate-800" onClick={exportCsv}>
+            <FileDown className="w-4 h-4" /> Export CSV
+          </Button>
           <Button size="sm" onClick={() => openEdit()} className="bg-emerald-600 hover:bg-emerald-500"><Plus className="w-4 h-4" /> New service</Button>
         </div>
       </div>

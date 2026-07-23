@@ -2,11 +2,13 @@ import { useMemo, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { listInvoiceTemplates, uploadInvoiceTemplate, deleteInvoiceTemplate } from "@/lib/accountsmind/invoices.functions";
+import { testRenderInvoiceTemplate } from "@/lib/accountsmind/invoice-suite-extras.functions";
 import { inputCls } from "./invoice-ui.shared";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Loader2, Upload, Trash2, Copy, Check, AlertTriangle, FileText, Search } from "lucide-react";
+import { Loader2, Upload, Trash2, Copy, Check, AlertTriangle, FileText, Search, Eye, LayoutTemplate } from "lucide-react";
 import { toast } from "sonner";
+import { PdfOverlayEditor } from "./PdfOverlayEditor";
 
 /** Grouped placeholder reference — mirrors the payload built in generateInvoiceDocument. */
 const FIELD_GROUPS: Array<{ group: string; fields: Array<{ tag: string; label: string }> }> = [
@@ -99,6 +101,23 @@ export function TemplatesTab() {
   const listFn = useServerFn(listInvoiceTemplates);
   const uploadFn = useServerFn(uploadInvoiceTemplate);
   const delFn = useServerFn(deleteInvoiceTemplate);
+  const testFn = useServerFn(testRenderInvoiceTemplate);
+  const [testingId, setTestingId] = useState<string | null>(null);
+
+  const testRender = async (t: any) => {
+    setTestingId(t.id);
+    try {
+      const res: any = await testFn({ data: { templateId: t.id } });
+      if (res?.ok && res.downloadUrl) {
+        toast.success("Sample invoice rendered — downloading");
+        window.open(res.downloadUrl, "_blank");
+      } else {
+        toast.error(res?.error ?? "Test render failed");
+      }
+    } finally {
+      setTestingId(null);
+    }
+  };
 
   const { data } = useQuery({ queryKey: ["am-invoice-templates"], queryFn: () => listFn(), throwOnError: false });
   const templates: any[] = (data as any)?.templates ?? (Array.isArray(data) ? (data as any) : []);
@@ -107,16 +126,17 @@ export function TemplatesTab() {
   const [tplFile, setTplFile] = useState<File | null>(null);
   const [copied, setCopied] = useState("");
   const [fieldSearch, setFieldSearch] = useState("");
+  const [designTpl, setDesignTpl] = useState<any | null>(null);
 
   const uploadMut = useMutation({
     mutationFn: async () => {
-      if (!tplFile) throw new Error("Choose a .docx file.");
+      if (!tplFile) throw new Error("Choose a .docx or .pdf file.");
       const bytes = new Uint8Array(await tplFile.arrayBuffer());
       let binary = "";
       const chunk = 0x8000;
       for (let i = 0; i < bytes.length; i += chunk) binary += String.fromCharCode(...bytes.subarray(i, i + chunk));
       const res: any = await uploadFn({
-        data: { name: tplName.trim() || tplFile.name.replace(/\.docx$/i, ""), fileName: tplFile.name, fileBase64: btoa(binary) },
+        data: { name: tplName.trim() || tplFile.name.replace(/\.(docx|pdf)$/i, ""), fileName: tplFile.name, fileBase64: btoa(binary) },
       });
       if (!res?.ok) throw new Error(res?.error ?? "Upload failed");
     },
@@ -142,16 +162,16 @@ export function TemplatesTab() {
       {/* Left: upload + list */}
       <div className="space-y-4">
         <section className="rounded-xl border border-slate-800 bg-slate-900/60 p-4 space-y-3">
-          <h2 className="text-sm font-medium text-white flex items-center gap-2"><FileText className="w-4 h-4 text-sky-400" /> Upload a Word template</h2>
-          <p className="text-xs text-slate-500">Design your invoice in Word, drop in placeholders from the field reference, and upload it here. PDFs use the built-in layout and need no template.</p>
+          <h2 className="text-sm font-medium text-white flex items-center gap-2"><FileText className="w-4 h-4 text-sky-400" /> Upload a template</h2>
+          <p className="text-xs text-slate-500">Upload a <span className="text-slate-300">.docx</span> Word template with placeholders, or a <span className="text-slate-300">.pdf</span> invoice design — for PDFs you then drag dynamic fields onto the design with the layout designer.</p>
           <div className="flex flex-wrap items-end gap-3">
             <div className="space-y-1">
               <label className="text-xs text-slate-400">Template name</label>
               <Input value={tplName} onChange={(e) => setTplName(e.target.value)} placeholder="Standard invoice" className={`w-52 ${inputCls}`} />
             </div>
             <div className="space-y-1">
-              <label className="text-xs text-slate-400">.docx file</label>
-              <Input type="file" accept=".docx" onChange={(e) => setTplFile(e.target.files?.[0] ?? null)} className={`w-64 ${inputCls} text-slate-300 file:text-slate-300`} />
+              <label className="text-xs text-slate-400">.docx or .pdf file</label>
+              <Input type="file" accept=".docx,.pdf" onChange={(e) => setTplFile(e.target.files?.[0] ?? null)} className={`w-64 ${inputCls} text-slate-300 file:text-slate-300`} />
             </div>
             <Button size="sm" disabled={!tplFile || uploadMut.isPending} onClick={() => uploadMut.mutate()} className="bg-sky-600 hover:bg-sky-500">
               {uploadMut.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />} Upload
@@ -172,9 +192,22 @@ export function TemplatesTab() {
                   <li key={t.id} className="py-2.5">
                     <div className="flex items-center justify-between gap-3">
                       <div className="min-w-0">
-                        <p className="text-sm text-white truncate">{t.name}</p>
+                        <p className="text-sm text-white truncate">
+                          {t.name}
+                          <span className="ml-2 rounded bg-slate-800 px-1.5 py-0.5 text-[10px] text-slate-400 align-middle">
+                            {t.template_type === "pdf_overlay" ? "PDF overlay" : "Word"}
+                          </span>
+                        </p>
                         <p className="text-xs text-slate-500 truncate">{t.file_name}</p>
                       </div>
+                      {t.template_type === "pdf_overlay" && (
+                        <Button size="sm" variant="ghost" title="Open layout designer" className="text-sky-300 hover:text-sky-200 shrink-0" onClick={() => setDesignTpl(t)}>
+                          <LayoutTemplate className="w-4 h-4" />
+                        </Button>
+                      )}
+                      <Button size="sm" variant="ghost" title="Test render with sample data" className="text-teal-300 hover:text-teal-200 shrink-0" disabled={testingId === t.id} onClick={() => testRender(t)}>
+                        {testingId === t.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Eye className="w-4 h-4" />}
+                      </Button>
                       <Button size="sm" variant="ghost" className="text-red-400 hover:text-red-300 shrink-0"
                         onClick={async () => {
                           const res: any = await delFn({ data: { id: t.id } });
@@ -238,6 +271,13 @@ export function TemplatesTab() {
           ))}
         </div>
       </section>
+
+      <PdfOverlayEditor
+        template={designTpl}
+        open={!!designTpl}
+        onClose={() => setDesignTpl(null)}
+        onSaved={() => qc.invalidateQueries({ queryKey: ["am-invoice-templates"] })}
+      />
     </div>
   );
 }

@@ -19,8 +19,14 @@ import { Textarea } from "@/components/ui/textarea";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from "@/components/ui/dialog";
-import { Download, Loader2, Copy, Trash2, Banknote, Send, Ban, Pencil, CheckCircle2 } from "lucide-react";
+import { Download, Loader2, Copy, Trash2, Banknote, Send, Ban, Pencil, CheckCircle2, Mail, Upload, FileMinus2, FileDown } from "lucide-react";
 import { toast } from "sonner";
+import { EmailInvoiceDialog } from "./EmailInvoiceDialog";
+import { ImportInvoiceDialog } from "./ImportInvoiceDialog";
+import { RecurringInvoicesSection } from "./RecurringInvoicesSection";
+import { CreditNoteDialog } from "./CreditNoteDialog";
+import { InvoiceInsightsPanel } from "./InvoiceInsightsPanel";
+import { exportInvoicesCsv } from "@/lib/accountsmind/invoice-suite-phase3.functions";
 
 const FILTER_STATUSES = ["draft", "ready", "sent", "viewed", "partially_paid", "paid", "overdue", "cancelled", "void", "refunded"];
 
@@ -89,6 +95,28 @@ export function InvoicesDashboardTab({ onEditDraft }: { onEditDraft: (id: string
     },
     onError: (e: any) => toast.error(e?.message ?? "Payment failed"),
   });
+
+  // ── Email + import + credit note dialogs ──
+  const [emailInv, setEmailInv] = useState<any>(null);
+  const [importOpen, setImportOpen] = useState(false);
+  const [creditInv, setCreditInv] = useState<any>(null);
+  const [exporting, setExporting] = useState(false);
+  const csvFn = useServerFn(exportInvoicesCsv);
+
+  const exportCsv = async () => {
+    setExporting(true);
+    try {
+      const res: any = await csvFn({ data: { status: status || null, workspaceId: workspaceId || null } });
+      if (!res?.ok) { toast.error(res?.error ?? "Export failed"); return; }
+      const blob = new Blob([res.csv], { type: "text/csv;charset=utf-8" });
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = `invoices-${new Date().toISOString().slice(0, 10)}.csv`;
+      a.click();
+      URL.revokeObjectURL(a.href);
+      toast.success(`Exported ${res.count} invoices`);
+    } finally { setExporting(false); }
+  };
 
   // ── Cancel/void dialog ──
   const [voidInv, setVoidInv] = useState<any>(null);
@@ -173,7 +201,17 @@ export function InvoicesDashboardTab({ onEditDraft }: { onEditDraft: (id: string
         <label className="flex items-center gap-2 text-xs text-slate-400 pb-2">
           <input type="checkbox" checked={unpaidOnly} onChange={(e) => setUnpaidOnly(e.target.checked)} className="accent-amber-500" /> Unpaid only
         </label>
+        <div className="flex-1" />
+        <Button size="sm" variant="outline" className="border-slate-700 text-slate-300 hover:bg-slate-800 h-9" disabled={exporting} onClick={exportCsv}>
+          {exporting ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileDown className="w-4 h-4" />} Export CSV
+        </Button>
+        <Button size="sm" variant="outline" className="border-slate-700 text-slate-300 hover:bg-slate-800 h-9" onClick={() => setImportOpen(true)}>
+          <Upload className="w-4 h-4" /> Import invoice
+        </Button>
       </div>
+
+      {/* AccountsMind intelligence */}
+      <InvoiceInsightsPanel />
 
       {/* Table */}
       <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-4">
@@ -204,7 +242,8 @@ export function InvoicesDashboardTab({ onEditDraft }: { onEditDraft: (id: string
                 {invoices.map((inv) => {
                   const cur = inv.currency ?? "GBP";
                   const paid = Number(inv.amount_paid_cents ?? 0);
-                  const balance = Number(inv.total_cents ?? 0) - paid;
+                  const credited = Number(inv.credited_cents ?? 0);
+                  const balance = Math.max(0, Number(inv.total_cents ?? 0) - paid - credited);
                   const allowed: string[] = STATUS_TRANSITIONS[inv.status] ?? [];
                   return (
                     <tr key={inv.id} className="border-b border-slate-800/60">
@@ -225,13 +264,17 @@ export function InvoicesDashboardTab({ onEditDraft }: { onEditDraft: (id: string
                           <Button size="sm" variant="ghost" title="Edit draft" className="text-slate-300 h-7 px-1.5" onClick={() => onEditDraft(inv.id)}><Pencil className="w-4 h-4" /></Button>
                         )}
                         <Button size="sm" variant="ghost" title={inv.status === "draft" ? "Generate PDF" : "Download"} className="text-sky-400 h-7 px-1.5" onClick={() => download(inv)}><Download className="w-4 h-4" /></Button>
+                        {!["draft", "cancelled", "void"].includes(inv.status) && (
+                          <Button size="sm" variant="ghost" title={inv.last_emailed_at ? `Emailed ${new Date(inv.last_emailed_at).toLocaleDateString("en-GB")}` : "Email to client"} className={`h-7 px-1.5 ${inv.last_emailed_at ? "text-emerald-300" : "text-indigo-300"}`} onClick={() => setEmailInv(inv)}><Mail className="w-4 h-4" /></Button>
+                        )}
                         {allowed.includes("sent") && (
                           <Button size="sm" variant="ghost" title="Mark sent" className="text-sky-300 h-7 px-1.5" onClick={() => quickStatus(inv, "sent")}><Send className="w-4 h-4" /></Button>
                         )}
                         {!["draft", "paid", "cancelled", "void", "refunded"].includes(inv.status) && (
                           <>
-                            <Button size="sm" variant="ghost" title="Record payment" className="text-teal-300 h-7 px-1.5" onClick={() => { setPayInv(inv); setPayAmount(((Number(inv.total_cents) - paid) / 100).toFixed(2)); }}><Banknote className="w-4 h-4" /></Button>
+                            <Button size="sm" variant="ghost" title="Record payment" className="text-teal-300 h-7 px-1.5" onClick={() => { setPayInv(inv); setPayAmount((balance / 100).toFixed(2)); }}><Banknote className="w-4 h-4" /></Button>
                             <Button size="sm" variant="ghost" title="Mark paid" className="text-emerald-400 h-7 px-1.5" onClick={() => quickStatus(inv, "paid")}><CheckCircle2 className="w-4 h-4" /></Button>
+                            <Button size="sm" variant="ghost" title="Credit note / write-off" className="text-amber-300 h-7 px-1.5" onClick={() => setCreditInv(inv)}><FileMinus2 className="w-4 h-4" /></Button>
                           </>
                         )}
                         <Button
@@ -268,6 +311,13 @@ export function InvoicesDashboardTab({ onEditDraft }: { onEditDraft: (id: string
           </div>
         )}
       </div>
+
+      {/* Recurring invoices */}
+      <RecurringInvoicesSection clients={clients as any[]} />
+
+      <EmailInvoiceDialog invoice={emailInv} onClose={() => setEmailInv(null)} onSent={invalidate} />
+      <ImportInvoiceDialog open={importOpen} onClose={() => setImportOpen(false)} clients={clients as any[]} onImported={invalidate} />
+      <CreditNoteDialog invoice={creditInv} onClose={() => setCreditInv(null)} onDone={() => { invalidate(); qc.invalidateQueries({ queryKey: ["am-invoice-insights"] }); }} />
 
       {/* Record payment dialog */}
       <Dialog open={!!payInv} onOpenChange={(o) => !o && setPayInv(null)}>

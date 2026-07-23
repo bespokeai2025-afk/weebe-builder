@@ -63,21 +63,31 @@ export const uploadInvoiceTemplate = createServerFn({ method: "POST" })
   )
   .handler(async ({ data, context }) => {
     const userId = (context as any).userId ?? null;
-    if (!/\.docx$/i.test(data.fileName)) {
-      return { ok: false as const, error: "Template must be a .docx Word file." };
+    const isPdf = /\.pdf$/i.test(data.fileName);
+    if (!isPdf && !/\.docx$/i.test(data.fileName)) {
+      return { ok: false as const, error: "Template must be a .docx Word file or a .pdf design." };
     }
     const buf = Buffer.from(data.fileBase64, "base64");
-    // Validate it's a real docx and the template parses.
+    // Validate the file really parses before storing anything.
     let placeholders: string[] = [];
-    try {
-      const { default: PizZip } = await import("pizzip");
-      const { default: Docxtemplater } = await import("docxtemplater");
-      const zip = new PizZip(buf);
-      new Docxtemplater(zip, { paragraphLoop: true, linebreaks: true });
-      const docXml = zip.file("word/document.xml")?.asText() ?? "";
-      placeholders = extractTags(docXml);
-    } catch (err: any) {
-      return { ok: false as const, error: `Not a valid Word template: ${err?.message ?? "parse failed"}` };
+    if (isPdf) {
+      try {
+        const { inspectPdfBackground } = await import("@/lib/accountsmind/invoice-pdf-overlay.server");
+        await inspectPdfBackground(buf);
+      } catch (err: any) {
+        return { ok: false as const, error: `Not a valid PDF: ${err?.message ?? "parse failed"}` };
+      }
+    } else {
+      try {
+        const { default: PizZip } = await import("pizzip");
+        const { default: Docxtemplater } = await import("docxtemplater");
+        const zip = new PizZip(buf);
+        new Docxtemplater(zip, { paragraphLoop: true, linebreaks: true });
+        const docXml = zip.file("word/document.xml")?.asText() ?? "";
+        placeholders = extractTags(docXml);
+      } catch (err: any) {
+        return { ok: false as const, error: `Not a valid Word template: ${err?.message ?? "parse failed"}` };
+      }
     }
 
     await ensureBucket();
@@ -86,7 +96,9 @@ export const uploadInvoiceTemplate = createServerFn({ method: "POST" })
     const { error: upErr } = await (supabaseAdmin as any).storage
       .from(BUCKET)
       .upload(storagePath, buf, {
-        contentType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        contentType: isPdf
+          ? "application/pdf"
+          : "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
       });
     if (upErr) return { ok: false as const, error: upErr.message };
 
@@ -97,6 +109,8 @@ export const uploadInvoiceTemplate = createServerFn({ method: "POST" })
         file_name: data.fileName,
         storage_path: storagePath,
         placeholders_json: placeholders,
+        template_type: isPdf ? "pdf_overlay" : "docx",
+        fields_json: [],
         uploaded_by_user_id: userId,
       })
       .select("*")

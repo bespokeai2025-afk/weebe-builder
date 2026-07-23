@@ -36,15 +36,38 @@ async function writeAudit(
   actorUserId: string | null,
 ): Promise<void> {
   try {
-    await sb.from("accountsmind_invoice_audit_log").insert({
+    const { error } = await sb.from("accountsmind_invoice_audit_log").insert({
       invoice_id: invoiceId,
       action,
       detail_json: detail,
       actor_user_id: actorUserId,
     });
-  } catch {
-    // Audit writes are best-effort; never block the main operation.
+    if (error) console.error(`[invoice-audit] best-effort write failed (${action}):`, error.message);
+  } catch (err: any) {
+    console.error(`[invoice-audit] best-effort write threw (${action}):`, err?.message);
   }
+}
+
+/**
+ * Strict audit write for critical financial actions (status changes, payments,
+ * issuance). Written BEFORE the mutation — if the audit row cannot be written,
+ * the operation is aborted so the audit trail can never lag a critical change.
+ * Returns an error message on failure, null on success.
+ */
+async function writeAuditStrict(
+  sb: any,
+  invoiceId: string,
+  action: string,
+  detail: Record<string, unknown>,
+  actorUserId: string | null,
+): Promise<string | null> {
+  const { error } = await sb.from("accountsmind_invoice_audit_log").insert({
+    invoice_id: invoiceId,
+    action,
+    detail_json: detail,
+    actor_user_id: actorUserId,
+  });
+  return error ? `Audit log write failed — operation aborted: ${error.message}` : null;
 }
 
 // ── Business profile ─────────────────────────────────────────────────────────
@@ -523,6 +546,12 @@ export const generateInvoiceDocument = createServerFn({ method: "POST" })
     if (data.format === "docx" && !inv.template_id) {
       return { ok: false as const, error: "Attach a Word template to this invoice, or generate a PDF (built-in layout)." };
     }
+    if (data.format === "docx" && inv.template_id) {
+      const { data: tplKind } = await sb.from("accountsmind_invoice_templates").select("template_type").eq("id", inv.template_id).maybeSingle();
+      if (tplKind?.template_type === "pdf_overlay") {
+        return { ok: false as const, error: "This invoice uses a PDF overlay template — generate a PDF instead of a Word document." };
+      }
+    }
 
     const [{ data: settings }, { data: profile }, { data: payProfile }, { data: tpl }] = await Promise.all([
       sb.from("accountsmind_invoice_settings").select("*").eq("id", 1).maybeSingle(),
@@ -623,7 +652,21 @@ export const generateInvoiceDocument = createServerFn({ method: "POST" })
     };
 
     let outBuf: Buffer;
-    if (data.format === "pdf") {
+    if (data.format === "pdf" && tpl?.template_type === "pdf_overlay") {
+      // PDF-overlay template: uploaded design as background + positioned fields.
+      const fields: any[] = Array.isArray(tpl.fields_json) ? tpl.fields_json : [];
+      if (fields.length === 0) {
+        return { ok: false as const, error: "This PDF template has no fields placed yet — open the layout designer in the Templates tab first." };
+      }
+      const { data: bgFile, error: bgErr } = await sb.storage.from(BUCKET).download(tpl.storage_path);
+      if (bgErr || !bgFile) return { ok: false as const, error: `Could not load template background: ${bgErr?.message ?? "missing file"}` };
+      try {
+        const { renderPdfOverlay } = await import("@/lib/accountsmind/invoice-pdf-overlay.server");
+        outBuf = await renderPdfOverlay(Buffer.from(await bgFile.arrayBuffer()), fields, payload);
+      } catch (err: any) {
+        return { ok: false as const, error: `PDF overlay render failed: ${err?.message ?? "render error"}` };
+      }
+    } else if (data.format === "pdf") {
       try {
         const { renderInvoicePdf } = await import("@/lib/accountsmind/invoice-pdf.server");
         outBuf = await renderInvoicePdf({
@@ -697,6 +740,9 @@ export const generateInvoiceDocument = createServerFn({ method: "POST" })
       patch.status = "ready";
       patch.issue_date = inv.issue_date ?? new Date().toISOString().slice(0, 10);
       patch.status_updated_at = new Date().toISOString();
+      // Issuance is a critical lifecycle change — audit must land before it.
+      const auditErr = await writeAuditStrict(sb, inv.id, "status_changed", { from: "draft", to: "ready", reason: "document generated" }, userId);
+      if (auditErr) return { ok: false as const, error: auditErr };
     }
     const { data: finalRow, error } = await sb.from("accountsmind_invoices").update(patch).eq("id", inv.id).select("*").maybeSingle();
     if (error) return { ok: false as const, error: error.message };
@@ -728,12 +774,32 @@ export const recordInvoicePayment = createServerFn({ method: "POST" })
 
     const { data: inv } = await sb
       .from("accountsmind_invoices")
-      .select("id,total_cents,amount_paid_cents,status,currency,workspace_id")
+      .select("id,total_cents,amount_paid_cents,credited_cents,status,currency,workspace_id")
       .eq("id", data.invoiceId)
       .maybeSingle();
     if (!inv) return { ok: false as const, error: "Invoice not found." };
     if (inv.status === "draft") return { ok: false as const, error: "Issue the invoice before recording payments." };
     if (["cancelled", "void"].includes(inv.status)) return { ok: false as const, error: "Cannot record payments on a cancelled/void invoice." };
+    if (inv.status === "refunded") return { ok: false as const, error: "This invoice was refunded — duplicate it to bill again." };
+    if (inv.status === "paid") return { ok: false as const, error: "This invoice is already fully paid." };
+
+    // Outstanding = total − paid − credited (credit notes/write-offs reduce what is owed).
+    const remainingCents = Math.max(0, Number(inv.total_cents ?? 0) - Number(inv.amount_paid_cents ?? 0) - Number(inv.credited_cents ?? 0));
+    if (data.amountCents > remainingCents) {
+      return {
+        ok: false as const,
+        error: `Payment exceeds the outstanding balance (${formatMoneyCents(remainingCents, String(inv.currency ?? "GBP"))} remaining).`,
+      };
+    }
+
+    const auditErr = await writeAuditStrict(
+      sb,
+      inv.id,
+      "payment_recorded",
+      { amount_cents: data.amountCents, method: data.method, reference: data.reference, paid_on: data.paidOn ?? null },
+      userId,
+    );
+    if (auditErr) return { ok: false as const, error: auditErr };
 
     const { error: payErr } = await sb.from("accountsmind_invoice_payments").insert({
       invoice_id: inv.id,
@@ -750,7 +816,7 @@ export const recordInvoicePayment = createServerFn({ method: "POST" })
     // Recompute paid total from the payments table (authoritative).
     const { data: pays } = await sb.from("accountsmind_invoice_payments").select("amount_cents").eq("invoice_id", inv.id);
     const paid = (pays ?? []).reduce((s: number, p: any) => s + Number(p.amount_cents ?? 0), 0);
-    const fullyPaid = paid >= Number(inv.total_cents);
+    const fullyPaid = paid + Number(inv.credited_cents ?? 0) >= Number(inv.total_cents);
     const patch: Record<string, any> = {
       amount_paid_cents: paid,
       status: fullyPaid ? "paid" : "partially_paid",
@@ -760,7 +826,6 @@ export const recordInvoicePayment = createServerFn({ method: "POST" })
     const { error } = await sb.from("accountsmind_invoices").update(patch).eq("id", inv.id);
     if (error) return { ok: false as const, error: error.message };
 
-    await writeAudit(sb, inv.id, "payment_recorded", { amount_cents: data.amountCents, method: data.method, reference: data.reference, fully_paid: fullyPaid }, userId);
     if (inv.workspace_id) {
       try {
         const { cacheDel } = await import("@/lib/cache/redis.server");
@@ -799,7 +864,7 @@ export const transitionInvoiceStatus = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     const sb = supabaseAdmin as any;
     const userId = (context as any).userId ?? null;
-    const { data: inv } = await sb.from("accountsmind_invoices").select("id,status,workspace_id").eq("id", data.id).maybeSingle();
+    const { data: inv } = await sb.from("accountsmind_invoices").select("id,status,workspace_id,total_cents,amount_paid_cents,credited_cents,currency").eq("id", data.id).maybeSingle();
     if (!inv) return { ok: false as const, error: "Invoice not found." };
 
     const allowed = STATUS_TRANSITIONS[inv.status] ?? [];
@@ -816,9 +881,32 @@ export const transitionInvoiceStatus = createServerFn({ method: "POST" })
     if (data.status === "sent") patch.sent_at = now;
     if (data.status === "void" || data.status === "cancelled") patch.voided_at = now;
 
-    const { error } = await sb.from("accountsmind_invoices").update(patch).eq("id", data.id);
+    // Critical action — the audit row must exist before the mutation lands.
+    const auditErr = await writeAuditStrict(sb, data.id, "status_changed", { from: inv.status, to: data.status, reason: data.reason }, userId);
+    if (auditErr) return { ok: false as const, error: auditErr };
+
+    // Manual "mark paid" must reconcile the paid amount: record the remaining
+    // balance as a payment row so payments stay the authoritative ledger.
+    if (data.status === "paid") {
+      const remaining = Math.max(0, Number(inv.total_cents ?? 0) - Number(inv.amount_paid_cents ?? 0) - Number(inv.credited_cents ?? 0));
+      if (remaining > 0) {
+        const { error: payErr } = await sb.from("accountsmind_invoice_payments").insert({
+          invoice_id: inv.id,
+          paid_on: now.slice(0, 10),
+          amount_cents: remaining,
+          currency: inv.currency,
+          method: "manual_mark_paid",
+          reference: data.reason || "Marked paid manually",
+          notes: "",
+          created_by_user_id: userId,
+        });
+        if (payErr) return { ok: false as const, error: payErr.message };
+      }
+      patch.amount_paid_cents = Math.max(0, Number(inv.total_cents ?? 0) - Number(inv.credited_cents ?? 0));
+    }
+
+    const { error } = await sb.from("accountsmind_invoices").update(patch).eq("id", data.id).eq("status", inv.status);
     if (error) return { ok: false as const, error: error.message };
-    await writeAudit(sb, data.id, "status_changed", { from: inv.status, to: data.status, reason: data.reason }, userId);
     if (inv.workspace_id) {
       try {
         const { cacheDel } = await import("@/lib/cache/redis.server");
@@ -937,7 +1025,7 @@ export const listInvoicesV2 = createServerFn({ method: "GET" })
     const monthStart = `${new Date().toISOString().slice(0, 7)}-01T00:00:00Z`;
     const { data: allRows } = await sb
       .from("accountsmind_invoices")
-      .select("total_cents,amount_paid_cents,tax_cents,status,due_date,created_at,paid_at")
+      .select("total_cents,amount_paid_cents,credited_cents,tax_cents,status,due_date,created_at,paid_at")
       .neq("storage_path", "pending")
       .limit(5000);
     const all: any[] = allRows ?? [];
@@ -945,10 +1033,10 @@ export const listInvoicesV2 = createServerFn({ method: "GET" })
     const kpis = {
       invoiced_this_month_cents: all.filter((r) => active(r) && r.created_at >= monthStart).reduce((s, r) => s + Number(r.total_cents ?? 0), 0),
       paid_this_month_cents: all.filter((r) => r.paid_at && r.paid_at >= monthStart).reduce((s, r) => s + Number(r.total_cents ?? 0), 0),
-      outstanding_cents: all.filter((r) => active(r) && !["paid", "refunded"].includes(r.status)).reduce((s, r) => s + Math.max(0, Number(r.total_cents ?? 0) - Number(r.amount_paid_cents ?? 0)), 0),
+      outstanding_cents: all.filter((r) => active(r) && !["paid", "refunded"].includes(r.status)).reduce((s, r) => s + Math.max(0, Number(r.total_cents ?? 0) - Number(r.amount_paid_cents ?? 0) - Number(r.credited_cents ?? 0)), 0),
       overdue_cents: all
         .filter((r) => active(r) && !["paid", "refunded"].includes(r.status) && r.due_date && r.due_date < todayIso)
-        .reduce((s, r) => s + Math.max(0, Number(r.total_cents ?? 0) - Number(r.amount_paid_cents ?? 0)), 0),
+        .reduce((s, r) => s + Math.max(0, Number(r.total_cents ?? 0) - Number(r.amount_paid_cents ?? 0) - Number(r.credited_cents ?? 0)), 0),
       draft_count: all.filter((r) => r.status === "draft").length,
       vat_collected_cents: all.filter((r) => r.status === "paid").reduce((s, r) => s + Number(r.tax_cents ?? 0), 0),
       avg_payment_days: (() => {
