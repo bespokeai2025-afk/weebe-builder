@@ -321,17 +321,17 @@ function TrendCard({ item, busy, mounted, onAction }: {
           </Button>
         )}
         {item.status !== "dismissed" && (
-          <Button size="sm" variant="outline" className="h-7 text-xs" disabled={busy} onClick={() => onAction(item.id, "analyse")}
-            title="Run AI opportunity scoring on just this item (uses your Business DNA)">
-            <Sparkles className="h-3 w-3 mr-1" /> Analyse deeply
+          <Button size="sm" variant="outline" className="h-7 text-xs" asChild
+            title="Multimodal AI watches and deconstructs this content — anatomy, why it works, and original adaptation briefs">
+            <Link to="/growthmind/anatomy/$itemId" params={{ itemId: item.id }} search={{ run: true }}>
+              <Microscope className="h-3 w-3 mr-1" /> Analyse deeply
+            </Link>
           </Button>
         )}
         {item.status !== "dismissed" && (
-          <Button size="sm" variant="outline" className="h-7 text-xs" asChild
-            title="Multimodal video breakdown + original adaptation brief">
-            <Link to="/growthmind/anatomy/$itemId" params={{ itemId: item.id }}>
-              <Microscope className="h-3 w-3 mr-1" /> Anatomy
-            </Link>
+          <Button size="sm" variant="ghost" className="h-7 text-xs text-muted-foreground" disabled={busy} onClick={() => onAction(item.id, "analyse")}
+            title="Run AI opportunity scoring on just this item (uses your Business DNA)">
+            <Sparkles className="h-3 w-3 mr-1" /> AI score
           </Button>
         )}
         {item.status !== "dismissed" ? (

@@ -3,7 +3,7 @@
 import { createFileRoute, Link, useParams } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import {
   Microscope, Loader2, Sparkles, ArrowLeft, ExternalLink, ShieldAlert,
@@ -19,6 +19,7 @@ import {
 } from "@/lib/growthmind/growthmind.anatomy";
 
 export const Route = createFileRoute("/_authenticated/growthmind/anatomy/$itemId")({
+  validateSearch: (s: Record<string, unknown>) => ({ run: s.run === true || s.run === "true" ? true : undefined }),
   component: () => (
     <GrowthMindShell>
       <AnatomyPage />
@@ -34,6 +35,7 @@ const MODE_LABEL: Record<string, string> = {
 
 function AnatomyPage() {
   const { itemId } = useParams({ from: "/_authenticated/growthmind/anatomy/$itemId" });
+  const { run: autoRun } = Route.useSearch();
   const qc = useQueryClient();
   const bundleFn  = useServerFn(getContentAnatomyBundle);
   const analyseFn = useServerFn(runDeepVideoAnalysis);
@@ -48,6 +50,17 @@ function AnatomyPage() {
   });
 
   const refresh = () => qc.invalidateQueries({ queryKey: ["gm-anatomy", itemId] });
+
+  // "Analyse deeply" from the Trend Feed auto-runs the multimodal analysis once
+  // (only when no anatomy exists yet).
+  const autoRanRef = useRef(false);
+  useEffect(() => {
+    if (!autoRun || autoRanRef.current || isLoading || !data) return;
+    if (data.anatomy || data.budget.usedToday >= data.budget.dailyLimit) return;
+    autoRanRef.current = true;
+    void runAnalysis();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoRun, isLoading, data]);
 
   const runAnalysis = async () => {
     setAnalysing(true);
@@ -177,6 +190,13 @@ function AnatomyPage() {
                 <ul className="list-disc list-inside space-y-0.5">{a.adaptationOpportunities.map((s: string, i: number) => <li key={i}>{s}</li>)}</ul>
               </div>
             )}
+            <PerformanceSignals metrics={item.metrics} scores={item.scores} />
+            {anatomy.onScreenText && (
+              <div className="text-xs space-y-1">
+                <div className="text-muted-foreground font-medium">On-screen text</div>
+                <p className="whitespace-pre-wrap">{anatomy.onScreenText}</p>
+              </div>
+            )}
             {anatomy.transcript && (
               <details className="text-xs">
                 <summary className="cursor-pointer text-muted-foreground inline-flex items-center gap-1"><FileText className="h-3 w-3" /> Transcript</summary>
@@ -205,6 +225,26 @@ function AnatomyPage() {
         </p>
         {adaptations.length === 0 && <p className="text-xs text-muted-foreground">No adaptations yet.</p>}
         {adaptations.map((ad) => <AdaptationCard key={ad.id} ad={ad} />)}
+      </div>
+    </div>
+  );
+}
+
+function PerformanceSignals({ metrics, scores }: { metrics: Record<string, unknown>; scores: Record<string, unknown> }) {
+  const fmt = (v: unknown) => (typeof v === "number" ? (v >= 1000 ? `${(v / 1000).toFixed(v >= 100000 ? 0 : 1)}k` : String(v)) : String(v));
+  const metricEntries = Object.entries(metrics ?? {}).filter(([, v]) => typeof v === "number" && (v as number) > 0);
+  const scoreEntries = Object.entries(scores ?? {}).filter(([, v]) => typeof v === "number");
+  if (metricEntries.length === 0 && scoreEntries.length === 0) return null;
+  return (
+    <div className="text-xs space-y-1">
+      <div className="text-muted-foreground font-medium">Performance signals</div>
+      <div className="flex items-center gap-3 flex-wrap">
+        {metricEntries.map(([k, v]) => (
+          <span key={k}><span className="text-muted-foreground">{k.replace(/_/g, " ")}:</span> <span className="font-medium">{fmt(v)}</span></span>
+        ))}
+        {scoreEntries.map(([k, v]) => (
+          <span key={k}><span className="text-muted-foreground">{k.replace(/_/g, " ")} score:</span> <span className="font-medium">{fmt(v)}/100</span></span>
+        ))}
       </div>
     </div>
   );
