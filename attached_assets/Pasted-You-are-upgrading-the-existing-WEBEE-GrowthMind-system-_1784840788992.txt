@@ -1,0 +1,1095 @@
+You are upgrading the existing WEBEE GrowthMind system. Do not build a disconnected prototype, duplicate existing pages, replace working integrations or remove current functionality.
+
+The objective is to turn GrowthMind into a genuinely capable AI content intelligence, trend discovery, content production and performance optimisation department that connects directly to the existing WEBEE Content Studio.
+
+This must be production-grade, multi-tenant, auditable and commercially useful.
+
+Do not return a mock-up, placeholder page, fake data, static demo or superficial AI caption generator.
+
+## Core objective
+
+GrowthMind must be able to:
+
+1. Understand the business through its Business DNA.
+2. Connect securely to the customer’s Instagram and Facebook business accounts.
+3. Analyse the customer’s existing content and performance.
+4. Monitor approved competitors, creators, industries, topics and keywords.
+5. Discover content formats, topics, hooks and videos currently gaining momentum.
+6. Watch and understand discovered video content using multimodal AI.
+7. Transcribe speech and extract on-screen text.
+8. Analyse why the content is performing.
+9. Adapt the successful content structure into an original version relevant to the customer’s business.
+10. Generate scripts, captions, shot lists, voiceovers, thumbnails, editing instructions and complete content briefs.
+11. Send the generated project directly into the existing Content Studio.
+12. Produce a draft video using available business assets, licensed assets, AI-generated assets and product footage.
+13. Route the finished content through an approval workflow.
+14. Publish approved content through official Meta integrations.
+15. Measure the content’s performance.
+16. Learn from the results and improve future content automatically.
+
+GrowthMind must operate as an intelligent CMO and content department, not as a chatbot that only generates captions.
+
+# Critical audit-first requirement
+
+Before changing code:
+
+1. Audit the existing GrowthMind implementation.
+2. Audit the current Content Studio.
+3. Audit existing Meta, Instagram and Facebook integrations.
+4. Audit the existing authentication and workspace structure.
+5. Audit the existing database tables and storage buckets.
+6. Audit existing AI providers, background jobs, queues and schedulers.
+7. Audit any existing competitor, campaign, content or analytics functionality.
+8. Audit all current routes, API endpoints, components and services related to content generation.
+
+Produce a concise internal implementation map before coding.
+
+Reuse and extend working systems.
+
+Do not create duplicate tables, duplicate Content Studio pages, duplicate Meta integrations or parallel AI systems when suitable systems already exist.
+
+Do not break GrowthMind, HiveMind, SystemMind, AccountsMind, campaigns, analytics, publishing, leads, CRM, authentication or workspace isolation.
+
+# Multi-tenant security
+
+Every record, integration, asset, generated idea, competitor, account, publication and metric must be scoped using the existing workspace_id architecture.
+
+A user must never be able to access:
+
+* Another workspace’s social accounts
+* Another workspace’s Business DNA
+* Another workspace’s competitor list
+* Another workspace’s generated content
+* Another workspace’s assets
+* Another workspace’s analytics
+* Another workspace’s publishing credentials
+
+Use the existing Supabase authentication, RLS and workspace membership system.
+
+Do not expose access tokens to the browser.
+
+Encrypt sensitive integration credentials at rest.
+
+Use official OAuth flows wherever supported.
+
+Never ask users to paste raw Instagram passwords into WEBEE.
+
+# GrowthMind Content Intelligence architecture
+
+Build the capability as modular services that connect to the existing GrowthMind and Content Studio architecture.
+
+Required modules:
+
+* Business DNA Engine
+* Social Account Connection Manager
+* Trend Scout
+* Competitor Intelligence Engine
+* Multimodal Video Analysis Engine
+* Trend Relevance Scoring Engine
+* Original Content Adaptation Engine
+* Content Production Planner
+* Content Studio Handoff Service
+* Approval and Publishing Workflow
+* Performance Learning Engine
+* Content Recommendation Queue
+* Audit and Activity Log
+
+Do not present these as unrelated products. They must feel like one connected GrowthMind workflow.
+
+# 1. Business DNA Engine
+
+GrowthMind must use a structured Business DNA profile for each workspace.
+
+The Business DNA must include:
+
+* Company name
+* Company description
+* Products
+* Services
+* Product benefits
+* Unique selling points
+* Target industries
+* Ideal customer profiles
+* Target job roles
+* Target company sizes
+* Target countries
+* Customer pain points
+* Customer objections
+* Buying triggers
+* Competitors
+* Brand voice
+* Brand personality
+* Approved claims
+* Restricted claims
+* Compliance requirements
+* Pricing and offers
+* Calls to action
+* Preferred content styles
+* Topics to prioritise
+* Topics to avoid
+* Existing successful campaigns
+* Customer results
+* Available proof
+* Brand colours
+* Logos
+* Fonts
+* Product screenshots
+* Video footage
+* Approved spokespeople
+* Preferred AI voices
+* Content objectives
+* Commercial objectives
+
+GrowthMind must be able to generate an initial Business DNA from existing WEBEE information, but the user must be able to review and edit it.
+
+GrowthMind should also be able to recommend updates to the Business DNA when it detects new offers, customer objections, products or successful messaging.
+
+Business DNA updates must not silently overwrite approved information.
+
+# 2. Social account connections
+
+Add or improve the connection flow for:
+
+* Instagram professional accounts
+* Facebook Pages
+* Meta Business accounts
+* Meta advertising accounts where permitted
+
+Use official Meta OAuth and supported APIs for:
+
+* Account information
+* Owned content
+* Media insights
+* Account insights
+* Comments where supported
+* Publishing
+* Reels publishing
+* Page content
+* Campaign information where authorised
+
+Clearly display:
+
+* Connected account
+* Account type
+* Page or profile name
+* Connection status
+* Permissions granted
+* Last successful sync
+* Token expiry status
+* Reconnect action
+* Data currently available
+* Publishing capability
+* Analytics capability
+
+The system must fail clearly when permissions are missing.
+
+Do not show vague errors such as “Something went wrong.”
+
+# 3. Trend Scout
+
+Create a GrowthMind Trend Scout that searches for content relevant to the workspace’s Business DNA.
+
+Trend Scout sources should include supported and compliant sources such as:
+
+* Owned Instagram content
+* Owned Facebook content
+* Approved competitor accounts
+* Approved creator accounts
+* Public professional account data where permitted
+* Relevant hashtags
+* Search terms
+* Meta Ad Library
+* Google Trends
+* YouTube
+* TikTok signals where legally and technically permitted
+* Industry news
+* Reddit discussions
+* Search Console
+* CRM data
+* Lead questions
+* Call transcripts
+* Sales objections
+* Email responses
+* WhatsApp conversations
+* Previous WEBEE campaign data
+
+The system must not depend on one single data source.
+
+Create user-managed lists for:
+
+* Direct competitors
+* Indirect competitors
+* Industry creators
+* Aspirational brands
+* Customer accounts
+* Target topics
+* Keywords
+* Hashtags
+* Excluded accounts
+* Excluded topics
+
+The user must be able to add, remove, pause or prioritise any source.
+
+# Controlled browser trend research
+
+Where official APIs do not expose enough discovery information, build the architecture so GrowthMind can support a controlled authenticated browser research connector.
+
+This must not be implemented as aggressive mass scraping.
+
+It must include:
+
+* Strict rate limits
+* Session isolation
+* Secure credential handling
+* Clear connection status
+* Manual reconnection support
+* Duplicate-content detection
+* Daily search limits
+* Retry limits
+* Failure logging
+* Human review controls
+* Platform policy warnings
+* Ability to disable the browser connector per workspace
+
+Official APIs must be used whenever they provide the required capability.
+
+Do not create hidden browser farms or uncontrolled infinite scrolling.
+
+# 4. Multimodal video analysis
+
+GrowthMind must be able to analyse selected videos and understand both the visual and audio content.
+
+For each video, extract where technically available:
+
+* Source account
+* Source URL or platform reference
+* Posting date
+* Public engagement indicators
+* Caption
+* Hashtags
+* Video duration
+* Spoken transcript
+* On-screen text
+* Opening hook
+* First-frame content
+* Visual style
+* Editing pace
+* Scene changes
+* Camera format
+* Subtitle style
+* Music or audio style
+* Emotional tone
+* Story structure
+* CTA
+* Offer
+* Audience
+* Problem addressed
+* Promise made
+* Proof provided
+* Comment themes
+* Likely reason for performance
+* Content category
+* Relevance to the workspace
+
+Generate a structured “Content Anatomy” record for every analysed video.
+
+Example Content Anatomy:
+
+* Hook type: disruptive claim
+* Hook duration: 1.8 seconds
+* Format: founder talking head plus screen recording
+* Structure: problem, demonstration, proof, CTA
+* Scene count: 7
+* Average scene duration: 3.4 seconds
+* Emotional driver: fear of missed revenue
+* CTA type: book a demo
+* Business relevance: high
+* Reproduction difficulty: medium
+* Original adaptation opportunity: high
+
+Do not merely store a transcript.
+
+The system must explain the mechanism behind the content.
+
+# 5. Trend and relevance scoring
+
+Every discovered content item must receive a structured score.
+
+Required scoring dimensions:
+
+* Trend momentum
+* Freshness
+* Engagement velocity
+* Business DNA relevance
+* Buyer relevance
+* Product relevance
+* Customer pain-point relevance
+* Commercial intent
+* Conversion potential
+* Share potential
+* Save potential
+* Comment potential
+* Brand fit
+* Originality opportunity
+* Production feasibility
+* Evidence availability
+* Copyright similarity risk
+* Compliance risk
+* Reputation risk
+* Trend saturation
+* Estimated lifespan
+
+Create a total opportunity score, but also display each component.
+
+Do not let high views override poor business relevance.
+
+GrowthMind should reject irrelevant trends even when they are viral.
+
+Create configurable minimum thresholds.
+
+Example default thresholds:
+
+* Business relevance: minimum 7/10
+* Buyer relevance: minimum 7/10
+* Originality opportunity: minimum 6/10
+* Copyright risk: maximum 3/10
+* Brand risk: maximum 3/10
+
+# 6. Original content adaptation
+
+GrowthMind must be able to take a successful source video and create an original business-specific adaptation.
+
+It may learn from:
+
+* Hook category
+* Pacing
+* Duration
+* General story structure
+* Scene count
+* Emotional mechanism
+* Educational format
+* Demonstration format
+* Editing rhythm
+* CTA placement
+
+It must not directly copy:
+
+* Exact script
+* Exact footage
+* Distinctive creative expression
+* Branding
+* Voice
+* Customer claims
+* Copyrighted music
+* Frame-for-frame sequencing
+* Substantially identical on-screen text
+
+Create a similarity and originality check before content can be approved.
+
+GrowthMind must identify:
+
+* What structural elements inspired the new content
+* What has been changed
+* What makes the new version original
+* How it connects to the workspace’s Business DNA
+* What evidence supports the claims
+
+Every adaptation must generate:
+
+* Content objective
+* Target audience
+* Platform
+* Original hook options
+* Final recommended hook
+* Full script
+* Scene-by-scene shot list
+* B-roll requirements
+* Product footage requirements
+* Screen-recording requirements
+* On-screen text
+* Subtitle copy
+* Caption
+* CTA
+* Thumbnail text
+* Hashtags
+* Suggested audio direction
+* Recommended video duration
+* Recommended posting time
+* Expected commercial outcome
+* Risk notes
+* Source inspiration reference
+
+# 7. Content Studio integration
+
+This is essential.
+
+GrowthMind must connect directly to the existing Content Studio.
+
+Do not build a second disconnected editor.
+
+Add a clear action on every approved GrowthMind recommendation:
+
+“Create in Content Studio”
+
+When selected, GrowthMind must create a new Content Studio project containing:
+
+* Project title
+* Platform
+* Content objective
+* Source trend analysis
+* Business DNA context
+* Script
+* Scene timeline
+* Voiceover script
+* Subtitle text
+* Caption
+* CTA
+* Thumbnail text
+* Hashtags
+* Required assets
+* Selected brand kit
+* Target publishing account
+* Recommended publishing time
+* Compliance notes
+* Inspiration references
+* Approval status
+
+The handoff must be a real database-backed integration, not clipboard copying.
+
+Users must be able to return from the Content Studio project to the GrowthMind recommendation that created it.
+
+Store the relationship between:
+
+* Trend item
+* Recommendation
+* Content Studio project
+* Generated assets
+* Approved version
+* Published media
+* Performance results
+
+# 8. Content production automation
+
+Within the existing Content Studio, allow GrowthMind to assist with producing the finished content.
+
+Use existing capabilities where available.
+
+Potential production actions:
+
+* Generate AI voiceover
+* Select an approved workspace voice
+* Generate captions
+* Time subtitles
+* Create editing timeline
+* Select approved B-roll
+* Select existing workspace assets
+* Suggest product screen recordings
+* Generate missing visual assets
+* Build branded title cards
+* Add logo and brand styling
+* Generate thumbnail options
+* Create multiple opening hooks
+* Create short and long versions
+* Create platform-specific versions
+* Create aspect ratios for Reels, Stories, Shorts and feeds
+
+Do not automatically use random stock footage that weakens credibility.
+
+Prefer this asset order:
+
+1. Real company footage
+2. Product demonstrations
+3. Approved customer evidence
+4. Workspace asset library
+5. Licensed stock footage
+6. AI-generated assets
+
+The system must clearly label AI-generated media.
+
+# 9. Approval workflow
+
+Create configurable GrowthMind autonomy modes:
+
+## Observe
+
+GrowthMind only researches and reports.
+
+## Recommend
+
+GrowthMind creates recommendations and content briefs.
+
+## Assistant
+
+GrowthMind creates Content Studio drafts but cannot publish.
+
+## Operator
+
+GrowthMind can schedule or publish content within configured rules.
+
+Default new workspaces to Recommend or Assistant.
+
+Do not allow unrestricted automatic publishing by default.
+
+Allow approval rules such as:
+
+* All content requires approval
+* Low-risk educational posts may auto-schedule
+* Customer claims always require approval
+* Pricing posts always require approval
+* Controversial content always requires approval
+* Posts using customer data always require approval
+* AI-generated spokesperson videos always require approval
+
+Create approval states:
+
+* Discovered
+* Analysed
+* Recommended
+* Drafting
+* In Content Studio
+* Awaiting assets
+* Awaiting approval
+* Changes requested
+* Approved
+* Scheduled
+* Publishing
+* Published
+* Failed
+* Measuring
+* Completed
+* Archived
+
+# 10. Publishing
+
+Use official publishing APIs where supported.
+
+Before publishing, validate:
+
+* Account connection
+* Required permissions
+* File format
+* Video dimensions
+* File size
+* Duration
+* Caption length
+* Hashtags
+* Thumbnail
+* Publishing eligibility
+* Approval status
+* Compliance status
+* Scheduled time
+* Duplicate-post risk
+
+Publishing must be idempotent.
+
+Retries must not create duplicate posts.
+
+Store:
+
+* Platform media ID
+* Publishing timestamp
+* Account
+* Final caption
+* Final assets
+* Final script
+* Source recommendation
+* Publishing result
+* Error details
+* Retry history
+
+# 11. Performance measurement
+
+GrowthMind must measure content performance at configurable checkpoints.
+
+Suggested checkpoints:
+
+* 1 hour
+* 6 hours
+* 24 hours
+* 72 hours
+* 7 days
+* 30 days
+
+Track all metrics available through authorised APIs, including where supported:
+
+* Views
+* Reach
+* Impressions
+* Watch time
+* Average watch time
+* Retention
+* Likes
+* Comments
+* Shares
+* Saves
+* Profile visits
+* Follows
+* Link clicks
+* Messages
+* Leads
+* Demo bookings
+* Trials
+* Qualified leads
+* Revenue attribution
+
+Separate:
+
+* Attention metrics
+* Engagement metrics
+* Intent metrics
+* Conversion metrics
+* Revenue metrics
+
+Do not call content successful only because it received views.
+
+# 12. Performance learning engine
+
+GrowthMind must learn from the workspace’s own results.
+
+It should identify patterns such as:
+
+* Best hook categories
+* Best opening frames
+* Best video lengths
+* Best posting times
+* Best CTA types
+* Best topics
+* Best speakers
+* Best editing pace
+* Best content categories
+* Best-performing offers
+* Formats that create views but no leads
+* Formats that create qualified leads
+* Formats that attract the wrong audience
+* Topics suffering from declining performance
+
+Use these findings to update future recommendation scoring.
+
+Do not silently rewrite approved Business DNA.
+
+Present learning as recommendations that can be accepted or rejected.
+
+# 13. GrowthMind user interface
+
+Upgrade GrowthMind with a clear Content Intelligence section.
+
+Required views:
+
+## Content Command Centre
+
+Show:
+
+* Content awaiting approval
+* New trend opportunities
+* High-priority recommendations
+* Content being produced
+* Scheduled content
+* Recently published content
+* Performance warnings
+* Winning formats
+* Declining formats
+* Accounts needing reconnection
+
+## Trend Feed
+
+Each card should show:
+
+* Source preview
+* Source account
+* Date detected
+* Momentum score
+* Business relevance
+* Buyer relevance
+* Commercial potential
+* Risk score
+* Why GrowthMind selected it
+* Suggested WEBEE or customer-specific angle
+* Actions
+
+Actions:
+
+* Analyse deeply
+* Generate adaptation
+* Send to Content Studio
+* Save
+* Ignore
+* Block source
+* Add source to monitoring
+* Mark irrelevant
+
+## Content Anatomy View
+
+Show:
+
+* Video preview
+* Transcript
+* On-screen text
+* Timeline
+* Hook analysis
+* Scene analysis
+* Content structure
+* Performance signals
+* Audience
+* CTA
+* Reasons it likely worked
+* Risks
+* Original adaptation opportunities
+
+## Recommendations Queue
+
+Show recommendations as a prioritised task list.
+
+Each item must clearly show:
+
+* What should be created
+* Why now
+* Target audience
+* Platform
+* Estimated effort
+* Expected outcome
+* Required assets
+* Deadline before trend becomes stale
+* Approval requirements
+
+## Business DNA
+
+Provide a clear editable interface with completion status and missing information warnings.
+
+## Competitor Intelligence
+
+Show:
+
+* Competitors monitored
+* New successful posts
+* Repeated topics
+* Content gaps
+* Positioning changes
+* Offer changes
+* Recommended responses
+
+## Performance Lab
+
+Show:
+
+* Winning hooks
+* Winning formats
+* Content-to-lead conversion
+* Best audience themes
+* Failure analysis
+* Recommended experiments
+* Next actions
+
+# 14. GrowthMind chat integration
+
+GrowthMind chat must understand all Content Intelligence data.
+
+The user should be able to ask:
+
+* “What is trending in AI receptionist content?”
+* “What should we post today?”
+* “Which competitor is gaining momentum?”
+* “Find three Reels we can adapt for WEBEE.”
+* “Why did yesterday’s Reel fail?”
+* “Create a stronger version of our best Reel.”
+* “Send the strongest concept to Content Studio.”
+* “Create a content plan for the next seven days.”
+* “Show me content likely to produce demo bookings.”
+* “Avoid generic AI content.”
+* “Create this using our existing Ava footage.”
+* “Schedule the approved version for tomorrow.”
+
+GrowthMind must use real connected data and tool actions.
+
+It must not claim it published, analysed or created something when the action did not occur.
+
+# 15. Background jobs
+
+Use the existing scheduler or job infrastructure.
+
+Required jobs may include:
+
+* Account insight sync
+* Owned media sync
+* Competitor monitoring
+* Trend discovery
+* Video analysis
+* Transcript extraction
+* On-screen text extraction
+* Recommendation generation
+* Content performance checkpoints
+* Token refresh
+* Publishing
+* Publishing retries
+* Content Studio render jobs
+* Expired trend detection
+
+Jobs must include:
+
+* Workspace scoping
+* Retry limits
+* Exponential backoff
+* Dead-letter handling
+* Idempotency
+* Job status
+* Failure reason
+* Execution logs
+* Cost tracking
+* Cancellation support
+
+Do not run expensive multimodal analysis on every discovered item.
+
+Use staged processing:
+
+1. Cheap metadata screening
+2. Relevance screening
+3. Momentum screening
+4. Detailed multimodal analysis only for strong candidates
+5. Human approval before expensive production where appropriate
+
+# 16. Suggested data model
+
+Reuse existing tables where suitable.
+
+Only create new tables where required.
+
+Potential entities:
+
+* business_dna_profiles
+* business_dna_versions
+* social_connections
+* monitored_accounts
+* monitored_topics
+* trend_items
+* trend_item_metrics
+* video_analysis
+* content_anatomy
+* content_recommendations
+* content_adaptations
+* content_source_links
+* content_studio_project_links
+* content_approvals
+* publishing_jobs
+* published_content
+* content_performance_snapshots
+* content_learnings
+* growthmind_activity_log
+
+Every relevant table must include workspace_id and appropriate RLS.
+
+Use versioning where records can change over time.
+
+# 17. Cost controls
+
+Add workspace-level limits for:
+
+* Number of competitor accounts
+* Number of monitored topics
+* Trend checks per day
+* Videos deeply analysed per day
+* AI generations per day
+* Content Studio renders
+* Storage
+* Publishing frequency
+* Historical metric retention
+
+Track estimated and actual AI cost per:
+
+* Trend analysis
+* Video analysis
+* Script generation
+* Asset generation
+* Voiceover
+* Render
+* Published content item
+
+Integrate with AccountsMind or the existing cost engine where appropriate.
+
+Do not allow uncontrolled AI generation loops.
+
+# 18. Notifications and tasks
+
+GrowthMind must create clear actions and tasks when attention is required.
+
+Examples:
+
+* “Three high-relevance trends are available.”
+* “This trend may become stale within 48 hours.”
+* “Instagram connection requires renewal.”
+* “Content Studio project is awaiting product footage.”
+* “Draft Reel is ready for approval.”
+* “Publishing failed because the access token expired.”
+* “This Reel produced views but no qualified leads.”
+* “A competitor has repeated a successful content format four times.”
+* “GrowthMind recommends recreating your top-performing hook.”
+
+Tasks must connect to the existing HiveMind task and action system where available.
+
+Do not create another isolated task manager.
+
+# 19. Legal, copyright and platform safeguards
+
+Add safeguards that:
+
+* Prevent direct script duplication
+* Detect excessive textual similarity
+* Warn about frame-for-frame imitation
+* Warn about unlicensed audio
+* Block unsupported claims
+* Protect customer data
+* Require consent for testimonials
+* Anonymise call recordings where required
+* Prevent publication of private information
+* Record source inspiration
+* Record user approval
+* Provide content removal controls
+* Respect platform API and automation limitations
+
+Do not advertise this feature as “copy any viral video.”
+
+Use language such as:
+
+* Trend-inspired
+* Format-informed
+* Original adaptation
+* Business-context transformation
+* Content structure analysis
+
+# 20. Failure handling
+
+Handle failures visibly and safely.
+
+Examples:
+
+* Meta token expired
+* Missing permissions
+* Video unavailable
+* Account made private
+* Transcript failed
+* On-screen text extraction failed
+* AI provider timed out
+* Unsupported file format
+* Publishing rejected
+* Render failed
+* Insufficient Business DNA
+* Content too similar to source
+* Compliance check failed
+* Missing assets
+* Performance metrics unavailable
+
+Every failure must show:
+
+* What failed
+* Why it failed
+* Whether data was saved
+* Whether it will retry
+* What the user should do next
+
+# 21. Acceptance criteria
+
+The implementation is not complete until the following end-to-end workflow works:
+
+1. A workspace connects its Instagram professional account.
+2. The connection is stored securely and scoped to that workspace.
+3. GrowthMind imports owned media and available insights.
+4. The user adds competitor accounts and business topics.
+5. GrowthMind discovers relevant content.
+6. GrowthMind scores the content against Business DNA.
+7. The user opens a selected video.
+8. GrowthMind extracts transcript, on-screen text and content structure.
+9. GrowthMind explains why the video is relevant.
+10. GrowthMind generates an original business-specific adaptation.
+11. Similarity and compliance checks pass.
+12. The user selects “Create in Content Studio.”
+13. A real Content Studio project is created with the script, timeline, assets and brand information.
+14. The user edits or approves the project.
+15. The content is published or scheduled through the connected account.
+16. Publishing status is shown.
+17. Performance metrics are collected.
+18. GrowthMind explains whether the content succeeded.
+19. GrowthMind uses the result to improve future recommendations.
+20. All records remain isolated to the correct workspace.
+
+# 22. Testing
+
+Add tests for:
+
+* Workspace isolation
+* OAuth connection handling
+* Token refresh
+* Missing permissions
+* Competitor monitoring
+* Duplicate discovery prevention
+* Trend scoring
+* Video analysis schema validation
+* Script originality checking
+* Content Studio project creation
+* Approval restrictions
+* Publishing idempotency
+* Publishing retries
+* Performance snapshot collection
+* Cost limits
+* Job retries
+* RLS enforcement
+* Failure-state UI
+* Mobile responsiveness
+
+Test with:
+
+* One normal WEBEE workspace
+* One WBAH-style workspace
+* One workspace without Meta connected
+* One expired Meta token
+* One restricted competitor account
+* One unsupported video
+* One failed publishing request
+* One high-performing published Reel
+* One Reel with high views but no leads
+
+# 23. Implementation rules
+
+* Preserve all current working functionality.
+* Do not replace current integrations without a verified migration.
+* Do not insert fake analytics.
+* Do not hard-code workspace IDs.
+* Do not hard-code account IDs.
+* Do not expose secrets client-side.
+* Do not bypass RLS.
+* Do not create duplicate navigation items unnecessarily.
+* Do not add buttons that perform no real action.
+* Do not claim features work unless tested end to end.
+* Do not silently swallow errors.
+* Do not auto-publish by default.
+* Do not copy source content directly.
+* Do not use unrestricted scraping.
+* Do not build this entirely as one huge API route or component.
+* Use typed services and validated schemas.
+* Add database migrations safely.
+* Add logging without exposing sensitive credentials.
+* Keep the UI consistent with the current WEBEE design system.
+* Make the experience work on desktop and mobile.
+
+# 24. Final delivery report
+
+When implementation is complete, provide:
+
+1. Existing systems discovered
+2. Systems reused
+3. Systems modified
+4. New database migrations
+5. New API endpoints
+6. New background jobs
+7. New GrowthMind pages and components
+8. Content Studio integration details
+9. Meta permissions required
+10. Environment variables required
+11. Security controls added
+12. Platform limitations
+13. Testing completed
+14. Remaining limitations
+15. Exact end-to-end test instructions
+
+Do not provide a vague summary.
+
+I need confirmation that the complete flow was tested from trend discovery through Content Studio creation, approval, publishing and performance analysis.
+
+The finished result must make GrowthMind feel like the best AI-powered content intelligence and production department available, while remaining secure, original, controlled and genuinely useful for generating attention, leads and revenue.
