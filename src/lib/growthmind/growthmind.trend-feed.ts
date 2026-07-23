@@ -164,7 +164,7 @@ export const runTrendAiScoring = createServerFn({ method: "POST" })
 
 const ItemActionInput = z.object({
   id:     z.string().uuid(),
-  action: z.enum(["save", "ignore", "restore"]),
+  action: z.enum(["save", "ignore", "restore", "analyse", "block_source", "add_to_monitoring"]),
 });
 
 export const applyTrendItemAction = createServerFn({ method: "POST" })
@@ -177,6 +177,55 @@ export const applyTrendItemAction = createServerFn({ method: "POST" })
 
     const { getTrendAdminClient } = await import("@/lib/growthmind/trend-discovery.server");
     const admin = getTrendAdminClient() as any;
+
+    // ── Analyse deeply: AI-score just this item (same DNA gate + cost logging) ──
+    if (data.action === "analyse") {
+      const { scoreTrendItemsWithAI } = await import("@/lib/growthmind/trend-scoring.server");
+      const outcome = await scoreTrendItemsWithAI(workspaceId, "user", [data.id]);
+      if (outcome.scored === 0 && outcome.rejected === 0) {
+        throw new Error("Item could not be analysed (already archived or not found).");
+      }
+      return { id: data.id, status: outcome.scored > 0 ? "recommended" : "dismissed" };
+    }
+
+    // ── Source-derived actions need the item first ──────────────────────────────
+    if (data.action === "block_source" || data.action === "add_to_monitoring") {
+      const { data: item, error: itemErr } = await admin
+        .from("growthmind_trend_items")
+        .select("id, platform, author_handle, author_name")
+        .eq("id", data.id)
+        .eq("workspace_id", workspaceId)
+        .maybeSingle();
+      if (itemErr) throw new Error(`Failed to load item: ${itemErr.message}`);
+      if (!item) throw new Error("Trend item not found");
+      const handle = (item.author_handle ?? "").replace(/^@/, "").trim();
+      if (!handle) throw new Error("This item has no account handle to act on.");
+
+      const kind = data.action === "block_source" ? "excluded_account" : "industry_creator";
+      const { error: srcErr } = await admin
+        .from("growthmind_monitored_sources")
+        .insert({
+          workspace_id: workspaceId,
+          source_kind:  kind,
+          platform:     item.platform === "internal" ? null : item.platform,
+          value:        handle,
+          label:        item.author_name ?? null,
+          added_by_user_id: context.userId,
+        });
+      // 23505 = source already exists — treat as done.
+      if (srcErr && srcErr.code !== "23505") throw new Error(`Failed to update sources: ${srcErr.message}`);
+
+      // Blocking a source also dismisses this item.
+      if (data.action === "block_source") {
+        await admin
+          .from("growthmind_trend_items")
+          .update({ status: "dismissed", updated_at: new Date().toISOString() })
+          .eq("id", data.id)
+          .eq("workspace_id", workspaceId);
+        return { id: data.id, status: "dismissed" };
+      }
+      return { id: data.id, status: "monitoring_added" };
+    }
 
     const status = data.action === "save" ? "recommended" : data.action === "ignore" ? "dismissed" : "screened";
     const { data: row, error } = await admin

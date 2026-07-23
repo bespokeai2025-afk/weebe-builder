@@ -7,7 +7,7 @@ import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import {
   TrendingUp, Loader2, Sparkles, RefreshCw, Bookmark, X, ExternalLink,
-  Settings2, ShieldAlert, Radar,
+  Settings2, ShieldAlert, Radar, Ban,
 } from "lucide-react";
 import { GrowthMindShell } from "@/components/growthmind/GrowthMindShell";
 import { Button } from "@/components/ui/button";
@@ -103,10 +103,13 @@ function TrendFeedPage() {
     finally { setScoring(false); }
   }
 
-  async function handleAction(id: string, action: "save" | "ignore" | "restore") {
+  async function handleAction(id: string, action: TrendItemAction) {
     setItemBusy(id);
     try {
-      await actionFn({ data: { id, action } });
+      const res = await actionFn({ data: { id, action } });
+      if (action === "analyse") toast.success(res?.status === "recommended" ? "Analysed — recommended opportunity" : "Analysed — below threshold, dismissed");
+      else if (action === "block_source") toast.success("Source blocked and item dismissed");
+      else if (action === "add_to_monitoring") toast.success("Account added to your monitored sources");
       await refresh();
     } catch (e: any) { toast.error(e?.message ?? "Action failed"); }
     finally { setItemBusy(null); }
@@ -245,9 +248,11 @@ function TrendFeedPage() {
   );
 }
 
+type TrendItemAction = "save" | "ignore" | "restore" | "analyse" | "block_source" | "add_to_monitoring";
+
 function TrendCard({ item, busy, mounted, onAction }: {
   item: TrendFeedItem; busy: boolean; mounted: boolean;
-  onAction: (id: string, action: "save" | "ignore" | "restore") => void;
+  onAction: (id: string, action: TrendItemAction) => void;
 }) {
   const s = item.scores as any;
   const total = s.total != null ? Number(s.total) : null;
@@ -309,10 +314,16 @@ function TrendCard({ item, busy, mounted, onAction }: {
           )}
         </div>
       </div>
-      <div className="flex items-center gap-2 pt-1">
+      <div className="flex items-center gap-2 pt-1 flex-wrap">
         {item.status !== "recommended" && item.status !== "dismissed" && (
           <Button size="sm" variant="outline" className="h-7 text-xs" disabled={busy} onClick={() => onAction(item.id, "save")}>
             <Bookmark className="h-3 w-3 mr-1" /> Save
+          </Button>
+        )}
+        {item.status !== "dismissed" && (
+          <Button size="sm" variant="outline" className="h-7 text-xs" disabled={busy} onClick={() => onAction(item.id, "analyse")}
+            title="Run AI opportunity scoring on just this item (uses your Business DNA)">
+            <Sparkles className="h-3 w-3 mr-1" /> Analyse deeply
           </Button>
         )}
         {item.status !== "dismissed" ? (
@@ -323,6 +334,18 @@ function TrendCard({ item, busy, mounted, onAction }: {
           <Button size="sm" variant="ghost" className="h-7 text-xs" disabled={busy} onClick={() => onAction(item.id, "restore")}>
             Restore
           </Button>
+        )}
+        {item.authorHandle && item.platform !== "internal" && (
+          <>
+            <Button size="sm" variant="ghost" className="h-7 text-xs text-muted-foreground" disabled={busy}
+              onClick={() => onAction(item.id, "add_to_monitoring")} title="Watch this account in future discovery runs">
+              <Radar className="h-3 w-3 mr-1" /> Monitor
+            </Button>
+            <Button size="sm" variant="ghost" className="h-7 text-xs text-red-400/80" disabled={busy}
+              onClick={() => onAction(item.id, "block_source")} title="Never show content from this account again">
+              <Ban className="h-3 w-3 mr-1" /> Block source
+            </Button>
+          </>
         )}
         {busy && <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />}
       </div>

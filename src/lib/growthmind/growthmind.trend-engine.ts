@@ -5,6 +5,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { detectTrendSignals } from "./trend-signals.server";
+import type { TrendClassification, TrendSignal } from "./trend-signals.server";
 
 export { detectTrendSignals } from "./trend-signals.server";
 export type { TrendClassification, TrendSignal } from "./trend-signals.server";

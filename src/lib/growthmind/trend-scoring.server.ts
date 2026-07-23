@@ -172,6 +172,7 @@ export type AiScoreOutcome = {
 export async function scoreTrendItemsWithAI(
   workspaceId: string,
   triggeredBy: "scheduler" | "user" = "user",
+  itemIds?: string[],
 ): Promise<AiScoreOutcome> {
   const admin = getTrendAdminClient() as any;
   const t0 = Date.now();
@@ -196,12 +197,18 @@ export async function scoreTrendItemsWithAI(
     .maybeSingle();
   const minScore = Math.max(0, Math.min(100, settings?.growthmind_min_opportunity_score ?? 55));
 
-  // Screened items only, best prescreen first.
-  const { data: items, error: itErr } = await admin
+  // Screened items only (or an explicit "analyse deeply" selection), best prescreen first.
+  let itemQuery = admin
     .from("growthmind_trend_items")
     .select("id, platform, title, caption, media_type, author_handle, author_name, published_at, discovered_at, metrics, scores, status, url, raw")
-    .eq("workspace_id", workspaceId)
-    .eq("status", "screened")
+    .eq("workspace_id", workspaceId);
+  if (itemIds && itemIds.length > 0) {
+    // Deep-analyse specific items — allow re-scoring from any non-archived status.
+    itemQuery = itemQuery.in("id", itemIds).neq("status", "archived");
+  } else {
+    itemQuery = itemQuery.eq("status", "screened");
+  }
+  const { data: items, error: itErr } = await itemQuery
     .order("discovered_at", { ascending: false })
     .limit(60);
   if (itErr) throw new Error(`Load screened items failed: ${itErr.message}`);

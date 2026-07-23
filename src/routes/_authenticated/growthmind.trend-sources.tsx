@@ -84,6 +84,15 @@ function TrendSourcesPage() {
     finally { setRowBusy(null); }
   }
 
+  async function handlePriority(id: string, priority: number) {
+    setRowBusy(id);
+    try {
+      await updateFn({ data: { id, priority } });
+      await qc.invalidateQueries({ queryKey: ["gm-trend-sources"] });
+    } catch (e: any) { toast.error(e?.message ?? "Update failed"); }
+    finally { setRowBusy(null); }
+  }
+
   async function handleRemove(id: string, v: string) {
     if (!window.confirm(`Remove "${v}" from the monitoring list?`)) return;
     setRowBusy(id);
@@ -175,6 +184,18 @@ function TrendSourcesPage() {
                           {s.platform ? ` · ${s.platform}` : ""}
                         </div>
                       </div>
+                      {group.key !== "exclusions" && (
+                        <Select value={String(s.priority ?? 0)} onValueChange={(v) => handlePriority(s.id, Number(v))} disabled={rowBusy === s.id}>
+                          <SelectTrigger className="h-7 w-[110px] text-xs" title="Priority — higher-priority sources are checked first">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="0">Normal</SelectItem>
+                            <SelectItem value="5">High</SelectItem>
+                            <SelectItem value="10">Top priority</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      )}
                       <Badge variant={s.status === "active" ? "default" : "secondary"} className={cn("text-[10px]", s.status === "active" && "bg-emerald-600")}>
                         {s.status}
                       </Badge>
