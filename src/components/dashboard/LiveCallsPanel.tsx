@@ -325,10 +325,34 @@ export function LiveCallsPanel() {
       };
     }
 
+    // If the user signs back in (e.g. via another tab) or the session comes
+    // back after we hit "session expired", reconnect automatically instead of
+    // staying stuck until a full page reload. connect()'s single-flight guard
+    // (connecting || esRef.current) makes routine TOKEN_REFRESHED events —
+    // including ones triggered by our own refreshSession() — a no-op while a
+    // stream is already up or being established.
+    const { data: authSub } = supabase.auth.onAuthStateChange((event, session) => {
+      if (!active) return;
+      if (
+        (event === "SIGNED_IN" || event === "TOKEN_REFRESHED") &&
+        session?.access_token
+      ) {
+        if (connecting || esRef.current) return;
+        failedAttempts = 0;
+        refreshFailures = 0;
+        if (retryTimer) {
+          clearTimeout(retryTimer);
+          retryTimer = null;
+        }
+        connect();
+      }
+    });
+
     connect();
 
     return () => {
       active = false;
+      authSub.subscription.unsubscribe();
       if (retryTimer) {
         clearTimeout(retryTimer);
         retryTimer = null;
