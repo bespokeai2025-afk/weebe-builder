@@ -210,8 +210,14 @@ export function LiveCallsPanel() {
   const [status, setStatus] = useState<
     "connecting" | "live" | "off" | "error" | "session_expired"
   >("off");
+  // True only while auto-reconnecting after "session expired" (user signed
+  // back in). Drives a positive transitional banner instead of the red
+  // expired copy; cleared as soon as we land in a terminal state.
+  const [resuming, setResuming] = useState(false);
 
   const esRef = useRef<EventSource | null>(null);
+  const statusRef = useRef(status);
+  statusRef.current = status;
 
   const toggle = useCallback(() => {
     setEnabled((prev) => !prev);
@@ -224,6 +230,7 @@ export function LiveCallsPanel() {
         esRef.current = null;
       }
       setStatus("off");
+      setResuming(false);
       setCalls([]);
       return;
     }
@@ -278,6 +285,7 @@ export function LiveCallsPanel() {
       if (!token && refreshFailures >= MAX_REFRESH_FAILURES) {
         connecting = false;
         setStatus("session_expired");
+        setResuming(false);
         return;
       }
       if (!token) {
@@ -285,6 +293,7 @@ export function LiveCallsPanel() {
         refreshFailures += 1;
         if (refreshFailures >= MAX_REFRESH_FAILURES) {
           setStatus("session_expired");
+          setResuming(false);
           return;
         }
         setStatus("error");
@@ -297,7 +306,11 @@ export function LiveCallsPanel() {
       esRef.current = es;
       connecting = false;
 
-      es.onopen = () => { if (active) setStatus("live"); };
+      es.onopen = () => {
+        if (!active) return;
+        setStatus("live");
+        setResuming(false);
+      };
 
       es.onmessage = (evt) => {
         if (!active) return;
@@ -338,6 +351,7 @@ export function LiveCallsPanel() {
         session?.access_token
       ) {
         if (connecting || esRef.current) return;
+        if (statusRef.current === "session_expired") setResuming(true);
         failedAttempts = 0;
         refreshFailures = 0;
         if (retryTimer) {
@@ -422,6 +436,11 @@ export function LiveCallsPanel() {
         <div className="rounded-xl border border-white/[0.06] bg-card/30 px-5 py-5 flex items-center gap-3 text-sm text-muted-foreground">
           <MicOff className="h-4 w-4 shrink-0" />
           <span>Live call monitoring is off. Press <strong>On</strong> to start streaming transcripts.</span>
+        </div>
+      ) : resuming && status !== "live" ? (
+        <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/[0.06] px-5 py-5 flex items-center gap-3 text-sm text-emerald-300/90">
+          <span className="h-2 w-2 shrink-0 rounded-full bg-emerald-400 animate-pulse" />
+          <span>Signed in again — reconnecting live calls…</span>
         </div>
       ) : status === "session_expired" ? (
         <div className="rounded-xl border border-rose-500/20 bg-rose-500/[0.06] px-5 py-5 flex flex-col sm:flex-row sm:items-center gap-3 text-sm">
