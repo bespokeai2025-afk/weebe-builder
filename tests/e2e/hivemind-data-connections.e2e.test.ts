@@ -171,6 +171,19 @@ beforeAll(async () => {
     contract_end_date: new Date(now + 30 * 24 * HOUR).toISOString().split("T")[0],
   });
   if (bpErr) throw new Error(bpErr.message);
+  // WBAH-native appointments (wbah_calls): one tomorrow, two colliding on the
+  // same future slot (conflict), one cancelled — used by both the WBAH health
+  // and WBAH calendar-intelligence tests.
+  const londonDay = (offset: number) =>
+    new Date(now + offset * 24 * HOUR).toLocaleDateString("en-CA", { timeZone: "Europe/London" });
+  const { error: wcErr } = await sb.from("wbah_calls").insert([
+    { id: `e2e-wbah-1-${WS_A.slice(0, 8)}`, workspace_id: WS_A, customer_name: "E2E Tomorrow", appointment_date: londonDay(1), appointment_time: "10:00", booking_status: "booked", started_at: new Date(now - 2 * HOUR).toISOString() },
+    { id: `e2e-wbah-2-${WS_A.slice(0, 8)}`, workspace_id: WS_A, customer_name: "E2E Clash A", appointment_date: londonDay(3), appointment_time: "14:00", booking_status: "booked", started_at: new Date(now - 5 * HOUR).toISOString() },
+    { id: `e2e-wbah-3-${WS_A.slice(0, 8)}`, workspace_id: WS_A, customer_name: "E2E Clash B", appointment_date: londonDay(3), appointment_time: "14:00", booking_status: "booked", started_at: new Date(now - 4 * HOUR).toISOString() },
+    { id: `e2e-wbah-4-${WS_A.slice(0, 8)}`, workspace_id: WS_A, customer_name: "E2E Cancelled", appointment_date: londonDay(2), appointment_time: "09:00", booking_status: "cancelled", started_at: new Date(now - 6 * HOUR).toISOString() },
+  ]);
+  if (wcErr) throw new Error(wcErr.message);
+
   const { error: mcErr } = await sb.from("client_monthly_costs").insert({
     workspace_id: WS_A,
     month: monthStr,
@@ -329,23 +342,27 @@ describe("data-source health", () => {
     expect(leadsSrc.detail).toContain("wbah_calls");
     const callsSrc = dh.sources.find((s) => s.source === "calls")!;
     expect(callsSrc.detail).toContain("wbah_calls");
+    const calSrc = dh.sources.find((s) => s.source === "calendar")!;
+    expect(calSrc.detail).toContain("wbah_calls");
+  });
+
+  it("WBAH calendar health derives from wbah_calls, not calendar_bookings", async () => {
+    // WS_A has 5 calendar_bookings rows AND wbah_calls appointment rows seeded.
+    // In WBAH mode, calendar health must count only the wbah_calls appointments.
+    invalidateDataHealth(WS_A, { broadcast: false });
+    const dh = await getWorkspaceDataHealth(WS_A, true);
+    const cal = dh.sources.find((s) => s.source === "calendar")!;
+    expect(cal.detail).toContain("wbah_calls");
+    expect(cal.status).toBe("healthy");
+    expect(cal.recordsInWindow).toBe(4); // the 4 wbah_calls appointment rows, NOT the 5 calendar_bookings
+    invalidateDataHealth(WS_A, { broadcast: false });
   });
 });
 
 describe("WBAH split in intelligence blocks", () => {
   it("WBAH calendar intelligence derives from wbah_calls, ignoring calendar_bookings and leads", async () => {
-    // Seed WBAH-native appointments for WS_A: one tomorrow, two colliding on the
-    // same future slot (conflict), one cancelled within 30d.
-    const day = (offset: number) =>
-      new Date(Date.now() + offset * 24 * HOUR).toLocaleDateString("en-CA", { timeZone: "Europe/London" });
-    const { error } = await sb.from("wbah_calls").insert([
-      { id: `e2e-wbah-1-${WS_A.slice(0, 8)}`, workspace_id: WS_A, customer_name: "E2E Tomorrow", appointment_date: day(1), appointment_time: "10:00", booking_status: "booked", started_at: new Date(Date.now() - 2 * HOUR).toISOString() },
-      { id: `e2e-wbah-2-${WS_A.slice(0, 8)}`, workspace_id: WS_A, customer_name: "E2E Clash A", appointment_date: day(3), appointment_time: "14:00", booking_status: "booked", started_at: new Date(Date.now() - 5 * HOUR).toISOString() },
-      { id: `e2e-wbah-3-${WS_A.slice(0, 8)}`, workspace_id: WS_A, customer_name: "E2E Clash B", appointment_date: day(3), appointment_time: "14:00", booking_status: "booked", started_at: new Date(Date.now() - 4 * HOUR).toISOString() },
-      { id: `e2e-wbah-4-${WS_A.slice(0, 8)}`, workspace_id: WS_A, customer_name: "E2E Cancelled", appointment_date: day(2), appointment_time: "09:00", booking_status: "cancelled", started_at: new Date(Date.now() - 6 * HOUR).toISOString() },
-    ]);
-    expect(error).toBeNull();
-
+    // wbah_calls appointments seeded in beforeAll: one tomorrow, two colliding
+    // on the same future slot (conflict), one cancelled within 30d.
     const ci = await getCalendarIntelligence(WS_A, true);
     expect(ci.isWbah).toBe(true);
     expect((ci as any).source).toBe("wbah_calls");

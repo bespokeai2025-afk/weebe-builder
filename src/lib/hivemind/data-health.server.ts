@@ -199,6 +199,42 @@ export async function getWorkspaceDataHealth(
 
   // ── calendar ──
   probes.push((async (): Promise<DataSourceHealth> => {
+    if (isWbah) {
+      // WBAH split: WBAH bookings live in wbah_calls appointment fields —
+      // calendar_bookings is intentionally empty for WBAH and must not drive
+      // its calendar health.
+      try {
+        const [cRes, lRes] = await Promise.all([
+          (supabaseAdmin as any)
+            .from("wbah_calls")
+            .select("id", { count: "exact", head: true })
+            .eq("workspace_id", workspaceId)
+            .not("appointment_date", "is", null)
+            .gte("started_at", since),
+          (supabaseAdmin as any)
+            .from("wbah_calls")
+            .select("started_at")
+            .eq("workspace_id", workspaceId)
+            .not("appointment_date", "is", null)
+            .gte("started_at", since)
+            .order("started_at", { ascending: false })
+            .limit(1),
+        ]);
+        if (cRes.error) throw new Error(cRes.error.message);
+        const count = cRes.count ?? 0;
+        const latest = lRes.error ? null : (lRes.data?.[0]?.started_at ?? null);
+        return mergeSync({
+          source: "calendar",
+          status: ageStatus(latest, count, 24 * 14),
+          lastActivityAt: latest,
+          recordsInWindow: count,
+          windowDays,
+          detail: `derived from wbah_calls appointment fields (${count} booked calls in last ${windowDays}d); ${agoLabel(latest)}`,
+        }, "calendar");
+      } catch (e: any) {
+        return { source: "calendar", status: "degraded", lastActivityAt: null, recordsInWindow: 0, windowDays, detail: `read failed: ${String(e?.message ?? e).slice(0, 140)}` };
+      }
+    }
     const p = await probeTable({ table: "calendar_bookings", tsColumn: "created_at", workspaceId, sinceIso: since });
     if (p.error) return { source: "calendar", status: "degraded", lastActivityAt: null, recordsInWindow: 0, windowDays, detail: `read failed: ${p.error.slice(0, 140)}` };
     const calProviders = providerFor("calendar");

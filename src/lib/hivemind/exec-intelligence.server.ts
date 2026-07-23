@@ -458,6 +458,8 @@ export async function getBillingSignals(workspaceId: string) {
       .select("minutes")
       .eq("workspace_id", workspaceId)
       .gte("occurred_at", monthStartIso)
+      .order("occurred_at", { ascending: true })
+      .order("id", { ascending: true })
       .range(page * 1000, page * 1000 + 999);
     if (error) break;
     const rows: any[] = chunk ?? [];
