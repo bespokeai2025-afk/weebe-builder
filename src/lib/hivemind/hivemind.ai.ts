@@ -1363,12 +1363,19 @@ export const getHiveMindSystemContext = createServerFn({ method: "GET" })
     const workspaceId = context.workspaceId;
     if (!workspaceId) throw new Error("No workspace");
 
-    const [platformData, cfgRow, marketingCouncil, systemCouncil] = await Promise.all([
+    const todayStr = new Date().toISOString().split("T")[0];
+    const [platformData, cfgRow, marketingCouncil, systemCouncil, dueTasksRes] = await Promise.all([
       fetchFullPlatformData(sb, workspaceId),
       sb.from("workspace_settings").select("elevenlabs_api_key,openai_api_key").eq("workspace_id", workspaceId).maybeSingle(),
       buildMarketingCouncilSummarySafe(sb, workspaceId),
       buildSystemCouncilSummarySafe(sb, workspaceId),
+      sb.from("growthmind_marketing_tasks")
+        .select("id", { count: "exact", head: true })
+        .eq("workspace_id", workspaceId)
+        .eq("status", "pending")
+        .eq("due_date", todayStr),
     ]);
+    const marketingTasksDueToday = dueTasksRes?.count ?? 0;
 
     const cfg    = cfgRow.data ?? {};
     const hasEL  = !!(process.env.ELEVENLABS_API_KEY || cfg.elevenlabs_api_key);
@@ -1399,7 +1406,10 @@ export const getHiveMindSystemContext = createServerFn({ method: "GET" })
     const gadsPart = gadsRecCount > 0
       ? `You have ${gadsRecCount} Google Ads recommendation${gadsRecCount !== 1 ? "s" : ""} waiting for your decision.`
       : "";
-    const beginMessage = `${greeting}${namePart}! ${leadPart} ${actionPart} ${gadsPart} What can I help you with?`.replace(/\s+/g, " ").trim();
+    const taskPart = marketingTasksDueToday > 0
+      ? `${marketingTasksDueToday} marketing task${marketingTasksDueToday !== 1 ? "s" : ""} ${marketingTasksDueToday !== 1 ? "are" : "is"} due today.`
+      : "";
+    const beginMessage = `${greeting}${namePart}! ${leadPart} ${actionPart} ${gadsPart} ${taskPart} What can I help you with?`.replace(/\s+/g, " ").trim();
 
     return { systemPrompt, beginMessage, hasEL, hasOAI };
   });
