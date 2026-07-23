@@ -207,7 +207,9 @@ function CallCard({ call }: { call: LiveCall }) {
 export function LiveCallsPanel() {
   const [enabled, setEnabled] = useState<boolean>(true);
   const [calls, setCalls] = useState<LiveCall[]>([]);
-  const [status, setStatus] = useState<"connecting" | "live" | "off" | "error">("off");
+  const [status, setStatus] = useState<
+    "connecting" | "live" | "off" | "error" | "session_expired"
+  >("off");
 
   const esRef = useRef<EventSource | null>(null);
 
@@ -228,6 +230,8 @@ export function LiveCallsPanel() {
 
     let active = true;
     let failedAttempts = 0;
+    let refreshFailures = 0;
+    const MAX_REFRESH_FAILURES = 3;
     let connecting = false;
     let retryTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -251,18 +255,40 @@ export function LiveCallsPanel() {
       // reconnects never loop forever on a dead token.
       let token: string | undefined;
       if (failedAttempts > 0) {
-        const { data: refreshed } = await supabase.auth.refreshSession();
+        const { data: refreshed, error: refreshError } =
+          await supabase.auth.refreshSession();
         token = refreshed.session?.access_token;
+        if (refreshError || !token) {
+          refreshFailures += 1;
+        } else {
+          refreshFailures = 0;
+        }
       }
       if (!token) {
         const { data } = await supabase.auth.getSession();
         token = data.session?.access_token;
       }
-      if (!token || !active) {
+      if (!active) {
         connecting = false;
-        if (!active) return;
+        return;
+      }
+      // Session is truly gone (revoked / signed out elsewhere): after several
+      // consecutive refresh failures, stop retrying and tell the user to sign
+      // in again instead of showing "reconnecting…" forever.
+      if (!token && refreshFailures >= MAX_REFRESH_FAILURES) {
+        connecting = false;
+        setStatus("session_expired");
+        return;
+      }
+      if (!token) {
+        connecting = false;
+        refreshFailures += 1;
+        if (refreshFailures >= MAX_REFRESH_FAILURES) {
+          setStatus("session_expired");
+          return;
+        }
         setStatus("error");
-        // No usable session — retry slowly (e.g. user logged out / auth down).
+        // No usable session yet — retry slowly (e.g. transient auth outage).
         scheduleRetry(15_000);
         return;
       }
@@ -279,6 +305,7 @@ export function LiveCallsPanel() {
           const payload = JSON.parse(evt.data);
           if (Array.isArray(payload?.calls)) {
             failedAttempts = 0;
+            refreshFailures = 0;
             setCalls(payload.calls);
             setStatus("live");
           }
@@ -342,6 +369,10 @@ export function LiveCallsPanel() {
           <span className="text-[10px] text-amber-400/80">reconnecting…</span>
         )}
 
+        {enabled && status === "session_expired" && (
+          <span className="text-[10px] text-rose-400/90">session expired</span>
+        )}
+
         <button
           onClick={toggle}
           title={enabled ? "Turn off live monitoring" : "Turn on live monitoring"}
@@ -367,6 +398,21 @@ export function LiveCallsPanel() {
         <div className="rounded-xl border border-white/[0.06] bg-card/30 px-5 py-5 flex items-center gap-3 text-sm text-muted-foreground">
           <MicOff className="h-4 w-4 shrink-0" />
           <span>Live call monitoring is off. Press <strong>On</strong> to start streaming transcripts.</span>
+        </div>
+      ) : status === "session_expired" ? (
+        <div className="rounded-xl border border-rose-500/20 bg-rose-500/[0.06] px-5 py-5 flex flex-col sm:flex-row sm:items-center gap-3 text-sm">
+          <div className="flex items-center gap-3 text-rose-300/90 min-w-0">
+            <PhoneOff className="h-4 w-4 shrink-0" />
+            <span>
+              Session expired — please sign in again to resume live call monitoring.
+            </span>
+          </div>
+          <a
+            href="/login"
+            className="shrink-0 sm:ml-auto rounded-full bg-rose-500/15 px-3.5 py-1.5 text-xs font-medium text-rose-300 hover:bg-rose-500/25 transition-colors text-center"
+          >
+            Sign in again
+          </a>
         </div>
       ) : calls.length === 0 ? (
         <div className="rounded-xl border border-white/[0.06] bg-card/30 px-5 py-5 flex items-center gap-3 text-sm text-muted-foreground">
