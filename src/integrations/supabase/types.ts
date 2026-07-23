@@ -70,6 +70,47 @@ export type Database = {
           },
         ]
       }
+      accountsmind_client_service_prices: {
+        Row: {
+          created_at: string
+          currency: string | null
+          id: string
+          note: string
+          service_id: string
+          unit_price_cents: number
+          updated_at: string
+          workspace_id: string
+        }
+        Insert: {
+          created_at?: string
+          currency?: string | null
+          id?: string
+          note?: string
+          service_id: string
+          unit_price_cents: number
+          updated_at?: string
+          workspace_id: string
+        }
+        Update: {
+          created_at?: string
+          currency?: string | null
+          id?: string
+          note?: string
+          service_id?: string
+          unit_price_cents?: number
+          updated_at?: string
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "accountsmind_client_service_prices_service_id_fkey"
+            columns: ["service_id"]
+            isOneToOne: false
+            referencedRelation: "accountsmind_services"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       accountsmind_field_defs: {
         Row: {
           appears_in: string
@@ -192,23 +233,148 @@ export type Database = {
           },
         ]
       }
+      accountsmind_invoice_audit_log: {
+        Row: {
+          action: string
+          actor_user_id: string | null
+          created_at: string
+          detail_json: Json
+          id: string
+          invoice_id: string | null
+        }
+        Insert: {
+          action: string
+          actor_user_id?: string | null
+          created_at?: string
+          detail_json?: Json
+          id?: string
+          invoice_id?: string | null
+        }
+        Update: {
+          action?: string
+          actor_user_id?: string | null
+          created_at?: string
+          detail_json?: Json
+          id?: string
+          invoice_id?: string | null
+        }
+        Relationships: []
+      }
+      accountsmind_invoice_payments: {
+        Row: {
+          amount_cents: number
+          created_at: string
+          created_by_user_id: string | null
+          currency: string
+          id: string
+          invoice_id: string
+          method: string
+          notes: string
+          paid_on: string
+          reference: string
+        }
+        Insert: {
+          amount_cents: number
+          created_at?: string
+          created_by_user_id?: string | null
+          currency?: string
+          id?: string
+          invoice_id: string
+          method?: string
+          notes?: string
+          paid_on?: string
+          reference?: string
+        }
+        Update: {
+          amount_cents?: number
+          created_at?: string
+          created_by_user_id?: string | null
+          currency?: string
+          id?: string
+          invoice_id?: string
+          method?: string
+          notes?: string
+          paid_on?: string
+          reference?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "accountsmind_invoice_payments_invoice_id_fkey"
+            columns: ["invoice_id"]
+            isOneToOne: false
+            referencedRelation: "accountsmind_invoices"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       accountsmind_invoice_settings: {
         Row: {
+          default_currency: string
+          default_due_days: number
+          default_payment_terms: string
+          default_tax_rate_percent: number
           from_address: string
+          from_company_number: string
+          from_email: string
+          from_legal_name: string
+          from_logo_path: string
           from_name: string
+          from_phone: string
+          from_tax_number: string
+          from_vat_number: string
+          from_website: string
           id: number
+          invoice_footer: string
+          number_include_year: boolean
+          number_pad_width: number
+          number_prefix: string
+          signatory_name: string
           updated_at: string
         }
         Insert: {
+          default_currency?: string
+          default_due_days?: number
+          default_payment_terms?: string
+          default_tax_rate_percent?: number
           from_address?: string
+          from_company_number?: string
+          from_email?: string
+          from_legal_name?: string
+          from_logo_path?: string
           from_name?: string
+          from_phone?: string
+          from_tax_number?: string
+          from_vat_number?: string
+          from_website?: string
           id?: number
+          invoice_footer?: string
+          number_include_year?: boolean
+          number_pad_width?: number
+          number_prefix?: string
+          signatory_name?: string
           updated_at?: string
         }
         Update: {
+          default_currency?: string
+          default_due_days?: number
+          default_payment_terms?: string
+          default_tax_rate_percent?: number
           from_address?: string
+          from_company_number?: string
+          from_email?: string
+          from_legal_name?: string
+          from_logo_path?: string
           from_name?: string
+          from_phone?: string
+          from_tax_number?: string
+          from_vat_number?: string
+          from_website?: string
           id?: number
+          invoice_footer?: string
+          number_include_year?: boolean
+          number_pad_width?: number
+          number_prefix?: string
+          signatory_name?: string
           updated_at?: string
         }
         Relationships: []
@@ -245,17 +411,28 @@ export type Database = {
       }
       accountsmind_invoices: {
         Row: {
+          amount_paid_cents: number
           client_name: string
+          client_reference: string
           created_at: string
           currency: string
+          customer_notes: string
           data_json: Json
+          discount_cents: number
           due_date: string | null
           generated_by_user_id: string | null
           id: string
+          internal_notes: string
           invoice_month: string
           invoice_number: string
+          is_imported: boolean
+          issue_date: string | null
           line_items_json: Json
           paid_at: string | null
+          payment_profile_id: string | null
+          payment_terms: string
+          po_number: string
+          sent_at: string | null
           status: string
           status_updated_at: string | null
           storage_path: string
@@ -264,20 +441,32 @@ export type Database = {
           tax_rate_percent: number
           template_id: string | null
           total_cents: number
+          voided_at: string | null
           workspace_id: string
         }
         Insert: {
+          amount_paid_cents?: number
           client_name: string
+          client_reference?: string
           created_at?: string
           currency?: string
+          customer_notes?: string
           data_json?: Json
+          discount_cents?: number
           due_date?: string | null
           generated_by_user_id?: string | null
           id?: string
+          internal_notes?: string
           invoice_month: string
           invoice_number: string
+          is_imported?: boolean
+          issue_date?: string | null
           line_items_json?: Json
           paid_at?: string | null
+          payment_profile_id?: string | null
+          payment_terms?: string
+          po_number?: string
+          sent_at?: string | null
           status?: string
           status_updated_at?: string | null
           storage_path: string
@@ -286,20 +475,32 @@ export type Database = {
           tax_rate_percent?: number
           template_id?: string | null
           total_cents?: number
+          voided_at?: string | null
           workspace_id: string
         }
         Update: {
+          amount_paid_cents?: number
           client_name?: string
+          client_reference?: string
           created_at?: string
           currency?: string
+          customer_notes?: string
           data_json?: Json
+          discount_cents?: number
           due_date?: string | null
           generated_by_user_id?: string | null
           id?: string
+          internal_notes?: string
           invoice_month?: string
           invoice_number?: string
+          is_imported?: boolean
+          issue_date?: string | null
           line_items_json?: Json
           paid_at?: string | null
+          payment_profile_id?: string | null
+          payment_terms?: string
+          po_number?: string
+          sent_at?: string | null
           status?: string
           status_updated_at?: string | null
           storage_path?: string
@@ -308,9 +509,17 @@ export type Database = {
           tax_rate_percent?: number
           template_id?: string | null
           total_cents?: number
+          voided_at?: string | null
           workspace_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "accountsmind_invoices_payment_profile_id_fkey"
+            columns: ["payment_profile_id"]
+            isOneToOne: false
+            referencedRelation: "accountsmind_payment_profiles"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "accountsmind_invoices_template_id_fkey"
             columns: ["template_id"]
@@ -347,6 +556,132 @@ export type Database = {
           updated_at?: string
           value?: number
           workspace_id?: string
+        }
+        Relationships: []
+      }
+      accountsmind_payment_profiles: {
+        Row: {
+          account_name: string
+          account_number: string
+          archived: boolean
+          bank_address: string
+          bank_name: string
+          created_at: string
+          created_by_user_id: string | null
+          currency: string
+          iban: string
+          id: string
+          is_default: boolean
+          label: string
+          payment_instructions: string
+          payment_link: string
+          routing_number: string
+          sort_code: string
+          swift_bic: string
+          updated_at: string
+        }
+        Insert: {
+          account_name?: string
+          account_number?: string
+          archived?: boolean
+          bank_address?: string
+          bank_name?: string
+          created_at?: string
+          created_by_user_id?: string | null
+          currency?: string
+          iban?: string
+          id?: string
+          is_default?: boolean
+          label: string
+          payment_instructions?: string
+          payment_link?: string
+          routing_number?: string
+          sort_code?: string
+          swift_bic?: string
+          updated_at?: string
+        }
+        Update: {
+          account_name?: string
+          account_number?: string
+          archived?: boolean
+          bank_address?: string
+          bank_name?: string
+          created_at?: string
+          created_by_user_id?: string | null
+          currency?: string
+          iban?: string
+          id?: string
+          is_default?: boolean
+          label?: string
+          payment_instructions?: string
+          payment_link?: string
+          routing_number?: string
+          sort_code?: string
+          swift_bic?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      accountsmind_services: {
+        Row: {
+          archived: boolean
+          billing_frequency: string
+          category: string
+          cost_price_cents: number | null
+          created_at: string
+          created_by_user_id: string | null
+          currency: string
+          id: string
+          internal_description: string
+          name: string
+          public_description: string
+          recurring: boolean
+          sku: string
+          tax_inclusive: boolean
+          tax_rate_percent: number
+          unit: string
+          unit_price_cents: number
+          updated_at: string
+        }
+        Insert: {
+          archived?: boolean
+          billing_frequency?: string
+          category?: string
+          cost_price_cents?: number | null
+          created_at?: string
+          created_by_user_id?: string | null
+          currency?: string
+          id?: string
+          internal_description?: string
+          name: string
+          public_description?: string
+          recurring?: boolean
+          sku?: string
+          tax_inclusive?: boolean
+          tax_rate_percent?: number
+          unit?: string
+          unit_price_cents?: number
+          updated_at?: string
+        }
+        Update: {
+          archived?: boolean
+          billing_frequency?: string
+          category?: string
+          cost_price_cents?: number | null
+          created_at?: string
+          created_by_user_id?: string | null
+          currency?: string
+          id?: string
+          internal_description?: string
+          name?: string
+          public_description?: string
+          recurring?: boolean
+          sku?: string
+          tax_inclusive?: boolean
+          tax_rate_percent?: number
+          unit?: string
+          unit_price_cents?: number
+          updated_at?: string
         }
         Relationships: []
       }
