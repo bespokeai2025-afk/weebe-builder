@@ -1,6 +1,6 @@
 import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { useState } from "react";
+import { Fragment, useEffect, useRef, useState } from "react";
 import {
   Loader2, RefreshCw, CheckCircle2, AlertTriangle, Circle,
   Lightbulb, ChevronDown, ChevronUp, Search, ShieldCheck,
@@ -15,6 +15,7 @@ import {
   selectGadsAccount,
   runGadsRefreshNow,
   getGadsDashboard,
+  getGadsCampaignDetail,
   setGadsRecommendationStatus,
 } from "@/lib/growthmind/gads-live.server";
 
@@ -46,13 +47,24 @@ function pctDelta(cur: number, prev: number): { text: string; up: boolean } | nu
 }
 
 const SECTION_LABELS: Record<string, string> = {
-  budget:       "Budget",
-  performance:  "Performance",
-  keywords:     "Keywords",
-  search_terms: "Search terms",
-  devices:      "Devices",
-  schedule:     "Schedule",
+  immediate_attention: "Immediate attention",
+  wasted_spend:        "Wasted spend",
+  budget_opportunity:  "Budget opportunity",
+  conversion:          "Conversion",
+  tracking_quality:    "Tracking quality",
+  growth:              "Growth",
 };
+
+const DIMENSION_LABELS: Record<string, string> = {
+  ad_group:    "Ad groups",
+  keyword:     "Keywords",
+  search_term: "Search terms",
+  device:      "Devices",
+  location:    "Locations",
+  schedule:    "Schedule",
+};
+
+type SortKey = "name" | "status" | "spend" | "impressions" | "clicks" | "ctr" | "cpc" | "conversions" | "costPerConv" | "budget";
 
 // ── Main panel ─────────────────────────────────────────────────────────────────
 
@@ -68,6 +80,11 @@ export function GadsLivePanel({ onConnectClick }: { onConnectClick: () => void }
   const [days, setDays] = useState(30);
   const [showRuns, setShowRuns] = useState(false);
   const [expandedCampaign, setExpandedCampaign] = useState<string | null>(null);
+  const [changingAccount, setChangingAccount] = useState(false);
+  const [sortKey, setSortKey] = useState<SortKey>("spend");
+  const [sortDesc, setSortDesc] = useState(true);
+  const [statusFilter, setStatusFilter] = useState<"all" | "enabled" | "paused">("all");
+  const autoSelectTried = useRef(false);
 
   const { data: conn, isLoading: connLoading, refetch: refetchConn } = useQuery({
     queryKey: ["gads-connection"],
@@ -89,6 +106,7 @@ export function GadsLivePanel({ onConnectClick }: { onConnectClick: () => void }
 
   const discoverMut = useMutation({
     mutationFn: () => discoverFn(),
+    onMutate: () => { autoSelectTried.current = false; }, // each fresh discovery may auto-select again
     onError: (e: any) => toast.error("Could not list your Google Ads accounts", { description: e?.message }),
   });
 
@@ -96,11 +114,23 @@ export function GadsLivePanel({ onConnectClick }: { onConnectClick: () => void }
     mutationFn: (input: { customerId: string; loginCustomerId?: string | null }) => selectFn({ data: input }),
     onSuccess: (r: any) => {
       toast.success(`Connected to ${r?.descriptiveName || r?.customerId} — first sync started`);
+      setChangingAccount(false);
       refetchConn();
       setTimeout(() => { refetchConn(); refetchDash(); }, 8000);
     },
     onError: (e: any) => toast.error("Could not select that account", { description: e?.message }),
   });
+
+  // Auto-select when discovery finds exactly one client (non-manager) account.
+  const autoSelectable = (discoverMut.data as any)?.autoSelectable ?? null;
+  useEffect(() => {
+    if (!autoSelectable || autoSelectTried.current || selectMut.isPending) return;
+    if (state?.accountSelected && !changingAccount) return;
+    autoSelectTried.current = true;
+    toast.info(`Found one advertising account — connecting to ${autoSelectable.descriptiveName || autoSelectable.customerId}…`);
+    selectMut.mutate({ customerId: autoSelectable.customerId, loginCustomerId: autoSelectable.loginCustomerId ?? null });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoSelectable]);
 
   const refreshMut = useMutation({
     mutationFn: () => refreshFn(),
@@ -112,6 +142,15 @@ export function GadsLivePanel({ onConnectClick }: { onConnectClick: () => void }
       qc.invalidateQueries({ queryKey: ["ads-accounts"] });
     },
     onError: (e: any) => toast.error("Sync failed", { description: e?.message }),
+  });
+
+  const detailFn = useServerFn(getGadsCampaignDetail);
+  const { data: campDetail, isLoading: detailLoading } = useQuery({
+    queryKey: ["gads-campaign-detail", expandedCampaign],
+    queryFn:  () => detailFn({ data: { campaignId: expandedCampaign! } }),
+    enabled: !!expandedCampaign,
+    staleTime: 60_000,
+    throwOnError: false,
   });
 
   const recMut = useMutation({
@@ -150,6 +189,29 @@ export function GadsLivePanel({ onConnectClick }: { onConnectClick: () => void }
   const recommendations: any[] = (dash?.recommendations ?? []).filter((r: any) => r.status === "new" || r.status === "under_review");
   const changeRequests: any[] = dash?.changeRequests ?? [];
   const syncRuns: any[] = dash?.syncRuns ?? [];
+
+  const visibleCampaigns = (() => {
+    const filtered = statusFilter === "all" ? campaigns : campaigns.filter((c: any) => (c.status ?? "").toLowerCase() === statusFilter);
+    const val = (c: any): string | number => {
+      switch (sortKey) {
+        case "name":        return (c.name ?? "").toLowerCase();
+        case "status":      return c.status ?? "";
+        case "spend":       return c.spend ?? 0;
+        case "impressions": return c.impressions ?? 0;
+        case "clicks":      return c.clicks ?? 0;
+        case "ctr":         return c.impressions > 0 ? c.clicks / c.impressions : 0;
+        case "cpc":         return c.clicks > 0 ? c.spend / c.clicks : 0;
+        case "conversions": return c.conversions ?? 0;
+        case "costPerConv": return c.conversions > 0 ? c.spend / c.conversions : 0;
+        case "budget":      return c.budget ?? 0;
+      }
+    };
+    return [...filtered].sort((a, b) => {
+      const va = val(a), vb = val(b);
+      const cmp = typeof va === "string" ? va.localeCompare(vb as string) : (va as number) - (vb as number);
+      return sortDesc ? -cmp : cmp;
+    });
+  })();
   const currency = dash?.account?.currencyCode ?? conn.account?.currencyCode;
 
   return (
@@ -199,14 +261,29 @@ export function GadsLivePanel({ onConnectClick }: { onConnectClick: () => void }
               Sync now
             </Button>
           )}
+          {state?.accountSelected && (
+            <Button size="sm" variant="ghost" className="h-7 text-[11px] gap-1.5 text-muted-foreground"
+              onClick={() => {
+                const next = !changingAccount;
+                setChangingAccount(next);
+                if (next) {
+                  autoSelectTried.current = false; // allow re-auto-select in the change flow
+                  if (!discoverMut.isPending) discoverMut.mutate();
+                }
+              }}
+              disabled={discoverMut.isPending}>
+              {discoverMut.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : <Search className="h-3 w-3" />}
+              {changingAccount ? "Cancel change" : "Change advertising account"}
+            </Button>
+          )}
         </div>
       </div>
 
-      {/* ── Account selector (after discovery, before selection) ── */}
-      {state?.apiVerified && !state?.accountSelected && discovered && (
+      {/* ── Account selector (after discovery before selection, or when changing account) ── */}
+      {state?.apiVerified && (changingAccount || !state?.accountSelected) && discovered && (
         <div className="px-4 py-3 border-t border-white/[0.05]">
           <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-[0.08em] mb-2">
-            Select your advertising account
+            {changingAccount ? "Change advertising account" : "Select your advertising account"}
           </p>
           {selectable.length === 0 ? (
             <p className="text-xs text-muted-foreground">
@@ -269,15 +346,29 @@ export function GadsLivePanel({ onConnectClick }: { onConnectClick: () => void }
           ) : kpis ? (
             <>
               {/* KPI row */}
-              <div className="px-4 py-3 grid grid-cols-2 sm:grid-cols-5 gap-3 border-t border-white/[0.04]">
+              <div className="px-4 py-3 grid grid-cols-3 sm:grid-cols-5 lg:grid-cols-9 gap-3 border-t border-white/[0.04]">
                 {[
                   { label: "Spend",       cur: kpis.spend,       prev: prevKpis?.spend ?? 0,       fmt: (n: number) => fmtGBP(n, currency), invert: false },
                   { label: "Impressions", cur: kpis.impressions, prev: prevKpis?.impressions ?? 0, fmt: (n: number) => n >= 1000 ? `${(n / 1000).toFixed(1)}k` : String(n), invert: false },
                   { label: "Clicks",      cur: kpis.clicks,      prev: prevKpis?.clicks ?? 0,      fmt: (n: number) => n.toLocaleString(), invert: false },
+                  { label: "CTR",
+                    cur: kpis.impressions > 0 ? (kpis.clicks / kpis.impressions) * 100 : 0,
+                    prev: (prevKpis?.impressions ?? 0) > 0 ? (prevKpis!.clicks / prevKpis!.impressions) * 100 : 0,
+                    fmt: (n: number) => n > 0 ? `${n.toFixed(2)}%` : "—", invert: false },
+                  { label: "Avg CPC",
+                    cur: kpis.clicks > 0 ? kpis.spend / kpis.clicks : 0,
+                    prev: (prevKpis?.clicks ?? 0) > 0 ? (prevKpis!.spend / prevKpis!.clicks) : 0,
+                    fmt: (n: number) => n > 0 ? fmtGBP(n, currency) : "—", invert: true },
                   { label: "Conversions", cur: kpis.conversions, prev: prevKpis?.conversions ?? 0, fmt: (n: number) => n.toLocaleString(undefined, { maximumFractionDigits: 1 }), invert: false },
                   { label: "Cost / conv", cur: kpis.conversions > 0 ? kpis.spend / kpis.conversions : 0,
                     prev: (prevKpis?.conversions ?? 0) > 0 ? (prevKpis!.spend / prevKpis!.conversions) : 0,
                     fmt: (n: number) => n > 0 ? fmtGBP(n, currency) : "—", invert: true },
+                  { label: "Conv. value", cur: kpis.conversionsValue ?? 0, prev: prevKpis?.conversionsValue ?? 0,
+                    fmt: (n: number) => n > 0 ? fmtGBP(n, currency) : "—", invert: false },
+                  { label: "ROAS",
+                    cur: kpis.spend > 0 ? (kpis.conversionsValue ?? 0) / kpis.spend : 0,
+                    prev: (prevKpis?.spend ?? 0) > 0 ? ((prevKpis!.conversionsValue ?? 0) / prevKpis!.spend) : 0,
+                    fmt: (n: number) => n > 0 ? `${n.toFixed(2)}x` : "—", invert: false },
                 ].map(m => {
                   const delta = pctDelta(m.cur, m.prev);
                   const good = delta ? (m.invert ? !delta.up : delta.up) : null;
@@ -296,44 +387,134 @@ export function GadsLivePanel({ onConnectClick }: { onConnectClick: () => void }
                 })}
               </div>
 
-              {/* Campaigns table */}
+              {/* Campaigns table — sortable, filterable, click a row for detail */}
               <div className="border-t border-white/[0.04]">
-                <p className="px-4 pt-3 pb-1.5 text-[11px] font-semibold text-muted-foreground uppercase tracking-[0.08em]">
-                  Live campaigns ({campaigns.length})
-                </p>
-                {campaigns.length === 0 ? (
+                <div className="px-4 pt-3 pb-1.5 flex items-center gap-2 flex-wrap">
+                  <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-[0.08em]">
+                    Live campaigns ({visibleCampaigns.length})
+                  </p>
+                  <div className="ml-auto flex items-center gap-1">
+                    {([["all", "All"], ["enabled", "Enabled"], ["paused", "Paused"]] as const).map(([v, l]) => (
+                      <button key={v} onClick={() => setStatusFilter(v)}
+                        className={cn(
+                          "rounded-md px-2 py-0.5 text-[10px] font-medium transition-colors",
+                          statusFilter === v ? "bg-blue-500/15 text-blue-300" : "text-muted-foreground hover:text-foreground",
+                        )}>
+                        {l}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                {visibleCampaigns.length === 0 ? (
                   <p className="px-4 pb-4 text-xs text-muted-foreground">
-                    No campaign data in the last {days} days. If you just connected, the first sync may still be running.
+                    {campaigns.length === 0
+                      ? <>No campaign data in the last {days} days. If you just connected, the first sync may still be running.</>
+                      : <>No {statusFilter.toLowerCase()} campaigns in the last {days} days.</>}
                   </p>
                 ) : (
                   <div className="overflow-x-auto pb-1">
-                    <table className="w-full min-w-[560px] text-xs">
+                    <table className="w-full min-w-[700px] text-xs">
                       <thead>
                         <tr className="border-y border-white/[0.04] bg-white/[0.02]">
-                          {["Campaign", "Status", "Spend", "Clicks", "Conv.", "Cost/conv", "Budget/day"].map(h => (
-                            <th key={h} className="px-3 py-2 text-left text-[10px] font-semibold text-muted-foreground uppercase tracking-[0.08em] first:pl-4 last:pr-4">{h}</th>
+                          {([
+                            ["name", "Campaign"], ["status", "Status"], ["spend", "Spend"],
+                            ["clicks", "Clicks"], ["ctr", "CTR"], ["cpc", "CPC"],
+                            ["conversions", "Conv."], ["costPerConv", "Cost/conv"], ["budget", "Budget/day"],
+                          ] as Array<[SortKey, string]>).map(([k, h]) => (
+                            <th key={k}
+                              className="px-3 py-2 text-left text-[10px] font-semibold text-muted-foreground uppercase tracking-[0.08em] first:pl-4 last:pr-4 cursor-pointer select-none hover:text-foreground"
+                              onClick={() => {
+                                if (sortKey === k) setSortDesc(d => !d);
+                                else { setSortKey(k); setSortDesc(k !== "name" && k !== "status"); }
+                              }}>
+                              {h}{sortKey === k ? (sortDesc ? " ↓" : " ↑") : ""}
+                            </th>
                           ))}
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-white/[0.03]">
-                        {campaigns.map((c: any) => (
-                          <tr key={c.campaignId} className="hover:bg-white/[0.02] transition-colors cursor-pointer"
-                            onClick={() => setExpandedCampaign(expandedCampaign === c.campaignId ? null : c.campaignId)}>
-                            <td className="px-4 py-2 font-medium max-w-[200px] truncate">{c.name}</td>
-                            <td className="px-3 py-2">
-                              <span className={cn(
-                                "rounded-full px-1.5 py-0.5 text-[9px] font-semibold uppercase",
-                                c.status === "ENABLED" ? "bg-emerald-500/10 text-emerald-400" :
-                                c.status === "PAUSED"  ? "bg-amber-500/10 text-amber-400" :
-                                                         "bg-slate-500/10 text-slate-400",
-                              )}>{(c.status ?? "").toLowerCase() || "—"}</span>
-                            </td>
-                            <td className="px-3 py-2 tabular-nums">{fmtGBP(c.spend, currency)}</td>
-                            <td className="px-3 py-2 tabular-nums">{c.clicks.toLocaleString()}</td>
-                            <td className="px-3 py-2 tabular-nums font-medium">{Number(c.conversions).toLocaleString(undefined, { maximumFractionDigits: 1 })}</td>
-                            <td className="px-3 py-2 tabular-nums">{c.conversions > 0 ? fmtGBP(c.spend / c.conversions, currency) : "—"}</td>
-                            <td className="px-3 py-2 tabular-nums text-muted-foreground">{c.budget != null ? fmtGBP(c.budget, currency) : "—"}</td>
-                          </tr>
+                        {visibleCampaigns.map((c: any) => (
+                          <Fragment key={c.campaignId}>
+                            <tr className="hover:bg-white/[0.02] transition-colors cursor-pointer"
+                              onClick={() => setExpandedCampaign(expandedCampaign === c.campaignId ? null : c.campaignId)}>
+                              <td className="px-4 py-2 font-medium max-w-[200px] truncate">
+                                <span className="inline-flex items-center gap-1">
+                                  {expandedCampaign === c.campaignId ? <ChevronUp className="h-3 w-3 text-muted-foreground shrink-0" /> : <ChevronDown className="h-3 w-3 text-muted-foreground/50 shrink-0" />}
+                                  {c.name}
+                                </span>
+                              </td>
+                              <td className="px-3 py-2">
+                                <span className={cn(
+                                  "rounded-full px-1.5 py-0.5 text-[9px] font-semibold uppercase",
+                                  (c.status ?? "").toLowerCase() === "enabled" ? "bg-emerald-500/10 text-emerald-400" :
+                                  (c.status ?? "").toLowerCase() === "paused"  ? "bg-amber-500/10 text-amber-400" :
+                                                                                 "bg-slate-500/10 text-slate-400",
+                                )}>{(c.status ?? "").toLowerCase() || "—"}</span>
+                              </td>
+                              <td className="px-3 py-2 tabular-nums">{fmtGBP(c.spend, currency)}</td>
+                              <td className="px-3 py-2 tabular-nums">{c.clicks.toLocaleString()}</td>
+                              <td className="px-3 py-2 tabular-nums">{c.impressions > 0 ? `${((c.clicks / c.impressions) * 100).toFixed(2)}%` : "—"}</td>
+                              <td className="px-3 py-2 tabular-nums">{c.clicks > 0 ? fmtGBP(c.spend / c.clicks, currency) : "—"}</td>
+                              <td className="px-3 py-2 tabular-nums font-medium">{Number(c.conversions).toLocaleString(undefined, { maximumFractionDigits: 1 })}</td>
+                              <td className="px-3 py-2 tabular-nums">{c.conversions > 0 ? fmtGBP(c.spend / c.conversions, currency) : "—"}</td>
+                              <td className="px-3 py-2 tabular-nums text-muted-foreground">{c.budget != null ? fmtGBP(c.budget, currency) : "—"}</td>
+                            </tr>
+                            {expandedCampaign === c.campaignId && (
+                              <tr>
+                                <td colSpan={9} className="px-4 py-3 bg-white/[0.015]">
+                                  {detailLoading ? (
+                                    <div className="flex items-center gap-2 text-muted-foreground py-2">
+                                      <Loader2 className="h-3.5 w-3.5 animate-spin text-blue-400" />
+                                      <span className="text-[11px]">Loading campaign detail…</span>
+                                    </div>
+                                  ) : campDetail ? (
+                                    <div className="space-y-3">
+                                      {(campDetail.findings ?? []).length > 0 && (
+                                        <div>
+                                          <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-[0.08em] mb-1.5 flex items-center gap-1">
+                                            <Lightbulb className="h-3 w-3 text-amber-400" /> Findings for this campaign
+                                          </p>
+                                          <div className="space-y-1">
+                                            {(campDetail.findings ?? []).map((f: any) => (
+                                              <p key={f.id} className="text-[11px] text-muted-foreground leading-snug">
+                                                <span className="font-medium text-foreground">{f.title}</span>
+                                                <span className="ml-1.5 text-[9px] uppercase text-muted-foreground/60">{SECTION_LABELS[f.section] ?? f.section}</span>
+                                                {f.recommended_action && <span className="block text-muted-foreground/80">{f.recommended_action}</span>}
+                                              </p>
+                                            ))}
+                                          </div>
+                                        </div>
+                                      )}
+                                      {Object.keys(campDetail.dimensions ?? {}).length === 0 && (campDetail.findings ?? []).length === 0 && (
+                                        <p className="text-[11px] text-muted-foreground">No breakdown data synced for this campaign yet — run a sync to pull ad group, keyword and device stats.</p>
+                                      )}
+                                      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                                        {Object.entries(campDetail.dimensions ?? {}).map(([dim, rows]: [string, any]) => (
+                                          <div key={dim} className="rounded-lg border border-white/[0.06] bg-white/[0.01] p-2.5">
+                                            <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-[0.08em] mb-1.5">
+                                              {DIMENSION_LABELS[dim] ?? dim.replace(/_/g, " ")}
+                                            </p>
+                                            <div className="space-y-1">
+                                              {(rows as any[]).slice(0, 8).map((r: any, i: number) => (
+                                                <div key={`${r.key}-${i}`} className="flex items-center justify-between gap-2 text-[10px]">
+                                                  <span className="truncate text-muted-foreground" title={r.label}>{r.label || r.key}</span>
+                                                  <span className="tabular-nums shrink-0">
+                                                    {fmtGBP(r.spend, currency)} · {r.clicks} cl · {Number(r.conversions).toLocaleString(undefined, { maximumFractionDigits: 1 })} conv
+                                                  </span>
+                                                </div>
+                                              ))}
+                                            </div>
+                                          </div>
+                                        ))}
+                                      </div>
+                                    </div>
+                                  ) : (
+                                    <p className="text-[11px] text-muted-foreground">Could not load campaign detail.</p>
+                                  )}
+                                </td>
+                              </tr>
+                            )}
+                          </Fragment>
                         ))}
                       </tbody>
                     </table>

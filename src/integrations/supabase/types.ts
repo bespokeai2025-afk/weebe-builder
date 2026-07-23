@@ -3849,20 +3849,28 @@ export type Database = {
       }
       growthmind_ads_accounts: {
         Row: {
+          accessible_customers: Json | null
           account_id: string
+          connection_state: string | null
           created_at: string
           currency: string
+          currency_code: string | null
+          customer_id: string | null
+          descriptive_name: string | null
           id: string
           label: string
           last_synced_at: string | null
+          login_customer_id: string | null
           meta_app_id: string | null
           meta_app_secret_enc: string | null
           meta_pixel_id: string | null
           monthly_budget: number | null
           platform: string
           status: string
+          sync_config: Json | null
           sync_error: string | null
           sync_status: string
+          time_zone: string | null
           token_enc: string | null
           total_spend_synced: number | null
           updated_at: string
@@ -3871,20 +3879,28 @@ export type Database = {
           workspace_id: string
         }
         Insert: {
+          accessible_customers?: Json | null
           account_id: string
+          connection_state?: string | null
           created_at?: string
           currency?: string
+          currency_code?: string | null
+          customer_id?: string | null
+          descriptive_name?: string | null
           id?: string
           label: string
           last_synced_at?: string | null
+          login_customer_id?: string | null
           meta_app_id?: string | null
           meta_app_secret_enc?: string | null
           meta_pixel_id?: string | null
           monthly_budget?: number | null
           platform: string
           status?: string
+          sync_config?: Json | null
           sync_error?: string | null
           sync_status?: string
+          time_zone?: string | null
           token_enc?: string | null
           total_spend_synced?: number | null
           updated_at?: string
@@ -3893,20 +3909,28 @@ export type Database = {
           workspace_id: string
         }
         Update: {
+          accessible_customers?: Json | null
           account_id?: string
+          connection_state?: string | null
           created_at?: string
           currency?: string
+          currency_code?: string | null
+          customer_id?: string | null
+          descriptive_name?: string | null
           id?: string
           label?: string
           last_synced_at?: string | null
+          login_customer_id?: string | null
           meta_app_id?: string | null
           meta_app_secret_enc?: string | null
           meta_pixel_id?: string | null
           monthly_budget?: number | null
           platform?: string
           status?: string
+          sync_config?: Json | null
           sync_error?: string | null
           sync_status?: string
+          time_zone?: string | null
           token_enc?: string | null
           total_spend_synced?: number | null
           updated_at?: string
@@ -5018,6 +5042,302 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      growthmind_gads_campaign_daily: {
+        Row: {
+          account_row_id: string
+          budget_micros: number | null
+          campaign_id: string
+          channel_type: string | null
+          clicks: number
+          conversions: number
+          conversions_value: number
+          cost_micros: number
+          created_at: string
+          customer_id: string
+          date: string
+          id: string
+          impressions: number
+          name: string
+          status: string | null
+          updated_at: string
+          workspace_id: string
+        }
+        Insert: {
+          account_row_id: string
+          budget_micros?: number | null
+          campaign_id: string
+          channel_type?: string | null
+          clicks?: number
+          conversions?: number
+          conversions_value?: number
+          cost_micros?: number
+          created_at?: string
+          customer_id: string
+          date: string
+          id?: string
+          impressions?: number
+          name: string
+          status?: string | null
+          updated_at?: string
+          workspace_id: string
+        }
+        Update: {
+          account_row_id?: string
+          budget_micros?: number | null
+          campaign_id?: string
+          channel_type?: string | null
+          clicks?: number
+          conversions?: number
+          conversions_value?: number
+          cost_micros?: number
+          created_at?: string
+          customer_id?: string
+          date?: string
+          id?: string
+          impressions?: number
+          name?: string
+          status?: string | null
+          updated_at?: string
+          workspace_id?: string
+        }
+        Relationships: []
+      }
+      growthmind_gads_change_requests: {
+        Row: {
+          account_row_id: string
+          approved_at: string
+          approved_by: string | null
+          campaign_id: string | null
+          change_type: string
+          created_at: string
+          customer_id: string | null
+          executed_at: string | null
+          id: string
+          payload: Json | null
+          recommendation_id: string | null
+          status: string
+          workspace_id: string
+        }
+        Insert: {
+          account_row_id: string
+          approved_at?: string
+          approved_by?: string | null
+          campaign_id?: string | null
+          change_type: string
+          created_at?: string
+          customer_id?: string | null
+          executed_at?: string | null
+          id?: string
+          payload?: Json | null
+          recommendation_id?: string | null
+          status?: string
+          workspace_id: string
+        }
+        Update: {
+          account_row_id?: string
+          approved_at?: string
+          approved_by?: string | null
+          campaign_id?: string | null
+          change_type?: string
+          created_at?: string
+          customer_id?: string | null
+          executed_at?: string | null
+          id?: string
+          payload?: Json | null
+          recommendation_id?: string | null
+          status?: string
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "growthmind_gads_change_requests_recommendation_id_fkey"
+            columns: ["recommendation_id"]
+            isOneToOne: false
+            referencedRelation: "growthmind_gads_recommendations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      growthmind_gads_dimension_stats: {
+        Row: {
+          account_row_id: string
+          campaign_id: string
+          clicks: number
+          conversions: number
+          conversions_value: number
+          cost_micros: number
+          created_at: string
+          customer_id: string
+          date_end: string
+          date_start: string
+          entity_key: string
+          entity_type: string
+          id: string
+          impressions: number
+          label: string | null
+          meta: Json | null
+          updated_at: string
+          workspace_id: string
+        }
+        Insert: {
+          account_row_id: string
+          campaign_id: string
+          clicks?: number
+          conversions?: number
+          conversions_value?: number
+          cost_micros?: number
+          created_at?: string
+          customer_id: string
+          date_end: string
+          date_start: string
+          entity_key: string
+          entity_type: string
+          id?: string
+          impressions?: number
+          label?: string | null
+          meta?: Json | null
+          updated_at?: string
+          workspace_id: string
+        }
+        Update: {
+          account_row_id?: string
+          campaign_id?: string
+          clicks?: number
+          conversions?: number
+          conversions_value?: number
+          cost_micros?: number
+          created_at?: string
+          customer_id?: string
+          date_end?: string
+          date_start?: string
+          entity_key?: string
+          entity_type?: string
+          id?: string
+          impressions?: number
+          label?: string | null
+          meta?: Json | null
+          updated_at?: string
+          workspace_id?: string
+        }
+        Relationships: []
+      }
+      growthmind_gads_recommendations: {
+        Row: {
+          account_row_id: string
+          campaign_id: string | null
+          campaign_name: string | null
+          confidence: number
+          created_at: string
+          customer_id: string | null
+          dedupe_key: string | null
+          evidence: Json | null
+          expected_benefit: string | null
+          expires_at: string | null
+          id: string
+          priority: string
+          recommended_action: string
+          reviewed_at: string | null
+          reviewed_by: string | null
+          section: string
+          status: string
+          title: string
+          updated_at: string
+          workspace_id: string
+        }
+        Insert: {
+          account_row_id: string
+          campaign_id?: string | null
+          campaign_name?: string | null
+          confidence?: number
+          created_at?: string
+          customer_id?: string | null
+          dedupe_key?: string | null
+          evidence?: Json | null
+          expected_benefit?: string | null
+          expires_at?: string | null
+          id?: string
+          priority?: string
+          recommended_action: string
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          section: string
+          status?: string
+          title: string
+          updated_at?: string
+          workspace_id: string
+        }
+        Update: {
+          account_row_id?: string
+          campaign_id?: string | null
+          campaign_name?: string | null
+          confidence?: number
+          created_at?: string
+          customer_id?: string | null
+          dedupe_key?: string | null
+          evidence?: Json | null
+          expected_benefit?: string | null
+          expires_at?: string | null
+          id?: string
+          priority?: string
+          recommended_action?: string
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          section?: string
+          status?: string
+          title?: string
+          updated_at?: string
+          workspace_id?: string
+        }
+        Relationships: []
+      }
+      growthmind_gads_sync_runs: {
+        Row: {
+          account_row_id: string
+          campaigns_synced: number
+          created_at: string
+          error_message: string | null
+          finished_at: string | null
+          id: string
+          rows_upserted: number
+          run_type: string
+          spend_synced: number
+          started_at: string
+          stats: Json | null
+          status: string
+          workspace_id: string
+        }
+        Insert: {
+          account_row_id: string
+          campaigns_synced?: number
+          created_at?: string
+          error_message?: string | null
+          finished_at?: string | null
+          id?: string
+          rows_upserted?: number
+          run_type?: string
+          spend_synced?: number
+          started_at?: string
+          stats?: Json | null
+          status?: string
+          workspace_id: string
+        }
+        Update: {
+          account_row_id?: string
+          campaigns_synced?: number
+          created_at?: string
+          error_message?: string | null
+          finished_at?: string | null
+          id?: string
+          rows_upserted?: number
+          run_type?: string
+          spend_synced?: number
+          started_at?: string
+          stats?: Json | null
+          status?: string
+          workspace_id?: string
+        }
+        Relationships: []
       }
       growthmind_generation_audit: {
         Row: {
