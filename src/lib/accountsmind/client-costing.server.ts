@@ -38,6 +38,12 @@ export interface MonthlyCostBreakdown {
   imageCostCents:         number;
   storageCostCents:       number;
   infrastructureCostCents:number;
+  /** Client's own advertising spend (Google/Meta/etc) synced by GrowthMind.
+   *  Rolling last-30-days figure (not month-bounded), reported for the CURRENT
+   *  month only — 0 for historical months. Informational — NOT included in
+   *  totalCostCents (it is the client's ad budget, not a platform cost, so it
+   *  must not distort gross margin). */
+  adSpendCents:           number;
   totalCostCents:         number;
   grossProfitCents:       number;
   grossMarginPercent:     number;
@@ -69,6 +75,7 @@ export async function computeClientMonthlyCost(
     providerLogRes,
     genLogRes,
     billingRes,
+    adAccountsRes,
   ] = await Promise.all([
     // Voice + LLM + telephony from call_profitability
     sb
@@ -101,6 +108,12 @@ export async function computeClientMonthlyCost(
       .select("monthly_charge_cents")
       .eq("workspace_id", workspaceId)
       .maybeSingle(),
+
+    // GrowthMind-synced ad accounts — live ad spend (last-30-days rolling)
+    sb
+      .from("growthmind_ads_accounts")
+      .select("platform,total_spend_synced,status")
+      .eq("workspace_id", workspaceId),
   ]);
 
   const calls    = callProfRes.data   ?? [];
@@ -173,6 +186,22 @@ export async function computeClientMonthlyCost(
   }
   llmCostCents += genLlmCents;
 
+  // ── Client ad spend (GrowthMind-synced ad accounts) ───────────────────────
+  // Informational only: this is the client's own advertising budget, NOT a
+  // platform cost, so it is excluded from totalCostCents / margin maths.
+  let adSpendCents = 0;
+  const nowForAds = new Date();
+  const isCurrentMonth =
+    monthDate.getMonth() === nowForAds.getMonth() &&
+    monthDate.getFullYear() === nowForAds.getFullYear();
+  for (const a of (isCurrentMonth ? (adAccountsRes.data ?? []) : []) as any[]) {
+    const cents = centsFromUsd(Number(a.total_spend_synced ?? 0));
+    if (cents <= 0) continue;
+    adSpendCents += cents;
+    const key = `advertising:${(a.platform ?? "unknown").toLowerCase()}`;
+    sourceBreakdown[key] = (sourceBreakdown[key] ?? 0) + cents;
+  }
+
   // ── Infrastructure — fixed monthly share ──────────────────────────────────
   const infrastructureCostCents = infraFromCallsCents;
 
@@ -222,6 +251,7 @@ export async function computeClientMonthlyCost(
     imageCostCents,
     storageCostCents,
     infrastructureCostCents,
+    adSpendCents,
     totalCostCents,
     grossProfitCents,
     grossMarginPercent,

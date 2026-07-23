@@ -71,7 +71,51 @@ async function syncMeta(accountId: string, token: string): Promise<SyncedCampaig
 }
 
 // ── Google Ads ────────────────────────────────────────────────────────────────
-async function syncGoogle(accountId: string, token: string): Promise<SyncedCampaign[]> {
+// Google refresh tokens (from the "Connect with Google" OAuth flow) start with
+// "1//". They must be exchanged for a short-lived access token using the
+// workspace's OAuth clientId/clientSecret stored in provider_settings.
+async function resolveGoogleAccessToken(workspaceId: string, token: string): Promise<{ accessToken: string; developerToken?: string; managerId?: string }> {
+  const sb = supabaseAdmin as any;
+  const { data: setting } = await sb
+    .from("provider_settings")
+    .select("credentials")
+    .eq("workspace_id", workspaceId)
+    .eq("provider_category", "advertising")
+    .eq("provider_name", "google_ads")
+    .maybeSingle();
+  const creds = (setting?.credentials ?? {}) as Record<string, string>;
+
+  const isRefreshToken = token.startsWith("1//") || token.startsWith("1/");
+  if (!isRefreshToken) {
+    return { accessToken: token, developerToken: creds.developerToken, managerId: creds.managerId };
+  }
+
+  if (!creds.clientId || !creds.clientSecret) {
+    throw new Error("Google Ads: refresh token saved but OAuth Client ID/Secret missing in provider settings");
+  }
+
+  const res = await fetch("https://oauth2.googleapis.com/token", {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({
+      grant_type:    "refresh_token",
+      refresh_token: token,
+      client_id:     creds.clientId,
+      client_secret: creds.clientSecret,
+    }),
+  });
+  const json = await res.json() as any;
+  if (!res.ok || json.error) {
+    throw new Error(`Google OAuth refresh failed: ${json.error_description ?? json.error ?? res.status}`);
+  }
+  return { accessToken: json.access_token as string, developerToken: creds.developerToken, managerId: creds.managerId };
+}
+
+async function syncGoogle(
+  accountId: string,
+  token: string,
+  opts?: { developerToken?: string; managerId?: string },
+): Promise<SyncedCampaign[]> {
   const { since, until } = last30Days();
   // customer_id is the account_id without dashes
   const customerId = accountId.replace(/-/g, "");
@@ -98,7 +142,8 @@ async function syncGoogle(accountId: string, token: string): Promise<SyncedCampa
       headers: {
         Authorization:    `Bearer ${token}`,
         "Content-Type":   "application/json",
-        "developer-token": process.env.GOOGLE_ADS_DEVELOPER_TOKEN ?? "",
+        "developer-token": opts?.developerToken ?? process.env.GOOGLE_ADS_DEVELOPER_TOKEN ?? "",
+        ...(opts?.managerId ? { "login-customer-id": opts.managerId.replace(/-/g, "") } : {}),
       },
       body: JSON.stringify({ query }),
     }
@@ -276,7 +321,11 @@ export async function syncAdAccountById(
   try {
     switch (acc.platform) {
       case "meta":     campaigns = await syncMeta(acc.account_id, token);     break;
-      case "google":   campaigns = await syncGoogle(acc.account_id, token);   break;
+      case "google": {
+        const g = await resolveGoogleAccessToken(workspaceId, token);
+        campaigns = await syncGoogle(acc.account_id, g.accessToken, { developerToken: g.developerToken, managerId: g.managerId });
+        break;
+      }
       case "linkedin": campaigns = await syncLinkedIn(acc.account_id, token); break;
       case "tiktok":   campaigns = await syncTikTok(acc.account_id, token);   break;
       default: throw new Error(`Unknown platform: ${acc.platform}`);

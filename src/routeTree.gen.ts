@@ -89,6 +89,7 @@ import { Route as ApiPublicContactRouteImport } from './routes/api/public/contac
 import { Route as ApiPublicCampaignExecutorRouteImport } from './routes/api/public/campaign-executor'
 import { Route as ApiPublicApproveUserRouteImport } from './routes/api/public/approve-user'
 import { Route as ApiPublicAdsSyncRouteImport } from './routes/api/public/ads-sync'
+import { Route as ApiOauthGoogleAdsCallbackRouteImport } from './routes/api/oauth/google-ads-callback'
 import { Route as ApiMonitoringHealthRouteImport } from './routes/api/monitoring/health'
 import { Route as ApiMonitoringClientErrorRouteImport } from './routes/api/monitoring/client-error'
 import { Route as ApiDashboardLiveCallsSseRouteImport } from './routes/api/dashboard/live-calls-sse'
@@ -687,6 +688,12 @@ const ApiPublicAdsSyncRoute = ApiPublicAdsSyncRouteImport.update({
   path: '/api/public/ads-sync',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiOauthGoogleAdsCallbackRoute =
+  ApiOauthGoogleAdsCallbackRouteImport.update({
+    id: '/api/oauth/google-ads-callback',
+    path: '/api/oauth/google-ads-callback',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiMonitoringHealthRoute = ApiMonitoringHealthRouteImport.update({
   id: '/api/monitoring/health',
   path: '/api/monitoring/health',
@@ -1887,6 +1894,7 @@ export interface FileRoutesByFullPath {
   '/api/dashboard/live-calls-sse': typeof ApiDashboardLiveCallsSseRoute
   '/api/monitoring/client-error': typeof ApiMonitoringClientErrorRoute
   '/api/monitoring/health': typeof ApiMonitoringHealthRoute
+  '/api/oauth/google-ads-callback': typeof ApiOauthGoogleAdsCallbackRoute
   '/api/public/ads-sync': typeof ApiPublicAdsSyncRoute
   '/api/public/approve-user': typeof ApiPublicApproveUserRoute
   '/api/public/campaign-executor': typeof ApiPublicCampaignExecutorRoute
@@ -2138,6 +2146,7 @@ export interface FileRoutesByTo {
   '/api/dashboard/live-calls-sse': typeof ApiDashboardLiveCallsSseRoute
   '/api/monitoring/client-error': typeof ApiMonitoringClientErrorRoute
   '/api/monitoring/health': typeof ApiMonitoringHealthRoute
+  '/api/oauth/google-ads-callback': typeof ApiOauthGoogleAdsCallbackRoute
   '/api/public/ads-sync': typeof ApiPublicAdsSyncRoute
   '/api/public/approve-user': typeof ApiPublicApproveUserRoute
   '/api/public/campaign-executor': typeof ApiPublicCampaignExecutorRoute
@@ -2399,6 +2408,7 @@ export interface FileRoutesById {
   '/api/dashboard/live-calls-sse': typeof ApiDashboardLiveCallsSseRoute
   '/api/monitoring/client-error': typeof ApiMonitoringClientErrorRoute
   '/api/monitoring/health': typeof ApiMonitoringHealthRoute
+  '/api/oauth/google-ads-callback': typeof ApiOauthGoogleAdsCallbackRoute
   '/api/public/ads-sync': typeof ApiPublicAdsSyncRoute
   '/api/public/approve-user': typeof ApiPublicApproveUserRoute
   '/api/public/campaign-executor': typeof ApiPublicCampaignExecutorRoute
@@ -2661,6 +2671,7 @@ export interface FileRouteTypes {
     | '/api/dashboard/live-calls-sse'
     | '/api/monitoring/client-error'
     | '/api/monitoring/health'
+    | '/api/oauth/google-ads-callback'
     | '/api/public/ads-sync'
     | '/api/public/approve-user'
     | '/api/public/campaign-executor'
@@ -2912,6 +2923,7 @@ export interface FileRouteTypes {
     | '/api/dashboard/live-calls-sse'
     | '/api/monitoring/client-error'
     | '/api/monitoring/health'
+    | '/api/oauth/google-ads-callback'
     | '/api/public/ads-sync'
     | '/api/public/approve-user'
     | '/api/public/campaign-executor'
@@ -3172,6 +3184,7 @@ export interface FileRouteTypes {
     | '/api/dashboard/live-calls-sse'
     | '/api/monitoring/client-error'
     | '/api/monitoring/health'
+    | '/api/oauth/google-ads-callback'
     | '/api/public/ads-sync'
     | '/api/public/approve-user'
     | '/api/public/campaign-executor'
@@ -3304,6 +3317,7 @@ export interface RootRouteChildren {
   ApiDashboardLiveCallsSseRoute: typeof ApiDashboardLiveCallsSseRoute
   ApiMonitoringClientErrorRoute: typeof ApiMonitoringClientErrorRoute
   ApiMonitoringHealthRoute: typeof ApiMonitoringHealthRoute
+  ApiOauthGoogleAdsCallbackRoute: typeof ApiOauthGoogleAdsCallbackRoute
   ApiPublicAdsSyncRoute: typeof ApiPublicAdsSyncRoute
   ApiPublicApproveUserRoute: typeof ApiPublicApproveUserRoute
   ApiPublicCampaignExecutorRoute: typeof ApiPublicCampaignExecutorRoute
@@ -3935,6 +3949,13 @@ declare module '@tanstack/react-router' {
       path: '/api/public/ads-sync'
       fullPath: '/api/public/ads-sync'
       preLoaderRoute: typeof ApiPublicAdsSyncRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/oauth/google-ads-callback': {
+      id: '/api/oauth/google-ads-callback'
+      path: '/api/oauth/google-ads-callback'
+      fullPath: '/api/oauth/google-ads-callback'
+      preLoaderRoute: typeof ApiOauthGoogleAdsCallbackRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/monitoring/health': {
@@ -5908,6 +5929,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiDashboardLiveCallsSseRoute: ApiDashboardLiveCallsSseRoute,
   ApiMonitoringClientErrorRoute: ApiMonitoringClientErrorRoute,
   ApiMonitoringHealthRoute: ApiMonitoringHealthRoute,
+  ApiOauthGoogleAdsCallbackRoute: ApiOauthGoogleAdsCallbackRoute,
   ApiPublicAdsSyncRoute: ApiPublicAdsSyncRoute,
   ApiPublicApproveUserRoute: ApiPublicApproveUserRoute,
   ApiPublicCampaignExecutorRoute: ApiPublicCampaignExecutorRoute,
