@@ -1,0 +1,1679 @@
+UPGRADE HIVEMIND INTO WEBEE’S FULL EXECUTIVE OPERATING SYSTEM.
+
+DO NOT BUILD ANOTHER CHATBOT.
+
+DO NOT ADD A PRETTY DASHBOARD OVER DISCONNECTED DATA.
+
+DO NOT USE MOCK INSIGHTS, RANDOM AI SUMMARIES, HARDCODED ALERTS OR GENERIC BUSINESS ADVICE.
+
+HiveMind must become the central intelligence and executive control layer across the entire WEBEE platform.
+
+HiveMind is responsible for knowing what is happening across the business, deciding what matters, identifying risks and opportunities, coordinating the other Minds, assigning work, requesting approvals and checking whether actions produced results.
+
+GrowthMind is the CMO.
+SystemMind is the CTO.
+AccountsMind is the finance and commercial intelligence department.
+HiveMind is the executive brain coordinating all of them.
+
+The finished system must behave like an elite CEO, COO and chief of staff operating continuously across the organisation.
+
+==================================================
+PRIMARY OUTCOME
+==================================================
+
+HiveMind must continuously understand and coordinate:
+
+- Calendars
+- Appointments
+- Leads
+- Qualified leads
+- CRM pipelines
+- Follow-ups
+- Calls
+- Call outcomes
+- Emails
+- Email replies
+- WhatsApp conversations
+- SMS activity
+- GrowthMind
+- SystemMind
+- AccountsMind
+- User signup requests
+- Trial requests
+- Demo requests
+- Quote requests
+- Customer onboarding
+- Client accounts
+- Agent performance
+- Campaign performance
+- Tasks
+- Reports
+- Documents
+- Workflows
+- Integration failures
+- Billing and usage
+- Revenue
+- Costs
+- Support issues
+- Platform health
+- Staff activity
+- Approvals
+- Outstanding actions
+- Business risks
+- Business opportunities
+
+HiveMind must proactively tell the user:
+
+1. What changed.
+2. What requires attention.
+3. Why it matters.
+4. What the commercial impact is.
+5. What should happen next.
+6. Who should own the action.
+7. Whether approval is required.
+8. When HiveMind will check the result again.
+
+The user must not have to manually inspect ten different pages to understand the business.
+
+==================================================
+INVESTIGATE BEFORE MODIFYING
+==================================================
+
+Before writing code, inspect the complete existing architecture.
+
+Find and document:
+
+- Current HiveMind pages
+- Existing HiveMind services
+- Existing HiveMind chat logic
+- Existing briefing system
+- Existing recommendations
+- Existing tasks and actions
+- Existing reports
+- Existing notification system
+- GrowthMind implementation
+- SystemMind implementation
+- AccountsMind implementation
+- Analytics Centre
+- WEBEE CRM
+- Lead storage
+- Qualified lead storage
+- WBAH-specific lead sources
+- Standard workspace lead sources
+- Calls and Retell analytics
+- Calendar integrations
+- Cal.com integration
+- Legacy Calendly integration
+- Google Calendar integration
+- Email system
+- HexMail
+- Follow-Up Centre
+- BuzzChat
+- WhatsApp Centre
+- User signup and onboarding requests
+- Public website enquiry forms
+- Billing and package data
+- Workspace settings
+- Scheduler and background jobs
+- Existing event system
+- Supabase tables and RLS
+- Current AI model providers
+- Current workspace isolation
+
+Do not create duplicate tables, services, schedulers, task systems or notification systems when existing systems can be extended.
+
+Identify broken, incomplete or disconnected HiveMind functionality before replacing anything.
+
+==================================================
+HIVEMIND’S ROLE
+==================================================
+
+HiveMind must operate as the executive layer, not as the specialist doing every department’s work.
+
+HiveMind should:
+
+- Observe the whole business
+- Receive specialist analysis
+- Connect information across departments
+- Prioritise issues
+- Identify dependencies
+- Calculate commercial impact
+- Make executive recommendations
+- Create tasks and action plans
+- Request approvals
+- Coordinate GrowthMind, SystemMind and AccountsMind
+- Track execution
+- Reassess results
+- Escalate failures
+- Produce executive briefings
+- Answer business questions using live evidence
+
+HiveMind should not:
+
+- Duplicate GrowthMind campaign analysis
+- Duplicate SystemMind technical diagnostics
+- Duplicate AccountsMind accounting calculations
+- Produce unsupported advice
+- Invent missing data
+- claim an action occurred when it did not
+- modify critical systems without authorisation
+
+==================================================
+THE WEBEE MIND STRUCTURE
+==================================================
+
+GROWTHMIND — CMO
+
+Owns:
+
+- Google Ads
+- Campaigns
+- SEO
+- Marketing analytics
+- Keywords
+- Competitor research
+- Content
+- Lead acquisition
+- Marketing attribution
+- Campaign recommendations
+- Marketing experiments
+
+SYSTEMMIND — CTO
+
+Owns:
+
+- Platform health
+- Integration health
+- API failures
+- Workflow failures
+- Agent setup
+- Variable mapping
+- Credentials
+- Data sync
+- Webhooks
+- Database health
+- Security issues
+- Deployment issues
+- Technical recommendations
+- Incident response
+
+ACCOUNTSMIND — FINANCE AND COMMERCIAL
+
+Owns:
+
+- Usage
+- Bills
+- Platform costs
+- Call costs
+- LLM costs
+- Telephony costs
+- Subscription income
+- Outstanding payments
+- Client profitability
+- Package limits
+- Margin
+- Forecasts
+- Revenue
+- Commercial recommendations
+
+HIVEMIND — EXECUTIVE CONTROL
+
+Owns:
+
+- Cross-department prioritisation
+- Business health
+- Business risks
+- Opportunities
+- Executive briefings
+- Approval queues
+- Ownership and accountability
+- Decision tracking
+- Escalations
+- Strategic recommendations
+- Results monitoring
+
+==================================================
+HIVEMIND DATA CONNECTIONS
+==================================================
+
+Connect HiveMind to all existing authorised workspace data sources.
+
+CALENDARS
+
+HiveMind must understand:
+
+- Upcoming appointments
+- Appointments today
+- Missed appointments
+- Cancelled appointments
+- Rescheduled appointments
+- Unconfirmed appointments
+- Double bookings
+- Calendar conflicts
+- Empty sales availability
+- Overloaded staff calendars
+- Leads awaiting booking
+- Leads that requested a callback
+- Callback dates
+- Rebooking before legal
+- Rebooking after legal
+- Appointment attendance
+- Time between lead creation and booking
+- Time between booking and appointment
+- No-show rates
+- Booking conversion rates
+
+Support available sources:
+
+- Cal.com
+- Google Calendar
+- Legacy Calendly where still used
+- WEBEE internal bookings
+
+EMAILS
+
+HiveMind must understand:
+
+- New inbound emails
+- Unanswered client emails
+- Sales enquiries
+- Support requests
+- Billing enquiries
+- Important customer replies
+- Failed email deliveries
+- Follow-up replies
+- Emails awaiting human action
+- Client complaints
+- Contract or proposal replies
+- Onboarding replies
+- High-priority contacts
+- Conversations that have gone silent
+
+Do not mark every unread email as important.
+
+Use:
+
+- Sender
+- Recipient
+- Subject
+- Conversation history
+- Client relationship
+- Sentiment
+- Urgency
+- Commercial value
+- Existing tasks
+- Relevant lead or client record
+- Time waiting for response
+
+LEADS AND CRM
+
+HiveMind must understand:
+
+- New leads
+- Lead source
+- Preferred contact method
+- Lead status
+- Qualification status
+- Lead owner
+- Last contact attempt
+- Next follow-up
+- Call result
+- Appointment result
+- Proposal status
+- Sale status
+- Revenue value
+- Disqualification reason
+- Stale leads
+- Duplicate leads
+- Leads with no owner
+- Leads with no activity
+- Leads stuck in a pipeline stage
+- High-value leads requiring attention
+- Follow-up overdue
+- Positive leads not actioned
+- Qualified leads not booked
+- Booked leads not followed up
+- Lost leads that may be recoverable
+
+Support both:
+
+- Standard WEBEE workspace data
+- WBAH-specific data sources and status logic
+
+Never mix the two.
+
+FOLLOW-UP CENTRE
+
+HiveMind must understand:
+
+- Active follow-up sequences
+- Upcoming follow-ups
+- Failed follow-ups
+- Paused follow-ups
+- Email replies
+- WhatsApp replies
+- SMS replies
+- Call follow-ups
+- Leads removed from sequences
+- Leads continuing after a response
+- Rate-limit failures
+- 429 errors
+- Channel delivery failures
+- Sequences producing no engagement
+- High-performing sequences
+- Leads that need manual intervention
+
+CALLS AND AGENTS
+
+HiveMind must understand:
+
+- Calls made
+- Calls answered
+- Calls missed
+- Call outcomes
+- Sentiment
+- Qualification
+- Booking results
+- Call duration
+- Cost
+- Agent performance
+- Campaign performance
+- Failed calls
+- Phone-number issues
+- Voicemail outcomes
+- Transfer outcomes
+- Rebooking outcomes
+- Post-call extraction quality
+- Missing variables
+- Incorrect mappings
+- Low-confidence extracted data
+- Live workflow failures
+- Agent deployment status
+
+USER SIGNUP AND ENQUIRY REQUESTS
+
+HiveMind must understand:
+
+- New WEBEE signups
+- Trial requests
+- Demo requests
+- Quote requests
+- Website enquiries
+- Ava demo outcomes
+- Incomplete signups
+- Failed onboarding
+- Accounts awaiting approval
+- Accounts awaiting credentials
+- Accounts awaiting payment
+- Accounts awaiting agent setup
+- Accounts with no first campaign
+- Accounts with no first call
+- Accounts showing early churn risk
+- High-value enterprise requests
+- Suspicious or spam signups
+
+Create an executive onboarding pipeline:
+
+1. Request received
+2. Qualification required
+3. Demo required
+4. Proposal required
+5. Commercial approval
+6. Payment pending
+7. Workspace creation
+8. Credentials required
+9. Agent setup
+10. Testing
+11. Client sign-off
+12. Live
+13. Early-success review
+
+INTEGRATIONS
+
+HiveMind must understand the health of:
+
+- Google Ads
+- Retell
+- Cal.com
+- Google Calendar
+- Microsoft Dynamics
+- HubSpot
+- Salesforce
+- Pipedrive
+- Supabase
+- Twilio
+- FreJun
+- WATI
+- Meta WhatsApp
+- Resend
+- ElevenLabs
+- OpenAI
+- n8n legacy workflows
+- WEBEE native workflows
+- External APIs
+
+HiveMind should receive SystemMind’s technical findings rather than diagnosing every integration itself.
+
+BILLING AND COMMERCIAL DATA
+
+HiveMind must understand:
+
+- Client package
+- Included usage
+- Current usage
+- Projected usage
+- Overage
+- Revenue
+- Cost
+- Gross margin
+- Outstanding invoices
+- Failed payment
+- Renewal date
+- Expiring subscription
+- Loss-making client
+- Rapid usage increase
+- Unused package capacity
+- Upsell opportunity
+- Downgrade risk
+- Churn risk
+
+==================================================
+EVENT-DRIVEN EXECUTIVE ARCHITECTURE
+==================================================
+
+Do not build HiveMind as a page that queries everything only when opened.
+
+Build or extend a central event system.
+
+Important system changes must publish workspace-scoped events.
+
+Examples:
+
+lead.created
+lead.qualified
+lead.status_changed
+lead.stale
+lead.follow_up_overdue
+lead.booking_requested
+lead.converted
+lead.lost
+
+call.started
+call.completed
+call.failed
+call.qualified
+call.booking_created
+call.extraction_failed
+call.transfer_failed
+
+calendar.booking_created
+calendar.booking_cancelled
+calendar.booking_rescheduled
+calendar.no_show
+calendar.conflict_detected
+
+followup.started
+followup.step_sent
+followup.reply_received
+followup.failed
+followup.completed
+followup.manual_action_required
+
+email.received
+email.reply_required
+email.delivery_failed
+email.client_complaint
+email.sales_opportunity
+
+signup.created
+signup.incomplete
+signup.approval_required
+signup.onboarding_blocked
+signup.activated
+
+growthmind.recommendation.created
+growthmind.performance.alert
+growthmind.market_opportunity
+growthmind.result_available
+
+systemmind.incident.created
+systemmind.integration_failed
+systemmind.security_alert
+systemmind.repair_proposed
+systemmind.incident_resolved
+
+accountsmind.margin_warning
+accountsmind.payment_failed
+accountsmind.usage_warning
+accountsmind.renewal_due
+accountsmind.upsell_opportunity
+
+workflow.failed
+workflow.recovered
+integration.disconnected
+integration.sync_failed
+integration.reconnected
+
+HiveMind must consume these events and decide whether they are:
+
+- Informational
+- Worth including in a briefing
+- A recommendation
+- A task
+- An approval request
+- A warning
+- A critical incident
+
+Every event must include:
+
+- event_id
+- workspace_id
+- event_type
+- source_system
+- source_entity_type
+- source_entity_id
+- timestamp
+- severity
+- evidence
+- correlation_id
+- deduplication_key
+- processing_status
+
+==================================================
+SCHEDULED RECONCILIATION
+==================================================
+
+Events alone are not sufficient because webhooks can fail.
+
+Build scheduled reconciliation using the existing scheduler.
+
+Every 5 minutes:
+
+- Check critical integration failures
+- Check urgent call failures
+- Check urgent workflow failures
+- Check immediate calendar conflicts
+- Check critical spend or billing alerts
+- Process pending executive events
+
+Every 15 minutes:
+
+- Refresh lead and follow-up exceptions
+- Check unanswered high-priority messages
+- Check appointment changes
+- Check onboarding blocks
+- Refresh Mind recommendations
+
+Hourly:
+
+- Review stale leads
+- Review overdue follow-ups
+- Review missed appointments
+- Review failed workflows
+- Review agent health
+- Review pending approvals
+- Review unresolved high-priority tasks
+
+Daily:
+
+- Generate executive morning briefing
+- Review business health
+- Review commercial risks
+- Review sales pipeline
+- Review marketing performance
+- Review system health
+- Review client onboarding
+- Review outstanding communications
+- Review staff workload
+- Review unresolved decisions
+
+Weekly:
+
+- Generate strategic business review
+- Identify repeated failures
+- Identify growth opportunities
+- Review department performance
+- Review recommendation outcomes
+- Review client profitability
+- Review pipeline forecast
+- Review churn and upsell risks
+
+Monthly:
+
+- Executive performance report
+- Revenue and margin review
+- Customer success review
+- Marketing strategy review
+- Technology reliability review
+- Platform usage review
+- Forecast review
+- Strategic priority recommendations
+
+Make schedules configurable.
+
+Use distributed locks.
+
+Jobs must be:
+
+- Idempotent
+- Retry-safe
+- Workspace-scoped
+- Observable
+- Protected against overlap
+
+==================================================
+HIVEMIND BUSINESS GRAPH
+==================================================
+
+HiveMind must understand relationships between entities.
+
+Build or extend a business context layer connecting:
+
+- Workspace
+- User
+- Staff member
+- Client
+- Contact
+- Lead
+- Campaign
+- Agent
+- Call
+- Appointment
+- Email thread
+- WhatsApp conversation
+- Follow-up sequence
+- Task
+- Recommendation
+- Invoice
+- Subscription
+- Integration
+- Workflow
+- Incident
+- Revenue record
+- Document
+
+Example relationship:
+
+Google Ads campaign
+→ lead
+→ AI call
+→ qualification
+→ booking
+→ appointment
+→ proposal
+→ sale
+→ revenue
+
+Another example:
+
+Client email
+→ support issue
+→ SystemMind incident
+→ repair task
+→ resolution
+→ client response
+→ renewal risk
+
+HiveMind must use these relationships when evaluating business impact.
+
+Do not present isolated metrics without context.
+
+==================================================
+EXECUTIVE REASONING PIPELINE
+==================================================
+
+Do not send the entire database blindly into an LLM.
+
+Use this pipeline:
+
+1. Collect relevant events.
+2. Validate source freshness.
+3. Validate data quality.
+4. Resolve entity relationships.
+5. Calculate deterministic metrics.
+6. Compare against historical baselines.
+7. Identify anomalies.
+8. Identify overdue obligations.
+9. Retrieve specialist Mind findings.
+10. Calculate business impact.
+11. Rank urgency and importance.
+12. Build a structured executive evidence package.
+13. Pass the evidence package to HiveMind reasoning.
+14. Require structured output.
+15. Validate the output.
+16. Deduplicate existing recommendations and tasks.
+17. Save the decision.
+18. Notify the correct user.
+19. Schedule reassessment.
+
+The AI model should interpret evidence.
+
+It must not invent the evidence.
+
+==================================================
+EXECUTIVE PRIORITISATION
+==================================================
+
+HiveMind must score issues using:
+
+- Revenue impact
+- Cost impact
+- Profit impact
+- Customer impact
+- Pipeline impact
+- Operational impact
+- Security impact
+- Compliance impact
+- Urgency
+- Confidence
+- Reversibility
+- Number of affected users
+- Time waiting
+- Strategic importance
+- Risk of doing nothing
+- Required human effort
+
+Use priorities:
+
+CRITICAL
+
+Immediate financial, security, customer or platform risk.
+
+HIGH
+
+Material business impact requiring action soon.
+
+MEDIUM
+
+Useful action with measurable value.
+
+LOW
+
+Minor improvement or observation.
+
+Do not classify routine noise as critical.
+
+Do not hide major problems inside a long list of low-value notifications.
+
+==================================================
+CROSS-DEPARTMENT REASONING
+==================================================
+
+HiveMind must connect information across Minds.
+
+EXAMPLE 1
+
+GrowthMind says:
+
+Google Ads lead volume increased by 30%.
+
+CRM says:
+
+Qualified lead rate fell by 45%.
+
+AccountsMind says:
+
+Cost per qualified lead increased significantly.
+
+HiveMind conclusion:
+
+Campaign volume is up, but commercial performance has deteriorated. Do not increase the budget. Review targeting, search terms and lead quality.
+
+EXAMPLE 2
+
+SystemMind says:
+
+Cal.com booking integration failed.
+
+CRM says:
+
+Eleven qualified leads have no appointments.
+
+HiveMind conclusion:
+
+This is a revenue-impacting technical incident. Escalate SystemMind repair, create a manual booking task and notify the sales owner.
+
+EXAMPLE 3
+
+AccountsMind says:
+
+Client usage is approaching its package limit.
+
+Client activity says:
+
+Campaign volume is increasing and lead results are strong.
+
+HiveMind conclusion:
+
+Create an upsell opportunity before usage is interrupted.
+
+EXAMPLE 4
+
+Email system says:
+
+A high-value client sent a complaint.
+
+SystemMind says:
+
+Their workflow has failed three times.
+
+AccountsMind says:
+
+The client renews in fourteen days.
+
+HiveMind conclusion:
+
+Critical retention risk. Assign an owner, prioritise the repair and require an executive response.
+
+==================================================
+HIVEMIND RECOMMENDATIONS
+==================================================
+
+Every recommendation must contain:
+
+- Recommendation ID
+- Workspace ID
+- Title
+- Department
+- Priority
+- Business issue
+- Supporting evidence
+- Related entities
+- Commercial impact
+- Risk of doing nothing
+- Recommended action
+- Exact next step
+- Suggested owner
+- Due date
+- Approval requirement
+- Confidence
+- Data freshness
+- Source systems
+- Created time
+- Reassessment time
+- Current status
+- Final result
+
+Supported states:
+
+- New
+- Acknowledged
+- Under review
+- Approved
+- Rejected
+- Assigned
+- In progress
+- Waiting
+- Completed
+- Failed
+- Dismissed
+- Expired
+- Reopened
+
+Reject recommendations containing only vague advice such as:
+
+- Follow up with your leads
+- Improve performance
+- Check your emails
+- Review your calendar
+- Optimise the system
+- Speak to the client
+- Monitor the campaign
+
+Instead require specific evidence and action.
+
+Example:
+
+“Seven qualified leads from Campaign X have had no contact attempt for more than 24 hours. Their combined estimated pipeline value is £42,000. Assign these leads to Sarah and initiate the approved call-and-email recovery sequence today.”
+
+==================================================
+TASK CREATION AND ACCOUNTABILITY
+==================================================
+
+HiveMind must create structured tasks where appropriate.
+
+Every task must include:
+
+- Task ID
+- Workspace ID
+- Title
+- Owner
+- Department
+- Related entity
+- Reason
+- Evidence
+- Priority
+- Due date
+- Status
+- Dependencies
+- Approval state
+- Created by
+- Completion evidence
+- Reassessment date
+
+HiveMind must:
+
+- Avoid duplicate tasks
+- Detect overdue tasks
+- Escalate important overdue tasks
+- Detect blocked tasks
+- Identify missing owners
+- Check whether completed tasks actually resolved the problem
+- Reopen failed tasks where necessary
+
+Marking a task complete must not automatically prove the issue is resolved.
+
+==================================================
+APPROVAL AND AUTONOMY MODES
+==================================================
+
+Preserve and enforce HiveMind modes.
+
+OBSERVE MODE
+
+- Read data
+- Analyse
+- Produce briefings
+- Do not create tasks automatically
+- Do not perform actions
+
+RECOMMEND MODE
+
+- Produce recommendations
+- Suggest tasks
+- Request approval
+- Do not perform external actions
+
+ASSISTANT MODE
+
+- Create tasks
+- Prepare emails
+- Prepare follow-ups
+- Prepare calendar actions
+- Prepare configuration changes
+- Require approval before sensitive external actions
+
+OPERATOR MODE
+
+- Must be explicitly enabled by an authorised workspace administrator
+- Must use category-specific permissions
+- Must enforce financial and operational limits
+- Must maintain audit logs
+- Must support rollback where technically possible
+- Must stop when confidence or data quality is inadequate
+
+Default HiveMind to Recommend mode.
+
+Never silently enable Operator mode.
+
+==================================================
+ACTION SAFETY
+==================================================
+
+HiveMind must never autonomously perform high-impact actions without appropriate permission.
+
+Require explicit approval for:
+
+- Sending client emails
+- Sending marketing campaigns
+- Deleting leads
+- Deleting emails
+- Cancelling appointments
+- Changing campaign budgets
+- Changing advertisements
+- Changing CRM status in bulk
+- Disconnecting integrations
+- Modifying credentials
+- Deploying agents
+- Changing workflows
+- Changing billing
+- Issuing refunds
+- Deleting user accounts
+- Disabling production systems
+
+Low-risk actions may be permitted only through configured Operator permissions.
+
+Every action must record:
+
+- Who authorised it
+- What changed
+- Previous state
+- New state
+- Timestamp
+- Workspace
+- Source recommendation
+- Outcome
+- Rollback information where available
+
+==================================================
+HIVEMIND BRIEFINGS
+==================================================
+
+Build a genuine executive briefing system.
+
+MORNING BRIEFING
+
+Show:
+
+- Business health score
+- What changed overnight
+- Appointments today
+- Important emails awaiting response
+- New high-value leads
+- Qualified leads awaiting action
+- Overdue follow-ups
+- Campaign issues
+- Platform incidents
+- Billing risks
+- User signups requiring action
+- Recommendations awaiting approval
+- Top three priorities today
+
+LIVE EXECUTIVE BRIEFING
+
+Update when material events happen.
+
+WEEKLY REVIEW
+
+Show:
+
+- Revenue movement
+- Pipeline movement
+- Marketing performance
+- Lead quality
+- Sales activity
+- Booking performance
+- Customer risks
+- System reliability
+- Costs and margin
+- Tasks completed
+- Tasks overdue
+- Recommendation results
+- Priorities for next week
+
+Do not fill briefings with low-value statistics.
+
+==================================================
+HIVEMIND CHAT
+==================================================
+
+Upgrade HiveMind Chat so it answers questions using live, workspace-scoped evidence.
+
+It should answer:
+
+- What needs my attention today?
+- Which leads are being neglected?
+- Which clients are at risk?
+- Which integrations are failing?
+- What is stopping appointments from being booked?
+- What is wasting money?
+- Which campaign is producing the best qualified leads?
+- Which staff member has overdue actions?
+- What emails require a response?
+- What follow-ups have failed?
+- Which user signups need approval?
+- What has SystemMind found?
+- What does GrowthMind recommend?
+- What is AccountsMind concerned about?
+- What should I approve today?
+- What changed since yesterday?
+- What are the three biggest risks?
+- What are the three best opportunities?
+- Why did revenue change?
+- Are completed actions producing results?
+
+Every factual response must reference internal evidence.
+
+Add evidence cards linking to:
+
+- Lead
+- Campaign
+- Call
+- Calendar event
+- Email thread
+- Client
+- Task
+- Recommendation
+- Incident
+- Report
+
+If data is missing, say so clearly.
+
+Do not guess.
+
+==================================================
+HIVEMIND COMMAND CENTRE UI
+==================================================
+
+Upgrade the HiveMind Overview into a proper executive command centre.
+
+TOP STATUS
+
+Display:
+
+- HiveMind state
+- Current mode
+- Last full analysis
+- Last event processed
+- Next scheduled analysis
+- Connected data sources
+- Degraded data sources
+- Pending approvals
+- Critical issues
+- High-priority actions
+- Overdue tasks
+
+EXECUTIVE HEALTH
+
+Display:
+
+- Overall business health
+- Sales health
+- Marketing health
+- Operations health
+- Technology health
+- Customer health
+- Financial health
+- Data-quality health
+
+Each score must have:
+
+- Evidence
+- Trend
+- Last updated
+- Explanation
+- Confidence
+
+Do not use arbitrary AI-generated scores.
+
+PRIORITY CENTRE
+
+Display:
+
+- Act now
+- Awaiting approval
+- Revenue at risk
+- Customer risks
+- Operational blockers
+- Growth opportunities
+- System incidents
+- Overdue actions
+- Recently resolved
+- Results to review
+
+TODAY
+
+Display:
+
+- Appointments
+- Callbacks
+- Follow-ups
+- Important emails
+- High-value leads
+- Tasks due
+- User approvals
+- Client deadlines
+- Renewals
+- Campaign events
+
+MIND STATUS
+
+Display:
+
+- GrowthMind status
+- SystemMind status
+- AccountsMind status
+- Last analysis
+- Active issues
+- Top recommendation
+- Degraded connections
+
+==================================================
+HIVEMIND PAGES
+==================================================
+
+Upgrade and connect:
+
+OVERVIEW
+
+Executive command centre.
+
+BRIEFING
+
+Daily, weekly and custom briefings.
+
+SYSTEM HEALTH
+
+SystemMind incidents, integrations, workflows and reliability.
+
+RECOMMENDATIONS
+
+Cross-department recommendations.
+
+REPORTS
+
+Executive, sales, marketing, financial and operational reports.
+
+CHAT
+
+Evidence-based executive assistant.
+
+TASKS
+
+Assigned, overdue, blocked and completed work.
+
+ACTIONS
+
+Approval queue, action history and results.
+
+Do not create isolated pages using separate data logic.
+
+All pages must use shared services and structured data.
+
+==================================================
+DATA QUALITY AND FRESHNESS
+==================================================
+
+Every HiveMind insight must know:
+
+- Source
+- Last successful sync
+- Data freshness
+- Record count
+- Whether the source is complete
+- Whether the source is degraded
+- Confidence
+
+Examples:
+
+“Google Ads data is current as of 09:45.”
+
+“CRM sync has been failing for three hours. Lead conclusions may be incomplete.”
+
+“Email integration is not connected.”
+
+“Only four conversions exist, so this recommendation is low confidence.”
+
+HiveMind must never present stale data as current.
+
+==================================================
+NOTIFICATIONS
+==================================================
+
+Use the existing notification settings and channels.
+
+Support:
+
+- In-app
+- Email
+- WhatsApp
+- SMS where configured
+
+Notify for:
+
+- Critical incident
+- High-value lead neglected
+- Important client email unanswered
+- Missed high-value appointment
+- Significant campaign issue
+- Payment failure
+- Renewal risk
+- Integration disconnection
+- Workflow failure
+- User approval required
+- Signup awaiting action
+- Task overdue
+- Recommendation result available
+
+Avoid notification spam.
+
+Requirements:
+
+- Deduplicate alerts
+- Group related alerts
+- Respect quiet hours
+- Respect user roles
+- Respect workspace settings
+- Escalate only when unresolved
+- Allow daily and weekly digests
+
+==================================================
+EXECUTIVE LEARNING LOOP
+==================================================
+
+HiveMind must track whether its decisions worked.
+
+For every approved action:
+
+1. Record the baseline.
+2. Record expected result.
+3. Record implementation time.
+4. Schedule reassessment.
+5. Retrieve post-action data.
+6. Compare expected versus actual result.
+7. Classify:
+   - Successful
+   - Partially successful
+   - No material change
+   - Unsuccessful
+   - Inconclusive
+8. Inform the relevant Mind.
+9. Update future confidence.
+10. Include the result in HiveMind reports.
+
+Do not claim HiveMind learns unless these outcomes are stored and reused.
+
+==================================================
+DATABASE
+==================================================
+
+Reuse existing tables wherever appropriate.
+
+Add migrations only where required.
+
+Possible entities if equivalents do not exist:
+
+hivemind_events
+hivemind_event_processing
+hivemind_decisions
+hivemind_recommendations
+hivemind_recommendation_evidence
+hivemind_tasks
+hivemind_approvals
+hivemind_actions
+hivemind_action_results
+hivemind_briefings
+hivemind_health_scores
+hivemind_entity_links
+hivemind_notifications
+hivemind_analysis_runs
+hivemind_data_source_health
+hivemind_escalations
+
+Every record must include:
+
+- workspace_id
+- created_at
+- updated_at
+- source
+- related entity IDs
+- status
+- audit metadata
+
+Add:
+
+- Unique constraints
+- Indexes
+- Idempotency keys
+- Deduplication keys
+- Retention strategy
+- RLS policies
+
+==================================================
+MULTI-TENANCY
+==================================================
+
+THIS IS NON-NEGOTIABLE.
+
+Every read, event, recommendation, task, briefing, notification, AI prompt and action must be scoped by workspace_id.
+
+HiveMind must never mix:
+
+- Webespoke AI
+- WeBuyAnyHouse
+- MyStart
+- TheLawyerJames
+- Any other client workspace
+
+Apply and verify Supabase RLS.
+
+Do not trust frontend workspace IDs.
+
+Resolve workspace identity server-side from authenticated membership.
+
+Never include cross-workspace data inside AI context.
+
+Add explicit tests proving isolation.
+
+==================================================
+ROLES AND ACCESS
+==================================================
+
+Respect existing workspace roles and package-based feature access.
+
+Permissions should control:
+
+- Viewing executive data
+- Viewing financial information
+- Viewing client emails
+- Viewing staff performance
+- Approving actions
+- Enabling Operator mode
+- Sending messages
+- Changing campaigns
+- Changing workflows
+- Viewing billing
+- Managing users
+
+Do not expose executive or financial data to unauthorised staff.
+
+==================================================
+SECURITY
+==================================================
+
+Never expose:
+
+- API keys
+- OAuth tokens
+- Refresh tokens
+- Developer tokens
+- Client secrets
+- Credential records
+- Unredacted sensitive logs
+
+All external integration calls must run server-side.
+
+Use the existing credential encryption system.
+
+Use safe structured logging.
+
+Add audit trails for:
+
+- AI decisions
+- User approvals
+- Actions
+- Data access
+- Configuration changes
+- Operator mode changes
+
+==================================================
+FAILURE HANDLING
+==================================================
+
+Handle:
+
+- Data source disconnected
+- OAuth token revoked
+- API quota exceeded
+- Rate limits
+- Scheduler failure
+- Event-processing failure
+- Partial sync
+- Duplicate events
+- Stale data
+- AI provider failure
+- Invalid structured output
+- Missing entity relationships
+- Missing lead attribution
+- Missing task owner
+- Notification failure
+- Workspace mismatch
+- Database timeout
+- Integration returning incorrect data
+
+HiveMind must degrade honestly.
+
+States may include:
+
+- Active
+- Processing
+- Limited data
+- Degraded
+- Configuration required
+- Reconnection required
+- Analysis failed
+- Critical incident
+
+Do not show “healthy” when important sources are broken.
+
+==================================================
+PERFORMANCE
+==================================================
+
+Do not run enormous unbounded queries.
+
+Use:
+
+- Incremental sync
+- Pagination
+- Background processing
+- Materialised summaries where appropriate
+- Cached executive metrics
+- Indexed workspace queries
+- Date-windowed analysis
+- Event batching
+- Concurrency controls
+- Rate limiting
+- Distributed locking
+
+Do not block the main dashboard while full analysis is running.
+
+==================================================
+TESTING
+==================================================
+
+Add automated tests for:
+
+1. Calendar events reach HiveMind.
+2. New leads reach HiveMind.
+3. Stale leads are detected.
+4. Overdue follow-ups are detected.
+5. Important unanswered emails are identified.
+6. Low-priority emails do not create executive alerts.
+7. User signup requests enter the executive pipeline.
+8. GrowthMind recommendations reach HiveMind.
+9. SystemMind incidents reach HiveMind.
+10. AccountsMind warnings reach HiveMind.
+11. Cross-department reasoning works.
+12. Recommendations contain evidence.
+13. Vague recommendations fail validation.
+14. Duplicate events do not create duplicate tasks.
+15. Completed tasks are reassessed.
+16. Stale sources reduce confidence.
+17. Missing sources are clearly displayed.
+18. Observe mode cannot take actions.
+19. Recommend mode cannot perform external actions.
+20. Assistant mode requires approval.
+21. Operator mode requires authorised activation.
+22. Sensitive actions require approval.
+23. Workspace isolation is enforced.
+24. RLS blocks cross-workspace access.
+25. AI prompts contain only the current workspace.
+26. Secrets never reach the frontend.
+27. Scheduled jobs cannot overlap.
+28. Failed jobs retry safely.
+29. Notifications deduplicate.
+30. No mock data is displayed.
+31. Existing WEBEE features remain functional.
+32. Existing WBAH behaviour remains functional.
+33. HiveMind chat cites real internal evidence.
+34. Health scores are calculated from real data.
+35. Briefings prioritise material issues.
+36. Action outcomes feed back into future decisions.
+
+==================================================
+ACCEPTANCE CRITERIA
+==================================================
+
+THIS WORK IS NOT COMPLETE UNTIL:
+
+- HiveMind receives live information from all available WEBEE systems.
+- Calendars are connected.
+- Leads and pipeline data are connected.
+- Follow-ups are connected.
+- Calls and agents are connected.
+- Emails are connected.
+- User signup requests are connected.
+- GrowthMind is connected.
+- SystemMind is connected.
+- AccountsMind is connected.
+- Integration health is connected.
+- Billing and usage are connected.
+- HiveMind produces a real daily executive briefing.
+- HiveMind identifies overdue and neglected work.
+- HiveMind creates evidence-backed recommendations.
+- HiveMind creates structured tasks.
+- HiveMind sends approval requests.
+- HiveMind tracks action results.
+- HiveMind chat uses live evidence.
+- Data freshness is visible.
+- Missing connections are clearly identified.
+- Workspace isolation is verified.
+- Role permissions are enforced.
+- No mock insights remain.
+- No generic AI advice remains.
+- Existing platform functionality is not broken.
+
+==================================================
+FINAL IMPLEMENTATION REPORT
+==================================================
+
+After completing the work, provide:
+
+1. Existing HiveMind architecture found.
+2. Root causes and limitations discovered.
+3. Systems connected.
+4. Systems still requiring credentials.
+5. Event architecture implemented.
+6. Scheduled reconciliation implemented.
+7. HiveMind reasoning pipeline.
+8. GrowthMind connection.
+9. SystemMind connection.
+10. AccountsMind connection.
+11. Calendar connection.
+12. Lead and CRM connection.
+13. Follow-Up Centre connection.
+14. Email connection.
+15. Signup and onboarding connection.
+16. Notification behaviour.
+17. Approval model.
+18. Operator safeguards.
+19. Database migrations.
+20. Files changed.
+21. RLS and workspace-isolation controls.
+22. Performance controls.
+23. Full test results.
+24. Remaining manual setup.
+25. Proof using real data showing:
+    - Source event
+    - HiveMind evidence
+    - HiveMind decision
+    - Task or approval
+    - Action outcome
+    - Reassessment result
+
+DO NOT MARK THIS COMPLETE AFTER BUILDING ONLY THE UI.
+
+DO NOT MARK THIS COMPLETE AFTER CONNECTING ONLY ONE DATA SOURCE.
+
+DO NOT CREATE FAKE BUSINESS INSIGHTS.
+
+DO NOT USE HARDCODED EXECUTIVE RECOMMENDATIONS.
+
+DO NOT ALLOW CROSS-WORKSPACE DATA LEAKAGE.
+
+DO NOT SILENTLY PERFORM HIGH-IMPACT ACTIONS.
+
+DO NOT BREAK EXISTING FEATURES.
+
+BUILD THE COMPLETE EXECUTIVE OBSERVATION, REASONING, PRIORITISATION, APPROVAL, ACTION AND LEARNING LOOP.
