@@ -149,3 +149,4 @@
 - [Google Ads Connect-with-Google OAuth](google-ads-oauth-connect.md) — signed-state callback flow; returnTo must be single-slash relative + origin allowlisted; customer brings own OAuth client/dev token.
 - [Supabase DB health watchdog](db-health-watchdog.md) — 5-min tick probes Mgmt-API health; 2-strike alerting, in-process admin-email cache, direct-Resend sends (never DB-dependent paths mid-outage).
 - [GrowthMind Content Intelligence foundation](growthmind-content-intelligence.md) — versioned DNA + whitelisted proposals; Meta OAuth callback must re-check admin; encrypted-token column excluded from grants.
+- [Trend Scout architecture](trend-scout-arch.md) — cheap-first discovery + user-only AI scoring; partial unique index blocks upsert onConflict; plugin chain must stay alias-free (trend-signals.server.ts split).

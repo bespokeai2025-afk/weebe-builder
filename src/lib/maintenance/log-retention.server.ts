@@ -62,6 +62,8 @@ const RETENTION_RULES: RetentionRule[] = [
   { table: "growthmind_activity_log",          column: "created_at", days: 365 },
   // Post-publish metric snapshots — bounded history for learning loops.
   { table: "growthmind_performance_snapshots", column: "created_at", days: 400 },
+  // Trend Scout discovery/scoring run log — operational history only.
+  { table: "growthmind_discovery_runs",        column: "created_at", days: 180 },
 ];
 
 /** Rows deleted per batch (bounded so a single statement can't time out). */

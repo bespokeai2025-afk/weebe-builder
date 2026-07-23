@@ -31,6 +31,7 @@ import { runCMOAnalysisTick } from "@/lib/growthmind/cmo-analysis-tick";
 import { runAdsSyncTick } from "@/lib/growthmind/growthmind.ads-sync-tick";
 import { runAccountsMindTick } from "@/lib/accountsmind/executor";
 import { runProactiveTick } from "@/lib/hivemind/proactive-engine";
+import { runTrendDiscoveryTick } from "@/lib/growthmind/trend-discovery.server";
 
 export const Route = createFileRoute("/api/public/campaign-executor")({
   server: {
@@ -51,13 +52,17 @@ export const Route = createFileRoute("/api/public/campaign-executor")({
         }
 
         try {
-          const [campaignTick, blogTick, cmoTick, adsTick, accountsTick, proactiveTick] = await Promise.all([
+          const [campaignTick, blogTick, cmoTick, adsTick, accountsTick, proactiveTick, trendTick] = await Promise.all([
             runCampaignTick(),
             runBlogDraftTick(),
             runCMOAnalysisTick(),
             runAdsSyncTick(),
             runAccountsMindTick(),
             runProactiveTick(),
+            runTrendDiscoveryTick().catch((e: any) => {
+              console.error("[trend-scout] tick failed:", e?.message ?? e);
+              return { ran: 0, skipped: 0, totalNew: 0 };
+            }),
           ]);
 
           if (campaignTick.error) {
@@ -80,6 +85,11 @@ export const Route = createFileRoute("/api/public/campaign-executor")({
           if (adsTick.synced > 0 || adsTick.errors > 0) {
             console.log(
               `[ads-sync-tick] synced=${adsTick.synced} errors=${adsTick.errors} skipped=${adsTick.skipped}`,
+            );
+          }
+          if (trendTick.ran > 0) {
+            console.log(
+              `[trend-scout-tick] ran=${trendTick.ran} skipped=${trendTick.skipped} newItems=${trendTick.totalNew}`,
             );
           }
           if (accountsTick.scanned > 0) {

@@ -5416,6 +5416,54 @@ export type Database = {
           },
         ]
       }
+      growthmind_discovery_runs: {
+        Row: {
+          cost_estimate: number
+          created_at: string
+          duration_ms: number
+          error_message: string | null
+          id: string
+          items_found: number
+          items_new: number
+          run_kind: string
+          skip_reason: string | null
+          source: string
+          status: string
+          triggered_by: string
+          workspace_id: string
+        }
+        Insert: {
+          cost_estimate?: number
+          created_at?: string
+          duration_ms?: number
+          error_message?: string | null
+          id?: string
+          items_found?: number
+          items_new?: number
+          run_kind?: string
+          skip_reason?: string | null
+          source: string
+          status: string
+          triggered_by?: string
+          workspace_id: string
+        }
+        Update: {
+          cost_estimate?: number
+          created_at?: string
+          duration_ms?: number
+          error_message?: string | null
+          id?: string
+          items_found?: number
+          items_new?: number
+          run_kind?: string
+          skip_reason?: string | null
+          source?: string
+          status?: string
+          triggered_by?: string
+          workspace_id?: string
+        }
+        Relationships: []
+      }
       growthmind_dna_proposals: {
         Row: {
           created_at: string
@@ -15144,12 +15192,15 @@ export type Database = {
           ghl_api_key: string | null
           ghl_location_id: string | null
           growthmind_ci_limits: Json
+          growthmind_discovery_daily_limit: number
+          growthmind_min_opportunity_score: number
           growthmind_mode: string
           growthmind_operator_enabled: boolean
           growthmind_operator_enabled_at: string | null
           growthmind_operator_enabled_by: string | null
           growthmind_operator_permissions: Json
           growthmind_settings: Json
+          growthmind_trend_scout_enabled: boolean
           gsc_access_token: string | null
           gsc_auto_matched: boolean | null
           gsc_property_url: string | null
@@ -15223,12 +15274,15 @@ export type Database = {
           ghl_api_key?: string | null
           ghl_location_id?: string | null
           growthmind_ci_limits?: Json
+          growthmind_discovery_daily_limit?: number
+          growthmind_min_opportunity_score?: number
           growthmind_mode?: string
           growthmind_operator_enabled?: boolean
           growthmind_operator_enabled_at?: string | null
           growthmind_operator_enabled_by?: string | null
           growthmind_operator_permissions?: Json
           growthmind_settings?: Json
+          growthmind_trend_scout_enabled?: boolean
           gsc_access_token?: string | null
           gsc_auto_matched?: boolean | null
           gsc_property_url?: string | null
@@ -15302,12 +15356,15 @@ export type Database = {
           ghl_api_key?: string | null
           ghl_location_id?: string | null
           growthmind_ci_limits?: Json
+          growthmind_discovery_daily_limit?: number
+          growthmind_min_opportunity_score?: number
           growthmind_mode?: string
           growthmind_operator_enabled?: boolean
           growthmind_operator_enabled_at?: string | null
           growthmind_operator_enabled_by?: string | null
           growthmind_operator_permissions?: Json
           growthmind_settings?: Json
+          growthmind_trend_scout_enabled?: boolean
           gsc_access_token?: string | null
           gsc_auto_matched?: boolean | null
           gsc_property_url?: string | null

@@ -14,6 +14,7 @@ import { campaignSchedulerPlugin } from "./campaign-scheduler.plugin";
 import { videoJobPollerPlugin } from "./video-job-poller.plugin";
 import { providerHealthSweepPlugin } from "./provider-health-sweep.plugin";
 import { adsSyncPlugin } from "./ads-sync.plugin";
+import { trendScoutPlugin } from "./trend-scout.plugin";
 import { accountsMindSchedulerPlugin } from "./accountsmind-scheduler.plugin";
 // WBAH background sync plugins (leads/calls/category) are intentionally disabled.
 // They each logged into WeeBespoke with the shared admin account every few minutes,
@@ -75,7 +76,7 @@ export default defineConfig({
         ],
       },
     },
-    plugins: [hyperStreamRelayPlugin(), elVoiceRelayPlugin(), telephonyStreamPlugin(), frejunStreamPlugin(), campaignSchedulerPlugin(), videoJobPollerPlugin(), providerHealthSweepPlugin(), adsSyncPlugin(), accountsMindSchedulerPlugin()],
+    plugins: [hyperStreamRelayPlugin(), elVoiceRelayPlugin(), telephonyStreamPlugin(), frejunStreamPlugin(), campaignSchedulerPlugin(), videoJobPollerPlugin(), providerHealthSweepPlugin(), adsSyncPlugin(), trendScoutPlugin(), accountsMindSchedulerPlugin()],
     resolve: {
       alias: {
         "entities/lib/decode.js": path.resolve(

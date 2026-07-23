@@ -6,7 +6,7 @@ import {
   MessageSquareMore, Target, Megaphone, Compass,
   BarChart2, Filter, BookOpen, Search, Swords, LineChart, Flag, Wand2,
   CalendarDays, Rocket, Clapperboard, Dna, Database, Zap, Newspaper, Mail, Sparkles,
-  ImageIcon, GalleryHorizontal, Share2, Settings2,
+  ImageIcon, GalleryHorizontal, Share2, Settings2, Radar, Eye,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { getAllProposals } from "@/lib/executives/executive-bridge";
@@ -36,6 +36,9 @@ const STRATEGY_NAV = [
 ];
 
 const INTELLIGENCE_NAV = [
+  { label: "Trend Feed",      href: "/growthmind/trend-feed",      icon: TrendingUp,      highlight: true },
+  { label: "Trend Sources",   href: "/growthmind/trend-sources",   icon: Radar },
+  { label: "Competitor Intel",href: "/growthmind/competitor-intel",icon: Eye,             highlight: true },
   { label: "Content Studio",  href: "/growthmind/content-studio",  icon: Wand2,           highlight: true },
   { label: "Image Studio",    href: "/growthmind/image-studio",    icon: ImageIcon,       highlight: true },
   { label: "Image Library",   href: "/growthmind/image-library",   icon: GalleryHorizontal },
