@@ -43,11 +43,16 @@ export async function getHiveMindModeConfig(
   workspaceId: string,
 ): Promise<HiveMindModeConfig> {
   try {
-    const { data } = await sb
+    const { data, error } = await sb
       .from("workspace_settings")
       .select("hivemind_mode, hivemind_operator_enabled, hivemind_operator_permissions")
       .eq("workspace_id", workspaceId)
       .maybeSingle();
+    // Supabase builders return { error } instead of throwing — an ignored read
+    // error must NOT degrade to the (more permissive) default mode.
+    if (error) {
+      return { mode: "observe", operatorEnabled: false, operatorPermissions: {} };
+    }
     const rawMode = data?.hivemind_mode;
     const mode: HiveMindModeName =
       rawMode === "observe" || rawMode === "recommend" || rawMode === "assistant" || rawMode === "operator"

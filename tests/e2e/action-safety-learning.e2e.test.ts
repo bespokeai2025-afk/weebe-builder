@@ -222,6 +222,25 @@ describe("mode config (DB)", () => {
     await sb.from("workspace_settings").update({ hivemind_mode: "recommend" }).eq("workspace_id", WS_B);
   });
 
+  it("mode-config read errors fail CLOSED to observe (gates deny)", async () => {
+    // Stub a supabase client whose settings read returns { error } (Supabase
+    // builders never throw). The gate must degrade to observe, not recommend.
+    const failingSb: any = {
+      from: () => ({
+        select: () => ({
+          eq: () => ({
+            maybeSingle: async () => ({ data: null, error: { message: "simulated read failure" } }),
+          }),
+        }),
+      }),
+    };
+    const c = await getHiveMindModeConfig(failingSb, WS_A);
+    expect(c.mode).toBe("observe");
+    expect(c.operatorEnabled).toBe(false);
+    expect(await isProposalAllowed(failingSb, WS_A)).toBe(false);
+    await expect(assertProposalAllowed(failingSb, WS_A)).rejects.toThrow(ModeGateError);
+  });
+
   it("observe mode blocks proposals; other modes allow", async () => {
     await sb.from("workspace_settings").update({ hivemind_mode: "observe" }).eq("workspace_id", WS_A);
     expect(await isProposalAllowed(sb, WS_A)).toBe(false);
