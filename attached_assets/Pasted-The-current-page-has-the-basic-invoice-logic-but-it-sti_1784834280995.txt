@@ -1,0 +1,1226 @@
+The current page has the basic invoice logic, but it still behaves like an internal admin form rather than a finished AccountsMind product. The biggest gaps are the lack of a visual template editor, invoice preview, proper line-item controls, reusable services, banking details, template-field mapping and invoice lifecycle management.
+
+Paste this into Replit:
+
+---
+
+# Rebuild and refine the AccountsMind Invoice Template Builder
+
+You are working inside the existing WEBEE platform.
+
+Your task is to audit, repair and professionally upgrade the existing **AccountsMind → Invoices** feature shown in the current production UI.
+
+This is not a request to replace the page with a new mock-up. Preserve all existing working invoice functionality, database records, uploaded templates and generated invoices, but refine the feature into a complete invoice template builder and invoice management system.
+
+The finished system must allow a user to:
+
+1. Upload an existing invoice design.
+2. Map editable invoice fields onto that design.
+3. Add their company credentials and payment details.
+4. Select a client.
+5. Add services, descriptions, quantities and prices.
+6. Preview the completed invoice live.
+7. Generate PDF and DOCX invoices.
+8. Save, send, edit, duplicate and track invoices.
+9. Reuse invoice templates and service-price presets.
+10. Allow AccountsMind to assist with invoice generation and payment tracking.
+
+## Protect the existing platform
+
+Before changing anything:
+
+* Audit the current invoice page, routes, server functions, database tables, storage buckets and template generation code.
+* Identify what currently works and reuse it.
+* Do not delete existing invoice templates.
+* Do not delete generated invoices.
+* Do not break the existing PDF or DOCX generation process.
+* Do not break AccountsMind, SystemMind, HiveMind, clients, provider costs, recharges, profitability or workspace configuration.
+* Preserve existing URLs unless a migration or redirect is added.
+* All invoice data must be scoped by `workspace_id`.
+* Apply Row Level Security to all new or modified invoice tables.
+* Never expose storage credentials, service-role keys or private banking data to the browser.
+* Create backward-compatible database migrations.
+* Test using at least two separate workspaces.
+
+## Main problem with the current page
+
+The existing page is too basic and unclear.
+
+Current problems include:
+
+* Company details are stored in one oversized address box.
+* There is no proper section for VAT number, company registration number, phone, email or banking details.
+* Template upload has no preview.
+* Users cannot see which variables have been detected.
+* Placeholder instructions are shown as an unreadable line of text.
+* Users cannot visually position fields on an uploaded invoice.
+* There is no clear distinction between an invoice template and an invoice.
+* Line items are hidden until “Add line” is clicked.
+* There is no visible line-item table.
+* There is no service catalogue containing saved services and prices.
+* There is no live subtotal, VAT and total calculation.
+* There is no live invoice preview.
+* There is no save-draft workflow.
+* Generated invoices have no proper status workflow.
+* There is no obvious way to edit, duplicate, send or mark an invoice as paid.
+* The page does not feel like an AccountsMind finance application.
+
+Do not just improve the colours or spacing. Fix the complete workflow.
+
+# New page structure
+
+Replace the current single long page with a structured AccountsMind invoice area.
+
+Use these main tabs:
+
+1. **Invoices**
+2. **Create Invoice**
+3. **Templates**
+4. **Services & Pricing**
+5. **Business Details**
+6. **Settings**
+
+The left AccountsMind navigation can still show “Invoices”, but the invoice page should contain these internal tabs.
+
+# 1. Invoices dashboard
+
+The default invoice screen must display a professional invoice management dashboard.
+
+Show summary cards for:
+
+* Total invoiced this month.
+* Total paid this month.
+* Outstanding amount.
+* Overdue amount.
+* Draft invoices.
+* Average payment time.
+* VAT collected.
+* Next invoice number.
+
+Add filters for:
+
+* Client.
+* Status.
+* Invoice date.
+* Due date.
+* Currency.
+* Workspace.
+* Paid or unpaid.
+* Overdue only.
+* Search by invoice number, client or service.
+
+Display invoices in a proper table containing:
+
+* Invoice number.
+* Client.
+* Issue date.
+* Due date.
+* Currency.
+* Subtotal.
+* Tax.
+* Total.
+* Amount paid.
+* Balance due.
+* Status.
+* Delivery status.
+* Actions.
+
+Supported statuses:
+
+* Draft.
+* Ready.
+* Sent.
+* Viewed.
+* Partially paid.
+* Paid.
+* Overdue.
+* Cancelled.
+* Void.
+* Refunded.
+
+Actions:
+
+* View.
+* Edit.
+* Download PDF.
+* Download DOCX when supported.
+* Send by email.
+* Duplicate.
+* Record payment.
+* Mark paid.
+* Mark sent.
+* Cancel.
+* Create credit note.
+* Delete draft.
+
+Do not allow issued invoices to be silently deleted. They should be voided or cancelled with an audit log.
+
+# 2. Create Invoice workflow
+
+Turn invoice generation into a clear multi-stage workflow.
+
+Use the following layout:
+
+### Left side
+
+The editable invoice form.
+
+### Right side
+
+A sticky live invoice preview.
+
+The preview must update immediately as the user changes fields.
+
+On smaller screens, allow the user to switch between:
+
+* Edit.
+* Preview.
+
+## Invoice header fields
+
+Include:
+
+* Template.
+* Client.
+* Invoice number.
+* Invoice date.
+* Due date.
+* Payment terms.
+* Billing period.
+* Purchase order number.
+* Client reference.
+* Currency.
+* VAT or tax mode.
+* Internal notes.
+* Customer-visible notes.
+
+The invoice number should be generated using workspace settings but remain editable before the invoice is issued.
+
+Example numbering formats:
+
+* `INV-2026-0001`
+* `WEBEE-000123`
+* `2026/07/001`
+* Custom prefix and sequence.
+
+Prevent duplicate invoice numbers within the same workspace.
+
+## Client fields
+
+When a client is selected, populate:
+
+* Client business name.
+* Contact name.
+* Billing address.
+* Email.
+* Phone.
+* VAT or tax number.
+* Company registration number.
+* Preferred currency.
+* Default payment terms.
+* Purchase order requirements.
+
+Allow the user to edit invoice-specific client details without automatically overwriting the main client record.
+
+Add a button:
+
+**Update client billing profile**
+
+This should only update the client record after confirmation.
+
+## Line-item editor
+
+The line items must always be visible as a proper editable table.
+
+Columns:
+
+* Service or item.
+* Description.
+* Service date or period.
+* Quantity.
+* Unit.
+* Unit price.
+* Discount.
+* Tax rate.
+* Line subtotal.
+* Line total.
+* Remove action.
+
+Supported units:
+
+* Fixed fee.
+* Each.
+* Hour.
+* Day.
+* Week.
+* Month.
+* Call.
+* Minute.
+* User.
+* Licence.
+* Project.
+* Custom unit.
+
+Functions:
+
+* Add item.
+* Add saved service.
+* Add custom item.
+* Duplicate line.
+* Reorder lines.
+* Delete line.
+* Apply tax to all lines.
+* Apply discount to all lines.
+* Import monthly usage.
+* Import client subscription.
+* Import provider usage with markup.
+* Add deposit or previous payment.
+* Add expenses.
+* Add credit.
+
+The invoice must calculate in real time:
+
+* Line subtotal.
+* Discount total.
+* Net subtotal.
+* Tax per rate.
+* Total tax.
+* Gross total.
+* Amount already paid.
+* Balance due.
+
+Support tax-exclusive and tax-inclusive pricing.
+
+Never rely only on browser calculations. Recalculate and validate totals on the server before saving or generating the document.
+
+Use decimal-safe financial calculations. Do not use normal floating-point arithmetic for stored money values.
+
+## Saved services and prices
+
+When selecting a line item, users should be able to choose from a saved service catalogue.
+
+Example services:
+
+* AI Receptionist monthly subscription.
+* Voice AI minutes.
+* Agent setup.
+* CRM integration.
+* WhatsApp automation.
+* Development services.
+* Support retainer.
+* Plumbing repair.
+* Consultancy.
+* Custom service.
+
+A saved service should populate:
+
+* Service name.
+* Description.
+* Unit.
+* Unit price.
+* Currency.
+* Default VAT rate.
+* Accounting category.
+* Optional SKU.
+* Optional cost price.
+* Optional markup.
+* Optional recurring status.
+
+Users must still be able to override the values on an individual invoice.
+
+## Invoice totals panel
+
+Show a clear total section:
+
+* Subtotal.
+* Discount.
+* VAT or tax.
+* Total.
+* Amount paid.
+* Balance due.
+
+Any manual adjustment must require:
+
+* Adjustment description.
+* Adjustment amount.
+* Audit entry.
+
+## Invoice actions
+
+Provide:
+
+* Save draft.
+* Preview.
+* Generate PDF.
+* Generate DOCX.
+* Save and send.
+* Schedule email.
+* Cancel.
+* Duplicate invoice.
+* Create recurring invoice.
+
+Do not disable the primary button without explaining why.
+
+If required information is missing, show a clear validation summary such as:
+
+> Add a client, at least one line item and a valid invoice date before generating this invoice.
+
+# 3. Invoice template builder
+
+Create a proper visual template management system.
+
+Users must be able to create templates in three ways:
+
+### Option A: Upload DOCX template
+
+Allow `.docx` files containing placeholders.
+
+### Option B: Upload PDF invoice design
+
+Allow a PDF to be uploaded as the visual background, then let the user position dynamic fields over it.
+
+### Option C: WEBEE visual builder
+
+Allow users to create an invoice using editable layout blocks.
+
+Do not attempt to make a standard PDF directly editable as normal flowing text. For PDF templates, use a background-plus-field-overlay system.
+
+## Template upload process
+
+When uploading a template:
+
+1. Upload the file securely.
+2. Validate file type and size.
+3. Scan it for unsafe content.
+4. Generate a preview.
+5. Detect supported placeholders.
+6. Display detected fields.
+7. Display missing required fields.
+8. Allow the user to map fields.
+9. Let the user generate a test invoice.
+10. Save the template only after validation.
+
+Show upload status:
+
+* Uploading.
+* Processing.
+* Ready.
+* Missing mappings.
+* Invalid file.
+* Generation test failed.
+
+## Visual template editor
+
+The template editor should have:
+
+### Left panel
+
+Available invoice fields.
+
+### Centre panel
+
+Visual invoice preview or canvas.
+
+### Right panel
+
+Selected-field settings.
+
+Users should be able to drag fields onto the invoice.
+
+Field controls should support:
+
+* Position.
+* Width.
+* Height.
+* Font.
+* Font size.
+* Alignment.
+* Bold.
+* Line spacing.
+* Date format.
+* Currency format.
+* Border.
+* Background.
+* Visibility rules.
+* Placeholder fallback.
+* Repeating line-item behaviour.
+
+Add snap-to-grid, alignment guides, zoom and undo/redo.
+
+## Template fields
+
+Support these variables:
+
+### Invoice fields
+
+* `invoice_number`
+* `invoice_date`
+* `due_date`
+* `billing_period`
+* `purchase_order_number`
+* `client_reference`
+* `currency`
+* `payment_terms`
+* `notes`
+* `status`
+
+### Business fields
+
+* `from_name`
+* `from_legal_name`
+* `from_address`
+* `from_email`
+* `from_phone`
+* `from_website`
+* `from_company_number`
+* `from_vat_number`
+* `from_tax_number`
+* `from_logo`
+
+### Client fields
+
+* `client_name`
+* `client_contact_name`
+* `to_address`
+* `client_email`
+* `client_phone`
+* `client_company_number`
+* `client_vat_number`
+
+### Payment fields
+
+* `bank_name`
+* `account_name`
+* `account_number`
+* `sort_code`
+* `iban`
+* `swift_bic`
+* `routing_number`
+* `payment_link`
+* `payment_reference`
+
+### Financial fields
+
+* `subtotal`
+* `discount`
+* `tax_rate`
+* `tax_amount`
+* `total`
+* `amount_paid`
+* `balance_due`
+
+### Repeating line-item fields
+
+* `description`
+* `service_date`
+* `quantity`
+* `unit`
+* `unit_price`
+* `discount`
+* `tax`
+* `amount`
+
+Preserve support for existing placeholder syntax.
+
+Support both the current placeholders and the documented braced format.
+
+Do not break uploaded templates that currently use placeholders such as:
+
+* `{invoice_number}`
+* `{invoice_date}`
+* `{due_date}`
+* `{client_name}`
+* `{from_name}`
+* `{from_address}`
+* `{to_address}`
+* `{period}`
+* `{currency}`
+* `{subtotal}`
+* `{tax_rate}`
+* `{tax}`
+* `{total}`
+* `{notes}`
+* `{items}`
+
+Build a template compatibility layer rather than renaming existing placeholders.
+
+## Field mapping panel
+
+Do not display all placeholders in a single sentence.
+
+Display them in grouped, searchable cards:
+
+* Business.
+* Client.
+* Invoice.
+* Payment.
+* Totals.
+* Line items.
+* Custom fields.
+
+For each field show:
+
+* Display label.
+* Placeholder.
+* Data source.
+* Required or optional.
+* Mapped status.
+* Example value.
+
+Add a one-click copy button for each placeholder.
+
+## Template validation
+
+Before activating a template, check for:
+
+* Invoice number.
+* Invoice date.
+* Client name.
+* At least one client address or contact field.
+* Line items.
+* Total.
+* Currency.
+* Business identity.
+
+Show warnings rather than blocking templates for optional fields.
+
+Allow:
+
+* Test with sample data.
+* Test with a real client.
+* Generate sample PDF.
+* Generate sample DOCX.
+* Set as default.
+* Duplicate template.
+* Archive template.
+* Restore previous version.
+
+# 4. Business Details
+
+Replace the current “Your details” box with a proper company billing profile.
+
+Fields:
+
+* Trading name.
+* Legal business name.
+* Logo.
+* Registered address.
+* Trading address.
+* Email.
+* Phone.
+* Website.
+* Company registration number.
+* VAT number.
+* Tax identification number.
+* Default currency.
+* Default VAT rate.
+* Default payment terms.
+* Invoice footer.
+* Authorised signatory.
+* Signature image where required.
+
+## Banking and payment details
+
+Add secure payment profiles.
+
+Fields should support:
+
+### UK accounts
+
+* Bank name.
+* Account name.
+* Account number.
+* Sort code.
+
+### International accounts
+
+* Bank name.
+* Account name.
+* IBAN.
+* SWIFT/BIC.
+* Bank address.
+
+### United States accounts
+
+* Bank name.
+* Account name.
+* Account number.
+* Routing number.
+
+### Payment services
+
+* Stripe payment link.
+* PayPal information.
+* Revolut payment details.
+* Wise payment details.
+* Custom payment instructions.
+
+Allow multiple payment profiles by currency.
+
+Examples:
+
+* GBP payment account.
+* AED payment account.
+* USD payment account.
+* EUR payment account.
+
+Users should select which payment profile appears on each invoice.
+
+Mask sensitive account values in normal page views. Only authorised finance users should be able to reveal or edit them.
+
+Record all changes in an audit log.
+
+# 5. Services and Pricing
+
+Create a reusable service catalogue.
+
+Each service record should support:
+
+* Name.
+* Public invoice description.
+* Internal description.
+* Category.
+* SKU.
+* Unit.
+* Sale price.
+* Cost price.
+* Markup.
+* Currency.
+* Tax rate.
+* Tax-inclusive status.
+* Recurring or one-off.
+* Billing frequency.
+* Active or archived.
+* Workspace.
+* Created by.
+* Last updated.
+
+Add:
+
+* Create service.
+* Edit service.
+* Duplicate service.
+* Archive service.
+* CSV import.
+* CSV export.
+* Search.
+* Filters.
+* Bulk price update.
+
+Allow client-specific pricing overrides.
+
+For example, the standard voice-minute rate may be different for WeBuyAnyHouse and another client.
+
+Price priority should be:
+
+1. Invoice-specific price.
+2. Client-specific price.
+3. Contract price.
+4. Default service price.
+
+Clearly show which price source is being used.
+
+# 6. Template library
+
+The template list should display cards or a table containing:
+
+* Template preview.
+* Template name.
+* Type: Built-in, DOCX, PDF overlay or visual builder.
+* Default currency.
+* Last updated.
+* Created by.
+* Number of invoices generated.
+* Validation status.
+* Default status.
+* Active or archived.
+* Actions.
+
+Actions:
+
+* Preview.
+* Edit.
+* Test.
+* Duplicate.
+* Download original.
+* Set as default.
+* Archive.
+* Delete unused template.
+
+Do not allow deletion of a template used by issued invoices. Archive it instead.
+
+# Invoice preview
+
+A real invoice preview is mandatory.
+
+The preview must show:
+
+* Logo.
+* Business details.
+* Invoice title.
+* Invoice number.
+* Client billing details.
+* Dates.
+* Line items.
+* Subtotal.
+* VAT or tax.
+* Total.
+* Payment details.
+* Notes.
+* Footer.
+
+Preview should support:
+
+* Desktop page view.
+* A4 print view.
+* Zoom.
+* Page navigation.
+* PDF preview.
+* Refresh.
+* Validation warnings.
+
+The preview must use the same values and generation pipeline as the final invoice. Do not build a preview that looks different from the generated document.
+
+# Upload an existing completed invoice
+
+Add a separate action:
+
+**Import existing invoice**
+
+This is different from uploading a reusable template.
+
+Allow users to upload:
+
+* PDF.
+* DOCX.
+* Supported image formats.
+
+After upload, allow the user to enter or confirm:
+
+* Invoice number.
+* Client.
+* Issue date.
+* Due date.
+* Services provided.
+* Line items.
+* Subtotal.
+* Tax.
+* Total.
+* Amount paid.
+* Payment status.
+* Notes.
+
+AccountsMind may suggest extracted values, but the user must confirm them before saving.
+
+Do not silently use AI-extracted totals as accounting truth.
+
+Store the original uploaded document alongside the structured invoice record.
+
+Label imported invoices clearly as:
+
+**Imported invoice**
+
+# Recurring invoices
+
+Allow users to create recurring invoice schedules.
+
+Fields:
+
+* Client.
+* Template.
+* Services.
+* Frequency.
+* Start date.
+* End date.
+* Invoice issue day.
+* Payment terms.
+* Automatic draft creation.
+* Automatic sending.
+* Recipient.
+* CC recipients.
+* Review required.
+* Next invoice date.
+
+Frequencies:
+
+* Weekly.
+* Monthly.
+* Quarterly.
+* Annually.
+* Custom.
+
+Automatic sending must be disabled by default.
+
+Invoices should first be generated as drafts unless a workspace administrator explicitly enables auto-send for that recurring schedule.
+
+# Email delivery
+
+Allow invoices to be sent using the existing WEBEE email infrastructure.
+
+Email fields:
+
+* Recipient.
+* CC.
+* BCC.
+* Subject.
+* Message.
+* Attached PDF.
+* Optional attached DOCX.
+* Payment link.
+* Reply-to.
+
+Add reusable email templates.
+
+Track:
+
+* Queued.
+* Sent.
+* Delivered.
+* Failed.
+* Opened where supported.
+* Bounced.
+
+Do not claim an invoice was received just because the email was sent.
+
+# Payment tracking
+
+Allow finance users to record:
+
+* Payment date.
+* Amount.
+* Currency.
+* Payment method.
+* Reference.
+* Notes.
+* Attachment or receipt.
+
+Support:
+
+* Full payment.
+* Partial payment.
+* Multiple payments.
+* Refund.
+* Credit note.
+* Write-off with permission.
+
+Automatically update:
+
+* Amount paid.
+* Balance due.
+* Paid status.
+* Overdue status.
+* AccountsMind dashboard.
+* Profitability calculations where applicable.
+
+# AccountsMind intelligence
+
+AccountsMind should be able to:
+
+* Suggest invoices that need creating.
+* Detect completed client work that has not been invoiced.
+* Suggest monthly usage charges.
+* Detect invoices approaching their due date.
+* Detect overdue invoices.
+* Draft payment reminders.
+* Compare invoice revenue with provider costs.
+* Flag unusually low margins.
+* Detect duplicate invoice numbers.
+* Detect missing VAT information.
+* Detect totals that do not reconcile.
+* Explain why an invoice total was calculated.
+* Answer invoice questions using real workspace data.
+
+AccountsMind must not:
+
+* Send invoices without permission.
+* Change banking details without permission.
+* Mark invoices as paid without evidence or user confirmation.
+* Invent client charges.
+* Invent usage.
+* Invent VAT treatment.
+* Alter an issued invoice silently.
+
+# Integration with existing AccountsMind data
+
+Connect invoice generation to existing data where available:
+
+* Clients.
+* Provider Costs.
+* Recharges.
+* Profitability.
+* Workspace Config.
+* Usage records.
+* Client subscriptions.
+* Campaign usage.
+* Voice-call usage.
+* SMS usage.
+* WhatsApp usage.
+* Email usage.
+* Platform licences.
+* Development charges.
+* Support charges.
+
+The “Add usage costs for the month as line items” function must be refined.
+
+When enabled, show a review screen containing:
+
+* Usage category.
+* Quantity.
+* Internal provider cost.
+* Client charge.
+* Markup.
+* Currency.
+* Tax rate.
+* Data source.
+* Billing period.
+
+Do not expose internal provider costs on the client-facing invoice.
+
+The user must be able to approve, edit or exclude each usage line before adding it.
+
+# Database requirements
+
+Inspect existing tables before creating new ones.
+
+Create or extend appropriate tables for:
+
+* Invoice business profiles.
+* Payment profiles.
+* Invoice templates.
+* Invoice template versions.
+* Invoice template field mappings.
+* Invoice services.
+* Client-specific service pricing.
+* Invoices.
+* Invoice line items.
+* Invoice payments.
+* Invoice adjustments.
+* Invoice email deliveries.
+* Recurring invoice schedules.
+* Imported invoice documents.
+* Invoice files.
+* Credit notes.
+* Invoice audit logs.
+
+Every relevant record must include:
+
+* `workspace_id`
+* Created timestamp.
+* Updated timestamp.
+* Created by.
+* Updated by where applicable.
+
+Invoice monetary values should use fixed decimal database types or integer minor units.
+
+Do not store currency values using approximate floating-point fields.
+
+Add indexes for:
+
+* Workspace.
+* Invoice number.
+* Client.
+* Invoice status.
+* Issue date.
+* Due date.
+* Recurring schedule.
+* Template.
+* Payment status.
+
+# Permissions
+
+Add granular permission checks:
+
+* View invoices.
+* Create invoice.
+* Edit draft invoice.
+* Issue invoice.
+* Send invoice.
+* Record payment.
+* Void invoice.
+* Manage templates.
+* Manage service pricing.
+* Manage business details.
+* Manage payment profiles.
+* Reveal bank details.
+* Manage recurring invoices.
+* Export invoices.
+* Delete drafts.
+
+Only authorised workspace members should access financial data.
+
+# UI requirements
+
+Match the current WEBEE dark design system, but refine the experience.
+
+Use:
+
+* Clear page hierarchy.
+* Compact cards.
+* Proper form grids.
+* Consistent field widths.
+* Sticky action bars.
+* Responsive layout.
+* Accessible form labels.
+* Keyboard navigation.
+* Clear loading states.
+* Skeleton loaders.
+* Empty states.
+* Success notifications.
+* Error notifications.
+* Confirmation dialogs.
+* Tooltips.
+* Searchable selects.
+* Currency formatting.
+* Date pickers.
+* Unsaved-change warnings.
+
+Specific changes to the screenshot layout:
+
+* Reduce the excessive empty space.
+* Do not place the company address in one large awkward text area.
+* Move Save into a consistent section action bar.
+* Replace the long placeholder instruction sentence with a structured mapping panel.
+* Add visible template preview beside the upload controls.
+* Make the selected file name and processing status obvious.
+* Display the line-item table immediately.
+* Keep invoice totals visible while editing.
+* Add a right-hand live preview.
+* Replace the empty generated-invoices block with a complete invoice table and useful empty state.
+* Keep the HiveMind floating control from covering important invoice actions.
+* Ensure the page remains usable at 1366px and 1920px widths.
+
+# Error handling
+
+Handle:
+
+* Invalid template.
+* Unsupported file type.
+* File too large.
+* Missing placeholder.
+* Broken DOCX.
+* Encrypted PDF.
+* PDF rendering failure.
+* Storage upload failure.
+* Duplicate invoice number.
+* Missing client address.
+* Invalid tax rate.
+* No line items.
+* Negative total.
+* Currency mismatch.
+* Email delivery failure.
+* Document generation failure.
+* Recurring invoice failure.
+* Missing payment profile.
+* Permission failure.
+
+Every error must provide a clear next step.
+
+Do not show raw database or server errors to users.
+
+# Testing requirements
+
+Add automated and manual tests for:
+
+* Existing template compatibility.
+* DOCX placeholder replacement.
+* PDF overlay generation.
+* Template preview.
+* Template versioning.
+* Workspace isolation.
+* RLS.
+* Duplicate invoice prevention.
+* Client population.
+* Line-item calculation.
+* Inclusive VAT.
+* Exclusive VAT.
+* Multiple VAT rates.
+* Discounts.
+* Partial payments.
+* Invoice status changes.
+* Imported invoices.
+* Recurring invoices.
+* Email delivery.
+* Failed document generation.
+* Payment permissions.
+* Banking-detail masking.
+* Service-price priority.
+* Usage import.
+* PDF totals matching displayed totals.
+* DOCX totals matching displayed totals.
+* Responsive invoice editor.
+
+Manually verify that an invoice can be created using this workflow:
+
+1. Add business details.
+2. Add GBP banking details.
+3. Upload an existing invoice template.
+4. Map invoice fields.
+5. Create a saved service.
+6. Select a client.
+7. Add the service provided.
+8. Enter the price.
+9. Apply VAT.
+10. Preview the invoice.
+11. Save it as a draft.
+12. Generate a PDF.
+13. Generate a DOCX.
+14. Send the invoice.
+15. Record a partial payment.
+16. Mark the remaining balance paid.
+17. Confirm AccountsMind reports the correct revenue.
+
+# Acceptance criteria
+
+The work is only complete when:
+
+* An existing invoice design can be uploaded.
+* Uploaded templates have a visual preview.
+* Template fields can be mapped clearly.
+* Business credentials can be stored properly.
+* Banking details can be stored securely.
+* Services and standard prices can be saved.
+* Client-specific prices are supported.
+* Services can be added as invoice line items.
+* Quantity, price, discounts and VAT calculate correctly.
+* The user can see a live invoice preview.
+* The PDF matches the preview.
+* Existing DOCX templates still work.
+* Generated invoices are stored and searchable.
+* Draft, sent, paid and overdue statuses work.
+* Existing invoices and templates have not been lost.
+* Imported invoices can be stored with structured financial data.
+* Monthly usage can be reviewed and added.
+* AccountsMind can explain invoice totals using real data.
+* All data is isolated by workspace.
+* There are no dead buttons.
+* There are no fake calculations.
+* Type checking passes.
+* Automated tests pass.
+* The production build passes.
+
+# Final response required from Replit
+
+When complete, provide:
+
+1. What existed before the change.
+2. Problems found in the existing implementation.
+3. Files modified.
+4. Database migrations added.
+5. Storage changes.
+6. Existing functionality preserved.
+7. Template formats now supported.
+8. Invoice fields now supported.
+9. Financial calculation method.
+10. Security and permissions added.
+11. Tests completed.
+12. Manual configuration still required.
+13. Screenshots of the completed invoice dashboard, editor, template mapper and preview.
+14. Confirmation that invoice generation was tested using an actual client, service description and price.
+
+Do not return after creating only the front-end design.
+
+Implement and test the complete flow:
+
+**Upload invoice design → map fields → save business and payment details → select client → add service and price → calculate tax and totals → preview → save draft → generate document → send → track payment.**
+
+---
