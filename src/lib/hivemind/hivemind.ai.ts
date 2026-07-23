@@ -944,7 +944,7 @@ export function buildPlatformContext(d: any): string {
     lines.push(`\nEMAIL & FOLLOW-UP EXCEPTIONS (last ${ei.windowDays}d):`);
     lines.push(`  Lead emails: ${ei.emails.sent} sent | ${ei.emails.failed} failed${ei.emails.suppressedRecipients.length ? ` | ${ei.emails.suppressedRecipients.length} recipient(s) on the suppression list` : ""}`);
     if (ei.emails.failedSample?.length) lines.push(`  ⚠ Recent failures: ${ei.emails.failedSample.slice(0, 4).map((f: any) => `${f.to} (${f.error || "unknown"})`).join("; ")}`);
-    lines.push(`  Follow-up sequences: ${ei.followUps.activeEnrollments} active enrollment${ei.followUps.activeEnrollments !== 1 ? "s" : ""}${ei.followUps.stalled ? ` | ⚠ ${ei.followUps.stalled} stalled 7d+ without executing` : ""}`);
+    lines.push(`  Follow-up sequences: ${ei.followUps.activeEnrollments} active enrollment${ei.followUps.activeEnrollments !== 1 ? "s" : ""}${ei.followUps.stalled ? ` | ⚠ ${ei.followUps.stalled} stalled 7d+ without executing` : ""}${ei.followUps.zeroEngagement ? ` | ⚠ ${ei.followUps.zeroEngagement} enrolled 7d+ with ZERO engagement (never executed)` : ""}${ei.followUps.failed ? ` | ⚠ ${ei.followUps.failed} enrollment(s) in a failed/error state` : ""}`);
     if (ei.conversations.awaitingReplyCount > 0) {
       lines.push(`  ⚠ WHATSAPP REPLIES AWAITING HUMAN ACTION (${ei.conversations.awaitingReplyCount}, longest-waiting first):`);
       for (const c of ei.conversations.awaitingReply.slice(0, 6)) lines.push(`    – ${c.name ?? c.contact}: waiting ${c.waitingHours}h`);

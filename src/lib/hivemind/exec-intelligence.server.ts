@@ -28,15 +28,30 @@ export async function getCalendarIntelligence(workspaceId: string, isWbah: boole
   const todayStart = new Date(now); todayStart.setHours(0, 0, 0, 0);
   const todayEnd = new Date(now); todayEnd.setHours(23, 59, 59, 999);
 
-  const { data, error } = await (supabaseAdmin as any)
-    .from("calendar_bookings")
-    .select("id,title,status,start_at,end_at,created_at,lead_id,attendee_name,source")
-    .eq("workspace_id", workspaceId)
-    .gte("start_at", s60)
-    .order("start_at", { ascending: true })
-    .limit(500);
-  if (error) throw new Error(error.message);
-  const rows: any[] = data ?? [];
+  // Two windowed queries so historical volume can never crowd out near-term
+  // rows under the cap: future/today rows (ascending, capped separately) and
+  // recent-past rows (descending = most recent kept if capped).
+  const cols = "id,title,status,start_at,end_at,created_at,lead_id,attendee_name,source";
+  const [futRes, pastRes] = await Promise.all([
+    (supabaseAdmin as any)
+      .from("calendar_bookings")
+      .select(cols)
+      .eq("workspace_id", workspaceId)
+      .gte("start_at", todayStart.toISOString())
+      .order("start_at", { ascending: true })
+      .limit(300),
+    (supabaseAdmin as any)
+      .from("calendar_bookings")
+      .select(cols)
+      .eq("workspace_id", workspaceId)
+      .gte("start_at", s60)
+      .lt("start_at", todayStart.toISOString())
+      .order("start_at", { ascending: false })
+      .limit(300),
+  ]);
+  if (futRes.error) throw new Error(futRes.error.message);
+  if (pastRes.error) throw new Error(pastRes.error.message);
+  const rows: any[] = [...(pastRes.data ?? []).reverse(), ...(futRes.data ?? [])];
 
   const isCancelled = (b: any) => ["cancelled", "canceled", "rejected", "declined"].includes(String(b.status ?? "").toLowerCase());
   const isNoShow    = (b: any) => ["no_show", "noshow", "missed"].includes(String(b.status ?? "").toLowerCase());
@@ -127,16 +142,32 @@ async function getWbahCalendarIntelligence(workspaceId: string) {
   const s60 = londonDate(new Date(now.getTime() - 60 * DAY));
   const s30 = londonDate(new Date(now.getTime() - 30 * DAY));
 
-  const { data, error } = await (supabaseAdmin as any)
-    .from("wbah_calls")
-    .select("id,customer_name,appointment_date,appointment_time,booking_status,started_at")
-    .eq("workspace_id", workspaceId)
-    .not("appointment_date", "is", null)
-    .gte("appointment_date", s60)
-    .order("appointment_date", { ascending: true })
-    .limit(500);
-  if (error) throw new Error(error.message);
-  const rows: any[] = data ?? [];
+  // Two windowed queries (today/future ascending + recent-past descending) so
+  // 60 days of historical volume can never crowd today's/upcoming rows out of
+  // the cap.
+  const wcols = "id,customer_name,appointment_date,appointment_time,booking_status,started_at";
+  const [futRes, pastRes] = await Promise.all([
+    (supabaseAdmin as any)
+      .from("wbah_calls")
+      .select(wcols)
+      .eq("workspace_id", workspaceId)
+      .not("appointment_date", "is", null)
+      .gte("appointment_date", today)
+      .order("appointment_date", { ascending: true })
+      .limit(300),
+    (supabaseAdmin as any)
+      .from("wbah_calls")
+      .select(wcols)
+      .eq("workspace_id", workspaceId)
+      .not("appointment_date", "is", null)
+      .gte("appointment_date", s60)
+      .lt("appointment_date", today)
+      .order("appointment_date", { ascending: false })
+      .limit(300),
+  ]);
+  if (futRes.error) throw new Error(futRes.error.message);
+  if (pastRes.error) throw new Error(pastRes.error.message);
+  const rows: any[] = [...(pastRes.data ?? []).reverse(), ...(futRes.data ?? [])];
 
   const isCancelled = (r: any) => ["cancelled", "canceled", "rejected", "declined"].includes(String(r.booking_status ?? "").toLowerCase());
   const isNoShow    = (r: any) => ["no_show", "noshow", "missed"].includes(String(r.booking_status ?? "").toLowerCase());
@@ -207,7 +238,7 @@ export async function getEmailIntelligence(workspaceId: string, isWbah: boolean)
       .from("hexmail_campaign_enrollments")
       .select("id,campaign_id,lead_id,status,current_day,last_executed,enrolled_at")
       .eq("workspace_id", workspaceId)
-      .eq("status", "active")
+      .order("enrolled_at", { ascending: false })
       .limit(1000),
     (supabaseAdmin as any)
       .from("whatsapp_messages")
@@ -243,9 +274,15 @@ export async function getEmailIntelligence(workspaceId: string, isWbah: boolean)
     suppressedRecipients = (sup ?? []).map((s: any) => ({ email: s.email, reason: s.reason }));
   }
 
-  // Stalled follow-up sequences: active enrollments that have not executed for 7d+
-  // (or were enrolled 7d+ ago and never executed at all).
-  const enrolls: any[] = enrollRes.error ? [] : (enrollRes.data ?? []);
+  // Follow-up sequence exceptions:
+  //  - failed: enrollment status itself indicates failure/error
+  //  - stalled: active but no execution for 7d+
+  //  - zero engagement: enrolled 7d+ ago and NEVER executed at all
+  const allEnrolls: any[] = enrollRes.error ? [] : (enrollRes.data ?? []);
+  const isFailedEnroll = (e: any) => ["failed", "error", "errored", "cancelled_error"].includes(String(e.status ?? "").toLowerCase());
+  const failedEnrollments = allEnrolls.filter(isFailedEnroll);
+  const enrolls = allEnrolls.filter((e) => String(e.status ?? "").toLowerCase() === "active");
+  const zeroEngagement = enrolls.filter((e) => !e.last_executed && e.enrolled_at < s7);
   const stalled = enrolls.filter((e) => {
     const last = e.last_executed ?? e.enrolled_at;
     return !last || last < s7;
@@ -294,6 +331,9 @@ export async function getEmailIntelligence(workspaceId: string, isWbah: boolean)
     },
     followUps: {
       activeEnrollments: enrolls.length,
+      failed: failedEnrollments.length,
+      failedSample: failedEnrollments.slice(0, 5).map((e) => ({ campaignId: e.campaign_id, status: e.status, day: e.current_day, enrolledAt: e.enrolled_at })),
+      zeroEngagement: zeroEngagement.length,
       stalled: stalled.length,
       stalledSample: stalled.slice(0, 8).map((e) => ({ campaignId: e.campaign_id, day: e.current_day, lastExecuted: e.last_executed, enrolledAt: e.enrolled_at })),
     },

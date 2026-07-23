@@ -290,6 +290,27 @@ describe("data-source health", () => {
     expect(by.billing.lastActivityAt).not.toBeNull();
   });
 
+  it("marks a source degraded when its sync_state reports an error", async () => {
+    // Force the email source into a failing-sync state for WS_A.
+    const { error } = await sb.from("sync_state").insert({
+      workspace_id: WS_A,
+      source_name: "email",
+      module: "lead_email",
+      sync_status: "error",
+      error_message: "e2e forced sync failure",
+      last_attempted_sync_at: new Date().toISOString(),
+    });
+    expect(error).toBeNull();
+    invalidateDataHealth(WS_A, { broadcast: false });
+    const dh = await getWorkspaceDataHealth(WS_A, false);
+    const email = dh.sources.find((s) => s.source === "email")!;
+    expect(email.status).toBe("degraded"); // NOT healthy despite rows existing
+    expect(email.detail).toContain("e2e forced sync failure");
+    // Clean up so other assertions/workspaces are unaffected.
+    await sb.from("sync_state").delete().eq("workspace_id", WS_A);
+    invalidateDataHealth(WS_A, { broadcast: false });
+  });
+
   it("caches per workspace and can be invalidated", async () => {
     const first = await getWorkspaceDataHealth(WS_A, false);
     const second = await getWorkspaceDataHealth(WS_A, false);
