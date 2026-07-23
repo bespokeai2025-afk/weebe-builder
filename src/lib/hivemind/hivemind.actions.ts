@@ -451,10 +451,18 @@ export const setHiveMindMode = createServerFn({ method: "POST" })
       update.hivemind_operator_enabled = false;
     }
 
-    const { error } = await sb.from("workspace_settings")
+    // Upsert-safe: a plain .update() silently affects 0 rows when the
+    // workspace_settings row does not exist yet, leaving the mode unenforced.
+    const { data: updated, error } = await sb.from("workspace_settings")
       .update(update)
-      .eq("workspace_id", workspaceId);
+      .eq("workspace_id", workspaceId)
+      .select("workspace_id");
     if (error) throw error;
+    if (!updated?.length) {
+      const { error: insErr } = await sb.from("workspace_settings")
+        .insert({ workspace_id: workspaceId, ...update });
+      if (insErr) throw insErr;
+    }
     return { ok: true };
   });
 

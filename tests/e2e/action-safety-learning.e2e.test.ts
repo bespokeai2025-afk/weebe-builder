@@ -27,6 +27,7 @@ import {
 import {
   getHiveMindModeConfig,
   assertExecutionAllowed,
+  assertProposalAllowed,
   isProposalAllowed,
   operatorConfidenceAdequate,
   ModeGateError,
@@ -200,6 +201,25 @@ describe("mode config (DB)", () => {
     expect(error).toBeNull();
     expect(row.hivemind_mode).toBe("recommend");
     expect(row.hivemind_operator_enabled).toBe(false);
+  });
+
+  it("mode persistence is upsert-safe when no settings row exists (setHiveMindMode path)", async () => {
+    // WS_B has no workspace_settings row; a plain .update() affects 0 rows.
+    const update = { hivemind_mode: "observe", updated_at: new Date().toISOString() };
+    const { data: updated, error } = await sb.from("workspace_settings")
+      .update(update).eq("workspace_id", WS_B).select("workspace_id");
+    expect(error).toBeNull();
+    expect(updated?.length ?? 0).toBe(0); // silent no-op — must fall through to insert
+    const { error: insErr } = await sb.from("workspace_settings")
+      .insert({ workspace_id: WS_B, ...update });
+    expect(insErr).toBeNull();
+    const c = await getHiveMindModeConfig(sb, WS_B);
+    expect(c.mode).toBe("observe");
+    // observe now blocks proposals for WS_B (server write paths call this gate)
+    expect(await isProposalAllowed(sb, WS_B)).toBe(false);
+    await expect(assertProposalAllowed(sb, WS_B)).rejects.toThrow(ModeGateError);
+    // restore for later isolation tests
+    await sb.from("workspace_settings").update({ hivemind_mode: "recommend" }).eq("workspace_id", WS_B);
   });
 
   it("observe mode blocks proposals; other modes allow", async () => {

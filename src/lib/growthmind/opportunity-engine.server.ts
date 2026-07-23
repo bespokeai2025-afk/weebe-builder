@@ -484,6 +484,9 @@ export const sendOpportunityToHiveMind = createServerFn({ method: "POST" })
 
     if (oppErr || !opp) throw new Error("Opportunity not found");
 
+    const { assertProposalAllowed } = await import("@/lib/hivemind/mode-gate.server");
+    await assertProposalAllowed(sb, workspaceId);
+
     const { data: action, error: actionErr } = await sb
       .from("hivemind_actions")
       .insert({

@@ -917,6 +917,8 @@ export const createHiveMindTask = createServerFn({ method: "POST" })
   )
   .handler(async ({ context, data }) => {
     const sb = context.supabase as any;
+    const { assertProposalAllowed } = await import("@/lib/hivemind/mode-gate.server");
+    await assertProposalAllowed(sb, context.workspaceId!);
     const { data: row, error } = await sb.from("hivemind_tasks")
       .insert({ workspace_id: context.workspaceId, ...data, status: "suggested", source: "manual" })
       .select()
