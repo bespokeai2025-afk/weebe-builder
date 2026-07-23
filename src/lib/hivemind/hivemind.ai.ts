@@ -709,7 +709,7 @@ function buildHiveMindRetrievalQuery(d: any): string {
 }
 
 // ── Context builder ────────────────────────────────────────────────────────────
-function buildPlatformContext(d: any): string {
+export function buildPlatformContext(d: any): string {
   if (!d) return "No platform data available yet.";
   const lines: string[] = [];
 
@@ -1127,7 +1127,7 @@ function buildSystemCouncilContext(sm: SystemMindExecutiveSummary | null): strin
   return lines.join("\n");
 }
 
-function buildSystemPrompt(context: string, personality = "friendly", userName?: string): string {
+export function buildSystemPrompt(context: string, personality = "friendly", userName?: string): string {
   const nameClause = userName?.trim()
     ? `The user's name is ${userName.trim()}. Use their name occasionally — once or twice per conversation feels natural, not every message.`
     : "";
