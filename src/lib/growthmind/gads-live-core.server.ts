@@ -60,35 +60,57 @@ export async function loadGadsCreds(workspaceId: string): Promise<GadsCreds> {
 
 // Short-lived access token cache (per workspace, in-process).
 const tokenCache = new Map<string, { token: string; expiresAt: number }>();
+// Single-flight guard: only one refresh request per workspace at a time.
+const tokenInFlight = new Map<string, Promise<string>>();
+
+/** Test-only: expire/clear the cached access token so the next call must refresh. */
+export function __expireGadsTokenCache(workspaceId?: string): void {
+  if (workspaceId) tokenCache.delete(workspaceId);
+  else tokenCache.clear();
+}
 
 export async function getGadsAccessToken(workspaceId: string, creds?: GadsCreds): Promise<string> {
   const cached = tokenCache.get(workspaceId);
   if (cached && cached.expiresAt > Date.now() + 60_000) return cached.token;
 
-  const c = creds ?? await loadGadsCreds(workspaceId);
-  if (!c.refreshToken) throw new Error("GADS_NOT_CONNECTED: no Google refresh token — complete Connect with Google first");
-  if (!c.clientId || !c.clientSecret) throw new Error("GADS_NOT_CONNECTED: OAuth Client ID/Secret missing in provider settings");
+  // Coalesce concurrent callers onto a single refresh request.
+  const inflight = tokenInFlight.get(workspaceId);
+  if (inflight) return inflight;
 
-  const res = await fetch("https://oauth2.googleapis.com/token", {
-    method: "POST",
-    headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    body: new URLSearchParams({
-      grant_type:    "refresh_token",
-      refresh_token: c.refreshToken,
-      client_id:     c.clientId,
-      client_secret: c.clientSecret,
-    }),
-  });
-  const json = await res.json().catch(() => ({})) as any;
-  if (!res.ok || json.error) {
-    if (json.error === "invalid_grant") {
-      throw new Error("GADS_TOKEN_REVOKED: Google access was revoked or expired — reconnect with Google");
+  const p = (async () => {
+    const c = creds ?? await loadGadsCreds(workspaceId);
+    if (!c.refreshToken) throw new Error("GADS_NOT_CONNECTED: no Google refresh token — complete Connect with Google first");
+    if (!c.clientId || !c.clientSecret) throw new Error("GADS_NOT_CONNECTED: OAuth Client ID/Secret missing in provider settings");
+
+    const res = await fetch("https://oauth2.googleapis.com/token", {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({
+        grant_type:    "refresh_token",
+        refresh_token: c.refreshToken,
+        client_id:     c.clientId,
+        client_secret: c.clientSecret,
+      }),
+    });
+    const json = await res.json().catch(() => ({})) as any;
+    if (!res.ok || json.error) {
+      tokenCache.delete(workspaceId);
+      if (json.error === "invalid_grant") {
+        throw new Error("GADS_TOKEN_REVOKED: Google access was revoked or expired — reconnect with Google");
+      }
+      throw new Error(`GADS_OAUTH_ERROR: ${json.error_description ?? json.error ?? res.status}`);
     }
-    throw new Error(`GADS_OAUTH_ERROR: ${json.error_description ?? json.error ?? res.status}`);
+    const token = json.access_token as string;
+    tokenCache.set(workspaceId, { token, expiresAt: Date.now() + Math.min(Number(json.expires_in ?? 3600), 3600) * 1000 });
+    return token;
+  })();
+
+  tokenInFlight.set(workspaceId, p);
+  try {
+    return await p;
+  } finally {
+    tokenInFlight.delete(workspaceId);
   }
-  const token = json.access_token as string;
-  tokenCache.set(workspaceId, { token, expiresAt: Date.now() + Math.min(Number(json.expires_in ?? 3600), 3600) * 1000 });
-  return token;
 }
 
 // ── Low-level API helpers (retry/backoff on 429/5xx) ──────────────────────────
@@ -342,13 +364,18 @@ export async function runGadsSync(
 
   const { data: acc } = await sb
     .from("growthmind_ads_accounts")
-    .select("id, workspace_id, platform, customer_id, login_customer_id, status")
+    .select("id, workspace_id, platform, customer_id, login_customer_id, status, connection_state")
     .eq("id", accountRowId)
     .eq("workspace_id", workspaceId)
     .maybeSingle();
   if (!acc || acc.platform !== "google") return { ok: false, status: "skipped", campaigns: 0, rows: 0, spend: 0, error: "Google account row not found" };
   if (!acc.customer_id) return { ok: false, status: "skipped", campaigns: 0, rows: 0, spend: 0, error: "No advertising account selected yet" };
   if (acc.status === "disconnected") return { ok: false, status: "skipped", campaigns: 0, rows: 0, spend: 0, error: "Account disconnected" };
+  // Never continuously retry an invalid/revoked refresh token from the scheduler.
+  // Manual "Sync Now" (and initial/historical runs after reconnect) may still try.
+  if (acc.connection_state === "needs_reconnect" && runType === "incremental") {
+    return { ok: false, status: "skipped", campaigns: 0, rows: 0, spend: 0, error: "Reconnection required — Google access was revoked. Scheduled sync paused until reconnected." };
+  }
 
   // Overlap prevention: skip if a run is already in-flight (started < 10 min ago)
   const cutoff = new Date(Date.now() - 10 * 60 * 1000).toISOString();
@@ -434,8 +461,10 @@ export async function runGadsSync(
     if (runId) await sb.from("growthmind_gads_sync_runs").update({
       status: "error", finished_at: new Date().toISOString(), error_message: msg.slice(0, 500),
     }).eq("id", runId);
+    const revoked = msg.includes("GADS_TOKEN_REVOKED") || msg.toLowerCase().includes("revoked");
     await sb.from("growthmind_ads_accounts").update({
-      sync_status: "error", sync_error: msg.slice(0, 500), connection_state: "sync_failed", updated_at: now,
+      sync_status: "error", sync_error: msg.slice(0, 500),
+      connection_state: revoked ? "needs_reconnect" : "sync_failed", updated_at: now,
     }).eq("id", accountRowId);
     await sb.from("growthmind_ad_sync_log").insert({
       workspace_id: workspaceId, account_id: accountRowId, platform: "google",

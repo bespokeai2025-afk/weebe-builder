@@ -1,0 +1,189 @@
+CRITICAL — COMPLETE THE GOOGLE ADS OAUTH HANDSHAKE
+
+The existing “active” or “token” indicator must not be treated as proof that the Google Ads integration is fully operational.
+
+WEBEE must implement and verify the complete server-side Google OAuth 2.0 authorization-code flow for Google Ads.
+
+REQUIRED CONNECTION FLOW
+
+1. On the Credentials/Integrations page, provide a “Connect Google Ads” button.
+
+2. When clicked, redirect the user to Google’s secure OAuth consent screen.
+
+3. Request the required Google Ads scope:
+
+   https://www.googleapis.com/auth/adwords
+
+4. Request offline access so WEBEE can continue syncing campaigns after the user leaves:
+
+   access_type=offline
+
+5. Use an authorization-code flow with a backend callback.
+
+6. Include state validation and PKCE where supported to protect the OAuth callback.
+
+7. The callback must exchange the authorization code server-side using:
+
+   - GOOGLE_ADS_OAUTH_CLIENT_ID
+   - GOOGLE_ADS_OAUTH_CLIENT_SECRET
+   - The exact registered redirect URI
+   - The returned authorization code
+
+8. Securely store:
+
+   - access_token
+   - refresh_token
+   - access_token_expires_at
+   - granted_scopes
+   - connected Google email/identity
+   - workspace_id
+   - credential_id
+   - connection timestamp
+   - token status
+
+9. Never expose the access token, refresh token, client secret or developer token to the frontend.
+
+10. Encrypt refresh tokens at rest using the project’s existing credential encryption system.
+
+REFRESH TOKEN REQUIREMENTS
+
+The application must request offline access during the initial OAuth handshake.
+
+Do not assume a refresh token will be returned during every later authorization.
+
+If the credential record does not contain a valid refresh token:
+
+- Mark the integration as “Reconnection required”.
+- Do not display it as fully active.
+- Show a “Reconnect Google Ads” button.
+- Run the OAuth consent flow again.
+- Where required, use Google’s consent prompt during explicit reconnection so a new refresh token can be issued.
+
+Do not overwrite an existing valid refresh token with null or an empty value when Google returns only a new access token.
+
+TOKEN REFRESH SERVICE
+
+Before every Google Ads API request:
+
+1. Check whether the access token is close to expiry.
+2. Use the encrypted refresh token to obtain a new access token.
+3. Update access_token and access_token_expires_at.
+4. Continue the original API request.
+5. Prevent multiple simultaneous refresh requests for the same credential.
+
+If token refresh fails because authorization has been revoked or the token is invalid:
+
+- Stop scheduled synchronization for that credential.
+- Mark the connection as “Reconnection required”.
+- Retain existing historical campaign data.
+- Display a clear reconnect action.
+- Do not continuously retry an invalid refresh token.
+
+GOOGLE ADS API VERIFICATION
+
+After the OAuth callback completes, do not immediately mark the connection as fully active.
+
+Verify all of the following separately:
+
+1. OAuth connected.
+2. Required Google Ads scope granted.
+3. Refresh token securely stored.
+4. Google Ads developer token configured.
+5. Google Ads API request succeeds.
+6. Accessible customer accounts are returned.
+7. A Google Ads customer account has been selected.
+8. Initial campaign sync succeeds.
+
+Use separate statuses:
+
+- OAuth connected
+- API verification pending
+- Account selection required
+- Initial sync running
+- Active and syncing
+- Reconnection required
+- Configuration required
+- Sync failed
+
+MANAGER ACCOUNT DISCOVERY
+
+After successful authorization:
+
+1. Call the Google Ads API to retrieve the customer accounts accessible to the connected Google user.
+2. Determine which returned accounts are manager accounts and which are client advertising accounts.
+3. If a manager account is involved, use its customer ID as the appropriate login_customer_id when accessing child accounts.
+4. Display an account-selection screen containing:
+
+   - Account name
+   - Customer ID
+   - Manager/client account type
+   - Account status
+   - Currency
+   - Time zone
+
+5. Save the selected advertising customer ID against the workspace credential.
+6. Save the manager login customer ID separately when required.
+7. Never assume that the email address is itself the Google Ads customer account.
+8. Never hard-code a customer ID.
+
+INITIAL GROWTHMIND ACTIVATION
+
+Immediately after the advertising account has been selected:
+
+1. Trigger the initial campaign import.
+2. Retrieve active, paused and recently active campaigns.
+3. Store campaign and metric data against the current workspace.
+4. Run the first GrowthMind analysis.
+5. Replace the zero-campaign empty state with the imported campaigns.
+6. Display the last successful Google Ads sync.
+7. Start the scheduled background synchronization.
+
+The user should only need to complete the Google OAuth login and approval once, unless:
+
+- They revoke WEBEE’s access.
+- The refresh token becomes invalid.
+- Required scopes change.
+- The Google connection is deleted.
+- Google requires reauthorization.
+
+CONNECTION HEALTH UI
+
+Replace the vague “token” badge with meaningful status checks:
+
+OAuth:
+Connected / Reconnection required
+
+Offline access:
+Refresh token stored / Missing refresh token
+
+Google Ads API:
+Verified / Failed / Developer token missing
+
+Advertising account:
+Selected / Selection required
+
+Campaign synchronization:
+Healthy / Running / Failed / Never synced
+
+GrowthMind:
+Active / Awaiting campaign data / Analysis failed
+
+Display masked values only. Never return token contents to the browser.
+
+ACCEPTANCE TEST
+
+The connection is not complete merely because a credentials row says “active”.
+
+It is complete only when:
+
+- OAuth authorization succeeds.
+- A refresh token is securely stored.
+- A new access token can be generated from that refresh token.
+- The Google Ads API accepts the credentials.
+- Accessible advertising accounts are discovered.
+- The correct customer account is selected.
+- Campaigns are imported.
+- GrowthMind analyses the imported campaign data.
+- A scheduled sync succeeds after the original access token has expired.
+
+Add a test that deliberately expires the stored access token and confirms that WEBEE uses the refresh token to generate a new one and completes the campaign sync without user interaction.
