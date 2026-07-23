@@ -24,34 +24,48 @@ export interface DocHeader {
   bodyFormat?:  "html" | "markdown" | "docx";
 }
 
+// ── PDF overlay layout (stored as _pdfOverlay key inside the vars JSON) ──────
+// Same shape as OverlayFieldSpec in the shared PDF overlay engine
+// (src/lib/documents/pdf-overlay.server.ts) — kept structurally here so this
+// client-safe helper never imports server code.
+
+export interface PdfOverlayFieldDef {
+  tag: string; page: number; xPct: number; yPct: number; widthPct: number;
+  fontSize: number; bold: boolean; align: "left" | "center" | "right";
+  lineSpacing: number; color?: string | null;
+}
+
 // ── Encode / decode ──────────────────────────────────────────────────────────
 
-/** Split stored content into { body, vars, header } */
-export function splitContent(raw: string): { body: string; vars: VarMap; header: DocHeader } {
+/** Split stored content into { body, vars, header, overlay } */
+export function splitContent(raw: string): { body: string; vars: VarMap; header: DocHeader; overlay: PdfOverlayFieldDef[] } {
   const idx = raw.indexOf(SENTINEL);
-  if (idx === -1) return { body: raw, vars: {}, header: {} };
+  if (idx === -1) return { body: raw, vars: {}, header: {}, overlay: [] };
   const body    = raw.slice(0, idx);
   const jsonStr = raw.slice(idx + SENTINEL.length);
   try {
     const parsed = JSON.parse(jsonStr) as Record<string, unknown>;
     const header = (parsed["_header"] ?? {}) as DocHeader;
+    const overlay = Array.isArray(parsed["_pdfOverlay"]) ? (parsed["_pdfOverlay"] as PdfOverlayFieldDef[]) : [];
     const vars: VarMap = {};
     for (const [k, v] of Object.entries(parsed)) {
-      if (k !== "_header") vars[k] = v as VarDef;
+      if (k !== "_header" && k !== "_pdfOverlay") vars[k] = v as VarDef;
     }
-    return { body, vars, header };
+    return { body, vars, header, overlay };
   } catch {
-    return { body, vars: {}, header: {} };
+    return { body, vars: {}, header: {}, overlay: [] };
   }
 }
 
-/** Combine body text + var definitions + optional header into the value stored in the DB */
-export function joinContent(body: string, vars: VarMap, header?: DocHeader): string {
-  const hasVars   = Object.keys(vars).length > 0;
-  const hasHeader = header && (header.logoUrl || header.companyName || header.tagline);
-  if (!hasVars && !hasHeader) return body;
+/** Combine body text + var definitions + optional header/overlay into the value stored in the DB */
+export function joinContent(body: string, vars: VarMap, header?: DocHeader, overlay?: PdfOverlayFieldDef[]): string {
+  const hasVars    = Object.keys(vars).length > 0;
+  const hasHeader  = header && (header.logoUrl || header.companyName || header.tagline);
+  const hasOverlay = Array.isArray(overlay) && overlay.length > 0;
+  if (!hasVars && !hasHeader && !hasOverlay) return body;
   const payload: Record<string, unknown> = { ...vars };
   if (hasHeader) payload["_header"] = header;
+  if (hasOverlay) payload["_pdfOverlay"] = overlay;
   return body + SENTINEL + JSON.stringify(payload);
 }
 

@@ -293,7 +293,7 @@ export const testRenderInvoiceTemplate = createServerFn({ method: "POST" })
       if (fields.length === 0) return { ok: false as const, error: "Place at least one field in the layout designer before test-rendering." };
       let pdfBuf: Buffer;
       try {
-        const { renderPdfOverlay } = await import("@/lib/accountsmind/invoice-pdf-overlay.server");
+        const { renderPdfOverlay } = await import("@/lib/documents/pdf-overlay.server");
         pdfBuf = await renderPdfOverlay(Buffer.from(await tplFile.arrayBuffer()), fields, payload);
       } catch (err: any) {
         return { ok: false as const, error: `Overlay render failed: ${err?.message ?? "render error"}` };

@@ -72,7 +72,7 @@ export const uploadInvoiceTemplate = createServerFn({ method: "POST" })
     let placeholders: string[] = [];
     if (isPdf) {
       try {
-        const { inspectPdfBackground } = await import("@/lib/accountsmind/invoice-pdf-overlay.server");
+        const { inspectPdfBackground } = await import("@/lib/documents/pdf-overlay.server");
         await inspectPdfBackground(buf);
       } catch (err: any) {
         return { ok: false as const, error: `Not a valid PDF: ${err?.message ?? "parse failed"}` };

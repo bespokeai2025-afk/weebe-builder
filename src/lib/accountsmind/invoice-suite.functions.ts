@@ -661,7 +661,7 @@ export const generateInvoiceDocument = createServerFn({ method: "POST" })
       const { data: bgFile, error: bgErr } = await sb.storage.from(BUCKET).download(tpl.storage_path);
       if (bgErr || !bgFile) return { ok: false as const, error: `Could not load template background: ${bgErr?.message ?? "missing file"}` };
       try {
-        const { renderPdfOverlay } = await import("@/lib/accountsmind/invoice-pdf-overlay.server");
+        const { renderPdfOverlay } = await import("@/lib/documents/pdf-overlay.server");
         outBuf = await renderPdfOverlay(Buffer.from(await bgFile.arrayBuffer()), fields, payload);
       } catch (err: any) {
         return { ok: false as const, error: `PDF overlay render failed: ${err?.message ?? "render error"}` };
