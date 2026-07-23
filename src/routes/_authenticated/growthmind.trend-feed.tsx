@@ -7,7 +7,7 @@ import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import {
   TrendingUp, Loader2, Sparkles, RefreshCw, Bookmark, X, ExternalLink,
-  Settings2, ShieldAlert, Radar, Ban,
+  Settings2, ShieldAlert, Radar, Ban, Microscope,
 } from "lucide-react";
 import { GrowthMindShell } from "@/components/growthmind/GrowthMindShell";
 import { Button } from "@/components/ui/button";
@@ -324,6 +324,14 @@ function TrendCard({ item, busy, mounted, onAction }: {
           <Button size="sm" variant="outline" className="h-7 text-xs" disabled={busy} onClick={() => onAction(item.id, "analyse")}
             title="Run AI opportunity scoring on just this item (uses your Business DNA)">
             <Sparkles className="h-3 w-3 mr-1" /> Analyse deeply
+          </Button>
+        )}
+        {item.status !== "dismissed" && (
+          <Button size="sm" variant="outline" className="h-7 text-xs" asChild
+            title="Multimodal video breakdown + original adaptation brief">
+            <Link to="/growthmind/anatomy/$itemId" params={{ itemId: item.id }}>
+              <Microscope className="h-3 w-3 mr-1" /> Anatomy
+            </Link>
           </Button>
         )}
         {item.status !== "dismissed" ? (

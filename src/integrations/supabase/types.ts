@@ -4971,6 +4971,54 @@ export type Database = {
         }
         Relationships: []
       }
+      growthmind_content_anatomy: {
+        Row: {
+          analysis_mode: string
+          anatomy: Json
+          cost_estimate: number
+          created_at: string
+          error_message: string | null
+          id: string
+          model: string | null
+          on_screen_text: string | null
+          status: string
+          transcript: string | null
+          trend_item_id: string
+          updated_at: string
+          workspace_id: string
+        }
+        Insert: {
+          analysis_mode?: string
+          anatomy?: Json
+          cost_estimate?: number
+          created_at?: string
+          error_message?: string | null
+          id?: string
+          model?: string | null
+          on_screen_text?: string | null
+          status?: string
+          transcript?: string | null
+          trend_item_id: string
+          updated_at?: string
+          workspace_id: string
+        }
+        Update: {
+          analysis_mode?: string
+          anatomy?: Json
+          cost_estimate?: number
+          created_at?: string
+          error_message?: string | null
+          id?: string
+          model?: string | null
+          on_screen_text?: string | null
+          status?: string
+          transcript?: string | null
+          trend_item_id?: string
+          updated_at?: string
+          workspace_id?: string
+        }
+        Relationships: []
+      }
       growthmind_content_assets: {
         Row: {
           brief: Json | null
@@ -15192,6 +15240,7 @@ export type Database = {
           ghl_api_key: string | null
           ghl_location_id: string | null
           growthmind_ci_limits: Json
+          growthmind_deep_analysis_daily_limit: number
           growthmind_discovery_daily_limit: number
           growthmind_min_opportunity_score: number
           growthmind_mode: string
@@ -15274,6 +15323,7 @@ export type Database = {
           ghl_api_key?: string | null
           ghl_location_id?: string | null
           growthmind_ci_limits?: Json
+          growthmind_deep_analysis_daily_limit?: number
           growthmind_discovery_daily_limit?: number
           growthmind_min_opportunity_score?: number
           growthmind_mode?: string
@@ -15356,6 +15406,7 @@ export type Database = {
           ghl_api_key?: string | null
           ghl_location_id?: string | null
           growthmind_ci_limits?: Json
+          growthmind_deep_analysis_daily_limit?: number
           growthmind_discovery_daily_limit?: number
           growthmind_min_opportunity_score?: number
           growthmind_mode?: string
