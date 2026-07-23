@@ -935,7 +935,7 @@ export function buildPlatformContext(d: any): string {
     if (!ci.isWbah && ci.qualifiedNoBooking?.length) lines.push(`  ⚠ Qualified leads with NO booking (${ci.qualifiedNoBooking.length}): ${ci.qualifiedNoBooking.slice(0, 8).map((l: any) => `"${l.name}"`).join(", ")}`);
     if (ci.avgLeadToBookingHours !== null) lines.push(`  Avg lead→booking lag: ${ci.avgLeadToBookingHours}h`);
     if (ci.avgBookingToApptHours !== null) lines.push(`  Avg booking→appointment lead time: ${ci.avgBookingToApptHours}h`);
-    if (ci.isWbah) lines.push(`  NOTE (WBAH): bookings derive from wbah_calls, not this calendar — use the bookings figures above for WBAH appointment questions.`);
+    if (ci.isWbah) lines.push(`  NOTE (WBAH): the appointment figures above derive from wbah_calls appointment fields (Europe/London), not calendar_bookings; lead-join analyses are unavailable for WBAH.`);
   }
 
   // EMAIL & FOLLOW-UP EXCEPTIONS

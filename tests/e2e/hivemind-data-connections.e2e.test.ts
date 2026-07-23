@@ -189,6 +189,7 @@ beforeAll(async () => {
 afterAll(async () => {
   // Some fixture tables lack ON DELETE CASCADE — clean explicitly first.
   for (const table of [
+    "wbah_calls",
     "lead_email_log",
     "whatsapp_messages",
     "calendar_bookings",
@@ -311,10 +312,30 @@ describe("data-source health", () => {
 });
 
 describe("WBAH split in intelligence blocks", () => {
-  it("calendar intelligence skips the leads join for WBAH", async () => {
+  it("WBAH calendar intelligence derives from wbah_calls, ignoring calendar_bookings and leads", async () => {
+    // Seed WBAH-native appointments for WS_A: one tomorrow, two colliding on the
+    // same future slot (conflict), one cancelled within 30d.
+    const day = (offset: number) =>
+      new Date(Date.now() + offset * 24 * HOUR).toLocaleDateString("en-CA", { timeZone: "Europe/London" });
+    const { error } = await sb.from("wbah_calls").insert([
+      { id: `e2e-wbah-1-${WS_A.slice(0, 8)}`, workspace_id: WS_A, customer_name: "E2E Tomorrow", appointment_date: day(1), appointment_time: "10:00", booking_status: "booked", started_at: new Date(Date.now() - 2 * HOUR).toISOString() },
+      { id: `e2e-wbah-2-${WS_A.slice(0, 8)}`, workspace_id: WS_A, customer_name: "E2E Clash A", appointment_date: day(3), appointment_time: "14:00", booking_status: "booked", started_at: new Date(Date.now() - 5 * HOUR).toISOString() },
+      { id: `e2e-wbah-3-${WS_A.slice(0, 8)}`, workspace_id: WS_A, customer_name: "E2E Clash B", appointment_date: day(3), appointment_time: "14:00", booking_status: "booked", started_at: new Date(Date.now() - 4 * HOUR).toISOString() },
+      { id: `e2e-wbah-4-${WS_A.slice(0, 8)}`, workspace_id: WS_A, customer_name: "E2E Cancelled", appointment_date: day(2), appointment_time: "09:00", booking_status: "cancelled", started_at: new Date(Date.now() - 6 * HOUR).toISOString() },
+    ]);
+    expect(error).toBeNull();
+
     const ci = await getCalendarIntelligence(WS_A, true);
     expect(ci.isWbah).toBe(true);
-    // Even though WS_A HAS qualified leads, the WBAH path must not read them.
+    expect((ci as any).source).toBe("wbah_calls");
+    // Derived from wbah_calls: 3 active future appointments, 1 conflict, 1 cancellation.
+    expect(ci.upcoming7d).toBe(3);
+    expect(ci.cancellations30d).toBe(1);
+    expect(ci.conflicts.length).toBe(1);
+    expect(ci.avgBookingToApptHours).not.toBeNull();
+    // WS_A HAS calendar_bookings rows (5 seeded) and qualified leads, but the WBAH
+    // path must read NEITHER: today's calendar_bookings appointment must not appear.
+    expect(ci.today.map((t: any) => t.title)).not.toContain("e2e today");
     expect(ci.qualifiedNoBooking.length).toBe(0);
     expect(ci.avgLeadToBookingHours).toBeNull();
   });

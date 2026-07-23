@@ -16,6 +16,11 @@ const DAY = 86_400_000;
 // ── Calendar intelligence ─────────────────────────────────────────────────────
 
 export async function getCalendarIntelligence(workspaceId: string, isWbah: boolean) {
+  // WBAH split: WBAH's bookings do NOT live in calendar_bookings — they are the
+  // appointment fields captured on wbah_calls (appointment_date/appointment_time/
+  // booking_status). Derive entirely from wbah_calls; never read calendar_bookings
+  // or the oversized leads table for WBAH.
+  if (isWbah) return getWbahCalendarIntelligence(workspaceId);
   const now = new Date();
   const nowIso = now.toISOString();
   const s60 = new Date(now.getTime() - 60 * DAY).toISOString();
@@ -108,6 +113,78 @@ export async function getCalendarIntelligence(workspaceId: string, isWbah: boole
     conflicts,
     qualifiedNoBooking,
     avgLeadToBookingHours,
+    avgBookingToApptHours,
+  };
+}
+
+// WBAH calendar intelligence — derived ONLY from wbah_calls appointment fields.
+// WBAH display convention is Europe/London (see wbah-dashboard-timezone memory).
+async function getWbahCalendarIntelligence(workspaceId: string) {
+  const now = new Date();
+  const londonDate = (d: Date) => d.toLocaleDateString("en-CA", { timeZone: "Europe/London" }); // YYYY-MM-DD
+  const today = londonDate(now);
+  const d7 = londonDate(new Date(now.getTime() + 7 * DAY));
+  const s60 = londonDate(new Date(now.getTime() - 60 * DAY));
+  const s30 = londonDate(new Date(now.getTime() - 30 * DAY));
+
+  const { data, error } = await (supabaseAdmin as any)
+    .from("wbah_calls")
+    .select("id,customer_name,appointment_date,appointment_time,booking_status,started_at")
+    .eq("workspace_id", workspaceId)
+    .not("appointment_date", "is", null)
+    .gte("appointment_date", s60)
+    .order("appointment_date", { ascending: true })
+    .limit(500);
+  if (error) throw new Error(error.message);
+  const rows: any[] = data ?? [];
+
+  const isCancelled = (r: any) => ["cancelled", "canceled", "rejected", "declined"].includes(String(r.booking_status ?? "").toLowerCase());
+  const isNoShow    = (r: any) => ["no_show", "noshow", "missed"].includes(String(r.booking_status ?? "").toLowerCase());
+  const active      = rows.filter((r) => !isCancelled(r) && !isNoShow(r));
+
+  const apptIso = (r: any) => `${r.appointment_date}T${String(r.appointment_time ?? "00:00").slice(0, 5)}`;
+  const todayAppts = active.filter((r) => r.appointment_date === today);
+  const upcoming   = active.filter((r) => r.appointment_date > today && r.appointment_date <= d7);
+  const cancellations30d = rows.filter((r) => isCancelled(r) && r.appointment_date >= s30);
+  const noShows30d = rows.filter((r) => isNoShow(r) && r.appointment_date >= s30);
+
+  // Conflicts: two active future appointments at the exact same date+time slot.
+  const bySlot = new Map<string, any[]>();
+  for (const r of active) {
+    if (r.appointment_date < today) continue;
+    const key = apptIso(r);
+    bySlot.set(key, [...(bySlot.get(key) ?? []), r]);
+  }
+  const conflicts: Array<{ a: string; b: string; startA: string; startB: string }> = [];
+  for (const [slot, group] of bySlot) {
+    if (group.length < 2) continue;
+    conflicts.push({ a: group[0].customer_name ?? group[0].id, b: group[1].customer_name ?? group[1].id, startA: slot, startB: slot });
+    if (conflicts.length >= 10) break;
+  }
+
+  // Booking→appointment lag: call time → scheduled appointment time.
+  const lags = active
+    .filter((r) => r.started_at)
+    .map((r) => (new Date(apptIso(r)).getTime() - new Date(r.started_at).getTime()) / 3_600_000)
+    .filter((h) => h >= 0 && Number.isFinite(h));
+  const avgBookingToApptHours = lags.length
+    ? Math.round((lags.reduce((s, v) => s + v, 0) / lags.length) * 10) / 10
+    : null;
+
+  return {
+    isWbah: true,
+    source: "wbah_calls" as const,
+    today: todayAppts.slice(0, 10).map((r) => ({ title: r.customer_name ?? "Booked call", start: apptIso(r), attendee: r.customer_name, status: r.booking_status })),
+    todayCount: todayAppts.length,
+    upcoming7d: upcoming.length,
+    upcomingSample: upcoming.slice(0, 8).map((r) => ({ title: r.customer_name ?? "Booked call", start: apptIso(r), status: r.booking_status })),
+    cancellations30d: cancellations30d.length,
+    noShows30d: noShows30d.length,
+    unconfirmedSoon: [] as Array<{ title: string; start: string }>, // WBAH has no pending-confirmation state
+    conflicts,
+    // WBAH's leads table is unusable (dup-inflated ~400k rows) — lead-join analyses unavailable.
+    qualifiedNoBooking: [] as Array<{ id: string; name: string; status: string; created_at: string }>,
+    avgLeadToBookingHours: null as number | null,
     avgBookingToApptHours,
   };
 }

@@ -1,18 +1,21 @@
 ---
-name: HiveMind full data connections + freshness
-description: How HiveMind's data-health and exec-intelligence blocks work, and the isolation rules for platform-wide tables.
+name: HiveMind data connections + freshness
+description: Durable isolation and derivation rules for HiveMind's data-health and executive intelligence blocks.
 ---
 
-# HiveMind data connections & freshness tracking
+# HiveMind data connections & freshness — rules
 
-- `src/lib/hivemind/data-health.server.ts` — `getWorkspaceDataHealth(workspaceId, isWbah)` probes 8 sources (calls/leads/calendar/email/whatsapp/gads/billing/campaigns) via head-count + windowed order-limit-1; statuses healthy|stale|degraded|disconnected|empty; 60s in-process cache + `checkCacheSignal` cross-instance invalidation; invalidate via `invalidateDataHealth(wsId)`.
-- `src/lib/hivemind/exec-intelligence.server.ts` — calendar/email/onboarding/billing blocks, wired into `fetchFullPlatformData` via `Promise.allSettled` so any block degrades to null; prompt sections in `buildPlatformContext` include a DATA-SOURCE HEALTH honesty rule.
+- **Per-block degradation is mandatory.** Every intelligence block added to HiveMind's platform-data fetch must run inside `Promise.allSettled`/try-catch and degrade to `null`; the prompt must state a block is unavailable rather than omit it silently.
+  **Why:** one failing source (e.g. a paused provider) must never break the whole executive chat.
 
-**Isolation rules learned (review-flagged):**
-- `suppressed_emails` has NO workspace_id (platform-wide). Only look up addresses whose sends FAILED for the querying workspace — never probe successfully-delivered addresses, or a tenant can infer another tenant's suppression activity.
-- `workspace_requests` pending count is platform-global; only surface it when the workspace owner is a platform admin (`profiles.user_type = 'admin'`).
-- Usage sums from `usage_events` must page past PostgREST's 1000-row cap (paged loop + truncation flag), not a single capped fetch — otherwise overage/upsell flags undercount.
+- **`suppressed_emails` is platform-wide (no workspace_id).** Tenant-context reads may only look up addresses whose sends FAILED for that workspace — never probe successfully-delivered addresses.
+  **Why:** probing arbitrary addresses lets tenant A infer suppression created by tenant B's sending activity (cross-tenant inference leak).
 
-**WBAH:** health probes and intelligence blocks use `wbah_calls` only; the leads join for qualified-no-booking is skipped entirely for WBAH.
+- **Platform-global metrics (e.g. pending `workspace_requests`) never go into tenant context.** Gate on the workspace owner being a platform admin (`profiles.user_type = 'admin'`).
 
-**Test fixture notes:** `leads.source` enum has no "webform" — use "website". e2e: `tests/e2e/hivemind-data-connections.e2e.test.ts` (fixture workspaces need slug + owner_id; explicit table cleanup, no cascade).
+- **Usage sums must page past PostgREST's 1000-row cap** (paged loop + truncation flag or DB-side aggregate). A single capped fetch silently undercounts and skews overage/upsell flags.
+
+- **WBAH calendar/bookings live in `wbah_calls` appointment fields** (`appointment_date`/`appointment_time`/`booking_status`), NOT `calendar_bookings`. Any WBAH booking-derived feature must read those fields (Europe/London dates) and skip all `leads`-table joins.
+  **Why:** WBAH's `calendar_bookings` is empty and its `leads` table is dup-inflated (~400k rows, statement timeouts); reading the standard tables produces confidently wrong "no appointments" answers.
+
+- **Fixture gotcha:** `leads.source` enum has no "webform" — nearest valid value is "website".
