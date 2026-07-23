@@ -139,4 +139,5 @@
 - [Inline head scripts & hydration](head-inline-scripts-hydration.md) — bootstrap scripts must go in root route head() scripts config, not raw JSX in <head>, or injected preview scripts crash hydration.
 - [Builder live Retell agent load](builder-live-retell-load.md) — workspace-key-only (fail closed, no platform fallback); loadFlow must pass agentRowId: null or Save overwrites the previously open agent.
 - [SystemMind Build Setup Console](systemmind-setup-console.md) — per-session setup state gates Apply only when a row exists; secrets never in setup table; extend computeRequiredInputs for new checks.
+- [GrowthMind Google Ads live engine](gads-live-arch.md) — single sync path via alias-free gads-live-core (tick is vite-config-loaded); approval = change-request row only, NO executor; honest 4-stage state.
 - [Google Ads Connect-with-Google OAuth](google-ads-oauth-connect.md) — signed-state callback flow; returnTo must be single-slash relative + origin allowlisted; customer brings own OAuth client/dev token.

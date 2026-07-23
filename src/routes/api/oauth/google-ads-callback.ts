@@ -99,8 +99,10 @@ export const Route = createFileRoute("/api/oauth/google-ads-callback")({
           credentials: { ...creds, refreshToken },
         });
 
-        // If initiated from GrowthMind, also upsert a growthmind_ads_accounts row
-        if (state.source === "growthmind" && state.customerId) {
+        // If initiated from GrowthMind, upsert the google growthmind_ads_accounts
+        // row honestly: OAuth is now connected, but an advertising account still
+        // needs to be selected (via discovery) before anything can sync.
+        if (state.source === "growthmind") {
           try {
             const { encryptTokenForAds } = await import("@/lib/growthmind/growthmind.ads");
             const tokenEnc = await encryptTokenForAds(refreshToken);
@@ -108,39 +110,70 @@ export const Route = createFileRoute("/api/oauth/google-ads-callback")({
 
             const { data: existingAcc } = await sb
               .from("growthmind_ads_accounts")
-              .select("id")
+              .select("id, customer_id")
               .eq("workspace_id", state.workspaceId)
               .eq("platform", "google")
-              .eq("account_id", state.customerId)
+              .order("created_at", { ascending: false })
+              .limit(1)
               .maybeSingle();
 
             let accountRowId: string | null = null;
+            let selectedCustomerId: string | null = existingAcc?.customer_id ?? null;
             if (existingAcc?.id) {
               await sb.from("growthmind_ads_accounts")
-                .update({ token_enc: tokenEnc, status: "active", updated_at: now, ...(state.label ? { label: state.label } : {}) })
+                .update({
+                  token_enc: tokenEnc, status: "active",
+                  connection_state: selectedCustomerId ? "account_selected" : "oauth_connected",
+                  sync_error: null, updated_at: now,
+                  ...(state.label ? { label: state.label } : {}),
+                })
                 .eq("id", existingAcc.id);
               accountRowId = existingAcc.id;
             } else {
               const { data: inserted } = await sb.from("growthmind_ads_accounts")
                 .insert({
-                  workspace_id: state.workspaceId,
-                  platform:     "google",
-                  label:        state.label || `Google Ads ${state.customerId}`,
-                  account_id:   state.customerId,
-                  status:       "active",
-                  token_enc:    tokenEnc,
-                  created_at:   now,
-                  updated_at:   now,
+                  workspace_id:     state.workspaceId,
+                  platform:         "google",
+                  label:            state.label || "Google Ads",
+                  account_id:       state.customerId || "pending-selection",
+                  status:           "active",
+                  connection_state: "oauth_connected",
+                  token_enc:        tokenEnc,
+                  created_at:       now,
+                  updated_at:       now,
                 })
                 .select("id")
                 .single();
               accountRowId = inserted?.id ?? null;
             }
 
-            // Fire a background sync so live data appears straight away
-            if (accountRowId) {
-              const { syncAdAccountById } = await import("@/lib/growthmind/growthmind.ads-sync.server");
-              syncAdAccountById(accountRowId, state.workspaceId).catch(() => {});
+            // If a numeric customer ID was supplied up-front (or already selected),
+            // verify + select it and fire the initial sync in the background.
+            const candidate = selectedCustomerId ?? (state.customerId && /^[\d-]{5,20}$/.test(state.customerId) ? state.customerId.replace(/-/g, "") : null);
+            if (accountRowId && candidate) {
+              const { gaqlSearch, runGadsSync } = await import("@/lib/growthmind/gads-live-core.server");
+              const wsId = state.workspaceId;
+              const rowId = accountRowId;
+              (async () => {
+                try {
+                  const rows = await gaqlSearch(
+                    { workspaceId: wsId, customerId: candidate },
+                    "SELECT customer.id, customer.descriptive_name, customer.currency_code, customer.time_zone, customer.manager FROM customer LIMIT 1",
+                  );
+                  const cust = rows[0]?.customer ?? {};
+                  if (!cust.manager) {
+                    await sb.from("growthmind_ads_accounts").update({
+                      customer_id: candidate, account_id: candidate,
+                      descriptive_name: cust.descriptiveName ?? null,
+                      currency_code: cust.currencyCode ?? null,
+                      time_zone: cust.timeZone ?? null,
+                      connection_state: "account_selected",
+                      updated_at: new Date().toISOString(),
+                    }).eq("id", rowId);
+                    await runGadsSync(wsId, rowId, "initial");
+                  }
+                } catch { /* verification failed — the UI selector will handle it */ }
+              })().catch(() => {});
             }
           } catch {
             // Account row failure is non-fatal — provider_settings already updated

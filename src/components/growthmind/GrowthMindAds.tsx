@@ -28,6 +28,7 @@ import {
   acknowledgeAdAlert,
 } from "@/lib/growthmind/growthmind.ads-sync.server";
 import { startGoogleAdsOAuth, getGoogleAdsOAuthStatus } from "@/lib/providers/advertising/google-ads-oauth.functions";
+import { GadsLivePanel } from "./GadsLivePanel";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { HiveMindReportBanner } from "./HiveMindReportBanner";
@@ -100,7 +101,6 @@ function AccountModal({ initial, defaultPlatform = "google", onClose, onSave, sa
   const oauthReady = !!(oauthStatus?.hasClientId && oauthStatus?.hasClientSecret);
 
   async function handleGoogleConnect() {
-    if (!accountId.trim()) { toast.error("Enter your Google Ads Customer ID first (e.g. 123-456-7890)"); return; }
     setOauthConnecting(true);
     try {
       const res = await startOAuthFn({
@@ -108,7 +108,7 @@ function AccountModal({ initial, defaultPlatform = "google", onClose, onSave, sa
           source:     "growthmind" as const,
           origin:     window.location.origin,
           returnTo:   window.location.pathname,
-          customerId: accountId.trim(),
+          customerId: /^[\d-]{5,20}$/.test(accountId.trim()) ? accountId.trim() : undefined,
           label:      label.trim() || undefined,
         },
       }) as any;
@@ -195,12 +195,12 @@ function AccountModal({ initial, defaultPlatform = "google", onClose, onSave, sa
             <div className="rounded-lg border border-white/[0.08] bg-white/[0.02] p-3 space-y-2">
               <p className="text-[11px] font-medium">Or connect with Google (recommended)</p>
               <p className="text-[10px] text-muted-foreground leading-relaxed">
-                Sign in with the Google account that manages this Ads account — no token pasting needed.
-                Enter the Account Label and Customer ID above first.
+                Sign in with the Google account that manages your Ads account — no token pasting or
+                Customer ID needed. You'll pick the advertising account after signing in.
               </p>
               <Button type="button" size="sm"
                 className="h-7 px-3 text-[11px] gap-1.5 bg-white text-black hover:bg-white/90 w-full justify-center"
-                disabled={!oauthReady || oauthConnecting || !accountId.trim()}
+                disabled={!oauthReady || oauthConnecting}
                 onClick={handleGoogleConnect}>
                 {oauthConnecting
                   ? <Loader2 className="h-3 w-3 animate-spin" />
@@ -607,12 +607,13 @@ function AccountDetail({ account, onEdit, onDelete }: {
 
 // ── Platform Card — always shown for all 4 platforms ───────────────────────────
 
-function PlatformCard({ platform, accounts, onConnect, onEdit, onDelete }: {
+function PlatformCard({ platform, accounts, onConnect, onEdit, onDelete, extra }: {
   platform:  typeof PLATFORMS[0];
   accounts:  AdsAccount[];
   onConnect: (platformId: AdsPlatform) => void;
   onEdit:    (a: AdsAccount) => void;
   onDelete:  (id: string) => void;
+  extra?:    React.ReactNode;
 }) {
   const connected = accounts.length > 0;
   const [expanded, setExpanded] = useState(false);
@@ -658,6 +659,9 @@ function PlatformCard({ platform, accounts, onConnect, onEdit, onDelete }: {
           )}
         </div>
       </div>
+
+      {/* Platform-specific live panel (Google Ads) */}
+      {extra}
 
       {/* Expanded: list of accounts with campaign detail */}
       {expanded && connected && (
@@ -1042,6 +1046,9 @@ export function GrowthMindAds() {
                 onConnect={platformId => setAccountModal({ open: true, editing: null, defaultPlatform: platformId })}
                 onEdit={a => setAccountModal({ open: true, editing: a })}
                 onDelete={handleDeleteAccount}
+                extra={p.id === "google"
+                  ? <GadsLivePanel onConnectClick={() => setAccountModal({ open: true, editing: null, defaultPlatform: "google" })} />
+                  : undefined}
               />
             ))}
 
