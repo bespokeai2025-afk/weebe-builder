@@ -98,3 +98,5 @@ Stale TanStack server-fn IDs (after server restart without browser hard-refresh)
 cause queryFn to return/throw `{}`. With the default `throwOnError: true`
 (Suspense context), this crashes the entire route. Fix: always add
 `throwOnError: false` to queries in route components.
+
+**Update (2026-07-23):** QueryClient in src/router.tsx now sets global defaults `throwOnError: false, retry: 2` — a failing query no longer crashes routes to the root error screen after ~10-15s of retries. Per-query `throwOnError: false` is still fine but no longer mandatory. Companion fix: `_authenticated.tsx` listens for Supabase `SIGNED_OUT` (fires on Invalid Refresh Token) and bounces to /login with qc.clear() instead of letting every query fail on-page.
