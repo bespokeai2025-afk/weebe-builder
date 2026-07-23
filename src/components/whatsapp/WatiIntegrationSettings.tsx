@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { RelativeTime } from "@/components/ui/relative-time";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -22,6 +22,7 @@ import {
   syncWatiCampaigns,
   syncWatiContacts,
   registerWatiWebhookFn,
+  confirmWatiWebhookManual,
 } from "@/lib/whatsapp/wati.functions";
 
 
@@ -36,6 +37,7 @@ export function WatiIntegrationSettings() {
   const syncCampFn       = useServerFn(syncWatiCampaigns);
   const syncContactsFn   = useServerFn(syncWatiContacts);
   const reRegisterWHFn   = useServerFn(registerWatiWebhookFn);
+  const confirmManualFn  = useServerFn(confirmWatiWebhookManual);
 
   const { data: conn, isLoading } = useQuery({
     queryKey: ["wati-connection"],
@@ -46,19 +48,47 @@ export function WatiIntegrationSettings() {
 
   const isConnected = !!conn && conn.status === "connected";
 
-  const [form, setForm] = useState({ apiKey: "", tenantId: "", webhookSecret: "" });
+  const [form, setForm] = useState({
+    apiKey: "",
+    tenantId: "",
+    apiHost: "eu-api.wati.io",
+    webhookSecret: "",
+  });
   const [showForm, setShowForm] = useState(false);
   const [webhookStatus, setWebhookStatus] = useState<{
     registered: boolean;
     note: string;
     url?: string;
+    manual?: boolean;
   } | null>(null);
 
+  useEffect(() => {
+    if (!conn || conn.status !== "connected") return;
+    const url = (conn as { webhookUrl?: string }).webhookUrl;
+    const manual = !!(conn as { webhookManual?: boolean }).webhookManual;
+    if (manual) {
+      setWebhookStatus({
+        registered: true,
+        manual: true,
+        url,
+        note: "Webhook configured in WATI Connectors → Webhooks. Inbound and delivery events flow to Webee.",
+      });
+    }
+  }, [conn]);
+
   const connect = useMutation({
-    mutationFn: () => connectFn({ data: { apiKey: form.apiKey, tenantId: form.tenantId, webhookSecret: form.webhookSecret || undefined } }),
+    mutationFn: () =>
+      connectFn({
+        data: {
+          apiKey: form.apiKey,
+          tenantId: form.tenantId,
+          apiHost: form.apiHost || undefined,
+          webhookSecret: form.webhookSecret || undefined,
+        },
+      }),
     onSuccess: (result: any) => {
       qc.invalidateQueries({ queryKey: ["wati-connection"] });
-      setForm({ apiKey: "", tenantId: "", webhookSecret: "" });
+      setForm({ apiKey: "", tenantId: "", apiHost: "eu-api.wati.io", webhookSecret: "" });
       setShowForm(false);
       if (result?.webhookRegistered === true) {
         setWebhookStatus({ registered: true, note: result.webhookNote, url: result.webhookUrl });
@@ -75,12 +105,36 @@ export function WatiIntegrationSettings() {
     mutationFn: () => reRegisterWHFn(),
     onSuccess: (result: any) => {
       if (result?.webhookRegistered === true) {
-        setWebhookStatus({ registered: true, note: result.webhookNote, url: result.webhookUrl });
-        toast.success("Webhook re-registered in WATI");
+        setWebhookStatus({
+          registered: true,
+          manual: !!result.webhookManual,
+          note: result.webhookNote,
+          url: result.webhookUrl,
+        });
+        toast.success(result.webhookManual ? "Manual webhook confirmed" : "Webhook registered in WATI");
       } else {
-        setWebhookStatus({ registered: false, note: result?.webhookNote ?? "Registration failed", url: result?.webhookUrl });
-        toast.error(result?.webhookNote ?? "Registration failed");
+        setWebhookStatus({
+          registered: false,
+          note: result?.webhookNote ?? "Auto-registration unavailable",
+          url: result?.webhookUrl,
+        });
+        toast.message("Auto-registration unavailable — use Confirm manual setup if URL is in WATI");
       }
+    },
+    onError: (e: any) => toast.error(e.message),
+  });
+
+  const confirmManualWH = useMutation({
+    mutationFn: () => confirmManualFn(),
+    onSuccess: (result: any) => {
+      qc.invalidateQueries({ queryKey: ["wati-connection"] });
+      setWebhookStatus({
+        registered: true,
+        manual: true,
+        note: result.webhookNote,
+        url: result.webhookUrl,
+      });
+      toast.success("Manual webhook setup confirmed");
     },
     onError: (e: any) => toast.error(e.message),
   });
@@ -224,16 +278,26 @@ export function WatiIntegrationSettings() {
                   )}
                   <div className="space-y-1 min-w-0">
                     <p className="text-xs text-muted-foreground leading-relaxed">{webhookStatus.note}</p>
-                    {webhookStatus.url && !webhookStatus.registered && (
-                      <p className="text-[10px] font-mono text-muted-foreground break-all">{webhookStatus.url}</p>
+                    {(webhookStatus.url || (conn as { webhookUrl?: string }).webhookUrl) && (
+                      <p className="text-[10px] font-mono text-muted-foreground break-all">
+                        {webhookStatus.url || (conn as { webhookUrl?: string }).webhookUrl}
+                      </p>
                     )}
                   </div>
                 </div>
               ) : (
-                <p className="text-xs text-muted-foreground">
-                  Click "Re-register Webhook" to auto-configure the inbound webhook in WATI.
-                </p>
+                <div className="space-y-2">
+                  <p className="text-xs text-muted-foreground">
+                    Add this URL in WATI → Connectors → Webhooks. Enable: Message received, Template
+                    Message Sent, <strong>Sent Message is Delivered</strong>, and{" "}
+                    <strong>Sent Message is Read</strong>.
+                  </p>
+                  <p className="text-[10px] font-mono text-muted-foreground break-all bg-muted/40 rounded p-2">
+                    {(conn as { webhookUrl?: string }).webhookUrl}
+                  </p>
+                </div>
               )}
+              <div className="flex flex-wrap gap-2">
               <Button
                 size="sm"
                 variant="outline"
@@ -244,8 +308,21 @@ export function WatiIntegrationSettings() {
                 {reRegisterWH.isPending
                   ? <Loader2 className="h-3 w-3 animate-spin" />
                   : <RefreshCw className="h-3 w-3" />}
-                Re-register Webhook in WATI
+                Try auto-register
               </Button>
+              <Button
+                size="sm"
+                variant={webhookStatus?.registered ? "outline" : "default"}
+                className="gap-1.5 text-xs h-8"
+                disabled={confirmManualWH.isPending}
+                onClick={() => confirmManualWH.mutate()}
+              >
+                {confirmManualWH.isPending
+                  ? <Loader2 className="h-3 w-3 animate-spin" />
+                  : <CheckCircle2 className="h-3 w-3" />}
+                Confirm manual setup
+              </Button>
+              </div>
             </div>
 
             {/* Sync status */}
@@ -361,6 +438,19 @@ export function WatiIntegrationSettings() {
                     className="font-mono text-xs h-8"
                   />
                   <p className="text-[11px] text-muted-foreground">Found in WATI Dashboard → Settings → API</p>
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs">API Host</Label>
+                  <Input
+                    value={form.apiHost}
+                    onChange={(e) => setForm({ ...form, apiHost: e.target.value })}
+                    placeholder="eu-api.wati.io"
+                    className="font-mono text-xs h-8"
+                  />
+                  <p className="text-[11px] text-muted-foreground">
+                    From WATI API Docs — e.g. <span className="font-mono">eu-api.wati.io</span> (EU) or{" "}
+                    <span className="font-mono">live-mt-server.wati.io</span> (US/global)
+                  </p>
                 </div>
                 <div className="space-y-1.5">
                   <Label className="text-xs">Tenant ID</Label>

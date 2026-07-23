@@ -7448,6 +7448,7 @@ export type Database = {
           utm_campaign: string | null
           utm_medium: string | null
           utm_source: string | null
+          whatsapp_opt_in: boolean | null
           workspace_id: string
         }
         Insert: {
@@ -7505,6 +7506,7 @@ export type Database = {
           utm_campaign?: string | null
           utm_medium?: string | null
           utm_source?: string | null
+          whatsapp_opt_in?: boolean | null
           workspace_id: string
         }
         Update: {
@@ -7562,6 +7564,7 @@ export type Database = {
           utm_campaign?: string | null
           utm_medium?: string | null
           utm_source?: string | null
+          whatsapp_opt_in?: boolean | null
           workspace_id?: string
         }
         Relationships: [
@@ -10853,38 +10856,47 @@ export type Database = {
       }
       wati_connections: {
         Row: {
+          api_host: string | null
           api_key: string
           created_at: string | null
           error_message: string | null
           id: string
+          inbound_webhook_url: string | null
           last_tested_at: string | null
           status: string
           tenant_id: string
           updated_at: string | null
+          webhook_manual: boolean
           webhook_secret: string | null
           workspace_id: string
         }
         Insert: {
+          api_host?: string | null
           api_key: string
           created_at?: string | null
           error_message?: string | null
           id?: string
+          inbound_webhook_url?: string | null
           last_tested_at?: string | null
           status?: string
           tenant_id: string
           updated_at?: string | null
+          webhook_manual?: boolean
           webhook_secret?: string | null
           workspace_id: string
         }
         Update: {
+          api_host?: string | null
           api_key?: string
           created_at?: string | null
           error_message?: string | null
           id?: string
+          inbound_webhook_url?: string | null
           last_tested_at?: string | null
           status?: string
           tenant_id?: string
           updated_at?: string | null
+          webhook_manual?: boolean
           webhook_secret?: string | null
           workspace_id?: string
         }
@@ -10955,35 +10967,53 @@ export type Database = {
       }
       wati_templates: {
         Row: {
+          body_preview: string | null
           category: string | null
           components: Json | null
           id: string
           language: string | null
+          last_status_at: string | null
           name: string
+          quality: string | null
+          rejection_reason: string | null
           status: string | null
+          status_code: number | null
           synced_at: string | null
+          wati_modified_at: string | null
           wati_template_id: string
           workspace_id: string
         }
         Insert: {
+          body_preview?: string | null
           category?: string | null
           components?: Json | null
           id?: string
           language?: string | null
+          last_status_at?: string | null
           name: string
+          quality?: string | null
+          rejection_reason?: string | null
           status?: string | null
+          status_code?: number | null
           synced_at?: string | null
+          wati_modified_at?: string | null
           wati_template_id: string
           workspace_id: string
         }
         Update: {
+          body_preview?: string | null
           category?: string | null
           components?: Json | null
           id?: string
           language?: string | null
+          last_status_at?: string | null
           name?: string
+          quality?: string | null
+          rejection_reason?: string | null
           status?: string | null
+          status_code?: number | null
           synced_at?: string | null
+          wati_modified_at?: string | null
           wati_template_id?: string
           workspace_id?: string
         }
@@ -11618,12 +11648,17 @@ export type Database = {
           created_at: string | null
           id: string
           name: string
+          provider: string | null
           scheduled_at: string | null
+          started_at: string | null
           stats: Json | null
           status: string | null
           template_id: string | null
+          template_params: Json | null
           type: string
           updated_at: string | null
+          wati_broadcast_name: string | null
+          wati_template_name: string | null
           workspace_id: string
         }
         Insert: {
@@ -11631,12 +11666,17 @@ export type Database = {
           created_at?: string | null
           id?: string
           name: string
+          provider?: string | null
           scheduled_at?: string | null
+          started_at?: string | null
           stats?: Json | null
           status?: string | null
           template_id?: string | null
+          template_params?: Json | null
           type?: string
           updated_at?: string | null
+          wati_broadcast_name?: string | null
+          wati_template_name?: string | null
           workspace_id: string
         }
         Update: {
@@ -11644,12 +11684,17 @@ export type Database = {
           created_at?: string | null
           id?: string
           name?: string
+          provider?: string | null
           scheduled_at?: string | null
+          started_at?: string | null
           stats?: Json | null
           status?: string | null
           template_id?: string | null
+          template_params?: Json | null
           type?: string
           updated_at?: string | null
+          wati_broadcast_name?: string | null
+          wati_template_name?: string | null
           workspace_id?: string
         }
         Relationships: [
@@ -11722,6 +11767,7 @@ export type Database = {
       whatsapp_messages: {
         Row: {
           body: string | null
+          campaign_id: string | null
           contact_name: string | null
           contact_phone: string
           created_at: string
@@ -11730,12 +11776,14 @@ export type Database = {
           id: string
           lead_id: string | null
           media_url: string | null
+          provider: string | null
           sent_at: string
           status: Database["public"]["Enums"]["message_status"]
           workspace_id: string
         }
         Insert: {
           body?: string | null
+          campaign_id?: string | null
           contact_name?: string | null
           contact_phone: string
           created_at?: string
@@ -11744,12 +11792,14 @@ export type Database = {
           id?: string
           lead_id?: string | null
           media_url?: string | null
+          provider?: string | null
           sent_at?: string
           status?: Database["public"]["Enums"]["message_status"]
           workspace_id: string
         }
         Update: {
           body?: string | null
+          campaign_id?: string | null
           contact_name?: string | null
           contact_phone?: string
           created_at?: string
@@ -11758,11 +11808,19 @@ export type Database = {
           id?: string
           lead_id?: string | null
           media_url?: string | null
+          provider?: string | null
           sent_at?: string
           status?: Database["public"]["Enums"]["message_status"]
           workspace_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "whatsapp_messages_campaign_id_fkey"
+            columns: ["campaign_id"]
+            isOneToOne: false
+            referencedRelation: "whatsapp_campaigns"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "whatsapp_messages_lead_id_fkey"
             columns: ["lead_id"]

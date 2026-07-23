@@ -4,6 +4,7 @@ import { GoHighLevelAdapter } from "@/lib/crm/gohighlevel.adapter";
 import { WeeBespokeAiAdapter } from "@/lib/crm/webespoke-ai.adapter";
 import { SalesforceAdapter } from "./adapters/salesforce.adapter";
 import { PipedriveAdapter } from "./adapters/pipedrive.adapter";
+import { DynamicsAdapter, dynamicsConfigFromStored } from "./adapters/dynamics.adapter";
 import { withProviderTracking } from "@/lib/providers/instrumentation";
 
 export type CRMProviderName = "hubspot" | "gohighlevel" | "salesforce" | "pipedrive" | "dynamics" | "webespoke";
@@ -13,7 +14,7 @@ export type CRMConfig =
   | { provider: "gohighlevel"; apiKey: string; locationId: string }
   | { provider: "salesforce"; instanceUrl: string; accessToken: string }
   | { provider: "pipedrive"; apiToken: string }
-  | { provider: "dynamics"; tenantId: string; clientId: string; clientSecret: string }
+  | { provider: "dynamics"; tenantId: string; clientId: string; clientSecret: string; orgUrl: string }
   | { provider: "webespoke"; apiKey: string; apiUrl: string };
 
 /**
@@ -40,7 +41,13 @@ export function createCRMProvider(config: CRMConfig & { workspaceId?: string }):
       inner = new WeeBespokeAiAdapter(config.apiKey, config.apiUrl);
       break;
     case "dynamics":
-      throw new Error("Microsoft Dynamics CRM adapter not yet implemented.");
+      inner = new DynamicsAdapter({
+        tenantId: config.tenantId,
+        clientId: config.clientId,
+        clientSecret: config.clientSecret,
+        orgUrl: config.orgUrl,
+      });
+      break;
     default:
       throw new Error(`Unknown CRM provider: ${String((config as any).provider)}`);
   }

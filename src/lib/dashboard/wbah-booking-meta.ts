@@ -41,6 +41,31 @@ export function phoneDigits(phone: string | null | undefined): string {
   return String(phone ?? "").replace(/\D/g, "");
 }
 
+/** Phone on wbah_calls rows may be `phone`, `wbah_contact`, `contact`, or nested on `lead`. */
+export function resolveWbahRowPhone(
+  row:
+    | {
+        phone?: string | null;
+        wbah_contact?: string | null;
+        contact?: string | null;
+        to_number?: string | null;
+        from_number?: string | null;
+        lead?: { phone?: string | null } | null;
+      }
+    | null
+    | undefined,
+): string | null {
+  const v =
+    row?.phone ??
+    row?.wbah_contact ??
+    row?.contact ??
+    row?.to_number ??
+    row?.from_number ??
+    row?.lead?.phone ??
+    null;
+  return v != null && String(v).trim() ? String(v).trim() : null;
+}
+
 /** Pick the best booking-bearing call from a contact's call history (latest first). */
 export function findWbahBookingCall<T extends WbahBookingFields>(calls: T[]): T | null {
   for (const c of calls) {
@@ -193,17 +218,20 @@ export async function enrichWbahCallRowsWithBookings(
 
   const byPhone = new Map<string, any[]>();
   for (const r of rows) {
-    const key = phoneDigits(r.phone) || `id:${r.id}`;
+    const phone = resolveWbahRowPhone(r);
+    const key = phoneDigits(phone) || `id:${r.id}`;
     const arr = byPhone.get(key) ?? [];
     arr.push(r);
     byPhone.set(key, arr);
   }
 
   return rows.map((r) => {
-    const key = phoneDigits(r.phone) || `id:${r.id}`;
+    const phone = resolveWbahRowPhone(r);
+    const key = phoneDigits(phone) || `id:${r.id}`;
     const calls = byPhone.get(key) ?? [r];
     const bookingCall = findWbahBookingCall(calls);
-    const crm = phoneDigits(r.phone) ? crmBookingByDigits.get(phoneDigits(r.phone)) : null;
+    const digits = phoneDigits(phone);
+    const crm = digits ? crmBookingByDigits.get(digits) ?? null : null;
     const appt = resolveWbahBookingFields(r, bookingCall, crm);
     return {
       ...r,

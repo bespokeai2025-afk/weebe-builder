@@ -2,23 +2,84 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { createClient } from "@supabase/supabase-js";
+import {
+  normalizeWatiApiHost,
+  watiApiV1Base,
+} from "@/lib/whatsapp/wati-api-base.shared";
+import {
+  buildWatiCreateTemplatePayload,
+  normalizeWatiElementName,
+  watiTemplateRowFromCreateResult,
+} from "@/lib/whatsapp/wati-template-create.shared";
+import {
+  maybeAutoSyncWatiCampaigns,
+  maybeAutoSyncWatiTemplates,
+  syncWatiCampaignsForWorkspace,
+  syncWatiTemplatesForWorkspace,
+} from "@/lib/whatsapp/wati-sync.server";
+import { reconcileWatiOutboundMessageStatuses } from "@/lib/whatsapp/wati-message-status.server";
+import {
+  buildWatiInboundWebhookUrl,
+  registerWatiInboundWebhook,
+} from "@/lib/whatsapp/wati-webhook.server";
 
 function adminClient() {
-  const url = process.env["SUPABASE_URL"]!;
-  const key = process.env["SUPABASE_SERVICE_ROLE_KEY"]!;
+  const url = process.env["SUPABASE_URL"] || process.env["VITE_SUPABASE_URL"];
+  const key = process.env["SUPABASE_SERVICE_ROLE_KEY"];
+  if (!url || !key) {
+    throw new Error("Server misconfigured: SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY must be set");
+  }
   return createClient(url, key, { auth: { persistSession: false } });
 }
 
-function watiBase(tenantId: string) {
-  return `https://live-mt-server.wati.io/${tenantId}/api/v1`;
+type WatiConnRow = {
+  api_key: string;
+  tenant_id: string;
+  api_host: string | null;
+};
+
+async function watiGet(
+  tenantId: string,
+  apiKey: string,
+  path: string,
+  apiHost?: string | null,
+) {
+  const res = await fetch(`${watiApiV1Base(tenantId, apiHost)}${path}`, {
+    headers: {
+      Authorization: `Bearer ${apiKey.replace(/^Bearer\s+/i, "")}`,
+      "Content-Type": "application/json",
+    },
+  });
+  if (!res.ok) {
+    const detail = (await res.text()).slice(0, 120).replace(/\s+/g, " ");
+    throw new Error(`${path} returned ${res.status}${detail ? `: ${detail}` : ""}`);
+  }
+  return res.json();
 }
 
-async function watiGet(tenantId: string, apiKey: string, path: string) {
-  const res = await fetch(`${watiBase(tenantId)}${path}`, {
-    headers: { Authorization: `Bearer ${apiKey}` },
+async function watiPost(
+  tenantId: string,
+  apiKey: string,
+  path: string,
+  body: Record<string, unknown>,
+  apiHost?: string | null,
+): Promise<{ ok: boolean; status: number; data: Record<string, unknown>; text: string }> {
+  const res = await fetch(`${watiApiV1Base(tenantId, apiHost)}${path}`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${apiKey.replace(/^Bearer\s+/i, "")}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(body),
   });
-  if (!res.ok) throw new Error(`WATI API ${path} returned ${res.status}`);
-  return res.json();
+  const text = await res.text();
+  let data: Record<string, unknown> = {};
+  try {
+    data = JSON.parse(text) as Record<string, unknown>;
+  } catch {
+    /* non-json */
+  }
+  return { ok: res.ok, status: res.status, data, text };
 }
 
 export const getWatiConnection = createServerFn({ method: "GET" })
@@ -29,7 +90,9 @@ export const getWatiConnection = createServerFn({ method: "GET" })
     const sb = adminClient() as any;
     const { data } = await sb
       .from("wati_connections")
-      .select("tenant_id, status, last_tested_at, error_message, updated_at")
+      .select(
+        "tenant_id, api_host, status, last_tested_at, error_message, updated_at, inbound_webhook_url, webhook_manual",
+      )
       .eq("workspace_id", workspaceId)
       .maybeSingle();
 
@@ -48,13 +111,20 @@ export const getWatiConnection = createServerFn({ method: "GET" })
       if (!lastSync[l.sync_type]) lastSync[l.sync_type] = l.created_at;
     }
 
+    const webhookUrl =
+      (data.inbound_webhook_url as string | null) || buildWatiInboundWebhookUrl(workspaceId);
+
     return {
       tenantId: data.tenant_id,
+      apiHost: data.api_host as string | null,
       status: data.status as string,
       lastTestedAt: data.last_tested_at as string | null,
       errorMessage: data.error_message as string | null,
       updatedAt: data.updated_at as string,
       lastSync,
+      webhookUrl,
+      webhookManual: !!data.webhook_manual,
+      webhookRegistered: !!data.webhook_manual,
     };
   });
 
@@ -64,6 +134,7 @@ export const connectWati = createServerFn({ method: "POST" })
     z.object({
       apiKey: z.string().min(10),
       tenantId: z.string().min(1),
+      apiHost: z.string().optional(),
       webhookSecret: z.string().optional(),
     }).parse(input),
   )
@@ -71,18 +142,26 @@ export const connectWati = createServerFn({ method: "POST" })
     const { workspaceId } = context;
     if (!workspaceId) throw new Error("No workspace");
 
+    const apiHost = normalizeWatiApiHost(data.apiHost);
+
     try {
-      await watiGet(data.tenantId, data.apiKey, "/getContacts?pageSize=1");
-    } catch {
-      throw new Error("Could not reach WATI API — check your API key and Tenant ID.");
+      await watiGet(data.tenantId, data.apiKey, "/getContacts?pageSize=1", apiHost);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      throw new Error(
+        msg.includes("WATI API")
+          ? `Could not reach WATI API — ${msg.replace(/^WATI API /, "")}`
+          : "Could not reach WATI API — check your API key and Tenant ID.",
+      );
     }
 
     const sb = adminClient() as any;
-    await sb.from("wati_connections").upsert(
+    const { error: upsertErr } = await sb.from("wati_connections").upsert(
       {
         workspace_id: workspaceId,
         api_key: data.apiKey,
         tenant_id: data.tenantId,
+        api_host: apiHost,
         webhook_secret: data.webhookSecret ?? null,
         status: "connected",
         last_tested_at: new Date().toISOString(),
@@ -91,6 +170,9 @@ export const connectWati = createServerFn({ method: "POST" })
       },
       { onConflict: "workspace_id" },
     );
+    if (upsertErr) {
+      throw new Error(`Could not save WATI connection: ${upsertErr.message}`);
+    }
 
     await sb.from("wati_sync_logs").insert({
       workspace_id: workspaceId,
@@ -101,54 +183,53 @@ export const connectWati = createServerFn({ method: "POST" })
 
     // Auto-register our inbound webhook with WATI so the user doesn't
     // have to paste the URL in WATI's dashboard manually.
-    const domain = process.env.REPLIT_DEV_DOMAIN;
-    const origin = domain ? `https://${domain}` : (process.env.VITE_PUBLIC_APP_URL ?? "");
-    const webhookUrl = `${origin}/api/webhook/wati-inbound?workspace=${workspaceId}`;
-    const webhookResult = await registerWatiWebhook(data.tenantId, data.apiKey, webhookUrl);
+    const webhookUrl = buildWatiInboundWebhookUrl(workspaceId);
+    const webhookResult = await registerWatiInboundWebhook(
+      { tenantId: data.tenantId, apiKey: data.apiKey, apiHost },
+      webhookUrl,
+    );
+
+    await sb
+      .from("wati_connections")
+      .update({
+        inbound_webhook_url: webhookUrl,
+        webhook_manual: webhookResult.webhookManual,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("workspace_id", workspaceId);
 
     return { ok: true, webhookUrl, ...webhookResult };
   });
 
-/**
- * Register our inbound URL with WATI's webhook configuration API.
- * WATI: POST /api/v1/updateWebhook  body: { webhookUrl }
- */
-async function registerWatiWebhook(
-  tenantId: string,
-  apiKey: string,
-  webhookUrl: string,
-): Promise<{ webhookRegistered: boolean; webhookNote: string }> {
-  try {
-    const res = await fetch(`${watiBase(tenantId)}/updateWebhook`, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ webhookUrl }),
-    });
+export const confirmWatiWebhookManual = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const { workspaceId } = context;
+    if (!workspaceId) throw new Error("No workspace");
+    const sb = adminClient() as any;
+    const webhookUrl = buildWatiInboundWebhookUrl(workspaceId);
 
-    if (res.ok) {
-      return {
-        webhookRegistered: true,
-        webhookNote: "Webhook registered automatically in WATI. Inbound messages will flow through WeeBee.",
-      };
-    }
+    const { error } = await sb
+      .from("wati_connections")
+      .update({
+        inbound_webhook_url: webhookUrl,
+        webhook_manual: true,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("workspace_id", workspaceId)
+      .eq("status", "connected");
 
-    const txt = await res.text();
-    console.warn("[wati-connect] webhook register failed:", res.status, txt);
+    if (error) throw new Error(error.message);
+
     return {
-      webhookRegistered: false,
-      webhookNote: `WATI connected but auto-webhook failed (${res.status}). Go to WATI Settings → Webhook and paste the URL above manually.`,
+      ok: true,
+      webhookUrl,
+      webhookRegistered: true,
+      webhookManual: true,
+      webhookNote:
+        "Manual webhook setup confirmed. WATI will send inbound and delivery events to Webee.",
     };
-  } catch (e) {
-    console.error("[wati-connect] webhook register error", e);
-    return {
-      webhookRegistered: false,
-      webhookNote: "WATI connected. Auto-webhook failed — paste the webhook URL in WATI Settings → Webhook manually.",
-    };
-  }
-}
+  });
 
 export const registerWatiWebhookFn = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
@@ -158,7 +239,7 @@ export const registerWatiWebhookFn = createServerFn({ method: "POST" })
     const sb = adminClient() as any;
     const { data: conn } = await sb
       .from("wati_connections")
-      .select("api_key, tenant_id")
+      .select("api_key, tenant_id, api_host, webhook_manual")
       .eq("workspace_id", workspaceId)
       .maybeSingle();
 
@@ -166,10 +247,22 @@ export const registerWatiWebhookFn = createServerFn({ method: "POST" })
       throw new Error("WATI not connected — connect it first.");
     }
 
-    const domain = process.env.REPLIT_DEV_DOMAIN;
-    const origin = domain ? `https://${domain}` : (process.env.VITE_PUBLIC_APP_URL ?? "");
-    const webhookUrl = `${origin}/api/webhook/wati-inbound?workspace=${workspaceId}`;
-    const result = await registerWatiWebhook(conn.tenant_id, conn.api_key, webhookUrl);
+    const webhookUrl = buildWatiInboundWebhookUrl(workspaceId);
+    const result = await registerWatiInboundWebhook(
+      { tenantId: conn.tenant_id, apiKey: conn.api_key, apiHost: conn.api_host },
+      webhookUrl,
+      { manualAlreadyConfigured: !!conn.webhook_manual },
+    );
+
+    await sb
+      .from("wati_connections")
+      .update({
+        inbound_webhook_url: webhookUrl,
+        webhook_manual: result.webhookManual || !!conn.webhook_manual,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("workspace_id", workspaceId);
+
     return { webhookUrl, ...result };
   });
 
@@ -192,14 +285,14 @@ export const testWatiConnection = createServerFn({ method: "POST" })
 
     const { data: conn } = await sb
       .from("wati_connections")
-      .select("api_key, tenant_id")
+      .select("api_key, tenant_id, api_host")
       .eq("workspace_id", workspaceId)
       .maybeSingle();
 
     if (!conn) throw new Error("No WATI connection found");
 
     try {
-      await watiGet(conn.tenant_id, conn.api_key, "/getContacts?pageSize=1");
+      await watiGet(conn.tenant_id, conn.api_key, "/getContacts?pageSize=1", conn.api_host);
       await sb.from("wati_connections").update({
         status: "connected",
         last_tested_at: new Date().toISOString(),
@@ -237,45 +330,129 @@ export const syncWatiTemplates = createServerFn({ method: "POST" })
   .handler(async ({ context }) => {
     const { workspaceId } = context;
     if (!workspaceId) throw new Error("No workspace");
+    try {
+      const count = await syncWatiTemplatesForWorkspace(workspaceId);
+      return { ok: true, count };
+    } catch (e: any) {
+      const sb = adminClient() as any;
+      await sb.from("wati_sync_logs").insert({
+        workspace_id: workspaceId,
+        sync_type: "templates",
+        status: "error",
+        error_message: e.message,
+      });
+      throw e;
+    }
+  });
+
+/** Create + submit template to WATI (Meta review via WATI). */
+export const createWatiTemplate = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input) =>
+    z
+      .object({
+        elementName: z.string().min(1).max(80),
+        body: z.string().min(1).max(1024),
+        category: z.enum(["MARKETING", "UTILITY", "AUTHENTICATION"]),
+        language: z.string().min(2).max(10).optional(),
+        footer: z.string().max(60).optional(),
+        paramSamples: z.record(z.string()).optional(),
+      })
+      .parse(input),
+  )
+  .handler(async ({ context, data }) => {
+    const { workspaceId } = context;
+    if (!workspaceId) throw new Error("No workspace");
     const sb = adminClient() as any;
 
     const { data: conn } = await sb
       .from("wati_connections")
-      .select("api_key, tenant_id")
+      .select("api_key, tenant_id, api_host")
       .eq("workspace_id", workspaceId)
+      .eq("status", "connected")
       .maybeSingle();
 
-    if (!conn) throw new Error("No WATI connection");
+    if (!conn?.api_key) throw new Error("WATI not connected");
 
-    let json: any;
+    const elementName = normalizeWatiElementName(data.elementName);
+    if (!elementName) {
+      throw new Error("Template name must use letters, numbers, and underscores only");
+    }
+
+    let payload: Record<string, unknown>;
     try {
-      json = await watiGet(conn.tenant_id, conn.api_key, "/getMessageTemplates");
-    } catch (e: any) {
-      await sb.from("wati_sync_logs").insert({ workspace_id: workspaceId, sync_type: "templates", status: "error", error_message: e.message });
-      throw e;
+      payload = buildWatiCreateTemplatePayload({
+        elementName,
+        body: data.body,
+        category: data.category,
+        language: data.language,
+        footer: data.footer,
+        paramSamples: data.paramSamples,
+      });
+    } catch (e) {
+      throw new Error((e as Error).message);
     }
 
-    const templates = (json?.messageTemplates ?? json?.templates ?? []) as any[];
-    let count = 0;
-    for (const t of templates) {
-      await sb.from("wati_templates").upsert(
-        {
-          workspace_id: workspaceId,
-          wati_template_id: String(t.id ?? t.elementName ?? t.name),
-          name: t.elementName ?? t.name ?? "Untitled",
-          status: t.status,
-          language: t.language,
-          category: t.category,
-          components: t.components ?? null,
-          synced_at: new Date().toISOString(),
-        },
-        { onConflict: "workspace_id,wati_template_id" },
-      );
-      count++;
+    const { ok, status, data: json, text } = await watiPost(
+      conn.tenant_id,
+      conn.api_key,
+      "/whatsApp/templates",
+      payload,
+      conn.api_host,
+    );
+
+    if (!ok) {
+      const msg = String(json.message ?? json.error ?? json.info ?? text).slice(0, 400);
+      throw new Error(msg || `WATI create template failed (HTTP ${status})`);
     }
 
-    await sb.from("wati_sync_logs").insert({ workspace_id: workspaceId, sync_type: "templates", status: "success", records_synced: count });
-    return { ok: true, count };
+    if (json.ok === false) {
+      throw new Error(String(json.message ?? json.error ?? "WATI rejected template creation").slice(0, 400));
+    }
+
+    const result = (json.result ?? json) as Record<string, unknown>;
+    const row = watiTemplateRowFromCreateResult(workspaceId, {
+      ...result,
+      elementName: result.elementName ?? elementName,
+      body: result.body ?? data.body,
+      category: result.category ?? data.category,
+      language: result.language ?? data.language ?? "en",
+    });
+
+    const { data: saved, error: upsertErr } = await sb
+      .from("wati_templates")
+      .upsert(row, { onConflict: "workspace_id,wati_template_id" })
+      .select()
+      .single();
+
+    if (upsertErr) throw new Error(upsertErr.message);
+
+    await sb.from("wati_sync_logs").insert({
+      workspace_id: workspaceId,
+      sync_type: "templates",
+      status: "success",
+      records_synced: 1,
+    });
+
+    const statusCode = row.status_code as number | null;
+    const statusLabel =
+      statusCode === 1 || statusCode === 5
+        ? "pending"
+        : statusCode === 2
+          ? "approved"
+          : statusCode === 0
+            ? "draft"
+            : "submitted";
+
+    return {
+      ok: true,
+      template: saved,
+      status: statusLabel,
+      message:
+        statusCode === 0
+          ? "Template created in WATI as draft — submit for Meta review in WATI if it stays in Draft."
+          : "Template submitted to WATI for Meta review (typically 30 min – 24 hours).",
+    };
   });
 
 export const syncWatiCampaigns = createServerFn({ method: "POST" })
@@ -283,48 +460,25 @@ export const syncWatiCampaigns = createServerFn({ method: "POST" })
   .handler(async ({ context }) => {
     const { workspaceId } = context;
     if (!workspaceId) throw new Error("No workspace");
-    const sb = adminClient() as any;
-
-    const { data: conn } = await sb
-      .from("wati_connections")
-      .select("api_key, tenant_id")
-      .eq("workspace_id", workspaceId)
-      .maybeSingle();
-
-    if (!conn) throw new Error("No WATI connection");
-
-    let json: any;
     try {
-      json = await watiGet(conn.tenant_id, conn.api_key, "/getBroadcastStats");
+      const count = await syncWatiCampaignsForWorkspace(workspaceId);
+      let statusUpdated = 0;
+      try {
+        statusUpdated = await reconcileWatiOutboundMessageStatuses(workspaceId);
+      } catch {
+        /* optional */
+      }
+      return { ok: true, count, statusUpdated };
     } catch (e: any) {
-      await sb.from("wati_sync_logs").insert({ workspace_id: workspaceId, sync_type: "campaigns", status: "error", error_message: e.message });
+      const sb = adminClient() as any;
+      await sb.from("wati_sync_logs").insert({
+        workspace_id: workspaceId,
+        sync_type: "campaigns",
+        status: "error",
+        error_message: e.message,
+      });
       throw e;
     }
-
-    const broadcasts = (json?.broadcasts ?? json?.result ?? []) as any[];
-    let count = 0;
-    for (const b of broadcasts) {
-      await sb.from("wati_campaigns").upsert(
-        {
-          workspace_id: workspaceId,
-          wati_campaign_id: String(b.id ?? b.broadcastId),
-          name: b.name ?? b.broadcastName ?? "Broadcast",
-          status: b.status,
-          template_name: b.templateName ?? null,
-          broadcast_name: b.broadcastName ?? b.name ?? null,
-          sent: b.sent ?? b.total ?? 0,
-          delivered: b.delivered ?? 0,
-          read_count: b.read ?? b.readCount ?? 0,
-          failed: b.failed ?? 0,
-          synced_at: new Date().toISOString(),
-        },
-        { onConflict: "workspace_id,wati_campaign_id" },
-      );
-      count++;
-    }
-
-    await sb.from("wati_sync_logs").insert({ workspace_id: workspaceId, sync_type: "campaigns", status: "success", records_synced: count });
-    return { ok: true, count };
   });
 
 export const syncWatiContacts = createServerFn({ method: "POST" })
@@ -336,7 +490,7 @@ export const syncWatiContacts = createServerFn({ method: "POST" })
 
     const { data: conn } = await sb
       .from("wati_connections")
-      .select("api_key, tenant_id")
+      .select("api_key, tenant_id, api_host")
       .eq("workspace_id", workspaceId)
       .maybeSingle();
 
@@ -344,7 +498,7 @@ export const syncWatiContacts = createServerFn({ method: "POST" })
 
     let json: any;
     try {
-      json = await watiGet(conn.tenant_id, conn.api_key, "/getContacts?pageSize=500");
+      json = await watiGet(conn.tenant_id, conn.api_key, "/getContacts?pageSize=500", conn.api_host);
     } catch (e: any) {
       await sb.from("wati_sync_logs").insert({ workspace_id: workspaceId, sync_type: "contacts", status: "error", error_message: e.message });
       throw e;
@@ -390,6 +544,7 @@ export const listWatiTemplates = createServerFn({ method: "GET" })
   .handler(async ({ context }) => {
     const { workspaceId } = context;
     if (!workspaceId) throw new Error("No workspace");
+    await maybeAutoSyncWatiTemplates(workspaceId);
     const sb = adminClient() as any;
     const { data } = await sb
       .from("wati_templates")
@@ -404,6 +559,7 @@ export const listWatiCampaigns = createServerFn({ method: "GET" })
   .handler(async ({ context }) => {
     const { workspaceId } = context;
     if (!workspaceId) throw new Error("No workspace");
+    await maybeAutoSyncWatiCampaigns(workspaceId);
     const sb = adminClient() as any;
     const { data } = await sb
       .from("wati_campaigns")

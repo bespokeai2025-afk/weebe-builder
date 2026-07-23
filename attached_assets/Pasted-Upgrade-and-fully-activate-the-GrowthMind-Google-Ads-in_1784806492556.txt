@@ -1,0 +1,558 @@
+Upgrade and fully activate the GrowthMind Google Ads integration on the GrowthMind Ads page.
+
+CURRENT PROBLEM
+
+The Google Ads account has already been connected from the Credentials/Integrations page using:
+
+Account label: main g account
+Connected identity: admin@webespokeai.com
+Connection status: active
+Authentication status: token available
+
+However, the GrowthMind Ads page still shows:
+
+- Campaigns (0)
+- No campaigns logged yet
+- Manual “Log Campaign” buttons
+- “No ad campaign data logged yet”
+- No live GrowthMind recommendations
+
+This page currently behaves like a manual campaign tracker. It must instead use the connected Google Ads credentials to automatically discover, import, monitor and analyse the workspace’s Google Ads campaigns.
+
+Do not remove or break any existing integrations, credentials, analytics pages, GrowthMind functionality or multi-tenant workspace controls.
+
+PHASE 1 — INVESTIGATE BEFORE MODIFYING
+
+Before changing code:
+
+1. Locate the current Google Ads credential storage and connection flow.
+2. Identify how OAuth tokens, refresh tokens, Google Ads customer IDs and account metadata are stored.
+3. Locate the GrowthMind Ads page and its current manual campaign logging implementation.
+4. Locate the existing GrowthMind backend, AI analysis service, scheduled jobs and workspace-scoping patterns.
+5. Check whether there is already a partial Google Ads API service.
+6. Confirm why the connected account displays as active while no campaigns are being retrieved.
+7. Check for API errors, missing customer ID selection, missing scopes, token refresh problems, incorrect workspace_id filtering or placeholder data.
+
+Do not create a second disconnected Google Ads integration if one already exists. Repair and extend the existing implementation.
+
+CORE REQUIREMENT
+
+Once a Google Ads credential is active for a workspace, GrowthMind must automatically become active for that connected account.
+
+GrowthMind must:
+
+- Discover accessible Google Ads customer accounts.
+- Identify the correct customer ID linked to the workspace.
+- Find all active and recently active campaigns.
+- Import campaign structure and performance.
+- Refresh campaign data automatically.
+- Analyse campaign performance.
+- Identify opportunities and problems.
+- Produce specific campaign recommendations.
+- Store recommendation history.
+- Allow the user to approve changes before any Google Ads campaign is modified.
+
+Do not let GrowthMind automatically edit live campaigns during this implementation. Recommendations must remain approval-based unless an existing workspace setting explicitly enables safe automation.
+
+GOOGLE ADS ACCOUNT DISCOVERY
+
+After authentication:
+
+1. Retrieve all Google Ads customer accounts accessible through the connected Google account.
+2. If only one valid advertising account is available, select and save it automatically.
+3. If multiple accounts are available, display an account selector.
+4. Store the selected Google Ads customer ID against the current workspace and connected credential.
+5. Support Google Ads manager accounts by allowing the correct child advertising account to be selected.
+6. Never hard-code a Google Ads customer ID.
+7. Never use credentials belonging to another workspace.
+
+Add a “Change advertising account” option within the connection settings.
+
+AUTOMATIC CAMPAIGN IMPORT
+
+Replace the dependency on manually logged campaigns.
+
+Import campaigns with statuses such as:
+
+- Enabled
+- Paused
+- Recently active
+- Removed, for historical reporting only
+
+Support all campaign types returned by the connected account, including where available:
+
+- Search
+- Display
+- Video/YouTube
+- Performance Max
+- Shopping
+- App
+- Demand generation
+
+For each campaign, retrieve and store available fields including:
+
+- Campaign ID
+- Campaign name
+- Campaign type
+- Campaign status
+- Start date
+- End date
+- Daily budget
+- Bidding strategy
+- Advertising channel
+- Optimisation score
+- Impressions
+- Clicks
+- Click-through rate
+- Average CPC
+- Cost/spend
+- Conversions
+- Conversion value
+- Conversion rate
+- Cost per conversion
+- ROAS
+- All conversion metrics where available
+- Impression share
+- Search lost impression share due to budget
+- Search lost impression share due to rank
+- Invalid click data where available
+- Date of last activity
+- Last successful sync time
+
+Also retrieve supporting performance data where permitted:
+
+- Ad groups
+- Ads and asset groups
+- Keywords
+- Search terms
+- Locations
+- Devices
+- Networks
+- Audiences
+- Conversion actions
+- Hour-of-day and day-of-week performance
+
+Use incremental date-based syncing. Do not repeatedly download the complete lifetime history on every refresh.
+
+SYNC ENGINE
+
+Create or repair a scheduled Google Ads sync service.
+
+Requirements:
+
+- Run an initial sync immediately when a connection becomes active.
+- Refresh active campaign metrics every 15 minutes.
+- Make the interval configurable through environment or application settings.
+- Refresh historical reporting data daily.
+- Add a visible “Refresh now” button.
+- Show “Syncing”, “Connected”, “Needs attention” and “Sync failed” states.
+- Display the last successful sync time.
+- Refresh expired OAuth access tokens using the stored refresh token.
+- Use retry logic with exponential backoff.
+- Prevent overlapping sync jobs for the same workspace and account.
+- Make sync jobs idempotent.
+- Log structured errors without exposing tokens or credentials.
+- Ensure one failed campaign does not stop all remaining campaigns from syncing.
+- Respect API quotas and pagination.
+
+Create a sync history table or use the existing integration log system to record:
+
+- Workspace ID
+- Credential ID
+- Customer ID
+- Sync started
+- Sync completed
+- Sync status
+- Campaigns discovered
+- Campaigns updated
+- Records imported
+- Error summary
+
+MULTI-TENANCY AND SECURITY
+
+Every query and stored record must be scoped by workspace_id.
+
+Enforce:
+
+- Workspace-specific Google Ads credentials
+- Workspace-specific customer IDs
+- Workspace-specific campaigns
+- Workspace-specific analytics
+- Workspace-specific GrowthMind recommendations
+- Workspace-specific reports
+- Appropriate Supabase RLS policies
+
+A user logged into Webespoke AI must never see WeBuyAnyHouse campaigns, credentials, reporting or recommendations, and vice versa.
+
+Do not place OAuth tokens, refresh tokens, developer tokens or secrets in frontend code or API responses.
+
+GROWTHMIND ACTIVATION
+
+Create a clear GrowthMind Google Ads analysis service rather than only displaying campaign statistics.
+
+After every successful sync, GrowthMind should analyse:
+
+1. Current performance.
+2. Previous comparable period.
+3. Seven-day trend.
+4. Thirty-day trend.
+5. Budget pacing.
+6. Conversion quality.
+7. Cost efficiency.
+8. Campaign delivery.
+9. Search-term quality.
+10. Device, location, audience and schedule performance.
+11. Ad, asset, keyword and ad-group performance.
+12. Tracking or data-quality problems.
+
+GrowthMind should detect conditions such as:
+
+- Spend increasing while conversions decline.
+- High CPC with weak conversion performance.
+- Budget being exhausted too early.
+- Campaign significantly under-spending.
+- High-performing campaign limited by budget.
+- Poor-performing campaign consuming disproportionate spend.
+- Strong keywords with insufficient budget or bid coverage.
+- Expensive search terms with no conversions.
+- Negative keyword opportunities.
+- Low-performing devices, locations or schedules.
+- Strong devices, locations or schedules that could be prioritised.
+- Ads or assets with weak engagement.
+- Disapproved or restricted ads where the data is available.
+- Campaigns with no recent delivery.
+- Sudden changes in impressions, clicks, conversions or cost.
+- Missing or suspicious conversion tracking.
+- Duplicate or competing campaigns.
+- Significant difference between campaign objectives and results.
+
+RECOMMENDATION FORMAT
+
+Each GrowthMind recommendation must contain:
+
+- Clear title
+- Campaign name and ID
+- Category
+- Priority: critical, high, medium or low
+- Explanation of the issue
+- Evidence and supporting metrics
+- Previous-period comparison
+- Expected benefit
+- Recommended action
+- Estimated impact where enough data exists
+- Confidence level
+- Date generated
+- Current status
+- Approval requirement
+- Dismiss option
+- “Review campaign” link
+
+Example:
+
+Title:
+Reduce wasted spend from non-converting search terms
+
+Evidence:
+£428.20 spent across 14 search terms during the last 30 days with zero recorded conversions.
+
+Recommended action:
+Review the listed terms and add unsuitable queries as negative keywords.
+
+Expected benefit:
+Potential reduction in wasted spend while maintaining current conversion volume.
+
+Do not generate vague recommendations such as “improve your campaign”. Every recommendation must be tied to retrieved campaign data.
+
+RECOMMENDATION STATES
+
+Support these states:
+
+- New
+- Under review
+- Approved
+- Rejected
+- Dismissed
+- Applied
+- Expired
+
+For now, clicking “Approve” should create an approved recommendation/change request. It must not silently change Google Ads.
+
+Prepare the architecture so an approved recommendation can later be passed to a controlled Google Ads change executor with validation, audit logging and rollback support.
+
+PAGE REDESIGN
+
+Update the page shown in the screenshot.
+
+CONNECTED ACCOUNT HEADER
+
+Keep the connected account card, but display:
+
+- Connection name
+- Connected Google identity
+- Selected Google Ads account name
+- Customer ID, partially masked
+- Connection health
+- Last successful sync
+- Next scheduled sync
+- Refresh now button
+- Edit connection button
+- Disconnect button
+
+CAMPAIGN AREA
+
+Remove “Log First Campaign” as the primary action when an active Google Ads connection exists.
+
+Replace it with:
+
+- “Sync campaigns”
+- “Refresh data”
+- “View connection”
+- “Importing campaigns…” during initial sync
+
+Keep manual campaign logging only as an optional fallback for users without a connected advertising account.
+
+Add summary cards for:
+
+- Active campaigns
+- Spend
+- Impressions
+- Clicks
+- Conversions
+- CTR
+- Average CPC
+- CPA
+- Conversion value
+- ROAS
+
+Add date ranges:
+
+- Today
+- Yesterday
+- Last 7 days
+- Last 30 days
+- This month
+- Previous month
+- Custom range
+
+Add comparison controls:
+
+- Previous period
+- Previous month
+- Previous year
+
+CAMPAIGN TABLE
+
+Display:
+
+- Campaign
+- Type
+- Status
+- Budget
+- Spend
+- Impressions
+- Clicks
+- CTR
+- Conversions
+- CPA
+- Conversion value
+- ROAS
+- GrowthMind health score
+- Trend
+- Last synced
+
+Add search, sorting and filters for:
+
+- Account
+- Campaign status
+- Campaign type
+- Performance
+- GrowthMind priority
+- Date range
+
+Each campaign should open a detailed campaign drawer or page containing:
+
+- Performance chart
+- KPI comparison
+- Budget pacing
+- Ad groups
+- Ads/assets
+- Keywords
+- Search terms
+- Devices
+- Locations
+- Audiences
+- Conversion actions
+- GrowthMind findings
+- Recommendation history
+
+GROWTHMIND ANALYSIS AREA
+
+Replace the current warning stating “No ad campaign data logged yet” once campaigns are available.
+
+Show:
+
+- GrowthMind status: Active
+- Last analysis time
+- Overall advertising health score
+- Critical issues
+- Opportunities
+- Budget recommendations
+- Conversion recommendations
+- Tracking warnings
+- Performance summary
+- Recommended next actions
+
+Add sections:
+
+- Immediate attention
+- Budget opportunities
+- Wasted spend
+- Growth opportunities
+- Conversion optimisation
+- Tracking and data quality
+- Recently resolved
+- Dismissed recommendations
+
+AUTOMATED REPORTING
+
+Connect the imported Google Ads data to the existing Analytics Centre and GrowthMind reporting system.
+
+Support:
+
+- Daily performance summary
+- Weekly GrowthMind Google Ads report
+- Monthly campaign report
+- Campaign launch report
+- Campaign performance deterioration alert
+- Budget pacing warning
+- Sync failure warning
+
+Use the user’s existing notification and account settings where available. Do not introduce duplicate notification systems unnecessarily.
+
+DATABASE
+
+Reuse existing integration, campaign, analytics and recommendation tables where appropriate.
+
+Only add migrations when required.
+
+Suggested entities if equivalents do not exist:
+
+google_ads_accounts
+google_ads_campaigns
+google_ads_daily_metrics
+google_ads_ad_groups
+google_ads_ads
+google_ads_keywords
+google_ads_search_terms
+google_ads_dimension_metrics
+google_ads_sync_runs
+growthmind_ad_recommendations
+growthmind_ad_analysis_runs
+growthmind_ad_change_requests
+
+Include:
+
+- workspace_id
+- credential_id
+- customer_id
+- external IDs
+- timestamps
+- unique constraints
+- indexes
+- JSON source payload only where useful
+- created_at
+- updated_at
+
+Avoid storing duplicate campaign records on each sync. Upsert using workspace_id, customer_id, campaign_id and reporting date.
+
+ERROR HANDLING
+
+Provide useful errors for:
+
+- Google account connected but no advertising account found
+- Manager account connected but no child account selected
+- Expired or revoked connection
+- Missing Google Ads developer token
+- Missing required OAuth permissions
+- Invalid customer ID
+- API quota exceeded
+- Partial sync failure
+- Conversion data unavailable
+- No active campaigns
+- Campaign data still importing
+
+Do not show a misleading “active” state if the token exists but API access is not working. Separate:
+
+- OAuth connected
+- Google Ads API verified
+- Advertising account selected
+- Campaign sync healthy
+
+BACKWARD COMPATIBILITY
+
+Do not break:
+
+- Current credentials page
+- Existing OAuth callback
+- Existing manual campaign records
+- Current Analytics Centre
+- Existing GrowthMind pages
+- Existing Retell analytics
+- Other advertising integrations
+- Workspace authentication
+- Current production environment variables
+- Existing Supabase data
+
+Manual campaigns must remain available but should be labelled “Manual campaigns” and kept separate from live Google Ads campaigns.
+
+TESTING
+
+Add tests covering:
+
+1. Connected account with one Google Ads customer account.
+2. Manager account with multiple child accounts.
+3. Connected account with no campaigns.
+4. Account containing active and paused campaigns.
+5. Expired access token with valid refresh token.
+6. Revoked OAuth permission.
+7. API pagination.
+8. Partial API failure.
+9. Duplicate scheduled sync prevention.
+10. Workspace isolation.
+11. Campaign metric upserts.
+12. GrowthMind recommendation generation.
+13. Recommendation approval without executing a live change.
+14. Existing manual campaign data remaining intact.
+
+FINAL ACCEPTANCE CRITERIA
+
+The work is complete only when:
+
+- The already connected Google Ads credential can be verified from the GrowthMind Ads page.
+- The correct Google Ads customer account is selected.
+- Active campaigns are discovered automatically.
+- Campaign data replaces the current zero-campaign empty state.
+- Metrics refresh automatically.
+- A manual refresh works.
+- GrowthMind shows as active.
+- GrowthMind produces data-backed recommendations.
+- Recommendations reference real campaigns and metrics.
+- Recommendations require approval.
+- Sync health and last-updated time are visible.
+- Campaign data is workspace-specific.
+- No existing features or integrations are broken.
+
+After implementation, provide:
+
+1. The original root cause.
+2. Files changed.
+3. Database migrations added.
+4. Environment variables required.
+5. Google Ads permissions/scopes being used.
+6. Sync frequency.
+7. How account selection works.
+8. How workspace isolation was verified.
+9. Test results.
+10. Any remaining configuration that requires manual action.
+
+Do not finish by only creating UI mock data. Verify the complete flow from the stored credential, through the Google Ads API, into the database, scheduled syncing, GrowthMind analysis and the live page.

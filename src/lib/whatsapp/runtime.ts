@@ -34,6 +34,7 @@
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { createWhatsAppProviderWithFallback, createWhatsAppProvider } from "@/lib/providers/whatsapp/factory";
 import type { WhatsAppConfig } from "@/lib/providers/whatsapp/factory";
+import { watiApiRoot } from "@/lib/whatsapp/wati-api-base.shared";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -499,13 +500,13 @@ export async function processWhatsAppMessage(input: RuntimeInput): Promise<void>
 
     const { data: conn } = await (supabaseAdmin as any)
       .from("wati_connections")
-      .select("api_key, tenant_id, status")
+      .select("api_key, tenant_id, status, api_host")
       .eq("workspace_id", workspaceId)
       .maybeSingle();
     if (conn?.status === "connected" && conn.api_key && conn.tenant_id) {
       _watiConfig = {
         provider: "wati" as const,
-        apiEndpoint: `https://live-mt-server.wati.io/${conn.tenant_id}`,
+        apiEndpoint: watiApiRoot(conn.tenant_id, conn.api_host),
         apiKey: conn.api_key as string,
       };
       return _watiConfig;

@@ -2,6 +2,28 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import twilio from "twilio";
+import {
+  buildWatiTemplateParams,
+  findLeadByPhone,
+  getWatiConnectionForWorkspace,
+  normalizeWhatsAppPhone,
+  phoneTail,
+  resolveCampaignAudienceLeads,
+  sendWatiTemplateMessage,
+  sendWatiTemplateMessagesBatch,
+  type CampaignAudienceFilter,
+} from "@/lib/whatsapp/wati-campaign.server";
+import type { CsvLeadRow } from "@/lib/whatsapp/csv-leads.shared";
+import {
+  extractWatiTemplateParamSlots,
+  validateWatiTemplateParamMapping,
+} from "@/lib/whatsapp/wati-template-params.shared";
+import { assertNotWbahWorkspace } from "@/lib/wbah-exclusion.shared";
+import {
+  forceSyncWatiCampaigns,
+  maybeAutoSyncWatiCampaigns,
+} from "@/lib/whatsapp/wati-sync.server";
+import { reconcileWatiOutboundMessageStatuses } from "@/lib/whatsapp/wati-message-status.server";
 
 // ── Inbox ─────────────────────────────────────────────────────────────────────
 
@@ -274,26 +296,76 @@ export const listWACampaigns = createServerFn({ method: "GET" })
       .eq("workspace_id", workspaceId)
       .order("created_at", { ascending: false });
     if (error) throw new Error(error.message);
-    return data ?? [];
+
+    const campaigns = (data ?? []) as any[];
+    const withStats = await Promise.all(
+      campaigns.map(async (c) => {
+        const { count: replied } = await sb
+          .from("whatsapp_messages")
+          .select("id", { count: "exact", head: true })
+          .eq("campaign_id", c.id)
+          .eq("direction", "inbound");
+        const stats = { ...(c.stats ?? {}), replied: replied ?? 0 };
+        return { ...c, stats };
+      }),
+    );
+    return withStats;
   });
+
+const audienceFilterSchema = z
+  .object({
+    qualification_status: z.string().optional(),
+    pipeline_stage: z.string().optional(),
+    status: z.string().optional(),
+    whatsapp_opt_in_only: z.boolean().optional(),
+    lead_ids: z.array(z.string()).optional(),
+  })
+  .optional();
 
 export const createWACampaign = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input) =>
-    z.object({
-      name: z.string().min(1),
-      type: z.enum(["broadcast", "follow_up", "scheduled"]),
-      template_id: z.string().optional(),
-      scheduled_at: z.string().optional(),
-    }).parse(input),
+    z
+      .object({
+        name: z.string().min(1),
+        type: z.enum(["broadcast", "follow_up", "scheduled"]),
+        template_id: z.string().optional(),
+        scheduled_at: z.string().optional(),
+        provider: z.enum(["twilio", "wati"]).optional(),
+        wati_template_name: z.string().optional(),
+        template_params: z.record(z.string()).optional(),
+        wati_broadcast_name: z.string().optional(),
+        audience_filter: audienceFilterSchema,
+      })
+      .parse(input),
   )
   .handler(async ({ context, data }) => {
     const { supabase, workspaceId } = context;
     if (!workspaceId) throw new Error("No workspace");
     const sb = supabase as any;
+
+    let provider = data.provider ?? "twilio";
+    if (!data.provider) {
+      const wati = await getWatiConnectionForWorkspace(sb, workspaceId);
+      if (wati && data.wati_template_name) provider = "wati";
+    }
+    if (provider === "wati") assertNotWbahWorkspace(workspaceId);
+
     const { data: row, error } = await sb
       .from("whatsapp_campaigns")
-      .insert({ workspace_id: workspaceId, ...data })
+      .insert({
+        workspace_id: workspaceId,
+        name: data.name,
+        type: data.type,
+        template_id: data.template_id ?? null,
+        scheduled_at: data.scheduled_at ?? null,
+        provider,
+        wati_template_name: data.wati_template_name ?? null,
+        template_params: data.template_params ?? null,
+        wati_broadcast_name: data.wati_broadcast_name ?? data.name,
+        audience_filter: data.audience_filter ?? null,
+        status: "draft",
+      })
       .select()
       .single();
     if (error) throw new Error(error.message);
@@ -325,20 +397,64 @@ export const getWAAnalytics = createServerFn({ method: "GET" })
     if (!workspaceId) return null;
     const sb = supabase as any;
 
-    const { data: msgs } = await sb
-      .from("whatsapp_messages")
-      .select("direction, status, sent_at")
-      .eq("workspace_id", workspaceId);
+    const { data: watiConnRow } = await sb
+      .from("wati_connections")
+      .select("status")
+      .eq("workspace_id", workspaceId)
+      .maybeSingle();
+    if (watiConnRow?.status === "connected") {
+      await maybeAutoSyncWatiCampaigns(workspaceId);
+      try {
+        await reconcileWatiOutboundMessageStatuses(workspaceId);
+      } catch (e) {
+        console.warn("[WA analytics] WATI status reconcile failed:", (e as Error).message);
+      }
+    }
+
+    const [{ data: msgs }, { data: campaigns }, { data: watiCamps }, { data: watiConn }] = await Promise.all([
+      sb.from("whatsapp_messages").select("direction, status, sent_at, provider").eq("workspace_id", workspaceId),
+      sb.from("whatsapp_campaigns").select("stats, provider").eq("workspace_id", workspaceId),
+      sb.from("wati_campaigns").select("sent, delivered, read_count").eq("workspace_id", workspaceId),
+      sb.from("wati_connections").select("status").eq("workspace_id", workspaceId).maybeSingle(),
+    ]);
 
     const all      = (msgs ?? []) as any[];
     const outbound = all.filter((m) => m.direction === "outbound");
     const inbound  = all.filter((m) => m.direction === "inbound");
 
-    const sent      = outbound.length;
-    const delivered = outbound.filter((m) => ["delivered", "read"].includes(m.status)).length;
-    const read      = outbound.filter((m) => m.status === "read").length;
+    let sent      = outbound.length;
+    let delivered = outbound.filter((m) => ["delivered", "read"].includes(m.status)).length;
+    let read      = outbound.filter((m) => m.status === "read").length;
     const responses = inbound.length;
-    const convRate  = sent > 0 ? Math.round((responses / sent) * 100) : 0;
+
+    // Supplement from Webee campaign stats (WATI launches write sent count here)
+    let campaignSent = 0;
+    let campaignDelivered = 0;
+    let campaignRead = 0;
+    for (const c of (campaigns ?? []) as Array<{ stats?: Record<string, number> | null }>) {
+      const s = c.stats ?? {};
+      campaignSent += s.sent ?? 0;
+      campaignDelivered += s.delivered ?? 0;
+      campaignRead += s.read ?? 0;
+    }
+
+    let watiSyncedSent = 0;
+    let watiSyncedDelivered = 0;
+    let watiSyncedRead = 0;
+    for (const c of (watiCamps ?? []) as Array<{ sent?: number; delivered?: number; read_count?: number }>) {
+      watiSyncedSent += c.sent ?? 0;
+      watiSyncedDelivered += c.delivered ?? 0;
+      watiSyncedRead += c.read_count ?? 0;
+    }
+
+    sent = Math.max(sent, campaignSent, watiSyncedSent);
+    delivered = Math.max(delivered, campaignDelivered, watiSyncedDelivered);
+    read = Math.max(read, campaignRead, watiSyncedRead);
+
+    const watiOutbound = outbound.filter((m) => m.provider === "wati");
+    const twilioOutbound = outbound.filter((m) => !m.provider || m.provider === "twilio");
+
+    const convRate = sent > 0 ? Math.round((responses / sent) * 100) : 0;
 
     const now  = new Date();
     const days: { date: string; sent: number; received: number }[] = [];
@@ -354,7 +470,45 @@ export const getWAAnalytics = createServerFn({ method: "GET" })
       });
     }
 
-    return { sent, delivered, read, responses, convRate, days, total: all.length };
+    const watiConnected = watiConn?.status === "connected";
+    const hasData = all.length > 0 || sent > 0 || watiSyncedSent > 0;
+
+    return {
+      sent,
+      delivered,
+      read,
+      responses,
+      convRate,
+      days,
+      total: all.length,
+      watiConnected,
+      hasData,
+      providers: {
+        twilio: {
+          sent: twilioOutbound.length,
+          delivered: twilioOutbound.filter((m) => ["delivered", "read"].includes(m.status)).length,
+          read: twilioOutbound.filter((m) => m.status === "read").length,
+        },
+        wati: {
+          sent: Math.max(watiOutbound.length, campaignSent, watiSyncedSent),
+          delivered: Math.max(
+            watiOutbound.filter((m) => ["delivered", "read"].includes(m.status)).length,
+            campaignDelivered,
+            watiSyncedDelivered,
+          ),
+          read: Math.max(
+            watiOutbound.filter((m) => m.status === "read").length,
+            campaignRead,
+            watiSyncedRead,
+          ),
+        },
+        messages: {
+          sent: outbound.length,
+          delivered: outbound.filter((m) => ["delivered", "read"].includes(m.status)).length,
+          read: outbound.filter((m) => m.status === "read").length,
+        },
+      },
+    };
   });
 
 // ── WhatsApp Agents ───────────────────────────────────────────────────────────
@@ -627,6 +781,131 @@ export const registerTwilioWebhook = createServerFn({ method: "POST" })
 
 // ── Campaign launch ───────────────────────────────────────────────────────────
 
+async function launchWatiCampaignFromWebee(
+  sb: any,
+  workspaceId: string,
+  campaign: Record<string, unknown>,
+): Promise<{ ok: true; sent: number; failed: number; total: number; errors?: string[] }> {
+  assertNotWbahWorkspace(workspaceId);
+  const conn = await getWatiConnectionForWorkspace(sb, workspaceId);
+  if (!conn) throw new Error("WATI not connected — go to Buzzchat → Settings");
+
+  const templateName = String(campaign.wati_template_name ?? "").trim();
+  if (!templateName) {
+    throw new Error("Campaign has no WATI template — edit the campaign and select a template");
+  }
+
+  const audienceFilter = (campaign.audience_filter ?? null) as CampaignAudienceFilter | null;
+  const leads = await resolveCampaignAudienceLeads(sb, workspaceId, audienceFilter);
+  if (leads.length === 0) {
+    throw new Error("No leads with phone numbers match this campaign audience");
+  }
+
+  const mapping = (campaign.template_params ?? {}) as Record<string, string>;
+  const broadcastName = String(campaign.wati_broadcast_name ?? campaign.name ?? "webee_campaign");
+  const campaignId = String(campaign.id);
+
+  const { data: tplRow } = await sb
+    .from("wati_templates")
+    .select("components, name")
+    .eq("workspace_id", workspaceId)
+    .eq("name", templateName)
+    .maybeSingle();
+
+  const paramSlots = extractWatiTemplateParamSlots(tplRow ?? { name: templateName });
+  const mappingError = validateWatiTemplateParamMapping(paramSlots, mapping);
+  if (mappingError) throw new Error(mappingError);
+
+  await sb
+    .from("whatsapp_campaigns")
+    .update({ status: "running", started_at: new Date().toISOString() })
+    .eq("id", campaignId);
+
+  let sent = 0;
+  let failed = 0;
+  const errors: string[] = [];
+
+  const sendItems = leads
+    .map((lead) => {
+      const phone = normalizeWhatsAppPhone(String(lead.phone ?? ""));
+      if (!phone) return null;
+      const parameters = buildWatiTemplateParams(lead, mapping);
+      const bodyPreview =
+        `[Template: ${templateName}] ${parameters.map((p) => p.value).filter(Boolean).join(" · ") || ""}`.trim();
+      return {
+        phone,
+        parameters,
+        leadId: String(lead.id),
+        contactName: (lead.full_name as string | null) ?? null,
+        bodyPreview,
+      };
+    })
+    .filter(Boolean) as Array<{
+    phone: string;
+    parameters: Array<{ name: string; value: string }>;
+    leadId: string;
+    contactName: string | null;
+    bodyPreview: string;
+  }>;
+
+  failed += leads.length - sendItems.length;
+
+  const { results: sendResults } = await sendWatiTemplateMessagesBatch({
+    tenantId: conn.tenant_id,
+    apiKey: conn.api_key,
+    apiHost: conn.api_host,
+    templateName,
+    broadcastName,
+    items: sendItems,
+  });
+
+  const itemByPhone = new Map(sendItems.map((item) => [item.phone, item]));
+
+  for (const result of sendResults) {
+    const item = itemByPhone.get(result.phone);
+    if (result.ok && result.messageId) {
+      sent++;
+      await sb.from("whatsapp_messages").insert({
+        workspace_id: workspaceId,
+        external_id: result.messageId,
+        contact_phone: result.phone,
+        contact_name: item?.contactName ?? null,
+        lead_id: result.leadId ?? item?.leadId ?? null,
+        campaign_id: campaignId,
+        direction: "outbound",
+        body: item?.bodyPreview ?? `[Template: ${templateName}]`,
+        status: "sent",
+        provider: "wati",
+        sent_at: new Date().toISOString(),
+      });
+    } else {
+      failed++;
+      if (result.error) errors.push(`${result.phone}: ${result.error}`);
+    }
+  }
+
+  const status = failed > 0 && sent === 0 ? "failed" : "completed";
+  await sb
+    .from("whatsapp_campaigns")
+    .update({
+      status,
+      stats: {
+        sent,
+        failed,
+        delivered: 0,
+        read: 0,
+        replied: 0,
+        errors: errors.slice(0, 20),
+      },
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", campaignId);
+
+  await forceSyncWatiCampaigns(workspaceId);
+
+  return { ok: true, sent, failed, total: leads.length, errors: errors.slice(0, 5) };
+}
+
 export const launchWACampaign = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input) => z.object({ id: z.string() }).parse(input))
@@ -635,19 +914,41 @@ export const launchWACampaign = createServerFn({ method: "POST" })
     if (!workspaceId) throw new Error("No workspace");
     const sb = supabase as any;
 
-    // Get campaign + template
     const { data: campaign, error: cErr } = await sb
       .from("whatsapp_campaigns")
-      .select("*, whatsapp_templates(body, name)")
+      .select("*")
       .eq("id", data.id)
       .eq("workspace_id", workspaceId)
       .single();
     if (cErr || !campaign) throw new Error(cErr?.message ?? "Campaign not found");
 
-    if (campaign.status === "active") throw new Error("Campaign already active");
+    if (campaign.status === "active" || campaign.status === "running") {
+      throw new Error("Campaign already running");
+    }
 
-    const templateBody: string = campaign.whatsapp_templates?.body ?? "";
-    if (!templateBody) throw new Error("Campaign has no template body");
+    const watiConn = await getWatiConnectionForWorkspace(sb, workspaceId);
+    const useWati =
+      campaign.provider === "wati" ||
+      (!!watiConn && !!campaign.wati_template_name);
+
+    if (useWati) {
+      assertNotWbahWorkspace(workspaceId);
+      return launchWatiCampaignFromWebee(sb, workspaceId, campaign);
+    }
+
+    // ── Legacy Twilio path ──
+    const { data: campaignWithTpl, error: cErr2 } = await sb
+      .from("whatsapp_campaigns")
+      .select("*, whatsapp_templates(body, name)")
+      .eq("id", data.id)
+      .eq("workspace_id", workspaceId)
+      .single();
+    if (cErr2 || !campaignWithTpl) throw new Error(cErr2?.message ?? "Campaign not found");
+
+    if (campaignWithTpl.status === "active") throw new Error("Campaign already active");
+
+    const templateBody: string = campaignWithTpl.whatsapp_templates?.body ?? "";
+    if (!templateBody) throw new Error("Campaign has no template body — use WATI template or add a native template");
 
     // Get workspace settings for Twilio creds
     const { data: ws } = await sb
@@ -733,6 +1034,221 @@ export const launchWACampaign = createServerFn({ method: "POST" })
       .eq("id", data.id);
 
     return { ok: true, sent, failed, total: contactList.length };
+  });
+
+// ── WATI campaign CSV audience ────────────────────────────────────────────────
+
+const csvLeadRowSchema = z.object({
+  phone: z.string().min(3).max(40),
+  full_name: z.string().nullable().optional(),
+  email: z.string().nullable().optional(),
+  company_name: z.string().nullable().optional(),
+  notes: z.string().nullable().optional(),
+});
+
+export const importWatiCampaignLeadsCsv = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input) =>
+    z.object({ rows: z.array(csvLeadRowSchema).min(1).max(5000) }).parse(input),
+  )
+  .handler(async ({ context, data }) => {
+    const { supabase, workspaceId } = context;
+    if (!workspaceId) throw new Error("No workspace");
+    assertNotWbahWorkspace(workspaceId);
+    const sb = supabase as any;
+
+    const { data: existingRows } = await sb
+      .from("leads")
+      .select("id, phone, full_name, email, company_name, notes")
+      .eq("workspace_id", workspaceId)
+      .not("phone", "is", null)
+      .limit(15000);
+
+    const byExact = new Map<string, { id: string; full_name: string | null; email: string | null; company_name: string | null; notes: string | null; phone: string }>();
+    const byTail = new Map<string, string>();
+    for (const lead of existingRows ?? []) {
+      const normalized = normalizeWhatsAppPhone(lead.phone);
+      if (normalized) byExact.set(normalized, lead);
+      const tail = phoneTail(normalized);
+      if (tail && !byTail.has(tail)) byTail.set(tail, lead.id);
+    }
+
+    const leadIds: string[] = [];
+    let inserted = 0;
+    let updated = 0;
+    let skipped = 0;
+
+    for (const row of data.rows as CsvLeadRow[]) {
+      const phone = normalizeWhatsAppPhone(row.phone);
+      if (!phone || phone.replace(/\D/g, "").length < 7) {
+        skipped++;
+        continue;
+      }
+
+      const tail = phoneTail(phone);
+      const existing =
+        byExact.get(phone) ??
+        (tail && byTail.has(tail)
+          ? (existingRows ?? []).find((l: { id: string; phone: string }) => l.id === byTail.get(tail))
+          : null);
+
+      if (existing?.id) {
+        const patch: Record<string, unknown> = { updated_at: new Date().toISOString() };
+        if (row.full_name && !existing.full_name) patch.full_name = row.full_name;
+        if (row.email && !existing.email) patch.email = row.email;
+        if (row.company_name && !existing.company_name) patch.company_name = row.company_name;
+        if (row.notes && !existing.notes) patch.notes = row.notes;
+        if (Object.keys(patch).length > 1) {
+          await sb.from("leads").update(patch).eq("id", existing.id);
+          updated++;
+        }
+        leadIds.push(existing.id);
+        continue;
+      }
+
+      const { data: created, error } = await sb
+        .from("leads")
+        .insert({
+          workspace_id: workspaceId,
+          phone,
+          full_name: row.full_name ?? null,
+          email: row.email ?? null,
+          company_name: row.company_name ?? null,
+          notes: row.notes ?? null,
+          source: "import",
+          whatsapp_opt_in: true,
+        })
+        .select("id, phone")
+        .single();
+
+      if (error || !created?.id) {
+        skipped++;
+        continue;
+      }
+
+      inserted++;
+      leadIds.push(created.id);
+      byExact.set(phone, { ...created, full_name: row.full_name ?? null, email: row.email ?? null, company_name: row.company_name ?? null, notes: row.notes ?? null });
+      if (tail) byTail.set(tail, created.id);
+    }
+
+    return {
+      leadIds,
+      inserted,
+      updated,
+      skipped,
+      total: leadIds.length,
+    };
+  });
+
+// ── Lead WhatsApp (WATI) ──────────────────────────────────────────────────────
+
+export const listLeadWhatsappMessages = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input) => z.object({ leadId: z.string() }).parse(input))
+  .handler(async ({ context, data }) => {
+    const { supabase, workspaceId } = context;
+    if (!workspaceId) throw new Error("No workspace");
+    assertNotWbahWorkspace(workspaceId);
+    const sb = supabase as any;
+
+    const { data: rows, error } = await sb
+      .from("whatsapp_messages")
+      .select("*")
+      .eq("workspace_id", workspaceId)
+      .eq("lead_id", data.leadId)
+      .order("sent_at", { ascending: true })
+      .limit(200);
+    if (error) throw new Error(error.message);
+    return rows ?? [];
+  });
+
+export const sendLeadWhatsappTemplate = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input) =>
+    z
+      .object({
+        leadId: z.string(),
+        templateName: z.string().min(1),
+        templateParams: z.record(z.string()).optional(),
+        broadcastName: z.string().optional(),
+      })
+      .parse(input),
+  )
+  .handler(async ({ context, data }) => {
+    const { supabase, workspaceId } = context;
+    if (!workspaceId) throw new Error("No workspace");
+    assertNotWbahWorkspace(workspaceId);
+    const sb = supabase as any;
+
+    const conn = await getWatiConnectionForWorkspace(sb, workspaceId);
+    if (!conn) throw new Error("WATI not connected — go to Buzzchat → Settings");
+
+    const { data: lead, error: leadErr } = await sb
+      .from("leads")
+      .select("*")
+      .eq("id", data.leadId)
+      .eq("workspace_id", workspaceId)
+      .single();
+    if (leadErr || !lead) throw new Error(leadErr?.message ?? "Lead not found");
+
+    const phone = normalizeWhatsAppPhone(String(lead.phone ?? ""));
+    if (!phone) throw new Error("Lead has no phone number");
+
+    const mapping = data.templateParams ?? {};
+    const templateName = data.templateName.trim();
+
+    const { data: tplRow } = await sb
+      .from("wati_templates")
+      .select("components, name")
+      .eq("workspace_id", workspaceId)
+      .eq("name", templateName)
+      .maybeSingle();
+
+    const paramSlots = extractWatiTemplateParamSlots(tplRow ?? { name: templateName });
+    const mappingError = validateWatiTemplateParamMapping(paramSlots, mapping);
+    if (mappingError) throw new Error(mappingError);
+
+    const parameters = buildWatiTemplateParams(lead, mapping);
+    const broadcastName = data.broadcastName ?? `lead_${data.leadId.slice(0, 8)}`;
+
+    const result = await sendWatiTemplateMessage({
+      tenantId: conn.tenant_id,
+      apiKey: conn.api_key,
+      apiHost: conn.api_host,
+      toPhone: phone,
+      templateName,
+      parameters,
+      broadcastName,
+    });
+    if (!result.ok) throw new Error(result.error ?? "WATI send failed");
+
+    const bodyPreview = `[Template: ${templateName}] ${parameters.map((p) => p.value).filter(Boolean).join(" · ") || ""}`.trim();
+
+    const { data: row, error: insErr } = await sb
+      .from("whatsapp_messages")
+      .insert({
+        workspace_id: workspaceId,
+        external_id: result.messageId,
+        contact_phone: phone,
+        contact_name: lead.full_name ?? null,
+        lead_id: lead.id,
+        direction: "outbound",
+        body: bodyPreview,
+        status: "sent",
+        provider: "wati",
+        sent_at: new Date().toISOString(),
+      })
+      .select()
+      .single();
+    if (insErr) throw new Error(insErr.message);
+
+    await sb
+      .from("leads")
+      .update({ last_contacted_at: new Date().toISOString() })
+      .eq("id", lead.id);
+
+    return { ok: true, message: row };
   });
 
 /**

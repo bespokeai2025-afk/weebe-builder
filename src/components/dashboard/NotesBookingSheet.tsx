@@ -14,6 +14,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
+import { LeadWhatsAppPanel } from "@/components/leads/LeadWhatsAppPanel";
+import { useIsWbahWorkspace } from "@/hooks/useIsWbahWorkspace";
 import { toast } from "sonner";
 import {
   addEntityNote,
@@ -71,6 +73,7 @@ export function NotesBookingSheet({
   const deleteFn = useServerFn(deleteEntityNote);
   const bookFn   = useServerFn(createManualBooking);
   const listFn   = useServerFn(listEntityNotes);
+  const { isWbah, resolved: isWbahResolved } = useIsWbahWorkspace();
 
   const [noteText, setNoteText] = useState("");
   const [addingNote, setAddingNote] = useState(false);
@@ -223,6 +226,16 @@ export function NotesBookingSheet({
               )}
               <Separator className="bg-white/[0.06]" />
             </div>
+          )}
+
+          {entityType === "lead" && isWbahResolved && !isWbah && (
+            <>
+              <LeadWhatsAppPanel
+                leadId={leadId ?? entityId}
+                phone={defaultPhone}
+              />
+              <Separator className="bg-white/[0.06]" />
+            </>
           )}
 
           {/* ── Add Note ───────────────────────────────────── */}

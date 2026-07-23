@@ -136,3 +136,222 @@ export function wbahCrmDetailWithoutDisqualification(
   }
   return Object.keys(out).length ? out : null;
 }
+
+export type WbahLeadProfileField = { label: string; value: string };
+
+function profileVal(v: unknown): string | null {
+  if (v == null || v === "") return null;
+  if (typeof v === "object") return null;
+  const s = String(v).trim();
+  if (!s || /^n\/a$/i.test(s)) return null;
+  if (s.startsWith("{") || s.startsWith("[")) return null;
+  return s;
+}
+
+function profilePick(
+  sources: Record<string, unknown>[],
+  ...keys: string[]
+): string | null {
+  for (const src of sources) {
+    for (const k of keys) {
+      const v = profileVal(src[k]);
+      if (v) return v;
+    }
+  }
+  return null;
+}
+
+/** Human-readable CRM + post-call profile for the lead detail drawer. */
+export function buildWbahLeadCrmProfile(
+  crmRaw: Record<string, unknown> | null | undefined,
+  extras?: {
+    postCall?: Record<string, unknown> | null;
+    row?: { name?: string | null; contact?: string | null; email?: string | null };
+  },
+): WbahLeadProfileField[] {
+  const crm = crmRaw ? wbahCrmDataSource(crmRaw) : {};
+  const post = (extras?.postCall ?? {}) as Record<string, unknown>;
+  const sources = [crm, post];
+
+  const name =
+    profilePick(sources, "name", "fullName", "full_name", "customer_name", "Name") ??
+    extras?.row?.name ??
+    null;
+  const first = profilePick(sources, "firstname", "firstName", "first_name", "Firstname");
+  const last = profilePick(sources, "lastname", "lastName", "last_name", "Lastname");
+  const displayName =
+    name ??
+    (first || last ? [first, last].filter(Boolean).join(" ") : null);
+
+  const rows: Array<WbahLeadProfileField | null> = [
+    displayName ? { label: "Name", value: displayName } : null,
+    first ? { label: "First name", value: first } : null,
+    last ? { label: "Last name", value: last } : null,
+    {
+      label: "Phone",
+      value:
+        profilePick(
+          sources,
+          "mobile_number",
+          "mobileNumber",
+          "phone",
+          "toNumber",
+          "ToNumber",
+          "contact",
+        ) ?? extras?.row?.contact,
+    },
+    {
+      label: "Email",
+      value:
+        profilePick(sources, "email", "emailAddress", "Email") ?? extras?.row?.email ?? null,
+    },
+    {
+      label: "Lead status",
+      value: profilePick(sources, "lead_status", "leadStatus", "Lead Status"),
+    },
+    {
+      label: "Property type",
+      value: profilePick(sources, "property_type", "propertyType", "Property Type"),
+    },
+    {
+      label: "Bedrooms",
+      value: profilePick(sources, "bedrooms", "Bedrooms", "new_bedrooms"),
+    },
+    {
+      label: "Property address",
+      value: profilePick(
+        sources,
+        "new_propinfo_street2",
+        "address1_line1",
+        "address_line1",
+        "address",
+        "property_address",
+        "Address1 Line1",
+      ),
+    },
+    {
+      label: "City",
+      value: profilePick(sources, "new_propinfo_city", "address1_city", "city", "Address1 City"),
+    },
+    {
+      label: "Postcode",
+      value: profilePick(
+        sources,
+        "new_propinfo_postalcode",
+        "address1_postalcode",
+        "postal_code",
+        "postcode",
+        "Address1 Postalcode",
+      ),
+    },
+    {
+      label: "Contact address",
+      value: profilePick(
+        sources,
+        "address1_composite",
+        "contact_address",
+        "Address1 Composite",
+      ),
+    },
+    {
+      label: "Title",
+      value: profilePick(sources, "title", "Title", "salutation"),
+    },
+    {
+      label: "Lead ID",
+      value: profilePick(sources, "lead_id", "leadId", "unique_id", "Lead Id"),
+    },
+    {
+      label: "Category",
+      value: profilePick(sources, "sync_category_slug", "syncCategorySlug", "Category"),
+    },
+  ];
+
+  return rows.filter((r): r is WbahLeadProfileField => Boolean(r?.value));
+}
+
+function formatProfileDurationMs(ms: unknown): string | null {
+  const n = Number(ms);
+  if (!Number.isFinite(n) || n <= 0) return null;
+  const sec = Math.round(n / 1000);
+  const m = Math.floor(sec / 60);
+  const s = sec % 60;
+  return m > 0 ? `${m}m ${s}s` : `${s}s`;
+}
+
+function formatProfileWhen(v: unknown): string | null {
+  if (v == null || v === "") return null;
+  const n = Number(v);
+  const d =
+    !Number.isNaN(n) && n > 1e11
+      ? new Date(n)
+      : typeof v === "string"
+        ? new Date(v)
+        : null;
+  if (!d || Number.isNaN(d.getTime())) return profileVal(v);
+  return d.toLocaleString("en-GB", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    timeZone: "Europe/London",
+  });
+}
+
+/** Curated call fields for the lead detail drawer (no raw JSON/meta dump). */
+export function buildWbahLeadCallProfile(
+  call: Record<string, unknown> | null | undefined,
+): WbahLeadProfileField[] {
+  if (!call) return [];
+  const src = call;
+
+  const rows: Array<WbahLeadProfileField | null> = [
+    {
+      label: "Agent",
+      value: profilePick([src], "agentName", "AgentName", "agent_name"),
+    },
+    {
+      label: "Call status",
+      value: profilePick([src], "callStatus", "CallStatus", "call_status"),
+    },
+    {
+      label: "Sentiment",
+      value: profilePick([src], "sentimentAnalysis", "SentimentAnalysis", "sentiment"),
+    },
+    {
+      label: "Last called",
+      value:
+        formatProfileWhen(src.startTimestamp) ??
+        formatProfileWhen(src.started_at) ??
+        formatProfileWhen(src.StartTimestamp),
+    },
+    {
+      label: "Duration",
+      value:
+        formatProfileDurationMs(src.durationMs ?? src.DurationMs) ??
+        (src.duration_seconds != null
+          ? formatProfileDurationMs(Number(src.duration_seconds) * 1000)
+          : null),
+    },
+    {
+      label: "Recording",
+      value: profilePick([src], "recordingUrl", "RecordingUrl", "recording_url"),
+    },
+    {
+      label: "Disconnection",
+      value: profilePick(
+        [src],
+        "disconnectionReason",
+        "DisconnectionReason",
+        "disconnection_reason",
+      ),
+    },
+    {
+      label: "End reason",
+      value: profilePick([src], "endReason", "EndReason", "end_reason"),
+    },
+  ];
+
+  return rows.filter((r): r is WbahLeadProfileField => Boolean(r?.value));
+}

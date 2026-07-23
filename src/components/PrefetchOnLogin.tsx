@@ -18,7 +18,7 @@
 import { useEffect, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { resolveWbahUiAccess } from "@/lib/integrations/webespokeEnterprise/wbah.functions";
+import { checkWebuyanyhouseWorkspace } from "@/lib/integrations/webespokeEnterprise/wbah.functions";
 import { getMyContext } from "@/lib/workspace/workspace.functions";
 
 import { getOverviewStats, listLeads }               from "@/lib/dashboard/leads.functions";
@@ -69,7 +69,7 @@ export function PrefetchOnLogin({ authed }: Props) {
   const wbahCatFn        = useServerFn(listWbahCategorizedLeads);
   const wbahCallsCountFn = useServerFn(listWbahCallsCount);
   const wbahCallbackSummaryFn = useServerFn(getWbahCallbackSummary);
-  const wbahAccessFn     = useServerFn(resolveWbahUiAccess);
+  const wbahAccessFn     = useServerFn(checkWebuyanyhouseWorkspace);
   const getMyContextFn   = useServerFn(getMyContext);
 
   // null = not yet resolved; true/false once the workspace slug is known.
@@ -86,7 +86,7 @@ export function PrefetchOnLogin({ authed }: Props) {
           qc.clear();
         }
         lastWorkspaceId = wsId;
-        setIsWbah(access.isWbah);
+        setIsWbah(access.isWebuyanyhouse);
       })
       .catch(() => {
         if (active) setIsWbah(false);

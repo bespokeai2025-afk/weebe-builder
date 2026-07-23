@@ -1,10 +1,12 @@
 import { useServerFn } from "@tanstack/react-start";
-import { useQuery } from "@tanstack/react-query";
-import { BarChart3, Send, CheckCheck, Eye, MessageCircle, TrendingUp } from "lucide-react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { BarChart3, Send, CheckCheck, Eye, MessageCircle, TrendingUp, Loader2, RefreshCw } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { toast } from "sonner";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { getWAAnalytics } from "@/lib/dashboard/whatsapp.functions";
-import { getWatiConnection, listWatiCampaigns } from "@/lib/whatsapp/wati.functions";
+import { getWatiConnection, listWatiCampaigns, syncWatiCampaigns } from "@/lib/whatsapp/wati.functions";
 
 function KpiCard({
   label, value, sub, icon: Icon, color,
@@ -56,9 +58,11 @@ function SimpleBar({ data }: { data: { date: string; sent: number; received: num
 }
 
 export function WhatsAppAnalytics() {
+  const qc = useQueryClient();
   const analyticsFn   = useServerFn(getWAAnalytics);
   const watiConnFn    = useServerFn(getWatiConnection);
   const watiCampFn    = useServerFn(listWatiCampaigns);
+  const watiSyncFn    = useServerFn(syncWatiCampaigns);
 
   const { data, isLoading } = useQuery({
     queryKey: ["wa-analytics"],
@@ -85,11 +89,29 @@ export function WhatsAppAnalytics() {
   const watiTotalDelivered = (watiCampaigns as any[]).reduce((a, c) => a + (c.delivered ?? 0), 0);
   const watiTotalRead      = (watiCampaigns as any[]).reduce((a, c) => a + (c.read_count ?? 0), 0);
 
+  const syncWati = useMutation({
+    mutationFn: () => watiSyncFn(),
+    onSuccess: (res: { count?: number; statusUpdated?: number }) => {
+      qc.invalidateQueries({ queryKey: ["wati-campaigns"] });
+      qc.invalidateQueries({ queryKey: ["wa-analytics"] });
+      const n = res.count ?? 0;
+      const st = res.statusUpdated ?? 0;
+      toast.success(
+        st > 0
+          ? `Refreshed analytics — ${st} message${st === 1 ? "" : "s"} updated to delivered/read`
+          : n > 0
+            ? `Refreshed ${n} campaign${n === 1 ? "" : "s"}`
+            : "Analytics refreshed",
+      );
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
   if (isLoading) {
     return <div className="py-16 text-center text-sm text-muted-foreground">Loading analytics…</div>;
   }
 
-  if (!data || data.total === 0) {
+  if (!data || !data.hasData) {
     return (
       <div className="flex flex-col items-center justify-center py-16 gap-3 text-muted-foreground">
         <BarChart3 className="h-10 w-10 opacity-30" />
@@ -99,11 +121,58 @@ export function WhatsAppAnalytics() {
     );
   }
 
+  const msgStats = data.providers?.messages;
+  const watiStats = data.providers?.wati;
+  const watiBreakdownSent = watiTotalSent || watiStats?.sent || 0;
+  const watiBreakdownDelivered = watiTotalDelivered || watiStats?.delivered || 0;
+  const watiBreakdownRead = watiTotalRead || watiStats?.read || 0;
+  const deliveryPending =
+    data.sent > 0 &&
+    data.delivered === 0 &&
+    (msgStats?.sent ?? 0) > 0 &&
+    (msgStats?.delivered ?? 0) === 0;
+
   const deliveryRate = data.sent > 0 ? Math.round((data.delivered / data.sent) * 100) : 0;
   const readRate     = data.sent > 0 ? Math.round((data.read / data.sent) * 100) : 0;
 
   return (
     <div className="space-y-6">
+      {watiConnected && (
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          {deliveryPending && (
+            <div className="text-[11px] text-amber-600 dark:text-amber-400 max-w-xl space-y-1">
+              <p>
+                Delivered/read are not updating yet. In WATI → Connectors → Webhooks, enable these events on
+                your Webee URL:
+              </p>
+              <ul className="list-disc pl-4 text-[10px] space-y-0.5">
+                <li>Template Message Sent</li>
+                <li>Sent Message is Delivered</li>
+                <li>Sent Message is Read</li>
+              </ul>
+              <p className="text-[10px]">
+                Click Refresh — Webee also polls WATI for status on recent sends. New campaigns track read
+                reliably; older sends may stay at “sent”.
+              </p>
+            </div>
+          )}
+          <Button
+            size="sm"
+            variant="outline"
+            className="gap-1.5 ml-auto"
+            onClick={() => syncWati.mutate()}
+            disabled={syncWati.isPending}
+          >
+            {syncWati.isPending ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            ) : (
+              <RefreshCw className="h-3.5 w-3.5" />
+            )}
+            Refresh WATI stats
+          </Button>
+        </div>
+      )}
+
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-5">
         <KpiCard
           label="Messages Sent"
@@ -199,9 +268,9 @@ export function WhatsAppAnalytics() {
                 provider: "Twilio",
                 color: "text-blue-400 border-blue-500/30",
                 dot: "bg-blue-500",
-                sent: data.sent,
-                delivered: data.delivered,
-                read: data.read,
+                sent: data.providers?.twilio?.sent ?? 0,
+                delivered: data.providers?.twilio?.delivered ?? 0,
+                read: data.providers?.twilio?.read ?? 0,
                 always: true,
               },
               {
@@ -219,9 +288,9 @@ export function WhatsAppAnalytics() {
                       provider: "WATI",
                       color: "text-purple-400 border-purple-500/30",
                       dot: "bg-purple-500",
-                      sent: watiTotalSent,
-                      delivered: watiTotalDelivered,
-                      read: watiTotalRead,
+                      sent: watiBreakdownSent,
+                      delivered: watiBreakdownDelivered,
+                      read: watiBreakdownRead,
                       always: false,
                     },
                   ]

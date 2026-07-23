@@ -18,6 +18,7 @@ import {
   enrichWbahCallRowsWithBookings,
   findWbahBookingCall,
   resolveWbahBookingFields,
+  loadWbahCrmBookingByDigits,
   phoneDigits,
   isWbahRecordBooked,
   listWbahBookedContacts,
@@ -26,6 +27,8 @@ import {
 import { getWbahCallsAggregate } from "./wbah-leads.server";
 import { recordSyncState } from "@/lib/sync-state/sync-state.server";
 import { cacheWrap, cacheGet, cacheSet } from "@/lib/cache/redis.server";
+import { requireActiveWbahWorkspace } from "@/lib/wbah-exclusion.shared";
+import { mergeInferredWbahBookingFields } from "@/lib/dashboard/wbah-call-booking-display";
 import * as api from "./client.server";
 import { wbahCallsParamTest, wbahCallsPostPage, wbahLeadsParamTest } from "./client.server";
 import { getCampaignData } from "@/lib/api-engine/data-source-router.server";
@@ -707,6 +710,7 @@ export const syncWbahDynamicsCategories = createServerFn({ method: "POST" })
 export const getWbahCampaigns = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
+    requireActiveWbahWorkspace(context.workspaceId);
     // Enforce WBAH membership / platform-admin BEFORE any data path (engine or
     // direct) so engine-routed campaign rows can never leak to a non-member.
     const cbs = await requireWbahCbs(context.userId);
@@ -903,7 +907,7 @@ export const getWbahCredits = createServerFn({ method: "GET" })
 export const getWbahCampaignLeadStatusOptions = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
-    await requireWbahView(context.userId);
+    await requireWbahView(context.userId, context.workspaceId);
     const cbs = await requireWbahCbs(context.userId);
     try {
       const res = await api.wbahGetCampaignLeadStatusOptions(
@@ -1119,7 +1123,7 @@ export const listWbahLeads = createServerFn({ method: "GET" })
   .handler(async ({ context }) => {
     // SECURITY: membership check MUST run before any data read (router or direct) —
     // engine-routed rows would otherwise leak to authenticated non-WBAH users (IDOR).
-    await requireWbahView(context.userId);
+    await requireWbahView(context.userId, context.workspaceId);
     // Try DataSourceRouter first — routes through engine when a profile is configured
     try {
       const { getPeopleData } = await import("@/lib/api-engine/data-source-router.server");
@@ -1544,7 +1548,7 @@ export const listWbahCalls = createServerFn({ method: "GET" })
   .handler(async ({ context }) => {
     // SECURITY: membership check MUST run before any data read (router or direct) —
     // engine-routed rows would otherwise leak to authenticated non-WBAH users (IDOR).
-    await requireWbahView(context.userId);
+    await requireWbahView(context.userId, context.workspaceId);
     // Try DataSourceRouter first — routes through engine when a profile is configured
     try {
       const { getCallsData } = await import("@/lib/api-engine/data-source-router.server");
@@ -1795,7 +1799,7 @@ export const listWbahCrmContacts = createServerFn({ method: "GET" })
   .handler(async ({ context }) => {
     // SECURITY: membership check MUST run before any data read (router or direct) —
     // engine-routed rows would otherwise leak to authenticated non-WBAH users (IDOR).
-    await requireWbahView(context.userId);
+    await requireWbahView(context.userId, context.workspaceId);
     // Try DataSourceRouter first — routes through engine when a profile is configured
     try {
       const { getCRMData } = await import("@/lib/api-engine/data-source-router.server");
@@ -2060,6 +2064,7 @@ async function readWbahCallsRows(supabase: any, workspaceId: string, opts?: { li
     lead: r.customer_name ? { id: r.id, full_name: r.customer_name, phone: r.phone ?? "" } : null,
     wbah_name: r.customer_name,
     wbah_contact: r.phone,
+    phone: r.phone,
     appointment_date: r.appointment_date,
     appointment_time: r.appointment_time,
     booking_status: r.booking_status,
@@ -2106,6 +2111,7 @@ export const listWbahCallsCount = createServerFn({ method: "GET" })
   .handler(async ({ context }) => {
     const { supabase, workspaceId } = context;
     if (!workspaceId) throw new Error("No active workspace");
+    requireActiveWbahWorkspace(workspaceId);
     return cacheWrap(`webee:wbah-calls-count:${workspaceId}`, 2 * 60, async () => {
       const sb = supabase as any;
       const { count, error } = await sb
@@ -2234,6 +2240,7 @@ export const listWbahCallsPaged = createServerFn({ method: "POST" })
         srNo: from + i + 1,
         name: r.customer_name ?? null,
         contact: r.phone ?? null,
+        phone: r.phone ?? null,
         email: null,
         callType: r.call_type ?? "outbound",
         callStatus: r.call_status,
@@ -2241,8 +2248,12 @@ export const listWbahCallsPaged = createServerFn({ method: "POST" })
         disconnectionReason: r.disconnection_reason,
         appointmentDate: r.appointment_date ?? null,
         appointmentTime: r.appointment_time ?? null,
+        appointment_date: r.appointment_date ?? null,
+        appointment_time: r.appointment_time ?? null,
         bookingStatus: r.booking_status ?? null,
+        booking_status: r.booking_status ?? null,
         calendlyBookingUrl: r.calendly_booking_url ?? null,
+        calendly_booking_url: r.calendly_booking_url ?? null,
         agentName: r.agent_name ?? null,
         startTimestamp: r.started_at ? new Date(r.started_at).getTime() : null,
         durationMs: r.duration_seconds ? r.duration_seconds * 1000 : null,
@@ -2255,8 +2266,17 @@ export const listWbahCallsPaged = createServerFn({ method: "POST" })
         hasTranscript: !!(r.transcript && String(r.transcript).trim()),
       }));
 
-      const result = { rows: mapped, total: count ?? 0, page, pageSize };
-      logWbahResponse("listWbahCallsPaged", workspaceId, mapped.length, result, {
+      const enriched = await enrichWbahCallRowsWithBookings(supabaseAdmin, workspaceId, mapped);
+      const rowsOut = enriched.map((r: any) => ({
+        ...r,
+        appointmentDate: r.appointment_date ?? r.appointmentDate ?? null,
+        appointmentTime: r.appointment_time ?? r.appointmentTime ?? null,
+        bookingStatus: r.booking_status ?? r.bookingStatus ?? null,
+        calendlyBookingUrl: r.calendly_booking_url ?? r.calendlyBookingUrl ?? null,
+      }));
+
+      const result = { rows: rowsOut, total: count ?? 0, page, pageSize };
+      logWbahResponse("listWbahCallsPaged", workspaceId, rowsOut.length, result, {
         page,
         pageSize,
         filters: filtersHash,
@@ -2312,21 +2332,87 @@ export const getWbahCallDetail = createServerFn({ method: "POST" })
   .handler(async ({ context, data }) => {
     const { supabase, workspaceId } = context;
     if (!workspaceId) throw new Error("No active workspace");
+    requireActiveWbahWorkspace(workspaceId);
     const sb = supabase as any;
+
+    // Light refresh so polling picks up call_analyzed fields from WeeBespoke.
+    void refreshWbahLiveData(workspaceId, { lightBackfill: true });
+
     const { data: row, error } = await sb
       .from("wbah_calls")
       .select(
-        "id, transcript, call_summary, recording_url, disconnection_reason, end_reason, sentiment, started_at, duration_seconds",
+        "id, transcript, call_summary, recording_url, disconnection_reason, end_reason, sentiment, started_at, duration_seconds, call_status, appointment_date, appointment_time, booking_status, calendly_booking_url, customer_name, phone, agent_name, meta",
       )
       .eq("workspace_id", workspaceId)
       .eq("id", data.id)
       .maybeSingle();
     if (error) throw new Error(error.message);
+
+    let postCall: Record<string, unknown> = {};
+    const meta = (row?.meta ?? {}) as Record<string, unknown>;
+    if (meta.custom_analysis && typeof meta.custom_analysis === "object") {
+      postCall = { ...postCall, ...(meta.custom_analysis as Record<string, unknown>) };
+    }
+    if (meta.dynamic_variables && typeof meta.dynamic_variables === "object") {
+      postCall = { ...postCall, ...(meta.dynamic_variables as Record<string, unknown>) };
+    }
+    if (!Object.keys(postCall).length && String(data.id).startsWith("call_")) {
+      try {
+        const { retellFetch } = await import("@/lib/providers/retell/client.server");
+        const apiKey = await requireWbahRetellKey(context.userId);
+        const retellCall = await retellFetch<Record<string, unknown>>(
+          `/v2/get-call/${data.id}`,
+          null,
+          "GET",
+          apiKey,
+        );
+        const custom = (retellCall?.call_analysis as Record<string, unknown> | undefined)
+          ?.custom_analysis_data;
+        const dv =
+          retellCall?.retell_llm_dynamic_variables ??
+          retellCall?.collected_dynamic_variables ??
+          {};
+        if (custom && typeof custom === "object") {
+          postCall = { ...postCall, ...(custom as Record<string, unknown>) };
+        }
+        if (dv && typeof dv === "object") {
+          postCall = { ...postCall, ...(dv as Record<string, unknown>) };
+        }
+      } catch {
+        /* Retell optional — DB/meta may already have post-call fields after next sync */
+      }
+    }
+
+    const crmBookingByDigits = await loadWbahCrmBookingByDigits(supabaseAdmin, workspaceId);
+    const crm = row?.phone ? crmBookingByDigits.get(phoneDigits(row.phone)) ?? null : null;
+    const appt = resolveWbahBookingFields(row ?? {}, row ?? {}, crm);
+    const inferred = mergeInferredWbahBookingFields({
+      event: null,
+      appointment_date: appt.appointment_date ?? null,
+      appointment_time: appt.appointment_time ?? null,
+      booking_status: appt.booking_status ?? null,
+      sentimentAnalysis: row?.sentiment ?? null,
+      calendly_booking_url: appt.calendly_booking_url ?? null,
+      call_summary: row?.call_summary ?? null,
+      call_status: row?.call_status ?? null,
+    });
+
     return {
       id: data.id,
       transcript: row?.transcript ?? null,
       callSummary: row?.call_summary ?? null,
       recordingUrl: row?.recording_url ?? null,
+      sentiment: row?.sentiment ?? null,
+      callStatus: row?.call_status ?? null,
+      appointment_date: inferred.appointment_date ?? null,
+      appointment_time: inferred.appointment_time ?? null,
+      booking_status: inferred.booking_status ?? null,
+      calendly_booking_url: inferred.calendly_booking_url ?? null,
+      customer_name: row?.customer_name ?? null,
+      phone: row?.phone ?? null,
+      agent_name: row?.agent_name ?? null,
+      postCall: Object.keys(postCall).length ? postCall : null,
+      meta: row?.meta ?? null,
     };
   });
 
@@ -3065,7 +3151,11 @@ async function listWbahCrmLoadedCategory(
 
 // Resolve the WBAH workspace id + enforce that the caller can view it. Shared by
 // the People category endpoints below.
-async function requireWbahView(userId: string): Promise<string> {
+async function requireWbahView(
+  userId: string,
+  activeWorkspaceId: string | null | undefined,
+): Promise<string> {
+  requireActiveWbahWorkspace(activeWorkspaceId);
   const { data: ws } = await (supabaseAdmin as any)
     .from("workspaces")
     .select("id")
@@ -3094,7 +3184,7 @@ async function requireWbahView(userId: string): Promise<string> {
 export const listWbahPeopleCategories = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
-    const wsId = await requireWbahView(context.userId);
+    const wsId = await requireWbahView(context.userId, context.workspaceId);
     const cbs = await requireWbahCbs(context.userId);
     return cacheWrap(`webee:wbah-people-crm-counts:${wsId}`, 2 * 60, async () => {
       const { listWbahCrmPeopleCategories } = await import("./wbah-people-crm.server");
@@ -3125,7 +3215,8 @@ export const listWbahCategorizedLeads = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     const { workspaceId } = context;
     if (!workspaceId) throw new Error("No active workspace");
-    await requireWbahView(context.userId);
+    requireActiveWbahWorkspace(workspaceId);
+    await requireWbahView(context.userId, workspaceId);
     const cbs = await requireWbahCbs(context.userId);
     const {
       listWbahCrmCategorizedLeads,
@@ -3151,7 +3242,7 @@ const wbahCallbackStatusSchema = z.enum(["pending", "due", "upcoming", "complete
 export const getWbahCallbackSummary = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
-    const wsId = await requireWbahView(context.userId);
+    const wsId = await requireWbahView(context.userId, context.workspaceId);
     const cbs = await requireWbahCbs(context.userId);
     const { normalizeCallbackSummary, unwrapWbahEnvelope } = await import(
       "./wbah-callbacks.types"
@@ -3179,7 +3270,7 @@ export const listWbahCallbacks = createServerFn({ method: "POST" })
     }),
   )
   .handler(async ({ data, context }) => {
-    const wsId = await requireWbahView(context.userId);
+    const wsId = await requireWbahView(context.userId, context.workspaceId);
     const cbs = await requireWbahCbs(context.userId);
     const { normalizeCallbackRow, unwrapWbahEnvelope } = await import("./wbah-callbacks.types");
     const searchKey = (data.search ?? "").slice(0, 40);
@@ -3298,6 +3389,7 @@ export const listWbahPositiveNeutralLeads = createServerFn({ method: "GET" })
     const t0 = Date.now();
     const { workspaceId } = context;
     if (!workspaceId) throw new Error("No active workspace");
+    requireActiveWbahWorkspace(workspaceId);
     void refreshWbahLiveData(workspaceId, { lightBackfill: true });
 
     const { byPhone, crmBookingByDigits } = await getWbahCallsAggregate(workspaceId);
@@ -3453,6 +3545,7 @@ export const listWbahQualifiedLeads = createServerFn({ method: "GET" })
   .handler(async ({ context }) => {
     const { workspaceId, userId } = context;
     if (!workspaceId) throw new Error("No active workspace");
+    requireActiveWbahWorkspace(workspaceId);
     void refreshWbahLiveData(workspaceId, { lightBackfill: true });
 
     const { all, byPhone, crmBookingByDigits } = await getWbahCallsAggregate(workspaceId);

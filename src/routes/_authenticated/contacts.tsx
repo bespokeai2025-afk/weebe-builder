@@ -25,6 +25,13 @@ import type { NotesEntityType } from "@/components/dashboard/NotesBookingSheet";
 import { listWbahLeads } from "@/lib/integrations/webespokeEnterprise/wbah-workspace.server";
 import { useWbahAgentOptions } from "@/hooks/useWbahAgentOptions";
 import { wbahDateTimeOptions } from "@/lib/dashboard/wbah-timezone";
+import {
+  resolveWbahBookingUiState,
+  wbahAppointmentDateCell,
+  wbahAppointmentTimeCell,
+  wbahBookingStatusCell,
+  wbahCalendlyCell,
+} from "@/lib/dashboard/wbah-call-booking-display";
 import { useTablePagination, TablePagBar } from "@/components/ui/table-pagination";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
@@ -375,32 +382,55 @@ function WbahLeadsSection() {
               </button>
             </div>
             <div className="grid grid-cols-2 gap-x-6 gap-y-2 text-xs">
-              {([
+              {(() => {
+                const bookingUi = resolveWbahBookingUiState(viewRecord as Record<string, unknown>);
+                const apptDate =
+                  bookingUi.kind === "pending"
+                    ? bookingUi.label
+                    : bookingUi.kind === "booked"
+                      ? bookingUi.dateLabel
+                      : bookingUi.kind === "positive_no_booking"
+                        ? "—"
+                        : bookingUi.dateLabel;
+                const apptTime =
+                  bookingUi.kind === "booked"
+                    ? bookingUi.timeLabel
+                    : bookingUi.kind === "normal"
+                      ? bookingUi.timeLabel
+                      : "—";
+                const bookingStatus =
+                  bookingUi.kind === "pending"
+                    ? "—"
+                    : bookingUi.kind === "positive_no_booking"
+                      ? bookingUi.label
+                      : bookingUi.kind === "booked"
+                        ? bookingUi.statusLabel
+                        : bookingUi.statusLabel;
+                return ([
                 ["Type",                viewRecord.type],
                 ["Call Status",         viewRecord.callStatus],
                 ["Call Duration",       viewRecord.callDuration],
                 ["Sentiment",           viewRecord.sentiment],
                 ["Last Called At",      viewRecord.lastCalledAt ? new Date(viewRecord.lastCalledAt).toLocaleString(undefined, wbahDateTimeOptions(true)) : null],
-                ["Appointment Date",    viewRecord.appointmentDate],
-                ["Appointment Time",    viewRecord.appointmentTime],
-                ["Booking Status",      viewRecord.bookingStatus],
+                ["Appointment Date",    apptDate],
+                ["Appointment Time",    apptTime],
+                ["Booking Status",      bookingStatus],
                 ["End Reason",          viewRecord.endReason],
                 ["Disconnection Reason",viewRecord.disconnectionReason],
                 ["Agent",               viewRecord.agentName],
               ] as [string, any][]).map(([label, val]) => (
                 <div key={label}>
                   <p className="text-[10px] font-semibold uppercase tracking-[0.1em] text-muted-foreground">{label}</p>
-                  <p className="mt-0.5 text-foreground/80">{val ?? "N/A"}</p>
+                  <p className="mt-0.5 text-foreground/80">{val ?? "—"}</p>
                 </div>
-              ))}
-              {viewRecord.calendlyBookingUrl && (
-                <div className="col-span-2">
-                  <p className="text-[10px] font-semibold uppercase tracking-[0.1em] text-muted-foreground">Calendly URL</p>
-                  <a href={viewRecord.calendlyBookingUrl} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline break-all">
-                    {viewRecord.calendlyBookingUrl}
-                  </a>
-                </div>
-              )}
+              ));
+              })()}
+              <div className="col-span-2">
+                <p className="text-[10px] font-semibold uppercase tracking-[0.1em] text-muted-foreground">Calendly URL</p>
+                <p className="mt-0.5 text-foreground/80 text-[11px]">
+                  {wbahCalendlyCell(viewRecord as Record<string, unknown>)}
+                </p>
+              </div>
             </div>
           </div>
         </div>
@@ -606,13 +636,11 @@ function WbahLeadsSection() {
                         View
                       </button>
                     </td>
-                    <td className="px-3 py-1.5 text-[11px] text-muted-foreground whitespace-nowrap">{r.appointmentDate ?? "N/A"}</td>
-                    <td className="px-3 py-1.5 text-[11px] text-muted-foreground whitespace-nowrap">{r.appointmentTime ?? "N/A"}</td>
-                    <td className="px-3 py-1.5 text-[11px] text-muted-foreground whitespace-nowrap">{r.bookingStatus ?? "N/A"}</td>
+                    <td className="px-3 py-1.5 text-[11px] text-muted-foreground whitespace-nowrap">{wbahAppointmentDateCell(r)}</td>
+                    <td className="px-3 py-1.5 text-[11px] text-muted-foreground whitespace-nowrap">{wbahAppointmentTimeCell(r)}</td>
+                    <td className="px-3 py-1.5 text-[11px] text-muted-foreground whitespace-nowrap">{wbahBookingStatusCell(r)}</td>
                     <td className="px-3 py-1.5 text-[11px] text-muted-foreground whitespace-nowrap">
-                      {r.calendlyBookingUrl
-                        ? <a href={r.calendlyBookingUrl} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">Link</a>
-                        : "N/A"}
+                      {wbahCalendlyCell(r)}
                     </td>
                     <td className="px-3 py-1.5 text-[11px] text-muted-foreground whitespace-nowrap">{r.endReason ?? "N/A"}</td>
                     <td className="px-3 py-1.5 text-[11px] text-muted-foreground whitespace-nowrap">{r.disconnectionReason ?? "N/A"}</td>

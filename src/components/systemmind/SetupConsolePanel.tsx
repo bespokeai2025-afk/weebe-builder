@@ -247,8 +247,8 @@ const CRED_FIELDS: Record<string, Array<{ key: string; label: string; secret?: b
     { key: "tenantId",     label: "Tenant ID" },
     { key: "clientId",     label: "Client ID" },
     { key: "clientSecret", label: "Client Secret", secret: true },
-    { key: "orgUrl",       label: "Organization URL" },
-    { key: "environmentUrl", label: "Environment URL" },
+    { key: "orgUrl",       label: "Organization URL (Dataverse)" },
+    { key: "environmentUrl", label: "Environment URL (optional if same as org)" },
   ],
   hubspot:     [{ key: "apiKey", label: "Private App Token", secret: true }],
   salesforce:  [
@@ -264,6 +264,15 @@ const CRED_FIELDS: Record<string, Array<{ key: string; label: string; secret?: b
   ],
   gohighlevel: [{ key: "apiKey", label: "API Key", secret: true }],
   custom:      [{ key: "apiKey", label: "API Key / Bearer Token", secret: true }],
+};
+
+const CRM_REQUIRED_CRED_KEYS: Record<string, string[]> = {
+  dynamics: ["tenantId", "clientId", "clientSecret", "orgUrl"],
+  hubspot: ["apiKey"],
+  salesforce: ["instanceUrl", "accessToken"],
+  pipedrive: ["apiKey"],
+  gohighlevel: ["apiKey"],
+  custom: ["apiKey"],
 };
 
 const CONN_BADGE: Record<string, { text: string; cls: string }> = {
@@ -290,6 +299,9 @@ export function CredentialsPanel({
   const externalCrm = !["none", "webee"].includes(provider);
   const [creds, setCreds] = useState<Record<string, string>>({});
   const [nonSecret, setNonSecret] = useState<Record<string, string>>({});
+  const savedCreds = !["not_connected", "missing_credentials"].includes(crm.connectionStatus);
+  const hasDraftCreds = Object.values(creds).some((v) => v.trim().length > 0);
+  const canTestConnection = savedCreds || hasDraftCreds;
 
   const update = useMutation({
     mutationFn: (crmPatch: Record<string, unknown>) =>
@@ -308,6 +320,12 @@ export function CredentialsPanel({
     mutationFn: async () => {
       const filled = Object.fromEntries(Object.entries(creds).filter(([, v]) => v.trim()));
       if (!Object.keys(filled).length) throw new Error("Enter at least one credential value first.");
+      const required = CRM_REQUIRED_CRED_KEYS[provider] ?? [];
+      const missing = required.filter((k) => !String(filled[k] ?? "").trim());
+      if (missing.length > 0) {
+        const labels = missing.map((k) => CRED_FIELDS[provider]?.find((f) => f.key === k)?.label ?? k);
+        throw new Error(`Missing required fields: ${labels.join(", ")}`);
+      }
       await saveCredFn({ data: { category: "crm", providerName: provider, credentials: filled } });
       return refreshFn({ data: { sessionId } });
     },
@@ -321,6 +339,9 @@ export function CredentialsPanel({
 
   const testConn = useMutation({
     mutationFn: async () => {
+      if (!savedCreds && hasDraftCreds) {
+        await saveCreds.mutateAsync();
+      }
       const r: any = await testCredFn({ data: { category: "crm", providerName: provider } });
       if (!r.ok) throw new Error(r.error ?? "Connection test failed");
       return refreshFn({ data: { sessionId } });
@@ -336,7 +357,6 @@ export function CredentialsPanel({
 
   const badge = CONN_BADGE[crm.connectionStatus] ?? CONN_BADGE.not_connected;
   const fields = CRED_FIELDS[provider] ?? [];
-  const savedCreds = !["not_connected", "missing_credentials"].includes(crm.connectionStatus);
 
   return (
     <Card id="setup-crm-credentials">
@@ -423,7 +443,7 @@ export function CredentialsPanel({
               {saveCreds.isPending ? <Loader2 className="mr-1 h-3 w-3 animate-spin" /> : <ShieldCheck className="mr-1 h-3 w-3" />}
               Save credentials
             </Button>
-            <Button size="sm" variant="secondary" className="h-7 text-xs" disabled={testConn.isPending || !savedCreds} onClick={() => testConn.mutate()}>
+            <Button size="sm" variant="secondary" className="h-7 text-xs" disabled={testConn.isPending || saveCreds.isPending || !canTestConnection} onClick={() => testConn.mutate()}>
               {testConn.isPending ? <Loader2 className="mr-1 h-3 w-3 animate-spin" /> : <RefreshCw className="mr-1 h-3 w-3" />}
               Test connection
             </Button>
