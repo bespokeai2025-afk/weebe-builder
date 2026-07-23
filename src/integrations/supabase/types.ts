@@ -7657,6 +7657,104 @@ export type Database = {
           },
         ]
       }
+      hivemind_recommendations: {
+        Row: {
+          approval_required: boolean
+          business_issue: string
+          commercial_impact: string | null
+          confidence: number
+          correlation_key: string | null
+          created_at: string
+          data_freshness: Json
+          dedupe_key: string
+          department: string
+          due_date: string | null
+          evidence: Json
+          id: string
+          next_step: string | null
+          priority: string
+          reassess_at: string | null
+          recommended_action: string
+          related_entities: Json
+          result: string | null
+          risk_of_inaction: string | null
+          source: string
+          source_event_ids: string[]
+          source_systems: string[]
+          status: string
+          suggested_owner: string | null
+          title: string
+          updated_at: string
+          workspace_id: string
+        }
+        Insert: {
+          approval_required?: boolean
+          business_issue: string
+          commercial_impact?: string | null
+          confidence?: number
+          correlation_key?: string | null
+          created_at?: string
+          data_freshness?: Json
+          dedupe_key: string
+          department?: string
+          due_date?: string | null
+          evidence?: Json
+          id?: string
+          next_step?: string | null
+          priority?: string
+          reassess_at?: string | null
+          recommended_action: string
+          related_entities?: Json
+          result?: string | null
+          risk_of_inaction?: string | null
+          source?: string
+          source_event_ids?: string[]
+          source_systems?: string[]
+          status?: string
+          suggested_owner?: string | null
+          title: string
+          updated_at?: string
+          workspace_id: string
+        }
+        Update: {
+          approval_required?: boolean
+          business_issue?: string
+          commercial_impact?: string | null
+          confidence?: number
+          correlation_key?: string | null
+          created_at?: string
+          data_freshness?: Json
+          dedupe_key?: string
+          department?: string
+          due_date?: string | null
+          evidence?: Json
+          id?: string
+          next_step?: string | null
+          priority?: string
+          reassess_at?: string | null
+          recommended_action?: string
+          related_entities?: Json
+          result?: string | null
+          risk_of_inaction?: string | null
+          source?: string
+          source_event_ids?: string[]
+          source_systems?: string[]
+          status?: string
+          suggested_owner?: string | null
+          title?: string
+          updated_at?: string
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "hivemind_recommendations_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       hivemind_reconciliation_state: {
         Row: {
           created_at: string
@@ -7702,15 +7800,23 @@ export type Database = {
         Row: {
           assigned_to: string | null
           comments: Json
+          completion_evidence: Json | null
           created_at: string
+          department: string | null
+          dependencies: Json | null
           description: string | null
           due_date: string | null
           entity_id: string | null
           entity_name: string | null
           entity_type: string | null
+          escalated_at: string | null
+          evidence: Json | null
           id: string
           metadata: Json | null
           priority: string
+          reason: string | null
+          reassess_at: string | null
+          reopened_count: number
           source: string
           status: string
           title: string
@@ -7721,15 +7827,23 @@ export type Database = {
         Insert: {
           assigned_to?: string | null
           comments?: Json
+          completion_evidence?: Json | null
           created_at?: string
+          department?: string | null
+          dependencies?: Json | null
           description?: string | null
           due_date?: string | null
           entity_id?: string | null
           entity_name?: string | null
           entity_type?: string | null
+          escalated_at?: string | null
+          evidence?: Json | null
           id?: string
           metadata?: Json | null
           priority?: string
+          reason?: string | null
+          reassess_at?: string | null
+          reopened_count?: number
           source?: string
           status?: string
           title: string
@@ -7740,15 +7854,23 @@ export type Database = {
         Update: {
           assigned_to?: string | null
           comments?: Json
+          completion_evidence?: Json | null
           created_at?: string
+          department?: string | null
+          dependencies?: Json | null
           description?: string | null
           due_date?: string | null
           entity_id?: string | null
           entity_name?: string | null
           entity_type?: string | null
+          escalated_at?: string | null
+          evidence?: Json | null
           id?: string
           metadata?: Json | null
           priority?: string
+          reason?: string | null
+          reassess_at?: string | null
+          reopened_count?: number
           source?: string
           status?: string
           title?: string

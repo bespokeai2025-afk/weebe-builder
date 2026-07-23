@@ -175,11 +175,197 @@ const integrationFailuresJob: ReconJob = {
   },
 };
 
+/** 6-hourly: full executive reasoning run (Stage 2) — turns classified events
+ * + department signals into evidence-backed recommendations and tasks. */
+const executiveReasoningJob: ReconJob = {
+  key: "executive_reasoning",
+  intervalMs: 6 * HOUR,
+  run: async (sb, workspaceId) => {
+    const { runExecutiveReasoning } = await import("@/lib/hivemind/executive-reasoning.server");
+    const { isWbahWorkspaceId } = await import("@/lib/wbah-exclusion.shared");
+    const res = await runExecutiveReasoning(sb, workspaceId, isWbahWorkspaceId(workspaceId));
+    if (!res.ok) throw new Error(res.error ?? "reasoning run failed");
+    return { ...res } as unknown as Record<string, unknown>;
+  },
+};
+
+// ── Task accountability (Stage 2) ─────────────────────────────────────────────
+//
+// Deterministic re-checks per trigger_type: has the underlying signal that
+// created a task actually recovered? Used when a completed task's reassess_at
+// arrives — if the signal persists, the task is reopened.
+const TRIGGER_RECHECKS: Record<
+  string,
+  (sb: Sb, workspaceId: string, entityId: string) => Promise<boolean> // true = signal persists
+> = {
+  lead_stale: async (sb, workspaceId) => {
+    // WBAH split: never query the oversized `leads` table for WBAH — skip
+    // the recheck (signal treated as cleared; WBAH lead flows are manual).
+    const { isWbahWorkspaceId } = await import("@/lib/wbah-exclusion.shared");
+    if (isWbahWorkspaceId(workspaceId)) return false;
+    const cutoff = new Date(Date.now() - 7 * 24 * HOUR).toISOString();
+    const { count } = await sb.from("leads")
+      .select("id", { count: "exact", head: true })
+      .eq("workspace_id", workspaceId)
+      .eq("status", "need_to_call")
+      .lt("updated_at", cutoff);
+    return (count ?? 0) >= 5;
+  },
+  workflow_failed: async (sb, workspaceId, entityId) => {
+    // entityId is a workflow_run id; look up its workflow, then check for
+    // fresh failures of the same workflow in the last 24h.
+    const { data: run } = await sb.from("workflow_runs")
+      .select("workflow_id").eq("id", entityId).eq("workspace_id", workspaceId).maybeSingle();
+    if (!run?.workflow_id) return false;
+    const { count } = await sb.from("workflow_runs")
+      .select("id", { count: "exact", head: true })
+      .eq("workspace_id", workspaceId)
+      .eq("workflow_id", run.workflow_id)
+      .eq("status", "failed")
+      .gte("completed_at", new Date(Date.now() - 24 * HOUR).toISOString());
+    return (count ?? 0) > 0;
+  },
+  booking_missed: async (sb, workspaceId, entityId) => {
+    const { data: b } = await sb.from("calendar_bookings")
+      .select("status").eq("id", entityId).eq("workspace_id", workspaceId).maybeSingle();
+    return !!b && ["pending", "accepted"].includes(String(b.status));
+  },
+  integration_disconnected: async (sb, workspaceId, entityId) => {
+    const [category, ...rest] = entityId.split(":");
+    const provider = rest.join(":");
+    if (!category || !provider) return false;
+    const { data: p } = await sb.from("provider_settings")
+      .select("status")
+      .eq("workspace_id", workspaceId)
+      .eq("provider_category", category)
+      .eq("provider_name", provider)
+      .maybeSingle();
+    return p?.status === "error";
+  },
+};
+
+/** 6-hourly: overdue-task escalation, completed-task reassessment (reopen if
+ * the underlying signal persists), and expiry of untouched recommendations. */
+const taskAccountabilityJob: ReconJob = {
+  key: "task_accountability",
+  intervalMs: 6 * HOUR,
+  run: async (sb, workspaceId) => {
+    const nowIso = new Date().toISOString();
+    const day = nowIso.slice(0, 10);
+    let escalated = 0, reopened = 0, closedReassess = 0, expiredRecs = 0;
+
+    // 1. Overdue, not-completed tasks → escalation event (deduped per task/day).
+    const { data: overdue } = await sb.from("hivemind_tasks")
+      .select("id, title, status, due_date, escalated_at")
+      .eq("workspace_id", workspaceId)
+      .in("status", ["suggested", "approved", "in_progress"])
+      .not("due_date", "is", null)
+      .lt("due_date", nowIso)
+      .limit(50);
+    for (const t of overdue ?? []) {
+      // Escalate at most once per 24h per task.
+      if (t.escalated_at && Date.now() - new Date(t.escalated_at).getTime() < 24 * HOUR) continue;
+      await publish(sb, {
+        workspaceId,
+        eventType: "task_overdue",
+        sourceSystem: "hivemind",
+        severity: "warning",
+        title: `Task overdue: ${String(t.title).slice(0, 120)}`,
+        summary: `Task "${String(t.title).slice(0, 120)}" passed its due date (${String(t.due_date).slice(0, 10)}) and is still ${t.status}.`,
+        entityType: "hivemind_task",
+        entityId: String(t.id),
+        dedupKey: `task_overdue:${t.id}:${day}`,
+        evidence: { taskId: t.id, dueDate: t.due_date, status: t.status },
+      });
+      await sb.from("hivemind_tasks")
+        .update({ escalated_at: nowIso })
+        .eq("id", t.id).eq("workspace_id", workspaceId);
+      escalated++;
+    }
+
+    // 2. Completed tasks whose reassess_at has arrived → recheck the signal.
+    const { data: due } = await sb.from("hivemind_tasks")
+      .select("id, title, trigger_type, entity_id, reopened_count")
+      .eq("workspace_id", workspaceId)
+      .eq("status", "completed")
+      .not("reassess_at", "is", null)
+      .lt("reassess_at", nowIso)
+      .limit(50);
+    for (const t of due ?? []) {
+      const recheck = TRIGGER_RECHECKS[String(t.trigger_type)];
+      let persists = false;
+      if (recheck) {
+        try { persists = await recheck(sb, workspaceId, String(t.entity_id ?? "")); }
+        catch { persists = false; }
+      }
+      if (persists) {
+        const { error: reopenErr } = await sb.from("hivemind_tasks")
+          .update({
+            status: "suggested",
+            reopened_count: (t.reopened_count ?? 0) + 1,
+            reassess_at: new Date(Date.now() + 7 * 24 * HOUR).toISOString(),
+          })
+          .eq("id", t.id).eq("workspace_id", workspaceId);
+        if (reopenErr) {
+          // Unique open-task index conflict: a fresh open task for the same
+          // (trigger, entity) already exists — keep this one completed and
+          // stop reassessing it.
+          await sb.from("hivemind_tasks")
+            .update({ reassess_at: null })
+            .eq("id", t.id).eq("workspace_id", workspaceId);
+          closedReassess++;
+          continue;
+        }
+        await publish(sb, {
+          workspaceId,
+          eventType: "task_reopened",
+          sourceSystem: "hivemind",
+          severity: "warning",
+          title: `Reopened: ${String(t.title).slice(0, 120)} — underlying signal persists`,
+          summary: `Task was completed but the "${t.trigger_type}" condition still holds on re-check.`,
+          entityType: "hivemind_task",
+          entityId: String(t.id),
+          dedupKey: `task_reopened:${t.id}:${day}`,
+          evidence: { taskId: t.id, triggerType: t.trigger_type, reopenedCount: (t.reopened_count ?? 0) + 1 },
+        });
+        reopened++;
+      } else {
+        // Signal cleared (or no recheck exists) — stop reassessing.
+        await sb.from("hivemind_tasks")
+          .update({ reassess_at: null })
+          .eq("id", t.id).eq("workspace_id", workspaceId);
+        closedReassess++;
+      }
+    }
+
+    // 3. Recommendations never touched by reassess time → expired.
+    const { data: staleRecs } = await sb.from("hivemind_recommendations")
+      .select("id")
+      .eq("workspace_id", workspaceId)
+      .eq("status", "new")
+      .not("reassess_at", "is", null)
+      .lt("reassess_at", nowIso)
+      .limit(100);
+    if (staleRecs?.length) {
+      await sb.from("hivemind_recommendations")
+        .update({ status: "expired", updated_at: nowIso })
+        .eq("workspace_id", workspaceId)
+        .in("id", staleRecs.map((r: any) => r.id))
+        .eq("status", "new");
+      expiredRecs = staleRecs.length;
+    }
+
+    return { escalated, reopened, closedReassess, expiredRecs };
+  },
+};
+
 const RECON_JOBS: ReconJob[] = [
   failedWorkflowsJob,
   missedAppointmentsJob,
   integrationFailuresJob,
   staleLeadsJob,
+  executiveReasoningJob,
+  taskAccountabilityJob,
 ];
 
 /** Exported for e2e tests only — validates jobs against the real schema. */

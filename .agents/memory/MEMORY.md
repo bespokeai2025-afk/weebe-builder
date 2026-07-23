@@ -141,5 +141,6 @@
 - [HiveMind executive event backbone](hivemind-executive-events.md) — never-throw publisher + dedup key; mirror runs before notif prefs; recon reads local tables via CAS claims; classifier stays deterministic.
 - [HiveMind data connections](hivemind-data-connections.md) — per-block degradation rule; suppressed_emails only via own failed sends; WBAH bookings = wbah_calls appointment fields, never calendar_bookings.
 - [SystemMind Build Setup Console](systemmind-setup-console.md) — per-session setup state gates Apply only when a row exists; secrets never in setup table; extend computeRequiredInputs for new checks.
+- [HiveMind open-task atomic dedup](hivemind-open-task-dedup.md) — partial unique index on open (ws,trigger,entity); insert row-by-row, 23505 = deduped; reopen conflict → stay completed; WBAH rechecks never touch leads.
 - [GrowthMind Google Ads live engine](gads-live-arch.md) — single sync path via alias-free gads-live-core (tick is vite-config-loaded); approval = change-request row only, NO executor; honest 4-stage state.
 - [Google Ads Connect-with-Google OAuth](google-ads-oauth-connect.md) — signed-state callback flow; returnTo must be single-slash relative + origin allowlisted; customer brings own OAuth client/dev token.
