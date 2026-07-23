@@ -1377,6 +1377,33 @@ export const getHiveMindSystemContext = createServerFn({ method: "GET" })
     ]);
     const marketingTasksDueToday = dueTasksRes?.count ?? 0;
 
+    // Fetch the single most urgent due task: walk priorities highest-first so the
+    // selection is correct regardless of how many tasks are due today.
+    let topDueTaskTitle = "";
+    if (marketingTasksDueToday > 0) {
+      const fetchTopDueTask = (priority?: string) => {
+        let q = sb.from("growthmind_marketing_tasks")
+          .select("title, priority")
+          .eq("workspace_id", workspaceId)
+          .eq("status", "pending")
+          .eq("due_date", todayStr);
+        if (priority) q = q.eq("priority", priority);
+        return q.order("created_at", { ascending: true }).limit(1).maybeSingle();
+      };
+      // Matches the GrowthMind TaskPriority enum ("urgent" is the top level);
+      // "critical" kept for any legacy rows.
+      const KNOWN_PRIORITIES = ["urgent", "critical", "high", "medium", "low"];
+      for (const p of KNOWN_PRIORITIES) {
+        const { data: row } = await fetchTopDueTask(p);
+        if (row?.title?.trim()) { topDueTaskTitle = row.title.trim(); break; }
+      }
+      if (!topDueTaskTitle) {
+        // Fallback for unexpected priority values: earliest-created due task.
+        const { data: row } = await fetchTopDueTask();
+        if (row?.title?.trim()) topDueTaskTitle = row.title.trim();
+      }
+    }
+
     const cfg    = cfgRow.data ?? {};
     const hasEL  = !!(process.env.ELEVENLABS_API_KEY || cfg.elevenlabs_api_key);
     const hasOAI = !!(process.env.OPENAI_API_KEY || cfg.openai_api_key);
@@ -1407,7 +1434,7 @@ export const getHiveMindSystemContext = createServerFn({ method: "GET" })
       ? `You have ${gadsRecCount} Google Ads recommendation${gadsRecCount !== 1 ? "s" : ""} waiting for your decision.`
       : "";
     const taskPart = marketingTasksDueToday > 0
-      ? `${marketingTasksDueToday} marketing task${marketingTasksDueToday !== 1 ? "s" : ""} ${marketingTasksDueToday !== 1 ? "are" : "is"} due today.`
+      ? `${marketingTasksDueToday} marketing task${marketingTasksDueToday !== 1 ? "s" : ""} ${marketingTasksDueToday !== 1 ? "are" : "is"} due today${topDueTaskTitle ? (marketingTasksDueToday !== 1 ? `, including '${topDueTaskTitle}'` : `: '${topDueTaskTitle}'`) : ""}.`
       : "";
     const beginMessage = `${greeting}${namePart}! ${leadPart} ${actionPart} ${gadsPart} ${taskPart} What can I help you with?`.replace(/\s+/g, " ").trim();
 
