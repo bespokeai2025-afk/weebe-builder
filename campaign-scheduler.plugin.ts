@@ -89,6 +89,23 @@ export function campaignSchedulerPlugin(): Plugin {
         } catch (e: any) {
           console.warn("[wbah-campaign-runs] dev tick failed:", e?.message ?? e);
         }
+
+        // Supabase DB health watchdog (mirrors the prod campaign-executor
+        // endpoint). Loaded via ssrLoadModule so it shares module state with
+        // server functions (admin banner reads the same snapshot). Best-effort.
+        try {
+          const { runDbHealthWatchdogTick } = (await server.ssrLoadModule(
+            "/src/lib/maintenance/db-health-watchdog.server.ts",
+          )) as typeof import("./src/lib/maintenance/db-health-watchdog.server");
+          const watchdog = await runDbHealthWatchdogTick();
+          if (watchdog.status === "unhealthy" || watchdog.alerted) {
+            console.log(
+              `[db-watchdog] status=${watchdog.status} alerted=${watchdog.alerted}`,
+            );
+          }
+        } catch (e: any) {
+          console.warn("[db-watchdog] dev tick failed:", e?.message ?? e);
+        }
       }
 
       timeoutId = setTimeout(() => {

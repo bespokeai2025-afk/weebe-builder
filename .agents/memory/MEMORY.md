@@ -145,3 +145,4 @@
 - [HiveMind open-task atomic dedup](hivemind-open-task-dedup.md) — partial unique index on open (ws,trigger,entity); insert row-by-row, 23505 = deduped; reopen conflict → stay completed; WBAH rechecks never touch leads.
 - [GrowthMind Google Ads live engine](gads-live-arch.md) — single sync path via alias-free gads-live-core (tick is vite-config-loaded); approval = change-request row only, NO executor; honest 4-stage state.
 - [Google Ads Connect-with-Google OAuth](google-ads-oauth-connect.md) — signed-state callback flow; returnTo must be single-slash relative + origin allowlisted; customer brings own OAuth client/dev token.
+- [Supabase DB health watchdog](db-health-watchdog.md) — 5-min tick probes Mgmt-API health; 2-strike alerting, in-process admin-email cache, direct-Resend sends (never DB-dependent paths mid-outage).

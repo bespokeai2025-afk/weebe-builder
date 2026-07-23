@@ -176,6 +176,23 @@ export const Route = createFileRoute("/api/public/campaign-executor")({
             console.warn("[exec-events] tick failed:", execErr?.message ?? execErr);
           }
 
+          // Supabase database health watchdog — probes project health and
+          // emails platform admins on outage/recovery. Best-effort — never
+          // blocks the tick.
+          try {
+            const { runDbHealthWatchdogTick } = await import(
+              "@/lib/maintenance/db-health-watchdog.server"
+            );
+            const watchdog = await runDbHealthWatchdogTick();
+            if (watchdog.status === "unhealthy" || watchdog.alerted) {
+              console.log(
+                `[db-watchdog] status=${watchdog.status} alerted=${watchdog.alerted}`,
+              );
+            }
+          } catch (wdErr: any) {
+            console.warn("[db-watchdog] tick failed:", wdErr?.message ?? wdErr);
+          }
+
           // Scheduled analytics reports (once-per-tick due check). Best-effort —
           // never blocks the tick.
           try {
