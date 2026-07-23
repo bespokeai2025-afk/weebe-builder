@@ -1364,7 +1364,7 @@ export const getHiveMindSystemContext = createServerFn({ method: "GET" })
     if (!workspaceId) throw new Error("No workspace");
 
     const todayStr = new Date().toISOString().split("T")[0];
-    const [platformData, cfgRow, marketingCouncil, systemCouncil, dueTasksRes] = await Promise.all([
+    const [platformData, cfgRow, marketingCouncil, systemCouncil, dueTasksRes, overdueTasksRes] = await Promise.all([
       fetchFullPlatformData(sb, workspaceId),
       sb.from("workspace_settings").select("elevenlabs_api_key,openai_api_key").eq("workspace_id", workspaceId).maybeSingle(),
       buildMarketingCouncilSummarySafe(sb, workspaceId),
@@ -1374,8 +1374,14 @@ export const getHiveMindSystemContext = createServerFn({ method: "GET" })
         .eq("workspace_id", workspaceId)
         .eq("status", "pending")
         .eq("due_date", todayStr),
+      sb.from("growthmind_marketing_tasks")
+        .select("id", { count: "exact", head: true })
+        .eq("workspace_id", workspaceId)
+        .eq("status", "pending")
+        .lt("due_date", todayStr),
     ]);
     const marketingTasksDueToday = dueTasksRes?.count ?? 0;
+    const marketingTasksOverdue = overdueTasksRes?.count ?? 0;
 
     // Fetch the single most urgent due task: walk priorities highest-first so the
     // selection is correct regardless of how many tasks are due today.
@@ -1433,9 +1439,14 @@ export const getHiveMindSystemContext = createServerFn({ method: "GET" })
     const gadsPart = gadsRecCount > 0
       ? `You have ${gadsRecCount} Google Ads recommendation${gadsRecCount !== 1 ? "s" : ""} waiting for your decision.`
       : "";
-    const taskPart = marketingTasksDueToday > 0
-      ? `${marketingTasksDueToday} marketing task${marketingTasksDueToday !== 1 ? "s" : ""} ${marketingTasksDueToday !== 1 ? "are" : "is"} due today${topDueTaskTitle ? (marketingTasksDueToday !== 1 ? `, including '${topDueTaskTitle}'` : `: '${topDueTaskTitle}'`) : ""}.`
+    const overduePart = marketingTasksOverdue > 0
+      ? `${marketingTasksOverdue} ${marketingTasksOverdue !== 1 ? "are" : "is"} overdue`
       : "";
+    const taskPart = marketingTasksDueToday > 0
+      ? `${marketingTasksDueToday} marketing task${marketingTasksDueToday !== 1 ? "s" : ""} ${marketingTasksDueToday !== 1 ? "are" : "is"} due today${topDueTaskTitle ? (marketingTasksDueToday !== 1 ? `, including '${topDueTaskTitle}'` : `: '${topDueTaskTitle}'`) : ""}${overduePart ? `, and ${overduePart}` : ""}.`
+      : (overduePart
+        ? `${marketingTasksOverdue} marketing task${marketingTasksOverdue !== 1 ? "s" : ""} ${marketingTasksOverdue !== 1 ? "are" : "is"} overdue.`
+        : "");
     const beginMessage = `${greeting}${namePart}! ${leadPart} ${actionPart} ${gadsPart} ${taskPart} What can I help you with?`.replace(/\s+/g, " ").trim();
 
     return { systemPrompt, beginMessage, hasEL, hasOAI };
