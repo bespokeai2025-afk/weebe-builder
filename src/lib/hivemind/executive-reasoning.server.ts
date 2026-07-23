@@ -372,6 +372,16 @@ export async function runExecutiveReasoning(
     insertedTasks: 0, dedupedTasks: 0,
   };
   try {
+    // 0. Observe mode gate — HiveMind watches only; the reasoning engine must
+    //    not write recommendations or tasks.
+    try {
+      const { isProposalAllowed } = await import("@/lib/hivemind/mode-gate.server");
+      if (!(await isProposalAllowed(sb, workspaceId))) return out;
+    } catch {
+      // Fail CLOSED: if the gate cannot be evaluated, do not write anything.
+      return out;
+    }
+
     // 1-2. Collect classified events + source freshness.
     const [eventsRes, health] = await Promise.all([
       sb.from("hivemind_executive_events")
@@ -467,6 +477,25 @@ export async function runExecutiveReasoning(
       if (openRules.has(ruleOf(d.dedupe_key))) { out.dedupedRecs++; return false; }
       return true;
     });
+
+    // 16b. Learning loop: temper confidence by past outcome adjustments for
+    // this department (bounded ±0.2, clamped to [0.05, 0.99]).
+    if (toInsert.length) {
+      try {
+        const { getConfidenceAdjustment } = await import("@/lib/hivemind/action-learning.server");
+        const deps = [...new Set(toInsert.map((d) => d.department))];
+        const adjByDep = new Map<string, number>();
+        for (const dep of deps) {
+          adjByDep.set(dep, await getConfidenceAdjustment(sb, workspaceId, `rec:${dep}`));
+        }
+        for (const d of toInsert) {
+          const adj = adjByDep.get(d.department) ?? 0;
+          if (adj !== 0) {
+            d.confidence = Math.max(0.05, Math.min(0.99, Number((d.confidence + adj).toFixed(3))));
+          }
+        }
+      } catch { /* learning adjustments are best-effort */ }
+    }
 
     // 17. Save recommendations.
     if (toInsert.length) {

@@ -757,6 +757,12 @@ export const runHiveMindScan = createServerFn({ method: "POST" })
     const workspaceId = context.workspaceId;
     if (!workspaceId) throw new Error("No workspace");
 
+    // Observe mode: HiveMind watches only — scanner must not create tasks/events.
+    const { isProposalAllowed } = await import("@/lib/hivemind/mode-gate.server");
+    if (!(await isProposalAllowed(sb, workspaceId))) {
+      return { newTasks: 0, newEvents: 0, findings: 0, blocked: "observe" as const };
+    }
+
     const findings = await scanPlatform(sb, workspaceId);
 
     const oneDayAgo = new Date(); oneDayAgo.setDate(oneDayAgo.getDate() - 1);

@@ -7443,13 +7443,26 @@ export type Database = {
           action_payload: Json
           action_type: string
           approved_by: string | null
+          authorised_by_user_id: string | null
+          baseline: Json | null
+          consumed_at: string | null
           created_at: string
           description: string | null
           error_message: string | null
           executed_at: string | null
+          expected_result: string | null
           id: string
+          new_state: Json | null
+          outcome: Json | null
+          outcome_classification: string | null
+          previous_state: Json | null
           proposed_by: string
+          reassess_at: string | null
           result: Json | null
+          rollback_info: Json | null
+          sensitive: boolean
+          sensitive_category: string | null
+          source_recommendation_id: string | null
           status: string
           title: string
           updated_at: string
@@ -7459,13 +7472,26 @@ export type Database = {
           action_payload?: Json
           action_type: string
           approved_by?: string | null
+          authorised_by_user_id?: string | null
+          baseline?: Json | null
+          consumed_at?: string | null
           created_at?: string
           description?: string | null
           error_message?: string | null
           executed_at?: string | null
+          expected_result?: string | null
           id?: string
+          new_state?: Json | null
+          outcome?: Json | null
+          outcome_classification?: string | null
+          previous_state?: Json | null
           proposed_by?: string
+          reassess_at?: string | null
           result?: Json | null
+          rollback_info?: Json | null
+          sensitive?: boolean
+          sensitive_category?: string | null
+          source_recommendation_id?: string | null
           status?: string
           title: string
           updated_at?: string
@@ -7475,13 +7501,26 @@ export type Database = {
           action_payload?: Json
           action_type?: string
           approved_by?: string | null
+          authorised_by_user_id?: string | null
+          baseline?: Json | null
+          consumed_at?: string | null
           created_at?: string
           description?: string | null
           error_message?: string | null
           executed_at?: string | null
+          expected_result?: string | null
           id?: string
+          new_state?: Json | null
+          outcome?: Json | null
+          outcome_classification?: string | null
+          previous_state?: Json | null
           proposed_by?: string
+          reassess_at?: string | null
           result?: Json | null
+          rollback_info?: Json | null
+          sensitive?: boolean
+          sensitive_category?: string | null
+          source_recommendation_id?: string | null
           status?: string
           title?: string
           updated_at?: string
@@ -7529,6 +7568,56 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "hivemind_briefings_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      hivemind_confidence_adjustments: {
+        Row: {
+          adjustment: number
+          adjustment_key: string
+          created_at: string
+          failures: number
+          id: string
+          inconclusive: number
+          last_outcome: string | null
+          partials: number
+          successes: number
+          updated_at: string
+          workspace_id: string
+        }
+        Insert: {
+          adjustment?: number
+          adjustment_key: string
+          created_at?: string
+          failures?: number
+          id?: string
+          inconclusive?: number
+          last_outcome?: string | null
+          partials?: number
+          successes?: number
+          updated_at?: string
+          workspace_id: string
+        }
+        Update: {
+          adjustment?: number
+          adjustment_key?: string
+          created_at?: string
+          failures?: number
+          id?: string
+          inconclusive?: number
+          last_outcome?: string | null
+          partials?: number
+          successes?: number
+          updated_at?: string
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "hivemind_confidence_adjustments_workspace_id_fkey"
             columns: ["workspace_id"]
             isOneToOne: false
             referencedRelation: "workspaces"
@@ -7672,6 +7761,7 @@ export type Database = {
           evidence: Json
           id: string
           next_step: string | null
+          outcome_note: string | null
           priority: string
           reassess_at: string | null
           recommended_action: string
@@ -7701,6 +7791,7 @@ export type Database = {
           evidence?: Json
           id?: string
           next_step?: string | null
+          outcome_note?: string | null
           priority?: string
           reassess_at?: string | null
           recommended_action: string
@@ -7730,6 +7821,7 @@ export type Database = {
           evidence?: Json
           id?: string
           next_step?: string | null
+          outcome_note?: string | null
           priority?: string
           reassess_at?: string | null
           recommended_action?: string
@@ -14070,6 +14162,10 @@ export type Database = {
           hexmail_sendgrid_from_email: string | null
           hexmail_sendgrid_from_name: string | null
           hivemind_mode: string
+          hivemind_operator_enabled: boolean
+          hivemind_operator_enabled_at: string | null
+          hivemind_operator_enabled_by: string | null
+          hivemind_operator_permissions: Json
           hubspot_api_key: string | null
           industry: string | null
           last_synced_at: string | null
@@ -14139,6 +14235,10 @@ export type Database = {
           hexmail_sendgrid_from_email?: string | null
           hexmail_sendgrid_from_name?: string | null
           hivemind_mode?: string
+          hivemind_operator_enabled?: boolean
+          hivemind_operator_enabled_at?: string | null
+          hivemind_operator_enabled_by?: string | null
+          hivemind_operator_permissions?: Json
           hubspot_api_key?: string | null
           industry?: string | null
           last_synced_at?: string | null
@@ -14208,6 +14308,10 @@ export type Database = {
           hexmail_sendgrid_from_email?: string | null
           hexmail_sendgrid_from_name?: string | null
           hivemind_mode?: string
+          hivemind_operator_enabled?: boolean
+          hivemind_operator_enabled_at?: string | null
+          hivemind_operator_enabled_by?: string | null
+          hivemind_operator_permissions?: Json
           hubspot_api_key?: string | null
           industry?: string | null
           last_synced_at?: string | null

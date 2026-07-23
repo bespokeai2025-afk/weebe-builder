@@ -57,6 +57,8 @@ export const EXEC_EVENT_TYPES: Record<
   campaign_completed:        { severity: "info",     classification: "briefing" },
   integration_disconnected:  { severity: "warning",  classification: "task_candidate" },
   provider_error:            { severity: "critical", classification: "critical" },
+  // Learning loop
+  action_outcome:            { severity: "info",     classification: "informational" },
 };
 
 export interface PublishExecutiveEventInput {

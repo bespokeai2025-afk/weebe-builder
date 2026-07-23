@@ -372,7 +372,7 @@ export async function fetchFullPlatformData(sb: any, workspaceId: string) {
 
   return {
     agents, agentScores, cfg,
-    mode: cfg.hivemind_mode ?? "assistant",
+    mode: cfg.hivemind_mode ?? "recommend",
     today: {
       leads:    leadsToday.length,
       bookings: bksTodayCount,
@@ -774,7 +774,7 @@ export function buildPlatformContext(d: any): string {
   const lines: string[] = [];
 
   const hour = new Date().getHours();
-  lines.push(`[${new Date().toLocaleString()} | HiveMind Mode: ${(d.mode ?? "assistant").toUpperCase()}]\n`);
+  lines.push(`[${new Date().toLocaleString()} | HiveMind Mode: ${(d.mode ?? "recommend").toUpperCase()}]\n`);
 
   // TODAY
   lines.push(`TODAY: ${d.today.leads} new leads | ${d.today.bookings} bookings | ${d.today.calls} calls | ${d.today.messages} WhatsApp msgs`);

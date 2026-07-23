@@ -359,6 +359,18 @@ const taskAccountabilityJob: ReconJob = {
   },
 };
 
+/** 6-hourly: reassess executed HiveMind actions, classify outcomes against
+ * their baselines, publish action_outcome events, and feed confidence
+ * adjustments back into the learning loop. */
+const actionOutcomeLearningJob: ReconJob = {
+  key: "action_outcome_learning",
+  intervalMs: 6 * HOUR,
+  run: async (sb, workspaceId) => {
+    const { runActionOutcomeLearning } = await import("@/lib/hivemind/action-learning.server");
+    return runActionOutcomeLearning(sb, workspaceId);
+  },
+};
+
 const RECON_JOBS: ReconJob[] = [
   failedWorkflowsJob,
   missedAppointmentsJob,
@@ -366,6 +378,7 @@ const RECON_JOBS: ReconJob[] = [
   staleLeadsJob,
   executiveReasoningJob,
   taskAccountabilityJob,
+  actionOutcomeLearningJob,
 ];
 
 /** Exported for e2e tests only — validates jobs against the real schema. */
