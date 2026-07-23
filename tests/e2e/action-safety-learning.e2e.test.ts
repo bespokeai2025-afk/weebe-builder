@@ -15,6 +15,8 @@
  */
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { randomUUID } from "node:crypto";
+import { readFileSync } from "node:fs";
+import { execFileSync } from "node:child_process";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import {
   SENSITIVE_ACTIONS,
@@ -220,6 +222,33 @@ describe("mode config (DB)", () => {
     await expect(assertProposalAllowed(sb, WS_B)).rejects.toThrow(ModeGateError);
     // restore for later isolation tests
     await sb.from("workspace_settings").update({ hivemind_mode: "recommend" }).eq("workspace_id", WS_B);
+  });
+
+  it("guardrail: every file inserting hivemind proposals references the mode gate", () => {
+    // Repo-level net: any file that inserts into hivemind_actions/hivemind_tasks
+    // must consult mode-gate.server (isProposalAllowed/assertProposalAllowed),
+    // unless it is on the explicit allowlist of post-approval execution paths
+    // whose entry points are gated upstream.
+    const UPSTREAM_GATED = new Set<string>([
+      // executeAction runs only after approveHiveMindAction's gated CAS consume;
+      // generateOperatorActions and proposeHiveMindAction are gated in-file.
+      // (hivemind.actions.ts does reference the gate; listed for documentation.)
+    ]);
+    const out = execFileSync("grep", [
+      "-rlE", 'from\\("hivemind_(actions|tasks)"\\)', "src",
+    ], { encoding: "utf8" });
+    const files = out.trim().split("\n").filter(Boolean);
+    const offenders: string[] = [];
+    for (const f of files) {
+      const src = readFileSync(f, "utf8");
+      const inserts = /from\("hivemind_(actions|tasks)"\)\s*\r?\n?\s*\.?\s*insert/.test(src)
+        || /from\("hivemind_(actions|tasks)"\)\.insert/.test(src);
+      if (!inserts) continue;
+      if (UPSTREAM_GATED.has(f)) continue;
+      if (f.endsWith("mode-gate.server.ts")) continue;
+      if (!/ProposalAllowed/.test(src)) offenders.push(f);
+    }
+    expect(offenders, `hivemind proposal inserts without mode gate: ${offenders.join(", ")}`).toEqual([]);
   });
 
   it("mode-config read errors fail CLOSED to observe (gates deny)", async () => {

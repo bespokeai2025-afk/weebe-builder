@@ -261,6 +261,9 @@ export async function createAutonomousVideoQueueEntries(
   const mode = settingsRes?.data?.hivemind_mode ?? null;
   if (mode !== "assistant" && mode !== "operator") return;
 
+  const { isProposalAllowed } = await import("@/lib/hivemind/mode-gate.server");
+  if (!(await isProposalAllowed(sb, workspaceId))) return;
+
   for (const proposal of proposals.slice(0, 2)) {
     try {
       await sb.from("hivemind_actions").insert({

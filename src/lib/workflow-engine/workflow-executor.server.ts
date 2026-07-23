@@ -270,6 +270,10 @@ async function executeStep(
 
       // ── Create task ──────────────────────────────────────────────────────
       case "create_task": {
+        const { isProposalAllowed } = await import("@/lib/hivemind/mode-gate.server");
+        if (!(await isProposalAllowed(sb, ctx.workspaceId))) {
+          return ok(step, { skipped: "hivemind_observe_mode" });
+        }
         const { error } = await sb.from("hivemind_tasks").insert({
           workspace_id:    ctx.workspaceId,
           title:           step.title ?? "Workflow task",
@@ -312,6 +316,10 @@ async function executeStep(
 
       // ── Notify user ───────────────────────────────────────────────────────
       case "notify_user": {
+        const { isProposalAllowed } = await import("@/lib/hivemind/mode-gate.server");
+        if (!(await isProposalAllowed(sb, ctx.workspaceId))) {
+          return ok(step, { skipped: "hivemind_observe_mode" });
+        }
         await sb.from("hivemind_tasks").insert({
           workspace_id: ctx.workspaceId,
           title:        step.title ?? `Workflow notification: ${ctx.runId.slice(0, 8)}`,

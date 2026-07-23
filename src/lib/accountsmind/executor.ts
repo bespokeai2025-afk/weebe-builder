@@ -104,7 +104,8 @@ export async function runAccountsMindTick(): Promise<AccountsMindTickResult> {
           .eq("status", "open")
           .maybeSingle();
 
-        if (!existing) {
+        const { isProposalAllowed } = await import("@/lib/hivemind/mode-gate.server");
+        if (!existing && (await isProposalAllowed(sb, wid))) {
           await sb.from("hivemind_tasks").insert({
             workspace_id:     wid,
             trigger_type:     "accountsmind_alert",

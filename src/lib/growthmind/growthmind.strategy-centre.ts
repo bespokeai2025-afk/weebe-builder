@@ -400,6 +400,8 @@ Only include keys from: [${assetEngineList}]`;
           : null,
       ].filter(Boolean).join("\n");
 
+      const { assertProposalAllowed } = await import("@/lib/hivemind/mode-gate.server");
+      await assertProposalAllowed(sb, workspaceId);
       const { data: hmAction } = await sb.from("hivemind_actions").insert({
         workspace_id:   workspaceId,
         title:          `GrowthMind ${typeLabel2}: ${raw.selected_service ?? "Growth Strategy"}`,
@@ -519,7 +521,9 @@ export const sendStrategyCentreToHiveMind = createServerFn({ method: "POST" })
         : null,
     ].filter(Boolean).join("\n");
 
-    // Create hivemind_action
+    // Create hivemind_action (blocked in observe mode)
+    const { assertProposalAllowed } = await import("@/lib/hivemind/mode-gate.server");
+    await assertProposalAllowed(sb, workspaceId);
     const { data: action, error: ae } = await sb.from("hivemind_actions").insert({
       workspace_id:   workspaceId,
       title:          `GrowthMind ${typeLabel}: ${strategy.selectedService ?? "Growth Strategy"}`,

@@ -244,7 +244,8 @@ async function tickWorkspace(
 
   const insertedId = (inserted as any)?.id;
 
-  if (insertedId) {
+  const { isProposalAllowed } = await import("@/lib/hivemind/mode-gate.server");
+  if (insertedId && (await isProposalAllowed(sb as any, workspaceId))) {
     await Promise.resolve((sb as any).from("hivemind_actions").insert({
       workspace_id: workspaceId,
       action_type:  "blog_draft",

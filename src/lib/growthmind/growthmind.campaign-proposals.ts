@@ -234,6 +234,9 @@ export async function createAutonomousDrafts(
   const mode = settingsRes?.data?.hivemind_mode ?? null;
   if (mode !== "assistant" && mode !== "operator") return;
 
+  const { isProposalAllowed } = await import("@/lib/hivemind/mode-gate.server");
+  if (!(await isProposalAllowed(sb, workspaceId))) return;
+
   const week1 = new Date(Date.now() + 7  * 86400000).toISOString().split("T")[0];
   const week2 = new Date(Date.now() + 14 * 86400000).toISOString().split("T")[0];
   const week3 = new Date(Date.now() + 21 * 86400000).toISOString().split("T")[0];

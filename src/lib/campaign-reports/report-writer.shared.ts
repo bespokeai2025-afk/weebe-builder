@@ -185,6 +185,8 @@ export async function writeCampaignReport(sb: Sb, input: CampaignReportInput): P
   // Failure notification → HiveMind task (visible in the action centre).
   if (isFailureReportType(input.reportType)) {
     try {
+      const { assertProposalAllowed } = await import("@/lib/hivemind/mode-gate.server");
+      await assertProposalAllowed(sb, input.workspaceId);
       await sb.from("hivemind_tasks").insert({
         workspace_id: input.workspaceId,
         title: `Campaign issue: ${input.campaignName ?? "campaign"} — ${input.reportType.replace(/_/g, " ")}`,

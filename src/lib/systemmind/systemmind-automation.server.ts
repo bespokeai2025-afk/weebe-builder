@@ -439,6 +439,9 @@ export async function submitDraftForApprovalServer(
     ? " HIGH RISK — review the listed risks carefully before approving."
     : "";
 
+  const { assertProposalAllowed } = await import("@/lib/hivemind/mode-gate.server");
+  await assertProposalAllowed(sb, workspaceId);
+
   const { data: action, error } = await sb.from("hivemind_actions").insert({
     workspace_id:   workspaceId,
     title:          `Activate SystemMind automation: "${draft.title}"`,

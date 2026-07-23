@@ -570,8 +570,11 @@ export async function runWorkspaceHealthCheckServer(
       (pending ?? []).map((a: any) => a.action_payload?.health_check_key).filter(Boolean),
     );
 
+    const { isProposalAllowed } = await import("@/lib/hivemind/mode-gate.server");
+    const proposalsAllowed = await isProposalAllowed(sb, workspaceId);
+
     const proposedActionIds: string[] = [];
-    for (const f of findings.filter((x) => x.recommended)) {
+    for (const f of proposalsAllowed ? findings.filter((x) => x.recommended) : []) {
       if (pendingKeys.has(f.check_key)) continue;
       const { data: action, error: actErr } = await sb.from("hivemind_actions").insert({
         workspace_id:   workspaceId,
