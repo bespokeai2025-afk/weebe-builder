@@ -21,6 +21,10 @@ args = "Start application"
 task = "workflow.run"
 args = "schema-types-fresh"
 
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "component-tests"
+
 [[workflows.workflow]]
 name = "Start application"
 author = "agent"
@@ -40,6 +44,17 @@ author = "agent"
 [[workflows.workflow.tasks]]
 task = "shell.exec"
 args = "node scripts/refresh-supabase-types.mjs --check"
+
+[workflows.workflow.metadata]
+isValidation = true
+
+[[workflows.workflow]]
+name = "component-tests"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "npx vitest run --config vitest.component.config.ts"
 
 [workflows.workflow.metadata]
 isValidation = true
