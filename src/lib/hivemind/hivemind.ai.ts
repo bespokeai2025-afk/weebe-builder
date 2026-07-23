@@ -1395,7 +1395,11 @@ export const getHiveMindSystemContext = createServerFn({ method: "GET" })
     const actionPart = platformData.pendingActions?.count > 0
       ? `${platformData.pendingActions.count} action${platformData.pendingActions.count !== 1 ? "s" : ""} waiting for your approval.`
       : "";
-    const beginMessage = `${greeting}${namePart}! ${leadPart} ${actionPart} What can I help you with?`.replace(/\s+/g, " ").trim();
+    const gadsRecCount = platformData.gadsLive?.pendingRecs?.length ?? 0;
+    const gadsPart = gadsRecCount > 0
+      ? `You have ${gadsRecCount} Google Ads recommendation${gadsRecCount !== 1 ? "s" : ""} waiting for your decision.`
+      : "";
+    const beginMessage = `${greeting}${namePart}! ${leadPart} ${actionPart} ${gadsPart} What can I help you with?`.replace(/\s+/g, " ").trim();
 
     return { systemPrompt, beginMessage, hasEL, hasOAI };
   });
