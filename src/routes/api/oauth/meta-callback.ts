@@ -134,11 +134,14 @@ export const Route = createFileRoute("/api/oauth/meta-callback")({
           const { encryptMetaToken } = await import("@/lib/growthmind/meta-token.server");
           const now = new Date().toISOString();
           let connected = 0;
+          const writeFailures: string[] = [];
+          const fbPublishOk = grantedScopes.includes("pages_manage_posts");
+          const igPublishOk = grantedScopes.includes("instagram_content_publish");
 
           for (const page of pages) {
             const pageToken: string = page.access_token ?? userToken;
             // Facebook Page connection
-            await sb.from("growthmind_social_connections").upsert({
+            const { error: fbErr } = await sb.from("growthmind_social_connections").upsert({
               workspace_id:           state.workspaceId,
               provider:               "meta",
               account_type:           "facebook_page",
@@ -154,18 +157,19 @@ export const Route = createFileRoute("/api/oauth/meta-callback")({
               access_token_encrypted: encryptMetaToken(pageToken),
               token_type:             "long_lived",
               token_expires_at:       null, // Page tokens from long-lived user tokens don't expire
-              status:                 "connected",
-              last_error:             null,
+              status:                 fbPublishOk ? "connected" : "needs_reconnect",
+              last_error:             fbPublishOk ? null : "Missing pages_manage_posts permission — reconnect and grant it to enable publishing.",
               connected_by_user_id:   state.userId,
               metadata:               { source: "oauth", connected_at: now },
               updated_at:             now,
             }, { onConflict: "workspace_id,provider,account_type,external_account_id" });
-            connected++;
+            if (fbErr) writeFailures.push(`Page ${page.name ?? page.id}: ${fbErr.message}`);
+            else connected++;
 
             // Linked Instagram professional account
             const ig = page.instagram_business_account;
             if (ig?.id) {
-              await sb.from("growthmind_social_connections").upsert({
+              const { error: igErr } = await sb.from("growthmind_social_connections").upsert({
                 workspace_id:           state.workspaceId,
                 provider:               "meta",
                 account_type:           "instagram_professional",
@@ -183,14 +187,20 @@ export const Route = createFileRoute("/api/oauth/meta-callback")({
                 access_token_encrypted: encryptMetaToken(pageToken),
                 token_type:             "long_lived",
                 token_expires_at:       userTokenExpiresAt,
-                status:                 "connected",
-                last_error:             null,
+                status:                 igPublishOk ? "connected" : "needs_reconnect",
+                last_error:             igPublishOk ? null : "Missing instagram_content_publish permission — reconnect and grant it to enable publishing.",
                 connected_by_user_id:   state.userId,
                 metadata:               { source: "oauth", linked_page_id: String(page.id), connected_at: now },
                 updated_at:             now,
               }, { onConflict: "workspace_id,provider,account_type,external_account_id" });
-              connected++;
+              if (igErr) writeFailures.push(`Instagram ${ig.username ?? ig.id}: ${igErr.message}`);
+              else connected++;
             }
+          }
+
+          if (connected === 0) {
+            const why = writeFailures[0] ?? "no accounts could be saved";
+            return redirectBack(returnTo, { meta: "error", meta_msg: `Failed to save connections: ${String(why).slice(0, 160)}` });
           }
 
           // Mark provider connected (credentials only hold appId/appSecret — user tokens live per-connection)

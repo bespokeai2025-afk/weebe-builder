@@ -3,7 +3,7 @@ name: GrowthMind Content Intelligence foundation
 description: Versioned Business DNA + proposals, Meta social OAuth (encrypted tokens), autonomy modes, activity log — patterns and traps.
 ---
 
-# GrowthMind Content Intelligence foundation (Task-#416-era layer)
+# GrowthMind Content Intelligence foundation
 
 - **Schema**: migration `20260819000000_growthmind_content_intelligence.sql` (applied live via `scripts/apply-growthmind-content-intelligence-migration.mjs`, Mgmt API). 10 new `growthmind_*` tables, all RLS members SELECT-only + REVOKE writes (server-only via `supabaseAdmin`). `growthmind_social_connections.access_token_encrypted` is excluded from the authenticated role's **column grants** — tokens are unreachable via PostgREST even with SELECT policy.
 - **DNA versioning**: every `upsertBusinessDna` bumps `dna_version` and snapshots the full row into `growthmind_dna_versions`. GrowthMind proposals (`growthmind_dna_proposals`) are applied only through `resolveDnaProposal` with a `PROPOSAL_ALLOWED_COLUMNS` whitelist — never widen it casually.
