@@ -9,6 +9,7 @@ import { toast } from "sonner";
 import {
   ArrowLeft, Loader2, Clapperboard, Mic, Send, Undo2, Archive,
   RefreshCw, ExternalLink, ShieldAlert, Sparkles, CheckCircle2, XCircle, Clock,
+  ImageIcon, Download,
 } from "lucide-react";
 import { GrowthMindShell } from "@/components/growthmind/GrowthMindShell";
 import { Button } from "@/components/ui/button";
@@ -23,10 +24,28 @@ import {
 import { cn } from "@/lib/utils";
 import {
   getContentProject, updateContentProject, setProjectMedia,
-  generateProjectVoiceover, submitProjectForApproval, requestProjectChanges,
+  generateProjectVoiceover, generateProjectThumbnail,
+  submitProjectForApproval, requestProjectChanges,
   archiveContentProject, retryProjectPublishJob, returnProjectToProduction,
 } from "@/lib/growthmind/growthmind.content-projects";
 import { approvalFlagLabel } from "@/lib/growthmind/content-approval.shared";
+import { buildSubtitleCues, formatSrt, formatVtt } from "@/lib/growthmind/subtitles.shared";
+
+function downloadTextFile(filename: string, contents: string, mime: string) {
+  const blob = new Blob([contents], { type: mime });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+
+function slugify(s: string): string {
+  return (s || "subtitles").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 60) || "subtitles";
+}
 
 export const Route = createFileRoute("/_authenticated/growthmind/content-projects/$projectId")({
   component: () => (
@@ -77,6 +96,7 @@ function ProjectPage() {
   const updateFn   = useServerFn(updateContentProject);
   const mediaFn    = useServerFn(setProjectMedia);
   const voiceFn    = useServerFn(generateProjectVoiceover);
+  const thumbFn    = useServerFn(generateProjectThumbnail);
   const submitFn   = useServerFn(submitProjectForApproval);
   const changesFn  = useServerFn(requestProjectChanges);
   const archiveFn  = useServerFn(archiveContentProject);
@@ -217,8 +237,27 @@ function ProjectPage() {
           </div>
           <div><Label className="text-xs">Hashtags (space-separated)</Label>
             <Input value={form.hashtags ?? ""} disabled={!editable} onChange={e => setForm(f => ({ ...f, hashtags: e.target.value }))} /></div>
-          <div><Label className="text-xs">Subtitles / on-screen text</Label>
-            <Textarea rows={2} value={form.subtitles ?? ""} disabled={!editable} onChange={e => setForm(f => ({ ...f, subtitles: e.target.value }))} /></div>
+          <div>
+            <div className="flex items-center justify-between">
+              <Label className="text-xs">Subtitles / on-screen text</Label>
+              {!!(p.subtitles ?? "").trim() && (
+                <div className="flex items-center gap-1">
+                  <Button size="sm" variant="ghost" className="h-6 text-[11px] text-muted-foreground" onClick={() =>
+                    downloadTextFile(`${slugify(p.title)}.srt`, formatSrt(buildSubtitleCues(p.subtitles)), "application/x-subrip")}>
+                    <Download className="h-3 w-3 mr-1" /> .srt
+                  </Button>
+                  <Button size="sm" variant="ghost" className="h-6 text-[11px] text-muted-foreground" onClick={() =>
+                    downloadTextFile(`${slugify(p.title)}.vtt`, formatVtt(buildSubtitleCues(p.subtitles)), "text/vtt")}>
+                    <Download className="h-3 w-3 mr-1" /> .vtt
+                  </Button>
+                </div>
+              )}
+            </div>
+            <Textarea rows={2} value={form.subtitles ?? ""} disabled={!editable} onChange={e => setForm(f => ({ ...f, subtitles: e.target.value }))} />
+            {!!(p.subtitles ?? "").trim() && (
+              <p className="text-[11px] text-muted-foreground mt-1">Download a subtitle file (timings estimated from reading pace) to attach alongside the video.</p>
+            )}
+          </div>
           <div><Label className="text-xs">Voiceover script</Label>
             <Textarea rows={4} value={form.voiceoverScript ?? ""} disabled={!editable} onChange={e => setForm(f => ({ ...f, voiceoverScript: e.target.value }))} /></div>
         </div>
@@ -232,6 +271,23 @@ function ProjectPage() {
               {busy === "voice" ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <Mic className="h-3 w-3 mr-1" />}
               Generate AI voiceover
             </Button>
+            <Button size="sm" variant="outline" disabled={busy === "thumb" || !(p.thumbnail_text ?? "").trim()}
+              title={!(p.thumbnail_text ?? "").trim() ? "Write thumbnail text and save first" : undefined}
+              onClick={() => run("thumb", () => thumbFn({ data: { projectId } }), "AI thumbnail generated (labelled as AI)")}>
+              {busy === "thumb" ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <ImageIcon className="h-3 w-3 mr-1" />}
+              Generate AI thumbnail
+            </Button>
+          </div>
+        )}
+        {p.thumbnail_url && (
+          <div className="space-y-1">
+            <div className="text-xs text-muted-foreground flex items-center gap-2">
+              Thumbnail {(p.inspiration as any)?.thumbnail_is_ai && <Badge variant="outline" className="text-[10px]">AI-generated</Badge>}
+              <a href={p.thumbnail_url} target="_blank" rel="noreferrer" className="text-[11px] text-blue-400 inline-flex items-center gap-1">
+                Open <ExternalLink className="h-3 w-3" />
+              </a>
+            </div>
+            <img src={p.thumbnail_url} alt="Project thumbnail" className="max-h-48 rounded-lg border" />
           </div>
         )}
         {p.voiceover_url && (
@@ -296,7 +352,6 @@ function ProjectPage() {
                   data: {
                     projectId, mediaUrl: mediaUrl.trim(), mediaType,
                     mediaSource: mediaSource as any, isAi: mediaIsAi,
-                    thumbnailUrl: null,
                   },
                 }), "Media attached")}>
                 {busy === "media" && <Loader2 className="h-3 w-3 mr-1 animate-spin" />} Attach media

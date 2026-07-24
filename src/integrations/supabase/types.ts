@@ -10542,6 +10542,105 @@ export type Database = {
           },
         ]
       }
+      retell_deployment_state: {
+        Row: {
+          agent_id: string
+          conversation_flow_id: string | null
+          created_at: string
+          extraction_schema: Json | null
+          extraction_verified: boolean
+          extraction_verified_at: string | null
+          id: string
+          last_deploy_error: string | null
+          last_deploy_status: string
+          last_deployed_at: string | null
+          last_deployed_config: Json | null
+          last_deployed_hash: string | null
+          last_live_hash: string | null
+          last_synced_at: string | null
+          retell_agent_id: string | null
+          updated_at: string
+          workspace_id: string
+        }
+        Insert: {
+          agent_id: string
+          conversation_flow_id?: string | null
+          created_at?: string
+          extraction_schema?: Json | null
+          extraction_verified?: boolean
+          extraction_verified_at?: string | null
+          id?: string
+          last_deploy_error?: string | null
+          last_deploy_status?: string
+          last_deployed_at?: string | null
+          last_deployed_config?: Json | null
+          last_deployed_hash?: string | null
+          last_live_hash?: string | null
+          last_synced_at?: string | null
+          retell_agent_id?: string | null
+          updated_at?: string
+          workspace_id: string
+        }
+        Update: {
+          agent_id?: string
+          conversation_flow_id?: string | null
+          created_at?: string
+          extraction_schema?: Json | null
+          extraction_verified?: boolean
+          extraction_verified_at?: string | null
+          id?: string
+          last_deploy_error?: string | null
+          last_deploy_status?: string
+          last_deployed_at?: string | null
+          last_deployed_config?: Json | null
+          last_deployed_hash?: string | null
+          last_live_hash?: string | null
+          last_synced_at?: string | null
+          retell_agent_id?: string | null
+          updated_at?: string
+          workspace_id?: string
+        }
+        Relationships: []
+      }
+      retell_webhook_config: {
+        Row: {
+          created_at: string
+          failure_count: number
+          last_event_at: string | null
+          last_failure_at: string | null
+          last_success_at: string | null
+          replay_window_seconds: number
+          secret: string
+          updated_at: string
+          verification_enabled: boolean
+          workspace_id: string
+        }
+        Insert: {
+          created_at?: string
+          failure_count?: number
+          last_event_at?: string | null
+          last_failure_at?: string | null
+          last_success_at?: string | null
+          replay_window_seconds?: number
+          secret: string
+          updated_at?: string
+          verification_enabled?: boolean
+          workspace_id: string
+        }
+        Update: {
+          created_at?: string
+          failure_count?: number
+          last_event_at?: string | null
+          last_failure_at?: string | null
+          last_success_at?: string | null
+          replay_window_seconds?: number
+          secret?: string
+          updated_at?: string
+          verification_enabled?: boolean
+          workspace_id?: string
+        }
+        Relationships: []
+      }
       retell_webhook_events: {
         Row: {
           error_message: string | null
@@ -10591,6 +10690,54 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      retell_webhook_processing: {
+        Row: {
+          attempts: number
+          created_at: string
+          dedup_key: string
+          event_log_id: string | null
+          event_type: string
+          id: string
+          last_error: string | null
+          next_retry_at: string | null
+          payload: Json | null
+          retell_call_id: string | null
+          status: string
+          updated_at: string
+          workspace_id: string | null
+        }
+        Insert: {
+          attempts?: number
+          created_at?: string
+          dedup_key: string
+          event_log_id?: string | null
+          event_type: string
+          id?: string
+          last_error?: string | null
+          next_retry_at?: string | null
+          payload?: Json | null
+          retell_call_id?: string | null
+          status?: string
+          updated_at?: string
+          workspace_id?: string | null
+        }
+        Update: {
+          attempts?: number
+          created_at?: string
+          dedup_key?: string
+          event_log_id?: string | null
+          event_type?: string
+          id?: string
+          last_error?: string | null
+          next_retry_at?: string | null
+          payload?: Json | null
+          retell_call_id?: string | null
+          status?: string
+          updated_at?: string
+          workspace_id?: string | null
+        }
+        Relationships: []
       }
       seat_overage_events: {
         Row: {
@@ -11186,6 +11333,107 @@ export type Database = {
           workspace_id?: string
         }
         Relationships: []
+      }
+      systemmind_crm_connections: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          credential_keys: Json
+          credentials_encrypted: string
+          id: string
+          label: string
+          last_refreshed_at: string | null
+          last_test_report: Json | null
+          last_tested_at: string | null
+          provider: string
+          status: string
+          token_expires_at: string | null
+          updated_at: string
+          workspace_id: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          credential_keys?: Json
+          credentials_encrypted?: string
+          id?: string
+          label?: string
+          last_refreshed_at?: string | null
+          last_test_report?: Json | null
+          last_tested_at?: string | null
+          provider: string
+          status?: string
+          token_expires_at?: string | null
+          updated_at?: string
+          workspace_id: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          credential_keys?: Json
+          credentials_encrypted?: string
+          id?: string
+          label?: string
+          last_refreshed_at?: string | null
+          last_test_report?: Json | null
+          last_tested_at?: string | null
+          provider?: string
+          status?: string
+          token_expires_at?: string | null
+          updated_at?: string
+          workspace_id?: string
+        }
+        Relationships: []
+      }
+      systemmind_crm_discoveries: {
+        Row: {
+          connection_id: string
+          discovered_at: string
+          field_count: number
+          id: string
+          object_count: number
+          owner_count: number
+          pipeline_count: number
+          provider: string
+          snapshot: Json
+          warnings: Json
+          workspace_id: string
+        }
+        Insert: {
+          connection_id: string
+          discovered_at?: string
+          field_count?: number
+          id?: string
+          object_count?: number
+          owner_count?: number
+          pipeline_count?: number
+          provider: string
+          snapshot?: Json
+          warnings?: Json
+          workspace_id: string
+        }
+        Update: {
+          connection_id?: string
+          discovered_at?: string
+          field_count?: number
+          id?: string
+          object_count?: number
+          owner_count?: number
+          pipeline_count?: number
+          provider?: string
+          snapshot?: Json
+          warnings?: Json
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "systemmind_crm_discoveries_connection_id_fkey"
+            columns: ["connection_id"]
+            isOneToOne: false
+            referencedRelation: "systemmind_crm_connections"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       systemmind_deployment_approvals: {
         Row: {
@@ -14229,6 +14477,7 @@ export type Database = {
           provider: string | null
           sent_at: string
           status: Database["public"]["Enums"]["message_status"]
+          whatsapp_message_id: string | null
           workspace_id: string
         }
         Insert: {
@@ -14245,6 +14494,7 @@ export type Database = {
           provider?: string | null
           sent_at?: string
           status?: Database["public"]["Enums"]["message_status"]
+          whatsapp_message_id?: string | null
           workspace_id: string
         }
         Update: {
@@ -14261,6 +14511,7 @@ export type Database = {
           provider?: string | null
           sent_at?: string
           status?: Database["public"]["Enums"]["message_status"]
+          whatsapp_message_id?: string | null
           workspace_id?: string
         }
         Relationships: [

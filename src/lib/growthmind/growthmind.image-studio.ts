@@ -44,7 +44,7 @@ export interface ImageStudioStatus {
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-async function resolveImageProvider(workspaceId: string): Promise<{ config: ImageConfig; displayName: string } | null> {
+export async function resolveImageProvider(workspaceId: string): Promise<{ config: ImageConfig; displayName: string } | null> {
   const sb = supabaseAdmin as any;
 
   const { data: ps } = await sb
@@ -80,7 +80,7 @@ async function resolveImageProvider(workspaceId: string): Promise<{ config: Imag
   return null;
 }
 
-async function buildBusinessContext(workspaceId: string, contextType: KnowledgeContextType, kbId?: string, customContext?: string): Promise<string> {
+export async function buildBusinessContext(workspaceId: string, contextType: KnowledgeContextType, kbId?: string, customContext?: string): Promise<string> {
   if (contextType === "none") return "";
 
   const sb = supabaseAdmin as any;

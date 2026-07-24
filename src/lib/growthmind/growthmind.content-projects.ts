@@ -438,6 +438,98 @@ export const setProjectMedia = createServerFn({ method: "POST" })
     return { ok: true };
   });
 
+const ThumbnailInput = z.object({
+  projectId: z.string().uuid(),
+});
+
+/**
+ * One-click AI thumbnail generation from thumbnail_text. The generated image
+ * is stored as a growthmind_image_assets row (audit trail) and set as the
+ * project's thumbnail_url. It is honestly labelled as AI media via
+ * inspiration.thumbnail_is_ai — which also feeds the ai_media approval rule.
+ */
+export const generateProjectThumbnail = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((i: z.infer<typeof ThumbnailInput>) => ThumbnailInput.parse(i))
+  .handler(async ({ data, context }) => {
+    const workspaceId = context.workspaceId!;
+    const userId = (context as any).userId as string;
+    const admin = await getAdmin();
+    const project = await loadProject(admin, workspaceId, data.projectId);
+    if (["publishing", "published", "archived"].includes(project.status)) {
+      throw new Error(`Project is ${project.status} and can no longer be edited.`);
+    }
+    const thumbText = String(project.thumbnail_text ?? "").trim();
+    if (!thumbText) throw new Error("No thumbnail text — write it in the Content section and save first.");
+
+    const { resolveImageProvider, buildBusinessContext } = await import("@/lib/growthmind/growthmind.image-studio");
+    const resolved = await resolveImageProvider(workspaceId);
+    if (!resolved) throw new Error("No image provider connected. Add an OpenAI API key in Settings → Providers → Image Generation.");
+
+    const businessContext = await buildBusinessContext(workspaceId, "default");
+    const platform = project.target_platform === "facebook" ? "Facebook" : "Instagram";
+    const isVertical = ["reel", "story"].includes(String(project.format ?? ""));
+    const prompt = [
+      `Eye-catching ${platform} ${isVertical ? "Reel cover / vertical 9:16" : "post / square 1:1"} thumbnail image.`,
+      `The thumbnail must prominently feature this exact text as a bold, highly readable overlay: "${thumbText.slice(0, 200)}"`,
+      project.title ? `Video topic: ${String(project.title).slice(0, 200)}.` : "",
+      businessContext ? `Brand context: ${businessContext.slice(0, 400)}` : "",
+      "High contrast, scroll-stopping composition, professional social-media thumbnail style, large legible typography, clean background.",
+    ].filter(Boolean).join(" ");
+
+    // Audit-trail asset row (same lifecycle as Image Studio assets).
+    const { data: assetRow, error: assetErr } = await admin
+      .from("growthmind_image_assets")
+      .insert({
+        workspace_id: workspaceId,
+        provider: resolved.config.provider,
+        prompt,
+        status: "generating",
+        knowledge_context_type: "default",
+        asset_type: "social_image",
+        platform_hint: project.target_platform === "facebook" ? "meta" : "instagram",
+        style: "thumbnail",
+      })
+      .select("id")
+      .single();
+    if (assetErr || !assetRow) throw new Error(`Failed to create image asset record: ${assetErr?.message}`);
+
+    let imageUrl = "";
+    try {
+      const { createImageProvider } = await import("@/lib/providers/image");
+      const provider = createImageProvider({ ...resolved.config, workspaceId });
+      const result = await provider.generate({
+        prompt,
+        width:  isVertical ? 1024 : 1024,
+        height: isVertical ? 1792 : 1024,
+      });
+      imageUrl = result.images[0]?.url ?? "";
+      if (!imageUrl) throw new Error("No image URL returned from provider");
+      await admin.from("growthmind_image_assets")
+        .update({ image_url: imageUrl, revised_prompt: result.revisedPrompt ?? null, status: "ready", updated_at: nowIso() })
+        .eq("id", assetRow.id);
+    } catch (err: any) {
+      await admin.from("growthmind_image_assets")
+        .update({ status: "failed", error_message: err?.message ?? "Unknown error", updated_at: nowIso() })
+        .eq("id", assetRow.id);
+      throw new Error(`Thumbnail generation failed: ${err?.message ?? "Unknown error"}`);
+    }
+
+    const inspiration = { ...((project.inspiration as any) ?? {}), thumbnail_is_ai: true, thumbnail_asset_id: assetRow.id };
+    const { error } = await admin
+      .from("growthmind_content_projects")
+      .update({ thumbnail_url: imageUrl, inspiration, updated_at: nowIso() })
+      .eq("id", project.id).eq("workspace_id", workspaceId);
+    if (error) throw new Error(error.message);
+
+    // Visual content changed — void any prior approval (same as media changes).
+    if (["awaiting_approval", "approved", "scheduled", "changes_requested"].includes(project.status)) {
+      await transitionProjectStatus(admin, workspaceId, project.id, "in_production", userId,
+        "Thumbnail changed — approval reset", { approved_version: null, approved_at: null, approved_by: null, approval_action_id: null });
+    }
+    return { ok: true, thumbnailUrl: imageUrl, aiLabelled: true };
+  });
+
 const VoiceoverInput = z.object({
   projectId: z.string().uuid(),
   voiceId:   z.string().min(1).max(100).default("21m00Tcm4TlvDq8ikWAM"),
