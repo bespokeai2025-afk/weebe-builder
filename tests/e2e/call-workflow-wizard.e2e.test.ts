@@ -239,6 +239,46 @@ describe("versioning, test gate, override, state", () => {
   });
 });
 
+describe("per-workflow health isolation", () => {
+  it("another agent's dead-letter errors do not degrade this workflow's health", async () => {
+    const { data: activation } = await sb
+      .from("systemmind_workflow_activations")
+      .select("id, workspace_id, agent_id, status")
+      .eq("workspace_id", WS)
+      .eq("status", "active")
+      .limit(1)
+      .maybeSingle();
+    expect(activation).toBeTruthy();
+
+    // Second agent in the SAME workspace with a dead-lettered error.
+    const { data: otherAgent } = await sb.from("agents").insert({
+      workspace_id: WS, user_id: OWNER_ID, name: "e2e other agent",
+      settings: { agentType: "client_qualification", channelType: "voice" },
+      flow_data: { nodes: [], edges: [] },
+    }).select("id").single();
+    const { error: ieErr } = await sb.from("systemmind_integration_errors").insert({
+      workspace_id: WS, agent_id: otherAgent!.id, kind: "crm_writeback",
+      status: "dead_letter", error: "e2e isolation fixture",
+    });
+    expect(ieErr).toBeNull();
+
+    const { computeActivationHealth } = await import("@/lib/systemmind/call-runtime/tick.server");
+    const report = await computeActivationHealth(activation as any);
+    const errCheck = report.checks.find((c: any) => c.key === "integration_errors");
+    expect(errCheck?.ok).toBe(true);
+
+    // Same error attributed to THIS agent must degrade it.
+    await sb.from("systemmind_integration_errors")
+      .update({ agent_id: (activation as any).agent_id })
+      .eq("workspace_id", WS).eq("error", "e2e isolation fixture");
+    const report2 = await computeActivationHealth(activation as any);
+    expect(report2.checks.find((c: any) => c.key === "integration_errors")?.ok).toBe(false);
+
+    await sb.from("systemmind_integration_errors").delete().eq("workspace_id", WS).eq("error", "e2e isolation fixture");
+    await sb.from("agents").delete().eq("id", otherAgent!.id);
+  });
+});
+
 describe("execution timeline field bindings (workflow path drilldown)", () => {
   it("steps expose step_key + input_masked/output_masked used by the path UI", async () => {
     const { startExecution } = await import("@/lib/systemmind/call-runtime/executions.server");

@@ -81,6 +81,7 @@ export async function computeActivationHealth(activation: {
   id: string;
   workspace_id: string;
   status: string;
+  agent_id?: string | null;
 }): Promise<HealthReport> {
   const checks: HealthReport["checks"] = [];
   const actions: string[] = [];

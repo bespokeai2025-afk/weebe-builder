@@ -5,7 +5,7 @@ description: Setup wizard (14 evidence steps), 12-check test gate + audited over
 
 # SystemMind Call Workflow Wizard & Runtime
 
-Runtime lives in `src/lib/systemmind/call-runtime/` (triggers/queue/pipeline/executions/tick + setup-wizard). Migration `20260724130000_systemmind_call_runtime.sql` (7 tables, applied manually; members-read/server-write RLS).
+Runtime lives in `src/lib/systemmind/call-runtime/` (triggers/queue/pipeline/executions/tick + setup-wizard). Its tables use members-read/server-write RLS and the migrations were applied manually (shared dev/prod DB).
 
 Rules:
 - **Wizard status is live-computed, never self-reported** — `computeWizardStatus` derives all 14 steps from real rows (CRM connections, variables, deployments, triggers, queue, tests). Any new step must follow this evidence pattern.
@@ -18,4 +18,4 @@ Rules:
 
 **Why:** architect review flagged the registry surface as a write-path authorization bypass vs the server-fn surface; parity gating is the fix pattern.
 
-E2E: `tests/e2e/call-workflow-wizard.e2e.test.ts` — needs `workspace_members` owner row AND a `workspace_subscriptions` fixture (package with systemmind department) + `invalidateEntitlementsCache`, since activation runs entitlement checks. `leads` fixture columns: `full_name`, source enum `website_form`.
+E2E trap: activation runs entitlement checks, so fixtures need a workspace membership AND a subscription covering the systemmind department, plus an entitlement-cache invalidation — a bare workspace fixture silently fails the gate.

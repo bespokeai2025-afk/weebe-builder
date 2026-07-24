@@ -762,7 +762,7 @@ export async function getWorkflowHealthServer(args: {
 }): Promise<HealthReport> {
   const { data: activation } = await sb
     .from("systemmind_workflow_activations")
-    .select("id, workspace_id, status")
+    .select("id, workspace_id, agent_id, status")
     .eq("id", args.activationId)
     .eq("workspace_id", args.workspaceId)
     .maybeSingle();
