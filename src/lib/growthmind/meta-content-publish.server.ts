@@ -70,7 +70,7 @@ export async function validatePublishPreconditions(
       errors.push("The social account's access token has expired — reconnect the account.");
     }
     const perms: string[] = Array.isArray(connection.permissions) ? connection.permissions : [];
-    if (connection.account_type === "instagram_business" && perms.length && !perms.includes("instagram_content_publish")) {
+    if (connection.account_type === "instagram_professional" && perms.length && !perms.includes("instagram_content_publish")) {
       errors.push("Missing instagram_content_publish permission — reconnect and grant publishing access.");
     }
     if (connection.account_type === "facebook_page" && perms.length && !perms.includes("pages_manage_posts")) {
