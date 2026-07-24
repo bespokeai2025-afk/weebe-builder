@@ -46,7 +46,10 @@ const MODE_CONFIG: Record<HiveMindMode, {
   recommend: { icon: Lightbulb,     label: "Recommend",      desc: "Unlocks AI recommendations and reports",                     color: "text-blue-400",   ring: "ring-blue-500/30",   bg: "bg-blue-500/10" },
   assistant: { icon: MessageSquare, label: "Assistant",       desc: "Full AI chat and voice + task management",                   color: "text-violet-400", ring: "ring-violet-500/30", bg: "bg-violet-500/10" },
   operator:  { icon: Zap,           label: "Operator",        desc: "Propose and approve automated platform actions",             color: "text-amber-400",  ring: "ring-amber-500/30",  bg: "bg-amber-500/10" },
+  executive_operator: { icon: Zap,  label: "Executive Operator", desc: "Everything in Operator, plus cross-Mind orchestration playbooks that chain analyses across your AI executives. Sensitive actions still require approval.", color: "text-rose-400", ring: "ring-rose-500/30", bg: "bg-rose-500/10" },
 };
+
+const OPERATOR_CLASS_MODES: HiveMindMode[] = ["operator", "executive_operator"];
 
 const OPERATOR_CATEGORY_CONFIG: Record<OperatorCategory, { icon: React.ElementType; label: string; desc: string }> = {
   tasks:      { icon: ClipboardList, label: "Internal tasks",     desc: "Create internal HiveMind tasks automatically" },
@@ -169,7 +172,7 @@ function HiveMindSettings() {
     setModeError(null);
     try {
       const payload: { mode: HiveMindMode; operatorPermissions?: Record<string, boolean> } = { mode: m };
-      if (m === "operator") payload.operatorPermissions = perms ?? operatorPermissions;
+      if (OPERATOR_CLASS_MODES.includes(m)) payload.operatorPermissions = perms ?? operatorPermissions;
       await setModeFn({ data: payload });
       await refetchMode();
     } catch (err: any) {
@@ -179,7 +182,7 @@ function HiveMindSettings() {
 
   function toggleOperatorPermission(cat: OperatorCategory) {
     const next = { ...operatorPermissions, [cat]: !(operatorPermissions[cat] === true) };
-    void changeMode("operator", next);
+    void changeMode(OPERATOR_CLASS_MODES.includes(mode) ? mode : "operator", next);
   }
 
   function stopPreview() {
@@ -266,7 +269,7 @@ function HiveMindSettings() {
             {(Object.entries(MODE_CONFIG) as [HiveMindMode, typeof MODE_CONFIG[HiveMindMode]][]).map(([key, cfg]) => {
               const Icon = cfg.icon;
               const active = mode === key;
-              const operatorLocked = key === "operator" && !canManageOperator;
+              const operatorLocked = OPERATOR_CLASS_MODES.includes(key) && !canManageOperator;
               return (
                 <button
                   key={key}
@@ -307,7 +310,7 @@ function HiveMindSettings() {
             )}
 
             {/* Operator permissions + audit trail */}
-            {mode === "operator" && (
+            {OPERATOR_CLASS_MODES.includes(mode) && (
               <div className="mt-3 rounded-lg border border-amber-500/20 bg-amber-500/[0.04] overflow-hidden">
                 <div className="px-3.5 py-3 border-b border-amber-500/10 flex items-start gap-2.5">
                   <ShieldCheck className="h-4 w-4 text-amber-400 shrink-0 mt-0.5" />

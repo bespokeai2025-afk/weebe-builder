@@ -106,7 +106,7 @@ function RecommendationCard({
         </div>
         <p className="text-[11px] text-muted-foreground leading-relaxed">{rec.description}</p>
       </div>
-      {mode === "operator" && rec.action_type && (
+      {(mode === "operator" || mode === "executive_operator") && rec.action_type && (
         <button
           onClick={() => onPropose(rec)}
           disabled={proposing}
@@ -332,7 +332,7 @@ function HiveMindBriefingPage() {
             <div>
               <div className="flex items-center justify-between mb-3">
                 <p className="text-[11px] text-muted-foreground uppercase tracking-wide font-semibold">Recommendations</p>
-                {mode === "operator" && (
+                {(mode === "operator" || mode === "executive_operator") && (
                   <Link to="/hivemind/actions" className="text-[11px] text-amber-400 hover:text-amber-300 transition-colors flex items-center gap-1">
                     View Action Centre <ArrowRight className="h-3 w-3" />
                   </Link>

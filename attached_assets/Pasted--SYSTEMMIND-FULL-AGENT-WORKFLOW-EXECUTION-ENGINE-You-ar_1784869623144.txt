@@ -1,0 +1,1163 @@
+# SYSTEMMIND — FULL AGENT WORKFLOW EXECUTION ENGINE
+
+You are upgrading the existing WEBEE SystemMind so that it can execute a complete agent setup from start to finish.
+
+This is not a UI-only task.
+
+SystemMind must become WEBEE’s internal workflow automation and integration engine, with capabilities comparable to n8n, but purpose-built for WEBEE voice agents, Retell AI, CRM integrations, lead management, call triggering, call queues, post-call processing and WEBEE page population.
+
+The current SystemMind implementation has some existing agent setup capability. Audit and preserve everything that already works. Refine and extend the existing architecture rather than replacing working functionality.
+
+## Non-negotiable outcome
+
+A client must be able to select or reference an agent build inside the WEBEE Agent Builder, complete a guided setup process, and have SystemMind genuinely execute the setup.
+
+At the end of the process, SystemMind must have:
+
+1. Created or updated the agent in Retell AI.
+2. Created the required dynamic variables.
+3. Configured post-call data extraction fields.
+4. Configured pre-call data retrieval.
+5. Configured post-call data updates.
+6. Connected the selected CRM.
+7. Created and verified webhook endpoints.
+8. Configured call triggers.
+9. Configured call queues and calling rules.
+10. Mapped call outcomes to WEBEE pages.
+11. Tested the entire workflow.
+12. Clearly shown the client which steps are completed, failed or still require information.
+
+Do not mark a setup as complete merely because configuration records were saved. It is complete only when the external integrations and end-to-end workflow have been tested successfully.
+
+---
+
+# 1. AUDIT THE CURRENT IMPLEMENTATION FIRST
+
+Before changing any code, inspect the existing:
+
+* SystemMind pages.
+* Agent Builder.
+* Workflow Builder.
+* Existing Retell integration.
+* Existing webhook routes.
+* Existing CRM integrations.
+* Workspace settings.
+* Credential storage.
+* Dynamic variable handling.
+* Post-call extraction handling.
+* Call queue implementation.
+* Call scheduling and trigger logic.
+* WEBEE leads, qualified leads, calls, bookings and follow-up pages.
+* Existing Supabase database schema and RLS policies.
+* Existing multi-workspace architecture.
+* Existing server functions, API routes and background jobs.
+
+Produce an internal audit identifying:
+
+* What already works.
+* What is incomplete.
+* What is UI-only.
+* What is using mock data.
+* What is duplicated.
+* What is unsafe.
+* What lacks workspace scoping.
+* What fails silently.
+* What has no end-to-end verification.
+
+Do not remove or rewrite working production features unless required.
+
+---
+
+# 2. SYSTEMMIND MUST USE THE CLIENT’S AGENT BUILDER CONFIGURATION
+
+The client must be able to select an existing agent build from the WEBEE Agent Builder.
+
+SystemMind must inspect the selected agent build and automatically identify:
+
+* Agent name.
+* Agent purpose.
+* Voice settings.
+* Language.
+* Prompt.
+* Conversation nodes.
+* Script branches.
+* Transfer rules.
+* Booking rules.
+* Knowledge base references.
+* Dynamic variable references.
+* CRM fields referenced by the prompt.
+* Data required before a call.
+* Data collected during a call.
+* Data required after a call.
+* Post-call extraction fields.
+* Call outcome statuses.
+* Follow-up requirements.
+* Required integrations.
+* Required credentials.
+* Required webhook events.
+
+SystemMind must scan the agent prompt and workflow for variables written in formats such as:
+
+* `{{first_name}}`
+* `{{last_name}}`
+* `{{phone_number}}`
+* `{{email}}`
+* `{{budget}}`
+* `{{property_address}}`
+* `{{booking_slot}}`
+* `{{lead_status}}`
+* `{{crm_record_id}}`
+
+Do not depend only on manually entered fields.
+
+SystemMind must detect variables from:
+
+* Agent prompts.
+* Conversation nodes.
+* Function definitions.
+* API request bodies.
+* Booking functions.
+* Conditional branches.
+* CRM actions.
+* Post-call extraction schemas.
+* WEBEE templates.
+
+The user must then be able to review, approve, edit or reject the detected variables.
+
+---
+
+# 3. RETELL AGENT CREATION AND SYNCHRONISATION
+
+SystemMind must use the selected WEBEE Agent Builder configuration to create or update the corresponding agent in Retell AI.
+
+It must support:
+
+* Creating a new Retell agent.
+* Linking an existing Retell agent.
+* Updating an existing Retell agent.
+* Saving the Retell agent ID against the WEBEE agent.
+* Creating the required Retell LLM configuration.
+* Assigning the correct voice.
+* Configuring the conversation prompt.
+* Configuring functions and tools.
+* Configuring dynamic variables.
+* Configuring post-call data extraction.
+* Configuring webhook URLs.
+* Configuring transfer functions.
+* Configuring booking functions.
+* Configuring call settings.
+* Configuring voicemail behaviour.
+* Configuring maximum call duration.
+* Configuring interruption sensitivity where supported.
+* Configuring call recording and transcript settings.
+* Configuring metadata required to identify the workspace, campaign, lead and agent.
+
+SystemMind must compare the current Retell configuration against the WEBEE Agent Builder configuration and display:
+
+* In sync.
+* WEBEE changes not deployed.
+* Retell changes not imported.
+* Configuration conflict.
+* Deployment failed.
+* Retell credentials missing.
+
+Provide explicit actions:
+
+* Deploy to Retell.
+* Update Retell.
+* Import Retell configuration.
+* Compare changes.
+* Test agent.
+* Redeploy safely.
+
+Never expose raw Retell API keys to the browser.
+
+---
+
+# 4. DYNAMIC VARIABLE ENGINE
+
+Create a proper dynamic variable engine.
+
+Each variable must have:
+
+* Variable name.
+* Display label.
+* Description.
+* Data type.
+* Required or optional status.
+* Default value.
+* Example value.
+* Source system.
+* Source object.
+* Source field.
+* Destination system.
+* Destination object.
+* Destination field.
+* Direction.
+* Transformation rule.
+* Validation rule.
+* Fallback behaviour.
+* Sensitivity classification.
+* Whether it may be sent to Retell.
+* Whether it may be stored in WEBEE.
+* Whether it may be written back to the CRM.
+
+Supported variable types must include:
+
+* Text.
+* Number.
+* Currency.
+* Boolean.
+* Date.
+* Date and time.
+* Email.
+* Phone number.
+* URL.
+* Address.
+* Single-select.
+* Multi-select.
+* JSON object.
+* Record identifier.
+
+Supported directions:
+
+* CRM to WEBEE.
+* WEBEE to Retell before the call.
+* Retell to WEBEE during or after the call.
+* WEBEE to CRM after the call.
+* Retell directly to CRM through the WEBEE integration layer.
+* Bidirectional.
+
+Add variable transformation tools, including:
+
+* Date formatting.
+* Phone number normalisation.
+* Currency conversion formatting.
+* Boolean mapping.
+* Status mapping.
+* Concatenation.
+* Splitting names.
+* Enum translation.
+* Null fallback.
+* Conditional transformation.
+* Custom JSON mapping.
+
+Every mapping must include a test function using sample data.
+
+The user must see:
+
+* Source value.
+* Transformed value.
+* Destination value.
+* Validation result.
+* Any mapping error.
+
+---
+
+# 5. POST-CALL DATA EXTRACTION
+
+SystemMind must automatically detect likely post-call extraction fields from the agent script and workflow.
+
+Examples include:
+
+* Name.
+* Email.
+* Phone number.
+* Budget.
+* Appointment time.
+* Address.
+* Qualification result.
+* Sentiment.
+* Call outcome.
+* Reason for disqualification.
+* Callback date.
+* Callback time.
+* Consent status.
+* Product or service interest.
+* Objections.
+* Follow-up channel.
+* Notes.
+* Summary.
+* Next action.
+
+For every extraction field, allow the user to configure:
+
+* Field name.
+* Description for the Retell extraction model.
+* Data type.
+* Required status.
+* Allowed values.
+* Destination WEBEE field.
+* Destination CRM field.
+* Default value.
+* Confidence threshold.
+* Behaviour when extraction fails.
+
+SystemMind must configure the extraction fields in Retell and verify that the deployed Retell agent contains the expected schema.
+
+Post-call extraction must not be considered configured until SystemMind has read the deployed Retell configuration back and confirmed it.
+
+---
+
+# 6. CRM INTEGRATION ENGINE
+
+SystemMind must support CRM connections through a reusable connector architecture.
+
+Initial connectors should support the CRM integrations already used or planned by WEBEE, including:
+
+* Microsoft Dynamics.
+* HubSpot.
+* Salesforce.
+* Pipedrive.
+* WEBEE CRM.
+* Generic REST API.
+* Webhook-based CRM integrations.
+
+The architecture must make it easy to add additional CRM connectors later.
+
+Each CRM setup must support:
+
+* Secure credential entry.
+* OAuth where supported.
+* API key authentication.
+* Bearer token authentication.
+* Custom headers.
+* Base URL configuration.
+* Connection testing.
+* Object discovery.
+* Field discovery.
+* Pipeline discovery.
+* Stage and status discovery.
+* User or owner discovery.
+* Custom field discovery.
+* Sample record retrieval.
+* Read permission verification.
+* Write permission verification.
+
+Credentials must be stored securely and scoped to the correct workspace.
+
+Never store secrets in frontend state, local storage, logs or client-readable database fields.
+
+---
+
+# 7. PRE-CALL CRM DATA RETRIEVAL
+
+Before a call is made, SystemMind must be able to retrieve the relevant CRM record and populate the agent’s dynamic variables.
+
+The pre-call workflow must support:
+
+1. Identifying the lead using a CRM record ID, phone number, email address or configured lookup field.
+2. Retrieving the CRM record.
+3. Retrieving related records where required.
+4. Applying field transformations.
+5. Saving the relevant data to a WEBEE call context record.
+6. Passing the approved variables to Retell when initiating the call.
+7. Logging the values sent to Retell, excluding sensitive values that should be masked.
+8. Preventing the call if required data is missing.
+9. Using configured fallbacks when optional data is missing.
+
+The client must be able to test the pre-call workflow using an actual CRM record before activating the workflow.
+
+Display:
+
+* CRM record found.
+* Variables successfully loaded.
+* Required variables missing.
+* Data transformation failed.
+* Lead not eligible.
+* Ready to call.
+
+---
+
+# 8. POST-CALL CRM UPDATE
+
+After Retell sends the call-completed webhook, SystemMind must:
+
+1. Authenticate the webhook.
+2. Resolve the correct workspace.
+3. Resolve the correct agent.
+4. Resolve the correct campaign.
+5. Resolve the correct lead.
+6. Save the call record.
+7. Save the transcript.
+8. Save the recording URL where permitted.
+9. Save the call summary.
+10. Save post-call extraction values.
+11. Determine the call outcome.
+12. Update the WEBEE lead.
+13. Update the external CRM.
+14. Trigger follow-up actions.
+15. Update analytics.
+16. Update the call queue.
+17. Schedule callbacks where required.
+18. Log the complete execution result.
+
+CRM write-back must support:
+
+* Updating lead or contact fields.
+* Updating opportunity or deal fields.
+* Moving pipeline stages.
+* Updating statuses.
+* Creating activities.
+* Creating call notes.
+* Creating tasks.
+* Creating appointments.
+* Creating follow-up records.
+* Creating new contacts or leads where configured.
+* Adding transcript or recording links where permitted.
+
+Implement retry logic with exponential backoff for temporary CRM failures.
+
+Do not silently discard failed CRM updates. Failed actions must appear in SystemMind with a retry option.
+
+---
+
+# 9. WEBHOOK MANAGEMENT
+
+Build a dedicated webhook management layer.
+
+SystemMind must be able to:
+
+* Create workspace-specific webhook configurations.
+* Generate secure webhook secrets.
+* Configure Retell webhook URLs.
+* Verify webhook signatures where supported.
+* Verify WEBEE webhook secrets.
+* Record webhook events.
+* Deduplicate repeated webhook events.
+* Prevent replay attacks.
+* Retry failed processing.
+* Display the last successful event.
+* Display the last failed event.
+* Reprocess a failed event.
+* Send test webhook payloads.
+* Show webhook health.
+
+Webhook events should include, where supported:
+
+* Call started.
+* Call connected.
+* Transcript updated.
+* Call ended.
+* Call analysed.
+* Post-call extraction completed.
+* Call failed.
+* Voicemail detected.
+* Transfer attempted.
+* Appointment booked.
+
+Webhook processing must be idempotent.
+
+Receiving the same Retell event twice must not create duplicate leads, calls, appointments, notes or CRM updates.
+
+---
+
+# 10. CALL TRIGGER ENGINE
+
+SystemMind must provide clear call trigger settings.
+
+Supported trigger types should include:
+
+* Manual start.
+* New CRM lead created.
+* CRM field changed.
+* CRM stage changed.
+* WEBEE lead created.
+* WEBEE lead status changed.
+* CSV uploaded.
+* Webform submitted.
+* Scheduled campaign start.
+* Specific date and time.
+* Delay after lead creation.
+* Callback date reached.
+* Follow-up sequence step reached.
+* API request received.
+* Webhook received.
+* Recurring schedule.
+* Business-hours window.
+
+Each trigger must support:
+
+* Enabled or disabled status.
+* Trigger conditions.
+* Workspace timezone.
+* Allowed calling days.
+* Allowed calling hours.
+* Lead eligibility filters.
+* Consent requirements.
+* Suppression lists.
+* Duplicate protection.
+* Maximum attempts.
+* Delay between attempts.
+* Daily lead cap.
+* Daily call cap.
+* Campaign cap.
+* Area or region cap.
+* Retry conditions.
+* Stop conditions.
+
+Before activation, show a plain-English explanation such as:
+
+“When a new lead enters the Qualified stage in Microsoft Dynamics, WEBEE will retrieve the lead details, add the lead to the Residential Qualification queue and call between 9:00 AM and 6:00 PM Europe/London.”
+
+---
+
+# 11. CALL QUEUE ENGINE
+
+Create a real call queue engine rather than a visual list.
+
+The queue must support:
+
+* Pending.
+* Preparing.
+* Waiting for data.
+* Ready.
+* Calling.
+* Connected.
+* Completed.
+* Failed.
+* Retry scheduled.
+* Callback scheduled.
+* Paused.
+* Cancelled.
+* Suppressed.
+
+Queue controls must include:
+
+* Pause queue.
+* Resume queue.
+* Pause campaign.
+* Resume campaign.
+* Prioritise lead.
+* Remove lead.
+* Retry lead.
+* Reschedule lead.
+* Move lead between campaigns.
+* Bulk actions.
+* Filter by agent, campaign, status and date.
+* Search by name, phone, email or CRM record ID.
+
+Queue configuration must support:
+
+* Concurrency limits.
+* Calls per minute.
+* Calls per hour.
+* Calls per day.
+* Per-agent concurrency.
+* Per-workspace concurrency.
+* Per-campaign concurrency.
+* Retry delay.
+* Maximum retries.
+* Lead priority.
+* Queue ordering.
+* Timezone-aware calling windows.
+* Number rotation.
+* Agent rotation.
+* Campaign distribution.
+* DNC and consent checks.
+
+Use database locking or another safe claim mechanism so that two workers cannot call the same lead simultaneously.
+
+---
+
+# 12. POPULATE THE CORRECT WEBEE PAGES
+
+Call outcomes must automatically populate the correct WEBEE pages.
+
+At minimum:
+
+## Calls page
+
+Store:
+
+* Agent.
+* Campaign.
+* Lead.
+* CRM record.
+* Start and end time.
+* Duration.
+* Status.
+* Recording.
+* Transcript.
+* Summary.
+* Sentiment.
+* Cost where available.
+* Call outcome.
+* Extracted variables.
+* Integration execution status.
+
+## Leads page
+
+Create or update the lead when the configured outcome qualifies it as a lead.
+
+## Qualified page
+
+Move or copy the record when qualification conditions are satisfied.
+
+## Sales Pipeline
+
+Create or update the opportunity and stage based on configured outcome mappings.
+
+## Calendar and Bookings
+
+Create the booking when an appointment is confirmed.
+
+## Follow-Up Centre
+
+Create follow-up sequences or tasks when follow-up is required.
+
+## HexMail, BuzzChat, SMS or calling campaigns
+
+Trigger the relevant configured communication sequence.
+
+## Analytics Centre
+
+Update agent, campaign, outcome, conversion, booking, qualification, cost and failure metrics.
+
+All records must be scoped to the correct workspace.
+
+One workspace must never see another workspace’s agents, calls, leads, CRM data, analytics, credentials or workflows.
+
+---
+
+# 13. REDESIGN THE SYSTEMMIND SETUP EXPERIENCE
+
+The current setup feels messy and unclear. Replace it with a clean guided setup flow.
+
+Use a step-based wizard with the following structure:
+
+1. Select Agent Build.
+2. Review Detected Requirements.
+3. Connect Retell.
+4. Connect CRM.
+5. Configure Pre-Call Data.
+6. Configure Dynamic Variables.
+7. Configure Post-Call Extraction.
+8. Configure CRM Write-Back.
+9. Configure WEBEE Outcomes.
+10. Configure Call Trigger.
+11. Configure Call Queue.
+12. Configure Webhooks.
+13. Test Workflow.
+14. Activate.
+
+Each step must show one of these statuses:
+
+* Not started.
+* Information required.
+* In progress.
+* Connected.
+* Configured.
+* Test passed.
+* Warning.
+* Failed.
+* Active.
+
+Use prominent status cards and completion indicators.
+
+The client must immediately understand:
+
+* What SystemMind has already completed.
+* What SystemMind is currently doing.
+* What information is still required.
+* What failed.
+* How to fix it.
+* Whether the workflow is safe to activate.
+
+Do not use vague wording such as “Integration configured” without evidence.
+
+Instead display evidence such as:
+
+* “Microsoft Dynamics connection verified.”
+* “Read access confirmed.”
+* “Write access confirmed.”
+* “42 lead fields discovered.”
+* “12 dynamic variables mapped.”
+* “Retell agent updated successfully.”
+* “Post-call extraction schema verified.”
+* “Test lead retrieved successfully.”
+* “Test call completed.”
+* “CRM record updated successfully.”
+* “WEBEE qualified lead created successfully.”
+
+---
+
+# 14. REPLIT-STYLE CREDENTIAL AND CONFIGURATION PANELS
+
+When credentials or configuration are required, display a focused configuration panel similar to Replit’s secrets or credential prompts.
+
+For example:
+
+## Microsoft Dynamics connection required
+
+Required fields:
+
+* Tenant ID.
+* Client ID.
+* Client secret.
+* Environment URL.
+* Authentication method.
+
+Show:
+
+* Why each field is needed.
+* Where the user can obtain it.
+* Whether it is stored securely.
+* Test connection button.
+* Success or failure result.
+
+Do the same for:
+
+* Retell.
+* HubSpot.
+* Salesforce.
+* Pipedrive.
+* Cal.com.
+* Google Calendar.
+* Twilio.
+* WhatsApp.
+* Generic APIs.
+* Webhook secrets.
+
+Do not present clients with raw JSON unless they deliberately open an advanced mode.
+
+---
+
+# 15. FIELD MAPPING UI
+
+Create a simplified field mapping interface.
+
+Use a three-column layout:
+
+| Source | Transformation | Destination |
+
+Examples:
+
+| Microsoft Dynamics `firstname` | None | Retell `first_name` |
+| Microsoft Dynamics `mobilephone` | Normalise E.164 | Retell `phone_number` |
+| Retell `budget` | Convert to number | Dynamics `new_budget` |
+| Retell `booking_slot` | Convert timezone | WEBEE booking start |
+| Retell `qualification_result` | Status map | WEBEE qualified status |
+
+Features must include:
+
+* Drag-and-drop mapping where appropriate.
+* Searchable fields.
+* Recommended automatic mappings.
+* Confidence indicators.
+* Required-field warnings.
+* Type mismatch warnings.
+* Transformation selection.
+* Sample data preview.
+* Test mapping.
+* Advanced JSON view.
+* Reset mapping.
+* Duplicate mapping detection.
+
+SystemMind should propose mappings automatically but require user approval where confidence is low.
+
+---
+
+# 16. WORKFLOW VISUALISATION
+
+Provide a clean visual workflow summary showing the actual execution path:
+
+CRM or WEBEE trigger
+→ Retrieve lead
+→ Validate eligibility
+→ Transform variables
+→ Add to queue
+→ Start Retell call
+→ Receive live and post-call webhooks
+→ Save call data
+→ Evaluate outcome
+→ Update CRM
+→ Populate WEBEE pages
+→ Trigger booking or follow-up
+→ Complete workflow
+
+This must be a representation of the real stored and executable workflow, not a decorative diagram.
+
+Clicking a step must show:
+
+* Configuration.
+* Input data.
+* Output data.
+* Last execution.
+* Last error.
+* Retry controls.
+* Logs.
+
+---
+
+# 17. EXECUTION LOGS AND AUDIT TRAIL
+
+Create workflow execution records.
+
+Each run must include:
+
+* Workflow ID.
+* Workspace ID.
+* Agent ID.
+* Campaign ID.
+* Lead ID.
+* CRM record ID.
+* Trigger.
+* Start time.
+* End time.
+* Current state.
+* Completed steps.
+* Failed step.
+* Retry count.
+* Masked input data.
+* Masked output data.
+* External API responses.
+* Error code.
+* Human-readable error.
+* Resolution guidance.
+
+Provide a timeline view such as:
+
+* 10:04:01 — Trigger received.
+* 10:04:02 — Dynamics lead retrieved.
+* 10:04:02 — 11 variables mapped.
+* 10:04:03 — Lead added to call queue.
+* 10:04:15 — Retell call started.
+* 10:09:43 — Call completed.
+* 10:09:45 — Post-call extraction received.
+* 10:09:46 — WEBEE lead updated.
+* 10:09:47 — Dynamics opportunity updated.
+* 10:09:48 — Follow-up task created.
+* 10:09:48 — Workflow completed.
+
+Mask secrets and sensitive values.
+
+---
+
+# 18. WORKFLOW STATE MACHINE
+
+Implement a reliable state machine.
+
+Suggested workflow states:
+
+* Draft.
+* Requirements detected.
+* Awaiting credentials.
+* Awaiting mapping.
+* Ready for testing.
+* Testing.
+* Test failed.
+* Test passed.
+* Active.
+* Paused.
+* Degraded.
+* Error.
+* Archived.
+
+Suggested execution states:
+
+* Trigger received.
+* Data retrieval.
+* Validation.
+* Variable transformation.
+* Queue insertion.
+* Call preparation.
+* Calling.
+* Waiting for post-call event.
+* Post-call processing.
+* CRM update.
+* WEBEE update.
+* Follow-up processing.
+* Completed.
+* Failed.
+* Retry scheduled.
+
+State transitions must be explicit and validated.
+
+---
+
+# 19. BACKGROUND PROCESSING AND RELIABILITY
+
+Long-running operations must not depend on the browser remaining open.
+
+Implement server-side processing for:
+
+* Queue workers.
+* Scheduled triggers.
+* CRM polling where webhooks are unavailable.
+* Webhook retries.
+* CRM write-back retries.
+* Retell deployment checks.
+* Callback scheduling.
+* Follow-up scheduling.
+* Workflow health checks.
+
+Use safe retry behaviour with:
+
+* Exponential backoff.
+* Maximum retry counts.
+* Dead-letter state.
+* Manual retry.
+* Idempotency keys.
+* Duplicate protection.
+
+Do not allow a temporary CRM or Retell outage to permanently lose the workflow.
+
+---
+
+# 20. WORKSPACE SECURITY AND PERMISSIONS
+
+Every action must be workspace-specific.
+
+Verify workspace ownership on every:
+
+* Workflow.
+* Agent.
+* Credential.
+* CRM connection.
+* Mapping.
+* Queue entry.
+* Lead.
+* Call.
+* Campaign.
+* Webhook.
+* Execution log.
+* Booking.
+* Follow-up.
+
+Apply or correct Supabase RLS policies where necessary.
+
+Support permissions such as:
+
+* View workflows.
+* Create workflows.
+* Edit workflows.
+* Test workflows.
+* Activate workflows.
+* Pause workflows.
+* View credentials.
+* Manage credentials.
+* View execution logs.
+* Retry failed executions.
+
+Do not allow ordinary client users to view secret credential values after they are saved.
+
+---
+
+# 21. TESTING EXPERIENCE
+
+The setup wizard must include an end-to-end test mode.
+
+The client should be able to select a test CRM record and run:
+
+1. CRM connection test.
+2. CRM record retrieval test.
+3. Field mapping test.
+4. Dynamic variable test.
+5. Retell deployment test.
+6. Webhook test.
+7. Test call.
+8. Post-call extraction test.
+9. WEBEE page update test.
+10. CRM write-back test.
+11. Queue behaviour test.
+12. Trigger test.
+
+Show a result for every step.
+
+A workflow cannot be activated until all critical tests pass, unless an authorised administrator deliberately overrides the warning.
+
+An override must be logged.
+
+---
+
+# 22. SYSTEMMIND CHAT EXECUTION
+
+SystemMind’s conversational interface must be able to assist with and execute setup actions.
+
+Examples:
+
+* “Connect this agent to Microsoft Dynamics.”
+* “Use the Qualified Leads view as the call trigger.”
+* “Map the Dynamics budget field to the agent budget variable.”
+* “Push call summaries back into the CRM notes.”
+* “Only call leads between 9 AM and 6 PM.”
+* “Add failed calls back to the queue after two hours.”
+* “Send qualified leads to the WEBEE sales pipeline.”
+* “Test the workflow using this CRM lead.”
+* “Deploy this agent to Retell.”
+* “Why did this workflow fail?”
+* “Retry the CRM update.”
+
+SystemMind must convert these instructions into proposed configuration changes, show the proposed changes and then execute them when authorised.
+
+Destructive or high-impact actions must require confirmation.
+
+---
+
+# 23. DATABASE AND DOMAIN MODEL
+
+Create or refine proper tables or domain models for:
+
+* SystemMind workflows.
+* Workflow versions.
+* Workflow steps.
+* Workflow triggers.
+* Workflow actions.
+* CRM connections.
+* CRM objects.
+* CRM field schemas.
+* Dynamic variables.
+* Variable mappings.
+* Transformation rules.
+* Post-call extraction schemas.
+* Webhook configurations.
+* Webhook events.
+* Call queue entries.
+* Call attempts.
+* Workflow executions.
+* Workflow execution steps.
+* Integration errors.
+* Test runs.
+* Agent deployment versions.
+
+Do not place the entire workflow in a single unvalidated JSON field.
+
+JSON may be used for flexible configuration, but core identifiers, statuses, timestamps and relationships must be properly modelled and queryable.
+
+---
+
+# 24. VERSIONING AND SAFE DEPLOYMENT
+
+Every active workflow must have version history.
+
+When a client edits an active workflow:
+
+* Save a new draft version.
+* Keep the active version running.
+* Allow the draft to be tested.
+* Allow the client to compare versions.
+* Activate the new version only after approval.
+* Allow rollback to the previous version.
+
+The same principle must apply to Retell agent deployments.
+
+Do not break active calling campaigns while a new configuration is being prepared.
+
+---
+
+# 25. HEALTH MONITORING
+
+SystemMind must continuously show the health of each active workflow.
+
+Health checks should include:
+
+* Retell connection.
+* CRM connection.
+* Webhook delivery.
+* Queue worker.
+* Trigger activity.
+* Last successful execution.
+* Last failed execution.
+* CRM write access.
+* Retell agent synchronisation.
+* Required credentials.
+* Expired OAuth tokens.
+* Excessive queue backlog.
+* Repeated mapping failures.
+* Repeated post-call extraction failures.
+
+Use statuses:
+
+* Healthy.
+* Warning.
+* Degraded.
+* Failed.
+* Paused.
+
+Provide a clear recommended action for every warning or failure.
+
+---
+
+# 26. REQUIRED ACCEPTANCE TEST
+
+Do not claim this task is complete until the following real end-to-end scenario works:
+
+1. Select an existing WEBEE Agent Builder agent.
+2. SystemMind scans the agent and detects its variables and integrations.
+3. Connect a test CRM.
+4. Discover CRM objects and fields.
+5. Map CRM fields to Retell dynamic variables.
+6. Configure post-call extraction.
+7. Configure CRM write-back.
+8. Configure a call trigger.
+9. Configure a call queue.
+10. Deploy or update the Retell agent.
+11. Retrieve an actual test lead.
+12. Populate the Retell dynamic variables.
+13. Add the lead to the call queue.
+14. Start a test call.
+15. Receive the Retell call webhook.
+16. Receive the post-call extraction data.
+17. Save the call in WEBEE.
+18. Update the lead in WEBEE.
+19. Update the external CRM.
+20. Populate the relevant qualified, pipeline, booking or follow-up page.
+21. Display a successful execution timeline.
+22. Display every setup step as completed.
+
+Also test failure paths:
+
+* Invalid Retell key.
+* Invalid CRM credentials.
+* Missing required CRM field.
+* CRM API timeout.
+* Duplicate webhook.
+* Duplicate lead trigger.
+* Retell call failure.
+* Missing post-call extraction.
+* CRM write-back failure.
+* Queue worker restart.
+* Workspace access violation.
+
+---
+
+# 27. DEFINITION OF DONE
+
+This task is complete only when:
+
+* SystemMind executes real workflows.
+* Retell agents are genuinely created or updated.
+* Dynamic variables are genuinely passed into calls.
+* Post-call extraction is genuinely configured and received.
+* CRM data is genuinely retrieved before calls.
+* CRM records are genuinely updated after calls.
+* WEBEE pages are genuinely populated.
+* Call triggers genuinely add eligible leads to the queue.
+* The queue genuinely starts and controls calls.
+* Failed actions are visible and retryable.
+* The setup wizard clearly shows completion status.
+* The field mapping UI is understandable to non-technical clients.
+* Existing production functionality remains operational.
+* All data is workspace-scoped.
+* Secrets remain protected.
+* End-to-end automated and manual tests pass.
+
+Do not finish with a description of what should be built.
+
+Implement it, run the migrations, connect the existing components, test the actual API routes, inspect the database records and provide evidence of the completed end-to-end execution.
+
+Do not use placeholder data, fake success states, simulated integrations or hard-coded completion badges.
+
+At completion, report:
+
+* Existing functionality preserved.
+* New functionality implemented.
+* Database changes.
+* API and worker changes.
+* UI changes.
+* Security changes.
+* Tests executed.
+* Test results.
+* Any external credentials still required.
+* Any remaining limitations.

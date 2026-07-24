@@ -162,6 +162,7 @@ function expectedResultFor(action: HiveMindAction): string {
     case "assign_knowledge_base":     return "Agent keeps the assigned knowledge base and uses it on calls.";
     case "activate_lead_intake_workflow": return "New leads are auto-called and the need-to-call backlog shrinks.";
     case "sync_ad_stats":             return "Ad accounts sync successfully and stats stay fresh.";
+    case "run_orchestration_playbook": return "Coordinated tasks are created across Minds and the underlying issue is resolved.";
     case "growthmind_publish_content": return "Content is published to the connected social account and the post stays live.";
     default:                          return "The action's change persists and produces the described benefit.";
   }
@@ -174,6 +175,21 @@ export async function executeAction(sb: any, workspaceId: string, action: HiveMi
   const p = action.action_payload;
 
   switch (action.action_type) {
+    case "run_orchestration_playbook": {
+      const pb = String(p.playbook ?? "");
+      if (!["campaign_underperforming", "invoice_missing", "lead_not_followed_up"].includes(pb)) {
+        throw new Error(`Unknown orchestration playbook: ${pb}`);
+      }
+      // String-literal dynamic import (prod Rollup requirement).
+      const { runOrchestrationPlaybook } = await import("@/lib/hivemind/orchestration.server");
+      const r = await runOrchestrationPlaybook(sb, workspaceId, pb as any, {
+        triggerSource: (p.trigger_source === "auto" ? "auto" : "manual"),
+        userId: (p.user_id as string) ?? null,
+      });
+      if (!r.ok) throw new Error(r.error ?? "Orchestration failed");
+      return { run_id: r.runId ?? null, status: r.status, findings: r.findings, task_ids: r.taskIds, escalations: r.escalations };
+    }
+
     case "create_task": {
       const { data, error } = await sb.from("hivemind_tasks").insert({
         workspace_id: workspaceId,

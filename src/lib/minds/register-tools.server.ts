@@ -36,6 +36,8 @@ interface HiveMindKind {
 const HIVEMIND_ACTION_KINDS: HiveMindKind[] = [
   { type: "create_task", mind: "hivemind", title: "Create task", description: "Create an internal HiveMind task for the team.", cost: "none",
     affected: (r) => (r?.task_id ? { type: "hivemind_task", id: String(r.task_id) } : null) },
+  { type: "run_orchestration_playbook", mind: "hivemind", title: "Run orchestration playbook", description: "Chain analyses across the AI executives and create a coordinated, linked task plan (proposal-only; never bypasses approvals).", cost: "low",
+    affected: (r) => (r?.run_id ? { type: "hivemind_orchestration_run", id: String(r.run_id) } : null) },
   { type: "create_followup_campaign", mind: "hivemind", title: "Create follow-up campaign", description: "Create a HexMail follow-up campaign (draft) and optionally enroll leads.", cost: "low",
     affected: (r) => (r?.campaign_id ? { type: "hexmail_campaign", id: String(r.campaign_id) } : null) },
   { type: "enroll_leads_in_campaign", mind: "hivemind", title: "Enroll leads in campaign", description: "Enroll leads into an existing follow-up campaign.", cost: "low" },
@@ -94,6 +96,26 @@ for (const kind of HIVEMIND_ACTION_KINDS) {
     },
   });
 }
+
+// ── Orchestration runs (read tool — registry surface) ───────────────────────
+registerMindTool({
+  name: "hivemind.list_orchestration_runs",
+  mind: "hivemind",
+  title: "List orchestration runs",
+  description: "List recent cross-Mind orchestration playbook runs with their coordinated recommendations, linked tasks and escalations.",
+  access: "read",
+  surface: "registry",
+  sensitive: false,
+  idempotent: true,
+  estimatedCost: "none",
+  platforms: ["web", "mobile", "api", "system"],
+  run: async (ctx: MindToolContext): Promise<MindToolRunResult> => {
+    // String-literal dynamic import (prod Rollup requirement).
+    const { listOrchestrationRuns } = await import("@/lib/hivemind/orchestration.server");
+    const r = await listOrchestrationRuns(ctx.sb, ctx.workspaceId);
+    return { result: { runs: r.runs, error: r.error } };
+  },
+});
 
 // ── Declared capabilities (catalog completeness; executed on their own
 //    surfaces, audited there via auditServerFnToolRun where consequential) ───

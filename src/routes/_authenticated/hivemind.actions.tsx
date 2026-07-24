@@ -23,6 +23,7 @@ import {
   type ExecutiveRecommendation,
 } from "@/lib/hivemind/executive-recommendations";
 import { generateDnaProposalsFn } from "@/lib/hivemind/business-dna.functions";
+import { runOrchestrationPlaybookFn, listOrchestrationRunsFn } from "@/lib/hivemind/orchestration.functions";
 import { Button } from "@/components/ui/button";
 import { RelativeTime } from "@/components/ui/relative-time";
 
@@ -43,6 +44,7 @@ const ACTION_STYLES: Record<string, { label: string; color: string; bg: string; 
   growthmind_growth_campaign: { label: "GrowthMind Campaign",color: "text-violet-400",  bg: "bg-violet-500/10 border-violet-500/20",icon: TrendingUp },
   activate_lead_intake_workflow: { label: "Lead Intake Auto-Call", color: "text-emerald-400", bg: "bg-emerald-500/10 border-emerald-500/20", icon: Phone },
   activate_systemmind_automation: { label: "SystemMind Automation", color: "text-cyan-400", bg: "bg-cyan-500/10 border-cyan-500/20", icon: Zap },
+  run_orchestration_playbook: { label: "Orchestration Playbook", color: "text-fuchsia-400", bg: "bg-fuchsia-500/10 border-fuchsia-500/20", icon: Zap },
 };
 
 function getActionStyle(type: string) {
@@ -881,6 +883,125 @@ function RecommendationCard({
 // ── Main page ─────────────────────────────────────────────────────────────────
 type Tab = "recommendations" | "pending" | "executed" | "rejected" | "all" | "proposals";
 
+const ORCH_PLAYBOOKS: { key: string; title: string; description: string }[] = [
+  { key: "campaign_underperforming", title: "Campaign underperforming", description: "Chains GrowthMind, AccountsMind and SystemMind analyses on stalled call campaigns and creates a coordinated fix plan." },
+  { key: "invoice_missing", title: "Recurring invoice missing", description: "Finds recurring invoice schedules that skipped this month and coordinates AccountsMind follow-up tasks." },
+  { key: "lead_not_followed_up", title: "Qualified lead not followed up", description: "Finds interested/qualified leads gone quiet for 3+ days and coordinates follow-up tasks with GrowthMind messaging input." },
+];
+
+function OrchestrationPanel({ mode }: { mode: string }) {
+  const qc = useQueryClient();
+  const runFn = useServerFn(runOrchestrationPlaybookFn);
+  const listFn = useServerFn(listOrchestrationRunsFn);
+  const [open, setOpen] = useState(false);
+  const [runningKey, setRunningKey] = useState<string | null>(null);
+  const [msg, setMsg] = useState<string | null>(null);
+
+  const { data, isLoading } = useQuery({
+    queryKey: ["hivemind-orchestration-runs"],
+    queryFn: () => listFn(),
+    enabled: open,
+    throwOnError: false,
+  });
+  const runs: any[] = data?.runs ?? [];
+  const canRun = mode === "operator" || mode === "executive_operator";
+
+  async function handleRun(key: string) {
+    setRunningKey(key); setMsg(null);
+    try {
+      const r: any = await runFn({ data: { playbook: key } });
+      if (r?.ok) {
+        setMsg(r.status === "no_findings"
+          ? "No issues found — nothing to coordinate."
+          : `Coordinated plan created: ${r.findings} finding(s), ${r.taskIds.length} linked task(s), ${r.escalations.length} escalation(s).`);
+      } else {
+        setMsg(r?.error ?? "Orchestration failed");
+      }
+      qc.invalidateQueries({ queryKey: ["hivemind-orchestration-runs"] });
+      qc.invalidateQueries({ queryKey: ["hivemind-shell-badge"] });
+    } catch (e: any) {
+      setMsg(e?.message ?? "Orchestration failed");
+    } finally { setRunningKey(null); }
+  }
+
+  return (
+    <div className="border-b border-white/[0.06] px-5 py-3">
+      <button onClick={() => setOpen(o => !o)} className="flex w-full items-center gap-2 text-left">
+        <div className="flex h-6 w-6 items-center justify-center rounded-md bg-fuchsia-500/20 ring-1 ring-fuchsia-500/30 shrink-0">
+          <Zap className="h-3.5 w-3.5 text-fuchsia-400" />
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className="text-xs font-semibold">Cross-Mind Orchestration</p>
+          <p className="text-[11px] text-muted-foreground truncate">
+            {mode === "executive_operator"
+              ? "Executive Operator active — playbooks can run automatically and on demand"
+              : canRun
+                ? "Run coordinated playbooks across your AI executives"
+                : "Enable Operator or Executive Operator mode in Settings to run playbooks"}
+          </p>
+        </div>
+        {open ? <ChevronUp className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
+      </button>
+
+      {open && (
+        <div className="mt-3 space-y-3">
+          <div className="grid gap-2 sm:grid-cols-3">
+            {ORCH_PLAYBOOKS.map(pb => (
+              <div key={pb.key} className="rounded-lg border border-white/[0.08] bg-white/[0.03] p-3 flex flex-col gap-2">
+                <p className="text-xs font-medium">{pb.title}</p>
+                <p className="text-[11px] text-muted-foreground flex-1">{pb.description}</p>
+                <button
+                  onClick={() => handleRun(pb.key)}
+                  disabled={!canRun || runningKey !== null}
+                  className="flex items-center justify-center gap-1.5 rounded-md border border-fuchsia-500/30 bg-fuchsia-500/10 px-2.5 py-1.5 text-[11px] font-medium text-fuchsia-400 hover:bg-fuchsia-500/20 transition-all disabled:opacity-40"
+                >
+                  {runningKey === pb.key ? <Loader2 className="h-3 w-3 animate-spin" /> : <Play className="h-3 w-3" />}
+                  Run playbook
+                </button>
+              </div>
+            ))}
+          </div>
+          {msg && <p className="text-[11px] text-fuchsia-300">{msg}</p>}
+
+          <div>
+            <p className="text-[11px] font-medium text-muted-foreground mb-1.5">Recent runs</p>
+            {isLoading ? (
+              <p className="text-[11px] text-muted-foreground">Loading…</p>
+            ) : runs.length === 0 ? (
+              <p className="text-[11px] text-muted-foreground">No orchestration runs yet.</p>
+            ) : (
+              <div className="space-y-1.5">
+                {runs.slice(0, 6).map((r: any) => (
+                  <div key={r.id} className="rounded-md border border-white/[0.06] bg-white/[0.02] px-3 py-2">
+                    <div className="flex items-center gap-2">
+                      <span className={cn("text-[11px] font-medium",
+                        r.status === "completed" ? "text-emerald-400" : r.status === "no_findings" ? "text-muted-foreground" : "text-red-400")}>
+                        {r.status === "completed" ? "Completed" : r.status === "no_findings" ? "No findings" : "Failed"}
+                      </span>
+                      <span className="text-[11px] text-foreground/80">
+                        {ORCH_PLAYBOOKS.find(p => p.key === r.playbook)?.title ?? r.playbook}
+                      </span>
+                      <span className="text-[10px] text-muted-foreground">{r.trigger_source}</span>
+                      <span className="ml-auto text-[10px] text-muted-foreground"><RelativeTime date={r.created_at} /></span>
+                    </div>
+                    {r.recommendation && <p className="mt-1 text-[11px] text-muted-foreground line-clamp-2">{r.recommendation}</p>}
+                    {(Array.isArray(r.task_ids) && r.task_ids.length > 0) && (
+                      <p className="mt-0.5 text-[10px] text-muted-foreground">
+                        {r.task_ids.length} linked task(s){Array.isArray(r.escalations) && r.escalations.length > 0 ? ` · ${r.escalations.length} escalation(s)` : ""}
+                      </p>
+                    )}
+                    {r.error && <p className="mt-0.5 text-[10px] text-red-400">{r.error}</p>}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function HiveMindActionsPage() {
   const qc           = useQueryClient();
   const mode         = useHiveMindMode();
@@ -1070,7 +1191,7 @@ function HiveMindActionsPage() {
               Generate from DNA
             </button>
           ) : (
-            mode === "operator" && (
+            (mode === "operator" || mode === "executive_operator") && (
               <button
                 onClick={handleGenerate}
                 disabled={generating}
@@ -1092,6 +1213,9 @@ function HiveMindActionsPage() {
           )}
         </div>
       </div>
+
+      {/* Cross-Mind orchestration (Executive Operator) */}
+      <OrchestrationPanel mode={mode} />
 
       {/* Tabs */}
       <div className="border-b border-white/[0.06] px-5">
@@ -1196,13 +1320,13 @@ function HiveMindActionsPage() {
             </div>
             <p className="text-sm font-medium">No {tab} actions</p>
             <p className="text-xs text-muted-foreground mt-1">
-              {tab === "pending" && mode === "operator"
+              {tab === "pending" && (mode === "operator" || mode === "executive_operator")
                 ? "Click 'Generate Actions' to let HiveMind analyse your platform"
                 : tab === "pending"
                   ? "Switch to Operator mode to generate intelligent action proposals"
                   : `Actions will appear here when they are ${tab}`}
             </p>
-            {tab === "pending" && mode === "operator" && (
+            {tab === "pending" && (mode === "operator" || mode === "executive_operator") && (
               <button onClick={handleGenerate} disabled={generating}
                 className="mt-4 flex items-center gap-1.5 rounded-lg bg-amber-500/15 border border-amber-500/30 px-4 py-2 text-xs font-medium text-amber-400 hover:bg-amber-500/25 transition-all disabled:opacity-40">
                 {generating ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Zap className="h-3.5 w-3.5" />}

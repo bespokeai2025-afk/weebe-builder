@@ -9041,6 +9041,57 @@ export type Database = {
           },
         ]
       }
+      hivemind_orchestration_runs: {
+        Row: {
+          analyses: Json
+          created_at: string
+          created_by: string | null
+          entity_id: string | null
+          entity_type: string | null
+          error: string | null
+          escalations: Json
+          id: string
+          playbook: string
+          recommendation: string | null
+          status: string
+          task_ids: Json
+          trigger_source: string
+          workspace_id: string
+        }
+        Insert: {
+          analyses?: Json
+          created_at?: string
+          created_by?: string | null
+          entity_id?: string | null
+          entity_type?: string | null
+          error?: string | null
+          escalations?: Json
+          id?: string
+          playbook: string
+          recommendation?: string | null
+          status?: string
+          task_ids?: Json
+          trigger_source?: string
+          workspace_id: string
+        }
+        Update: {
+          analyses?: Json
+          created_at?: string
+          created_by?: string | null
+          entity_id?: string | null
+          entity_type?: string | null
+          error?: string | null
+          escalations?: Json
+          id?: string
+          playbook?: string
+          recommendation?: string | null
+          status?: string
+          task_ids?: Json
+          trigger_source?: string
+          workspace_id?: string
+        }
+        Relationships: []
+      }
       hivemind_recommendations: {
         Row: {
           approval_required: boolean
