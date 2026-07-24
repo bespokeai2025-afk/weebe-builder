@@ -6,9 +6,11 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 
-async function gate(context: any, mode: "view" | "edit") {
-  const { requireSystemMindView, requireSystemMindEdit } = await import("@/lib/systemmind/systemmind-access.server");
-  if (mode === "edit") await requireSystemMindEdit(context.workspaceId, context.userId);
+async function gate(context: any, mode: "view" | "edit" | "approval") {
+  const { requireSystemMindView, requireSystemMindEdit, requireSystemMindApproval } =
+    await import("@/lib/systemmind/systemmind-access.server");
+  if (mode === "approval") await requireSystemMindApproval(context.workspaceId, context.userId);
+  else if (mode === "edit") await requireSystemMindEdit(context.workspaceId, context.userId);
   else await requireSystemMindView(context.workspaceId, context.userId);
 }
 
@@ -108,7 +110,8 @@ export const activateWorkflowFn = createServerFn({ method: "POST" })
   .inputValidator((i: { activationId: string; overrideReason?: string }) =>
     z.object({ activationId: z.string().uuid(), overrideReason: z.string().max(500).optional() }).parse(i))
   .handler(async ({ data, context }) => {
-    await gate(context, "edit");
+    // Live-impact: must match the chat-surface tool (requiredActionKey "systemmind_approval").
+    await gate(context, "approval");
     const { activateWorkflowServer } = await import("@/lib/systemmind/call-runtime/setup-wizard.server");
     return activateWorkflowServer({
       workspaceId: context.workspaceId,
@@ -123,7 +126,8 @@ export const setWorkflowStateFn = createServerFn({ method: "POST" })
   .inputValidator((i: { activationId: string; action: "pause" | "resume" | "rollback" }) =>
     z.object({ activationId: z.string().uuid(), action: z.enum(["pause", "resume", "rollback"]) }).parse(i))
   .handler(async ({ data, context }) => {
-    await gate(context, "edit");
+    // Live-impact: must match the chat-surface tool (requiredActionKey "systemmind_approval").
+    await gate(context, "approval");
     const { setWorkflowStateServer } = await import("@/lib/systemmind/call-runtime/setup-wizard.server");
     return setWorkflowStateServer({
       workspaceId: context.workspaceId,
@@ -169,7 +173,8 @@ export const saveCallTriggerFn = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((i: z.input<typeof TriggerInputSchema>) => TriggerInputSchema.parse(i))
   .handler(async ({ data, context }) => {
-    await gate(context, "edit");
+    // Live-impact: must match the chat-surface tool (requiredActionKey "systemmind_approval").
+    await gate(context, "approval");
     await noWbah(context.workspaceId);
     const { saveCallTriggerServer } = await import("@/lib/systemmind/call-runtime/triggers.server");
     return saveCallTriggerServer({
@@ -185,7 +190,8 @@ export const setTriggerEnabledFn = createServerFn({ method: "POST" })
   .inputValidator((i: { id: string; enabled: boolean }) =>
     z.object({ id: z.string().uuid(), enabled: z.boolean() }).parse(i))
   .handler(async ({ data, context }) => {
-    await gate(context, "edit");
+    // Live-impact (enabling/disabling changes calling behavior): approval, like save.
+    await gate(context, "approval");
     await noWbah(context.workspaceId);
     const { setTriggerEnabledServer } = await import("@/lib/systemmind/call-runtime/triggers.server");
     return setTriggerEnabledServer({ workspaceId: context.workspaceId, id: data.id, enabled: data.enabled });

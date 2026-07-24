@@ -343,17 +343,29 @@ describe("surface parity guardrails", () => {
     for (const block of gated) {
       const name = block.slice(0, block.indexOf(" "));
       expect(block.includes("requireSupabaseAuth"), `${name} missing auth middleware`).toBe(true);
-      expect(/await gate\(context, "(view|edit)"\)/.test(block), `${name} missing gate()`).toBe(true);
+      expect(/await gate\(context, "(view|edit|approval)"\)/.test(block), `${name} missing gate()`).toBe(true);
     }
-    // Mutating endpoints must gate at edit level.
+    // Draft-level mutating endpoints gate at edit level.
     for (const name of [
-      "getOrCreateDraftActivationFn", "runWorkflowTestsFn", "activateWorkflowFn",
-      "setWorkflowStateFn", "saveCallTriggerFn", "setTriggerEnabledFn",
+      "getOrCreateDraftActivationFn", "runWorkflowTestsFn",
       "controlQueueEntryFn", "retryIntegrationErrorFn",
     ]) {
       const block = gated.find((b) => b.startsWith(name));
       expect(block, name).toBeTruthy();
       expect(block!.includes('gate(context, "edit")'), `${name} must gate at edit`).toBe(true);
     }
+    // Live-impact endpoints must gate at APPROVAL level — same permission
+    // ("systemmind_approval") as their chat-surface registry counterparts.
+    for (const name of [
+      "activateWorkflowFn", "setWorkflowStateFn",
+      "saveCallTriggerFn", "setTriggerEnabledFn",
+    ]) {
+      const block = gated.find((b) => b.startsWith(name));
+      expect(block, name).toBeTruthy();
+      expect(block!.includes('gate(context, "approval")'), `${name} must gate at approval`).toBe(true);
+      expect(block!.includes('gate(context, "edit")'), `${name} must NOT gate at edit only`).toBe(false);
+    }
+    // The gate() helper's approval branch uses the same primitive as chat.
+    expect(src).toContain("requireSystemMindApproval(context.workspaceId, context.userId)");
   });
 });
