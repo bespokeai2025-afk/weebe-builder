@@ -778,6 +778,25 @@ export const recordInvoicePayment = createServerFn({ method: "POST" })
       .eq("id", data.invoiceId)
       .maybeSingle();
     if (!inv) return { ok: false as const, error: "Invoice not found." };
+
+    // Shared Mind registry audit — records this financial mutation with real
+    // completed/failed status in mind_tool_executions (best-effort, never blocks).
+    const { auditServerFnToolRun } = await import("@/lib/minds/tool-registry.server");
+    return auditServerFnToolRun(
+      {
+        workspaceId: inv.workspace_id ?? "00000000-0000-0000-0000-000000000000",
+        userId,
+        platform: "web",
+        toolName: "accountsmind.record_invoice_payment",
+        params: { invoiceId: data.invoiceId, amountCents: data.amountCents, method: data.method },
+        affectedRecord: () => ({ type: "accountsmind_invoice", id: inv.id }),
+        outcome: (r: any) => ({ ok: r?.ok === true, error: r?.error }),
+      },
+      async () => recordPaymentInner(sb, data, inv, userId),
+    );
+  });
+
+async function recordPaymentInner(sb: any, data: any, inv: any, userId: string | null) {
     if (inv.status === "draft") return { ok: false as const, error: "Issue the invoice before recording payments." };
     if (["cancelled", "void"].includes(inv.status)) return { ok: false as const, error: "Cannot record payments on a cancelled/void invoice." };
     if (inv.status === "refunded") return { ok: false as const, error: "This invoice was refunded — duplicate it to bill again." };
@@ -833,7 +852,7 @@ export const recordInvoicePayment = createServerFn({ method: "POST" })
       } catch {}
     }
     return { ok: true as const, amountPaidCents: paid, status: patch.status };
-  });
+}
 
 export const listInvoicePayments = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth, requirePlatformAdmin])

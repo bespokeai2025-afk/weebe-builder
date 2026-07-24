@@ -3,7 +3,7 @@ import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 
 // ── Types ────────────────────────────────────────────────────────────────────
-export type HiveMindMode   = "observe" | "recommend" | "assistant" | "operator";
+export type HiveMindMode   = "observe" | "recommend" | "assistant" | "operator" | "executive_operator";
 export type ActionStatus   = "pending" | "approved" | "rejected" | "executed" | "failed";
 export type ActionType     =
   | "create_task"
@@ -35,6 +35,28 @@ export interface HiveMindAction {
   created_at:     string;
   updated_at:     string;
   executed_at:    string | null;
+  sensitive?:             boolean | null;
+  sensitive_category?:    string | null;
+  authorised_by_user_id?: string | null;
+  consumed_at?:           string | null;
+  /** Resolved for display only (from profiles) — not a DB column. */
+  authorised_by_email?:   string | null;
+  // Learning loop (outcome reassessment) fields.
+  expected_result?:        string | null;
+  reassess_at?:            string | null;
+  outcome?:                Record<string, any> | null;
+  outcome_classification?: string | null;
+}
+
+export interface ConfidenceAdjustmentRow {
+  adjustment_key: string;
+  adjustment:     number;
+  successes:      number;
+  partials:       number;
+  failures:       number;
+  inconclusive:   number;
+  last_outcome:   string | null;
+  updated_at:     string;
 }
 
 // ── Audit: previous/new state capture (rollback info where available) ────────
@@ -140,16 +162,34 @@ function expectedResultFor(action: HiveMindAction): string {
     case "assign_knowledge_base":     return "Agent keeps the assigned knowledge base and uses it on calls.";
     case "activate_lead_intake_workflow": return "New leads are auto-called and the need-to-call backlog shrinks.";
     case "sync_ad_stats":             return "Ad accounts sync successfully and stats stay fresh.";
+    case "run_orchestration_playbook": return "Coordinated tasks are created across Minds and the underlying issue is resolved.";
     case "growthmind_publish_content": return "Content is published to the connected social account and the post stays live.";
     default:                          return "The action's change persists and produces the described benefit.";
   }
 }
 
 // ── Action execution ─────────────────────────────────────────────────────────
-async function executeAction(sb: any, workspaceId: string, action: HiveMindAction): Promise<Record<string, any>> {
+// Exported for the shared Mind tool registry (src/lib/minds) — every approved
+// action executes through executeMindTool(), which dispatches back here.
+export async function executeAction(sb: any, workspaceId: string, action: HiveMindAction): Promise<Record<string, any>> {
   const p = action.action_payload;
 
   switch (action.action_type) {
+    case "run_orchestration_playbook": {
+      const pb = String(p.playbook ?? "");
+      if (!["campaign_underperforming", "invoice_missing", "lead_not_followed_up"].includes(pb)) {
+        throw new Error(`Unknown orchestration playbook: ${pb}`);
+      }
+      // String-literal dynamic import (prod Rollup requirement).
+      const { runOrchestrationPlaybook } = await import("@/lib/hivemind/orchestration.server");
+      const r = await runOrchestrationPlaybook(sb, workspaceId, pb as any, {
+        triggerSource: (p.trigger_source === "auto" ? "auto" : "manual"),
+        userId: (p.user_id as string) ?? null,
+      });
+      if (!r.ok) throw new Error(r.error ?? "Orchestration failed");
+      return { run_id: r.runId ?? null, status: r.status, findings: r.findings, task_ids: r.taskIds, escalations: r.escalations };
+    }
+
     case "create_task": {
       const { data, error } = await sb.from("hivemind_tasks").insert({
         workspace_id: workspaceId,
@@ -415,18 +455,50 @@ export const getHiveMindMode = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
     const sb = context.supabase as any;
+    const fallback = {
+      mode: "recommend" as HiveMindMode,
+      operatorEnabled: false,
+      operatorPermissions: {} as Record<string, boolean>,
+      operatorEnabledBy: null as string | null,
+      operatorEnabledAt: null as string | null,
+      canManageOperator: false,
+    };
     try {
       const { data } = await sb.from("workspace_settings")
-        .select("hivemind_mode, hivemind_operator_enabled, hivemind_operator_permissions")
+        .select("hivemind_mode, hivemind_operator_enabled, hivemind_operator_permissions, hivemind_operator_enabled_by, hivemind_operator_enabled_at")
         .eq("workspace_id", context.workspaceId)
         .maybeSingle();
+
+      // Resolve the enabling user's identity for the audit line (best-effort).
+      let operatorEnabledBy: string | null = null;
+      if (data?.hivemind_operator_enabled_by) {
+        try {
+          const { data: prof } = await sb.from("profiles")
+            .select("email, full_name")
+            .eq("user_id", data.hivemind_operator_enabled_by)
+            .maybeSingle();
+          operatorEnabledBy = prof?.full_name || prof?.email || null;
+        } catch { /* display-only */ }
+      }
+
+      // Whether the current user may enable/manage Operator mode (owner/admin).
+      let canManageOperator = false;
+      try {
+        const { resolvePermissions, isOwnerOrAdmin } = await import("@/lib/permissions/permissions.server");
+        const perms = await resolvePermissions(context.workspaceId!, (context as any).userId ?? null);
+        canManageOperator = isOwnerOrAdmin(perms);
+      } catch { /* fail closed */ }
+
       return {
         mode: (data?.hivemind_mode ?? "recommend") as HiveMindMode,
         operatorEnabled: data?.hivemind_operator_enabled === true,
         operatorPermissions: (data?.hivemind_operator_permissions ?? {}) as Record<string, boolean>,
+        operatorEnabledBy,
+        operatorEnabledAt: (data?.hivemind_operator_enabled_at ?? null) as string | null,
+        canManageOperator,
       };
     } catch {
-      return { mode: "recommend" as HiveMindMode, operatorEnabled: false, operatorPermissions: {} as Record<string, boolean> };
+      return fallback;
     }
   });
 
@@ -435,7 +507,7 @@ export const setHiveMindMode = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) =>
     z.object({
-      mode: z.enum(["observe","recommend","assistant","operator"]),
+      mode: z.enum(["observe","recommend","assistant","operator","executive_operator"]),
       operatorPermissions: z.record(z.boolean()).optional(),
     }).parse(input)
   )
@@ -446,8 +518,8 @@ export const setHiveMindMode = createServerFn({ method: "POST" })
 
     const update: Record<string, any> = { hivemind_mode: data.mode, updated_at: nowIso };
 
-    if (data.mode === "operator") {
-      // Operator mode is NEVER default and requires explicit owner/admin enablement.
+    if (data.mode === "operator" || data.mode === "executive_operator") {
+      // Operator-class modes are NEVER default and require explicit owner/admin enablement.
       const { resolvePermissions, isOwnerOrAdmin } = await import("@/lib/permissions/permissions.server");
       const perms = await resolvePermissions(workspaceId, (context as any).userId ?? null);
       if (!isOwnerOrAdmin(perms)) {
@@ -496,8 +568,45 @@ export const getHiveMindActionsAndCounts = createServerFn({ method: "GET" })
       .limit(200);
     if (error) throw error;
     const actions  = (data ?? []) as HiveMindAction[];
+
+    // Resolve authoriser identities for the audit trail (best-effort, display-only).
+    try {
+      const userIds = [...new Set(actions.map(a => a.authorised_by_user_id).filter(Boolean))] as string[];
+      if (userIds.length > 0) {
+        const { data: profs } = await sb.from("profiles")
+          .select("user_id, email, full_name")
+          .in("user_id", userIds);
+        const byId = new Map<string, string>(
+          (profs ?? []).map((p: any) => [p.user_id, p.full_name || p.email]),
+        );
+        for (const a of actions) {
+          if (a.authorised_by_user_id) a.authorised_by_email = byId.get(a.authorised_by_user_id) ?? null;
+        }
+      }
+    } catch { /* display-only */ }
+
     const pending  = actions.filter(a => a.status === "pending").length;
     return { actions, pending, badge: pending };
+  });
+
+// ── getHiveMindLearningSummary ────────────────────────────────────────────────
+// Read-only view of the outcome-learning confidence adjustments for the
+// caller's workspace. The hivemind_confidence_adjustments table is
+// server-write-only (authenticated is REVOKEd), so reads go through the
+// service-role client, strictly scoped to the authenticated workspace.
+export const getHiveMindLearningSummary = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const workspaceId = context.workspaceId!;
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data, error } = await (supabaseAdmin as any)
+      .from("hivemind_confidence_adjustments")
+      .select("adjustment_key, adjustment, successes, partials, failures, inconclusive, last_outcome, updated_at")
+      .eq("workspace_id", workspaceId)
+      .order("updated_at", { ascending: false })
+      .limit(100);
+    if (error) throw error;
+    return { adjustments: (data ?? []) as ConfidenceAdjustmentRow[] };
   });
 
 // ── proposeHiveMindAction ─────────────────────────────────────────────────────
@@ -539,18 +648,20 @@ export const proposeHiveMindAction = createServerFn({ method: "POST" })
   });
 
 // ── approveHiveMindAction ─────────────────────────────────────────────────────
-export const approveHiveMindAction = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
-    z.object({
-      id:          z.string().uuid(),
-      approved_by: z.string().default("User"),
-    }).parse(input)
-  )
-  .handler(async ({ context, data }) => {
-    const sb = context.supabase as any;
-    const workspaceId = context.workspaceId!;
-    const userId = (context as any).userId as string;
+/**
+ * Shared approval core — consumed by BOTH the web server function below and
+ * the /api/v1/minds/actions/:id/approve route. Pass an authenticated,
+ * user-JWT-bound Supabase client (RLS applies); never the service-role
+ * client from user-facing paths.
+ */
+export async function approveHiveMindActionCore(
+  ctx: { sb: any; workspaceId: string; userId: string },
+  data: { id: string; approved_by: string },
+): Promise<{ ok: true; result: Record<string, any> }> {
+  {
+    const sb = ctx.sb as any;
+    const workspaceId = ctx.workspaceId;
+    const userId = ctx.userId;
 
     // 1. Cheap pre-checks (no consume yet) — mode gate + sensitive entitlement.
     const { data: pre, error: fe } = await sb.from("hivemind_actions")
@@ -620,7 +731,24 @@ export const approveHiveMindAction = createServerFn({ method: "POST" })
     const baseline = await captureActionBaseline(sb, workspaceId, action as HiveMindAction);
     const previousState = await capturePreState(sb, workspaceId, action as HiveMindAction);
     try {
-      const result = await executeAction(sb, workspaceId, action as HiveMindAction);
+      // Execute through the shared Mind tool registry so every consequential
+      // run is audited (mind_tool_executions) with real status transitions.
+      const { executeMindTool } = await import("@/lib/minds/tool-registry.server");
+      const exec = await executeMindTool({
+        sb,
+        workspaceId,
+        userId,
+        platform: "web",
+        toolName: `hivemind.${action.action_type}`,
+        input: { action },
+        initiatedBy: "user",
+        explicitApproval: true,
+        approvalRef: action.id,
+      });
+      if (exec.status !== "completed") {
+        throw new Error(exec.error ?? `Tool execution ${exec.status}`);
+      }
+      const result = exec.result ?? {};
       const doneIso = new Date().toISOString();
       const reassessAt = new Date(Date.now() + 7 * 24 * 3600 * 1000).toISOString();
       await sb.from("hivemind_actions").update({
@@ -640,30 +768,93 @@ export const approveHiveMindAction = createServerFn({ method: "POST" })
             ? (action.action_payload as any).source_recommendation_id
             : null),
       }).eq("id", data.id);
+      // Reflect the outcome back onto the source executive recommendation.
+      {
+        const { reflectActionOutcomeOnRecommendation } =
+          await import("@/lib/hivemind/executive-followthrough.server");
+        await reflectActionOutcomeOnRecommendation(
+          sb, workspaceId,
+          (action as any).source_recommendation_id ??
+            (typeof (action.action_payload as any)?.source_recommendation_id === "string"
+              ? (action.action_payload as any).source_recommendation_id
+              : null),
+          "executed",
+        );
+      }
       return { ok: true, result };
     } catch (err: any) {
       await sb.from("hivemind_actions").update({
         status: "failed", error_message: err?.message ?? String(err), updated_at: new Date().toISOString(),
       }).eq("id", data.id);
+      try {
+        const { reflectActionOutcomeOnRecommendation } =
+          await import("@/lib/hivemind/executive-followthrough.server");
+        await reflectActionOutcomeOnRecommendation(
+          sb, workspaceId,
+          (action as any).source_recommendation_id ??
+            (typeof (action.action_payload as any)?.source_recommendation_id === "string"
+              ? (action.action_payload as any).source_recommendation_id
+              : null),
+          "failed",
+        );
+      } catch { /* best-effort */ }
       throw err;
     }
-  });
+  }
+}
+
+export const approveHiveMindAction = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) =>
+    z.object({
+      id:          z.string().uuid(),
+      approved_by: z.string().default("User"),
+    }).parse(input)
+  )
+  .handler(async ({ context, data }) =>
+    approveHiveMindActionCore(
+      {
+        sb: context.supabase as any,
+        workspaceId: context.workspaceId!,
+        userId: (context as any).userId as string,
+      },
+      data,
+    )
+  );
 
 // ── rejectHiveMindAction ──────────────────────────────────────────────────────
+/** Shared rejection core — consumed by web server fn + /api/v1 route. */
+export async function rejectHiveMindActionCore(
+  ctx: { sb: any; workspaceId: string },
+  data: { id: string },
+): Promise<{ ok: true }> {
+  const { sb, workspaceId } = ctx;
+  const { data: rejected, error } = await sb.from("hivemind_actions")
+    .update({ status: "rejected", updated_at: new Date().toISOString() })
+    .eq("id", data.id)
+    .eq("workspace_id", workspaceId)
+    .select("source_recommendation_id");
+  if (error) throw error;
+  const srcRec = (rejected ?? [])[0]?.source_recommendation_id ?? null;
+  if (srcRec) {
+    const { reflectActionOutcomeOnRecommendation } =
+      await import("@/lib/hivemind/executive-followthrough.server");
+    await reflectActionOutcomeOnRecommendation(sb, workspaceId, srcRec, "rejected");
+  }
+  return { ok: true };
+}
+
 export const rejectHiveMindAction = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) =>
     z.object({ id: z.string().uuid() }).parse(input)
   )
-  .handler(async ({ context, data }) => {
-    const sb = context.supabase as any;
-    const { error } = await sb.from("hivemind_actions")
-      .update({ status: "rejected", updated_at: new Date().toISOString() })
-      .eq("id", data.id)
-      .eq("workspace_id", context.workspaceId);
-    if (error) throw error;
-    return { ok: true };
-  });
+  .handler(async ({ context, data }) =>
+    rejectHiveMindActionCore(
+      { sb: context.supabase as any, workspaceId: context.workspaceId! },
+      data,
+    )
+  );
 
 // ── deleteHiveMindAction ──────────────────────────────────────────────────────
 export const deleteHiveMindAction = createServerFn({ method: "POST" })

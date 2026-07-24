@@ -12,6 +12,7 @@ import {
   getGrowthMindAIResponse, getGrowthMindBriefing,
   getGrowthMindTTS, listGrowthMindVoices,
 } from "@/lib/growthmind/growthmind.ai";
+import { useMindConversation } from "@/hooks/useMindConversation";
 
 type Role = "user" | "growthmind";
 type ChatMessage = {
@@ -286,6 +287,52 @@ export function GrowthMindChat() {
 
   const { playingId, play: playAudio, stop: stopAudio } = useAudioPlayer();
 
+  // ── Server-side conversation persistence (per workspace + user) ─────────────
+  const { initialMessages, historyLoaded, persist } = useMindConversation("growthmind");
+  const seededRef    = useRef(false);
+  const persistedIds = useRef<Set<string>>(new Set());
+
+  // Seed chat from server history once it loads (server is authoritative).
+  // Don't latch while history is empty — cache-seeded messages can arrive a
+  // render later than historyLoaded.
+  useEffect(() => {
+    if (!historyLoaded || seededRef.current) return;
+    if (initialMessages.length === 0) return;
+    seededRef.current = true;
+    const restored: ChatMessage[] = initialMessages.map(m => ({
+      id:      m.id,
+      role:    m.role === "user" ? "user" as const : "growthmind" as const,
+      content: m.content,
+      ts:      new Date(m.createdAt),
+    }));
+    restored.forEach(m => persistedIds.current.add(m.id));
+    historyRef.current = initialMessages
+      .filter(m => m.role === "user" || m.role === "assistant")
+      .slice(-12)
+      .map(m => ({ role: m.role as "user" | "assistant", content: m.content }));
+    setMessages(prev => {
+      const liveOnly = prev.filter(p => p.id !== "briefing");
+      return [...restored, ...liveOnly];
+    });
+  }, [historyLoaded, initialMessages]);
+
+  /** Persist finished, not-yet-saved messages (idempotent via clientMsgId). */
+  const persistNewMessages = useCallback((msgs: ChatMessage[]) => {
+    const fresh = msgs.filter(m =>
+      !persistedIds.current.has(m.id) && m.id !== "briefing" && m.content.trim() !== "",
+    );
+    if (fresh.length === 0) return;
+    fresh.forEach(m => persistedIds.current.add(m.id));
+    void persist(fresh.map(m => ({
+      role: m.role === "user" ? "user" as const : "assistant" as const,
+      content: m.content,
+      clientMsgId: m.id,
+    }))).then(ok => {
+      // Un-mark on failure so a later call retries (clientMsgId keeps it idempotent).
+      if (!ok) fresh.forEach(m => persistedIds.current.delete(m.id));
+    });
+  }, [persist]);
+
   const { data: platformData } = useQuery({
     queryKey: ["growthmind-data"],
     queryFn:  () => dataFn(),
@@ -311,21 +358,23 @@ export function GrowthMindChat() {
     }).catch(() => {});
   }, []);
 
+  // Briefing — only when there is no stored conversation history to show.
   useEffect(() => {
+    if (!historyLoaded || initialMessages.length > 0) return;
     let active = true;
     briefingFn({ data: { platformData } }).then(r => {
       if (!active) return;
       const msg: ChatMessage = { id: "briefing", role: "growthmind", content: r.briefing, ts: new Date() };
-      setMessages([msg]);
+      setMessages(prev => (prev.length === 0 ? [msg] : prev));
     }).catch(() => {
       const fallback: ChatMessage = {
         id: "briefing", role: "growthmind", ts: new Date(),
         content: "Good morning! I'm GrowthMind, your AI Chief Marketing Officer. Ask me anything about your pipeline, campaigns, or where to focus for maximum growth.",
       };
-      if (active) setMessages([fallback]);
+      if (active) setMessages(prev => (prev.length === 0 ? [fallback] : prev));
     });
     return () => { active = false; };
-  }, []);
+  }, [historyLoaded, initialMessages.length]);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -367,6 +416,7 @@ export function GrowthMindChat() {
       historyRef.current.push({ role: "assistant", content: reply });
 
       setMessages(prev => prev.map(m => m.id === thinkMsg.id ? { ...m, content: reply } : m));
+      persistNewMessages([userMsg, { ...thinkMsg, content: reply }]);
       await fetchTTS(thinkMsg.id, reply);
     } catch (e: any) {
       const errMsg = e?.message?.includes("API key") ? e.message : "Something went wrong. Please try again.";

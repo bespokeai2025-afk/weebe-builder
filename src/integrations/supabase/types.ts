@@ -6664,6 +6664,57 @@ export type Database = {
           },
         ]
       }
+      growthmind_learned_patterns: {
+        Row: {
+          adjustment: number
+          confidence: number
+          created_at: string
+          evidence: Json
+          id: string
+          insight: string
+          pattern_key: string
+          pattern_kind: string
+          resolved_at: string | null
+          resolved_by_user_id: string | null
+          sample_size: number
+          status: string
+          updated_at: string
+          workspace_id: string
+        }
+        Insert: {
+          adjustment?: number
+          confidence?: number
+          created_at?: string
+          evidence?: Json
+          id?: string
+          insight: string
+          pattern_key: string
+          pattern_kind: string
+          resolved_at?: string | null
+          resolved_by_user_id?: string | null
+          sample_size?: number
+          status?: string
+          updated_at?: string
+          workspace_id: string
+        }
+        Update: {
+          adjustment?: number
+          confidence?: number
+          created_at?: string
+          evidence?: Json
+          id?: string
+          insight?: string
+          pattern_key?: string
+          pattern_kind?: string
+          resolved_at?: string | null
+          resolved_by_user_id?: string | null
+          sample_size?: number
+          status?: string
+          updated_at?: string
+          workspace_id?: string
+        }
+        Relationships: []
+      }
       growthmind_marketing_tasks: {
         Row: {
           calendar_entry_id: string | null
@@ -8990,6 +9041,57 @@ export type Database = {
           },
         ]
       }
+      hivemind_orchestration_runs: {
+        Row: {
+          analyses: Json
+          created_at: string
+          created_by: string | null
+          entity_id: string | null
+          entity_type: string | null
+          error: string | null
+          escalations: Json
+          id: string
+          playbook: string
+          recommendation: string | null
+          status: string
+          task_ids: Json
+          trigger_source: string
+          workspace_id: string
+        }
+        Insert: {
+          analyses?: Json
+          created_at?: string
+          created_by?: string | null
+          entity_id?: string | null
+          entity_type?: string | null
+          error?: string | null
+          escalations?: Json
+          id?: string
+          playbook: string
+          recommendation?: string | null
+          status?: string
+          task_ids?: Json
+          trigger_source?: string
+          workspace_id: string
+        }
+        Update: {
+          analyses?: Json
+          created_at?: string
+          created_by?: string | null
+          entity_id?: string | null
+          entity_type?: string | null
+          error?: string | null
+          escalations?: Json
+          id?: string
+          playbook?: string
+          recommendation?: string | null
+          status?: string
+          task_ids?: Json
+          trigger_source?: string
+          workspace_id?: string
+        }
+        Relationships: []
+      }
       hivemind_recommendations: {
         Row: {
           approval_required: boolean
@@ -9524,6 +9626,167 @@ export type Database = {
           transcript?: Json
           transcript_len?: number
           updated_at?: string
+          workspace_id?: string
+        }
+        Relationships: []
+      }
+      mind_conversation_messages: {
+        Row: {
+          client_msg_id: string | null
+          content: string
+          conversation_id: string
+          created_at: string
+          created_refs: Json | null
+          id: string
+          metadata: Json | null
+          role: string
+          tool_refs: Json | null
+          user_id: string | null
+          workspace_id: string
+        }
+        Insert: {
+          client_msg_id?: string | null
+          content: string
+          conversation_id: string
+          created_at?: string
+          created_refs?: Json | null
+          id?: string
+          metadata?: Json | null
+          role: string
+          tool_refs?: Json | null
+          user_id?: string | null
+          workspace_id: string
+        }
+        Update: {
+          client_msg_id?: string | null
+          content?: string
+          conversation_id?: string
+          created_at?: string
+          created_refs?: Json | null
+          id?: string
+          metadata?: Json | null
+          role?: string
+          tool_refs?: Json | null
+          user_id?: string | null
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mind_conversation_messages_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "mind_conversations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      mind_conversations: {
+        Row: {
+          created_at: string
+          current_objective: string | null
+          id: string
+          last_message_at: string | null
+          message_count: number
+          mind: string
+          status: string
+          title: string | null
+          updated_at: string
+          user_id: string
+          workspace_id: string
+        }
+        Insert: {
+          created_at?: string
+          current_objective?: string | null
+          id?: string
+          last_message_at?: string | null
+          message_count?: number
+          mind: string
+          status?: string
+          title?: string | null
+          updated_at?: string
+          user_id: string
+          workspace_id: string
+        }
+        Update: {
+          created_at?: string
+          current_objective?: string | null
+          id?: string
+          last_message_at?: string | null
+          message_count?: number
+          mind?: string
+          status?: string
+          title?: string | null
+          updated_at?: string
+          user_id?: string
+          workspace_id?: string
+        }
+        Relationships: []
+      }
+      mind_tool_executions: {
+        Row: {
+          affected_record_id: string | null
+          affected_record_type: string | null
+          approval_ref: string | null
+          created_at: string
+          error_message: string | null
+          estimated_cost: string | null
+          finished_at: string | null
+          id: string
+          initiated_by: string
+          mind: string
+          new_state: Json | null
+          parameters: Json | null
+          platform: string
+          previous_state: Json | null
+          result_summary: Json | null
+          started_at: string | null
+          status: string
+          tool_name: string
+          user_id: string | null
+          workspace_id: string
+        }
+        Insert: {
+          affected_record_id?: string | null
+          affected_record_type?: string | null
+          approval_ref?: string | null
+          created_at?: string
+          error_message?: string | null
+          estimated_cost?: string | null
+          finished_at?: string | null
+          id?: string
+          initiated_by?: string
+          mind: string
+          new_state?: Json | null
+          parameters?: Json | null
+          platform?: string
+          previous_state?: Json | null
+          result_summary?: Json | null
+          started_at?: string | null
+          status: string
+          tool_name: string
+          user_id?: string | null
+          workspace_id: string
+        }
+        Update: {
+          affected_record_id?: string | null
+          affected_record_type?: string | null
+          approval_ref?: string | null
+          created_at?: string
+          error_message?: string | null
+          estimated_cost?: string | null
+          finished_at?: string | null
+          id?: string
+          initiated_by?: string
+          mind?: string
+          new_state?: Json | null
+          parameters?: Json | null
+          platform?: string
+          previous_state?: Json | null
+          result_summary?: Json | null
+          started_at?: string | null
+          status?: string
+          tool_name?: string
+          user_id?: string | null
           workspace_id?: string
         }
         Relationships: []

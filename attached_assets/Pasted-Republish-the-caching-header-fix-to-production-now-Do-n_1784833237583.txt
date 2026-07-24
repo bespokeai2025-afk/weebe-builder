@@ -1,0 +1,88 @@
+Republish the caching-header fix to production now.
+
+Do not make any additional feature, authentication, database, RLS, integration or UI changes during this deployment.
+
+After publishing, verify the LIVE production domain rather than localhost or the development preview.
+
+Production domain:
+https://webeereceptionist.com
+
+Run and report the results of these checks:
+
+1. HTML caching
+
+Request:
+curl -I https://webeereceptionist.com/
+
+Expected:
+- HTTP 200
+- Cache-Control: no-cache, max-age=0, must-revalidate
+- Content-Type: text/html
+
+2. Current hashed JavaScript asset
+
+Identify a real current JavaScript asset from the live HTML, then request it:
+
+curl -I https://webeereceptionist.com/assets/[CURRENT-ASSET].js
+
+Expected:
+- HTTP 200
+- Cache-Control: public, max-age=31536000, immutable
+- JavaScript Content-Type
+- The response must contain JavaScript, not HTML
+
+3. Missing JavaScript asset
+
+Request:
+
+curl -I https://webeereceptionist.com/assets/intentionally-missing-test-file.js
+
+Expected:
+- HTTP 404
+- It must not return 200
+- It must not return index.html
+- It must not have Content-Type: text/html
+
+4. Deployment version consistency
+
+Confirm that:
+- the live HTML references assets that currently exist
+- the HTML and assets belong to the same production build
+- no partially published build is being served
+- the production server wrapper is actually being used by the deployment start command
+
+5. Old-tab recovery test
+
+Perform this exact test:
+
+- Open production and sign in.
+- Leave the browser tab open.
+- Publish a harmless new build that changes the asset hashes.
+- Return to the old tab.
+- Navigate to several lazy-loaded authenticated pages.
+- Confirm that any preload failure triggers no more than one automatic reload.
+- Confirm the page then loads successfully.
+- Confirm there is no infinite reload loop.
+- Confirm no user data or authentication state is lost unnecessarily.
+
+6. Fresh-browser test
+
+Test using:
+- a private/incognito window
+- a normal browser after closing all existing WEBEE tabs
+- a hard refresh
+- direct navigation to an authenticated nested route
+
+Report:
+
+- production deployment ID
+- production deployment timestamp
+- the exact live Cache-Control header for HTML
+- the exact live Cache-Control header for assets
+- missing-asset status and Content-Type
+- whether the old-tab deployment test passed
+- whether private-window navigation passed
+- whether any service worker is registered
+- whether the production host keeps previous build assets temporarily
+
+Do not mark this completed merely because the deployment succeeded. Mark it completed only after the live production verification passes.

@@ -1,0 +1,13 @@
+---
+name: HiveMind action safety & learning loop
+description: Mode gates, sensitive-action approval hardening, and outcome-learning loop for hivemind_actions
+---
+
+# HiveMind action safety & learning loop
+
+- **Mode gate**: `mode-gate.server.ts` — `getHiveMindModeConfig` fails CLOSED (any read error → observe-like most-restrictive behavior). Default mode is `recommend` (both `DEFAULT_HIVEMIND_MODE` and the DB column default on `workspace_settings.hivemind_mode`). EVERY surface that inserts hivemind_actions/tasks proposals — including external ones in SystemMind/GrowthMind modules — must observe-gate via `assertProposalAllowed`/`isProposalAllowed`. Supabase builders return `{ error }` without throwing, so the gate must check `error` explicitly (try/catch alone fails open). Mode writes must be upsert-safe: `.update()` on a missing workspace_settings row silently affects 0 rows.
+- **Sensitive actions never auto-execute**, even in fully-enabled operator mode — `assertExecutionAllowed` requires `explicitApproval: true` for any type in `SENSITIVE_ACTIONS`. Auto-exec requires operator mode + `hivemind_operator_enabled` + per-category permission; unknown/unmapped types fail closed. Operator enablement is owner/admin-only and is revoked when leaving operator mode.
+- **Atomic approval consume**: approve flow = pre-check → `requireAction` (via `CATEGORY_ENTITLEMENT`) for sensitive → CAS update `.eq(status,'pending').is(consumed_at,null).select()` (zero rows = lost race) → post-consume re-validation (reject on fail) → execute. New sensitive-action categories must be added to BOTH `SENSITIVE_ACTIONS` and `CATEGORY_ENTITLEMENT`.
+- **Learning loop**: executed actions get `baseline`/`expected_result`/`reassess_at` (+7d); the 6h recon job `runActionOutcomeLearning` classifies outcome per type, publishes a deduped `action_outcome` event (`action_outcome:<id>`), writes `outcome_note` on the source recommendation, and upserts `hivemind_confidence_adjustments` keyed `action:<type>` / `rec:<department>`, bounded ±0.2. Reasoning inserts temper confidence via `getConfidenceAdjustment` (clamped 0.05–0.99).
+- **Why**: sensitive actions are client-facing/irreversible (broadcasts, campaign enrollment, webhooks); a race or replay on approval would double-execute; the learning loop is only trustworthy if adjustments are bounded and server-write-only (authenticated is REVOKEd on the adjustments table — recon tick uses service role).
+- **How to apply**: any new HiveMind executor/action type — classify it in `action-safety.shared.ts` first; any new proposal surface — add the observe gate; never bypass `approveHiveMindAction`'s CAS path with a direct status update.

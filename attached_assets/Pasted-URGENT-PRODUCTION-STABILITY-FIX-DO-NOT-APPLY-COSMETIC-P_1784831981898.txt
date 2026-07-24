@@ -1,0 +1,258 @@
+URGENT PRODUCTION STABILITY FIX — DO NOT APPLY COSMETIC PATCHES
+
+The production application is intermittently failing across multiple pages.
+
+Two confirmed errors are occurring:
+
+1. Failed to fetch dynamically imported module:
+   https://webeereceptionist.com/assets/_authenticated-[hash].js
+
+2. API requests such as:
+   /api/user/onboarding-status
+   are returning HTTP 401 Unauthorized.
+
+This application uses TanStack Start, React, Vite and Supabase authentication.
+
+Your task is to investigate and permanently fix the production deployment, frontend asset caching and authentication lifecycle.
+
+IMPORTANT SAFETY REQUIREMENTS
+
+- Do not remove or rewrite existing features.
+- Do not change existing database data.
+- Do not weaken Supabase RLS.
+- Do not bypass authentication.
+- Do not expose service-role keys to the frontend.
+- Do not break any current Retell, Cal.com, Microsoft Dynamics, n8n, webhook, CRM or third-party integrations.
+- Preserve strict workspace_id multi-tenant isolation.
+- Do not replace the current authentication system with mock authentication.
+- Create a rollback point before modifying anything.
+- Audit the actual production implementation before making assumptions.
+
+PART 1 — DIAGNOSE THE DYNAMIC IMPORT FAILURES
+
+Inspect the production build and determine why users are receiving stale references to deleted Vite JavaScript chunks.
+
+Check all of the following:
+
+- index.html caching headers
+- Vite-generated hashed asset caching headers
+- service worker or PWA registration
+- CDN or reverse proxy caching
+- Replit deployment caching
+- SPA fallback and rewrite rules
+- whether /assets/*.js requests are being rewritten to index.html
+- whether old assets are deleted immediately after deployment
+- whether two different application versions are being served simultaneously
+- whether deployments are atomic
+- whether browser tabs left open before deployment fail after deployment
+- whether lazy-loaded authenticated route chunks are especially affected
+
+For failed asset requests, log and inspect:
+
+- requested asset URL
+- response status
+- Content-Type
+- Cache-Control
+- ETag
+- deployment/build version
+- whether the response body is JavaScript, HTML or an error page
+
+Implement the following correct caching strategy:
+
+1. HTML application entry files:
+   Cache-Control: no-cache, max-age=0, must-revalidate
+
+2. Vite hashed files under /assets/:
+   Cache-Control: public, max-age=31536000, immutable
+
+3. A build-version endpoint or version.json:
+   Cache-Control: no-store
+
+Do not configure immutable caching for index.html.
+
+Ensure missing /assets/*.js and /assets/*.css files return a real 404 and are never rewritten to index.html.
+
+Remove or update any stale service worker. If this app does not intentionally operate as a PWA, unregister old service workers and remove obsolete cached application shells safely.
+
+Make deployments atomic:
+
+- Build the entire release before switching production traffic.
+- Do not expose partially uploaded releases.
+- Preserve the previous deployment’s hashed assets for a suitable overlap period so users with existing tabs can still load them.
+- Invalidate cached HTML during deployment.
+- Never serve HTML from release A with JavaScript assets from release B.
+
+Add a controlled recovery handler for Vite lazy-loading errors.
+
+Use the vite:preloadError event or an equivalent central handler.
+
+Requirements:
+
+- Reload automatically only once.
+- Prevent infinite reload loops.
+- Record the deployment version and failed asset URL.
+- Clear the reload marker after a successful application boot.
+- Show the existing error screen only if the automatic recovery fails.
+
+Do not use repeated uncontrolled location.reload loops.
+
+PART 2 — FIX SUPABASE AUTHENTICATION INITIALISATION
+
+Audit every protected route and every authenticated API request.
+
+The app must not call protected endpoints until Supabase has completed its initial session restoration.
+
+Implement a central authentication state with at least:
+
+- initializing
+- authenticated
+- unauthenticated
+- refreshing
+- error
+
+During initializing, show a loading state. Do not treat initializing as unauthenticated.
+
+Before calling /api/user/onboarding-status or any protected endpoint:
+
+1. Obtain the current Supabase session.
+2. Confirm that a valid access token exists.
+3. Send the token using the authentication method expected by the backend.
+4. If the token is expired, refresh the session.
+5. Retry the original request once after a successful refresh.
+6. If it still returns 401, clear the invalid session and redirect to login safely.
+
+Do not continuously retry 401 responses.
+
+Use one consistent authentication transport across the application:
+
+- secure server-readable cookies, or
+- Authorization: Bearer <access_token>
+
+Do not have some pages use cookies while other pages silently depend on bearer tokens unless both are intentionally supported and tested.
+
+Audit the server authentication middleware.
+
+For every protected endpoint:
+
+- securely extract the token or session
+- validate it using Supabase
+- retrieve the authenticated user
+- retrieve the correct workspace membership
+- reject missing or invalid membership
+- return structured JSON errors
+- distinguish 401 unauthenticated from 403 forbidden
+- never trust a workspace_id supplied by the browser without validating membership
+
+Check that production frontend and backend use the same:
+
+- SUPABASE_URL
+- public/anon key
+- Supabase project
+- cookie domain
+- application domain
+- authentication callback URLs
+
+Do not expose SUPABASE_SERVICE_ROLE_KEY in browser code.
+
+Check cookie settings where applicable:
+
+- Secure in production
+- appropriate SameSite value
+- correct domain and path
+- no accidental restriction to a different subdomain
+- correct handling behind HTTPS proxies
+
+PART 3 — ERROR HANDLING
+
+Create a single authenticated API client used by all protected frontend requests.
+
+It must:
+
+- wait for auth initialization
+- attach authentication
+- refresh expired sessions once
+- retry the request once
+- parse structured server errors
+- distinguish network errors, 401, 403, 404 and 500
+- avoid duplicate concurrent session refreshes
+- prevent multiple pages triggering simultaneous refresh calls
+- include a request ID for debugging
+
+Do not leave individual pages implementing separate authentication logic.
+
+Ensure protected React Query queries are disabled until auth is ready, for example by using an enabled condition based on a confirmed authenticated user and workspace.
+
+Cancel or ignore stale queries when the user logs out or switches workspace.
+
+PART 4 — OBSERVABILITY
+
+Add safe production logging for:
+
+- build version
+- deployment timestamp
+- route
+- requested asset
+- authenticated user ID where available
+- workspace ID where available
+- request ID
+- API status
+- auth initialization status
+- token refresh success or failure
+
+Never log complete access tokens, refresh tokens, passwords, API secrets or sensitive customer information.
+
+Add a simple production health endpoint that verifies:
+
+- frontend deployment version
+- backend deployment version
+- database connectivity
+- Supabase configuration presence
+- application environment
+
+The health endpoint must not reveal secrets.
+
+PART 5 — TESTS REQUIRED BEFORE DEPLOYMENT
+
+Test all of the following:
+
+1. Fresh login in a private browser window.
+2. Existing logged-in browser session.
+3. Expired access token.
+4. Invalid access token.
+5. User with no workspace membership.
+6. User switching workspaces.
+7. Opening every lazy-loaded authenticated page.
+8. Leaving a tab open, deploying a new release, then navigating inside the old tab.
+9. Hard refresh on every protected route.
+10. Directly opening a protected nested URL.
+11. Missing JavaScript asset returns 404, not HTML.
+12. index.html is not held with long-term immutable caching.
+13. Hashed assets use immutable long-term caching.
+14. No infinite reload loops.
+15. No repeated 401 request loops.
+16. Retell, CRM, Cal.com, n8n and webhook integrations still function.
+17. One account cannot access another account’s workspace data.
+
+DELIVERY REQUIREMENTS
+
+Before changing code, report:
+
+- the confirmed cause of the dynamic import failures
+- the confirmed cause of the 401 responses
+- affected files and infrastructure configuration
+- rollback plan
+
+After implementation, report:
+
+- every file changed
+- caching headers before and after
+- auth flow before and after
+- tests performed
+- test results
+- remaining risks
+- production deployment ID
+- confirmation that existing integrations and multi-tenant isolation were not changed
+
+Do not declare the issue fixed merely because a hard refresh works.
+
+The result must remain stable across deployments, existing browser tabs, expired sessions and all authenticated pages.

@@ -26,6 +26,8 @@ export type ApiPermission =
   | "webhooks:manage"
   | "billing:read"
   | "growthmind:read"
+  | "minds:read"
+  | "minds:execute"
   | "*";
 
 export interface AuthenticatedApiRequest {

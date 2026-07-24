@@ -153,13 +153,18 @@ export const setContentApprovalRules = createServerFn({ method: "POST" })
 
 const CreateInput = z.object({ recommendationId: z.string().uuid() });
 
-export const createProjectFromRecommendation = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
-  .inputValidator((i: z.infer<typeof CreateInput>) => CreateInput.parse(i))
-  .handler(async ({ data, context }) => {
-    const workspaceId = context.workspaceId!;
-    const userId = (context as any).userId as string;
-    const admin = await getAdmin();
+/**
+ * Core handoff logic — shared by the server fn below and the GrowthMind chat
+ * tool (which audits the run through the Mind tool registry).
+ */
+export async function createProjectFromRecommendationCore(
+  admin: any,
+  workspaceId: string,
+  userId: string | null,
+  recommendationId: string,
+): Promise<{ projectId: string; existed: boolean }> {
+  {
+    const data = { recommendationId };
 
     const { data: rec, error } = await admin
       .from("growthmind_content_recommendations")
@@ -257,6 +262,17 @@ export const createProjectFromRecommendation = createServerFn({ method: "POST" }
     } catch { /* best-effort */ }
 
     return { projectId: row.id as string, existed: false };
+  }
+}
+
+export const createProjectFromRecommendation = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((i: z.infer<typeof CreateInput>) => CreateInput.parse(i))
+  .handler(async ({ data, context }) => {
+    const workspaceId = context.workspaceId!;
+    const userId = (context as any).userId as string;
+    const admin = await getAdmin();
+    return await createProjectFromRecommendationCore(admin, workspaceId, userId, data.recommendationId);
   });
 
 // ── List / get ────────────────────────────────────────────────────────────────

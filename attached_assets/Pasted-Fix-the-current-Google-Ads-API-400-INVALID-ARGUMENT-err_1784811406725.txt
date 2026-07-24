@@ -1,0 +1,400 @@
+Fix the current Google Ads API 400 INVALID_ARGUMENT error on the GrowthMind Ads page.
+
+CURRENT STATE
+
+Google OAuth sign-in is now successful.
+
+The page shows:
+
+- Google sign-in: successful
+- API access verified: failed/pending
+- Ads account selected: not completed
+- Data sync healthy: not completed
+
+The API error contains:
+
+google.ads.googleads.v20.errors.GoogleAdsFailure
+HTTP 400
+INVALID_ARGUMENT
+Request contains an invalid argument
+
+The credential UI currently displays:
+
+ID: admin@webespokeai.com
+
+This is the connected Google email identity. It is not a Google Ads customer ID and must never be used as the customer_id in a Google Ads API request.
+
+ROOT CAUSES TO INVESTIGATE
+
+Investigate and fix all of the following before adding further features:
+
+1. The backend appears to be calling Google Ads API v20.
+2. v20 must be replaced with a currently supported Google Ads API version.
+3. The Google email may incorrectly be passed as the Google Ads customer ID.
+4. The app may be supplying customer_id or login-customer-id during ListAccessibleCustomers when it should not.
+5. The manager account ID and target advertising account ID may be confused.
+6. The first GAQL query may contain invalid, obsolete or incompatible fields.
+7. The backend is not extracting and displaying the detailed GoogleAdsFailure error.
+
+Do not hide the error with mock campaign data.
+
+STEP 1 — UPGRADE THE GOOGLE ADS API VERSION
+
+Search the entire codebase for:
+
+- v20
+- google.ads.googleads.v20
+- googleads.googleapis.com/v20
+- GOOGLE_ADS_API_VERSION
+- GoogleAdsService
+- ListAccessibleCustomers
+- searchStream
+- googleAds:search
+
+Replace v20 with a currently supported version.
+
+Make the API version configurable:
+
+GOOGLE_ADS_API_VERSION
+
+Do not scatter hard-coded version strings across different services.
+
+Create one shared Google Ads API base URL/configuration source.
+
+Review the migration requirements for all queried fields. Remove or replace any fields that are not available in the selected API version.
+
+STEP 2 — SEPARATE GOOGLE IDENTITY FROM GOOGLE ADS CUSTOMER ID
+
+The following fields must remain separate:
+
+connected_google_email:
+admin@webespokeai.com
+
+google_ads_manager_customer_id:
+numeric Google Ads manager ID only
+
+google_ads_customer_id:
+numeric selected client advertising account ID only
+
+Never copy connected_google_email into:
+
+- customer_id
+- login_customer_id
+- customer resource name
+- API URL
+- GAQL request parameters
+
+Rename the frontend label from:
+
+ID: admin@webespokeai.com
+
+to:
+
+Connected as: admin@webespokeai.com
+
+Only display “Customer ID” after a real numeric Google Ads account has been discovered and selected.
+
+Validate Google Ads IDs before making API calls:
+
+- Convert the value to a string.
+- Remove hyphens and spaces.
+- Require exactly ten numeric digits where appropriate.
+- Reject email addresses.
+- Reject “customers/” prefixes when building headers.
+- Add “customers/” only where a resource name specifically requires it.
+
+STEP 3 — USE THE CORRECT ACCOUNT DISCOVERY REQUEST
+
+The first Google Ads API call after OAuth must be:
+
+GET /customers:listAccessibleCustomers
+
+It must include:
+
+Authorization: Bearer ACCESS_TOKEN
+developer-token: GOOGLE_ADS_DEVELOPER_TOKEN
+
+It must not require:
+
+- customer_id in the URL
+- customer ID in the request body
+- an email address as customer ID
+- login-customer-id for the discovery call
+
+Do not run a campaign query before accessible customers have been discovered.
+
+Expected response:
+
+resourceNames:
+- customers/1234567890
+- customers/0987654321
+
+Extract the numeric customer IDs from these resource names.
+
+Store discovered accounts temporarily against the current workspace and credential.
+
+STEP 4 — DISCOVER THE MANAGER ACCOUNT HIERARCHY
+
+For each directly accessible account:
+
+1. Determine whether it is a manager account.
+2. Retrieve its account hierarchy using a minimal valid customer_client query.
+3. Identify child advertising accounts.
+4. Return the account name, customer ID, manager status, currency and time zone.
+5. Allow the user to select the client advertising account GrowthMind should monitor.
+
+Use:
+
+login-customer-id = numeric manager account ID without hyphens
+
+Use:
+
+customer_id in the request path = numeric target client advertising account ID without hyphens
+
+Do not use the manager account as the campaign reporting customer unless campaigns genuinely belong directly to that account.
+
+Store separately:
+
+- manager_customer_id
+- selected_customer_id
+- connected_google_email
+- workspace_id
+- credential_id
+
+STEP 5 — TEST WITH A MINIMAL GAQL QUERY
+
+Before running the full analytics query, test access using this minimal query:
+
+SELECT
+  customer.id,
+  customer.descriptive_name,
+  customer.manager,
+  customer.currency_code,
+  customer.time_zone
+FROM customer
+LIMIT 1
+
+Then test campaign access with:
+
+SELECT
+  campaign.id,
+  campaign.name,
+  campaign.status,
+  campaign.advertising_channel_type
+FROM campaign
+ORDER BY campaign.id
+LIMIT 50
+
+Only after both queries work should the integration add metrics.
+
+Do not start with a large query containing every GrowthMind metric.
+
+Add fields in controlled groups:
+
+Group 1:
+- campaign.id
+- campaign.name
+- campaign.status
+- campaign.advertising_channel_type
+
+Group 2:
+- campaign_budget.amount_micros
+- campaign.bidding_strategy_type
+
+Group 3:
+- metrics.impressions
+- metrics.clicks
+- metrics.cost_micros
+- metrics.conversions
+- metrics.conversions_value
+
+Group 4:
+- segments.date
+
+If a group fails, identify the exact incompatible or unavailable field instead of failing the complete integration.
+
+STEP 6 — PARSE THE REAL GOOGLE ADS ERROR
+
+The current page only shows the generic top-level message:
+
+Request contains an invalid argument.
+
+Update the backend error handler to extract:
+
+details[].errors[].errorCode
+details[].errors[].message
+details[].errors[].trigger
+details[].errors[].location.fieldPathElements
+details[].requestId
+
+Log a structured server-side error such as:
+
+{
+  operation: "list_accessible_customers",
+  apiVersion: "...",
+  workspaceId: "...",
+  credentialId: "...",
+  selectedCustomerId: "...",
+  loginCustomerId: "...",
+  googleAdsErrorCode: "...",
+  googleAdsMessage: "...",
+  trigger: "...",
+  fieldLocation: "...",
+  requestId: "..."
+}
+
+Redact:
+
+- access token
+- refresh token
+- developer token
+- OAuth client secret
+
+Do not show the complete raw Google response across the frontend card.
+
+Show a safe message such as:
+
+“Google Ads account discovery failed because an invalid customer identifier was supplied.”
+
+Include an expandable technical details section for administrators containing:
+
+- error code
+- safe error message
+- failed operation
+- request ID
+
+STEP 7 — VERIFY REQUIRED HEADERS
+
+Every normal Google Ads API request must use:
+
+Authorization: Bearer ACCESS_TOKEN
+developer-token: GOOGLE_ADS_DEVELOPER_TOKEN
+Content-Type: application/json
+
+When accessing a client through a manager account, also use:
+
+login-customer-id: MANAGER_CUSTOMER_ID_WITHOUT_HYPHENS
+
+Do not send:
+
+login-customer-id: admin@webespokeai.com
+
+Do not send:
+
+login-customer-id: customers/1234567890
+
+Do not send:
+
+login-customer-id: 123-456-7890
+
+Use:
+
+login-customer-id: 1234567890
+
+STEP 8 — CONNECTION STATUS MUST BE ACCURATE
+
+Use these status stages:
+
+1. Google sign-in
+2. Google Ads API access verified
+3. Ads account selected
+4. Initial data sync
+5. GrowthMind active
+
+Google sign-in should remain green because OAuth succeeded.
+
+API access should become green only after:
+
+- developer token accepted
+- supported API version used
+- ListAccessibleCustomers succeeds
+- at least one accessible account is returned
+
+Ads account selected should become green only after a valid numeric client customer ID is stored.
+
+Data sync healthy should become green only after the campaign query succeeds and records are saved.
+
+Do not label the overall credential “active” while API verification is failing. Use:
+
+Connected — setup incomplete
+
+or:
+
+Needs account selection
+
+STEP 9 — AUTOMATIC RECOVERY FLOW
+
+After fixing account discovery:
+
+1. Automatically retry ListAccessibleCustomers.
+2. Display accessible Google Ads accounts.
+3. If only one valid client advertising account is found, select it automatically.
+4. If several accounts are found, show an account selector.
+5. Save the manager and client IDs separately.
+6. Run the minimal campaign query.
+7. Import campaigns.
+8. Trigger GrowthMind analysis.
+9. Replace the manual campaign empty state.
+
+Keep “Log Campaign” only as a manual fallback and not as the primary action for connected Google Ads accounts.
+
+STEP 10 — CHECK THE DEVELOPER TOKEN
+
+Confirm that the backend environment contains:
+
+GOOGLE_ADS_DEVELOPER_TOKEN
+
+Verify that:
+
+- it is sent in the developer-token header
+- it has no accidental spaces
+- it is not being sent from the frontend
+- it belongs to the intended Google Ads API manager setup
+- its access level allows the account being queried
+
+Do not print the token in logs.
+
+TESTS REQUIRED
+
+Add tests for:
+
+1. Connected Google email is never used as customer_id.
+2. Customer IDs with hyphens are normalised.
+3. ListAccessibleCustomers runs without a customer ID.
+4. Manager ID is used only as login-customer-id.
+5. Client ID is used as the reporting customer ID.
+6. Supported Google Ads API version is used.
+7. Minimal customer query succeeds.
+8. Minimal campaign query succeeds.
+9. Invalid GAQL fields return a useful detailed error.
+10. GoogleAdsFailure details and request ID are captured.
+11. Workspace isolation is preserved.
+12. No tokens are returned to the browser.
+
+ACCEPTANCE CRITERIA
+
+The fix is complete only when:
+
+- No Google Ads API v20 request remains.
+- The connected email is treated only as a Google identity.
+- ListAccessibleCustomers succeeds.
+- Accessible manager/client accounts are discovered.
+- The correct client advertising account can be selected.
+- The selected numeric customer ID is stored.
+- A minimal campaign query succeeds.
+- Real campaigns are imported.
+- The page no longer displays the raw generic 400 error.
+- GrowthMind analysis runs after the campaign import.
+- No existing credential, OAuth or GrowthMind functionality is broken.
+
+After completing the fix, report:
+
+1. Exact Google Ads error code found inside details[].errors[].
+2. Exact invalid argument that caused the failure.
+3. Whether the email had been used as customer_id.
+4. Previous and new Google Ads API versions.
+5. Manager customer ID used, masked.
+6. Selected client customer ID, masked.
+7. Number of campaigns imported.
+8. Files changed.
+9. Tests completed.

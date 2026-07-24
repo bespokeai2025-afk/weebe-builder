@@ -18,7 +18,20 @@ directory** (`dist/server/`), NOT the cwd.
 silently falls back to no static dir, and ships HTML with no JS/CSS/favicon while
 `/` still returns 200. The correct value is `--static=../client` (→ `dist/client`).
 
-**How to apply:** keep `--static=../client` in both start scripts. If assets/
+# Cache headers (prod stability)
+
+srvx `serveStatic` sets NO Cache-Control, so the Replit proxy defaults everything
+(SSR HTML **and** hashed /assets chunks) to `cache-control: private` → stale-tab
+"Failed to fetch dynamically imported module" errors after republish.
+
+**Fix (current):** start scripts use `--entry scripts/prod-entry.mjs` (no
+`--static`). That entry wraps serveStatic (MISS-sentinel pattern) and sets:
+/assets/* → immutable 1y; other static → 1h must-revalidate; missing /assets/* →
+plain-text 404 no-store (never HTML); SSR text/html without existing header →
+no-cache must-revalidate. Never let CLI `--static` come back or the CLI's own
+serveStatic runs first with no headers.
+
+**How to apply (legacy note):** if `--static` is ever used again, keep `--static=../client` in both start scripts. If assets/
 favicon 404 in prod but `/` is 200, this is the cause. Smoke test in CI/container:
 `/`, one `/assets/*.js`, `/favicon.ico`, and an SSR route must all return 200.
 

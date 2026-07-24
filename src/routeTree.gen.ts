@@ -166,6 +166,7 @@ import { Route as AuthenticatedGrowthmindRecommendationsRouteImport } from './ro
 import { Route as AuthenticatedGrowthmindProposalsRouteImport } from './routes/_authenticated/growthmind.proposals'
 import { Route as AuthenticatedGrowthmindPromptStudioRouteImport } from './routes/_authenticated/growthmind.prompt-studio'
 import { Route as AuthenticatedGrowthmindPlaybooksRouteImport } from './routes/_authenticated/growthmind.playbooks'
+import { Route as AuthenticatedGrowthmindPerformanceLabRouteImport } from './routes/_authenticated/growthmind.performance-lab'
 import { Route as AuthenticatedGrowthmindLeadOpportunitiesRouteImport } from './routes/_authenticated/growthmind.lead-opportunities'
 import { Route as AuthenticatedGrowthmindImageStudioRouteImport } from './routes/_authenticated/growthmind.image-studio'
 import { Route as AuthenticatedGrowthmindImageLibraryRouteImport } from './routes/_authenticated/growthmind.image-library'
@@ -180,6 +181,7 @@ import { Route as AuthenticatedGrowthmindContentStudioRouteImport } from './rout
 import { Route as AuthenticatedGrowthmindContentCalendarRouteImport } from './routes/_authenticated/growthmind.content-calendar'
 import { Route as AuthenticatedGrowthmindCompetitorsRouteImport } from './routes/_authenticated/growthmind.competitors'
 import { Route as AuthenticatedGrowthmindCompetitorIntelRouteImport } from './routes/_authenticated/growthmind.competitor-intel'
+import { Route as AuthenticatedGrowthmindCommandCentreRouteImport } from './routes/_authenticated/growthmind.command-centre'
 import { Route as AuthenticatedGrowthmindChatRouteImport } from './routes/_authenticated/growthmind.chat'
 import { Route as AuthenticatedGrowthmindCampaignsRouteImport } from './routes/_authenticated/growthmind.campaigns'
 import { Route as AuthenticatedGrowthmindCampaignFactoryRouteImport } from './routes/_authenticated/growthmind.campaign-factory'
@@ -209,6 +211,12 @@ import { Route as LovableEmailTransactionalPreviewRouteImport } from './routes/l
 import { Route as LovableEmailQueueProcessRouteImport } from './routes/lovable/email/queue/process'
 import { Route as LovableEmailAuthWebhookRouteImport } from './routes/lovable/email/auth/webhook'
 import { Route as LovableEmailAuthPreviewRouteImport } from './routes/lovable/email/auth/preview'
+import { Route as ApiV1MindsToolsRouteImport } from './routes/api/v1/minds.tools'
+import { Route as ApiV1MindsTasksRouteImport } from './routes/api/v1/minds.tasks'
+import { Route as ApiV1MindsSummaryRouteImport } from './routes/api/v1/minds.summary'
+import { Route as ApiV1MindsNotificationsRouteImport } from './routes/api/v1/minds.notifications'
+import { Route as ApiV1MindsConversationsRouteImport } from './routes/api/v1/minds.conversations'
+import { Route as ApiV1MindsActionsRouteImport } from './routes/api/v1/minds.actions'
 import { Route as ApiV1GrowthmindRecommendationsRouteImport } from './routes/api/v1/growthmind.recommendations'
 import { Route as ApiV1ContactsIdRouteImport } from './routes/api/v1/contacts.$id'
 import { Route as ApiV1CampaignsPerformanceRouteImport } from './routes/api/v1/campaigns.performance'
@@ -271,12 +279,18 @@ import { Route as AuthenticatedAdminAccountsCostsRouteImport } from './routes/_a
 import { Route as AuthenticatedAdminAccountsClientsRouteImport } from './routes/_authenticated/admin.accounts.clients'
 import { Route as AuthenticatedAdminAccountsAlertsRouteImport } from './routes/_authenticated/admin.accounts.alerts'
 import { Route as AuthenticatedAdminAccountsClientsIndexRouteImport } from './routes/_authenticated/admin.accounts.clients.index'
+import { Route as ApiV1MindsToolsExecuteRouteImport } from './routes/api/v1/minds.tools.execute'
+import { Route as ApiV1MindsTasksIdRouteImport } from './routes/api/v1/minds.tasks.$id'
+import { Route as ApiV1MindsConversationsIdRouteImport } from './routes/api/v1/minds.conversations.$id'
 import { Route as ApiRuntimeAgentIdExportRouteImport } from './routes/api/runtime/agent.$id.export'
 import { Route as ApiPublicTelephonyStatusHealthRouteImport } from './routes/api/public/telephony/status.health'
 import { Route as ApiPublicTelephonyInboundHealthRouteImport } from './routes/api/public/telephony/inbound.health'
 import { Route as ApiPublicPaymentsWebhookHealthRouteImport } from './routes/api/public/payments/webhook.health'
 import { Route as AuthenticatedAdminAccountsWorkspaceIdRouteImport } from './routes/_authenticated/admin.accounts.workspace.$id'
 import { Route as AuthenticatedAdminAccountsClientsWebuyanyhouseRouteImport } from './routes/_authenticated/admin.accounts.clients.webuyanyhouse'
+import { Route as ApiV1MindsConversationsIdMessagesRouteImport } from './routes/api/v1/minds.conversations.$id.messages'
+import { Route as ApiV1MindsActionsIdRejectRouteImport } from './routes/api/v1/minds.actions.$id.reject'
+import { Route as ApiV1MindsActionsIdApproveRouteImport } from './routes/api/v1/minds.actions.$id.approve'
 
 const UnsubscribeRoute = UnsubscribeRouteImport.update({
   id: '/unsubscribe',
@@ -1154,6 +1168,12 @@ const AuthenticatedGrowthmindPlaybooksRoute =
     path: '/playbooks',
     getParentRoute: () => AuthenticatedGrowthmindRoute,
   } as any)
+const AuthenticatedGrowthmindPerformanceLabRoute =
+  AuthenticatedGrowthmindPerformanceLabRouteImport.update({
+    id: '/performance-lab',
+    path: '/performance-lab',
+    getParentRoute: () => AuthenticatedGrowthmindRoute,
+  } as any)
 const AuthenticatedGrowthmindLeadOpportunitiesRoute =
   AuthenticatedGrowthmindLeadOpportunitiesRouteImport.update({
     id: '/lead-opportunities',
@@ -1236,6 +1256,12 @@ const AuthenticatedGrowthmindCompetitorIntelRoute =
   AuthenticatedGrowthmindCompetitorIntelRouteImport.update({
     id: '/competitor-intel',
     path: '/competitor-intel',
+    getParentRoute: () => AuthenticatedGrowthmindRoute,
+  } as any)
+const AuthenticatedGrowthmindCommandCentreRoute =
+  AuthenticatedGrowthmindCommandCentreRouteImport.update({
+    id: '/command-centre',
+    path: '/command-centre',
     getParentRoute: () => AuthenticatedGrowthmindRoute,
   } as any)
 const AuthenticatedGrowthmindChatRoute =
@@ -1406,6 +1432,36 @@ const LovableEmailAuthWebhookRoute = LovableEmailAuthWebhookRouteImport.update({
 const LovableEmailAuthPreviewRoute = LovableEmailAuthPreviewRouteImport.update({
   id: '/lovable/email/auth/preview',
   path: '/lovable/email/auth/preview',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiV1MindsToolsRoute = ApiV1MindsToolsRouteImport.update({
+  id: '/api/v1/minds/tools',
+  path: '/api/v1/minds/tools',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiV1MindsTasksRoute = ApiV1MindsTasksRouteImport.update({
+  id: '/api/v1/minds/tasks',
+  path: '/api/v1/minds/tasks',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiV1MindsSummaryRoute = ApiV1MindsSummaryRouteImport.update({
+  id: '/api/v1/minds/summary',
+  path: '/api/v1/minds/summary',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiV1MindsNotificationsRoute = ApiV1MindsNotificationsRouteImport.update({
+  id: '/api/v1/minds/notifications',
+  path: '/api/v1/minds/notifications',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiV1MindsConversationsRoute = ApiV1MindsConversationsRouteImport.update({
+  id: '/api/v1/minds/conversations',
+  path: '/api/v1/minds/conversations',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiV1MindsActionsRoute = ApiV1MindsActionsRouteImport.update({
+  id: '/api/v1/minds/actions',
+  path: '/api/v1/minds/actions',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiV1GrowthmindRecommendationsRoute =
@@ -1763,6 +1819,22 @@ const AuthenticatedAdminAccountsClientsIndexRoute =
     path: '/',
     getParentRoute: () => AuthenticatedAdminAccountsClientsRoute,
   } as any)
+const ApiV1MindsToolsExecuteRoute = ApiV1MindsToolsExecuteRouteImport.update({
+  id: '/execute',
+  path: '/execute',
+  getParentRoute: () => ApiV1MindsToolsRoute,
+} as any)
+const ApiV1MindsTasksIdRoute = ApiV1MindsTasksIdRouteImport.update({
+  id: '/$id',
+  path: '/$id',
+  getParentRoute: () => ApiV1MindsTasksRoute,
+} as any)
+const ApiV1MindsConversationsIdRoute =
+  ApiV1MindsConversationsIdRouteImport.update({
+    id: '/$id',
+    path: '/$id',
+    getParentRoute: () => ApiV1MindsConversationsRoute,
+  } as any)
 const ApiRuntimeAgentIdExportRoute = ApiRuntimeAgentIdExportRouteImport.update({
   id: '/export',
   path: '/export',
@@ -1797,6 +1869,24 @@ const AuthenticatedAdminAccountsClientsWebuyanyhouseRoute =
     id: '/webuyanyhouse',
     path: '/webuyanyhouse',
     getParentRoute: () => AuthenticatedAdminAccountsClientsRoute,
+  } as any)
+const ApiV1MindsConversationsIdMessagesRoute =
+  ApiV1MindsConversationsIdMessagesRouteImport.update({
+    id: '/messages',
+    path: '/messages',
+    getParentRoute: () => ApiV1MindsConversationsIdRoute,
+  } as any)
+const ApiV1MindsActionsIdRejectRoute =
+  ApiV1MindsActionsIdRejectRouteImport.update({
+    id: '/$id/reject',
+    path: '/$id/reject',
+    getParentRoute: () => ApiV1MindsActionsRoute,
+  } as any)
+const ApiV1MindsActionsIdApproveRoute =
+  ApiV1MindsActionsIdApproveRouteImport.update({
+    id: '/$id/approve',
+    path: '/$id/approve',
+    getParentRoute: () => ApiV1MindsActionsRoute,
   } as any)
 
 export interface FileRoutesByFullPath {
@@ -1865,6 +1955,7 @@ export interface FileRoutesByFullPath {
   '/growthmind/campaign-factory': typeof AuthenticatedGrowthmindCampaignFactoryRoute
   '/growthmind/campaigns': typeof AuthenticatedGrowthmindCampaignsRoute
   '/growthmind/chat': typeof AuthenticatedGrowthmindChatRoute
+  '/growthmind/command-centre': typeof AuthenticatedGrowthmindCommandCentreRoute
   '/growthmind/competitor-intel': typeof AuthenticatedGrowthmindCompetitorIntelRoute
   '/growthmind/competitors': typeof AuthenticatedGrowthmindCompetitorsRoute
   '/growthmind/content-calendar': typeof AuthenticatedGrowthmindContentCalendarRoute
@@ -1879,6 +1970,7 @@ export interface FileRoutesByFullPath {
   '/growthmind/image-library': typeof AuthenticatedGrowthmindImageLibraryRoute
   '/growthmind/image-studio': typeof AuthenticatedGrowthmindImageStudioRoute
   '/growthmind/lead-opportunities': typeof AuthenticatedGrowthmindLeadOpportunitiesRoute
+  '/growthmind/performance-lab': typeof AuthenticatedGrowthmindPerformanceLabRoute
   '/growthmind/playbooks': typeof AuthenticatedGrowthmindPlaybooksRoute
   '/growthmind/prompt-studio': typeof AuthenticatedGrowthmindPromptStudioRoute
   '/growthmind/proposals': typeof AuthenticatedGrowthmindProposalsRoute
@@ -2053,6 +2145,12 @@ export interface FileRoutesByFullPath {
   '/api/v1/campaigns/performance': typeof ApiV1CampaignsPerformanceRoute
   '/api/v1/contacts/$id': typeof ApiV1ContactsIdRoute
   '/api/v1/growthmind/recommendations': typeof ApiV1GrowthmindRecommendationsRoute
+  '/api/v1/minds/actions': typeof ApiV1MindsActionsRouteWithChildren
+  '/api/v1/minds/conversations': typeof ApiV1MindsConversationsRouteWithChildren
+  '/api/v1/minds/notifications': typeof ApiV1MindsNotificationsRoute
+  '/api/v1/minds/summary': typeof ApiV1MindsSummaryRoute
+  '/api/v1/minds/tasks': typeof ApiV1MindsTasksRouteWithChildren
+  '/api/v1/minds/tools': typeof ApiV1MindsToolsRouteWithChildren
   '/lovable/email/auth/preview': typeof LovableEmailAuthPreviewRoute
   '/lovable/email/auth/webhook': typeof LovableEmailAuthWebhookRoute
   '/lovable/email/queue/process': typeof LovableEmailQueueProcessRoute
@@ -2066,7 +2164,13 @@ export interface FileRoutesByFullPath {
   '/api/public/telephony/inbound/health': typeof ApiPublicTelephonyInboundHealthRoute
   '/api/public/telephony/status/health': typeof ApiPublicTelephonyStatusHealthRoute
   '/api/runtime/agent/$id/export': typeof ApiRuntimeAgentIdExportRoute
+  '/api/v1/minds/conversations/$id': typeof ApiV1MindsConversationsIdRouteWithChildren
+  '/api/v1/minds/tasks/$id': typeof ApiV1MindsTasksIdRoute
+  '/api/v1/minds/tools/execute': typeof ApiV1MindsToolsExecuteRoute
   '/admin/accounts/clients/': typeof AuthenticatedAdminAccountsClientsIndexRoute
+  '/api/v1/minds/actions/$id/approve': typeof ApiV1MindsActionsIdApproveRoute
+  '/api/v1/minds/actions/$id/reject': typeof ApiV1MindsActionsIdRejectRoute
+  '/api/v1/minds/conversations/$id/messages': typeof ApiV1MindsConversationsIdMessagesRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -2126,6 +2230,7 @@ export interface FileRoutesByTo {
   '/growthmind/campaign-factory': typeof AuthenticatedGrowthmindCampaignFactoryRoute
   '/growthmind/campaigns': typeof AuthenticatedGrowthmindCampaignsRoute
   '/growthmind/chat': typeof AuthenticatedGrowthmindChatRoute
+  '/growthmind/command-centre': typeof AuthenticatedGrowthmindCommandCentreRoute
   '/growthmind/competitor-intel': typeof AuthenticatedGrowthmindCompetitorIntelRoute
   '/growthmind/competitors': typeof AuthenticatedGrowthmindCompetitorsRoute
   '/growthmind/content-calendar': typeof AuthenticatedGrowthmindContentCalendarRoute
@@ -2140,6 +2245,7 @@ export interface FileRoutesByTo {
   '/growthmind/image-library': typeof AuthenticatedGrowthmindImageLibraryRoute
   '/growthmind/image-studio': typeof AuthenticatedGrowthmindImageStudioRoute
   '/growthmind/lead-opportunities': typeof AuthenticatedGrowthmindLeadOpportunitiesRoute
+  '/growthmind/performance-lab': typeof AuthenticatedGrowthmindPerformanceLabRoute
   '/growthmind/playbooks': typeof AuthenticatedGrowthmindPlaybooksRoute
   '/growthmind/prompt-studio': typeof AuthenticatedGrowthmindPromptStudioRoute
   '/growthmind/proposals': typeof AuthenticatedGrowthmindProposalsRoute
@@ -2312,6 +2418,12 @@ export interface FileRoutesByTo {
   '/api/v1/campaigns/performance': typeof ApiV1CampaignsPerformanceRoute
   '/api/v1/contacts/$id': typeof ApiV1ContactsIdRoute
   '/api/v1/growthmind/recommendations': typeof ApiV1GrowthmindRecommendationsRoute
+  '/api/v1/minds/actions': typeof ApiV1MindsActionsRouteWithChildren
+  '/api/v1/minds/conversations': typeof ApiV1MindsConversationsRouteWithChildren
+  '/api/v1/minds/notifications': typeof ApiV1MindsNotificationsRoute
+  '/api/v1/minds/summary': typeof ApiV1MindsSummaryRoute
+  '/api/v1/minds/tasks': typeof ApiV1MindsTasksRouteWithChildren
+  '/api/v1/minds/tools': typeof ApiV1MindsToolsRouteWithChildren
   '/lovable/email/auth/preview': typeof LovableEmailAuthPreviewRoute
   '/lovable/email/auth/webhook': typeof LovableEmailAuthWebhookRoute
   '/lovable/email/queue/process': typeof LovableEmailQueueProcessRoute
@@ -2325,7 +2437,13 @@ export interface FileRoutesByTo {
   '/api/public/telephony/inbound/health': typeof ApiPublicTelephonyInboundHealthRoute
   '/api/public/telephony/status/health': typeof ApiPublicTelephonyStatusHealthRoute
   '/api/runtime/agent/$id/export': typeof ApiRuntimeAgentIdExportRoute
+  '/api/v1/minds/conversations/$id': typeof ApiV1MindsConversationsIdRouteWithChildren
+  '/api/v1/minds/tasks/$id': typeof ApiV1MindsTasksIdRoute
+  '/api/v1/minds/tools/execute': typeof ApiV1MindsToolsExecuteRoute
   '/admin/accounts/clients': typeof AuthenticatedAdminAccountsClientsIndexRoute
+  '/api/v1/minds/actions/$id/approve': typeof ApiV1MindsActionsIdApproveRoute
+  '/api/v1/minds/actions/$id/reject': typeof ApiV1MindsActionsIdRejectRoute
+  '/api/v1/minds/conversations/$id/messages': typeof ApiV1MindsConversationsIdMessagesRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -2395,6 +2513,7 @@ export interface FileRoutesById {
   '/_authenticated/growthmind/campaign-factory': typeof AuthenticatedGrowthmindCampaignFactoryRoute
   '/_authenticated/growthmind/campaigns': typeof AuthenticatedGrowthmindCampaignsRoute
   '/_authenticated/growthmind/chat': typeof AuthenticatedGrowthmindChatRoute
+  '/_authenticated/growthmind/command-centre': typeof AuthenticatedGrowthmindCommandCentreRoute
   '/_authenticated/growthmind/competitor-intel': typeof AuthenticatedGrowthmindCompetitorIntelRoute
   '/_authenticated/growthmind/competitors': typeof AuthenticatedGrowthmindCompetitorsRoute
   '/_authenticated/growthmind/content-calendar': typeof AuthenticatedGrowthmindContentCalendarRoute
@@ -2409,6 +2528,7 @@ export interface FileRoutesById {
   '/_authenticated/growthmind/image-library': typeof AuthenticatedGrowthmindImageLibraryRoute
   '/_authenticated/growthmind/image-studio': typeof AuthenticatedGrowthmindImageStudioRoute
   '/_authenticated/growthmind/lead-opportunities': typeof AuthenticatedGrowthmindLeadOpportunitiesRoute
+  '/_authenticated/growthmind/performance-lab': typeof AuthenticatedGrowthmindPerformanceLabRoute
   '/_authenticated/growthmind/playbooks': typeof AuthenticatedGrowthmindPlaybooksRoute
   '/_authenticated/growthmind/prompt-studio': typeof AuthenticatedGrowthmindPromptStudioRoute
   '/_authenticated/growthmind/proposals': typeof AuthenticatedGrowthmindProposalsRoute
@@ -2583,6 +2703,12 @@ export interface FileRoutesById {
   '/api/v1/campaigns/performance': typeof ApiV1CampaignsPerformanceRoute
   '/api/v1/contacts/$id': typeof ApiV1ContactsIdRoute
   '/api/v1/growthmind/recommendations': typeof ApiV1GrowthmindRecommendationsRoute
+  '/api/v1/minds/actions': typeof ApiV1MindsActionsRouteWithChildren
+  '/api/v1/minds/conversations': typeof ApiV1MindsConversationsRouteWithChildren
+  '/api/v1/minds/notifications': typeof ApiV1MindsNotificationsRoute
+  '/api/v1/minds/summary': typeof ApiV1MindsSummaryRoute
+  '/api/v1/minds/tasks': typeof ApiV1MindsTasksRouteWithChildren
+  '/api/v1/minds/tools': typeof ApiV1MindsToolsRouteWithChildren
   '/lovable/email/auth/preview': typeof LovableEmailAuthPreviewRoute
   '/lovable/email/auth/webhook': typeof LovableEmailAuthWebhookRoute
   '/lovable/email/queue/process': typeof LovableEmailQueueProcessRoute
@@ -2596,7 +2722,13 @@ export interface FileRoutesById {
   '/api/public/telephony/inbound/health': typeof ApiPublicTelephonyInboundHealthRoute
   '/api/public/telephony/status/health': typeof ApiPublicTelephonyStatusHealthRoute
   '/api/runtime/agent/$id/export': typeof ApiRuntimeAgentIdExportRoute
+  '/api/v1/minds/conversations/$id': typeof ApiV1MindsConversationsIdRouteWithChildren
+  '/api/v1/minds/tasks/$id': typeof ApiV1MindsTasksIdRoute
+  '/api/v1/minds/tools/execute': typeof ApiV1MindsToolsExecuteRoute
   '/_authenticated/admin/accounts/clients/': typeof AuthenticatedAdminAccountsClientsIndexRoute
+  '/api/v1/minds/actions/$id/approve': typeof ApiV1MindsActionsIdApproveRoute
+  '/api/v1/minds/actions/$id/reject': typeof ApiV1MindsActionsIdRejectRoute
+  '/api/v1/minds/conversations/$id/messages': typeof ApiV1MindsConversationsIdMessagesRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -2666,6 +2798,7 @@ export interface FileRouteTypes {
     | '/growthmind/campaign-factory'
     | '/growthmind/campaigns'
     | '/growthmind/chat'
+    | '/growthmind/command-centre'
     | '/growthmind/competitor-intel'
     | '/growthmind/competitors'
     | '/growthmind/content-calendar'
@@ -2680,6 +2813,7 @@ export interface FileRouteTypes {
     | '/growthmind/image-library'
     | '/growthmind/image-studio'
     | '/growthmind/lead-opportunities'
+    | '/growthmind/performance-lab'
     | '/growthmind/playbooks'
     | '/growthmind/prompt-studio'
     | '/growthmind/proposals'
@@ -2854,6 +2988,12 @@ export interface FileRouteTypes {
     | '/api/v1/campaigns/performance'
     | '/api/v1/contacts/$id'
     | '/api/v1/growthmind/recommendations'
+    | '/api/v1/minds/actions'
+    | '/api/v1/minds/conversations'
+    | '/api/v1/minds/notifications'
+    | '/api/v1/minds/summary'
+    | '/api/v1/minds/tasks'
+    | '/api/v1/minds/tools'
     | '/lovable/email/auth/preview'
     | '/lovable/email/auth/webhook'
     | '/lovable/email/queue/process'
@@ -2867,7 +3007,13 @@ export interface FileRouteTypes {
     | '/api/public/telephony/inbound/health'
     | '/api/public/telephony/status/health'
     | '/api/runtime/agent/$id/export'
+    | '/api/v1/minds/conversations/$id'
+    | '/api/v1/minds/tasks/$id'
+    | '/api/v1/minds/tools/execute'
     | '/admin/accounts/clients/'
+    | '/api/v1/minds/actions/$id/approve'
+    | '/api/v1/minds/actions/$id/reject'
+    | '/api/v1/minds/conversations/$id/messages'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -2927,6 +3073,7 @@ export interface FileRouteTypes {
     | '/growthmind/campaign-factory'
     | '/growthmind/campaigns'
     | '/growthmind/chat'
+    | '/growthmind/command-centre'
     | '/growthmind/competitor-intel'
     | '/growthmind/competitors'
     | '/growthmind/content-calendar'
@@ -2941,6 +3088,7 @@ export interface FileRouteTypes {
     | '/growthmind/image-library'
     | '/growthmind/image-studio'
     | '/growthmind/lead-opportunities'
+    | '/growthmind/performance-lab'
     | '/growthmind/playbooks'
     | '/growthmind/prompt-studio'
     | '/growthmind/proposals'
@@ -3113,6 +3261,12 @@ export interface FileRouteTypes {
     | '/api/v1/campaigns/performance'
     | '/api/v1/contacts/$id'
     | '/api/v1/growthmind/recommendations'
+    | '/api/v1/minds/actions'
+    | '/api/v1/minds/conversations'
+    | '/api/v1/minds/notifications'
+    | '/api/v1/minds/summary'
+    | '/api/v1/minds/tasks'
+    | '/api/v1/minds/tools'
     | '/lovable/email/auth/preview'
     | '/lovable/email/auth/webhook'
     | '/lovable/email/queue/process'
@@ -3126,7 +3280,13 @@ export interface FileRouteTypes {
     | '/api/public/telephony/inbound/health'
     | '/api/public/telephony/status/health'
     | '/api/runtime/agent/$id/export'
+    | '/api/v1/minds/conversations/$id'
+    | '/api/v1/minds/tasks/$id'
+    | '/api/v1/minds/tools/execute'
     | '/admin/accounts/clients'
+    | '/api/v1/minds/actions/$id/approve'
+    | '/api/v1/minds/actions/$id/reject'
+    | '/api/v1/minds/conversations/$id/messages'
   id:
     | '__root__'
     | '/'
@@ -3195,6 +3355,7 @@ export interface FileRouteTypes {
     | '/_authenticated/growthmind/campaign-factory'
     | '/_authenticated/growthmind/campaigns'
     | '/_authenticated/growthmind/chat'
+    | '/_authenticated/growthmind/command-centre'
     | '/_authenticated/growthmind/competitor-intel'
     | '/_authenticated/growthmind/competitors'
     | '/_authenticated/growthmind/content-calendar'
@@ -3209,6 +3370,7 @@ export interface FileRouteTypes {
     | '/_authenticated/growthmind/image-library'
     | '/_authenticated/growthmind/image-studio'
     | '/_authenticated/growthmind/lead-opportunities'
+    | '/_authenticated/growthmind/performance-lab'
     | '/_authenticated/growthmind/playbooks'
     | '/_authenticated/growthmind/prompt-studio'
     | '/_authenticated/growthmind/proposals'
@@ -3383,6 +3545,12 @@ export interface FileRouteTypes {
     | '/api/v1/campaigns/performance'
     | '/api/v1/contacts/$id'
     | '/api/v1/growthmind/recommendations'
+    | '/api/v1/minds/actions'
+    | '/api/v1/minds/conversations'
+    | '/api/v1/minds/notifications'
+    | '/api/v1/minds/summary'
+    | '/api/v1/minds/tasks'
+    | '/api/v1/minds/tools'
     | '/lovable/email/auth/preview'
     | '/lovable/email/auth/webhook'
     | '/lovable/email/queue/process'
@@ -3396,7 +3564,13 @@ export interface FileRouteTypes {
     | '/api/public/telephony/inbound/health'
     | '/api/public/telephony/status/health'
     | '/api/runtime/agent/$id/export'
+    | '/api/v1/minds/conversations/$id'
+    | '/api/v1/minds/tasks/$id'
+    | '/api/v1/minds/tools/execute'
     | '/_authenticated/admin/accounts/clients/'
+    | '/api/v1/minds/actions/$id/approve'
+    | '/api/v1/minds/actions/$id/reject'
+    | '/api/v1/minds/conversations/$id/messages'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -3486,6 +3660,12 @@ export interface RootRouteChildren {
   ApiPublicWhatsappWebhookHealthRoute: typeof ApiPublicWhatsappWebhookHealthRoute
   ApiRuntimeAgentIdRoute: typeof ApiRuntimeAgentIdRouteWithChildren
   ApiV1GrowthmindRecommendationsRoute: typeof ApiV1GrowthmindRecommendationsRoute
+  ApiV1MindsActionsRoute: typeof ApiV1MindsActionsRouteWithChildren
+  ApiV1MindsConversationsRoute: typeof ApiV1MindsConversationsRouteWithChildren
+  ApiV1MindsNotificationsRoute: typeof ApiV1MindsNotificationsRoute
+  ApiV1MindsSummaryRoute: typeof ApiV1MindsSummaryRoute
+  ApiV1MindsTasksRoute: typeof ApiV1MindsTasksRouteWithChildren
+  ApiV1MindsToolsRoute: typeof ApiV1MindsToolsRouteWithChildren
   LovableEmailAuthPreviewRoute: typeof LovableEmailAuthPreviewRoute
   LovableEmailAuthWebhookRoute: typeof LovableEmailAuthWebhookRoute
   LovableEmailQueueProcessRoute: typeof LovableEmailQueueProcessRoute
@@ -4594,6 +4774,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedGrowthmindPlaybooksRouteImport
       parentRoute: typeof AuthenticatedGrowthmindRoute
     }
+    '/_authenticated/growthmind/performance-lab': {
+      id: '/_authenticated/growthmind/performance-lab'
+      path: '/performance-lab'
+      fullPath: '/growthmind/performance-lab'
+      preLoaderRoute: typeof AuthenticatedGrowthmindPerformanceLabRouteImport
+      parentRoute: typeof AuthenticatedGrowthmindRoute
+    }
     '/_authenticated/growthmind/lead-opportunities': {
       id: '/_authenticated/growthmind/lead-opportunities'
       path: '/lead-opportunities'
@@ -4690,6 +4877,13 @@ declare module '@tanstack/react-router' {
       path: '/competitor-intel'
       fullPath: '/growthmind/competitor-intel'
       preLoaderRoute: typeof AuthenticatedGrowthmindCompetitorIntelRouteImport
+      parentRoute: typeof AuthenticatedGrowthmindRoute
+    }
+    '/_authenticated/growthmind/command-centre': {
+      id: '/_authenticated/growthmind/command-centre'
+      path: '/command-centre'
+      fullPath: '/growthmind/command-centre'
+      preLoaderRoute: typeof AuthenticatedGrowthmindCommandCentreRouteImport
       parentRoute: typeof AuthenticatedGrowthmindRoute
     }
     '/_authenticated/growthmind/chat': {
@@ -4893,6 +5087,48 @@ declare module '@tanstack/react-router' {
       path: '/lovable/email/auth/preview'
       fullPath: '/lovable/email/auth/preview'
       preLoaderRoute: typeof LovableEmailAuthPreviewRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/v1/minds/tools': {
+      id: '/api/v1/minds/tools'
+      path: '/api/v1/minds/tools'
+      fullPath: '/api/v1/minds/tools'
+      preLoaderRoute: typeof ApiV1MindsToolsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/v1/minds/tasks': {
+      id: '/api/v1/minds/tasks'
+      path: '/api/v1/minds/tasks'
+      fullPath: '/api/v1/minds/tasks'
+      preLoaderRoute: typeof ApiV1MindsTasksRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/v1/minds/summary': {
+      id: '/api/v1/minds/summary'
+      path: '/api/v1/minds/summary'
+      fullPath: '/api/v1/minds/summary'
+      preLoaderRoute: typeof ApiV1MindsSummaryRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/v1/minds/notifications': {
+      id: '/api/v1/minds/notifications'
+      path: '/api/v1/minds/notifications'
+      fullPath: '/api/v1/minds/notifications'
+      preLoaderRoute: typeof ApiV1MindsNotificationsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/v1/minds/conversations': {
+      id: '/api/v1/minds/conversations'
+      path: '/api/v1/minds/conversations'
+      fullPath: '/api/v1/minds/conversations'
+      preLoaderRoute: typeof ApiV1MindsConversationsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/v1/minds/actions': {
+      id: '/api/v1/minds/actions'
+      path: '/api/v1/minds/actions'
+      fullPath: '/api/v1/minds/actions'
+      preLoaderRoute: typeof ApiV1MindsActionsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/v1/growthmind/recommendations': {
@@ -5329,6 +5565,27 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminAccountsClientsIndexRouteImport
       parentRoute: typeof AuthenticatedAdminAccountsClientsRoute
     }
+    '/api/v1/minds/tools/execute': {
+      id: '/api/v1/minds/tools/execute'
+      path: '/execute'
+      fullPath: '/api/v1/minds/tools/execute'
+      preLoaderRoute: typeof ApiV1MindsToolsExecuteRouteImport
+      parentRoute: typeof ApiV1MindsToolsRoute
+    }
+    '/api/v1/minds/tasks/$id': {
+      id: '/api/v1/minds/tasks/$id'
+      path: '/$id'
+      fullPath: '/api/v1/minds/tasks/$id'
+      preLoaderRoute: typeof ApiV1MindsTasksIdRouteImport
+      parentRoute: typeof ApiV1MindsTasksRoute
+    }
+    '/api/v1/minds/conversations/$id': {
+      id: '/api/v1/minds/conversations/$id'
+      path: '/$id'
+      fullPath: '/api/v1/minds/conversations/$id'
+      preLoaderRoute: typeof ApiV1MindsConversationsIdRouteImport
+      parentRoute: typeof ApiV1MindsConversationsRoute
+    }
     '/api/runtime/agent/$id/export': {
       id: '/api/runtime/agent/$id/export'
       path: '/export'
@@ -5370,6 +5627,27 @@ declare module '@tanstack/react-router' {
       fullPath: '/admin/accounts/clients/webuyanyhouse'
       preLoaderRoute: typeof AuthenticatedAdminAccountsClientsWebuyanyhouseRouteImport
       parentRoute: typeof AuthenticatedAdminAccountsClientsRoute
+    }
+    '/api/v1/minds/conversations/$id/messages': {
+      id: '/api/v1/minds/conversations/$id/messages'
+      path: '/messages'
+      fullPath: '/api/v1/minds/conversations/$id/messages'
+      preLoaderRoute: typeof ApiV1MindsConversationsIdMessagesRouteImport
+      parentRoute: typeof ApiV1MindsConversationsIdRoute
+    }
+    '/api/v1/minds/actions/$id/reject': {
+      id: '/api/v1/minds/actions/$id/reject'
+      path: '/$id/reject'
+      fullPath: '/api/v1/minds/actions/$id/reject'
+      preLoaderRoute: typeof ApiV1MindsActionsIdRejectRouteImport
+      parentRoute: typeof ApiV1MindsActionsRoute
+    }
+    '/api/v1/minds/actions/$id/approve': {
+      id: '/api/v1/minds/actions/$id/approve'
+      path: '/$id/approve'
+      fullPath: '/api/v1/minds/actions/$id/approve'
+      preLoaderRoute: typeof ApiV1MindsActionsIdApproveRouteImport
+      parentRoute: typeof ApiV1MindsActionsRoute
     }
   }
 }
@@ -5506,6 +5784,7 @@ interface AuthenticatedGrowthmindRouteChildren {
   AuthenticatedGrowthmindCampaignFactoryRoute: typeof AuthenticatedGrowthmindCampaignFactoryRoute
   AuthenticatedGrowthmindCampaignsRoute: typeof AuthenticatedGrowthmindCampaignsRoute
   AuthenticatedGrowthmindChatRoute: typeof AuthenticatedGrowthmindChatRoute
+  AuthenticatedGrowthmindCommandCentreRoute: typeof AuthenticatedGrowthmindCommandCentreRoute
   AuthenticatedGrowthmindCompetitorIntelRoute: typeof AuthenticatedGrowthmindCompetitorIntelRoute
   AuthenticatedGrowthmindCompetitorsRoute: typeof AuthenticatedGrowthmindCompetitorsRoute
   AuthenticatedGrowthmindContentCalendarRoute: typeof AuthenticatedGrowthmindContentCalendarRoute
@@ -5520,6 +5799,7 @@ interface AuthenticatedGrowthmindRouteChildren {
   AuthenticatedGrowthmindImageLibraryRoute: typeof AuthenticatedGrowthmindImageLibraryRoute
   AuthenticatedGrowthmindImageStudioRoute: typeof AuthenticatedGrowthmindImageStudioRoute
   AuthenticatedGrowthmindLeadOpportunitiesRoute: typeof AuthenticatedGrowthmindLeadOpportunitiesRoute
+  AuthenticatedGrowthmindPerformanceLabRoute: typeof AuthenticatedGrowthmindPerformanceLabRoute
   AuthenticatedGrowthmindPlaybooksRoute: typeof AuthenticatedGrowthmindPlaybooksRoute
   AuthenticatedGrowthmindPromptStudioRoute: typeof AuthenticatedGrowthmindPromptStudioRoute
   AuthenticatedGrowthmindProposalsRoute: typeof AuthenticatedGrowthmindProposalsRoute
@@ -5552,6 +5832,8 @@ const AuthenticatedGrowthmindRouteChildren: AuthenticatedGrowthmindRouteChildren
     AuthenticatedGrowthmindCampaignsRoute:
       AuthenticatedGrowthmindCampaignsRoute,
     AuthenticatedGrowthmindChatRoute: AuthenticatedGrowthmindChatRoute,
+    AuthenticatedGrowthmindCommandCentreRoute:
+      AuthenticatedGrowthmindCommandCentreRoute,
     AuthenticatedGrowthmindCompetitorIntelRoute:
       AuthenticatedGrowthmindCompetitorIntelRoute,
     AuthenticatedGrowthmindCompetitorsRoute:
@@ -5577,6 +5859,8 @@ const AuthenticatedGrowthmindRouteChildren: AuthenticatedGrowthmindRouteChildren
       AuthenticatedGrowthmindImageStudioRoute,
     AuthenticatedGrowthmindLeadOpportunitiesRoute:
       AuthenticatedGrowthmindLeadOpportunitiesRoute,
+    AuthenticatedGrowthmindPerformanceLabRoute:
+      AuthenticatedGrowthmindPerformanceLabRoute,
     AuthenticatedGrowthmindPlaybooksRoute:
       AuthenticatedGrowthmindPlaybooksRoute,
     AuthenticatedGrowthmindPromptStudioRoute:
@@ -6088,6 +6372,72 @@ const ApiRuntimeAgentIdRouteChildren: ApiRuntimeAgentIdRouteChildren = {
 const ApiRuntimeAgentIdRouteWithChildren =
   ApiRuntimeAgentIdRoute._addFileChildren(ApiRuntimeAgentIdRouteChildren)
 
+interface ApiV1MindsActionsRouteChildren {
+  ApiV1MindsActionsIdApproveRoute: typeof ApiV1MindsActionsIdApproveRoute
+  ApiV1MindsActionsIdRejectRoute: typeof ApiV1MindsActionsIdRejectRoute
+}
+
+const ApiV1MindsActionsRouteChildren: ApiV1MindsActionsRouteChildren = {
+  ApiV1MindsActionsIdApproveRoute: ApiV1MindsActionsIdApproveRoute,
+  ApiV1MindsActionsIdRejectRoute: ApiV1MindsActionsIdRejectRoute,
+}
+
+const ApiV1MindsActionsRouteWithChildren =
+  ApiV1MindsActionsRoute._addFileChildren(ApiV1MindsActionsRouteChildren)
+
+interface ApiV1MindsConversationsIdRouteChildren {
+  ApiV1MindsConversationsIdMessagesRoute: typeof ApiV1MindsConversationsIdMessagesRoute
+}
+
+const ApiV1MindsConversationsIdRouteChildren: ApiV1MindsConversationsIdRouteChildren =
+  {
+    ApiV1MindsConversationsIdMessagesRoute:
+      ApiV1MindsConversationsIdMessagesRoute,
+  }
+
+const ApiV1MindsConversationsIdRouteWithChildren =
+  ApiV1MindsConversationsIdRoute._addFileChildren(
+    ApiV1MindsConversationsIdRouteChildren,
+  )
+
+interface ApiV1MindsConversationsRouteChildren {
+  ApiV1MindsConversationsIdRoute: typeof ApiV1MindsConversationsIdRouteWithChildren
+}
+
+const ApiV1MindsConversationsRouteChildren: ApiV1MindsConversationsRouteChildren =
+  {
+    ApiV1MindsConversationsIdRoute: ApiV1MindsConversationsIdRouteWithChildren,
+  }
+
+const ApiV1MindsConversationsRouteWithChildren =
+  ApiV1MindsConversationsRoute._addFileChildren(
+    ApiV1MindsConversationsRouteChildren,
+  )
+
+interface ApiV1MindsTasksRouteChildren {
+  ApiV1MindsTasksIdRoute: typeof ApiV1MindsTasksIdRoute
+}
+
+const ApiV1MindsTasksRouteChildren: ApiV1MindsTasksRouteChildren = {
+  ApiV1MindsTasksIdRoute: ApiV1MindsTasksIdRoute,
+}
+
+const ApiV1MindsTasksRouteWithChildren = ApiV1MindsTasksRoute._addFileChildren(
+  ApiV1MindsTasksRouteChildren,
+)
+
+interface ApiV1MindsToolsRouteChildren {
+  ApiV1MindsToolsExecuteRoute: typeof ApiV1MindsToolsExecuteRoute
+}
+
+const ApiV1MindsToolsRouteChildren: ApiV1MindsToolsRouteChildren = {
+  ApiV1MindsToolsExecuteRoute: ApiV1MindsToolsExecuteRoute,
+}
+
+const ApiV1MindsToolsRouteWithChildren = ApiV1MindsToolsRoute._addFileChildren(
+  ApiV1MindsToolsRouteChildren,
+)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AuthenticatedRoute: AuthenticatedRouteWithChildren,
@@ -6179,6 +6529,12 @@ const rootRouteChildren: RootRouteChildren = {
   ApiPublicWhatsappWebhookHealthRoute: ApiPublicWhatsappWebhookHealthRoute,
   ApiRuntimeAgentIdRoute: ApiRuntimeAgentIdRouteWithChildren,
   ApiV1GrowthmindRecommendationsRoute: ApiV1GrowthmindRecommendationsRoute,
+  ApiV1MindsActionsRoute: ApiV1MindsActionsRouteWithChildren,
+  ApiV1MindsConversationsRoute: ApiV1MindsConversationsRouteWithChildren,
+  ApiV1MindsNotificationsRoute: ApiV1MindsNotificationsRoute,
+  ApiV1MindsSummaryRoute: ApiV1MindsSummaryRoute,
+  ApiV1MindsTasksRoute: ApiV1MindsTasksRouteWithChildren,
+  ApiV1MindsToolsRoute: ApiV1MindsToolsRouteWithChildren,
   LovableEmailAuthPreviewRoute: LovableEmailAuthPreviewRoute,
   LovableEmailAuthWebhookRoute: LovableEmailAuthWebhookRoute,
   LovableEmailQueueProcessRoute: LovableEmailQueueProcessRoute,

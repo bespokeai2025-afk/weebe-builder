@@ -13,6 +13,7 @@ import {
   getHiveMindAIResponse, getHiveMindMorningBriefing,
   getHiveMindTTS, listHiveMindVoices, getHiveMindSystemContext,
 } from "@/lib/hivemind/hivemind.ai";
+import { useMindConversation } from "@/hooks/useMindConversation";
 
 export const Route = createFileRoute("/_authenticated/hivemind/chat")({
   head: () => ({ meta: [{ title: "HiveMind Assistant — Webee" }] }),
@@ -665,6 +666,53 @@ function HiveMindChat() {
 
   const { playingId, play: playAudio, stop: stopAudio } = useAudioPlayer();
 
+  // ── Server-side conversation persistence (per workspace + user) ─────────────
+  const { conversationId, initialMessages, historyLoaded, persist } = useMindConversation("hivemind");
+  const seededRef    = useRef(false);
+  const persistedIds = useRef<Set<string>>(new Set());
+
+  // Seed chat from server history once it loads (server is authoritative).
+  // Don't latch while history is empty — cache-seeded messages can arrive a
+  // render later than historyLoaded.
+  useEffect(() => {
+    if (!historyLoaded || seededRef.current) return;
+    if (initialMessages.length === 0) return;
+    seededRef.current = true;
+    const restored: ChatMessage[] = initialMessages.map(m => ({
+      id:      m.id,
+      role:    m.role === "user" ? "user" as const : "hivemind" as const,
+      content: m.content,
+      ts:      new Date(m.createdAt),
+    }));
+    restored.forEach(m => persistedIds.current.add(m.id));
+    historyRef.current = initialMessages
+      .filter(m => m.role === "user" || m.role === "assistant")
+      .slice(-10)
+      .map(m => ({ role: m.role as "user" | "assistant", content: m.content }));
+    setMessages(prev => {
+      // Keep anything the user already typed while history was loading.
+      const liveOnly = prev.filter(p => p.id !== "briefing");
+      return [...restored, ...liveOnly];
+    });
+  }, [historyLoaded, initialMessages]);
+
+  /** Persist any finished, not-yet-saved messages (idempotent via clientMsgId). */
+  const persistNewMessages = useCallback((msgs: ChatMessage[]) => {
+    const fresh = msgs.filter(m =>
+      !persistedIds.current.has(m.id) && m.id !== "briefing" && m.content.trim() !== "",
+    );
+    if (fresh.length === 0) return;
+    fresh.forEach(m => persistedIds.current.add(m.id));
+    void persist(fresh.map(m => ({
+      role: m.role === "user" ? "user" as const : "assistant" as const,
+      content: m.content,
+      clientMsgId: m.id,
+    }))).then(ok => {
+      // Un-mark on failure so a later call retries (clientMsgId keeps it idempotent).
+      if (!ok) fresh.forEach(m => persistedIds.current.delete(m.id));
+    });
+  }, [persist]);
+
   const handleLiveTranscript = useCallback((role: Role, text: string) => {
     setMessages(prev => {
       const last = prev[prev.length - 1];
@@ -702,15 +750,16 @@ function HiveMindChat() {
     }).catch(() => {});
   }, []);
 
-  // Morning briefing
+  // Morning briefing — only when there is no stored conversation history to show.
   useQuery({
     queryKey: ["hivemind-briefing"],
     queryFn: async () => {
       const r = await briefingFn();
       const msg: ChatMessage = { id: "briefing", role: "hivemind", content: r.briefing, ts: new Date() };
-      setMessages([msg]);
+      setMessages(prev => (prev.length === 0 ? [msg] : prev));
       return r;
     },
+    enabled: historyLoaded && initialMessages.length === 0,
     staleTime: Infinity,
     retry: 1,
     throwOnError: false,
@@ -750,6 +799,7 @@ function HiveMindChat() {
       historyRef.current.push({ role: "assistant", content: r.response });
       const finalMsg: ChatMessage = { ...placeholder, content: r.response, ts: new Date() };
       setMessages(prev => prev.map(m => m.id === placeholder.id ? finalMsg : m));
+      persistNewMessages([userMsg, finalMsg]);
       if (voiceSettings.autoPlay) setTimeout(() => fetchAndPlayTTS(finalMsg), 200);
     } catch (e: any) {
       setMessages(prev => prev.map(m => m.id === placeholder.id
@@ -778,7 +828,12 @@ function HiveMindChat() {
 
   // Live relay toggle
   async function toggleLive() {
-    if (mode === "live") { relay.stop(); setMode("chat"); setLiveError(null); return; }
+    if (mode === "live") {
+      relay.stop(); setMode("chat"); setLiveError(null);
+      // Persist the finished live-voice transcript messages.
+      persistNewMessages(messages);
+      return;
+    }
     setMode("live"); setLiveError(null);
     try {
       const ctx = await contextFn({ data: { personality: voiceSettings.personality, voiceId: voiceSettings.voiceId, userName } });

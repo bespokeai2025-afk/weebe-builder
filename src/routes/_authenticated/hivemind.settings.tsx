@@ -5,12 +5,14 @@ import { useState, useEffect, useRef } from "react";
 import {
   User, Brain, Mic, Zap, Eye, MessageSquare, Lightbulb,
   Save, CheckCircle2, DollarSign, Info, Volume2, Settings,
-  Play, Square, Loader2,
+  Play, Square, Loader2, ShieldCheck, ShieldAlert, Lock,
+  ClipboardList, Users, Megaphone, Film, RefreshCw, Send,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { HiveMindShell } from "@/components/hivemind/HiveMindShell";
 import { listHiveMindVoices, getHiveMindTTS } from "@/lib/hivemind/hivemind.ai";
 import { getHiveMindMode, setHiveMindMode, type HiveMindMode } from "@/lib/hivemind/hivemind.actions";
+import { OPERATOR_CATEGORIES, type OperatorCategory } from "@/lib/hivemind/action-safety.shared";
 
 export const Route = createFileRoute("/_authenticated/hivemind/settings")({
   head: () => ({ meta: [{ title: "HiveMind Settings — Webee" }] }),
@@ -44,6 +46,18 @@ const MODE_CONFIG: Record<HiveMindMode, {
   recommend: { icon: Lightbulb,     label: "Recommend",      desc: "Unlocks AI recommendations and reports",                     color: "text-blue-400",   ring: "ring-blue-500/30",   bg: "bg-blue-500/10" },
   assistant: { icon: MessageSquare, label: "Assistant",       desc: "Full AI chat and voice + task management",                   color: "text-violet-400", ring: "ring-violet-500/30", bg: "bg-violet-500/10" },
   operator:  { icon: Zap,           label: "Operator",        desc: "Propose and approve automated platform actions",             color: "text-amber-400",  ring: "ring-amber-500/30",  bg: "bg-amber-500/10" },
+  executive_operator: { icon: Zap,  label: "Executive Operator", desc: "Everything in Operator, plus cross-Mind orchestration playbooks that chain analyses across your AI executives. Sensitive actions still require approval.", color: "text-rose-400", ring: "ring-rose-500/30", bg: "bg-rose-500/10" },
+};
+
+const OPERATOR_CLASS_MODES: HiveMindMode[] = ["operator", "executive_operator"];
+
+const OPERATOR_CATEGORY_CONFIG: Record<OperatorCategory, { icon: React.ElementType; label: string; desc: string }> = {
+  tasks:      { icon: ClipboardList, label: "Internal tasks",     desc: "Create internal HiveMind tasks automatically" },
+  crm:        { icon: Users,         label: "CRM updates",        desc: "Pipeline stage moves and knowledge-base assignment" },
+  campaigns:  { icon: Megaphone,     label: "Campaign drafts",    desc: "Draft campaigns (launching still needs your approval)" },
+  content:    { icon: Film,          label: "Content drafts",     desc: "Generate content and video drafts" },
+  sync:       { icon: RefreshCw,     label: "Data syncs",         desc: "Run data synchronisation jobs" },
+  publishing: { icon: Send,          label: "Social publishing",  desc: "Publish rule-cleared, pre-approved content" },
 };
 
 const PERSONALITY_OPTIONS = [
@@ -121,13 +135,16 @@ function HiveMindSettings() {
     throwOnError: false,
   });
 
-  const { data: modeData } = useQuery({
+  const { data: modeData, refetch: refetchMode } = useQuery({
     queryKey: ["hivemind-mode"],
     queryFn:  () => modeFn(),
     staleTime: Infinity,
     throwOnError: false,
   });
   const mode: HiveMindMode = modeData?.mode ?? "assistant";
+  const operatorPermissions = modeData?.operatorPermissions ?? {};
+  const canManageOperator   = modeData?.canManageOperator === true;
+  const [modeError, setModeError] = useState<string | null>(null);
 
   useEffect(() => {
     setVoiceSettingsState(loadVoiceSettings());
@@ -150,12 +167,22 @@ function HiveMindSettings() {
     setTimeout(() => setNameSaved(false), 2000);
   }
 
-  async function changeMode(m: HiveMindMode) {
+  async function changeMode(m: HiveMindMode, perms?: Record<string, boolean>) {
     setModeSaving(true);
+    setModeError(null);
     try {
-      await setModeFn({ data: { mode: m } });
-      qc.setQueryData(["hivemind-mode"], { mode: m });
+      const payload: { mode: HiveMindMode; operatorPermissions?: Record<string, boolean> } = { mode: m };
+      if (OPERATOR_CLASS_MODES.includes(m)) payload.operatorPermissions = perms ?? operatorPermissions;
+      await setModeFn({ data: payload });
+      await refetchMode();
+    } catch (err: any) {
+      setModeError(err?.message ?? "Could not change mode.");
     } finally { setModeSaving(false); }
+  }
+
+  function toggleOperatorPermission(cat: OperatorCategory) {
+    const next = { ...operatorPermissions, [cat]: !(operatorPermissions[cat] === true) };
+    void changeMode(OPERATOR_CLASS_MODES.includes(mode) ? mode : "operator", next);
   }
 
   function stopPreview() {
@@ -242,29 +269,101 @@ function HiveMindSettings() {
             {(Object.entries(MODE_CONFIG) as [HiveMindMode, typeof MODE_CONFIG[HiveMindMode]][]).map(([key, cfg]) => {
               const Icon = cfg.icon;
               const active = mode === key;
+              const operatorLocked = OPERATOR_CLASS_MODES.includes(key) && !canManageOperator;
               return (
                 <button
                   key={key}
                   onClick={() => changeMode(key)}
-                  disabled={modeSaving}
+                  disabled={modeSaving || operatorLocked}
+                  title={operatorLocked ? "Only a workspace owner or admin can enable Operator mode" : undefined}
                   className={cn(
                     "w-full flex items-start gap-3 rounded-lg border px-3.5 py-3 text-left transition-all",
                     active
                       ? `${cfg.ring} ${cfg.bg} border-current/20`
                       : "border-white/[0.06] hover:border-white/[0.12] hover:bg-white/[0.02]",
+                    operatorLocked && "opacity-50 cursor-not-allowed",
                   )}
                 >
                   <div className={cn("flex h-6 w-6 items-center justify-center rounded-md shrink-0 mt-0.5", cfg.bg)}>
                     <Icon className={cn("h-3.5 w-3.5", cfg.color)} />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className={cn("text-xs font-semibold", active ? cfg.color : "text-foreground")}>{cfg.label}</p>
+                    <p className={cn("text-xs font-semibold flex items-center gap-1.5", active ? cfg.color : "text-foreground")}>
+                      {cfg.label}
+                      {operatorLocked && <Lock className="h-3 w-3 text-muted-foreground/60" />}
+                    </p>
                     <p className="text-[11px] text-muted-foreground/70 mt-0.5 leading-tight">{cfg.desc}</p>
+                    {operatorLocked && (
+                      <p className="text-[10px] text-muted-foreground/50 mt-0.5">Owner or admin only</p>
+                    )}
                   </div>
                   {active && <CheckCircle2 className={cn("h-4 w-4 shrink-0 mt-0.5", cfg.color)} />}
                 </button>
               );
             })}
+
+            {modeError && (
+              <div className="flex items-start gap-2 rounded-lg border border-red-500/20 bg-red-500/[0.06] px-3 py-2.5">
+                <ShieldAlert className="h-3.5 w-3.5 text-red-400 shrink-0 mt-0.5" />
+                <p className="text-[11px] text-red-400/90 leading-relaxed">{modeError}</p>
+              </div>
+            )}
+
+            {/* Operator permissions + audit trail */}
+            {OPERATOR_CLASS_MODES.includes(mode) && (
+              <div className="mt-3 rounded-lg border border-amber-500/20 bg-amber-500/[0.04] overflow-hidden">
+                <div className="px-3.5 py-3 border-b border-amber-500/10 flex items-start gap-2.5">
+                  <ShieldCheck className="h-4 w-4 text-amber-400 shrink-0 mt-0.5" />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs font-semibold text-amber-300">Operator permissions</p>
+                    <p className="text-[11px] text-muted-foreground/70 mt-0.5 leading-tight">
+                      Choose which action categories HiveMind may run automatically. Sensitive actions
+                      (client emails, broadcasts, launches, credentials, spend, billing) always require
+                      explicit human approval, regardless of these settings.
+                    </p>
+                  </div>
+                </div>
+                <div className="px-3.5 py-2.5 space-y-1.5">
+                  {OPERATOR_CATEGORIES.map(cat => {
+                    const cfg = OPERATOR_CATEGORY_CONFIG[cat];
+                    const CatIcon = cfg.icon;
+                    const enabled = operatorPermissions[cat] === true;
+                    return (
+                      <div key={cat} className="flex items-center justify-between gap-3 py-1">
+                        <div className="flex items-start gap-2.5 min-w-0">
+                          <CatIcon className="h-3.5 w-3.5 text-muted-foreground/70 shrink-0 mt-0.5" />
+                          <div className="min-w-0">
+                            <p className="text-xs font-medium">{cfg.label}</p>
+                            <p className="text-[10px] text-muted-foreground/60 leading-tight">{cfg.desc}</p>
+                          </div>
+                        </div>
+                        <button
+                          onClick={() => toggleOperatorPermission(cat)}
+                          disabled={modeSaving || !canManageOperator}
+                          title={!canManageOperator ? "Only a workspace owner or admin can change operator permissions" : undefined}
+                          className={cn(
+                            "w-9 h-5 rounded-full relative transition-all shrink-0",
+                            enabled ? "bg-amber-500" : "bg-white/[0.1]",
+                            (modeSaving || !canManageOperator) && "opacity-50 cursor-not-allowed",
+                          )}
+                        >
+                          <span className={cn("absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition-all", enabled ? "left-[18px]" : "left-0.5")} />
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+                {(modeData?.operatorEnabledBy || modeData?.operatorEnabledAt) && (
+                  <div className="px-3.5 py-2 border-t border-amber-500/10 bg-white/[0.01]">
+                    <p className="text-[10px] text-muted-foreground/60">
+                      Operator mode enabled
+                      {modeData?.operatorEnabledBy && <> by <span className="text-amber-300/80 font-medium">{modeData.operatorEnabledBy}</span></>}
+                      {modeData?.operatorEnabledAt && <> on {new Date(modeData.operatorEnabledAt).toLocaleString()}</>}
+                    </p>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         </Section>
 

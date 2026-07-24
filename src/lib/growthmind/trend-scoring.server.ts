@@ -240,6 +240,11 @@ export async function scoreTrendItemsWithAI(
 
   const user = `BUSINESS DNA:\n${dnaSummary}\n\nTREND ITEMS TO SCORE:\n${itemList}`;
 
+  // Accepted learning patterns steer future scoring (bounded ±30%) — fails
+  // open to no adjustment if the table is missing or unreadable.
+  const { getAcceptedPatterns, computeLearningMultiplier } = await import("./learning-engine.server");
+  const acceptedPatterns = await getAcceptedPatterns(admin, workspaceId);
+
   const { routeGenerate } = await import("./model-router.server");
   const result = await routeGenerate({
     system, user,
@@ -284,12 +289,19 @@ export async function scoreTrendItemsWithAI(
       saturation: row.scores?.saturation ?? 0,
     };
     // Weighted total opportunity score
-    const total = clamp(
+    const baseTotal = clamp(
       comp.businessRelevance * 0.16 + comp.buyerRelevance * 0.14 + comp.productRelevance * 0.10 +
       comp.commercialIntent * 0.14 + comp.brandFit * 0.08 + comp.originalityOpportunity * 0.08 +
       det.momentum * 0.12 + det.freshness * 0.08 + (100 - det.saturation) * 0.05 +
       (100 - comp.risk) * 0.05,
     );
+    // Apply ACCEPTED learning patterns (bounded multiplier, recorded for audit)
+    const learning = computeLearningMultiplier(acceptedPatterns, {
+      format:   row.media_type ?? null,
+      platform: row.platform ?? null,
+      topics:   [String(row.title ?? ""), String(row.caption ?? "")].filter(Boolean),
+    });
+    const total = clamp(Math.round(baseTotal * learning.multiplier));
 
     const passes = total >= minScore && comp.risk < 75;
     const scores = {
@@ -300,6 +312,7 @@ export async function scoreTrendItemsWithAI(
       suggestedAngle: String(ai.suggestedAngle ?? "").slice(0, 500),
       riskFlags:      Array.isArray(ai.riskFlags) ? ai.riskFlags.slice(0, 6).map(String) : [],
       scoredAt:       new Date().toISOString(),
+      ...(learning.applied.length ? { learningMultiplier: learning.multiplier, learningApplied: learning.applied } : {}),
       ...(passes ? {} : {
         rejectionReason: comp.risk >= 75
           ? `Risk score ${comp.risk}/100 too high (${(ai.riskFlags ?? []).join(", ") || "unspecified"}).`

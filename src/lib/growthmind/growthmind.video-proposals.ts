@@ -259,7 +259,7 @@ export async function createAutonomousVideoQueueEntries(
     .catch(() => ({ data: null }));
 
   const mode = settingsRes?.data?.hivemind_mode ?? null;
-  if (mode !== "assistant" && mode !== "operator") return;
+  if (mode !== "assistant" && mode !== "operator" && mode !== "executive_operator") return;
 
   const { isProposalAllowed } = await import("@/lib/hivemind/mode-gate.server");
   if (!(await isProposalAllowed(sb, workspaceId))) return;

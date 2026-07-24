@@ -1,0 +1,403 @@
+# WEBEE Shared Intelligence and Capability Contract
+
+This contract applies to both the WEBEE web application and the WEBEE mobile application.
+
+The web and mobile applications are separate frontend projects, but they must operate as two interfaces to the same WEBEE platform.
+
+They must share:
+
+* The same authenticated backend services
+* The same workspace-scoped data
+* The same HiveMind intelligence
+* The same GrowthMind intelligence
+* The same SystemMind intelligence
+* The same AccountsMind intelligence
+* The same tool definitions
+* The same permissions
+* The same approval rules
+* The same task and action system
+* The same memory and conversation context
+* The same Business DNA
+* The same integrations
+* The same audit trail
+* The same source-of-truth records
+* The same job and workflow statuses
+
+Do not create separate mobile-only intelligence, duplicate Minds, duplicate campaign records, duplicate analytics calculations or separate mobile versions of business logic.
+
+The required architecture is:
+
+**Web interface ─┐**
+
+**Mobile interface ─┼─ Shared authenticated WEBEE API and service layer**
+
+**Background jobs ─┘**
+
+The interface can be platform-specific, but the intelligence and actions must remain consistent.
+
+## Core Mind hierarchy
+
+The operating hierarchy is:
+
+**HiveMind — executive command and orchestration**
+
+**GrowthMind — marketing, acquisition, content and growth**
+
+**SystemMind — systems, agents, integrations, workflows and technical health**
+
+**AccountsMind — financial control, invoices, income, expenditure and commercial monitoring**
+
+HiveMind must have executive visibility and controlled orchestration over GrowthMind, SystemMind and AccountsMind.
+
+HiveMind must be able to combine information from every WEBEE module and decide what should happen next.
+
+## Shared modules and data sources
+
+The Minds must have controlled access to all relevant workspace information, including:
+
+* Leads
+* Qualified leads
+* Disqualified leads
+* Lead sources
+* Calls
+* Live calls
+* Call recordings
+* Call transcripts
+* Call outcomes
+* Call sentiment
+* Post-call extracted data
+* Appointments
+* Calendar bookings
+* Rebookings
+* Follow-ups
+* Follow-Up Centre
+* Sales pipeline
+* CRM records
+* External CRM records
+* Campaigns
+* Call campaigns
+* WhatsApp campaigns
+* SMS campaigns
+* Email campaigns
+* HexMail campaigns
+* LinkedIn campaigns
+* TikTok campaigns
+* Instagram campaigns
+* Facebook campaigns
+* Meta advertising
+* Google advertising
+* SEO
+* Search Console
+* Content Studio
+* Template Studio
+* Analytics Centre
+* Retell analytics
+* Campaign reporting
+* Agent Builder
+* Workflow Builder
+* Agent setup requirements
+* Agent variable mappings
+* Phone numbers
+* Telephony settings
+* User signup requests
+* System alerts
+* Workspace limits
+* Package entitlements
+* Staff permissions
+* Costs
+* Income
+* Invoices
+* Client register
+* Due payments
+* Outgoings
+* Services and subscriptions
+* Bank-feed data where connected
+* Platform usage costs
+* AI costs
+* Infrastructure costs
+
+Access must always be limited by workspace, user role, package access and explicit permission.
+
+## Required workspace isolation
+
+All data access must be scoped using the authenticated workspace_id.
+
+The system must never:
+
+* Hard-code a workspace
+* Fall back to another workspace
+* Use another workspace’s API key
+* Share analytics between workspaces
+* Share campaign records between workspaces
+* Share Mind memory between workspaces
+* Reuse another workspace’s cached result
+* Query WBAH-specific data for a standard workspace
+* Query standard workspace data for WBAH
+* Display Webuyanyhouse analytics inside Webespoke AI
+* Expose another workspace’s social accounts, CRM, invoices or bank records
+
+All cache keys, jobs, analytics, recommendations, tool calls and generated reports must include workspace_id.
+
+## Shared Mind conversations
+
+A HiveMind conversation started on the web must be available on mobile, and a conversation started on mobile must be available on the web.
+
+Synchronise:
+
+* Conversation history
+* Active workspace
+* Current objective
+* Created tasks
+* Pending approvals
+* Suggested actions
+* Tool results
+* Attachments
+* Generated reports
+* Content Studio projects
+* Campaign references
+* Current workflow state
+
+Do not create separate conversation memory that causes the mobile and web versions to provide conflicting answers.
+
+## Shared tool registry
+
+Create or extend one server-side tool registry used by both web and mobile.
+
+Each tool must define:
+
+* Tool name
+* Mind allowed to use it
+* Required workspace permission
+* Input schema
+* Output schema
+* Read or write classification
+* Approval requirement
+* Estimated cost
+* Idempotency behaviour
+* Audit behaviour
+* Mobile compatibility
+* Web compatibility
+
+The frontend must not contain the authoritative implementation of Mind tools.
+
+Frontend components call authenticated backend actions.
+
+## Tool execution integrity
+
+The Minds must never claim that an action happened unless the backend confirms completion.
+
+Tool actions must show real states:
+
+* Proposed
+* Approval required
+* Queued
+* Running
+* Completed
+* Partially completed
+* Blocked
+* Failed
+* Cancelled
+
+Every completed response must contain a reference to the real object affected, such as:
+
+* Lead
+* Campaign
+* Content Studio project
+* Follow-up
+* Invoice
+* Client
+* Agent
+* Workflow
+* Task
+* Report
+* Published post
+
+## Shared task and action system
+
+Do not create different task systems for different Minds or platforms.
+
+All Minds must use the existing HiveMind task and action system.
+
+A task must support:
+
+* Workspace
+* Mind
+* Source module
+* Title
+* Description
+* Priority
+* Status
+* Owner
+* Due date
+* Dependencies
+* Approval status
+* Commercial objective
+* Source record
+* Action required
+* Completion evidence
+* Created from web or mobile
+* Audit history
+
+Tasks created on web must immediately appear on mobile.
+
+Tasks created on mobile must immediately appear on web.
+
+## Shared autonomy modes
+
+Support the existing autonomy modes consistently:
+
+### Observe
+
+Read and report only.
+
+### Recommend
+
+Generate recommendations and proposed actions.
+
+### Assistant
+
+Create drafts, tasks, reports, projects and campaign plans, but require approval for consequential actions.
+
+### Operator
+
+Execute approved actions within configured rules.
+
+### Executive Operator
+
+HiveMind may coordinate multiple Mind actions within workspace limits, while still respecting mandatory human approvals.
+
+The selected autonomy mode must apply consistently across mobile and web.
+
+## Mandatory approval controls
+
+The system must not allow either platform to bypass approval rules for:
+
+* Publishing content
+* Starting paid campaigns
+* Increasing advertising budgets
+* Sending large broadcasts
+* Starting bulk calling campaigns
+* Deleting campaigns
+* Editing financial records
+* Marking invoices as paid
+* Initiating payments
+* Changing bank connections
+* Customer claims
+* Testimonials
+* Pricing changes
+* Legal or regulated claims
+* Sensitive customer data
+* Major workflow changes
+* Production agent changes
+
+## Permissions
+
+Use the existing package access, user role and panel visibility systems.
+
+Package controls which features the workspace can use.
+
+Role controls which actions the user can perform.
+
+Panel visibility controls which modules the staff member can see.
+
+Notifications settings control which users are alerted and through which method.
+
+Both mobile and web must enforce these rules server-side.
+
+Hiding a button is not sufficient permission enforcement.
+
+## Notifications
+
+Use one shared notification service.
+
+Notifications may include:
+
+* New qualified lead
+* Lead requiring follow-up
+* Missed appointment
+* Campaign completed
+* Campaign failed
+* WhatsApp broadcast failed
+* Call campaign paused
+* Content awaiting approval
+* Publishing failed
+* Growth opportunity detected
+* Invoice overdue
+* Payment due
+* Service renewal approaching
+* Unusual outgoing detected
+* Bank connection expired
+* System integration failed
+* Agent workflow failed
+* API token expired
+* User signup request
+* HiveMind executive alert
+
+Notifications should be available in-app on web and mobile, with mobile push notifications where configured.
+
+## Required real-time synchronisation
+
+Use the existing Supabase real-time capability, polling or event service as appropriate.
+
+Synchronise:
+
+* Tasks
+* Leads
+* Qualified leads
+* Calls
+* Campaign statuses
+* Content projects
+* Approvals
+* Follow-ups
+* Pipeline changes
+* Invoice statuses
+* Payment statuses
+* System health
+* Mind activities
+* Notifications
+
+Do not require users to manually refresh before seeing important changes.
+
+## Audit logging
+
+Every consequential action must record:
+
+* Workspace
+* User
+* Platform
+* Mind
+* Conversation
+* Tool
+* Interpreted instruction
+* Parameters
+* Approval
+* Result
+* Affected record
+* Previous state
+* New state
+* Timestamp
+* Estimated cost
+* Actual cost
+* Failure information
+
+Do not store raw secrets, access tokens or full private internal prompts in audit logs.
+
+## Shared acceptance criteria
+
+The shared architecture is not complete until:
+
+1. The same user can open HiveMind on web and mobile.
+2. Both interfaces load the same workspace.
+3. Both interfaces show the same conversation history.
+4. Both interfaces show the same tasks and actions.
+5. Both interfaces can retrieve the same real business data.
+6. A task created on mobile appears on web.
+7. A task created on web appears on mobile.
+8. A GrowthMind project created on either platform appears in Content Studio on both.
+9. AccountsMind shows the same invoices and payment information.
+10. SystemMind shows the same integration and workflow health.
+11. Permissions produce the same result on both platforms.
+12. Workspace isolation tests pass.
+13. Neither platform invents data.
+14. Neither platform reports false action completion.
+15. Mobile and web use the same server-side Mind tool registry.

@@ -14,10 +14,16 @@ import { HiveMindShell, useHiveMindMode } from "@/components/hivemind/HiveMindSh
 import {
   getHiveMindActionsAndCounts, approveHiveMindAction, rejectHiveMindAction,
   deleteHiveMindAction, proposeHiveMindAction, generateOperatorActions,
-  type HiveMindAction, type ActionType,
+  getHiveMindLearningSummary,
+  type HiveMindAction, type ActionType, type ConfidenceAdjustmentRow,
 } from "@/lib/hivemind/hivemind.actions";
 import { getCampaignProposals, updateProposalStatus } from "@/lib/growthmind/growthmind.campaign-proposals";
+import {
+  listExecutiveRecommendations, actOnExecutiveRecommendation, updateExecutiveRecommendationStatus,
+  type ExecutiveRecommendation,
+} from "@/lib/hivemind/executive-recommendations";
 import { generateDnaProposalsFn } from "@/lib/hivemind/business-dna.functions";
+import { runOrchestrationPlaybookFn, listOrchestrationRunsFn } from "@/lib/hivemind/orchestration.functions";
 import { Button } from "@/components/ui/button";
 import { RelativeTime } from "@/components/ui/relative-time";
 
@@ -38,6 +44,7 @@ const ACTION_STYLES: Record<string, { label: string; color: string; bg: string; 
   growthmind_growth_campaign: { label: "GrowthMind Campaign",color: "text-violet-400",  bg: "bg-violet-500/10 border-violet-500/20",icon: TrendingUp },
   activate_lead_intake_workflow: { label: "Lead Intake Auto-Call", color: "text-emerald-400", bg: "bg-emerald-500/10 border-emerald-500/20", icon: Phone },
   activate_systemmind_automation: { label: "SystemMind Automation", color: "text-cyan-400", bg: "bg-cyan-500/10 border-cyan-500/20", icon: Zap },
+  run_orchestration_playbook: { label: "Orchestration Playbook", color: "text-fuchsia-400", bg: "bg-fuchsia-500/10 border-fuchsia-500/20", icon: Zap },
 };
 
 function getActionStyle(type: string) {
@@ -130,6 +137,174 @@ function GrowthMindResultLink({ action }: { action: HiveMindAction }) {
   return null;
 }
 
+// ── Outcome display (learning loop) ───────────────────────────────────────────
+const OUTCOME_STYLES: Record<string, { label: string; color: string; bg: string }> = {
+  successful:   { label: "Outcome: Successful",   color: "text-emerald-400", bg: "bg-emerald-500/15 border-emerald-500/25" },
+  partial:      { label: "Outcome: Partial",      color: "text-amber-400",   bg: "bg-amber-500/15 border-amber-500/25" },
+  no_change:    { label: "Outcome: No Change",    color: "text-slate-400",   bg: "bg-slate-500/15 border-slate-500/25" },
+  unsuccessful: { label: "Outcome: Unsuccessful", color: "text-red-400",     bg: "bg-red-500/15 border-red-500/25" },
+  inconclusive: { label: "Outcome: Inconclusive", color: "text-muted-foreground", bg: "bg-white/[0.05] border-white/[0.10]" },
+};
+
+function OutcomeBadge({ classification }: { classification: string | null | undefined }) {
+  if (!classification) return null;
+  const s = OUTCOME_STYLES[classification];
+  if (!s) return null;
+  return (
+    <span className={cn("text-[10px] rounded-full px-1.5 py-0.5 border font-medium", s.bg, s.color)}>
+      {s.label}
+    </span>
+  );
+}
+
+function OutcomeSection({ action }: { action: HiveMindAction }) {
+  const outcome = action.outcome as Record<string, any> | null | undefined;
+  const classification = action.outcome_classification;
+
+  // Executed but not yet reassessed — show when the check is due.
+  if (action.status === "executed" && !classification) {
+    if (!action.reassess_at) return null;
+    const due = new Date(action.reassess_at);
+    const pastDue = due.getTime() <= Date.now();
+    return (
+      <div className="flex items-start gap-2 rounded-lg border border-white/[0.07] bg-white/[0.02] px-3 py-2">
+        <Clock className="h-3.5 w-3.5 text-muted-foreground shrink-0 mt-0.5" />
+        <p className="text-[11px] text-muted-foreground leading-relaxed">
+          {pastDue
+            ? "Outcome check is due — HiveMind will assess this action's real-world result on its next learning pass."
+            : <>HiveMind will check this action's real-world result after {due.toLocaleDateString()} and record what it learned here.</>}
+        </p>
+      </div>
+    );
+  }
+
+  if (!classification) return null;
+  const s = OUTCOME_STYLES[classification] ?? OUTCOME_STYLES.inconclusive;
+  const detail = (outcome?.detail ?? {}) as Record<string, unknown>;
+  const expected = (outcome?.expected_result ?? action.expected_result) as string | null | undefined;
+  const assessedAt = outcome?.assessed_at as string | undefined;
+
+  const detailItems = Object.entries(detail)
+    .filter(([, v]) => v !== null && v !== undefined && typeof v !== "object")
+    .slice(0, 6);
+
+  return (
+    <div className={cn("rounded-lg border px-3 py-2.5 space-y-2", s.bg)}>
+      <div className="flex items-center gap-2 flex-wrap">
+        <TrendingUp className={cn("h-3.5 w-3.5 shrink-0", s.color)} />
+        <p className={cn("text-[11px] font-semibold", s.color)}>{s.label.replace("Outcome: ", "What HiveMind found: ")}</p>
+        {assessedAt && (
+          <span className="text-[10px] text-muted-foreground">assessed <RelativeTime date={assessedAt} short /></span>
+        )}
+      </div>
+      {expected && (
+        <div>
+          <p className="text-[10px] text-muted-foreground uppercase tracking-wide mb-0.5">Expected</p>
+          <p className="text-[11px] text-foreground/80 leading-relaxed">{expected}</p>
+        </div>
+      )}
+      {detailItems.length > 0 && (
+        <div>
+          <p className="text-[10px] text-muted-foreground uppercase tracking-wide mb-1">Actual (measured)</p>
+          <div className="flex flex-wrap gap-1.5">
+            {detailItems.map(([k, v]) => (
+              <span key={k} className="text-[10px] bg-white/[0.05] border border-white/[0.08] rounded px-2 py-0.5 text-foreground/70">
+                {k.replace(/_/g, " ")}: {String(v)}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+      <p className="text-[10px] text-muted-foreground leading-relaxed">
+        This outcome feeds HiveMind's confidence learning — repeated successes make similar proposals more
+        confident; failures make them more cautious.
+      </p>
+    </div>
+  );
+}
+
+// ── Learning summary panel (confidence adjustments, read-only) ────────────────
+function adjustmentKeyLabel(key: string): string {
+  if (key.startsWith("action:")) {
+    const t = key.slice("action:".length);
+    return `Action · ${getActionStyle(t).label}`;
+  }
+  if (key.startsWith("rec:")) {
+    const d = key.slice("rec:".length);
+    return `Recommendations · ${d.charAt(0).toUpperCase()}${d.slice(1).replace(/_/g, " ")}`;
+  }
+  return key;
+}
+
+function LearningSummaryPanel({ adjustments }: { adjustments: ConfidenceAdjustmentRow[] }) {
+  const [open, setOpen] = useState(true);
+  if (adjustments.length === 0) return null;
+
+  return (
+    <div className="rounded-xl border border-violet-500/15 bg-violet-500/[0.03] mb-4">
+      <button
+        onClick={() => setOpen(o => !o)}
+        className="w-full flex items-center gap-2.5 px-4 py-3 text-left"
+      >
+        <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-violet-500/15 ring-1 ring-violet-500/25 shrink-0">
+          <TrendingUp className="h-3.5 w-3.5 text-violet-400" />
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className="text-xs font-semibold">What HiveMind has learned</p>
+          <p className="text-[10px] text-muted-foreground">
+            Confidence adjustments from {adjustments.length} action type{adjustments.length !== 1 ? "s" : ""} / department{adjustments.length !== 1 ? "s" : ""}, based on real outcomes
+          </p>
+        </div>
+        {open ? <ChevronUp className="h-3.5 w-3.5 text-muted-foreground" /> : <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />}
+      </button>
+
+      {open && (
+        <div className="border-t border-white/[0.06] px-4 py-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            {adjustments.map((adj) => {
+              const positive = adj.adjustment > 0;
+              const negative = adj.adjustment < 0;
+              const total = adj.successes + adj.partials + adj.failures + adj.inconclusive;
+              return (
+                <div key={adj.adjustment_key} className="rounded-lg border border-white/[0.07] bg-white/[0.02] px-3 py-2.5">
+                  <div className="flex items-center justify-between gap-2 mb-1.5">
+                    <p className="text-[11px] font-medium truncate">{adjustmentKeyLabel(adj.adjustment_key)}</p>
+                    <span className={cn(
+                      "text-[10px] font-semibold rounded-full px-1.5 py-0.5 border shrink-0",
+                      positive ? "text-emerald-400 bg-emerald-500/10 border-emerald-500/20" :
+                      negative ? "text-red-400 bg-red-500/10 border-red-500/20" :
+                      "text-muted-foreground bg-white/[0.04] border-white/[0.08]",
+                    )}>
+                      {positive ? "+" : ""}{(adj.adjustment * 100).toFixed(1)}% confidence
+                    </span>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[10px] text-muted-foreground">
+                    <span className="text-emerald-400/80">{adj.successes} successful</span>
+                    {adj.partials > 0 && <span className="text-amber-400/80">{adj.partials} partial</span>}
+                    <span className={adj.failures > 0 ? "text-red-400/80" : ""}>{adj.failures} unsuccessful</span>
+                    {adj.inconclusive > 0 && <span>{adj.inconclusive} inconclusive</span>}
+                    <span>· {total} assessed</span>
+                  </div>
+                  {adj.last_outcome && (
+                    <p className="text-[10px] text-muted-foreground/70 mt-1">
+                      Last outcome: {adj.last_outcome.replace(/_/g, " ")} · <RelativeTime date={adj.updated_at} short />
+                    </p>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+          <p className="text-[10px] text-muted-foreground mt-2.5 leading-relaxed">
+            HiveMind reassesses each executed action about a week after it ran, classifies the real-world outcome,
+            and nudges its future confidence up or down (bounded at ±20%). These adjustments are applied automatically
+            to new recommendations — this view is read-only.
+          </p>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Action card ───────────────────────────────────────────────────────────────
 function ActionCard({
   action, onApprove, onReject, onDelete, isMutating,
@@ -174,6 +349,7 @@ function ActionCard({
                 Executed
               </span>
             )}
+            {action.status === "executed" && <OutcomeBadge classification={action.outcome_classification} />}
             {action.status === "rejected" && (
               <span className="text-[10px] rounded-full px-1.5 py-0.5 bg-slate-500/15 text-slate-400 border border-slate-500/20 font-medium">
                 Rejected
@@ -227,9 +403,26 @@ function ActionCard({
         <div className="border-t border-white/[0.06] px-4 py-3 space-y-3">
           <div className="text-[11px] text-muted-foreground space-y-1">
             <p>Proposed by <span className="text-foreground font-medium">{action.proposed_by}</span> · <RelativeTime date={action.created_at} short /></p>
-            {action.approved_by && <p>Approved by <span className="text-foreground font-medium">{action.approved_by}</span></p>}
+            {(action.approved_by || action.authorised_by_email) && (
+              <p>
+                Authorised by <span className="text-foreground font-medium">{action.authorised_by_email ?? action.approved_by}</span>
+                {action.consumed_at && <> · {new Date(action.consumed_at).toLocaleString()}</>}
+              </p>
+            )}
             {action.executed_at && <p>Executed <RelativeTime date={action.executed_at} short /></p>}
           </div>
+          {action.sensitive === true && (
+            <div className="flex items-start gap-2 rounded-lg border border-amber-500/15 bg-amber-500/[0.05] px-3 py-2">
+              <AlertTriangle className="h-3.5 w-3.5 text-amber-400 shrink-0 mt-0.5" />
+              <p className="text-[11px] text-amber-300/90 leading-relaxed">
+                Sensitive action{action.sensitive_category ? ` (${String(action.sensitive_category).replace(/_/g, " ")})` : ""} —
+                requires explicit human approval and is never auto-executed.
+              </p>
+            </div>
+          )}
+
+          {/* Outcome (learning loop) */}
+          <OutcomeSection action={action} />
 
           {/* Full payload */}
           <div>
@@ -571,8 +764,243 @@ function ProposalCard({
   );
 }
 
+// ── Executive Recommendation card ────────────────────────────────────────────
+const REC_PRIORITY_STYLES: Record<string, string> = {
+  critical: "text-red-400 bg-red-500/10 border-red-500/20",
+  high:     "text-amber-400 bg-amber-500/10 border-amber-500/20",
+  medium:   "text-blue-400 bg-blue-500/10 border-blue-500/20",
+  low:      "text-muted-foreground bg-white/[0.04] border-white/[0.08]",
+};
+
+const REC_OPEN_STATES = ["new", "acknowledged", "under_review", "reopened"];
+
+function RecommendationCard({
+  rec, linked, mode, onAct, onDismiss, isMutating,
+}: {
+  rec: ExecutiveRecommendation;
+  linked?: { id: string; status: string; action_type: string; sensitive: boolean };
+  mode: string;
+  onAct:     (id: string) => void;
+  onDismiss: (id: string) => void;
+  isMutating: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+  const isOpen = REC_OPEN_STATES.includes(rec.status);
+  const metrics = (rec.evidence?.metrics ?? {}) as Record<string, unknown>;
+
+  return (
+    <div className={cn(
+      "rounded-xl border transition-all",
+      isOpen ? "bg-[hsl(var(--card))] border-white/[0.08]" : "opacity-60 bg-white/[0.01] border-white/[0.05]",
+    )}>
+      <div className="px-4 py-3 flex items-start gap-3">
+        <div className="flex h-8 w-8 items-center justify-center rounded-lg border shrink-0 mt-0.5 bg-violet-500/10 border-violet-500/20">
+          <TrendingUp className="h-4 w-4 text-violet-400" />
+        </div>
+        <div className="flex-1 min-w-0">
+          <div className="flex flex-wrap items-center gap-2 mb-1">
+            <span className={cn("text-[10px] font-semibold rounded-full px-1.5 py-0.5 border capitalize",
+              REC_PRIORITY_STYLES[rec.priority] ?? REC_PRIORITY_STYLES.low)}>
+              {rec.priority}
+            </span>
+            <span className="text-[10px] rounded-full px-1.5 py-0.5 bg-white/[0.04] border border-white/[0.08] text-muted-foreground capitalize">
+              {rec.department}
+            </span>
+            <span className="text-[10px] rounded-full px-1.5 py-0.5 bg-white/[0.04] border border-white/[0.08] text-muted-foreground capitalize">
+              {rec.status.replace(/_/g, " ")}
+            </span>
+            {linked && (
+              <span className="text-[10px] rounded-full px-1.5 py-0.5 bg-amber-500/15 text-amber-400 border border-amber-500/20 font-medium">
+                {linked.status === "pending"
+                  ? (linked.sensitive ? "Sensitive action awaiting approval" : "Action awaiting approval")
+                  : `Action ${linked.status}`}
+              </span>
+            )}
+          </div>
+          <p className="text-sm font-medium">{rec.title}</p>
+          <p className="text-[11px] text-muted-foreground mt-0.5 line-clamp-2">{rec.business_issue}</p>
+        </div>
+        <div className="flex items-center gap-1.5 shrink-0">
+          {isOpen && !linked && (
+            <>
+              <button
+                onClick={() => onAct(rec.id)}
+                disabled={isMutating || mode === "observe"}
+                title={mode === "observe" ? "Switch out of Observe mode to act on recommendations" : undefined}
+                className="flex items-center gap-1 rounded-lg border border-violet-500/40 bg-violet-500/10 px-3 py-1.5 text-[11px] font-semibold text-violet-400 hover:bg-violet-500/20 transition-all disabled:opacity-40"
+              >
+                <Play className="h-3.5 w-3.5" />
+                Act on this
+              </button>
+              <button
+                onClick={() => onDismiss(rec.id)}
+                disabled={isMutating}
+                className="flex items-center gap-1 rounded-lg border border-white/[0.08] bg-white/[0.03] px-2 py-1.5 text-[11px] text-muted-foreground hover:text-red-400 hover:border-red-500/30 transition-all disabled:opacity-40"
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
+            </>
+          )}
+          <button onClick={() => setOpen(o => !o)}
+            className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-white/[0.04] transition-colors">
+            {open ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
+          </button>
+        </div>
+      </div>
+
+      {open && (
+        <div className="border-t border-white/[0.06] px-4 py-3 space-y-3 text-xs">
+          <div>
+            <p className="text-[10px] text-muted-foreground uppercase tracking-wide mb-1">Recommended action</p>
+            <p className="text-foreground/85 leading-relaxed">{rec.recommended_action}</p>
+            {rec.next_step && <p className="text-muted-foreground mt-1">Next step: {rec.next_step}</p>}
+          </div>
+          {rec.risk_of_inaction && (
+            <div>
+              <p className="text-[10px] text-amber-400 uppercase tracking-wide mb-1">Risk of inaction</p>
+              <p className="text-foreground/70">{rec.risk_of_inaction}</p>
+            </div>
+          )}
+          {Object.keys(metrics).length > 0 && (
+            <div className="flex flex-wrap gap-1.5">
+              {Object.entries(metrics).slice(0, 8).map(([k, v]) => (
+                <span key={k} className="text-[10px] bg-white/[0.04] border border-white/[0.07] rounded px-2 py-0.5 text-muted-foreground">
+                  {k}: {String(v)}
+                </span>
+              ))}
+            </div>
+          )}
+          <p className="text-[10px] text-muted-foreground/50">
+            Confidence {(Number(rec.confidence) * 100).toFixed(0)}% · Raised <RelativeTime date={rec.created_at} short />
+            {rec.result ? ` · ${rec.result}` : ""}
+          </p>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Main page ─────────────────────────────────────────────────────────────────
-type Tab = "pending" | "executed" | "rejected" | "all" | "proposals";
+type Tab = "recommendations" | "pending" | "executed" | "rejected" | "all" | "proposals";
+
+const ORCH_PLAYBOOKS: { key: string; title: string; description: string }[] = [
+  { key: "campaign_underperforming", title: "Campaign underperforming", description: "Chains GrowthMind, AccountsMind and SystemMind analyses on stalled call campaigns and creates a coordinated fix plan." },
+  { key: "invoice_missing", title: "Recurring invoice missing", description: "Finds recurring invoice schedules that skipped this month and coordinates AccountsMind follow-up tasks." },
+  { key: "lead_not_followed_up", title: "Qualified lead not followed up", description: "Finds interested/qualified leads gone quiet for 3+ days and coordinates follow-up tasks with GrowthMind messaging input." },
+];
+
+function OrchestrationPanel({ mode }: { mode: string }) {
+  const qc = useQueryClient();
+  const runFn = useServerFn(runOrchestrationPlaybookFn);
+  const listFn = useServerFn(listOrchestrationRunsFn);
+  const [open, setOpen] = useState(false);
+  const [runningKey, setRunningKey] = useState<string | null>(null);
+  const [msg, setMsg] = useState<string | null>(null);
+
+  const { data, isLoading } = useQuery({
+    queryKey: ["hivemind-orchestration-runs"],
+    queryFn: () => listFn(),
+    enabled: open,
+    throwOnError: false,
+  });
+  const runs: any[] = data?.runs ?? [];
+  const canRun = mode === "operator" || mode === "executive_operator";
+
+  async function handleRun(key: string) {
+    setRunningKey(key); setMsg(null);
+    try {
+      const r: any = await runFn({ data: { playbook: key } });
+      if (r?.ok) {
+        setMsg(r.status === "no_findings"
+          ? "No issues found — nothing to coordinate."
+          : `Coordinated plan created: ${r.findings} finding(s), ${r.taskIds.length} linked task(s), ${r.escalations.length} escalation(s).`);
+      } else {
+        setMsg(r?.error ?? "Orchestration failed");
+      }
+      qc.invalidateQueries({ queryKey: ["hivemind-orchestration-runs"] });
+      qc.invalidateQueries({ queryKey: ["hivemind-shell-badge"] });
+    } catch (e: any) {
+      setMsg(e?.message ?? "Orchestration failed");
+    } finally { setRunningKey(null); }
+  }
+
+  return (
+    <div className="border-b border-white/[0.06] px-5 py-3">
+      <button onClick={() => setOpen(o => !o)} className="flex w-full items-center gap-2 text-left">
+        <div className="flex h-6 w-6 items-center justify-center rounded-md bg-fuchsia-500/20 ring-1 ring-fuchsia-500/30 shrink-0">
+          <Zap className="h-3.5 w-3.5 text-fuchsia-400" />
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className="text-xs font-semibold">Cross-Mind Orchestration</p>
+          <p className="text-[11px] text-muted-foreground truncate">
+            {mode === "executive_operator"
+              ? "Executive Operator active — playbooks can run automatically and on demand"
+              : canRun
+                ? "Run coordinated playbooks across your AI executives"
+                : "Enable Operator or Executive Operator mode in Settings to run playbooks"}
+          </p>
+        </div>
+        {open ? <ChevronUp className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
+      </button>
+
+      {open && (
+        <div className="mt-3 space-y-3">
+          <div className="grid gap-2 sm:grid-cols-3">
+            {ORCH_PLAYBOOKS.map(pb => (
+              <div key={pb.key} className="rounded-lg border border-white/[0.08] bg-white/[0.03] p-3 flex flex-col gap-2">
+                <p className="text-xs font-medium">{pb.title}</p>
+                <p className="text-[11px] text-muted-foreground flex-1">{pb.description}</p>
+                <button
+                  onClick={() => handleRun(pb.key)}
+                  disabled={!canRun || runningKey !== null}
+                  className="flex items-center justify-center gap-1.5 rounded-md border border-fuchsia-500/30 bg-fuchsia-500/10 px-2.5 py-1.5 text-[11px] font-medium text-fuchsia-400 hover:bg-fuchsia-500/20 transition-all disabled:opacity-40"
+                >
+                  {runningKey === pb.key ? <Loader2 className="h-3 w-3 animate-spin" /> : <Play className="h-3 w-3" />}
+                  Run playbook
+                </button>
+              </div>
+            ))}
+          </div>
+          {msg && <p className="text-[11px] text-fuchsia-300">{msg}</p>}
+
+          <div>
+            <p className="text-[11px] font-medium text-muted-foreground mb-1.5">Recent runs</p>
+            {isLoading ? (
+              <p className="text-[11px] text-muted-foreground">Loading…</p>
+            ) : runs.length === 0 ? (
+              <p className="text-[11px] text-muted-foreground">No orchestration runs yet.</p>
+            ) : (
+              <div className="space-y-1.5">
+                {runs.slice(0, 6).map((r: any) => (
+                  <div key={r.id} className="rounded-md border border-white/[0.06] bg-white/[0.02] px-3 py-2">
+                    <div className="flex items-center gap-2">
+                      <span className={cn("text-[11px] font-medium",
+                        r.status === "completed" ? "text-emerald-400" : r.status === "no_findings" ? "text-muted-foreground" : "text-red-400")}>
+                        {r.status === "completed" ? "Completed" : r.status === "no_findings" ? "No findings" : "Failed"}
+                      </span>
+                      <span className="text-[11px] text-foreground/80">
+                        {ORCH_PLAYBOOKS.find(p => p.key === r.playbook)?.title ?? r.playbook}
+                      </span>
+                      <span className="text-[10px] text-muted-foreground">{r.trigger_source}</span>
+                      <span className="ml-auto text-[10px] text-muted-foreground"><RelativeTime date={r.created_at} /></span>
+                    </div>
+                    {r.recommendation && <p className="mt-1 text-[11px] text-muted-foreground line-clamp-2">{r.recommendation}</p>}
+                    {(Array.isArray(r.task_ids) && r.task_ids.length > 0) && (
+                      <p className="mt-0.5 text-[10px] text-muted-foreground">
+                        {r.task_ids.length} linked task(s){Array.isArray(r.escalations) && r.escalations.length > 0 ? ` · ${r.escalations.length} escalation(s)` : ""}
+                      </p>
+                    )}
+                    {r.error && <p className="mt-0.5 text-[10px] text-red-400">{r.error}</p>}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
 
 function HiveMindActionsPage() {
   const qc           = useQueryClient();
@@ -584,6 +1012,10 @@ function HiveMindActionsPage() {
   const proposeFn        = useServerFn(proposeHiveMindAction);
   const generateFn       = useServerFn(generateOperatorActions);
   const getProposalsFn   = useServerFn(getCampaignProposals);
+  const getLearningFn    = useServerFn(getHiveMindLearningSummary);
+  const listRecsFn       = useServerFn(listExecutiveRecommendations);
+  const actOnRecFn       = useServerFn(actOnExecutiveRecommendation);
+  const updateRecFn      = useServerFn(updateExecutiveRecommendationStatus);
   const updateStatusFn   = useServerFn(updateProposalStatus);
   const genDnaProposalFn = useServerFn(generateDnaProposalsFn);
 
@@ -609,9 +1041,27 @@ function HiveMindActionsPage() {
     throwOnError: false,
   });
 
+  const { data: learningData } = useQuery({
+    queryKey: ["hivemind-learning-summary"],
+    queryFn:  () => getLearningFn(),
+    staleTime: 60_000,
+    throwOnError: false,
+    enabled: tab === "executed" || tab === "all",
+  });
+
+  const { data: recData, isLoading: recLoading, refetch: refetchRecs } = useQuery({
+    queryKey: ["executive-recommendations"],
+    queryFn:  () => listRecsFn(),
+    staleTime: 30_000,
+    throwOnError: false,
+  });
+
   const actions   = data?.actions ?? [];
   const proposals = propData?.proposals ?? [];
+  const recs      = recData?.recommendations ?? [];
+  const linkedActions = recData?.linkedActions ?? {};
   const tabCounts = {
+    recommendations: recData?.openCount ?? 0,
     pending:   actions.filter(a => a.status === "pending").length,
     executed:  actions.filter(a => a.status === "executed").length,
     rejected:  actions.filter(a => ["rejected","failed"].includes(a.status)).length,
@@ -620,7 +1070,7 @@ function HiveMindActionsPage() {
   };
   const visible = tab === "all" ? actions :
     tab === "rejected" ? actions.filter(a => ["rejected","failed"].includes(a.status)) :
-    tab === "proposals" ? [] :
+    tab === "proposals" || tab === "recommendations" ? [] :
     actions.filter(a => a.status === tab);
 
   async function handleApprove(id: string) {
@@ -664,6 +1114,31 @@ function HiveMindActionsPage() {
     try { await updateStatusFn({ data: { proposalId: id, status: "rejected" } }); await refetchProps(); }
     finally { setPropMuting(false); }
   }
+  async function handleActOnRec(id: string) {
+    setMutating(true); setGenMsg(null);
+    try {
+      const r = await actOnRecFn({ data: { id } });
+      setGenMsg(
+        r.downgraded
+          ? "Routed as an internal task (Recommend mode limits external actions)"
+          : r.sensitive
+            ? "Sensitive follow-through created — explicit approval required before it runs"
+            : "Follow-through action created — awaiting approval",
+      );
+      await Promise.all([refetchRecs(), refetch()]);
+      qc.invalidateQueries({ queryKey: ["hivemind-shell-badge"] });
+      setTimeout(() => setGenMsg(null), 6000);
+    } catch (e: any) {
+      setGenMsg(e?.message ?? "Could not act on this recommendation");
+      setTimeout(() => setGenMsg(null), 6000);
+    } finally { setMutating(false); }
+  }
+  async function handleDismissRec(id: string) {
+    setMutating(true);
+    try { await updateRecFn({ data: { id, status: "dismissed" } }); await refetchRecs(); }
+    catch (e: any) { setGenMsg(e?.message ?? "Could not dismiss"); setTimeout(() => setGenMsg(null), 5000); }
+    finally { setMutating(false); }
+  }
   async function handleGenDnaProposals() {
     setGenDna(true); setGenMsg(null);
     try {
@@ -677,6 +1152,7 @@ function HiveMindActionsPage() {
   }
 
   const TABS: { key: Tab; label: string }[] = [
+    { key: "recommendations", label: "Executive Recommendations" },
     { key: "proposals", label: "Campaign Proposals" },
     { key: "pending",   label: "Pending Actions" },
     { key: "executed",  label: "Executed" },
@@ -715,7 +1191,7 @@ function HiveMindActionsPage() {
               Generate from DNA
             </button>
           ) : (
-            mode === "operator" && (
+            (mode === "operator" || mode === "executive_operator") && (
               <button
                 onClick={handleGenerate}
                 disabled={generating}
@@ -737,6 +1213,9 @@ function HiveMindActionsPage() {
           )}
         </div>
       </div>
+
+      {/* Cross-Mind orchestration (Executive Operator) */}
+      <OrchestrationPanel mode={mode} />
 
       {/* Tabs */}
       <div className="border-b border-white/[0.06] px-5">
@@ -761,7 +1240,43 @@ function HiveMindActionsPage() {
 
       {/* Content */}
       <div className="px-5 py-5">
-        {tab === "proposals" ? (
+        {tab === "recommendations" ? (
+          recLoading ? (
+            <div className="flex items-center justify-center py-16 text-muted-foreground">
+              <Loader2 className="h-5 w-5 animate-spin mr-2" />Loading recommendations…
+            </div>
+          ) : recs.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-16 text-center">
+              <div className="h-12 w-12 rounded-full bg-violet-500/10 flex items-center justify-center mb-3">
+                <TrendingUp className="h-5 w-5 text-violet-400" />
+              </div>
+              <p className="text-sm font-medium">No executive recommendations yet</p>
+              <p className="text-xs text-muted-foreground mt-1 max-w-sm">
+                HiveMind's executive reasoning raises evidence-backed recommendations here as it
+                analyses your workspace. Acting on one routes its follow-through into the approval queue.
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {mode === "observe" && (
+                <p className="text-[11px] text-muted-foreground rounded-lg border border-white/[0.07] bg-white/[0.02] px-3 py-2">
+                  Observe mode: recommendations are read-only. Switch to Recommend, Assistant or Operator mode to act on them.
+                </p>
+              )}
+              {recs.map((rec) => (
+                <RecommendationCard
+                  key={rec.id}
+                  rec={rec}
+                  linked={linkedActions[rec.id]}
+                  mode={mode}
+                  onAct={handleActOnRec}
+                  onDismiss={handleDismissRec}
+                  isMutating={mutating}
+                />
+              ))}
+            </div>
+          )
+        ) : tab === "proposals" ? (
           propLoading ? (
             <div className="flex items-center justify-center py-16 text-muted-foreground">
               <Loader2 className="h-5 w-5 animate-spin mr-2" />Loading campaign proposals…
@@ -805,13 +1320,13 @@ function HiveMindActionsPage() {
             </div>
             <p className="text-sm font-medium">No {tab} actions</p>
             <p className="text-xs text-muted-foreground mt-1">
-              {tab === "pending" && mode === "operator"
+              {tab === "pending" && (mode === "operator" || mode === "executive_operator")
                 ? "Click 'Generate Actions' to let HiveMind analyse your platform"
                 : tab === "pending"
                   ? "Switch to Operator mode to generate intelligent action proposals"
                   : `Actions will appear here when they are ${tab}`}
             </p>
-            {tab === "pending" && mode === "operator" && (
+            {tab === "pending" && (mode === "operator" || mode === "executive_operator") && (
               <button onClick={handleGenerate} disabled={generating}
                 className="mt-4 flex items-center gap-1.5 rounded-lg bg-amber-500/15 border border-amber-500/30 px-4 py-2 text-xs font-medium text-amber-400 hover:bg-amber-500/25 transition-all disabled:opacity-40">
                 {generating ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Zap className="h-3.5 w-3.5" />}
@@ -821,6 +1336,9 @@ function HiveMindActionsPage() {
           </div>
         ) : (
           <div className="space-y-3">
+            {(tab === "executed" || tab === "all") && (
+              <LearningSummaryPanel adjustments={learningData?.adjustments ?? []} />
+            )}
             {visible.map(action => (
               <ActionCard
                 key={action.id}

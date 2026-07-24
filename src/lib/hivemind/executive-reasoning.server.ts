@@ -51,6 +51,7 @@ export interface ReasoningRunResult {
   insertedRecs: number;
   insertedTasks: number;
   dedupedTasks: number;
+  proposedFollowThroughs: number;
   error?: string;
 }
 
@@ -369,14 +370,16 @@ export async function runExecutiveReasoning(
   const out: ReasoningRunResult = {
     ok: true, eventsConsidered: 0, conclusions: 0, drafts: 0,
     rejectedByGate: 0, dedupedRecs: 0, insertedRecs: 0,
-    insertedTasks: 0, dedupedTasks: 0,
+    insertedTasks: 0, dedupedTasks: 0, proposedFollowThroughs: 0,
   };
+  let modeCfg: import("@/lib/hivemind/mode-gate.server").HiveMindModeConfig;
   try {
     // 0. Observe mode gate — HiveMind watches only; the reasoning engine must
     //    not write recommendations or tasks.
     try {
-      const { isProposalAllowed } = await import("@/lib/hivemind/mode-gate.server");
-      if (!(await isProposalAllowed(sb, workspaceId))) return out;
+      const { getHiveMindModeConfig } = await import("@/lib/hivemind/mode-gate.server");
+      modeCfg = await getHiveMindModeConfig(sb, workspaceId);
+      if (modeCfg.mode === "observe") return out;
     } catch {
       // Fail CLOSED: if the gate cannot be evaluated, do not write anything.
       return out;
@@ -531,6 +534,31 @@ export async function runExecutiveReasoning(
       if (error) throw new Error(error.message);
       out.insertedRecs = inserted?.length ?? 0;
       out.dedupedRecs += rows.length - (inserted?.length ?? 0);
+
+      // Assistant/operator modes: auto-propose the follow-through action for
+      // each newly inserted recommendation. The engine only ever PROPOSES —
+      // every action lands "pending" and executes solely through the
+      // hivemind_actions approval pipeline (sensitive actions always need an
+      // explicit human approval there). Recommend mode leaves follow-through
+      // to the user via actOnExecutiveRecommendation.
+      const insertedIds = (inserted ?? []).map((r: any) => r.id as string);
+      if (insertedIds.length && (modeCfg.mode === "assistant" || modeCfg.mode === "operator" || modeCfg.mode === "executive_operator")) {
+        try {
+          const { proposeFollowThroughForRecommendation } =
+            await import("@/lib/hivemind/executive-followthrough.server");
+          const { data: fullRecs } = await sb
+            .from("hivemind_recommendations")
+            .select("id, workspace_id, title, department, priority, business_issue, recommended_action, next_step, dedupe_key, correlation_key, status, confidence")
+            .eq("workspace_id", workspaceId)
+            .in("id", insertedIds);
+          for (const rec of (fullRecs ?? []) as any[]) {
+            const res = await proposeFollowThroughForRecommendation(sb, workspaceId, rec, modeCfg, {
+              isWbah, proposedBy: "executive_reasoning",
+            });
+            if (res.ok) out.proposedFollowThroughs++;
+          }
+        } catch { /* follow-through proposal is best-effort; reasoning output stands */ }
+      }
     }
 
     // Task candidates → accountability-shaped hivemind_tasks (deduped).

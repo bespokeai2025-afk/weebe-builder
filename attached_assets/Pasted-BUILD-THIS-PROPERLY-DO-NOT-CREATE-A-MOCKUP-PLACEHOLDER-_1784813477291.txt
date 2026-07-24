@@ -1,0 +1,1240 @@
+BUILD THIS PROPERLY. DO NOT CREATE A MOCKUP, PLACEHOLDER ANALYSIS, RANDOM AI TEXT OR ANOTHER DISCONNECTED DASHBOARD.
+
+Activate GrowthMind as WEBEE’s real AI marketing department and connect it directly to HiveMind.
+
+GrowthMind is the CMO.
+HiveMind is the CEO/executive decision layer.
+
+GrowthMind must continuously inspect live campaign data, external market intelligence, keywords, search demand, competitor activity, conversion performance and lead quality. It must proactively identify problems and opportunities, then send clear, financially useful recommendations to HiveMind and the user.
+
+The finished system must behave like an elite performance marketing team—not a generic chatbot producing obvious advice.
+
+==================================================
+NON-NEGOTIABLE OUTCOME
+==================================================
+
+Once Google Ads is connected and campaigns are successfully synced:
+
+1. GrowthMind automatically becomes active.
+2. GrowthMind continuously evaluates every campaign.
+3. GrowthMind retrieves supporting keyword and market intelligence.
+4. GrowthMind identifies wasted spend and growth opportunities.
+5. GrowthMind generates evidence-based recommendations.
+6. GrowthMind sends material findings to HiveMind.
+7. HiveMind prioritises recommendations based on business impact.
+8. The user receives actionable alerts without needing to ask.
+9. Every recommendation links to the campaign, keywords, metrics and evidence that caused it.
+10. No live campaign change is made without approval unless the workspace is explicitly placed into an authorised Operator mode.
+
+Do not claim the system is active unless this complete data and analysis loop is working.
+
+==================================================
+INVESTIGATE THE EXISTING SYSTEM FIRST
+==================================================
+
+Before modifying anything, inspect:
+
+- Existing GrowthMind pages and services
+- Existing HiveMind pages and services
+- Google Ads credential storage
+- Google Ads OAuth connection
+- Google Ads customer account selection
+- Google Ads campaign sync service
+- Existing analytics tables
+- Existing recommendation tables
+- Existing AI model providers
+- Existing scheduled job system
+- Existing notification settings
+- Existing Analytics Centre
+- Existing campaign reporting
+- Workspace and RLS architecture
+- HiveMind modes:
+  - Observe
+  - Recommend
+  - Assistant
+  - Operator
+
+Do not create duplicate systems when an existing service can be repaired or extended.
+
+Provide the root cause of any broken connection before replacing it.
+
+==================================================
+AGENT RESPONSIBILITIES
+==================================================
+
+GROWTHMIND — AI CMO
+
+GrowthMind owns:
+
+- Campaign analysis
+- Keyword intelligence
+- Search-demand analysis
+- Competitor intelligence
+- Budget optimisation
+- Bidding analysis
+- Ad-copy analysis
+- Landing-page analysis
+- Audience analysis
+- Geographic analysis
+- Device analysis
+- Conversion analysis
+- Funnel analysis
+- Lead-quality analysis
+- Marketing attribution
+- Creative testing recommendations
+- Campaign forecasts
+- Marketing reports
+- Performance alerts
+- Marketing change proposals
+
+HIVEMIND — EXECUTIVE LAYER
+
+HiveMind must:
+
+- Receive GrowthMind findings automatically
+- Understand the financial and commercial significance
+- Compare marketing findings with CRM, pipeline, calls, leads, sales and revenue
+- Prioritise recommendations
+- Reject low-value noise
+- Highlight issues requiring immediate attention
+- Create executive tasks
+- Ask for approval when a campaign change is recommended
+- Track whether approved actions improved results
+- Include marketing performance in HiveMind briefings and reports
+
+GrowthMind should analyse marketing.
+
+HiveMind should decide what matters to the business.
+
+Do not duplicate the same text between both agents.
+
+==================================================
+GROWTHMIND DATA SOURCES
+==================================================
+
+Connect GrowthMind to available live data sources.
+
+PRIMARY SOURCES
+
+- Google Ads API
+- WEBEE CRM
+- Sales pipeline
+- Leads
+- Qualified leads
+- Calls
+- Call outcomes
+- Conversion records
+- Revenue
+- Bookings
+- Follow-up results
+- Website enquiries
+- Campaign source and UTM data
+- Analytics Centre
+
+SEARCH AND MARKET INTELLIGENCE
+
+Use official APIs and compliant data sources wherever possible:
+
+- Google Ads Keyword Planner through the Google Ads API
+- Google Search Console
+- Google Trends or an approved trends data provider
+- Google Analytics 4
+- Current search-engine results through an approved search-data provider
+- Page-speed and website-performance APIs
+- Existing WEBEE website analysis tools
+- Approved SEO and competitor-data providers where credentials exist
+
+Do not use fabricated search volume.
+
+Do not invent competitor data.
+
+Do not scrape websites in a manner that violates provider terms.
+
+If a data provider is not configured, display:
+
+“Data source not connected”
+
+Do not silently replace missing information with AI guesses.
+
+==================================================
+GOOGLE ADS CAMPAIGN MONITORING
+==================================================
+
+GrowthMind must inspect every available campaign dimension.
+
+CAMPAIGN PERFORMANCE
+
+Analyse:
+
+- Campaign status
+- Campaign type
+- Budget
+- Spend
+- Impressions
+- Clicks
+- CTR
+- Average CPC
+- CPM
+- Conversions
+- Conversion rate
+- Cost per conversion
+- Conversion value
+- ROAS
+- Impression share
+- Lost impression share due to budget
+- Lost impression share due to rank
+- Optimisation score
+- Search top impression share
+- Absolute top impression share
+- Invalid clicks where available
+- Budget pacing
+- Spend pacing
+- Conversion lag
+- Performance volatility
+
+CAMPAIGN STRUCTURE
+
+Analyse:
+
+- Campaigns
+- Ad groups
+- Ads
+- Responsive search ads
+- Asset groups
+- Headlines
+- Descriptions
+- Images
+- Video assets
+- Extensions/assets
+- Keywords
+- Match types
+- Negative keywords
+- Search terms
+- Audiences
+- Locations
+- Devices
+- Networks
+- Schedules
+- Conversion actions
+- Bidding strategies
+- Landing-page URLs
+
+TIME COMPARISONS
+
+Compare:
+
+- Today versus yesterday
+- Last 7 days versus previous 7 days
+- Last 30 days versus previous 30 days
+- This month versus previous month
+- Current quarter versus previous quarter
+- Year-on-year where data exists
+- Performance before and after an approved change
+
+Do not call a campaign successful based only on clicks or impressions.
+
+The system must prioritise qualified leads, sales, revenue, profit and commercial outcomes.
+
+==================================================
+KEYWORD INTELLIGENCE ENGINE
+==================================================
+
+Build a real GrowthMind keyword intelligence service.
+
+For each campaign, ad group and landing page:
+
+1. Retrieve active keywords.
+2. Retrieve search-term performance.
+3. Retrieve negative keywords.
+4. Retrieve available Keyword Planner ideas.
+5. Retrieve search volume.
+6. Retrieve competition level.
+7. Retrieve estimated bid ranges where available.
+8. Identify keyword trends.
+9. Identify emerging terms.
+10. Identify declining terms.
+11. Identify high-cost non-converting terms.
+12. Identify high-intent terms not currently targeted.
+13. Identify queries that should become exact or phrase-match keywords.
+14. Identify irrelevant queries that should become negative keywords.
+15. Identify keyword cannibalisation between campaigns.
+16. Identify duplicated or competing keywords.
+17. Identify landing-page and keyword mismatches.
+18. Identify missing commercial-intent keyword themes.
+19. Identify low-volume terms wasting management effort.
+20. Identify keyword opportunities based on CRM outcomes, not only Google conversions.
+
+KEYWORD RECOMMENDATIONS MUST INCLUDE
+
+- Keyword or search term
+- Current campaign
+- Current ad group
+- Match type
+- Impressions
+- Clicks
+- Spend
+- Conversions
+- CPA
+- Conversion value
+- Search volume
+- Competition
+- Trend direction
+- Intent classification
+- Recommended action
+- Supporting reason
+- Estimated impact
+- Confidence level
+
+Never say:
+
+“Try more keywords.”
+
+Instead say something like:
+
+“Add ‘AI receptionist for estate agents’ as phrase and exact match to Campaign X. Search demand has increased, current account coverage is absent, and CRM data shows estate-agent leads have a 22% qualification rate.”
+
+Only state this when the retrieved data supports it.
+
+==================================================
+SEARCH-INTENT CLASSIFICATION
+==================================================
+
+Classify keyword and search-term intent:
+
+- Informational
+- Navigational
+- Commercial investigation
+- Transactional
+- Branded
+- Competitor
+- Problem-aware
+- Solution-aware
+- High purchase intent
+- Low purchase intent
+- Irrelevant
+- Existing customer/support query
+
+Use intent when calculating keyword quality.
+
+For a lead-generation campaign, prioritise terms likely to produce qualified enquiries—not simply traffic.
+
+==================================================
+COMPETITOR AND MARKET INTELLIGENCE
+==================================================
+
+Where compliant data is available, GrowthMind should analyse:
+
+- Competitors appearing for target searches
+- Competitor ad messaging
+- Competitor offers
+- Competitor pricing claims
+- Competitor landing pages
+- Competitor calls to action
+- Competitor positioning
+- Search-result changes
+- New market entrants
+- Content gaps
+- Offer gaps
+- Keyword gaps
+- Seasonal patterns
+- Regional differences
+- Search-demand changes
+
+Every competitor finding must include:
+
+- Source
+- Date collected
+- Search query
+- Market/location
+- Device where relevant
+- Competitor domain
+- Observed message
+- GrowthMind interpretation
+- Recommended response
+
+Do not present competitor observations as permanent facts.
+
+Market intelligence becomes stale. Store collection timestamps and refresh it.
+
+==================================================
+LANDING-PAGE ANALYSIS
+==================================================
+
+GrowthMind must review the landing page used by each campaign.
+
+Analyse:
+
+- Page availability
+- Mobile performance
+- Desktop performance
+- Page speed
+- Core Web Vitals where available
+- Headline relevance
+- Keyword-to-page relevance
+- Offer clarity
+- CTA visibility
+- Form friction
+- Number of form fields
+- Trust indicators
+- Social proof
+- Pricing clarity
+- Message consistency
+- Mobile usability
+- Conversion tracking
+- Broken links
+- Broken forms
+- Duplicate pages
+- Redirect chains
+- Page title and metadata
+- Structured content
+- Conversion path
+
+GrowthMind must connect landing-page findings to actual campaign performance.
+
+Do not produce generic website-design criticism.
+
+Example:
+
+“Campaign A sends 82% of mobile traffic to a page with a 6.2-second mobile load time. Mobile conversion rate is 0.8% compared with 3.7% on desktop. Prioritise mobile speed improvements before increasing budget.”
+
+==================================================
+AD-COPY AND CREATIVE ANALYSIS
+==================================================
+
+Analyse:
+
+- Headline performance
+- Description performance
+- Asset ratings
+- Offer clarity
+- Keyword relevance
+- CTA quality
+- Message repetition
+- Brand consistency
+- Search-intent alignment
+- Ad-to-landing-page consistency
+- Promotional claims
+- Policy risk
+- Ad fatigue
+- Creative coverage
+- Missing assets
+
+GrowthMind should suggest:
+
+- New headline variants
+- New description variants
+- Stronger CTAs
+- New offer tests
+- New audience-specific messages
+- New location-specific messages
+- New landing-page variants
+
+Generated copy must be based on:
+
+- Current campaign
+- Search intent
+- Product
+- Audience
+- Existing winning ads
+- Landing page
+- Business positioning
+- Compliance requirements
+
+Do not generate random generic copy.
+
+==================================================
+LEAD QUALITY AND REVENUE FEEDBACK LOOP
+==================================================
+
+This is critical.
+
+GrowthMind must not optimise only against Google Ads conversion counts.
+
+Connect campaign and keyword data to:
+
+- WEBEE lead records
+- Lead source
+- Campaign ID
+- Ad group ID
+- Keyword
+- Search term where available
+- GCLID
+- UTM values
+- Call result
+- Qualification result
+- Appointment booked
+- Appointment attended
+- Proposal generated
+- Sale
+- Revenue
+- Gross profit where available
+- Disqualification reason
+- Spam or invalid lead
+- Follow-up result
+
+Calculate where possible:
+
+- Cost per lead
+- Cost per qualified lead
+- Cost per appointment
+- Cost per attended appointment
+- Cost per proposal
+- Customer acquisition cost
+- Revenue per lead
+- Revenue per campaign
+- Profit per campaign
+- Qualified lead rate
+- Close rate
+- Lead-to-sale duration
+- Offline conversion value
+- True ROAS
+
+GrowthMind must identify situations such as:
+
+- Google reports conversions, but leads are low quality
+- A keyword has a high CPA but produces high-value sales
+- A campaign has cheap leads but poor close rates
+- A campaign appears weak because offline conversions are missing
+- One channel produces fewer leads but significantly more revenue
+- A campaign is generating repeat or duplicate leads
+- Sales-team response time is damaging paid campaign results
+
+==================================================
+GROWTHMIND ANALYSIS ENGINE
+==================================================
+
+After every successful data sync, GrowthMind must run deterministic checks first, then AI interpretation.
+
+Do not send the entire raw database blindly to an LLM.
+
+PIPELINE
+
+1. Validate data quality.
+2. Calculate metrics.
+3. Calculate comparison periods.
+4. Run anomaly detection.
+5. Run threshold rules.
+6. Run keyword checks.
+7. Run budget checks.
+8. Run conversion checks.
+9. Run lead-quality checks.
+10. Run landing-page checks.
+11. Run competitor and market checks.
+12. Build a structured evidence package.
+13. Pass only the evidence package to GrowthMind’s reasoning layer.
+14. Generate recommendations.
+15. Deduplicate recommendations.
+16. Score recommendations.
+17. Send material recommendations to HiveMind.
+
+Use structured outputs.
+
+Do not store recommendations as uncontrolled paragraphs only.
+
+==================================================
+DETECTION RULES
+==================================================
+
+GrowthMind must proactively detect:
+
+- Sudden increase in spend
+- Sudden fall in conversions
+- CPA deterioration
+- ROAS deterioration
+- Budget exhausted too early
+- Strong campaign limited by budget
+- Campaign under-spending
+- Campaign not delivering
+- Expensive non-converting search terms
+- Irrelevant search terms
+- Missing negative keywords
+- High-performing search terms not added as keywords
+- Broad-match leakage
+- Keyword cannibalisation
+- Duplicate targeting
+- Poor geographic performance
+- Strong geographic opportunity
+- Poor device performance
+- Strong device opportunity
+- Poor time-of-day performance
+- Poor day-of-week performance
+- Conversion tracking failure
+- Duplicate conversions
+- Conversion-value anomaly
+- Landing-page outage
+- Landing-page speed deterioration
+- Form failure
+- Broken tracking tags
+- Ad disapproval
+- Asset weakness
+- Ad fatigue
+- Weak offer
+- Low-quality leads
+- Increased spam leads
+- Falling close rate
+- Increasing lead-response time
+- Search-volume changes
+- Competitor messaging changes
+- Campaign objective mismatch
+- Spend occurring outside campaign targets
+- Missing offline conversion uploads
+
+Thresholds must adapt to account size and normal variance.
+
+Do not generate a critical warning because of a statistically meaningless change from two clicks to one click.
+
+Require sufficient data or clearly label the finding as low confidence.
+
+==================================================
+RECOMMENDATION QUALITY
+==================================================
+
+Every recommendation must contain:
+
+- Recommendation ID
+- Workspace ID
+- Account ID
+- Campaign ID
+- Ad group ID where relevant
+- Keyword/search term where relevant
+- Title
+- Category
+- Priority
+- Finding
+- Evidence
+- Current value
+- Comparison value
+- Percentage or absolute change
+- Commercial impact
+- Recommended action
+- Exact implementation proposal
+- Estimated benefit
+- Estimated risk
+- Confidence score
+- Supporting data sources
+- Date generated
+- Expiry date
+- Approval requirement
+- Current state
+- Assigned owner
+- HiveMind priority
+- Result after implementation
+
+PRIORITIES
+
+Critical:
+Immediate risk to spend, tracking, revenue or campaign availability.
+
+High:
+Strong evidence of meaningful financial improvement.
+
+Medium:
+Useful optimisation with moderate expected impact.
+
+Low:
+Testing idea or minor improvement.
+
+Do not flood the user with low-value recommendations.
+
+Default maximum:
+
+- 3 critical actions
+- 5 high-priority actions
+- 10 total active recommendations per account
+
+Additional findings can remain inside the detailed analysis page.
+
+==================================================
+NO GENERIC AI RUBBISH
+==================================================
+
+Block recommendations containing vague language such as:
+
+- Improve targeting
+- Optimise your campaign
+- Consider changing your budget
+- Try different keywords
+- Improve your landing page
+- Test new ads
+- Monitor performance
+- Increase engagement
+
+A recommendation must fail validation unless it includes:
+
+- A specific entity
+- A measurable problem or opportunity
+- Supporting metrics
+- A specific action
+- A reason
+- A confidence level
+
+If there is not enough evidence, GrowthMind must say:
+
+“Insufficient evidence for a reliable recommendation.”
+
+That is better than inventing advice.
+
+==================================================
+GROWTHMIND TO HIVEMIND CONNECTION
+==================================================
+
+Build a formal internal event and recommendation connection.
+
+After GrowthMind creates or updates a material recommendation, publish an internal event:
+
+growthmind.recommendation.created
+growthmind.recommendation.escalated
+growthmind.performance.alert
+growthmind.tracking.alert
+growthmind.budget.alert
+growthmind.market_opportunity
+growthmind.recommendation.result
+
+HiveMind must consume these events.
+
+The event should include:
+
+- workspace_id
+- recommendation_id
+- account_id
+- campaign_id
+- priority
+- category
+- summary
+- estimated financial impact
+- confidence
+- approval required
+- created_at
+
+HiveMind must not query another workspace’s recommendations.
+
+==================================================
+HIVEMIND EXECUTIVE DECISION ENGINE
+==================================================
+
+HiveMind must combine GrowthMind findings with business data.
+
+Example:
+
+GrowthMind finding:
+Campaign CPA increased by 18%.
+
+HiveMind context:
+Qualified lead rate increased by 42%, average deal value increased and pipeline revenue is up.
+
+HiveMind conclusion:
+Do not reduce the campaign only because CPA increased. Qualified acquisition performance has improved.
+
+HiveMind should evaluate:
+
+- Cash impact
+- Revenue impact
+- Profit impact
+- Pipeline impact
+- Lead quality
+- Sales capacity
+- Operational capacity
+- Customer acquisition cost
+- Campaign risk
+- Confidence
+- Urgency
+- Reversibility
+- Data quality
+
+HiveMind outputs:
+
+- Approve for review
+- Request more data
+- Assign to user
+- Assign to marketing team
+- Reject recommendation
+- Escalate as critical
+- Add to briefing
+- Create a task
+- Schedule reassessment
+- Recommend controlled experiment
+
+==================================================
+HIVEMIND MODES
+==================================================
+
+OBSERVE MODE
+
+- Collect and analyse data
+- Show findings
+- Do not create change requests
+- Do not modify campaigns
+
+RECOMMEND MODE
+
+- Create recommendations
+- Send important findings to HiveMind
+- Ask the user for approval
+- Do not modify campaigns
+
+ASSISTANT MODE
+
+- Create implementation-ready change plans
+- Prepare ad copy, keywords, negative keywords and budget changes
+- Allow the user to approve or reject each change
+- Execute only after explicit approval
+
+OPERATOR MODE
+
+- Only available when explicitly enabled by an authorised workspace administrator
+- Enforce workspace-specific limits
+- Apply only approved categories of changes
+- Maintain complete audit logs
+- Validate every change before execution
+- Include rollback data
+- Stop automatically when performance or tracking becomes unreliable
+- Never allow unrestricted autonomous spending
+
+Default GrowthMind and HiveMind to Recommend mode.
+
+Do not silently enable Operator mode.
+
+==================================================
+CONTROLLED EXPERIMENTS
+==================================================
+
+GrowthMind should prefer controlled testing over reckless changes.
+
+For each test proposal include:
+
+- Hypothesis
+- Control
+- Variant
+- Metric
+- Minimum data requirement
+- Test duration
+- Budget limit
+- Success threshold
+- Failure threshold
+- Stop condition
+- Rollback action
+
+Avoid changing multiple major variables simultaneously when this would make the outcome impossible to attribute.
+
+==================================================
+LEARNING LOOP
+==================================================
+
+Track every approved recommendation.
+
+After implementation:
+
+1. Save the implementation time.
+2. Save the previous-period baseline.
+3. Monitor the result.
+4. Compare expected versus actual impact.
+5. Mark:
+   - Successful
+   - Partially successful
+   - No material change
+   - Unsuccessful
+   - Inconclusive
+6. Feed the result back into GrowthMind.
+7. Send a result summary to HiveMind.
+8. Adjust future confidence scoring.
+
+GrowthMind must learn from the workspace’s actual results.
+
+Do not claim learning unless recommendation outcomes are stored and reused.
+
+==================================================
+SCHEDULES
+==================================================
+
+Implement background jobs using the existing scheduler.
+
+Suggested cadence:
+
+Every 15 minutes:
+- Refresh active Google Ads campaign metrics
+- Detect urgent anomalies
+- Check connection health
+
+Every hour:
+- Evaluate spend pacing
+- Evaluate budget issues
+- Check campaign delivery
+
+Daily:
+- Full GrowthMind campaign analysis
+- Search-term analysis
+- Keyword analysis
+- Lead-quality reconciliation
+- Landing-page health check
+- HiveMind marketing briefing update
+
+Weekly:
+- Keyword Planner refresh
+- Market-demand analysis
+- Competitor analysis
+- Full strategic report
+- Budget allocation review
+- Experiment review
+
+Monthly:
+- Executive marketing report
+- True ROAS and revenue analysis
+- Campaign strategy review
+- Forecast and planning recommendations
+
+Make cadence configurable.
+
+Use distributed locking so jobs do not overlap.
+
+==================================================
+PROACTIVE NOTIFICATIONS
+==================================================
+
+The user should not need to open GrowthMind to discover a serious issue.
+
+Use existing notification settings and channels.
+
+Notify for:
+
+- Tracking stopped
+- Campaign stopped delivering
+- Abnormal spend spike
+- Major conversion drop
+- Major CPA increase
+- Strong campaign limited by budget
+- High-value keyword opportunity
+- Major increase in irrelevant traffic
+- Landing page unavailable
+- Important recommendation awaiting approval
+- Approved change result available
+
+Do not send repeated duplicate alerts.
+
+Group related findings.
+
+Allow:
+
+- Immediate critical alerts
+- Daily summary
+- Weekly report
+- Monthly report
+
+==================================================
+GROWTHMIND UI
+==================================================
+
+Create a clear GrowthMind command centre.
+
+TOP STATUS
+
+- GrowthMind: Active
+- Google Ads connection health
+- Data sources connected
+- Last campaign sync
+- Last market intelligence refresh
+- Last GrowthMind analysis
+- Next scheduled analysis
+- Active recommendations
+- Critical alerts
+- Awaiting approval
+
+EXECUTIVE SUMMARY
+
+Show:
+
+- What changed
+- Why it matters
+- Money currently at risk
+- Best growth opportunity
+- Highest-priority action
+- Current marketing health score
+- Confidence/data-quality score
+
+RECOMMENDATION CENTRE
+
+Sections:
+
+- Immediate action
+- Wasted spend
+- Growth opportunities
+- Keywords
+- Budgets
+- Bidding
+- Ads and creative
+- Landing pages
+- Audiences
+- Locations
+- Devices
+- Lead quality
+- Tracking
+- Competitors
+- Controlled experiments
+- Awaiting approval
+- Implemented
+- Results
+
+Each recommendation must have:
+
+- Review evidence
+- Approve
+- Reject
+- Dismiss
+- Assign
+- Create task
+- Ask GrowthMind
+- Send to HiveMind
+- View campaign
+
+==================================================
+HIVEMIND UI
+==================================================
+
+Add GrowthMind information to:
+
+- HiveMind Overview
+- Daily Briefing
+- Recommendations
+- Tasks
+- Actions
+- Reports
+- Chat
+
+HiveMind should display:
+
+- Top marketing risk
+- Top growth opportunity
+- Spend requiring attention
+- Revenue effect
+- Recommendations awaiting approval
+- Recently implemented changes
+- Outcome of previous changes
+
+Allow the user to ask HiveMind:
+
+- What is wasting money?
+- Which campaign should receive more budget?
+- Why did conversions fall?
+- Are our leads actually profitable?
+- What should we change today?
+- What is GrowthMind most concerned about?
+- Which recommendation will have the largest commercial impact?
+
+HiveMind responses must cite internal campaign metrics and GrowthMind findings.
+
+==================================================
+DATABASE AND STRUCTURED DATA
+==================================================
+
+Reuse existing tables when appropriate.
+
+Add migrations only where required.
+
+Possible entities:
+
+growthmind_analysis_runs
+growthmind_recommendations
+growthmind_recommendation_evidence
+growthmind_market_observations
+growthmind_keyword_intelligence
+growthmind_competitor_observations
+growthmind_experiments
+growthmind_change_requests
+growthmind_change_results
+growthmind_alerts
+hivemind_agent_events
+hivemind_marketing_decisions
+
+Every record must include:
+
+- workspace_id
+- source
+- external account ID where relevant
+- created_at
+- updated_at
+
+Use unique constraints and idempotent upserts.
+
+Do not duplicate recommendations after every sync.
+
+==================================================
+MULTI-TENANCY
+==================================================
+
+This is non-negotiable.
+
+All data must be isolated by workspace_id:
+
+- Credentials
+- Google Ads accounts
+- Campaigns
+- Keywords
+- Search terms
+- Market intelligence
+- Recommendations
+- HiveMind events
+- Tasks
+- Reports
+- Notifications
+- Change requests
+- Results
+
+Add and verify Supabase RLS policies.
+
+WEBEE’s workspace must never see WeBuyAnyHouse information.
+
+WeBuyAnyHouse must never see WEBEE information.
+
+No cross-workspace AI context is permitted.
+
+==================================================
+SECURITY
+==================================================
+
+Never expose:
+
+- OAuth access token
+- OAuth refresh token
+- Google Ads developer token
+- OAuth client secret
+- API keys
+- Raw credential objects
+
+All external calls must happen server-side.
+
+Encrypt stored secrets using the existing credential-encryption system.
+
+Log request IDs and safe metadata—not secrets.
+
+==================================================
+FAILURE HANDLING
+==================================================
+
+Handle:
+
+- Google Ads disconnected
+- Refresh token revoked
+- Developer token missing
+- Account not selected
+- Manager account hierarchy failure
+- API quota exceeded
+- Partial campaign sync failure
+- Keyword Planner unavailable
+- Search Console not connected
+- GA4 not connected
+- Competitor-data provider unavailable
+- CRM attribution missing
+- Insufficient campaign history
+- Broken GCLID or UTM capture
+- No conversions
+- Small sample sizes
+- AI analysis failure
+
+Display accurate states.
+
+Never label GrowthMind “Active” if it is operating on stale, missing or fake data.
+
+Possible states:
+
+- Active
+- Syncing
+- Awaiting campaign data
+- Awaiting account selection
+- Limited data
+- Degraded
+- Reconnection required
+- Configuration required
+- Analysis failed
+
+==================================================
+TESTING
+==================================================
+
+Add tests for:
+
+1. GrowthMind receives Google Ads campaign data.
+2. GrowthMind receives keyword and search-term data.
+3. Missing external providers are clearly marked.
+4. GrowthMind recommendations contain evidence.
+5. Vague recommendations fail validation.
+6. Duplicate recommendations are not generated.
+7. Small data samples do not produce false critical alerts.
+8. CRM lead quality can change campaign interpretation.
+9. GrowthMind events reach HiveMind.
+10. HiveMind prioritises recommendations using commercial data.
+11. Observe mode cannot create campaign changes.
+12. Recommend mode cannot execute campaign changes.
+13. Assistant mode requires approval.
+14. Operator mode cannot activate without administrator authorisation.
+15. Workspace isolation is enforced.
+16. Secrets never reach the frontend.
+17. Approved recommendation results are measured.
+18. Failed changes retain rollback information.
+19. Scheduler jobs do not overlap.
+20. The UI contains real data and no mock recommendations.
+
+==================================================
+ACCEPTANCE CRITERIA
+==================================================
+
+This task is not complete until all of the following work:
+
+- GrowthMind is connected to live Google Ads campaign data.
+- GrowthMind analyses real campaigns automatically.
+- GrowthMind analyses keywords and search terms.
+- GrowthMind can use external market data when configured.
+- GrowthMind connects campaign data to WEBEE leads and sales.
+- GrowthMind produces specific, evidence-based recommendations.
+- GrowthMind proactively alerts the user.
+- GrowthMind sends material findings to HiveMind.
+- HiveMind evaluates commercial impact.
+- HiveMind includes marketing intelligence in its briefings.
+- Recommendations can be approved, rejected, dismissed and tracked.
+- No campaign is changed without the correct authorisation.
+- Implemented changes are measured.
+- Workspace isolation is verified.
+- No mock data remains.
+- No generic AI advice is shown.
+- Existing Google Ads, GrowthMind, HiveMind, Analytics Centre and CRM functionality remains working.
+
+==================================================
+FINAL IMPLEMENTATION REPORT
+==================================================
+
+After implementation, provide:
+
+1. Existing architecture found.
+2. Root causes discovered.
+3. Files changed.
+4. Database migrations.
+5. Data sources connected.
+6. Data sources still requiring credentials.
+7. GrowthMind analysis flow.
+8. GrowthMind-to-HiveMind event flow.
+9. Recommendation validation rules.
+10. HiveMind prioritisation rules.
+11. Scheduler cadence.
+12. Notification behaviour.
+13. Security controls.
+14. Workspace-isolation tests.
+15. Full test results.
+16. Screenshots or logs proving real campaign analysis.
+17. One real example showing:
+    - Raw campaign evidence
+    - GrowthMind recommendation
+    - HiveMind decision
+    - Approval state
+    - Measured result
+
+DO NOT REPORT THIS TASK AS COMPLETE AFTER ONLY BUILDING THE INTERFACE.
+
+DO NOT USE MOCK CAMPAIGNS.
+
+DO NOT USE HARDCODED RECOMMENDATIONS.
+
+DO NOT GENERATE AI TEXT WITHOUT SUPPORTING DATA.
+
+DO NOT MODIFY LIVE CAMPAIGNS WITHOUT AUTHORISATION.
+
+DO NOT BREAK EXISTING FEATURES.
+
+BUILD THE COMPLETE WORKING DATA, ANALYSIS, RECOMMENDATION, HIVEMIND ESCALATION AND RESULTS LOOP.

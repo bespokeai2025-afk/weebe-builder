@@ -50,7 +50,7 @@ export const CATEGORY_ENTITLEMENT: Record<SensitiveCategory, ActionKey> = {
 };
 
 /** Non-sensitive, internal-only action types (allowed to execute even in recommend mode). */
-export const INTERNAL_ACTION_TYPES = new Set<string>(["create_task", "sync_ad_stats"]);
+export const INTERNAL_ACTION_TYPES = new Set<string>(["create_task", "sync_ad_stats", "run_orchestration_playbook"]);
 
 /** Operator category permission keys (workspace_settings.hivemind_operator_permissions). */
 export const OPERATOR_CATEGORIES = [
@@ -66,6 +66,9 @@ export type OperatorCategory = (typeof OPERATOR_CATEGORIES)[number];
 /** Which operator category an action type belongs to (for auto-exec gating). */
 export const ACTION_OPERATOR_CATEGORY: Record<string, OperatorCategory> = {
   create_task:              "tasks",
+  // Orchestration playbooks only create suggested tasks + escalation events —
+  // never execute anything directly (sensitive pipeline can't be bypassed).
+  run_orchestration_playbook: "tasks",
   move_pipeline_stage:      "crm",
   assign_knowledge_base:    "crm",
   sync_ad_stats:            "sync",
@@ -77,8 +80,19 @@ export const ACTION_OPERATOR_CATEGORY: Record<string, OperatorCategory> = {
   growthmind_publish_content: "publishing",
 };
 
-export const HIVEMIND_MODES = ["observe", "recommend", "assistant", "operator"] as const;
+export const HIVEMIND_MODES = ["observe", "recommend", "assistant", "operator", "executive_operator"] as const;
 export type HiveMindModeName = (typeof HIVEMIND_MODES)[number];
 
 /** Spec default: recommend (never assistant/operator by default). */
 export const DEFAULT_HIVEMIND_MODE: HiveMindModeName = "recommend";
+
+/**
+ * Operator-class modes: allowed to auto-execute NON-sensitive, category-
+ * permitted actions. "executive_operator" behaves exactly like "operator"
+ * for every safety gate, and additionally unlocks cross-Mind orchestration
+ * (multi-step playbooks that chain analyses across executives). Sensitive /
+ * mandatory-approval actions are NEVER bypassed in any mode.
+ */
+export function isOperatorClassMode(mode: string | null | undefined): boolean {
+  return mode === "operator" || mode === "executive_operator";
+}

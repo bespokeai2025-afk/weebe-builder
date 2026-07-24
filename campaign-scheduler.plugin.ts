@@ -105,6 +105,20 @@ export function campaignSchedulerPlugin(): Plugin {
           console.warn("[content-publish] dev tick failed:", e?.message ?? e);
         }
 
+        // GrowthMind performance snapshots + attention scan + learning
+        // analysis (mirrors the prod campaign-executor endpoint). Best-effort.
+        try {
+          const { runPerformanceSnapshotTick } = (await server.ssrLoadModule(
+            "/src/lib/growthmind/performance-snapshots.server.ts",
+          )) as typeof import("./src/lib/growthmind/performance-snapshots.server");
+          const snap = await runPerformanceSnapshotTick();
+          if (snap.captured > 0 || snap.errors > 0) {
+            console.log(`[perf-snapshots] checked=${snap.jobsChecked} captured=${snap.captured} errors=${snap.errors}`);
+          }
+        } catch (e: any) {
+          console.warn("[perf-snapshots] dev tick failed:", e?.message ?? e);
+        }
+
         // Supabase DB health watchdog (mirrors the prod campaign-executor
         // endpoint). Loaded via ssrLoadModule so it shares module state with
         // server functions (admin banner reads the same snapshot). Best-effort.
