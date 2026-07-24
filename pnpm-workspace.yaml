@@ -1,6 +1,9 @@
 packages:
   - "."
 
+overrides:
+  entities: 4.5.0
+
 allowBuilds:
   esbuild: true
   sharp: true
