@@ -53,6 +53,7 @@ const files = [
   "20260722160000_wati_api_host.sql",
   "20260723100000_wati_template_status.sql",
   "20260723120000_wati_webhook_manual.sql",
+  "20260724120000_whatsapp_wati_message_id.sql",
 ];
 
 for (const file of files) {

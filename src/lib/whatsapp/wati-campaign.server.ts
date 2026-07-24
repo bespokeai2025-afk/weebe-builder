@@ -500,3 +500,77 @@ export function isWatiStatusEvent(payload: Record<string, unknown>): boolean {
     t.includes("sessionmessagesent")
   );
 }
+
+/** Inbound chat events — not delivery/read status updates. */
+export function isWatiInboundMessageEvent(payload: Record<string, unknown>): boolean {
+  const t = String(payload.eventType ?? payload.type ?? payload.event ?? "").toLowerCase();
+  if (t === "message" || t === "message_bsuid") {
+    return payload.owner === false;
+  }
+  if (t.startsWith("newcontactmessagereceived")) {
+    return true;
+  }
+  return false;
+}
+
+/** Parse WATI inbound webhook payload into a row for whatsapp_messages. */
+export function parseWatiInboundMessage(payload: Record<string, unknown>): {
+  contact_phone: string;
+  contact_name: string | null;
+  body: string;
+  external_id: string;
+  whatsapp_message_id: string | null;
+  sent_at: string;
+} | null {
+  const phoneRaw =
+    payload.waId ??
+    payload.phone ??
+    payload.from ??
+    (payload.contact as Record<string, unknown> | undefined)?.phone ??
+    null;
+  if (!phoneRaw) return null;
+
+  const contact_phone = normalizeWhatsAppPhone(String(phoneRaw));
+  if (!contact_phone) return null;
+
+  const text =
+    typeof payload.text === "string"
+      ? payload.text
+      : (payload.text as Record<string, unknown> | undefined)?.body ??
+        (payload.message as Record<string, unknown> | undefined)?.text ??
+        payload.caption ??
+        null;
+
+  const eventType = String(payload.eventType ?? "").toLowerCase();
+  // newContactMessageReceived is a notification only — the "message" event carries text.
+  if (!text && eventType.startsWith("newcontactmessagereceived")) {
+    return null;
+  }
+
+  const body = text && String(text).trim() ? String(text) : "[Non-text message]";
+
+  const whatsapp_message_id =
+    payload.whatsappMessageId != null ? String(payload.whatsappMessageId) : null;
+
+  const external_id = String(
+    whatsapp_message_id ??
+      payload.id ??
+      payload.messageId ??
+      `wati_in_${contact_phone}_${payload.timestamp ?? payload.created ?? Date.now()}`,
+  );
+
+  const sent_at = payload.created
+    ? String(payload.created)
+    : payload.timestamp
+      ? new Date(Number(payload.timestamp) * 1000).toISOString()
+      : new Date().toISOString();
+
+  const contact_name =
+    payload.senderName != null
+      ? String(payload.senderName)
+      : (payload.contact as Record<string, unknown> | undefined)?.name != null
+        ? String((payload.contact as Record<string, unknown>).name)
+        : null;
+
+  return { contact_phone, contact_name, body, external_id, whatsapp_message_id, sent_at };
+}
