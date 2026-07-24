@@ -242,7 +242,9 @@ export const controlQueueEntryFn = createServerFn({ method: "POST" })
   .inputValidator((i: { id: string; action: "pause" | "resume" | "cancel" | "retry_now" }) =>
     z.object({ id: z.string().uuid(), action: z.enum(["pause", "resume", "cancel", "retry_now"]) }).parse(i))
   .handler(async ({ data, context }) => {
-    await gate(context, "edit");
+    // Live-impact (pausing/resuming/cancelling/retrying live call queue entries): approval,
+    // matching activate/pause/resume/rollback/trigger controls.
+    await gate(context, "approval");
     await noWbah(context.workspaceId);
     const { controlQueueEntryServer } = await import("@/lib/systemmind/call-runtime/queue.server");
     return controlQueueEntryServer({ workspaceId: context.workspaceId, queueId: data.id, action: data.action });
@@ -315,7 +317,8 @@ export const retryIntegrationErrorFn = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((i: { id: string }) => z.object({ id: z.string().uuid() }).parse(i))
   .handler(async ({ data, context }) => {
-    await gate(context, "edit");
+    // Live-impact (re-triggers a live integration action): approval, matching queue controls.
+    await gate(context, "approval");
     await noWbah(context.workspaceId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const sb = supabaseAdmin as any;

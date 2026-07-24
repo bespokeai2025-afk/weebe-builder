@@ -309,10 +309,10 @@ export function SystemMindSetupWizardPage() {
               .map((t: any) => t.summary || t.name)
               .join("; ")}
             queueSummary={(queueQ.data ?? []).length ? `${(queueQ.data ?? []).length} queue entries` : ""}
-            onRetryCrm={() => {
+            onRetryCrm={canApprove ? () => {
               const dead = (intErrsQ.data ?? []).find((e: any) => e.status === "dead_letter");
               if (dead) intRetryMut.mutate(dead.id);
-            }}
+            } : undefined}
           />
         )}
 
@@ -413,12 +413,14 @@ export function SystemMindSetupWizardPage() {
                               <div className="flex gap-1">
                                 {["failed", "retry_scheduled"].includes(q.status) && (
                                   <Button size="sm" variant="ghost" className="h-6 px-2 text-[10px]"
+                                    disabled={queueMut.isPending || !canApprove}
+                                    title={!canApprove ? approvalHint : undefined}
                                     onClick={() => queueMut.mutate({ id: q.id, action: "retry_now" })}>Retry now</Button>
                                 )}
                                 {q.status === "paused"
-                                  ? <Button size="sm" variant="ghost" className="h-6 px-2 text-[10px]" onClick={() => queueMut.mutate({ id: q.id, action: "resume" })}>Resume</Button>
+                                  ? <Button size="sm" variant="ghost" className="h-6 px-2 text-[10px]" disabled={queueMut.isPending || !canApprove} title={!canApprove ? approvalHint : undefined} onClick={() => queueMut.mutate({ id: q.id, action: "resume" })}>Resume</Button>
                                   : ["pending", "ready", "waiting_for_data"].includes(q.status) && (
-                                    <Button size="sm" variant="ghost" className="h-6 px-2 text-[10px]" onClick={() => queueMut.mutate({ id: q.id, action: "pause" })}>Pause</Button>
+                                    <Button size="sm" variant="ghost" className="h-6 px-2 text-[10px]" disabled={queueMut.isPending || !canApprove} title={!canApprove ? approvalHint : undefined} onClick={() => queueMut.mutate({ id: q.id, action: "pause" })}>Pause</Button>
                                   )}
                               </div>
                             </div>
@@ -597,7 +599,7 @@ export function SystemMindSetupWizardPage() {
                     {(intErrsQ.data ?? []).slice(0, 10).map((e: any) => (
                       <div key={e.id} className="flex items-center justify-between rounded border border-slate-800 bg-slate-950/50 px-3 py-1.5 text-xs">
                         <span className="text-slate-300">{e.kind}: <span className="text-slate-400">{String(e.error).slice(0, 60)}</span> ({e.status})</span>
-                        <Button size="sm" variant="ghost" className="h-6 px-2 text-[10px]" onClick={() => intRetryMut.mutate(e.id)}>Retry</Button>
+                        <Button size="sm" variant="ghost" className="h-6 px-2 text-[10px]" disabled={intRetryMut.isPending || !canApprove} title={!canApprove ? approvalHint : undefined} onClick={() => intRetryMut.mutate(e.id)}>Retry</Button>
                       </div>
                     ))}
                   </div>
