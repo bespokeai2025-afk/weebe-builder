@@ -35,6 +35,12 @@ export interface HiveMindAction {
   created_at:     string;
   updated_at:     string;
   executed_at:    string | null;
+  sensitive?:             boolean | null;
+  sensitive_category?:    string | null;
+  authorised_by_user_id?: string | null;
+  consumed_at?:           string | null;
+  /** Resolved for display only (from profiles) — not a DB column. */
+  authorised_by_email?:   string | null;
 }
 
 // ── Audit: previous/new state capture (rollback info where available) ────────
@@ -417,18 +423,50 @@ export const getHiveMindMode = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
     const sb = context.supabase as any;
+    const fallback = {
+      mode: "recommend" as HiveMindMode,
+      operatorEnabled: false,
+      operatorPermissions: {} as Record<string, boolean>,
+      operatorEnabledBy: null as string | null,
+      operatorEnabledAt: null as string | null,
+      canManageOperator: false,
+    };
     try {
       const { data } = await sb.from("workspace_settings")
-        .select("hivemind_mode, hivemind_operator_enabled, hivemind_operator_permissions")
+        .select("hivemind_mode, hivemind_operator_enabled, hivemind_operator_permissions, hivemind_operator_enabled_by, hivemind_operator_enabled_at")
         .eq("workspace_id", context.workspaceId)
         .maybeSingle();
+
+      // Resolve the enabling user's identity for the audit line (best-effort).
+      let operatorEnabledBy: string | null = null;
+      if (data?.hivemind_operator_enabled_by) {
+        try {
+          const { data: prof } = await sb.from("profiles")
+            .select("email, full_name")
+            .eq("user_id", data.hivemind_operator_enabled_by)
+            .maybeSingle();
+          operatorEnabledBy = prof?.full_name || prof?.email || null;
+        } catch { /* display-only */ }
+      }
+
+      // Whether the current user may enable/manage Operator mode (owner/admin).
+      let canManageOperator = false;
+      try {
+        const { resolvePermissions, isOwnerOrAdmin } = await import("@/lib/permissions/permissions.server");
+        const perms = await resolvePermissions(context.workspaceId!, (context as any).userId ?? null);
+        canManageOperator = isOwnerOrAdmin(perms);
+      } catch { /* fail closed */ }
+
       return {
         mode: (data?.hivemind_mode ?? "recommend") as HiveMindMode,
         operatorEnabled: data?.hivemind_operator_enabled === true,
         operatorPermissions: (data?.hivemind_operator_permissions ?? {}) as Record<string, boolean>,
+        operatorEnabledBy,
+        operatorEnabledAt: (data?.hivemind_operator_enabled_at ?? null) as string | null,
+        canManageOperator,
       };
     } catch {
-      return { mode: "recommend" as HiveMindMode, operatorEnabled: false, operatorPermissions: {} as Record<string, boolean> };
+      return fallback;
     }
   });
 
@@ -498,6 +536,23 @@ export const getHiveMindActionsAndCounts = createServerFn({ method: "GET" })
       .limit(200);
     if (error) throw error;
     const actions  = (data ?? []) as HiveMindAction[];
+
+    // Resolve authoriser identities for the audit trail (best-effort, display-only).
+    try {
+      const userIds = [...new Set(actions.map(a => a.authorised_by_user_id).filter(Boolean))] as string[];
+      if (userIds.length > 0) {
+        const { data: profs } = await sb.from("profiles")
+          .select("user_id, email, full_name")
+          .in("user_id", userIds);
+        const byId = new Map<string, string>(
+          (profs ?? []).map((p: any) => [p.user_id, p.full_name || p.email]),
+        );
+        for (const a of actions) {
+          if (a.authorised_by_user_id) a.authorised_by_email = byId.get(a.authorised_by_user_id) ?? null;
+        }
+      }
+    } catch { /* display-only */ }
+
     const pending  = actions.filter(a => a.status === "pending").length;
     return { actions, pending, badge: pending };
   });

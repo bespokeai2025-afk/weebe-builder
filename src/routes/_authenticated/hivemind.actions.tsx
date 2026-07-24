@@ -231,9 +231,23 @@ function ActionCard({
         <div className="border-t border-white/[0.06] px-4 py-3 space-y-3">
           <div className="text-[11px] text-muted-foreground space-y-1">
             <p>Proposed by <span className="text-foreground font-medium">{action.proposed_by}</span> · <RelativeTime date={action.created_at} short /></p>
-            {action.approved_by && <p>Approved by <span className="text-foreground font-medium">{action.approved_by}</span></p>}
+            {(action.approved_by || action.authorised_by_email) && (
+              <p>
+                Authorised by <span className="text-foreground font-medium">{action.authorised_by_email ?? action.approved_by}</span>
+                {action.consumed_at && <> · {new Date(action.consumed_at).toLocaleString()}</>}
+              </p>
+            )}
             {action.executed_at && <p>Executed <RelativeTime date={action.executed_at} short /></p>}
           </div>
+          {action.sensitive === true && (
+            <div className="flex items-start gap-2 rounded-lg border border-amber-500/15 bg-amber-500/[0.05] px-3 py-2">
+              <AlertTriangle className="h-3.5 w-3.5 text-amber-400 shrink-0 mt-0.5" />
+              <p className="text-[11px] text-amber-300/90 leading-relaxed">
+                Sensitive action{action.sensitive_category ? ` (${String(action.sensitive_category).replace(/_/g, " ")})` : ""} —
+                requires explicit human approval and is never auto-executed.
+              </p>
+            </div>
+          )}
 
           {/* Full payload */}
           <div>
