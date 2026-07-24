@@ -121,6 +121,16 @@ describe("mode gates", () => {
     await setMode(wsA, "executive_operator");
   });
 
+  it("recommend and assistant modes block manual runs", async () => {
+    for (const m of ["recommend", "assistant"] as const) {
+      await setMode(wsA, m);
+      const r = await runOrchestrationPlaybook(sb, wsA, "lead_not_followed_up", { triggerSource: "manual" });
+      expect(r.ok).toBe(false);
+      expect(r.error).toMatch(/Operator/i);
+    }
+    await setMode(wsA, "executive_operator");
+  });
+
   it("auto trigger requires executive_operator", async () => {
     await setMode(wsA, "operator");
     const r = await runOrchestrationPlaybook(sb, wsA, "lead_not_followed_up", { triggerSource: "auto" });

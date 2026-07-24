@@ -12,7 +12,7 @@
  *  - Playbooks only ever CREATE suggested tasks, a recommendation and
  *    executive events. They never execute actions directly, so the
  *    sensitive / mandatory-approval pipeline is never bypassed.
- *  - Manual runs are allowed in any non-observe mode (proposal gate).
+ *  - Manual runs require an operator-class mode (operator / executive_operator).
  *  - Automatic (chained) runs require the executive_operator mode.
  *  - hivemind_orchestration_runs is server-write-only (service role);
  *    members read via RLS.
@@ -320,15 +320,17 @@ export async function runOrchestrationPlaybook(
   const triggerSource = opts.triggerSource ?? "manual";
   const base: OrchestrationRunResult = { ok: false, playbook, status: "failed", findings: 0, taskIds: [], escalations: [] };
   try {
-    // Mode gates. Manual: any non-observe mode (proposal-only output).
-    // Auto chaining: executive_operator only.
+    // Mode gates (fail closed). Manual runs require an operator-class mode
+    // (operator or executive_operator). Auto chaining: executive_operator only.
     const { getHiveMindModeConfig, assertProposalAllowed } = await import("@/lib/hivemind/mode-gate.server");
     await assertProposalAllowed(sb, workspaceId);
+    const cfg = await getHiveMindModeConfig(sb, workspaceId);
     if (triggerSource === "auto") {
-      const cfg = await getHiveMindModeConfig(sb, workspaceId);
       if (cfg.mode !== "executive_operator") {
         return { ...base, error: "Automatic orchestration requires Executive Operator mode." };
       }
+    } else if (cfg.mode !== "operator" && cfg.mode !== "executive_operator") {
+      return { ...base, error: "Manual orchestration requires Operator or Executive Operator mode." };
     }
 
     const findings =
