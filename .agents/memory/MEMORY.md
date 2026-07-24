@@ -156,3 +156,4 @@
 - [Executive recommendation follow-through](executive-followthrough.md) — recs propose only pending hivemind_actions (mode-gated, sensitive-flagged, server-built payloads); outcomes reflect back, terminal recs never resurrected.
 - [Mind API dual-auth pattern](mind-api-dual-auth.md) — /api/v1/minds/* JWT vs HMAC rules; getClaims throws on malformed JWT; WEBESPOKE_ADMIN creds are NOT Supabase logins.
 - [Mind conversation persistence](mind-conversation-persistence.md) — per-USER RLS (not workspace-members), one active conv per (ws,user,mind), chunked idempotent appends; briefing gated on empty history.
+- [GrowthMind Phase 5 performance & learning](growthmind-phase5-performance-learning.md) — checkpoint snapshots in metrics JSONB; learnings are proposals only (accept-gated, ±0.2/[0.7,1.3] clamps); chat writes audited, never schedule unapproved content.

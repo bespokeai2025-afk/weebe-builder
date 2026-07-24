@@ -166,6 +166,7 @@ import { Route as AuthenticatedGrowthmindRecommendationsRouteImport } from './ro
 import { Route as AuthenticatedGrowthmindProposalsRouteImport } from './routes/_authenticated/growthmind.proposals'
 import { Route as AuthenticatedGrowthmindPromptStudioRouteImport } from './routes/_authenticated/growthmind.prompt-studio'
 import { Route as AuthenticatedGrowthmindPlaybooksRouteImport } from './routes/_authenticated/growthmind.playbooks'
+import { Route as AuthenticatedGrowthmindPerformanceLabRouteImport } from './routes/_authenticated/growthmind.performance-lab'
 import { Route as AuthenticatedGrowthmindLeadOpportunitiesRouteImport } from './routes/_authenticated/growthmind.lead-opportunities'
 import { Route as AuthenticatedGrowthmindImageStudioRouteImport } from './routes/_authenticated/growthmind.image-studio'
 import { Route as AuthenticatedGrowthmindImageLibraryRouteImport } from './routes/_authenticated/growthmind.image-library'
@@ -180,6 +181,7 @@ import { Route as AuthenticatedGrowthmindContentStudioRouteImport } from './rout
 import { Route as AuthenticatedGrowthmindContentCalendarRouteImport } from './routes/_authenticated/growthmind.content-calendar'
 import { Route as AuthenticatedGrowthmindCompetitorsRouteImport } from './routes/_authenticated/growthmind.competitors'
 import { Route as AuthenticatedGrowthmindCompetitorIntelRouteImport } from './routes/_authenticated/growthmind.competitor-intel'
+import { Route as AuthenticatedGrowthmindCommandCentreRouteImport } from './routes/_authenticated/growthmind.command-centre'
 import { Route as AuthenticatedGrowthmindChatRouteImport } from './routes/_authenticated/growthmind.chat'
 import { Route as AuthenticatedGrowthmindCampaignsRouteImport } from './routes/_authenticated/growthmind.campaigns'
 import { Route as AuthenticatedGrowthmindCampaignFactoryRouteImport } from './routes/_authenticated/growthmind.campaign-factory'
@@ -1166,6 +1168,12 @@ const AuthenticatedGrowthmindPlaybooksRoute =
     path: '/playbooks',
     getParentRoute: () => AuthenticatedGrowthmindRoute,
   } as any)
+const AuthenticatedGrowthmindPerformanceLabRoute =
+  AuthenticatedGrowthmindPerformanceLabRouteImport.update({
+    id: '/performance-lab',
+    path: '/performance-lab',
+    getParentRoute: () => AuthenticatedGrowthmindRoute,
+  } as any)
 const AuthenticatedGrowthmindLeadOpportunitiesRoute =
   AuthenticatedGrowthmindLeadOpportunitiesRouteImport.update({
     id: '/lead-opportunities',
@@ -1248,6 +1256,12 @@ const AuthenticatedGrowthmindCompetitorIntelRoute =
   AuthenticatedGrowthmindCompetitorIntelRouteImport.update({
     id: '/competitor-intel',
     path: '/competitor-intel',
+    getParentRoute: () => AuthenticatedGrowthmindRoute,
+  } as any)
+const AuthenticatedGrowthmindCommandCentreRoute =
+  AuthenticatedGrowthmindCommandCentreRouteImport.update({
+    id: '/command-centre',
+    path: '/command-centre',
     getParentRoute: () => AuthenticatedGrowthmindRoute,
   } as any)
 const AuthenticatedGrowthmindChatRoute =
@@ -1941,6 +1955,7 @@ export interface FileRoutesByFullPath {
   '/growthmind/campaign-factory': typeof AuthenticatedGrowthmindCampaignFactoryRoute
   '/growthmind/campaigns': typeof AuthenticatedGrowthmindCampaignsRoute
   '/growthmind/chat': typeof AuthenticatedGrowthmindChatRoute
+  '/growthmind/command-centre': typeof AuthenticatedGrowthmindCommandCentreRoute
   '/growthmind/competitor-intel': typeof AuthenticatedGrowthmindCompetitorIntelRoute
   '/growthmind/competitors': typeof AuthenticatedGrowthmindCompetitorsRoute
   '/growthmind/content-calendar': typeof AuthenticatedGrowthmindContentCalendarRoute
@@ -1955,6 +1970,7 @@ export interface FileRoutesByFullPath {
   '/growthmind/image-library': typeof AuthenticatedGrowthmindImageLibraryRoute
   '/growthmind/image-studio': typeof AuthenticatedGrowthmindImageStudioRoute
   '/growthmind/lead-opportunities': typeof AuthenticatedGrowthmindLeadOpportunitiesRoute
+  '/growthmind/performance-lab': typeof AuthenticatedGrowthmindPerformanceLabRoute
   '/growthmind/playbooks': typeof AuthenticatedGrowthmindPlaybooksRoute
   '/growthmind/prompt-studio': typeof AuthenticatedGrowthmindPromptStudioRoute
   '/growthmind/proposals': typeof AuthenticatedGrowthmindProposalsRoute
@@ -2214,6 +2230,7 @@ export interface FileRoutesByTo {
   '/growthmind/campaign-factory': typeof AuthenticatedGrowthmindCampaignFactoryRoute
   '/growthmind/campaigns': typeof AuthenticatedGrowthmindCampaignsRoute
   '/growthmind/chat': typeof AuthenticatedGrowthmindChatRoute
+  '/growthmind/command-centre': typeof AuthenticatedGrowthmindCommandCentreRoute
   '/growthmind/competitor-intel': typeof AuthenticatedGrowthmindCompetitorIntelRoute
   '/growthmind/competitors': typeof AuthenticatedGrowthmindCompetitorsRoute
   '/growthmind/content-calendar': typeof AuthenticatedGrowthmindContentCalendarRoute
@@ -2228,6 +2245,7 @@ export interface FileRoutesByTo {
   '/growthmind/image-library': typeof AuthenticatedGrowthmindImageLibraryRoute
   '/growthmind/image-studio': typeof AuthenticatedGrowthmindImageStudioRoute
   '/growthmind/lead-opportunities': typeof AuthenticatedGrowthmindLeadOpportunitiesRoute
+  '/growthmind/performance-lab': typeof AuthenticatedGrowthmindPerformanceLabRoute
   '/growthmind/playbooks': typeof AuthenticatedGrowthmindPlaybooksRoute
   '/growthmind/prompt-studio': typeof AuthenticatedGrowthmindPromptStudioRoute
   '/growthmind/proposals': typeof AuthenticatedGrowthmindProposalsRoute
@@ -2495,6 +2513,7 @@ export interface FileRoutesById {
   '/_authenticated/growthmind/campaign-factory': typeof AuthenticatedGrowthmindCampaignFactoryRoute
   '/_authenticated/growthmind/campaigns': typeof AuthenticatedGrowthmindCampaignsRoute
   '/_authenticated/growthmind/chat': typeof AuthenticatedGrowthmindChatRoute
+  '/_authenticated/growthmind/command-centre': typeof AuthenticatedGrowthmindCommandCentreRoute
   '/_authenticated/growthmind/competitor-intel': typeof AuthenticatedGrowthmindCompetitorIntelRoute
   '/_authenticated/growthmind/competitors': typeof AuthenticatedGrowthmindCompetitorsRoute
   '/_authenticated/growthmind/content-calendar': typeof AuthenticatedGrowthmindContentCalendarRoute
@@ -2509,6 +2528,7 @@ export interface FileRoutesById {
   '/_authenticated/growthmind/image-library': typeof AuthenticatedGrowthmindImageLibraryRoute
   '/_authenticated/growthmind/image-studio': typeof AuthenticatedGrowthmindImageStudioRoute
   '/_authenticated/growthmind/lead-opportunities': typeof AuthenticatedGrowthmindLeadOpportunitiesRoute
+  '/_authenticated/growthmind/performance-lab': typeof AuthenticatedGrowthmindPerformanceLabRoute
   '/_authenticated/growthmind/playbooks': typeof AuthenticatedGrowthmindPlaybooksRoute
   '/_authenticated/growthmind/prompt-studio': typeof AuthenticatedGrowthmindPromptStudioRoute
   '/_authenticated/growthmind/proposals': typeof AuthenticatedGrowthmindProposalsRoute
@@ -2778,6 +2798,7 @@ export interface FileRouteTypes {
     | '/growthmind/campaign-factory'
     | '/growthmind/campaigns'
     | '/growthmind/chat'
+    | '/growthmind/command-centre'
     | '/growthmind/competitor-intel'
     | '/growthmind/competitors'
     | '/growthmind/content-calendar'
@@ -2792,6 +2813,7 @@ export interface FileRouteTypes {
     | '/growthmind/image-library'
     | '/growthmind/image-studio'
     | '/growthmind/lead-opportunities'
+    | '/growthmind/performance-lab'
     | '/growthmind/playbooks'
     | '/growthmind/prompt-studio'
     | '/growthmind/proposals'
@@ -3051,6 +3073,7 @@ export interface FileRouteTypes {
     | '/growthmind/campaign-factory'
     | '/growthmind/campaigns'
     | '/growthmind/chat'
+    | '/growthmind/command-centre'
     | '/growthmind/competitor-intel'
     | '/growthmind/competitors'
     | '/growthmind/content-calendar'
@@ -3065,6 +3088,7 @@ export interface FileRouteTypes {
     | '/growthmind/image-library'
     | '/growthmind/image-studio'
     | '/growthmind/lead-opportunities'
+    | '/growthmind/performance-lab'
     | '/growthmind/playbooks'
     | '/growthmind/prompt-studio'
     | '/growthmind/proposals'
@@ -3331,6 +3355,7 @@ export interface FileRouteTypes {
     | '/_authenticated/growthmind/campaign-factory'
     | '/_authenticated/growthmind/campaigns'
     | '/_authenticated/growthmind/chat'
+    | '/_authenticated/growthmind/command-centre'
     | '/_authenticated/growthmind/competitor-intel'
     | '/_authenticated/growthmind/competitors'
     | '/_authenticated/growthmind/content-calendar'
@@ -3345,6 +3370,7 @@ export interface FileRouteTypes {
     | '/_authenticated/growthmind/image-library'
     | '/_authenticated/growthmind/image-studio'
     | '/_authenticated/growthmind/lead-opportunities'
+    | '/_authenticated/growthmind/performance-lab'
     | '/_authenticated/growthmind/playbooks'
     | '/_authenticated/growthmind/prompt-studio'
     | '/_authenticated/growthmind/proposals'
@@ -4748,6 +4774,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedGrowthmindPlaybooksRouteImport
       parentRoute: typeof AuthenticatedGrowthmindRoute
     }
+    '/_authenticated/growthmind/performance-lab': {
+      id: '/_authenticated/growthmind/performance-lab'
+      path: '/performance-lab'
+      fullPath: '/growthmind/performance-lab'
+      preLoaderRoute: typeof AuthenticatedGrowthmindPerformanceLabRouteImport
+      parentRoute: typeof AuthenticatedGrowthmindRoute
+    }
     '/_authenticated/growthmind/lead-opportunities': {
       id: '/_authenticated/growthmind/lead-opportunities'
       path: '/lead-opportunities'
@@ -4844,6 +4877,13 @@ declare module '@tanstack/react-router' {
       path: '/competitor-intel'
       fullPath: '/growthmind/competitor-intel'
       preLoaderRoute: typeof AuthenticatedGrowthmindCompetitorIntelRouteImport
+      parentRoute: typeof AuthenticatedGrowthmindRoute
+    }
+    '/_authenticated/growthmind/command-centre': {
+      id: '/_authenticated/growthmind/command-centre'
+      path: '/command-centre'
+      fullPath: '/growthmind/command-centre'
+      preLoaderRoute: typeof AuthenticatedGrowthmindCommandCentreRouteImport
       parentRoute: typeof AuthenticatedGrowthmindRoute
     }
     '/_authenticated/growthmind/chat': {
@@ -5744,6 +5784,7 @@ interface AuthenticatedGrowthmindRouteChildren {
   AuthenticatedGrowthmindCampaignFactoryRoute: typeof AuthenticatedGrowthmindCampaignFactoryRoute
   AuthenticatedGrowthmindCampaignsRoute: typeof AuthenticatedGrowthmindCampaignsRoute
   AuthenticatedGrowthmindChatRoute: typeof AuthenticatedGrowthmindChatRoute
+  AuthenticatedGrowthmindCommandCentreRoute: typeof AuthenticatedGrowthmindCommandCentreRoute
   AuthenticatedGrowthmindCompetitorIntelRoute: typeof AuthenticatedGrowthmindCompetitorIntelRoute
   AuthenticatedGrowthmindCompetitorsRoute: typeof AuthenticatedGrowthmindCompetitorsRoute
   AuthenticatedGrowthmindContentCalendarRoute: typeof AuthenticatedGrowthmindContentCalendarRoute
@@ -5758,6 +5799,7 @@ interface AuthenticatedGrowthmindRouteChildren {
   AuthenticatedGrowthmindImageLibraryRoute: typeof AuthenticatedGrowthmindImageLibraryRoute
   AuthenticatedGrowthmindImageStudioRoute: typeof AuthenticatedGrowthmindImageStudioRoute
   AuthenticatedGrowthmindLeadOpportunitiesRoute: typeof AuthenticatedGrowthmindLeadOpportunitiesRoute
+  AuthenticatedGrowthmindPerformanceLabRoute: typeof AuthenticatedGrowthmindPerformanceLabRoute
   AuthenticatedGrowthmindPlaybooksRoute: typeof AuthenticatedGrowthmindPlaybooksRoute
   AuthenticatedGrowthmindPromptStudioRoute: typeof AuthenticatedGrowthmindPromptStudioRoute
   AuthenticatedGrowthmindProposalsRoute: typeof AuthenticatedGrowthmindProposalsRoute
@@ -5790,6 +5832,8 @@ const AuthenticatedGrowthmindRouteChildren: AuthenticatedGrowthmindRouteChildren
     AuthenticatedGrowthmindCampaignsRoute:
       AuthenticatedGrowthmindCampaignsRoute,
     AuthenticatedGrowthmindChatRoute: AuthenticatedGrowthmindChatRoute,
+    AuthenticatedGrowthmindCommandCentreRoute:
+      AuthenticatedGrowthmindCommandCentreRoute,
     AuthenticatedGrowthmindCompetitorIntelRoute:
       AuthenticatedGrowthmindCompetitorIntelRoute,
     AuthenticatedGrowthmindCompetitorsRoute:
@@ -5815,6 +5859,8 @@ const AuthenticatedGrowthmindRouteChildren: AuthenticatedGrowthmindRouteChildren
       AuthenticatedGrowthmindImageStudioRoute,
     AuthenticatedGrowthmindLeadOpportunitiesRoute:
       AuthenticatedGrowthmindLeadOpportunitiesRoute,
+    AuthenticatedGrowthmindPerformanceLabRoute:
+      AuthenticatedGrowthmindPerformanceLabRoute,
     AuthenticatedGrowthmindPlaybooksRoute:
       AuthenticatedGrowthmindPlaybooksRoute,
     AuthenticatedGrowthmindPromptStudioRoute:

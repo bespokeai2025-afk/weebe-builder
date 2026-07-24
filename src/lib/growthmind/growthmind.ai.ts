@@ -342,28 +342,73 @@ export const getGrowthMindAIResponse = createServerFn({ method: "POST" })
       } catch {}
     }
 
-    const systemPrompt = compileSystemPrompt(data.platformData, data.personality, adsTrend) + (knowledgeBlockResult ? `\n\n${knowledgeBlockResult}` : "") + campaignReportsBlock + analyticsBlock;
+    const toolsGuidance = workspaceId
+      ? `
 
-    const res = await fetch("https://api.openai.com/v1/chat/completions", {
-      method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
-      body: JSON.stringify({
+## Tools — real actions
+You have tools to inspect the live content pipeline, performance snapshots and learned patterns, and two REAL write actions: sending a recommendation to Content Studio and rescheduling an ALREADY-APPROVED publishing job.
+Rules:
+- Before any write action, use get_content_pipeline to confirm the exact record and id.
+- You can NEVER publish or schedule unapproved content — approval happens in the HiveMind action centre. If asked, say so honestly.
+- If a tool returns ok:false, report the error to the user honestly and verbatim. NEVER claim an action succeeded unless the tool returned ok:true.
+- After a successful write, tell the user exactly what changed and what happens next.`
+      : "";
+
+    const systemPrompt = compileSystemPrompt(data.platformData, data.personality, adsTrend) + (knowledgeBlockResult ? `\n\n${knowledgeBlockResult}` : "") + campaignReportsBlock + analyticsBlock + toolsGuidance;
+
+    const convo: any[] = [
+      { role: "system", content: systemPrompt },
+      ...data.messages,
+    ];
+    const actionsTaken: Array<{ tool: string; ok: boolean; error?: string }> = [];
+
+    // Function-calling loop (max 5 rounds, then force a plain answer).
+    for (let round = 0; round < 6; round++) {
+      const isLast = round === 5;
+      const body: any = {
         model: "gpt-4o",
-        messages: [
-          { role: "system", content: systemPrompt },
-          ...data.messages,
-        ],
+        messages: convo,
         max_tokens: 800,
         temperature: 0.7,
-      }),
-    });
+      };
+      if (workspaceId && !isLast) {
+        const { CHAT_TOOL_SCHEMAS } = await import("@/lib/growthmind/growthmind-chat-tools.server");
+        body.tools = CHAT_TOOL_SCHEMAS;
+      }
 
-    if (!res.ok) {
-      const err = await res.text().catch(() => res.statusText);
-      throw new Error(`OpenAI error: ${err.slice(0, 200)}`);
+      const res = await fetch("https://api.openai.com/v1/chat/completions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
+        body: JSON.stringify(body),
+      });
+      if (!res.ok) {
+        const err = await res.text().catch(() => res.statusText);
+        throw new Error(`OpenAI error: ${err.slice(0, 200)}`);
+      }
+      const json = await res.json() as any;
+      const msg = json.choices?.[0]?.message;
+      const toolCalls = msg?.tool_calls as any[] | undefined;
+
+      if (!toolCalls?.length) {
+        return { reply: (msg?.content as string) ?? "", actionsTaken };
+      }
+
+      convo.push(msg);
+      const { executeChatTool } = await import("@/lib/growthmind/growthmind-chat-tools.server");
+      for (const tc of toolCalls) {
+        let toolArgs: Record<string, any> = {};
+        try { toolArgs = JSON.parse(tc.function?.arguments ?? "{}"); } catch {}
+        const result = await executeChatTool({
+          workspaceId: workspaceId!,
+          userId: (context as any).userId ?? null,
+          name: tc.function?.name ?? "",
+          args: toolArgs,
+        });
+        actionsTaken.push({ tool: tc.function?.name ?? "", ok: (result as any).ok !== false, error: (result as any).error as string | undefined });
+        convo.push({ role: "tool", tool_call_id: tc.id, content: JSON.stringify(result).slice(0, 8000) });
+      }
     }
-    const json = await res.json() as any;
-    return { reply: (json.choices?.[0]?.message?.content as string) ?? "" };
+    return { reply: "I ran into trouble completing that — please try again.", actionsTaken };
   });
 
 // ── Morning Growth Briefing ────────────────────────────────────────────────────

@@ -183,6 +183,21 @@ export const Route = createFileRoute("/api/public/campaign-executor")({
             console.warn("[content-publish] tick failed:", pubErr?.message ?? pubErr);
           }
 
+          // GrowthMind performance snapshots + attention scan + learning
+          // analysis (checkpointed Meta insights on published content).
+          // Best-effort — never blocks the tick.
+          try {
+            const { runPerformanceSnapshotTick } = await import(
+              "@/lib/growthmind/performance-snapshots.server"
+            );
+            const snap = await runPerformanceSnapshotTick();
+            if (snap.captured > 0 || snap.errors > 0) {
+              console.log(`[perf-snapshots] checked=${snap.jobsChecked} captured=${snap.captured} errors=${snap.errors}`);
+            }
+          } catch (snapErr: any) {
+            console.warn("[perf-snapshots] tick failed:", snapErr?.message ?? snapErr);
+          }
+
           // HiveMind executive event reconciliation + classification.
           // CAS-claimed per workspace/job cadence. Best-effort — never blocks
           // the tick.
