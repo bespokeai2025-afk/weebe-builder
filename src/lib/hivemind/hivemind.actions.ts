@@ -41,6 +41,22 @@ export interface HiveMindAction {
   consumed_at?:           string | null;
   /** Resolved for display only (from profiles) — not a DB column. */
   authorised_by_email?:   string | null;
+  // Learning loop (outcome reassessment) fields.
+  expected_result?:        string | null;
+  reassess_at?:            string | null;
+  outcome?:                Record<string, any> | null;
+  outcome_classification?: string | null;
+}
+
+export interface ConfidenceAdjustmentRow {
+  adjustment_key: string;
+  adjustment:     number;
+  successes:      number;
+  partials:       number;
+  failures:       number;
+  inconclusive:   number;
+  last_outcome:   string | null;
+  updated_at:     string;
 }
 
 // ── Audit: previous/new state capture (rollback info where available) ────────
@@ -555,6 +571,26 @@ export const getHiveMindActionsAndCounts = createServerFn({ method: "GET" })
 
     const pending  = actions.filter(a => a.status === "pending").length;
     return { actions, pending, badge: pending };
+  });
+
+// ── getHiveMindLearningSummary ────────────────────────────────────────────────
+// Read-only view of the outcome-learning confidence adjustments for the
+// caller's workspace. The hivemind_confidence_adjustments table is
+// server-write-only (authenticated is REVOKEd), so reads go through the
+// service-role client, strictly scoped to the authenticated workspace.
+export const getHiveMindLearningSummary = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const workspaceId = context.workspaceId!;
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data, error } = await (supabaseAdmin as any)
+      .from("hivemind_confidence_adjustments")
+      .select("adjustment_key, adjustment, successes, partials, failures, inconclusive, last_outcome, updated_at")
+      .eq("workspace_id", workspaceId)
+      .order("updated_at", { ascending: false })
+      .limit(100);
+    if (error) throw error;
+    return { adjustments: (data ?? []) as ConfidenceAdjustmentRow[] };
   });
 
 // ── proposeHiveMindAction ─────────────────────────────────────────────────────

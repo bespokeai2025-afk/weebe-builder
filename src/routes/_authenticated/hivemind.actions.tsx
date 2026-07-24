@@ -14,7 +14,8 @@ import { HiveMindShell, useHiveMindMode } from "@/components/hivemind/HiveMindSh
 import {
   getHiveMindActionsAndCounts, approveHiveMindAction, rejectHiveMindAction,
   deleteHiveMindAction, proposeHiveMindAction, generateOperatorActions,
-  type HiveMindAction, type ActionType,
+  getHiveMindLearningSummary,
+  type HiveMindAction, type ActionType, type ConfidenceAdjustmentRow,
 } from "@/lib/hivemind/hivemind.actions";
 import { getCampaignProposals, updateProposalStatus } from "@/lib/growthmind/growthmind.campaign-proposals";
 import {
@@ -134,6 +135,174 @@ function GrowthMindResultLink({ action }: { action: HiveMindAction }) {
   return null;
 }
 
+// ── Outcome display (learning loop) ───────────────────────────────────────────
+const OUTCOME_STYLES: Record<string, { label: string; color: string; bg: string }> = {
+  successful:   { label: "Outcome: Successful",   color: "text-emerald-400", bg: "bg-emerald-500/15 border-emerald-500/25" },
+  partial:      { label: "Outcome: Partial",      color: "text-amber-400",   bg: "bg-amber-500/15 border-amber-500/25" },
+  no_change:    { label: "Outcome: No Change",    color: "text-slate-400",   bg: "bg-slate-500/15 border-slate-500/25" },
+  unsuccessful: { label: "Outcome: Unsuccessful", color: "text-red-400",     bg: "bg-red-500/15 border-red-500/25" },
+  inconclusive: { label: "Outcome: Inconclusive", color: "text-muted-foreground", bg: "bg-white/[0.05] border-white/[0.10]" },
+};
+
+function OutcomeBadge({ classification }: { classification: string | null | undefined }) {
+  if (!classification) return null;
+  const s = OUTCOME_STYLES[classification];
+  if (!s) return null;
+  return (
+    <span className={cn("text-[10px] rounded-full px-1.5 py-0.5 border font-medium", s.bg, s.color)}>
+      {s.label}
+    </span>
+  );
+}
+
+function OutcomeSection({ action }: { action: HiveMindAction }) {
+  const outcome = action.outcome as Record<string, any> | null | undefined;
+  const classification = action.outcome_classification;
+
+  // Executed but not yet reassessed — show when the check is due.
+  if (action.status === "executed" && !classification) {
+    if (!action.reassess_at) return null;
+    const due = new Date(action.reassess_at);
+    const pastDue = due.getTime() <= Date.now();
+    return (
+      <div className="flex items-start gap-2 rounded-lg border border-white/[0.07] bg-white/[0.02] px-3 py-2">
+        <Clock className="h-3.5 w-3.5 text-muted-foreground shrink-0 mt-0.5" />
+        <p className="text-[11px] text-muted-foreground leading-relaxed">
+          {pastDue
+            ? "Outcome check is due — HiveMind will assess this action's real-world result on its next learning pass."
+            : <>HiveMind will check this action's real-world result after {due.toLocaleDateString()} and record what it learned here.</>}
+        </p>
+      </div>
+    );
+  }
+
+  if (!classification) return null;
+  const s = OUTCOME_STYLES[classification] ?? OUTCOME_STYLES.inconclusive;
+  const detail = (outcome?.detail ?? {}) as Record<string, unknown>;
+  const expected = (outcome?.expected_result ?? action.expected_result) as string | null | undefined;
+  const assessedAt = outcome?.assessed_at as string | undefined;
+
+  const detailItems = Object.entries(detail)
+    .filter(([, v]) => v !== null && v !== undefined && typeof v !== "object")
+    .slice(0, 6);
+
+  return (
+    <div className={cn("rounded-lg border px-3 py-2.5 space-y-2", s.bg)}>
+      <div className="flex items-center gap-2 flex-wrap">
+        <TrendingUp className={cn("h-3.5 w-3.5 shrink-0", s.color)} />
+        <p className={cn("text-[11px] font-semibold", s.color)}>{s.label.replace("Outcome: ", "What HiveMind found: ")}</p>
+        {assessedAt && (
+          <span className="text-[10px] text-muted-foreground">assessed <RelativeTime date={assessedAt} short /></span>
+        )}
+      </div>
+      {expected && (
+        <div>
+          <p className="text-[10px] text-muted-foreground uppercase tracking-wide mb-0.5">Expected</p>
+          <p className="text-[11px] text-foreground/80 leading-relaxed">{expected}</p>
+        </div>
+      )}
+      {detailItems.length > 0 && (
+        <div>
+          <p className="text-[10px] text-muted-foreground uppercase tracking-wide mb-1">Actual (measured)</p>
+          <div className="flex flex-wrap gap-1.5">
+            {detailItems.map(([k, v]) => (
+              <span key={k} className="text-[10px] bg-white/[0.05] border border-white/[0.08] rounded px-2 py-0.5 text-foreground/70">
+                {k.replace(/_/g, " ")}: {String(v)}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+      <p className="text-[10px] text-muted-foreground leading-relaxed">
+        This outcome feeds HiveMind's confidence learning — repeated successes make similar proposals more
+        confident; failures make them more cautious.
+      </p>
+    </div>
+  );
+}
+
+// ── Learning summary panel (confidence adjustments, read-only) ────────────────
+function adjustmentKeyLabel(key: string): string {
+  if (key.startsWith("action:")) {
+    const t = key.slice("action:".length);
+    return `Action · ${getActionStyle(t).label}`;
+  }
+  if (key.startsWith("rec:")) {
+    const d = key.slice("rec:".length);
+    return `Recommendations · ${d.charAt(0).toUpperCase()}${d.slice(1).replace(/_/g, " ")}`;
+  }
+  return key;
+}
+
+function LearningSummaryPanel({ adjustments }: { adjustments: ConfidenceAdjustmentRow[] }) {
+  const [open, setOpen] = useState(true);
+  if (adjustments.length === 0) return null;
+
+  return (
+    <div className="rounded-xl border border-violet-500/15 bg-violet-500/[0.03] mb-4">
+      <button
+        onClick={() => setOpen(o => !o)}
+        className="w-full flex items-center gap-2.5 px-4 py-3 text-left"
+      >
+        <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-violet-500/15 ring-1 ring-violet-500/25 shrink-0">
+          <TrendingUp className="h-3.5 w-3.5 text-violet-400" />
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className="text-xs font-semibold">What HiveMind has learned</p>
+          <p className="text-[10px] text-muted-foreground">
+            Confidence adjustments from {adjustments.length} action type{adjustments.length !== 1 ? "s" : ""} / department{adjustments.length !== 1 ? "s" : ""}, based on real outcomes
+          </p>
+        </div>
+        {open ? <ChevronUp className="h-3.5 w-3.5 text-muted-foreground" /> : <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />}
+      </button>
+
+      {open && (
+        <div className="border-t border-white/[0.06] px-4 py-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            {adjustments.map((adj) => {
+              const positive = adj.adjustment > 0;
+              const negative = adj.adjustment < 0;
+              const total = adj.successes + adj.partials + adj.failures + adj.inconclusive;
+              return (
+                <div key={adj.adjustment_key} className="rounded-lg border border-white/[0.07] bg-white/[0.02] px-3 py-2.5">
+                  <div className="flex items-center justify-between gap-2 mb-1.5">
+                    <p className="text-[11px] font-medium truncate">{adjustmentKeyLabel(adj.adjustment_key)}</p>
+                    <span className={cn(
+                      "text-[10px] font-semibold rounded-full px-1.5 py-0.5 border shrink-0",
+                      positive ? "text-emerald-400 bg-emerald-500/10 border-emerald-500/20" :
+                      negative ? "text-red-400 bg-red-500/10 border-red-500/20" :
+                      "text-muted-foreground bg-white/[0.04] border-white/[0.08]",
+                    )}>
+                      {positive ? "+" : ""}{(adj.adjustment * 100).toFixed(1)}% confidence
+                    </span>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[10px] text-muted-foreground">
+                    <span className="text-emerald-400/80">{adj.successes} successful</span>
+                    {adj.partials > 0 && <span className="text-amber-400/80">{adj.partials} partial</span>}
+                    <span className={adj.failures > 0 ? "text-red-400/80" : ""}>{adj.failures} unsuccessful</span>
+                    {adj.inconclusive > 0 && <span>{adj.inconclusive} inconclusive</span>}
+                    <span>· {total} assessed</span>
+                  </div>
+                  {adj.last_outcome && (
+                    <p className="text-[10px] text-muted-foreground/70 mt-1">
+                      Last outcome: {adj.last_outcome.replace(/_/g, " ")} · <RelativeTime date={adj.updated_at} short />
+                    </p>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+          <p className="text-[10px] text-muted-foreground mt-2.5 leading-relaxed">
+            HiveMind reassesses each executed action about a week after it ran, classifies the real-world outcome,
+            and nudges its future confidence up or down (bounded at ±20%). These adjustments are applied automatically
+            to new recommendations — this view is read-only.
+          </p>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Action card ───────────────────────────────────────────────────────────────
 function ActionCard({
   action, onApprove, onReject, onDelete, isMutating,
@@ -178,6 +347,7 @@ function ActionCard({
                 Executed
               </span>
             )}
+            {action.status === "executed" && <OutcomeBadge classification={action.outcome_classification} />}
             {action.status === "rejected" && (
               <span className="text-[10px] rounded-full px-1.5 py-0.5 bg-slate-500/15 text-slate-400 border border-slate-500/20 font-medium">
                 Rejected
@@ -248,6 +418,9 @@ function ActionCard({
               </p>
             </div>
           )}
+
+          {/* Outcome (learning loop) */}
+          <OutcomeSection action={action} />
 
           {/* Full payload */}
           <div>
@@ -718,6 +891,7 @@ function HiveMindActionsPage() {
   const proposeFn        = useServerFn(proposeHiveMindAction);
   const generateFn       = useServerFn(generateOperatorActions);
   const getProposalsFn   = useServerFn(getCampaignProposals);
+  const getLearningFn    = useServerFn(getHiveMindLearningSummary);
   const listRecsFn       = useServerFn(listExecutiveRecommendations);
   const actOnRecFn       = useServerFn(actOnExecutiveRecommendation);
   const updateRecFn      = useServerFn(updateExecutiveRecommendationStatus);
@@ -744,6 +918,14 @@ function HiveMindActionsPage() {
     queryFn:  () => getProposalsFn(),
     staleTime: 60_000,
     throwOnError: false,
+  });
+
+  const { data: learningData } = useQuery({
+    queryKey: ["hivemind-learning-summary"],
+    queryFn:  () => getLearningFn(),
+    staleTime: 60_000,
+    throwOnError: false,
+    enabled: tab === "executed" || tab === "all",
   });
 
   const { data: recData, isLoading: recLoading, refetch: refetchRecs } = useQuery({
@@ -1030,6 +1212,9 @@ function HiveMindActionsPage() {
           </div>
         ) : (
           <div className="space-y-3">
+            {(tab === "executed" || tab === "all") && (
+              <LearningSummaryPanel adjustments={learningData?.adjustments ?? []} />
+            )}
             {visible.map(action => (
               <ActionCard
                 key={action.id}
