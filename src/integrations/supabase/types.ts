@@ -9528,6 +9528,98 @@ export type Database = {
         }
         Relationships: []
       }
+      mind_conversation_messages: {
+        Row: {
+          client_msg_id: string | null
+          content: string
+          conversation_id: string
+          created_at: string
+          created_refs: Json | null
+          id: string
+          metadata: Json | null
+          role: string
+          tool_refs: Json | null
+          user_id: string | null
+          workspace_id: string
+        }
+        Insert: {
+          client_msg_id?: string | null
+          content: string
+          conversation_id: string
+          created_at?: string
+          created_refs?: Json | null
+          id?: string
+          metadata?: Json | null
+          role: string
+          tool_refs?: Json | null
+          user_id?: string | null
+          workspace_id: string
+        }
+        Update: {
+          client_msg_id?: string | null
+          content?: string
+          conversation_id?: string
+          created_at?: string
+          created_refs?: Json | null
+          id?: string
+          metadata?: Json | null
+          role?: string
+          tool_refs?: Json | null
+          user_id?: string | null
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mind_conversation_messages_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "mind_conversations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      mind_conversations: {
+        Row: {
+          created_at: string
+          current_objective: string | null
+          id: string
+          last_message_at: string | null
+          message_count: number
+          mind: string
+          status: string
+          title: string | null
+          updated_at: string
+          user_id: string
+          workspace_id: string
+        }
+        Insert: {
+          created_at?: string
+          current_objective?: string | null
+          id?: string
+          last_message_at?: string | null
+          message_count?: number
+          mind: string
+          status?: string
+          title?: string | null
+          updated_at?: string
+          user_id: string
+          workspace_id: string
+        }
+        Update: {
+          created_at?: string
+          current_objective?: string | null
+          id?: string
+          last_message_at?: string | null
+          message_count?: number
+          mind?: string
+          status?: string
+          title?: string | null
+          updated_at?: string
+          user_id?: string
+          workspace_id?: string
+        }
+        Relationships: []
+      }
       mind_tool_executions: {
         Row: {
           affected_record_id: string | null
