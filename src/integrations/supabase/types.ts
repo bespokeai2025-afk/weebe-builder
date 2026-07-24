@@ -6871,6 +6871,72 @@ export type Database = {
         }
         Relationships: []
       }
+      growthmind_objectives: {
+        Row: {
+          approval_requirements: string | null
+          budget_limit_usd: number | null
+          business_outcome: string | null
+          content_volume: number | null
+          created_at: string
+          created_by: string | null
+          end_date: string | null
+          id: string
+          name: string
+          platforms: Json
+          priority: string
+          start_date: string | null
+          status: string
+          success_metrics: Json
+          target_audience: string | null
+          target_product: string | null
+          updated_at: string
+          workspace_id: string
+          workstreams: Json
+        }
+        Insert: {
+          approval_requirements?: string | null
+          budget_limit_usd?: number | null
+          business_outcome?: string | null
+          content_volume?: number | null
+          created_at?: string
+          created_by?: string | null
+          end_date?: string | null
+          id?: string
+          name: string
+          platforms?: Json
+          priority?: string
+          start_date?: string | null
+          status?: string
+          success_metrics?: Json
+          target_audience?: string | null
+          target_product?: string | null
+          updated_at?: string
+          workspace_id: string
+          workstreams?: Json
+        }
+        Update: {
+          approval_requirements?: string | null
+          budget_limit_usd?: number | null
+          business_outcome?: string | null
+          content_volume?: number | null
+          created_at?: string
+          created_by?: string | null
+          end_date?: string | null
+          id?: string
+          name?: string
+          platforms?: Json
+          priority?: string
+          start_date?: string | null
+          status?: string
+          success_metrics?: Json
+          target_audience?: string | null
+          target_product?: string | null
+          updated_at?: string
+          workspace_id?: string
+          workstreams?: Json
+        }
+        Relationships: []
+      }
       growthmind_opportunities: {
         Row: {
           category: string
@@ -16663,12 +16729,15 @@ export type Database = {
           growthmind_ci_limits: Json
           growthmind_deep_analysis_daily_limit: number
           growthmind_discovery_daily_limit: number
+          growthmind_jobs_paused: boolean
           growthmind_min_opportunity_score: number
           growthmind_mode: string
+          growthmind_monthly_cost_limit_usd: number | null
           growthmind_operator_enabled: boolean
           growthmind_operator_enabled_at: string | null
           growthmind_operator_enabled_by: string | null
           growthmind_operator_permissions: Json
+          growthmind_publishing_paused: boolean
           growthmind_settings: Json
           growthmind_trend_scout_enabled: boolean
           gsc_access_token: string | null
@@ -16746,12 +16815,15 @@ export type Database = {
           growthmind_ci_limits?: Json
           growthmind_deep_analysis_daily_limit?: number
           growthmind_discovery_daily_limit?: number
+          growthmind_jobs_paused?: boolean
           growthmind_min_opportunity_score?: number
           growthmind_mode?: string
+          growthmind_monthly_cost_limit_usd?: number | null
           growthmind_operator_enabled?: boolean
           growthmind_operator_enabled_at?: string | null
           growthmind_operator_enabled_by?: string | null
           growthmind_operator_permissions?: Json
+          growthmind_publishing_paused?: boolean
           growthmind_settings?: Json
           growthmind_trend_scout_enabled?: boolean
           gsc_access_token?: string | null
@@ -16829,12 +16901,15 @@ export type Database = {
           growthmind_ci_limits?: Json
           growthmind_deep_analysis_daily_limit?: number
           growthmind_discovery_daily_limit?: number
+          growthmind_jobs_paused?: boolean
           growthmind_min_opportunity_score?: number
           growthmind_mode?: string
+          growthmind_monthly_cost_limit_usd?: number | null
           growthmind_operator_enabled?: boolean
           growthmind_operator_enabled_at?: string | null
           growthmind_operator_enabled_by?: string | null
           growthmind_operator_permissions?: Json
+          growthmind_publishing_paused?: boolean
           growthmind_settings?: Json
           growthmind_trend_scout_enabled?: boolean
           gsc_access_token?: string | null

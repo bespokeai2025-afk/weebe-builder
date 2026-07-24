@@ -535,7 +535,7 @@ export async function runContentPublishTick(): Promise<{ processed: number; publ
   const now = nowIso();
   const { data: due, error } = await admin
     .from("growthmind_publishing_jobs")
-    .select("id")
+    .select("id, workspace_id")
     .eq("status", "scheduled")
     .lte("scheduled_at", now)
     .or(`next_attempt_at.is.null,next_attempt_at.lte.${now}`)
@@ -545,8 +545,21 @@ export async function runContentPublishTick(): Promise<{ processed: number; publ
     console.warn("[content-publish-tick] due query failed:", error.message);
     return { processed: 0, published: 0 };
   }
+  // Honour the per-workspace emergency pause switch (HiveMind executive control).
+  const wsIds = Array.from(new Set((due ?? []).map((r: any) => r.workspace_id).filter(Boolean)));
+  const pausedSet = new Set<string>();
+  if (wsIds.length) {
+    const { data: settings } = await admin
+      .from("workspace_settings")
+      .select("workspace_id, growthmind_publishing_paused")
+      .in("workspace_id", wsIds);
+    for (const s of settings ?? []) {
+      if (s.growthmind_publishing_paused === true) pausedSet.add(s.workspace_id);
+    }
+  }
   let published = 0;
   for (const row of due ?? []) {
+    if (pausedSet.has(row.workspace_id)) continue;
     try {
       const r = await executePublishJob(admin, row.id);
       if (r.status === "published") published++;

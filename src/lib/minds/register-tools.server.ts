@@ -22,6 +22,8 @@ import {
 import type { ActionKey } from "@/lib/permissions/permissions.shared";
 import { registerMindTool, type MindToolContext, type MindToolRunResult } from "./tool-registry.server";
 import type { MindKey, MindToolCost } from "./tool-registry.shared";
+// HiveMind executive control tools over GrowthMind (registers on import).
+import "@/lib/hivemind/growthmind-control/tools.server";
 
 // ── HiveMind action kinds (executed via approve flow → registry) ────────────
 interface HiveMindKind {

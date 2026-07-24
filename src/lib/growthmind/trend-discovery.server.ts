@@ -649,7 +649,17 @@ export async function runTrendDiscoveryTick(): Promise<{ ran: number; skipped: n
     console.error("[trend-scout] tick: source query failed:", error.message);
     return { ran: 0, skipped: 0, totalNew: 0 };
   }
-  const wsIds = [...new Set((srcWs ?? []).map((r: any) => r.workspace_id))];
+  let wsIds = [...new Set((srcWs ?? []).map((r: any) => r.workspace_id))];
+
+  // Honour the per-workspace jobs pause switch (HiveMind executive control).
+  if (wsIds.length) {
+    const { data: settings } = await admin
+      .from("workspace_settings")
+      .select("workspace_id, growthmind_jobs_paused")
+      .in("workspace_id", wsIds);
+    const paused = new Set((settings ?? []).filter((s: any) => s.growthmind_jobs_paused === true).map((s: any) => s.workspace_id));
+    wsIds = wsIds.filter((id) => !paused.has(id));
+  }
 
   let ran = 0, skipped = 0, totalNew = 0;
   for (const wid of wsIds) {

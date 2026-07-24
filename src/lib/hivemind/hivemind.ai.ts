@@ -1394,30 +1394,85 @@ export const getHiveMindAIResponse = createServerFn({ method: "POST" })
     const { getRetrievedKnowledgeBlock } = await import("@/lib/executives/executive-knowledge.server");
     const knowledgeBlock = await getRetrievedKnowledgeBlock({ sb, workspaceId, mindType: "hivemind", query: data.query, topK: 5 });
 
+    // GrowthMind executive command context (best-effort — chat must not break
+    // if the marketing view fails to build).
+    let growthMindCommandBlock = "";
+    try {
+      const { buildGrowthMindCommandContext } = await import("@/lib/hivemind/growthmind-control/executive-view.server");
+      growthMindCommandBlock = await buildGrowthMindCommandContext(workspaceId);
+    } catch { /* non-fatal */ }
+
     const ctx          = buildPlatformContext(platformData)
       + buildMarketingCouncilContext(marketingCouncil)
       + buildSystemCouncilContext(systemCouncil);
     const systemPrompt = buildSystemPrompt(ctx, data.personality ?? "friendly", data.userName)
-      + (knowledgeBlock ? `\n\n${knowledgeBlock}` : "");
+      + (knowledgeBlock ? `\n\n${knowledgeBlock}` : "")
+      + (growthMindCommandBlock ? `\n\n${growthMindCommandBlock}` : "")
+      + `\n\nEXECUTIVE TOOLS: You have real tools to inspect and direct the marketing department (GrowthMind). Use read tools before answering questions about marketing state. Write tools take REAL actions — always tell the user what you did, including the record affected. If a tool returns ok:false, report the error honestly and NEVER claim the action succeeded. Sensitive actions only file an approval request — say so explicitly.`;
 
-    const messages = [
+    const messages: any[] = [
       { role: "system", content: systemPrompt },
       ...(data.history ?? []).slice(-6),
       { role: "user", content: data.query },
     ];
 
-    const res = await fetch("https://api.openai.com/v1/chat/completions", {
-      method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
-      body: JSON.stringify({ model: "gpt-4o-mini", messages, max_tokens: 350, temperature: 0.4 }),
-    });
-    if (!res.ok) {
-      const err = await res.text();
-      throw new Error(`OpenAI error: ${err.slice(0, 200)}`);
+    const { getHiveMindChatToolSchemas, executeHiveMindChatTool } = await import("@/lib/hivemind/growthmind-control/chat-tools.server");
+    let tools: any[] = [];
+    try { tools = await getHiveMindChatToolSchemas(); } catch { /* chat still works without tools */ }
+
+    const callOpenAI = async (msgs: any[], allowTools: boolean) => {
+      const res = await fetch("https://api.openai.com/v1/chat/completions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
+        body: JSON.stringify({
+          model: "gpt-4o-mini",
+          messages: msgs,
+          max_tokens: 700,
+          temperature: 0.4,
+          ...(allowTools && tools.length ? { tools, tool_choice: "auto" } : {}),
+        }),
+      });
+      if (!res.ok) {
+        const err = await res.text();
+        throw new Error(`OpenAI error: ${err.slice(0, 200)}`);
+      }
+      return (await res.json()) as any;
+    };
+
+    // Function-calling loop — bounded rounds; every tool call is executed
+    // through the guarded Mind tool registry (audited, approval-aware).
+    const actionsTaken: Array<{ tool: string; ok: boolean; status?: string }> = [];
+    const MAX_ROUNDS = 4;
+    let response = "I couldn't generate a response. Please try again.";
+    for (let round = 0; round <= MAX_ROUNDS; round++) {
+      const json = await callOpenAI(messages, round < MAX_ROUNDS);
+      const msg  = json.choices?.[0]?.message;
+      const toolCalls = msg?.tool_calls as any[] | undefined;
+      if (!toolCalls?.length) {
+        response = msg?.content ?? response;
+        break;
+      }
+      messages.push(msg);
+      for (const call of toolCalls) {
+        let outcome: Record<string, unknown>;
+        try {
+          const args = call.function?.arguments ? JSON.parse(call.function.arguments) : {};
+          outcome = await executeHiveMindChatTool({
+            sb, workspaceId, userId: context.userId ?? null,
+            name: call.function.name, args,
+          });
+        } catch (e: any) {
+          outcome = { ok: false, error: String(e?.message ?? e).slice(0, 500) };
+        }
+        actionsTaken.push({ tool: call.function?.name, ok: outcome.ok === true, status: outcome.status as string | undefined });
+        messages.push({
+          role: "tool",
+          tool_call_id: call.id,
+          content: JSON.stringify(outcome).slice(0, 8000),
+        });
+      }
     }
-    const json      = await res.json() as any;
-    const response  = json.choices?.[0]?.message?.content ?? "I couldn't generate a response. Please try again.";
-    return { response };
+    return { response, actionsTaken };
   });
 
 // ── getHiveMindMorningBriefing ────────────────────────────────────────────────

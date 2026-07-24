@@ -137,6 +137,17 @@ export async function runProactiveTick(): Promise<ProactiveTick> {
           }
         }
 
+        // ── GrowthMind monitoring sweep (hourly; dedup makes reruns cheap) ────
+        if (now.getMinutes() < 5) {
+          try {
+            const { runGrowthMindMonitoringSweep } = await import("./growthmind-control/monitoring.server");
+            await runGrowthMindMonitoringSweep(workspaceId);
+          } catch (e: any) {
+            console.error(`[proactive-engine] GrowthMind monitoring failed for ws ${workspaceId}:`, e?.message);
+            errors++;
+          }
+        }
+
       } catch (e: any) {
         console.error(`[proactive-engine] Workspace ${workspaceId} error:`, e?.message);
         errors++;

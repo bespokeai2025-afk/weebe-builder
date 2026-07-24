@@ -167,17 +167,14 @@ const ItemActionInput = z.object({
   action: z.enum(["save", "ignore", "restore", "analyse", "block_source", "add_to_monitoring"]),
 });
 
-export const applyTrendItemAction = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
-  .inputValidator((i: z.infer<typeof ItemActionInput>) => ItemActionInput.parse(i))
-  .handler(async ({ data, context }) => {
-    const workspaceId = context.workspaceId;
-    if (!workspaceId) throw new Error("No workspace");
-    await assertMember(context.supabase, workspaceId, context.userId);
-
-    const { getTrendAdminClient } = await import("@/lib/growthmind/trend-discovery.server");
-    const admin = getTrendAdminClient() as any;
-
+/** Core trend-item action logic — shared by the server fn and HiveMind executive tools. */
+export async function applyTrendItemActionCore(
+  admin: any,
+  workspaceId: string,
+  userId: string | null,
+  data: z.infer<typeof ItemActionInput>,
+): Promise<{ id: string; status: string }> {
+  {
     // ── Analyse deeply: AI-score just this item (same DNA gate + cost logging) ──
     if (data.action === "analyse") {
       const { scoreTrendItemsWithAI } = await import("@/lib/growthmind/trend-scoring.server");
@@ -210,7 +207,7 @@ export const applyTrendItemAction = createServerFn({ method: "POST" })
           platform:     item.platform === "internal" ? null : item.platform,
           value:        handle,
           label:        item.author_name ?? null,
-          added_by_user_id: context.userId,
+          added_by_user_id: userId,
         });
       // 23505 = source already exists — treat as done.
       if (srcErr && srcErr.code !== "23505") throw new Error(`Failed to update sources: ${srcErr.message}`);
@@ -238,6 +235,20 @@ export const applyTrendItemAction = createServerFn({ method: "POST" })
     if (error) throw new Error(`Failed to update item: ${error.message}`);
     if (!row) throw new Error("Trend item not found");
     return { id: row.id, status: row.status };
+  }
+}
+
+export const applyTrendItemAction = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((i: z.infer<typeof ItemActionInput>) => ItemActionInput.parse(i))
+  .handler(async ({ data, context }) => {
+    const workspaceId = context.workspaceId;
+    if (!workspaceId) throw new Error("No workspace");
+    await assertMember(context.supabase, workspaceId, context.userId);
+
+    const { getTrendAdminClient } = await import("@/lib/growthmind/trend-discovery.server");
+    const admin = getTrendAdminClient() as any;
+    return applyTrendItemActionCore(admin, workspaceId, context.userId, data);
   });
 
 // ── Create content from a recommended trend ───────────────────────────────────
@@ -246,16 +257,15 @@ export const applyTrendItemAction = createServerFn({ method: "POST" })
 
 const CreateContentInput = z.object({ id: z.string().uuid() });
 
-export const createContentFromTrend = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
-  .inputValidator((i: z.infer<typeof CreateContentInput>) => CreateContentInput.parse(i))
-  .handler(async ({ data, context }) => {
-    const workspaceId = context.workspaceId;
-    if (!workspaceId) throw new Error("No workspace");
-    await assertMember(context.supabase, workspaceId, context.userId);
-
-    const { getTrendAdminClient } = await import("@/lib/growthmind/trend-discovery.server");
-    const admin = getTrendAdminClient() as any;
+/** Core trend → Content Studio handoff — shared by the server fn and HiveMind executive tools. */
+export async function createContentFromTrendCore(
+  admin: any,
+  workspaceId: string,
+  userId: string | null,
+  trendItemId: string,
+): Promise<{ projectId: string; existed: boolean }> {
+  {
+    const data = { id: trendItemId };
 
     const { data: item, error: itemErr } = await admin
       .from("growthmind_trend_items")
@@ -336,7 +346,7 @@ export const createContentFromTrend = createServerFn({ method: "POST" })
 
     // Hand off to a real Content Studio project (pre-filled draft).
     const { createProjectFromRecommendationCore } = await import("@/lib/growthmind/growthmind.content-projects");
-    const result = await createProjectFromRecommendationCore(admin, workspaceId, context.userId, rec.id);
+    const result = await createProjectFromRecommendationCore(admin, workspaceId, userId, rec.id);
 
     // Mark the trend item actioned so it isn't re-suggested.
     const { error: updErr } = await admin
@@ -351,7 +361,7 @@ export const createContentFromTrend = createServerFn({ method: "POST" })
       await logGrowthMindActivity({
         workspaceId,
         actor: "user",
-        actorUserId: context.userId,
+        actorUserId: userId,
         category: "content",
         action: "trends.content_created",
         summary: `Content Studio draft created from trend "${title}"`,
@@ -361,6 +371,20 @@ export const createContentFromTrend = createServerFn({ method: "POST" })
     } catch { /* non-fatal */ }
 
     return { projectId: result.projectId, existed: result.existed };
+  }
+}
+
+export const createContentFromTrend = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((i: z.infer<typeof CreateContentInput>) => CreateContentInput.parse(i))
+  .handler(async ({ data, context }) => {
+    const workspaceId = context.workspaceId;
+    if (!workspaceId) throw new Error("No workspace");
+    await assertMember(context.supabase, workspaceId, context.userId);
+
+    const { getTrendAdminClient } = await import("@/lib/growthmind/trend-discovery.server");
+    const admin = getTrendAdminClient() as any;
+    return createContentFromTrendCore(admin, workspaceId, context.userId, data.id);
   });
 
 // ── Settings (cost controls) ──────────────────────────────────────────────────

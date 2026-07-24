@@ -238,7 +238,25 @@ export async function scoreTrendItemsWithAI(
     "Irrelevant viral content must score low on relevance regardless of popularity. " +
     'Respond with ONLY valid JSON: {"items":[{"index":1,"businessRelevance":..,"buyerRelevance":..,"productRelevance":..,"commercialIntent":..,"brandFit":..,"originalityOpportunity":..,"risk":..,"whySelected":"..","suggestedAngle":"..","riskFlags":[]}]}';
 
-  const user = `BUSINESS DNA:\n${dnaSummary}\n\nTREND ITEMS TO SCORE:\n${itemList}`;
+  // HiveMind objectives steer scoring toward the current commercial goals.
+  let objectivesBlock = "";
+  try {
+    const { data: objectives } = await admin
+      .from("growthmind_objectives")
+      .select("name, business_outcome, target_audience, target_product, platforms, priority")
+      .eq("workspace_id", workspaceId)
+      .eq("status", "active")
+      .order("created_at", { ascending: false })
+      .limit(5);
+    if (objectives?.length) {
+      objectivesBlock = "\n\nCURRENT COMMERCIAL OBJECTIVES (set by the executive — weight relevance toward these):\n" +
+        objectives.map((o: any) =>
+          `- [${o.priority ?? "medium"}] ${o.name}${o.business_outcome ? ` — outcome: ${String(o.business_outcome).slice(0, 200)}` : ""}${o.target_audience ? ` — audience: ${String(o.target_audience).slice(0, 150)}` : ""}${o.target_product ? ` — product: ${String(o.target_product).slice(0, 150)}` : ""}${Array.isArray(o.platforms) && o.platforms.length ? ` — platforms: ${o.platforms.join(", ")}` : ""}`,
+        ).join("\n");
+    }
+  } catch { /* objectives are steering input only — scoring works without them */ }
+
+  const user = `BUSINESS DNA:\n${dnaSummary}${objectivesBlock}\n\nTREND ITEMS TO SCORE:\n${itemList}`;
 
   // Accepted learning patterns steer future scoring (bounded ±30%) — fails
   // open to no adjustment if the table is missing or unreadable.
