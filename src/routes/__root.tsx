@@ -56,8 +56,19 @@ function autoReloadOnce(): boolean {
   return hardReloadForStaleBuild();
 }
 
+// Hydration mismatches are recovered automatically by React (it regenerates
+// the tree on the client), and in the Replit dev preview they are routinely
+// caused by scripts injected into <head> from outside the app. Reporting them
+// as crashes floods the monitoring log and triggers false "app crashed"
+// alerts, so they are excluded from crash reporting. All other errors still
+// get reported.
+const RECOVERABLE_HYDRATION_RE =
+  /Hydration failed|error while hydrating|hydration mismatch|Invalid hook call/i;
+
 function reportClientError(error: Error) {
   try {
+    const msg = `${error?.message ?? ""}`;
+    if (RECOVERABLE_HYDRATION_RE.test(msg)) return;
     const key = "client-error-reported-ts";
     const last = parseInt(sessionStorage.getItem(key) || "0", 10);
     if (Date.now() - last < 5000) return;
@@ -238,7 +249,7 @@ const swCleanupScript = `(function(){try{if(sessionStorage.getItem('sw-cleanup-d
 
 // Report the FIRST uncaught error per page load to the server so production
 // crashes leave a stack trace in the deployment logs.
-const errorReportScript = `(function(){var sent=false;function rep(msg,stack){if(sent)return;sent=true;try{fetch('/api/monitoring/client-error',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({message:String(msg||'').slice(0,500),stack:String(stack||'').slice(0,2000),url:window.location.href}),keepalive:true}).catch(function(){});}catch(e){}}window.addEventListener('error',function(e){var er=e&&e.error;rep((er&&er.message)||e.message,er&&er.stack);},true);window.addEventListener('unhandledrejection',function(e){var r=e&&e.reason;rep((r&&r.message)||String(r),r&&r.stack);});})();`;
+const errorReportScript = `(function(){var sent=false;var skip=/Hydration failed|error while hydrating|hydration mismatch|Invalid hook call/i;function rep(msg,stack){if(sent)return;if(skip.test(String(msg||'')))return;sent=true;try{fetch('/api/monitoring/client-error',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({message:String(msg||'').slice(0,500),stack:String(stack||'').slice(0,2000),url:window.location.href}),keepalive:true}).catch(function(){});}catch(e){}}window.addEventListener('error',function(e){var er=e&&e.error;rep((er&&er.message)||e.message,er&&er.stack);},true);window.addEventListener('unhandledrejection',function(e){var r=e&&e.reason;rep((r&&r.message)||String(r),r&&r.stack);});})();`;
 
 function RootShell({ children }: { children: React.ReactNode }) {
   return (
