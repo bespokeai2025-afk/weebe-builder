@@ -832,50 +832,72 @@ export const runHiveMindScan = createServerFn({ method: "POST" })
   });
 
 // ── getHiveMindTasksAndEvents ─────────────────────────────────────────────────
-export const getHiveMindTasksAndEvents = createServerFn({ method: "GET" })
-  .middleware([requireSupabaseAuth])
-  .handler(async ({ context }) => {
-    const sb          = context.supabase as any;
-    const workspaceId = context.workspaceId;
-    if (!workspaceId) throw new Error("No workspace");
+/**
+ * Shared core — consumed by BOTH the web server function below and the
+ * /api/v1/minds/tasks route. Keeps assigned-record visibility identical
+ * across surfaces. userId may be null ONLY for workspace-level API keys
+ * (those bypass the assigned-only narrowing by design, matching the rest
+ * of the Developer API's workspace-scope semantics).
+ */
+export async function getHiveMindTasksAndEventsCore(
+  ctx: { sb: any; workspaceId: string; userId: string | null },
+): Promise<{ tasks: HiveMindTask[]; events: HiveMindEvent[]; unread: number; badge: number }> {
+  const { sb, workspaceId, userId } = ctx;
 
-    // Assigned-record visibility: restricted roles only see follow-up tasks
-    // assigned to them (assigned_to may hold a user id or an email).
+  // Assigned-record visibility: restricted roles only see follow-up tasks
+  // assigned to them (assigned_to may hold a user id or an email).
+  let assignedOnly = false;
+  let myEmail: string | null = null;
+  if (userId) {
     const { resolvePermissions } = await import("@/lib/permissions/permissions.server");
-    const perms = await resolvePermissions(workspaceId, context.userId);
-    const assignedOnly = perms.assignedRecordsOnly === true;
-    let myEmail: string | null = null;
-    if (assignedOnly && context.userId) {
+    const perms = await resolvePermissions(workspaceId, userId);
+    assignedOnly = perms.assignedRecordsOnly === true;
+    if (assignedOnly) {
       const { data: prof } = await sb
-        .from("profiles").select("email").eq("user_id", context.userId).maybeSingle();
+        .from("profiles").select("email").eq("user_id", userId).maybeSingle();
       myEmail = prof?.email ?? null;
     }
+  }
 
-    let tasksQuery = sb.from("hivemind_tasks")
+  let tasksQuery = sb.from("hivemind_tasks")
+    .select("*")
+    .eq("workspace_id", workspaceId)
+    .order("created_at", { ascending: false })
+    .limit(200);
+  if (assignedOnly) {
+    const keys = [userId, myEmail].filter(Boolean) as string[];
+    tasksQuery = tasksQuery.in("assigned_to", keys.length ? keys : ["__none__"]);
+  }
+
+  const [tasksRes, eventsRes] = await Promise.all([
+    tasksQuery,
+    sb.from("hivemind_events")
       .select("*")
       .eq("workspace_id", workspaceId)
       .order("created_at", { ascending: false })
-      .limit(200);
-    if (assignedOnly) {
-      const keys = [context.userId, myEmail].filter(Boolean) as string[];
-      tasksQuery = tasksQuery.in("assigned_to", keys.length ? keys : ["__none__"]);
-    }
+      .limit(100),
+  ]);
 
-    const [tasksRes, eventsRes] = await Promise.all([
-      tasksQuery,
-      sb.from("hivemind_events")
-        .select("*")
-        .eq("workspace_id", workspaceId)
-        .order("created_at", { ascending: false })
-        .limit(100),
-    ]);
+  const tasks  = (tasksRes.data  ?? []) as HiveMindTask[];
+  const events = (eventsRes.data ?? []) as HiveMindEvent[];
+  const unread    = events.filter(e => !e.is_read).length;
+  const suggested = tasks.filter(t => t.status === "suggested").length;
 
-    const tasks  = (tasksRes.data  ?? []) as HiveMindTask[];
-    const events = (eventsRes.data ?? []) as HiveMindEvent[];
-    const unread    = events.filter(e => !e.is_read).length;
-    const suggested = tasks.filter(t => t.status === "suggested").length;
+  return { tasks, events, unread, badge: unread + suggested };
+}
 
-    return { tasks, events, unread, badge: unread + suggested };
+export const getHiveMindTasksAndEvents = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const workspaceId = context.workspaceId;
+    if (!workspaceId) throw new Error("No workspace");
+    // Cast: TanStack's serializable validator rejects Record<string, unknown>
+    // metadata; the payload is plain JSON (same shape as before extraction).
+    return (await getHiveMindTasksAndEventsCore({
+      sb: context.supabase as any,
+      workspaceId,
+      userId: context.userId,
+    })) as any;
   });
 
 // ── updateHiveMindTask ────────────────────────────────────────────────────────
@@ -892,16 +914,34 @@ export const updateHiveMindTask = createServerFn({ method: "POST" })
       description: z.string().max(2000).optional().nullable(),
     }).parse(input)
   )
-  .handler(async ({ context, data }) => {
-    const sb = context.supabase as any;
-    const { id, ...updates } = data;
-    const { error } = await sb.from("hivemind_tasks")
-      .update({ ...updates, updated_at: new Date().toISOString() })
-      .eq("id", id)
-      .eq("workspace_id", context.workspaceId);
-    if (error) throw error;
-    return { ok: true };
-  });
+  .handler(async ({ context, data }) =>
+    updateHiveMindTaskCore(
+      { sb: context.supabase as any, workspaceId: context.workspaceId! },
+      data,
+    )
+  );
+
+/** Shared task-update core — consumed by web server fn + /api/v1 route. */
+export async function updateHiveMindTaskCore(
+  ctx: { sb: any; workspaceId: string },
+  data: {
+    id: string;
+    status?: "suggested" | "approved" | "in_progress" | "completed";
+    priority?: "low" | "medium" | "high" | "critical";
+    assigned_to?: string | null;
+    due_date?: string | null;
+    title?: string;
+    description?: string | null;
+  },
+): Promise<{ ok: true }> {
+  const { id, ...updates } = data;
+  const { error } = await ctx.sb.from("hivemind_tasks")
+    .update({ ...updates, updated_at: new Date().toISOString() })
+    .eq("id", id)
+    .eq("workspace_id", ctx.workspaceId);
+  if (error) throw error;
+  return { ok: true };
+}
 
 // ── createHiveMindTask ────────────────────────────────────────────────────────
 export const createHiveMindTask = createServerFn({ method: "POST" })
@@ -915,17 +955,34 @@ export const createHiveMindTask = createServerFn({ method: "POST" })
       due_date:    z.string().optional(),
     }).parse(input)
   )
-  .handler(async ({ context, data }) => {
-    const sb = context.supabase as any;
-    const { assertProposalAllowed } = await import("@/lib/hivemind/mode-gate.server");
-    await assertProposalAllowed(sb, context.workspaceId!);
-    const { data: row, error } = await sb.from("hivemind_tasks")
-      .insert({ workspace_id: context.workspaceId, ...data, status: "suggested", source: "manual" })
-      .select()
-      .single();
-    if (error) throw error;
-    return { task: row as HiveMindTask };
-  });
+  .handler(async ({ context, data }) =>
+    (await createHiveMindTaskCore(
+      { sb: context.supabase as any, workspaceId: context.workspaceId! },
+      data,
+    )) as any
+  );
+
+/** Shared task-create core — consumed by web server fn + /api/v1 route. */
+export async function createHiveMindTaskCore(
+  ctx: { sb: any; workspaceId: string },
+  data: {
+    title: string;
+    description?: string;
+    priority: "low" | "medium" | "high" | "critical";
+    assigned_to?: string;
+    due_date?: string;
+  },
+): Promise<{ task: HiveMindTask }> {
+  const { sb, workspaceId } = ctx;
+  const { assertProposalAllowed } = await import("@/lib/hivemind/mode-gate.server");
+  await assertProposalAllowed(sb, workspaceId);
+  const { data: row, error } = await sb.from("hivemind_tasks")
+    .insert({ workspace_id: workspaceId, ...data, status: "suggested", source: "manual" })
+    .select()
+    .single();
+  if (error) throw error;
+  return { task: row as HiveMindTask };
+}
 
 // ── addHiveMindTaskComment ────────────────────────────────────────────────────
 export const addHiveMindTaskComment = createServerFn({ method: "POST" })

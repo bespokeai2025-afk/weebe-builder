@@ -170,29 +170,68 @@ export const updateNotificationSetting = createServerFn({ method: "POST" })
   });
 
 /** List in-app notifications for the current workspace (member-scoped). */
+/**
+ * Shared in-app notification list core — consumed by BOTH the web server
+ * function below and /api/v1/minds/notifications. Membership is verified
+ * fail-closed inside; reads go through the service-role client with
+ * explicit workspace + recipient scoping (table is server-write-only).
+ */
+export async function listWorkspaceNotificationsCore(
+  workspaceId: string,
+  userId: string,
+  opts: { limit?: number; unreadOnly?: boolean; severity?: string },
+) {
+  const perms = await resolvePermissions(workspaceId, userId);
+  if (!perms.isMember) throw new Error("Not a member of this workspace");
+
+  let q = sb
+    .from("workspace_notifications")
+    .select("id, event_key, campaign_id, report_id, title, message, severity, channel, recipient_user_id, delivery_status, delivery_error, read_at, sent_at, created_at")
+    .eq("workspace_id", workspaceId)
+    .eq("channel", "in_app")
+    .or(`recipient_user_id.eq.${userId},recipient_user_id.is.null`)
+    .order("created_at", { ascending: false })
+    .limit(Math.min(opts.limit ?? 50, 200));
+  if (opts.unreadOnly) q = q.is("read_at", null);
+  if (opts.severity) q = q.eq("severity", opts.severity);
+  const { data: rows, error } = await q;
+  if (error) throw new Error(error.message);
+  return rows ?? [];
+}
+
 export const listWorkspaceNotifications = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input?: { limit?: number; unreadOnly?: boolean; severity?: string }) => input ?? {})
   .handler(async ({ context, data }) => {
     const { workspaceId, userId } = context;
     if (!workspaceId) throw new Error("No active workspace");
-    const perms = await resolvePermissions(workspaceId, userId);
-    if (!perms.isMember) throw new Error("Not a member of this workspace");
-
-    let q = sb
-      .from("workspace_notifications")
-      .select("id, event_key, campaign_id, report_id, title, message, severity, channel, recipient_user_id, delivery_status, delivery_error, read_at, sent_at, created_at")
-      .eq("workspace_id", workspaceId)
-      .eq("channel", "in_app")
-      .or(`recipient_user_id.eq.${userId},recipient_user_id.is.null`)
-      .order("created_at", { ascending: false })
-      .limit(Math.min(data.limit ?? 50, 200));
-    if (data.unreadOnly) q = q.is("read_at", null);
-    if (data.severity) q = q.eq("severity", data.severity);
-    const { data: rows, error } = await q;
-    if (error) throw new Error(error.message);
-    return rows ?? [];
+    return listWorkspaceNotificationsCore(workspaceId, userId, data);
   });
+
+/** Shared mark-read core — consumed by web server fn + /api/v1 route. */
+export async function markNotificationsReadCore(
+  workspaceId: string,
+  userId: string,
+  data: { ids?: string[]; all?: boolean },
+) {
+  const perms = await resolvePermissions(workspaceId, userId);
+  if (!perms.isMember) throw new Error("Not a member of this workspace");
+
+  let q = sb
+    .from("workspace_notifications")
+    .update({ read_at: new Date().toISOString() })
+    .eq("workspace_id", workspaceId)
+    .eq("recipient_user_id", userId)
+    .is("read_at", null);
+  if (!data.all) {
+    const ids = (data.ids ?? []).slice(0, 200);
+    if (ids.length === 0) return { ok: true, updated: 0 };
+    q = q.in("id", ids);
+  }
+  const { error } = await q;
+  if (error) throw new Error(error.message);
+  return { ok: true };
+}
 
 export const markNotificationsRead = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
@@ -200,23 +239,7 @@ export const markNotificationsRead = createServerFn({ method: "POST" })
   .handler(async ({ context, data }) => {
     const { workspaceId, userId } = context;
     if (!workspaceId) throw new Error("No active workspace");
-    const perms = await resolvePermissions(workspaceId, userId);
-    if (!perms.isMember) throw new Error("Not a member of this workspace");
-
-    let q = sb
-      .from("workspace_notifications")
-      .update({ read_at: new Date().toISOString() })
-      .eq("workspace_id", workspaceId)
-      .eq("recipient_user_id", userId)
-      .is("read_at", null);
-    if (!data.all) {
-      const ids = (data.ids ?? []).slice(0, 200);
-      if (ids.length === 0) return { ok: true, updated: 0 };
-      q = q.in("id", ids);
-    }
-    const { error } = await q;
-    if (error) throw new Error(error.message);
-    return { ok: true };
+    return markNotificationsReadCore(workspaceId, userId, data);
   });
 
 /** Recent high-severity unread notifications — Campaigns page banner. */

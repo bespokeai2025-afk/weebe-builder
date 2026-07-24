@@ -632,18 +632,20 @@ export const proposeHiveMindAction = createServerFn({ method: "POST" })
   });
 
 // ── approveHiveMindAction ─────────────────────────────────────────────────────
-export const approveHiveMindAction = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
-    z.object({
-      id:          z.string().uuid(),
-      approved_by: z.string().default("User"),
-    }).parse(input)
-  )
-  .handler(async ({ context, data }) => {
-    const sb = context.supabase as any;
-    const workspaceId = context.workspaceId!;
-    const userId = (context as any).userId as string;
+/**
+ * Shared approval core — consumed by BOTH the web server function below and
+ * the /api/v1/minds/actions/:id/approve route. Pass an authenticated,
+ * user-JWT-bound Supabase client (RLS applies); never the service-role
+ * client from user-facing paths.
+ */
+export async function approveHiveMindActionCore(
+  ctx: { sb: any; workspaceId: string; userId: string },
+  data: { id: string; approved_by: string },
+): Promise<{ ok: true; result: Record<string, any> }> {
+  {
+    const sb = ctx.sb as any;
+    const workspaceId = ctx.workspaceId;
+    const userId = ctx.userId;
 
     // 1. Cheap pre-checks (no consume yet) — mode gate + sensitive entitlement.
     const { data: pre, error: fe } = await sb.from("hivemind_actions")
@@ -782,31 +784,61 @@ export const approveHiveMindAction = createServerFn({ method: "POST" })
       } catch { /* best-effort */ }
       throw err;
     }
-  });
+  }
+}
+
+export const approveHiveMindAction = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) =>
+    z.object({
+      id:          z.string().uuid(),
+      approved_by: z.string().default("User"),
+    }).parse(input)
+  )
+  .handler(async ({ context, data }) =>
+    approveHiveMindActionCore(
+      {
+        sb: context.supabase as any,
+        workspaceId: context.workspaceId!,
+        userId: (context as any).userId as string,
+      },
+      data,
+    )
+  );
 
 // ── rejectHiveMindAction ──────────────────────────────────────────────────────
+/** Shared rejection core — consumed by web server fn + /api/v1 route. */
+export async function rejectHiveMindActionCore(
+  ctx: { sb: any; workspaceId: string },
+  data: { id: string },
+): Promise<{ ok: true }> {
+  const { sb, workspaceId } = ctx;
+  const { data: rejected, error } = await sb.from("hivemind_actions")
+    .update({ status: "rejected", updated_at: new Date().toISOString() })
+    .eq("id", data.id)
+    .eq("workspace_id", workspaceId)
+    .select("source_recommendation_id");
+  if (error) throw error;
+  const srcRec = (rejected ?? [])[0]?.source_recommendation_id ?? null;
+  if (srcRec) {
+    const { reflectActionOutcomeOnRecommendation } =
+      await import("@/lib/hivemind/executive-followthrough.server");
+    await reflectActionOutcomeOnRecommendation(sb, workspaceId, srcRec, "rejected");
+  }
+  return { ok: true };
+}
+
 export const rejectHiveMindAction = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) =>
     z.object({ id: z.string().uuid() }).parse(input)
   )
-  .handler(async ({ context, data }) => {
-    const sb = context.supabase as any;
-    const workspaceId = context.workspaceId!;
-    const { data: rejected, error } = await sb.from("hivemind_actions")
-      .update({ status: "rejected", updated_at: new Date().toISOString() })
-      .eq("id", data.id)
-      .eq("workspace_id", workspaceId)
-      .select("source_recommendation_id");
-    if (error) throw error;
-    const srcRec = (rejected ?? [])[0]?.source_recommendation_id ?? null;
-    if (srcRec) {
-      const { reflectActionOutcomeOnRecommendation } =
-        await import("@/lib/hivemind/executive-followthrough.server");
-      await reflectActionOutcomeOnRecommendation(sb, workspaceId, srcRec, "rejected");
-    }
-    return { ok: true };
-  });
+  .handler(async ({ context, data }) =>
+    rejectHiveMindActionCore(
+      { sb: context.supabase as any, workspaceId: context.workspaceId! },
+      data,
+    )
+  );
 
 // ── deleteHiveMindAction ──────────────────────────────────────────────────────
 export const deleteHiveMindAction = createServerFn({ method: "POST" })

@@ -37,11 +37,13 @@ export interface ExecutiveRecommendation {
 const OPEN_STATES = ["new", "acknowledged", "under_review", "reopened"] as const;
 
 // ── listExecutiveRecommendations ──────────────────────────────────────────────
-export const listExecutiveRecommendations = createServerFn({ method: "GET" })
-  .middleware([requireSupabaseAuth])
-  .handler(async ({ context }) => {
-    const sb = context.supabase as any;
-    const workspaceId = context.workspaceId!;
+/** Shared list core — consumed by web server fn + /api/v1/minds/summary. */
+export async function listExecutiveRecommendationsCore(
+  ctx: { sb: any; workspaceId: string },
+) {
+  {
+    const sb = ctx.sb as any;
+    const workspaceId = ctx.workspaceId;
     const { data, error } = await sb
       .from("hivemind_recommendations")
       .select("id, workspace_id, title, department, priority, business_issue, evidence, commercial_impact, risk_of_inaction, recommended_action, next_step, due_date, approval_required, confidence, status, result, dedupe_key, correlation_key, created_at, updated_at")
@@ -72,7 +74,17 @@ export const listExecutiveRecommendations = createServerFn({ method: "GET" })
 
     const open = recs.filter((r) => (OPEN_STATES as readonly string[]).includes(r.status)).length;
     return { recommendations: recs, linkedActions: linkedByRec, openCount: open };
-  });
+  }
+}
+
+export const listExecutiveRecommendations = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) =>
+    listExecutiveRecommendationsCore({
+      sb: context.supabase as any,
+      workspaceId: context.workspaceId!,
+    })
+  );
 
 // ── updateExecutiveRecommendationStatus (lifecycle, no side-effects) ─────────
 const USER_TRANSITIONS: Record<string, string[]> = {
