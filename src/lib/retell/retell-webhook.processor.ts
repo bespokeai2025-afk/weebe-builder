@@ -81,6 +81,8 @@ type ProcessOptions = {
   skipSignature?: boolean;
   forcedWorkspaceId?: string;
   source?: "retell" | "admin-test";
+  /** Used by the retry path so re-processing is not blocked by its own ledger row. */
+  skipDedup?: boolean;
 };
 
 type ProcessResult = {
@@ -583,6 +585,39 @@ export async function processRetellWebhook(
     .update({ workspace_id: workspaceId } as never)
     .eq("id", eventLogId ?? "00000000-0000-0000-0000-000000000000");
 
+  // ── Dedup / replay protection (Task #458) ──────────────────────────────────
+  // Claim this delivery in the processing ledger. Duplicate deliveries (Retell
+  // retries with the identical payload) and stale replays are acknowledged with
+  // 200 but skipped. FAIL-OPEN: any ledger error still processes the event.
+  let dedupLedgerId: string | null = null;
+  if (!options.skipDedup) {
+    try {
+      const { claimWebhookDelivery } = await import(
+        "@/lib/retell/retell-webhook-management.server"
+      );
+      const claim = await claimWebhookDelivery({
+        workspaceId,
+        eventType: event,
+        callId,
+        rawBody,
+        payload,
+      });
+      if (claim.action === "duplicate") {
+        console.log("[RETELL WEBHOOK] Duplicate delivery skipped", { event, callId });
+        await updateWebhookEvent(eventLogId, "duplicate", "Duplicate delivery (dedup key match)");
+        return { ok: true, status: 200, message: "duplicate", event, callId, workspaceId };
+      }
+      if (claim.action === "replay") {
+        console.log("[RETELL WEBHOOK] Replayed event skipped", { event, callId });
+        await updateWebhookEvent(eventLogId, "ignored", "Replay outside allowed window");
+        return { ok: true, status: 200, message: "replay ignored", event, callId, workspaceId };
+      }
+      dedupLedgerId = claim.ledgerId;
+    } catch (dedupErr) {
+      console.warn("[RETELL WEBHOOK] Dedup claim failed (fail-open)", dedupErr);
+    }
+  }
+
   // ── "Call Ava Now" homepage flow detection ─────────────────────────────────
   // Calls triggered from the homepage Call Ava Now flow have an audit row in
   // ava_call_requests. For those calls the standard lead-affecting paths
@@ -740,6 +775,12 @@ export async function processRetellWebhook(
   if (callError) {
     console.error("[RETELL WEBHOOK] Call upsert failed", callError.message, { event, callId });
     await updateWebhookEvent(eventLogId, "error", callError.message);
+    try {
+      const { markWebhookFailed } = await import(
+        "@/lib/retell/retell-webhook-management.server"
+      );
+      await markWebhookFailed(dedupLedgerId, workspaceId, callError.message);
+    } catch { /* non-fatal */ }
     return {
       ok: false,
       status: 500,
@@ -1184,6 +1225,12 @@ export async function processRetellWebhook(
   }
 
   await updateWebhookEvent(eventLogId, "processed");
+  try {
+    const { markWebhookProcessed } = await import(
+      "@/lib/retell/retell-webhook-management.server"
+    );
+    await markWebhookProcessed(dedupLedgerId, workspaceId);
+  } catch { /* non-fatal */ }
   console.log("[RETELL WEBHOOK] Processing complete", { event, callId, workspaceId });
   return {
     ok: true,
