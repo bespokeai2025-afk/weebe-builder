@@ -49,7 +49,7 @@ function mapItem(r: any): TrendFeedItem {
 // ── Trend feed ─────────────────────────────────────────────────────────────────
 
 const FeedInput = z.object({
-  status: z.enum(["all", "recommended", "screened", "discovered", "dismissed", "stale"]).optional(),
+  status: z.enum(["all", "recommended", "screened", "discovered", "actioned", "dismissed", "stale"]).optional(),
 });
 
 export const getTrendFeed = createServerFn({ method: "GET" })
@@ -87,7 +87,7 @@ export const getTrendFeed = createServerFn({ method: "GET" })
     const items = (itemsRes.data ?? []).map(mapItem);
     // Recommended first (by total score), then screened by prescreen
     items.sort((a, b) => {
-      const rank = (s: string) => (s === "recommended" ? 0 : s === "screened" ? 1 : s === "discovered" ? 2 : 3);
+      const rank = (s: string) => (s === "recommended" ? 0 : s === "screened" ? 1 : s === "discovered" ? 2 : s === "actioned" ? 3 : 4);
       const r = rank(a.status) - rank(b.status);
       if (r !== 0) return r;
       return (Number(b.scores.total ?? b.scores.prescreen ?? 0)) - (Number(a.scores.total ?? a.scores.prescreen ?? 0));
@@ -238,6 +238,129 @@ export const applyTrendItemAction = createServerFn({ method: "POST" })
     if (error) throw new Error(`Failed to update item: ${error.message}`);
     if (!row) throw new Error("Trend item not found");
     return { id: row.id, status: row.status };
+  });
+
+// ── Create content from a recommended trend ───────────────────────────────────
+// One-click handoff: trend item → content recommendation → Content Studio
+// project draft, then mark the item "actioned" so it isn't re-suggested.
+
+const CreateContentInput = z.object({ id: z.string().uuid() });
+
+export const createContentFromTrend = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((i: z.infer<typeof CreateContentInput>) => CreateContentInput.parse(i))
+  .handler(async ({ data, context }) => {
+    const workspaceId = context.workspaceId;
+    if (!workspaceId) throw new Error("No workspace");
+    await assertMember(context.supabase, workspaceId, context.userId);
+
+    const { getTrendAdminClient } = await import("@/lib/growthmind/trend-discovery.server");
+    const admin = getTrendAdminClient() as any;
+
+    const { data: item, error: itemErr } = await admin
+      .from("growthmind_trend_items")
+      .select("*")
+      .eq("id", data.id)
+      .eq("workspace_id", workspaceId)
+      .maybeSingle();
+    if (itemErr) throw new Error(`Failed to load item: ${itemErr.message}`);
+    if (!item) throw new Error("Trend item not found");
+
+    // Idempotent open-existing: if a project was already created from this
+    // trend item's feed handoff, return it instead of creating a duplicate.
+    const { data: existingRec } = await admin
+      .from("growthmind_content_recommendations")
+      .select("id")
+      .eq("workspace_id", workspaceId)
+      .eq("trend_item_id", item.id)
+      .contains("payload", { source: { createdFrom: "trend_feed" } })
+      .order("created_at", { ascending: false })
+      .limit(1);
+    if (existingRec?.length) {
+      const { data: existingProj } = await admin
+        .from("growthmind_content_projects")
+        .select("id")
+        .eq("workspace_id", workspaceId)
+        .eq("recommendation_id", existingRec[0].id)
+        .limit(1);
+      if (existingProj?.length) {
+        return { projectId: existingProj[0].id as string, existed: true };
+      }
+    }
+
+    if (item.status !== "recommended") {
+      throw new Error(`Only recommended trends can be turned into content (this item is "${item.status}").`);
+    }
+
+    const s = (item.scores ?? {}) as Record<string, any>;
+    const title = String(item.title ?? item.caption?.slice(0, 120) ?? "Trend content").slice(0, 300);
+    const angle = typeof s.suggestedAngle === "string" ? s.suggestedAngle : "";
+    const why   = typeof s.whySelected === "string" ? s.whySelected : "";
+
+    // Create the content recommendation carrying the full trend context.
+    const { data: rec, error: recErr } = await admin
+      .from("growthmind_content_recommendations")
+      .insert({
+        workspace_id:    workspaceId,
+        trend_item_id:   item.id,
+        title,
+        brief:           why.slice(0, 2000) || null,
+        angle:           angle.slice(0, 1000) || null,
+        format:          item.media_type === "video" || item.media_type === "reel" ? "reel" : "image_post",
+        target_platform: ["instagram", "facebook"].includes(item.platform) ? item.platform : "multi",
+        status:          "recommended",
+        risk_flags:      Array.isArray(s.riskFlags) ? s.riskFlags.filter((f: string) => f && f !== "none").slice(0, 10) : [],
+        scores:          { sourceOpportunity: s.total ?? null, momentum: s.momentum ?? null, freshness: s.freshness ?? null, saturation: s.saturation ?? null },
+        payload: {
+          source: {
+            createdFrom: "trend_feed",
+            trendItemId: item.id,
+            platform:    item.platform,
+            url:         item.url ?? null,
+            author:      item.author_handle ?? item.author_name ?? null,
+          },
+          brief: {
+            title,
+            platform:        item.platform,
+            objective:       why || null,
+            hookOptions:     angle ? [angle] : [],
+            expectedOutcome: why || null,
+            caption:         item.caption ? String(item.caption).slice(0, 2200) : null,
+          },
+        },
+        created_by: "user",
+      })
+      .select("id")
+      .single();
+    if (recErr) throw new Error(`Failed to create content recommendation: ${recErr.message}`);
+
+    // Hand off to a real Content Studio project (pre-filled draft).
+    const { createProjectFromRecommendationCore } = await import("@/lib/growthmind/growthmind.content-projects");
+    const result = await createProjectFromRecommendationCore(admin, workspaceId, context.userId, rec.id);
+
+    // Mark the trend item actioned so it isn't re-suggested.
+    const { error: updErr } = await admin
+      .from("growthmind_trend_items")
+      .update({ status: "actioned", updated_at: new Date().toISOString() })
+      .eq("id", item.id)
+      .eq("workspace_id", workspaceId);
+    if (updErr) throw new Error(`Draft created, but the trend item could not be marked actioned: ${updErr.message}`);
+
+    try {
+      const { logGrowthMindActivity } = await import("@/lib/growthmind/growthmind.activity.server");
+      await logGrowthMindActivity({
+        workspaceId,
+        actor: "user",
+        actorUserId: context.userId,
+        category: "content",
+        action: "trends.content_created",
+        summary: `Content Studio draft created from trend "${title}"`,
+        entityType: "growthmind_content_projects",
+        entityId: result.projectId,
+      });
+    } catch { /* non-fatal */ }
+
+    return { projectId: result.projectId, existed: result.existed };
   });
 
 // ── Settings (cost controls) ──────────────────────────────────────────────────

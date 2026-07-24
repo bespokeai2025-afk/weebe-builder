@@ -1,13 +1,13 @@
 // GrowthMind → Trend Feed — discovered + scored trend items, run history,
 // discovery/scoring triggers and cost controls.
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import {
   TrendingUp, Loader2, Sparkles, RefreshCw, Bookmark, X, ExternalLink,
-  Settings2, ShieldAlert, Radar, Ban, Microscope,
+  Settings2, ShieldAlert, Radar, Ban, Microscope, PenLine,
 } from "lucide-react";
 import { GrowthMindShell } from "@/components/growthmind/GrowthMindShell";
 import { Button } from "@/components/ui/button";
@@ -17,7 +17,7 @@ import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
 import {
   getTrendFeed, runTrendDiscoveryNow, runTrendAiScoring, applyTrendItemAction,
-  updateTrendScoutSettings, type TrendFeedItem,
+  createContentFromTrend, updateTrendScoutSettings, type TrendFeedItem,
 } from "@/lib/growthmind/growthmind.trend-feed";
 
 export const Route = createFileRoute("/_authenticated/growthmind/trend-feed")({
@@ -33,6 +33,7 @@ const STATUS_TABS = [
   { key: "recommended", label: "Recommended" },
   { key: "screened",    label: "Screened" },
   { key: "discovered",  label: "New" },
+  { key: "actioned",    label: "Actioned" },
   { key: "dismissed",   label: "Dismissed" },
 ] as const;
 
@@ -53,8 +54,10 @@ function TrendFeedPage() {
   const discoverFn  = useServerFn(runTrendDiscoveryNow);
   const scoreFn     = useServerFn(runTrendAiScoring);
   const actionFn    = useServerFn(applyTrendItemAction);
+  const createFn    = useServerFn(createContentFromTrend);
   const settingsFn  = useServerFn(updateTrendScoutSettings);
   const qc = useQueryClient();
+  const navigate = useNavigate();
 
   const [tab, setTab]               = useState<(typeof STATUS_TABS)[number]["key"]>("all");
   const [discovering, setDiscovering] = useState(false);
@@ -112,6 +115,17 @@ function TrendFeedPage() {
       else if (action === "add_to_monitoring") toast.success("Account added to your monitored sources");
       await refresh();
     } catch (e: any) { toast.error(e?.message ?? "Action failed"); }
+    finally { setItemBusy(null); }
+  }
+
+  async function handleCreateContent(id: string) {
+    setItemBusy(id);
+    try {
+      const res = await createFn({ data: { id } });
+      toast.success(res.existed ? "Opening the existing Content Studio draft" : "Content Studio draft created from this trend");
+      await refresh();
+      navigate({ to: "/growthmind/content-projects/$projectId", params: { projectId: res.projectId } });
+    } catch (e: any) { toast.error(e?.message ?? "Failed to create content"); }
     finally { setItemBusy(null); }
   }
 
@@ -219,7 +233,7 @@ function TrendFeedPage() {
       ) : (
         <div className="space-y-2">
           {items.map(item => (
-            <TrendCard key={item.id} item={item} busy={itemBusy === item.id} mounted={mounted} onAction={handleAction} />
+            <TrendCard key={item.id} item={item} busy={itemBusy === item.id} mounted={mounted} onAction={handleAction} onCreateContent={handleCreateContent} />
           ))}
         </div>
       )}
@@ -250,9 +264,10 @@ function TrendFeedPage() {
 
 type TrendItemAction = "save" | "ignore" | "restore" | "analyse" | "block_source" | "add_to_monitoring";
 
-function TrendCard({ item, busy, mounted, onAction }: {
+function TrendCard({ item, busy, mounted, onAction, onCreateContent }: {
   item: TrendFeedItem; busy: boolean; mounted: boolean;
   onAction: (id: string, action: TrendItemAction) => void;
+  onCreateContent: (id: string) => void;
 }) {
   const s = item.scores as any;
   const total = s.total != null ? Number(s.total) : null;
@@ -267,7 +282,9 @@ function TrendCard({ item, busy, mounted, onAction }: {
             <Badge variant="secondary" className="text-[10px]">{PLATFORM_LABEL[item.platform] ?? item.platform}</Badge>
             {item.mediaType && <Badge variant="outline" className="text-[10px]">{item.mediaType}</Badge>}
             <Badge variant={item.status === "recommended" ? "default" : "secondary"}
-              className={cn("text-[10px]", item.status === "recommended" && "bg-emerald-600")}>
+              className={cn("text-[10px]",
+                item.status === "recommended" && "bg-emerald-600",
+                item.status === "actioned" && "bg-sky-600/20 text-sky-300")}>
               {item.status}
             </Badge>
             {riskFlags.length > 0 && (
@@ -315,7 +332,21 @@ function TrendCard({ item, busy, mounted, onAction }: {
         </div>
       </div>
       <div className="flex items-center gap-2 pt-1 flex-wrap">
-        {item.status !== "recommended" && item.status !== "dismissed" && (
+        {item.status === "recommended" && (
+          <Button size="sm" className="h-7 text-xs bg-emerald-600 hover:bg-emerald-700" disabled={busy}
+            onClick={() => onCreateContent(item.id)}
+            title="Turn this trend into a pre-filled Content Studio draft (title, angle and rationale carried over)">
+            <PenLine className="h-3 w-3 mr-1" /> Create content
+          </Button>
+        )}
+        {item.status === "actioned" && (
+          <Button size="sm" variant="outline" className="h-7 text-xs" disabled={busy}
+            onClick={() => onCreateContent(item.id)}
+            title="Open the Content Studio draft created from this trend">
+            <PenLine className="h-3 w-3 mr-1" /> Open content draft
+          </Button>
+        )}
+        {item.status !== "recommended" && item.status !== "dismissed" && item.status !== "actioned" && (
           <Button size="sm" variant="outline" className="h-7 text-xs" disabled={busy} onClick={() => onAction(item.id, "save")}>
             <Bookmark className="h-3 w-3 mr-1" /> Save
           </Button>
