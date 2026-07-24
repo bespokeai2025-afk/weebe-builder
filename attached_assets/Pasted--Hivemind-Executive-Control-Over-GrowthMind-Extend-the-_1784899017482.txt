@@ -1,0 +1,754 @@
+# Hivemind Executive Control Over GrowthMind
+
+Extend the implementation so the existing WEBEE HiveMind has complete executive visibility, orchestration and controlled authority over GrowthMind’s content intelligence, Content Studio, campaign and publishing capabilities.
+
+Do not create another isolated AI assistant.
+
+HiveMind is the executive command layer of WEBEE. GrowthMind is the specialist marketing department operating under HiveMind’s direction.
+
+The required operating hierarchy is:
+
+**HiveMind → GrowthMind → Content Studio → Approval → Publishing → Performance Learning**
+
+HiveMind must be able to inspect, direct, approve, pause, prioritise and measure GrowthMind’s work through real system actions.
+
+“Full control” does not mean bypassing security, workspace isolation, platform policies, approval requirements or audit controls.
+
+It means HiveMind has authoritative orchestration over all permitted GrowthMind functions within the current workspace.
+
+## Critical requirement
+
+Do not merely allow HiveMind to chat about GrowthMind.
+
+HiveMind must have real, typed, permission-controlled tools that can execute actions against the existing GrowthMind services.
+
+HiveMind must never claim it has:
+
+* Started research
+* Created content
+* Changed a campaign
+* Sent a project to Content Studio
+* Approved content
+* Scheduled content
+* Published content
+* Paused an account
+* Generated a report
+
+unless the corresponding backend action was successfully completed and recorded.
+
+## 1. HiveMind executive dashboard visibility
+
+HiveMind must be able to access a complete executive view of GrowthMind, including:
+
+* Connected social accounts
+* Account connection health
+* Meta permission status
+* Competitors being monitored
+* Topics being monitored
+* New trends discovered
+* Trends awaiting deep analysis
+* High-priority content opportunities
+* Content recommendations
+* Content Studio projects
+* Projects awaiting assets
+* Content awaiting approval
+* Scheduled content
+* Published content
+* Failed publishing jobs
+* Content performance
+* Campaign performance
+* Qualified leads generated
+* Demo bookings generated
+* Attributed revenue
+* AI usage and production costs
+* GrowthMind background job health
+* GrowthMind errors and warnings
+* Business DNA completeness
+* Stale recommendations
+* Missed content opportunities
+
+HiveMind should summarise this information as an executive briefing rather than simply exposing raw tables.
+
+Example HiveMind briefing:
+
+> GrowthMind identified nine relevant content opportunities today. Three have high commercial potential. Two Content Studio projects are awaiting product footage. One Instagram token expires within seven days. Yesterday’s Reel produced strong reach but no qualified leads. I recommend prioritising the AI receptionist comparison video and changing the CTA from profile visit to demo booking.
+
+## 2. HiveMind tool access
+
+Create secure server-side tools that allow HiveMind to perform authorised GrowthMind actions.
+
+Required tools include:
+
+* get_growthmind_status
+* get_growthmind_health
+* get_content_command_centre
+* get_trend_opportunities
+* get_trend_details
+* analyse_trend
+* approve_trend_for_adaptation
+* reject_trend
+* prioritise_trend
+* block_trend_source
+* add_monitored_competitor
+* remove_monitored_competitor
+* add_monitored_topic
+* pause_monitored_topic
+* update_growthmind_objectives
+* get_business_dna
+* propose_business_dna_update
+* approve_business_dna_update
+* generate_content_adaptation
+* create_content_studio_project
+* get_content_studio_project_status
+* request_content_changes
+* approve_content
+* reject_content
+* schedule_content
+* cancel_scheduled_content
+* pause_publishing
+* resume_publishing
+* get_publishing_failures
+* retry_failed_publication
+* get_content_performance
+* get_campaign_performance
+* compare_content_results
+* generate_growth_report
+* create_growthmind_task
+* reprioritise_growthmind_queue
+* pause_growthmind_jobs
+* resume_growthmind_jobs
+* get_growthmind_costs
+* update_growthmind_cost_limits
+
+Use existing services and APIs wherever possible.
+
+Do not duplicate GrowthMind business logic inside HiveMind.
+
+HiveMind tools must call GrowthMind service-layer functions rather than directly manipulating random database rows.
+
+## 3. Natural-language executive commands
+
+HiveMind must understand commands such as:
+
+* “Tell GrowthMind to find five relevant Reel opportunities.”
+* “Focus this week on AI receptionist content.”
+* “Stop prioritising generic AI news.”
+* “Find content likely to generate demo bookings.”
+* “Analyse what our competitors posted this week.”
+* “Create an original version of the strongest trend.”
+* “Send the strongest idea to Content Studio.”
+* “Use our Ava footage for this project.”
+* “Make the opening hook more aggressive.”
+* “Do not publish anything without my approval.”
+* “Approve the educational Reel.”
+* “Schedule the approved Reel for tomorrow.”
+* “Pause all Instagram publishing.”
+* “Why did last week’s content fail?”
+* “Show me which posts created qualified leads.”
+* “Reduce GrowthMind’s video generation spend.”
+* “Create a seven-day content plan.”
+* “Prioritise WEBEE Receptionist for the next campaign.”
+* “Tell GrowthMind to create content around missed calls.”
+* “Stop monitoring this competitor.”
+* “Prepare a weekly GrowthMind performance report.”
+
+HiveMind must translate these instructions into validated system actions.
+
+Where a command has irreversible or high-risk consequences, HiveMind must show the proposed action before execution unless the workspace autonomy rules already permit it.
+
+## 4. Executive objective management
+
+HiveMind must be able to set and modify GrowthMind’s active commercial objectives.
+
+Objectives may include:
+
+* Increase qualified leads
+* Increase demo bookings
+* Promote a specific WEBEE product
+* Improve account reach
+* Increase saves and shares
+* Enter a new industry
+* Enter a new country
+* Support a product launch
+* Respond to competitor activity
+* Build founder authority
+* Improve retargeting audiences
+* Reduce customer acquisition cost
+* Increase trial registrations
+* Re-engage dormant prospects
+* Promote a time-limited offer
+
+Each objective must include:
+
+* Objective name
+* Business outcome
+* Target audience
+* Target product
+* Platforms
+* Start date
+* End date
+* Priority
+* Budget limit
+* Content volume
+* Approval requirements
+* Success metrics
+* Assigned GrowthMind workstreams
+
+GrowthMind must use these objectives when scoring trends and generating recommendations.
+
+HiveMind must be able to see whether GrowthMind’s current work is aligned with the active business objectives.
+
+If it is not aligned, HiveMind should raise an alert and offer to reprioritise GrowthMind.
+
+## 5. Priority and task control
+
+HiveMind must be able to convert GrowthMind recommendations into real tasks.
+
+Tasks should integrate with the existing HiveMind task and action system.
+
+Each GrowthMind task must support:
+
+* Title
+* Description
+* Workspace
+* GrowthMind module
+* Priority
+* Status
+* Owner
+* Deadline
+* Commercial objective
+* Required assets
+* Dependencies
+* Approval requirement
+* Estimated cost
+* Estimated effort
+* Expected outcome
+* Source recommendation
+* Content Studio project
+* Publishing target
+* Completion evidence
+
+HiveMind must be able to:
+
+* Create tasks
+* Reassign tasks
+* Change priority
+* Pause tasks
+* Cancel tasks
+* Request updates
+* Mark blocked
+* Resolve dependencies
+* Escalate overdue tasks
+
+GrowthMind must report task progress back to HiveMind.
+
+## 6. Content Studio control
+
+HiveMind must have visibility and controlled authority over GrowthMind projects inside the existing Content Studio.
+
+HiveMind must be able to:
+
+* Open a project
+* Review its source trend
+* Review the original adaptation
+* Review the script
+* Review assets
+* Review the video timeline
+* Review the caption
+* Review the CTA
+* Review similarity warnings
+* Review compliance warnings
+* Request changes
+* Change priority
+* Change target platform
+* Change target account
+* Change objective
+* Approve the project
+* Reject the project
+* Schedule approved content
+* Cancel scheduled content
+
+HiveMind should be able to issue precise change instructions such as:
+
+* “Replace the generic stock footage with WEBEE product footage.”
+* “Use a stronger first two seconds.”
+* “Remove the unsupported cost-saving claim.”
+* “Change the CTA to book a demo.”
+* “Make this relevant to estate agents.”
+* “Create a UK and UAE version.”
+* “Shorten the Reel to 25 seconds.”
+* “Use Nathan’s approved founder voice.”
+* “Do not use an AI avatar.”
+* “Make it less promotional and more educational.”
+
+These instructions must be stored as structured change requests connected to the Content Studio project.
+
+GrowthMind must acknowledge and action the change request rather than simply generating a new disconnected draft.
+
+## 7. Approval authority
+
+HiveMind must use the workspace’s configured autonomy and approval rules.
+
+Supported autonomy hierarchy:
+
+### Observe
+
+HiveMind and GrowthMind can inspect and report only.
+
+### Recommend
+
+GrowthMind can produce recommendations. HiveMind can prioritise and reject them.
+
+### Assistant
+
+GrowthMind can create Content Studio projects. HiveMind can direct, review and approve them.
+
+### Operator
+
+GrowthMind can schedule or publish within permitted rules. HiveMind can pause, override or cancel permitted actions.
+
+### Executive Operator
+
+HiveMind can authorise GrowthMind actions within workspace-configured limits, but high-risk content must still follow mandatory approval rules.
+
+Mandatory approval rules must never be bypassed for:
+
+* Customer claims
+* Testimonials
+* Pricing changes
+* Legal or regulated claims
+* Personal customer data
+* Controversial content
+* Political content
+* Competitor accusations
+* Financial guarantees
+* Medical claims
+* Unapproved spokesperson likenesses
+* Unlicensed media
+* Content failing originality checks
+
+HiveMind may recommend approval, but the system must respect configured human-approval requirements.
+
+## 8. GrowthMind monitoring by HiveMind
+
+HiveMind must continuously evaluate whether GrowthMind is operating correctly.
+
+Monitor:
+
+* Last successful trend scan
+* Last successful account sync
+* Last successful analytics sync
+* Last successful competitor scan
+* Last successful content generation
+* Last successful Content Studio handoff
+* Last successful publication
+* Failed jobs
+* Repeated retries
+* Expired tokens
+* Missing permissions
+* Excessive AI cost
+* Content queue backlog
+* Stale recommendations
+* Low Business DNA quality
+* Declining content performance
+* Repeated low-relevance suggestions
+* Content with high views but no commercial outcome
+* Excessive similarity to source material
+* Publishing frequency outside configured limits
+
+HiveMind should create alerts and tasks for actionable issues.
+
+Examples:
+
+* “GrowthMind has not completed a trend scan in 18 hours.”
+* “The Instagram connection needs renewal.”
+* “Seven recommendations became stale without action.”
+* “GrowthMind exceeded its weekly rendering budget.”
+* “Three recent Reels generated views but no leads.”
+* “The current trend queue is poorly aligned with the active Receptionist objective.”
+* “Two Content Studio projects are blocked by missing footage.”
+* “A competitor format is gaining momentum and has not yet been addressed.”
+
+## 9. Executive decision engine
+
+HiveMind must not merely repeat GrowthMind’s conclusions.
+
+HiveMind must independently assess GrowthMind’s recommendations using wider business data.
+
+HiveMind should compare GrowthMind recommendations against:
+
+* Sales pipeline
+* Current leads
+* Qualified leads
+* Lead sources
+* Call analytics
+* Customer objections
+* CRM activity
+* Product usage
+* Product priorities
+* Calendar availability
+* Current offers
+* Campaign results
+* Advertising performance
+* Business costs
+* Account limits
+* HiveMind’s active executive priorities
+* GrowthMind’s historical performance
+
+Example:
+
+GrowthMind may recommend a broad AI trend because it has high engagement potential.
+
+HiveMind should reject or deprioritise it when:
+
+* It has weak relevance to current buyers
+* The promoted product has no remaining sales capacity
+* The business is currently prioritising another market
+* Similar content previously produced views but no leads
+* The Content Studio lacks the required assets
+* The cost exceeds the workspace limit
+* The trend is already saturated
+* The current campaign objective is demo bookings rather than reach
+
+HiveMind must be the final orchestration intelligence, not a passive wrapper.
+
+## 10. Business-wide coordination
+
+HiveMind must coordinate GrowthMind with other WEBEE departments.
+
+### GrowthMind and AccountsMind
+
+HiveMind should check:
+
+* Content production costs
+* Advertising spend
+* Cost per lead
+* Cost per qualified lead
+* Cost per booking
+* Revenue attribution
+* Budget limits
+* AI generation costs
+* Rendering costs
+
+HiveMind should be able to reduce GrowthMind activity if costs exceed configured limits.
+
+### GrowthMind and SystemMind
+
+HiveMind should direct SystemMind to investigate when:
+
+* Meta connections fail
+* Publishing jobs repeatedly fail
+* Analytics are missing
+* Background jobs are unhealthy
+* Content Studio handoffs fail
+* OAuth permissions are incorrect
+* Database errors occur
+* Rate limits are reached
+
+Do not let GrowthMind silently attempt endless retries.
+
+### GrowthMind and CRM
+
+HiveMind should use:
+
+* Lead objections
+* Lost-deal reasons
+* Common customer questions
+* Industry patterns
+* Sales outcomes
+
+to direct GrowthMind’s content themes.
+
+### GrowthMind and Follow-Up Centre
+
+HiveMind should be able to turn successful content campaigns into follow-up audiences and sequences where appropriate and authorised.
+
+### GrowthMind and Analytics Centre
+
+HiveMind should use campaign and content analytics to create executive reports and recommendations.
+
+## 11. Real-time activity and audit trail
+
+Every HiveMind instruction to GrowthMind must create an auditable activity record.
+
+Record:
+
+* Workspace
+* User
+* HiveMind session
+* Command
+* Interpreted intention
+* Tool selected
+* Parameters
+* Approval requirement
+* Action result
+* Failure result
+* Timestamp
+* Related GrowthMind item
+* Related Content Studio project
+* Related published content
+* Estimated cost
+* Actual cost
+
+The user must be able to see:
+
+* What HiveMind instructed
+* What GrowthMind did
+* Whether it succeeded
+* What changed
+* Who approved it
+* When it happened
+
+Do not expose secret tokens or sensitive internal prompts in the activity log.
+
+## 12. Command confirmation interface
+
+For consequential actions, HiveMind should display a clear action preview.
+
+Example:
+
+**HiveMind proposes:**
+
+* Generate an original Reel from Trend #412
+* Promote WEBEE Receptionist
+* Target UK estate agencies
+* Use existing Ava product footage
+* Create one 30-second Reel
+* Estimated production cost: £X
+* Require human approval before publishing
+* Send finished project to Content Studio
+
+Actions:
+
+* Approve action
+* Edit instructions
+* Cancel
+
+Do not ask for repeated confirmation for harmless read-only actions.
+
+## 13. HiveMind recommendations interface
+
+Add GrowthMind-related recommendation cards to the existing HiveMind recommendations system.
+
+Each recommendation should include:
+
+* Recommended action
+* Reason
+* Evidence
+* GrowthMind source
+* Business objective
+* Expected commercial impact
+* Urgency
+* Cost
+* Risk
+* Required approval
+* Deadline
+* Action button
+
+Examples:
+
+* “Create this trend-inspired Reel before the format becomes saturated.”
+* “Pause generic AI-news content because it is producing no qualified leads.”
+* “Reconnect the Instagram account before scheduled publishing fails.”
+* “Create an estate-agent version of the highest-performing receptionist Reel.”
+* “Increase content focused on missed-call recovery.”
+* “Move the strongest recommendation into Content Studio.”
+* “Stop monitoring this competitor because its audience does not match the Business DNA.”
+
+## 14. HiveMind chat status transparency
+
+When HiveMind executes a GrowthMind command, show clear states:
+
+* Understanding request
+* Checking permissions
+* Checking GrowthMind status
+* Action queued
+* Action running
+* Action completed
+* Approval required
+* Action blocked
+* Action failed
+* Retry scheduled
+
+HiveMind must provide actual result references.
+
+Example:
+
+> I instructed GrowthMind to analyse the three highest-scoring AI receptionist trends. Two analyses completed successfully. One source video was unavailable. I created one Content Studio project from the strongest opportunity and marked it as awaiting approval.
+
+Do not use vague messages such as:
+
+* “I’m handling it.”
+* “GrowthMind is working on it.”
+* “This has been actioned.”
+
+unless the exact system state supports that statement.
+
+## 15. Permissions
+
+Add granular permissions for HiveMind GrowthMind control.
+
+Potential permissions:
+
+* growthmind.view
+* growthmind.configure
+* growthmind.research
+* growthmind.generate
+* growthmind.manage_competitors
+* growthmind.manage_business_dna
+* growthmind.create_content_projects
+* growthmind.request_changes
+* growthmind.approve_content
+* growthmind.schedule_content
+* growthmind.publish_content
+* growthmind.pause_publishing
+* growthmind.manage_cost_limits
+* growthmind.view_costs
+* growthmind.view_analytics
+* growthmind.manage_objectives
+
+Workspace administrators should control which team members can use HiveMind to execute each action.
+
+Do not assume every user who can chat with HiveMind may publish content.
+
+## 16. Failure handling
+
+HiveMind must handle failures honestly.
+
+Examples:
+
+### Expired account token
+
+> I could not instruct GrowthMind to publish because the Instagram connection has expired. The draft remains safely stored in Content Studio. Reconnect the account before retrying.
+
+### Missing permission
+
+> You can review this GrowthMind project, but your current role cannot approve or publish it.
+
+### Content similarity failure
+
+> GrowthMind generated a draft, but the originality check found it too similar to the source. I have blocked approval and requested a more original version.
+
+### Budget limit
+
+> The proposed video generation exceeds this workspace’s remaining monthly content budget. I can request a lower-cost version using existing assets.
+
+### Background job failure
+
+> GrowthMind’s competitor scan failed three times. I have created a SystemMind investigation task and paused further retries.
+
+Failures must be visible in HiveMind’s System Health and Actions views.
+
+## 17. Required end-to-end workflow
+
+The implementation is not complete until this flow works:
+
+1. A user asks HiveMind what GrowthMind should create today.
+2. HiveMind retrieves current objectives, GrowthMind recommendations, CRM signals and recent performance.
+3. HiveMind ranks the opportunities.
+4. HiveMind explains its recommendation.
+5. The user instructs HiveMind to proceed.
+6. HiveMind calls the real GrowthMind adaptation service.
+7. GrowthMind creates an original adaptation.
+8. HiveMind reviews the returned originality, risk and relevance results.
+9. HiveMind sends the project into the existing Content Studio.
+10. The Content Studio project contains the correct GrowthMind data.
+11. HiveMind can retrieve the project’s current status.
+12. The user requests a change through HiveMind.
+13. The change is recorded and applied to the same project.
+14. HiveMind requests approval.
+15. The authorised user approves the project.
+16. HiveMind schedules or publishes through the existing publishing integration.
+17. Publishing status is returned to HiveMind.
+18. GrowthMind collects performance data.
+19. HiveMind compares performance against commercial objectives.
+20. HiveMind creates the next recommended action.
+21. Every action is scoped to the correct workspace and recorded in the audit log.
+
+## 18. Required tests
+
+Test:
+
+* HiveMind read-only GrowthMind access
+* HiveMind tool permission enforcement
+* Workspace isolation
+* Cross-workspace access prevention
+* Objective creation
+* Trend prioritisation
+* Trend rejection
+* Content adaptation generation
+* Content Studio handoff
+* Change request workflow
+* Approval enforcement
+* Mandatory human approval
+* Scheduling
+* Publishing
+* Publishing cancellation
+* Publishing failure
+* Expired Meta token
+* Missing Meta permission
+* Cost-limit enforcement
+* Business DNA update approval
+* GrowthMind job pause and resume
+* SystemMind escalation
+* AccountsMind cost reporting
+* CRM-informed recommendations
+* Audit logging
+* Mobile HiveMind controls
+* HiveMind falsely claiming completion prevention
+
+## 19. Implementation rules
+
+* Reuse the existing HiveMind tools and actions architecture.
+* Reuse the existing GrowthMind services.
+* Reuse the existing Content Studio.
+* Reuse the existing task system.
+* Reuse the existing workspace permission system.
+* Do not duplicate GrowthMind logic in HiveMind.
+* Do not give HiveMind direct unrestricted database access.
+* Do not expose Meta tokens to HiveMind prompts or the browser.
+* Do not let HiveMind bypass RLS.
+* Do not let HiveMind bypass mandatory approvals.
+* Do not let HiveMind publish based only on a language-model response.
+* Do not let HiveMind report fake completion.
+* Do not create buttons without backend actions.
+* Do not hard-code workspace, social account or campaign IDs.
+* Do not break existing HiveMind functions.
+* Do not break GrowthMind’s direct interface.
+* Do not break Content Studio projects already in progress.
+* All tool calls must use validated typed schemas.
+* All write actions must be idempotent where applicable.
+* All costly actions must be tracked.
+* All consequential actions must be auditable.
+
+## 20. Final operating principle
+
+The completed system must behave like a real company structure:
+
+* HiveMind understands the entire business.
+* HiveMind decides what matters commercially.
+* HiveMind directs GrowthMind.
+* GrowthMind performs specialist marketing research and production.
+* Content Studio creates the deliverable.
+* Approval rules control risk.
+* Publishing integrations distribute the content.
+* Analytics measure the result.
+* HiveMind decides what happens next.
+
+GrowthMind must remain capable of operating directly through its own interface, but HiveMind must have complete executive visibility and controlled orchestration over its priorities, tasks, projects, publishing activity, costs and results.
+
+When finished, provide an exact report covering:
+
+1. HiveMind tools added
+2. Existing tools reused
+3. GrowthMind services connected
+4. Content Studio actions connected
+5. Permissions introduced
+6. Approval rules enforced
+7. Audit logging added
+8. Cross-department connections added
+9. Tests completed
+10. End-to-end demonstration results
+11. Remaining platform limitations
+
+Do not describe this as complete until HiveMind can genuinely direct GrowthMind from trend discovery through Content Studio production, approval, publishing, performance analysis and next-action recommendation.
