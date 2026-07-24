@@ -319,8 +319,18 @@ export async function fetchFullPlatformData(sb: any, workspaceId: string) {
     if (gadsAcctRes.data) {
       const recsAll = gadsRecsRes.data ?? [];
       const prioOrder: Record<string, number> = { critical: 0, high: 1, medium: 2, low: 3 };
+      // Live synced campaigns — growthmind_gads_campaign_daily is the only table
+      // the live engine writes campaigns to; without this the COO can see the
+      // connection but not the actual campaigns.
+      let liveCampaigns: any = null;
+      try {
+        const { getGadsLiveCampaignSummary } = await import("@/lib/growthmind/gads-live-core.server");
+        liveCampaigns = await getGadsLiveCampaignSummary(workspaceId);
+      } catch { /* graceful */ }
       gadsLive = {
         account: gadsAcctRes.data,
+        campaigns: liveCampaigns?.campaigns ?? [],
+        currency: liveCampaigns?.currency ?? null,
         pendingRecs: recsAll.filter((r: any) => r.status === "new" || r.status === "under_review")
           .sort((a: any, b: any) => (prioOrder[a.priority] ?? 9) - (prioOrder[b.priority] ?? 9)),
         approvedRecs: recsAll.filter((r: any) => r.status === "approved"),
@@ -1022,6 +1032,17 @@ export function buildPlatformContext(d: any): string {
         ? `healthy${acct.last_synced_at ? `, last synced ${acct.last_synced_at}` : ""}`
         : `setup incomplete (${acct.connection_state ?? "unknown"})`;
     lines.push(`  Account: ${acct.descriptive_name ?? acct.label ?? "Google Ads"} | Sync: ${sync}`);
+    if (Array.isArray(g.campaigns) && g.campaigns.length > 0) {
+      const cur = g.currency ?? "";
+      lines.push(`  CAMPAIGNS (last 30 days, real synced data):`);
+      for (const c of g.campaigns.slice(0, 10)) {
+        lines.push(
+          `    • "${c.name}" [${String(c.status ?? "unknown").toUpperCase()}${c.channelType ? `, ${c.channelType}` : ""}]: ` +
+          `spend ${cur} ${Number(c.cost).toFixed(2)}${c.dailyBudget > 0 ? ` (daily budget ${cur} ${Number(c.dailyBudget).toFixed(2)})` : ""}, ` +
+          `${Number(c.impressions).toLocaleString()} impressions, ${c.clicks} clicks, ${c.conversions} conversions`,
+        );
+      }
+    }
     if (g.pendingRecs.length > 0) {
       lines.push(`  PENDING RECOMMENDATIONS AWAITING USER DECISION (${g.pendingRecs.length}) — the user must approve/dismiss these in GrowthMind → Ads:`);
       for (const r of g.pendingRecs.slice(0, 8)) {

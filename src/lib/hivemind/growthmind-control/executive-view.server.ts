@@ -73,6 +73,18 @@ export interface GrowthMindExecutiveView {
     active: Array<{ id: string; name: string; priority: string; endDate: string | null; businessOutcome: string | null }>;
     totalActive: number;
   };
+  googleAds: {
+    connected: boolean;
+    accountName: string | null;
+    connectionState: string | null;
+    syncStatus: string | null;
+    lastSyncedAt: string | null;
+    currency: string | null;
+    campaigns: Array<{
+      campaignId: string; name: string; status: string | null; channelType: string | null;
+      dailyBudget: number; cost: number; impressions: number; clicks: number; conversions: number;
+    }>;
+  };
   jobsPaused: boolean;
 }
 
@@ -177,6 +189,18 @@ export async function buildGrowthMindExecutiveView(workspaceId: string): Promise
     byTaskType[k] = Math.round(((byTaskType[k] ?? 0) + (Number(r.estimated_cost_usd) || 0)) * 10000) / 10000;
   }
 
+  // Live Google Ads (real synced campaigns from growthmind_gads_campaign_daily —
+  // the only table the live Google engine writes campaigns to). Graceful: null on failure.
+  let gadsAccount: any = null;
+  let gadsSummary: { campaigns: any[]; currency: string | null } | null = null;
+  try {
+    const core = await import("@/lib/growthmind/gads-live-core.server");
+    [gadsAccount, gadsSummary] = await Promise.all([
+      core.getGoogleAccountRow(workspaceId),
+      core.getGadsLiveCampaignSummary(workspaceId),
+    ]);
+  } catch { /* optional */ }
+
   let completionPct: number | null = null;
   if (dna.data) {
     try {
@@ -252,6 +276,19 @@ export async function buildGrowthMindExecutiveView(workspaceId: string): Promise
         endDate: o.end_date ?? null, businessOutcome: o.business_outcome ?? null,
       })),
       totalActive: (objectives.data ?? []).length,
+    },
+    googleAds: {
+      connected: !!gadsAccount && gadsAccount.status === "active",
+      accountName: gadsAccount?.descriptive_name ?? gadsAccount?.label ?? null,
+      connectionState: gadsAccount?.connection_state ?? null,
+      syncStatus: gadsAccount?.sync_status ?? null,
+      lastSyncedAt: gadsAccount?.last_synced_at ?? null,
+      currency: gadsSummary?.currency ?? gadsAccount?.currency_code ?? null,
+      campaigns: (gadsSummary?.campaigns ?? []).slice(0, 12).map((c: any) => ({
+        campaignId: c.campaignId, name: c.name, status: c.status, channelType: c.channelType,
+        dailyBudget: c.dailyBudget, cost: Math.round(c.cost * 100) / 100,
+        impressions: c.impressions, clicks: c.clicks, conversions: c.conversions,
+      })),
     },
     jobsPaused: settings.data?.growthmind_jobs_paused === true,
   };
@@ -364,6 +401,13 @@ export async function buildGrowthMindCommandContext(workspaceId: string): Promis
       `AI spend: $${v.costs.monthToDateUsd} MTD${v.costs.monthlyLimitUsd != null ? ` of $${v.costs.monthlyLimitUsd} limit` : ""}`,
       `Business DNA: ${v.dna.exists ? `${v.dna.completionPct}% complete (v${v.dna.version})` : "missing"}; ${v.dna.pendingProposals} proposal(s) pending`,
       `Objectives: ${v.objectives.totalActive} active${v.objectives.active.length ? ` — ${v.objectives.active.map((o) => o.name).join("; ").slice(0, 300)}` : ""}`,
+      v.googleAds.connected
+        ? `Google Ads: "${v.googleAds.accountName ?? "account"}" ${v.googleAds.connectionState ?? ""}; campaigns (30d): ${
+            v.googleAds.campaigns.length
+              ? v.googleAds.campaigns.slice(0, 5).map((c) => `"${c.name}" [${c.status ?? "?"}] spend ${v.googleAds.currency ?? ""} ${c.cost.toFixed(2)}, ${c.clicks} clicks, ${c.conversions} conv`).join("; ")
+              : "none synced yet"
+          }`
+        : "Google Ads: not connected",
       issues ? `Open issues:\n${issues}` : "No open issues.",
       "You (HiveMind) have REAL GrowthMind tools — use them instead of guessing. Never claim an action succeeded unless the tool result confirms it.",
     ].join("\n");

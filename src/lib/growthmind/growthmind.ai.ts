@@ -134,6 +134,21 @@ async function fetchAdsTrendSummary(sb: any, workspaceId: string): Promise<strin
   }
 }
 
+// ── Combined ads context ──────────────────────────────────────────────────────
+// The live Google Ads engine writes campaigns ONLY to growthmind_gads_campaign_daily
+// (the legacy tables above are not populated by it), so always include the live
+// campaign summary too — otherwise connected Google Ads campaigns are invisible
+// to the CMO chat/briefing.
+async function fetchAdsContext(sb: any, workspaceId: string): Promise<string> {
+  const [legacyTrend, liveGads] = await Promise.all([
+    fetchAdsTrendSummary(sb, workspaceId),
+    import("@/lib/growthmind/gads-live-core.server")
+      .then((m) => m.getGadsLiveCampaignSummaryText(workspaceId))
+      .catch(() => ""),
+  ]);
+  return [liveGads, legacyTrend].filter(Boolean).join("\n\n");
+}
+
 // ── Compile a rich marketing system prompt ─────────────────────────────────────
 function compileSystemPrompt(data: any, personality: string, adsTrend?: string): string {
   if (!data) return "You are GrowthMind, an AI Chief Marketing Officer. You help identify revenue opportunities, improve marketing performance, and drive sustainable business growth.";
@@ -305,7 +320,7 @@ export const getGrowthMindAIResponse = createServerFn({ method: "POST" })
       workspaceId
         ? import("@/lib/executives/executive-knowledge.server").then(m => m.getRetrievedKnowledgeBlock({ workspaceId, mindType: "growthmind", query: lastUser, topK: 5 }))
         : Promise.resolve(""),
-      workspaceId && sb ? fetchAdsTrendSummary(sb, workspaceId) : Promise.resolve(""),
+      workspaceId && sb ? fetchAdsContext(sb, workspaceId) : Promise.resolve(""),
     ]);
 
     // Campaign reports summary (graceful — table may not exist yet)
@@ -440,7 +455,7 @@ export const getGrowthMindBriefing = createServerFn({ method: "POST" })
       workspaceId
         ? import("@/lib/executives/executive-knowledge.server").then(m => m.getRetrievedKnowledgeBlock({ workspaceId, mindType: "growthmind", query: buildGrowthMindRetrievalQuery(data.platformData), topK: 5 }))
         : Promise.resolve(""),
-      workspaceId && sb ? fetchAdsTrendSummary(sb, workspaceId) : Promise.resolve(""),
+      workspaceId && sb ? fetchAdsContext(sb, workspaceId) : Promise.resolve(""),
     ]);
     const systemPrompt = compileSystemPrompt(data.platformData, "professional", adsTrend) + (knowledgeBlock ? `\n\n${knowledgeBlock}` : "");
     const prompt = `Generate a concise morning marketing briefing (3-5 sentences) that:

@@ -1116,6 +1116,87 @@ export async function tickAllGadsAccounts(): Promise<Array<{ workspaceId: string
 }
 
 // ── Account row lookup ────────────────────────────────────────────────────────
+// ── Live campaign summary (last 30 days) ─────────────────────────────────────
+// Aggregates growthmind_gads_campaign_daily into per-campaign totals so the
+// executives (HiveMind chat, GrowthMind chat/briefing) can see the actual live
+// campaigns — the daily table is the ONLY place live Google campaigns land
+// (the legacy growthmind_ad_campaigns table is not written by this engine).
+export type GadsCampaignSummary = {
+  campaignId: string;
+  name: string;
+  status: string | null;
+  channelType: string | null;
+  dailyBudget: number;       // account currency units (from budget_micros)
+  cost: number;              // 30d cost in account currency units
+  impressions: number;
+  clicks: number;
+  conversions: number;
+  conversionsValue: number;
+  lastDate: string | null;   // most recent date with a row
+};
+
+export async function getGadsLiveCampaignSummary(
+  workspaceId: string,
+  windowDays = 30,
+): Promise<{ campaigns: GadsCampaignSummary[]; currency: string | null } | null> {
+  const sb = admin();
+  const since = new Date(Date.now() - windowDays * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+  const [{ data: rows, error }, acct] = await Promise.all([
+    sb.from("growthmind_gads_campaign_daily")
+      .select("campaign_id,name,status,channel_type,budget_micros,cost_micros,impressions,clicks,conversions,conversions_value,date")
+      .eq("workspace_id", workspaceId)
+      .gte("date", since)
+      .limit(5000),
+    getGoogleAccountRow(workspaceId),
+  ]);
+  if (error || !rows || rows.length === 0) return null;
+  const byId = new Map<string, GadsCampaignSummary>();
+  for (const r of rows as any[]) {
+    const id = String(r.campaign_id);
+    let c = byId.get(id);
+    if (!c) {
+      c = { campaignId: id, name: r.name ?? id, status: null, channelType: null, dailyBudget: 0, cost: 0, impressions: 0, clicks: 0, conversions: 0, conversionsValue: 0, lastDate: null };
+      byId.set(id, c);
+    }
+    c.cost += Number(r.cost_micros ?? 0) / 1_000_000;
+    c.impressions += Number(r.impressions ?? 0);
+    c.clicks += Number(r.clicks ?? 0);
+    c.conversions += Number(r.conversions ?? 0);
+    c.conversionsValue += Number(r.conversions_value ?? 0);
+    // Take name/status/budget from the most recent row
+    if (!c.lastDate || String(r.date) > c.lastDate) {
+      c.lastDate = String(r.date);
+      if (r.name) c.name = r.name;
+      c.status = r.status ?? c.status;
+      c.channelType = r.channel_type ?? c.channelType;
+      c.dailyBudget = Number(r.budget_micros ?? 0) / 1_000_000;
+    }
+  }
+  const campaigns = [...byId.values()].sort((a, b) => b.cost - a.cost);
+  return { campaigns, currency: acct?.currency_code ?? null };
+}
+
+// Formatted text block for embedding in an executive system prompt.
+export async function getGadsLiveCampaignSummaryText(workspaceId: string, windowDays = 30): Promise<string> {
+  try {
+    const summary = await getGadsLiveCampaignSummary(workspaceId, windowDays);
+    if (!summary || summary.campaigns.length === 0) return "";
+    const cur = summary.currency ?? "";
+    const lines: string[] = [`### Live Google Ads Campaigns (last ${windowDays} days, real synced data)`];
+    for (const c of summary.campaigns.slice(0, 12)) {
+      lines.push(
+        `- "${c.name}" [${(c.status ?? "unknown").toUpperCase()}${c.channelType ? `, ${c.channelType}` : ""}]: ` +
+        `spend ${cur} ${c.cost.toFixed(2)}${c.dailyBudget > 0 ? ` (daily budget ${cur} ${c.dailyBudget.toFixed(2)})` : ""}, ` +
+        `${c.impressions.toLocaleString()} impressions, ${c.clicks} clicks, ${c.conversions} conversions` +
+        `${c.conversionsValue > 0 ? ` (value ${cur} ${c.conversionsValue.toFixed(2)})` : ""}`,
+      );
+    }
+    return lines.join("\n");
+  } catch {
+    return "";
+  }
+}
+
 export async function getGoogleAccountRow(workspaceId: string): Promise<any | null> {
   const sb = admin();
   const { data } = await sb
