@@ -628,6 +628,27 @@ export const requestProjectChanges = createServerFn({ method: "POST" })
     return { ok: true };
   });
 
+/** Bring a failed project back to production so content/media can be fixed and re-submitted. */
+export const returnProjectToProduction = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((i: z.infer<typeof GetInput>) => GetInput.parse(i))
+  .handler(async ({ data, context }) => {
+    const workspaceId = context.workspaceId!;
+    const userId = (context as any).userId as string;
+    const admin = await getAdmin();
+    const project = await loadProject(admin, workspaceId, data.projectId);
+    if (project.status !== "failed") throw new Error("Only failed projects can be returned to production.");
+    await transitionProjectStatus(admin, workspaceId, project.id, "in_production", userId,
+      "Returned to production after publish failure", { approved_version: null, approval_action_id: null });
+    // Cancel any lingering non-terminal jobs — a fresh approval will create a new one.
+    await admin.from("growthmind_publishing_jobs")
+      .update({ status: "cancelled", updated_at: nowIso() })
+      .eq("workspace_id", workspaceId).eq("project_id", project.id)
+      .in("status", ["draft", "validating", "awaiting_approval", "approved", "scheduled"]);
+    await mirrorRecommendationStatus(admin, workspaceId, project.recommendation_id, "in_content_studio");
+    return { ok: true };
+  });
+
 export const archiveContentProject = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((i: z.infer<typeof GetInput>) => GetInput.parse(i))

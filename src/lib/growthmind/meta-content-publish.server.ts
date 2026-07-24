@@ -560,11 +560,24 @@ export async function runContentPublishTick(): Promise<{ processed: number; publ
 /** Manual "retry now" from the project page — resets the backoff clock. */
 export async function retryPublishJobNow(admin: Sb, workspaceId: string, jobId: string): Promise<{ status: string }> {
   const { data: job } = await admin
-    .from("growthmind_publishing_jobs").select("id, status, attempts, max_attempts")
+    .from("growthmind_publishing_jobs").select("id, status, attempts, max_attempts, project_id")
     .eq("id", jobId).eq("workspace_id", workspaceId).maybeSingle();
   if (!job) throw new Error("Publishing job not found");
   if (job.status === "published") return { status: "published" };
   if (!["failed", "scheduled"].includes(job.status)) throw new Error(`Job is ${job.status} — cannot retry now.`);
+
+  // A terminal failure moved the project to "failed" — bring it back to a
+  // publishable state before executing, or the state gate re-fails the retry.
+  if (job.project_id) {
+    const { data: project } = await admin
+      .from("growthmind_content_projects").select("id, status")
+      .eq("id", job.project_id).eq("workspace_id", workspaceId).maybeSingle();
+    if (project?.status === "failed") {
+      const { transitionProjectStatus } = await import("@/lib/growthmind/growthmind.content-projects");
+      await transitionProjectStatus(admin, workspaceId, project.id, "scheduled", "user", "Manual publish retry");
+    }
+  }
+
   await admin.from("growthmind_publishing_jobs").update({
     status: "scheduled",
     attempts: job.status === "failed" ? 0 : job.attempts, // fresh budget after terminal failure

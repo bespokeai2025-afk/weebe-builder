@@ -24,7 +24,7 @@ import { cn } from "@/lib/utils";
 import {
   getContentProject, updateContentProject, setProjectMedia,
   generateProjectVoiceover, submitProjectForApproval, requestProjectChanges,
-  archiveContentProject, retryProjectPublishJob,
+  archiveContentProject, retryProjectPublishJob, returnProjectToProduction,
 } from "@/lib/growthmind/growthmind.content-projects";
 import { approvalFlagLabel } from "@/lib/growthmind/content-approval.shared";
 
@@ -81,6 +81,7 @@ function ProjectPage() {
   const changesFn  = useServerFn(requestProjectChanges);
   const archiveFn  = useServerFn(archiveContentProject);
   const retryFn    = useServerFn(retryProjectPublishJob);
+  const returnFn   = useServerFn(returnProjectToProduction);
 
   const { data, isLoading, error } = useQuery({
     queryKey: ["gm-content-project", projectId],
@@ -361,15 +362,31 @@ function ProjectPage() {
               Withdraw &amp; request changes
             </Button>
           </div>
-        ) : p.status === "published" ? (
-          <p className="text-xs text-emerald-400 flex items-center gap-1">
-            <CheckCircle2 className="h-3.5 w-3.5" /> Published{p.published_at ? ` on ${new Date(p.published_at).toLocaleString()}` : ""}.
-            {p.external_permalink && (
-              <a href={p.external_permalink} target="_blank" rel="noreferrer" className="text-blue-400 inline-flex items-center gap-1 ml-1">
-                View post <ExternalLink className="h-3 w-3" />
-              </a>
-            )}
-          </p>
+        ) : p.status === "published" ? (() => {
+          const pubJob = jobs.find((j: any) => j.status === "published");
+          const publishedAt = pubJob?.published_at ?? null;
+          const permalink   = pubJob?.external_permalink ?? null;
+          return (
+            <p className="text-xs text-emerald-400 flex items-center gap-1">
+              <CheckCircle2 className="h-3.5 w-3.5" /> Published{publishedAt ? ` on ${new Date(publishedAt).toLocaleString()}` : ""}.
+              {permalink && (
+                <a href={permalink} target="_blank" rel="noreferrer" className="text-blue-400 inline-flex items-center gap-1 ml-1">
+                  View post <ExternalLink className="h-3 w-3" />
+                </a>
+              )}
+            </p>
+          );
+        })() : p.status === "failed" ? (
+          <div className="space-y-2 text-xs">
+            <p className="text-red-400 flex items-center gap-1">
+              <XCircle className="h-3.5 w-3.5" /> Publishing failed. Retry the job below, or return the project to production to fix the content and re-submit.
+            </p>
+            <Button size="sm" variant="outline" disabled={busy === "return"} onClick={() =>
+              run("return", () => returnFn({ data: { projectId } }), "Project returned to production")}>
+              {busy === "return" ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <Undo2 className="h-3 w-3 mr-1" />}
+              Return to production
+            </Button>
+          </div>
         ) : (
           <p className="text-xs text-muted-foreground">Status: {STATUS_LABEL[p.status] ?? p.status}</p>
         )}
