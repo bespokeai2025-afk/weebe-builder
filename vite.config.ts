@@ -29,8 +29,21 @@ import { accountsMindSchedulerPlugin } from "./accountsmind-scheduler.plugin";
 // @cloudflare/vite-plugin builds from this — wrangler.jsonc main alone is insufficient.
 // Nitro + `vercel` preset is required for Vercel deploys (otherwise only static assets → 404).
 // EC2/production still uses dist/server + srvx when VERCEL is unset.
+// Lovable's nitro wrapper defaults output to dist/ — override to Vercel Build Output API paths.
+const isVercelBuild = !!(process.env.VERCEL || process.env.VERCEL_ENV);
+
 export default defineConfig({
-  nitro: process.env.VERCEL ? { preset: "vercel" } : undefined,
+  nitro: isVercelBuild
+    ? {
+        preset: "vercel",
+        output: {
+          dir: ".vercel/output",
+          publicDir: ".vercel/output/static",
+          // Must match Nitro vercel preset (config.json routes to /__server → __server.func).
+          serverDir: ".vercel/output/functions/__server.func",
+        },
+      }
+    : undefined,
   tanstackStart: {
     server: { entry: "server" },
   },
