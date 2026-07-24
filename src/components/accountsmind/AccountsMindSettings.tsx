@@ -1,4 +1,4 @@
-import { Settings, Info, ExternalLink } from "lucide-react";
+import { Settings, ExternalLink } from "lucide-react";
 import { Link } from "@tanstack/react-router";
 
 export function AccountsMindSettings() {
@@ -12,26 +12,6 @@ export function AccountsMindSettings() {
       </div>
 
       <div className="space-y-4">
-        {/* Database notice */}
-        <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-xl px-5 py-4 flex items-start gap-3">
-          <Info className="w-4 h-4 text-yellow-400 mt-0.5 shrink-0" />
-          <div>
-            <div className="text-sm font-semibold text-yellow-300 mb-1">Manual Migration Required</div>
-            <p className="text-xs text-yellow-200/70">
-              Run <code className="bg-yellow-900/30 px-1 rounded text-yellow-300">ACCOUNTSMIND_MIGRATION.sql</code> in your
-              Supabase SQL Editor to create the required tables before using AccountsMind.
-            </p>
-            <a
-              href="https://supabase.com/dashboard"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-1 text-xs text-yellow-400 hover:text-yellow-300 mt-2"
-            >
-              Open Supabase Dashboard <ExternalLink className="w-3 h-3" />
-            </a>
-          </div>
-        </div>
-
         {/* Cost engine link */}
         <div className="bg-gray-900 border border-gray-800 rounded-xl p-4">
           <div className="text-sm font-semibold text-white mb-1">Cost Engine</div>

@@ -49,7 +49,7 @@ import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
 import { getRetellAnalytics, listVoiceAgents } from "@/lib/dashboard/analytics.functions";
 import { getWbahCredits } from "@/lib/integrations/webespokeEnterprise/wbah-workspace.server";
-import { ProviderCreditsBar } from "@/components/providers/ProviderCreditsBar";
+import { useIsWbahWorkspace } from "@/hooks/useIsWbahWorkspace";
 import { LoadingProgress } from "@/components/dashboard/LoadingProgress";
 
 export const Route = createFileRoute("/_authenticated/analytics")({
@@ -563,7 +563,13 @@ function AnalyticsPage() {
   const result   = q.data;
   const allCalls = (result?.calls ?? []) as any[];
   const agentNames: Record<string, string> = (result?.agentNames ?? {}) as Record<string, string>;
-  const isWbah = (result as any)?.workspaceSlug === "webuyanyhouse";
+  // Resolve "is this the WBAH workspace?" from the dedicated lightweight check
+  // (active-workspace slug) rather than the heavy Retell analytics payload —
+  // otherwise a slow or failed call-data load silently hides the Credits tab
+  // and the other WBAH-specific UI. Fall back to the payload slug so the page
+  // still behaves if the resolver hasn't answered yet but data has.
+  const { isWbah: isWbahResolved, resolved: wbahResolved } = useIsWbahWorkspace();
+  const isWbah = wbahResolved ? isWbahResolved : (result as any)?.workspaceSlug === "webuyanyhouse";
   // Voicemail inclusion: default to ON for WBAH (every dial is a real billed call)
   // and OFF elsewhere; the toggle lets the user override either way.
   const [vmOverride, setVmOverride] = useState<boolean | null>(null);
@@ -700,8 +706,6 @@ function AnalyticsPage() {
         icon={BarChart3}
         onRefresh={() => mainTab === "calls" ? q.refetch() : mainTab === "credits" ? creditsQ.refetch() : mainTab === "marketing" ? mktQ.refetch() : undefined}
       />
-
-      <ProviderCreditsBar />
 
       {!isWbah && (
         <div className="px-6 mt-4">

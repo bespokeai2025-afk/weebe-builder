@@ -479,7 +479,10 @@ export async function activateWhatsAppSetupKind(
       .limit(500);
     const seen = new Set(((existing ?? []) as any[]).map((t) => String(t.entity_id)));
     const fresh = taskRows.filter((t) => !seen.has(t.entity_id));
-    if (fresh.length > 0) await sb.from("hivemind_tasks").insert(fresh);
+    const { isProposalAllowed } = await import("@/lib/hivemind/mode-gate.server");
+    if (fresh.length > 0 && (await isProposalAllowed(sb, workspaceId))) {
+      await sb.from("hivemind_tasks").insert(fresh);
+    }
   }
 
   return {

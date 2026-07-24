@@ -1,6 +1,6 @@
 import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   BarChart2, Plus, Loader2, RefreshCw, Trash2, Edit2,
   X, ChevronDown, ChevronUp, AlertTriangle, CheckCircle2,
@@ -27,6 +27,8 @@ import {
   getAdSyncStatus,
   acknowledgeAdAlert,
 } from "@/lib/growthmind/growthmind.ads-sync.server";
+import { startGoogleAdsOAuth, getGoogleAdsOAuthStatus } from "@/lib/providers/advertising/google-ads-oauth.functions";
+import { GadsLivePanel } from "./GadsLivePanel";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { HiveMindReportBanner } from "./HiveMindReportBanner";
@@ -84,6 +86,39 @@ function AccountModal({ initial, defaultPlatform = "google", onClose, onSave, sa
   const [accountId, setAccountId] = useState(initial?.account_id ?? "");
   const [token,     setToken]     = useState("");
   const [showToken, setShowToken] = useState(false);
+
+  // ── Google OAuth ("Connect with Google") ─────────────────────────────────────
+  const startOAuthFn  = useServerFn(startGoogleAdsOAuth);
+  const oauthStatusFn = useServerFn(getGoogleAdsOAuthStatus);
+  const [oauthStatus, setOauthStatus]     = useState<any>(null);
+  const [oauthConnecting, setOauthConnecting] = useState(false);
+
+  useEffect(() => {
+    if (platform === "google") oauthStatusFn().then(setOauthStatus).catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [platform]);
+
+  const oauthReady = !!(oauthStatus?.hasClientId && oauthStatus?.hasClientSecret);
+
+  async function handleGoogleConnect() {
+    setOauthConnecting(true);
+    try {
+      const res = await startOAuthFn({
+        data: {
+          source:     "growthmind" as const,
+          origin:     window.location.origin,
+          returnTo:   window.location.pathname,
+          customerId: /^[\d-]{5,20}$/.test(accountId.trim()) ? accountId.trim() : undefined,
+          label:      label.trim() || undefined,
+        },
+      }) as any;
+      if (res?.url) window.location.href = res.url;
+      else { toast.error("Could not start Google sign-in"); setOauthConnecting(false); }
+    } catch (e: any) {
+      toast.error(e?.message ?? "Could not start Google sign-in");
+      setOauthConnecting(false);
+    }
+  }
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -155,6 +190,31 @@ function AccountModal({ initial, defaultPlatform = "google", onClose, onSave, sa
             </div>
             <p className="text-[10px] text-muted-foreground/50 mt-1">Encrypted with AES-256-GCM before storage — never returned to the browser</p>
           </div>
+
+          {platform === "google" && !isEdit && (
+            <div className="rounded-lg border border-white/[0.08] bg-white/[0.02] p-3 space-y-2">
+              <p className="text-[11px] font-medium">Or connect with Google (recommended)</p>
+              <p className="text-[10px] text-muted-foreground leading-relaxed">
+                Sign in with the Google account that manages your Ads account — no token pasting or
+                Customer ID needed. You'll pick the advertising account after signing in.
+              </p>
+              <Button type="button" size="sm"
+                className="h-7 px-3 text-[11px] gap-1.5 bg-white text-black hover:bg-white/90 w-full justify-center"
+                disabled={!oauthReady || oauthConnecting}
+                onClick={handleGoogleConnect}>
+                {oauthConnecting
+                  ? <Loader2 className="h-3 w-3 animate-spin" />
+                  : <svg className="h-3 w-3" viewBox="0 0 24 24"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.27-4.74 3.27-8.1z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#FBBC05" d="M5.84 14.1c-.22-.66-.35-1.36-.35-2.1s.13-1.44.35-2.1V7.06H2.18A10.97 10.97 0 0 0 1 12c0 1.77.42 3.45 1.18 4.94l3.66-2.84z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"/></svg>}
+                Connect with Google
+              </Button>
+              {!oauthReady && (
+                <p className="text-[10px] text-amber-400/80">
+                  First add your Google OAuth Client ID, Client Secret and Developer Token in{" "}
+                  <a href="/settings/providers/advertising" className="underline">Settings → Providers → Advertising</a>.
+                </p>
+              )}
+            </div>
+          )}
 
           <div className="flex gap-2 pt-1">
             <Button type="button" variant="outline" className="flex-1" onClick={onClose} disabled={saving}>Cancel</Button>
@@ -415,7 +475,10 @@ function AccountDetail({ account, onEdit, onDelete }: {
       {/* Campaign table header */}
       <div className="px-4 py-2.5 flex items-center justify-between border-t border-white/[0.05]">
         <p className="text-xs font-semibold text-muted-foreground uppercase tracking-[0.08em]">
-          Campaigns ({campaigns.length})
+          Manual campaigns ({campaigns.length})
+          <span className="ml-2 normal-case font-normal tracking-normal text-[10px] text-muted-foreground/70">
+            logged by hand — live synced campaigns appear in the panel above
+          </span>
         </p>
         <div className="flex items-center gap-2">
           <Button size="sm" variant="outline" className="h-6 text-[11px] gap-1" onClick={loadRecos} disabled={recosLoading}>
@@ -547,12 +610,13 @@ function AccountDetail({ account, onEdit, onDelete }: {
 
 // ── Platform Card — always shown for all 4 platforms ───────────────────────────
 
-function PlatformCard({ platform, accounts, onConnect, onEdit, onDelete }: {
+function PlatformCard({ platform, accounts, onConnect, onEdit, onDelete, extra }: {
   platform:  typeof PLATFORMS[0];
   accounts:  AdsAccount[];
   onConnect: (platformId: AdsPlatform) => void;
   onEdit:    (a: AdsAccount) => void;
   onDelete:  (id: string) => void;
+  extra?:    React.ReactNode;
 }) {
   const connected = accounts.length > 0;
   const [expanded, setExpanded] = useState(false);
@@ -599,6 +663,9 @@ function PlatformCard({ platform, accounts, onConnect, onEdit, onDelete }: {
         </div>
       </div>
 
+      {/* Platform-specific live panel (Google Ads) */}
+      {extra}
+
       {/* Expanded: list of accounts with campaign detail */}
       {expanded && connected && (
         <div className="border-t border-white/[0.06] divide-y divide-white/[0.04]">
@@ -609,7 +676,13 @@ function PlatformCard({ platform, accounts, onConnect, onEdit, onDelete }: {
                 <LinkIcon className="h-3 w-3 text-muted-foreground/60 shrink-0" />
                 <div className="flex-1 min-w-0">
                   <span className="text-xs font-medium">{acct.label}</span>
-                  <span className="text-[10px] text-muted-foreground ml-2">ID: {acct.account_id}</span>
+                  <span className="text-[10px] text-muted-foreground ml-2">
+                    {acct.account_id?.includes("@")
+                      ? <>Connected as: {acct.account_id}</>
+                      : acct.account_id === "pending-selection"
+                        ? "Account selection required"
+                        : <>Customer ID: {acct.account_id}</>}
+                  </span>
                   {acct.has_token && (
                     <span className="text-[10px] text-emerald-400/60 ml-2 inline-flex items-center gap-0.5">
                       <CheckCircle2 className="h-2.5 w-2.5" /> token
@@ -785,6 +858,23 @@ export function GrowthMindAds() {
   const ackAlertFn    = useServerFn(acknowledgeAdAlert);
 
   const [accountModal,  setAccountModal]  = useState<{ open: boolean; editing: AdsAccount | null; defaultPlatform?: AdsPlatform }>({ open: false, editing: null });
+
+  // Show the result of a "Connect with Google" round-trip (?gads=connected / error)
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const gads = params.get("gads");
+    if (!gads) return;
+    if (gads === "connected") {
+      toast.success("Google Ads connected — pulling live campaign data…");
+      setTimeout(() => { refetch(); refetchSync(); }, 4000);
+    } else {
+      toast.error(params.get("gads_msg") ?? "Google Ads connection failed");
+    }
+    params.delete("gads"); params.delete("gads_msg");
+    const qs = params.toString();
+    window.history.replaceState({}, "", `${window.location.pathname}${qs ? `?${qs}` : ""}`);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const [savingAccount, setSavingAccount] = useState(false);
   const [dismissedErrorIds, setDismissedErrorIds] = useState<Set<string>>(new Set());
 
@@ -965,6 +1055,9 @@ export function GrowthMindAds() {
                 onConnect={platformId => setAccountModal({ open: true, editing: null, defaultPlatform: platformId })}
                 onEdit={a => setAccountModal({ open: true, editing: a })}
                 onDelete={handleDeleteAccount}
+                extra={p.id === "google"
+                  ? <GadsLivePanel onConnectClick={() => setAccountModal({ open: true, editing: null, defaultPlatform: "google" })} />
+                  : undefined}
               />
             ))}
 

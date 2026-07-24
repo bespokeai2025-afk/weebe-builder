@@ -63,35 +63,6 @@ async function getMetaCreds(sb: ReturnType<typeof getAdminClient>, workspaceId: 
   return null;
 }
 
-async function getGoogleCreds(sb: ReturnType<typeof getAdminClient>, workspaceId: string): Promise<{
-  developerToken: string;
-  customerId:     string;
-  accessToken?:   string;
-  refreshToken?:  string;
-  clientId?:      string;
-  clientSecret?:  string;
-} | null> {
-  const { data: ps } = await sb
-    .from("provider_settings")
-    .select("credentials")
-    .eq("workspace_id", workspaceId)
-    .eq("provider_category", "advertising")
-    .eq("provider_name", "google_ads")
-    .maybeSingle();
-
-  const c = (ps as any)?.credentials as Record<string, string> | undefined;
-  if (!c?.developerToken || !c?.customerId) return null;
-  return {
-    developerToken: c.developerToken,
-    customerId:     c.customerId,
-    accessToken:    c.accessToken    || undefined,
-    refreshToken:   c.refreshToken   || undefined,
-    clientId:       c.clientId       || undefined,
-    clientSecret:   c.clientSecret   || undefined,
-    managerId:      c.managerId      || undefined,
-  };
-}
-
 async function getLinkedInCreds(sb: ReturnType<typeof getAdminClient>, workspaceId: string): Promise<{ accessToken: string; accountId: string } | null> {
   const { data: ps } = await sb
     .from("provider_settings")
@@ -291,50 +262,6 @@ async function generateAlerts(
   }
 }
 
-// ── Google OAuth token refresh ─────────────────────────────────────────────────
-
-/**
- * Exchange a Google OAuth refresh token for a fresh access token.
- * Returns the new access token on success, or null if the exchange fails.
- */
-async function refreshGoogleAccessToken(
-  clientId:     string,
-  clientSecret: string,
-  refreshToken: string,
-): Promise<string | null> {
-  try {
-    const params = new URLSearchParams({
-      grant_type:    "refresh_token",
-      client_id:     clientId,
-      client_secret: clientSecret,
-      refresh_token: refreshToken,
-    });
-
-    const resp = await fetch("https://oauth2.googleapis.com/token", {
-      method:  "POST",
-      headers: { "Content-Type": "application/x-www-form-urlencoded" },
-      body:    params.toString(),
-    });
-
-    if (!resp.ok) {
-      const text = await resp.text().catch(() => "");
-      console.error(`[ads-sync] Google token refresh failed (${resp.status}): ${text}`);
-      return null;
-    }
-
-    const json = await resp.json();
-    const newToken: string | undefined = json?.access_token;
-    if (!newToken) {
-      console.error("[ads-sync] Google token refresh response missing access_token");
-      return null;
-    }
-    return newToken;
-  } catch (err: any) {
-    console.error("[ads-sync] Google token refresh error:", err?.message);
-    return null;
-  }
-}
-
 // ── Per-workspace sync ─────────────────────────────────────────────────────────
 
 async function syncWorkspace(sb: ReturnType<typeof getAdminClient>, workspaceId: string): Promise<AdsSyncResult[]> {
@@ -375,76 +302,71 @@ async function syncWorkspace(sb: ReturnType<typeof getAdminClient>, workspaceId:
   }
 
   // ── Google ──────────────────────────────────────────────────────────────────
-  const gCreds = await getGoogleCreds(sb, workspaceId);
-  if (gCreds) {
-    // Attempt to get a fresh access token via OAuth refresh before syncing.
-    // This keeps syncs working beyond the 1-hour access token expiry.
-    if (gCreds.refreshToken && gCreds.clientId && gCreds.clientSecret) {
-      const freshToken = await refreshGoogleAccessToken(
-        gCreds.clientId,
-        gCreds.clientSecret,
-        gCreds.refreshToken,
-      );
-      if (freshToken) {
-        gCreds.accessToken = freshToken;
-        // Write the fresh token back so health checks and subsequent reads see it.
-        try {
-          const { data: psRow } = await sb
-            .from("provider_settings")
-            .select("credentials")
-            .eq("workspace_id", workspaceId)
-            .eq("provider_category", "advertising")
-            .eq("provider_name", "google_ads")
-            .maybeSingle();
+  // Preferred path: the live gads engine (structured runs, date-segmented daily
+  // metrics, overlap prevention). Used whenever an advertising account has been
+  // selected (customer_id present). gads-live-core.server.ts is alias-free, so
+  // it is safe to import from this vite-config-loaded module.
+  let googleHandledByLiveEngine = false;
+  try {
+    const { data: gadsAccounts } = await sb
+      .from("growthmind_ads_accounts")
+      .select("id, customer_id, sync_config")
+      .eq("workspace_id", workspaceId)
+      .eq("platform", "google")
+      .eq("status", "active")
+      .not("customer_id", "is", null);
+    if (gadsAccounts && gadsAccounts.length > 0) {
+      googleHandledByLiveEngine = true;
+      const { runGadsSync } = await import("./gads-live-core.server");
+      for (const acc of gadsAccounts) {
+        // Cadence is configurable per account via sync_config (JSON):
+        //   incrementalMinutes (default 15) — min gap between incremental runs
+        //   historicalHours    (default 24) — gap between 35-day historical refreshes
+        const cfg = ((acc as any).sync_config ?? {}) as Record<string, unknown>;
+        const incMinutes  = Math.max(5, Number(cfg.incrementalMinutes ?? 15) || 15);
+        const histHours   = Math.max(1, Number(cfg.historicalHours ?? 24) || 24);
 
-          if (psRow) {
-            const updated = { ...(psRow as any).credentials, accessToken: freshToken };
-            await sb
-              .from("provider_settings")
-              .update({ credentials: updated })
-              .eq("workspace_id", workspaceId)
-              .eq("provider_category", "advertising")
-              .eq("provider_name", "google_ads");
-          }
-        } catch (writeErr: any) {
-          console.warn("[ads-sync] Could not write refreshed Google token back to DB:", writeErr?.message);
+        const { data: recentRuns } = await sb
+          .from("growthmind_gads_sync_runs")
+          .select("run_type, status, started_at")
+          .eq("account_row_id", (acc as any).id)
+          .eq("status", "success")
+          .order("started_at", { ascending: false })
+          .limit(30);
+        const ageMin = (ts?: string | null) =>
+          ts ? (Date.now() - new Date(ts).getTime()) / 60000 : Infinity;
+        const lastOf = (...types: string[]) =>
+          (recentRuns ?? []).find(r => types.includes((r as any).run_type))?.started_at as string | undefined;
+
+        // Daily historical refresh takes priority; otherwise incremental at the
+        // configured cadence; otherwise skip this tick quietly.
+        let runType: "historical" | "incremental" | null = null;
+        if (ageMin(lastOf("historical", "initial")) >= histHours * 60) runType = "historical";
+        else if (ageMin(lastOf("incremental", "manual", "historical", "initial")) >= incMinutes) runType = "incremental";
+
+        if (!runType) {
+          results.push({ platform: "google", workspaceId, campaignsSynced: 0, spendTotal: 0, impressionsTotal: 0, clicksTotal: 0, conversionsTotal: 0, status: "skipped", error: `Next sync not due yet (every ${incMinutes} min, historical every ${histHours}h)` });
+          continue;
         }
-      } else {
-        // Refresh failed — log a warning and proceed with whatever accessToken
-        // exists. If it is also expired/missing, the API call below will throw
-        // and the existing catch block will record the error gracefully.
-        console.warn(`[ads-sync] workspace ${workspaceId}: Google token refresh failed; attempting sync with existing token`);
+        const r = await runGadsSync(workspaceId, (acc as any).id, runType);
+        results.push({
+          platform: "google", workspaceId,
+          campaignsSynced: r.campaigns, spendTotal: r.spend,
+          impressionsTotal: 0, clicksTotal: 0, conversionsTotal: 0,
+          status: r.ok ? "success" : r.status === "skipped" ? "skipped" : "error",
+          error: r.error,
+        });
       }
     }
+  } catch (err: any) {
+    console.error(`[ads-sync] gads live engine error (ws ${workspaceId}):`, err?.message);
+  }
 
-    try {
-      const { syncGoogleAdsCampaigns } = await import("./ads-sync-google.server");
-      const campaigns = await syncGoogleAdsCampaigns(gCreds);
-      await upsertCampaigns(sb, workspaceId, campaigns);
-
-      const totals = campaigns.reduce(
-        (a, c) => ({ spend: a.spend + c.spend, impressions: a.impressions + c.impressions, clicks: a.clicks + c.clicks, conversions: a.conversions + c.conversions }),
-        { spend: 0, impressions: 0, clicks: 0, conversions: 0 },
-      );
-
-      try {
-        await sb.from("growthmind_ad_sync_log").insert({
-          workspace_id: workspaceId, platform: "google",
-          campaigns_synced: campaigns.length, spend_total: totals.spend,
-          impressions_total: totals.impressions, clicks_total: totals.clicks,
-          conversions_total: totals.conversions, status: "success",
-        });
-      } catch {}
-
-      try { await generateAlerts(sb, workspaceId, "google", campaigns); } catch {}
-
-      results.push({ platform: "google", workspaceId, campaignsSynced: campaigns.length, spendTotal: totals.spend, impressionsTotal: totals.impressions, clicksTotal: totals.clicks, conversionsTotal: totals.conversions, status: "success" });
-    } catch (err: any) {
-      const msg = err?.message ?? String(err);
-      try { await sb.from("growthmind_ad_sync_log").insert({ workspace_id: workspaceId, platform: "google", status: "error", error_message: msg }); } catch {}
-      results.push({ platform: "google", workspaceId, campaignsSynced: 0, spendTotal: 0, impressionsTotal: 0, clicksTotal: 0, conversionsTotal: 0, status: "error", error: msg });
-    }
-  } else {
+  // Google syncs ONLY through the live gads engine above — there is intentionally
+  // no legacy fallback. If OAuth is done but no advertising account has been
+  // selected yet, we record an honest "skipped" so the health surface shows
+  // the true state instead of pretending an old sync path still works.
+  if (!googleHandledByLiveEngine) {
     results.push({ platform: "google", workspaceId, campaignsSynced: 0, spendTotal: 0, impressionsTotal: 0, clicksTotal: 0, conversionsTotal: 0, status: "skipped" });
   }
 

@@ -1,5 +1,5 @@
 import { createFileRoute, useSearch } from "@tanstack/react-router";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { Fragment, useState, useEffect, useMemo } from "react";
 import {
@@ -14,6 +14,7 @@ import {
   PlayCircle,
   RefreshCw,
   StickyNote,
+  Trash2,
   X,
   Building2,
   Loader2,
@@ -27,7 +28,18 @@ import { LoadingProgress } from "@/components/dashboard/LoadingProgress";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { WbahCallCountBadge, WbahBookedStickyBadge, wbahAgentColorMapFromLeads } from "@/components/dashboard/WbahNotesButton";
 import { cn } from "@/lib/utils";
-import { listCalls, listTestCalls } from "@/lib/dashboard/calls.functions";
+import { listCalls, listTestCalls, deleteTestCalls } from "@/lib/dashboard/calls.functions";
+import { Checkbox } from "@/components/ui/checkbox";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { listWbahCallsLive, getWbahCallDetail, getWbahContactCallHistory } from "@/lib/integrations/webespokeEnterprise/wbah-workspace.server";
 import { NotesBookingSheet } from "@/components/dashboard/NotesBookingSheet";
 import type { NotesEntityType } from "@/components/dashboard/NotesBookingSheet";
@@ -98,7 +110,15 @@ function channelLabel(fromNumber?: string | null, callType?: string | null) {
   return "phone_call";
 }
 
-function TestCallRow({ c }: { c: ReturnType<typeof listTestCalls> extends Promise<infer T> ? T extends Array<infer U> ? U : never : never }) {
+function TestCallRow({
+  c,
+  selected,
+  onToggleSelect,
+}: {
+  c: ReturnType<typeof listTestCalls> extends Promise<infer T> ? T extends Array<infer U> ? U : never : never;
+  selected: boolean;
+  onToggleSelect: (id: string) => void;
+}) {
   const [expanded, setExpanded] = useState(false);
   const [recordingPlayer, setRecordingPlayer] = useState<{ url: string; contact: string } | null>(null);
   const label = c.agent_name ?? c.agent_id ?? "Builder test";
@@ -120,6 +140,14 @@ function TestCallRow({ c }: { c: ReturnType<typeof listTestCalls> extends Promis
         className="group h-8 border-b border-white/[0.04] last:border-0 align-middle hover:bg-white/[0.02] transition-colors cursor-pointer"
         onClick={() => c.transcript && setExpanded((p) => !p)}
       >
+        <td className="px-2 py-0.5" onClick={(e) => e.stopPropagation()}>
+          <Checkbox
+            checked={selected}
+            onCheckedChange={() => onToggleSelect(c.id)}
+            aria-label="Select test call"
+            className="h-3.5 w-3.5"
+          />
+        </td>
         <td className="px-2 py-0.5">
           {c.transcript ? (
             expanded ? (
@@ -197,7 +225,7 @@ function TestCallRow({ c }: { c: ReturnType<typeof listTestCalls> extends Promis
       </tr>
       {expanded && c.transcript && (
         <tr className="border-b border-white/[0.04]">
-          <td colSpan={14} className="px-4 pb-3 pt-1">
+          <td colSpan={15} className="px-4 pb-3 pt-1">
             <div className="rounded-lg bg-black/30 border border-white/[0.06] p-3 font-mono text-[11px] leading-relaxed text-muted-foreground whitespace-pre-wrap max-h-64 overflow-y-auto">
               {c.transcript}
             </div>
@@ -358,6 +386,39 @@ function CallsPage() {
     throwOnError:         false,
   });
   const testRows = testQ.data ?? [];
+
+  // Test-call multi-select delete
+  const qc = useQueryClient();
+  const deleteTestFn = useServerFn(deleteTestCalls);
+  const [selectedTestIds, setSelectedTestIds] = useState<Set<string>>(new Set());
+  const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
+  const toggleTestSelect = (id: string) =>
+    setSelectedTestIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  // Prune selections for rows that disappeared after a refetch.
+  useEffect(() => {
+    setSelectedTestIds((prev) => {
+      if (prev.size === 0) return prev;
+      const ids = new Set(testRows.map((r) => r.id));
+      const next = new Set(Array.from(prev).filter((id) => ids.has(id)));
+      return next.size === prev.size ? prev : next;
+    });
+  }, [testRows]);
+  const allTestSelected = testRows.length > 0 && testRows.every((r) => selectedTestIds.has(r.id));
+  const toggleTestSelectAll = () =>
+    setSelectedTestIds(allTestSelected ? new Set() : new Set(testRows.map((r) => r.id)));
+  const deleteTestMutation = useMutation({
+    mutationFn: (ids: string[]) => deleteTestFn({ data: { ids } }),
+    onSuccess: () => {
+      setSelectedTestIds(new Set());
+      setConfirmDeleteOpen(false);
+      qc.invalidateQueries({ queryKey: ["test-calls"] });
+    },
+  });
 
   const completed = rows.filter((r) => r.call_status === "completed").length;
   const failed = rows.filter((r) => ["failed", "no_answer", "busy"].includes(r.call_status)).length;
@@ -1099,6 +1160,69 @@ function CallsPage() {
             />
           </div>
 
+          {/* Bulk delete bar */}
+          {selectedTestIds.size > 0 && (
+            <div className="flex items-center justify-between rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2">
+              <span className="text-xs text-muted-foreground">
+                {selectedTestIds.size} test call{selectedTestIds.size === 1 ? "" : "s"} selected
+              </span>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 text-xs"
+                  onClick={() => setSelectedTestIds(new Set())}
+                  disabled={deleteTestMutation.isPending}
+                >
+                  Clear
+                </Button>
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  className="h-7 text-xs"
+                  onClick={() => setConfirmDeleteOpen(true)}
+                  disabled={deleteTestMutation.isPending}
+                >
+                  {deleteTestMutation.isPending ? (
+                    <Loader2 className="mr-1 h-3 w-3 animate-spin" />
+                  ) : (
+                    <Trash2 className="mr-1 h-3 w-3" />
+                  )}
+                  Delete selected
+                </Button>
+              </div>
+            </div>
+          )}
+          {deleteTestMutation.isError && (
+            <p className="text-xs text-destructive">
+              Failed to delete: {(deleteTestMutation.error as Error)?.message ?? "unknown error"}
+            </p>
+          )}
+
+          <AlertDialog open={confirmDeleteOpen} onOpenChange={setConfirmDeleteOpen}>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Delete {selectedTestIds.size} test call{selectedTestIds.size === 1 ? "" : "s"}?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  This permanently removes the selected test calls, including their transcripts and recordings links. Live calls are not affected. This cannot be undone.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel disabled={deleteTestMutation.isPending}>Cancel</AlertDialogCancel>
+                <AlertDialogAction
+                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                  disabled={deleteTestMutation.isPending}
+                  onClick={(e) => {
+                    e.preventDefault();
+                    deleteTestMutation.mutate(Array.from(selectedTestIds));
+                  }}
+                >
+                  {deleteTestMutation.isPending ? "Deleting…" : "Delete"}
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+
           {/* Test calls table */}
           <div className="min-w-0 overflow-hidden rounded-xl border border-white/[0.06] bg-card/60">
             {testRows.length === 0 ? (
@@ -1112,6 +1236,14 @@ function CallsPage() {
                 <table className="w-full text-xs">
                   <thead>
                     <tr className="border-b border-white/[0.06] bg-card/30">
+                      <th className="w-8 px-2 py-1">
+                        <Checkbox
+                          checked={allTestSelected}
+                          onCheckedChange={toggleTestSelectAll}
+                          aria-label="Select all test calls"
+                          className="h-3.5 w-3.5"
+                        />
+                      </th>
                       <th className="w-6 px-2 py-1" />
                       <th className="px-2 py-1 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Agent</th>
                       <th className="px-2 py-1 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Duration</th>
@@ -1130,7 +1262,12 @@ function CallsPage() {
                   </thead>
                   <tbody>
                     {testRows.map((c) => (
-                      <TestCallRow key={c.id} c={c} />
+                      <TestCallRow
+                        key={c.id}
+                        c={c}
+                        selected={selectedTestIds.has(c.id)}
+                        onToggleSelect={toggleTestSelect}
+                      />
                     ))}
                   </tbody>
                 </table>

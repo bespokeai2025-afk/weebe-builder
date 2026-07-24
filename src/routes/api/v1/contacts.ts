@@ -86,6 +86,15 @@ export const Route = createFileRoute("/api/v1/contacts")({
           .then(m => m.fireWebhookEvent(workspaceId, "lead.created", data))
           .catch(() => {});
 
+        // New-lead notification — best-effort, never throws.
+        import("@/lib/lead-gen/lead-notify.server")
+          .then(m => m.notifyNewLead({
+            workspaceId, leadId: data.id,
+            name: contactName ?? null, phone: phone ?? null, email: email ?? null,
+            source: "API (contact)",
+          }))
+          .catch(() => {});
+
         // Auto-call automation — best-effort, never throws.
         const { triggerAutoCallForNewLead } = await import("@/lib/qualification/auto-call.server");
         await triggerAutoCallForNewLead(sb(), { workspaceId, leadId: data.id });

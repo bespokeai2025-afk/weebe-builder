@@ -373,6 +373,9 @@ export const sendStrategyToHiveMind = createServerFn({ method: "POST" })
 
     if (stratErr || !strat) throw new Error("Strategy not found");
 
+    const { assertProposalAllowed } = await import("@/lib/hivemind/mode-gate.server");
+    await assertProposalAllowed(sb, workspaceId);
+
     const { data: action, error: actionErr } = await sb
       .from("hivemind_actions")
       .insert({

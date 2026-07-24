@@ -853,8 +853,9 @@ export const autoQueueBlogDrafts = createServerFn({ method: "POST" })
 
     const insertedId = (inserted as any)?.id;
 
-    // Create hivemind approval action
-    if (insertedId) {
+    // Create hivemind approval action (skipped in observe mode)
+    const { isProposalAllowed } = await import("@/lib/hivemind/mode-gate.server");
+    if (insertedId && (await isProposalAllowed(sb, workspaceId))) {
       await sb.from("hivemind_actions").insert({
         workspace_id: workspaceId,
         action_type:  "blog_draft",

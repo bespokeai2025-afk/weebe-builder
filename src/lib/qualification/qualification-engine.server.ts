@@ -223,6 +223,16 @@ export async function applyQualificationToLead(
     console.error("[QUALIFY] Auto-create lead failed", insertErr.message, { phone, workspaceId });
   } else {
     console.log("[QUALIFY] Lead auto-created", { leadId: inserted?.id, status: finalStatus, score: finalScore });
+    if (inserted?.id) {
+      try {
+        const { notifyNewLead } = await import("@/lib/lead-gen/lead-notify.server");
+        await notifyNewLead({
+          workspaceId, leadId: inserted.id as string,
+          name: fullName, phone,
+          source: "Qualification call",
+        });
+      } catch { /* best-effort */ }
+    }
     if (finalStatus === "qualified") {
       await notifyQualifiedLead(workspaceId, fullName, phone, finalScore);
     }

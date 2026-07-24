@@ -922,6 +922,9 @@ export const resolveWbahUiAccess = createServerFn({ method: "GET" })
       .eq("id", context.workspaceId)
       .maybeSingle();
 
+    // WBAH-specific UI must only appear when the ACTIVE workspace is WBAH.
+    // Being a platform admin or WBAH member in another workspace must not
+    // pull WBAH tabs/data into that workspace's pages.
     return {
       isWbah: data?.slug === WBAH_SLUG,
     };

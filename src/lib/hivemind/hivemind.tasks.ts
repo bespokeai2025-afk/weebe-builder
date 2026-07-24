@@ -425,6 +425,57 @@ async function scanGrowthMind(sb: any, workspaceId: string): Promise<ScanFinding
     });
   }
 
+  // 1b. Live Google Ads (GrowthMind) — surface material pending recommendations
+  // and a connection that needs attention as executive findings.
+  try {
+    const [gadsRecsRes, gadsAcctRes] = await Promise.all([
+      sb.from("growthmind_gads_recommendations")
+        .select("id, title, priority, section, campaign_name, recommended_action, expected_benefit, status")
+        .eq("workspace_id", workspaceId)
+        .eq("status", "new")
+        .in("priority", ["critical", "high"])
+        .order("created_at", { ascending: false })
+        .limit(5),
+      sb.from("growthmind_ads_accounts")
+        .select("id, label, connection_state, sync_status, sync_error")
+        .eq("workspace_id", workspaceId)
+        .eq("platform", "google")
+        .eq("status", "active")
+        .limit(1)
+        .maybeSingle(),
+    ]);
+    for (const rec of gadsRecsRes.data ?? []) {
+      results.push({
+        trigger_type: "gads_recommendation",
+        entity_type:  "growthmind_gads",
+        entity_id:    rec.id,
+        entity_name:  rec.campaign_name ?? "Google Ads account",
+        title:        rec.title,
+        description:  `${rec.recommended_action}${rec.expected_benefit ? ` Expected benefit: ${rec.expected_benefit}.` : ""} Review and approve it in GrowthMind → Ads — no campaign change happens without your approval.`,
+        priority:     (rec.priority === "critical" ? "critical" : "high") as TaskPriority,
+        severity:     (rec.priority === "critical" ? "critical" : "warning") as EventSeverity,
+        metadata:     { section: rec.section, recommendation_id: rec.id, href: "/growthmind/ads" },
+      });
+    }
+    const gadsAcct = gadsAcctRes.data;
+    if (gadsAcct && (gadsAcct.sync_status === "error" || gadsAcct.connection_state === "oauth_connected" || gadsAcct.connection_state === "api_verified")) {
+      const needsSelection = gadsAcct.connection_state !== "sync_healthy" && gadsAcct.sync_status !== "error";
+      results.push({
+        trigger_type: "gads_connection_attention",
+        entity_type:  "growthmind_gads",
+        entity_id:    gadsAcct.id,
+        entity_name:  gadsAcct.label ?? "Google Ads",
+        title:        needsSelection ? "Google Ads setup is incomplete" : "Google Ads sync needs attention",
+        description:  needsSelection
+          ? "Google is connected but no advertising account is selected yet — open GrowthMind → Ads and choose the client account so live campaign data can sync."
+          : `The Google Ads sync is failing${gadsAcct.sync_error ? `: ${String(gadsAcct.sync_error).slice(0, 160)}` : ""}. Open GrowthMind → Ads to reconnect or re-sync.`,
+        priority:     "high",
+        severity:     "warning",
+        metadata:     { connection_state: gadsAcct.connection_state, sync_status: gadsAcct.sync_status, href: "/growthmind/ads" },
+      });
+    }
+  } catch { /* live gads tables optional */ }
+
   // 2. Ads poor ROAS
   const activeCampaigns = adsRes.data ?? [];
   const poorRoas = activeCampaigns.filter(
@@ -706,6 +757,12 @@ export const runHiveMindScan = createServerFn({ method: "POST" })
     const workspaceId = context.workspaceId;
     if (!workspaceId) throw new Error("No workspace");
 
+    // Observe mode: HiveMind watches only — scanner must not create tasks/events.
+    const { isProposalAllowed } = await import("@/lib/hivemind/mode-gate.server");
+    if (!(await isProposalAllowed(sb, workspaceId))) {
+      return { newTasks: 0, newEvents: 0, findings: 0, blocked: "observe" as const };
+    }
+
     const findings = await scanPlatform(sb, workspaceId);
 
     const oneDayAgo = new Date(); oneDayAgo.setDate(oneDayAgo.getDate() - 1);
@@ -860,6 +917,8 @@ export const createHiveMindTask = createServerFn({ method: "POST" })
   )
   .handler(async ({ context, data }) => {
     const sb = context.supabase as any;
+    const { assertProposalAllowed } = await import("@/lib/hivemind/mode-gate.server");
+    await assertProposalAllowed(sb, context.workspaceId!);
     const { data: row, error } = await sb.from("hivemind_tasks")
       .insert({ workspace_id: context.workspaceId, ...data, status: "suggested", source: "manual" })
       .select()

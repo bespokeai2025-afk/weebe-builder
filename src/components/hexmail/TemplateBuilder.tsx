@@ -33,6 +33,7 @@ import {
   ScanText,
   Braces,
   Trash2,
+  LayoutTemplate,
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -60,8 +61,11 @@ import {
   type VarType,
   type EmailAttach,
   type DocHeader,
+  type PdfOverlayFieldDef,
 } from "@/lib/hexmail/vars-helpers";
 import { DocumentPreview } from "@/components/hexmail/DocumentPreview";
+import { PdfOverlayDesigner } from "@/components/documents/PdfOverlayDesigner";
+import { renderHexmailTemplatePdf } from "@/lib/hexmail/template-pdf.functions";
 
 // ── Constants ──────────────────────────────────────────────────────────────────
 
@@ -173,6 +177,11 @@ export function TemplateBuilder({ open, template, defaultType, onClose, onSaved 
   const [docHeader,     setDocHeader]     = useState<DocHeader>({});
   const [isLogoUpload,  setIsLogoUpload]  = useState(false);
 
+  // PDF overlay layout (shared engine with AccountsMind invoice templates)
+  const [overlayFields,  setOverlayFields]  = useState<PdfOverlayFieldDef[]>([]);
+  const [designerOpen,   setDesignerOpen]   = useState(false);
+  const [isPdfRendering, setIsPdfRendering] = useState(false);
+
   // AI
   const [aiInstruction,   setAiInstruction]   = useState("");
   const [previousBody,    setPreviousBody]    = useState<string | null>(null);
@@ -203,9 +212,10 @@ export function TemplateBuilder({ open, template, defaultType, onClose, onSaved 
 
     if (DOC_TYPES.has(resolvedType)) {
       // Doc types: parse vars + header from content sentinel
-      const { body: parsedBody, vars: parsedVars, header: parsedHeader } = splitContent(rawContent);
+      const { body: parsedBody, vars: parsedVars, header: parsedHeader, overlay: parsedOverlay } = splitContent(rawContent);
       setBody(parsedBody);
       setDocHeader(parsedHeader);
+      setOverlayFields(parsedOverlay);
       const detected = detectVars(parsedBody);
       setVars(mergeDetected(parsedVars, detected));
       const fills: Record<string, string> = {};
@@ -245,6 +255,7 @@ export function TemplateBuilder({ open, template, defaultType, onClose, onSaved 
       setEmailAttachName(attach?.name ?? null);
       setEmailAttachMime(attach?.mime ?? "");
       setDocHeader({});
+      setOverlayFields([]);
     } else {
       // SMS / WhatsApp
       setBody(rawContent);
@@ -258,6 +269,7 @@ export function TemplateBuilder({ open, template, defaultType, onClose, onSaved 
       setEmailAttachName(null);
       setEmailAttachMime("");
       setDocHeader({});
+      setOverlayFields([]);
     }
   }, [open, template, defaultType]);
 
@@ -276,7 +288,7 @@ export function TemplateBuilder({ open, template, defaultType, onClose, onSaved 
   const save = useMutation({
     mutationFn: () => {
       const content = isDocType
-        ? joinContent(body, vars, docHeader)
+        ? joinContent(body, vars, docHeader, overlayFields)
         : isEmail
           ? joinEmailContent(body, emailAttach)
           : body;
@@ -468,6 +480,40 @@ export function TemplateBuilder({ open, template, defaultType, onClose, onSaved 
 
   const allVarKeys = Object.keys(vars);
 
+  // ── PDF overlay layout (shared engine) ──────────────────────────────────────
+
+  const isPdfFile = fileMime === "application/pdf"
+    || (fileName?.toLowerCase().endsWith(".pdf") ?? false)
+    || /\.pdf($|\?)/i.test(fileUrl ?? "");
+
+  const overlayFieldOptions = allVarKeys.map((k) => ({
+    tag: k,
+    label: vars[k]?.label || k,
+  }));
+
+  const downloadFilledPdf = async () => {
+    if (!template?.id) return;
+    setIsPdfRendering(true);
+    try {
+      const res: any = await renderHexmailTemplatePdf({
+        data: { templateId: template.id, fills: previewFills },
+      });
+      if (!res?.ok) { toast.error(res?.error ?? "PDF render failed"); return; }
+      const bytes = Uint8Array.from(atob(res.base64), (c) => c.charCodeAt(0));
+      const blob = new Blob([bytes], { type: "application/pdf" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = res.fileName ?? "document.pdf";
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (e: any) {
+      toast.error(e?.message ?? "PDF render failed");
+    } finally {
+      setIsPdfRendering(false);
+    }
+  };
+
   // ── Render ───────────────────────────────────────────────────────────────────
 
   return (
@@ -634,9 +680,33 @@ export function TemplateBuilder({ open, template, defaultType, onClose, onSaved 
                 </Label>
 
                 {fileUrl ? (
-                  <div className="flex items-center gap-3 rounded-lg border bg-muted/30 px-3 py-2.5">
+                  <div className="flex items-center gap-3 rounded-lg border bg-muted/30 px-3 py-2.5 flex-wrap">
                     <FileText className="h-5 w-5 text-muted-foreground shrink-0" />
-                    <span className="flex-1 text-sm truncate font-medium">{fileName}</span>
+                    <span className="flex-1 text-sm truncate font-medium min-w-[120px]">{fileName}</span>
+                    {isPdfFile && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-7 gap-1.5 text-xs shrink-0"
+                        onClick={() => setDesignerOpen(true)}
+                      >
+                        <LayoutTemplate className="h-3 w-3" />
+                        {overlayFields.length > 0 ? `PDF Layout (${overlayFields.length})` : "PDF Layout"}
+                      </Button>
+                    )}
+                    {isPdfFile && overlayFields.length > 0 && template?.id && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-7 gap-1.5 text-xs shrink-0"
+                        onClick={downloadFilledPdf}
+                        disabled={isPdfRendering}
+                      >
+                        {isPdfRendering
+                          ? <><Loader2 className="h-3 w-3 animate-spin" /> Rendering…</>
+                          : <><Download className="h-3 w-3" /> Filled PDF</>}
+                      </Button>
+                    )}
                     <Button
                       size="sm"
                       variant="outline"
@@ -1019,6 +1089,23 @@ export function TemplateBuilder({ open, template, defaultType, onClose, onSaved 
           </Button>
         </DialogFooter>
       </DialogContent>
+
+      {/* PDF overlay layout designer — shared engine with invoice templates */}
+      {designerOpen && fileUrl && (
+        <PdfOverlayDesigner
+          open={designerOpen}
+          onClose={() => setDesignerOpen(false)}
+          title={`PDF Layout — ${name || "Template"}`}
+          availableFields={overlayFieldOptions}
+          initialFields={overlayFields}
+          loadPdfUrl={async () => fileUrl}
+          onSave={async (fields) => {
+            setOverlayFields(fields as PdfOverlayFieldDef[]);
+            toast.success("Layout updated — remember to save the template");
+            return true;
+          }}
+        />
+      )}
     </Dialog>
   );
 }

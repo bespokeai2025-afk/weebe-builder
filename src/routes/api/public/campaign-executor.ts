@@ -31,6 +31,7 @@ import { runCMOAnalysisTick } from "@/lib/growthmind/cmo-analysis-tick";
 import { runAdsSyncTick } from "@/lib/growthmind/growthmind.ads-sync-tick";
 import { runAccountsMindTick } from "@/lib/accountsmind/executor";
 import { runProactiveTick } from "@/lib/hivemind/proactive-engine";
+import { runTrendDiscoveryTick } from "@/lib/growthmind/trend-discovery.server";
 
 export const Route = createFileRoute("/api/public/campaign-executor")({
   server: {
@@ -51,13 +52,17 @@ export const Route = createFileRoute("/api/public/campaign-executor")({
         }
 
         try {
-          const [campaignTick, blogTick, cmoTick, adsTick, accountsTick, proactiveTick] = await Promise.all([
+          const [campaignTick, blogTick, cmoTick, adsTick, accountsTick, proactiveTick, trendTick] = await Promise.all([
             runCampaignTick(),
             runBlogDraftTick(),
             runCMOAnalysisTick(),
             runAdsSyncTick(),
             runAccountsMindTick(),
             runProactiveTick(),
+            runTrendDiscoveryTick().catch((e: any) => {
+              console.error("[trend-scout] tick failed:", e?.message ?? e);
+              return { ran: 0, skipped: 0, totalNew: 0 };
+            }),
           ]);
 
           if (campaignTick.error) {
@@ -80,6 +85,11 @@ export const Route = createFileRoute("/api/public/campaign-executor")({
           if (adsTick.synced > 0 || adsTick.errors > 0) {
             console.log(
               `[ads-sync-tick] synced=${adsTick.synced} errors=${adsTick.errors} skipped=${adsTick.skipped}`,
+            );
+          }
+          if (trendTick.ran > 0) {
+            console.log(
+              `[trend-scout-tick] ran=${trendTick.ran} skipped=${trendTick.skipped} newItems=${trendTick.totalNew}`,
             );
           }
           if (accountsTick.scanned > 0) {
@@ -157,6 +167,54 @@ export const Route = createFileRoute("/api/public/campaign-executor")({
             }
           } catch (wbahErr: any) {
             console.warn("[wbah-campaign-runs] tick failed:", wbahErr?.message ?? wbahErr);
+          }
+
+          // GrowthMind content publishing (Meta reels/feed jobs with backoff
+          // retries). Best-effort — never blocks the tick.
+          try {
+            const { runContentPublishTick } = await import(
+              "@/lib/growthmind/meta-content-publish.server"
+            );
+            const pub = await runContentPublishTick();
+            if (pub.processed > 0) {
+              console.log(`[content-publish] processed=${pub.processed} published=${pub.published}`);
+            }
+          } catch (pubErr: any) {
+            console.warn("[content-publish] tick failed:", pubErr?.message ?? pubErr);
+          }
+
+          // HiveMind executive event reconciliation + classification.
+          // CAS-claimed per workspace/job cadence. Best-effort — never blocks
+          // the tick.
+          try {
+            const { runExecutiveEventsTick } = await import(
+              "@/lib/hivemind/executive-reconciliation.server"
+            );
+            const execEvents = await runExecutiveEventsTick();
+            if (execEvents.jobsRun > 0 || execEvents.eventsPublished > 0 || execEvents.eventsClassified > 0) {
+              console.log(
+                `[exec-events] ws=${execEvents.workspacesScanned} jobs=${execEvents.jobsRun} published=${execEvents.eventsPublished} classified=${execEvents.eventsClassified} errors=${execEvents.errors}`,
+              );
+            }
+          } catch (execErr: any) {
+            console.warn("[exec-events] tick failed:", execErr?.message ?? execErr);
+          }
+
+          // Supabase database health watchdog — probes project health and
+          // emails platform admins on outage/recovery. Best-effort — never
+          // blocks the tick.
+          try {
+            const { runDbHealthWatchdogTick } = await import(
+              "@/lib/maintenance/db-health-watchdog.server"
+            );
+            const watchdog = await runDbHealthWatchdogTick();
+            if (watchdog.status === "unhealthy" || watchdog.alerted) {
+              console.log(
+                `[db-watchdog] status=${watchdog.status} alerted=${watchdog.alerted}`,
+              );
+            }
+          } catch (wdErr: any) {
+            console.warn("[db-watchdog] tick failed:", wdErr?.message ?? wdErr);
           }
 
           // Scheduled analytics reports (once-per-tick due check). Best-effort —

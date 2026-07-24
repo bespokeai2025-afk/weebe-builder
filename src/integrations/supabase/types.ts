@@ -70,6 +70,92 @@ export type Database = {
           },
         ]
       }
+      accountsmind_client_service_prices: {
+        Row: {
+          created_at: string
+          currency: string | null
+          id: string
+          note: string
+          service_id: string
+          unit_price_cents: number
+          updated_at: string
+          workspace_id: string
+        }
+        Insert: {
+          created_at?: string
+          currency?: string | null
+          id?: string
+          note?: string
+          service_id: string
+          unit_price_cents: number
+          updated_at?: string
+          workspace_id: string
+        }
+        Update: {
+          created_at?: string
+          currency?: string | null
+          id?: string
+          note?: string
+          service_id?: string
+          unit_price_cents?: number
+          updated_at?: string
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "accountsmind_client_service_prices_service_id_fkey"
+            columns: ["service_id"]
+            isOneToOne: false
+            referencedRelation: "accountsmind_services"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      accountsmind_credit_notes: {
+        Row: {
+          amount_cents: number
+          created_at: string
+          created_by_user_id: string | null
+          credit_note_number: string
+          currency: string
+          id: string
+          invoice_id: string
+          kind: string
+          reason: string
+          status: string
+          updated_at: string
+          workspace_id: string
+        }
+        Insert: {
+          amount_cents: number
+          created_at?: string
+          created_by_user_id?: string | null
+          credit_note_number: string
+          currency?: string
+          id?: string
+          invoice_id: string
+          kind?: string
+          reason: string
+          status?: string
+          updated_at?: string
+          workspace_id: string
+        }
+        Update: {
+          amount_cents?: number
+          created_at?: string
+          created_by_user_id?: string | null
+          credit_note_number?: string
+          currency?: string
+          id?: string
+          invoice_id?: string
+          kind?: string
+          reason?: string
+          status?: string
+          updated_at?: string
+          workspace_id?: string
+        }
+        Relationships: []
+      }
       accountsmind_field_defs: {
         Row: {
           appears_in: string
@@ -192,23 +278,148 @@ export type Database = {
           },
         ]
       }
+      accountsmind_invoice_audit_log: {
+        Row: {
+          action: string
+          actor_user_id: string | null
+          created_at: string
+          detail_json: Json
+          id: string
+          invoice_id: string | null
+        }
+        Insert: {
+          action: string
+          actor_user_id?: string | null
+          created_at?: string
+          detail_json?: Json
+          id?: string
+          invoice_id?: string | null
+        }
+        Update: {
+          action?: string
+          actor_user_id?: string | null
+          created_at?: string
+          detail_json?: Json
+          id?: string
+          invoice_id?: string | null
+        }
+        Relationships: []
+      }
+      accountsmind_invoice_payments: {
+        Row: {
+          amount_cents: number
+          created_at: string
+          created_by_user_id: string | null
+          currency: string
+          id: string
+          invoice_id: string
+          method: string
+          notes: string
+          paid_on: string
+          reference: string
+        }
+        Insert: {
+          amount_cents: number
+          created_at?: string
+          created_by_user_id?: string | null
+          currency?: string
+          id?: string
+          invoice_id: string
+          method?: string
+          notes?: string
+          paid_on?: string
+          reference?: string
+        }
+        Update: {
+          amount_cents?: number
+          created_at?: string
+          created_by_user_id?: string | null
+          currency?: string
+          id?: string
+          invoice_id?: string
+          method?: string
+          notes?: string
+          paid_on?: string
+          reference?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "accountsmind_invoice_payments_invoice_id_fkey"
+            columns: ["invoice_id"]
+            isOneToOne: false
+            referencedRelation: "accountsmind_invoices"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       accountsmind_invoice_settings: {
         Row: {
+          default_currency: string
+          default_due_days: number
+          default_payment_terms: string
+          default_tax_rate_percent: number
           from_address: string
+          from_company_number: string
+          from_email: string
+          from_legal_name: string
+          from_logo_path: string
           from_name: string
+          from_phone: string
+          from_tax_number: string
+          from_vat_number: string
+          from_website: string
           id: number
+          invoice_footer: string
+          number_include_year: boolean
+          number_pad_width: number
+          number_prefix: string
+          signatory_name: string
           updated_at: string
         }
         Insert: {
+          default_currency?: string
+          default_due_days?: number
+          default_payment_terms?: string
+          default_tax_rate_percent?: number
           from_address?: string
+          from_company_number?: string
+          from_email?: string
+          from_legal_name?: string
+          from_logo_path?: string
           from_name?: string
+          from_phone?: string
+          from_tax_number?: string
+          from_vat_number?: string
+          from_website?: string
           id?: number
+          invoice_footer?: string
+          number_include_year?: boolean
+          number_pad_width?: number
+          number_prefix?: string
+          signatory_name?: string
           updated_at?: string
         }
         Update: {
+          default_currency?: string
+          default_due_days?: number
+          default_payment_terms?: string
+          default_tax_rate_percent?: number
           from_address?: string
+          from_company_number?: string
+          from_email?: string
+          from_legal_name?: string
+          from_logo_path?: string
           from_name?: string
+          from_phone?: string
+          from_tax_number?: string
+          from_vat_number?: string
+          from_website?: string
           id?: number
+          invoice_footer?: string
+          number_include_year?: boolean
+          number_pad_width?: number
+          number_prefix?: string
+          signatory_name?: string
           updated_at?: string
         }
         Relationships: []
@@ -216,46 +427,68 @@ export type Database = {
       accountsmind_invoice_templates: {
         Row: {
           created_at: string
+          fields_json: Json
           file_name: string
           id: string
           name: string
           placeholders_json: Json
           storage_path: string
+          template_type: string
           uploaded_by_user_id: string | null
         }
         Insert: {
           created_at?: string
+          fields_json?: Json
           file_name: string
           id?: string
           name: string
           placeholders_json?: Json
           storage_path: string
+          template_type?: string
           uploaded_by_user_id?: string | null
         }
         Update: {
           created_at?: string
+          fields_json?: Json
           file_name?: string
           id?: string
           name?: string
           placeholders_json?: Json
           storage_path?: string
+          template_type?: string
           uploaded_by_user_id?: string | null
         }
         Relationships: []
       }
       accountsmind_invoices: {
         Row: {
+          amount_paid_cents: number
           client_name: string
+          client_reference: string
           created_at: string
+          credited_cents: number
           currency: string
+          customer_notes: string
           data_json: Json
+          discount_cents: number
           due_date: string | null
           generated_by_user_id: string | null
           id: string
+          internal_notes: string
           invoice_month: string
           invoice_number: string
+          is_imported: boolean
+          issue_date: string | null
+          last_emailed_at: string | null
+          last_emailed_to: string | null
           line_items_json: Json
           paid_at: string | null
+          payment_profile_id: string | null
+          payment_terms: string
+          po_number: string
+          recurring_id: string | null
+          sent_at: string | null
+          source: string
           status: string
           status_updated_at: string | null
           storage_path: string
@@ -264,20 +497,37 @@ export type Database = {
           tax_rate_percent: number
           template_id: string | null
           total_cents: number
+          voided_at: string | null
           workspace_id: string
         }
         Insert: {
+          amount_paid_cents?: number
           client_name: string
+          client_reference?: string
           created_at?: string
+          credited_cents?: number
           currency?: string
+          customer_notes?: string
           data_json?: Json
+          discount_cents?: number
           due_date?: string | null
           generated_by_user_id?: string | null
           id?: string
+          internal_notes?: string
           invoice_month: string
           invoice_number: string
+          is_imported?: boolean
+          issue_date?: string | null
+          last_emailed_at?: string | null
+          last_emailed_to?: string | null
           line_items_json?: Json
           paid_at?: string | null
+          payment_profile_id?: string | null
+          payment_terms?: string
+          po_number?: string
+          recurring_id?: string | null
+          sent_at?: string | null
+          source?: string
           status?: string
           status_updated_at?: string | null
           storage_path: string
@@ -286,20 +536,37 @@ export type Database = {
           tax_rate_percent?: number
           template_id?: string | null
           total_cents?: number
+          voided_at?: string | null
           workspace_id: string
         }
         Update: {
+          amount_paid_cents?: number
           client_name?: string
+          client_reference?: string
           created_at?: string
+          credited_cents?: number
           currency?: string
+          customer_notes?: string
           data_json?: Json
+          discount_cents?: number
           due_date?: string | null
           generated_by_user_id?: string | null
           id?: string
+          internal_notes?: string
           invoice_month?: string
           invoice_number?: string
+          is_imported?: boolean
+          issue_date?: string | null
+          last_emailed_at?: string | null
+          last_emailed_to?: string | null
           line_items_json?: Json
           paid_at?: string | null
+          payment_profile_id?: string | null
+          payment_terms?: string
+          po_number?: string
+          recurring_id?: string | null
+          sent_at?: string | null
+          source?: string
           status?: string
           status_updated_at?: string | null
           storage_path?: string
@@ -308,9 +575,17 @@ export type Database = {
           tax_rate_percent?: number
           template_id?: string | null
           total_cents?: number
+          voided_at?: string | null
           workspace_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "accountsmind_invoices_payment_profile_id_fkey"
+            columns: ["payment_profile_id"]
+            isOneToOne: false
+            referencedRelation: "accountsmind_payment_profiles"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "accountsmind_invoices_template_id_fkey"
             columns: ["template_id"]
@@ -347,6 +622,192 @@ export type Database = {
           updated_at?: string
           value?: number
           workspace_id?: string
+        }
+        Relationships: []
+      }
+      accountsmind_payment_profiles: {
+        Row: {
+          account_name: string
+          account_number: string
+          archived: boolean
+          bank_address: string
+          bank_name: string
+          created_at: string
+          created_by_user_id: string | null
+          currency: string
+          iban: string
+          id: string
+          is_default: boolean
+          label: string
+          payment_instructions: string
+          payment_link: string
+          routing_number: string
+          sort_code: string
+          swift_bic: string
+          updated_at: string
+        }
+        Insert: {
+          account_name?: string
+          account_number?: string
+          archived?: boolean
+          bank_address?: string
+          bank_name?: string
+          created_at?: string
+          created_by_user_id?: string | null
+          currency?: string
+          iban?: string
+          id?: string
+          is_default?: boolean
+          label: string
+          payment_instructions?: string
+          payment_link?: string
+          routing_number?: string
+          sort_code?: string
+          swift_bic?: string
+          updated_at?: string
+        }
+        Update: {
+          account_name?: string
+          account_number?: string
+          archived?: boolean
+          bank_address?: string
+          bank_name?: string
+          created_at?: string
+          created_by_user_id?: string | null
+          currency?: string
+          iban?: string
+          id?: string
+          is_default?: boolean
+          label?: string
+          payment_instructions?: string
+          payment_link?: string
+          routing_number?: string
+          sort_code?: string
+          swift_bic?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      accountsmind_recurring_invoices: {
+        Row: {
+          active: boolean
+          created_at: string
+          created_by_user_id: string | null
+          currency: string
+          customer_notes: string
+          day_of_month: number
+          due_days: number
+          id: string
+          items_json: Json
+          last_generated_month: string | null
+          name: string
+          payment_profile_id: string | null
+          payment_terms: string
+          tax_mode: string
+          template_id: string | null
+          updated_at: string
+          workspace_id: string
+        }
+        Insert: {
+          active?: boolean
+          created_at?: string
+          created_by_user_id?: string | null
+          currency?: string
+          customer_notes?: string
+          day_of_month?: number
+          due_days?: number
+          id?: string
+          items_json?: Json
+          last_generated_month?: string | null
+          name: string
+          payment_profile_id?: string | null
+          payment_terms?: string
+          tax_mode?: string
+          template_id?: string | null
+          updated_at?: string
+          workspace_id: string
+        }
+        Update: {
+          active?: boolean
+          created_at?: string
+          created_by_user_id?: string | null
+          currency?: string
+          customer_notes?: string
+          day_of_month?: number
+          due_days?: number
+          id?: string
+          items_json?: Json
+          last_generated_month?: string | null
+          name?: string
+          payment_profile_id?: string | null
+          payment_terms?: string
+          tax_mode?: string
+          template_id?: string | null
+          updated_at?: string
+          workspace_id?: string
+        }
+        Relationships: []
+      }
+      accountsmind_services: {
+        Row: {
+          archived: boolean
+          billing_frequency: string
+          category: string
+          cost_price_cents: number | null
+          created_at: string
+          created_by_user_id: string | null
+          currency: string
+          id: string
+          internal_description: string
+          name: string
+          public_description: string
+          recurring: boolean
+          sku: string
+          tax_inclusive: boolean
+          tax_rate_percent: number
+          unit: string
+          unit_price_cents: number
+          updated_at: string
+        }
+        Insert: {
+          archived?: boolean
+          billing_frequency?: string
+          category?: string
+          cost_price_cents?: number | null
+          created_at?: string
+          created_by_user_id?: string | null
+          currency?: string
+          id?: string
+          internal_description?: string
+          name: string
+          public_description?: string
+          recurring?: boolean
+          sku?: string
+          tax_inclusive?: boolean
+          tax_rate_percent?: number
+          unit?: string
+          unit_price_cents?: number
+          updated_at?: string
+        }
+        Update: {
+          archived?: boolean
+          billing_frequency?: string
+          category?: string
+          cost_price_cents?: number | null
+          created_at?: string
+          created_by_user_id?: string | null
+          currency?: string
+          id?: string
+          internal_description?: string
+          name?: string
+          public_description?: string
+          recurring?: boolean
+          sku?: string
+          tax_inclusive?: boolean
+          tax_rate_percent?: number
+          unit?: string
+          unit_price_cents?: number
+          updated_at?: string
         }
         Relationships: []
       }
@@ -3610,6 +4071,51 @@ export type Database = {
           },
         ]
       }
+      growthmind_activity_log: {
+        Row: {
+          action: string
+          actor: string
+          actor_user_id: string | null
+          category: string
+          created_at: string
+          detail: Json
+          entity_id: string | null
+          entity_type: string | null
+          id: string
+          mode_at_time: string | null
+          summary: string | null
+          workspace_id: string
+        }
+        Insert: {
+          action: string
+          actor?: string
+          actor_user_id?: string | null
+          category: string
+          created_at?: string
+          detail?: Json
+          entity_id?: string | null
+          entity_type?: string | null
+          id?: string
+          mode_at_time?: string | null
+          summary?: string | null
+          workspace_id: string
+        }
+        Update: {
+          action?: string
+          actor?: string
+          actor_user_id?: string | null
+          category?: string
+          created_at?: string
+          detail?: Json
+          entity_id?: string | null
+          entity_type?: string | null
+          id?: string
+          mode_at_time?: string | null
+          summary?: string | null
+          workspace_id?: string
+        }
+        Relationships: []
+      }
       growthmind_ad_budget_alerts: {
         Row: {
           acknowledged: boolean
@@ -3849,20 +4355,28 @@ export type Database = {
       }
       growthmind_ads_accounts: {
         Row: {
+          accessible_customers: Json | null
           account_id: string
+          connection_state: string | null
           created_at: string
           currency: string
+          currency_code: string | null
+          customer_id: string | null
+          descriptive_name: string | null
           id: string
           label: string
           last_synced_at: string | null
+          login_customer_id: string | null
           meta_app_id: string | null
           meta_app_secret_enc: string | null
           meta_pixel_id: string | null
           monthly_budget: number | null
           platform: string
           status: string
+          sync_config: Json | null
           sync_error: string | null
           sync_status: string
+          time_zone: string | null
           token_enc: string | null
           total_spend_synced: number | null
           updated_at: string
@@ -3871,20 +4385,28 @@ export type Database = {
           workspace_id: string
         }
         Insert: {
+          accessible_customers?: Json | null
           account_id: string
+          connection_state?: string | null
           created_at?: string
           currency?: string
+          currency_code?: string | null
+          customer_id?: string | null
+          descriptive_name?: string | null
           id?: string
           label: string
           last_synced_at?: string | null
+          login_customer_id?: string | null
           meta_app_id?: string | null
           meta_app_secret_enc?: string | null
           meta_pixel_id?: string | null
           monthly_budget?: number | null
           platform: string
           status?: string
+          sync_config?: Json | null
           sync_error?: string | null
           sync_status?: string
+          time_zone?: string | null
           token_enc?: string | null
           total_spend_synced?: number | null
           updated_at?: string
@@ -3893,20 +4415,28 @@ export type Database = {
           workspace_id: string
         }
         Update: {
+          accessible_customers?: Json | null
           account_id?: string
+          connection_state?: string | null
           created_at?: string
           currency?: string
+          currency_code?: string | null
+          customer_id?: string | null
+          descriptive_name?: string | null
           id?: string
           label?: string
           last_synced_at?: string | null
+          login_customer_id?: string | null
           meta_app_id?: string | null
           meta_app_secret_enc?: string | null
           meta_pixel_id?: string | null
           monthly_budget?: number | null
           platform?: string
           status?: string
+          sync_config?: Json | null
           sync_error?: string | null
           sync_status?: string
+          time_zone?: string | null
           token_enc?: string | null
           total_spend_synced?: number | null
           updated_at?: string
@@ -3926,16 +4456,25 @@ export type Database = {
       }
       growthmind_business_dna: {
         Row: {
+          approved_claims: string | null
+          approved_voices: string | null
           average_deal_value: number | null
+          avoid_topics: string | null
           best_customers: string
+          brand_assets: Json
           brand_style: string
           brand_voice: string
           business_goals: string
+          buying_triggers: string | null
           case_studies: string
+          commercial_objectives: string | null
+          common_objections: string | null
           company_name: string
           competitors_summary: string
           compliance_notes: string
           confidence_scores: Json
+          content_objectives: string | null
+          content_styles: string | null
           country: string
           created_at: string
           current_ad_platforms: string
@@ -3943,8 +4482,10 @@ export type Database = {
           current_calendar: string
           current_crm: string
           current_telephony: string
+          customer_pain_points: string | null
           discovery_run_count: number
           discovery_sources: Json
+          dna_version: number
           growth_targets: string
           id: string
           ideal_customer_profiles: string
@@ -3956,10 +4497,15 @@ export type Database = {
           marketing_goals: string
           monthly_marketing_budget: number | null
           offers: string
+          preferred_ctas: string | null
           pricing: string
+          priority_topics: string | null
           products: string
           profit_margin_pct: number | null
+          proof_points: string | null
           qualification_criteria: string
+          restricted_claims: string | null
+          restricted_topics: string | null
           revenue_goals: string
           risk_tolerance: string
           sales_process: string
@@ -3978,16 +4524,25 @@ export type Database = {
           worst_customers: string
         }
         Insert: {
+          approved_claims?: string | null
+          approved_voices?: string | null
           average_deal_value?: number | null
+          avoid_topics?: string | null
           best_customers?: string
+          brand_assets?: Json
           brand_style?: string
           brand_voice?: string
           business_goals?: string
+          buying_triggers?: string | null
           case_studies?: string
+          commercial_objectives?: string | null
+          common_objections?: string | null
           company_name?: string
           competitors_summary?: string
           compliance_notes?: string
           confidence_scores?: Json
+          content_objectives?: string | null
+          content_styles?: string | null
           country?: string
           created_at?: string
           current_ad_platforms?: string
@@ -3995,8 +4550,10 @@ export type Database = {
           current_calendar?: string
           current_crm?: string
           current_telephony?: string
+          customer_pain_points?: string | null
           discovery_run_count?: number
           discovery_sources?: Json
+          dna_version?: number
           growth_targets?: string
           id?: string
           ideal_customer_profiles?: string
@@ -4008,10 +4565,15 @@ export type Database = {
           marketing_goals?: string
           monthly_marketing_budget?: number | null
           offers?: string
+          preferred_ctas?: string | null
           pricing?: string
+          priority_topics?: string | null
           products?: string
           profit_margin_pct?: number | null
+          proof_points?: string | null
           qualification_criteria?: string
+          restricted_claims?: string | null
+          restricted_topics?: string | null
           revenue_goals?: string
           risk_tolerance?: string
           sales_process?: string
@@ -4030,16 +4592,25 @@ export type Database = {
           worst_customers?: string
         }
         Update: {
+          approved_claims?: string | null
+          approved_voices?: string | null
           average_deal_value?: number | null
+          avoid_topics?: string | null
           best_customers?: string
+          brand_assets?: Json
           brand_style?: string
           brand_voice?: string
           business_goals?: string
+          buying_triggers?: string | null
           case_studies?: string
+          commercial_objectives?: string | null
+          common_objections?: string | null
           company_name?: string
           competitors_summary?: string
           compliance_notes?: string
           confidence_scores?: Json
+          content_objectives?: string | null
+          content_styles?: string | null
           country?: string
           created_at?: string
           current_ad_platforms?: string
@@ -4047,8 +4618,10 @@ export type Database = {
           current_calendar?: string
           current_crm?: string
           current_telephony?: string
+          customer_pain_points?: string | null
           discovery_run_count?: number
           discovery_sources?: Json
+          dna_version?: number
           growth_targets?: string
           id?: string
           ideal_customer_profiles?: string
@@ -4060,10 +4633,15 @@ export type Database = {
           marketing_goals?: string
           monthly_marketing_budget?: number | null
           offers?: string
+          preferred_ctas?: string | null
           pricing?: string
+          priority_topics?: string | null
           products?: string
           profit_margin_pct?: number | null
+          proof_points?: string | null
           qualification_criteria?: string
+          restricted_claims?: string | null
+          restricted_topics?: string | null
           revenue_goals?: string
           risk_tolerance?: string
           sales_process?: string
@@ -4393,6 +4971,54 @@ export type Database = {
         }
         Relationships: []
       }
+      growthmind_content_anatomy: {
+        Row: {
+          analysis_mode: string
+          anatomy: Json
+          cost_estimate: number
+          created_at: string
+          error_message: string | null
+          id: string
+          model: string | null
+          on_screen_text: string | null
+          status: string
+          transcript: string | null
+          trend_item_id: string
+          updated_at: string
+          workspace_id: string
+        }
+        Insert: {
+          analysis_mode?: string
+          anatomy?: Json
+          cost_estimate?: number
+          created_at?: string
+          error_message?: string | null
+          id?: string
+          model?: string | null
+          on_screen_text?: string | null
+          status?: string
+          transcript?: string | null
+          trend_item_id: string
+          updated_at?: string
+          workspace_id: string
+        }
+        Update: {
+          analysis_mode?: string
+          anatomy?: Json
+          cost_estimate?: number
+          created_at?: string
+          error_message?: string | null
+          id?: string
+          model?: string | null
+          on_screen_text?: string | null
+          status?: string
+          transcript?: string | null
+          trend_item_id?: string
+          updated_at?: string
+          workspace_id?: string
+        }
+        Relationships: []
+      }
       growthmind_content_assets: {
         Row: {
           brief: Json | null
@@ -4660,6 +5286,222 @@ export type Database = {
           },
         ]
       }
+      growthmind_content_links: {
+        Row: {
+          created_at: string
+          id: string
+          metadata: Json
+          recommendation_id: string
+          status: string
+          studio_kind: string
+          studio_ref_id: string
+          updated_at: string
+          workspace_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          metadata?: Json
+          recommendation_id: string
+          status?: string
+          studio_kind: string
+          studio_ref_id: string
+          updated_at?: string
+          workspace_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          metadata?: Json
+          recommendation_id?: string
+          status?: string
+          studio_kind?: string
+          studio_ref_id?: string
+          updated_at?: string
+          workspace_id?: string
+        }
+        Relationships: []
+      }
+      growthmind_content_projects: {
+        Row: {
+          anatomy_id: string | null
+          approval_action_id: string | null
+          approval_flags: Json
+          approved_at: string | null
+          approved_by: string | null
+          approved_version: Json | null
+          asset_id: string | null
+          brand_kit: Json
+          caption: string | null
+          created_at: string
+          created_by: string
+          cta: string | null
+          format: string
+          hashtags: Json
+          id: string
+          inspiration: Json
+          media_is_ai: boolean
+          media_source: string | null
+          media_type: string | null
+          media_url: string | null
+          recommendation_id: string | null
+          recommended_time: string | null
+          required_assets: Json
+          scene_timeline: Json
+          script: string | null
+          status: string
+          status_history: Json
+          subtitles: string | null
+          target_connection_id: string | null
+          target_platform: string
+          thumbnail_text: string | null
+          thumbnail_url: string | null
+          title: string
+          trend_item_id: string | null
+          updated_at: string
+          voiceover_is_ai: boolean
+          voiceover_script: string | null
+          voiceover_url: string | null
+          workspace_id: string
+        }
+        Insert: {
+          anatomy_id?: string | null
+          approval_action_id?: string | null
+          approval_flags?: Json
+          approved_at?: string | null
+          approved_by?: string | null
+          approved_version?: Json | null
+          asset_id?: string | null
+          brand_kit?: Json
+          caption?: string | null
+          created_at?: string
+          created_by?: string
+          cta?: string | null
+          format?: string
+          hashtags?: Json
+          id?: string
+          inspiration?: Json
+          media_is_ai?: boolean
+          media_source?: string | null
+          media_type?: string | null
+          media_url?: string | null
+          recommendation_id?: string | null
+          recommended_time?: string | null
+          required_assets?: Json
+          scene_timeline?: Json
+          script?: string | null
+          status?: string
+          status_history?: Json
+          subtitles?: string | null
+          target_connection_id?: string | null
+          target_platform?: string
+          thumbnail_text?: string | null
+          thumbnail_url?: string | null
+          title: string
+          trend_item_id?: string | null
+          updated_at?: string
+          voiceover_is_ai?: boolean
+          voiceover_script?: string | null
+          voiceover_url?: string | null
+          workspace_id: string
+        }
+        Update: {
+          anatomy_id?: string | null
+          approval_action_id?: string | null
+          approval_flags?: Json
+          approved_at?: string | null
+          approved_by?: string | null
+          approved_version?: Json | null
+          asset_id?: string | null
+          brand_kit?: Json
+          caption?: string | null
+          created_at?: string
+          created_by?: string
+          cta?: string | null
+          format?: string
+          hashtags?: Json
+          id?: string
+          inspiration?: Json
+          media_is_ai?: boolean
+          media_source?: string | null
+          media_type?: string | null
+          media_url?: string | null
+          recommendation_id?: string | null
+          recommended_time?: string | null
+          required_assets?: Json
+          scene_timeline?: Json
+          script?: string | null
+          status?: string
+          status_history?: Json
+          subtitles?: string | null
+          target_connection_id?: string | null
+          target_platform?: string
+          thumbnail_text?: string | null
+          thumbnail_url?: string | null
+          title?: string
+          trend_item_id?: string | null
+          updated_at?: string
+          voiceover_is_ai?: boolean
+          voiceover_script?: string | null
+          voiceover_url?: string | null
+          workspace_id?: string
+        }
+        Relationships: []
+      }
+      growthmind_content_recommendations: {
+        Row: {
+          angle: string | null
+          brief: string | null
+          created_at: string
+          created_by: string
+          format: string | null
+          id: string
+          payload: Json
+          risk_flags: Json
+          scores: Json
+          status: string
+          target_platform: string | null
+          title: string
+          trend_item_id: string | null
+          updated_at: string
+          workspace_id: string
+        }
+        Insert: {
+          angle?: string | null
+          brief?: string | null
+          created_at?: string
+          created_by?: string
+          format?: string | null
+          id?: string
+          payload?: Json
+          risk_flags?: Json
+          scores?: Json
+          status?: string
+          target_platform?: string | null
+          title: string
+          trend_item_id?: string | null
+          updated_at?: string
+          workspace_id: string
+        }
+        Update: {
+          angle?: string | null
+          brief?: string | null
+          created_at?: string
+          created_by?: string
+          format?: string | null
+          id?: string
+          payload?: Json
+          risk_flags?: Json
+          scores?: Json
+          status?: string
+          target_platform?: string | null
+          title?: string
+          trend_item_id?: string | null
+          updated_at?: string
+          workspace_id?: string
+        }
+        Relationships: []
+      }
       growthmind_content_series: {
         Row: {
           cadence: string
@@ -4747,6 +5589,129 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      growthmind_discovery_runs: {
+        Row: {
+          cost_estimate: number
+          created_at: string
+          duration_ms: number
+          error_message: string | null
+          id: string
+          items_found: number
+          items_new: number
+          run_kind: string
+          skip_reason: string | null
+          source: string
+          status: string
+          triggered_by: string
+          workspace_id: string
+        }
+        Insert: {
+          cost_estimate?: number
+          created_at?: string
+          duration_ms?: number
+          error_message?: string | null
+          id?: string
+          items_found?: number
+          items_new?: number
+          run_kind?: string
+          skip_reason?: string | null
+          source: string
+          status: string
+          triggered_by?: string
+          workspace_id: string
+        }
+        Update: {
+          cost_estimate?: number
+          created_at?: string
+          duration_ms?: number
+          error_message?: string | null
+          id?: string
+          items_found?: number
+          items_new?: number
+          run_kind?: string
+          skip_reason?: string | null
+          source?: string
+          status?: string
+          triggered_by?: string
+          workspace_id?: string
+        }
+        Relationships: []
+      }
+      growthmind_dna_proposals: {
+        Row: {
+          created_at: string
+          field_changes: Json
+          id: string
+          proposed_by: string
+          rationale: string | null
+          resolved_at: string | null
+          resolved_by_user_id: string | null
+          source: string | null
+          status: string
+          updated_at: string
+          workspace_id: string
+        }
+        Insert: {
+          created_at?: string
+          field_changes?: Json
+          id?: string
+          proposed_by?: string
+          rationale?: string | null
+          resolved_at?: string | null
+          resolved_by_user_id?: string | null
+          source?: string | null
+          status?: string
+          updated_at?: string
+          workspace_id: string
+        }
+        Update: {
+          created_at?: string
+          field_changes?: Json
+          id?: string
+          proposed_by?: string
+          rationale?: string | null
+          resolved_at?: string | null
+          resolved_by_user_id?: string | null
+          source?: string | null
+          status?: string
+          updated_at?: string
+          workspace_id?: string
+        }
+        Relationships: []
+      }
+      growthmind_dna_versions: {
+        Row: {
+          change_summary: string | null
+          changed_by: string
+          changed_by_user_id: string | null
+          created_at: string
+          id: string
+          snapshot: Json
+          version: number
+          workspace_id: string
+        }
+        Insert: {
+          change_summary?: string | null
+          changed_by?: string
+          changed_by_user_id?: string | null
+          created_at?: string
+          id?: string
+          snapshot?: Json
+          version: number
+          workspace_id: string
+        }
+        Update: {
+          change_summary?: string | null
+          changed_by?: string
+          changed_by_user_id?: string | null
+          created_at?: string
+          id?: string
+          snapshot?: Json
+          version?: number
+          workspace_id?: string
+        }
+        Relationships: []
       }
       growthmind_domain_warmups: {
         Row: {
@@ -5018,6 +5983,302 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      growthmind_gads_campaign_daily: {
+        Row: {
+          account_row_id: string
+          budget_micros: number | null
+          campaign_id: string
+          channel_type: string | null
+          clicks: number
+          conversions: number
+          conversions_value: number
+          cost_micros: number
+          created_at: string
+          customer_id: string
+          date: string
+          id: string
+          impressions: number
+          name: string
+          status: string | null
+          updated_at: string
+          workspace_id: string
+        }
+        Insert: {
+          account_row_id: string
+          budget_micros?: number | null
+          campaign_id: string
+          channel_type?: string | null
+          clicks?: number
+          conversions?: number
+          conversions_value?: number
+          cost_micros?: number
+          created_at?: string
+          customer_id: string
+          date: string
+          id?: string
+          impressions?: number
+          name: string
+          status?: string | null
+          updated_at?: string
+          workspace_id: string
+        }
+        Update: {
+          account_row_id?: string
+          budget_micros?: number | null
+          campaign_id?: string
+          channel_type?: string | null
+          clicks?: number
+          conversions?: number
+          conversions_value?: number
+          cost_micros?: number
+          created_at?: string
+          customer_id?: string
+          date?: string
+          id?: string
+          impressions?: number
+          name?: string
+          status?: string | null
+          updated_at?: string
+          workspace_id?: string
+        }
+        Relationships: []
+      }
+      growthmind_gads_change_requests: {
+        Row: {
+          account_row_id: string
+          approved_at: string
+          approved_by: string | null
+          campaign_id: string | null
+          change_type: string
+          created_at: string
+          customer_id: string | null
+          executed_at: string | null
+          id: string
+          payload: Json | null
+          recommendation_id: string | null
+          status: string
+          workspace_id: string
+        }
+        Insert: {
+          account_row_id: string
+          approved_at?: string
+          approved_by?: string | null
+          campaign_id?: string | null
+          change_type: string
+          created_at?: string
+          customer_id?: string | null
+          executed_at?: string | null
+          id?: string
+          payload?: Json | null
+          recommendation_id?: string | null
+          status?: string
+          workspace_id: string
+        }
+        Update: {
+          account_row_id?: string
+          approved_at?: string
+          approved_by?: string | null
+          campaign_id?: string | null
+          change_type?: string
+          created_at?: string
+          customer_id?: string | null
+          executed_at?: string | null
+          id?: string
+          payload?: Json | null
+          recommendation_id?: string | null
+          status?: string
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "growthmind_gads_change_requests_recommendation_id_fkey"
+            columns: ["recommendation_id"]
+            isOneToOne: false
+            referencedRelation: "growthmind_gads_recommendations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      growthmind_gads_dimension_stats: {
+        Row: {
+          account_row_id: string
+          campaign_id: string
+          clicks: number
+          conversions: number
+          conversions_value: number
+          cost_micros: number
+          created_at: string
+          customer_id: string
+          date_end: string
+          date_start: string
+          entity_key: string
+          entity_type: string
+          id: string
+          impressions: number
+          label: string | null
+          meta: Json | null
+          updated_at: string
+          workspace_id: string
+        }
+        Insert: {
+          account_row_id: string
+          campaign_id: string
+          clicks?: number
+          conversions?: number
+          conversions_value?: number
+          cost_micros?: number
+          created_at?: string
+          customer_id: string
+          date_end: string
+          date_start: string
+          entity_key: string
+          entity_type: string
+          id?: string
+          impressions?: number
+          label?: string | null
+          meta?: Json | null
+          updated_at?: string
+          workspace_id: string
+        }
+        Update: {
+          account_row_id?: string
+          campaign_id?: string
+          clicks?: number
+          conversions?: number
+          conversions_value?: number
+          cost_micros?: number
+          created_at?: string
+          customer_id?: string
+          date_end?: string
+          date_start?: string
+          entity_key?: string
+          entity_type?: string
+          id?: string
+          impressions?: number
+          label?: string | null
+          meta?: Json | null
+          updated_at?: string
+          workspace_id?: string
+        }
+        Relationships: []
+      }
+      growthmind_gads_recommendations: {
+        Row: {
+          account_row_id: string
+          campaign_id: string | null
+          campaign_name: string | null
+          confidence: number
+          created_at: string
+          customer_id: string | null
+          dedupe_key: string | null
+          evidence: Json | null
+          expected_benefit: string | null
+          expires_at: string | null
+          id: string
+          priority: string
+          recommended_action: string
+          reviewed_at: string | null
+          reviewed_by: string | null
+          section: string
+          status: string
+          title: string
+          updated_at: string
+          workspace_id: string
+        }
+        Insert: {
+          account_row_id: string
+          campaign_id?: string | null
+          campaign_name?: string | null
+          confidence?: number
+          created_at?: string
+          customer_id?: string | null
+          dedupe_key?: string | null
+          evidence?: Json | null
+          expected_benefit?: string | null
+          expires_at?: string | null
+          id?: string
+          priority?: string
+          recommended_action: string
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          section: string
+          status?: string
+          title: string
+          updated_at?: string
+          workspace_id: string
+        }
+        Update: {
+          account_row_id?: string
+          campaign_id?: string | null
+          campaign_name?: string | null
+          confidence?: number
+          created_at?: string
+          customer_id?: string | null
+          dedupe_key?: string | null
+          evidence?: Json | null
+          expected_benefit?: string | null
+          expires_at?: string | null
+          id?: string
+          priority?: string
+          recommended_action?: string
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          section?: string
+          status?: string
+          title?: string
+          updated_at?: string
+          workspace_id?: string
+        }
+        Relationships: []
+      }
+      growthmind_gads_sync_runs: {
+        Row: {
+          account_row_id: string
+          campaigns_synced: number
+          created_at: string
+          error_message: string | null
+          finished_at: string | null
+          id: string
+          rows_upserted: number
+          run_type: string
+          spend_synced: number
+          started_at: string
+          stats: Json | null
+          status: string
+          workspace_id: string
+        }
+        Insert: {
+          account_row_id: string
+          campaigns_synced?: number
+          created_at?: string
+          error_message?: string | null
+          finished_at?: string | null
+          id?: string
+          rows_upserted?: number
+          run_type?: string
+          spend_synced?: number
+          started_at?: string
+          stats?: Json | null
+          status?: string
+          workspace_id: string
+        }
+        Update: {
+          account_row_id?: string
+          campaigns_synced?: number
+          created_at?: string
+          error_message?: string | null
+          finished_at?: string | null
+          id?: string
+          rows_upserted?: number
+          run_type?: string
+          spend_synced?: number
+          started_at?: string
+          stats?: Json | null
+          status?: string
+          workspace_id?: string
+        }
+        Relationships: []
       }
       growthmind_generation_audit: {
         Row: {
@@ -5514,6 +6775,51 @@ export type Database = {
           },
         ]
       }
+      growthmind_monitored_sources: {
+        Row: {
+          added_by_user_id: string | null
+          created_at: string
+          id: string
+          label: string | null
+          notes: string | null
+          platform: string | null
+          priority: number
+          source_kind: string
+          status: string
+          updated_at: string
+          value: string
+          workspace_id: string
+        }
+        Insert: {
+          added_by_user_id?: string | null
+          created_at?: string
+          id?: string
+          label?: string | null
+          notes?: string | null
+          platform?: string | null
+          priority?: number
+          source_kind: string
+          status?: string
+          updated_at?: string
+          value: string
+          workspace_id: string
+        }
+        Update: {
+          added_by_user_id?: string | null
+          created_at?: string
+          id?: string
+          label?: string | null
+          notes?: string | null
+          platform?: string | null
+          priority?: number
+          source_kind?: string
+          status?: string
+          updated_at?: string
+          value?: string
+          workspace_id?: string
+        }
+        Relationships: []
+      }
       growthmind_opportunities: {
         Row: {
           category: string
@@ -5578,6 +6884,42 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      growthmind_performance_snapshots: {
+        Row: {
+          captured_at: string
+          connection_id: string | null
+          created_at: string
+          external_post_id: string | null
+          id: string
+          metrics: Json
+          platform: string | null
+          publishing_job_id: string | null
+          workspace_id: string
+        }
+        Insert: {
+          captured_at?: string
+          connection_id?: string | null
+          created_at?: string
+          external_post_id?: string | null
+          id?: string
+          metrics?: Json
+          platform?: string | null
+          publishing_job_id?: string | null
+          workspace_id: string
+        }
+        Update: {
+          captured_at?: string
+          connection_id?: string | null
+          created_at?: string
+          external_post_id?: string | null
+          id?: string
+          metrics?: Json
+          platform?: string | null
+          publishing_job_id?: string | null
+          workspace_id?: string
+        }
+        Relationships: []
       }
       growthmind_playbooks: {
         Row: {
@@ -5938,6 +7280,93 @@ export type Database = {
           },
         ]
       }
+      growthmind_publishing_jobs: {
+        Row: {
+          approved_by_user_id: string | null
+          attempt_history: Json
+          attempts: number
+          connection_id: string | null
+          created_at: string
+          created_by: string
+          error_message: string | null
+          external_permalink: string | null
+          external_post_id: string | null
+          guidance: string | null
+          id: string
+          idempotency_key: string | null
+          last_error_code: string | null
+          max_attempts: number
+          next_attempt_at: string | null
+          payload: Json
+          platform: string
+          project_id: string | null
+          published_at: string | null
+          recommendation_id: string | null
+          scheduled_at: string | null
+          status: string
+          target_type: string
+          updated_at: string
+          validation: Json
+          workspace_id: string
+        }
+        Insert: {
+          approved_by_user_id?: string | null
+          attempt_history?: Json
+          attempts?: number
+          connection_id?: string | null
+          created_at?: string
+          created_by?: string
+          error_message?: string | null
+          external_permalink?: string | null
+          external_post_id?: string | null
+          guidance?: string | null
+          id?: string
+          idempotency_key?: string | null
+          last_error_code?: string | null
+          max_attempts?: number
+          next_attempt_at?: string | null
+          payload?: Json
+          platform: string
+          project_id?: string | null
+          published_at?: string | null
+          recommendation_id?: string | null
+          scheduled_at?: string | null
+          status?: string
+          target_type?: string
+          updated_at?: string
+          validation?: Json
+          workspace_id: string
+        }
+        Update: {
+          approved_by_user_id?: string | null
+          attempt_history?: Json
+          attempts?: number
+          connection_id?: string | null
+          created_at?: string
+          created_by?: string
+          error_message?: string | null
+          external_permalink?: string | null
+          external_post_id?: string | null
+          guidance?: string | null
+          id?: string
+          idempotency_key?: string | null
+          last_error_code?: string | null
+          max_attempts?: number
+          next_attempt_at?: string | null
+          payload?: Json
+          platform?: string
+          project_id?: string | null
+          published_at?: string | null
+          recommendation_id?: string | null
+          scheduled_at?: string | null
+          status?: string
+          target_type?: string
+          updated_at?: string
+          validation?: Json
+          workspace_id?: string
+        }
+        Relationships: []
+      }
       growthmind_recommendations: {
         Row: {
           action_href: string | null
@@ -6170,6 +7599,75 @@ export type Database = {
           scores?: Json
           service_name?: string
           total_score?: number
+          workspace_id?: string
+        }
+        Relationships: []
+      }
+      growthmind_social_connections: {
+        Row: {
+          access_token_encrypted: string | null
+          account_name: string | null
+          account_type: string
+          capabilities: Json
+          connected_by_user_id: string | null
+          created_at: string
+          external_account_id: string
+          id: string
+          last_error: string | null
+          last_sync_at: string | null
+          metadata: Json
+          permissions: Json
+          profile_picture_url: string | null
+          provider: string
+          status: string
+          token_expires_at: string | null
+          token_type: string
+          updated_at: string
+          username: string | null
+          workspace_id: string
+        }
+        Insert: {
+          access_token_encrypted?: string | null
+          account_name?: string | null
+          account_type: string
+          capabilities?: Json
+          connected_by_user_id?: string | null
+          created_at?: string
+          external_account_id: string
+          id?: string
+          last_error?: string | null
+          last_sync_at?: string | null
+          metadata?: Json
+          permissions?: Json
+          profile_picture_url?: string | null
+          provider?: string
+          status?: string
+          token_expires_at?: string | null
+          token_type?: string
+          updated_at?: string
+          username?: string | null
+          workspace_id: string
+        }
+        Update: {
+          access_token_encrypted?: string | null
+          account_name?: string | null
+          account_type?: string
+          capabilities?: Json
+          connected_by_user_id?: string | null
+          created_at?: string
+          external_account_id?: string
+          id?: string
+          last_error?: string | null
+          last_sync_at?: string | null
+          metadata?: Json
+          permissions?: Json
+          profile_picture_url?: string | null
+          provider?: string
+          status?: string
+          token_expires_at?: string | null
+          token_type?: string
+          updated_at?: string
+          username?: string | null
           workspace_id?: string
         }
         Relationships: []
@@ -6529,6 +8027,72 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      growthmind_trend_items: {
+        Row: {
+          author_handle: string | null
+          author_name: string | null
+          caption: string | null
+          content_hash: string | null
+          discovered_at: string
+          external_id: string | null
+          id: string
+          media_type: string | null
+          metrics: Json
+          platform: string
+          published_at: string | null
+          raw: Json
+          scores: Json
+          source_id: string | null
+          status: string
+          title: string | null
+          updated_at: string
+          url: string | null
+          workspace_id: string
+        }
+        Insert: {
+          author_handle?: string | null
+          author_name?: string | null
+          caption?: string | null
+          content_hash?: string | null
+          discovered_at?: string
+          external_id?: string | null
+          id?: string
+          media_type?: string | null
+          metrics?: Json
+          platform: string
+          published_at?: string | null
+          raw?: Json
+          scores?: Json
+          source_id?: string | null
+          status?: string
+          title?: string | null
+          updated_at?: string
+          url?: string | null
+          workspace_id: string
+        }
+        Update: {
+          author_handle?: string | null
+          author_name?: string | null
+          caption?: string | null
+          content_hash?: string | null
+          discovered_at?: string
+          external_id?: string | null
+          id?: string
+          media_type?: string | null
+          metrics?: Json
+          platform?: string
+          published_at?: string | null
+          raw?: Json
+          scores?: Json
+          source_id?: string | null
+          status?: string
+          title?: string | null
+          updated_at?: string
+          url?: string | null
+          workspace_id?: string
+        }
+        Relationships: []
       }
       growthmind_trend_signals: {
         Row: {
@@ -7123,13 +8687,26 @@ export type Database = {
           action_payload: Json
           action_type: string
           approved_by: string | null
+          authorised_by_user_id: string | null
+          baseline: Json | null
+          consumed_at: string | null
           created_at: string
           description: string | null
           error_message: string | null
           executed_at: string | null
+          expected_result: string | null
           id: string
+          new_state: Json | null
+          outcome: Json | null
+          outcome_classification: string | null
+          previous_state: Json | null
           proposed_by: string
+          reassess_at: string | null
           result: Json | null
+          rollback_info: Json | null
+          sensitive: boolean
+          sensitive_category: string | null
+          source_recommendation_id: string | null
           status: string
           title: string
           updated_at: string
@@ -7139,13 +8716,26 @@ export type Database = {
           action_payload?: Json
           action_type: string
           approved_by?: string | null
+          authorised_by_user_id?: string | null
+          baseline?: Json | null
+          consumed_at?: string | null
           created_at?: string
           description?: string | null
           error_message?: string | null
           executed_at?: string | null
+          expected_result?: string | null
           id?: string
+          new_state?: Json | null
+          outcome?: Json | null
+          outcome_classification?: string | null
+          previous_state?: Json | null
           proposed_by?: string
+          reassess_at?: string | null
           result?: Json | null
+          rollback_info?: Json | null
+          sensitive?: boolean
+          sensitive_category?: string | null
+          source_recommendation_id?: string | null
           status?: string
           title: string
           updated_at?: string
@@ -7155,13 +8745,26 @@ export type Database = {
           action_payload?: Json
           action_type?: string
           approved_by?: string | null
+          authorised_by_user_id?: string | null
+          baseline?: Json | null
+          consumed_at?: string | null
           created_at?: string
           description?: string | null
           error_message?: string | null
           executed_at?: string | null
+          expected_result?: string | null
           id?: string
+          new_state?: Json | null
+          outcome?: Json | null
+          outcome_classification?: string | null
+          previous_state?: Json | null
           proposed_by?: string
+          reassess_at?: string | null
           result?: Json | null
+          rollback_info?: Json | null
+          sensitive?: boolean
+          sensitive_category?: string | null
+          source_recommendation_id?: string | null
           status?: string
           title?: string
           updated_at?: string
@@ -7209,6 +8812,56 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "hivemind_briefings_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      hivemind_confidence_adjustments: {
+        Row: {
+          adjustment: number
+          adjustment_key: string
+          created_at: string
+          failures: number
+          id: string
+          inconclusive: number
+          last_outcome: string | null
+          partials: number
+          successes: number
+          updated_at: string
+          workspace_id: string
+        }
+        Insert: {
+          adjustment?: number
+          adjustment_key: string
+          created_at?: string
+          failures?: number
+          id?: string
+          inconclusive?: number
+          last_outcome?: string | null
+          partials?: number
+          successes?: number
+          updated_at?: string
+          workspace_id: string
+        }
+        Update: {
+          adjustment?: number
+          adjustment_key?: string
+          created_at?: string
+          failures?: number
+          id?: string
+          inconclusive?: number
+          last_outcome?: string | null
+          partials?: number
+          successes?: number
+          updated_at?: string
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "hivemind_confidence_adjustments_workspace_id_fkey"
             columns: ["workspace_id"]
             isOneToOne: false
             referencedRelation: "workspaces"
@@ -7269,19 +8922,237 @@ export type Database = {
           },
         ]
       }
+      hivemind_executive_events: {
+        Row: {
+          classification: string | null
+          classified_at: string | null
+          correlation_key: string | null
+          created_at: string
+          dedup_key: string
+          entity_id: string | null
+          entity_type: string | null
+          event_type: string
+          evidence: Json
+          id: string
+          occurred_at: string
+          processing_status: string
+          severity: string
+          source_system: string
+          summary: string | null
+          title: string
+          workspace_id: string
+        }
+        Insert: {
+          classification?: string | null
+          classified_at?: string | null
+          correlation_key?: string | null
+          created_at?: string
+          dedup_key: string
+          entity_id?: string | null
+          entity_type?: string | null
+          event_type: string
+          evidence?: Json
+          id?: string
+          occurred_at?: string
+          processing_status?: string
+          severity?: string
+          source_system?: string
+          summary?: string | null
+          title: string
+          workspace_id: string
+        }
+        Update: {
+          classification?: string | null
+          classified_at?: string | null
+          correlation_key?: string | null
+          created_at?: string
+          dedup_key?: string
+          entity_id?: string | null
+          entity_type?: string | null
+          event_type?: string
+          evidence?: Json
+          id?: string
+          occurred_at?: string
+          processing_status?: string
+          severity?: string
+          source_system?: string
+          summary?: string | null
+          title?: string
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "hivemind_executive_events_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      hivemind_recommendations: {
+        Row: {
+          approval_required: boolean
+          business_issue: string
+          commercial_impact: string | null
+          confidence: number
+          correlation_key: string | null
+          created_at: string
+          data_freshness: Json
+          dedupe_key: string
+          department: string
+          due_date: string | null
+          evidence: Json
+          id: string
+          next_step: string | null
+          outcome_note: string | null
+          priority: string
+          reassess_at: string | null
+          recommended_action: string
+          related_entities: Json
+          result: string | null
+          risk_of_inaction: string | null
+          source: string
+          source_event_ids: string[]
+          source_systems: string[]
+          status: string
+          suggested_owner: string | null
+          title: string
+          updated_at: string
+          workspace_id: string
+        }
+        Insert: {
+          approval_required?: boolean
+          business_issue: string
+          commercial_impact?: string | null
+          confidence?: number
+          correlation_key?: string | null
+          created_at?: string
+          data_freshness?: Json
+          dedupe_key: string
+          department?: string
+          due_date?: string | null
+          evidence?: Json
+          id?: string
+          next_step?: string | null
+          outcome_note?: string | null
+          priority?: string
+          reassess_at?: string | null
+          recommended_action: string
+          related_entities?: Json
+          result?: string | null
+          risk_of_inaction?: string | null
+          source?: string
+          source_event_ids?: string[]
+          source_systems?: string[]
+          status?: string
+          suggested_owner?: string | null
+          title: string
+          updated_at?: string
+          workspace_id: string
+        }
+        Update: {
+          approval_required?: boolean
+          business_issue?: string
+          commercial_impact?: string | null
+          confidence?: number
+          correlation_key?: string | null
+          created_at?: string
+          data_freshness?: Json
+          dedupe_key?: string
+          department?: string
+          due_date?: string | null
+          evidence?: Json
+          id?: string
+          next_step?: string | null
+          outcome_note?: string | null
+          priority?: string
+          reassess_at?: string | null
+          recommended_action?: string
+          related_entities?: Json
+          result?: string | null
+          risk_of_inaction?: string | null
+          source?: string
+          source_event_ids?: string[]
+          source_systems?: string[]
+          status?: string
+          suggested_owner?: string | null
+          title?: string
+          updated_at?: string
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "hivemind_recommendations_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      hivemind_reconciliation_state: {
+        Row: {
+          created_at: string
+          id: string
+          job_key: string
+          last_detail: Json
+          last_run_at: string | null
+          last_status: string | null
+          updated_at: string
+          workspace_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          job_key: string
+          last_detail?: Json
+          last_run_at?: string | null
+          last_status?: string | null
+          updated_at?: string
+          workspace_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          job_key?: string
+          last_detail?: Json
+          last_run_at?: string | null
+          last_status?: string | null
+          updated_at?: string
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "hivemind_reconciliation_state_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       hivemind_tasks: {
         Row: {
           assigned_to: string | null
           comments: Json
+          completion_evidence: Json | null
           created_at: string
+          department: string | null
+          dependencies: Json | null
           description: string | null
           due_date: string | null
           entity_id: string | null
           entity_name: string | null
           entity_type: string | null
+          escalated_at: string | null
+          evidence: Json | null
           id: string
           metadata: Json | null
           priority: string
+          reason: string | null
+          reassess_at: string | null
+          reopened_count: number
           source: string
           status: string
           title: string
@@ -7292,15 +9163,23 @@ export type Database = {
         Insert: {
           assigned_to?: string | null
           comments?: Json
+          completion_evidence?: Json | null
           created_at?: string
+          department?: string | null
+          dependencies?: Json | null
           description?: string | null
           due_date?: string | null
           entity_id?: string | null
           entity_name?: string | null
           entity_type?: string | null
+          escalated_at?: string | null
+          evidence?: Json | null
           id?: string
           metadata?: Json | null
           priority?: string
+          reason?: string | null
+          reassess_at?: string | null
+          reopened_count?: number
           source?: string
           status?: string
           title: string
@@ -7311,15 +9190,23 @@ export type Database = {
         Update: {
           assigned_to?: string | null
           comments?: Json
+          completion_evidence?: Json | null
           created_at?: string
+          department?: string | null
+          dependencies?: Json | null
           description?: string | null
           due_date?: string | null
           entity_id?: string | null
           entity_name?: string | null
           entity_type?: string | null
+          escalated_at?: string | null
+          evidence?: Json | null
           id?: string
           metadata?: Json | null
           priority?: string
+          reason?: string | null
+          reassess_at?: string | null
+          reopened_count?: number
           source?: string
           status?: string
           title?: string
@@ -13502,7 +15389,17 @@ export type Database = {
           generation_limits: Json
           ghl_api_key: string | null
           ghl_location_id: string | null
+          growthmind_ci_limits: Json
+          growthmind_deep_analysis_daily_limit: number
+          growthmind_discovery_daily_limit: number
+          growthmind_min_opportunity_score: number
+          growthmind_mode: string
+          growthmind_operator_enabled: boolean
+          growthmind_operator_enabled_at: string | null
+          growthmind_operator_enabled_by: string | null
+          growthmind_operator_permissions: Json
           growthmind_settings: Json
+          growthmind_trend_scout_enabled: boolean
           gsc_access_token: string | null
           gsc_auto_matched: boolean | null
           gsc_property_url: string | null
@@ -13519,6 +15416,10 @@ export type Database = {
           hexmail_sendgrid_from_email: string | null
           hexmail_sendgrid_from_name: string | null
           hivemind_mode: string
+          hivemind_operator_enabled: boolean
+          hivemind_operator_enabled_at: string | null
+          hivemind_operator_enabled_by: string | null
+          hivemind_operator_permissions: Json
           hubspot_api_key: string | null
           industry: string | null
           last_synced_at: string | null
@@ -13571,7 +15472,17 @@ export type Database = {
           generation_limits?: Json
           ghl_api_key?: string | null
           ghl_location_id?: string | null
+          growthmind_ci_limits?: Json
+          growthmind_deep_analysis_daily_limit?: number
+          growthmind_discovery_daily_limit?: number
+          growthmind_min_opportunity_score?: number
+          growthmind_mode?: string
+          growthmind_operator_enabled?: boolean
+          growthmind_operator_enabled_at?: string | null
+          growthmind_operator_enabled_by?: string | null
+          growthmind_operator_permissions?: Json
           growthmind_settings?: Json
+          growthmind_trend_scout_enabled?: boolean
           gsc_access_token?: string | null
           gsc_auto_matched?: boolean | null
           gsc_property_url?: string | null
@@ -13588,6 +15499,10 @@ export type Database = {
           hexmail_sendgrid_from_email?: string | null
           hexmail_sendgrid_from_name?: string | null
           hivemind_mode?: string
+          hivemind_operator_enabled?: boolean
+          hivemind_operator_enabled_at?: string | null
+          hivemind_operator_enabled_by?: string | null
+          hivemind_operator_permissions?: Json
           hubspot_api_key?: string | null
           industry?: string | null
           last_synced_at?: string | null
@@ -13640,7 +15555,17 @@ export type Database = {
           generation_limits?: Json
           ghl_api_key?: string | null
           ghl_location_id?: string | null
+          growthmind_ci_limits?: Json
+          growthmind_deep_analysis_daily_limit?: number
+          growthmind_discovery_daily_limit?: number
+          growthmind_min_opportunity_score?: number
+          growthmind_mode?: string
+          growthmind_operator_enabled?: boolean
+          growthmind_operator_enabled_at?: string | null
+          growthmind_operator_enabled_by?: string | null
+          growthmind_operator_permissions?: Json
           growthmind_settings?: Json
+          growthmind_trend_scout_enabled?: boolean
           gsc_access_token?: string | null
           gsc_auto_matched?: boolean | null
           gsc_property_url?: string | null
@@ -13657,6 +15582,10 @@ export type Database = {
           hexmail_sendgrid_from_email?: string | null
           hexmail_sendgrid_from_name?: string | null
           hivemind_mode?: string
+          hivemind_operator_enabled?: boolean
+          hivemind_operator_enabled_at?: string | null
+          hivemind_operator_enabled_by?: string | null
+          hivemind_operator_permissions?: Json
           hubspot_api_key?: string | null
           industry?: string | null
           last_synced_at?: string | null

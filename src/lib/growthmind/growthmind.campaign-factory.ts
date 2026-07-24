@@ -397,6 +397,9 @@ export const sendCampaignToHiveMind = createServerFn({ method: "POST" })
 
     const typeLabel = CAMPAIGN_TYPES.find(t => t.id === draft.campaign_type)?.label ?? draft.campaign_type;
 
+    const { assertProposalAllowed } = await import("@/lib/hivemind/mode-gate.server");
+    await assertProposalAllowed(sb, workspaceId);
+
     const { data: action, error: actionErr } = await sb
       .from("hivemind_actions")
       .insert({

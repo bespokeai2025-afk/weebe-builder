@@ -1,9 +1,9 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { Dna, Save, RefreshCw, CheckCircle2, AlertCircle, Loader2, ChevronDown, ChevronUp } from "lucide-react";
+import { Dna, Save, RefreshCw, CheckCircle2, AlertCircle, Loader2, ChevronDown, ChevronUp, Sparkles, History, Check, X } from "lucide-react";
 import { GrowthMindShell } from "@/components/growthmind/GrowthMindShell";
 import { BusinessDnaKnowledgeUpload } from "@/components/hivemind/BusinessDnaKnowledgeUpload";
 import { Button } from "@/components/ui/button";
@@ -12,7 +12,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
 import {
-  getBusinessDna, upsertBusinessDna,
+  getBusinessDna, upsertBusinessDna, generateInitialDna,
+  getBusinessDnaVersions, getDnaProposals, resolveDnaProposal,
   computeDnaCompletionScore, type BusinessDna,
 } from "@/lib/growthmind/growthmind.business-dna";
 import { runOpportunityEngine } from "@/lib/growthmind/opportunity-engine.server";
@@ -62,13 +63,23 @@ function BusinessDnaPage() {
   const upsertDnaFn   = useServerFn(upsertBusinessDna);
   const runOppFn      = useServerFn(runOpportunityEngine);
   const runValueFn    = useServerFn(runTrendingValueEngine);
+  const generateFn    = useServerFn(generateInitialDna);
+  const getVersionsFn = useServerFn(getBusinessDnaVersions);
+  const getProposalsFn = useServerFn(getDnaProposals);
+  const resolveProposalFn = useServerFn(resolveDnaProposal);
   const qc            = useQueryClient();
 
   const [saving,      setSaving]      = useState(false);
   const [refreshing,  setRefreshing]  = useState(false);
+  const [generating,  setGenerating]  = useState(false);
+  const [resolvingId, setResolvingId] = useState<string | null>(null);
+  const [showHistory, setShowHistory] = useState(false);
+  const [mounted,     setMounted]     = useState(false);
+  useEffect(() => { setMounted(true); }, []);
   const [sections,    setSections]    = useState<SectionState>({
     company: true, products: true, customers: false,
     financials: false, strategy: false, brand: false,
+    messaging: false, guardrails: false, contentPrefs: false,
   });
 
   const { data, isLoading } = useQuery({
@@ -80,6 +91,23 @@ function BusinessDnaPage() {
 
   const dna        = data?.dna;
   const completion = data?.completion ?? computeDnaCompletionScore({});
+
+  const { data: proposalsData } = useQuery({
+    queryKey: ["growthmind-dna-proposals"],
+    queryFn:  () => getProposalsFn(),
+    staleTime: 60_000,
+    throwOnError: false,
+  });
+  const proposals = proposalsData?.proposals ?? [];
+
+  const { data: versionsData } = useQuery({
+    queryKey: ["growthmind-dna-versions"],
+    queryFn:  () => getVersionsFn(),
+    staleTime: 60_000,
+    throwOnError: false,
+    enabled: showHistory,
+  });
+  const versions = versionsData?.versions ?? [];
 
   const [form, setForm] = useState<Partial<BusinessDna>>({});
 
@@ -122,7 +150,23 @@ function BusinessDnaPage() {
         caseStudies:            String(merged.caseStudies            ?? ""),
         brandVoice:             String(merged.brandVoice             ?? ""),
         complianceNotes:        String(merged.complianceNotes        ?? ""),
+        customerPainPoints:     String(merged.customerPainPoints     ?? ""),
+        commonObjections:       String(merged.commonObjections       ?? ""),
+        buyingTriggers:         String(merged.buyingTriggers         ?? ""),
+        approvedClaims:         String(merged.approvedClaims         ?? ""),
+        restrictedClaims:       String(merged.restrictedClaims       ?? ""),
+        restrictedTopics:       String(merged.restrictedTopics       ?? ""),
+        preferredCtas:          String(merged.preferredCtas          ?? ""),
+        contentStyles:          String(merged.contentStyles          ?? ""),
+        priorityTopics:         String(merged.priorityTopics         ?? ""),
+        avoidTopics:            String(merged.avoidTopics            ?? ""),
+        proofPoints:            String(merged.proofPoints            ?? ""),
+        brandAssets:            (merged.brandAssets ?? {}) as Record<string, unknown>,
+        approvedVoices:         String(merged.approvedVoices         ?? ""),
+        contentObjectives:      String(merged.contentObjectives      ?? ""),
+        commercialObjectives:   String(merged.commercialObjectives   ?? ""),
       }});
+      await qc.invalidateQueries({ queryKey: ["growthmind-dna-versions"] });
       await qc.invalidateQueries({ queryKey: ["growthmind-business-dna"] });
       setForm({});
       toast.success("Business DNA saved");
@@ -130,6 +174,51 @@ function BusinessDnaPage() {
       toast.error(err.message ?? "Failed to save");
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function handleGenerate() {
+    setGenerating(true);
+    try {
+      const res = await generateFn();
+      const suggestions = res?.suggestions ?? {};
+      const keys = Object.keys(suggestions);
+      if (keys.length === 0) {
+        toast.info("Not enough workspace data to draft suggestions yet.");
+      } else {
+        // Prefill ONLY empty fields — never overwrite existing values.
+        setForm(prev => {
+          const next = { ...prev };
+          for (const [k, v] of Object.entries(suggestions)) {
+            const currentVal = (prev as any)[k] ?? (dna as any)?.[k];
+            const isEmpty = currentVal == null || String(currentVal).trim() === "";
+            if (isEmpty) (next as any)[k] = v;
+          }
+          return next;
+        });
+        toast.success(`GrowthMind drafted ${keys.length} field${keys.length === 1 ? "" : "s"} — review and save to apply`);
+      }
+    } catch (err: any) {
+      toast.error(err.message ?? "Draft generation failed");
+    } finally {
+      setGenerating(false);
+    }
+  }
+
+  async function handleResolveProposal(proposalId: string, decision: "approve" | "reject") {
+    setResolvingId(proposalId);
+    try {
+      await resolveProposalFn({ data: { proposalId, decision } });
+      await Promise.all([
+        qc.invalidateQueries({ queryKey: ["growthmind-dna-proposals"] }),
+        qc.invalidateQueries({ queryKey: ["growthmind-business-dna"] }),
+        qc.invalidateQueries({ queryKey: ["growthmind-dna-versions"] }),
+      ]);
+      toast.success(decision === "approve" ? "Proposal applied to Business DNA" : "Proposal rejected");
+    } catch (err: any) {
+      toast.error(err.message ?? "Failed to resolve proposal");
+    } finally {
+      setResolvingId(null);
     }
   }
 
@@ -180,6 +269,15 @@ function BusinessDnaPage() {
           <div className="flex items-center gap-2 shrink-0">
             <Button
               type="button" variant="ghost" size="sm"
+              onClick={handleGenerate} disabled={generating}
+              className="text-xs gap-1.5"
+              title="Draft empty fields from your existing WEBEE data — you review and save"
+            >
+              {generating ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
+              Auto-Draft from Data
+            </Button>
+            <Button
+              type="button" variant="ghost" size="sm"
               onClick={handleRefreshAll} disabled={refreshing}
               className="text-xs gap-1.5"
             >
@@ -218,6 +316,42 @@ function BusinessDnaPage() {
             </p>
           )}
         </div>
+
+        {/* GrowthMind-proposed DNA updates — explicit approval, never silent */}
+        {proposals.length > 0 && (
+          <div className="rounded-xl border border-emerald-500/25 bg-emerald-500/[0.05] p-4 space-y-3">
+            <div className="flex items-center gap-2">
+              <Sparkles className="h-4 w-4 text-emerald-400" />
+              <p className="text-sm font-semibold">GrowthMind suggests {proposals.length} DNA update{proposals.length === 1 ? "" : "s"}</p>
+            </div>
+            {proposals.map((p: any) => (
+              <div key={p.id} className="rounded-lg border border-white/[0.06] bg-card/60 p-3 space-y-2">
+                {p.rationale && <p className="text-xs text-muted-foreground">{p.rationale}</p>}
+                <div className="space-y-1">
+                  {Object.entries((p.field_changes ?? {}) as Record<string, any>).slice(0, 6).map(([field, ch]) => (
+                    <p key={field} className="text-[11px]">
+                      <span className="font-medium text-foreground">{field.replace(/_/g, " ")}:</span>{" "}
+                      <span className="text-muted-foreground line-through">{String(ch?.current ?? "—").slice(0, 60)}</span>{" "}
+                      <span className="text-emerald-400">→ {String(ch?.proposed ?? "").slice(0, 120)}</span>
+                    </p>
+                  ))}
+                </div>
+                <div className="flex gap-2">
+                  <Button type="button" size="sm" disabled={resolvingId === p.id}
+                    onClick={() => handleResolveProposal(p.id, "approve")}
+                    className="h-7 text-xs gap-1 bg-emerald-600 hover:bg-emerald-500">
+                    {resolvingId === p.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <Check className="h-3 w-3" />} Approve
+                  </Button>
+                  <Button type="button" size="sm" variant="ghost" disabled={resolvingId === p.id}
+                    onClick={() => handleResolveProposal(p.id, "reject")}
+                    className="h-7 text-xs gap-1">
+                    <X className="h-3 w-3" /> Reject
+                  </Button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
 
         {/* Knowledge base document upload — feeds discovery + GrowthMind */}
         <BusinessDnaKnowledgeUpload accent="emerald" />
@@ -347,6 +481,107 @@ function BusinessDnaPage() {
               placeholder="e.g. Do not make income claims. GDPR compliant messaging only..." className="bg-background/50 text-sm resize-none" rows={3} />
           </Field>
         </Section>
+
+        {/* Section: Messaging & Objections */}
+        <Section id="messaging" title="Messaging & Customer Psychology" description="Pain points, objections, triggers and evidence used in every content piece"
+          open={sections.messaging} onToggle={() => toggleSection("messaging")}>
+          <Field label="Customer Pain Points" wide hint="The real problems your customers describe, in their words">
+            <Textarea value={String(merged.customerPainPoints ?? "")} onChange={e => set("customerPainPoints", e.target.value)}
+              placeholder="e.g. Missing calls after hours, leads going cold before follow-up..." className="bg-background/50 text-sm resize-none" rows={3} />
+          </Field>
+          <Field label="Common Objections" hint="What stops people buying">
+            <Textarea value={String(merged.commonObjections ?? "")} onChange={e => set("commonObjections", e.target.value)}
+              placeholder="e.g. 'AI sounds robotic', 'Too expensive', 'We already have a receptionist'..." className="bg-background/50 text-sm resize-none" rows={3} />
+          </Field>
+          <Field label="Buying Triggers" hint="Events that make customers ready to buy">
+            <Textarea value={String(merged.buyingTriggers ?? "")} onChange={e => set("buyingTriggers", e.target.value)}
+              placeholder="e.g. Receptionist quit, missed a big lead, new office opening..." className="bg-background/50 text-sm resize-none" rows={3} />
+          </Field>
+          <Field label="Proof Points & Evidence" wide hint="Numbers, results and evidence content can reference">
+            <Textarea value={String(merged.proofPoints ?? "")} onChange={e => set("proofPoints", e.target.value)}
+              placeholder="e.g. 40% more viewings booked in 30 days for estate agent client..." className="bg-background/50 text-sm resize-none" rows={3} />
+          </Field>
+        </Section>
+
+        {/* Section: Claims & Guardrails */}
+        <Section id="guardrails" title="Claims & Guardrails" description="What GrowthMind may and may not say — enforced across all generated content"
+          open={sections.guardrails} onToggle={() => toggleSection("guardrails")}>
+          <Field label="Approved Claims" wide hint="Statements that are verified and safe to use">
+            <Textarea value={String(merged.approvedClaims ?? "")} onChange={e => set("approvedClaims", e.target.value)}
+              placeholder="e.g. 'Answers 100% of calls 24/7', 'Set up in under a week'..." className="bg-background/50 text-sm resize-none" rows={3} />
+          </Field>
+          <Field label="Restricted Claims" hint="Claims that must never appear in content">
+            <Textarea value={String(merged.restrictedClaims ?? "")} onChange={e => set("restrictedClaims", e.target.value)}
+              placeholder="e.g. Income guarantees, medical outcomes, 'best in the world'..." className="bg-background/50 text-sm resize-none" rows={3} />
+          </Field>
+          <Field label="Restricted Topics" hint="Topics content must never cover">
+            <Textarea value={String(merged.restrictedTopics ?? "")} onChange={e => set("restrictedTopics", e.target.value)}
+              placeholder="e.g. Politics, religion, competitor bashing..." className="bg-background/50 text-sm resize-none" rows={3} />
+          </Field>
+          <Field label="Approved Voices / Spokespeople" wide hint="Who may appear or be quoted in content (incl. AI spokespeople rules)">
+            <Textarea value={String(merged.approvedVoices ?? "")} onChange={e => set("approvedVoices", e.target.value)}
+              placeholder="e.g. Founder only for pricing topics; AI presenter allowed for educational content..." className="bg-background/50 text-sm resize-none" rows={2} />
+          </Field>
+        </Section>
+
+        {/* Section: Content Preferences */}
+        <Section id="contentPrefs" title="Content Preferences & Objectives" description="Styles, topics, CTAs and objectives that steer the content engine"
+          open={sections.contentPrefs} onToggle={() => toggleSection("contentPrefs")}>
+          <Field label="Content Styles" hint="Formats and tones that work for your brand">
+            <Textarea value={String(merged.contentStyles ?? "")} onChange={e => set("contentStyles", e.target.value)}
+              placeholder="e.g. Short talking-head reels, before/after demos, myth-busting posts..." className="bg-background/50 text-sm resize-none" rows={3} />
+          </Field>
+          <Field label="Preferred Calls-to-Action" hint="How content should ask for the next step">
+            <Textarea value={String(merged.preferredCtas ?? "")} onChange={e => set("preferredCtas", e.target.value)}
+              placeholder="e.g. 'Book a free AI audit', 'Call Ava now', 'DM us START'..." className="bg-background/50 text-sm resize-none" rows={3} />
+          </Field>
+          <Field label="Priority Topics" hint="Topics GrowthMind should prioritise">
+            <Textarea value={String(merged.priorityTopics ?? "")} onChange={e => set("priorityTopics", e.target.value)}
+              placeholder="e.g. Missed-call cost, AI receptionists, WhatsApp automation..." className="bg-background/50 text-sm resize-none" rows={3} />
+          </Field>
+          <Field label="Topics to Avoid" hint="Low-value or off-brand topics">
+            <Textarea value={String(merged.avoidTopics ?? "")} onChange={e => set("avoidTopics", e.target.value)}
+              placeholder="e.g. Generic motivational content, AI doom debates..." className="bg-background/50 text-sm resize-none" rows={3} />
+          </Field>
+          <Field label="Content Objectives" hint="What content should achieve">
+            <Textarea value={String(merged.contentObjectives ?? "")} onChange={e => set("contentObjectives", e.target.value)}
+              placeholder="e.g. Build trust with SME owners, educate on AI reception, drive demo bookings..." className="bg-background/50 text-sm resize-none" rows={2} />
+          </Field>
+          <Field label="Commercial Objectives" hint="Business outcomes content supports">
+            <Textarea value={String(merged.commercialObjectives ?? "")} onChange={e => set("commercialObjectives", e.target.value)}
+              placeholder="e.g. 20 qualified demos per month, £30k new MRR per quarter..." className="bg-background/50 text-sm resize-none" rows={2} />
+          </Field>
+        </Section>
+
+        {/* Version history */}
+        <div className="rounded-xl border border-white/[0.06] bg-card/60 overflow-hidden">
+          <button type="button" onClick={() => setShowHistory(v => !v)}
+            className="w-full flex items-center justify-between px-5 py-4 hover:bg-white/[0.02] transition-colors text-left">
+            <div className="flex items-center gap-2">
+              <History className="h-4 w-4 text-muted-foreground" />
+              <div>
+                <p className="text-sm font-semibold">Version History</p>
+                <p className="text-xs text-muted-foreground mt-0.5">Every save is recorded — current version {dna?.dnaVersion ?? 1}</p>
+              </div>
+            </div>
+            {showHistory ? <ChevronUp className="h-4 w-4 text-muted-foreground shrink-0" /> : <ChevronDown className="h-4 w-4 text-muted-foreground shrink-0" />}
+          </button>
+          {showHistory && (
+            <div className="px-5 pb-4 border-t border-white/[0.04] pt-3 space-y-1.5">
+              {versions.length === 0 && <p className="text-xs text-muted-foreground">No versions recorded yet — save the DNA to create the first snapshot.</p>}
+              {versions.map((v: any) => (
+                <div key={v.id} className="flex items-center justify-between text-xs py-1">
+                  <div className="flex items-center gap-2">
+                    <span className="font-medium tabular-nums">v{v.version}</span>
+                    <span className="text-muted-foreground">{v.changed_by === "growthmind" ? "GrowthMind (approved proposal)" : "Manual save"}</span>
+                    {v.change_summary && <span className="text-muted-foreground truncate max-w-[280px]">— {v.change_summary}</span>}
+                  </div>
+                  <span className="text-muted-foreground tabular-nums">{mounted ? new Date(v.created_at).toLocaleString() : ""}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
 
         {/* Footer save */}
         <div className="flex justify-end">

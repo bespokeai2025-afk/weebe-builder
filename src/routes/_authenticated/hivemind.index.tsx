@@ -11,6 +11,7 @@ import {
   Lightbulb, Eye,
 } from "lucide-react";
 import { HiveMindProviderHealth } from "@/components/hivemind/HiveMindProviderHealth";
+import { AiUsageCostsCard } from "@/components/usage/AiUsageCostsCard";
 import { Link } from "@tanstack/react-router";
 import { cn } from "@/lib/utils";
 import { HiveMindShell, useHiveMindMode } from "@/components/hivemind/HiveMindShell";
@@ -984,6 +985,9 @@ function HiveMindOverview() {
 
                 {/* Provider Health */}
                 <HiveMindProviderHealth />
+
+                {/* AI usage & production costs (GrowthMind, Content Studio, providers) */}
+                <AiUsageCostsCard />
               </div>
             )}
           </div>

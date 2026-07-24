@@ -83,10 +83,26 @@ function AuthenticatedLayout() {
       setAuthed(true);
       setChecked(true);
     })();
+    // If the session dies mid-use (e.g. the refresh token was revoked or
+    // already rotated — surfaces as "Invalid Refresh Token: Refresh Token Not
+    // Found"), supabase-js emits SIGNED_OUT. Without this listener the user
+    // stays on the page while every data request fails; bounce them cleanly
+    // to the sign-in page instead.
+    const { data: sub } = supabase.auth.onAuthStateChange((event) => {
+      if (event === "SIGNED_OUT") {
+        lastAuthUserId = null;
+        qc.clear();
+        navigate({
+          to: "/login",
+          search: { redirect: window.location.pathname },
+        });
+      }
+    });
     return () => {
       active = false;
+      sub.subscription.unsubscribe();
     };
-  }, [navigate]);
+  }, [navigate, qc]);
 
   return (
     <SidebarProvider defaultOpen={false}>

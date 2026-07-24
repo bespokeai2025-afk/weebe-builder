@@ -195,6 +195,28 @@ export const Route = createFileRoute("/api/public/calcom-webhook/$workspaceId")(
           }
         }
 
+        // Executive event stream (best-effort). Dedup key includes the
+        // trigger so a create + later cancel of the same booking each
+        // surface once, while Cal.com webhook retries are no-ops.
+        try {
+          const { publishExecutiveEvent } = await import("@/lib/hivemind/executive-events.shared");
+          await publishExecutiveEvent(supabaseAdmin, {
+            workspaceId,
+            eventType: trigger === "BOOKING_CANCELLED" ? "booking_cancelled" : "booking_created",
+            sourceSystem: "calcom",
+            title:
+              trigger === "BOOKING_CANCELLED"
+                ? `Appointment cancelled${attendee?.name ? ` — ${attendee.name}` : ""}`
+                : `Appointment ${trigger === "BOOKING_RESCHEDULED" ? "rescheduled" : "booked"}${attendee?.name ? ` with ${attendee.name}` : ""}`,
+            summary: `${row.title} at ${row.start_at}`,
+            entityType: "booking",
+            entityId: externalId,
+            dedupKey: `${trigger || "BOOKING_CREATED"}:booking:${externalId}`,
+            correlationKey: leadId ? `lead:${leadId}` : null,
+            evidence: { source: "calcom", trigger, start: row.start_at, status },
+          });
+        } catch { /* best-effort */ }
+
         return new Response("ok", { status: 200, headers: CORS });
       },
     },

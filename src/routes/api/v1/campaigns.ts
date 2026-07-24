@@ -58,6 +58,15 @@ export const Route = createFileRoute("/api/v1/campaigns")({
             }).select("id").single();
             if (newLeadError) console.error("[API v1] campaign lead auto-create failed:", newLeadError.message);
             resolvedLeadId = newLead?.id;
+            if (newLead?.id) {
+              import("@/lib/lead-gen/lead-notify.server")
+                .then(m => m.notifyNewLead({
+                  workspaceId, leadId: newLead.id,
+                  name: name ?? null, phone,
+                  source: "API (campaign enrolment)",
+                }))
+                .catch(() => {});
+            }
             // Intentionally NOT hooking lead-auto-call automation here: this
             // endpoint immediately enrols the lead into a campaign (below),
             // which will call it on its own cadence. Also placing an

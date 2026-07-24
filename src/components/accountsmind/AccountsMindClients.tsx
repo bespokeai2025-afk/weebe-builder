@@ -41,6 +41,7 @@ interface BillingForm {
   contractEndDate: string;
   status: string;
   notes: string;
+  billingAddress: string;
 }
 
 const DEFAULTS: BillingForm = {
@@ -56,6 +57,7 @@ const DEFAULTS: BillingForm = {
   contractEndDate: "",
   status: "active",
   notes: "",
+  billingAddress: "",
 };
 
 export function AccountsMindClients() {
@@ -112,6 +114,7 @@ export function AccountsMindClients() {
         contractEndDate:      profile.contract_end_date ?? "",
         status:               profile.status ?? "active",
         notes:                profile.notes ?? "",
+        billingAddress:       profile.billing_address ?? "",
       });
     } else {
       setForm(DEFAULTS);
@@ -139,6 +142,7 @@ export function AccountsMindClients() {
           contractEndDate:      form.contractEndDate   || null,
           status:               form.status,
           notes:                form.notes,
+          billingAddress:       form.billingAddress,
         },
       });
       qc.invalidateQueries({ queryKey: ["accountsmind-clients"] });
@@ -425,6 +429,11 @@ export function AccountsMindClients() {
                   <SelectItem value="trial">Trial</SelectItem>
                 </SelectContent>
               </Select>
+            </div>
+
+            <div>
+              <Label className="text-xs text-gray-400">Billing address (appears on invoices as {"{to_address}"})</Label>
+              <Textarea value={form.billingAddress} onChange={(e) => field("billingAddress", e.target.value)} placeholder={"123 High Street\nLondon\nSW1A 1AA"} className="mt-1 bg-gray-800 border-gray-700 text-white text-sm" rows={3} />
             </div>
 
             <div>

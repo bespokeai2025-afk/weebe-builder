@@ -18,6 +18,7 @@ import {
   testProviderConnection,
   toggleProviderEnabled,
 } from "@/lib/providers/providers.functions";
+import { startGoogleAdsOAuth, getGoogleAdsOAuthStatus } from "@/lib/providers/advertising/google-ads-oauth.functions";
 
 // Trigger an ad sync after connecting an ads provider so campaigns appear immediately
 const triggerAdsSyncForWorkspace = createServerFn({ method: "POST" })
@@ -158,6 +159,80 @@ function StatusBadge({ status }: { status: string }) {
   if (status === "error")        return <Badge className="text-[9px] h-4 bg-red-500/10 text-red-400 border-red-500/20"><XCircle className="h-2.5 w-2.5 mr-0.5" />Error</Badge>;
   if (status === "coming_soon")  return <Badge className="text-[9px] h-4 bg-muted/40 text-muted-foreground border-border"><Clock className="h-2.5 w-2.5 mr-0.5" />Coming Soon</Badge>;
   return <Badge className="text-[9px] h-4 bg-muted/40 text-muted-foreground border-border"><AlertCircle className="h-2.5 w-2.5 mr-0.5" />Disconnected</Badge>;
+}
+
+// ── "Connect with Google" OAuth block for Google Ads ─────────────────────────
+function GoogleAdsOAuthConnect({ creds }: { creds: Record<string, string> }) {
+  const startFn  = useServerFn(startGoogleAdsOAuth);
+  const statusFn = useServerFn(getGoogleAdsOAuthStatus);
+
+  const [status,     setStatus]     = useState<any>(null);
+  const [connecting, setConnecting] = useState(false);
+
+  useEffect(() => {
+    statusFn().then(setStatus).catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const clientIdReady     = !!(creds.clientId?.trim()     || status?.hasClientId);
+  const clientSecretReady = !!(creds.clientSecret?.trim() || status?.hasClientSecret);
+  const ready = clientIdReady && clientSecretReady;
+
+  async function handleConnect() {
+    setConnecting(true);
+    try {
+      const res = await startFn({
+        data: {
+          source:         "provider" as const,
+          origin:         window.location.origin,
+          returnTo:       window.location.pathname,
+          clientId:       creds.clientId?.trim()       || undefined,
+          clientSecret:   creds.clientSecret?.trim()   || undefined,
+          developerToken: creds.developerToken?.trim() || undefined,
+          customerId:     creds.customerId?.trim()     || undefined,
+          managerId:      creds.managerId?.trim()      || undefined,
+        },
+      }) as any;
+      if (res?.url) window.location.href = res.url;
+      else { toast.error("Could not start Google sign-in"); setConnecting(false); }
+    } catch (e: any) {
+      toast.error(e?.message ?? "Could not start Google sign-in");
+      setConnecting(false);
+    }
+  }
+
+  return (
+    <div className="rounded-md border border-amber-500/20 bg-amber-500/[0.04] p-3 space-y-2">
+      <p className="text-[11px] font-medium">Connect with Google (recommended)</p>
+      <p className="text-[10px] text-muted-foreground leading-relaxed">
+        Instead of pasting a refresh token manually, sign in with the Google account
+        that manages your Google Ads. We securely receive a long-lived refresh token
+        automatically. You still need your <b>OAuth Client ID</b>, <b>Client Secret</b> and{" "}
+        <b>Developer Token</b> from Google (enter them above first, then click Connect).
+      </p>
+      {status?.hasRefreshToken && (
+        <p className="text-[10px] text-emerald-400 flex items-center gap-1">
+          <CheckCircle2 className="h-3 w-3" /> Google account connected — refresh token on file
+        </p>
+      )}
+      <Button
+        size="sm"
+        className="h-7 px-3 text-[11px] gap-1.5 bg-white text-black hover:bg-white/90"
+        disabled={!ready || connecting}
+        onClick={handleConnect}
+      >
+        {connecting ? <Loader2 className="h-3 w-3 animate-spin" /> : (
+          <svg className="h-3 w-3" viewBox="0 0 24 24"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.27-4.74 3.27-8.1z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#FBBC05" d="M5.84 14.1c-.22-.66-.35-1.36-.35-2.1s.13-1.44.35-2.1V7.06H2.18A10.97 10.97 0 0 0 1 12c0 1.77.42 3.45 1.18 4.94l3.66-2.84z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"/></svg>
+        )}
+        {status?.hasRefreshToken ? "Reconnect with Google" : "Connect with Google"}
+      </Button>
+      {!ready && (
+        <p className="text-[10px] text-muted-foreground/70">
+          Enter your OAuth Client ID and Client Secret above to enable this button.
+        </p>
+      )}
+    </div>
+  );
 }
 
 function ProviderPanel({
@@ -302,6 +377,7 @@ function ProviderPanel({
           <Button size="sm" variant="default" className="h-6 px-3 text-[10px] gap-1" disabled={saving || syncing} onClick={handleSave}>
             {syncing ? <><Zap className="h-2.5 w-2.5 animate-pulse" />Syncing…</> : saving ? <><Loader2 className="h-2.5 w-2.5 animate-spin" />Saving…</> : <><Save className="h-2.5 w-2.5" />Save</>}
           </Button>
+          {credKey === "advertising:google_ads" && <GoogleAdsOAuthConnect creds={creds} />}
         </div>
       )}
 
@@ -351,6 +427,7 @@ function ProviderPanel({
                   Test Connection
                 </Button>
               </div>
+              {credKey === "advertising:google_ads" && <GoogleAdsOAuthConnect creds={creds} />}
             </div>
           )}
         </>
@@ -380,6 +457,21 @@ function CategoryProvidersPage() {
   }
 
   useEffect(() => { load(); }, [category]);
+
+  // Show the result of a "Connect with Google" round-trip (?gads=connected / error)
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const gads = params.get("gads");
+    if (!gads) return;
+    if (gads === "connected") {
+      toast.success("Google Ads connected via Google sign-in — refresh token saved");
+    } else {
+      toast.error(params.get("gads_msg") ?? "Google Ads connection failed");
+    }
+    params.delete("gads"); params.delete("gads_msg");
+    const qs = params.toString();
+    window.history.replaceState({}, "", `${window.location.pathname}${qs ? `?${qs}` : ""}`);
+  }, []);
 
   return (
     <div className="p-6 max-w-3xl mx-auto space-y-6">

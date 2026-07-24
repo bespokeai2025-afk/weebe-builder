@@ -204,6 +204,16 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
         href: appCss,
       },
     ],
+    // Inline bootstrap scripts rendered via HeadContent (not raw JSX in the
+    // shell) so hydration tolerates scripts injected into <head> by the Replit
+    // dev preview / browser extensions. Raw positional <script> JSX in <head>
+    // pairs against injected tags and crashes hydration.
+    scripts: [
+      { children: themeInitScript },
+      { children: errorReportScript },
+      { children: chunkReloadScript },
+      { children: swCleanupScript },
+    ],
   }),
   shellComponent: RootShell,
   component: RootComponent,
@@ -234,10 +244,6 @@ function RootShell({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
-        <script dangerouslySetInnerHTML={{ __html: themeInitScript }} />
-        <script dangerouslySetInnerHTML={{ __html: errorReportScript }} />
-        <script dangerouslySetInnerHTML={{ __html: chunkReloadScript }} />
-        <script dangerouslySetInnerHTML={{ __html: swCleanupScript }} />
         <HeadContent />
       </head>
       <body>

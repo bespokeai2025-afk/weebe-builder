@@ -137,6 +137,23 @@ export const decideWorkspaceRequest = createServerFn({ method: "POST" })
       .eq("user_id", req.user_id)
       .maybeSingle();
 
+    // Executive event stream — announce approved workspaces to the new
+    // workspace's own stream (best-effort).
+    if (data.approve && profile?.default_workspace_id) {
+      try {
+        const { publishExecutiveEvent } = await import("@/lib/hivemind/executive-events.shared");
+        await publishExecutiveEvent(supabaseAdmin, {
+          workspaceId: profile.default_workspace_id,
+          eventType: "signup_request",
+          sourceSystem: "platform",
+          title: `Workspace "${req.workspace_name}" approved`,
+          entityType: "workspace_request",
+          entityId: String(req.id),
+          evidence: { requestId: req.id, workspaceName: req.workspace_name },
+        });
+      } catch { /* best-effort */ }
+    }
+
     // When approving with a Retell API key, store it in the user's workspace
     // settings so cloneRetellAgentForDeploy can use it automatically.
     if (data.approve && data.retellApiKey?.trim()) {

@@ -200,6 +200,19 @@ export const Route = createFileRoute("/api/public/retell/book")({
             meeting_url: booking.meetingUrl ?? null,
             notes: d.notes ?? null,
           });
+          try {
+            const { publishExecutiveEvent } = await import("@/lib/hivemind/executive-events.shared");
+            await publishExecutiveEvent(supabaseAdmin, {
+              workspaceId: wsId,
+              eventType: "booking_created",
+              sourceSystem: "retell",
+              title: `Appointment booked with ${d.name}`,
+              summary: `Booked for ${booking.startTime} via voice agent.`,
+              entityType: "booking",
+              entityId: String(booking.uid ?? booking.id),
+              evidence: { source: "retell", start: booking.startTime, attendee: d.name },
+            });
+          } catch { /* best-effort */ }
           cacheDel(
             `webee:hivemind:${wsId}:platform`,
             `webee:growthmind:${wsId}:platform`,

@@ -609,6 +609,53 @@ export function HiveMindOrb() {
 
   const clickTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // ── Draggable position (offsets from bottom-right, persisted) ──
+  const [pos, setPos] = useState<{ right: number; bottom: number }>({ right: 24, bottom: 24 });
+  // Restore saved position after mount (avoids SSR/client hydration mismatch).
+  useEffect(() => {
+    try {
+      const saved = JSON.parse(localStorage.getItem("hm-orb-pos") ?? "");
+      if (saved && Number.isFinite(saved.right) && Number.isFinite(saved.bottom)) {
+        setPos({
+          right: Math.min(Math.max(saved.right, 8), window.innerWidth - 80),
+          bottom: Math.min(Math.max(saved.bottom, 8), window.innerHeight - 80),
+        });
+      }
+    } catch {}
+  }, []);
+  const dragRef = useRef<{ startX: number; startY: number; right: number; bottom: number; moved: boolean } | null>(null);
+  const suppressClickRef = useRef(false);
+
+  function onDragPointerDown(e: React.PointerEvent) {
+    if (e.button !== 0) return;
+    dragRef.current = { startX: e.clientX, startY: e.clientY, right: pos.right, bottom: pos.bottom, moved: false };
+    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+  }
+  function onDragPointerMove(e: React.PointerEvent) {
+    const d = dragRef.current;
+    if (!d) return;
+    const dx = e.clientX - d.startX;
+    const dy = e.clientY - d.startY;
+    if (!d.moved && Math.abs(dx) < 5 && Math.abs(dy) < 5) return;
+    d.moved = true;
+    setPos({
+      right: Math.min(Math.max(d.right - dx, 8), window.innerWidth - 80),
+      bottom: Math.min(Math.max(d.bottom - dy, 8), window.innerHeight - 80),
+    });
+  }
+  function onDragPointerUp() {
+    const d = dragRef.current;
+    dragRef.current = null;
+    if (d?.moved) {
+      suppressClickRef.current = true;
+      setPos((p) => {
+        try { localStorage.setItem("hm-orb-pos", JSON.stringify(p)); } catch {}
+        return p;
+      });
+      setTimeout(() => { suppressClickRef.current = false; }, 0);
+    }
+  }
+
   // Inject keyframes once
   useEffect(() => {
     const id = "hm-orb-styles";
@@ -632,6 +679,7 @@ export function HiveMindOrb() {
   if (pathname.startsWith("/hivemind")) return null;
 
   function handleOrbClick() {
+    if (suppressClickRef.current) return; // was a drag, not a click
     // Debounce single/double click
     if (clickTimerRef.current) {
       clearTimeout(clickTimerRef.current);
@@ -646,7 +694,10 @@ export function HiveMindOrb() {
   }
 
   return (
-    <div className="fixed bottom-6 right-6 z-50 flex flex-col items-end select-none">
+    <div
+      className="fixed z-50 flex flex-col items-end select-none"
+      style={{ right: pos.right, bottom: pos.bottom, touchAction: "none" }}
+    >
       {/* Chat panel */}
       {open && (
         <MiniChat
@@ -717,10 +768,15 @@ export function HiveMindOrb() {
         {/* The orb button */}
         <button
           onClick={handleOrbClick}
+          onPointerDown={onDragPointerDown}
+          onPointerMove={onDragPointerMove}
+          onPointerUp={onDragPointerUp}
+          onPointerCancel={onDragPointerUp}
           onMouseEnter={() => setHovered(true)}
           onMouseLeave={() => setHovered(false)}
-          aria-label="Open HiveMind Executive Assistant"
-          className="relative cursor-pointer transition-transform duration-300 active:scale-95 focus:outline-none"
+          aria-label="Open HiveMind Executive Assistant (drag to move)"
+          title="Drag to move"
+          className="relative cursor-grab active:cursor-grabbing transition-transform duration-300 active:scale-95 focus:outline-none"
           style={{
             background: "none",
             border: "none",

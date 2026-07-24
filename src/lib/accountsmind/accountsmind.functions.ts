@@ -23,6 +23,35 @@ export const getBillingProfile = createServerFn({ method: "GET" })
     return profile ?? null;
   });
 
+export const getInvoiceSenderSettings = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth, requirePlatformAdmin])
+  .handler(async () => {
+    const { data, error } = await supabaseAdmin
+      .from("accountsmind_invoice_settings")
+      .select("from_name,from_address")
+      .eq("id", 1)
+      .maybeSingle();
+    if (error) throw new Error(error.message);
+    return { fromName: data?.from_name ?? "", fromAddress: data?.from_address ?? "" };
+  });
+
+export const upsertInvoiceSenderSettings = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth, requirePlatformAdmin])
+  .inputValidator((input: { fromName: string; fromAddress: string }) => ({
+    fromName: String(input.fromName ?? "").slice(0, 200),
+    fromAddress: String(input.fromAddress ?? "").slice(0, 1000),
+  }))
+  .handler(async ({ data }) => {
+    const { error } = await supabaseAdmin
+      .from("accountsmind_invoice_settings")
+      .upsert(
+        { id: 1, from_name: data.fromName, from_address: data.fromAddress, updated_at: new Date().toISOString() },
+        { onConflict: "id" },
+      );
+    if (error) throw new Error(error.message);
+    return { ok: true };
+  });
+
 export const upsertBillingProfile = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth, requirePlatformAdmin])
   .inputValidator(
@@ -41,6 +70,7 @@ export const upsertBillingProfile = createServerFn({ method: "POST" })
       contractEndDate:      string | null;
       status:               string;
       notes:                string;
+      billingAddress?:      string;
     }) => input,
   )
   .handler(async ({ data }) => {
@@ -62,6 +92,11 @@ export const upsertBillingProfile = createServerFn({ method: "POST" })
           contract_end_date:       data.contractEndDate,
           status:                  data.status,
           notes:                   data.notes,
+          // Only touch billing_address when the caller explicitly provides it,
+          // so callers without the field (e.g. Workspace Setup) never wipe it.
+          ...(data.billingAddress !== undefined
+            ? { billing_address: String(data.billingAddress).slice(0, 1000) }
+            : {}),
           updated_at:              new Date().toISOString(),
         },
         { onConflict: "workspace_id" },

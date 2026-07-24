@@ -56,9 +56,17 @@ export const adminCreateClientWorkspace = createServerFn({ method: "POST" })
 
     const slug = await uniqueSlug(makeSlug(data.name));
 
+    // Look up owner by email via auth admin BEFORE the insert —
+    // workspaces.owner_id is NOT NULL, so we must supply an owner up front.
+    const { data: usersPage } = await supabaseAdmin.auth.admin.listUsers({ perPage: 1000 });
+    const email = data.ownerEmail.trim().toLowerCase();
+    const ownerUser = usersPage?.users?.find((u) => (u.email ?? "").toLowerCase() === email);
+
+    // If the owner email has no platform account yet, the creating admin is
+    // set as a placeholder owner; the real owner can be linked once they sign up.
     const { data: ws, error: wsErr } = await supabaseAdmin
       .from("workspaces")
-      .insert({ name: data.name, slug })
+      .insert({ name: data.name, slug, owner_id: ownerUser?.id ?? context.userId })
       .select("id")
       .single();
     if (wsErr) throw new Error(wsErr.message);
@@ -70,9 +78,6 @@ export const adminCreateClientWorkspace = createServerFn({ method: "POST" })
         .upsert({ workspace_id: ws.id, plan_tier: data.planTier }, { onConflict: "workspace_id" });
     }
 
-    // Look up owner by email via auth admin
-    const { data: usersPage } = await supabaseAdmin.auth.admin.listUsers({ perPage: 1000 });
-    const ownerUser = usersPage?.users?.find((u) => u.email === data.ownerEmail);
     if (ownerUser) {
       await supabaseAdmin
         .from("workspace_members")

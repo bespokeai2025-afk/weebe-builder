@@ -639,6 +639,14 @@ export async function processAvaCallAnalyzed(call: AvaAnalyzedCall, isNoAnswerCa
       return finish("needs_review");
     }
     leadId = (inserted as { id: string }).id;
+    try {
+      const { notifyNewLead } = await import("@/lib/lead-gen/lead-notify.server");
+      await notifyNewLead({
+        workspaceId, leadId,
+        name: request.full_name ?? null, phone: phone ?? null, email: email ?? null,
+        source: "Ava homepage call (booked)",
+      });
+    } catch { /* best-effort */ }
   }
 
   // Best-effort note + admin notification — never fail processing over these.

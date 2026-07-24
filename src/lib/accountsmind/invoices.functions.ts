@@ -29,7 +29,7 @@ async function ensureBucket(): Promise<void> {
 
 const lineItemSchema = z.object({
   description: z.string().min(1).max(300),
-  quantity: z.number().finite().nonnegative(),
+  quantity: z.number().finite().positive(),
   unit_price: z.number().finite(), // major units (e.g. pounds)
 });
 
@@ -63,21 +63,31 @@ export const uploadInvoiceTemplate = createServerFn({ method: "POST" })
   )
   .handler(async ({ data, context }) => {
     const userId = (context as any).userId ?? null;
-    if (!/\.docx$/i.test(data.fileName)) {
-      return { ok: false as const, error: "Template must be a .docx Word file." };
+    const isPdf = /\.pdf$/i.test(data.fileName);
+    if (!isPdf && !/\.docx$/i.test(data.fileName)) {
+      return { ok: false as const, error: "Template must be a .docx Word file or a .pdf design." };
     }
     const buf = Buffer.from(data.fileBase64, "base64");
-    // Validate it's a real docx and the template parses.
+    // Validate the file really parses before storing anything.
     let placeholders: string[] = [];
-    try {
-      const { default: PizZip } = await import("pizzip");
-      const { default: Docxtemplater } = await import("docxtemplater");
-      const zip = new PizZip(buf);
-      new Docxtemplater(zip, { paragraphLoop: true, linebreaks: true });
-      const docXml = zip.file("word/document.xml")?.asText() ?? "";
-      placeholders = extractTags(docXml);
-    } catch (err: any) {
-      return { ok: false as const, error: `Not a valid Word template: ${err?.message ?? "parse failed"}` };
+    if (isPdf) {
+      try {
+        const { inspectPdfBackground } = await import("@/lib/documents/pdf-overlay.server");
+        await inspectPdfBackground(buf);
+      } catch (err: any) {
+        return { ok: false as const, error: `Not a valid PDF: ${err?.message ?? "parse failed"}` };
+      }
+    } else {
+      try {
+        const { default: PizZip } = await import("pizzip");
+        const { default: Docxtemplater } = await import("docxtemplater");
+        const zip = new PizZip(buf);
+        new Docxtemplater(zip, { paragraphLoop: true, linebreaks: true });
+        const docXml = zip.file("word/document.xml")?.asText() ?? "";
+        placeholders = extractTags(docXml);
+      } catch (err: any) {
+        return { ok: false as const, error: `Not a valid Word template: ${err?.message ?? "parse failed"}` };
+      }
     }
 
     await ensureBucket();
@@ -86,7 +96,9 @@ export const uploadInvoiceTemplate = createServerFn({ method: "POST" })
     const { error: upErr } = await (supabaseAdmin as any).storage
       .from(BUCKET)
       .upload(storagePath, buf, {
-        contentType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        contentType: isPdf
+          ? "application/pdf"
+          : "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
       });
     if (upErr) return { ok: false as const, error: upErr.message };
 
@@ -97,6 +109,8 @@ export const uploadInvoiceTemplate = createServerFn({ method: "POST" })
         file_name: data.fileName,
         storage_path: storagePath,
         placeholders_json: placeholders,
+        template_type: isPdf ? "pdf_overlay" : "docx",
+        fields_json: [],
         uploaded_by_user_id: userId,
       })
       .select("*")
@@ -154,7 +168,8 @@ export const generateInvoice = createServerFn({ method: "POST" })
   .inputValidator((input) =>
     z
       .object({
-        templateId: z.string().uuid(),
+        templateId: z.string().uuid().nullish(), // required for docx, ignored for pdf
+        format: z.enum(["docx", "pdf"]).nullish(), // default docx
         workspaceId: z.string().uuid(),
         month: z.string().regex(/^\d{4}-\d{2}$/), // YYYY-MM
         taxRatePercent: z.number().min(0).max(100).nullish(),
@@ -169,13 +184,21 @@ export const generateInvoice = createServerFn({ method: "POST" })
     const userId = (context as any).userId ?? null;
     const sb = supabaseAdmin as any;
 
-    const [{ data: tpl }, { data: ws }, { data: profile }, { data: monthCosts }] = await Promise.all([
-      sb.from("accountsmind_invoice_templates").select("*").eq("id", data.templateId).maybeSingle(),
+    const format: "docx" | "pdf" = data.format === "pdf" ? "pdf" : "docx";
+    if (format === "docx" && !data.templateId) {
+      return { ok: false as const, error: "Pick a Word template, or choose PDF format (built-in layout)." };
+    }
+
+    const [{ data: tpl }, { data: ws }, { data: profile }, { data: monthCosts }, { data: sender }] = await Promise.all([
+      data.templateId
+        ? sb.from("accountsmind_invoice_templates").select("*").eq("id", data.templateId).maybeSingle()
+        : Promise.resolve({ data: null }),
       sb.from("workspaces").select("id,name").eq("id", data.workspaceId).maybeSingle(),
       sb.from("client_billing_profiles").select("*").eq("workspace_id", data.workspaceId).maybeSingle(),
       sb.from("client_monthly_costs").select("*").eq("workspace_id", data.workspaceId).eq("month", data.month).maybeSingle(),
+      sb.from("accountsmind_invoice_settings").select("from_name,from_address").eq("id", 1).maybeSingle(),
     ]);
-    if (!tpl) return { ok: false as const, error: "Template not found." };
+    if (format === "docx" && !tpl) return { ok: false as const, error: "Template not found." };
     if (!ws) return { ok: false as const, error: "Client workspace not found." };
 
     const currency = String(profile?.currency ?? "GBP");
@@ -235,7 +258,7 @@ export const generateInvoice = createServerFn({ method: "POST" })
       const ins = await sb
         .from("accountsmind_invoices")
         .insert({
-          template_id: data.templateId,
+          template_id: data.templateId ?? null,
           workspace_id: data.workspaceId,
           invoice_number: invoiceNumber,
           invoice_month: data.month,
@@ -267,6 +290,9 @@ export const generateInvoice = createServerFn({ method: "POST" })
       invoice_date: fmt(today),
       due_date: fmt(due),
       client_name: ws.name ?? "Client",
+      from_name: String(sender?.from_name ?? ""),
+      from_address: String(sender?.from_address ?? ""),
+      to_address: String(profile?.billing_address ?? ""),
       period: periodLabel,
       billing_month: data.month,
       currency,
@@ -283,34 +309,70 @@ export const generateInvoice = createServerFn({ method: "POST" })
       notes: data.notes ?? "",
     };
 
-    // Fill the template; if anything fails, release the reserved row.
+    // Produce the file (fill the DOCX template, or draw the built-in PDF
+    // layout); if anything fails, release the reserved row.
     const releaseRow = async () => {
       await sb.from("accountsmind_invoices").delete().eq("id", row.id);
     };
-    const { data: tplFile, error: dlErr } = await sb.storage.from(BUCKET).download(tpl.storage_path);
-    if (dlErr || !tplFile) {
-      await releaseRow();
-      return { ok: false as const, error: `Could not load template: ${dlErr?.message ?? "missing file"}` };
-    }
     let outBuf: Buffer;
-    try {
-      const { default: PizZip } = await import("pizzip");
-      const { default: Docxtemplater } = await import("docxtemplater");
-      const zip = new PizZip(Buffer.from(await tplFile.arrayBuffer()));
-      const doc = new Docxtemplater(zip, { paragraphLoop: true, linebreaks: true, nullGetter: () => "" });
-      doc.render(payload);
-      outBuf = doc.getZip().generate({ type: "nodebuffer" });
-    } catch (err: any) {
-      await releaseRow();
-      const detail = err?.properties?.errors?.map((e: any) => e?.properties?.explanation).filter(Boolean).join("; ");
-      return { ok: false as const, error: `Template fill failed: ${detail || err?.message || "render error"}` };
+    if (format === "pdf") {
+      try {
+        const { renderInvoicePdf } = await import("@/lib/accountsmind/invoice-pdf.server");
+        outBuf = await renderInvoicePdf({
+          invoiceNumber,
+          invoiceDate: fmt(today),
+          dueDate: fmt(due),
+          clientName: ws.name ?? "Client",
+          fromName: payload.from_name,
+          fromAddress: payload.from_address,
+          toAddress: payload.to_address,
+          period: periodLabel,
+          currency,
+          items: payload.items.map((i: any) => ({
+            description: i.description,
+            quantity: i.quantity,
+            unitPrice: i.unit_price,
+            amount: i.amount,
+          })),
+          subtotal: payload.subtotal,
+          taxRate: payload.tax_rate,
+          tax: payload.tax,
+          total: payload.total,
+          notes: payload.notes,
+        });
+      } catch (err: any) {
+        await releaseRow();
+        return { ok: false as const, error: `PDF generation failed: ${err?.message ?? "render error"}` };
+      }
+    } else {
+      const { data: tplFile, error: dlErr } = await sb.storage.from(BUCKET).download(tpl.storage_path);
+      if (dlErr || !tplFile) {
+        await releaseRow();
+        return { ok: false as const, error: `Could not load template: ${dlErr?.message ?? "missing file"}` };
+      }
+      try {
+        const { default: PizZip } = await import("pizzip");
+        const { default: Docxtemplater } = await import("docxtemplater");
+        const zip = new PizZip(Buffer.from(await tplFile.arrayBuffer()));
+        const doc = new Docxtemplater(zip, { paragraphLoop: true, linebreaks: true, nullGetter: () => "" });
+        doc.render(payload);
+        outBuf = doc.getZip().generate({ type: "nodebuffer" });
+      } catch (err: any) {
+        await releaseRow();
+        const detail = err?.properties?.errors?.map((e: any) => e?.properties?.explanation).filter(Boolean).join("; ");
+        return { ok: false as const, error: `Template fill failed: ${detail || err?.message || "render error"}` };
+      }
     }
 
     await ensureBucket();
     // Unique per-row path — no upsert, so a race can never overwrite another invoice's file.
-    const storagePath = `invoices/${data.workspaceId}/${row.id}_${invoiceNumber}.docx`;
+    const ext = format === "pdf" ? "pdf" : "docx";
+    const storagePath = `invoices/${data.workspaceId}/${row.id}_${invoiceNumber}.${ext}`;
     const { error: upErr } = await sb.storage.from(BUCKET).upload(storagePath, outBuf, {
-      contentType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      contentType:
+        format === "pdf"
+          ? "application/pdf"
+          : "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
     });
     if (upErr) {
       await releaseRow();
@@ -327,7 +389,7 @@ export const generateInvoice = createServerFn({ method: "POST" })
     row = finalRow ?? { ...row, storage_path: storagePath, data_json: payload };
 
     const { data: signed } = await sb.storage.from(BUCKET).createSignedUrl(storagePath, 600, {
-      download: `${invoiceNumber}.docx`,
+      download: `${invoiceNumber}.${ext}`,
     });
     return { ok: true as const, invoice: row, downloadUrl: signed?.signedUrl ?? null };
   });
@@ -402,8 +464,9 @@ export const getInvoiceDownloadUrl = createServerFn({ method: "POST" })
       .eq("id", data.id)
       .maybeSingle();
     if (!row || row.storage_path === "pending") return { ok: false as const, error: "Invoice not found." };
+    const dlExt = String(row.storage_path).toLowerCase().endsWith(".pdf") ? "pdf" : "docx";
     const { data: signed, error } = await sb.storage.from(BUCKET).createSignedUrl(row.storage_path, 600, {
-      download: `${row.invoice_number}.docx`,
+      download: `${row.invoice_number}.${dlExt}`,
     });
     if (error || !signed?.signedUrl) return { ok: false as const, error: error?.message ?? "Could not sign URL." };
     return { ok: true as const, downloadUrl: signed.signedUrl };

@@ -198,6 +198,7 @@ export function WorkspaceSetupPage() {
   const [pendingTiers, setPTiers]         = useState<Record<string, string>>({});
   const [showCreate, setShowCreate]       = useState(false);
   const [createForm, setCreateForm]       = useState<CreateWsForm>(CREATE_DEFAULTS);
+  const [wsTab, setWsTab]                 = useState<"clients" | "testing">("clients");
   const [creating, setCreating]           = useState(false);
   const [togglingId, setTogglingId]       = useState<string | null>(null);
 
@@ -213,6 +214,25 @@ export function WorkspaceSetupPage() {
     staleTime: 30_000,
     throwOnError: false,
   });
+
+  // Split test/QA workspaces (left behind by automated test runs) from real clients.
+  const isTestWorkspace = (name: string | null | undefined) => {
+    const n = (name ?? "").toLowerCase();
+    return (
+      n.startsWith("e2e ") ||
+      n.includes("e2e ") && n.includes(" ws") ||
+      n.includes("e2e browser tester") ||
+      n.includes("(safe to delete)") ||
+      n.startsWith("qa-") ||
+      n.includes("qa-user") ||
+      n.includes("qa-admin") ||
+      n.includes("created invalid date") ||
+      /\btest(ing)? ws\b/.test(n)
+    );
+  };
+  const clientWorkspaces  = (workspaces as any[]).filter((w) => !isTestWorkspace(w.name));
+  const testingWorkspaces = (workspaces as any[]).filter((w) => isTestWorkspace(w.name));
+  const visibleWorkspaces = wsTab === "testing" ? testingWorkspaces : clientWorkspaces;
 
   const saveMut = useMutation({
     mutationFn: async ({ workspaceId, modules, planTier }: { workspaceId: string; modules: string[]; planTier: string }) =>
@@ -352,6 +372,33 @@ export function WorkspaceSetupPage() {
       <div>
         <p className="text-[10px] font-semibold uppercase tracking-widest text-gray-600 mb-3">Platform Workspaces & Modules</p>
 
+        {/* Clients / Testing subtabs */}
+        <div className="flex items-center gap-1 mb-3 rounded-lg border border-white/[0.06] bg-gray-900/40 p-1 w-fit">
+          <button
+            onClick={() => { setWsTab("clients"); setExpanded(null); }}
+            className={cn(
+              "px-3 py-1.5 rounded-md text-xs font-medium transition-colors",
+              wsTab === "clients" ? "bg-sky-500/15 text-sky-300" : "text-gray-400 hover:text-white",
+            )}
+          >
+            Clients ({clientWorkspaces.length})
+          </button>
+          <button
+            onClick={() => { setWsTab("testing"); setExpanded(null); }}
+            className={cn(
+              "px-3 py-1.5 rounded-md text-xs font-medium transition-colors",
+              wsTab === "testing" ? "bg-amber-500/15 text-amber-300" : "text-gray-400 hover:text-white",
+            )}
+          >
+            Testing ({testingWorkspaces.length})
+          </button>
+        </div>
+        {wsTab === "testing" && (
+          <p className="text-xs text-gray-500 mb-3">
+            Workspaces left behind by automated test runs and QA accounts — not real clients. Safe to suspend or clean up.
+          </p>
+        )}
+
         {isLoading && (
           <div className="flex items-center gap-2 text-gray-400 text-sm">
             <RefreshCw className="w-4 h-4 animate-spin" /> Loading…
@@ -359,7 +406,12 @@ export function WorkspaceSetupPage() {
         )}
 
         <div className="space-y-2">
-          {(workspaces as any[]).map((ws: any) => {
+          {!isLoading && visibleWorkspaces.length === 0 && (
+            <p className="text-sm text-gray-500 py-6 text-center">
+              {wsTab === "testing" ? "No testing workspaces." : "No client workspaces."}
+            </p>
+          )}
+          {visibleWorkspaces.map((ws: any) => {
             const settings       = ws.workspace_settings?.[0] ?? ws.workspace_settings ?? {};
             const currentModules: string[] = pendingModules[ws.id] ?? settings.active_modules ?? [];
             const currentTier: string      = pendingTiers[ws.id]   ?? settings.plan_tier     ?? "free";

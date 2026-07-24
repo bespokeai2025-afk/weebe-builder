@@ -53,8 +53,17 @@ const RETENTION_RULES: RetentionRule[] = [
   // schema is ground truth here).
   { table: "growthmind_ad_webhook_events", column: "created_at",  days: 90 },
   { table: "hivemind_events",              column: "created_at",  days: 180 },
+  // Executive event stream — reasoning/briefings only read bounded recent
+  // windows; dedup keys are day-scoped so old rows never suppress new events.
+  { table: "hivemind_executive_events",    column: "created_at",  days: 180 },
   { table: "provider_usage_log",           column: "created_at",  days: 400 },
   { table: "growthmind_generation_logs",   column: "created_at",  days: 400 },
+  // Content Intelligence audit trail — keep a year of activity.
+  { table: "growthmind_activity_log",          column: "created_at", days: 365 },
+  // Post-publish metric snapshots — bounded history for learning loops.
+  { table: "growthmind_performance_snapshots", column: "created_at", days: 400 },
+  // Trend Scout discovery/scoring run log — operational history only.
+  { table: "growthmind_discovery_runs",        column: "created_at", days: 180 },
 ];
 
 /** Rows deleted per batch (bounded so a single statement can't time out). */

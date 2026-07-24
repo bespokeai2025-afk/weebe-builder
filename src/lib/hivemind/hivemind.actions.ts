@@ -37,6 +37,114 @@ export interface HiveMindAction {
   executed_at:    string | null;
 }
 
+// ── Audit: previous/new state capture (rollback info where available) ────────
+interface ActionAuditStates {
+  previousState: Record<string, any> | null;
+  newState:      Record<string, any> | null;
+  rollbackInfo:  Record<string, any> | null;
+}
+
+async function capturePreState(sb: any, workspaceId: string, action: HiveMindAction): Promise<Record<string, any> | null> {
+  const p = action.action_payload ?? {};
+  try {
+    switch (action.action_type) {
+      case "move_pipeline_stage": {
+        const leadIds = ((p.lead_ids as string[]) ?? []).slice(0, 500);
+        if (leadIds.length === 0) return null;
+        const { data } = await sb.from("leads")
+          .select("id,status,pipeline_stage")
+          .in("id", leadIds)
+          .eq("workspace_id", workspaceId);
+        return { leads: data ?? [] };
+      }
+      case "assign_knowledge_base": {
+        if (!p.agent_id) return null;
+        const { data } = await sb.from("agents")
+          .select("id,settings")
+          .eq("id", p.agent_id)
+          .eq("workspace_id", workspaceId)
+          .maybeSingle();
+        return data ? { agent_id: data.id, knowledgeBase: data.settings?.knowledgeBase ?? null } : null;
+      }
+      case "activate_lead_intake_workflow": {
+        const { data } = await sb.from("workspace_settings")
+          .select("lead_auto_call_enabled, lead_auto_call_agent_id")
+          .eq("workspace_id", workspaceId)
+          .maybeSingle();
+        return data ? {
+          lead_auto_call_enabled:  data.lead_auto_call_enabled ?? false,
+          lead_auto_call_agent_id: data.lead_auto_call_agent_id ?? null,
+        } : null;
+      }
+      default:
+        return null;
+    }
+  } catch { return null; }
+}
+
+function deriveNewState(action: HiveMindAction, result: Record<string, any>): Record<string, any> | null {
+  const p = action.action_payload ?? {};
+  switch (action.action_type) {
+    case "move_pipeline_stage":
+      return { new_status: p.new_status ?? null, new_stage: p.new_stage ?? null, lead_ids: (p.lead_ids as string[]) ?? [] };
+    case "assign_knowledge_base":
+      return { agent_id: p.agent_id ?? null, knowledgeBase: p.knowledge_base ?? null };
+    case "activate_lead_intake_workflow":
+      return { lead_auto_call_enabled: true, lead_auto_call_agent_id: p.agent_id ?? null, workflow_id: result.workflow_id ?? null };
+    default:
+      return null;
+  }
+}
+
+// ── Learning loop: baseline + expected result at execution time ──────────────
+async function captureActionBaseline(sb: any, workspaceId: string, action: HiveMindAction): Promise<Record<string, any>> {
+  const p = action.action_payload ?? {};
+  const base: Record<string, any> = { captured_at: new Date().toISOString() };
+  try {
+    switch (action.action_type) {
+      case "create_followup_campaign":
+      case "enroll_leads_in_campaign": {
+        const { count } = await sb.from("hexmail_campaign_enrollments")
+          .select("id", { count: "exact", head: true })
+          .eq("workspace_id", workspaceId)
+          .eq("status", "active");
+        base.active_enrollments = count ?? 0;
+        break;
+      }
+      case "move_pipeline_stage": {
+        base.lead_count = ((p.lead_ids as string[]) ?? []).length;
+        base.target_status = p.new_status ?? null;
+        break;
+      }
+      case "activate_lead_intake_workflow": {
+        const { count } = await sb.from("leads")
+          .select("id", { count: "exact", head: true })
+          .eq("workspace_id", workspaceId)
+          .eq("status", "need_to_call");
+        base.need_to_call_leads = count ?? 0;
+        break;
+      }
+      default:
+        break;
+    }
+  } catch { /* baseline is best-effort */ }
+  return base;
+}
+
+function expectedResultFor(action: HiveMindAction): string {
+  switch (action.action_type) {
+    case "create_task":               return "Task is completed within the reassessment window.";
+    case "create_followup_campaign":  return "Campaign created and enrolled leads progress through the sequence.";
+    case "enroll_leads_in_campaign":  return "Enrolled leads remain active in the campaign and receive follow-ups.";
+    case "move_pipeline_stage":       return "Moved leads remain at (or progress beyond) the target stage.";
+    case "assign_knowledge_base":     return "Agent keeps the assigned knowledge base and uses it on calls.";
+    case "activate_lead_intake_workflow": return "New leads are auto-called and the need-to-call backlog shrinks.";
+    case "sync_ad_stats":             return "Ad accounts sync successfully and stats stay fresh.";
+    case "growthmind_publish_content": return "Content is published to the connected social account and the post stays live.";
+    default:                          return "The action's change persists and produces the described benefit.";
+  }
+}
+
 // ── Action execution ─────────────────────────────────────────────────────────
 async function executeAction(sb: any, workspaceId: string, action: HiveMindAction): Promise<Record<string, any>> {
   const p = action.action_payload;
@@ -264,6 +372,23 @@ async function executeAction(sb: any, workspaceId: string, action: HiveMindActio
       return { enabled: true, agent_id: agentId, workflow_id: workflowId, template_id: templateId };
     }
 
+    case "growthmind_publish_content": {
+      const projectId = String(p.project_id ?? "");
+      if (!projectId) throw new Error("project_id required");
+      const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+      const { approveContentProjectPublish } = await import(
+        "@/lib/growthmind/meta-content-publish.server"
+      );
+      // Re-validates connection/media/approval state server-side, creates the
+      // idempotent publishing job and schedules or immediately publishes it.
+      return await approveContentProjectPublish(supabaseAdmin as any, workspaceId, {
+        projectId,
+        actionId: action.id,
+        approvedBy: (action as any).approved_by ?? "User",
+        scheduledAt: typeof p.scheduled_at === "string" && p.scheduled_at ? p.scheduled_at : null,
+      });
+    }
+
     case "activate_systemmind_automation": {
       const generatedActionId = String(p.generated_action_id ?? "");
       if (!generatedActionId) throw new Error("generated_action_id required");
@@ -292,25 +417,70 @@ export const getHiveMindMode = createServerFn({ method: "GET" })
     const sb = context.supabase as any;
     try {
       const { data } = await sb.from("workspace_settings")
-        .select("hivemind_mode")
+        .select("hivemind_mode, hivemind_operator_enabled, hivemind_operator_permissions")
         .eq("workspace_id", context.workspaceId)
         .maybeSingle();
-      return { mode: (data?.hivemind_mode ?? "assistant") as HiveMindMode };
-    } catch { return { mode: "assistant" as HiveMindMode }; }
+      return {
+        mode: (data?.hivemind_mode ?? "recommend") as HiveMindMode,
+        operatorEnabled: data?.hivemind_operator_enabled === true,
+        operatorPermissions: (data?.hivemind_operator_permissions ?? {}) as Record<string, boolean>,
+      };
+    } catch {
+      return { mode: "recommend" as HiveMindMode, operatorEnabled: false, operatorPermissions: {} as Record<string, boolean> };
+    }
   });
 
 // ── setHiveMindMode ───────────────────────────────────────────────────────────
 export const setHiveMindMode = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) =>
-    z.object({ mode: z.enum(["observe","recommend","assistant","operator"]) }).parse(input)
+    z.object({
+      mode: z.enum(["observe","recommend","assistant","operator"]),
+      operatorPermissions: z.record(z.boolean()).optional(),
+    }).parse(input)
   )
   .handler(async ({ context, data }) => {
     const sb = context.supabase as any;
-    const { error } = await sb.from("workspace_settings")
-      .update({ hivemind_mode: data.mode })
-      .eq("workspace_id", context.workspaceId);
+    const workspaceId = context.workspaceId!;
+    const nowIso = new Date().toISOString();
+
+    const update: Record<string, any> = { hivemind_mode: data.mode, updated_at: nowIso };
+
+    if (data.mode === "operator") {
+      // Operator mode is NEVER default and requires explicit owner/admin enablement.
+      const { resolvePermissions, isOwnerOrAdmin } = await import("@/lib/permissions/permissions.server");
+      const perms = await resolvePermissions(workspaceId, (context as any).userId ?? null);
+      if (!isOwnerOrAdmin(perms)) {
+        throw new Error("Only a workspace owner or admin can enable Operator mode.");
+      }
+      const { OPERATOR_CATEGORIES } = await import("@/lib/hivemind/action-safety.shared");
+      const allowedKeys = new Set<string>(OPERATOR_CATEGORIES);
+      const cleaned: Record<string, boolean> = {};
+      for (const [k, v] of Object.entries(data.operatorPermissions ?? {})) {
+        if (allowedKeys.has(k)) cleaned[k] = v === true;
+      }
+      update.hivemind_operator_enabled     = true;
+      update.hivemind_operator_permissions = cleaned;
+      update.hivemind_operator_enabled_by  = (context as any).userId ?? null;
+      update.hivemind_operator_enabled_at  = nowIso;
+    } else {
+      // Leaving operator mode revokes the enablement — it must be re-granted
+      // explicitly next time.
+      update.hivemind_operator_enabled = false;
+    }
+
+    // Upsert-safe: a plain .update() silently affects 0 rows when the
+    // workspace_settings row does not exist yet, leaving the mode unenforced.
+    const { data: updated, error } = await sb.from("workspace_settings")
+      .update(update)
+      .eq("workspace_id", workspaceId)
+      .select("workspace_id");
     if (error) throw error;
+    if (!updated?.length) {
+      const { error: insErr } = await sb.from("workspace_settings")
+        .insert({ workspace_id: workspaceId, ...update });
+      if (insErr) throw insErr;
+    }
     return { ok: true };
   });
 
@@ -344,8 +514,25 @@ export const proposeHiveMindAction = createServerFn({ method: "POST" })
   )
   .handler(async ({ context, data }) => {
     const sb = context.supabase as any;
+    const workspaceId = context.workspaceId!;
+
+    // Observe mode: HiveMind watches only — no actions may be created.
+    const { assertProposalAllowed } = await import("@/lib/hivemind/mode-gate.server");
+    await assertProposalAllowed(sb, workspaceId);
+
+    const { isSensitiveActionType, sensitiveCategoryOf } = await import("@/lib/hivemind/action-safety.shared");
     const { data: row, error } = await sb.from("hivemind_actions")
-      .insert({ workspace_id: context.workspaceId, ...data, status: "pending" })
+      .insert({
+        workspace_id: workspaceId,
+        ...data,
+        status:             "pending",
+        sensitive:          isSensitiveActionType(data.action_type),
+        sensitive_category: sensitiveCategoryOf(data.action_type),
+        source_recommendation_id:
+          typeof (data.action_payload as any)?.source_recommendation_id === "string"
+            ? (data.action_payload as any).source_recommendation_id
+            : null,
+      })
       .select().single();
     if (error) throw error;
     return { action: row as HiveMindAction };
@@ -362,19 +549,96 @@ export const approveHiveMindAction = createServerFn({ method: "POST" })
   )
   .handler(async ({ context, data }) => {
     const sb = context.supabase as any;
-    const { data: action, error: fe } = await sb.from("hivemind_actions")
+    const workspaceId = context.workspaceId!;
+    const userId = (context as any).userId as string;
+
+    // 1. Cheap pre-checks (no consume yet) — mode gate + sensitive entitlement.
+    const { data: pre, error: fe } = await sb.from("hivemind_actions")
       .select("*")
       .eq("id", data.id)
-      .eq("workspace_id", context.workspaceId)
+      .eq("workspace_id", workspaceId)
       .single();
     if (fe) throw fe;
-    if (action.status !== "pending") throw new Error("Action is not pending");
+    if (pre.status !== "pending") throw new Error("Action is not pending");
 
+    const { getHiveMindModeConfig, assertExecutionAllowed } =
+      await import("@/lib/hivemind/mode-gate.server");
+    const { isSensitiveActionType, sensitiveCategoryOf, CATEGORY_ENTITLEMENT } =
+      await import("@/lib/hivemind/action-safety.shared");
+
+    const cfg = await getHiveMindModeConfig(sb, workspaceId);
+    assertExecutionAllowed(cfg, pre.action_type, { explicitApproval: true });
+
+    // Honor persisted per-row sensitivity (e.g. content publish actions forced
+    // sensitive by approval rules at submission) — never downgrade from the
+    // static action-type classification.
+    const sensitive = pre.sensitive === true || isSensitiveActionType(pre.action_type);
+    const category  = (pre.sensitive_category as string | null)
+      ?? sensitiveCategoryOf(pre.action_type);
+    if (sensitive && category) {
+      // Fail closed: approver must hold the entitlement for this category.
+      const { requireAction } = await import("@/lib/permissions/permissions.server");
+      await requireAction(workspaceId, userId, CATEGORY_ENTITLEMENT[category]);
+    }
+
+    // 2. Atomic single-use consume (CAS). Losing racers get zero rows back.
+    const nowIso = new Date().toISOString();
+    const { data: consumedRows, error: ce } = await sb.from("hivemind_actions")
+      .update({
+        status:                "approved",
+        approved_by:           data.approved_by,
+        authorised_by_user_id: userId,
+        consumed_at:           nowIso,
+        sensitive,
+        sensitive_category:    category,
+        updated_at:            nowIso,
+      })
+      .eq("id", data.id)
+      .eq("workspace_id", workspaceId)
+      .eq("status", "pending")
+      .is("consumed_at", null)
+      .select("*");
+    if (ce) throw ce;
+    const action = (consumedRows ?? [])[0] as HiveMindAction & Record<string, any> | undefined;
+    if (!action) throw new Error("Action was already processed by another request");
+
+    // 3. Post-consume re-validation (TOCTOU guard): mode may have changed
+    //    between the pre-check and the consume.
     try {
-      const result = await executeAction(sb, context.workspaceId!, action as HiveMindAction);
+      const cfg2 = await getHiveMindModeConfig(sb, workspaceId);
+      assertExecutionAllowed(cfg2, action.action_type, { explicitApproval: true });
+    } catch (err: any) {
       await sb.from("hivemind_actions").update({
-        status: "executed", approved_by: data.approved_by,
-        result, executed_at: new Date().toISOString(), updated_at: new Date().toISOString(),
+        status: "rejected",
+        error_message: `Post-approval re-validation failed: ${err?.message ?? String(err)}`,
+        updated_at: new Date().toISOString(),
+      }).eq("id", data.id);
+      throw err;
+    }
+
+    // 4. Learning-loop capture + execution with audit trail.
+    const baseline = await captureActionBaseline(sb, workspaceId, action as HiveMindAction);
+    const previousState = await capturePreState(sb, workspaceId, action as HiveMindAction);
+    try {
+      const result = await executeAction(sb, workspaceId, action as HiveMindAction);
+      const doneIso = new Date().toISOString();
+      const reassessAt = new Date(Date.now() + 7 * 24 * 3600 * 1000).toISOString();
+      await sb.from("hivemind_actions").update({
+        status:          "executed",
+        result,
+        executed_at:     doneIso,
+        updated_at:      doneIso,
+        previous_state:  previousState,
+        new_state:       deriveNewState(action as HiveMindAction, result),
+        rollback_info:   previousState ? { restore: previousState, note: "Restore captured previous state to undo." } : null,
+        baseline,
+        expected_result: expectedResultFor(action as HiveMindAction),
+        reassess_at:     reassessAt,
+        source_recommendation_id:
+          (action as any).source_recommendation_id ??
+          (typeof (action.action_payload as any)?.source_recommendation_id === "string"
+            ? (action.action_payload as any).source_recommendation_id
+            : null),
       }).eq("id", data.id);
       return { ok: true, result };
     } catch (err: any) {
@@ -425,6 +689,12 @@ export const generateOperatorActions = createServerFn({ method: "POST" })
     const sb          = context.supabase as any;
     const workspaceId = context.workspaceId;
     if (!workspaceId) throw new Error("No workspace");
+
+    // Observe mode: engine must not create actions.
+    const { isProposalAllowed } = await import("@/lib/hivemind/mode-gate.server");
+    if (!(await isProposalAllowed(sb, workspaceId))) {
+      return { proposed: 0, actions: [], blocked: "observe" as const };
+    }
 
     const now   = new Date();
     const s14   = new Date(now); s14.setDate(now.getDate() - 14);

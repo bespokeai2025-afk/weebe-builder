@@ -6,7 +6,7 @@ import {
   MessageSquareMore, Target, Megaphone, Compass,
   BarChart2, Filter, BookOpen, Search, Swords, LineChart, Flag, Wand2,
   CalendarDays, Rocket, Clapperboard, Dna, Database, Zap, Newspaper, Mail, Sparkles,
-  ImageIcon, GalleryHorizontal,
+  ImageIcon, GalleryHorizontal, Share2, Settings2, Radar, Eye,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { getAllProposals } from "@/lib/executives/executive-bridge";
@@ -28,12 +28,17 @@ const STRATEGY_NAV = [
   { label: "Campaign Factory",   href: "/growthmind/campaign-factory",     icon: Rocket,      highlight: true },
   { label: "Email Campaigns",    href: "/growthmind/email-campaigns",      icon: Mail,        highlight: true },
   { label: "Data Sources",       href: "/growthmind/data-sources",         icon: Database },
+  { label: "Social Accounts",    href: "/growthmind/social-accounts",      icon: Share2 },
   { label: "Campaigns",          href: "/growthmind/campaigns",            icon: Megaphone },
   { label: "Content Calendar",   href: "/growthmind/content-calendar",     icon: CalendarDays },
   { label: "Growth Scheduler",   href: "/growthmind/growth-scheduler",     icon: Rocket },
+  { label: "Settings",           href: "/growthmind/settings",             icon: Settings2 },
 ];
 
 const INTELLIGENCE_NAV = [
+  { label: "Trend Feed",      href: "/growthmind/trend-feed",      icon: TrendingUp,      highlight: true },
+  { label: "Trend Sources",   href: "/growthmind/trend-sources",   icon: Radar },
+  { label: "Competitor Intel",href: "/growthmind/competitor-intel",icon: Eye,             highlight: true },
   { label: "Content Studio",  href: "/growthmind/content-studio",  icon: Wand2,           highlight: true },
   { label: "Image Studio",    href: "/growthmind/image-studio",    icon: ImageIcon,       highlight: true },
   { label: "Image Library",   href: "/growthmind/image-library",   icon: GalleryHorizontal },

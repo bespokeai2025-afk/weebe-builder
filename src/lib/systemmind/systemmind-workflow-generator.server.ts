@@ -381,6 +381,8 @@ export async function proposeSendDraftToBuilderServer(
   toolCount: number,
   missingCapabilitiesCount: number,
 ): Promise<string> {
+  const { assertProposalAllowed } = await import("@/lib/hivemind/mode-gate.server");
+  await assertProposalAllowed(supabaseAdmin as any, workspaceId);
   const { data, error } = await supabaseAdmin
     .from("hivemind_actions")
     .insert({

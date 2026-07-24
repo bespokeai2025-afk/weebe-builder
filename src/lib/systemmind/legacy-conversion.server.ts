@@ -839,6 +839,8 @@ export async function convertLegacySourceServer(args: {
 
   if (report.unsupported.length > 0) {
     try {
+      const { assertProposalAllowed } = await import("@/lib/hivemind/mode-gate.server");
+      await assertProposalAllowed(sb(), workspaceId);
       await sb().from("hivemind_tasks").insert({
         workspace_id: workspaceId,
         title:        `Review unconverted logic from "${report.source_name}"`.slice(0, 200),

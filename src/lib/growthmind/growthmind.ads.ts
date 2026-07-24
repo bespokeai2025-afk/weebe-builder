@@ -51,6 +51,11 @@ async function getEncryptionKey(): Promise<Buffer> {
   return createHash("sha256").update(raw).digest(); // always 32 bytes
 }
 
+// Server-side only — exported for the Google Ads OAuth callback route
+export async function encryptTokenForAds(plaintext: string): Promise<string> {
+  return encryptToken(plaintext);
+}
+
 async function encryptToken(plaintext: string): Promise<string> {
   const { createCipheriv, randomBytes } = await import("crypto");
   const key = await getEncryptionKey();

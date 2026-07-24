@@ -298,6 +298,37 @@ export async function fetchFullPlatformData(sb: any, workspaceId: string) {
     analyticsSnapshot = await getAnalyticsSnapshotForExec(workspaceId);
   } catch {}
 
+  // Live Google Ads (GrowthMind) — connection state, pending recommendations and
+  // approved-but-not-implemented change requests, so HiveMind can tell the user
+  // exactly what needs to be done when they ask about their campaigns.
+  let gadsLive: any = null;
+  try {
+    const [gadsAcctRes, gadsRecsRes, gadsCrRes] = await Promise.all([
+      sb.from("growthmind_ads_accounts")
+        .select("id,label,connection_state,sync_status,sync_error,last_synced_at,descriptive_name,currency_code")
+        .eq("workspace_id", workspaceId).eq("platform", "google").eq("status", "active")
+        .order("created_at", { ascending: false }).limit(1).maybeSingle(),
+      sb.from("growthmind_gads_recommendations")
+        .select("id,title,priority,section,campaign_name,recommended_action,expected_benefit,status,confidence")
+        .eq("workspace_id", workspaceId).in("status", ["new", "under_review", "approved"])
+        .order("created_at", { ascending: false }).limit(15),
+      sb.from("growthmind_gads_change_requests")
+        .select("id,status,created_at").eq("workspace_id", workspaceId)
+        .eq("status", "approved").limit(20),
+    ]);
+    if (gadsAcctRes.data) {
+      const recsAll = gadsRecsRes.data ?? [];
+      const prioOrder: Record<string, number> = { critical: 0, high: 1, medium: 2, low: 3 };
+      gadsLive = {
+        account: gadsAcctRes.data,
+        pendingRecs: recsAll.filter((r: any) => r.status === "new" || r.status === "under_review")
+          .sort((a: any, b: any) => (prioOrder[a.priority] ?? 9) - (prioOrder[b.priority] ?? 9)),
+        approvedRecs: recsAll.filter((r: any) => r.status === "approved"),
+        openChangeRequests: (gadsCrRes.data ?? []).length,
+      };
+    }
+  } catch { /* live gads tables optional */ }
+
   // Invoiced sales (AccountsMind invoices billed to this workspace; graceful)
   let invoiceSales: any = null;
   try {
@@ -305,9 +336,43 @@ export async function fetchFullPlatformData(sb: any, workspaceId: string) {
     invoiceSales = await getInvoiceSalesSummary(workspaceId);
   } catch {}
 
+  // ── Executive intelligence blocks + data-source health ───────────────────────
+  // Each block is independently wrapped: one failed source degrades honestly to
+  // null (and is listed in dataHealth as degraded) instead of failing the fetch.
+  let calendarIntelligence: any = null;
+  let emailIntelligence: any = null;
+  let onboardingPipeline: any = null;
+  let billingSignals: any = null;
+  let dataHealth: any = null;
+  try {
+    const intel = await import("@/lib/hivemind/exec-intelligence.server");
+    const health = await import("@/lib/hivemind/data-health.server");
+    const [calR, emR, obR, biR, dhR] = await Promise.allSettled([
+      intel.getCalendarIntelligence(workspaceId, isWbah),
+      intel.getEmailIntelligence(workspaceId, isWbah),
+      intel.getOnboardingPipeline(workspaceId),
+      intel.getBillingSignals(workspaceId),
+      health.getWorkspaceDataHealth(workspaceId, isWbah),
+    ]);
+    if (calR.status === "fulfilled") calendarIntelligence = calR.value;
+    else console.error("[HiveMind] calendarIntelligence failed:", (calR as any).reason?.message);
+    if (emR.status === "fulfilled") emailIntelligence = emR.value;
+    else console.error("[HiveMind] emailIntelligence failed:", (emR as any).reason?.message);
+    if (obR.status === "fulfilled") onboardingPipeline = obR.value;
+    else console.error("[HiveMind] onboardingPipeline failed:", (obR as any).reason?.message);
+    if (biR.status === "fulfilled") billingSignals = biR.value;
+    else console.error("[HiveMind] billingSignals failed:", (biR as any).reason?.message);
+    if (dhR.status === "fulfilled") dataHealth = dhR.value;
+    else console.error("[HiveMind] dataHealth failed:", (dhR as any).reason?.message);
+  } catch (e: any) {
+    // Server-only modules unavailable (e.g. called from a context without them) —
+    // blocks stay null and the prompt reports them as unavailable.
+    console.error("[HiveMind] intelligence layer import failed:", e?.message ?? e);
+  }
+
   return {
     agents, agentScores, cfg,
-    mode: cfg.hivemind_mode ?? "assistant",
+    mode: cfg.hivemind_mode ?? "recommend",
     today: {
       leads:    leadsToday.length,
       bookings: bksTodayCount,
@@ -563,6 +628,12 @@ export async function fetchFullPlatformData(sb: any, workspaceId: string) {
     campaignReports,
     analyticsSnapshot,
     invoiceSales,
+    gadsLive,
+    calendarIntelligence,
+    emailIntelligence,
+    onboardingPipeline,
+    billingSignals,
+    dataHealth,
   };
 }
 
@@ -650,6 +721,27 @@ function buildHiveMindRetrievalQuery(d: any): string {
     if (gaps.length) parts.push(`Provider issues requiring resolution: ${gaps.join(", ")}`);
   }
 
+  // Data-source freshness gaps + executive exceptions
+  if (d.dataHealth?.sources?.length) {
+    const bad = d.dataHealth.sources.filter((s: any) => s.status === "degraded" || s.status === "disconnected" || s.status === "stale");
+    if (bad.length) parts.push(`Data sources needing attention (${bad.map((s: any) => `${s.source}: ${s.status}`).join(", ")}) — data pipeline and integration troubleshooting`);
+  }
+  if (d.calendarIntelligence) {
+    const ci = d.calendarIntelligence;
+    if (ci.conflicts?.length) parts.push("double-booked calendar appointments — scheduling conflict resolution");
+    if (ci.qualifiedNoBooking?.length) parts.push(`${ci.qualifiedNoBooking.length} qualified leads without a booking — booking conversion tactics`);
+    if (ci.noShows30d > 0) parts.push("appointment no-shows — confirmation and reminder strategies");
+  }
+  if (d.emailIntelligence) {
+    const ei = d.emailIntelligence;
+    if (ei.emails?.failed > 0) parts.push("failed email deliveries — deliverability troubleshooting");
+    if (ei.followUps?.stalled > 0) parts.push("stalled follow-up sequences — sequence recovery");
+    if (ei.conversations?.awaitingReplyCount > 0) parts.push("customer replies awaiting a human response — response time management");
+  }
+  if (d.billingSignals?.flags?.length) {
+    parts.push(`Commercial flags: ${d.billingSignals.flags.join(", ")} — margin management, plan upsell and renewal strategies`);
+  }
+
   // Paid ads efficiency
   if (d.adEfficiency) {
     const ae = d.adEfficiency;
@@ -677,12 +769,12 @@ function buildHiveMindRetrievalQuery(d: any): string {
 }
 
 // ── Context builder ────────────────────────────────────────────────────────────
-function buildPlatformContext(d: any): string {
+export function buildPlatformContext(d: any): string {
   if (!d) return "No platform data available yet.";
   const lines: string[] = [];
 
   const hour = new Date().getHours();
-  lines.push(`[${new Date().toLocaleString()} | HiveMind Mode: ${(d.mode ?? "assistant").toUpperCase()}]\n`);
+  lines.push(`[${new Date().toLocaleString()} | HiveMind Mode: ${(d.mode ?? "recommend").toUpperCase()}]\n`);
 
   // TODAY
   lines.push(`TODAY: ${d.today.leads} new leads | ${d.today.bookings} bookings | ${d.today.calls} calls | ${d.today.messages} WhatsApp msgs`);
@@ -820,6 +912,65 @@ function buildPlatformContext(d: any): string {
   const missing   = Object.entries(health).filter(([, v]) => !v).map(([k]) => k);
   lines.push(`\nSYSTEM: Connected — ${connected.join(", ") || "nothing"}${missing.length ? ` | NOT connected — ${missing.join(", ")}` : ""}`);
 
+  // DATA-SOURCE HEALTH (freshness/degradation — be honest about gaps and staleness)
+  if (d.dataHealth?.sources?.length) {
+    lines.push(`\nDATA-SOURCE HEALTH (computed ${d.dataHealth.computedAt}):`);
+    for (const s of d.dataHealth.sources) {
+      const mark = s.status === "healthy" ? "OK" : s.status.toUpperCase();
+      lines.push(`  • ${s.source}: [${mark}] ${s.detail}`);
+    }
+    lines.push(`  RULE: when a source is stale/degraded/disconnected, say so explicitly instead of presenting its numbers as current; when a block below is unavailable, tell the user which data source is down.`);
+  } else {
+    lines.push(`\nDATA-SOURCE HEALTH: unavailable (health service could not run) — treat per-source freshness as unknown.`);
+  }
+
+  // CALENDAR INTELLIGENCE
+  if (d.calendarIntelligence) {
+    const ci = d.calendarIntelligence;
+    lines.push(`\nCALENDAR INTELLIGENCE:`);
+    lines.push(`  Today: ${ci.todayCount} appointment${ci.todayCount !== 1 ? "s" : ""}${ci.today.length ? ` — ${ci.today.slice(0, 5).map((b: any) => `"${b.title}"${b.attendee ? ` w/ ${b.attendee}` : ""} at ${b.start}`).join("; ")}` : ""}`);
+    lines.push(`  Next 7 days: ${ci.upcoming7d} | Cancellations (30d): ${ci.cancellations30d} | No-shows (30d): ${ci.noShows30d}`);
+    if (ci.unconfirmedSoon?.length) lines.push(`  ⚠ UNCONFIRMED within 48h: ${ci.unconfirmedSoon.map((b: any) => `"${b.title}" at ${b.start}`).join("; ")}`);
+    if (ci.conflicts?.length) lines.push(`  ⚠ DOUBLE-BOOKINGS: ${ci.conflicts.map((c: any) => `"${c.a}" overlaps "${c.b}" (${c.startA})`).join("; ")}`);
+    if (!ci.isWbah && ci.qualifiedNoBooking?.length) lines.push(`  ⚠ Qualified leads with NO booking (${ci.qualifiedNoBooking.length}): ${ci.qualifiedNoBooking.slice(0, 8).map((l: any) => `"${l.name}"`).join(", ")}`);
+    if (ci.avgLeadToBookingHours !== null) lines.push(`  Avg lead→booking lag: ${ci.avgLeadToBookingHours}h`);
+    if (ci.avgBookingToApptHours !== null) lines.push(`  Avg booking→appointment lead time: ${ci.avgBookingToApptHours}h`);
+    if (ci.isWbah) lines.push(`  NOTE (WBAH): the appointment figures above derive from wbah_calls appointment fields (Europe/London), not calendar_bookings; lead-join analyses are unavailable for WBAH.`);
+  }
+
+  // EMAIL & FOLLOW-UP EXCEPTIONS
+  if (d.emailIntelligence) {
+    const ei = d.emailIntelligence;
+    lines.push(`\nEMAIL & FOLLOW-UP EXCEPTIONS (last ${ei.windowDays}d):`);
+    lines.push(`  Lead emails: ${ei.emails.sent} sent | ${ei.emails.failed} failed${ei.emails.suppressedRecipients.length ? ` | ${ei.emails.suppressedRecipients.length} recipient(s) on the suppression list` : ""}`);
+    if (ei.emails.failedSample?.length) lines.push(`  ⚠ Recent failures: ${ei.emails.failedSample.slice(0, 4).map((f: any) => `${f.to} (${f.error || "unknown"})`).join("; ")}`);
+    lines.push(`  Follow-up sequences: ${ei.followUps.activeEnrollments} active enrollment${ei.followUps.activeEnrollments !== 1 ? "s" : ""}${ei.followUps.stalled ? ` | ⚠ ${ei.followUps.stalled} stalled 7d+ without executing` : ""}${ei.followUps.zeroEngagement ? ` | ⚠ ${ei.followUps.zeroEngagement} enrolled 7d+ with ZERO engagement (never executed)` : ""}${ei.followUps.failed ? ` | ⚠ ${ei.followUps.failed} enrollment(s) in a failed/error state` : ""}`);
+    if (ei.conversations.awaitingReplyCount > 0) {
+      lines.push(`  ⚠ WHATSAPP REPLIES AWAITING HUMAN ACTION (${ei.conversations.awaitingReplyCount}, longest-waiting first):`);
+      for (const c of ei.conversations.awaitingReply.slice(0, 6)) lines.push(`    – ${c.name ?? c.contact}: waiting ${c.waitingHours}h`);
+    }
+    if (ei.conversations.silentCount > 0) lines.push(`  Silent WhatsApp conversations (outbound only, no reply): ${ei.conversations.silentCount}`);
+  }
+
+  // ONBOARDING / SIGNUP PIPELINE
+  if (d.onboardingPipeline) {
+    const ob = d.onboardingPipeline;
+    lines.push(`\nONBOARDING PIPELINE:`);
+    lines.push(`  Checklists: ${ob.checklists} | Incomplete: ${ob.incomplete}${Object.keys(ob.blockedStepCounts ?? {}).length ? ` | Blocked on: ${Object.entries(ob.blockedStepCounts).map(([s, n]) => `${s} (${n})`).join(", ")}` : ""}`);
+    lines.push(`  First campaign created: ${ob.hasFirstCampaign ? "yes" : "NO"} | Calls in last 30d: ${ob.hasRecentCalls ? "yes" : "NO"}`);
+    if (ob.pendingWorkspaceRequests !== null && ob.pendingWorkspaceRequests > 0) lines.push(`  Platform-wide: ${ob.pendingWorkspaceRequests} pending workspace signup request(s) awaiting admin decision.`);
+  }
+
+  // BILLING / COMMERCIAL SIGNALS
+  if (d.billingSignals) {
+    const bs = d.billingSignals;
+    lines.push(`\nBILLING & COMMERCIAL (${bs.month}):`);
+    if (bs.plan) lines.push(`  Plan: ${(bs.plan.chargeCents / 100).toFixed(2)} ${bs.plan.currency}/mo (${bs.plan.status})${bs.plan.contractEndDate ? ` | contract ends ${bs.plan.contractEndDate}` : ""}`);
+    if (bs.currentMonth) lines.push(`  This month: cost ${(bs.currentMonth.totalCostCents / 100).toFixed(2)} | gross profit ${(bs.currentMonth.grossProfitCents / 100).toFixed(2)} | margin ${bs.currentMonth.grossMarginPercent}%`);
+    if (bs.usage.includedMinutes > 0) lines.push(`  Voice minutes: ${bs.usage.minutesUsed} used of ${bs.usage.includedMinutes} included (projected ${bs.usage.projectedMinutes} by month end)`);
+    if (bs.flags.length) lines.push(`  ⚠ FLAGS: ${bs.flags.join(", ")}`);
+  }
+
   // GROWTHMIND EXECUTIVE SUMMARY (injected from marketing intelligence engine)
   if (d.growthMind) {
     const gm = d.growthMind;
@@ -858,6 +1009,32 @@ function buildPlatformContext(d: any): string {
     if (ae.staleAccounts.length > 0) lines.push(`  ⚠ Stale sync (>24h): ${ae.staleAccounts.map((a: any) => `${a.platform} "${a.label}"`).join(", ")}`);
   } else {
     lines.push(`\nPAID ADS: no accounts connected`);
+  }
+
+  // LIVE GOOGLE ADS (GrowthMind evidence-based engine)
+  if (d.gadsLive) {
+    const g = d.gadsLive;
+    const acct = g.account;
+    lines.push(`\nLIVE GOOGLE ADS (GrowthMind CMO — evidence-based, approval-gated):`);
+    const sync = acct.sync_status === "error"
+      ? `SYNC FAILING${acct.sync_error ? ` (${String(acct.sync_error).slice(0, 120)})` : ""}`
+      : acct.connection_state === "sync_healthy"
+        ? `healthy${acct.last_synced_at ? `, last synced ${acct.last_synced_at}` : ""}`
+        : `setup incomplete (${acct.connection_state ?? "unknown"})`;
+    lines.push(`  Account: ${acct.descriptive_name ?? acct.label ?? "Google Ads"} | Sync: ${sync}`);
+    if (g.pendingRecs.length > 0) {
+      lines.push(`  PENDING RECOMMENDATIONS AWAITING USER DECISION (${g.pendingRecs.length}) — the user must approve/dismiss these in GrowthMind → Ads:`);
+      for (const r of g.pendingRecs.slice(0, 8)) {
+        lines.push(`    • [${String(r.priority).toUpperCase()}] ${r.title}`);
+        lines.push(`      Action: ${String(r.recommended_action ?? "").slice(0, 220)}`);
+        if (r.expected_benefit) lines.push(`      Expected benefit: ${String(r.expected_benefit).slice(0, 160)}`);
+      }
+    } else {
+      lines.push(`  No pending recommendations right now.`);
+    }
+    if (g.approvedRecs.length > 0) lines.push(`  Approved recommendations awaiting implementation in Google Ads: ${g.approvedRecs.length}`);
+    if (g.openChangeRequests > 0) lines.push(`  Open change requests (approved, to be applied manually in Google Ads): ${g.openChangeRequests}`);
+    lines.push(`  RULE: when the user mentions their campaigns/ads, tell them SPECIFICALLY what needs doing from the list above (cite the evidence-backed actions); NEVER invent generic ads advice; WEBEE never changes campaigns without user approval.`);
   }
 
   // SEO HEALTH
@@ -1069,7 +1246,7 @@ function buildSystemCouncilContext(sm: SystemMindExecutiveSummary | null): strin
   return lines.join("\n");
 }
 
-function buildSystemPrompt(context: string, personality = "friendly", userName?: string): string {
+export function buildSystemPrompt(context: string, personality = "friendly", userName?: string): string {
   const nameClause = userName?.trim()
     ? `The user's name is ${userName.trim()}. Use their name occasionally — once or twice per conversation feels natural, not every message.`
     : "";
@@ -1305,12 +1482,52 @@ export const getHiveMindSystemContext = createServerFn({ method: "GET" })
     const workspaceId = context.workspaceId;
     if (!workspaceId) throw new Error("No workspace");
 
-    const [platformData, cfgRow, marketingCouncil, systemCouncil] = await Promise.all([
+    const todayStr = new Date().toISOString().split("T")[0];
+    const [platformData, cfgRow, marketingCouncil, systemCouncil, dueTasksRes, overdueTasksRes] = await Promise.all([
       fetchFullPlatformData(sb, workspaceId),
       sb.from("workspace_settings").select("elevenlabs_api_key,openai_api_key").eq("workspace_id", workspaceId).maybeSingle(),
       buildMarketingCouncilSummarySafe(sb, workspaceId),
       buildSystemCouncilSummarySafe(sb, workspaceId),
+      sb.from("growthmind_marketing_tasks")
+        .select("id", { count: "exact", head: true })
+        .eq("workspace_id", workspaceId)
+        .eq("status", "pending")
+        .eq("due_date", todayStr),
+      sb.from("growthmind_marketing_tasks")
+        .select("id", { count: "exact", head: true })
+        .eq("workspace_id", workspaceId)
+        .eq("status", "pending")
+        .lt("due_date", todayStr),
     ]);
+    const marketingTasksDueToday = dueTasksRes?.count ?? 0;
+    const marketingTasksOverdue = overdueTasksRes?.count ?? 0;
+
+    // Fetch the single most urgent due task: walk priorities highest-first so the
+    // selection is correct regardless of how many tasks are due today.
+    let topDueTaskTitle = "";
+    if (marketingTasksDueToday > 0) {
+      const fetchTopDueTask = (priority?: string) => {
+        let q = sb.from("growthmind_marketing_tasks")
+          .select("title, priority")
+          .eq("workspace_id", workspaceId)
+          .eq("status", "pending")
+          .eq("due_date", todayStr);
+        if (priority) q = q.eq("priority", priority);
+        return q.order("created_at", { ascending: true }).limit(1).maybeSingle();
+      };
+      // Matches the GrowthMind TaskPriority enum ("urgent" is the top level);
+      // "critical" kept for any legacy rows.
+      const KNOWN_PRIORITIES = ["urgent", "critical", "high", "medium", "low"];
+      for (const p of KNOWN_PRIORITIES) {
+        const { data: row } = await fetchTopDueTask(p);
+        if (row?.title?.trim()) { topDueTaskTitle = row.title.trim(); break; }
+      }
+      if (!topDueTaskTitle) {
+        // Fallback for unexpected priority values: earliest-created due task.
+        const { data: row } = await fetchTopDueTask();
+        if (row?.title?.trim()) topDueTaskTitle = row.title.trim();
+      }
+    }
 
     const cfg    = cfgRow.data ?? {};
     const hasEL  = !!(process.env.ELEVENLABS_API_KEY || cfg.elevenlabs_api_key);
@@ -1337,7 +1554,19 @@ export const getHiveMindSystemContext = createServerFn({ method: "GET" })
     const actionPart = platformData.pendingActions?.count > 0
       ? `${platformData.pendingActions.count} action${platformData.pendingActions.count !== 1 ? "s" : ""} waiting for your approval.`
       : "";
-    const beginMessage = `${greeting}${namePart}! ${leadPart} ${actionPart} What can I help you with?`.replace(/\s+/g, " ").trim();
+    const gadsRecCount = platformData.gadsLive?.pendingRecs?.length ?? 0;
+    const gadsPart = gadsRecCount > 0
+      ? `You have ${gadsRecCount} Google Ads recommendation${gadsRecCount !== 1 ? "s" : ""} waiting for your decision.`
+      : "";
+    const overduePart = marketingTasksOverdue > 0
+      ? `${marketingTasksOverdue} ${marketingTasksOverdue !== 1 ? "are" : "is"} overdue`
+      : "";
+    const taskPart = marketingTasksDueToday > 0
+      ? `${marketingTasksDueToday} marketing task${marketingTasksDueToday !== 1 ? "s" : ""} ${marketingTasksDueToday !== 1 ? "are" : "is"} due today${topDueTaskTitle ? (marketingTasksDueToday !== 1 ? `, including '${topDueTaskTitle}'` : `: '${topDueTaskTitle}'`) : ""}${overduePart ? `, and ${overduePart}` : ""}.`
+      : (overduePart
+        ? `${marketingTasksOverdue} marketing task${marketingTasksOverdue !== 1 ? "s" : ""} ${marketingTasksOverdue !== 1 ? "are" : "is"} overdue.`
+        : "");
+    const beginMessage = `${greeting}${namePart}! ${leadPart} ${actionPart} ${gadsPart} ${taskPart} What can I help you with?`.replace(/\s+/g, " ").trim();
 
     return { systemPrompt, beginMessage, hasEL, hasOAI };
   });

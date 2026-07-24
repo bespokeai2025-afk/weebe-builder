@@ -45,6 +45,19 @@ export async function runAccountsMindTick(): Promise<AccountsMindTickResult> {
     return result;
   }
 
+  // Recurring invoices (Phase 2): draft-first monthly generation. Never
+  // blocks the cost scan — failures are logged inside the tick result.
+  try {
+    const { runRecurringInvoicesTick } = await import("./recurring-invoices.server");
+    const rec = await runRecurringInvoicesTick(sb);
+    if (rec.generated > 0 || rec.failed.length > 0) {
+      console.log(`[recurring-invoices] scanned=${rec.scanned} generated=${rec.generated} failed=${rec.failed.length}`);
+      for (const f of rec.failed) console.warn(`[recurring-invoices] ${f.scheduleId}: ${f.error}`);
+    }
+  } catch (err: any) {
+    console.warn("[recurring-invoices] tick error:", err?.message ?? err);
+  }
+
   // Get all active/trialing billing profiles + workspace name
   const { data: profiles, error: profilesErr } = await sb
     .from("client_billing_profiles")
@@ -104,7 +117,8 @@ export async function runAccountsMindTick(): Promise<AccountsMindTickResult> {
           .eq("status", "open")
           .maybeSingle();
 
-        if (!existing) {
+        const { isProposalAllowed } = await import("@/lib/hivemind/mode-gate.server");
+        if (!existing && (await isProposalAllowed(sb, wid))) {
           await sb.from("hivemind_tasks").insert({
             workspace_id:     wid,
             trigger_type:     "accountsmind_alert",

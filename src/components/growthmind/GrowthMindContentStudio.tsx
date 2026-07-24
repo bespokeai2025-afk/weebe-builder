@@ -1,6 +1,10 @@
 import { useState, useEffect, useMemo } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
+import { Link as RouterLink } from "@tanstack/react-router";
+import { Badge } from "@/components/ui/badge";
+import { listContentProjects } from "@/lib/growthmind/growthmind.content-projects";
+import { AiUsageCostsCard } from "@/components/usage/AiUsageCostsCard";
 import {
   Wand2, Loader2, Copy, Check, X, Star, Trash2, BookOpen,
   Newspaper, Layout, Search, Target, Users2, ThumbsUp, Camera,
@@ -957,9 +961,88 @@ function MetaPublishFromOutput({ content, title }: { content: string; title: str
   );
 }
 
+// ── Projects Tab (trend-adaptation handoff projects) ─────────────────────────
+
+const PROJECT_STATUS_LABEL: Record<string, string> = {
+  in_production:     "In production",
+  awaiting_assets:   "Awaiting assets",
+  awaiting_approval: "Awaiting approval",
+  changes_requested: "Changes requested",
+  approved:          "Approved",
+  scheduled:         "Scheduled",
+  publishing:        "Publishing",
+  published:         "Published",
+  failed:            "Failed",
+};
+
+const PROJECT_STATUS_STYLE: Record<string, string> = {
+  in_production:     "bg-sky-600",
+  awaiting_assets:   "bg-amber-600",
+  awaiting_approval: "bg-violet-600",
+  changes_requested: "bg-orange-600",
+  approved:          "bg-emerald-600",
+  scheduled:         "bg-teal-600",
+  publishing:        "bg-blue-600",
+  published:         "bg-emerald-700",
+  failed:            "bg-red-600",
+};
+
+function ProjectsTab() {
+  const listFn = useServerFn(listContentProjects);
+  const { data, isLoading } = useQuery({
+    queryKey: ["gm-content-projects"],
+    queryFn: () => listFn(),
+    staleTime: 30_000,
+    throwOnError: false,
+  });
+  const projects = data?.projects ?? [];
+
+  return (
+    <div className="px-6 py-5 max-w-4xl space-y-3">
+      <p className="text-xs text-muted-foreground">
+        Production projects created from trend adaptation briefs. Attach final media,
+        generate voiceovers, then submit for approval and publish to Instagram or Facebook.
+      </p>
+      <AiUsageCostsCard compact />
+      {isLoading ? (
+        <div className="flex justify-center py-8"><Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /></div>
+      ) : projects.length === 0 ? (
+        <div className="rounded-xl border bg-card p-6 text-center text-sm text-muted-foreground">
+          No projects yet. Create one from an adaptation brief in the Trend Feed's Content Anatomy view.
+        </div>
+      ) : (
+        <div className="space-y-2">
+          {projects.map((p: any) => (
+            <RouterLink
+              key={p.id}
+              to="/growthmind/content-projects/$projectId"
+              params={{ projectId: p.id }}
+              className="block rounded-lg border bg-card p-3 hover:border-emerald-500/40 transition-colors"
+            >
+              <div className="flex items-center gap-2 flex-wrap">
+                <Clapperboard className="h-4 w-4 text-emerald-400 shrink-0" />
+                <span className="text-sm font-medium">{p.title}</span>
+                <Badge variant="outline" className="text-[10px]">{p.target_platform} · {p.format}</Badge>
+                {p.media_is_ai && <Badge className="text-[10px] bg-violet-600">AI media</Badge>}
+                <Badge className={cn("text-[10px] ml-auto", PROJECT_STATUS_STYLE[p.status] ?? "bg-zinc-600")}>
+                  {PROJECT_STATUS_LABEL[p.status] ?? p.status}
+                </Badge>
+              </div>
+              <div className="text-[11px] text-muted-foreground mt-1">
+                Created {new Date(p.created_at).toLocaleDateString()}
+                {!p.media_url && " · no media attached yet"}
+              </div>
+            </RouterLink>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Main Component ────────────────────────────────────────────────────────────
 
-type Tab = "generate" | "library" | "calendar";
+type Tab = "generate" | "library" | "calendar" | "projects";
 
 export function GrowthMindContentStudio() {
   const qc                    = useQueryClient();
@@ -1238,6 +1321,7 @@ export function GrowthMindContentStudio() {
               { id: "generate", label: "Generate", icon: Sparkles },
               { id: "library",  label: "Library",  icon: Library },
               { id: "calendar", label: "Calendar", icon: CalendarDays },
+              { id: "projects", label: "Projects", icon: Clapperboard },
             ] as const).map(t => (
               <button
                 key={t.id}
@@ -1834,6 +1918,9 @@ export function GrowthMindContentStudio() {
           {tab === "calendar" && (
             <CalendarTab assets={allAssets} />
           )}
+
+          {/* ── PROJECTS TAB ────────────────────────────────────────────── */}
+          {tab === "projects" && <ProjectsTab />}
         </div>
       </div>
     </GrowthMindShell>
