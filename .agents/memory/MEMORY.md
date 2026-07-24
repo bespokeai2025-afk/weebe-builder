@@ -151,3 +151,4 @@
 - [SystemMind Variable Engine](systemmind-variable-engine.md) — agent scanner + reviewed variable registry; re-scan never clobbers reviewed rows; credential NAMES only; e2e config lives at repo root.
 - [Executive Operator orchestration](executive-operator-orchestration.md) — 5th HiveMind mode; playbooks are proposal-only; manual runs need operator-class mode SERVER-side; leads.updated_at trigger blocks stale fixtures (use replica-role SQL).
 - [SystemMind CRM connection engine](systemmind-crm-connections.md) — executable connectors w/ strict all-keys masked reads, echoed-secret scrubbing, SSRF guard; separate from runtime CRM adapters.
+- [Retell sync & webhook layer](retell-sync-webhook-layer.md) — 3-hash six-state diff, normalized compare, fail-open webhook ledger; transcript_updated never deduped; diff-walker arg-order trap.

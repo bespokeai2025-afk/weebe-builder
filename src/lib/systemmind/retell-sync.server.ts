@@ -532,31 +532,49 @@ export async function compareRetellConfigServer(workspaceId: string, agentRowId:
     .maybeSingle();
   const snapshot = (stateRow?.last_deployed_config ?? null) as Record<string, unknown> | null;
 
-  const diffs: Array<{ path: string; changed: "live_only" | "snapshot_only" | "different" }> = [];
-  const walk = (a: unknown, b: unknown, path: string, depth: number) => {
-    if (depth > 3) {
-      if (stableStringify(a) !== stableStringify(b)) diffs.push({ path, changed: "different" });
-      return;
-    }
-    if (a === undefined && b === undefined) return;
-    if (a === undefined) { diffs.push({ path, changed: "live_only" }); return; }
-    if (b === undefined) { diffs.push({ path, changed: "snapshot_only" }); return; }
-    if (typeof a === "object" && a && typeof b === "object" && b && !Array.isArray(a) && !Array.isArray(b)) {
-      const keys = new Set([...Object.keys(a), ...Object.keys(b)]);
-      for (const k of keys) {
-        if (/api[_-]?key|secret|token|password/i.test(k)) continue;
-        walk((b as Record<string, unknown>)[k], (a as Record<string, unknown>)[k], path ? `${path}.${k}` : k, depth + 1);
-      }
-      return;
-    }
-    if (stableStringify(a) !== stableStringify(b)) diffs.push({ path, changed: "different" });
-  };
-  walk(snapshot ?? {}, liveNorm, "", 0);
+  const diffs = diffRetellConfigs(snapshot ?? {}, liveNorm);
   return {
     hasSnapshot: snapshot !== null,
     diffCount: diffs.length,
     diffs: diffs.slice(0, 100),
   };
+}
+
+/**
+ * Pure field-level diff between the last-deployed snapshot and the live Retell
+ * config. `live_only` = key exists only in live; `snapshot_only` = key exists
+ * only in the snapshot. Exported for tests.
+ */
+export function diffRetellConfigs(
+  snapshot: Record<string, unknown>,
+  live: Record<string, unknown>,
+): Array<{ path: string; changed: "live_only" | "snapshot_only" | "different" }> {
+  const diffs: Array<{ path: string; changed: "live_only" | "snapshot_only" | "different" }> = [];
+  const walk = (snap: unknown, liveVal: unknown, path: string, depth: number) => {
+    if (depth > 3) {
+      if (stableStringify(snap) !== stableStringify(liveVal)) diffs.push({ path, changed: "different" });
+      return;
+    }
+    if (snap === undefined && liveVal === undefined) return;
+    if (snap === undefined) { diffs.push({ path, changed: "live_only" }); return; }
+    if (liveVal === undefined) { diffs.push({ path, changed: "snapshot_only" }); return; }
+    if (typeof snap === "object" && snap && typeof liveVal === "object" && liveVal && !Array.isArray(snap) && !Array.isArray(liveVal)) {
+      const keys = new Set([...Object.keys(snap), ...Object.keys(liveVal)]);
+      for (const k of keys) {
+        if (/api[_-]?key|secret|token|password/i.test(k)) continue;
+        walk(
+          (snap as Record<string, unknown>)[k],
+          (liveVal as Record<string, unknown>)[k],
+          path ? `${path}.${k}` : k,
+          depth + 1,
+        );
+      }
+      return;
+    }
+    if (stableStringify(snap) !== stableStringify(liveVal)) diffs.push({ path, changed: "different" });
+  };
+  walk(snapshot, live, "", 0);
+  return diffs;
 }
 
 // ── Extraction schema deploy + read-back verification ─────────────────────────

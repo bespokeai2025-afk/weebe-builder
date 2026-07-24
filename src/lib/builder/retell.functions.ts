@@ -847,6 +847,40 @@ Read the \`confirmation_message\` field from the response. If a \`meeting_url\` 
       calWebhookRegistered: hasCfCalTools,
     });
 
+    // ── Deployment sync snapshot (Task #458, best-effort) ────────────────────
+    // Anchor the sync-diff engine: read the live config back and store the
+    // deployed + live hashes. The agent row is looked up by its Retell IDs
+    // because this fn does not receive the local row id (fresh creates are
+    // snapshotted on first sync-status read instead).
+    try {
+      const { data: agentRowMatch } = await supabaseAdmin
+        .from("agents")
+        .select("id, settings, retell_agent_id")
+        .eq("workspace_id", wsId);
+      const matched = (agentRowMatch ?? []).find((r) => {
+        const s = (r.settings ?? {}) as Record<string, unknown>;
+        return (
+          r.retell_agent_id === agentId ||
+          (s.deployedRetellAgentId as string | undefined) === agentId
+        );
+      });
+      if (matched && agentId) {
+        const { recordDeploySnapshot } = await import(
+          "@/lib/systemmind/retell-sync.server"
+        );
+        await recordDeploySnapshot({
+          workspaceId: wsId,
+          agentRowId: matched.id as string,
+          retellAgentId: agentId,
+          conversationFlowId: conversationFlowId ?? null,
+          success: true,
+          builderKey: builderKey ?? null,
+        });
+      }
+    } catch (snapErr) {
+      console.warn("[retell-deploy] sync snapshot failed (non-fatal)", snapErr);
+    }
+
     return {
       agentId: agentId ?? "",
       conversationFlowId: conversationFlowId ?? "",
