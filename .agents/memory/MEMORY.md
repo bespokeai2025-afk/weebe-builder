@@ -150,3 +150,4 @@
 - [GrowthMind script performance](growthmind-script-performance.md) — 30d call-script analytics; WBAH routing + 6h snapshot cache; recommendations are advisory drafts only, never touch production agents.
 - [SystemMind Variable Engine](systemmind-variable-engine.md) — agent scanner + reviewed variable registry; re-scan never clobbers reviewed rows; credential NAMES only; e2e config lives at repo root.
 - [Executive Operator orchestration](executive-operator-orchestration.md) — 5th HiveMind mode; playbooks are proposal-only; manual runs need operator-class mode SERVER-side; leads.updated_at trigger blocks stale fixtures (use replica-role SQL).
+- [SystemMind CRM connection engine](systemmind-crm-connections.md) — executable connectors w/ strict all-keys masked reads, echoed-secret scrubbing, SSRF guard; separate from runtime CRM adapters.

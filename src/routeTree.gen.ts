@@ -120,6 +120,7 @@ import { Route as AuthenticatedSystemmindFixPlansRouteImport } from './routes/_a
 import { Route as AuthenticatedSystemmindDeploymentReadinessRouteImport } from './routes/_authenticated/systemmind.deployment-readiness'
 import { Route as AuthenticatedSystemmindDeploymentPlannerRouteImport } from './routes/_authenticated/systemmind.deployment-planner'
 import { Route as AuthenticatedSystemmindDataLimitsRouteImport } from './routes/_authenticated/systemmind.data-limits'
+import { Route as AuthenticatedSystemmindCrmConnectionsRouteImport } from './routes/_authenticated/systemmind.crm-connections'
 import { Route as AuthenticatedSystemmindCrmAdaptersRouteImport } from './routes/_authenticated/systemmind.crm-adapters'
 import { Route as AuthenticatedSystemmindClientsRouteImport } from './routes/_authenticated/systemmind.clients'
 import { Route as AuthenticatedSystemmindChatRouteImport } from './routes/_authenticated/systemmind.chat'
@@ -892,6 +893,12 @@ const AuthenticatedSystemmindDataLimitsRoute =
   AuthenticatedSystemmindDataLimitsRouteImport.update({
     id: '/data-limits',
     path: '/data-limits',
+    getParentRoute: () => AuthenticatedSystemmindRoute,
+  } as any)
+const AuthenticatedSystemmindCrmConnectionsRoute =
+  AuthenticatedSystemmindCrmConnectionsRouteImport.update({
+    id: '/crm-connections',
+    path: '/crm-connections',
     getParentRoute: () => AuthenticatedSystemmindRoute,
   } as any)
 const AuthenticatedSystemmindCrmAdaptersRoute =
@@ -2033,6 +2040,7 @@ export interface FileRoutesByFullPath {
   '/systemmind/chat': typeof AuthenticatedSystemmindChatRoute
   '/systemmind/clients': typeof AuthenticatedSystemmindClientsRouteWithChildren
   '/systemmind/crm-adapters': typeof AuthenticatedSystemmindCrmAdaptersRoute
+  '/systemmind/crm-connections': typeof AuthenticatedSystemmindCrmConnectionsRoute
   '/systemmind/data-limits': typeof AuthenticatedSystemmindDataLimitsRoute
   '/systemmind/deployment-planner': typeof AuthenticatedSystemmindDeploymentPlannerRoute
   '/systemmind/deployment-readiness': typeof AuthenticatedSystemmindDeploymentReadinessRoute
@@ -2309,6 +2317,7 @@ export interface FileRoutesByTo {
   '/systemmind/build': typeof AuthenticatedSystemmindBuildRoute
   '/systemmind/chat': typeof AuthenticatedSystemmindChatRoute
   '/systemmind/crm-adapters': typeof AuthenticatedSystemmindCrmAdaptersRoute
+  '/systemmind/crm-connections': typeof AuthenticatedSystemmindCrmConnectionsRoute
   '/systemmind/data-limits': typeof AuthenticatedSystemmindDataLimitsRoute
   '/systemmind/deployment-planner': typeof AuthenticatedSystemmindDeploymentPlannerRoute
   '/systemmind/deployment-readiness': typeof AuthenticatedSystemmindDeploymentReadinessRoute
@@ -2595,6 +2604,7 @@ export interface FileRoutesById {
   '/_authenticated/systemmind/chat': typeof AuthenticatedSystemmindChatRoute
   '/_authenticated/systemmind/clients': typeof AuthenticatedSystemmindClientsRouteWithChildren
   '/_authenticated/systemmind/crm-adapters': typeof AuthenticatedSystemmindCrmAdaptersRoute
+  '/_authenticated/systemmind/crm-connections': typeof AuthenticatedSystemmindCrmConnectionsRoute
   '/_authenticated/systemmind/data-limits': typeof AuthenticatedSystemmindDataLimitsRoute
   '/_authenticated/systemmind/deployment-planner': typeof AuthenticatedSystemmindDeploymentPlannerRoute
   '/_authenticated/systemmind/deployment-readiness': typeof AuthenticatedSystemmindDeploymentReadinessRoute
@@ -2882,6 +2892,7 @@ export interface FileRouteTypes {
     | '/systemmind/chat'
     | '/systemmind/clients'
     | '/systemmind/crm-adapters'
+    | '/systemmind/crm-connections'
     | '/systemmind/data-limits'
     | '/systemmind/deployment-planner'
     | '/systemmind/deployment-readiness'
@@ -3158,6 +3169,7 @@ export interface FileRouteTypes {
     | '/systemmind/build'
     | '/systemmind/chat'
     | '/systemmind/crm-adapters'
+    | '/systemmind/crm-connections'
     | '/systemmind/data-limits'
     | '/systemmind/deployment-planner'
     | '/systemmind/deployment-readiness'
@@ -3443,6 +3455,7 @@ export interface FileRouteTypes {
     | '/_authenticated/systemmind/chat'
     | '/_authenticated/systemmind/clients'
     | '/_authenticated/systemmind/crm-adapters'
+    | '/_authenticated/systemmind/crm-connections'
     | '/_authenticated/systemmind/data-limits'
     | '/_authenticated/systemmind/deployment-planner'
     | '/_authenticated/systemmind/deployment-readiness'
@@ -4476,6 +4489,13 @@ declare module '@tanstack/react-router' {
       path: '/data-limits'
       fullPath: '/systemmind/data-limits'
       preLoaderRoute: typeof AuthenticatedSystemmindDataLimitsRouteImport
+      parentRoute: typeof AuthenticatedSystemmindRoute
+    }
+    '/_authenticated/systemmind/crm-connections': {
+      id: '/_authenticated/systemmind/crm-connections'
+      path: '/crm-connections'
+      fullPath: '/systemmind/crm-connections'
+      preLoaderRoute: typeof AuthenticatedSystemmindCrmConnectionsRouteImport
       parentRoute: typeof AuthenticatedSystemmindRoute
     }
     '/_authenticated/systemmind/crm-adapters': {
@@ -6061,6 +6081,7 @@ interface AuthenticatedSystemmindRouteChildren {
   AuthenticatedSystemmindChatRoute: typeof AuthenticatedSystemmindChatRoute
   AuthenticatedSystemmindClientsRoute: typeof AuthenticatedSystemmindClientsRouteWithChildren
   AuthenticatedSystemmindCrmAdaptersRoute: typeof AuthenticatedSystemmindCrmAdaptersRoute
+  AuthenticatedSystemmindCrmConnectionsRoute: typeof AuthenticatedSystemmindCrmConnectionsRoute
   AuthenticatedSystemmindDataLimitsRoute: typeof AuthenticatedSystemmindDataLimitsRoute
   AuthenticatedSystemmindDeploymentPlannerRoute: typeof AuthenticatedSystemmindDeploymentPlannerRoute
   AuthenticatedSystemmindDeploymentReadinessRoute: typeof AuthenticatedSystemmindDeploymentReadinessRoute
@@ -6101,6 +6122,8 @@ const AuthenticatedSystemmindRouteChildren: AuthenticatedSystemmindRouteChildren
       AuthenticatedSystemmindClientsRouteWithChildren,
     AuthenticatedSystemmindCrmAdaptersRoute:
       AuthenticatedSystemmindCrmAdaptersRoute,
+    AuthenticatedSystemmindCrmConnectionsRoute:
+      AuthenticatedSystemmindCrmConnectionsRoute,
     AuthenticatedSystemmindDataLimitsRoute:
       AuthenticatedSystemmindDataLimitsRoute,
     AuthenticatedSystemmindDeploymentPlannerRoute:
