@@ -16,6 +16,8 @@ export const listAgentsForVariableEngineFn = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }: any) => {
     await gate(context, "view");
+    const { assertNotWbahWorkspace } = await import("@/lib/wbah-exclusion.shared");
+    assertNotWbahWorkspace(context.workspaceId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { data, error } = await (supabaseAdmin as any).from("agents")
       .select("id, name, agent_type, retell_agent_id")

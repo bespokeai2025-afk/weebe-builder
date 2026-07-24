@@ -127,8 +127,10 @@ function classifyVariable(name: string): { varClass: string; dataType: VariableD
     /count|number|qty|quantity/i.test(name) ? "number" :
     /date|time|slot/i.test(name) ? "datetime" :
     /is_|has_|_flag$|consent|opt_?in|opt_?out/i.test(name) ? "boolean" : "text";
-  return { varClass: "custom", dataType, required: false };
-  // sensitivity default handled by caller
+  const sensitivity =
+    dataType === "email" || dataType === "phone" ? "personal" :
+    dataType === "currency" ? "financial" : "standard";
+  return { varClass: "custom", dataType, required: false, sensitivity };
 }
 
 // Default direction per class: extraction/call outcome flows Retell→WEBEE;
