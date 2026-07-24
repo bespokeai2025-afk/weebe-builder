@@ -12,10 +12,16 @@ import { resolve, dirname } from "path";
 import { refreshSchemaMap } from "./lib/refresh-schema-map.mjs";
 
 const __dir = dirname(fileURLToPath(import.meta.url));
-const SQL = readFileSync(
-  resolve(__dir, "../supabase/migrations/20260724100000_mind_conversations.sql"),
-  "utf8",
-);
+// Both migrations are idempotent and MUST be applied together: the second one
+// replaces the initial workspace-members RLS with per-user owner policies and
+// adds the unique active-conversation index. Applying only the first would
+// leave private chats readable by other workspace members.
+const SQL = [
+  "20260724100000_mind_conversations.sql",
+  "20260724120000_mind_conversations_user_rls.sql",
+]
+  .map((f) => readFileSync(resolve(__dir, "../supabase/migrations/", f), "utf8"))
+  .join("\n");
 
 const SUPABASE_URL = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
 const SERVICE_KEY  = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -57,11 +63,13 @@ if (SUPABASE_URL && SERVICE_KEY) {
   }
 
   if (allPresent) {
-    console.log("✅ mind_conversations tables already exist — nothing to do.");
-    process.exit(0);
+    // Tables exist but the RLS-tightening migration may not have run — the
+    // whole SQL bundle is idempotent, so re-apply it to guarantee per-user
+    // owner policies + the unique active-conversation index are in place.
+    console.log("mind_conversations tables exist — re-applying idempotent SQL to ensure per-user RLS.");
+  } else {
+    console.log("mind_conversations tables missing — proceeding with migration.\n");
   }
-
-  console.log("mind_conversations tables missing — proceeding with migration.\n");
 } else {
   console.log("[mconv-migration] No Supabase credentials found — printing SQL for manual apply.");
 }

@@ -6664,6 +6664,57 @@ export type Database = {
           },
         ]
       }
+      growthmind_learned_patterns: {
+        Row: {
+          adjustment: number
+          confidence: number
+          created_at: string
+          evidence: Json
+          id: string
+          insight: string
+          pattern_key: string
+          pattern_kind: string
+          resolved_at: string | null
+          resolved_by_user_id: string | null
+          sample_size: number
+          status: string
+          updated_at: string
+          workspace_id: string
+        }
+        Insert: {
+          adjustment?: number
+          confidence?: number
+          created_at?: string
+          evidence?: Json
+          id?: string
+          insight: string
+          pattern_key: string
+          pattern_kind: string
+          resolved_at?: string | null
+          resolved_by_user_id?: string | null
+          sample_size?: number
+          status?: string
+          updated_at?: string
+          workspace_id: string
+        }
+        Update: {
+          adjustment?: number
+          confidence?: number
+          created_at?: string
+          evidence?: Json
+          id?: string
+          insight?: string
+          pattern_key?: string
+          pattern_kind?: string
+          resolved_at?: string | null
+          resolved_by_user_id?: string | null
+          sample_size?: number
+          status?: string
+          updated_at?: string
+          workspace_id?: string
+        }
+        Relationships: []
+      }
       growthmind_marketing_tasks: {
         Row: {
           calendar_entry_id: string | null

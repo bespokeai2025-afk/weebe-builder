@@ -672,10 +672,12 @@ function HiveMindChat() {
   const persistedIds = useRef<Set<string>>(new Set());
 
   // Seed chat from server history once it loads (server is authoritative).
+  // Don't latch while history is empty — cache-seeded messages can arrive a
+  // render later than historyLoaded.
   useEffect(() => {
     if (!historyLoaded || seededRef.current) return;
-    seededRef.current = true;
     if (initialMessages.length === 0) return;
+    seededRef.current = true;
     const restored: ChatMessage[] = initialMessages.map(m => ({
       id:      m.id,
       role:    m.role === "user" ? "user" as const : "hivemind" as const,
