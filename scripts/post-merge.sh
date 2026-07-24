@@ -31,3 +31,6 @@ node scripts/apply-accountsmind-config-atomic-activation-migration.mjs
 
 # Apply HiveMind executive event stream tables (idempotent)
 node scripts/apply-executive-events-migration.mjs
+
+# Apply SystemMind call runtime tables (triggers/queue/executions — idempotent)
+node scripts/apply-call-runtime-migration.mjs

@@ -105,6 +105,7 @@ import { Route as AuthenticatedSystemmindWorkflowDraftsRouteImport } from './rou
 import { Route as AuthenticatedSystemmindVariablesRouteImport } from './routes/_authenticated/systemmind.variables'
 import { Route as AuthenticatedSystemmindTemplateLibraryRouteImport } from './routes/_authenticated/systemmind.template-library'
 import { Route as AuthenticatedSystemmindTasksRouteImport } from './routes/_authenticated/systemmind.tasks'
+import { Route as AuthenticatedSystemmindSetupWizardRouteImport } from './routes/_authenticated/systemmind.setup-wizard'
 import { Route as AuthenticatedSystemmindSetupAssistantRouteImport } from './routes/_authenticated/systemmind.setup-assistant'
 import { Route as AuthenticatedSystemmindSettingsRouteImport } from './routes/_authenticated/systemmind.settings'
 import { Route as AuthenticatedSystemmindReportsRouteImport } from './routes/_authenticated/systemmind.reports'
@@ -803,6 +804,12 @@ const AuthenticatedSystemmindTasksRoute =
   AuthenticatedSystemmindTasksRouteImport.update({
     id: '/tasks',
     path: '/tasks',
+    getParentRoute: () => AuthenticatedSystemmindRoute,
+  } as any)
+const AuthenticatedSystemmindSetupWizardRoute =
+  AuthenticatedSystemmindSetupWizardRouteImport.update({
+    id: '/setup-wizard',
+    path: '/setup-wizard',
     getParentRoute: () => AuthenticatedSystemmindRoute,
   } as any)
 const AuthenticatedSystemmindSetupAssistantRoute =
@@ -2056,6 +2063,7 @@ export interface FileRoutesByFullPath {
   '/systemmind/reports': typeof AuthenticatedSystemmindReportsRoute
   '/systemmind/settings': typeof AuthenticatedSystemmindSettingsRoute
   '/systemmind/setup-assistant': typeof AuthenticatedSystemmindSetupAssistantRoute
+  '/systemmind/setup-wizard': typeof AuthenticatedSystemmindSetupWizardRoute
   '/systemmind/tasks': typeof AuthenticatedSystemmindTasksRoute
   '/systemmind/template-library': typeof AuthenticatedSystemmindTemplateLibraryRoute
   '/systemmind/variables': typeof AuthenticatedSystemmindVariablesRoute
@@ -2333,6 +2341,7 @@ export interface FileRoutesByTo {
   '/systemmind/reports': typeof AuthenticatedSystemmindReportsRoute
   '/systemmind/settings': typeof AuthenticatedSystemmindSettingsRoute
   '/systemmind/setup-assistant': typeof AuthenticatedSystemmindSetupAssistantRoute
+  '/systemmind/setup-wizard': typeof AuthenticatedSystemmindSetupWizardRoute
   '/systemmind/tasks': typeof AuthenticatedSystemmindTasksRoute
   '/systemmind/template-library': typeof AuthenticatedSystemmindTemplateLibraryRoute
   '/systemmind/variables': typeof AuthenticatedSystemmindVariablesRoute
@@ -2620,6 +2629,7 @@ export interface FileRoutesById {
   '/_authenticated/systemmind/reports': typeof AuthenticatedSystemmindReportsRoute
   '/_authenticated/systemmind/settings': typeof AuthenticatedSystemmindSettingsRoute
   '/_authenticated/systemmind/setup-assistant': typeof AuthenticatedSystemmindSetupAssistantRoute
+  '/_authenticated/systemmind/setup-wizard': typeof AuthenticatedSystemmindSetupWizardRoute
   '/_authenticated/systemmind/tasks': typeof AuthenticatedSystemmindTasksRoute
   '/_authenticated/systemmind/template-library': typeof AuthenticatedSystemmindTemplateLibraryRoute
   '/_authenticated/systemmind/variables': typeof AuthenticatedSystemmindVariablesRoute
@@ -2908,6 +2918,7 @@ export interface FileRouteTypes {
     | '/systemmind/reports'
     | '/systemmind/settings'
     | '/systemmind/setup-assistant'
+    | '/systemmind/setup-wizard'
     | '/systemmind/tasks'
     | '/systemmind/template-library'
     | '/systemmind/variables'
@@ -3185,6 +3196,7 @@ export interface FileRouteTypes {
     | '/systemmind/reports'
     | '/systemmind/settings'
     | '/systemmind/setup-assistant'
+    | '/systemmind/setup-wizard'
     | '/systemmind/tasks'
     | '/systemmind/template-library'
     | '/systemmind/variables'
@@ -3471,6 +3483,7 @@ export interface FileRouteTypes {
     | '/_authenticated/systemmind/reports'
     | '/_authenticated/systemmind/settings'
     | '/_authenticated/systemmind/setup-assistant'
+    | '/_authenticated/systemmind/setup-wizard'
     | '/_authenticated/systemmind/tasks'
     | '/_authenticated/systemmind/template-library'
     | '/_authenticated/systemmind/variables'
@@ -4384,6 +4397,13 @@ declare module '@tanstack/react-router' {
       path: '/tasks'
       fullPath: '/systemmind/tasks'
       preLoaderRoute: typeof AuthenticatedSystemmindTasksRouteImport
+      parentRoute: typeof AuthenticatedSystemmindRoute
+    }
+    '/_authenticated/systemmind/setup-wizard': {
+      id: '/_authenticated/systemmind/setup-wizard'
+      path: '/setup-wizard'
+      fullPath: '/systemmind/setup-wizard'
+      preLoaderRoute: typeof AuthenticatedSystemmindSetupWizardRouteImport
       parentRoute: typeof AuthenticatedSystemmindRoute
     }
     '/_authenticated/systemmind/setup-assistant': {
@@ -6097,6 +6117,7 @@ interface AuthenticatedSystemmindRouteChildren {
   AuthenticatedSystemmindReportsRoute: typeof AuthenticatedSystemmindReportsRoute
   AuthenticatedSystemmindSettingsRoute: typeof AuthenticatedSystemmindSettingsRoute
   AuthenticatedSystemmindSetupAssistantRoute: typeof AuthenticatedSystemmindSetupAssistantRoute
+  AuthenticatedSystemmindSetupWizardRoute: typeof AuthenticatedSystemmindSetupWizardRoute
   AuthenticatedSystemmindTasksRoute: typeof AuthenticatedSystemmindTasksRoute
   AuthenticatedSystemmindTemplateLibraryRoute: typeof AuthenticatedSystemmindTemplateLibraryRoute
   AuthenticatedSystemmindVariablesRoute: typeof AuthenticatedSystemmindVariablesRoute
@@ -6148,6 +6169,8 @@ const AuthenticatedSystemmindRouteChildren: AuthenticatedSystemmindRouteChildren
     AuthenticatedSystemmindSettingsRoute: AuthenticatedSystemmindSettingsRoute,
     AuthenticatedSystemmindSetupAssistantRoute:
       AuthenticatedSystemmindSetupAssistantRoute,
+    AuthenticatedSystemmindSetupWizardRoute:
+      AuthenticatedSystemmindSetupWizardRoute,
     AuthenticatedSystemmindTasksRoute: AuthenticatedSystemmindTasksRoute,
     AuthenticatedSystemmindTemplateLibraryRoute:
       AuthenticatedSystemmindTemplateLibraryRoute,

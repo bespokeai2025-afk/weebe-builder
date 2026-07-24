@@ -1183,8 +1183,29 @@ export async function processRetellWebhook(
     }
   }
 
+  // ── SystemMind call-runtime post-call hook ────────────────────────────────
+  // Runtime-placed calls (metadata.trigger === "systemmind_call_runtime") get
+  // their full post-call pipeline here: attempt outcome, queue lifecycle,
+  // lead write-back, CRM write-back with retryable integration errors.
+  // Never throws. For those calls the generic CRM dispatch below is skipped —
+  // the runtime pipeline owns CRM write-back (with retries), avoiding double
+  // writes.
+  const isRuntimeManagedCall =
+    ((call as any)?.metadata?.trigger ?? (payload as any)?.call?.metadata?.trigger) ===
+    "systemmind_call_runtime";
+  if (["call_started", "call_ended", "call_analyzed", "call_failed"].includes(event)) {
+    try {
+      const { processRuntimePostCall } = await import(
+        "@/lib/systemmind/call-runtime/pipeline.server"
+      );
+      await processRuntimePostCall({ workspaceId, retellCallId: callId, event, call });
+    } catch (rtErr) {
+      console.warn("[CALL-RUNTIME] post-call hook failed (non-fatal)", rtErr);
+    }
+  }
+
   // ── CRM post-call dispatch ────────────────────────────────────────────────
-  if (event === "call_analyzed" && contactPhone && !isAvaHomepageCall) {
+  if (event === "call_analyzed" && contactPhone && !isAvaHomepageCall && !isRuntimeManagedCall) {
     try {
       const custom = call.call_analysis?.custom_analysis_data ?? {};
       const dynVars = (payload as any)?.call?.retell_llm_dynamic_variables ?? {};

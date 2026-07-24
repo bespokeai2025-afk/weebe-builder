@@ -156,3 +156,179 @@ for (const d of DECLARED) {
     platforms: ["web", "mobile", "api"],
   });
 }
+
+// ── SystemMind call-workflow setup tools (registry surface — chat executable) ─
+// Chat proposes these; sensitive ones ALWAYS require explicit human approval
+// (approval_required) before executeMindTool runs them.
+// Every run-path re-checks SystemMind edit access + WBAH exclusion so the
+// registry surface enforces the SAME authorization as the server-fn surface.
+
+async function gateCallWorkflowTool(ctx: MindToolContext): Promise<void> {
+  const { assertNotWbahWorkspace } = await import("@/lib/wbah-exclusion.shared");
+  assertNotWbahWorkspace(ctx.workspaceId);
+  const { requireSystemMindEdit } = await import("@/lib/systemmind/systemmind-access.server");
+  await requireSystemMindEdit(ctx.workspaceId, ctx.userId);
+}
+
+registerMindTool({
+  name: "systemmind.run_call_workflow_test",
+  mind: "systemmind",
+  title: "Run call workflow test",
+  description: "Run the 12-check end-to-end workflow test for a draft/active call workflow version and store the evidence.",
+  access: "write",
+  surface: "registry",
+  sensitive: false,
+  idempotent: true,
+  estimatedCost: "low",
+  platforms: ["web", "mobile", "api"],
+  inputSchema: z.object({ activationId: z.string().uuid() }),
+  run: async (ctx: MindToolContext, input: { activationId: string }): Promise<MindToolRunResult> => {
+    await gateCallWorkflowTool(ctx);
+    const { runWorkflowTestsServer } = await import("@/lib/systemmind/call-runtime/setup-wizard.server");
+    const res = await runWorkflowTestsServer({
+      workspaceId: ctx.workspaceId, userId: ctx.userId, activationId: input.activationId,
+    });
+    return {
+      result: { passed: res.passed, failed: res.checks.filter((c) => !c.ok && !c.skipped).map((c) => c.key) },
+      affectedRecordType: "systemmind_workflow_activations",
+      affectedRecordId: input.activationId,
+    };
+  },
+});
+
+registerMindTool({
+  name: "systemmind.activate_call_workflow",
+  mind: "systemmind",
+  title: "Activate call workflow",
+  description: "Activate a tested call workflow version (supersedes the previous active version). High impact — requires explicit approval.",
+  access: "write",
+  surface: "registry",
+  sensitive: true,
+  requiredActionKey: "systemmind_approval",
+  idempotent: false,
+  estimatedCost: "medium",
+  platforms: ["web", "mobile", "api"],
+  inputSchema: z.object({ activationId: z.string().uuid() }),
+  run: async (ctx: MindToolContext, input: { activationId: string }): Promise<MindToolRunResult> => {
+    await gateCallWorkflowTool(ctx);
+    const { activateWorkflowServer } = await import("@/lib/systemmind/call-runtime/setup-wizard.server");
+    const res = await activateWorkflowServer({
+      workspaceId: ctx.workspaceId, userId: ctx.userId, activationId: input.activationId,
+    });
+    if (!res.ok) throw new Error(res.error ?? "activation_failed");
+    return {
+      result: { activated: true, version: res.activation?.version_number },
+      affectedRecordType: "systemmind_workflow_activations",
+      affectedRecordId: input.activationId,
+    };
+  },
+});
+
+registerMindTool({
+  name: "systemmind.set_call_workflow_state",
+  mind: "systemmind",
+  title: "Pause / resume / roll back call workflow",
+  description: "Pause, resume or roll back an active call workflow version. High impact — requires explicit approval.",
+  access: "write",
+  surface: "registry",
+  sensitive: true,
+  requiredActionKey: "systemmind_approval",
+  idempotent: false,
+  estimatedCost: "low",
+  platforms: ["web", "mobile", "api"],
+  inputSchema: z.object({
+    activationId: z.string().uuid(),
+    action: z.enum(["pause", "resume", "rollback"]),
+  }),
+  run: async (ctx: MindToolContext, input: { activationId: string; action: "pause" | "resume" | "rollback" }): Promise<MindToolRunResult> => {
+    await gateCallWorkflowTool(ctx);
+    const { setWorkflowStateServer } = await import("@/lib/systemmind/call-runtime/setup-wizard.server");
+    const res = await setWorkflowStateServer({
+      workspaceId: ctx.workspaceId, userId: ctx.userId,
+      activationId: input.activationId, action: input.action,
+    });
+    if (!res.ok) throw new Error(res.error ?? "state_change_failed");
+    return {
+      result: { action: input.action, ok: true },
+      affectedRecordType: "systemmind_workflow_activations",
+      affectedRecordId: input.activationId,
+    };
+  },
+});
+
+registerMindTool({
+  name: "systemmind.save_call_trigger",
+  mind: "systemmind",
+  title: "Save call trigger",
+  description: "Create or update a call trigger (e.g. \"only call leads between 9 AM and 6 PM\"). Changes calling behavior — requires explicit approval.",
+  access: "write",
+  surface: "registry",
+  sensitive: true,
+  requiredActionKey: "systemmind_approval",
+  idempotent: false,
+  estimatedCost: "none",
+  platforms: ["web", "mobile", "api"],
+  inputSchema: z.object({
+    id: z.string().uuid().nullish(),
+    agentId: z.string().uuid(),
+    name: z.string().max(200).optional(),
+    triggerType: z.string(),
+    enabled: z.boolean().optional(),
+    conditions: z.record(z.string(), z.any()).optional(),
+    callingWindow: z.record(z.string(), z.any()).optional(),
+    maxAttempts: z.number().int().min(1).max(10).optional(),
+    dailyCap: z.number().int().min(1).max(2000).optional(),
+    dedupWindowMinutes: z.number().int().min(0).max(43200).optional(),
+    schedule: z.record(z.string(), z.any()).optional(),
+  }),
+  run: async (ctx: MindToolContext, input: any): Promise<MindToolRunResult> => {
+    await gateCallWorkflowTool(ctx);
+    const { saveCallTriggerServer } = await import("@/lib/systemmind/call-runtime/triggers.server");
+    const row = await saveCallTriggerServer({
+      workspaceId: ctx.workspaceId, userId: ctx.userId,
+      ...input,
+      name: input.name ?? `${String(input.triggerType).replace(/_/g, " ")} trigger`,
+    });
+    return {
+      result: { summary: row?.summary, enabled: row?.enabled },
+      affectedRecordType: "systemmind_call_triggers",
+      affectedRecordId: row?.id ?? null,
+    };
+  },
+});
+
+registerMindTool({
+  name: "systemmind.retry_crm_writeback",
+  mind: "systemmind",
+  title: "Retry CRM write-back",
+  description: "Retry a failed CRM update (integration error) now.",
+  access: "write",
+  surface: "registry",
+  sensitive: false,
+  idempotent: true,
+  estimatedCost: "none",
+  platforms: ["web", "mobile", "api"],
+  inputSchema: z.object({ errorId: z.string().uuid() }),
+  run: async (ctx: MindToolContext, input: { errorId: string }): Promise<MindToolRunResult> => {
+    await gateCallWorkflowTool(ctx);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const sb = supabaseAdmin as any;
+    const { data: row } = await sb
+      .from("systemmind_integration_errors")
+      .select("id")
+      .eq("id", input.errorId)
+      .eq("workspace_id", ctx.workspaceId)
+      .maybeSingle();
+    if (!row) throw new Error("integration_error_not_found");
+    const { error } = await sb
+      .from("systemmind_integration_errors")
+      .update({ status: "pending", next_retry_at: new Date().toISOString(), updated_at: new Date().toISOString() })
+      .eq("id", input.errorId);
+    if (error) throw new Error(error.message);
+    return {
+      result: { retryScheduled: true },
+      affectedRecordType: "systemmind_integration_errors",
+      affectedRecordId: input.errorId,
+    };
+  },
+});

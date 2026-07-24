@@ -232,6 +232,23 @@ export const Route = createFileRoute("/api/public/campaign-executor")({
             console.warn("[db-watchdog] tick failed:", wdErr?.message ?? wdErr);
           }
 
+          // SystemMind call runtime: trigger evaluation, queue processing,
+          // integration-error retries, activation health sweep. Best-effort —
+          // never blocks the tick.
+          try {
+            const { runCallRuntimeTick } = await import(
+              "@/lib/systemmind/call-runtime/tick.server"
+            );
+            const rt = await runCallRuntimeTick();
+            if (rt.enqueued > 0 || rt.claimed > 0 || rt.integrationRetries.resolved > 0 || rt.healthUpdated > 0) {
+              console.log(
+                `[call-runtime] triggers=${rt.triggersEvaluated} enqueued=${rt.enqueued} claimed=${rt.claimed} processed=${JSON.stringify(rt.processed)} crmRetries=${JSON.stringify(rt.integrationRetries)} health=${rt.healthUpdated}`,
+              );
+            }
+          } catch (rtErr: any) {
+            console.warn("[call-runtime] tick failed:", rtErr?.message ?? rtErr);
+          }
+
           // Scheduled analytics reports (once-per-tick due check). Best-effort —
           // never blocks the tick.
           try {

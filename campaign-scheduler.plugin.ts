@@ -119,6 +119,24 @@ export function campaignSchedulerPlugin(): Plugin {
           console.warn("[perf-snapshots] dev tick failed:", e?.message ?? e);
         }
 
+        // SystemMind call runtime: trigger evaluation, queue processing,
+        // integration-error retries, health sweep (mirrors the prod
+        // campaign-executor endpoint). Loaded via ssrLoadModule because the
+        // module uses "@/" aliases. Best-effort.
+        try {
+          const { runCallRuntimeTick } = (await server.ssrLoadModule(
+            "/src/lib/systemmind/call-runtime/tick.server.ts",
+          )) as typeof import("./src/lib/systemmind/call-runtime/tick.server");
+          const rt = await runCallRuntimeTick();
+          if (rt.enqueued > 0 || rt.claimed > 0 || rt.integrationRetries.resolved > 0) {
+            console.log(
+              `[call-runtime] triggers=${rt.triggersEvaluated} enqueued=${rt.enqueued} claimed=${rt.claimed} processed=${JSON.stringify(rt.processed)} crmRetries=${JSON.stringify(rt.integrationRetries)}`,
+            );
+          }
+        } catch (e: any) {
+          console.warn("[call-runtime] dev tick failed:", e?.message ?? e);
+        }
+
         // Supabase DB health watchdog (mirrors the prod campaign-executor
         // endpoint). Loaded via ssrLoadModule so it shares module state with
         // server functions (admin banner reads the same snapshot). Best-effort.

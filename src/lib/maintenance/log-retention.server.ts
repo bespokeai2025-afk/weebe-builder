@@ -64,6 +64,12 @@ const RETENTION_RULES: RetentionRule[] = [
   { table: "growthmind_performance_snapshots", column: "created_at", days: 400 },
   // Trend Scout discovery/scoring run log — operational history only.
   { table: "growthmind_discovery_runs",        column: "created_at", days: 180 },
+  // SystemMind call runtime — execution/step/attempt logs are append-only
+  // operational history (steps cascade-delete with executions but pruned
+  // explicitly too so orphan protection never blocks the sweep).
+  { table: "systemmind_execution_steps",       column: "created_at", days: 180 },
+  { table: "systemmind_workflow_executions",   column: "started_at", days: 180 },
+  { table: "systemmind_call_attempts",         column: "created_at", days: 400 },
 ];
 
 /** Rows deleted per batch (bounded so a single statement can't time out). */

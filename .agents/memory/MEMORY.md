@@ -152,3 +152,4 @@
 - [Executive Operator orchestration](executive-operator-orchestration.md) — 5th HiveMind mode; playbooks are proposal-only; manual runs need operator-class mode SERVER-side; leads.updated_at trigger blocks stale fixtures (use replica-role SQL).
 - [SystemMind CRM connection engine](systemmind-crm-connections.md) — executable connectors w/ strict all-keys masked reads, echoed-secret scrubbing, SSRF guard; separate from runtime CRM adapters.
 - [Retell sync & webhook layer](retell-sync-webhook-layer.md) — 3-hash six-state diff, normalized compare, fail-open webhook ledger; transcript_updated never deduped; diff-walker arg-order trap.
+- [Call Workflow Wizard & Runtime](call-workflow-wizard-arch.md) — live-evidence 14-step wizard; test gate + audited override; queueId param; registry mind tools must re-gate (SystemMind edit + WBAH).
