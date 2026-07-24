@@ -31,6 +31,11 @@ export type AgentScriptMetrics = {
   bestHours:      number[];
 };
 
+export type CampaignScriptMetrics = Omit<AgentScriptMetrics, "agentKey" | "agentName"> & {
+  campaignKey:  string;
+  campaignName: string;
+};
+
 export type ScriptPatterns = {
   openingLines: Array<{ line: string; agent: string | null; quality: "strong" | "weak" | "neutral"; note: string }>;
   objections:   Array<{ objection: string; frequency: "common" | "occasional" | "rare"; suggestedResponse: string }>;
@@ -51,6 +56,7 @@ export type ScriptAnalysis = {
     qualifiedRate: number; bookingRate: number;
   };
   agents:        AgentScriptMetrics[];
+  campaigns:     CampaignScriptMetrics[];
   patterns:      ScriptPatterns | null;
   computedAt:    string;
 };
@@ -87,7 +93,7 @@ async function fetchWbahRows(sb: any, workspaceId: string, startIso: string) {
   for (let p = 0; p < MAX_PAGES; p++) {
     const { data, error } = await sb
       .from("wbah_calls")
-      .select("id, agent_name, call_status, sentiment, duration_seconds, booking_status, appointment_date, disconnection_reason, end_reason, started_at")
+      .select("id, agent_name, call_status, sentiment, duration_seconds, booking_status, appointment_date, disconnection_reason, end_reason, started_at, meta")
       .eq("workspace_id", workspaceId)
       .gte("started_at", startIso)
       .order("started_at", { ascending: false })
@@ -171,8 +177,14 @@ function finishBucket(key: string, b: Bucket): AgentScriptMetrics {
   };
 }
 
-function aggregate(rows: any[], source: "standard" | "wbah", tz: string) {
+function aggregate(
+  rows: any[],
+  source: "standard" | "wbah",
+  tz: string,
+  resolveCampaign?: (c: any) => { key: string; name: string } | null,
+) {
   const byAgent = new Map<string, Bucket>();
+  const byCampaign = new Map<string, Bucket>();
   let totalCalls = 0, totalConnected = 0, totalPositive = 0, totalQualified = 0, totalBooked = 0;
 
   for (const c of rows) {
@@ -180,6 +192,13 @@ function aggregate(rows: any[], source: "standard" | "wbah", tz: string) {
     const name = String(c.agent_name ?? key);
     let b = byAgent.get(key);
     if (!b) { b = newBucket(name); byAgent.set(key, b); }
+
+    const camp = resolveCampaign ? resolveCampaign(c) : null;
+    let cb: Bucket | null = null;
+    if (camp) {
+      cb = byCampaign.get(camp.key) ?? null;
+      if (!cb) { cb = newBucket(camp.name); byCampaign.set(camp.key, cb); }
+    }
 
     const connected = source === "wbah" ? isWbahConnected(c) : isStandardConnected(c);
     const s = String(c.sentiment ?? "").toLowerCase();
@@ -192,23 +211,82 @@ function aggregate(rows: any[], source: "standard" | "wbah", tz: string) {
       : connected && c.call_successful === true; // standard bookings live in calendar_bookings — counted separately below
 
     b.total++; totalCalls++;
-    if (connected) { b.connected++; totalConnected++; b.durationSum += Number(c.duration_seconds ?? 0); }
-    if (positive)  { b.positive++;  totalPositive++; }
-    if (qualified) { b.qualified++; totalQualified++; }
-    if (source === "wbah" && booked) { b.booked++; totalBooked++; }
+    if (cb) cb.total++;
+    if (connected) {
+      b.connected++; totalConnected++; b.durationSum += Number(c.duration_seconds ?? 0);
+      if (cb) { cb.connected++; cb.durationSum += Number(c.duration_seconds ?? 0); }
+    }
+    if (positive)  { b.positive++;  totalPositive++;  if (cb) cb.positive++; }
+    if (qualified) { b.qualified++; totalQualified++; if (cb) cb.qualified++; }
+    if (source === "wbah" && booked) { b.booked++; totalBooked++; if (cb) cb.booked++; }
 
     const h = hourIn(tz, c.started_at ?? c.created_at ?? null);
     if (h !== null) {
-      let e = b.byHour.get(h);
-      if (!e) { e = { calls: 0, connected: 0, positive: 0, booked: 0 }; b.byHour.set(h, e); }
-      e.calls++;
-      if (connected) e.connected++;
-      if (positive) e.positive++;
-      if (source === "wbah" && booked) e.booked++;
+      const tally = (target: Bucket) => {
+        let e = target.byHour.get(h);
+        if (!e) { e = { calls: 0, connected: 0, positive: 0, booked: 0 }; target.byHour.set(h, e); }
+        e.calls++;
+        if (connected) e.connected++;
+        if (positive) e.positive++;
+        if (source === "wbah" && booked) e.booked++;
+      };
+      tally(b);
+      if (cb) tally(cb);
     }
   }
 
-  return { byAgent, totalCalls, totalConnected, totalPositive, totalQualified, totalBooked };
+  return { byAgent, byCampaign, totalCalls, totalConnected, totalPositive, totalQualified, totalBooked };
+}
+
+// ── Campaign attribution ───────────────────────────────────────────────────────
+//
+// Standard workspaces: calls have no campaign_id column — campaigns own an
+// agent (campaigns.agent_id), so a call is attributed to the most recently
+// updated campaign using that agent. WBAH: reuse the platform's dialler
+// attribution (same agent_id + nearest scheduled London slot).
+
+async function buildCampaignResolver(
+  sb: any,
+  workspaceId: string,
+  source: "standard" | "wbah",
+): Promise<(c: any) => { key: string; name: string } | null> {
+  if (source === "standard") {
+    const { data } = await sb
+      .from("campaigns")
+      .select("id, name, agent_id, updated_at")
+      .eq("workspace_id", workspaceId)
+      .not("agent_id", "is", null)
+      .order("updated_at", { ascending: false })
+      .limit(200);
+    const byAgentId = new Map<string, { key: string; name: string }>();
+    for (const row of (data ?? []) as any[]) {
+      if (row.agent_id && !byAgentId.has(row.agent_id)) {
+        byAgentId.set(row.agent_id, { key: row.id, name: row.name ?? "Campaign" });
+      }
+    }
+    return (c: any) => (c.agent_id ? byAgentId.get(String(c.agent_id)) ?? null : null);
+  }
+
+  // WBAH — dialler campaign snapshot + slot-based attribution.
+  try {
+    const { loadWbahCampaignSnapshot, attributeWbahCampaign } =
+      await import("@/lib/integrations/webespokeEnterprise/wbah-campaign-reporting.server");
+    const snapshot = await loadWbahCampaignSnapshot(sb);
+    if (snapshot.length === 0) return () => null;
+    return (c: any) => {
+      const agentId = (c.meta as any)?.agent_id ?? null;
+      const camp = attributeWbahCampaign(snapshot, agentId, c.started_at ?? null);
+      return camp ? { key: camp.id, name: camp.name ?? "Campaign" } : null;
+    };
+  } catch {
+    return () => null;
+  }
+}
+
+function finishCampaignBucket(key: string, b: Bucket): CampaignScriptMetrics {
+  const m = finishBucket(key, b);
+  const { agentKey: _k, agentName: _n, ...rest } = m;
+  return { ...rest, campaignKey: key, campaignName: b.agentName };
 }
 
 // ── AI transcript pattern extraction (cost-bounded, one call) ─────────────────
@@ -318,6 +396,7 @@ function rowToAnalysis(row: any): ScriptAnalysis {
     aiStatus:            row.ai_status ?? "skipped",
     totals:              m.totals ?? { calls: 0, connected: 0, positiveRate: 0, qualifiedRate: 0, bookingRate: 0 },
     agents:              m.agents ?? [],
+    campaigns:           m.campaigns ?? [],
     patterns:            row.patterns && Object.keys(row.patterns).length > 0 ? row.patterns : null,
     computedAt:          row.computed_at,
   };
@@ -352,11 +431,12 @@ export async function computeScriptPerformance(
   const periodStart = new Date(Date.now() - ANALYSIS_DAYS * 86400000);
   const startIso = periodStart.toISOString();
 
-  const rows = isWbah
-    ? await fetchWbahRows(sb, workspaceId, startIso)
-    : await fetchStandardRows(sb, workspaceId, startIso);
+  const [rows, resolveCampaign] = await Promise.all([
+    isWbah ? fetchWbahRows(sb, workspaceId, startIso) : fetchStandardRows(sb, workspaceId, startIso),
+    buildCampaignResolver(sb, workspaceId, source),
+  ]);
 
-  const agg = aggregate(rows, source, tz);
+  const agg = aggregate(rows, source, tz, resolveCampaign);
 
   // Standard workspaces: bookings live in calendar_bookings (count only — booking
   // rate is computed against total calls in the same window).
@@ -372,6 +452,11 @@ export async function computeScriptPerformance(
 
   const agents = Array.from(agg.byAgent.entries())
     .map(([key, b]) => finishBucket(key, b))
+    .sort((a, z) => z.total - a.total)
+    .slice(0, 25);
+
+  const campaigns = Array.from(agg.byCampaign.entries())
+    .map(([key, b]) => finishCampaignBucket(key, b))
     .sort((a, z) => z.total - a.total)
     .slice(0, 25);
 
@@ -396,6 +481,7 @@ export async function computeScriptPerformance(
     aiStatus: status,
     totals,
     agents,
+    campaigns,
     patterns,
     computedAt: new Date().toISOString(),
   };
@@ -410,7 +496,7 @@ export async function computeScriptPerformance(
         period_start: analysis.periodStart,
         period_end:   analysis.periodEnd,
         source,
-        metrics:      { timezone: tz, totals, agents },
+        metrics:      { timezone: tz, totals, agents, campaigns },
         patterns:     patterns ?? {},
         sample_size:  agg.totalCalls,
         analyzed_transcripts: analyzed,
@@ -463,16 +549,20 @@ export async function computeScriptPerformance(
 export async function generateScriptRecommendation(
   sb: any,
   workspaceId: string,
-  input: { kind: "revision" | "ab_experiment"; agentKey?: string | null },
+  input: { kind: "revision" | "ab_experiment"; agentKey?: string | null; campaignKey?: string | null },
 ): Promise<{ ok: boolean; proposalId?: string; title?: string; error?: string }> {
   const analysis = await getLatestScriptAnalysis(sb, workspaceId);
   if (!analysis || analysis.totals.calls === 0) {
     return { ok: false, error: "No script analysis available yet — run the analysis first." };
   }
 
+  const campaign = input.campaignKey
+    ? (analysis.campaigns ?? []).find(c => c.campaignKey === input.campaignKey) ?? null
+    : null;
+
   const agent = input.agentKey
     ? analysis.agents.find(a => a.agentKey === input.agentKey) ?? null
-    : analysis.agents[0] ?? null;
+    : campaign ? null : analysis.agents[0] ?? null;
 
   const p = analysis.patterns;
   const objectionBlock = p?.objections?.length
@@ -482,20 +572,24 @@ export async function generateScriptRecommendation(
     ? p.openingLines.map(o => `• [${o.quality}] "${o.line}"${o.agent ? ` (${o.agent})` : ""} — ${o.note}`).join("\n")
     : "No AI-extracted opening-line patterns available.";
 
-  const scope = agent ? `agent "${agent.agentName}"` : "all agents";
-  const stats = agent
-    ? `${agent.total} calls, ${agent.connectionRate}% connected, ${agent.positiveRate}% positive, ${agent.qualifiedRate}% qualified, ${agent.bookingRate}% booked; best hours: ${agent.bestHours.map(h => `${h}:00`).join(", ") || "n/a"}`
+  const scope = campaign
+    ? `campaign "${campaign.campaignName}"`
+    : agent ? `agent "${agent.agentName}"` : "all agents";
+  const focus = campaign ?? agent;
+  const stats = focus
+    ? `${focus.total} calls, ${focus.connectionRate}% connected, ${focus.positiveRate}% positive, ${focus.qualifiedRate}% qualified, ${focus.bookingRate}% booked; best hours: ${focus.bestHours.map(h => `${h}:00`).join(", ") || "n/a"}`
     : `${analysis.totals.calls} calls, ${analysis.totals.positiveRate}% positive, ${analysis.totals.qualifiedRate}% qualified, ${analysis.totals.bookingRate}% booked`;
 
   const isAb = input.kind === "ab_experiment";
+  const focusName = campaign?.campaignName ?? agent?.agentName ?? "Call Campaign";
   const title = isAb
-    ? `A/B Script Experiment — ${agent?.agentName ?? "Call Campaign"}`
-    : `Script Revision — ${agent?.agentName ?? "Call Campaign"}`;
+    ? `A/B Script Experiment — ${focusName}`
+    : `Script Revision — ${focusName}`;
 
   // Deterministic body (always available); AI enrichment is a bonus, not a dependency.
   let contentPlan = isAb
     ? `Variant A (control): current script unchanged.\nVariant B (challenger): revised opening + objection handling below.\n\nOpening-line findings:\n${openingBlock}\n\nObjection handling to add:\n${objectionBlock}\n\nProtocol: split call list 50/50 for 2 weeks, minimum 100 calls per variant. Success metric: booking rate; secondary: positive-sentiment rate. Apply the winner only after human approval.`
-    : `Recommended script changes for ${scope}:\n\n1. Opening line — lead with the strongest observed pattern:\n${openingBlock}\n\n2. Objection handling — add scripted responses:\n${objectionBlock}\n\n3. Timing — concentrate call attempts in the best-performing hours (${(agent?.bestHours ?? []).map(h => `${h}:00`).join(", ") || "insufficient hourly data"}).\n\nApply changes via the agent builder only after approval — production agents are never modified automatically.`;
+    : `Recommended script changes for ${scope}:\n\n1. Opening line — lead with the strongest observed pattern:\n${openingBlock}\n\n2. Objection handling — add scripted responses:\n${objectionBlock}\n\n3. Timing — concentrate call attempts in the best-performing hours (${(focus?.bestHours ?? []).map(h => `${h}:00`).join(", ") || "insufficient hourly data"}).\n\nApply changes via the agent builder only after approval — production agents are never modified automatically.`;
 
   // Optional AI-drafted revision text
   try {
@@ -561,7 +655,7 @@ export async function generateScriptRecommendation(
       action_type: "campaign_proposal",
       title: `${isAb ? "A/B Script Experiment" : "Script Revision"} Proposal: ${title}`,
       description: `GrowthMind generated a ${isAb ? "script A/B experiment" : "script revision"} draft from call-script performance analysis.\n\n${proposal.reason}\n\nNo production agent is modified until this is approved and applied manually.`,
-      action_payload: { proposalId: ins?.id ?? null, kind: `script_${input.kind}`, agentKey: input.agentKey ?? null },
+      action_payload: { proposalId: ins?.id ?? null, kind: `script_${input.kind}`, agentKey: input.agentKey ?? null, campaignKey: input.campaignKey ?? null },
       status: "pending",
       proposed_by: "growthmind",
       sensitive: false,

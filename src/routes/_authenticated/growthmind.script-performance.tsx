@@ -58,6 +58,7 @@ function ScriptPerformancePage() {
   const [running, setRunning] = useState(false);
   const [recBusy, setRecBusy] = useState<string | null>(null);
   const [selectedAgent, setSelectedAgent] = useState<string | null>(null);
+  const [selectedCampaign, setSelectedCampaign] = useState<string | null>(null);
 
   const { data: ctx } = useQuery({
     queryKey: ["my-context"],
@@ -89,7 +90,7 @@ function ScriptPerformancePage() {
   async function generate(kind: "revision" | "ab_experiment") {
     setRecBusy(kind);
     try {
-      const res = await recFn({ data: { kind, agentKey: selectedAgent } });
+      const res = await recFn({ data: { kind, agentKey: selectedAgent, campaignKey: selectedCampaign } });
       if (res.ok) {
         toast.success(`Draft created: "${res.title}" — review it under Proposals (approval required).`);
       } else {
@@ -106,6 +107,7 @@ function ScriptPerformancePage() {
 
   const analysis = q.data?.analysis ?? null;
   const agents = analysis?.agents ?? [];
+  const campaigns = analysis?.campaigns ?? [];
   const patterns = analysis?.patterns ?? null;
 
   return (
@@ -191,7 +193,7 @@ function ScriptPerformancePage() {
                   {agents.map((a: any) => (
                     <tr
                       key={a.agentKey}
-                      onClick={() => setSelectedAgent(selectedAgent === a.agentKey ? null : a.agentKey)}
+                      onClick={() => { setSelectedAgent(selectedAgent === a.agentKey ? null : a.agentKey); setSelectedCampaign(null); }}
                       className={cn(
                         "h-11 cursor-pointer border-b border-white/[0.04] hover:bg-white/[0.03]",
                         selectedAgent === a.agentKey && "bg-emerald-500/[0.08]"
@@ -219,6 +221,61 @@ function ScriptPerformancePage() {
                 Bookings for standard workspaces are counted workspace-wide from the bookings calendar (per-agent attribution unavailable).
                 Qualified = calls flagged successful by the agent.
               </p>
+            )}
+          </div>
+
+          {/* Per-campaign table */}
+          <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-4">
+            <h2 className="text-sm font-medium">Per-campaign script performance</h2>
+            <p className="mt-0.5 text-xs text-muted-foreground">
+              Calls attributed to campaigns via the agent each campaign uses{analysis.source === "wbah" ? " and the nearest scheduled dialler slot" : ""}.
+              Select a campaign to target the recommendation drafts below.
+            </p>
+            {campaigns.length === 0 ? (
+              <p className="mt-3 text-sm text-muted-foreground">
+                No campaign-attributed calls in this window — calls only appear here when a campaign is linked to the agent that made them.
+              </p>
+            ) : (
+              <div className="mt-3 overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-white/[0.08] text-left text-xs text-muted-foreground">
+                      <th className="px-3 py-2">Campaign</th>
+                      <th className="px-3 py-2">Calls</th>
+                      <th className="px-3 py-2">Conn. rate</th>
+                      <th className="px-3 py-2">Positive</th>
+                      <th className="px-3 py-2">Qualified</th>
+                      <th className="px-3 py-2">Booked</th>
+                      <th className="px-3 py-2">Best hours</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {campaigns.map((c: any) => (
+                      <tr
+                        key={c.campaignKey}
+                        onClick={() => { setSelectedCampaign(selectedCampaign === c.campaignKey ? null : c.campaignKey); setSelectedAgent(null); }}
+                        className={cn(
+                          "h-11 cursor-pointer border-b border-white/[0.04] hover:bg-white/[0.03]",
+                          selectedCampaign === c.campaignKey && "bg-emerald-500/[0.08]"
+                        )}
+                      >
+                        <td className="px-3 py-2.5 font-medium">{c.campaignName}</td>
+                        <td className="px-3 py-2.5 tabular-nums">{c.total}</td>
+                        <td className="px-3 py-2.5 tabular-nums">{pct(c.connectionRate)}</td>
+                        <td className="px-3 py-2.5 tabular-nums">{pct(c.positiveRate)}</td>
+                        <td className="px-3 py-2.5 tabular-nums">{pct(c.qualifiedRate)}</td>
+                        <td className="px-3 py-2.5 tabular-nums">{analysis.source === "wbah" ? pct(c.bookingRate) : "—"}</td>
+                        <td className="px-3 py-2.5">
+                          <span className="flex items-center gap-1 text-xs text-muted-foreground">
+                            <Clock3 className="h-3.5 w-3.5" />
+                            {c.bestHours.length > 0 ? c.bestHours.map(hourLabel).join(", ") : "n/a"}
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             )}
           </div>
 
@@ -289,7 +346,11 @@ function ScriptPerformancePage() {
             </h2>
             <p className="mt-1 text-xs text-muted-foreground">
               Creates a draft in <Link to="/growthmind/proposals" className="underline">Proposals</Link>
-              {" "}for {selectedAgent ? `the selected agent (${agents.find((a: any) => a.agentKey === selectedAgent)?.agentName ?? selectedAgent})` : "your top agent"}.
+              {" "}for {selectedCampaign
+                ? `the selected campaign (${campaigns.find((c: any) => c.campaignKey === selectedCampaign)?.campaignName ?? selectedCampaign})`
+                : selectedAgent
+                  ? `the selected agent (${agents.find((a: any) => a.agentKey === selectedAgent)?.agentName ?? selectedAgent})`
+                  : "your top agent"}.
               Production agents are never changed automatically — approved scripts are applied manually in the agent builder.
             </p>
             <div className="mt-3 flex flex-wrap gap-2">

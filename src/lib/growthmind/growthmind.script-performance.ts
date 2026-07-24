@@ -34,8 +34,9 @@ export const createScriptRecommendation = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) =>
     z.object({
-      kind:     z.enum(["revision", "ab_experiment"]),
-      agentKey: z.string().max(200).nullable().optional(),
+      kind:        z.enum(["revision", "ab_experiment"]),
+      agentKey:    z.string().max(200).nullable().optional(),
+      campaignKey: z.string().max(200).nullable().optional(),
     }).parse(input)
   )
   .handler(async ({ context, data }) => {
@@ -43,5 +44,9 @@ export const createScriptRecommendation = createServerFn({ method: "POST" })
     const workspaceId = context.workspaceId;
     if (!workspaceId) throw new Error("No workspace");
     const { generateScriptRecommendation } = await import("@/lib/growthmind/growthmind.script-performance.server");
-    return generateScriptRecommendation(sb, workspaceId, { kind: data.kind, agentKey: data.agentKey ?? null });
+    return generateScriptRecommendation(sb, workspaceId, {
+      kind: data.kind,
+      agentKey: data.agentKey ?? null,
+      campaignKey: data.campaignKey ?? null,
+    });
   });
