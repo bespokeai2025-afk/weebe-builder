@@ -45,7 +45,7 @@ export interface ExecutionHandle {
   step: (
     key: string,
     label: string,
-    fn: () => Promise<{ output?: Record<string, unknown>; externalResponse?: Record<string, unknown> } | void>,
+    fn: () => Promise<{ input?: Record<string, unknown>; output?: Record<string, unknown>; externalResponse?: Record<string, unknown> } | void>,
     opts?: { retryable?: boolean; resolutionHint?: string },
   ) => Promise<{ ok: boolean; error?: string }>;
   skipStep: (key: string, label: string, reason: string) => Promise<void>;
@@ -116,6 +116,7 @@ export async function startExecution(args: {
             .update({
               status: "completed",
               completed_at: new Date().toISOString(),
+              input_masked: maskRecord(res.input ?? {}),
               output_masked: maskRecord(res.output ?? {}),
               external_response_masked: res.externalResponse ? maskRecord(res.externalResponse) : null,
             })
@@ -175,6 +176,8 @@ export async function recordIntegrationError(args: {
   workspaceId: string;
   executionId?: string | null;
   queueId?: string | null;
+  agentId?: string | null;
+  activationId?: string | null;
   kind: string;
   operation: Record<string, unknown>;
   error: string;
@@ -185,6 +188,8 @@ export async function recordIntegrationError(args: {
       workspace_id: args.workspaceId,
       execution_id: args.executionId ?? null,
       queue_id: args.queueId ?? null,
+      agent_id: args.agentId ?? null,
+      activation_id: args.activationId ?? null,
       kind: args.kind,
       operation: maskRecord(args.operation),
       error: args.error.slice(0, 1000),

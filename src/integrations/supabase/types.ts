@@ -11283,6 +11283,203 @@ export type Database = {
           },
         ]
       }
+      systemmind_call_attempts: {
+        Row: {
+          attempt_number: number
+          created_at: string
+          ended_at: string | null
+          error: string | null
+          id: string
+          outcome: string
+          queue_id: string
+          retell_call_id: string | null
+          started_at: string
+          workspace_id: string
+        }
+        Insert: {
+          attempt_number?: number
+          created_at?: string
+          ended_at?: string | null
+          error?: string | null
+          id?: string
+          outcome?: string
+          queue_id: string
+          retell_call_id?: string | null
+          started_at?: string
+          workspace_id: string
+        }
+        Update: {
+          attempt_number?: number
+          created_at?: string
+          ended_at?: string | null
+          error?: string | null
+          id?: string
+          outcome?: string
+          queue_id?: string
+          retell_call_id?: string | null
+          started_at?: string
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "systemmind_call_attempts_queue_id_fkey"
+            columns: ["queue_id"]
+            isOneToOne: false
+            referencedRelation: "systemmind_call_queue"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      systemmind_call_queue: {
+        Row: {
+          activation_id: string | null
+          agent_id: string | null
+          attempt_count: number
+          call_context: Json
+          claimed_at: string | null
+          claimed_by: string | null
+          created_at: string
+          dedup_key: string | null
+          dynamic_variables: Json
+          id: string
+          last_error: string | null
+          lead_id: string | null
+          lead_name: string
+          max_attempts: number
+          missing_required: Json
+          next_attempt_at: string
+          phone: string
+          priority: number
+          status: string
+          status_reason: string
+          trigger_id: string | null
+          updated_at: string
+          workspace_id: string
+        }
+        Insert: {
+          activation_id?: string | null
+          agent_id?: string | null
+          attempt_count?: number
+          call_context?: Json
+          claimed_at?: string | null
+          claimed_by?: string | null
+          created_at?: string
+          dedup_key?: string | null
+          dynamic_variables?: Json
+          id?: string
+          last_error?: string | null
+          lead_id?: string | null
+          lead_name?: string
+          max_attempts?: number
+          missing_required?: Json
+          next_attempt_at?: string
+          phone?: string
+          priority?: number
+          status?: string
+          status_reason?: string
+          trigger_id?: string | null
+          updated_at?: string
+          workspace_id: string
+        }
+        Update: {
+          activation_id?: string | null
+          agent_id?: string | null
+          attempt_count?: number
+          call_context?: Json
+          claimed_at?: string | null
+          claimed_by?: string | null
+          created_at?: string
+          dedup_key?: string | null
+          dynamic_variables?: Json
+          id?: string
+          last_error?: string | null
+          lead_id?: string | null
+          lead_name?: string
+          max_attempts?: number
+          missing_required?: Json
+          next_attempt_at?: string
+          phone?: string
+          priority?: number
+          status?: string
+          status_reason?: string
+          trigger_id?: string | null
+          updated_at?: string
+          workspace_id?: string
+        }
+        Relationships: []
+      }
+      systemmind_call_triggers: {
+        Row: {
+          activation_id: string | null
+          agent_id: string | null
+          calling_window: Json
+          conditions: Json
+          created_at: string
+          created_by_user_id: string | null
+          daily_cap: number
+          dedup_window_minutes: number
+          eligibility: Json
+          enabled: boolean
+          id: string
+          last_evaluated_at: string | null
+          max_attempts: number
+          name: string
+          retry_config: Json
+          schedule: Json
+          summary: string
+          trigger_type: string
+          updated_at: string
+          workflow_id: string | null
+          workspace_id: string
+        }
+        Insert: {
+          activation_id?: string | null
+          agent_id?: string | null
+          calling_window?: Json
+          conditions?: Json
+          created_at?: string
+          created_by_user_id?: string | null
+          daily_cap?: number
+          dedup_window_minutes?: number
+          eligibility?: Json
+          enabled?: boolean
+          id?: string
+          last_evaluated_at?: string | null
+          max_attempts?: number
+          name?: string
+          retry_config?: Json
+          schedule?: Json
+          summary?: string
+          trigger_type?: string
+          updated_at?: string
+          workflow_id?: string | null
+          workspace_id: string
+        }
+        Update: {
+          activation_id?: string | null
+          agent_id?: string | null
+          calling_window?: Json
+          conditions?: Json
+          created_at?: string
+          created_by_user_id?: string | null
+          daily_cap?: number
+          dedup_window_minutes?: number
+          eligibility?: Json
+          enabled?: boolean
+          id?: string
+          last_evaluated_at?: string | null
+          max_attempts?: number
+          name?: string
+          retry_config?: Json
+          schedule?: Json
+          summary?: string
+          trigger_type?: string
+          updated_at?: string
+          workflow_id?: string | null
+          workspace_id?: string
+        }
+        Relationships: []
+      }
       systemmind_conversions: {
         Row: {
           converted_by: string
@@ -11730,6 +11927,68 @@ export type Database = {
         }
         Relationships: []
       }
+      systemmind_execution_steps: {
+        Row: {
+          completed_at: string | null
+          created_at: string
+          error: string | null
+          execution_id: string
+          external_response_masked: Json | null
+          id: string
+          input_masked: Json
+          output_masked: Json
+          resolution_hint: string | null
+          retryable: boolean
+          started_at: string
+          status: string
+          step_key: string
+          step_label: string
+          workspace_id: string
+        }
+        Insert: {
+          completed_at?: string | null
+          created_at?: string
+          error?: string | null
+          execution_id: string
+          external_response_masked?: Json | null
+          id?: string
+          input_masked?: Json
+          output_masked?: Json
+          resolution_hint?: string | null
+          retryable?: boolean
+          started_at?: string
+          status?: string
+          step_key: string
+          step_label?: string
+          workspace_id: string
+        }
+        Update: {
+          completed_at?: string | null
+          created_at?: string
+          error?: string | null
+          execution_id?: string
+          external_response_masked?: Json | null
+          id?: string
+          input_masked?: Json
+          output_masked?: Json
+          resolution_hint?: string | null
+          retryable?: boolean
+          started_at?: string
+          status?: string
+          step_key?: string
+          step_label?: string
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "systemmind_execution_steps_execution_id_fkey"
+            columns: ["execution_id"]
+            isOneToOne: false
+            referencedRelation: "systemmind_workflow_executions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       systemmind_fix_plans: {
         Row: {
           created_at: string
@@ -12038,6 +12297,63 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      systemmind_integration_errors: {
+        Row: {
+          activation_id: string | null
+          agent_id: string | null
+          created_at: string
+          error: string
+          execution_id: string | null
+          id: string
+          kind: string
+          max_retries: number
+          next_retry_at: string | null
+          operation: Json
+          queue_id: string | null
+          resolved_at: string | null
+          retry_count: number
+          status: string
+          updated_at: string
+          workspace_id: string
+        }
+        Insert: {
+          activation_id?: string | null
+          agent_id?: string | null
+          created_at?: string
+          error?: string
+          execution_id?: string | null
+          id?: string
+          kind?: string
+          max_retries?: number
+          next_retry_at?: string | null
+          operation?: Json
+          queue_id?: string | null
+          resolved_at?: string | null
+          retry_count?: number
+          status?: string
+          updated_at?: string
+          workspace_id: string
+        }
+        Update: {
+          activation_id?: string | null
+          agent_id?: string | null
+          created_at?: string
+          error?: string
+          execution_id?: string | null
+          id?: string
+          kind?: string
+          max_retries?: number
+          next_retry_at?: string | null
+          operation?: Json
+          queue_id?: string | null
+          resolved_at?: string | null
+          retry_count?: number
+          status?: string
+          updated_at?: string
+          workspace_id?: string
+        }
+        Relationships: []
       }
       systemmind_intelligence_settings: {
         Row: {
@@ -12912,6 +13228,90 @@ export type Database = {
           },
         ]
       }
+      systemmind_workflow_activations: {
+        Row: {
+          activated_at: string | null
+          activated_by_user_id: string | null
+          admin_override: boolean
+          agent_id: string | null
+          config: Json
+          created_at: string
+          created_by_user_id: string | null
+          crm_connection_id: string | null
+          deactivated_at: string | null
+          health: Json
+          health_checked_at: string | null
+          health_status: string
+          id: string
+          last_test_at: string | null
+          name: string
+          override_by_user_id: string | null
+          override_reason: string | null
+          parent_activation_id: string | null
+          session_id: string | null
+          status: string
+          test_passed: boolean | null
+          test_results: Json
+          updated_at: string
+          version_number: number
+          workspace_id: string
+        }
+        Insert: {
+          activated_at?: string | null
+          activated_by_user_id?: string | null
+          admin_override?: boolean
+          agent_id?: string | null
+          config?: Json
+          created_at?: string
+          created_by_user_id?: string | null
+          crm_connection_id?: string | null
+          deactivated_at?: string | null
+          health?: Json
+          health_checked_at?: string | null
+          health_status?: string
+          id?: string
+          last_test_at?: string | null
+          name?: string
+          override_by_user_id?: string | null
+          override_reason?: string | null
+          parent_activation_id?: string | null
+          session_id?: string | null
+          status?: string
+          test_passed?: boolean | null
+          test_results?: Json
+          updated_at?: string
+          version_number?: number
+          workspace_id: string
+        }
+        Update: {
+          activated_at?: string | null
+          activated_by_user_id?: string | null
+          admin_override?: boolean
+          agent_id?: string | null
+          config?: Json
+          created_at?: string
+          created_by_user_id?: string | null
+          crm_connection_id?: string | null
+          deactivated_at?: string | null
+          health?: Json
+          health_checked_at?: string | null
+          health_status?: string
+          id?: string
+          last_test_at?: string | null
+          name?: string
+          override_by_user_id?: string | null
+          override_reason?: string | null
+          parent_activation_id?: string | null
+          session_id?: string | null
+          status?: string
+          test_passed?: boolean | null
+          test_results?: Json
+          updated_at?: string
+          version_number?: number
+          workspace_id?: string
+        }
+        Relationships: []
+      }
       systemmind_workflow_drafts: {
         Row: {
           category: string | null
@@ -12994,6 +13394,63 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      systemmind_workflow_executions: {
+        Row: {
+          activation_id: string | null
+          agent_id: string | null
+          completed_at: string | null
+          created_at: string
+          error: string | null
+          id: string
+          idempotency_key: string | null
+          kind: string
+          lead_id: string | null
+          queue_id: string | null
+          started_at: string
+          status: string
+          summary: Json
+          trigger_id: string | null
+          trigger_source: string
+          workspace_id: string
+        }
+        Insert: {
+          activation_id?: string | null
+          agent_id?: string | null
+          completed_at?: string | null
+          created_at?: string
+          error?: string | null
+          id?: string
+          idempotency_key?: string | null
+          kind?: string
+          lead_id?: string | null
+          queue_id?: string | null
+          started_at?: string
+          status?: string
+          summary?: Json
+          trigger_id?: string | null
+          trigger_source?: string
+          workspace_id: string
+        }
+        Update: {
+          activation_id?: string | null
+          agent_id?: string | null
+          completed_at?: string | null
+          created_at?: string
+          error?: string | null
+          id?: string
+          idempotency_key?: string | null
+          kind?: string
+          lead_id?: string | null
+          queue_id?: string | null
+          started_at?: string
+          status?: string
+          summary?: Json
+          trigger_id?: string | null
+          trigger_source?: string
+          workspace_id?: string
+        }
+        Relationships: []
       }
       systemmind_workflow_library: {
         Row: {

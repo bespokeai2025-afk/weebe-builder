@@ -239,6 +239,36 @@ describe("versioning, test gate, override, state", () => {
   });
 });
 
+describe("execution timeline field bindings (workflow path drilldown)", () => {
+  it("steps expose step_key + input_masked/output_masked used by the path UI", async () => {
+    const { startExecution } = await import("@/lib/systemmind/call-runtime/executions.server");
+    const exec = await startExecution({
+      workspaceId: WS, agentId: AGENT_ID, kind: "pre_call",
+      triggerSource: "e2e:timeline-binding",
+    });
+    expect(exec).toBeTruthy();
+    await exec!.step("assemble_data", "Retrieve & transform lead data", async () => ({
+      input: { lead_id: LEAD_ID },
+      output: { variables: { first_name: "E2E" } },
+    }));
+    await exec!.finish("completed", {});
+
+    const { data: steps } = await sb
+      .from("systemmind_execution_steps")
+      .select("step_key, step_label, status, input_masked, output_masked, error, started_at, completed_at")
+      .eq("workspace_id", WS)
+      .eq("execution_id", exec!.id);
+    expect(steps?.length).toBe(1);
+    const s: any = steps![0];
+    // These exact field names are what WizardWorkflowPath binds to.
+    expect(s.step_key).toBe("assemble_data");
+    expect(s.status).toBe("completed");
+    expect(s.input_masked).toMatchObject({ lead_id: LEAD_ID });
+    expect(s.output_masked?.variables?.first_name).toBe("E2E");
+    expect(s.completed_at).toBeTruthy();
+  });
+});
+
 describe("triggers and queue", () => {
   let triggerId = "";
   let queueId = "";

@@ -113,16 +113,24 @@ export async function computeActivationHealth(activation: {
   });
   if (failRate >= 0.3) actions.push("Open the execution log and review the failing step — most failures share a root cause.");
 
-  const { count: pendingErrors } = await sb
+  // Scope error/queue signals to THIS workflow's agent so one workflow is
+  // never marked degraded because of another workflow's failures.
+  let pendingQ = sb
     .from("systemmind_integration_errors")
     .select("id", { count: "exact", head: true })
     .eq("workspace_id", activation.workspace_id)
     .in("status", ["pending", "retrying"]);
-  const { count: deadErrors } = await sb
+  let deadQ = sb
     .from("systemmind_integration_errors")
     .select("id", { count: "exact", head: true })
     .eq("workspace_id", activation.workspace_id)
     .eq("status", "dead_letter");
+  if (activation.agent_id) {
+    pendingQ = pendingQ.eq("agent_id", activation.agent_id);
+    deadQ = deadQ.eq("agent_id", activation.agent_id);
+  }
+  const { count: pendingErrors } = await pendingQ;
+  const { count: deadErrors } = await deadQ;
   checks.push({
     key: "integration_errors",
     label: "Integration errors",
@@ -131,11 +139,13 @@ export async function computeActivationHealth(activation: {
   });
   if ((deadErrors ?? 0) > 0) actions.push("Dead-lettered CRM write-backs need manual retry — check the CRM connection first.");
 
-  const { count: stuck } = await sb
+  let stuckQ = sb
     .from("systemmind_call_queue")
     .select("id", { count: "exact", head: true })
     .eq("workspace_id", activation.workspace_id)
     .eq("status", "waiting_for_data");
+  if (activation.agent_id) stuckQ = stuckQ.eq("agent_id", activation.agent_id);
+  const { count: stuck } = await stuckQ;
   checks.push({
     key: "waiting_for_data",
     label: "Queue entries waiting for data",
@@ -156,7 +166,7 @@ async function runHealthSweep(): Promise<number> {
   const staleBefore = new Date(Date.now() - 15 * 60_000).toISOString();
   const { data: activations } = await sb
     .from("systemmind_workflow_activations")
-    .select("id, workspace_id, status, health_checked_at")
+    .select("id, workspace_id, agent_id, status, health_checked_at")
     .in("status", ["active", "paused"])
     .or(`health_checked_at.is.null,health_checked_at.lt.${staleBefore}`)
     .limit(20);

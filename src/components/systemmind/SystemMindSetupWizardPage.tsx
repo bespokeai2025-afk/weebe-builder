@@ -24,6 +24,8 @@ import {
   controlQueueEntryFn, listWorkflowExecutionsFn, getExecutionTimelineFn,
   listIntegrationErrorsFn, retryIntegrationErrorFn,
 } from "@/lib/systemmind/call-runtime/setup-wizard.functions";
+import { WizardFieldMappingPanel } from "./WizardFieldMappingPanel";
+import { WizardWorkflowPath } from "./WizardWorkflowPath";
 
 // ── status decoration ────────────────────────────────────────────────────────
 
@@ -156,9 +158,18 @@ export function SystemMindSetupWizardPage() {
   });
 
   const intErrsQ = useQuery({
-    queryKey: ["sm-wizard-int-errors"],
-    queryFn: () => listIntErrs(),
+    queryKey: ["sm-wizard-int-errors", agentId],
+    queryFn: () => listIntErrs({ data: { agentId } }),
     enabled: Boolean(agentId),
+    throwOnError: false,
+  });
+
+  // Bind the workflow path visualisation to the latest execution's timeline.
+  const latestExecId = (execsQ.data ?? [])[0]?.id ?? null;
+  const latestTimelineQ = useQuery({
+    queryKey: ["sm-wizard-latest-timeline", latestExecId],
+    queryFn: () => getTimeline({ data: { executionId: latestExecId! } }),
+    enabled: Boolean(latestExecId),
     throwOnError: false,
   });
 
@@ -270,6 +281,22 @@ export function SystemMindSetupWizardPage() {
         )}
 
         {agentId && steps.length > 0 && (
+          <WizardWorkflowPath
+            steps={(latestTimelineQ.data?.steps ?? []) as any[]}
+            executionStatus={(execsQ.data ?? [])[0]?.status ?? null}
+            triggerSummary={(triggersQ.data ?? [])
+              .filter((t: any) => t.enabled)
+              .map((t: any) => t.summary || t.name)
+              .join("; ")}
+            queueSummary={(queueQ.data ?? []).length ? `${(queueQ.data ?? []).length} queue entries` : ""}
+            onRetryCrm={() => {
+              const dead = (intErrsQ.data ?? []).find((e: any) => e.status === "dead_letter");
+              if (dead) intRetryMut.mutate(dead.id);
+            }}
+          />
+        )}
+
+        {agentId && steps.length > 0 && (
           <div className="grid gap-6 xl:grid-cols-[1fr_380px]">
             {/* ── Step list ── */}
             <div className="space-y-2">
@@ -300,6 +327,11 @@ export function SystemMindSetupWizardPage() {
                         <div className="flex items-start gap-2 text-amber-300">
                           <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />{s.action}
                         </div>
+                      )}
+
+                      {/* Field mapping (Source | Transformation | Destination) inline */}
+                      {(s.key === "dynamic_variables" || s.key === "precall_data") && (
+                        <WizardFieldMappingPanel agentId={agentId} />
                       )}
 
                       {/* Trigger editor inline (step 10) */}

@@ -215,6 +215,7 @@ export async function computeWizardStatus(args: {
     .from("systemmind_workflow_executions")
     .select("id", { count: "exact", head: true })
     .eq("workspace_id", args.workspaceId)
+    .eq("agent_id", agent.id)
     .eq("kind", "post_call")
     .eq("status", "completed");
   push("webee_outcomes", "WEBEE Outcomes", "configured", [
@@ -477,11 +478,13 @@ export async function runWorkflowTestsServer(args: {
     (extractionCount ?? 0) > 0 ? `${extractionCount} extraction variables approved` : "No extraction variables — call outcomes won't be captured into fields");
 
   // 9. WEBEE update path (post-call pipeline is wired — evidence from executions or code path)
-  const { count: postRuns } = await sb
+  let prQ = sb
     .from("systemmind_workflow_executions")
     .select("id", { count: "exact", head: true })
     .eq("workspace_id", args.workspaceId)
     .eq("kind", "post_call");
+  if (agentId) prQ = prQ.eq("agent_id", agentId);
+  const { count: postRuns } = await prQ;
   add("webee_update", "WEBEE outcome update", true, false,
     (postRuns ?? 0) > 0 ? `${postRuns} post-call outcome runs recorded` : "Built-in pipeline ready — first run recorded after the first call");
 
@@ -495,11 +498,13 @@ export async function runWorkflowTestsServer(args: {
     wsSettings?.hubspot_api_key || wsSettings?.ghl_api_key || wsSettings?.webespoke_api_key ||
     wsSettings?.salesforce_access_token || wsSettings?.pipedrive_api_token,
   );
-  const { count: deadLetters } = await sb
+  let dlQ = sb
     .from("systemmind_integration_errors")
     .select("id", { count: "exact", head: true })
     .eq("workspace_id", args.workspaceId)
     .eq("status", "dead_letter");
+  if (agentId) dlQ = dlQ.eq("agent_id", agentId);
+  const { count: deadLetters } = await dlQ;
   add("crm_writeback", "CRM write-back", crmConn ? wbReady && (deadLetters ?? 0) === 0 : true, false,
     !crmConn ? "No CRM connected — write-back skipped"
     : !wbReady ? "CRM connected but no write-back API key in workspace settings"
@@ -508,11 +513,13 @@ export async function runWorkflowTestsServer(args: {
     !crmConn);
 
   // 11. Queue behavior — state machine sanity on live rows
-  const { data: qRows } = await sb
+  let qQ = sb
     .from("systemmind_call_queue")
     .select("status")
     .eq("workspace_id", args.workspaceId)
     .limit(500);
+  if (agentId) qQ = qQ.eq("agent_id", agentId);
+  const { data: qRows } = await qQ;
   const stuckFailed = (qRows ?? []).filter((q: any) => q.status === "failed").length;
   add("queue_behavior", "Queue behavior", true, false,
     qRows?.length ? `${qRows.length} queue entries; ${stuckFailed} permanently failed` : "Queue empty — populated when a trigger fires");

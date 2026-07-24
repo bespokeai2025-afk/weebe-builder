@@ -189,7 +189,10 @@ export async function processQueueEntry(row: any): Promise<string> {
           agentId: row.agent_id,
           leadId: String(row.lead_id),
         });
-        return { output: { variables: assembled.dynamicVariables, missing: assembled.missingRequired } };
+        return {
+          input: { lead_id: String(row.lead_id), agent_id: String(row.agent_id) },
+          output: { variables: assembled.dynamicVariables, missing: assembled.missingRequired },
+        };
       },
       { retryable: true, resolutionHint: "Check the variable mappings for this agent in the setup wizard." },
     );
@@ -490,6 +493,8 @@ export async function processRuntimePostCall(args: {
           workspaceId: args.workspaceId,
           executionId: exec.id,
           queueId: queueRow.id,
+          agentId: (queueRow as any).agent_id ?? null,
+          activationId: (queueRow as any).activation_id ?? null,
           kind: "crm_writeback",
           operation: {
             phone: queueRow.phone,

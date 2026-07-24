@@ -285,17 +285,22 @@ export const getExecutionTimelineFn = createServerFn({ method: "POST" })
 
 export const listIntegrationErrorsFn = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .handler(async ({ context }) => {
+  .inputValidator((i: { agentId?: string | null } | undefined) =>
+    z.object({ agentId: z.string().uuid().nullish() }).optional().parse(i ?? {}),
+  )
+  .handler(async ({ data, context }) => {
     await gate(context, "view");
     await noWbah(context.workspaceId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const { data: rows, error } = await (supabaseAdmin as any)
+    let q = (supabaseAdmin as any)
       .from("systemmind_integration_errors")
       .select("*")
       .eq("workspace_id", context.workspaceId)
       .in("status", ["pending", "retrying", "dead_letter"])
       .order("created_at", { ascending: false })
       .limit(100);
+    if (data?.agentId) q = q.eq("agent_id", data.agentId);
+    const { data: rows, error } = await q;
     if (error) throw new Error(error.message);
     return rows ?? [];
   });
