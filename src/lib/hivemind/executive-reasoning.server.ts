@@ -542,7 +542,7 @@ export async function runExecutiveReasoning(
       // explicit human approval there). Recommend mode leaves follow-through
       // to the user via actOnExecutiveRecommendation.
       const insertedIds = (inserted ?? []).map((r: any) => r.id as string);
-      if (insertedIds.length && (modeCfg.mode === "assistant" || modeCfg.mode === "operator")) {
+      if (insertedIds.length && (modeCfg.mode === "assistant" || modeCfg.mode === "operator" || modeCfg.mode === "executive_operator")) {
         try {
           const { proposeFollowThroughForRecommendation } =
             await import("@/lib/hivemind/executive-followthrough.server");

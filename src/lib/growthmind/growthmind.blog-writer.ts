@@ -749,7 +749,7 @@ export const autoQueueBlogDrafts = createServerFn({ method: "POST" })
       .catch(() => ({ data: null }));
 
     const mode = (settingsRes as any)?.data?.hivemind_mode ?? null;
-    if (mode !== "assistant" && mode !== "operator") {
+    if (mode !== "assistant" && mode !== "operator" && mode !== "executive_operator") {
       return { ok: true, queued: 0, message: "Autonomous draft mode is only active in Assistant or Operator HiveMind mode." };
     }
 

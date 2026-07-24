@@ -77,8 +77,19 @@ export const ACTION_OPERATOR_CATEGORY: Record<string, OperatorCategory> = {
   growthmind_publish_content: "publishing",
 };
 
-export const HIVEMIND_MODES = ["observe", "recommend", "assistant", "operator"] as const;
+export const HIVEMIND_MODES = ["observe", "recommend", "assistant", "operator", "executive_operator"] as const;
 export type HiveMindModeName = (typeof HIVEMIND_MODES)[number];
 
 /** Spec default: recommend (never assistant/operator by default). */
 export const DEFAULT_HIVEMIND_MODE: HiveMindModeName = "recommend";
+
+/**
+ * Operator-class modes: allowed to auto-execute NON-sensitive, category-
+ * permitted actions. "executive_operator" behaves exactly like "operator"
+ * for every safety gate, and additionally unlocks cross-Mind orchestration
+ * (multi-step playbooks that chain analyses across executives). Sensitive /
+ * mandatory-approval actions are NEVER bypassed in any mode.
+ */
+export function isOperatorClassMode(mode: string | null | undefined): boolean {
+  return mode === "operator" || mode === "executive_operator";
+}

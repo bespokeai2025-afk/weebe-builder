@@ -288,7 +288,7 @@ export async function runBlogDraftTick(): Promise<BlogDraftTickReport> {
   const { data: eligibleSettings, error: settingsErr } = await Promise.resolve((sb as any)
     .from("workspace_settings")
     .select("workspace_id, hivemind_mode, gemini_api_key, openai_api_key")
-    .in("hivemind_mode", ["assistant", "operator"])
+    .in("hivemind_mode", ["assistant", "operator", "executive_operator"])
   ).catch(() => ({ data: null, error: "query failed" }));
 
   if (settingsErr || !eligibleSettings) {

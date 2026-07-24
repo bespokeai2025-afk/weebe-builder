@@ -13,9 +13,11 @@
 
 import {
   DEFAULT_HIVEMIND_MODE,
+  HIVEMIND_MODES,
   INTERNAL_ACTION_TYPES,
   ACTION_OPERATOR_CATEGORY,
   isSensitiveActionType,
+  isOperatorClassMode,
   type HiveMindModeName,
   type OperatorCategory,
 } from "./action-safety.shared";
@@ -55,9 +57,7 @@ export async function getHiveMindModeConfig(
     }
     const rawMode = data?.hivemind_mode;
     const mode: HiveMindModeName =
-      rawMode === "observe" || rawMode === "recommend" || rawMode === "assistant" || rawMode === "operator"
-        ? rawMode
-        : DEFAULT_HIVEMIND_MODE;
+      (HIVEMIND_MODES as readonly string[]).includes(rawMode) ? (rawMode as HiveMindModeName) : DEFAULT_HIVEMIND_MODE;
     return {
       mode,
       operatorEnabled: data?.hivemind_operator_enabled === true,
@@ -129,7 +129,7 @@ export function assertExecutionAllowed(
         "This is a sensitive action — it always requires explicit human approval.",
       );
     }
-    if (cfg.mode !== "operator") {
+    if (!isOperatorClassMode(cfg.mode)) {
       throw new ModeGateError(
         "auto_exec_operator_only",
         "Automatic execution requires Operator mode.",

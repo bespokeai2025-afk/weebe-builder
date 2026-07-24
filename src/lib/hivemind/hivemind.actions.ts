@@ -3,7 +3,7 @@ import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 
 // ── Types ────────────────────────────────────────────────────────────────────
-export type HiveMindMode   = "observe" | "recommend" | "assistant" | "operator";
+export type HiveMindMode   = "observe" | "recommend" | "assistant" | "operator" | "executive_operator";
 export type ActionStatus   = "pending" | "approved" | "rejected" | "executed" | "failed";
 export type ActionType     =
   | "create_task"
@@ -491,7 +491,7 @@ export const setHiveMindMode = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) =>
     z.object({
-      mode: z.enum(["observe","recommend","assistant","operator"]),
+      mode: z.enum(["observe","recommend","assistant","operator","executive_operator"]),
       operatorPermissions: z.record(z.boolean()).optional(),
     }).parse(input)
   )
@@ -502,8 +502,8 @@ export const setHiveMindMode = createServerFn({ method: "POST" })
 
     const update: Record<string, any> = { hivemind_mode: data.mode, updated_at: nowIso };
 
-    if (data.mode === "operator") {
-      // Operator mode is NEVER default and requires explicit owner/admin enablement.
+    if (data.mode === "operator" || data.mode === "executive_operator") {
+      // Operator-class modes are NEVER default and require explicit owner/admin enablement.
       const { resolvePermissions, isOwnerOrAdmin } = await import("@/lib/permissions/permissions.server");
       const perms = await resolvePermissions(workspaceId, (context as any).userId ?? null);
       if (!isOwnerOrAdmin(perms)) {
