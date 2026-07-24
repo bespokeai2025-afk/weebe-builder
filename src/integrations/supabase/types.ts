@@ -7540,6 +7540,48 @@ export type Database = {
           },
         ]
       }
+      growthmind_script_analysis: {
+        Row: {
+          ai_status: string
+          analyzed_transcripts: number
+          computed_at: string
+          id: string
+          metrics: Json
+          patterns: Json
+          period_end: string
+          period_start: string
+          sample_size: number
+          source: string
+          workspace_id: string
+        }
+        Insert: {
+          ai_status?: string
+          analyzed_transcripts?: number
+          computed_at?: string
+          id?: string
+          metrics?: Json
+          patterns?: Json
+          period_end: string
+          period_start: string
+          sample_size?: number
+          source: string
+          workspace_id: string
+        }
+        Update: {
+          ai_status?: string
+          analyzed_transcripts?: number
+          computed_at?: string
+          id?: string
+          metrics?: Json
+          patterns?: Json
+          period_end?: string
+          period_start?: string
+          sample_size?: number
+          source?: string
+          workspace_id?: string
+        }
+        Relationships: []
+      }
       growthmind_seo_briefs: {
         Row: {
           brief: string

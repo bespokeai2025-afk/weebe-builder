@@ -7,7 +7,7 @@ import {
   BarChart2, Filter, BookOpen, Search, Swords, LineChart, Flag, Wand2,
   CalendarDays, Rocket, Clapperboard, Dna, Database, Zap, Newspaper, Mail, Sparkles,
   ImageIcon, GalleryHorizontal, Share2, Settings2, Radar, Eye,
-  LayoutDashboard, FlaskConical,
+  LayoutDashboard, FlaskConical, AudioLines,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { getAllProposals } from "@/lib/executives/executive-bridge";
@@ -39,6 +39,7 @@ const STRATEGY_NAV = [
 ];
 
 const INTELLIGENCE_NAV = [
+  { label: "Script Performance", href: "/growthmind/script-performance", icon: AudioLines, highlight: true },
   { label: "Trend Feed",      href: "/growthmind/trend-feed",      icon: TrendingUp,      highlight: true },
   { label: "Trend Sources",   href: "/growthmind/trend-sources",   icon: Radar },
   { label: "Competitor Intel",href: "/growthmind/competitor-intel",icon: Eye,             highlight: true },

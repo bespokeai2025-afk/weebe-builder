@@ -161,6 +161,7 @@ import { Route as AuthenticatedGrowthmindStrategyRouteImport } from './routes/_a
 import { Route as AuthenticatedGrowthmindSocialAccountsRouteImport } from './routes/_authenticated/growthmind.social-accounts'
 import { Route as AuthenticatedGrowthmindSettingsRouteImport } from './routes/_authenticated/growthmind.settings'
 import { Route as AuthenticatedGrowthmindSeoRouteImport } from './routes/_authenticated/growthmind.seo'
+import { Route as AuthenticatedGrowthmindScriptPerformanceRouteImport } from './routes/_authenticated/growthmind.script-performance'
 import { Route as AuthenticatedGrowthmindReportsRouteImport } from './routes/_authenticated/growthmind.reports'
 import { Route as AuthenticatedGrowthmindRecommendationsRouteImport } from './routes/_authenticated/growthmind.recommendations'
 import { Route as AuthenticatedGrowthmindProposalsRouteImport } from './routes/_authenticated/growthmind.proposals'
@@ -1138,6 +1139,12 @@ const AuthenticatedGrowthmindSeoRoute =
     path: '/seo',
     getParentRoute: () => AuthenticatedGrowthmindRoute,
   } as any)
+const AuthenticatedGrowthmindScriptPerformanceRoute =
+  AuthenticatedGrowthmindScriptPerformanceRouteImport.update({
+    id: '/script-performance',
+    path: '/script-performance',
+    getParentRoute: () => AuthenticatedGrowthmindRoute,
+  } as any)
 const AuthenticatedGrowthmindReportsRoute =
   AuthenticatedGrowthmindReportsRouteImport.update({
     id: '/reports',
@@ -1976,6 +1983,7 @@ export interface FileRoutesByFullPath {
   '/growthmind/proposals': typeof AuthenticatedGrowthmindProposalsRoute
   '/growthmind/recommendations': typeof AuthenticatedGrowthmindRecommendationsRoute
   '/growthmind/reports': typeof AuthenticatedGrowthmindReportsRoute
+  '/growthmind/script-performance': typeof AuthenticatedGrowthmindScriptPerformanceRoute
   '/growthmind/seo': typeof AuthenticatedGrowthmindSeoRoute
   '/growthmind/settings': typeof AuthenticatedGrowthmindSettingsRoute
   '/growthmind/social-accounts': typeof AuthenticatedGrowthmindSocialAccountsRoute
@@ -2251,6 +2259,7 @@ export interface FileRoutesByTo {
   '/growthmind/proposals': typeof AuthenticatedGrowthmindProposalsRoute
   '/growthmind/recommendations': typeof AuthenticatedGrowthmindRecommendationsRoute
   '/growthmind/reports': typeof AuthenticatedGrowthmindReportsRoute
+  '/growthmind/script-performance': typeof AuthenticatedGrowthmindScriptPerformanceRoute
   '/growthmind/seo': typeof AuthenticatedGrowthmindSeoRoute
   '/growthmind/settings': typeof AuthenticatedGrowthmindSettingsRoute
   '/growthmind/social-accounts': typeof AuthenticatedGrowthmindSocialAccountsRoute
@@ -2534,6 +2543,7 @@ export interface FileRoutesById {
   '/_authenticated/growthmind/proposals': typeof AuthenticatedGrowthmindProposalsRoute
   '/_authenticated/growthmind/recommendations': typeof AuthenticatedGrowthmindRecommendationsRoute
   '/_authenticated/growthmind/reports': typeof AuthenticatedGrowthmindReportsRoute
+  '/_authenticated/growthmind/script-performance': typeof AuthenticatedGrowthmindScriptPerformanceRoute
   '/_authenticated/growthmind/seo': typeof AuthenticatedGrowthmindSeoRoute
   '/_authenticated/growthmind/settings': typeof AuthenticatedGrowthmindSettingsRoute
   '/_authenticated/growthmind/social-accounts': typeof AuthenticatedGrowthmindSocialAccountsRoute
@@ -2819,6 +2829,7 @@ export interface FileRouteTypes {
     | '/growthmind/proposals'
     | '/growthmind/recommendations'
     | '/growthmind/reports'
+    | '/growthmind/script-performance'
     | '/growthmind/seo'
     | '/growthmind/settings'
     | '/growthmind/social-accounts'
@@ -3094,6 +3105,7 @@ export interface FileRouteTypes {
     | '/growthmind/proposals'
     | '/growthmind/recommendations'
     | '/growthmind/reports'
+    | '/growthmind/script-performance'
     | '/growthmind/seo'
     | '/growthmind/settings'
     | '/growthmind/social-accounts'
@@ -3376,6 +3388,7 @@ export interface FileRouteTypes {
     | '/_authenticated/growthmind/proposals'
     | '/_authenticated/growthmind/recommendations'
     | '/_authenticated/growthmind/reports'
+    | '/_authenticated/growthmind/script-performance'
     | '/_authenticated/growthmind/seo'
     | '/_authenticated/growthmind/settings'
     | '/_authenticated/growthmind/social-accounts'
@@ -4739,6 +4752,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedGrowthmindSeoRouteImport
       parentRoute: typeof AuthenticatedGrowthmindRoute
     }
+    '/_authenticated/growthmind/script-performance': {
+      id: '/_authenticated/growthmind/script-performance'
+      path: '/script-performance'
+      fullPath: '/growthmind/script-performance'
+      preLoaderRoute: typeof AuthenticatedGrowthmindScriptPerformanceRouteImport
+      parentRoute: typeof AuthenticatedGrowthmindRoute
+    }
     '/_authenticated/growthmind/reports': {
       id: '/_authenticated/growthmind/reports'
       path: '/reports'
@@ -5805,6 +5825,7 @@ interface AuthenticatedGrowthmindRouteChildren {
   AuthenticatedGrowthmindProposalsRoute: typeof AuthenticatedGrowthmindProposalsRoute
   AuthenticatedGrowthmindRecommendationsRoute: typeof AuthenticatedGrowthmindRecommendationsRoute
   AuthenticatedGrowthmindReportsRoute: typeof AuthenticatedGrowthmindReportsRoute
+  AuthenticatedGrowthmindScriptPerformanceRoute: typeof AuthenticatedGrowthmindScriptPerformanceRoute
   AuthenticatedGrowthmindSeoRoute: typeof AuthenticatedGrowthmindSeoRoute
   AuthenticatedGrowthmindSettingsRoute: typeof AuthenticatedGrowthmindSettingsRoute
   AuthenticatedGrowthmindSocialAccountsRoute: typeof AuthenticatedGrowthmindSocialAccountsRoute
@@ -5870,6 +5891,8 @@ const AuthenticatedGrowthmindRouteChildren: AuthenticatedGrowthmindRouteChildren
     AuthenticatedGrowthmindRecommendationsRoute:
       AuthenticatedGrowthmindRecommendationsRoute,
     AuthenticatedGrowthmindReportsRoute: AuthenticatedGrowthmindReportsRoute,
+    AuthenticatedGrowthmindScriptPerformanceRoute:
+      AuthenticatedGrowthmindScriptPerformanceRoute,
     AuthenticatedGrowthmindSeoRoute: AuthenticatedGrowthmindSeoRoute,
     AuthenticatedGrowthmindSettingsRoute: AuthenticatedGrowthmindSettingsRoute,
     AuthenticatedGrowthmindSocialAccountsRoute:
