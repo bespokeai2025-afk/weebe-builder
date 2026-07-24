@@ -122,7 +122,7 @@ function isExcluded(item: DiscoveredItem, excludedAccounts: string[], excludedTo
 
 // ── Persistence: dedupe + insert ───────────────────────────────────────────────
 
-async function insertItems(
+export async function insertItems(
   admin: any,
   workspaceId: string,
   items: DiscoveredItem[],
