@@ -10776,6 +10776,42 @@ export type Database = {
         }
         Relationships: []
       }
+      systemmind_agent_scans: {
+        Row: {
+          agent_id: string
+          ai_inference_used: boolean
+          created_at: string
+          created_by_user_id: string | null
+          error: string | null
+          id: string
+          report: Json
+          status: string
+          workspace_id: string
+        }
+        Insert: {
+          agent_id: string
+          ai_inference_used?: boolean
+          created_at?: string
+          created_by_user_id?: string | null
+          error?: string | null
+          id?: string
+          report?: Json
+          status?: string
+          workspace_id: string
+        }
+        Update: {
+          agent_id?: string
+          ai_inference_used?: boolean
+          created_at?: string
+          created_by_user_id?: string | null
+          error?: string | null
+          id?: string
+          report?: Json
+          status?: string
+          workspace_id?: string
+        }
+        Relationships: []
+      }
       systemmind_audit_logs: {
         Row: {
           action_type: string
@@ -11334,6 +11370,114 @@ export type Database = {
           status?: string
           updated_at?: string
           workflow_id?: string | null
+          workspace_id?: string
+        }
+        Relationships: []
+      }
+      systemmind_dynamic_variables: {
+        Row: {
+          agent_id: string
+          allow_send_to_retell: boolean
+          allow_store_in_webee: boolean
+          allow_write_to_crm: boolean
+          confidence: string | null
+          created_at: string
+          created_by_user_id: string | null
+          data_type: string
+          default_value: string
+          description: string
+          destination_field: string
+          destination_object: string
+          destination_system: string
+          detected_sources: Json
+          direction: string
+          example_value: string
+          fallback_value: string
+          id: string
+          is_required: boolean
+          label: string
+          name: string
+          reviewed_at: string | null
+          reviewed_by_user_id: string | null
+          scan_id: string | null
+          sensitivity: string
+          source_field: string
+          source_object: string
+          source_system: string
+          status: string
+          updated_at: string
+          validation_rule: string
+          var_class: string
+          workspace_id: string
+        }
+        Insert: {
+          agent_id: string
+          allow_send_to_retell?: boolean
+          allow_store_in_webee?: boolean
+          allow_write_to_crm?: boolean
+          confidence?: string | null
+          created_at?: string
+          created_by_user_id?: string | null
+          data_type?: string
+          default_value?: string
+          description?: string
+          destination_field?: string
+          destination_object?: string
+          destination_system?: string
+          detected_sources?: Json
+          direction?: string
+          example_value?: string
+          fallback_value?: string
+          id?: string
+          is_required?: boolean
+          label?: string
+          name: string
+          reviewed_at?: string | null
+          reviewed_by_user_id?: string | null
+          scan_id?: string | null
+          sensitivity?: string
+          source_field?: string
+          source_object?: string
+          source_system?: string
+          status?: string
+          updated_at?: string
+          validation_rule?: string
+          var_class?: string
+          workspace_id: string
+        }
+        Update: {
+          agent_id?: string
+          allow_send_to_retell?: boolean
+          allow_store_in_webee?: boolean
+          allow_write_to_crm?: boolean
+          confidence?: string | null
+          created_at?: string
+          created_by_user_id?: string | null
+          data_type?: string
+          default_value?: string
+          description?: string
+          destination_field?: string
+          destination_object?: string
+          destination_system?: string
+          detected_sources?: Json
+          direction?: string
+          example_value?: string
+          fallback_value?: string
+          id?: string
+          is_required?: boolean
+          label?: string
+          name?: string
+          reviewed_at?: string | null
+          reviewed_by_user_id?: string | null
+          scan_id?: string | null
+          sensitivity?: string
+          source_field?: string
+          source_object?: string
+          source_system?: string
+          status?: string
+          updated_at?: string
+          validation_rule?: string
+          var_class?: string
           workspace_id?: string
         }
         Relationships: []
@@ -12319,6 +12463,45 @@ export type Database = {
         }
         Relationships: []
       }
+      systemmind_transformation_rules: {
+        Row: {
+          config: Json
+          created_at: string
+          created_by_user_id: string | null
+          description: string
+          id: string
+          is_active: boolean
+          name: string
+          rule_type: string
+          updated_at: string
+          workspace_id: string
+        }
+        Insert: {
+          config?: Json
+          created_at?: string
+          created_by_user_id?: string | null
+          description?: string
+          id?: string
+          is_active?: boolean
+          name: string
+          rule_type: string
+          updated_at?: string
+          workspace_id: string
+        }
+        Update: {
+          config?: Json
+          created_at?: string
+          created_by_user_id?: string | null
+          description?: string
+          id?: string
+          is_active?: boolean
+          name?: string
+          rule_type?: string
+          updated_at?: string
+          workspace_id?: string
+        }
+        Relationships: []
+      }
       systemmind_usage_events: {
         Row: {
           billable_units: number
@@ -12405,6 +12588,81 @@ export type Database = {
           workspace_id?: string
         }
         Relationships: []
+      }
+      systemmind_variable_mappings: {
+        Row: {
+          agent_id: string
+          created_at: string
+          destination_field: string
+          destination_object: string
+          destination_system: string
+          direction: string
+          id: string
+          is_ignored: boolean
+          is_required: boolean
+          notes: string
+          source_field: string
+          source_object: string
+          source_system: string
+          transformation_rule_id: string | null
+          updated_at: string
+          variable_id: string
+          workspace_id: string
+        }
+        Insert: {
+          agent_id: string
+          created_at?: string
+          destination_field?: string
+          destination_object?: string
+          destination_system?: string
+          direction: string
+          id?: string
+          is_ignored?: boolean
+          is_required?: boolean
+          notes?: string
+          source_field?: string
+          source_object?: string
+          source_system?: string
+          transformation_rule_id?: string | null
+          updated_at?: string
+          variable_id: string
+          workspace_id: string
+        }
+        Update: {
+          agent_id?: string
+          created_at?: string
+          destination_field?: string
+          destination_object?: string
+          destination_system?: string
+          direction?: string
+          id?: string
+          is_ignored?: boolean
+          is_required?: boolean
+          notes?: string
+          source_field?: string
+          source_object?: string
+          source_system?: string
+          transformation_rule_id?: string | null
+          updated_at?: string
+          variable_id?: string
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "systemmind_variable_mappings_transformation_rule_id_fkey"
+            columns: ["transformation_rule_id"]
+            isOneToOne: false
+            referencedRelation: "systemmind_transformation_rules"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "systemmind_variable_mappings_variable_id_fkey"
+            columns: ["variable_id"]
+            isOneToOne: false
+            referencedRelation: "systemmind_dynamic_variables"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       systemmind_workflow_drafts: {
         Row: {

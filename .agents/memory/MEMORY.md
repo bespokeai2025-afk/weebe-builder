@@ -148,4 +148,5 @@
 - [Mind conversation persistence](mind-conversation-persistence.md) — per-USER RLS (not workspace-members), one active conv per (ws,user,mind), chunked idempotent appends; briefing gated on empty history.
 - [GrowthMind Phase 5 performance & learning](growthmind-phase5-performance-learning.md) — checkpoint snapshots in metrics JSONB; learnings are proposals only (accept-gated, ±0.2/[0.7,1.3] clamps); chat writes audited, never schedule unapproved content.
 - [GrowthMind script performance](growthmind-script-performance.md) — 30d call-script analytics; WBAH routing + 6h snapshot cache; recommendations are advisory drafts only, never touch production agents.
+- [SystemMind Variable Engine](systemmind-variable-engine.md) — agent scanner + reviewed variable registry; re-scan never clobbers reviewed rows; credential NAMES only; e2e config lives at repo root.
 - [Executive Operator orchestration](executive-operator-orchestration.md) — 5th HiveMind mode; playbooks are proposal-only; manual runs need operator-class mode SERVER-side; leads.updated_at trigger blocks stale fixtures (use replica-role SQL).

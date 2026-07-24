@@ -102,6 +102,7 @@ import { Route as AuthenticatedSystemmindWorkflowsRouteImport } from './routes/_
 import { Route as AuthenticatedSystemmindWorkflowIntelligenceRouteImport } from './routes/_authenticated/systemmind.workflow-intelligence'
 import { Route as AuthenticatedSystemmindWorkflowGeneratorRouteImport } from './routes/_authenticated/systemmind.workflow-generator'
 import { Route as AuthenticatedSystemmindWorkflowDraftsRouteImport } from './routes/_authenticated/systemmind.workflow-drafts'
+import { Route as AuthenticatedSystemmindVariablesRouteImport } from './routes/_authenticated/systemmind.variables'
 import { Route as AuthenticatedSystemmindTemplateLibraryRouteImport } from './routes/_authenticated/systemmind.template-library'
 import { Route as AuthenticatedSystemmindTasksRouteImport } from './routes/_authenticated/systemmind.tasks'
 import { Route as AuthenticatedSystemmindSetupAssistantRouteImport } from './routes/_authenticated/systemmind.setup-assistant'
@@ -783,6 +784,12 @@ const AuthenticatedSystemmindWorkflowDraftsRoute =
   AuthenticatedSystemmindWorkflowDraftsRouteImport.update({
     id: '/workflow-drafts',
     path: '/workflow-drafts',
+    getParentRoute: () => AuthenticatedSystemmindRoute,
+  } as any)
+const AuthenticatedSystemmindVariablesRoute =
+  AuthenticatedSystemmindVariablesRouteImport.update({
+    id: '/variables',
+    path: '/variables',
     getParentRoute: () => AuthenticatedSystemmindRoute,
   } as any)
 const AuthenticatedSystemmindTemplateLibraryRoute =
@@ -2043,6 +2050,7 @@ export interface FileRoutesByFullPath {
   '/systemmind/setup-assistant': typeof AuthenticatedSystemmindSetupAssistantRoute
   '/systemmind/tasks': typeof AuthenticatedSystemmindTasksRoute
   '/systemmind/template-library': typeof AuthenticatedSystemmindTemplateLibraryRoute
+  '/systemmind/variables': typeof AuthenticatedSystemmindVariablesRoute
   '/systemmind/workflow-drafts': typeof AuthenticatedSystemmindWorkflowDraftsRoute
   '/systemmind/workflow-generator': typeof AuthenticatedSystemmindWorkflowGeneratorRoute
   '/systemmind/workflow-intelligence': typeof AuthenticatedSystemmindWorkflowIntelligenceRoute
@@ -2318,6 +2326,7 @@ export interface FileRoutesByTo {
   '/systemmind/setup-assistant': typeof AuthenticatedSystemmindSetupAssistantRoute
   '/systemmind/tasks': typeof AuthenticatedSystemmindTasksRoute
   '/systemmind/template-library': typeof AuthenticatedSystemmindTemplateLibraryRoute
+  '/systemmind/variables': typeof AuthenticatedSystemmindVariablesRoute
   '/systemmind/workflow-drafts': typeof AuthenticatedSystemmindWorkflowDraftsRoute
   '/systemmind/workflow-generator': typeof AuthenticatedSystemmindWorkflowGeneratorRoute
   '/systemmind/workflow-intelligence': typeof AuthenticatedSystemmindWorkflowIntelligenceRoute
@@ -2603,6 +2612,7 @@ export interface FileRoutesById {
   '/_authenticated/systemmind/setup-assistant': typeof AuthenticatedSystemmindSetupAssistantRoute
   '/_authenticated/systemmind/tasks': typeof AuthenticatedSystemmindTasksRoute
   '/_authenticated/systemmind/template-library': typeof AuthenticatedSystemmindTemplateLibraryRoute
+  '/_authenticated/systemmind/variables': typeof AuthenticatedSystemmindVariablesRoute
   '/_authenticated/systemmind/workflow-drafts': typeof AuthenticatedSystemmindWorkflowDraftsRoute
   '/_authenticated/systemmind/workflow-generator': typeof AuthenticatedSystemmindWorkflowGeneratorRoute
   '/_authenticated/systemmind/workflow-intelligence': typeof AuthenticatedSystemmindWorkflowIntelligenceRoute
@@ -2889,6 +2899,7 @@ export interface FileRouteTypes {
     | '/systemmind/setup-assistant'
     | '/systemmind/tasks'
     | '/systemmind/template-library'
+    | '/systemmind/variables'
     | '/systemmind/workflow-drafts'
     | '/systemmind/workflow-generator'
     | '/systemmind/workflow-intelligence'
@@ -3164,6 +3175,7 @@ export interface FileRouteTypes {
     | '/systemmind/setup-assistant'
     | '/systemmind/tasks'
     | '/systemmind/template-library'
+    | '/systemmind/variables'
     | '/systemmind/workflow-drafts'
     | '/systemmind/workflow-generator'
     | '/systemmind/workflow-intelligence'
@@ -3448,6 +3460,7 @@ export interface FileRouteTypes {
     | '/_authenticated/systemmind/setup-assistant'
     | '/_authenticated/systemmind/tasks'
     | '/_authenticated/systemmind/template-library'
+    | '/_authenticated/systemmind/variables'
     | '/_authenticated/systemmind/workflow-drafts'
     | '/_authenticated/systemmind/workflow-generator'
     | '/_authenticated/systemmind/workflow-intelligence'
@@ -4337,6 +4350,13 @@ declare module '@tanstack/react-router' {
       path: '/workflow-drafts'
       fullPath: '/systemmind/workflow-drafts'
       preLoaderRoute: typeof AuthenticatedSystemmindWorkflowDraftsRouteImport
+      parentRoute: typeof AuthenticatedSystemmindRoute
+    }
+    '/_authenticated/systemmind/variables': {
+      id: '/_authenticated/systemmind/variables'
+      path: '/variables'
+      fullPath: '/systemmind/variables'
+      preLoaderRoute: typeof AuthenticatedSystemmindVariablesRouteImport
       parentRoute: typeof AuthenticatedSystemmindRoute
     }
     '/_authenticated/systemmind/template-library': {
@@ -6058,6 +6078,7 @@ interface AuthenticatedSystemmindRouteChildren {
   AuthenticatedSystemmindSetupAssistantRoute: typeof AuthenticatedSystemmindSetupAssistantRoute
   AuthenticatedSystemmindTasksRoute: typeof AuthenticatedSystemmindTasksRoute
   AuthenticatedSystemmindTemplateLibraryRoute: typeof AuthenticatedSystemmindTemplateLibraryRoute
+  AuthenticatedSystemmindVariablesRoute: typeof AuthenticatedSystemmindVariablesRoute
   AuthenticatedSystemmindWorkflowDraftsRoute: typeof AuthenticatedSystemmindWorkflowDraftsRoute
   AuthenticatedSystemmindWorkflowGeneratorRoute: typeof AuthenticatedSystemmindWorkflowGeneratorRoute
   AuthenticatedSystemmindWorkflowIntelligenceRoute: typeof AuthenticatedSystemmindWorkflowIntelligenceRoute
@@ -6107,6 +6128,8 @@ const AuthenticatedSystemmindRouteChildren: AuthenticatedSystemmindRouteChildren
     AuthenticatedSystemmindTasksRoute: AuthenticatedSystemmindTasksRoute,
     AuthenticatedSystemmindTemplateLibraryRoute:
       AuthenticatedSystemmindTemplateLibraryRoute,
+    AuthenticatedSystemmindVariablesRoute:
+      AuthenticatedSystemmindVariablesRoute,
     AuthenticatedSystemmindWorkflowDraftsRoute:
       AuthenticatedSystemmindWorkflowDraftsRoute,
     AuthenticatedSystemmindWorkflowGeneratorRoute:
