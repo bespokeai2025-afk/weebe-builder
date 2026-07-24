@@ -1,13 +1,13 @@
 // GrowthMind → Content Anatomy — multimodal deep analysis of ONE trend item
 // plus original adaptation briefs (mechanism transfer, never copies).
-import { createFileRoute, Link, useParams } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate, useParams } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import {
   Microscope, Loader2, Sparkles, ArrowLeft, ExternalLink, ShieldAlert,
-  CheckCircle2, XCircle, Film, FileText, Wand2,
+  CheckCircle2, XCircle, Film, FileText, Wand2, Clapperboard,
 } from "lucide-react";
 import { GrowthMindShell } from "@/components/growthmind/GrowthMindShell";
 import { Button } from "@/components/ui/button";
@@ -17,6 +17,7 @@ import {
   getContentAnatomyBundle, runDeepVideoAnalysis, generateTrendAdaptation,
   type AdaptationRecord,
 } from "@/lib/growthmind/growthmind.anatomy";
+import { createProjectFromRecommendation } from "@/lib/growthmind/growthmind.content-projects";
 
 export const Route = createFileRoute("/_authenticated/growthmind/anatomy/$itemId")({
   validateSearch: (s: Record<string, unknown>) => ({ run: s.run === true || s.run === "true" ? true : undefined }),
@@ -265,6 +266,22 @@ function AdaptationCard({ ad }: { ad: AdaptationRecord }) {
   const orig: any = p.originality ?? {};
   const comp: any = p.compliance ?? {};
   const blocked = comp.blocked === true || ad.status === "failed";
+  const navigate = useNavigate();
+  const createProjectFn = useServerFn(createProjectFromRecommendation);
+  const [sending, setSending] = useState(false);
+  const inStudio = ["in_content_studio", "awaiting_approval", "changes_requested", "published"].includes(ad.status);
+  const canSend = !blocked && (["recommended", "analysed", "drafting"].includes(ad.status) || inStudio);
+
+  const sendToStudio = async () => {
+    setSending(true);
+    try {
+      const r = await createProjectFn({ data: { recommendationId: ad.id } });
+      toast.success(r.existed ? "Opening the existing Content Studio project" : "Content Studio project created");
+      navigate({ to: "/growthmind/content-projects/$projectId", params: { projectId: r.projectId } });
+    } catch (e: any) {
+      toast.error(e?.message ?? "Could not create the project");
+    } finally { setSending(false); }
+  };
 
   return (
     <div className={cn("rounded-lg border p-3 space-y-2", blocked && "border-red-500/40")}>
@@ -279,6 +296,12 @@ function AdaptationCard({ ad }: { ad: AdaptationRecord }) {
       </div>
       <div className="text-sm font-medium">{ad.title}</div>
       {ad.brief && <p className="text-xs text-muted-foreground">{ad.brief}</p>}
+      {canSend && (
+        <Button size="sm" variant="outline" className="h-7 text-xs" disabled={sending} onClick={sendToStudio}>
+          {sending ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <Clapperboard className="h-3 w-3 mr-1" />}
+          {inStudio ? "Open Content Studio project" : "Send to Content Studio"}
+        </Button>
+      )}
       {blocked && Array.isArray(comp.blockedReasons) && comp.blockedReasons.length > 0 && (
         <p className="text-xs text-red-400">{comp.blockedReasons.join(" ")}</p>
       )}

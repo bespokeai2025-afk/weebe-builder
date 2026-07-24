@@ -177,17 +177,20 @@ export async function approveContentProjectPublish(
     if (typeof raw === "string" && raw) scheduledAt = raw;
   }
 
-  const { transitionProjectStatus } = await import("@/lib/growthmind/growthmind.content-projects");
-  await transitionProjectStatus(admin, workspaceId, project.id, "approved", opts.approvedBy, "Publish approved", {
-    approved_at: nowIso(), approved_by: opts.approvedBy,
-  });
-
+  // Validate BEFORE any state transition so a validation failure leaves the
+  // project in awaiting_approval (recoverable) instead of stranding it in
+  // "approved" with no job.
   const validation = await validatePublishPreconditions(
     admin, workspaceId, { ...project, status: "approved" }, connection, targetType,
   );
   if (!validation.ok) {
     throw new Error(`Publish blocked by validation: ${validation.errors.join(" | ")}`);
   }
+
+  const { transitionProjectStatus } = await import("@/lib/growthmind/growthmind.content-projects");
+  await transitionProjectStatus(admin, workspaceId, project.id, "approved", opts.approvedBy, "Publish approved", {
+    approved_at: nowIso(), approved_by: opts.approvedBy,
+  });
 
   const caption = buildCaption(project);
   const idempotencyKey = buildIdempotencyKey({

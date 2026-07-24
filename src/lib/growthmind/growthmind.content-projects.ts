@@ -169,6 +169,17 @@ export const createProjectFromRecommendation = createServerFn({ method: "POST" }
       .maybeSingle();
     if (error) throw new Error(error.message);
     if (!rec) throw new Error("Recommendation not found");
+
+    // One project per recommendation — if it already exists, return it
+    // regardless of the recommendation's current status (idempotent open-existing).
+    const { data: existing } = await admin
+      .from("growthmind_content_projects")
+      .select("id")
+      .eq("workspace_id", workspaceId)
+      .eq("recommendation_id", rec.id)
+      .limit(1);
+    if (existing?.length) return { projectId: existing[0].id as string, existed: true };
+
     if (!["recommended", "analysed", "drafting"].includes(rec.status)) {
       throw new Error(`Recommendation is "${rec.status}" — only fresh recommendations can be sent to Content Studio.`);
     }
@@ -177,15 +188,6 @@ export const createProjectFromRecommendation = createServerFn({ method: "POST" }
     if (payload.compliance?.blocked === true) {
       throw new Error("This adaptation was blocked by compliance checks and cannot be produced.");
     }
-
-    // One project per recommendation — return the existing one (idempotent).
-    const { data: existing } = await admin
-      .from("growthmind_content_projects")
-      .select("id")
-      .eq("workspace_id", workspaceId)
-      .eq("recommendation_id", rec.id)
-      .limit(1);
-    if (existing?.length) return { projectId: existing[0].id as string, existed: true };
 
     const shotList = Array.isArray(brief.shotList) ? brief.shotList : [];
     const requiredAssets = [
@@ -644,4 +646,17 @@ export const archiveContentProject = createServerFn({ method: "POST" })
       .update({ status: "abandoned", updated_at: nowIso() })
       .eq("workspace_id", workspaceId).eq("studio_kind", "content_studio").eq("studio_ref_id", project.id);
     return { ok: true };
+  });
+
+const RetryInput = z.object({ jobId: z.string().uuid() });
+
+/** Retry a failed publishing job immediately (resets backoff, keeps idempotency key). */
+export const retryProjectPublishJob = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((i: z.infer<typeof RetryInput>) => RetryInput.parse(i))
+  .handler(async ({ data, context }) => {
+    const workspaceId = context.workspaceId!;
+    const admin = await getAdmin();
+    const { retryPublishJobNow } = await import("@/lib/growthmind/meta-content-publish.server");
+    return await retryPublishJobNow(admin, workspaceId, data.jobId);
   });

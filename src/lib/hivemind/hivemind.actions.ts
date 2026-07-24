@@ -569,8 +569,12 @@ export const approveHiveMindAction = createServerFn({ method: "POST" })
     const cfg = await getHiveMindModeConfig(sb, workspaceId);
     assertExecutionAllowed(cfg, pre.action_type, { explicitApproval: true });
 
-    const sensitive = isSensitiveActionType(pre.action_type);
-    const category  = sensitiveCategoryOf(pre.action_type);
+    // Honor persisted per-row sensitivity (e.g. content publish actions forced
+    // sensitive by approval rules at submission) — never downgrade from the
+    // static action-type classification.
+    const sensitive = pre.sensitive === true || isSensitiveActionType(pre.action_type);
+    const category  = (pre.sensitive_category as string | null)
+      ?? sensitiveCategoryOf(pre.action_type);
     if (sensitive && category) {
       // Fail closed: approver must hold the entitlement for this category.
       const { requireAction } = await import("@/lib/permissions/permissions.server");

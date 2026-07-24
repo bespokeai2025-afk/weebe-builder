@@ -259,6 +259,7 @@ import { Route as ApiInternalAgentToolsIdRouteImport } from './routes/api/intern
 import { Route as AuthenticatedSystemmindClientsSetupRouteImport } from './routes/_authenticated/systemmind.clients.setup'
 import { Route as AuthenticatedSystemmindClientsApiProbeRouteImport } from './routes/_authenticated/systemmind.clients.api-probe'
 import { Route as AuthenticatedSettingsProvidersCategoryRouteImport } from './routes/_authenticated/settings.providers.$category'
+import { Route as AuthenticatedGrowthmindContentProjectsProjectIdRouteImport } from './routes/_authenticated/growthmind.content-projects.$projectId'
 import { Route as AuthenticatedGrowthmindAnatomyItemIdRouteImport } from './routes/_authenticated/growthmind.anatomy.$itemId'
 import { Route as AuthenticatedAdminAccountsWorkspaceConfigRouteImport } from './routes/_authenticated/admin.accounts.workspace-config'
 import { Route as AuthenticatedAdminAccountsSystemmindRouteImport } from './routes/_authenticated/admin.accounts.systemmind'
@@ -1690,6 +1691,12 @@ const AuthenticatedSettingsProvidersCategoryRoute =
     path: '/$category',
     getParentRoute: () => AuthenticatedSettingsProvidersRoute,
   } as any)
+const AuthenticatedGrowthmindContentProjectsProjectIdRoute =
+  AuthenticatedGrowthmindContentProjectsProjectIdRouteImport.update({
+    id: '/content-projects/$projectId',
+    path: '/content-projects/$projectId',
+    getParentRoute: () => AuthenticatedGrowthmindRoute,
+  } as any)
 const AuthenticatedGrowthmindAnatomyItemIdRoute =
   AuthenticatedGrowthmindAnatomyItemIdRouteImport.update({
     id: '/anatomy/$itemId',
@@ -1995,6 +2002,7 @@ export interface FileRoutesByFullPath {
   '/admin/accounts/systemmind': typeof AuthenticatedAdminAccountsSystemmindRoute
   '/admin/accounts/workspace-config': typeof AuthenticatedAdminAccountsWorkspaceConfigRoute
   '/growthmind/anatomy/$itemId': typeof AuthenticatedGrowthmindAnatomyItemIdRoute
+  '/growthmind/content-projects/$projectId': typeof AuthenticatedGrowthmindContentProjectsProjectIdRoute
   '/settings/providers/$category': typeof AuthenticatedSettingsProvidersCategoryRoute
   '/systemmind/clients/api-probe': typeof AuthenticatedSystemmindClientsApiProbeRoute
   '/systemmind/clients/setup': typeof AuthenticatedSystemmindClientsSetupRoute
@@ -2253,6 +2261,7 @@ export interface FileRoutesByTo {
   '/admin/accounts/systemmind': typeof AuthenticatedAdminAccountsSystemmindRoute
   '/admin/accounts/workspace-config': typeof AuthenticatedAdminAccountsWorkspaceConfigRoute
   '/growthmind/anatomy/$itemId': typeof AuthenticatedGrowthmindAnatomyItemIdRoute
+  '/growthmind/content-projects/$projectId': typeof AuthenticatedGrowthmindContentProjectsProjectIdRoute
   '/settings/providers/$category': typeof AuthenticatedSettingsProvidersCategoryRoute
   '/systemmind/clients/api-probe': typeof AuthenticatedSystemmindClientsApiProbeRoute
   '/systemmind/clients/setup': typeof AuthenticatedSystemmindClientsSetupRoute
@@ -2523,6 +2532,7 @@ export interface FileRoutesById {
   '/_authenticated/admin/accounts/systemmind': typeof AuthenticatedAdminAccountsSystemmindRoute
   '/_authenticated/admin/accounts/workspace-config': typeof AuthenticatedAdminAccountsWorkspaceConfigRoute
   '/_authenticated/growthmind/anatomy/$itemId': typeof AuthenticatedGrowthmindAnatomyItemIdRoute
+  '/_authenticated/growthmind/content-projects/$projectId': typeof AuthenticatedGrowthmindContentProjectsProjectIdRoute
   '/_authenticated/settings/providers/$category': typeof AuthenticatedSettingsProvidersCategoryRoute
   '/_authenticated/systemmind/clients/api-probe': typeof AuthenticatedSystemmindClientsApiProbeRoute
   '/_authenticated/systemmind/clients/setup': typeof AuthenticatedSystemmindClientsSetupRoute
@@ -2793,6 +2803,7 @@ export interface FileRouteTypes {
     | '/admin/accounts/systemmind'
     | '/admin/accounts/workspace-config'
     | '/growthmind/anatomy/$itemId'
+    | '/growthmind/content-projects/$projectId'
     | '/settings/providers/$category'
     | '/systemmind/clients/api-probe'
     | '/systemmind/clients/setup'
@@ -3051,6 +3062,7 @@ export interface FileRouteTypes {
     | '/admin/accounts/systemmind'
     | '/admin/accounts/workspace-config'
     | '/growthmind/anatomy/$itemId'
+    | '/growthmind/content-projects/$projectId'
     | '/settings/providers/$category'
     | '/systemmind/clients/api-probe'
     | '/systemmind/clients/setup'
@@ -3320,6 +3332,7 @@ export interface FileRouteTypes {
     | '/_authenticated/admin/accounts/systemmind'
     | '/_authenticated/admin/accounts/workspace-config'
     | '/_authenticated/growthmind/anatomy/$itemId'
+    | '/_authenticated/growthmind/content-projects/$projectId'
     | '/_authenticated/settings/providers/$category'
     | '/_authenticated/systemmind/clients/api-probe'
     | '/_authenticated/systemmind/clients/setup'
@@ -5232,6 +5245,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedSettingsProvidersCategoryRouteImport
       parentRoute: typeof AuthenticatedSettingsProvidersRoute
     }
+    '/_authenticated/growthmind/content-projects/$projectId': {
+      id: '/_authenticated/growthmind/content-projects/$projectId'
+      path: '/content-projects/$projectId'
+      fullPath: '/growthmind/content-projects/$projectId'
+      preLoaderRoute: typeof AuthenticatedGrowthmindContentProjectsProjectIdRouteImport
+      parentRoute: typeof AuthenticatedGrowthmindRoute
+    }
     '/_authenticated/growthmind/anatomy/$itemId': {
       id: '/_authenticated/growthmind/anatomy/$itemId'
       path: '/anatomy/$itemId'
@@ -5515,6 +5535,7 @@ interface AuthenticatedGrowthmindRouteChildren {
   AuthenticatedGrowthmindVideoStudioRoute: typeof AuthenticatedGrowthmindVideoStudioRoute
   AuthenticatedGrowthmindIndexRoute: typeof AuthenticatedGrowthmindIndexRoute
   AuthenticatedGrowthmindAnatomyItemIdRoute: typeof AuthenticatedGrowthmindAnatomyItemIdRoute
+  AuthenticatedGrowthmindContentProjectsProjectIdRoute: typeof AuthenticatedGrowthmindContentProjectsProjectIdRoute
 }
 
 const AuthenticatedGrowthmindRouteChildren: AuthenticatedGrowthmindRouteChildren =
@@ -5581,6 +5602,8 @@ const AuthenticatedGrowthmindRouteChildren: AuthenticatedGrowthmindRouteChildren
     AuthenticatedGrowthmindIndexRoute: AuthenticatedGrowthmindIndexRoute,
     AuthenticatedGrowthmindAnatomyItemIdRoute:
       AuthenticatedGrowthmindAnatomyItemIdRoute,
+    AuthenticatedGrowthmindContentProjectsProjectIdRoute:
+      AuthenticatedGrowthmindContentProjectsProjectIdRoute,
   }
 
 const AuthenticatedGrowthmindRouteWithChildren =
