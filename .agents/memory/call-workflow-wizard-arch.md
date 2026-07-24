@@ -14,6 +14,7 @@ Rules:
 - **Queue control** param is `queueId`, not `id` (`controlQueueEntryServer`) — a wrapper mismatch here fails as `queue_entry_not_found`-style silent no-ops.
 - **Timeline field names are the UI contract**: execution steps store `input_masked`/`output_masked`/`completed_at` (never raw `input`/`output`); a step writes input_masked only if its handler returns `{ input }`. Any UI binding to other names silently renders nothing.
 - **Health/evidence must be per-workflow**: `systemmind_integration_errors` carries `agent_id`/`activation_id`; all wizard evidence, health checks and error listings must filter by agent or one workflow's failures degrade another's status.
+- **Health degradation alerts fire on upward transitions only**: the tick health sweep compares prior `health_status` vs the fresh report and alerts admins (event key `workflow_error`, mirrored to the exec stream) only when severity rank increases into degraded/failed — steady-state degraded never re-alerts each sweep.
 - **Registry-surface mind tools must re-gate**: `executeMindTool` only checks membership + optional actionKey, so every call-workflow tool run-path calls `gateCallWorkflowTool` (WBAH exclusion + `requireSystemMindEdit`) to match the server-fn surface. Any new registry tool wrapping SystemMind writes needs the same.
 
 **Why:** architect review flagged the registry surface as a write-path authorization bypass vs the server-fn surface; parity gating is the fix pattern.

@@ -167,7 +167,7 @@ async function runHealthSweep(): Promise<number> {
   const staleBefore = new Date(Date.now() - 15 * 60_000).toISOString();
   const { data: activations } = await sb
     .from("systemmind_workflow_activations")
-    .select("id, workspace_id, agent_id, status, health_checked_at")
+    .select("id, workspace_id, agent_id, status, health_status, health_checked_at")
     .in("status", ["active", "paused"])
     .or(`health_checked_at.is.null,health_checked_at.lt.${staleBefore}`)
     .limit(20);
@@ -185,9 +185,62 @@ async function runHealthSweep(): Promise<number> {
         })
         .eq("id", a.id);
       updated++;
+      await notifyHealthTransition(a, report);
     } catch (e) {
       console.warn("[call-runtime-health] failed for activation", a.id, e instanceof Error ? e.message : e);
     }
   }
   return updated;
+}
+
+// ── Degradation alerting ──────────────────────────────────────────────────────
+// When an ACTIVE workflow's health worsens into degraded/failed (including a
+// degraded → failed escalation), proactively notify workspace admins through
+// the notification engine, which also mirrors the event into the HiveMind
+// executive event stream. Fires only on upward transitions — a workflow that
+// stays degraded doesn't re-alert every sweep. Best-effort, never throws.
+
+const HEALTH_SEVERITY_RANK: Record<string, number> = {
+  unknown: 0, paused: 0, healthy: 0, warning: 1, degraded: 2, failed: 3,
+};
+
+export async function notifyHealthTransition(
+  activation: { id: string; workspace_id: string; agent_id?: string | null; status: string; health_status?: string | null },
+  report: HealthReport,
+): Promise<void> {
+  try {
+    if (activation.status !== "active") return;
+    if (report.status !== "degraded" && report.status !== "failed") return;
+    const prevRank = HEALTH_SEVERITY_RANK[activation.health_status ?? "unknown"] ?? 0;
+    const newRank = HEALTH_SEVERITY_RANK[report.status];
+    if (newRank <= prevRank) return;
+
+    let agentName: string | null = null;
+    if (activation.agent_id) {
+      const { data: agent } = await sb
+        .from("agents").select("name").eq("id", activation.agent_id).maybeSingle();
+      agentName = agent?.name ?? null;
+    }
+    const workflowLabel = agentName ? `Calling workflow — ${agentName}` : "Calling workflow";
+    const failingChecks = report.checks.filter((c) => !c.ok).map((c) => `${c.label}: ${c.detail}`);
+    const summary =
+      report.status === "failed"
+        ? `${workflowLabel} has FAILED — every recent call attempt is failing and calls have effectively stopped flowing.`
+        : `${workflowLabel} is degraded — a majority of recent calls are failing or CRM write-backs keep failing.`;
+
+    const { emitCampaignNotification } = await import("@/lib/notifications/notification-engine.shared");
+    await emitCampaignNotification(sb, {
+      workspaceId: activation.workspace_id,
+      eventKey: "workflow_error",
+      campaignName: workflowLabel,
+      campaignStatus: report.status,
+      summary,
+      failureReason: failingChecks.join("; ").slice(0, 1000) || null,
+      recommendedAction: report.recommendedActions[0] ?? "Open the call workflow setup wizard and review the health checks.",
+      severity: report.status === "failed" ? "critical" : "warning",
+      ...( { metadata: { dedupe_key: `call_workflow_health:${activation.id}:${report.status}`, source: "call_runtime_health" } } as any),
+    });
+  } catch (e) {
+    console.warn("[call-runtime-health] degradation alert failed (non-fatal):", e instanceof Error ? e.message : e);
+  }
 }
