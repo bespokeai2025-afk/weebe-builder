@@ -4,6 +4,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { Link as RouterLink } from "@tanstack/react-router";
 import { Badge } from "@/components/ui/badge";
 import { listContentProjects } from "@/lib/growthmind/growthmind.content-projects";
+import { AiUsageCostsCard } from "@/components/usage/AiUsageCostsCard";
 import {
   Wand2, Loader2, Copy, Check, X, Star, Trash2, BookOpen,
   Newspaper, Layout, Search, Target, Users2, ThumbsUp, Camera,
@@ -1002,6 +1003,7 @@ function ProjectsTab() {
         Production projects created from trend adaptation briefs. Attach final media,
         generate voiceovers, then submit for approval and publish to Instagram or Facebook.
       </p>
+      <AiUsageCostsCard compact />
       {isLoading ? (
         <div className="flex justify-center py-8"><Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /></div>
       ) : projects.length === 0 ? (
