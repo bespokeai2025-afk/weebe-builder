@@ -152,3 +152,4 @@
 - [Trend Anatomy & Adaptation engine](trend-anatomy-adaptation.md) — Gemini multimodal via file_data YouTube URI / inline base64; adaptations reuse content_recommendations (blocked=failed); SSRF guard mandatory on item.url fetches.
 - [GrowthMind Content Intelligence foundation](growthmind-content-intelligence.md) — versioned DNA + whitelisted proposals; Meta OAuth callback must re-check admin; encrypted-token column excluded from grants.
 - [Trend Scout architecture](trend-scout-arch.md) — cheap-first discovery + user-only AI scoring; partial unique index blocks upsert onConflict; plugin chain must stay alias-free (trend-signals.server.ts split).
+- [Executive recommendation follow-through](executive-followthrough.md) — recs propose only pending hivemind_actions (mode-gated, sensitive-flagged, server-built payloads); outcomes reflect back, terminal recs never resurrected.

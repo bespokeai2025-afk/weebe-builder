@@ -17,6 +17,10 @@ import {
   type HiveMindAction, type ActionType,
 } from "@/lib/hivemind/hivemind.actions";
 import { getCampaignProposals, updateProposalStatus } from "@/lib/growthmind/growthmind.campaign-proposals";
+import {
+  listExecutiveRecommendations, actOnExecutiveRecommendation, updateExecutiveRecommendationStatus,
+  type ExecutiveRecommendation,
+} from "@/lib/hivemind/executive-recommendations";
 import { generateDnaProposalsFn } from "@/lib/hivemind/business-dna.functions";
 import { Button } from "@/components/ui/button";
 import { RelativeTime } from "@/components/ui/relative-time";
@@ -571,8 +575,124 @@ function ProposalCard({
   );
 }
 
+// ── Executive Recommendation card ────────────────────────────────────────────
+const REC_PRIORITY_STYLES: Record<string, string> = {
+  critical: "text-red-400 bg-red-500/10 border-red-500/20",
+  high:     "text-amber-400 bg-amber-500/10 border-amber-500/20",
+  medium:   "text-blue-400 bg-blue-500/10 border-blue-500/20",
+  low:      "text-muted-foreground bg-white/[0.04] border-white/[0.08]",
+};
+
+const REC_OPEN_STATES = ["new", "acknowledged", "under_review", "reopened"];
+
+function RecommendationCard({
+  rec, linked, mode, onAct, onDismiss, isMutating,
+}: {
+  rec: ExecutiveRecommendation;
+  linked?: { id: string; status: string; action_type: string; sensitive: boolean };
+  mode: string;
+  onAct:     (id: string) => void;
+  onDismiss: (id: string) => void;
+  isMutating: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+  const isOpen = REC_OPEN_STATES.includes(rec.status);
+  const metrics = (rec.evidence?.metrics ?? {}) as Record<string, unknown>;
+
+  return (
+    <div className={cn(
+      "rounded-xl border transition-all",
+      isOpen ? "bg-[hsl(var(--card))] border-white/[0.08]" : "opacity-60 bg-white/[0.01] border-white/[0.05]",
+    )}>
+      <div className="px-4 py-3 flex items-start gap-3">
+        <div className="flex h-8 w-8 items-center justify-center rounded-lg border shrink-0 mt-0.5 bg-violet-500/10 border-violet-500/20">
+          <TrendingUp className="h-4 w-4 text-violet-400" />
+        </div>
+        <div className="flex-1 min-w-0">
+          <div className="flex flex-wrap items-center gap-2 mb-1">
+            <span className={cn("text-[10px] font-semibold rounded-full px-1.5 py-0.5 border capitalize",
+              REC_PRIORITY_STYLES[rec.priority] ?? REC_PRIORITY_STYLES.low)}>
+              {rec.priority}
+            </span>
+            <span className="text-[10px] rounded-full px-1.5 py-0.5 bg-white/[0.04] border border-white/[0.08] text-muted-foreground capitalize">
+              {rec.department}
+            </span>
+            <span className="text-[10px] rounded-full px-1.5 py-0.5 bg-white/[0.04] border border-white/[0.08] text-muted-foreground capitalize">
+              {rec.status.replace(/_/g, " ")}
+            </span>
+            {linked && (
+              <span className="text-[10px] rounded-full px-1.5 py-0.5 bg-amber-500/15 text-amber-400 border border-amber-500/20 font-medium">
+                {linked.status === "pending"
+                  ? (linked.sensitive ? "Sensitive action awaiting approval" : "Action awaiting approval")
+                  : `Action ${linked.status}`}
+              </span>
+            )}
+          </div>
+          <p className="text-sm font-medium">{rec.title}</p>
+          <p className="text-[11px] text-muted-foreground mt-0.5 line-clamp-2">{rec.business_issue}</p>
+        </div>
+        <div className="flex items-center gap-1.5 shrink-0">
+          {isOpen && !linked && (
+            <>
+              <button
+                onClick={() => onAct(rec.id)}
+                disabled={isMutating || mode === "observe"}
+                title={mode === "observe" ? "Switch out of Observe mode to act on recommendations" : undefined}
+                className="flex items-center gap-1 rounded-lg border border-violet-500/40 bg-violet-500/10 px-3 py-1.5 text-[11px] font-semibold text-violet-400 hover:bg-violet-500/20 transition-all disabled:opacity-40"
+              >
+                <Play className="h-3.5 w-3.5" />
+                Act on this
+              </button>
+              <button
+                onClick={() => onDismiss(rec.id)}
+                disabled={isMutating}
+                className="flex items-center gap-1 rounded-lg border border-white/[0.08] bg-white/[0.03] px-2 py-1.5 text-[11px] text-muted-foreground hover:text-red-400 hover:border-red-500/30 transition-all disabled:opacity-40"
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
+            </>
+          )}
+          <button onClick={() => setOpen(o => !o)}
+            className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-white/[0.04] transition-colors">
+            {open ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
+          </button>
+        </div>
+      </div>
+
+      {open && (
+        <div className="border-t border-white/[0.06] px-4 py-3 space-y-3 text-xs">
+          <div>
+            <p className="text-[10px] text-muted-foreground uppercase tracking-wide mb-1">Recommended action</p>
+            <p className="text-foreground/85 leading-relaxed">{rec.recommended_action}</p>
+            {rec.next_step && <p className="text-muted-foreground mt-1">Next step: {rec.next_step}</p>}
+          </div>
+          {rec.risk_of_inaction && (
+            <div>
+              <p className="text-[10px] text-amber-400 uppercase tracking-wide mb-1">Risk of inaction</p>
+              <p className="text-foreground/70">{rec.risk_of_inaction}</p>
+            </div>
+          )}
+          {Object.keys(metrics).length > 0 && (
+            <div className="flex flex-wrap gap-1.5">
+              {Object.entries(metrics).slice(0, 8).map(([k, v]) => (
+                <span key={k} className="text-[10px] bg-white/[0.04] border border-white/[0.07] rounded px-2 py-0.5 text-muted-foreground">
+                  {k}: {String(v)}
+                </span>
+              ))}
+            </div>
+          )}
+          <p className="text-[10px] text-muted-foreground/50">
+            Confidence {(Number(rec.confidence) * 100).toFixed(0)}% · Raised <RelativeTime date={rec.created_at} short />
+            {rec.result ? ` · ${rec.result}` : ""}
+          </p>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Main page ─────────────────────────────────────────────────────────────────
-type Tab = "pending" | "executed" | "rejected" | "all" | "proposals";
+type Tab = "recommendations" | "pending" | "executed" | "rejected" | "all" | "proposals";
 
 function HiveMindActionsPage() {
   const qc           = useQueryClient();
@@ -584,6 +704,9 @@ function HiveMindActionsPage() {
   const proposeFn        = useServerFn(proposeHiveMindAction);
   const generateFn       = useServerFn(generateOperatorActions);
   const getProposalsFn   = useServerFn(getCampaignProposals);
+  const listRecsFn       = useServerFn(listExecutiveRecommendations);
+  const actOnRecFn       = useServerFn(actOnExecutiveRecommendation);
+  const updateRecFn      = useServerFn(updateExecutiveRecommendationStatus);
   const updateStatusFn   = useServerFn(updateProposalStatus);
   const genDnaProposalFn = useServerFn(generateDnaProposalsFn);
 
@@ -609,9 +732,19 @@ function HiveMindActionsPage() {
     throwOnError: false,
   });
 
+  const { data: recData, isLoading: recLoading, refetch: refetchRecs } = useQuery({
+    queryKey: ["executive-recommendations"],
+    queryFn:  () => listRecsFn(),
+    staleTime: 30_000,
+    throwOnError: false,
+  });
+
   const actions   = data?.actions ?? [];
   const proposals = propData?.proposals ?? [];
+  const recs      = recData?.recommendations ?? [];
+  const linkedActions = recData?.linkedActions ?? {};
   const tabCounts = {
+    recommendations: recData?.openCount ?? 0,
     pending:   actions.filter(a => a.status === "pending").length,
     executed:  actions.filter(a => a.status === "executed").length,
     rejected:  actions.filter(a => ["rejected","failed"].includes(a.status)).length,
@@ -620,7 +753,7 @@ function HiveMindActionsPage() {
   };
   const visible = tab === "all" ? actions :
     tab === "rejected" ? actions.filter(a => ["rejected","failed"].includes(a.status)) :
-    tab === "proposals" ? [] :
+    tab === "proposals" || tab === "recommendations" ? [] :
     actions.filter(a => a.status === tab);
 
   async function handleApprove(id: string) {
@@ -664,6 +797,31 @@ function HiveMindActionsPage() {
     try { await updateStatusFn({ data: { proposalId: id, status: "rejected" } }); await refetchProps(); }
     finally { setPropMuting(false); }
   }
+  async function handleActOnRec(id: string) {
+    setMutating(true); setGenMsg(null);
+    try {
+      const r = await actOnRecFn({ data: { id } });
+      setGenMsg(
+        r.downgraded
+          ? "Routed as an internal task (Recommend mode limits external actions)"
+          : r.sensitive
+            ? "Sensitive follow-through created — explicit approval required before it runs"
+            : "Follow-through action created — awaiting approval",
+      );
+      await Promise.all([refetchRecs(), refetch()]);
+      qc.invalidateQueries({ queryKey: ["hivemind-shell-badge"] });
+      setTimeout(() => setGenMsg(null), 6000);
+    } catch (e: any) {
+      setGenMsg(e?.message ?? "Could not act on this recommendation");
+      setTimeout(() => setGenMsg(null), 6000);
+    } finally { setMutating(false); }
+  }
+  async function handleDismissRec(id: string) {
+    setMutating(true);
+    try { await updateRecFn({ data: { id, status: "dismissed" } }); await refetchRecs(); }
+    catch (e: any) { setGenMsg(e?.message ?? "Could not dismiss"); setTimeout(() => setGenMsg(null), 5000); }
+    finally { setMutating(false); }
+  }
   async function handleGenDnaProposals() {
     setGenDna(true); setGenMsg(null);
     try {
@@ -677,6 +835,7 @@ function HiveMindActionsPage() {
   }
 
   const TABS: { key: Tab; label: string }[] = [
+    { key: "recommendations", label: "Executive Recommendations" },
     { key: "proposals", label: "Campaign Proposals" },
     { key: "pending",   label: "Pending Actions" },
     { key: "executed",  label: "Executed" },
@@ -761,7 +920,43 @@ function HiveMindActionsPage() {
 
       {/* Content */}
       <div className="px-5 py-5">
-        {tab === "proposals" ? (
+        {tab === "recommendations" ? (
+          recLoading ? (
+            <div className="flex items-center justify-center py-16 text-muted-foreground">
+              <Loader2 className="h-5 w-5 animate-spin mr-2" />Loading recommendations…
+            </div>
+          ) : recs.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-16 text-center">
+              <div className="h-12 w-12 rounded-full bg-violet-500/10 flex items-center justify-center mb-3">
+                <TrendingUp className="h-5 w-5 text-violet-400" />
+              </div>
+              <p className="text-sm font-medium">No executive recommendations yet</p>
+              <p className="text-xs text-muted-foreground mt-1 max-w-sm">
+                HiveMind's executive reasoning raises evidence-backed recommendations here as it
+                analyses your workspace. Acting on one routes its follow-through into the approval queue.
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {mode === "observe" && (
+                <p className="text-[11px] text-muted-foreground rounded-lg border border-white/[0.07] bg-white/[0.02] px-3 py-2">
+                  Observe mode: recommendations are read-only. Switch to Recommend, Assistant or Operator mode to act on them.
+                </p>
+              )}
+              {recs.map((rec) => (
+                <RecommendationCard
+                  key={rec.id}
+                  rec={rec}
+                  linked={linkedActions[rec.id]}
+                  mode={mode}
+                  onAct={handleActOnRec}
+                  onDismiss={handleDismissRec}
+                  isMutating={mutating}
+                />
+              ))}
+            </div>
+          )
+        ) : tab === "proposals" ? (
           propLoading ? (
             <div className="flex items-center justify-center py-16 text-muted-foreground">
               <Loader2 className="h-5 w-5 animate-spin mr-2" />Loading campaign proposals…

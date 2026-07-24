@@ -640,11 +640,36 @@ export const approveHiveMindAction = createServerFn({ method: "POST" })
             ? (action.action_payload as any).source_recommendation_id
             : null),
       }).eq("id", data.id);
+      // Reflect the outcome back onto the source executive recommendation.
+      {
+        const { reflectActionOutcomeOnRecommendation } =
+          await import("@/lib/hivemind/executive-followthrough.server");
+        await reflectActionOutcomeOnRecommendation(
+          sb, workspaceId,
+          (action as any).source_recommendation_id ??
+            (typeof (action.action_payload as any)?.source_recommendation_id === "string"
+              ? (action.action_payload as any).source_recommendation_id
+              : null),
+          "executed",
+        );
+      }
       return { ok: true, result };
     } catch (err: any) {
       await sb.from("hivemind_actions").update({
         status: "failed", error_message: err?.message ?? String(err), updated_at: new Date().toISOString(),
       }).eq("id", data.id);
+      try {
+        const { reflectActionOutcomeOnRecommendation } =
+          await import("@/lib/hivemind/executive-followthrough.server");
+        await reflectActionOutcomeOnRecommendation(
+          sb, workspaceId,
+          (action as any).source_recommendation_id ??
+            (typeof (action.action_payload as any)?.source_recommendation_id === "string"
+              ? (action.action_payload as any).source_recommendation_id
+              : null),
+          "failed",
+        );
+      } catch { /* best-effort */ }
       throw err;
     }
   });
@@ -657,11 +682,19 @@ export const rejectHiveMindAction = createServerFn({ method: "POST" })
   )
   .handler(async ({ context, data }) => {
     const sb = context.supabase as any;
-    const { error } = await sb.from("hivemind_actions")
+    const workspaceId = context.workspaceId!;
+    const { data: rejected, error } = await sb.from("hivemind_actions")
       .update({ status: "rejected", updated_at: new Date().toISOString() })
       .eq("id", data.id)
-      .eq("workspace_id", context.workspaceId);
+      .eq("workspace_id", workspaceId)
+      .select("source_recommendation_id");
     if (error) throw error;
+    const srcRec = (rejected ?? [])[0]?.source_recommendation_id ?? null;
+    if (srcRec) {
+      const { reflectActionOutcomeOnRecommendation } =
+        await import("@/lib/hivemind/executive-followthrough.server");
+      await reflectActionOutcomeOnRecommendation(sb, workspaceId, srcRec, "rejected");
+    }
     return { ok: true };
   });
 
