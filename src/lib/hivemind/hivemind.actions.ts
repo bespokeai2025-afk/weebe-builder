@@ -146,7 +146,9 @@ function expectedResultFor(action: HiveMindAction): string {
 }
 
 // ── Action execution ─────────────────────────────────────────────────────────
-async function executeAction(sb: any, workspaceId: string, action: HiveMindAction): Promise<Record<string, any>> {
+// Exported for the shared Mind tool registry (src/lib/minds) — every approved
+// action executes through executeMindTool(), which dispatches back here.
+export async function executeAction(sb: any, workspaceId: string, action: HiveMindAction): Promise<Record<string, any>> {
   const p = action.action_payload;
 
   switch (action.action_type) {
@@ -620,7 +622,24 @@ export const approveHiveMindAction = createServerFn({ method: "POST" })
     const baseline = await captureActionBaseline(sb, workspaceId, action as HiveMindAction);
     const previousState = await capturePreState(sb, workspaceId, action as HiveMindAction);
     try {
-      const result = await executeAction(sb, workspaceId, action as HiveMindAction);
+      // Execute through the shared Mind tool registry so every consequential
+      // run is audited (mind_tool_executions) with real status transitions.
+      const { executeMindTool } = await import("@/lib/minds/tool-registry.server");
+      const exec = await executeMindTool({
+        sb,
+        workspaceId,
+        userId,
+        platform: "web",
+        toolName: `hivemind.${action.action_type}`,
+        input: { action },
+        initiatedBy: "user",
+        explicitApproval: true,
+        approvalRef: action.id,
+      });
+      if (exec.status !== "completed") {
+        throw new Error(exec.error ?? `Tool execution ${exec.status}`);
+      }
+      const result = exec.result ?? {};
       const doneIso = new Date().toISOString();
       const reassessAt = new Date(Date.now() + 7 * 24 * 3600 * 1000).toISOString();
       await sb.from("hivemind_actions").update({

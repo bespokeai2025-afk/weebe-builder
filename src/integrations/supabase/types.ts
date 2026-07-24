@@ -9528,6 +9528,75 @@ export type Database = {
         }
         Relationships: []
       }
+      mind_tool_executions: {
+        Row: {
+          affected_record_id: string | null
+          affected_record_type: string | null
+          approval_ref: string | null
+          created_at: string
+          error_message: string | null
+          estimated_cost: string | null
+          finished_at: string | null
+          id: string
+          initiated_by: string
+          mind: string
+          new_state: Json | null
+          parameters: Json | null
+          platform: string
+          previous_state: Json | null
+          result_summary: Json | null
+          started_at: string | null
+          status: string
+          tool_name: string
+          user_id: string | null
+          workspace_id: string
+        }
+        Insert: {
+          affected_record_id?: string | null
+          affected_record_type?: string | null
+          approval_ref?: string | null
+          created_at?: string
+          error_message?: string | null
+          estimated_cost?: string | null
+          finished_at?: string | null
+          id?: string
+          initiated_by?: string
+          mind: string
+          new_state?: Json | null
+          parameters?: Json | null
+          platform?: string
+          previous_state?: Json | null
+          result_summary?: Json | null
+          started_at?: string | null
+          status: string
+          tool_name: string
+          user_id?: string | null
+          workspace_id: string
+        }
+        Update: {
+          affected_record_id?: string | null
+          affected_record_type?: string | null
+          approval_ref?: string | null
+          created_at?: string
+          error_message?: string | null
+          estimated_cost?: string | null
+          finished_at?: string | null
+          id?: string
+          initiated_by?: string
+          mind?: string
+          new_state?: Json | null
+          parameters?: Json | null
+          platform?: string
+          previous_state?: Json | null
+          result_summary?: Json | null
+          started_at?: string | null
+          status?: string
+          tool_name?: string
+          user_id?: string | null
+          workspace_id?: string
+        }
+        Relationships: []
+      }
       module_upgrade_requests: {
         Row: {
           created_at: string
