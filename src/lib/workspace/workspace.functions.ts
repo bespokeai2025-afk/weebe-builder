@@ -21,6 +21,7 @@ export const getMyContext = createServerFn({ method: "GET" })
     return {
       workspaceId: ws.workspaceId,
       workspaceRole: ws.workspaceRole,
+      userId,
       userType: profile?.user_type ?? "user",
       email: profile?.email ?? "",
       fullName: profile?.full_name ?? "",

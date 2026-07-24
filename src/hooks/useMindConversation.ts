@@ -26,13 +26,17 @@ import {
  *
  * Query keys include the workspace id so switching workspaces can never serve
  * another tenant's conversation from the React Query cache; the localStorage
- * key is workspace-scoped for the same reason.
+ * key is scoped by workspace AND user id for the same reason (shared-browser
+ * account switches must never surface or seed another user's history).
  */
 
 const CACHE_LIMIT = 100;
 
-function cacheKeyFor(mind: MindName, workspaceId: string) {
-  return `mind-conv-cache:${mind}:${workspaceId}`;
+// Cache keys MUST be scoped by user as well as workspace + mind: on a shared
+// browser, a workspace-only key would let one user see (and seed the server
+// with) another user's cached conversation.
+function cacheKeyFor(mind: MindName, workspaceId: string, userId: string) {
+  return `mind-conv-cache:${mind}:${workspaceId}:${userId}`;
 }
 
 function readCache(key: string): MindConversationMessage[] {
@@ -81,7 +85,9 @@ export function useMindConversation(mind: MindName) {
     throwOnError: false,
   });
   const workspaceId = ctx?.workspaceId ?? null;
-  const cacheKey = workspaceId ? cacheKeyFor(mind, workspaceId) : null;
+  const userId = ctx?.userId ?? null;
+  const cacheKey =
+    workspaceId && userId ? cacheKeyFor(mind, workspaceId, userId) : null;
 
   const { data, isSuccess, isError } = useQuery({
     queryKey: ["mind-conversation", mind, workspaceId],
@@ -145,6 +151,12 @@ export function useMindConversation(mind: MindName) {
 
   // Local history that seeded (or is standing in for) the server conversation.
   const [seededMessages, setSeededMessages] = useState<MindConversationMessage[] | null>(null);
+
+  // Reset any seeded state when the user/workspace context (cache key) changes
+  // so a stale seed from a previous account can never leak across a switch.
+  useEffect(() => {
+    setSeededMessages(null);
+  }, [cacheKey]);
 
   // On server load: refresh the offline cache; if the server conversation is
   // empty but a local cache exists, seed the server once from it.
