@@ -27,7 +27,10 @@ import { accountsMindSchedulerPlugin } from "./accountsmind-scheduler.plugin";
 
 // Redirect TanStack Start's bundled server entry to src/server.ts (our SSR error wrapper).
 // @cloudflare/vite-plugin builds from this — wrangler.jsonc main alone is insufficient.
+// Nitro + `vercel` preset is required for Vercel deploys (otherwise only static assets → 404).
+// EC2/production still uses dist/server + srvx when VERCEL is unset.
 export default defineConfig({
+  nitro: process.env.VERCEL ? { preset: "vercel" } : undefined,
   tanstackStart: {
     server: { entry: "server" },
   },
