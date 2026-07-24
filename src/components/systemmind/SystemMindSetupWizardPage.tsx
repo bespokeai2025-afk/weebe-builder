@@ -24,6 +24,7 @@ import {
   controlQueueEntryFn, listWorkflowExecutionsFn, getExecutionTimelineFn,
   listIntegrationErrorsFn, retryIntegrationErrorFn,
 } from "@/lib/systemmind/call-runtime/setup-wizard.functions";
+import { getMyPermissions } from "@/lib/permissions/team-access.functions";
 import { WizardFieldMappingPanel } from "./WizardFieldMappingPanel";
 import { WizardWorkflowPath } from "./WizardWorkflowPath";
 
@@ -97,6 +98,25 @@ export function SystemMindSetupWizardPage() {
   const getTimeline  = useServerFn(getExecutionTimelineFn);
   const listIntErrs  = useServerFn(listIntegrationErrorsFn);
   const retryIntErr  = useServerFn(retryIntegrationErrorFn);
+
+  const myPermsFn = useServerFn(getMyPermissions);
+  const permsQ = useQuery({
+    queryKey: ["my-permissions"],
+    queryFn: () => myPermsFn(),
+    throwOnError: false,
+    staleTime: 30_000,
+  });
+  // Fail open while loading (server still enforces); once loaded, gate on the
+  // systemmind_approval action, which the server requires for live-impact actions.
+  const canApprove = permsQ.data
+    ? (permsQ.data as any).actionAccess?.systemmind_approval === true
+    : true;
+  const approvalHint = "You don't have approval permission — ask a workspace admin to activate or change live workflows.";
+  const friendlyError = (e: any, fallback: string) => {
+    const msg = String(e?.message ?? "");
+    if (/permission denied|not include|approval/i.test(msg)) return approvalHint;
+    return msg || fallback;
+  };
 
   const agentsQ = useQuery({
     queryKey: ["sm-wizard-agents"],
@@ -202,24 +222,24 @@ export function SystemMindSetupWizardPage() {
       else toast.error(res.error ?? "Activation failed");
       invalidate();
     },
-    onError: (e: any) => toast.error(e?.message ?? "Activation failed"),
+    onError: (e: any) => toast.error(friendlyError(e, "Activation failed")),
   });
 
   const stateMut = useMutation({
     mutationFn: (input: { activationId: string; action: "pause" | "resume" | "rollback" }) => setState({ data: input }),
     onSuccess: (res: any) => { res.ok ? toast.success("Done") : toast.error(res.error ?? "Failed"); invalidate(); },
-    onError: (e: any) => toast.error(e?.message ?? "Failed"),
+    onError: (e: any) => toast.error(friendlyError(e, "Failed")),
   });
 
   const trigMut = useMutation({
     mutationFn: (input: any) => saveTrigger({ data: input }),
     onSuccess: () => { toast.success("Trigger saved"); qc.invalidateQueries({ queryKey: ["sm-wizard-triggers", agentId] }); invalidate(); },
-    onError: (e: any) => toast.error(e?.message ?? "Failed to save trigger"),
+    onError: (e: any) => toast.error(friendlyError(e, "Failed to save trigger")),
   });
   const trigToggleMut = useMutation({
     mutationFn: (input: { id: string; enabled: boolean }) => setTrig({ data: input }),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["sm-wizard-triggers", agentId] }); invalidate(); },
-    onError: (e: any) => toast.error(e?.message ?? "Failed"),
+    onError: (e: any) => toast.error(friendlyError(e, "Failed")),
   });
   const queueMut = useMutation({
     mutationFn: (input: { id: string; action: "pause" | "resume" | "cancel" | "retry_now" }) => controlQ({ data: input }),
@@ -337,6 +357,11 @@ export function SystemMindSetupWizardPage() {
                       {/* Trigger editor inline (step 10) */}
                       {s.key === "call_trigger" && (
                         <div className="mt-3 space-y-2">
+                          {!canApprove && (
+                            <div className="flex items-start gap-2 rounded border border-sky-500/30 bg-sky-500/5 px-3 py-2 text-xs text-sky-300">
+                              <ShieldAlert className="mt-0.5 h-3.5 w-3.5 shrink-0" />{approvalHint}
+                            </div>
+                          )}
                           {(triggersQ.data ?? []).map((t: any) => (
                             <div key={t.id} className="flex items-center justify-between rounded border border-slate-800 bg-slate-950/50 px-3 py-2">
                               <div className="text-xs text-slate-300">
@@ -348,7 +373,8 @@ export function SystemMindSetupWizardPage() {
                               <Button
                                 size="sm" variant="outline"
                                 onClick={() => trigToggleMut.mutate({ id: t.id, enabled: !t.enabled })}
-                                disabled={trigToggleMut.isPending}
+                                disabled={trigToggleMut.isPending || !canApprove}
+                                title={!canApprove ? approvalHint : undefined}
                               >
                                 {t.enabled ? "Disable" : "Enable"}
                               </Button>
@@ -367,7 +393,8 @@ export function SystemMindSetupWizardPage() {
                                 agentId, triggerType: newTrigType, enabled: true,
                                 activationId: activation?.id ?? null,
                               })}
-                              disabled={trigMut.isPending}
+                              disabled={trigMut.isPending || !canApprove}
+                              title={!canApprove ? approvalHint : undefined}
                             >
                               {trigMut.isPending && <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" />}Add trigger
                             </Button>
@@ -444,10 +471,16 @@ export function SystemMindSetupWizardPage() {
                       {/* Activate (step 14) */}
                       {s.key === "activate" && activation && activation.status !== "active" && (
                         <div className="mt-3 space-y-2">
+                          {!canApprove && (
+                            <div className="flex items-start gap-2 rounded border border-sky-500/30 bg-sky-500/5 px-3 py-2 text-xs text-sky-300">
+                              <ShieldAlert className="mt-0.5 h-3.5 w-3.5 shrink-0" />{approvalHint}
+                            </div>
+                          )}
                           <Button
                             size="sm"
                             onClick={() => activateMut.mutate({ activationId: activation.id })}
-                            disabled={activateMut.isPending}
+                            disabled={activateMut.isPending || !canApprove}
+                            title={!canApprove ? approvalHint : undefined}
                           >
                             {activateMut.isPending && <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" />}
                             <PlayCircle className="mr-1 h-3.5 w-3.5" />Activate version {activation.version_number}
@@ -465,7 +498,7 @@ export function SystemMindSetupWizardPage() {
                               />
                               <Button
                                 size="sm" variant="destructive"
-                                disabled={!overrideReason.trim() || activateMut.isPending}
+                                disabled={!overrideReason.trim() || activateMut.isPending || !canApprove}
                                 onClick={() => activateMut.mutate({ activationId: activation.id, overrideReason: overrideReason.trim() })}
                               >
                                 Override & activate
@@ -503,23 +536,33 @@ export function SystemMindSetupWizardPage() {
                     ))}
                   </ul>
                   <div className="mt-3 flex gap-2">
-                    <Button size="sm" variant="outline" onClick={() => stateMut.mutate({ activationId: activation.id, action: "pause" })} disabled={stateMut.isPending}>
+                    <Button size="sm" variant="outline" onClick={() => stateMut.mutate({ activationId: activation.id, action: "pause" })} disabled={stateMut.isPending || !canApprove} title={!canApprove ? approvalHint : undefined}>
                       <PauseCircle className="mr-1 h-3.5 w-3.5" />Pause
                     </Button>
                     {activation.parent_activation_id && (
-                      <Button size="sm" variant="outline" onClick={() => stateMut.mutate({ activationId: activation.id, action: "rollback" })} disabled={stateMut.isPending}>
+                      <Button size="sm" variant="outline" onClick={() => stateMut.mutate({ activationId: activation.id, action: "rollback" })} disabled={stateMut.isPending || !canApprove} title={!canApprove ? approvalHint : undefined}>
                         <RotateCcw className="mr-1 h-3.5 w-3.5" />Roll back
                       </Button>
                     )}
                   </div>
+                  {!canApprove && (
+                    <div className="mt-2 flex items-start gap-2 text-[11px] text-sky-300">
+                      <ShieldAlert className="mt-0.5 h-3.5 w-3.5 shrink-0" />{approvalHint}
+                    </div>
+                  )}
                 </div>
               )}
               {activation?.status === "paused" && (
                 <div className="rounded-lg border border-slate-800 bg-slate-900/50 p-4">
                   <div className="mb-2 text-sm font-medium text-slate-200">Workflow paused</div>
-                  <Button size="sm" onClick={() => stateMut.mutate({ activationId: activation.id, action: "resume" })} disabled={stateMut.isPending}>
+                  <Button size="sm" onClick={() => stateMut.mutate({ activationId: activation.id, action: "resume" })} disabled={stateMut.isPending || !canApprove} title={!canApprove ? approvalHint : undefined}>
                     <PlayCircle className="mr-1 h-3.5 w-3.5" />Resume
                   </Button>
+                  {!canApprove && (
+                    <div className="mt-2 flex items-start gap-2 text-[11px] text-sky-300">
+                      <ShieldAlert className="mt-0.5 h-3.5 w-3.5 shrink-0" />{approvalHint}
+                    </div>
+                  )}
                 </div>
               )}
 
