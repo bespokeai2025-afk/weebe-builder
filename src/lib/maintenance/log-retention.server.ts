@@ -26,6 +26,12 @@
  *  • growthmind_generation_logs (400d) — same reader profile as
  *    provider_usage_log (usage dashboard, HiveMind week summary, 30-day stats,
  *    client-costing month windows; rollups persist in client_monthly_costs).
+ *  • systemmind_call_queue (400d, terminal statuses only) — completed/failed/
+ *    cancelled/suppressed rows are history; open rows never pruned. Window
+ *    matches systemmind_call_attempts because attempts cascade with the queue.
+ *  • systemmind_integration_errors (400d, resolved/dead_letter only) —
+ *    pending/retrying rows are an active retry queue and always terminate
+ *    (max_retries) into a prunable status.
  *
  * KEEP FOREVER (not pruned — rollups, financial records, or user data):
  *  • client_monthly_costs / call_profitability — financial records + rollups
@@ -45,6 +51,12 @@ interface RetentionRule {
   /** timestamptz column the retention window applies to */
   column: string;
   days: number;
+  /**
+   * Optional safety filter: only rows whose `status` is in this list are ever
+   * pruned. Used for lifecycle tables (queue/error rows) where non-terminal
+   * rows must survive regardless of age.
+   */
+  statusIn?: string[];
 }
 
 const RETENTION_RULES: RetentionRule[] = [
@@ -70,6 +82,31 @@ const RETENTION_RULES: RetentionRule[] = [
   { table: "systemmind_execution_steps",       column: "created_at", days: 180 },
   { table: "systemmind_workflow_executions",   column: "started_at", days: 180 },
   { table: "systemmind_call_attempts",         column: "created_at", days: 400 },
+  // Call queue — prune only TERMINAL rows (completed/failed/cancelled/
+  // suppressed). Open rows (pending/…/paused) are live work and must survive
+  // regardless of age; the open-dedup partial index only covers open statuses
+  // so pruning terminal rows never breaks dedup. Readers use bounded windows
+  // (wizard monitor reads latest 200 by updated_at; health reads live counts).
+  // 400d (not 180d) because systemmind_call_attempts rows CASCADE-delete with
+  // their queue row — the queue window must be >= the attempts window or the
+  // queue prune would silently shorten attempt retention.
+  {
+    table: "systemmind_call_queue",
+    column: "updated_at",
+    days: 400,
+    statusIn: ["completed", "failed", "cancelled", "suppressed"],
+  },
+  // Integration-error ledger — prune only resolved/dead_letter rows.
+  // pending/retrying rows are an active retry queue (bounded by max_retries,
+  // so they always terminate into resolved/dead_letter and get pruned later).
+  // dead_letter kept 400d: it's the operator-visible failure record the setup
+  // console surfaces for manual retry.
+  {
+    table: "systemmind_integration_errors",
+    column: "updated_at",
+    days: 400,
+    statusIn: ["resolved", "dead_letter"],
+  },
 ];
 
 /** Rows deleted per batch (bounded so a single statement can't time out). */
@@ -94,11 +131,14 @@ async function pruneTable(rule: RetentionRule): Promise<number> {
   let total = 0;
   try {
     for (let batch = 0; batch < MAX_BATCHES_PER_TABLE; batch++) {
-      const { data: rows, error: selErr } = await sb
+      let sel = sb
         .from(rule.table)
         .select("id")
-        .lt(rule.column, cutoff)
-        .limit(BATCH_SIZE);
+        .lt(rule.column, cutoff);
+      if (rule.statusIn && rule.statusIn.length > 0) {
+        sel = sel.in("status", rule.statusIn);
+      }
+      const { data: rows, error: selErr } = await sel.limit(BATCH_SIZE);
       if (selErr) {
         console.warn(`[log-retention] ${rule.table} select failed:`, selErr.message);
         break;
