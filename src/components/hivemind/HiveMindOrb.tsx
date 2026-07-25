@@ -1,9 +1,11 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { useRouterState, useNavigate } from "@tanstack/react-router";
-import { Send, Mic, MicOff, X, Minus, Loader2, ChevronRight, User, ExternalLink } from "lucide-react";
+import { Send, Mic, MicOff, X, Minus, Loader2, ChevronRight, User, ExternalLink, ClipboardList } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { getHiveMindAIResponse, getHiveMindTTS } from "@/lib/hivemind/hivemind.ai";
+import { useMindConversation } from "@/hooks/useMindConversation";
+import { loadHiveMindVoiceSettings, loadHiveMindUserName } from "@/lib/hivemind/voice-profile";
 
 // ── Keyframe styles ────────────────────────────────────────────────────────────
 const ORB_STYLES = `
@@ -60,20 +62,16 @@ const ORB_STYLES = `
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 type OrbState = "idle" | "listening" | "thinking" | "speaking" | "error";
-type Msg = { id: string; role: "user" | "hm"; content: string };
-type VoiceSettings = { voiceId: string; speed: number; personality: "professional" | "friendly" | "concise" };
+type WorkOrderProposal = {
+  workOrderId: string;
+  taskId:      string;
+  taskTitle:   string;
+  focusCampaign: { campaignId: string; campaignName: string } | null;
+  days:        number;
+};
+type Msg = { id: string; role: "user" | "hm"; content: string; workOrders?: WorkOrderProposal[] };
 
 function uid() { return Math.random().toString(36).slice(2, 9); }
-function loadPrefs(): VoiceSettings {
-  try {
-    const s = localStorage.getItem("hivemind-voice-settings");
-    const p = s ? JSON.parse(s) : {};
-    return { voiceId: p.voiceId ?? "21m00Tcm4TlvDq8ikWAM", speed: p.speed ?? 1.0, personality: p.personality ?? "friendly" };
-  } catch { return { voiceId: "21m00Tcm4TlvDq8ikWAM", speed: 1.0, personality: "friendly" }; }
-}
-function loadUserName(): string {
-  try { return localStorage.getItem("hivemind-user-name") ?? ""; } catch { return ""; }
-}
 
 // ── Orb visual sizes & colors by state ────────────────────────────────────────
 const ORB_CONFIG: Record<OrbState, {
@@ -330,6 +328,7 @@ function MiniChat({ onClose, onStateChange }: {
 }) {
   const aiFn  = useServerFn(getHiveMindAIResponse);
   const ttsFn = useServerFn(getHiveMindTTS);
+  const navigate = useNavigate();
 
   const [messages, setMessages]   = useState<Msg[]>([]);
   const [input, setInput]         = useState("");
@@ -344,8 +343,49 @@ function MiniChat({ onClose, onStateChange }: {
   const audioRef   = useRef<HTMLAudioElement | null>(null);
   const recognRef  = useRef<any>(null);
   const ttsGenRef  = useRef(0);
-  const prefs      = useRef(loadPrefs());
-  const userName   = useRef(loadUserName());
+  const prefs      = useRef(loadHiveMindVoiceSettings());
+  const userName   = useRef(loadHiveMindUserName());
+
+  // ── Shared conversation store (same mind_conversations record as the full
+  //    Assistant page, so history follows the user between both interfaces) ──
+  const { initialMessages, historyLoaded, persist } = useMindConversation("hivemind");
+  const seededRef    = useRef(false);
+  const persistedIds = useRef<Set<string>>(new Set());
+
+  useEffect(() => {
+    if (!historyLoaded || seededRef.current) return;
+    if (initialMessages.length === 0) return;
+    seededRef.current = true;
+    const restored: Msg[] = initialMessages.slice(-30).map(m => ({
+      id:      m.id,
+      role:    m.role === "user" ? "user" as const : "hm" as const,
+      content: m.content,
+    }));
+    restored.forEach(m => persistedIds.current.add(m.id));
+    historyRef.current = initialMessages
+      .filter(m => m.role === "user" || m.role === "assistant")
+      .slice(-6)
+      .map(m => ({ role: m.role as "user" | "assistant", content: m.content }));
+    setMessages(prev => {
+      const liveOnly = prev.filter(p => p.id !== "greet");
+      return [...restored, ...liveOnly];
+    });
+  }, [historyLoaded, initialMessages]);
+
+  const persistNewMessages = useCallback((msgs: Msg[]) => {
+    const fresh = msgs.filter(m =>
+      !persistedIds.current.has(m.id) && m.id !== "greet" && m.content.trim() !== "",
+    );
+    if (fresh.length === 0) return;
+    fresh.forEach(m => persistedIds.current.add(m.id));
+    void persist(fresh.map(m => ({
+      role: m.role === "user" ? "user" as const : "assistant" as const,
+      content: m.content,
+      clientMsgId: m.id,
+    }))).then(ok => {
+      if (!ok) fresh.forEach(m => persistedIds.current.delete(m.id));
+    });
+  }, [persist]);
 
   const setThinking = useCallback((v: boolean) => {
     setThinkingS(v);
@@ -401,8 +441,13 @@ function MiniChat({ onClose, onStateChange }: {
     try {
       const r = await aiFn({ data: { query: text.trim(), history: historyRef.current.slice(-6), personality: prefs.current.personality, userName: userName.current } });
       historyRef.current.push({ role: "assistant", content: r.response });
-      const reply: Msg = { ...placeholder, content: r.response };
+      const reply: Msg = {
+        ...placeholder,
+        content: r.response,
+        workOrders: (r as any).workOrderProposals?.length ? (r as any).workOrderProposals : undefined,
+      };
       setMessages(prev => prev.map(m => m.id === placeholder.id ? reply : m));
+      persistNewMessages([userMsg, reply]);
       playTTS(r.response);
     } catch (err: any) {
       const msg = err?.message ?? String(err ?? "Unknown error");
@@ -544,6 +589,23 @@ function MiniChat({ onClose, onStateChange }: {
                       </span>
                     : m.content
                   }
+                  {m.role === "hm" && m.workOrders?.map(wo => (
+                    <div key={wo.workOrderId} className="mt-2 rounded-lg px-2.5 py-2"
+                      style={{ background: "rgba(16,185,129,0.06)", border: "1px solid rgba(16,185,129,0.2)" }}>
+                      <div className="flex items-center gap-1.5 text-[10px] font-semibold text-emerald-300">
+                        <ClipboardList className="h-3 w-3" />
+                        Work order ready
+                      </div>
+                      <div className="mt-0.5 text-[10px] text-emerald-100/80">{wo.taskTitle}</div>
+                      <button
+                        onClick={() => { onClose(); navigate({ to: "/hivemind/chat" }); }}
+                        className="mt-1.5 inline-flex items-center gap-1 rounded-md px-2 py-1 text-[10px] font-medium text-emerald-200 transition-colors hover:text-emerald-100"
+                        style={{ background: "rgba(16,185,129,0.12)", border: "1px solid rgba(16,185,129,0.3)" }}
+                      >
+                        Review &amp; approve in Assistant <ExternalLink className="h-2.5 w-2.5" />
+                      </button>
+                    </div>
+                  ))}
                 </div>
               </div>
             ))}

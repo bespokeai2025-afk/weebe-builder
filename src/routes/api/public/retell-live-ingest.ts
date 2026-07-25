@@ -44,6 +44,29 @@ const LIVE_INGEST_AGENTS: Record<string, { workspaceId: string; agentName: strin
     workspaceId: "5cb750b6-fabf-4e84-9b92-740df1cd8d53",
     agentName: "WBAH Client qualification agent",
   },
+  // Remaining WBAH workspace-account agents that dial via the same n8n webhook.
+  // All subscribed to transcript_updated on 2026-07-25; mapping them keeps the
+  // dashboard Live Calls transcript working whichever WBAH agent is dialling.
+  agent_ca1d79998c01bb510e60a4dd39: {
+    workspaceId: "5cb750b6-fabf-4e84-9b92-740df1cd8d53",
+    agentName: "WBAH Tried to contact agent",
+  },
+  agent_a03162ee94d003c298817e727c: {
+    workspaceId: "5cb750b6-fabf-4e84-9b92-740df1cd8d53",
+    agentName: "WBAH New Leads Agent",
+  },
+  agent_698b8e07acac970aefaf0a52b6: {
+    workspaceId: "5cb750b6-fabf-4e84-9b92-740df1cd8d53",
+    agentName: "WBAH New leads",
+  },
+  agent_1e1b13bd9564da4556370fe0be: {
+    workspaceId: "5cb750b6-fabf-4e84-9b92-740df1cd8d53",
+    agentName: "Rebooking consultation agent",
+  },
+  agent_0e07f26bebd25acbd82993e3a3: {
+    workspaceId: "5cb750b6-fabf-4e84-9b92-740df1cd8d53",
+    agentName: "Rebooking agent: WBAH client qualification agent",
+  },
 };
 
 const CORS_HEADERS = {

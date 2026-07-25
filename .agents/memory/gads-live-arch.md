@@ -31,3 +31,7 @@ description: Architecture and hard constraints of the live Google Ads integratio
 - CRM lead-quality loop attributes paid leads via `attributePaidLeadsToCampaigns`: one lead → at most one campaign; exact normalized utm_campaign match wins; containment only when unambiguous. The SQL prefilter must include `meta->>gclid.not.is.null` or gclid-only leads are dropped.
 - Fresh CRITICAL inserts emit a `needs_admin_attention` notification (dynamic relative import, best-effort). HiveMind ingests recs via scanGrowthMind findings, chat context (`gadsLive` block with the "tell user specifically what needs doing" rule), and briefing snapshot.
 - Unit tests: `tests/e2e/gads-rec-quality.e2e.test.ts` (pure, no DB).
+
+## Executive visibility (July 2026)
+- Live campaign data for AI executives comes ONLY from `growthmind_gads_campaign_daily` via `getGadsLiveCampaignSummary/…Text` in gads-live-core; the legacy tables (growthmind_ad_sync_log / growthmind_ad_campaigns) are never written by the live engine — reading them alone makes campaigns invisible to chat.
+- GrowthMind chat/briefing, HiveMind gadsLive block, and the growthmind-control executive view/command context all must include this live summary; keep degradation graceful (empty on failure, never break the whole context).

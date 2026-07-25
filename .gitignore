@@ -9,24 +9,22 @@ lerna-debug.log*
 
 # Dependencies & build outputs
 node_modules
-.pnpm-store
 dist
 dist-ssr
 .output
 .vinxi
-.vercel
 .tanstack/**
 .nitro
 build
 .turbo
 .cache
 
-# ironment & secrets — never commit
-.
-..local
-..production
-..development
-..*.local
+# Environment & secrets — never commit
+.env
+.env.local
+.env.production
+.env.development
+.env.*.local
 *.local
 .dev.vars
 .secrets
@@ -54,3 +52,5 @@ service-account*.json
 
 # Local task notes
 todo.md
+.pnpm-store
+.vercel

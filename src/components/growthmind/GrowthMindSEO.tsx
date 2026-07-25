@@ -22,7 +22,6 @@ import {
   saveAiRecs,
   getGscStatus,
   getGscAuthUrl,
-  connectGscToken,
   disconnectGsc,
   listGscProperties,
   saveGscProperty,
@@ -41,6 +40,7 @@ import {
   type MetaTagResult,
 } from "@/lib/growthmind/growthmind.seo";
 import { HiveMindReportBanner } from "./HiveMindReportBanner";
+import { auditWebsiteArchitecture } from "@/lib/growthmind/growthmind.website-arch";
 
 function nanoid(): string {
   return Math.random().toString(36).slice(2) + Date.now().toString(36);
@@ -882,6 +882,66 @@ function ContentIdeaRow({
   );
 }
 
+// ── Website Architecture Audit card (Phase 4 — read-only) ────────────────────
+
+function WebsiteArchitectureCard({ siteUrl }: { siteUrl: string }) {
+  const auditFn = useServerFn(auditWebsiteArchitecture);
+  const { data: arch, isLoading } = useQuery({
+    queryKey: ["website-architecture", siteUrl],
+    queryFn: () => auditFn(),
+    staleTime: 10 * 60_000,
+    throwOnError: false,
+  });
+
+  if (isLoading || !arch) {
+    return (
+      <div className="rounded-xl border border-white/[0.06] bg-card/60 p-5 text-xs text-muted-foreground flex items-center gap-2">
+        <Loader2 className="h-3.5 w-3.5 animate-spin" /> Auditing website architecture…
+      </div>
+    );
+  }
+
+  const rows: Array<[string, string | null]> = [
+    ["Website",       arch.hostname],
+    ["DNS provider",  arch.dnsProvider ?? (arch.nameservers[0] ?? null)],
+    ["Hosting",       arch.hostingPlatform ?? "Unknown"],
+    ["Proxy / CDN",   arch.proxyDetected ?? "None detected"],
+  ];
+
+  return (
+    <div className="rounded-xl border border-white/[0.06] bg-card/60 p-5">
+      <div className="flex items-start justify-between gap-4 flex-wrap">
+        <div>
+          <p className="text-sm font-semibold flex items-center gap-2">
+            <Globe className="h-4 w-4 text-violet-400" />
+            Website Architecture
+          </p>
+          <p className="text-[11px] text-muted-foreground mt-0.5">
+            Live DNS &amp; hosting audit — read-only, nothing is changed
+          </p>
+        </div>
+        <span className="text-[10px] px-2 py-0.5 rounded-full border border-amber-400/30 bg-amber-400/10 text-amber-300">
+          {arch.capability === "content_draft_only"
+            ? "Content drafts only — deployment awaits your approval outside WEBEE"
+            : "No deployment integration"}
+        </span>
+      </div>
+      <div className="mt-3 grid grid-cols-2 sm:grid-cols-4 gap-3">
+        {rows.map(([label, value]) => (
+          <div key={label}>
+            <p className="text-[10px] uppercase tracking-wide text-muted-foreground">{label}</p>
+            <p className="text-xs mt-0.5 truncate" title={value ?? undefined}>{value ?? "—"}</p>
+          </div>
+        ))}
+      </div>
+      <p className="text-[11px] text-muted-foreground mt-3">{arch.deploymentNote}</p>
+      {arch.errors.length > 0 && (
+        <p className="text-[11px] text-amber-300 mt-2">{arch.errors.join(" · ")}</p>
+      )}
+    </div>
+  );
+}
+
 // ── GSC Connection Panel ──────────────────────────────────────────────────────
 
 function GscConnectionPanel({
@@ -1055,7 +1115,15 @@ function GscConnectionPanel({
                 <div className="text-xs text-red-400 py-2">{propsError}</div>
               )}
               {!propsLoading && !propsError && properties.length === 0 && (
-                <p className="text-xs text-muted-foreground py-4 text-center">No properties found in this account.</p>
+                <div className="text-xs text-muted-foreground py-4 space-y-2">
+                  <p className="text-center font-medium text-amber-400/90">The Google account you connected has no Search Console properties.</p>
+                  <p>
+                    Sign in to{" "}
+                    <a href="https://search.google.com/search-console" target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:underline">Google Search Console</a>{" "}
+                    with that account — if your site isn't listed there, either add this account as a user under the property's
+                    Settings → Users and permissions, or disconnect here and reconnect using the Google account that owns the property.
+                  </p>
+                </div>
               )}
               {!propsLoading && !propsError && properties.map(p => (
                 <label key={p} className="flex items-center gap-2.5 cursor-pointer group">
@@ -1614,7 +1682,6 @@ export function GrowthMindSEO() {
   const getDataFn     = useServerFn(getGrowthMindData);
   const getStatusFn   = useServerFn(getGscStatus);
   const getAuthUrlFn  = useServerFn(getGscAuthUrl);
-  const connectFn     = useServerFn(connectGscToken);
   const disconnectFn  = useServerFn(disconnectGsc);
   const fetchQueryFn  = useServerFn(fetchGscQueries);
   const listPropsFn   = useServerFn(listGscProperties);
@@ -1685,49 +1752,46 @@ export function GrowthMindSEO() {
     if (site.aiRecAt) setAiRecAt(site.aiRecAt);
   }, [siteData]);
 
-  // ── Handle GSC OAuth callback (?code= in URL) ─────────────────────────────
+  // ── Handle GSC OAuth callback result (?gsc=connected|error from the server
+  //    callback route /api/oauth/gsc-callback) ────────────────────────────────
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
-    const code   = params.get("code");
-    const scope  = params.get("scope");
-    const state  = params.get("state");
+    const result = params.get("gsc");
+    if (!result) return;
 
-    if (!code || !scope?.includes("webmasters") || !state) return;
-
-    const redirectUri = `${window.location.origin}/growthmind/seo`;
+    if (result === "error") {
+      flashMsg("Failed to connect Search Console: " + (params.get("gsc_msg") ?? "unknown error"), true);
+      navigate({ to: "/growthmind/seo", replace: true });
+      return;
+    }
+    if (result !== "connected") return;
 
     setGscConnecting(true);
-
-    connectFn({ data: { code, redirectUri, state } })
-      .then(async () => {
-        // Try to auto-match the site URL against GSC properties
-        try {
-          const [siteRes, propsRes] = await Promise.all([getSiteFn(), listPropsFn()]);
-          const savedUrl = siteRes?.site?.url ?? "";
-          if (savedUrl && propsRes.sites.length > 0) {
-            const match = findBestGscMatch(savedUrl, propsRes.sites);
-            if (match) {
-              await savePropFn({ data: { propertyUrl: match, autoMatched: true } });
-              flashMsg("Google Search Console connected & property matched!");
-            } else {
-              flashMsg("Google Search Console connected!");
-            }
+    // Tokens are already stored server-side — just auto-match the property.
+    (async () => {
+      try {
+        const [siteRes, propsRes] = await Promise.all([getSiteFn(), listPropsFn()]);
+        const savedUrl = siteRes?.site?.url ?? "";
+        if (savedUrl && propsRes.sites.length > 0) {
+          const match = findBestGscMatch(savedUrl, propsRes.sites);
+          if (match) {
+            await savePropFn({ data: { propertyUrl: match, autoMatched: true } });
+            flashMsg("Google Search Console connected & property matched!");
           } else {
             flashMsg("Google Search Console connected!");
           }
-        } catch {
+        } else {
           flashMsg("Google Search Console connected!");
         }
-        qc.invalidateQueries({ queryKey: ["gsc-status"] });
-      })
-      .catch((e: any) => {
-        flashMsg("Failed to connect Search Console: " + e.message, true);
-      })
-      .finally(() => {
-        setGscConnecting(false);
-        navigate({ to: "/growthmind/seo", replace: true });
-      });
+      } catch {
+        flashMsg("Google Search Console connected!");
+      }
+      qc.invalidateQueries({ queryKey: ["gsc-status"] });
+    })().finally(() => {
+      setGscConnecting(false);
+      navigate({ to: "/growthmind/seo", replace: true });
+    });
   }, []);
 
   const connected = !!siteUrl;
@@ -1814,8 +1878,9 @@ export function GrowthMindSEO() {
   async function handleGscConnect() {
     setGscConnecting(true);
     try {
-      const redirectUri = `${window.location.origin}/growthmind/seo`;
-      const { url } = await getAuthUrlFn({ data: { redirectUri } });
+      const { url } = await getAuthUrlFn({
+        data: { origin: window.location.origin, returnTo: "/growthmind/seo" },
+      });
       window.location.href = url;
     } catch (e: any) {
       flashMsg("Failed to start Google auth: " + e.message, true);
@@ -2161,6 +2226,9 @@ export function GrowthMindSEO() {
                 />
               </div>
             </div>
+
+            {/* Website architecture audit (read-only) */}
+            {connected && <WebsiteArchitectureCard siteUrl={siteUrl} />}
 
             {connected && (
               <>

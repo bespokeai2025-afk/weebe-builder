@@ -48,9 +48,13 @@ n8n forward the same events. Requires a production republish to go live.
   2026-07-06 the **active dialer is agent_50598 (workspace key), version 27** — recent
   outbound calls all use it; agent_0440 has NO recent WBAH calls. (An older note here
   said agent_0440 "runs the calls"; that is no longer true — verify via recent call
-  history before assuming.) Both ids are in the ingest allow-map, but
-  `transcript_updated` is enabled ONLY on agent_50598 (the live dialer); if a future
-  campaign switches to agent_0440, enable it there too or transcripts go dark.
+  history before assuming.) As of 2026-07-25 ALL six WBAH workspace-key agents
+  (qualification agent_50598, Tried-to-contact agent_ca1d, New Leads agent_a031 +
+  agent_698b, Rebooking agent_1e1b + agent_0e07) have `transcript_updated`
+  subscribed AND are in the ingest allow-map alongside agent_0440 — WBAH campaigns
+  switch dialer agents freely, so any NEW WBAH agent needs both steps
+  (PATCH webhook_events + allow-map entry + republish) or its live cards show
+  "transcript unavailable".
 - **WBAH's own Retell API key** is stored in `workspace_settings.retell_workspace_id`
   (misnamed column — it holds the key, not a workspace id); read via
   `requireWbahRetellKey()`.

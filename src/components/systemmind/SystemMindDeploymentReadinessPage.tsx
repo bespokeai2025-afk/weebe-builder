@@ -15,6 +15,7 @@ import {
 } from "@/lib/systemmind/intelligence.functions";
 import type { TemplateConfidenceRow } from "@/lib/systemmind/confidence-engine.server";
 import { SystemMindShell } from "./SystemMindShell";
+import { RetellSyncPanel } from "./RetellSyncPanel";
 import {
   Chip, Section, RiskPill, ScoreBar, StatCard, MigrationNotice, ExecutionBanner, EmptyState,
 } from "./intelligence/shared";
@@ -249,9 +250,11 @@ export function SystemMindDeploymentReadinessPage() {
           <TabsList>
             <TabsTrigger value="dashboard" className="text-xs gap-1.5"><TrendingUp className="h-3.5 w-3.5" /> Dashboard</TabsTrigger>
             <TabsTrigger value="confidence" className="text-xs gap-1.5"><CheckCircle2 className="h-3.5 w-3.5" /> Confidence Scores</TabsTrigger>
+            <TabsTrigger value="retell-sync" className="text-xs gap-1.5"><Gauge className="h-3.5 w-3.5" /> Retell Sync</TabsTrigger>
           </TabsList>
           <TabsContent value="dashboard" className="mt-3"><DashboardTab /></TabsContent>
           <TabsContent value="confidence" className="mt-3"><ConfidenceTab /></TabsContent>
+          <TabsContent value="retell-sync" className="mt-3"><RetellSyncPanel /></TabsContent>
         </Tabs>
       </div>
     </SystemMindShell>

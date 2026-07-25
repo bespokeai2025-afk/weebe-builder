@@ -18,7 +18,9 @@ export type ActionType     =
   | "sync_ad_stats"
   | "send_workflow_draft_to_builder"
   | "activate_lead_intake_workflow"
-  | "activate_systemmind_automation";
+  | "activate_systemmind_automation"
+  | "seo_campaign_approval"
+  | "content_publication_approval";
 
 export interface HiveMindAction {
   id:             string;
@@ -205,6 +207,45 @@ export async function executeAction(sb: any, workspaceId: string, action: HiveMi
       }).select().single();
       if (error) throw error;
       return { task_id: data.id };
+    }
+
+    case "gads_create_change_requests": {
+      // Converts analysis recommendations into approved change-request DRAFTS.
+      // Internal records only — there is intentionally NO executor for live
+      // Google Ads writes (GrowthMind is advisory-only).
+      const ids = Array.isArray(p.recommendation_ids) ? (p.recommendation_ids as string[]).map(String) : [];
+      if (!ids.length) throw new Error("No recommendation_ids in action payload");
+      const { data: recs, error: re } = await sb.from("growthmind_gads_recommendations")
+        .select("id, account_row_id, customer_id, campaign_id, section, title, recommended_action, evidence, status")
+        .eq("workspace_id", workspaceId).in("id", ids);
+      if (re) throw re;
+      const usable = (recs ?? []).filter((r: any) => r.status !== "applied");
+      if (!usable.length) throw new Error("None of the referenced recommendations are available");
+      const nowIso = new Date().toISOString();
+      const createdIds: string[] = [];
+      for (const rec of usable) {
+        const { data: cr, error: crErr } = await sb.from("growthmind_gads_change_requests").insert({
+          workspace_id: workspaceId,
+          recommendation_id: rec.id,
+          account_row_id: rec.account_row_id,
+          customer_id: rec.customer_id,
+          campaign_id: rec.campaign_id,
+          change_type: rec.section,
+          payload: { title: rec.title, recommendedAction: rec.recommended_action, evidence: rec.evidence },
+          status: "approved",
+          approved_by: (action as any).authorised_by_user_id ?? null,
+        }).select("id").single();
+        if (crErr) throw crErr;
+        createdIds.push(cr.id as string);
+        await sb.from("growthmind_gads_recommendations").update({
+          status: "approved", reviewed_at: nowIso, updated_at: nowIso,
+        }).eq("id", rec.id).eq("workspace_id", workspaceId);
+      }
+      return {
+        change_request_ids: createdIds,
+        change_requests_created: createdIds.length,
+        external_write: "blocked_awaiting_integration",
+      };
     }
 
     case "create_followup_campaign": {
@@ -443,6 +484,41 @@ export async function executeAction(sb: any, workspaceId: string, action: HiveMi
         "User",
       );
       return { workflow_id: result.workflow_id, draft_id: result.draft_id };
+    }
+
+    case "seo_campaign_approval": {
+      const campaignId = String(p.campaignId ?? "");
+      const stage = String(p.stage ?? "");
+      if (!campaignId || !stage) throw new Error("campaignId and stage required");
+      const { advanceSeoCampaign } = await import(
+        "@/lib/growthmind/seo-blog-campaign.server"
+      );
+      // Stage + campaign ownership are re-validated inside advanceSeoCampaign;
+      // it only moves the campaign one approved stage forward.
+      const result = await advanceSeoCampaign(
+        workspaceId,
+        campaignId,
+        stage as any,
+        (action as any).approved_by ?? null,
+      );
+      if (!result.ok) throw new Error(result.error ?? "SEO stage approval failed");
+      return { campaignId, stage, status: (result as any).status ?? null };
+    }
+
+    case "content_publication_approval": {
+      const itemId = String(p.itemId ?? "");
+      const stage = String(p.stage ?? "");
+      if (!itemId || !["content", "publication"].includes(stage)) {
+        throw new Error("itemId and stage (content|publication) required");
+      }
+      const engine = await import("@/lib/growthmind/publication-engine.server");
+      // Item ownership + current status are re-validated inside the engine.
+      const approvedBy = (action as any).approved_by ?? "User";
+      const result = stage === "content"
+        ? await engine.approveArticleContent(workspaceId, itemId, action.id, approvedBy)
+        : await engine.approvePublication(workspaceId, itemId, action.id, approvedBy);
+      if (!result.ok) throw new Error(result.error ?? "Content approval failed");
+      return { itemId, stage, state: result.state ?? null };
     }
 
     default:
@@ -780,6 +856,36 @@ export async function approveHiveMindActionCore(
               : null),
           "executed",
         );
+      }
+      // Resume a linked Mind task execution (work-order backbone): verify the
+      // internal change persisted and close out execution + task honestly.
+      if ((action as any).execution_id) {
+        try {
+          const { resumeExecutionForAction } =
+            await import("@/lib/hivemind/mind-execution-engine.server");
+          await resumeExecutionForAction(sb, workspaceId, action as any, result);
+        } catch (resumeErr: any) {
+          // The action itself executed — never undo it; surface the resume
+          // failure on the execution row instead. Move the execution out of
+          // awaiting_action_approval so the lifecycle isn't silently stranded
+          // (blocked is retryable via Approve & Run).
+          const resumeMsg = `Resume after action approval failed: ${resumeErr?.message ?? String(resumeErr)}`;
+          const execId = (action as any).execution_id;
+          await sb.from("mind_task_executions").update({
+            status: "blocked",
+            blocked_reason: resumeMsg,
+            error_message: resumeMsg,
+            updated_at: new Date().toISOString(),
+          }).eq("id", execId).eq("workspace_id", workspaceId)
+            .in("status", ["awaiting_action_approval", "verifying"]);
+          const taskIdForResume = (action as any).task_id;
+          if (taskIdForResume) {
+            await sb.from("hivemind_tasks").update({
+              execution_status: "blocked", updated_at: new Date().toISOString(),
+            }).eq("id", taskIdForResume).eq("workspace_id", workspaceId)
+              .in("execution_status", ["awaiting_action_approval", "executing"]);
+          }
+        }
       }
       return { ok: true, result };
     } catch (err: any) {

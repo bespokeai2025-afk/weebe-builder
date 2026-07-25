@@ -165,6 +165,11 @@ export function formatDnaAsContext(dna: BusinessDna): string {
   return lines.join("\n");
 }
 
+/** Map a raw growthmind_business_dna row to the camelCase BusinessDna shape (server helpers). */
+export function mapBusinessDnaRow(r: any): BusinessDna {
+  return mapRow(r);
+}
+
 function mapRow(r: any): BusinessDna {
   return {
     id:                     r.id,
@@ -476,18 +481,13 @@ const PROPOSAL_ALLOWED_COLUMNS = new Set([
   "content_objectives","commercial_objectives",
 ]);
 
-export const resolveDnaProposal = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
-    z.object({
-      proposalId: z.string().uuid(),
-      decision:   z.enum(["approve", "reject"]),
-    }).parse(input)
-  )
-  .handler(async ({ context, data }) => {
-    const workspaceId = context.workspaceId;
-    if (!workspaceId) throw new Error("No workspace");
-    const userId = (context as any).userId ?? null;
+/** Core DNA proposal resolution — shared by the server fn and HiveMind executive tools. */
+export async function resolveDnaProposalCore(
+  workspaceId: string,
+  userId: string | null,
+  data: { proposalId: string; decision: "approve" | "reject" },
+): Promise<{ ok: true }> {
+  {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const admin = supabaseAdmin as any;
 
@@ -561,6 +561,22 @@ export const resolveDnaProposal = createServerFn({ method: "POST" })
     });
 
     return { ok: true };
+  }
+}
+
+export const resolveDnaProposal = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) =>
+    z.object({
+      proposalId: z.string().uuid(),
+      decision:   z.enum(["approve", "reject"]),
+    }).parse(input)
+  )
+  .handler(async ({ context, data }) => {
+    const workspaceId = context.workspaceId;
+    if (!workspaceId) throw new Error("No workspace");
+    const userId = (context as any).userId ?? null;
+    return resolveDnaProposalCore(workspaceId, userId, data);
   });
 
 // ── Initial auto-generation from existing WEBEE data ──────────────────────────

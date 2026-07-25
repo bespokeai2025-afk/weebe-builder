@@ -91,6 +91,7 @@ export function evaluateApprovalRules(
     caption?: string | null; script?: string | null; voiceover_script?: string | null;
     subtitles?: string | null; cta?: string | null; thumbnail_text?: string | null;
     media_is_ai?: boolean | null; voiceover_is_ai?: boolean | null;
+    inspiration?: { thumbnail_is_ai?: boolean | null } | null;
   },
 ): ApprovalEvaluation {
   const flags: string[] = [];
@@ -100,7 +101,8 @@ export function evaluateApprovalRules(
   if (rules.always_require_approval) flags.push("always_require_approval");
   if (rules.claims_require_approval && CLAIM_PATTERN.test(text)) flags.push("claims");
   if (rules.pricing_require_approval && PRICING_PATTERN.test(text)) flags.push("pricing");
-  if (rules.ai_media_require_approval && (project.media_is_ai === true || project.voiceover_is_ai === true)) flags.push("ai_media");
+  if (rules.ai_media_require_approval &&
+      (project.media_is_ai === true || project.voiceover_is_ai === true || project.inspiration?.thumbnail_is_ai === true)) flags.push("ai_media");
   for (const term of rules.restricted_terms) {
     if (text.toLowerCase().includes(term.toLowerCase())) flags.push(`restricted_term:${term}`);
   }

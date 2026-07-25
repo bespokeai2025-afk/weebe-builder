@@ -28,6 +28,8 @@ export const SENSITIVE_ACTIONS: Record<string, SensitiveCategory> = {
   activate_lead_intake_workflow: "client_communication",
   activate_systemmind_automation:"deployment",
   review_client_pricing:         "billing",
+  seo_campaign_approval:         "campaign",
+  content_publication_approval:  "campaign",
 };
 
 export function isSensitiveActionType(actionType: string): boolean {
@@ -50,7 +52,15 @@ export const CATEGORY_ENTITLEMENT: Record<SensitiveCategory, ActionKey> = {
 };
 
 /** Non-sensitive, internal-only action types (allowed to execute even in recommend mode). */
-export const INTERNAL_ACTION_TYPES = new Set<string>(["create_task", "sync_ad_stats", "run_orchestration_playbook"]);
+export const INTERNAL_ACTION_TYPES = new Set<string>([
+  "create_task",
+  "sync_ad_stats",
+  "run_orchestration_playbook",
+  // Internal draft records only — never touches live Google Ads.
+  "gads_create_change_requests",
+  // Executable-task kind: read-only analysis + internal drafts.
+  "growthmind.gads_campaign_analysis",
+]);
 
 /** Operator category permission keys (workspace_settings.hivemind_operator_permissions). */
 export const OPERATOR_CATEGORIES = [

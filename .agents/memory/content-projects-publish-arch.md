@@ -14,3 +14,9 @@ description: GrowthMind adaptation→project handoff, approval state machine, Hi
 
 **Why:** the three rules above were architect-flagged critical defects (broken open-existing handoff, approval sensitivity bypass, stranded approved state) — keep them when extending.
 **How to apply:** any new handoff-to-project flow, HiveMind-routed approval, or publish-job kind should follow these patterns.
+
+## Verification lessons (mocked e2e vs live)
+- Full pipeline is verifiable without a live Meta account: `tests/e2e/meta-content-publish.e2e.test.ts` mocks ONLY graph.facebook.com at global fetch (pass everything else through — supabase-js uses fetch too) and runs the real approve→job→execute→retry code against the real DB in a throw-away workspace.
+- Connection account_type is `instagram_professional` (schema CHECK + OAuth callback); any code checking `instagram_business` silently never matches — that exact bug hid the IG publish-permission validation.
+- Duplicate prevention (same media+caption published in last 7 days) fires BEFORE idempotency-key reuse: re-approving already-published identical content throws by design; idempotency reuse only applies while a job is still live (scheduled/publishing).
+- The reel container-processing test sleeps 60s (12 polls × 5s) — run that test name separately; the bash 120s cap kills a full-suite run.

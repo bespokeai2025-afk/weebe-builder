@@ -12,6 +12,7 @@ import type { Plugin } from "vite";
 import { runCampaignTick } from "./src/lib/campaign-scheduler/executor";
 import { runBlogDraftTick } from "./src/lib/growthmind/blog-draft-tick";
 import { runCMOAnalysisTick } from "./src/lib/growthmind/cmo-analysis-tick";
+import { runGscSyncTick } from "./src/lib/growthmind/gsc-sync-core";
 
 const TICK_INTERVAL_MS = 5 * 60 * 1000;
 const INITIAL_DELAY_MS = 45_000;
@@ -72,6 +73,21 @@ export function campaignSchedulerPlugin(): Plugin {
           console.error("[campaign-scheduler] unexpected error:", e?.message ?? e);
         }
 
+        // Search Console incremental sync (daily per workspace; the tick
+        // no-ops until next_sync_at is due). Best-effort.
+        try {
+          const gsc = await runGscSyncTick();
+          if (gsc.ran.length || gsc.failed.length) {
+            console.log(
+              `[gsc-sync] ran=${gsc.ran.length} skipped=${gsc.skipped} failed=${gsc.failed.length}` +
+              (gsc.ran.length ? ` — ${gsc.ran.map((r) => `${r.workspaceId}: rows=${r.rows}${r.baselinePending ? " (baseline pending)" : ""}`).join(", ")}` : "") +
+              (gsc.failed.length ? ` — errors: ${gsc.failed.map((f) => `${f.workspaceId}: ${f.error}`).join("; ")}` : ""),
+            );
+          }
+        } catch (e: any) {
+          console.warn("[gsc-sync] dev tick failed:", e?.message ?? e);
+        }
+
         // WBAH dialler campaign start/finish reports (mirrors the prod
         // campaign-executor endpoint). Loaded via ssrLoadModule because the
         // module (and its report-generator imports) use "@/" aliases that
@@ -117,6 +133,24 @@ export function campaignSchedulerPlugin(): Plugin {
           }
         } catch (e: any) {
           console.warn("[perf-snapshots] dev tick failed:", e?.message ?? e);
+        }
+
+        // SystemMind call runtime: trigger evaluation, queue processing,
+        // integration-error retries, health sweep (mirrors the prod
+        // campaign-executor endpoint). Loaded via ssrLoadModule because the
+        // module uses "@/" aliases. Best-effort.
+        try {
+          const { runCallRuntimeTick } = (await server.ssrLoadModule(
+            "/src/lib/systemmind/call-runtime/tick.server.ts",
+          )) as typeof import("./src/lib/systemmind/call-runtime/tick.server");
+          const rt = await runCallRuntimeTick();
+          if (rt.enqueued > 0 || rt.claimed > 0 || rt.integrationRetries.resolved > 0) {
+            console.log(
+              `[call-runtime] triggers=${rt.triggersEvaluated} enqueued=${rt.enqueued} claimed=${rt.claimed} processed=${JSON.stringify(rt.processed)} crmRetries=${JSON.stringify(rt.integrationRetries)}`,
+            );
+          }
+        } catch (e: any) {
+          console.warn("[call-runtime] dev tick failed:", e?.message ?? e);
         }
 
         // Supabase DB health watchdog (mirrors the prod campaign-executor

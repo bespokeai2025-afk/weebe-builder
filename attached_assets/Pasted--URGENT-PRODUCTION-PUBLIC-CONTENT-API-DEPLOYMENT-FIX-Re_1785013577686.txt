@@ -1,0 +1,314 @@
+# URGENT PRODUCTION PUBLIC-CONTENT API DEPLOYMENT FIX
+# Required before publishing the Lovable blog frontend
+
+The Lovable blog frontend has been implemented successfully in preview against the approved WEBEE contract.
+
+However, Lovable tested the production WEBEE endpoints and found that all routes under:
+
+https://webeereceptionist.com/api/public/v1/sites/webespokeai/*
+
+currently return HTTP 404 or the WEBEE/Lovable placeholder HTML instead of the required JSON or XML responses.
+
+Do not continue building new SEO features.
+
+First make the already-built public-content API genuinely available on the production domain.
+
+Preserve:
+
+- Existing publishing backbone
+- Public sites and article model
+- Article versions
+- Publication approvals
+- Publishing executions
+- Scheduling
+- Withdrawals
+- Restore and rollback
+- Preview tokens
+- SEO Safety Gate
+- Search Console scheduler
+- GrowthMind, HiveMind, SystemMind and AccountsMind integrations
+- Existing tests and workspace isolation
+
+Do not create another API or change the Lovable contract unless the existing route structure is technically impossible.
+
+## 1. Reproduce the production failure
+
+Test these exact public URLs from outside the application runtime:
+
+- https://webeereceptionist.com/api/public/v1/sites/webespokeai/posts
+- https://webeereceptionist.com/api/public/v1/sites/webespokeai/categories
+- https://webeereceptionist.com/api/public/v1/sites/webespokeai/feed
+- https://webeereceptionist.com/api/public/v1/sites/webespokeai/sitemap-data
+
+Record for each:
+
+- HTTP status
+- Content-Type
+- Redirect chain
+- Response class:
+  - Correct API response
+  - JSON error
+  - XML response
+  - SPA HTML fallback
+  - 404
+  - Reverse-proxy error
+- Production deployment/version identifier
+- Correlation ID
+
+Do not report development-server results as production proof.
+
+## 2. Identify the exact root cause
+
+Trace:
+
+Public request
+→ production domain
+→ reverse proxy/CDN
+→ deployed server
+→ API router
+→ public-content handler
+→ database query
+
+Inspect specifically for:
+
+- Public routes not included in the production build
+- New code not republished
+- Static SPA fallback intercepting `/api/*`
+- Incorrect route registration order
+- API routes registered after the catch-all frontend route
+- Wrong production entry point
+- Wrong server wrapper
+- TanStack/Vite route mismatch
+- Development-only route registration
+- Environment or feature flag disabling the routes
+- Wrong deployed branch or commit
+- Cloudflare or proxy rewrites
+- `webeereceptionist.com` pointing to a different application
+- Incorrect site-key lookup
+- Production database migration mismatch
+- Cached 404 or cached frontend HTML
+- Missing server restart after deployment
+
+The `/api/*` routes must be resolved before any static or SPA fallback.
+
+Do not mask the problem by returning fake empty responses.
+
+## 3. Repair and deploy the existing API
+
+Make these exact routes work on production:
+
+### Posts
+
+GET /api/public/v1/sites/webespokeai/posts
+
+Expected JSON structure:
+
+{
+  "items": [],
+  "page": 1,
+  "pageSize": 10,
+  "total": 0,
+  "totalPages": 1
+}
+
+An empty list is valid when no articles are published.
+
+### Categories
+
+GET /api/public/v1/sites/webespokeai/categories
+
+Expected JSON structure:
+
+{
+  "categories": [],
+  "tags": []
+}
+
+### Sitemap data
+
+GET /api/public/v1/sites/webespokeai/sitemap-data
+
+Expected JSON structure:
+
+{
+  "canonical_host": "www.webespokeai.com",
+  "urls": []
+}
+
+It may contain real verified static or published article URLs.
+
+### Feed
+
+GET /api/public/v1/sites/webespokeai/feed
+
+Expected response:
+
+- HTTP 200
+- Content-Type: application/rss+xml
+- Valid RSS 2.0 XML
+
+### Single article
+
+GET /api/public/v1/sites/webespokeai/posts/{slug}
+
+Unknown, unpublished, blocked or withdrawn slugs must return:
+
+- HTTP 404
+- Content-Type: application/json
+- Body:
+  {"error":"not_found"}
+
+### Preview
+
+GET /api/public/v1/sites/webespokeai/preview/{itemId}?token=...
+
+Invalid or expired previews must return a controlled 404 without frontend HTML.
+
+## 4. Required public API headers
+
+Verify where applicable:
+
+- Content-Type
+- ETag
+- If-None-Match returns 304 when unchanged
+- X-Robots-Tag: noindex
+- Safe Cache-Control
+- CORS for:
+  - https://www.webespokeai.com
+  - https://webespokeai.com
+- No wildcard protected-preview CORS
+- Rate limiting
+- No credentialed cross-origin leakage
+
+API error responses must never fall through to the frontend HTML application.
+
+OAuth routes and other existing API routes must remain unaffected.
+
+## 5. Production republish
+
+Republish the correct production application.
+
+After republishing:
+
+1. Confirm the deployed commit/version.
+2. Purge only any stale API-route cache where required.
+3. Do not purge unrelated long-lived hashed assets unnecessarily.
+4. Re-run every production endpoint.
+5. Confirm Lovable can retrieve the API from an approved origin.
+6. Confirm server-side requests also work.
+
+Do not call this fixed until the production URLs return the correct response types.
+
+## 6. Controlled published article for integration testing
+
+The Lovable frontend requires one real WEBEE API-published article for final testing.
+
+Use the existing article generated for:
+
+“UK missed-call lead recovery”
+
+or another controlled WEBEE article.
+
+Do not bypass the existing approvals.
+
+Required flow:
+
+1. Confirm the article is linked to its Content Studio project.
+2. Re-run the SEO Safety Gate.
+3. Present or confirm Content Approval.
+4. Present a separate Publication Approval.
+5. After both valid approvals, publish the approved version to the public-content API.
+6. Confirm it appears in:
+   GET /posts
+7. Confirm it appears in:
+   GET /posts/{slug}
+8. Confirm it appears in:
+   GET /sitemap-data
+9. Confirm it appears in:
+   GET /feed
+10. Keep the status:
+    API Published — Awaiting Lovable Frontend
+
+Do not mark the article Live yet.
+
+Lovable has not been published to production and WEBEE’s live verification has not passed.
+
+If the necessary approvals are not currently present, create the correct approval actions and stop at Awaiting Publication Approval rather than bypassing them.
+
+## 7. Lovable integration verification package
+
+After the production API is working, provide:
+
+- Production API base URL
+- Test article slug
+- Expected Lovable article URL
+- Safe example response from `/posts`
+- Safe example response from `/posts/{slug}`
+- Safe sitemap-data example
+- Feed response status
+- ETag result
+- CORS result
+- Preview test result
+- Production deployment version
+
+The expected website URL should be:
+
+https://www.webespokeai.com/blog/{slug}
+
+## 8. Regression and security testing
+
+Test:
+
+- Public posts endpoint
+- Empty list state
+- Published article
+- Draft exclusion
+- Withdrawn exclusion
+- Wrong site key
+- Cross-workspace isolation
+- Single-article 404
+- Preview token
+- Expired preview
+- Revoked preview
+- ETag/304
+- CORS
+- Rate limiting
+- Sitemap data
+- RSS feed
+- Static frontend fallback isolation
+- Existing Google Ads routes
+- Existing Search Console routes
+- Existing OAuth callback
+- Unified HiveMind
+- WBAH isolation
+
+Run the production build and all existing automated tests.
+
+## Required checkpoint
+
+Report:
+
+1. Root cause of the production 404/HTML fallback
+2. Route or deployment fix made
+3. Production deployment version
+4. `/posts` result
+5. `/categories` result
+6. `/sitemap-data` result
+7. `/feed` result
+8. Single-article result
+9. Preview result
+10. ETag/304 result
+11. CORS result
+12. Rate-limit result
+13. Controlled article and slug
+14. Approval status
+15. Public API publication result
+16. Automated tests
+17. Production tests
+18. Genuine remaining blocker
+
+Do not create more frontend code.
+
+Do not change the established Lovable API contract unless a real incompatibility is proven.
+
+Stop after the production API is working and the controlled article is API-published or awaiting its legitimate publication approval.

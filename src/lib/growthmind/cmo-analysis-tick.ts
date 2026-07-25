@@ -177,8 +177,21 @@ export async function runCMOAnalysisTick(): Promise<CMOTickReport> {
     return { ran: [], skipped: [], failed: [], error: String(dnaErr ?? "No data") };
   }
 
+  // Honour the per-workspace jobs pause switch (HiveMind executive control).
+  const dnaWsIds = [...new Set((dnaRows as any[]).map((r: any) => r.workspace_id))];
+  let pausedWs = new Set<string>();
+  if (dnaWsIds.length) {
+    const { data: settings } = await Promise.resolve((sb as any)
+      .from("workspace_settings")
+      .select("workspace_id, growthmind_jobs_paused")
+      .in("workspace_id", dnaWsIds)
+    ).catch(() => ({ data: null }));
+    pausedWs = new Set(((settings ?? []) as any[]).filter((s) => s.growthmind_jobs_paused === true).map((s) => s.workspace_id));
+  }
+  const activeRows = (dnaRows as any[]).filter((r: any) => !pausedWs.has(r.workspace_id));
+
   const results: CMOTickResult[] = await Promise.all(
-    (dnaRows as any[]).map((row: any) =>
+    activeRows.map((row: any) =>
       tickWorkspace(sb, row.workspace_id).catch((e: any) => ({
         workspaceId: row.workspace_id,
         skipped:     false,

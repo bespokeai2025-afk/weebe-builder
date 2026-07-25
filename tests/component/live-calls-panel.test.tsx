@@ -298,7 +298,7 @@ async function sendCalls(es: MockEventSource, calls: Record<string, unknown>[]) 
 }
 
 const OVERDUE_RE = /Live transcript unavailable/;
-const WAITING_RE = /Waiting for Retell transcript_updated event/;
+const WAITING_RE = /Waiting for live transcript/;
 
 function getTranscriptContainer(): HTMLDivElement {
   const el = document.querySelector<HTMLDivElement>("div[style*='max-height']");

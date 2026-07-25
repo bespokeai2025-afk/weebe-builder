@@ -1,0 +1,2393 @@
+# WEBEE MASTER IMPLEMENTATION PROMPT
+
+# AUTONOMOUS HIVEMIND + GROWTHMIND MARKETING INTELLIGENCE, EXECUTION AND LEARNING SYSTEM
+
+Audit and upgrade the existing WEBEE HiveMind, GrowthMind, Business DNA, Competitor Intelligence, Knowledge Bases, Google Ads integration, Action Centre, voice interface, CRM attribution, campaign analytics and marketing execution architecture.
+
+This is not a cosmetic interface change or a prompt-only improvement.
+
+Implement the underlying services, database records, tools, permissions, APIs, execution workflows, approval controls, voice commands, external platform verification and post-action monitoring required to make this functionality genuinely work.
+
+Do not remove or replace working functionality unnecessarily.
+
+Preserve:
+
+* Existing WEBEE features.
+* Existing Google integrations.
+* Existing campaign records.
+* Existing CRM functions.
+* Existing voice functions.
+* Existing Action Centre functions.
+* Existing GrowthMind and HiveMind capabilities.
+* Existing client data.
+* Existing authentication.
+* Existing mobile and web functionality.
+* Existing workspace settings.
+* Existing API credentials.
+* Existing role and permission controls.
+* Existing integrations.
+
+Maintain strict workspace isolation throughout the implementation.
+
+No advertising account, campaign, recommendation, Business DNA record, competitor record, Knowledge Base item, approval, credential, marketing action or analytics result may cross between client workspaces.
+
+The finished system must turn:
+
+**HiveMind into WEBEE’s executive marketing controller.**
+
+**GrowthMind into WEBEE’s autonomous, commercially driven marketing intelligence and execution engine.**
+
+The system must stop behaving like a reporting chatbot.
+
+It must operate using this closed commercial decision loop:
+
+**Collect data → validate data → understand the business → diagnose → recommend → challenge → approve → execute → verify → monitor → learn → retain, improve or reverse.**
+
+---
+
+# 1. CORE PRODUCT RESPONSIBILITIES
+
+## 1.1 GrowthMind
+
+GrowthMind is WEBEE’s in-house Chief Marketing Officer and specialist marketing operator.
+
+GrowthMind must be capable of:
+
+* Reading all connected marketing data.
+* Reading Business DNA.
+* Reading Competitor Intelligence.
+* Reading all authorised Knowledge Bases.
+* Reading CRM leads and sales outcomes.
+* Reading call transcripts and post-call data.
+* Reading bookings and follow-up results.
+* Reading campaign settings and performance.
+* Identifying commercial problems.
+* Identifying growth opportunities.
+* Conducting keyword research.
+* Conducting search-term research.
+* Conducting geographic analysis.
+* Conducting competitor research.
+* Analysing advertising creative.
+* Analysing landing pages.
+* Analysing conversion tracking.
+* Preparing complete campaign builds.
+* Preparing campaign optimisation actions.
+* Executing approved marketing actions.
+* Verifying external platform responses.
+* Monitoring results after changes.
+* Learning from successful and unsuccessful recommendations.
+* Reporting its conclusions and evidence back to HiveMind.
+
+GrowthMind must not merely generate marketing text.
+
+GrowthMind must perform structured marketing work and create persistent jobs, deliverables, proposed actions and results.
+
+## 1.2 HiveMind
+
+HiveMind is WEBEE’s in-house CEO, executive controller and primary user interface.
+
+HiveMind must be capable of:
+
+* Understanding natural-language and voice requests.
+* Reading the user’s current workspace context.
+* Reading Business DNA.
+* Reading Competitor Intelligence.
+* Reading all authorised Knowledge Bases.
+* Reading Google Ads and other marketing data.
+* Creating real GrowthMind jobs.
+* Setting GrowthMind objectives.
+* Challenging GrowthMind’s recommendations.
+* Rejecting weak or generic recommendations.
+* Prioritising the highest-impact actions.
+* Explaining commercial reasoning.
+* Asking for user approval where required.
+* Accepting written approval.
+* Accepting verbal approval.
+* Amending actions from natural-language instructions.
+* Instructing GrowthMind to execute approved actions.
+* Receiving real execution results.
+* Confirming whether an external platform accepted the action.
+* Monitoring results.
+* Recommending continuation, adjustment or reversal.
+
+HiveMind must have full operational control over GrowthMind within the user’s configured permissions and autonomy settings.
+
+GrowthMind researches, analyses, prepares and executes.
+
+HiveMind governs, challenges, prioritises, approves and communicates.
+
+The following statement must never be returned again:
+
+> “I can’t directly ask GrowthMind to search for keywords or optimise the campaign.”
+
+That response contradicts the WEBEE architecture.
+
+HiveMind must be able to directly create and control GrowthMind work.
+
+---
+
+# 2. CURRENT FAILURE THAT MUST BE CORRECTED
+
+The current system produces conversations similar to:
+
+* “Define your target keywords.”
+* “Set clear goals.”
+* “Create compelling ad copy.”
+* “Monitor and optimise.”
+* “I’ll propose an action.”
+* “Please check the Action Centre shortly.”
+* “I can’t directly ask GrowthMind.”
+* “Let me know if you want to proceed.”
+
+This behaviour is unacceptable.
+
+The user already told HiveMind:
+
+* The channel is Google Ads.
+* The budget is £500.
+* The goal is lead generation.
+* Keyword research is required.
+* Optimisation is required.
+* GrowthMind should perform the work.
+* Implementation is requested.
+* The user wants the work started immediately.
+
+HiveMind must not keep repeating or re-requesting those facts.
+
+It must create a real GrowthMind job and report the true status.
+
+Generic recommendations such as “choose relevant keywords” must be replaced with real research, specific findings and executable actions.
+
+---
+
+# 3. STOP REPORTING STATISTICS WITHOUT DECISIONS
+
+HiveMind and GrowthMind must not treat statistics as recommendations.
+
+The following are observations, not decisions:
+
+* Total spend.
+* Impressions.
+* Clicks.
+* CTR.
+* CPC.
+* Conversion totals.
+* Reach.
+* Engagement.
+* Keyword count.
+* Campaign count.
+
+Every high-priority marketing message must answer:
+
+1. What is wrong or what opportunity exists?
+2. What evidence supports the conclusion?
+3. What is the likely root cause?
+4. Why does it matter commercially?
+5. What exact action should be taken?
+6. What financial or commercial result is expected?
+7. What are the risks?
+8. What information is uncertain?
+9. Can WEBEE execute the change?
+10. Does approval need to be obtained?
+
+Example:
+
+“£312 has been spent on search terms that produced no qualified leads. Most of this spend came from informational searches rather than businesses looking to buy an AI receptionist service. I recommend adding 18 negative keywords, reducing two broad-match bids and moving £20 per day into the campaign producing booked demonstrations. These changes are low risk and reversible. Shall I prepare the exact changes for approval?”
+
+The system must lead with the decision, not the metric.
+
+---
+
+# 4. COMMERCIAL OBJECTIVE HIERARCHY
+
+The system must optimise marketing decisions in the following order:
+
+1. Revenue.
+2. Gross profit where available.
+3. Closed customers.
+4. Qualified sales opportunities.
+5. Booked demonstrations or appointments.
+6. Qualified leads.
+7. Completed high-intent enquiries.
+8. Relevant inbound calls.
+9. Conversion rate.
+10. Cost per qualified result.
+11. Clicks, impressions and engagement.
+
+Do not optimise primarily for traffic, CTR, impressions, video views, reach or engagement when qualified lead, sale or revenue data exists.
+
+When the selected campaign objective is lead generation, the system must distinguish between:
+
+* Platform conversion.
+* Raw lead.
+* Contactable lead.
+* Qualified lead.
+* Booked appointment.
+* Attended appointment.
+* Sales opportunity.
+* Closed customer.
+
+A Google Ads conversion must not automatically be treated as a successful lead.
+
+When CRM attribution is available, campaign optimisation must use downstream commercial outcomes.
+
+---
+
+# 5. BUSINESS DNA MUST BE A PRIMARY INTELLIGENCE SOURCE
+
+GrowthMind and HiveMind must read the workspace-specific Business DNA before producing important marketing recommendations.
+
+Business DNA should contain or infer:
+
+* Company name.
+* Brand names.
+* Products.
+* Services.
+* Pricing.
+* Offers.
+* Target customer profiles.
+* Target industries.
+* Target company sizes.
+* Geographic service areas.
+* Excluded areas.
+* Customer pain points.
+* Unique value propositions.
+* Competitive advantages.
+* Sales process.
+* Primary conversion goal.
+* Secondary conversion goal.
+* Acceptable cost per lead.
+* Acceptable cost per acquisition.
+* Average customer value.
+* Customer lifetime value where known.
+* Sales cycle length.
+* Preferred tone.
+* Compliance restrictions.
+* Claims that must not be used.
+* Brand terminology.
+* Approved calls to action.
+* Marketing objectives.
+* Current commercial priorities.
+
+## 5.1 Business DNA must be used during decisions
+
+GrowthMind must use Business DNA when deciding:
+
+* Which products should be promoted.
+* Which customer profiles should be targeted.
+* Which keywords are commercially relevant.
+* Which locations should be targeted.
+* Which locations should be excluded.
+* Which landing pages should be used.
+* Which selling points should appear in ads.
+* Which calls to action should be used.
+* Which conversions should be considered valuable.
+* What cost per lead is acceptable.
+* Whether a campaign is commercially viable.
+* Whether campaign results support scaling.
+
+Business DNA must not be a passive form that is stored but ignored.
+
+## 5.2 Incomplete Business DNA Mode
+
+The user may not have completed Business DNA.
+
+The system must remain useful.
+
+Implement an `Incomplete Business DNA Mode`.
+
+In this mode, GrowthMind must infer provisional Business DNA from all authorised information sources, including:
+
+* The connected company website.
+* Existing Google Ads campaigns.
+* Existing campaign names.
+* Existing keywords.
+* Existing search terms.
+* Existing ads.
+* Existing landing pages.
+* Existing conversion actions.
+* WEBEE account information.
+* Products stored in WEBEE.
+* Service descriptions.
+* Pricing stored in WEBEE.
+* CRM leads.
+* Qualified leads.
+* Disqualified leads.
+* Disqualification reasons.
+* Bookings.
+* Call recordings and transcripts.
+* Post-call extraction values.
+* Sales pipeline stages.
+* Closed customer records.
+* Marketing templates.
+* Content Creation Studio.
+* SEO content.
+* Social profiles.
+* Connected Knowledge Bases.
+* Previous HiveMind and GrowthMind decisions.
+* Direct statements made by the user.
+
+Every inferred Business DNA field must store:
+
+* Inferred value.
+* Source or sources.
+* Confidence score.
+* Date inferred.
+* Whether user confirmation is required.
+* Risk if incorrect.
+* Whether it is permitted to influence live actions.
+
+Example:
+
+```json
+{
+  "field": "primary_marketing_offer",
+  "value": "AI receptionist service",
+  "confidence": 0.84,
+  "sources": [
+    "company_website",
+    "google_ads_history",
+    "crm_leads",
+    "knowledge_base"
+  ],
+  "confirmation_required": false,
+  "risk_if_incorrect": "medium"
+}
+```
+
+HiveMind should summarise important assumptions clearly.
+
+Example:
+
+“I have provisionally identified your main offer as an AI receptionist service and booked demonstrations as the primary conversion. Confidence is 84%, based on your website, current Knowledge Base and lead records.”
+
+Do not repeatedly ask vague questions such as:
+
+> “Tell me about your business.”
+
+Only ask a question when the missing information materially affects the proposed action.
+
+---
+
+# 6. COMPETITOR INTELLIGENCE MUST BE USED
+
+GrowthMind and HiveMind must read workspace-specific competitor records when performing campaign research and optimisation.
+
+Competitor information may include:
+
+* Competitor name.
+* Website.
+* Products.
+* Pricing.
+* Offer.
+* Target audience.
+* Locations.
+* Advertising messages.
+* Landing pages.
+* Calls to action.
+* Keywords.
+* Content topics.
+* Social channels.
+* Strengths.
+* Weaknesses.
+* Differentiation opportunities.
+* Auction Insights data.
+* Competitors mentioned in CRM notes or sales calls.
+* Competitors found in search terms.
+* Competitors identified in connected Knowledge Bases.
+
+Competitor data must help GrowthMind determine:
+
+* Which offers are overused in the market.
+* Which differentiators should be emphasised.
+* Which competitor keywords may be appropriate.
+* Which competitor keywords are too expensive or risky.
+* Which market gaps exist.
+* Which locations appear underserved.
+* Which objections should be addressed.
+* Which landing-page improvements are required.
+* Which competitor claims must not be copied.
+
+## 6.1 Incomplete competitor records
+
+The user may not have entered competitors.
+
+GrowthMind must still attempt to identify likely competitors from:
+
+* Google Ads Auction Insights.
+* Search-result advertisers.
+* Organic search results.
+* Businesses bidding on similar high-intent terms.
+* Competitor names in search-term reports.
+* CRM notes.
+* Call transcripts.
+* Sales objections.
+* Knowledge Base entries.
+* User conversations.
+
+Suggested competitors must be stored separately from confirmed competitors.
+
+Each suggested competitor must contain:
+
+* Name.
+* Website where available.
+* Evidence.
+* Confidence.
+* Reason it may be a competitor.
+* Whether user confirmation is required.
+
+Do not assume every advertiser is a direct competitor.
+
+---
+
+# 7. ALL AUTHORISED KNOWLEDGE BASES MUST BE USED
+
+GrowthMind and HiveMind must be able to use all Knowledge Bases authorised for the current workspace.
+
+This includes, where available:
+
+* Company Knowledge Base.
+* Product Knowledge Base.
+* Service Knowledge Base.
+* Sales Knowledge Base.
+* Pricing Knowledge Base.
+* Customer profile Knowledge Base.
+* Brand voice Knowledge Base.
+* Marketing Knowledge Base.
+* Objection-handling Knowledge Base.
+* Compliance Knowledge Base.
+* Campaign Knowledge Base.
+* Agent Knowledge Bases.
+* Uploaded documents.
+* Website content.
+* Internal marketing playbooks.
+* Previous campaign reports.
+* Previous recommendations.
+* Client-specific guidance.
+* Industry information stored in WEBEE.
+
+Create a source retrieval layer that searches the correct workspace Knowledge Bases before important recommendations are generated.
+
+Every recommendation must record which knowledge sources materially influenced it.
+
+Example:
+
+```json
+{
+  "recommendation_id": "REC-1042",
+  "knowledge_sources": [
+    {
+      "type": "business_dna",
+      "reference": "workspace_business_dna"
+    },
+    {
+      "type": "knowledge_base",
+      "reference": "AI Receptionist Product KB"
+    },
+    {
+      "type": "competitor_record",
+      "reference": "competitor_07"
+    }
+  ]
+}
+```
+
+Knowledge Bases must never override verified live campaign data without explanation.
+
+When sources conflict, GrowthMind must identify the conflict.
+
+Example:
+
+“The Knowledge Base says London is the primary target area, but current CRM data shows Essex produces a higher qualified-lead rate. I recommend testing a larger Essex allocation rather than automatically following the older targeting guidance.”
+
+---
+
+# 8. GOOGLE ADS DATA INTEGRITY AUDIT
+
+Before recommending or creating a new campaign, GrowthMind must audit the connected Google Ads account.
+
+The current example reports:
+
+* £51.99 historical spend.
+* No active campaigns.
+* No keywords.
+
+This may mean:
+
+* Campaigns are paused.
+* Campaigns ended.
+* Campaigns were removed.
+* The selected date range is inconsistent.
+* The integration only retrieves enabled campaigns.
+* The wrong customer account is connected.
+* A manager account is connected instead of the child account.
+* The campaign is Performance Max and does not expose standard keyword data.
+* Search terms are unavailable.
+* The API token lacks permissions.
+* Data synchronisation has failed.
+* Cached data is stale.
+* Campaign records were not normalised correctly.
+
+HiveMind must not immediately conclude that no campaign exists.
+
+GrowthMind must check:
+
+* Connected Google Ads customer ID.
+* Manager and child account relationship.
+* Account currency.
+* Account timezone.
+* OAuth health.
+* API permission scopes.
+* Data freshness.
+* Last successful synchronisation.
+* Selected reporting date range.
+* Enabled campaigns.
+* Paused campaigns.
+* Removed campaigns.
+* Ended campaigns.
+* Draft campaigns.
+* Campaign types.
+* Ad groups.
+* Keywords.
+* Search terms.
+* Negative keywords.
+* Ads.
+* Assets.
+* Locations.
+* Audiences.
+* Bidding strategies.
+* Budgets.
+* Conversion actions.
+* Conversion status.
+* Policy issues.
+* Billing issues.
+
+If spend exists but campaign data appears missing, HiveMind must say:
+
+“I can see historical spend, but the account is not returning a complete campaign structure. I am checking whether this is caused by campaign status, campaign type, account selection, date range or integration synchronisation before recommending more spend.”
+
+Do not recommend scaling or replacing a campaign until the data-integrity issue is assessed.
+
+---
+
+# 9. REAL HIVEMIND-TO-GROWTHMIND JOB CREATION
+
+Implement a persistent GrowthMind job system.
+
+HiveMind must be able to call a real internal service or tool such as:
+
+`create_growthmind_job`
+
+Required request fields:
+
+```json
+{
+  "workspace_id": "required",
+  "requested_by": "user_or_hivemind_id",
+  "job_type": "campaign_research_and_build",
+  "channel": "google_ads",
+  "business_objective": "qualified_lead_generation",
+  "budget": 500,
+  "currency": "GBP",
+  "budget_period": "total_test_budget",
+  "target_locations": [],
+  "products_or_services": [],
+  "business_dna_reference": "workspace_business_dna",
+  "competitor_context_reference": "workspace_competitors",
+  "knowledge_base_references": [],
+  "required_deliverables": [],
+  "execution_permission": "prepare_only",
+  "approval_reference": null,
+  "priority": "high"
+}
+```
+
+Required response:
+
+```json
+{
+  "job_id": "GM-1042",
+  "accepted": true,
+  "status": "account_audit_started",
+  "current_stage": "google_ads_account_audit",
+  "missing_critical_information": [],
+  "expected_deliverables": [],
+  "created_at": "timestamp"
+}
+```
+
+A real database record must be created.
+
+HiveMind must not claim a job exists unless job creation succeeds.
+
+HiveMind must be able to:
+
+* Create jobs.
+* Read job status.
+* Update job instructions.
+* Cancel jobs.
+* Pause jobs.
+* Resume jobs.
+* Add user constraints.
+* Request revisions.
+* Approve deliverables.
+* Execute approved actions.
+* Read execution results.
+
+---
+
+# 10. REMOVE PHANTOM ACTIONS AND FALSE STATUS CLAIMS
+
+HiveMind must never say:
+
+* “I’m submitting it now.”
+* “I’ll do that shortly.”
+* “Please check the Action Centre.”
+* “GrowthMind is working on it.”
+
+unless a real backend action occurred.
+
+Use strict status language.
+
+## Not created
+
+“I have not created the job because the Google Ads connection is unavailable.”
+
+## Created
+
+“I created GrowthMind job GM-1042. It is auditing your Google Ads account and gathering Business DNA, competitor and Knowledge Base context.”
+
+## Research complete
+
+“GrowthMind completed the account audit and keyword research. It is now preparing the campaign structure.”
+
+## Draft ready
+
+“The campaign draft is complete. No live Google Ads changes have been made.”
+
+## Awaiting approval
+
+“The complete proposed campaign is ready for approval.”
+
+## Executing
+
+“Approval was received. GrowthMind is sending the campaign creation request to Google Ads.”
+
+## Externally confirmed
+
+“Google Ads accepted the campaign creation. The campaign has been created as paused.”
+
+## Failed
+
+“Google Ads rejected the campaign creation. No campaign was created. The external error has been recorded.”
+
+Never use future-tense promises as a substitute for a real action.
+
+Never report an internally saved proposal as an externally created campaign.
+
+---
+
+# 11. STRUCTURED CONVERSATION MEMORY
+
+Create structured conversation state for active marketing requests.
+
+When the user supplies a fact, HiveMind must retain it.
+
+Example state:
+
+```json
+{
+  "workspace_id": "current_workspace",
+  "channel": "google_ads",
+  "budget": 500,
+  "currency": "GBP",
+  "budget_period": "assumed_total_test_budget",
+  "goal": "qualified_lead_generation",
+  "keyword_research_requested": true,
+  "competitor_research_requested": true,
+  "location_research_requested": true,
+  "optimisation_requested": true,
+  "implementation_requested": true,
+  "business_dna_status": "incomplete",
+  "approval_status": "research_approved",
+  "last_confirmed_user_instruction": "start_now"
+}
+```
+
+HiveMind must not ask again for information already supplied.
+
+The user saying:
+
+> “£500 down”
+
+must not be interpreted as £500 per day.
+
+The safe default is:
+
+* £500 total initial test budget.
+
+HiveMind must state the assumption:
+
+“I am treating £500 as the total initial test budget, not the daily budget.”
+
+If the user later corrects this, update the state without restarting the workflow.
+
+---
+
+# 12. NATURAL LANGUAGE AND VOICE INTENT ENGINE
+
+HiveMind must understand natural-language and spoken instructions such as:
+
+* “Do it now.”
+* “Start it.”
+* “Ask GrowthMind to research it.”
+* “Find the best keywords.”
+* “Build the campaign.”
+* “Optimise it.”
+* “Approve recommendation one.”
+* “Use £500 as the total budget.”
+* “Remove London.”
+* “Only target Essex and Kent.”
+* “Do not increase the budget.”
+* “Approve the keywords but rewrite the adverts.”
+* “Launch it on Monday.”
+* “Create it as paused.”
+* “Stop the campaign.”
+* “Reverse the last change.”
+* “Do everything except the budget change.”
+* “Pause if it spends £100 without a qualified lead.”
+
+Create structured intents, including:
+
+* `approve_research`
+* `create_growthmind_job`
+* `amend_growthmind_job`
+* `prepare_campaign`
+* `approve_campaign_draft`
+* `execute_campaign_creation`
+* `approve_partial_action`
+* `reject_action`
+* `pause_campaign`
+* `resume_campaign`
+* `modify_budget`
+* `modify_locations`
+* `modify_keywords`
+* `modify_ad_copy`
+* `approve_optimisation`
+* `reverse_action`
+* `schedule_action`
+* `cancel_job`
+
+Voice commands and text commands must use the same underlying intent and approval system.
+
+---
+
+# 13. VERBAL APPROVAL AND EXECUTION SAFETY
+
+The user must be able to discuss and approve actions verbally.
+
+HiveMind must support verbal commands such as:
+
+* “Explain the recommendation.”
+* “Why do you think that?”
+* “What could go wrong?”
+* “Apply the negative keywords.”
+* “Approve the first two actions.”
+* “Do not change the budget.”
+* “Use a 20% reduction instead.”
+* “Go ahead.”
+* “Confirm.”
+* “Reverse it.”
+
+Before any live external action, HiveMind must:
+
+1. Identify the exact action.
+2. Identify the affected workspace.
+3. Identify the connected marketing account.
+4. Identify the affected campaign or asset.
+5. Read back the exact proposed changes.
+6. State the budget implications.
+7. Explain meaningful risks.
+8. Confirm whether the action is reversible.
+9. Request explicit approval.
+10. Receive unambiguous approval.
+11. Execute the action.
+12. Verify the external response.
+13. Record the previous value.
+14. Record the new value.
+15. Create a complete audit log.
+16. Monitor the result.
+
+Do not treat uncertain phrases as approval.
+
+The following are not sufficient approvals:
+
+* “Maybe.”
+* “I suppose.”
+* “Probably.”
+* “That might be okay.”
+* Background speech.
+* Incomplete speech.
+* Low-confidence voice recognition.
+
+Use a confirmation response such as:
+
+“You are approving creation of a paused Google Search campaign with a total £500 test budget. It will not spend until separately launched. Confirm execution?”
+
+For high-risk actions, require stronger confirmation.
+
+High-risk actions include:
+
+* Large budget increases.
+* £500 interpreted as a daily budget.
+* Account-wide negative keywords.
+* Campaign deletion.
+* Conversion-action removal.
+* Pausing every campaign.
+* Large location exclusions.
+* Bidding-strategy changes.
+* Publishing unreviewed advertising creative.
+* Major campaign restructuring.
+* Automatic execution across multiple accounts.
+
+---
+
+# 14. “DO IT NOW” MUST TRIGGER REAL WORK
+
+When the user says:
+
+> “Yes, do that right now.”
+
+HiveMind must not merely repeat the task.
+
+For the example Google Ads request, it must:
+
+1. Capture the existing user instructions.
+2. Store £500 as the total initial test budget.
+3. Store qualified lead generation as the objective.
+4. Create a real GrowthMind job.
+5. Attach Business DNA.
+6. Attach inferred Business DNA where required.
+7. Attach competitor records.
+8. Request provisional competitor research where records are incomplete.
+9. Attach authorised Knowledge Bases.
+10. Audit the Google Ads connection.
+11. Audit current and historical campaigns.
+12. Audit conversion tracking.
+13. Analyse existing keywords and search terms.
+14. Conduct new keyword research.
+15. Analyse locations.
+16. Analyse the website and landing pages.
+17. Create the campaign build package.
+18. Store the job ID.
+19. Return the actual current job state.
+20. Ask for live execution approval only when the exact plan is ready.
+
+Do not respond with:
+
+> “I’ll submit this action for approval.”
+
+Create the job and return its real status.
+
+---
+
+# 15. COMPLETE GOOGLE ADS CAMPAIGN RESEARCH PACKAGE
+
+A GrowthMind Google Ads research and build job must produce a complete campaign package.
+
+## 15.1 Business and offer analysis
+
+Determine:
+
+* Product or service to advertise.
+* Main customer profile.
+* Primary commercial pain point.
+* Main offer.
+* Primary conversion.
+* Secondary conversion.
+* Best available landing page.
+* Main differentiation.
+* Relevant pricing.
+* Service area.
+* Sales follow-up process.
+* Business DNA assumptions.
+* Knowledge Base evidence.
+* Competitor positioning.
+
+## 15.2 Account diagnosis
+
+Report:
+
+* Google Ads customer account.
+* Account status.
+* Currency.
+* Timezone.
+* Existing campaigns.
+* Historical campaigns.
+* Historical spend.
+* Campaign types.
+* Existing keywords.
+* Existing search terms.
+* Existing negative keywords.
+* Existing ads.
+* Existing locations.
+* Existing audiences.
+* Existing conversion actions.
+* Tracking health.
+* Policy issues.
+* Billing issues.
+* Data-quality warnings.
+* Integration warnings.
+
+## 15.3 Keyword research
+
+Every recommended keyword must include:
+
+* Keyword.
+* Match type.
+* Search intent.
+* Commercial relevance.
+* Product or service theme.
+* Proposed ad group.
+* Proposed landing page.
+* Reason for inclusion.
+* Competitiveness where available.
+* Estimated CPC where available.
+* Search volume where available.
+* Priority.
+* Confidence.
+* Data source.
+
+Do not fabricate CPC, search volume or competition data.
+
+If Google Keyword Planner data is not available, say:
+
+“Intent-based recommendation. External keyword volume data is unavailable.”
+
+Keyword categories should include:
+
+* High commercial intent.
+* Service-specific.
+* Problem-aware.
+* Location-modified.
+* Competitor.
+* Informational.
+* Irrelevant.
+* Potential negative.
+* Insufficient evidence.
+
+## 15.4 Search-term classification
+
+Classify every available search term as:
+
+* High commercial intent.
+* Medium commercial intent.
+* Informational.
+* Irrelevant.
+* Job seeker.
+* Training or education.
+* Free service.
+* DIY.
+* Existing customer support.
+* Competitor research.
+* Wrong location.
+* Wrong service.
+* Potential negative keyword.
+* Potential exact-match keyword.
+* Potential new ad group.
+* Potential new campaign.
+* Insufficient evidence.
+
+Store:
+
+* Spend.
+* Clicks.
+* Platform conversions.
+* Qualified leads.
+* Bookings.
+* Sales.
+* Revenue.
+* Recommended action.
+* Confidence.
+* Risk.
+
+## 15.5 Negative keywords
+
+Every proposed negative keyword must include:
+
+* Search term or theme.
+* Recommended negative keyword.
+* Negative match type.
+* Spend.
+* Clicks.
+* Qualified outcomes.
+* Reason.
+* Risk of blocking relevant traffic.
+* Confidence.
+
+Do not automatically block ambiguous commercial searches.
+
+## 15.6 Geographic strategy
+
+Analyse:
+
+* Country.
+* Region.
+* County.
+* City.
+* Postcode or available geographic level.
+* Presence versus interest targeting.
+* Spend by area.
+* Raw leads by area.
+* Qualified leads by area.
+* Booking rate by area.
+* Sales by area.
+* Revenue by area.
+* Cost per qualified lead.
+* Cost per customer.
+
+Use:
+
+* Business service areas.
+* Business DNA.
+* Existing customers.
+* CRM results.
+* Call outcomes.
+* Campaign history.
+* Competitor coverage.
+* Market signals.
+
+Do not randomly suggest locations.
+
+Example:
+
+“Manchester consumed 21% of spend but produced no qualified leads. Essex produced fewer clicks but a qualified-lead rate four times higher. Reduce Manchester exposure and reallocate budget to Essex.”
+
+## 15.7 Campaign structure
+
+The proposed campaign must include:
+
+* Campaign name.
+* Campaign type.
+* Objective.
+* Search networks.
+* Budget.
+* Budget period.
+* Daily budget.
+* Test duration.
+* Bidding strategy.
+* Locations.
+* Excluded locations.
+* Languages.
+* Schedule.
+* Devices.
+* Audiences.
+* Conversion actions.
+* Ad groups.
+* Keywords.
+* Match types.
+* Negative keyword lists.
+* Landing pages.
+* Assets.
+* Tracking requirements.
+* Pause conditions.
+* Scale conditions.
+* Rollback conditions.
+
+## 15.8 Advertising creative
+
+For each ad group, create:
+
+* Responsive Search Ad headlines.
+* Descriptions.
+* Calls to action.
+* Keyword-aligned copy.
+* Business-DNA-aligned value propositions.
+* Competitor differentiation.
+* Landing-page alignment.
+* Sitelinks.
+* Callouts.
+* Structured snippets.
+* Call assets where appropriate.
+* Lead form assets where appropriate.
+
+Do not publish the creative without the required approval.
+
+## 15.9 Commercial forecast
+
+Provide a cautious forecast containing:
+
+* Total test budget.
+* Planned duration.
+* Primary success metric.
+* Secondary success metrics.
+* Maximum acceptable cost per qualified lead.
+* Minimum viable qualified lead volume.
+* Break-even assumptions.
+* Customer value assumptions.
+* Confidence.
+* Data limitations.
+* Conditions for stopping.
+* Conditions for continuing.
+* Conditions for scaling.
+* Conditions for changing the offer.
+* Conditions for changing the landing page.
+
+Never guarantee results.
+
+---
+
+# 16. LANDING-PAGE AND CONVERSION-TRACKING INTELLIGENCE
+
+GrowthMind must evaluate whether the campaign has a viable conversion destination.
+
+Analyse:
+
+* Landing-page availability.
+* Message match.
+* Offer clarity.
+* Product clarity.
+* Calls to action.
+* Booking flow.
+* Form flow.
+* Mobile usability.
+* Page speed signals where available.
+* Trust signals.
+* Social proof.
+* Pricing clarity.
+* Form length.
+* Broken links.
+* Conversion event configuration.
+* Google Ads conversion import.
+* Google Analytics integration.
+* CRM attribution.
+* Phone call tracking.
+* Booking tracking.
+* Thank-you-page tracking.
+* Duplicate conversion events.
+
+If tracking is broken, HiveMind must say so clearly.
+
+Example:
+
+“I can create the campaign, but I do not recommend launching it yet. The booking conversion is not being reliably recorded, which would cause Google to optimise using incomplete data.”
+
+The system may create the campaign as paused while tracking is repaired.
+
+---
+
+# 17. ASSERTIVE BUSINESS-DRIVEN RECOMMENDATIONS
+
+HiveMind must be commercially direct.
+
+It must not be rude, abusive or theatrical.
+
+It must not use empty praise.
+
+Avoid:
+
+* “Great job.”
+* “This looks exciting.”
+* “Keep it up.”
+* “Your campaign is doing well.”
+
+unless supported by meaningful commercial results.
+
+Use language such as:
+
+* “This campaign is not commercially viable in its current form.”
+* “You are paying for traffic that is not becoming qualified business.”
+* “Increasing the budget now would amplify waste.”
+* “This ad generates clicks but not buying intent.”
+* “The available data does not justify this spend.”
+* “Your conversion tracking is too weak to support scaling.”
+* “The campaign has enough data to show that the current targeting is failing.”
+* “The advertising is generating leads, but the follow-up process is losing them.”
+* “The highest-impact action is not more advertising. It is fixing lead response time.”
+* “This is the strongest commercially justified action available today.”
+
+Assertive does not mean inventing certainty.
+
+Every conclusion must be identified as one of:
+
+* Verified fact.
+* Strong inference.
+* Tentative hypothesis.
+* Insufficient data.
+
+---
+
+# 18. RECOMMENDATION SCHEMA
+
+Every recommendation must use a structured schema.
+
+Required fields:
+
+```json
+{
+  "recommendation_id": "REC-1042",
+  "workspace_id": "workspace",
+  "title": "Stop low-intent search spend",
+  "channel": "google_ads",
+  "affected_entity": "campaign_or_ad_group",
+  "problem_or_opportunity": "",
+  "evidence": [],
+  "root_cause": "",
+  "business_dna_context": [],
+  "competitor_context": [],
+  "knowledge_base_context": [],
+  "commercial_impact": "",
+  "recommended_action": "",
+  "exact_changes": [],
+  "expected_result": "",
+  "confidence_score": 0.87,
+  "risk_level": "low",
+  "urgency": "high",
+  "estimated_cost": null,
+  "estimated_saving": null,
+  "expected_revenue_impact": null,
+  "data_limitations": [],
+  "approval_required": true,
+  "execution_status": "not_started",
+  "monitoring_period": "14_days",
+  "result": null
+}
+```
+
+Prioritise using:
+
+* Expected revenue impact.
+* Qualified-lead impact.
+* Wasted-spend reduction.
+* Urgency.
+* Confidence.
+* Ease of implementation.
+* Strategic importance.
+* Risk.
+* Reversibility.
+
+Display only the three to five most important actions prominently.
+
+Do not flood the user with low-value observations.
+
+---
+
+# 19. RECOMMENDATION CENTRE AND MESSAGE FEED
+
+Replace stat-heavy HiveMind messages with executive action cards.
+
+Each action card must prominently show:
+
+* Decision required.
+* Main problem or opportunity.
+* Commercial impact.
+* Evidence.
+* Recommended action.
+* Exact proposed changes.
+* Expected result.
+* Confidence.
+* Risk.
+* Data limitations.
+* Approval status.
+* Execution status.
+* Monitoring status.
+
+Controls:
+
+* Approve all.
+* Approve selected changes.
+* Modify.
+* Reject.
+* Ask why.
+* View evidence.
+* View Business DNA context.
+* View competitor context.
+* View Knowledge Base sources.
+* Execute now.
+* Create as paused.
+* Schedule.
+* Reverse where possible.
+
+Example:
+
+## Stop wasting approximately £24 per day
+
+**Problem:** Search terms with no commercial intent are consuming budget.
+
+**Evidence:** 43 search terms produced 126 clicks, no qualified leads and no bookings.
+
+**Recommended action:** Add 18 negative keywords, reduce bids on two broad-match keywords and move £15 per day into the exact-match campaign.
+
+**Expected result:** Lower wasted spend and improved cost per qualified lead.
+
+**Confidence:** 87%.
+
+**Risk:** Low and reversible.
+
+---
+
+# 20. ACTION EXECUTION FRAMEWORK
+
+Create a standard marketing action execution layer.
+
+Supported actions should include, where APIs permit:
+
+* Create campaign.
+* Create campaign as paused.
+* Launch campaign.
+* Pause campaign.
+* Resume campaign.
+* Change campaign budget.
+* Change bidding strategy.
+* Create ad group.
+* Pause ad group.
+* Create keyword.
+* Pause keyword.
+* Change keyword bid.
+* Add negative keyword.
+* Remove negative keyword.
+* Add location.
+* Exclude location.
+* Change location targeting.
+* Change schedule.
+* Change device settings.
+* Create draft advertisement.
+* Publish approved advertisement.
+* Add assets.
+* Change audience targeting.
+* Create experiment.
+* Create landing-page task.
+* Generate landing-page copy.
+* Generate email campaign.
+* Generate WhatsApp campaign.
+* Generate SMS campaign.
+* Generate LinkedIn campaign.
+* Generate TikTok campaign.
+* Generate SEO actions.
+* Generate content.
+* Schedule content.
+* Update CRM campaign records.
+* Create follow-up tasks.
+* Notify responsible team members.
+
+Every execution response must contain:
+
+```json
+{
+  "action_id": "ACT-1042",
+  "workspace_id": "workspace",
+  "approval_reference": "APR-1042",
+  "requested_action": "",
+  "external_platform": "google_ads",
+  "target_account": "",
+  "target_entity": "",
+  "previous_value": null,
+  "requested_value": null,
+  "final_value": null,
+  "execution_started_at": "",
+  "execution_completed_at": "",
+  "external_response": {},
+  "success": true,
+  "error": null,
+  "rollback_available": true
+}
+```
+
+Never report success because an internal action was queued.
+
+Success requires external platform confirmation.
+
+---
+
+# 21. CAMPAIGN CREATION STATE MACHINE
+
+Implement a reliable state machine:
+
+* `intent_captured`
+* `job_creation_started`
+* `job_creation_failed`
+* `account_audit_started`
+* `account_audit_failed`
+* `account_audit_complete`
+* `business_context_started`
+* `business_context_inferred`
+* `competitor_research_started`
+* `competitor_research_complete`
+* `knowledge_retrieval_complete`
+* `keyword_research_started`
+* `keyword_research_complete`
+* `location_research_complete`
+* `conversion_audit_complete`
+* `draft_build_started`
+* `draft_ready`
+* `awaiting_user_changes`
+* `awaiting_approval`
+* `approved`
+* `execution_started`
+* `external_creation_failed`
+* `externally_created_paused`
+* `launch_confirmation_required`
+* `launch_started`
+* `launched`
+* `monitoring`
+* `optimisation_recommended`
+* `optimisation_approved`
+* `optimisation_executed`
+* `reversal_recommended`
+* `reversed`
+* `cancelled`
+* `failed`
+
+HiveMind messages must reflect the real stored state.
+
+Do not permit the language model to invent progress.
+
+---
+
+# 22. ACTION CENTRE MUST USE THE SAME SOURCE OF TRUTH
+
+HiveMind and the Action Centre must read from the same jobs, recommendations, approvals and execution records.
+
+Every Action Centre item must show:
+
+* Action ID.
+* GrowthMind job ID.
+* Workspace.
+* User.
+* Marketing channel.
+* Connected external account.
+* Objective.
+* Budget.
+* Current state.
+* Business DNA context.
+* Competitor context.
+* Knowledge Base context.
+* Research status.
+* Deliverables.
+* Exact proposed changes.
+* Missing requirements.
+* Approval status.
+* Approval history.
+* Voice approval transcript where applicable.
+* Execution attempts.
+* External platform response.
+* External campaign reference.
+* Launch status.
+* Monitoring status.
+* Results.
+* Rollback availability.
+* Error details.
+
+The Action Centre must update when state changes.
+
+It must never show “completed” when only a proposal was stored.
+
+---
+
+# 23. MULTI-CHANNEL MARKETING SUPERCOMPUTER
+
+The same architecture must support all marketing channels connected to WEBEE.
+
+GrowthMind must eventually analyse and act across:
+
+* Google Ads.
+* Microsoft Ads.
+* Meta Ads.
+* Facebook.
+* Instagram.
+* LinkedIn.
+* TikTok.
+* SEO.
+* Website content.
+* Landing pages.
+* Content Creation Studio.
+* Email.
+* HexMail.
+* WhatsApp.
+* BuzzChat.
+* SMS.
+* Outbound call campaigns.
+* WEBEE Swarm campaigns.
+* Follow-Up Centre.
+* Retargeting.
+* Referral campaigns.
+* Organic social media.
+* CRM pipeline marketing.
+* Lead nurture.
+* Marketing reports.
+
+HiveMind must provide a unified commercial view across channels.
+
+It must detect situations such as:
+
+* Ads generate leads but no one follows them up.
+* Calls qualify leads but CRM fields are not updated.
+* Campaigns generate bookings but attendance is low.
+* Email campaigns create interest but landing pages fail.
+* SEO traffic grows but does not create qualified leads.
+* WhatsApp campaigns produce responses but no sales task is created.
+* Paid advertising targets an offer that contradicts the website.
+* Multiple channels target the same audience inefficiently.
+
+Example:
+
+“Google Ads generated 14 qualified leads, but nine received no follow-up within 24 hours. The immediate problem is sales execution, not traffic volume. Increasing ad spend before fixing follow-up would waste money.”
+
+---
+
+# 24. CRM, CALL, BOOKING AND REVENUE ATTRIBUTION
+
+Build a marketing attribution layer connecting:
+
+**Spend → impression → click → enquiry → lead → call → qualification → booking → attendance → opportunity → customer → revenue.**
+
+Use available identifiers such as:
+
+* GCLID.
+* UTM parameters.
+* Campaign ID.
+* Ad group ID.
+* Keyword.
+* Search term.
+* Landing page.
+* Lead source.
+* Form submission.
+* Phone number.
+* Call record.
+* Booking record.
+* CRM lead ID.
+* Pipeline stage.
+* Customer ID.
+
+GrowthMind must read:
+
+* WEBEE CRM.
+* External CRM integrations.
+* Leads.
+* Qualified leads.
+* Disqualified leads.
+* Disqualification reasons.
+* Calls.
+* Call summaries.
+* Transcripts.
+* Post-call extractions.
+* Bookings.
+* Follow-ups.
+* Proposals.
+* Pipeline stages.
+* Closed sales.
+* Revenue.
+* Refunds or cancellations.
+
+When attribution is estimated, label it as estimated.
+
+Never present estimated revenue attribution as exact.
+
+---
+
+# 25. POST-ACTION MONITORING AND LEARNING
+
+Every approved recommendation must become a monitored action or experiment.
+
+Store:
+
+* Baseline period.
+* Baseline metrics.
+* Action date.
+* Exact action.
+* Expected result.
+* Primary metric.
+* Secondary metrics.
+* Guardrail metrics.
+* Measurement window.
+* Result.
+* Whether it succeeded.
+* Whether it should continue.
+* Whether it should be adjusted.
+* Whether it should be reversed.
+
+Example successful result:
+
+“Seven days ago, the user approved location reallocation. Cost per qualified lead fell from £84 to £51, and qualified lead volume increased from four to seven. Keep the change.”
+
+Example failed result:
+
+“The broad-match expansion increased clicks but produced no qualified leads. The test failed. Reverse the change.”
+
+GrowthMind must learn from historical recommendations.
+
+It must not repeatedly recommend actions that failed under similar conditions without explaining what has changed.
+
+---
+
+# 26. DAILY EXECUTIVE MARKETING BRIEF
+
+Create a concise daily HiveMind marketing brief.
+
+Required sections:
+
+## What matters today
+
+The most important commercial development.
+
+## Money being wasted
+
+The clearest avoidable marketing loss.
+
+## Growth opportunity
+
+The strongest evidence-based opportunity.
+
+## Decisions required
+
+Actions awaiting approval.
+
+## Actions completed
+
+Changes executed and external verification status.
+
+## Results being monitored
+
+Recent actions and whether they are working.
+
+## Risks
+
+Tracking failures, campaign failures, overspending, follow-up failures or account issues.
+
+## Recommended executive decision
+
+The single highest-impact decision.
+
+Do not fill the brief with raw metrics.
+
+Allow evidence to be expanded beneath the conclusion.
+
+---
+
+# 27. PROACTIVE ALERTS
+
+HiveMind must alert the user when:
+
+* Spend rises unexpectedly.
+* Qualified lead volume collapses.
+* Cost per qualified lead exceeds its limit.
+* A campaign spends without useful outcomes.
+* Conversion tracking stops.
+* A landing page fails.
+* Ads are disapproved.
+* Billing blocks delivery.
+* OAuth expires.
+* A campaign becomes limited by budget.
+* Irrelevant search terms consume spend.
+* A strong area loses traffic.
+* Leads are not followed up.
+* An approved external action fails.
+* A previously approved change makes performance worse.
+* A major scaling opportunity is detected.
+* A campaign approaches its total test budget.
+* A loss-limit condition is reached.
+
+Alerts must recommend the next action.
+
+Do not merely describe the anomaly.
+
+---
+
+# 28. CONFIDENCE AND DATA QUALITY
+
+Every important conclusion must calculate confidence from:
+
+* Data quantity.
+* Data freshness.
+* Attribution quality.
+* Conversion tracking quality.
+* CRM completeness.
+* Knowledge Base consistency.
+* Business DNA completeness.
+* Competitor evidence.
+* Statistical reliability.
+* Consistency across sources.
+
+Confidence labels:
+
+* Very high.
+* High.
+* Moderate.
+* Low.
+* Insufficient data.
+
+When confidence is low, recommend a controlled experiment rather than a permanent action.
+
+Example:
+
+“There is insufficient evidence to exclude Birmingham permanently. Run a 14-day bid reduction test instead.”
+
+---
+
+# 29. AUTONOMY AND PERMISSION MODES
+
+Support these modes per workspace and channel:
+
+## Observe
+
+Read and report only.
+
+## Recommend
+
+Produce recommendations but do not prepare external actions.
+
+## Assistant
+
+Prepare exact actions and require approval before execution.
+
+## Operator
+
+Execute actions automatically within explicit user-defined limits.
+
+Default existing users to Assistant mode unless they already selected another mode.
+
+Operator mode guardrails must include:
+
+* Maximum daily budget.
+* Maximum total monthly spend.
+* Maximum budget increase percentage.
+* Maximum bid change percentage.
+* Approved campaigns.
+* Approved channels.
+* Allowed action types.
+* Prohibited actions.
+* Financial approval threshold.
+* High-risk approval requirements.
+* Automatic pause conditions.
+* Automatic rollback conditions.
+* Permitted locations.
+* Workspace roles authorised to approve.
+
+---
+
+# 30. REQUIRED USER INTERFACE
+
+Upgrade or create:
+
+## 30.1 Executive Marketing Overview
+
+Show:
+
+* Revenue influenced.
+* Qualified leads.
+* Bookings.
+* Cost per qualified lead.
+* Cost per sale.
+* Return on ad spend where reliable.
+* Wasted spend estimate.
+* Highest-impact recommendation.
+* Pending approvals.
+* Active GrowthMind jobs.
+* Actions being monitored.
+* Data-health warnings.
+
+## 30.2 Recommendation Centre
+
+Show:
+
+* Prioritised cards.
+* Channel filters.
+* Impact filters.
+* Risk filters.
+* Confidence filters.
+* Status filters.
+* Evidence drawer.
+* Business DNA drawer.
+* Competitor drawer.
+* Knowledge Base sources.
+* Approval controls.
+* Voice approval.
+* Execution status.
+* Result status.
+* Rollback controls.
+
+## 30.3 GrowthMind Job Centre
+
+Show:
+
+* Job ID.
+* Objective.
+* Channel.
+* Current stage.
+* Progress based on completed stages, not invented percentages.
+* Data sources used.
+* Missing information.
+* Deliverables.
+* Errors.
+* Revision controls.
+* Cancellation controls.
+
+## 30.4 Marketing Action History
+
+Show:
+
+* Recommendation.
+* Approval.
+* User.
+* Voice or text approval.
+* Previous values.
+* New values.
+* External confirmation.
+* Result.
+* Rollback status.
+* Error details.
+
+## 30.5 Business DNA Health
+
+Show:
+
+* Completed fields.
+* Inferred fields.
+* Source.
+* Confidence.
+* Missing high-impact information.
+* Confirmation controls.
+* Last updated time.
+
+## 30.6 Competitor Intelligence
+
+Show:
+
+* Confirmed competitors.
+* Suggested competitors.
+* Evidence.
+* Confidence.
+* Positioning.
+* Offers.
+* Keywords.
+* Weaknesses.
+* Differentiation recommendations.
+
+---
+
+# 31. REQUIRED REPLACEMENT CONVERSATION
+
+The corrected experience should operate like this:
+
+## User
+
+“What would you say my Google Ads campaign could be?”
+
+## HiveMind
+
+“I can see £51.99 of historical spend, but the account currently returns no active campaigns and no keyword records. That may mean the previous campaign is paused, the date range is inconsistent, the wrong Google Ads customer account is selected or the integration is not retrieving the complete account.
+
+Before recommending further spend, I need GrowthMind to audit the account.
+
+Based on your website, Business DNA, Knowledge Bases and current WEBEE data, the strongest provisional opportunity appears to be a tightly controlled Search campaign designed to generate qualified enquiries for your primary service.
+
+I would not recommend broad AI-related keywords. They are likely to consume a small test budget without enough buying intent.
+
+Shall I create a GrowthMind account-audit and campaign-build job?”
+
+## User
+
+“Yes. I want to put £500 down, generate leads and implement it.”
+
+## HiveMind
+
+“Understood. I have recorded:
+
+* Channel: Google Search Ads.
+* Total initial test budget: £500.
+* Objective: qualified lead generation.
+* Keyword research: required.
+* Location research: required.
+* Competitor research: required.
+* Optimisation: required.
+* Implementation: requested.
+
+I am treating £500 as the total test budget, not the daily budget.
+
+GrowthMind job GM-1042 has been created. It is auditing the Google Ads account and gathering context from Business DNA, competitors, Knowledge Bases, the website, CRM results, calls and bookings.
+
+No live campaign changes have been made.”
+
+## User
+
+“Ask GrowthMind to search keywords that are relevant and optimise it.”
+
+## HiveMind
+
+“That instruction has been added to GM-1042.
+
+GrowthMind must now deliver:
+
+* Commercial-intent keyword research.
+* Negative-keyword research.
+* Geographic targeting.
+* Competitor analysis.
+* Campaign structure.
+* Ad copy.
+* Landing-page review.
+* Conversion-tracking review.
+* Budget allocation.
+* Pause and scaling rules.
+
+Your implementation request is already recorded. I will not ask you to repeat it.”
+
+## User
+
+“Yes, do that right now.”
+
+## HiveMind
+
+“GrowthMind job GM-1042 is active.
+
+Current stage: Google Ads account audit.
+
+The audit has identified an inconsistency: £51.99 of historical spend exists, but the integration is not returning active campaigns or keyword records. GrowthMind is checking campaign status, campaign type, customer account, date range and synchronisation before preparing the build.”
+
+When the draft is complete:
+
+## HiveMind
+
+“GrowthMind has completed the campaign draft.
+
+Main conclusion: broad AI-related keywords would probably waste the £500 test budget. The strongest approach is a tightly grouped high-intent Search campaign.
+
+The proposal contains:
+
+* Three ad groups.
+* 22 commercial-intent keywords.
+* 31 proposed negative keywords.
+* Defined target locations.
+* Draft responsive search ads.
+* A £500 total test budget.
+* A 30-day maximum test period.
+* Qualified lead tracking as the primary success metric.
+* Automatic review before the campaign exceeds its loss limit.
+
+One issue remains: booking conversion tracking has not been verified.
+
+I recommend creating the campaign as paused, verifying tracking and then requesting launch approval.
+
+Shall I create the campaign in Google Ads as paused?”
+
+## User
+
+“Yes, do it now.”
+
+## HiveMind
+
+“You are approving creation of the campaign as paused.
+
+This will not begin spending money.
+
+The campaign will use the approved targeting, keywords, advertisements and £500 total test budget.
+
+Confirm execution?”
+
+## User
+
+“Confirm.”
+
+## HiveMind
+
+“Confirmed.
+
+Google Ads accepted the campaign creation. The campaign has been created as paused.
+
+No money is currently being spent.
+
+Conversion tracking verification is the remaining requirement before launch.”
+
+This is the minimum acceptable behaviour.
+
+---
+
+# 32. TECHNICAL IMPLEMENTATION REQUIREMENTS
+
+Inspect the current architecture and reuse existing components where appropriate.
+
+Implement:
+
+* Unified marketing data normalisation.
+* Workspace-scoped data adapters.
+* Google Ads account audit service.
+* Business DNA retrieval service.
+* Business DNA inference service.
+* Competitor retrieval service.
+* Competitor discovery service.
+* Knowledge Base retrieval service.
+* GrowthMind job service.
+* Recommendation generation service.
+* Deterministic commercial rules.
+* AI analysis layer.
+* Recommendation validation layer.
+* Executive prioritisation layer.
+* Structured conversation memory.
+* Voice intent parser.
+* Approval service.
+* Action execution service.
+* External API verification.
+* Audit logs.
+* Rollback records.
+* Monitoring service.
+* Outcome learning service.
+* Alerts.
+* Permission controls.
+* Idempotency protection.
+* Retry and error handling.
+* Data freshness tracking.
+* Job and action state machines.
+
+Do not rely entirely on the language model for calculations or execution.
+
+Use deterministic code for:
+
+* Spend calculations.
+* Conversion calculations.
+* Percentage changes.
+* Budget checks.
+* Loss limits.
+* Workspace validation.
+* Permission validation.
+* Approval validation.
+* Action execution.
+* API response verification.
+* Job states.
+* Duplicate action prevention.
+
+Use AI for:
+
+* Interpretation.
+* Root-cause hypotheses.
+* Search-term classification.
+* Competitor interpretation.
+* Recommendation explanations.
+* Cross-channel reasoning.
+* Natural-language interaction.
+* Voice interaction.
+* Draft content.
+* Prioritisation support.
+
+---
+
+# 33. AUDIT BEFORE IMPLEMENTATION
+
+Before changing code, inspect:
+
+1. Existing HiveMind system prompts.
+2. Existing GrowthMind system prompts.
+3. Existing HiveMind-to-GrowthMind communication.
+4. Existing Google Ads API routes.
+5. Google OAuth storage.
+6. Google Ads customer account selection.
+7. Data synchronisation jobs.
+8. Campaign retrieval queries.
+9. Keyword and search-term retrieval.
+10. Conversion retrieval.
+11. Existing Business DNA tables and interfaces.
+12. Existing competitor tables and interfaces.
+13. Existing Knowledge Base retrieval.
+14. Existing Action Centre.
+15. Existing voice processing.
+16. Existing approval logic.
+17. Existing action execution endpoints.
+18. Existing workspace scoping.
+19. Existing CRM attribution.
+20. Existing campaign monitoring.
+
+Produce an internal implementation report containing:
+
+* Existing functionality.
+* Broken functionality.
+* Missing functionality.
+* Reusable components.
+* Prompt-only failures.
+* Backend failures.
+* Data-model failures.
+* API failures.
+* Interface failures.
+* Permission risks.
+* Workspace isolation risks.
+* Required database changes.
+* Required services.
+* Required routes.
+* Required UI changes.
+* Implementation sequence.
+
+Do not stop after producing the audit.
+
+Implement the changes.
+
+---
+
+# 34. REQUIRED ACCEPTANCE TESTS
+
+## Test 1 — Recreate the faulty message feed
+
+Run the original conversation.
+
+Expected:
+
+* HiveMind identifies the £51.99/no-active-campaign inconsistency.
+* HiveMind does not give generic advice.
+* HiveMind retains the £500 budget.
+* HiveMind retains the lead-generation objective.
+* HiveMind retains the implementation request.
+* HiveMind creates a real GrowthMind job.
+* HiveMind requests real keyword research.
+* HiveMind uses Business DNA.
+* HiveMind uses competitor context.
+* HiveMind uses Knowledge Bases.
+* HiveMind returns a real job ID and state.
+* HiveMind does not repeatedly direct the user to the Action Centre.
+* HiveMind never says it cannot directly ask GrowthMind.
+
+## Test 2 — “Do it now”
+
+User says:
+
+“Yes, do that right now.”
+
+Expected:
+
+* A real job or approved action begins.
+* A persistent record exists.
+* HiveMind reports the real state.
+* No fake promise is returned.
+
+## Test 3 — Repeated information
+
+The user supplies budget, objective and implementation request.
+
+Expected:
+
+* HiveMind never asks for those facts again.
+* Conversation state retains them.
+
+## Test 4 — Missing Business DNA
+
+Business DNA is empty.
+
+Expected:
+
+* GrowthMind infers provisional values.
+* Sources and confidence are stored.
+* The campaign recommendation remains useful.
+* Important assumptions are shown.
+
+## Test 5 — Completed Business DNA
+
+Business DNA contains target industries, locations and offer details.
+
+Expected:
+
+* GrowthMind uses the data during keywords, locations, ad copy, landing-page choice and commercial thresholds.
+
+## Test 6 — Missing competitors
+
+No competitors have been entered.
+
+Expected:
+
+* GrowthMind identifies suggested competitors.
+* Suggested competitors are separated from confirmed competitors.
+* Evidence and confidence are shown.
+
+## Test 7 — Knowledge Base conflict
+
+A Knowledge Base says London is the main target, but CRM data shows Essex performs better.
+
+Expected:
+
+* GrowthMind identifies the conflict.
+* It does not blindly follow the Knowledge Base.
+* It recommends an evidence-based test.
+
+## Test 8 — Historical spend but no keywords
+
+Expected:
+
+* GrowthMind checks campaign type, status, account selection, date range, API permissions and synchronisation.
+* It does not simply say there are no keywords.
+
+## Test 9 — High CTR but no qualified leads
+
+Expected:
+
+* HiveMind states the campaign is commercially weak.
+* It does not recommend scaling.
+* It investigates targeting, offer, landing page and lead quality.
+
+## Test 10 — Voice partial approval
+
+User says:
+
+“Approve the negative keywords but do not change the budget.”
+
+Expected:
+
+* Only negative-keyword changes are prepared.
+* Budget changes remain unapproved.
+* The exact action is read back.
+
+## Test 11 — Ambiguous voice response
+
+User says:
+
+“I suppose that might be okay.”
+
+Expected:
+
+* No action is executed.
+* Clear confirmation is requested.
+
+## Test 12 — Campaign creation
+
+The user approves the exact campaign.
+
+Expected:
+
+* The campaign is created in Google Ads as paused.
+* The external response is stored.
+* HiveMind accurately reports paused status.
+* No spend begins.
+
+## Test 13 — Failed Google Ads API request
+
+Force an API rejection.
+
+Expected:
+
+* HiveMind reports failure.
+* The external error is recorded.
+* The system does not claim submission succeeded.
+* No false campaign reference is displayed.
+
+## Test 14 — Cross-workspace isolation
+
+Use two client workspaces.
+
+Expected:
+
+* Each workspace only accesses its own Business DNA, competitors, Knowledge Bases, Google Ads accounts, jobs, approvals and actions.
+
+## Test 15 — Post-launch irrelevant searches
+
+Expected:
+
+* GrowthMind identifies irrelevant search terms.
+* Negative keywords are proposed.
+* Commercial impact and risk are shown.
+* Approval is requested according to autonomy mode.
+
+## Test 16 — Follow-up failure
+
+Ads generate qualified leads, but leads are not followed up.
+
+Expected:
+
+* HiveMind recommends fixing follow-up before increasing spend.
+
+## Test 17 — Failed recommendation
+
+An approved change makes results worse.
+
+Expected:
+
+* GrowthMind identifies failure.
+* HiveMind recommends adjustment or reversal.
+* The failed recommendation is stored for future learning.
+
+## Test 18 — External verification
+
+Create an internal proposal without calling Google Ads.
+
+Expected:
+
+* The system shows “internal draft.”
+* It does not show “campaign created.”
+
+## Test 19 — Prioritisation
+
+Provide 30 findings.
+
+Expected:
+
+* Only the top three to five commercial recommendations are displayed prominently.
+
+## Test 20 — Mobile and web consistency
+
+Run the same marketing request in the WEBEE web app and mobile app.
+
+Expected:
+
+* Both use the same job state, approvals, GrowthMind results and action history.
+* Voice approval works where supported.
+* No duplicate jobs or conflicting statuses are created.
+
+---
+
+# 35. NON-NEGOTIABLE BEHAVIOURAL RULES
+
+1. Never manufacture data.
+2. Never invent job progress.
+3. Never claim a job was created unless the database confirms it.
+4. Never claim an external action succeeded unless the external API confirms it.
+5. Never confuse an internal proposal with a live platform action.
+6. Never ask for information already supplied.
+7. Never ignore Business DNA.
+8. Never ignore competitor records.
+9. Never ignore authorised Knowledge Bases.
+10. Never blindly follow old Knowledge Base information when live data contradicts it.
+11. Never recommend scaling solely because CTR is high.
+12. Never optimise for vanity metrics when commercial outcomes exist.
+13. Never recommend increasing spend when tracking is broken.
+14. Never recommend increasing spend when leads are not being followed up.
+15. Never execute live changes without the required approval.
+16. Never execute actions outside workspace permissions.
+17. Never allow data or credentials to cross workspaces.
+18. Never hide failed actions.
+19. Never flood the user with low-value observations.
+20. Never describe a serious problem without recommending a next action.
+21. Never recommend an action without explaining the commercial reason.
+22. Never guarantee campaign results.
+23. Never fabricate keyword volume, CPC or competitor data.
+24. Never interpret £500 as a daily budget without explicit confirmation.
+25. Never respond to “do it now” with another empty promise.
+
+---
+
+# 36. DEFINITION OF DONE
+
+This implementation is complete only when:
+
+* HiveMind leads with decisions rather than statistics.
+* HiveMind can create and control real GrowthMind jobs.
+* GrowthMind can perform real account, keyword, location, competitor, landing-page and conversion research.
+* Business DNA is actively used.
+* Incomplete Business DNA can be inferred with sources and confidence.
+* Competitor records are actively used.
+* Missing competitors can be provisionally discovered.
+* All authorised Knowledge Bases can influence recommendations.
+* Knowledge conflicts are detected and explained.
+* User instructions persist through the conversation.
+* “Do it now” creates a real job or executes a genuinely approved action.
+* The Action Centre reflects the real source of truth.
+* Voice approval works.
+* Partial voice approvals work.
+* Ambiguous speech cannot trigger execution.
+* Google Ads actions receive external verification.
+* Campaigns can be created as paused.
+* Campaign launch requires proper approval.
+* Campaign performance is connected to CRM, calls, bookings and revenue.
+* Recommendations are monitored after execution.
+* Failed changes can be adjusted or reversed.
+* GrowthMind learns from outcomes.
+* HiveMind controls GrowthMind.
+* The architecture can support every marketing channel.
+* Web and mobile use the same underlying records and states.
+* All information remains strictly workspace-specific.
+* Existing working WEBEE functions remain operational.
+
+Do not deliver only revised prompts or improved chatbot wording.
+
+Deliver the functioning data, job, research, recommendation, approval, execution, external verification, monitoring and learning system required to make HiveMind and GrowthMind operate as a commercially driven marketing supercomputer.

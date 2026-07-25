@@ -32,6 +32,7 @@ import { runAdsSyncTick } from "@/lib/growthmind/growthmind.ads-sync-tick";
 import { runAccountsMindTick } from "@/lib/accountsmind/executor";
 import { runProactiveTick } from "@/lib/hivemind/proactive-engine";
 import { runTrendDiscoveryTick } from "@/lib/growthmind/trend-discovery.server";
+import { runGscSyncTick } from "@/lib/growthmind/gsc-sync-core";
 
 export const Route = createFileRoute("/api/public/campaign-executor")({
   server: {
@@ -98,6 +99,19 @@ export const Route = createFileRoute("/api/public/campaign-executor")({
               ` alerts=${accountsTick.alertsGenerated} hivemind_tasks=${accountsTick.hivemindTasksPosted}` +
               (accountsTick.failed.length ? ` failed=${accountsTick.failed.length}` : ""),
             );
+          }
+
+          // Search Console incremental sync (daily per workspace; no-ops
+          // until next_sync_at is due). Best-effort.
+          try {
+            const gsc = await runGscSyncTick();
+            if (gsc.ran.length || gsc.failed.length) {
+              console.log(
+                `[gsc-sync] ran=${gsc.ran.length} skipped=${gsc.skipped} failed=${gsc.failed.length}`,
+              );
+            }
+          } catch (e: any) {
+            console.warn("[gsc-sync] tick failed:", e?.message ?? e);
           }
 
           // Daily AccountsMind metric snapshots (once per workspace per UTC
@@ -183,6 +197,19 @@ export const Route = createFileRoute("/api/public/campaign-executor")({
             console.warn("[content-publish] tick failed:", pubErr?.message ?? pubErr);
           }
 
+          // Public content scheduled publications (due scheduled_publish executions). Best-effort.
+          try {
+            const { runPublicationTick } = await import(
+              "@/lib/growthmind/publication-engine.server"
+            );
+            const pubTick = await runPublicationTick();
+            if (pubTick.ran > 0) {
+              console.log(`[publication-tick] ran=${pubTick.ran} completed=${pubTick.completed} failed=${pubTick.failed}`);
+            }
+          } catch (ptErr: any) {
+            console.warn("[publication-tick] failed:", ptErr?.message ?? ptErr);
+          }
+
           // GrowthMind performance snapshots + attention scan + learning
           // analysis (checkpointed Meta insights on published content).
           // Best-effort — never blocks the tick.
@@ -230,6 +257,23 @@ export const Route = createFileRoute("/api/public/campaign-executor")({
             }
           } catch (wdErr: any) {
             console.warn("[db-watchdog] tick failed:", wdErr?.message ?? wdErr);
+          }
+
+          // SystemMind call runtime: trigger evaluation, queue processing,
+          // integration-error retries, activation health sweep. Best-effort —
+          // never blocks the tick.
+          try {
+            const { runCallRuntimeTick } = await import(
+              "@/lib/systemmind/call-runtime/tick.server"
+            );
+            const rt = await runCallRuntimeTick();
+            if (rt.enqueued > 0 || rt.claimed > 0 || rt.integrationRetries.resolved > 0 || rt.healthUpdated > 0) {
+              console.log(
+                `[call-runtime] triggers=${rt.triggersEvaluated} enqueued=${rt.enqueued} claimed=${rt.claimed} processed=${JSON.stringify(rt.processed)} crmRetries=${JSON.stringify(rt.integrationRetries)} health=${rt.healthUpdated}`,
+              );
+            }
+          } catch (rtErr: any) {
+            console.warn("[call-runtime] tick failed:", rtErr?.message ?? rtErr);
           }
 
           // Scheduled analytics reports (once-per-tick due check). Best-effort —

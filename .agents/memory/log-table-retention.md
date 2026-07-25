@@ -18,6 +18,11 @@ A daily best-effort prune runs from the 5-minute campaign-executor tick via
 - `hivemind_events` 180d (UI reads latest 100; scanner dedupe 1 day)
 - `provider_usage_log` / `growthmind_generation_logs` 400d (widest reader = admin month
   recompute in client-costing; monthly rollups persist forever in `client_monthly_costs`)
+- Lifecycle tables (queue/error ledgers) use the optional `statusIn` rule filter so only
+  TERMINAL rows are ever pruned: `systemmind_call_queue` 400d (completed/failed/cancelled/
+  suppressed; window must stay >= `systemmind_call_attempts` because attempts CASCADE with
+  their queue row), `systemmind_integration_errors` 400d (resolved/dead_letter only —
+  pending/retrying is an active retry queue that always terminates via max_retries).
 
 ## Design constraints
 - **Why batched deletes:** a single unbounded `DELETE ... WHERE created_at < cutoff` on a

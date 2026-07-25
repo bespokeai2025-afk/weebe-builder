@@ -1,0 +1,2726 @@
+# WEBEE MASTER PRODUCTION ACTIVATION PROMPT
+# Unified HiveMind, Real Mind Execution, Dormant Capability Activation, Cross-Mind Orchestration and Web/Mobile Parity
+
+You are performing a production-grade upgrade of the existing WEBEE platform.
+
+The objective is to turn WEBEE into the most capable AI business operating system possible: a real business supercomputer that can understand the entire company, identify what matters, create executable plans, dispatch specialist Minds, perform authorised work, verify results and continuously improve.
+
+This is not a request for:
+
+- A new prototype
+- A redesigned mock-up
+- Another isolated AI chatbot
+- Generic business recommendations
+- More passive task records
+- Fake “in progress” statuses
+- Simulated executions
+- Duplicate pages
+- Duplicate databases
+- Duplicate Minds
+- Static analytics
+- Placeholder integrations
+- A superficial proof of concept
+
+The current system already contains many pages, services, integrations, database tables, background jobs, API routes, tools and partially implemented capabilities.
+
+Your first responsibility is to find, understand, reuse, repair, connect and activate those existing capabilities.
+
+Do not rebuild a feature when a functional or partially functional version already exists.
+
+Do not leave previously programmed capabilities dormant merely because they are not currently connected to HiveMind.
+
+Do not claim completion until real end-to-end execution has been demonstrated.
+
+---
+
+# 1. CURRENT CRITICAL FAULTS TO FIX
+
+The existing platform currently displays evidence of architectural fragmentation.
+
+Observed faults include:
+
+1. HiveMind creates recommendations and task records but does not perform the underlying work.
+2. Approving a task can merely change its status from Suggested to Approved or In Progress.
+3. Assigned Minds such as GrowthMind are sometimes stored only as labels and do not receive executable jobs.
+4. The Tasks page and Action Approval Centre contain separate items that do not have an obvious parent-child relationship.
+5. GrowthMind campaign proposals can appear in Actions while related GrowthMind tasks appear elsewhere.
+6. Actions may show raw JSON payloads rather than meaningful business approval information.
+7. Incomplete campaign drafts, including proposals with a null budget, can still show an Approve button.
+8. The floating HiveMind voice/chat interface appears different from the full HiveMind Assistant.
+9. The floating and full HiveMind interfaces may use different voices, prompts, memory, tools, conversations or endpoints.
+10. The interface can say Operator mode is active while another section says Operator mode must be enabled.
+11. Recommendations, Tasks, Actions, Campaign Proposals and Executions overlap without clear purposes.
+12. Duplicate system notifications can be generated for the same unchanged issue.
+13. Generic GrowthMind proposals are being created without enough Business DNA or real campaign evidence.
+14. HiveMind can state that work is in progress when only task records were created.
+15. Existing platform functions may be implemented but unreachable, disconnected, feature-flagged, partially wired or never invoked.
+
+Fix these problems throughout the shared backend and web application.
+
+Where mobile consumes the shared backend, expose all required secure APIs and shared records so mobile uses the exact same orchestration state.
+
+---
+
+# 2. NON-NEGOTIABLE OPERATING PRINCIPLE
+
+The required platform hierarchy is:
+
+HiveMind
+→ Executive understanding, prioritisation and orchestration
+
+GrowthMind
+→ Marketing, advertising, content, SEO, acquisition and growth execution
+
+SystemMind
+→ Systems, agents, integrations, workflows, APIs and technical operations
+
+AccountsMind
+→ Invoices, income, expenditure, client billing, costs and commercial monitoring
+
+The operational flow must be:
+
+User instruction
+→ HiveMind understands the business objective
+→ HiveMind checks live business evidence
+→ HiveMind determines which Minds and tools are required
+→ A connected work order is created
+→ Required information, permissions and integrations are validated
+→ An execution plan is created
+→ Approval is requested where required
+→ The assigned Mind receives a real executable job
+→ Real services, tools and integrations are invoked
+→ Progress and errors are recorded
+→ Deliverables and results are stored
+→ Consequential actions are separately approved where required
+→ External or internal changes are applied
+→ The changed state is verified
+→ HiveMind evaluates the commercial result
+→ Follow-up monitoring and next actions are scheduled
+
+A task has not been executed merely because:
+
+- A database row exists
+- A Mind name is attached
+- A status has changed
+- An AI response says it has been actioned
+- A recommendation was created
+- A generic report was written
+- A user clicked Complete
+
+Execution requires real results, evidence or a truthful blocked/failed state.
+
+---
+
+# 3. PHASE ZERO: COMPLETE REPOSITORY CAPABILITY CENSUS
+
+Before changing code, conduct a complete audit of the real repository.
+
+Do not limit the audit to features mentioned in this prompt.
+
+Discover every previously programmed WEBEE capability, including old, hidden, dormant, incomplete and partially disconnected functions.
+
+Inspect:
+
+- Application routes
+- Navigation definitions
+- React components
+- Server functions
+- API routes
+- Services
+- Tool definitions
+- AI prompts
+- Background workers
+- Queues
+- Cron jobs
+- Supabase functions
+- Database migrations
+- Database tables
+- Storage buckets
+- Edge functions
+- Webhooks
+- OAuth callbacks
+- Provider adapters
+- Environment variables
+- Feature flags
+- Package-entitlement flags
+- Permission checks
+- Commented-out functionality
+- TODO and FIXME sections
+- Deprecated but still referenced implementations
+- Old versions of pages
+- Unused service functions
+- Unused database columns
+- Orphaned task records
+- Orphaned campaign drafts
+- Orphaned Content Studio projects
+- Orphaned workflow configurations
+- Unreachable UI components
+- Mobile API routes
+- Existing tests
+- Logging and monitoring
+
+Search specifically for:
+
+- HiveMind
+- GrowthMind
+- SystemMind
+- AccountsMind
+- create_growthmind_task
+- create_systemmind_task
+- create_accountsmind_task
+- create_task
+- proposed_actions
+- action approvals
+- campaign drafts
+- execution
+- operator
+- autonomy
+- Business DNA
+- recommendations
+- reports
+- briefings
+- system health
+- workflow intelligence
+- Content Studio
+- Template Studio
+- Analytics Centre
+- Follow-Up Centre
+- CRM
+- Retell
+- Meta
+- Google Ads
+- Search Console
+- TikTok
+- LinkedIn
+- WhatsApp
+- WATI
+- Twilio
+- FreJun
+- HexMail
+- Cal.com
+- Calendly
+- invoices
+- client register
+- outgoings
+- subscriptions
+- bank feeds
+- usage costs
+- package gating
+- staff permissions
+
+Create an internal Capability Activation Register.
+
+For every discovered capability, record:
+
+- Capability name
+- Module
+- Existing route
+- Existing UI
+- Existing service
+- Existing database storage
+- Existing integration
+- Current status
+- Why it is dormant or broken
+- Whether it is duplicated
+- Required repair
+- Required permissions
+- Required provider access
+- Web availability
+- Mobile availability
+- Test status
+
+Use these statuses:
+
+- Active and working
+- Active but unverified
+- Partially working
+- Dormant but usable
+- Dormant and broken
+- Disconnected from HiveMind
+- Disconnected from its assigned Mind
+- Frontend only
+- Backend only
+- Duplicate
+- Legacy
+- Missing permission
+- Missing integration
+- Provider restricted
+- Not implemented
+
+Do not stop after creating the register.
+
+Implement every repair that can be completed from the existing project.
+
+Only leave a capability blocked when an external credential, provider approval, account permission or provider limitation genuinely prevents execution.
+
+---
+
+# 4. PRESERVE AND ACTIVATE EXISTING FUNCTIONALITY
+
+The implementation must preserve, connect and activate all existing WEBEE capabilities, including but not limited to:
+
+## Core WEBEE platform
+
+- WEBEE Builder
+- WEBEE Smart Dashboard
+- WEBEE Receptionist
+- WEBEE Qualify
+- WEBEE Lead Gen
+- WEBEE Swarm
+- HiveMind
+- GrowthMind
+- SystemMind
+- AccountsMind
+- BuzzChat
+- HexMail
+- Follow-Up Centre
+- Template Studio
+- Content Studio
+- Analytics Centre
+- Sales Pipeline
+- WEBEE CRM
+- External CRM integrations
+- Workflow Builder
+- Agent Builder
+- Phone Numbers
+- Telephony Settings
+- Calendar and bookings
+- User signup requests
+- Admin cost engine
+- Package and feature controls
+- Staff roles and permissions
+- White-label controls where already implemented
+
+## Leads and sales
+
+- Leads
+- Qualified leads
+- Positive leads
+- Disqualified leads
+- Lead sources
+- Preferred contact method
+- Lead ownership
+- Lead statuses
+- CRM fields
+- Extracted call variables
+- Notes
+- Appointments
+- Rebookings
+- Follow-ups
+- Pipeline stages
+- Opportunity values
+- Lost reasons
+- Sales forecasts
+- Required next actions
+
+## Calls and voice systems
+
+- Inbound agents
+- Outbound agents
+- Receptionist agents
+- Qualification agents
+- Lead-generation agents
+- Call campaigns
+- Manual call triggering
+- Automated call triggering
+- Call queues
+- Concurrency controls
+- Call schedules
+- Area and daily caps
+- Phone-number assignment
+- Call transfer
+- Voicemail
+- Live call monitoring
+- Live transcript
+- Recordings
+- Call summaries
+- Call sentiment
+- Post-call extraction
+- Retell analytics
+- OpenAI Realtime where implemented
+- ElevenLabs where implemented
+- Twilio
+- FreJun
+- SIP capabilities where implemented
+
+## Messaging and follow-up
+
+- WhatsApp inbound
+- WhatsApp outbound
+- Meta WhatsApp
+- WATI
+- Twilio WhatsApp
+- BuzzChat
+- WhatsApp broadcasts
+- SMS campaigns
+- Email campaigns
+- Email warming
+- HexMail
+- Ninety-day follow-up
+- Cross-channel sequences
+- Follow-up scheduling
+- Template variables
+- Automated message generation
+- Response tracking
+- Opt-outs
+- Failed sends
+- Follow-up conversions
+
+## Marketing and acquisition
+
+- Google Ads
+- Meta Ads
+- Instagram
+- Facebook
+- TikTok
+- LinkedIn
+- SEO
+- Google Search Console
+- Content Studio
+- Competitor intelligence
+- Trend discovery
+- Keyword intelligence
+- Geographic opportunity intelligence
+- Audience intelligence
+- Campaign experiments
+- Landing-page analysis
+- Content performance
+- Campaign reporting
+- Lead attribution
+- Booking attribution
+- Revenue attribution
+
+## Agents and workflows
+
+- No-code Agent Builder
+- Conversation-flow agents
+- Agent templates
+- Agent deployment
+- Dynamic variable discovery
+- Script-variable detection
+- Required context detection
+- CRM credentials
+- CRM field mapping
+- Before-call CRM data retrieval
+- After-call CRM updates
+- Post-call data extraction
+- Webhooks
+- Call triggers
+- Campaign triggers
+- Queue rules
+- Calendar functions
+- Cal.com API v2
+- Google Calendar
+- Booking checks
+- Booking creation
+- Rebooking
+- Document checks
+- Workflow status
+- Workflow testing
+- Workflow verification
+- SystemMind workflow generation
+
+## Financial and commercial systems
+
+- AccountsMind client register
+- Services supplied
+- Invoice schedules
+- Invoice creation
+- Invoice templates
+- Missing invoice detection
+- Due-payment monitoring
+- Overdue-payment monitoring
+- Expected income
+- Received income
+- Outgoings
+- Supplier payments
+- Subscriptions
+- Renewals
+- Infrastructure costs
+- AI usage costs
+- Telephony costs
+- Campaign costs
+- Usage versus package
+- Customer profitability
+- Bank-feed reconciliation where connected
+- Cash-flow reports
+- Cost warnings
+- AccountsMind reports
+
+If additional capabilities are found in the repository, include them in the same activation process.
+
+---
+
+# 5. ONE AUTHORITATIVE HIVEMIND
+
+There must be one server-side HiveMind orchestration service.
+
+The following must all use the same HiveMind service:
+
+- Full HiveMind Assistant page
+- Floating HiveMind chat
+- Floating HiveMind voice assistant
+- Mobile HiveMind
+- HiveMind Overview
+- HiveMind Briefings
+- HiveMind Tasks
+- HiveMind Actions
+- HiveMind Recommendations
+- HiveMind Reports
+- System Health
+- Workflow Intelligence
+- Notifications
+- Approval deep links
+
+They must share:
+
+- The same authenticated user
+- The same workspace
+- The same system prompt
+- The same Business DNA
+- The same memories
+- The same conversation history
+- The same active objective
+- The same autonomy mode
+- The same tool registry
+- The same capability registry
+- The same tasks
+- The same work orders
+- The same executions
+- The same actions
+- The same approvals
+- The same reports
+- The same audit records
+- The same voice configuration
+
+Do not maintain a separate floating HiveMind intelligence layer.
+
+Do not maintain a separate mobile HiveMind intelligence layer.
+
+The floating and mobile interfaces may use different layouts, but they must be interfaces to the same backend Mind.
+
+---
+
+# 6. UNIFY HIVEMIND VOICE
+
+Create one centrally stored, workspace-configurable HiveMind voice profile.
+
+Store:
+
+- Provider
+- Voice ID
+- Voice name
+- Language
+- Speaking style
+- Speech speed
+- Voice enabled state
+- Last updated by
+- Last updated date
+
+The full Assistant, floating HiveMind and mobile HiveMind must use the same voice by default.
+
+Allow a user-specific device override only when explicitly configured.
+
+Voice and typed input must enter the same conversation system.
+
+Required behaviour:
+
+1. The user starts speaking through floating HiveMind.
+2. The recognised text is added to the shared HiveMind conversation.
+3. The conversation immediately appears in the full Assistant page.
+4. The user continues by typing.
+5. HiveMind retains the complete context.
+6. A task or action created from voice appears in the same shared work-order system.
+7. Approval by voice updates the Action Approval Centre.
+8. A manual approval is immediately understood by HiveMind.
+
+Do not use a separate generic voice assistant prompt.
+
+---
+
+# 7. ONE AUTHORITATIVE AUTONOMY MODE
+
+Create one authoritative autonomy-mode resolver.
+
+Supported modes:
+
+## Observe
+
+Read and report only.
+
+## Recommend
+
+Create recommendations and proposed objectives.
+
+## Assistant
+
+Create work orders, drafts, reports and reviewable deliverables, but require approval for consequential actions.
+
+## Operator
+
+Execute permitted actions within configured limits and approval rules.
+
+## Executive Operator
+
+HiveMind may coordinate multiple Minds and execute permitted cross-department playbooks within configured limits.
+
+Use one function or service equivalent to:
+
+getEffectiveAutonomyMode(workspaceId, userId)
+
+Every part of the platform must use it:
+
+- Sidebar mode selector
+- HiveMind Assistant
+- Floating HiveMind
+- Mobile HiveMind
+- Action Approval Centre
+- Cross-Mind Orchestration
+- Task approval
+- Mind Execution Engine
+- Campaign launch services
+- Publishing services
+- Workflow changes
+- Financial actions
+
+The UI must never say Operator mode is disabled when the effective mode is Operator.
+
+Settings must show:
+
+- Workspace mode
+- User’s effective mode
+- Role restrictions
+- Package restrictions
+- Action-specific restrictions
+- Last changed by
+- Last changed at
+
+---
+
+# 8. UNIFIED BUSINESS OPERATING MODEL
+
+Create one connected model for:
+
+- Recommendations
+- Work orders
+- Tasks
+- Executions
+- Actions
+- Approvals
+- Deliverables
+- Results
+- Reports
+
+## Recommendations
+
+An insight or opportunity not yet accepted as committed work.
+
+Examples:
+
+- Conversion tracking may be missing.
+- A lead requires immediate follow-up.
+- A campaign should test a new location.
+- An invoice appears to be missing.
+- A workflow is failing.
+
+Actions:
+
+- Accept and create work order
+- Edit objective
+- Save
+- Dismiss
+- Ask HiveMind
+
+## Work orders
+
+The complete business objective.
+
+Example:
+
+“Improve qualified demo bookings from the Search for US and Reception Google Ads campaign.”
+
+A work order contains:
+
+- Business objective
+- Commercial outcome
+- Parent recommendation
+- Assigned Minds
+- Child tasks
+- Dependencies
+- Execution plan
+- Approvals
+- Deliverables
+- Actions
+- Monitoring
+- Final result
+
+## Tasks
+
+Operational work performed by:
+
+- HiveMind
+- GrowthMind
+- SystemMind
+- AccountsMind
+- A named human user
+
+## Executions
+
+The actual technical, analytical or creative runs.
+
+Executions contain:
+
+- Plan
+- Steps
+- Tool calls
+- Integration calls
+- Progress
+- Outputs
+- Errors
+- Retries
+- Cost
+- Evidence
+- Verification
+
+## Actions
+
+Consequential decisions requiring approval or showing a confirmed consequential action.
+
+Examples:
+
+- Apply Google Ads changes
+- Launch a Meta campaign
+- Publish social content
+- Start a call campaign
+- Send a WhatsApp broadcast
+- Update a production workflow
+- Send an invoice
+
+Actions must not become a second generic task list.
+
+## Reports
+
+Completed analysis and evidence-based summaries.
+
+---
+
+# 9. BUILD THE MIND EXECUTION ENGINE
+
+Create a shared server-side Mind Execution Engine.
+
+It must be used by all Minds and by both web and mobile.
+
+Required components:
+
+- Instruction interpreter
+- Task classifier
+- Objective resolver
+- Capability resolver
+- Mind router
+- Action planner
+- Integration readiness checker
+- Permission checker
+- Approval engine
+- Worker dispatcher
+- Tool executor
+- Background-job runner
+- Step tracker
+- Result validator
+- Evidence store
+- Completion verifier
+- Retry manager
+- Dead-letter handler
+- Cancellation manager
+- Cost tracker
+- Audit logger
+- Notification service
+- Event stream or polling service
+
+Do not place this architecture inside React components.
+
+Do not duplicate execution logic separately for each Mind.
+
+Use typed server-side services and validated schemas.
+
+---
+
+# 10. TASK CATEGORIES
+
+Every task must be classified.
+
+## Informational recommendation
+
+No execution occurs until accepted.
+
+## Executable Mind directive
+
+A Mind can perform the work through available tools.
+
+## Draft-producing task
+
+Creates a reviewable deliverable.
+
+Examples:
+
+- Campaign draft
+- Content Studio project
+- Invoice draft
+- Workflow configuration
+- Ad-copy variants
+- SEO brief
+
+## Approval-gated external action
+
+Changes an internal production system or external provider.
+
+## Human-required task
+
+Requires real human work.
+
+Examples:
+
+- Record founder footage
+- Approve a testimonial
+- Provide credentials
+- Confirm an offline payment
+
+Do not assign human-only work to a Mind.
+
+## Investigation
+
+Requires real evidence and root-cause analysis.
+
+---
+
+# 11. REAL TASK STATE MACHINE
+
+Replace simplistic task statuses with a real state machine.
+
+Required states:
+
+- Suggested
+- Awaiting Details
+- Awaiting Integration
+- Awaiting Permission
+- Awaiting Approval
+- Approved
+- Queued
+- Planning
+- Executing
+- Awaiting External Result
+- Awaiting User Input
+- Awaiting Action Approval
+- Awaiting Deliverable Approval
+- Partially Completed
+- Completed
+- Blocked
+- Failed
+- Cancelled
+- Rejected
+- Expired
+
+Rules:
+
+- Approved does not mean Executing.
+- Executing only begins when a worker actually starts.
+- Awaiting Action Approval means analysis or drafting may be complete but a consequential action requires approval.
+- Completed requires a validated result and evidence.
+- Blocked requires a specific blocker and next action.
+- Failed requires the real error and retry status.
+- A user cannot manually mark an AI-executed task complete without an authorised override.
+- A generic Complete button must not be shown for active Mind work.
+- Retrying must launch or resume a real execution.
+
+---
+
+# 12. STRUCTURED TASK AND EXECUTION DATA
+
+Each executable task must store structured information.
+
+Required fields or equivalent:
+
+- task_id
+- work_order_id
+- workspace_id
+- source_mind
+- assigned_mind
+- assigned_user_id
+- created_by_user_id
+- created_from_platform
+- conversation_id
+- source_message_id
+- task_category
+- action_type
+- objective
+- commercial_objective
+- target_module
+- target_integration
+- target_record_type
+- target_record_id
+- target_campaign_id
+- input_parameters
+- required_tools
+- required_permissions
+- required_integrations
+- required_approvals
+- autonomy_mode
+- risk_level
+- expected_deliverables
+- success_criteria
+- estimated_cost
+- actual_cost
+- execution_status
+- active_execution_id
+- result_summary
+- completion_evidence
+- blocked_reason
+- failure_reason
+- due_date
+- created_at
+- updated_at
+- completed_at
+
+Do not rely on title and description as the execution specification.
+
+Create execution records for every attempt.
+
+Execution data must include:
+
+- execution_id
+- task_id
+- execution_number
+- trigger
+- plan
+- current step
+- status
+- tool calls
+- provider calls
+- artifacts
+- changed records
+- errors
+- warnings
+- retry count
+- next retry
+- estimated cost
+- actual cost
+- result
+- verification result
+- started time
+- completed time
+
+---
+
+# 13. CAPABILITY RESOLVER
+
+Before execution, determine whether WEBEE can genuinely perform the requested action.
+
+Capability statuses:
+
+- Available
+- Available with approval
+- Available as draft only
+- Read-only
+- Missing permission
+- Missing integration
+- Missing credential
+- Unsupported by provider
+- Temporarily unavailable
+- Not implemented
+- Legacy implementation requiring repair
+
+Examples:
+
+- Read Google Ads campaign data
+- Modify Google Ads campaign
+- Read Meta campaign data
+- Create Meta campaign draft
+- Launch Meta campaign
+- Publish Instagram Reel
+- Analyse TikTok content
+- Create Content Studio project
+- Update CRM lead
+- Create invoice draft
+- Send invoice
+- Deploy Retell agent
+- Update a workflow
+- Retry a background job
+- Reconcile bank transaction
+
+If a capability is read-only, produce analysis or a draft.
+
+Do not claim an external modification occurred.
+
+---
+
+# 14. APPROVAL MUST DISPATCH REAL EXECUTION
+
+Fix the approval flow.
+
+When an authorised user selects Approve and Run:
+
+1. Lock the approved task version.
+2. Validate the workspace.
+3. Validate the user’s permission.
+4. Validate the effective autonomy mode.
+5. Validate required integration access.
+6. Validate required fields.
+7. Create an execution record.
+8. Generate a typed action plan.
+9. Queue the execution.
+10. Dispatch to the assigned Mind.
+11. Update the task to Queued.
+12. Change to Executing only when the worker starts.
+13. Record step progress.
+14. Store outputs and evidence.
+15. Validate success.
+16. Update the work order.
+17. Notify HiveMind.
+18. Notify the user.
+
+Approval controls must state exactly what they do:
+
+- Approve and Run Analysis
+- Approve Draft Creation
+- Approve Strategy
+- Approve Creative
+- Approve Budget
+- Approve and Create Externally as Paused
+- Approve and Launch
+- Approve Changes to Existing Campaign
+
+Do not use one vague Approve button for all scopes.
+
+---
+
+# 15. TASKS AND ACTIONS MUST REMAIN CONNECTED
+
+When a task produces a consequential action:
+
+1. Keep the parent task active.
+2. Set it to Awaiting Action Approval.
+3. Create an action linked to:
+   - Work order
+   - Task
+   - Execution
+   - Target record
+4. Show the action within the task.
+5. Also show it in the Action Approval Centre.
+6. Approving in either place updates the same action.
+7. Resume the paused execution.
+8. Apply the action.
+9. Verify the resulting state.
+10. Attach the evidence to the task.
+11. Complete only after verification.
+
+The user must not manually move tasks between tabs.
+
+Tabs are filtered views of authoritative state.
+
+---
+
+# 16. MIND DISPATCHER
+
+Map action types to real Mind services.
+
+Reuse existing service functions where possible.
+
+Do not duplicate business logic inside HiveMind.
+
+## GrowthMind action families
+
+- Analyse Google Ads account
+- Analyse Google Ads campaign
+- Validate conversion tracking
+- Analyse keywords
+- Analyse search terms
+- Produce negative-keyword proposals
+- Produce keyword expansion proposals
+- Analyse geographic performance
+- Analyse device performance
+- Analyse schedule performance
+- Generate ad copy
+- Generate campaign experiment
+- Produce landing-page recommendations
+- Apply approved Google Ads changes
+- Analyse Meta campaign
+- Create Meta campaign draft
+- Optimise Meta audience
+- Optimise Meta geography
+- Generate Meta creative
+- Launch approved Meta campaign
+- Analyse Instagram content
+- Discover relevant trends
+- Analyse competitor content
+- Create original content adaptation
+- Create Content Studio project
+- Publish approved content
+- Analyse TikTok campaign
+- Analyse LinkedIn campaign
+- Analyse WhatsApp campaign
+- Analyse call campaign
+- Run SEO audit
+- Analyse Search Console
+- Generate SEO content brief
+- Create keyword strategy
+- Create geographic-opportunity report
+- Create audience test
+- Create multi-channel campaign
+- Generate growth report
+
+## SystemMind action families
+
+- Run system-health check
+- Diagnose integration
+- Inspect webhook
+- Inspect background job
+- Retry safe idempotent job
+- Pause unsafe retry loop
+- Inspect agent deployment
+- Deploy approved agent
+- Validate agent setup
+- Detect required agent context
+- Detect script variables
+- Validate variable mapping
+- Validate CRM mapping
+- Validate before-call data retrieval
+- Validate after-call updates
+- Inspect post-call extraction
+- Validate calendar integration
+- Validate Cal.com v2
+- Validate Google Calendar
+- Validate campaign trigger
+- Validate call queue
+- Validate concurrency
+- Validate phone-number assignment
+- Create workflow draft
+- Apply approved workflow update
+- Verify repair
+- Verify workspace isolation
+- Diagnose analytics discrepancy
+- Diagnose mobile/web API mismatch
+
+## AccountsMind action families
+
+- Audit client register
+- Detect clients due for invoicing
+- Detect missing invoices
+- Detect duplicate invoices
+- Validate invoice amount
+- Validate service period
+- Create invoice draft
+- Prepare invoice approval
+- Detect due payments
+- Detect overdue payments
+- Match connected bank transactions
+- Monitor expected income
+- Monitor outgoings
+- Monitor supplier payments
+- Monitor service renewals
+- Detect cost increases
+- Detect duplicate subscriptions
+- Detect failed payments
+- Calculate client profitability
+- Compare usage against package
+- Calculate campaign return
+- Create cash-flow report
+- Create overdue-payment follow-up
+- Escalate service-continuity risk
+
+## HiveMind action families
+
+- Create executive plan
+- Create cross-Mind work order
+- Dispatch GrowthMind
+- Dispatch SystemMind
+- Dispatch AccountsMind
+- Coordinate dependencies
+- Reprioritise work
+- Request approvals
+- Verify departmental results
+- Produce executive briefing
+- Produce executive report
+- Create next-action plan
+
+---
+
+# 17. HIVEMIND EXECUTIVE CAPABILITIES
+
+HiveMind must understand the entire authenticated workspace.
+
+It must be able to inspect and coordinate:
+
+- Leads
+- Qualified leads
+- Disqualified leads
+- Pipeline
+- Calls
+- Appointments
+- Follow-ups
+- Campaigns
+- WhatsApp
+- Email
+- SMS
+- LinkedIn
+- TikTok
+- Meta
+- Google Ads
+- SEO
+- Content Studio
+- GrowthMind
+- SystemMind
+- AccountsMind
+- Calendar
+- CRM
+- External CRM
+- User signup requests
+- Agents
+- Workflows
+- Integrations
+- System health
+- Costs
+- Income
+- Invoices
+- Outgoings
+- Services
+- Reports
+- Approvals
+- Tasks
+- Package limits
+
+HiveMind must independently assess recommendations using business-wide evidence.
+
+Example:
+
+GrowthMind recommends increasing advertising spend.
+
+HiveMind must check:
+
+- Lead quality
+- Sales capacity
+- Calendar availability
+- Cost per qualified lead
+- Expected cash flow
+- AccountsMind budget warnings
+- Current product priorities
+- CRM conversion
+- Existing workload
+- System health
+
+HiveMind must not simply repeat GrowthMind’s conclusion.
+
+---
+
+# 18. GROWTHMIND: ACTIVATE THE COMPLETE MARKETING DEPARTMENT
+
+GrowthMind must operate as a real CMO and marketing execution department.
+
+## Business DNA
+
+Use a structured, workspace-specific Business DNA containing:
+
+- Company
+- Products
+- Services
+- Features
+- Benefits
+- Unique selling points
+- Target industries
+- Ideal customer profiles
+- Job roles
+- Company sizes
+- Countries
+- Cities
+- Customer pain points
+- Objections
+- Buying triggers
+- Competitors
+- Pricing
+- Offers
+- Calls to action
+- Brand voice
+- Approved claims
+- Restricted claims
+- Content preferences
+- Advertising preferences
+- Proof and results
+- Existing assets
+- Active priorities
+- Commercial objectives
+
+## Teach GrowthMind
+
+Activate a manual area where users can instruct GrowthMind.
+
+Support:
+
+- Permanent Business DNA
+- Strategic instructions
+- Temporary priorities
+- Campaign-specific instructions
+- Experimental hypotheses
+
+Display:
+
+- What GrowthMind knows
+- Active instructions
+- Expiry dates
+- Evidence
+- Campaigns influenced
+- Confirmed learning
+- Contradicted learning
+
+HiveMind voice and typed commands must update the same learning records.
+
+## Strategy and Approval Centre
+
+Activate or create one connected GrowthMind Strategy & Approval Centre containing:
+
+- Growth objectives
+- Meta campaign approvals
+- Google campaign proposals
+- Keyword intelligence
+- Geographic opportunities
+- Audience suggestions
+- Experiment builder
+- Content approvals
+- SEO priorities
+- Campaign results
+- Learning history
+
+## Content intelligence
+
+Activate:
+
+- Competitor monitoring
+- Trend discovery
+- Multimodal video analysis
+- Transcription
+- On-screen text extraction
+- Hook analysis
+- Scene analysis
+- Content Anatomy
+- Original adaptation
+- Similarity checking
+- Business DNA transformation
+- Content Studio handoff
+- Approval
+- Publishing
+- Performance learning
+
+Do not copy content directly.
+
+Extract the successful mechanism and create an original business-specific version.
+
+## Growth channels
+
+GrowthMind must coordinate:
+
+- Google Ads
+- Meta Ads
+- Instagram
+- Facebook
+- TikTok
+- LinkedIn
+- WhatsApp
+- Email
+- SMS
+- Calls
+- SEO
+- Landing pages
+- Content Studio
+- Retargeting
+- Follow-up sequences
+
+## Commercial performance
+
+Measure:
+
+- Reach
+- Impressions
+- Views
+- Clicks
+- Leads
+- Qualified leads
+- Bookings
+- Sales
+- Revenue
+- Cost per lead
+- Cost per qualified lead
+- Cost per booking
+- Revenue attribution
+- Return on ad spend
+- Customer acquisition cost
+
+Do not call a campaign successful only because it generated impressions or views.
+
+---
+
+# 19. EXACT GOOGLE ADS EXECUTION BEHAVIOUR
+
+For the example campaign:
+
+“Search for US and Reception”
+
+Current observed figures include:
+
+- Enabled
+- £65.46 spent over 30 days
+- 601 impressions
+- 11 clicks
+- No reported conversions
+
+When the user says:
+
+“I want you to improve it for me.”
+
+HiveMind must not create five passive task titles and stop.
+
+It must create one connected campaign-optimisation work order.
+
+The flow must be:
+
+1. Resolve the exact Google Ads account.
+2. Resolve the exact campaign ID.
+3. Retrieve current campaign state.
+4. Confirm the reporting date range.
+5. Verify whether conversion tracking is installed.
+6. Verify whether conversion tracking is recording events.
+7. Retrieve available:
+   - Campaign data
+   - Ad groups
+   - Ads
+   - Keywords
+   - Search terms
+   - Locations
+   - Devices
+   - Schedules
+   - Audience signals
+   - Landing pages
+8. Recognise that 11 clicks is a limited sample.
+9. Do not make unsupported conclusions.
+10. Compare results against Business DNA.
+11. Produce:
+   - Conversion-tracking diagnostic
+   - Search-term analysis
+   - Negative-keyword proposal
+   - Keyword expansion proposal
+   - Ad-copy variants
+   - Geographic recommendations
+   - Device recommendations
+   - Schedule recommendations
+   - Landing-page audit
+   - Experiment plan
+12. Store the deliverables.
+13. Request separate approval for external modifications.
+14. Apply only approved changes.
+15. Re-read Google Ads to verify the changed state.
+16. Schedule performance checkpoints.
+17. Report exactly what was completed.
+
+Distinguish:
+
+- Keywords
+- Search terms
+- Audience signals
+- Demographics
+- Geographic targeting
+- Meta-style interests
+
+Do not describe Google Search targeting as though it works identically to Meta.
+
+---
+
+# 20. CAMPAIGN PROPOSAL READINESS
+
+Do not allow incomplete campaign drafts to be approved for launch.
+
+Create readiness validation.
+
+For Google Ads, validate as applicable:
+
+- Account
+- Campaign objective
+- Campaign type
+- Network
+- Product
+- Audience
+- Budget
+- Currency
+- Locations
+- Languages
+- Landing page
+- Conversion goal
+- Ad groups
+- Keywords
+- Negative keywords
+- Ads
+- Schedule
+- Bid strategy
+- Test duration
+- Success criteria
+- Approval scope
+
+For Meta, validate as applicable:
+
+- Ad account
+- Page
+- Instagram account
+- Objective
+- Campaign
+- Ad set
+- Audience
+- Geography
+- Exclusions
+- Budget
+- Schedule
+- Optimisation event
+- Creative
+- Copy
+- CTA
+- Destination
+- Tracking
+- Approval scope
+
+Readiness statuses:
+
+- Incomplete Draft
+- Awaiting Details
+- Ready for Review
+- Ready for Approval
+- Approved
+- Creating Externally
+- Created as Paused
+- Launching
+- Active
+- Failed
+
+A campaign with `budget: null` must not show Approve and Launch.
+
+It should show:
+
+- Complete Draft
+- Ask GrowthMind to Complete
+- Edit Manually
+
+---
+
+# 21. REPLACE RAW JSON APPROVALS
+
+Do not expose raw action JSON as the main approval interface.
+
+Render structured business information.
+
+Each approval card must show:
+
+- Parent work order
+- Related task
+- Proposing Mind
+- Target platform
+- Target account
+- Target record
+- Exact proposed action
+- Current configuration
+- Proposed configuration
+- Product
+- Audience
+- Geography
+- Keywords or targeting
+- Creative
+- Landing page
+- Budget
+- Duration
+- Expected outcome
+- Supporting evidence
+- Risks
+- Confidence
+- Missing information
+- Approval scope
+
+Raw payloads may be placed in a developer-only expandable section for authorised users.
+
+---
+
+# 22. SYSTEMMIND: ACTIVATE THE COMPLETE CTO DEPARTMENT
+
+SystemMind must perform real technical work.
+
+It must monitor and control authorised work across:
+
+- Agent health
+- Agent deployment
+- Workflow health
+- CRM integrations
+- Calendar integrations
+- Meta integrations
+- Google integrations
+- TikTok integrations
+- LinkedIn integrations
+- WhatsApp integrations
+- Email integrations
+- API keys
+- OAuth tokens
+- Webhooks
+- Queues
+- Jobs
+- Rate limits
+- Supabase
+- Database health
+- RLS
+- Caching
+- Workspace isolation
+- Analytics feeds
+- Campaign execution
+- Content publishing
+- Mobile APIs
+- Web APIs
+- Notification delivery
+- Cost feeds
+
+## Agent setup execution
+
+When the user asks SystemMind to build an agent setup, it must:
+
+1. Identify the agent.
+2. Read the current agent script or flow.
+3. Detect dynamic variables.
+4. Detect required context.
+5. Detect CRM fields.
+6. Detect calendar requirements.
+7. Detect before-call variables.
+8. Detect post-call extraction.
+9. Detect workflow triggers.
+10. Detect call queues.
+11. Detect campaign assignment.
+12. Detect phone-number requirements.
+13. Present missing credentials through secure credential inputs.
+14. Create a structured field map.
+15. Create the workflow.
+16. Configure webhooks.
+17. Test with sample data.
+18. Verify the data flow.
+19. Report evidence.
+20. Deploy only after required approval.
+
+## Real investigation
+
+SystemMind must not merely say:
+
+“Check the API key.”
+
+It must inspect actual integration health, job logs, webhook records and provider responses where authorised.
+
+---
+
+# 23. ACCOUNTSMIND: ACTIVATE THE COMPLETE FINANCIAL DEPARTMENT
+
+AccountsMind must use real workspace financial and commercial data.
+
+## Client register
+
+Use the existing AccountsMind client register as the source of truth for expected billing.
+
+Support:
+
+- Client
+- Company
+- Service
+- Product
+- Contract start
+- Billing frequency
+- Invoice amount
+- Currency
+- Tax
+- Payment terms
+- Next invoice date
+- Next payment date
+- Last invoice
+- Last payment
+- Status
+- Owner
+- Documents
+- CRM link
+- Active state
+
+## Invoice audit
+
+AccountsMind must determine:
+
+- Which clients should have been invoiced
+- Whether an invoice exists
+- Whether it was sent
+- Whether it is due
+- Whether it is overdue
+- Whether it was paid
+- Whether the amount is correct
+- Whether the service period is correct
+- Whether a recurring invoice is missing
+- Whether a duplicate exists
+- Whether details are incomplete
+
+Do not create a passive task called “Review invoices.”
+
+Perform the actual audit.
+
+## Due income
+
+Display and monitor:
+
+- Expected income this week
+- Expected income this month
+- Overdue income
+- Missing invoices
+- Upcoming invoices
+- Recently received income
+- At-risk payments
+- Revenue by client
+- Revenue by product
+- Recurring monthly revenue
+- Forecast receipts
+
+## Outgoings and services
+
+Monitor:
+
+- Retell
+- OpenAI
+- ElevenLabs
+- Twilio
+- FreJun
+- WATI
+- Meta
+- Google
+- AWS
+- Supabase
+- Replit
+- Domains
+- CRM providers
+- Development services
+- Contractors
+- Marketing services
+- Other registered suppliers
+
+Identify:
+
+- Payments due
+- Overdue supplier payments
+- Unexpected increases
+- Duplicate subscriptions
+- Unused services
+- Failed payments
+- Renewals
+- Services without owners
+- Services charging after cancellation
+- Missing invoices or receipts
+- Budget overruns
+
+## Bank access
+
+Use regulated, authorised, read-only bank-feed integrations where connected.
+
+Never ask for bank passwords.
+
+Do not initiate payments unless a separate authorised payment integration and mandatory approval flow exists.
+
+Use bank data for:
+
+- Matching income
+- Matching supplier payments
+- Recurring-charge detection
+- Unusual-charge detection
+- Invoice reconciliation
+
+---
+
+# 24. CROSS-MIND ORCHESTRATION
+
+Create real cross-Mind playbooks.
+
+## Underperforming campaign
+
+Parent objective:
+Improve qualified conversions profitably.
+
+GrowthMind:
+- Analyse audience, copy, keywords, creative and landing page
+- Produce proposed improvements
+
+SystemMind:
+- Verify tracking
+- Verify integrations
+- Verify event delivery
+- Verify campaign sync
+
+AccountsMind:
+- Review spend
+- Review cost per qualified lead
+- Review commercial return
+- Check budget limits
+
+HiveMind:
+- Combine findings
+- Prioritise changes
+- Present approval
+- Monitor outcome
+
+## Qualified lead not followed up
+
+HiveMind:
+- Identify the lead and urgency
+
+GrowthMind:
+- Produce relevant messaging
+
+SystemMind:
+- Verify follow-up infrastructure
+
+Follow-Up Centre:
+- Create the authorised sequence
+
+AccountsMind:
+- Consider lead value where available
+
+HiveMind:
+- Monitor outcome
+
+## Missing invoice
+
+AccountsMind:
+- Identify expected invoice and exception
+
+SystemMind:
+- Check invoice-generation workflow
+
+HiveMind:
+- Create the correct approval or human task
+
+AccountsMind:
+- Monitor resolution
+
+## Social trend opportunity
+
+GrowthMind:
+- Find and analyse the trend
+- Generate an original adaptation
+- Create Content Studio project
+
+HiveMind:
+- Check business priority and sales capacity
+
+AccountsMind:
+- Check cost limit
+
+SystemMind:
+- Check publishing connection
+
+HiveMind:
+- Request approval and monitor performance
+
+Support:
+
+- Parent work order
+- Child tasks
+- Dependencies
+- Blocking conditions
+- Shared objective
+- Shared evidence
+- Consolidated result
+
+Do not create disconnected tasks with matching titles.
+
+---
+
+# 25. CONTENT STUDIO CONNECTION
+
+GrowthMind and HiveMind must connect to the existing Content Studio.
+
+Do not build another editor.
+
+When GrowthMind creates content, create a real shared Content Studio project containing:
+
+- Project title
+- Platform
+- Objective
+- Business DNA
+- Source inspiration
+- Content Anatomy
+- Original script
+- Scene plan
+- Voiceover
+- On-screen text
+- Subtitles
+- Caption
+- CTA
+- Thumbnail
+- Hashtags
+- Assets
+- Brand kit
+- Target account
+- Approval state
+- Publishing schedule
+- Risk notes
+- Originality result
+
+HiveMind must be able to:
+
+- Review
+- Request changes
+- Update the same project
+- Approve
+- Reject
+- Schedule
+- Publish where authorised
+- Monitor performance
+
+Do not create a new disconnected project for every revision.
+
+---
+
+# 26. UI AND NAVIGATION
+
+Keep the existing WEBEE visual design, but make the operating model understandable.
+
+## Assistant
+
+Talk or speak to HiveMind.
+
+## Tasks
+
+Operational work performed by Minds and people.
+
+## Actions
+
+Only consequential approvals and executed consequential actions.
+
+## Recommendations
+
+New opportunities not yet accepted.
+
+## Reports
+
+Completed analysis and executive reports.
+
+## System Health
+
+Real technical and integration status.
+
+## Workflow Intelligence
+
+Agent and workflow setup, diagnostics and execution.
+
+Each work-order detail view must show one timeline:
+
+- Recommendation created
+- Work order accepted
+- Minds assigned
+- Planning started
+- Execution started
+- Deliverable produced
+- Action proposed
+- Awaiting approval
+- Approved
+- External change applied
+- Verification completed
+- Monitoring scheduled
+- Final result
+
+---
+
+# 27. TASK CENTRE UI
+
+Each task must show:
+
+- Parent objective
+- Task category
+- Assigned Mind or user
+- Source conversation
+- Target record
+- Why it exists
+- Capability status
+- Integration status
+- Permission status
+- Current state
+- Current step
+- Progress
+- Execution plan
+- Dependencies
+- Required input
+- Related actions
+- Deliverables
+- Results
+- Evidence
+- Errors
+- Retry
+- Cost
+- Comments
+- Audit history
+
+Controls by state:
+
+## Before execution
+
+- Approve and Run
+- Edit Instructions
+- Reject
+
+## Queued
+
+- View Plan
+- Cancel
+
+## Executing
+
+- View Live Progress
+- Cancel where safe
+
+## Awaiting input
+
+- Provide Information
+- Connect Integration
+- Approve Deliverable
+
+## Awaiting action approval
+
+- Review Proposed Action
+- Approve
+- Edit and Approve
+- Request Changes
+- Reject
+
+## Completed
+
+- View Result
+- View Evidence
+- Create Follow-Up
+- Re-run with Changes
+
+Do not show a generic Complete button for a running Mind task.
+
+---
+
+# 28. ACTION APPROVAL CENTRE UI
+
+Each action must show:
+
+- Parent work order
+- Related task
+- Related execution
+- Proposing Mind
+- Target provider
+- Target record
+- Exact change
+- Current state
+- Proposed state
+- Cost
+- Budget
+- Risk
+- Evidence
+- Missing fields
+- Approval scope
+- Expected effect
+
+Actions:
+
+- Approve
+- Edit and Approve
+- Request Changes
+- Reject
+- Open Parent Work Order
+
+Approving from the action page and approving from the task page must operate on the same record.
+
+---
+
+# 29. NOTIFICATION DEDUPLICATION
+
+Do not create repeated notifications for the same unchanged fault.
+
+Use a deduplication identity equivalent to:
+
+workspace_id
++ issue_type
++ target_record_type
++ target_record_id
+
+Update:
+
+- Last detected time
+- Occurrence count
+- Current status
+
+Example:
+
+Agent “Conversation Flow Agent” is not deployed.
+Detected twice.
+Last checked 22 hours ago.
+
+Do not create duplicate cards unless the issue was resolved and then later reoccurred.
+
+---
+
+# 30. HONEST HIVEMIND RESPONSES
+
+HiveMind must never state:
+
+- “These tasks are now in progress”
+- “GrowthMind is working on it”
+- “This has been actioned”
+- “The campaign was improved”
+- “The workflow was fixed”
+- “The invoice was created”
+
+unless a real execution record proves it.
+
+Required language examples:
+
+## Work order created
+
+“I created one proposed Google Ads optimisation work order. It has not started because approval is required.”
+
+## Queued
+
+“The analysis has been approved and queued. GrowthMind has not started the execution yet.”
+
+## Executing
+
+“GrowthMind has started retrieving the campaign data. It is currently validating conversion tracking.”
+
+## Partially completed
+
+“The campaign analysis and new ad copy are complete. Applying changes is blocked because Google Ads write access is unavailable.”
+
+## Failed
+
+“The execution failed while retrieving search-term data because the Google Ads token expired. No campaign settings were changed.”
+
+## Completed
+
+“GrowthMind applied six approved negative keywords to the selected ad group. Google Ads confirmed the changes, and a verification fetch returned all six as enabled.”
+
+---
+
+# 31. COMPLETION EVIDENCE
+
+Every completed task must include evidence.
+
+Evidence may include:
+
+- External campaign ID
+- Provider response
+- Before-and-after state
+- Created project ID
+- Created invoice ID
+- Created workflow ID
+- Published media ID
+- Changed settings
+- Analytics report
+- Verification result
+- Output artifact
+- Number of records analysed
+- Timestamp
+- User approval
+- Mind execution ID
+
+Invalid:
+
+“Reviewed the audience.”
+
+Valid:
+
+“Analysed Campaign 123, three ad groups, eight enabled keywords and 28 search terms from 24 June to 24 July. Created six negative-keyword proposals, three ad-copy variants and two geographic recommendations. No external changes were applied because Google Ads write permission is unavailable.”
+
+---
+
+# 32. WEB AND MOBILE SHARED BACKEND
+
+The web and mobile applications are separate interfaces to one platform.
+
+They must share:
+
+- HiveMind
+- Conversations
+- Voice configuration
+- Business DNA
+- Autonomy mode
+- Tool registry
+- Capability registry
+- Work orders
+- Tasks
+- Executions
+- Actions
+- Approvals
+- Reports
+- Notifications
+- Results
+- Audit history
+
+Expose secure, versioned, mobile-compatible endpoints.
+
+Mobile must not reproduce web component logic.
+
+A task approved on mobile must run through the same engine.
+
+An action completed on web must immediately appear on mobile.
+
+A conversation started in floating HiveMind must appear on mobile and in the full Assistant.
+
+If the mobile source code is not present in this repository:
+
+1. Complete the shared backend.
+2. Create a precise mobile API contract.
+3. Create a capability parity manifest.
+4. Document every endpoint, schema, permission and deep link required.
+5. Do not falsely claim the separate mobile project was updated.
+
+---
+
+# 33. WORKSPACE ISOLATION
+
+Every record and execution must be scoped using the authenticated workspace.
+
+This includes:
+
+- Conversations
+- Business DNA
+- Recommendations
+- Work orders
+- Tasks
+- Executions
+- Actions
+- Approvals
+- Reports
+- Campaigns
+- Content
+- Leads
+- Calls
+- CRM records
+- Invoices
+- Bank data
+- Integrations
+- Provider keys
+- Cache entries
+- Background jobs
+- Costs
+- Notifications
+
+Never:
+
+- Hard-code workspace IDs
+- Fall back to another workspace
+- Reuse another workspace’s API key
+- Mix campaign data
+- Mix Mind memory
+- Mix cached responses
+- Mix analytics
+- Expose another workspace’s financial data
+
+Preserve WBAH-specific behaviour.
+
+Webuyanyhouse and Webespoke AI must never share:
+
+- Retell analytics
+- Leads
+- Calls
+- Campaigns
+- Agents
+- API keys
+- Tasks
+- Business DNA
+- Content
+- Costs
+
+WBAH-specific lead logic must continue to use the correct qualified/positive lead behaviour.
+
+Standard accounts must use their own workspace data and integrations.
+
+---
+
+# 34. PERMISSIONS
+
+Use server-side permissions.
+
+Suggested permission families:
+
+## HiveMind
+
+- hivemind.view
+- hivemind.execute
+- hivemind.coordinate_minds
+- hivemind.approve_actions
+- hivemind.override_completion
+
+## GrowthMind
+
+- growthmind.view
+- growthmind.analyse
+- growthmind.teach
+- growthmind.create_drafts
+- growthmind.manage_campaigns
+- growthmind.manage_budgets
+- growthmind.publish
+- growthmind.view_analytics
+
+## SystemMind
+
+- systemmind.view
+- systemmind.investigate
+- systemmind.retry_jobs
+- systemmind.apply_safe_fixes
+- systemmind.modify_production
+- systemmind.deploy_agents
+
+## AccountsMind
+
+- accountsmind.view
+- accountsmind.audit
+- accountsmind.create_invoice_drafts
+- accountsmind.modify_financial_records
+- accountsmind.send_invoices
+- accountsmind.view_bank_data
+
+## Tasks and actions
+
+- tasks.create
+- tasks.approve
+- tasks.cancel
+- tasks.override_completion
+- actions.approve
+- actions.reject
+
+Feature visibility is not permission enforcement.
+
+Enforce permissions in backend services.
+
+---
+
+# 35. BACKGROUND JOB RELIABILITY
+
+Use the existing job infrastructure where possible.
+
+Implement:
+
+- Idempotency
+- Retry limits
+- Exponential backoff
+- Rate-limit handling
+- Timeouts
+- Dead-letter states
+- Worker heartbeats
+- Stuck-job detection
+- Cancellation
+- Partial-result storage
+- Resumable executions
+- Workspace concurrency limits
+- Cost limits
+- Provider-specific error handling
+
+A worker restart must not lose execution state.
+
+A retry must not apply duplicate campaign changes.
+
+---
+
+# 36. COST CONTROL
+
+Track estimated and actual cost for:
+
+- AI analysis
+- Multimodal analysis
+- Content generation
+- Voice generation
+- Video rendering
+- Campaign activity
+- Calls
+- Messages
+- Emails
+- Provider usage
+- Infrastructure jobs
+
+Integrate cost data with AccountsMind and the existing cost engine.
+
+HiveMind must consider cost when prioritising work.
+
+Do not allow uncontrolled recursive Mind loops.
+
+---
+
+# 37. LEGACY TASK MIGRATION
+
+Do not delete existing tasks or actions.
+
+For legacy tasks with no executable specification:
+
+- Mark as Legacy Task
+- Preserve title, description, comments and history
+- Do not present them as actively executing
+- Provide Convert to Executable Work Order
+- Resolve target campaign, lead, invoice, workflow or integration
+- Request missing details where genuinely necessary
+- Link converted tasks to new work orders and executions
+
+Convert the existing Google Ads tasks into one connected campaign-optimisation work order where they share the same objective.
+
+Examples:
+
+- Improve Landing Page
+- Optimise Google Ads Keywords
+- Review Audience Targeting
+- Revise Google Ads Copy
+- Implement A/B Testing
+
+These may become child tasks under one parent work order rather than five unrelated top-level tasks.
+
+---
+
+# 38. DATABASE AND SERVICE DESIGN
+
+Reuse existing tables when appropriate.
+
+Potential entities, only where equivalents do not already exist:
+
+- work_orders
+- work_order_tasks
+- mind_task_executions
+- mind_task_steps
+- mind_task_dependencies
+- mind_task_artifacts
+- proposed_actions
+- action_approvals
+- mind_tool_calls
+- execution_events
+- capability_registry
+- action_definitions
+- campaign_drafts
+- conversation_work_order_links
+- work_order_events
+
+Every relevant entity must include:
+
+- workspace_id
+- Correct foreign keys
+- Indexes
+- RLS
+- Timestamps
+- Audit support
+
+Do not create duplicate storage merely because an existing table has a different name.
+
+---
+
+# 39. REQUIRED END-TO-END TEST: GOOGLE ADS
+
+Test the exact observed user workflow.
+
+User says through floating HiveMind:
+
+“Improve the Search for US and Reception campaign for me.”
+
+Required result:
+
+1. Floating HiveMind uses the shared conversation.
+2. The same conversation appears in the full Assistant.
+3. HiveMind resolves the real campaign.
+4. HiveMind creates one parent work order.
+5. GrowthMind receives an analysis task.
+6. SystemMind receives a conversion-tracking verification task.
+7. AccountsMind receives a spend and commercial-return task.
+8. Dependencies are connected.
+9. The work order appears in Tasks.
+10. The user selects Approve and Run.
+11. A real execution is created.
+12. GrowthMind retrieves campaign data.
+13. SystemMind verifies tracking.
+14. AccountsMind reviews spend.
+15. Deliverables are stored.
+16. Proposed external changes appear in the task.
+17. The same proposed action appears in Actions.
+18. Missing fields block premature approval.
+19. The user approves the exact external changes.
+20. GrowthMind applies them where authorised.
+21. Google Ads is re-read.
+22. Evidence is attached.
+23. The action becomes Executed.
+24. The task and work order update.
+25. Monitoring checkpoints are scheduled.
+26. HiveMind reports the exact result.
+27. Web and mobile show the same state.
+
+---
+
+# 40. REQUIRED END-TO-END TEST: GROWTHMIND CONTENT
+
+1. HiveMind asks GrowthMind to find a relevant trend.
+2. GrowthMind uses Business DNA and competitor intelligence.
+3. GrowthMind discovers or receives a real source.
+4. Multimodal analysis is performed.
+5. Content Anatomy is generated.
+6. An original business-specific adaptation is generated.
+7. Originality checks pass.
+8. A real Content Studio project is created.
+9. The project ID is attached.
+10. HiveMind requests a revision.
+11. The same project is updated.
+12. Approval is recorded.
+13. Publishing occurs only when authorised.
+14. Provider state is verified.
+15. Performance checkpoints are created.
+16. Results feed back into GrowthMind learning.
+
+---
+
+# 41. REQUIRED END-TO-END TEST: SYSTEMMIND
+
+1. HiveMind creates an investigation into a failed workflow.
+2. Approval dispatches a real execution.
+3. SystemMind reads actual workflow and job data.
+4. SystemMind identifies the failed step.
+5. It identifies the real provider or system error.
+6. It proposes or performs an authorised safe repair.
+7. It verifies the repair.
+8. Technical evidence is attached.
+9. The task completes honestly.
+
+Also test a full agent workflow setup:
+
+1. Select an agent.
+2. Scan the script.
+3. Detect variables.
+4. Detect required context.
+5. Configure CRM access.
+6. Map fields.
+7. Configure before-call retrieval.
+8. Configure post-call updates.
+9. Configure post-call extraction.
+10. Configure triggers and queues.
+11. Configure calendar functions.
+12. Test.
+13. Verify.
+14. Deploy after approval.
+
+---
+
+# 42. REQUIRED END-TO-END TEST: ACCOUNTSMIND
+
+1. HiveMind asks AccountsMind to check this month’s invoices.
+2. AccountsMind reads the real client register.
+3. It calculates expected invoices.
+4. It matches them to actual invoice records.
+5. It identifies missing, incorrect, duplicate and overdue invoices.
+6. It creates a typed exception report.
+7. It creates invoice drafts where permitted.
+8. It creates human approval tasks where required.
+9. It monitors the result.
+10. HiveMind summarises the actual outcome.
+
+Also test:
+
+1. Load active services and outgoings.
+2. Identify upcoming payments and renewals.
+3. Match connected transactions where available.
+4. Detect unusual increases.
+5. Create alerts.
+6. Escalate service-continuity risks to SystemMind.
+
+---
+
+# 43. REQUIRED SHARED HIVEMIND TEST
+
+1. Start a conversation in floating HiveMind.
+2. Continue the same conversation in full Assistant.
+3. Continue it on mobile through the shared API.
+4. Confirm identical workspace context.
+5. Confirm identical Business DNA.
+6. Confirm identical autonomy mode.
+7. Confirm identical voice profile.
+8. Create a task by voice.
+9. Confirm it appears in Tasks.
+10. Produce an approval action.
+11. Approve it manually.
+12. Confirm HiveMind immediately knows it was approved.
+13. Confirm execution resumes.
+14. Confirm results appear across all interfaces.
+
+---
+
+# 44. AUTOMATED TESTS
+
+Add tests for:
+
+- Capability census
+- Dormant capability activation
+- Duplicate service detection
+- Shared HiveMind prompt
+- Shared HiveMind conversation
+- Shared voice configuration
+- Shared autonomy mode
+- Workspace isolation
+- WBAH isolation
+- Recommendation-to-work-order conversion
+- Work-order-to-task relationship
+- Task-to-execution relationship
+- Execution-to-action relationship
+- Approval dispatches execution
+- Approval resumes paused execution
+- Rejection blocks execution
+- Missing campaign fields block approval
+- Missing budget blocks launch
+- Read-only provider behaviour
+- Missing permission
+- Missing integration
+- Missing credentials
+- Successful execution
+- Partial completion
+- Blocked result
+- Failed result
+- Retryable failure
+- Non-retryable failure
+- Idempotent retry
+- Stuck execution detection
+- Cancellation
+- Completion evidence requirement
+- False completion prevention
+- Raw JSON hidden from normal users
+- Notification deduplication
+- Google Ads workflow
+- Meta workflow
+- Content Studio workflow
+- SystemMind workflow
+- AccountsMind invoice workflow
+- Cross-Mind workflow
+- Web/mobile synchronisation
+- Package entitlement enforcement
+- Role permission enforcement
+- Cost-limit enforcement
+- Legacy task conversion
+
+---
+
+# 45. IMPLEMENTATION RESTRICTIONS
+
+- Do not remove existing working features.
+- Do not rebuild the entire application.
+- Do not create another HiveMind.
+- Do not create another GrowthMind.
+- Do not create another SystemMind.
+- Do not create another AccountsMind.
+- Do not create another task system.
+- Do not create another approval system.
+- Do not create another Content Studio.
+- Do not create parallel campaign databases.
+- Do not fabricate executions.
+- Do not fabricate analytics.
+- Do not fabricate provider responses.
+- Do not mark tasks completed because text was generated.
+- Do not set In Progress merely because approval occurred.
+- Do not expose raw secrets.
+- Do not expose provider tokens.
+- Do not bypass RLS.
+- Do not bypass approval rules.
+- Do not hard-code workspaces.
+- Do not hard-code users.
+- Do not hard-code campaign IDs.
+- Do not hard-code provider account IDs.
+- Do not allow infinite retries.
+- Do not silently swallow errors.
+- Do not let voice bypass permissions.
+- Do not let mobile use a simplified Mind.
+- Do not break current Retell analytics.
+- Do not break existing CRM integrations.
+- Do not break existing calendar integrations.
+- Do not break WhatsApp.
+- Do not break current call campaigns.
+- Do not break WBAH-specific functionality.
+- Do not replace existing integrations without a tested migration.
+- Do not stop after auditing.
+- Do not claim unsupported provider capabilities.
+- Do not describe the project as complete while executable tasks remain passive.
+
+---
+
+# 46. DEFINITION OF COMPLETE
+
+This project is complete only when:
+
+1. HiveMind is one shared intelligence across every interface.
+2. Voice and typed conversations share context.
+3. Tasks are executable work, not labels.
+4. Approval dispatches real workers.
+5. GrowthMind performs real marketing work.
+6. SystemMind performs real diagnostics and authorised repairs.
+7. AccountsMind performs real financial audits.
+8. Cross-Mind workflows operate through dependencies.
+9. Actions remain connected to tasks.
+10. Incomplete campaigns cannot be launched.
+11. Results contain evidence.
+12. Provider changes are verified.
+13. Dormant existing functionality has been activated or explicitly documented as externally blocked.
+14. Web and mobile consume the same backend state.
+15. Workspace isolation passes.
+16. WBAH and standard workspace behaviour remain correct.
+17. No Mind falsely claims completion.
+18. The complete Google Ads test passes.
+19. The complete Content Studio test passes.
+20. The complete SystemMind test passes.
+21. The complete AccountsMind test passes.
+
+The goal is not to make WEBEE appear intelligent.
+
+The goal is to make WEBEE genuinely operate the business.
+
+---
+
+# 47. FINAL DELIVERY REPORT
+
+When the implementation is complete, provide a precise report containing:
+
+1. Root causes discovered
+2. Full Capability Activation Register
+3. Previously dormant functions found
+4. Dormant functions activated
+5. Functions repaired
+6. Duplicates removed or consolidated
+7. Shared HiveMind architecture
+8. Floating/full/mobile differences found
+9. Voice differences found
+10. Autonomy-mode inconsistency found
+11. Work-order architecture implemented
+12. Task state machine implemented
+13. Execution Engine implemented
+14. Worker and queue implementation
+15. Mind dispatch mappings
+16. GrowthMind functions connected
+17. SystemMind functions connected
+18. AccountsMind functions connected
+19. HiveMind orchestration functions connected
+20. Action Approval Centre changes
+21. Task Centre changes
+22. Campaign-readiness validation
+23. Content Studio integration
+24. Notification deduplication
+25. Database migrations
+26. API endpoints
+27. Mobile-compatible endpoints
+28. Permissions
+29. RLS changes
+30. Audit logging
+31. Cost tracking
+32. Legacy task migration
+33. Automated tests
+34. Google Ads end-to-end test
+35. Meta end-to-end test
+36. Content Studio end-to-end test
+37. SystemMind end-to-end test
+38. AccountsMind end-to-end test
+39. Web/mobile parity test
+40. Exact remaining external limitations
+
+For every remaining limitation, state:
+
+- What is blocked
+- Why it is blocked
+- Whether the cause is code, credentials, permissions or provider limitation
+- What exact action is required
+- What functionality still works without it
+
+Do not give a vague completion summary.
+
+Do not describe this as complete until approving a HiveMind instruction genuinely executes the required Mind work, produces real results, attaches evidence and updates every connected interface consistently.

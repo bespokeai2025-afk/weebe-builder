@@ -10,14 +10,23 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as UnsubscribeRouteImport } from './routes/unsubscribe'
+import { Route as TermsRouteImport } from './routes/terms'
 import { Route as SignupRouteImport } from './routes/signup'
+import { Route as SecurityRouteImport } from './routes/security'
+import { Route as PrivacyRouteImport } from './routes/privacy'
 import { Route as PricingRouteImport } from './routes/pricing'
+import { Route as PartnersRouteImport } from './routes/partners'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as DocsRouteImport } from './routes/docs'
+import { Route as ContactRouteImport } from './routes/contact'
+import { Route as ComplianceRouteImport } from './routes/compliance'
+import { Route as CareersRouteImport } from './routes/careers'
 import { Route as ApiDocsRouteImport } from './routes/api-docs'
+import { Route as AboutRouteImport } from './routes/about'
 import { Route as AuthenticatedRouteImport } from './routes/_authenticated'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as UploadTokenRouteImport } from './routes/upload.$token'
+import { Route as SolutionsIndustryRouteImport } from './routes/solutions.$industry'
 import { Route as InviteTokenRouteImport } from './routes/invite.$token'
 import { Route as EmailUnsubscribeRouteImport } from './routes/email/unsubscribe'
 import { Route as AuthCallbackRouteImport } from './routes/auth/callback'
@@ -64,6 +73,7 @@ import { Route as LovableEmailSuppressionRouteImport } from './routes/lovable/em
 import { Route as ApiWebhookWatiInboundRouteImport } from './routes/api/webhook/wati-inbound'
 import { Route as ApiWebhookCustomTelemetryRouteImport } from './routes/api/webhook/custom-telemetry'
 import { Route as ApiV1WebhooksRouteImport } from './routes/api/v1/webhooks'
+import { Route as ApiV1SeoRouteImport } from './routes/api/v1/seo'
 import { Route as ApiV1ProviderUsageRouteImport } from './routes/api/v1/provider-usage'
 import { Route as ApiV1ProfitabilityRouteImport } from './routes/api/v1/profitability'
 import { Route as ApiV1LeadsRouteImport } from './routes/api/v1/leads'
@@ -90,6 +100,7 @@ import { Route as ApiPublicCampaignExecutorRouteImport } from './routes/api/publ
 import { Route as ApiPublicApproveUserRouteImport } from './routes/api/public/approve-user'
 import { Route as ApiPublicAdsSyncRouteImport } from './routes/api/public/ads-sync'
 import { Route as ApiOauthMetaCallbackRouteImport } from './routes/api/oauth/meta-callback'
+import { Route as ApiOauthGscCallbackRouteImport } from './routes/api/oauth/gsc-callback'
 import { Route as ApiOauthGoogleAdsCallbackRouteImport } from './routes/api/oauth/google-ads-callback'
 import { Route as ApiMonitoringHealthRouteImport } from './routes/api/monitoring/health'
 import { Route as ApiMonitoringClientErrorRouteImport } from './routes/api/monitoring/client-error'
@@ -102,8 +113,10 @@ import { Route as AuthenticatedSystemmindWorkflowsRouteImport } from './routes/_
 import { Route as AuthenticatedSystemmindWorkflowIntelligenceRouteImport } from './routes/_authenticated/systemmind.workflow-intelligence'
 import { Route as AuthenticatedSystemmindWorkflowGeneratorRouteImport } from './routes/_authenticated/systemmind.workflow-generator'
 import { Route as AuthenticatedSystemmindWorkflowDraftsRouteImport } from './routes/_authenticated/systemmind.workflow-drafts'
+import { Route as AuthenticatedSystemmindVariablesRouteImport } from './routes/_authenticated/systemmind.variables'
 import { Route as AuthenticatedSystemmindTemplateLibraryRouteImport } from './routes/_authenticated/systemmind.template-library'
 import { Route as AuthenticatedSystemmindTasksRouteImport } from './routes/_authenticated/systemmind.tasks'
+import { Route as AuthenticatedSystemmindSetupWizardRouteImport } from './routes/_authenticated/systemmind.setup-wizard'
 import { Route as AuthenticatedSystemmindSetupAssistantRouteImport } from './routes/_authenticated/systemmind.setup-assistant'
 import { Route as AuthenticatedSystemmindSettingsRouteImport } from './routes/_authenticated/systemmind.settings'
 import { Route as AuthenticatedSystemmindReportsRouteImport } from './routes/_authenticated/systemmind.reports'
@@ -119,6 +132,7 @@ import { Route as AuthenticatedSystemmindFixPlansRouteImport } from './routes/_a
 import { Route as AuthenticatedSystemmindDeploymentReadinessRouteImport } from './routes/_authenticated/systemmind.deployment-readiness'
 import { Route as AuthenticatedSystemmindDeploymentPlannerRouteImport } from './routes/_authenticated/systemmind.deployment-planner'
 import { Route as AuthenticatedSystemmindDataLimitsRouteImport } from './routes/_authenticated/systemmind.data-limits'
+import { Route as AuthenticatedSystemmindCrmConnectionsRouteImport } from './routes/_authenticated/systemmind.crm-connections'
 import { Route as AuthenticatedSystemmindCrmAdaptersRouteImport } from './routes/_authenticated/systemmind.crm-adapters'
 import { Route as AuthenticatedSystemmindClientsRouteImport } from './routes/_authenticated/systemmind.clients'
 import { Route as AuthenticatedSystemmindChatRouteImport } from './routes/_authenticated/systemmind.chat'
@@ -160,7 +174,9 @@ import { Route as AuthenticatedGrowthmindStrategyCentreRouteImport } from './rou
 import { Route as AuthenticatedGrowthmindStrategyRouteImport } from './routes/_authenticated/growthmind.strategy'
 import { Route as AuthenticatedGrowthmindSocialAccountsRouteImport } from './routes/_authenticated/growthmind.social-accounts'
 import { Route as AuthenticatedGrowthmindSettingsRouteImport } from './routes/_authenticated/growthmind.settings'
+import { Route as AuthenticatedGrowthmindSeoDepartmentRouteImport } from './routes/_authenticated/growthmind.seo-department'
 import { Route as AuthenticatedGrowthmindSeoRouteImport } from './routes/_authenticated/growthmind.seo'
+import { Route as AuthenticatedGrowthmindScriptPerformanceRouteImport } from './routes/_authenticated/growthmind.script-performance'
 import { Route as AuthenticatedGrowthmindReportsRouteImport } from './routes/_authenticated/growthmind.reports'
 import { Route as AuthenticatedGrowthmindRecommendationsRouteImport } from './routes/_authenticated/growthmind.recommendations'
 import { Route as AuthenticatedGrowthmindProposalsRouteImport } from './routes/_authenticated/growthmind.proposals'
@@ -291,10 +307,21 @@ import { Route as AuthenticatedAdminAccountsClientsWebuyanyhouseRouteImport } fr
 import { Route as ApiV1MindsConversationsIdMessagesRouteImport } from './routes/api/v1/minds.conversations.$id.messages'
 import { Route as ApiV1MindsActionsIdRejectRouteImport } from './routes/api/v1/minds.actions.$id.reject'
 import { Route as ApiV1MindsActionsIdApproveRouteImport } from './routes/api/v1/minds.actions.$id.approve'
+import { Route as ApiPublicV1SitesSiteKeySitemapDataRouteImport } from './routes/api/public/v1/sites.$siteKey.sitemap-data'
+import { Route as ApiPublicV1SitesSiteKeyPostsRouteImport } from './routes/api/public/v1/sites.$siteKey.posts'
+import { Route as ApiPublicV1SitesSiteKeyFeedRouteImport } from './routes/api/public/v1/sites.$siteKey.feed'
+import { Route as ApiPublicV1SitesSiteKeyCategoriesRouteImport } from './routes/api/public/v1/sites.$siteKey.categories'
+import { Route as ApiPublicV1SitesSiteKeyPreviewItemIdRouteImport } from './routes/api/public/v1/sites.$siteKey.preview.$itemId'
+import { Route as ApiPublicV1SitesSiteKeyPostsSlugRouteImport } from './routes/api/public/v1/sites.$siteKey.posts.$slug'
 
 const UnsubscribeRoute = UnsubscribeRouteImport.update({
   id: '/unsubscribe',
   path: '/unsubscribe',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const TermsRoute = TermsRouteImport.update({
+  id: '/terms',
+  path: '/terms',
   getParentRoute: () => rootRouteImport,
 } as any)
 const SignupRoute = SignupRouteImport.update({
@@ -302,9 +329,24 @@ const SignupRoute = SignupRouteImport.update({
   path: '/signup',
   getParentRoute: () => rootRouteImport,
 } as any)
+const SecurityRoute = SecurityRouteImport.update({
+  id: '/security',
+  path: '/security',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PrivacyRoute = PrivacyRouteImport.update({
+  id: '/privacy',
+  path: '/privacy',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const PricingRoute = PricingRouteImport.update({
   id: '/pricing',
   path: '/pricing',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PartnersRoute = PartnersRouteImport.update({
+  id: '/partners',
+  path: '/partners',
   getParentRoute: () => rootRouteImport,
 } as any)
 const LoginRoute = LoginRouteImport.update({
@@ -317,9 +359,29 @@ const DocsRoute = DocsRouteImport.update({
   path: '/docs',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ContactRoute = ContactRouteImport.update({
+  id: '/contact',
+  path: '/contact',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ComplianceRoute = ComplianceRouteImport.update({
+  id: '/compliance',
+  path: '/compliance',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CareersRoute = CareersRouteImport.update({
+  id: '/careers',
+  path: '/careers',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiDocsRoute = ApiDocsRouteImport.update({
   id: '/api-docs',
   path: '/api-docs',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AboutRoute = AboutRouteImport.update({
+  id: '/about',
+  path: '/about',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AuthenticatedRoute = AuthenticatedRouteImport.update({
@@ -334,6 +396,11 @@ const IndexRoute = IndexRouteImport.update({
 const UploadTokenRoute = UploadTokenRouteImport.update({
   id: '/upload/$token',
   path: '/upload/$token',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SolutionsIndustryRoute = SolutionsIndustryRouteImport.update({
+  id: '/solutions/$industry',
+  path: '/solutions/$industry',
   getParentRoute: () => rootRouteImport,
 } as any)
 const InviteTokenRoute = InviteTokenRouteImport.update({
@@ -580,6 +647,11 @@ const ApiV1WebhooksRoute = ApiV1WebhooksRouteImport.update({
   path: '/api/v1/webhooks',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiV1SeoRoute = ApiV1SeoRouteImport.update({
+  id: '/api/v1/seo',
+  path: '/api/v1/seo',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiV1ProviderUsageRoute = ApiV1ProviderUsageRouteImport.update({
   id: '/api/v1/provider-usage',
   path: '/api/v1/provider-usage',
@@ -715,6 +787,11 @@ const ApiOauthMetaCallbackRoute = ApiOauthMetaCallbackRouteImport.update({
   path: '/api/oauth/meta-callback',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiOauthGscCallbackRoute = ApiOauthGscCallbackRouteImport.update({
+  id: '/api/oauth/gsc-callback',
+  path: '/api/oauth/gsc-callback',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiOauthGoogleAdsCallbackRoute =
   ApiOauthGoogleAdsCallbackRouteImport.update({
     id: '/api/oauth/google-ads-callback',
@@ -784,6 +861,12 @@ const AuthenticatedSystemmindWorkflowDraftsRoute =
     path: '/workflow-drafts',
     getParentRoute: () => AuthenticatedSystemmindRoute,
   } as any)
+const AuthenticatedSystemmindVariablesRoute =
+  AuthenticatedSystemmindVariablesRouteImport.update({
+    id: '/variables',
+    path: '/variables',
+    getParentRoute: () => AuthenticatedSystemmindRoute,
+  } as any)
 const AuthenticatedSystemmindTemplateLibraryRoute =
   AuthenticatedSystemmindTemplateLibraryRouteImport.update({
     id: '/template-library',
@@ -794,6 +877,12 @@ const AuthenticatedSystemmindTasksRoute =
   AuthenticatedSystemmindTasksRouteImport.update({
     id: '/tasks',
     path: '/tasks',
+    getParentRoute: () => AuthenticatedSystemmindRoute,
+  } as any)
+const AuthenticatedSystemmindSetupWizardRoute =
+  AuthenticatedSystemmindSetupWizardRouteImport.update({
+    id: '/setup-wizard',
+    path: '/setup-wizard',
     getParentRoute: () => AuthenticatedSystemmindRoute,
   } as any)
 const AuthenticatedSystemmindSetupAssistantRoute =
@@ -884,6 +973,12 @@ const AuthenticatedSystemmindDataLimitsRoute =
   AuthenticatedSystemmindDataLimitsRouteImport.update({
     id: '/data-limits',
     path: '/data-limits',
+    getParentRoute: () => AuthenticatedSystemmindRoute,
+  } as any)
+const AuthenticatedSystemmindCrmConnectionsRoute =
+  AuthenticatedSystemmindCrmConnectionsRouteImport.update({
+    id: '/crm-connections',
+    path: '/crm-connections',
     getParentRoute: () => AuthenticatedSystemmindRoute,
   } as any)
 const AuthenticatedSystemmindCrmAdaptersRoute =
@@ -1132,10 +1227,22 @@ const AuthenticatedGrowthmindSettingsRoute =
     path: '/settings',
     getParentRoute: () => AuthenticatedGrowthmindRoute,
   } as any)
+const AuthenticatedGrowthmindSeoDepartmentRoute =
+  AuthenticatedGrowthmindSeoDepartmentRouteImport.update({
+    id: '/seo-department',
+    path: '/seo-department',
+    getParentRoute: () => AuthenticatedGrowthmindRoute,
+  } as any)
 const AuthenticatedGrowthmindSeoRoute =
   AuthenticatedGrowthmindSeoRouteImport.update({
     id: '/seo',
     path: '/seo',
+    getParentRoute: () => AuthenticatedGrowthmindRoute,
+  } as any)
+const AuthenticatedGrowthmindScriptPerformanceRoute =
+  AuthenticatedGrowthmindScriptPerformanceRouteImport.update({
+    id: '/script-performance',
+    path: '/script-performance',
     getParentRoute: () => AuthenticatedGrowthmindRoute,
   } as any)
 const AuthenticatedGrowthmindReportsRoute =
@@ -1888,14 +1995,58 @@ const ApiV1MindsActionsIdApproveRoute =
     path: '/$id/approve',
     getParentRoute: () => ApiV1MindsActionsRoute,
   } as any)
+const ApiPublicV1SitesSiteKeySitemapDataRoute =
+  ApiPublicV1SitesSiteKeySitemapDataRouteImport.update({
+    id: '/api/public/v1/sites/$siteKey/sitemap-data',
+    path: '/api/public/v1/sites/$siteKey/sitemap-data',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiPublicV1SitesSiteKeyPostsRoute =
+  ApiPublicV1SitesSiteKeyPostsRouteImport.update({
+    id: '/api/public/v1/sites/$siteKey/posts',
+    path: '/api/public/v1/sites/$siteKey/posts',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiPublicV1SitesSiteKeyFeedRoute =
+  ApiPublicV1SitesSiteKeyFeedRouteImport.update({
+    id: '/api/public/v1/sites/$siteKey/feed',
+    path: '/api/public/v1/sites/$siteKey/feed',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiPublicV1SitesSiteKeyCategoriesRoute =
+  ApiPublicV1SitesSiteKeyCategoriesRouteImport.update({
+    id: '/api/public/v1/sites/$siteKey/categories',
+    path: '/api/public/v1/sites/$siteKey/categories',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiPublicV1SitesSiteKeyPreviewItemIdRoute =
+  ApiPublicV1SitesSiteKeyPreviewItemIdRouteImport.update({
+    id: '/api/public/v1/sites/$siteKey/preview/$itemId',
+    path: '/api/public/v1/sites/$siteKey/preview/$itemId',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiPublicV1SitesSiteKeyPostsSlugRoute =
+  ApiPublicV1SitesSiteKeyPostsSlugRouteImport.update({
+    id: '/$slug',
+    path: '/$slug',
+    getParentRoute: () => ApiPublicV1SitesSiteKeyPostsRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/about': typeof AboutRoute
   '/api-docs': typeof ApiDocsRoute
+  '/careers': typeof CareersRoute
+  '/compliance': typeof ComplianceRoute
+  '/contact': typeof ContactRoute
   '/docs': typeof DocsRoute
   '/login': typeof LoginRoute
+  '/partners': typeof PartnersRoute
   '/pricing': typeof PricingRoute
+  '/privacy': typeof PrivacyRoute
+  '/security': typeof SecurityRoute
   '/signup': typeof SignupRoute
+  '/terms': typeof TermsRoute
   '/unsubscribe': typeof UnsubscribeRoute
   '/accountsmind': typeof AuthenticatedAccountsmindRoute
   '/admin': typeof AuthenticatedAdminRouteWithChildren
@@ -1932,6 +2083,7 @@ export interface FileRoutesByFullPath {
   '/auth/callback': typeof AuthCallbackRoute
   '/email/unsubscribe': typeof EmailUnsubscribeRoute
   '/invite/$token': typeof InviteTokenRoute
+  '/solutions/$industry': typeof SolutionsIndustryRoute
   '/upload/$token': typeof UploadTokenRoute
   '/admin/accounts': typeof AuthenticatedAdminAccountsRouteWithChildren
   '/admin/analytics': typeof AuthenticatedAdminAnalyticsRoute
@@ -1976,7 +2128,9 @@ export interface FileRoutesByFullPath {
   '/growthmind/proposals': typeof AuthenticatedGrowthmindProposalsRoute
   '/growthmind/recommendations': typeof AuthenticatedGrowthmindRecommendationsRoute
   '/growthmind/reports': typeof AuthenticatedGrowthmindReportsRoute
+  '/growthmind/script-performance': typeof AuthenticatedGrowthmindScriptPerformanceRoute
   '/growthmind/seo': typeof AuthenticatedGrowthmindSeoRoute
+  '/growthmind/seo-department': typeof AuthenticatedGrowthmindSeoDepartmentRoute
   '/growthmind/settings': typeof AuthenticatedGrowthmindSettingsRoute
   '/growthmind/social-accounts': typeof AuthenticatedGrowthmindSocialAccountsRoute
   '/growthmind/strategy': typeof AuthenticatedGrowthmindStrategyRoute
@@ -2018,6 +2172,7 @@ export interface FileRoutesByFullPath {
   '/systemmind/chat': typeof AuthenticatedSystemmindChatRoute
   '/systemmind/clients': typeof AuthenticatedSystemmindClientsRouteWithChildren
   '/systemmind/crm-adapters': typeof AuthenticatedSystemmindCrmAdaptersRoute
+  '/systemmind/crm-connections': typeof AuthenticatedSystemmindCrmConnectionsRoute
   '/systemmind/data-limits': typeof AuthenticatedSystemmindDataLimitsRoute
   '/systemmind/deployment-planner': typeof AuthenticatedSystemmindDeploymentPlannerRoute
   '/systemmind/deployment-readiness': typeof AuthenticatedSystemmindDeploymentReadinessRoute
@@ -2033,8 +2188,10 @@ export interface FileRoutesByFullPath {
   '/systemmind/reports': typeof AuthenticatedSystemmindReportsRoute
   '/systemmind/settings': typeof AuthenticatedSystemmindSettingsRoute
   '/systemmind/setup-assistant': typeof AuthenticatedSystemmindSetupAssistantRoute
+  '/systemmind/setup-wizard': typeof AuthenticatedSystemmindSetupWizardRoute
   '/systemmind/tasks': typeof AuthenticatedSystemmindTasksRoute
   '/systemmind/template-library': typeof AuthenticatedSystemmindTemplateLibraryRoute
+  '/systemmind/variables': typeof AuthenticatedSystemmindVariablesRoute
   '/systemmind/workflow-drafts': typeof AuthenticatedSystemmindWorkflowDraftsRoute
   '/systemmind/workflow-generator': typeof AuthenticatedSystemmindWorkflowGeneratorRoute
   '/systemmind/workflow-intelligence': typeof AuthenticatedSystemmindWorkflowIntelligenceRoute
@@ -2047,6 +2204,7 @@ export interface FileRoutesByFullPath {
   '/api/monitoring/client-error': typeof ApiMonitoringClientErrorRoute
   '/api/monitoring/health': typeof ApiMonitoringHealthRoute
   '/api/oauth/google-ads-callback': typeof ApiOauthGoogleAdsCallbackRoute
+  '/api/oauth/gsc-callback': typeof ApiOauthGscCallbackRoute
   '/api/oauth/meta-callback': typeof ApiOauthMetaCallbackRoute
   '/api/public/ads-sync': typeof ApiPublicAdsSyncRoute
   '/api/public/approve-user': typeof ApiPublicApproveUserRoute
@@ -2073,6 +2231,7 @@ export interface FileRoutesByFullPath {
   '/api/v1/leads': typeof ApiV1LeadsRoute
   '/api/v1/profitability': typeof ApiV1ProfitabilityRoute
   '/api/v1/provider-usage': typeof ApiV1ProviderUsageRoute
+  '/api/v1/seo': typeof ApiV1SeoRoute
   '/api/v1/webhooks': typeof ApiV1WebhooksRoute
   '/api/webhook/custom-telemetry': typeof ApiWebhookCustomTelemetryRoute
   '/api/webhook/wati-inbound': typeof ApiWebhookWatiInboundRoute
@@ -2168,17 +2327,31 @@ export interface FileRoutesByFullPath {
   '/api/v1/minds/tasks/$id': typeof ApiV1MindsTasksIdRoute
   '/api/v1/minds/tools/execute': typeof ApiV1MindsToolsExecuteRoute
   '/admin/accounts/clients/': typeof AuthenticatedAdminAccountsClientsIndexRoute
+  '/api/public/v1/sites/$siteKey/categories': typeof ApiPublicV1SitesSiteKeyCategoriesRoute
+  '/api/public/v1/sites/$siteKey/feed': typeof ApiPublicV1SitesSiteKeyFeedRoute
+  '/api/public/v1/sites/$siteKey/posts': typeof ApiPublicV1SitesSiteKeyPostsRouteWithChildren
+  '/api/public/v1/sites/$siteKey/sitemap-data': typeof ApiPublicV1SitesSiteKeySitemapDataRoute
   '/api/v1/minds/actions/$id/approve': typeof ApiV1MindsActionsIdApproveRoute
   '/api/v1/minds/actions/$id/reject': typeof ApiV1MindsActionsIdRejectRoute
   '/api/v1/minds/conversations/$id/messages': typeof ApiV1MindsConversationsIdMessagesRoute
+  '/api/public/v1/sites/$siteKey/posts/$slug': typeof ApiPublicV1SitesSiteKeyPostsSlugRoute
+  '/api/public/v1/sites/$siteKey/preview/$itemId': typeof ApiPublicV1SitesSiteKeyPreviewItemIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/about': typeof AboutRoute
   '/api-docs': typeof ApiDocsRoute
+  '/careers': typeof CareersRoute
+  '/compliance': typeof ComplianceRoute
+  '/contact': typeof ContactRoute
   '/docs': typeof DocsRoute
   '/login': typeof LoginRoute
+  '/partners': typeof PartnersRoute
   '/pricing': typeof PricingRoute
+  '/privacy': typeof PrivacyRoute
+  '/security': typeof SecurityRoute
   '/signup': typeof SignupRoute
+  '/terms': typeof TermsRoute
   '/unsubscribe': typeof UnsubscribeRoute
   '/accountsmind': typeof AuthenticatedAccountsmindRoute
   '/analytics': typeof AuthenticatedAnalyticsRoute
@@ -2208,6 +2381,7 @@ export interface FileRoutesByTo {
   '/auth/callback': typeof AuthCallbackRoute
   '/email/unsubscribe': typeof EmailUnsubscribeRoute
   '/invite/$token': typeof InviteTokenRoute
+  '/solutions/$industry': typeof SolutionsIndustryRoute
   '/upload/$token': typeof UploadTokenRoute
   '/admin/analytics': typeof AuthenticatedAdminAnalyticsRoute
   '/admin/change-requests': typeof AuthenticatedAdminChangeRequestsRoute
@@ -2251,7 +2425,9 @@ export interface FileRoutesByTo {
   '/growthmind/proposals': typeof AuthenticatedGrowthmindProposalsRoute
   '/growthmind/recommendations': typeof AuthenticatedGrowthmindRecommendationsRoute
   '/growthmind/reports': typeof AuthenticatedGrowthmindReportsRoute
+  '/growthmind/script-performance': typeof AuthenticatedGrowthmindScriptPerformanceRoute
   '/growthmind/seo': typeof AuthenticatedGrowthmindSeoRoute
+  '/growthmind/seo-department': typeof AuthenticatedGrowthmindSeoDepartmentRoute
   '/growthmind/settings': typeof AuthenticatedGrowthmindSettingsRoute
   '/growthmind/social-accounts': typeof AuthenticatedGrowthmindSocialAccountsRoute
   '/growthmind/strategy': typeof AuthenticatedGrowthmindStrategyRoute
@@ -2292,6 +2468,7 @@ export interface FileRoutesByTo {
   '/systemmind/build': typeof AuthenticatedSystemmindBuildRoute
   '/systemmind/chat': typeof AuthenticatedSystemmindChatRoute
   '/systemmind/crm-adapters': typeof AuthenticatedSystemmindCrmAdaptersRoute
+  '/systemmind/crm-connections': typeof AuthenticatedSystemmindCrmConnectionsRoute
   '/systemmind/data-limits': typeof AuthenticatedSystemmindDataLimitsRoute
   '/systemmind/deployment-planner': typeof AuthenticatedSystemmindDeploymentPlannerRoute
   '/systemmind/deployment-readiness': typeof AuthenticatedSystemmindDeploymentReadinessRoute
@@ -2307,8 +2484,10 @@ export interface FileRoutesByTo {
   '/systemmind/reports': typeof AuthenticatedSystemmindReportsRoute
   '/systemmind/settings': typeof AuthenticatedSystemmindSettingsRoute
   '/systemmind/setup-assistant': typeof AuthenticatedSystemmindSetupAssistantRoute
+  '/systemmind/setup-wizard': typeof AuthenticatedSystemmindSetupWizardRoute
   '/systemmind/tasks': typeof AuthenticatedSystemmindTasksRoute
   '/systemmind/template-library': typeof AuthenticatedSystemmindTemplateLibraryRoute
+  '/systemmind/variables': typeof AuthenticatedSystemmindVariablesRoute
   '/systemmind/workflow-drafts': typeof AuthenticatedSystemmindWorkflowDraftsRoute
   '/systemmind/workflow-generator': typeof AuthenticatedSystemmindWorkflowGeneratorRoute
   '/systemmind/workflow-intelligence': typeof AuthenticatedSystemmindWorkflowIntelligenceRoute
@@ -2321,6 +2500,7 @@ export interface FileRoutesByTo {
   '/api/monitoring/client-error': typeof ApiMonitoringClientErrorRoute
   '/api/monitoring/health': typeof ApiMonitoringHealthRoute
   '/api/oauth/google-ads-callback': typeof ApiOauthGoogleAdsCallbackRoute
+  '/api/oauth/gsc-callback': typeof ApiOauthGscCallbackRoute
   '/api/oauth/meta-callback': typeof ApiOauthMetaCallbackRoute
   '/api/public/ads-sync': typeof ApiPublicAdsSyncRoute
   '/api/public/approve-user': typeof ApiPublicApproveUserRoute
@@ -2347,6 +2527,7 @@ export interface FileRoutesByTo {
   '/api/v1/leads': typeof ApiV1LeadsRoute
   '/api/v1/profitability': typeof ApiV1ProfitabilityRoute
   '/api/v1/provider-usage': typeof ApiV1ProviderUsageRoute
+  '/api/v1/seo': typeof ApiV1SeoRoute
   '/api/v1/webhooks': typeof ApiV1WebhooksRoute
   '/api/webhook/custom-telemetry': typeof ApiWebhookCustomTelemetryRoute
   '/api/webhook/wati-inbound': typeof ApiWebhookWatiInboundRoute
@@ -2441,19 +2622,33 @@ export interface FileRoutesByTo {
   '/api/v1/minds/tasks/$id': typeof ApiV1MindsTasksIdRoute
   '/api/v1/minds/tools/execute': typeof ApiV1MindsToolsExecuteRoute
   '/admin/accounts/clients': typeof AuthenticatedAdminAccountsClientsIndexRoute
+  '/api/public/v1/sites/$siteKey/categories': typeof ApiPublicV1SitesSiteKeyCategoriesRoute
+  '/api/public/v1/sites/$siteKey/feed': typeof ApiPublicV1SitesSiteKeyFeedRoute
+  '/api/public/v1/sites/$siteKey/posts': typeof ApiPublicV1SitesSiteKeyPostsRouteWithChildren
+  '/api/public/v1/sites/$siteKey/sitemap-data': typeof ApiPublicV1SitesSiteKeySitemapDataRoute
   '/api/v1/minds/actions/$id/approve': typeof ApiV1MindsActionsIdApproveRoute
   '/api/v1/minds/actions/$id/reject': typeof ApiV1MindsActionsIdRejectRoute
   '/api/v1/minds/conversations/$id/messages': typeof ApiV1MindsConversationsIdMessagesRoute
+  '/api/public/v1/sites/$siteKey/posts/$slug': typeof ApiPublicV1SitesSiteKeyPostsSlugRoute
+  '/api/public/v1/sites/$siteKey/preview/$itemId': typeof ApiPublicV1SitesSiteKeyPreviewItemIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/_authenticated': typeof AuthenticatedRouteWithChildren
+  '/about': typeof AboutRoute
   '/api-docs': typeof ApiDocsRoute
+  '/careers': typeof CareersRoute
+  '/compliance': typeof ComplianceRoute
+  '/contact': typeof ContactRoute
   '/docs': typeof DocsRoute
   '/login': typeof LoginRoute
+  '/partners': typeof PartnersRoute
   '/pricing': typeof PricingRoute
+  '/privacy': typeof PrivacyRoute
+  '/security': typeof SecurityRoute
   '/signup': typeof SignupRoute
+  '/terms': typeof TermsRoute
   '/unsubscribe': typeof UnsubscribeRoute
   '/_authenticated/accountsmind': typeof AuthenticatedAccountsmindRoute
   '/_authenticated/admin': typeof AuthenticatedAdminRouteWithChildren
@@ -2490,6 +2685,7 @@ export interface FileRoutesById {
   '/auth/callback': typeof AuthCallbackRoute
   '/email/unsubscribe': typeof EmailUnsubscribeRoute
   '/invite/$token': typeof InviteTokenRoute
+  '/solutions/$industry': typeof SolutionsIndustryRoute
   '/upload/$token': typeof UploadTokenRoute
   '/_authenticated/admin/accounts': typeof AuthenticatedAdminAccountsRouteWithChildren
   '/_authenticated/admin/analytics': typeof AuthenticatedAdminAnalyticsRoute
@@ -2534,7 +2730,9 @@ export interface FileRoutesById {
   '/_authenticated/growthmind/proposals': typeof AuthenticatedGrowthmindProposalsRoute
   '/_authenticated/growthmind/recommendations': typeof AuthenticatedGrowthmindRecommendationsRoute
   '/_authenticated/growthmind/reports': typeof AuthenticatedGrowthmindReportsRoute
+  '/_authenticated/growthmind/script-performance': typeof AuthenticatedGrowthmindScriptPerformanceRoute
   '/_authenticated/growthmind/seo': typeof AuthenticatedGrowthmindSeoRoute
+  '/_authenticated/growthmind/seo-department': typeof AuthenticatedGrowthmindSeoDepartmentRoute
   '/_authenticated/growthmind/settings': typeof AuthenticatedGrowthmindSettingsRoute
   '/_authenticated/growthmind/social-accounts': typeof AuthenticatedGrowthmindSocialAccountsRoute
   '/_authenticated/growthmind/strategy': typeof AuthenticatedGrowthmindStrategyRoute
@@ -2576,6 +2774,7 @@ export interface FileRoutesById {
   '/_authenticated/systemmind/chat': typeof AuthenticatedSystemmindChatRoute
   '/_authenticated/systemmind/clients': typeof AuthenticatedSystemmindClientsRouteWithChildren
   '/_authenticated/systemmind/crm-adapters': typeof AuthenticatedSystemmindCrmAdaptersRoute
+  '/_authenticated/systemmind/crm-connections': typeof AuthenticatedSystemmindCrmConnectionsRoute
   '/_authenticated/systemmind/data-limits': typeof AuthenticatedSystemmindDataLimitsRoute
   '/_authenticated/systemmind/deployment-planner': typeof AuthenticatedSystemmindDeploymentPlannerRoute
   '/_authenticated/systemmind/deployment-readiness': typeof AuthenticatedSystemmindDeploymentReadinessRoute
@@ -2591,8 +2790,10 @@ export interface FileRoutesById {
   '/_authenticated/systemmind/reports': typeof AuthenticatedSystemmindReportsRoute
   '/_authenticated/systemmind/settings': typeof AuthenticatedSystemmindSettingsRoute
   '/_authenticated/systemmind/setup-assistant': typeof AuthenticatedSystemmindSetupAssistantRoute
+  '/_authenticated/systemmind/setup-wizard': typeof AuthenticatedSystemmindSetupWizardRoute
   '/_authenticated/systemmind/tasks': typeof AuthenticatedSystemmindTasksRoute
   '/_authenticated/systemmind/template-library': typeof AuthenticatedSystemmindTemplateLibraryRoute
+  '/_authenticated/systemmind/variables': typeof AuthenticatedSystemmindVariablesRoute
   '/_authenticated/systemmind/workflow-drafts': typeof AuthenticatedSystemmindWorkflowDraftsRoute
   '/_authenticated/systemmind/workflow-generator': typeof AuthenticatedSystemmindWorkflowGeneratorRoute
   '/_authenticated/systemmind/workflow-intelligence': typeof AuthenticatedSystemmindWorkflowIntelligenceRoute
@@ -2605,6 +2806,7 @@ export interface FileRoutesById {
   '/api/monitoring/client-error': typeof ApiMonitoringClientErrorRoute
   '/api/monitoring/health': typeof ApiMonitoringHealthRoute
   '/api/oauth/google-ads-callback': typeof ApiOauthGoogleAdsCallbackRoute
+  '/api/oauth/gsc-callback': typeof ApiOauthGscCallbackRoute
   '/api/oauth/meta-callback': typeof ApiOauthMetaCallbackRoute
   '/api/public/ads-sync': typeof ApiPublicAdsSyncRoute
   '/api/public/approve-user': typeof ApiPublicApproveUserRoute
@@ -2631,6 +2833,7 @@ export interface FileRoutesById {
   '/api/v1/leads': typeof ApiV1LeadsRoute
   '/api/v1/profitability': typeof ApiV1ProfitabilityRoute
   '/api/v1/provider-usage': typeof ApiV1ProviderUsageRoute
+  '/api/v1/seo': typeof ApiV1SeoRoute
   '/api/v1/webhooks': typeof ApiV1WebhooksRoute
   '/api/webhook/custom-telemetry': typeof ApiWebhookCustomTelemetryRoute
   '/api/webhook/wati-inbound': typeof ApiWebhookWatiInboundRoute
@@ -2726,19 +2929,33 @@ export interface FileRoutesById {
   '/api/v1/minds/tasks/$id': typeof ApiV1MindsTasksIdRoute
   '/api/v1/minds/tools/execute': typeof ApiV1MindsToolsExecuteRoute
   '/_authenticated/admin/accounts/clients/': typeof AuthenticatedAdminAccountsClientsIndexRoute
+  '/api/public/v1/sites/$siteKey/categories': typeof ApiPublicV1SitesSiteKeyCategoriesRoute
+  '/api/public/v1/sites/$siteKey/feed': typeof ApiPublicV1SitesSiteKeyFeedRoute
+  '/api/public/v1/sites/$siteKey/posts': typeof ApiPublicV1SitesSiteKeyPostsRouteWithChildren
+  '/api/public/v1/sites/$siteKey/sitemap-data': typeof ApiPublicV1SitesSiteKeySitemapDataRoute
   '/api/v1/minds/actions/$id/approve': typeof ApiV1MindsActionsIdApproveRoute
   '/api/v1/minds/actions/$id/reject': typeof ApiV1MindsActionsIdRejectRoute
   '/api/v1/minds/conversations/$id/messages': typeof ApiV1MindsConversationsIdMessagesRoute
+  '/api/public/v1/sites/$siteKey/posts/$slug': typeof ApiPublicV1SitesSiteKeyPostsSlugRoute
+  '/api/public/v1/sites/$siteKey/preview/$itemId': typeof ApiPublicV1SitesSiteKeyPreviewItemIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/about'
     | '/api-docs'
+    | '/careers'
+    | '/compliance'
+    | '/contact'
     | '/docs'
     | '/login'
+    | '/partners'
     | '/pricing'
+    | '/privacy'
+    | '/security'
     | '/signup'
+    | '/terms'
     | '/unsubscribe'
     | '/accountsmind'
     | '/admin'
@@ -2775,6 +2992,7 @@ export interface FileRouteTypes {
     | '/auth/callback'
     | '/email/unsubscribe'
     | '/invite/$token'
+    | '/solutions/$industry'
     | '/upload/$token'
     | '/admin/accounts'
     | '/admin/analytics'
@@ -2819,7 +3037,9 @@ export interface FileRouteTypes {
     | '/growthmind/proposals'
     | '/growthmind/recommendations'
     | '/growthmind/reports'
+    | '/growthmind/script-performance'
     | '/growthmind/seo'
+    | '/growthmind/seo-department'
     | '/growthmind/settings'
     | '/growthmind/social-accounts'
     | '/growthmind/strategy'
@@ -2861,6 +3081,7 @@ export interface FileRouteTypes {
     | '/systemmind/chat'
     | '/systemmind/clients'
     | '/systemmind/crm-adapters'
+    | '/systemmind/crm-connections'
     | '/systemmind/data-limits'
     | '/systemmind/deployment-planner'
     | '/systemmind/deployment-readiness'
@@ -2876,8 +3097,10 @@ export interface FileRouteTypes {
     | '/systemmind/reports'
     | '/systemmind/settings'
     | '/systemmind/setup-assistant'
+    | '/systemmind/setup-wizard'
     | '/systemmind/tasks'
     | '/systemmind/template-library'
+    | '/systemmind/variables'
     | '/systemmind/workflow-drafts'
     | '/systemmind/workflow-generator'
     | '/systemmind/workflow-intelligence'
@@ -2890,6 +3113,7 @@ export interface FileRouteTypes {
     | '/api/monitoring/client-error'
     | '/api/monitoring/health'
     | '/api/oauth/google-ads-callback'
+    | '/api/oauth/gsc-callback'
     | '/api/oauth/meta-callback'
     | '/api/public/ads-sync'
     | '/api/public/approve-user'
@@ -2916,6 +3140,7 @@ export interface FileRouteTypes {
     | '/api/v1/leads'
     | '/api/v1/profitability'
     | '/api/v1/provider-usage'
+    | '/api/v1/seo'
     | '/api/v1/webhooks'
     | '/api/webhook/custom-telemetry'
     | '/api/webhook/wati-inbound'
@@ -3011,17 +3236,31 @@ export interface FileRouteTypes {
     | '/api/v1/minds/tasks/$id'
     | '/api/v1/minds/tools/execute'
     | '/admin/accounts/clients/'
+    | '/api/public/v1/sites/$siteKey/categories'
+    | '/api/public/v1/sites/$siteKey/feed'
+    | '/api/public/v1/sites/$siteKey/posts'
+    | '/api/public/v1/sites/$siteKey/sitemap-data'
     | '/api/v1/minds/actions/$id/approve'
     | '/api/v1/minds/actions/$id/reject'
     | '/api/v1/minds/conversations/$id/messages'
+    | '/api/public/v1/sites/$siteKey/posts/$slug'
+    | '/api/public/v1/sites/$siteKey/preview/$itemId'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/about'
     | '/api-docs'
+    | '/careers'
+    | '/compliance'
+    | '/contact'
     | '/docs'
     | '/login'
+    | '/partners'
     | '/pricing'
+    | '/privacy'
+    | '/security'
     | '/signup'
+    | '/terms'
     | '/unsubscribe'
     | '/accountsmind'
     | '/analytics'
@@ -3051,6 +3290,7 @@ export interface FileRouteTypes {
     | '/auth/callback'
     | '/email/unsubscribe'
     | '/invite/$token'
+    | '/solutions/$industry'
     | '/upload/$token'
     | '/admin/analytics'
     | '/admin/change-requests'
@@ -3094,7 +3334,9 @@ export interface FileRouteTypes {
     | '/growthmind/proposals'
     | '/growthmind/recommendations'
     | '/growthmind/reports'
+    | '/growthmind/script-performance'
     | '/growthmind/seo'
+    | '/growthmind/seo-department'
     | '/growthmind/settings'
     | '/growthmind/social-accounts'
     | '/growthmind/strategy'
@@ -3135,6 +3377,7 @@ export interface FileRouteTypes {
     | '/systemmind/build'
     | '/systemmind/chat'
     | '/systemmind/crm-adapters'
+    | '/systemmind/crm-connections'
     | '/systemmind/data-limits'
     | '/systemmind/deployment-planner'
     | '/systemmind/deployment-readiness'
@@ -3150,8 +3393,10 @@ export interface FileRouteTypes {
     | '/systemmind/reports'
     | '/systemmind/settings'
     | '/systemmind/setup-assistant'
+    | '/systemmind/setup-wizard'
     | '/systemmind/tasks'
     | '/systemmind/template-library'
+    | '/systemmind/variables'
     | '/systemmind/workflow-drafts'
     | '/systemmind/workflow-generator'
     | '/systemmind/workflow-intelligence'
@@ -3164,6 +3409,7 @@ export interface FileRouteTypes {
     | '/api/monitoring/client-error'
     | '/api/monitoring/health'
     | '/api/oauth/google-ads-callback'
+    | '/api/oauth/gsc-callback'
     | '/api/oauth/meta-callback'
     | '/api/public/ads-sync'
     | '/api/public/approve-user'
@@ -3190,6 +3436,7 @@ export interface FileRouteTypes {
     | '/api/v1/leads'
     | '/api/v1/profitability'
     | '/api/v1/provider-usage'
+    | '/api/v1/seo'
     | '/api/v1/webhooks'
     | '/api/webhook/custom-telemetry'
     | '/api/webhook/wati-inbound'
@@ -3284,18 +3531,32 @@ export interface FileRouteTypes {
     | '/api/v1/minds/tasks/$id'
     | '/api/v1/minds/tools/execute'
     | '/admin/accounts/clients'
+    | '/api/public/v1/sites/$siteKey/categories'
+    | '/api/public/v1/sites/$siteKey/feed'
+    | '/api/public/v1/sites/$siteKey/posts'
+    | '/api/public/v1/sites/$siteKey/sitemap-data'
     | '/api/v1/minds/actions/$id/approve'
     | '/api/v1/minds/actions/$id/reject'
     | '/api/v1/minds/conversations/$id/messages'
+    | '/api/public/v1/sites/$siteKey/posts/$slug'
+    | '/api/public/v1/sites/$siteKey/preview/$itemId'
   id:
     | '__root__'
     | '/'
     | '/_authenticated'
+    | '/about'
     | '/api-docs'
+    | '/careers'
+    | '/compliance'
+    | '/contact'
     | '/docs'
     | '/login'
+    | '/partners'
     | '/pricing'
+    | '/privacy'
+    | '/security'
     | '/signup'
+    | '/terms'
     | '/unsubscribe'
     | '/_authenticated/accountsmind'
     | '/_authenticated/admin'
@@ -3332,6 +3593,7 @@ export interface FileRouteTypes {
     | '/auth/callback'
     | '/email/unsubscribe'
     | '/invite/$token'
+    | '/solutions/$industry'
     | '/upload/$token'
     | '/_authenticated/admin/accounts'
     | '/_authenticated/admin/analytics'
@@ -3376,7 +3638,9 @@ export interface FileRouteTypes {
     | '/_authenticated/growthmind/proposals'
     | '/_authenticated/growthmind/recommendations'
     | '/_authenticated/growthmind/reports'
+    | '/_authenticated/growthmind/script-performance'
     | '/_authenticated/growthmind/seo'
+    | '/_authenticated/growthmind/seo-department'
     | '/_authenticated/growthmind/settings'
     | '/_authenticated/growthmind/social-accounts'
     | '/_authenticated/growthmind/strategy'
@@ -3418,6 +3682,7 @@ export interface FileRouteTypes {
     | '/_authenticated/systemmind/chat'
     | '/_authenticated/systemmind/clients'
     | '/_authenticated/systemmind/crm-adapters'
+    | '/_authenticated/systemmind/crm-connections'
     | '/_authenticated/systemmind/data-limits'
     | '/_authenticated/systemmind/deployment-planner'
     | '/_authenticated/systemmind/deployment-readiness'
@@ -3433,8 +3698,10 @@ export interface FileRouteTypes {
     | '/_authenticated/systemmind/reports'
     | '/_authenticated/systemmind/settings'
     | '/_authenticated/systemmind/setup-assistant'
+    | '/_authenticated/systemmind/setup-wizard'
     | '/_authenticated/systemmind/tasks'
     | '/_authenticated/systemmind/template-library'
+    | '/_authenticated/systemmind/variables'
     | '/_authenticated/systemmind/workflow-drafts'
     | '/_authenticated/systemmind/workflow-generator'
     | '/_authenticated/systemmind/workflow-intelligence'
@@ -3447,6 +3714,7 @@ export interface FileRouteTypes {
     | '/api/monitoring/client-error'
     | '/api/monitoring/health'
     | '/api/oauth/google-ads-callback'
+    | '/api/oauth/gsc-callback'
     | '/api/oauth/meta-callback'
     | '/api/public/ads-sync'
     | '/api/public/approve-user'
@@ -3473,6 +3741,7 @@ export interface FileRouteTypes {
     | '/api/v1/leads'
     | '/api/v1/profitability'
     | '/api/v1/provider-usage'
+    | '/api/v1/seo'
     | '/api/v1/webhooks'
     | '/api/webhook/custom-telemetry'
     | '/api/webhook/wati-inbound'
@@ -3568,24 +3837,39 @@ export interface FileRouteTypes {
     | '/api/v1/minds/tasks/$id'
     | '/api/v1/minds/tools/execute'
     | '/_authenticated/admin/accounts/clients/'
+    | '/api/public/v1/sites/$siteKey/categories'
+    | '/api/public/v1/sites/$siteKey/feed'
+    | '/api/public/v1/sites/$siteKey/posts'
+    | '/api/public/v1/sites/$siteKey/sitemap-data'
     | '/api/v1/minds/actions/$id/approve'
     | '/api/v1/minds/actions/$id/reject'
     | '/api/v1/minds/conversations/$id/messages'
+    | '/api/public/v1/sites/$siteKey/posts/$slug'
+    | '/api/public/v1/sites/$siteKey/preview/$itemId'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AuthenticatedRoute: typeof AuthenticatedRouteWithChildren
+  AboutRoute: typeof AboutRoute
   ApiDocsRoute: typeof ApiDocsRoute
+  CareersRoute: typeof CareersRoute
+  ComplianceRoute: typeof ComplianceRoute
+  ContactRoute: typeof ContactRoute
   DocsRoute: typeof DocsRoute
   LoginRoute: typeof LoginRoute
+  PartnersRoute: typeof PartnersRoute
   PricingRoute: typeof PricingRoute
+  PrivacyRoute: typeof PrivacyRoute
+  SecurityRoute: typeof SecurityRoute
   SignupRoute: typeof SignupRoute
+  TermsRoute: typeof TermsRoute
   UnsubscribeRoute: typeof UnsubscribeRoute
   ApiVoiceCopilotRoute: typeof ApiVoiceCopilotRoute
   AuthCallbackRoute: typeof AuthCallbackRoute
   EmailUnsubscribeRoute: typeof EmailUnsubscribeRoute
   InviteTokenRoute: typeof InviteTokenRoute
+  SolutionsIndustryRoute: typeof SolutionsIndustryRoute
   UploadTokenRoute: typeof UploadTokenRoute
   ApiAdminTestRetellWebhookRoute: typeof ApiAdminTestRetellWebhookRoute
   ApiBuilderImportPdfRoute: typeof ApiBuilderImportPdfRoute
@@ -3595,6 +3879,7 @@ export interface RootRouteChildren {
   ApiMonitoringClientErrorRoute: typeof ApiMonitoringClientErrorRoute
   ApiMonitoringHealthRoute: typeof ApiMonitoringHealthRoute
   ApiOauthGoogleAdsCallbackRoute: typeof ApiOauthGoogleAdsCallbackRoute
+  ApiOauthGscCallbackRoute: typeof ApiOauthGscCallbackRoute
   ApiOauthMetaCallbackRoute: typeof ApiOauthMetaCallbackRoute
   ApiPublicAdsSyncRoute: typeof ApiPublicAdsSyncRoute
   ApiPublicApproveUserRoute: typeof ApiPublicApproveUserRoute
@@ -3621,6 +3906,7 @@ export interface RootRouteChildren {
   ApiV1LeadsRoute: typeof ApiV1LeadsRoute
   ApiV1ProfitabilityRoute: typeof ApiV1ProfitabilityRoute
   ApiV1ProviderUsageRoute: typeof ApiV1ProviderUsageRoute
+  ApiV1SeoRoute: typeof ApiV1SeoRoute
   ApiV1WebhooksRoute: typeof ApiV1WebhooksRoute
   ApiWebhookCustomTelemetryRoute: typeof ApiWebhookCustomTelemetryRoute
   ApiWebhookWatiInboundRoute: typeof ApiWebhookWatiInboundRoute
@@ -3671,6 +3957,11 @@ export interface RootRouteChildren {
   LovableEmailQueueProcessRoute: typeof LovableEmailQueueProcessRoute
   LovableEmailTransactionalPreviewRoute: typeof LovableEmailTransactionalPreviewRoute
   LovableEmailTransactionalSendRoute: typeof LovableEmailTransactionalSendRoute
+  ApiPublicV1SitesSiteKeyCategoriesRoute: typeof ApiPublicV1SitesSiteKeyCategoriesRoute
+  ApiPublicV1SitesSiteKeyFeedRoute: typeof ApiPublicV1SitesSiteKeyFeedRoute
+  ApiPublicV1SitesSiteKeyPostsRoute: typeof ApiPublicV1SitesSiteKeyPostsRouteWithChildren
+  ApiPublicV1SitesSiteKeySitemapDataRoute: typeof ApiPublicV1SitesSiteKeySitemapDataRoute
+  ApiPublicV1SitesSiteKeyPreviewItemIdRoute: typeof ApiPublicV1SitesSiteKeyPreviewItemIdRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -3682,6 +3973,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof UnsubscribeRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/terms': {
+      id: '/terms'
+      path: '/terms'
+      fullPath: '/terms'
+      preLoaderRoute: typeof TermsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/signup': {
       id: '/signup'
       path: '/signup'
@@ -3689,11 +3987,32 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SignupRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/security': {
+      id: '/security'
+      path: '/security'
+      fullPath: '/security'
+      preLoaderRoute: typeof SecurityRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/privacy': {
+      id: '/privacy'
+      path: '/privacy'
+      fullPath: '/privacy'
+      preLoaderRoute: typeof PrivacyRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/pricing': {
       id: '/pricing'
       path: '/pricing'
       fullPath: '/pricing'
       preLoaderRoute: typeof PricingRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/partners': {
+      id: '/partners'
+      path: '/partners'
+      fullPath: '/partners'
+      preLoaderRoute: typeof PartnersRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/login': {
@@ -3710,11 +4029,39 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DocsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/contact': {
+      id: '/contact'
+      path: '/contact'
+      fullPath: '/contact'
+      preLoaderRoute: typeof ContactRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/compliance': {
+      id: '/compliance'
+      path: '/compliance'
+      fullPath: '/compliance'
+      preLoaderRoute: typeof ComplianceRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/careers': {
+      id: '/careers'
+      path: '/careers'
+      fullPath: '/careers'
+      preLoaderRoute: typeof CareersRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api-docs': {
       id: '/api-docs'
       path: '/api-docs'
       fullPath: '/api-docs'
       preLoaderRoute: typeof ApiDocsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/about': {
+      id: '/about'
+      path: '/about'
+      fullPath: '/about'
+      preLoaderRoute: typeof AboutRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_authenticated': {
@@ -3736,6 +4083,13 @@ declare module '@tanstack/react-router' {
       path: '/upload/$token'
       fullPath: '/upload/$token'
       preLoaderRoute: typeof UploadTokenRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/solutions/$industry': {
+      id: '/solutions/$industry'
+      path: '/solutions/$industry'
+      fullPath: '/solutions/$industry'
+      preLoaderRoute: typeof SolutionsIndustryRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/invite/$token': {
@@ -4060,6 +4414,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiV1WebhooksRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/v1/seo': {
+      id: '/api/v1/seo'
+      path: '/api/v1/seo'
+      fullPath: '/api/v1/seo'
+      preLoaderRoute: typeof ApiV1SeoRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/v1/provider-usage': {
       id: '/api/v1/provider-usage'
       path: '/api/v1/provider-usage'
@@ -4242,6 +4603,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiOauthMetaCallbackRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/oauth/gsc-callback': {
+      id: '/api/oauth/gsc-callback'
+      path: '/api/oauth/gsc-callback'
+      fullPath: '/api/oauth/gsc-callback'
+      preLoaderRoute: typeof ApiOauthGscCallbackRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/oauth/google-ads-callback': {
       id: '/api/oauth/google-ads-callback'
       path: '/api/oauth/google-ads-callback'
@@ -4326,6 +4694,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedSystemmindWorkflowDraftsRouteImport
       parentRoute: typeof AuthenticatedSystemmindRoute
     }
+    '/_authenticated/systemmind/variables': {
+      id: '/_authenticated/systemmind/variables'
+      path: '/variables'
+      fullPath: '/systemmind/variables'
+      preLoaderRoute: typeof AuthenticatedSystemmindVariablesRouteImport
+      parentRoute: typeof AuthenticatedSystemmindRoute
+    }
     '/_authenticated/systemmind/template-library': {
       id: '/_authenticated/systemmind/template-library'
       path: '/template-library'
@@ -4338,6 +4713,13 @@ declare module '@tanstack/react-router' {
       path: '/tasks'
       fullPath: '/systemmind/tasks'
       preLoaderRoute: typeof AuthenticatedSystemmindTasksRouteImport
+      parentRoute: typeof AuthenticatedSystemmindRoute
+    }
+    '/_authenticated/systemmind/setup-wizard': {
+      id: '/_authenticated/systemmind/setup-wizard'
+      path: '/setup-wizard'
+      fullPath: '/systemmind/setup-wizard'
+      preLoaderRoute: typeof AuthenticatedSystemmindSetupWizardRouteImport
       parentRoute: typeof AuthenticatedSystemmindRoute
     }
     '/_authenticated/systemmind/setup-assistant': {
@@ -4443,6 +4825,13 @@ declare module '@tanstack/react-router' {
       path: '/data-limits'
       fullPath: '/systemmind/data-limits'
       preLoaderRoute: typeof AuthenticatedSystemmindDataLimitsRouteImport
+      parentRoute: typeof AuthenticatedSystemmindRoute
+    }
+    '/_authenticated/systemmind/crm-connections': {
+      id: '/_authenticated/systemmind/crm-connections'
+      path: '/crm-connections'
+      fullPath: '/systemmind/crm-connections'
+      preLoaderRoute: typeof AuthenticatedSystemmindCrmConnectionsRouteImport
       parentRoute: typeof AuthenticatedSystemmindRoute
     }
     '/_authenticated/systemmind/crm-adapters': {
@@ -4732,11 +5121,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedGrowthmindSettingsRouteImport
       parentRoute: typeof AuthenticatedGrowthmindRoute
     }
+    '/_authenticated/growthmind/seo-department': {
+      id: '/_authenticated/growthmind/seo-department'
+      path: '/seo-department'
+      fullPath: '/growthmind/seo-department'
+      preLoaderRoute: typeof AuthenticatedGrowthmindSeoDepartmentRouteImport
+      parentRoute: typeof AuthenticatedGrowthmindRoute
+    }
     '/_authenticated/growthmind/seo': {
       id: '/_authenticated/growthmind/seo'
       path: '/seo'
       fullPath: '/growthmind/seo'
       preLoaderRoute: typeof AuthenticatedGrowthmindSeoRouteImport
+      parentRoute: typeof AuthenticatedGrowthmindRoute
+    }
+    '/_authenticated/growthmind/script-performance': {
+      id: '/_authenticated/growthmind/script-performance'
+      path: '/script-performance'
+      fullPath: '/growthmind/script-performance'
+      preLoaderRoute: typeof AuthenticatedGrowthmindScriptPerformanceRouteImport
       parentRoute: typeof AuthenticatedGrowthmindRoute
     }
     '/_authenticated/growthmind/reports': {
@@ -5649,6 +6052,48 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiV1MindsActionsIdApproveRouteImport
       parentRoute: typeof ApiV1MindsActionsRoute
     }
+    '/api/public/v1/sites/$siteKey/sitemap-data': {
+      id: '/api/public/v1/sites/$siteKey/sitemap-data'
+      path: '/api/public/v1/sites/$siteKey/sitemap-data'
+      fullPath: '/api/public/v1/sites/$siteKey/sitemap-data'
+      preLoaderRoute: typeof ApiPublicV1SitesSiteKeySitemapDataRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/v1/sites/$siteKey/posts': {
+      id: '/api/public/v1/sites/$siteKey/posts'
+      path: '/api/public/v1/sites/$siteKey/posts'
+      fullPath: '/api/public/v1/sites/$siteKey/posts'
+      preLoaderRoute: typeof ApiPublicV1SitesSiteKeyPostsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/v1/sites/$siteKey/feed': {
+      id: '/api/public/v1/sites/$siteKey/feed'
+      path: '/api/public/v1/sites/$siteKey/feed'
+      fullPath: '/api/public/v1/sites/$siteKey/feed'
+      preLoaderRoute: typeof ApiPublicV1SitesSiteKeyFeedRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/v1/sites/$siteKey/categories': {
+      id: '/api/public/v1/sites/$siteKey/categories'
+      path: '/api/public/v1/sites/$siteKey/categories'
+      fullPath: '/api/public/v1/sites/$siteKey/categories'
+      preLoaderRoute: typeof ApiPublicV1SitesSiteKeyCategoriesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/v1/sites/$siteKey/preview/$itemId': {
+      id: '/api/public/v1/sites/$siteKey/preview/$itemId'
+      path: '/api/public/v1/sites/$siteKey/preview/$itemId'
+      fullPath: '/api/public/v1/sites/$siteKey/preview/$itemId'
+      preLoaderRoute: typeof ApiPublicV1SitesSiteKeyPreviewItemIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/v1/sites/$siteKey/posts/$slug': {
+      id: '/api/public/v1/sites/$siteKey/posts/$slug'
+      path: '/$slug'
+      fullPath: '/api/public/v1/sites/$siteKey/posts/$slug'
+      preLoaderRoute: typeof ApiPublicV1SitesSiteKeyPostsSlugRouteImport
+      parentRoute: typeof ApiPublicV1SitesSiteKeyPostsRoute
+    }
   }
 }
 
@@ -5805,7 +6250,9 @@ interface AuthenticatedGrowthmindRouteChildren {
   AuthenticatedGrowthmindProposalsRoute: typeof AuthenticatedGrowthmindProposalsRoute
   AuthenticatedGrowthmindRecommendationsRoute: typeof AuthenticatedGrowthmindRecommendationsRoute
   AuthenticatedGrowthmindReportsRoute: typeof AuthenticatedGrowthmindReportsRoute
+  AuthenticatedGrowthmindScriptPerformanceRoute: typeof AuthenticatedGrowthmindScriptPerformanceRoute
   AuthenticatedGrowthmindSeoRoute: typeof AuthenticatedGrowthmindSeoRoute
+  AuthenticatedGrowthmindSeoDepartmentRoute: typeof AuthenticatedGrowthmindSeoDepartmentRoute
   AuthenticatedGrowthmindSettingsRoute: typeof AuthenticatedGrowthmindSettingsRoute
   AuthenticatedGrowthmindSocialAccountsRoute: typeof AuthenticatedGrowthmindSocialAccountsRoute
   AuthenticatedGrowthmindStrategyRoute: typeof AuthenticatedGrowthmindStrategyRoute
@@ -5870,7 +6317,11 @@ const AuthenticatedGrowthmindRouteChildren: AuthenticatedGrowthmindRouteChildren
     AuthenticatedGrowthmindRecommendationsRoute:
       AuthenticatedGrowthmindRecommendationsRoute,
     AuthenticatedGrowthmindReportsRoute: AuthenticatedGrowthmindReportsRoute,
+    AuthenticatedGrowthmindScriptPerformanceRoute:
+      AuthenticatedGrowthmindScriptPerformanceRoute,
     AuthenticatedGrowthmindSeoRoute: AuthenticatedGrowthmindSeoRoute,
+    AuthenticatedGrowthmindSeoDepartmentRoute:
+      AuthenticatedGrowthmindSeoDepartmentRoute,
     AuthenticatedGrowthmindSettingsRoute: AuthenticatedGrowthmindSettingsRoute,
     AuthenticatedGrowthmindSocialAccountsRoute:
       AuthenticatedGrowthmindSocialAccountsRoute,
@@ -6018,6 +6469,7 @@ interface AuthenticatedSystemmindRouteChildren {
   AuthenticatedSystemmindChatRoute: typeof AuthenticatedSystemmindChatRoute
   AuthenticatedSystemmindClientsRoute: typeof AuthenticatedSystemmindClientsRouteWithChildren
   AuthenticatedSystemmindCrmAdaptersRoute: typeof AuthenticatedSystemmindCrmAdaptersRoute
+  AuthenticatedSystemmindCrmConnectionsRoute: typeof AuthenticatedSystemmindCrmConnectionsRoute
   AuthenticatedSystemmindDataLimitsRoute: typeof AuthenticatedSystemmindDataLimitsRoute
   AuthenticatedSystemmindDeploymentPlannerRoute: typeof AuthenticatedSystemmindDeploymentPlannerRoute
   AuthenticatedSystemmindDeploymentReadinessRoute: typeof AuthenticatedSystemmindDeploymentReadinessRoute
@@ -6033,8 +6485,10 @@ interface AuthenticatedSystemmindRouteChildren {
   AuthenticatedSystemmindReportsRoute: typeof AuthenticatedSystemmindReportsRoute
   AuthenticatedSystemmindSettingsRoute: typeof AuthenticatedSystemmindSettingsRoute
   AuthenticatedSystemmindSetupAssistantRoute: typeof AuthenticatedSystemmindSetupAssistantRoute
+  AuthenticatedSystemmindSetupWizardRoute: typeof AuthenticatedSystemmindSetupWizardRoute
   AuthenticatedSystemmindTasksRoute: typeof AuthenticatedSystemmindTasksRoute
   AuthenticatedSystemmindTemplateLibraryRoute: typeof AuthenticatedSystemmindTemplateLibraryRoute
+  AuthenticatedSystemmindVariablesRoute: typeof AuthenticatedSystemmindVariablesRoute
   AuthenticatedSystemmindWorkflowDraftsRoute: typeof AuthenticatedSystemmindWorkflowDraftsRoute
   AuthenticatedSystemmindWorkflowGeneratorRoute: typeof AuthenticatedSystemmindWorkflowGeneratorRoute
   AuthenticatedSystemmindWorkflowIntelligenceRoute: typeof AuthenticatedSystemmindWorkflowIntelligenceRoute
@@ -6057,6 +6511,8 @@ const AuthenticatedSystemmindRouteChildren: AuthenticatedSystemmindRouteChildren
       AuthenticatedSystemmindClientsRouteWithChildren,
     AuthenticatedSystemmindCrmAdaptersRoute:
       AuthenticatedSystemmindCrmAdaptersRoute,
+    AuthenticatedSystemmindCrmConnectionsRoute:
+      AuthenticatedSystemmindCrmConnectionsRoute,
     AuthenticatedSystemmindDataLimitsRoute:
       AuthenticatedSystemmindDataLimitsRoute,
     AuthenticatedSystemmindDeploymentPlannerRoute:
@@ -6081,9 +6537,13 @@ const AuthenticatedSystemmindRouteChildren: AuthenticatedSystemmindRouteChildren
     AuthenticatedSystemmindSettingsRoute: AuthenticatedSystemmindSettingsRoute,
     AuthenticatedSystemmindSetupAssistantRoute:
       AuthenticatedSystemmindSetupAssistantRoute,
+    AuthenticatedSystemmindSetupWizardRoute:
+      AuthenticatedSystemmindSetupWizardRoute,
     AuthenticatedSystemmindTasksRoute: AuthenticatedSystemmindTasksRoute,
     AuthenticatedSystemmindTemplateLibraryRoute:
       AuthenticatedSystemmindTemplateLibraryRoute,
+    AuthenticatedSystemmindVariablesRoute:
+      AuthenticatedSystemmindVariablesRoute,
     AuthenticatedSystemmindWorkflowDraftsRoute:
       AuthenticatedSystemmindWorkflowDraftsRoute,
     AuthenticatedSystemmindWorkflowGeneratorRoute:
@@ -6438,19 +6898,43 @@ const ApiV1MindsToolsRouteWithChildren = ApiV1MindsToolsRoute._addFileChildren(
   ApiV1MindsToolsRouteChildren,
 )
 
+interface ApiPublicV1SitesSiteKeyPostsRouteChildren {
+  ApiPublicV1SitesSiteKeyPostsSlugRoute: typeof ApiPublicV1SitesSiteKeyPostsSlugRoute
+}
+
+const ApiPublicV1SitesSiteKeyPostsRouteChildren: ApiPublicV1SitesSiteKeyPostsRouteChildren =
+  {
+    ApiPublicV1SitesSiteKeyPostsSlugRoute:
+      ApiPublicV1SitesSiteKeyPostsSlugRoute,
+  }
+
+const ApiPublicV1SitesSiteKeyPostsRouteWithChildren =
+  ApiPublicV1SitesSiteKeyPostsRoute._addFileChildren(
+    ApiPublicV1SitesSiteKeyPostsRouteChildren,
+  )
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AuthenticatedRoute: AuthenticatedRouteWithChildren,
+  AboutRoute: AboutRoute,
   ApiDocsRoute: ApiDocsRoute,
+  CareersRoute: CareersRoute,
+  ComplianceRoute: ComplianceRoute,
+  ContactRoute: ContactRoute,
   DocsRoute: DocsRoute,
   LoginRoute: LoginRoute,
+  PartnersRoute: PartnersRoute,
   PricingRoute: PricingRoute,
+  PrivacyRoute: PrivacyRoute,
+  SecurityRoute: SecurityRoute,
   SignupRoute: SignupRoute,
+  TermsRoute: TermsRoute,
   UnsubscribeRoute: UnsubscribeRoute,
   ApiVoiceCopilotRoute: ApiVoiceCopilotRoute,
   AuthCallbackRoute: AuthCallbackRoute,
   EmailUnsubscribeRoute: EmailUnsubscribeRoute,
   InviteTokenRoute: InviteTokenRoute,
+  SolutionsIndustryRoute: SolutionsIndustryRoute,
   UploadTokenRoute: UploadTokenRoute,
   ApiAdminTestRetellWebhookRoute: ApiAdminTestRetellWebhookRoute,
   ApiBuilderImportPdfRoute: ApiBuilderImportPdfRoute,
@@ -6460,6 +6944,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiMonitoringClientErrorRoute: ApiMonitoringClientErrorRoute,
   ApiMonitoringHealthRoute: ApiMonitoringHealthRoute,
   ApiOauthGoogleAdsCallbackRoute: ApiOauthGoogleAdsCallbackRoute,
+  ApiOauthGscCallbackRoute: ApiOauthGscCallbackRoute,
   ApiOauthMetaCallbackRoute: ApiOauthMetaCallbackRoute,
   ApiPublicAdsSyncRoute: ApiPublicAdsSyncRoute,
   ApiPublicApproveUserRoute: ApiPublicApproveUserRoute,
@@ -6486,6 +6971,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiV1LeadsRoute: ApiV1LeadsRoute,
   ApiV1ProfitabilityRoute: ApiV1ProfitabilityRoute,
   ApiV1ProviderUsageRoute: ApiV1ProviderUsageRoute,
+  ApiV1SeoRoute: ApiV1SeoRoute,
   ApiV1WebhooksRoute: ApiV1WebhooksRoute,
   ApiWebhookCustomTelemetryRoute: ApiWebhookCustomTelemetryRoute,
   ApiWebhookWatiInboundRoute: ApiWebhookWatiInboundRoute,
@@ -6540,6 +7026,15 @@ const rootRouteChildren: RootRouteChildren = {
   LovableEmailQueueProcessRoute: LovableEmailQueueProcessRoute,
   LovableEmailTransactionalPreviewRoute: LovableEmailTransactionalPreviewRoute,
   LovableEmailTransactionalSendRoute: LovableEmailTransactionalSendRoute,
+  ApiPublicV1SitesSiteKeyCategoriesRoute:
+    ApiPublicV1SitesSiteKeyCategoriesRoute,
+  ApiPublicV1SitesSiteKeyFeedRoute: ApiPublicV1SitesSiteKeyFeedRoute,
+  ApiPublicV1SitesSiteKeyPostsRoute:
+    ApiPublicV1SitesSiteKeyPostsRouteWithChildren,
+  ApiPublicV1SitesSiteKeySitemapDataRoute:
+    ApiPublicV1SitesSiteKeySitemapDataRoute,
+  ApiPublicV1SitesSiteKeyPreviewItemIdRoute:
+    ApiPublicV1SitesSiteKeyPreviewItemIdRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

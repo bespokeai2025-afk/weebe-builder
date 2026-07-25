@@ -319,8 +319,18 @@ export async function fetchFullPlatformData(sb: any, workspaceId: string) {
     if (gadsAcctRes.data) {
       const recsAll = gadsRecsRes.data ?? [];
       const prioOrder: Record<string, number> = { critical: 0, high: 1, medium: 2, low: 3 };
+      // Live synced campaigns — growthmind_gads_campaign_daily is the only table
+      // the live engine writes campaigns to; without this the COO can see the
+      // connection but not the actual campaigns.
+      let liveCampaigns: any = null;
+      try {
+        const { getGadsLiveCampaignSummary } = await import("@/lib/growthmind/gads-live-core.server");
+        liveCampaigns = await getGadsLiveCampaignSummary(workspaceId);
+      } catch { /* graceful */ }
       gadsLive = {
         account: gadsAcctRes.data,
+        campaigns: liveCampaigns?.campaigns ?? [],
+        currency: liveCampaigns?.currency ?? null,
         pendingRecs: recsAll.filter((r: any) => r.status === "new" || r.status === "under_review")
           .sort((a: any, b: any) => (prioOrder[a.priority] ?? 9) - (prioOrder[b.priority] ?? 9)),
         approvedRecs: recsAll.filter((r: any) => r.status === "approved"),
@@ -1022,6 +1032,17 @@ export function buildPlatformContext(d: any): string {
         ? `healthy${acct.last_synced_at ? `, last synced ${acct.last_synced_at}` : ""}`
         : `setup incomplete (${acct.connection_state ?? "unknown"})`;
     lines.push(`  Account: ${acct.descriptive_name ?? acct.label ?? "Google Ads"} | Sync: ${sync}`);
+    if (Array.isArray(g.campaigns) && g.campaigns.length > 0) {
+      const cur = g.currency ?? "";
+      lines.push(`  CAMPAIGNS (last 30 days, real synced data):`);
+      for (const c of g.campaigns.slice(0, 10)) {
+        lines.push(
+          `    • "${c.name}" [${String(c.status ?? "unknown").toUpperCase()}${c.channelType ? `, ${c.channelType}` : ""}]: ` +
+          `spend ${cur} ${Number(c.cost).toFixed(2)}${c.dailyBudget > 0 ? ` (daily budget ${cur} ${Number(c.dailyBudget).toFixed(2)})` : ""}, ` +
+          `${Number(c.impressions).toLocaleString()} impressions, ${c.clicks} clicks, ${c.conversions} conversions`,
+        );
+      }
+    }
     if (g.pendingRecs.length > 0) {
       lines.push(`  PENDING RECOMMENDATIONS AWAITING USER DECISION (${g.pendingRecs.length}) — the user must approve/dismiss these in GrowthMind → Ads:`);
       for (const r of g.pendingRecs.slice(0, 8)) {
@@ -1394,30 +1415,105 @@ export const getHiveMindAIResponse = createServerFn({ method: "POST" })
     const { getRetrievedKnowledgeBlock } = await import("@/lib/executives/executive-knowledge.server");
     const knowledgeBlock = await getRetrievedKnowledgeBlock({ sb, workspaceId, mindType: "hivemind", query: data.query, topK: 5 });
 
+    // GrowthMind executive command context (best-effort — chat must not break
+    // if the marketing view fails to build).
+    let growthMindCommandBlock = "";
+    try {
+      const { buildGrowthMindCommandContext } = await import("@/lib/hivemind/growthmind-control/executive-view.server");
+      growthMindCommandBlock = await buildGrowthMindCommandContext(workspaceId);
+    } catch { /* non-fatal */ }
+
     const ctx          = buildPlatformContext(platformData)
       + buildMarketingCouncilContext(marketingCouncil)
       + buildSystemCouncilContext(systemCouncil);
     const systemPrompt = buildSystemPrompt(ctx, data.personality ?? "friendly", data.userName)
-      + (knowledgeBlock ? `\n\n${knowledgeBlock}` : "");
+      + (knowledgeBlock ? `\n\n${knowledgeBlock}` : "")
+      + (growthMindCommandBlock ? `\n\n${growthMindCommandBlock}` : "")
+      + `\n\nEXECUTIVE TOOLS: You have real tools to inspect and direct the marketing department (GrowthMind). Use read tools before answering questions about marketing state. Write tools take REAL actions — always tell the user what you did, including the record affected. If a tool returns ok:false, report the error honestly and NEVER claim the action succeeded. Sensitive actions only file an approval request — say so explicitly.`;
 
-    const messages = [
+    const messages: any[] = [
       { role: "system", content: systemPrompt },
       ...(data.history ?? []).slice(-6),
       { role: "user", content: data.query },
     ];
 
-    const res = await fetch("https://api.openai.com/v1/chat/completions", {
-      method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
-      body: JSON.stringify({ model: "gpt-4o-mini", messages, max_tokens: 350, temperature: 0.4 }),
-    });
-    if (!res.ok) {
-      const err = await res.text();
-      throw new Error(`OpenAI error: ${err.slice(0, 200)}`);
+    const { getHiveMindChatToolSchemas, executeHiveMindChatTool } = await import("@/lib/hivemind/growthmind-control/chat-tools.server");
+    let tools: any[] = [];
+    try { tools = await getHiveMindChatToolSchemas(); } catch { /* chat still works without tools */ }
+
+    const callOpenAI = async (msgs: any[], allowTools: boolean) => {
+      const res = await fetch("https://api.openai.com/v1/chat/completions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
+        body: JSON.stringify({
+          model: "gpt-4o-mini",
+          messages: msgs,
+          max_tokens: 700,
+          temperature: 0.4,
+          ...(allowTools && tools.length ? { tools, tool_choice: "auto" } : {}),
+        }),
+      });
+      if (!res.ok) {
+        const err = await res.text();
+        throw new Error(`OpenAI error: ${err.slice(0, 200)}`);
+      }
+      return (await res.json()) as any;
+    };
+
+    // Function-calling loop — bounded rounds; every tool call is executed
+    // through the guarded Mind tool registry (audited, approval-aware).
+    const actionsTaken: Array<{ tool: string; ok: boolean; status?: string }> = [];
+    // Work-order proposals created during THIS chat turn — returned so the UI
+    // can render a real Approve & Run affordance inline in the conversation.
+    const workOrderProposals: Array<{
+      workOrderId: string; taskId: string; taskTitle: string;
+      focusCampaign: { campaignId: string; campaignName: string } | null;
+      days: number;
+    }> = [];
+    const MAX_ROUNDS = 4;
+    let response = "I couldn't generate a response. Please try again.";
+    for (let round = 0; round <= MAX_ROUNDS; round++) {
+      const json = await callOpenAI(messages, round < MAX_ROUNDS);
+      const msg  = json.choices?.[0]?.message;
+      const toolCalls = msg?.tool_calls as any[] | undefined;
+      if (!toolCalls?.length) {
+        response = msg?.content ?? response;
+        break;
+      }
+      messages.push(msg);
+      for (const call of toolCalls) {
+        let outcome: Record<string, unknown>;
+        try {
+          const args = call.function?.arguments ? JSON.parse(call.function.arguments) : {};
+          outcome = await executeHiveMindChatTool({
+            sb, workspaceId, userId: context.userId ?? null,
+            name: call.function.name, args,
+          });
+        } catch (e: any) {
+          outcome = { ok: false, error: String(e?.message ?? e).slice(0, 500) };
+        }
+        actionsTaken.push({ tool: call.function?.name, ok: outcome.ok === true, status: outcome.status as string | undefined });
+        if (
+          call.function?.name === "create_gads_analysis_work_order" &&
+          outcome.ok === true && outcome.status === "created" &&
+          typeof outcome.taskId === "string" && typeof outcome.workOrderId === "string"
+        ) {
+          workOrderProposals.push({
+            workOrderId: outcome.workOrderId as string,
+            taskId: outcome.taskId as string,
+            taskTitle: (outcome.taskTitle as string) ?? "Google Ads analysis",
+            focusCampaign: (outcome.focusCampaign as any) ?? null,
+            days: Number(outcome.days) || 30,
+          });
+        }
+        messages.push({
+          role: "tool",
+          tool_call_id: call.id,
+          content: JSON.stringify(outcome).slice(0, 8000),
+        });
+      }
     }
-    const json      = await res.json() as any;
-    const response  = json.choices?.[0]?.message?.content ?? "I couldn't generate a response. Please try again.";
-    return { response };
+    return { response, actionsTaken, workOrderProposals };
   });
 
 // ── getHiveMindMorningBriefing ────────────────────────────────────────────────

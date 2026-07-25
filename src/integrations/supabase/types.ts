@@ -5322,6 +5322,50 @@ export type Database = {
         }
         Relationships: []
       }
+      growthmind_content_preview_tokens: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          expires_at: string
+          id: string
+          item_id: string
+          revoked_at: string | null
+          site_id: string
+          token_hash: string
+          workspace_id: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          expires_at: string
+          id?: string
+          item_id: string
+          revoked_at?: string | null
+          site_id: string
+          token_hash: string
+          workspace_id: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          expires_at?: string
+          id?: string
+          item_id?: string
+          revoked_at?: string | null
+          site_id?: string
+          token_hash?: string
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "growthmind_content_preview_tokens_item_id_fkey"
+            columns: ["item_id"]
+            isOneToOne: false
+            referencedRelation: "growthmind_public_content_items"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       growthmind_content_projects: {
         Row: {
           anatomy_id: string | null
@@ -6561,6 +6605,231 @@ export type Database = {
           },
         ]
       }
+      growthmind_gsc_inspections: {
+        Row: {
+          coverage_state: string | null
+          created_at: string
+          google_canonical: string | null
+          id: string
+          indexing_state: string | null
+          inspected_at: string
+          last_crawl_time: string | null
+          page_fetch_state: string | null
+          property_url: string
+          raw: Json | null
+          robots_txt_state: string | null
+          updated_at: string
+          url: string
+          user_canonical: string | null
+          verdict: string | null
+          workspace_id: string
+        }
+        Insert: {
+          coverage_state?: string | null
+          created_at?: string
+          google_canonical?: string | null
+          id?: string
+          indexing_state?: string | null
+          inspected_at?: string
+          last_crawl_time?: string | null
+          page_fetch_state?: string | null
+          property_url: string
+          raw?: Json | null
+          robots_txt_state?: string | null
+          updated_at?: string
+          url: string
+          user_canonical?: string | null
+          verdict?: string | null
+          workspace_id: string
+        }
+        Update: {
+          coverage_state?: string | null
+          created_at?: string
+          google_canonical?: string | null
+          id?: string
+          indexing_state?: string | null
+          inspected_at?: string
+          last_crawl_time?: string | null
+          page_fetch_state?: string | null
+          property_url?: string
+          raw?: Json | null
+          robots_txt_state?: string | null
+          updated_at?: string
+          url?: string
+          user_canonical?: string | null
+          verdict?: string | null
+          workspace_id?: string
+        }
+        Relationships: []
+      }
+      growthmind_gsc_performance: {
+        Row: {
+          clicks: number
+          created_at: string
+          ctr: number | null
+          date: string
+          dim_key: string
+          dimension: string
+          id: string
+          impressions: number
+          position: number | null
+          property_url: string
+          updated_at: string
+          workspace_id: string
+        }
+        Insert: {
+          clicks?: number
+          created_at?: string
+          ctr?: number | null
+          date: string
+          dim_key: string
+          dimension: string
+          id?: string
+          impressions?: number
+          position?: number | null
+          property_url: string
+          updated_at?: string
+          workspace_id: string
+        }
+        Update: {
+          clicks?: number
+          created_at?: string
+          ctr?: number | null
+          date?: string
+          dim_key?: string
+          dimension?: string
+          id?: string
+          impressions?: number
+          position?: number | null
+          property_url?: string
+          updated_at?: string
+          workspace_id?: string
+        }
+        Relationships: []
+      }
+      growthmind_gsc_sitemaps: {
+        Row: {
+          contents: Json | null
+          created_at: string
+          errors: number
+          fetched_at: string
+          id: string
+          is_index: boolean
+          is_pending: boolean
+          last_downloaded: string | null
+          last_submitted: string | null
+          path: string
+          property_url: string
+          updated_at: string
+          warnings: number
+          workspace_id: string
+        }
+        Insert: {
+          contents?: Json | null
+          created_at?: string
+          errors?: number
+          fetched_at?: string
+          id?: string
+          is_index?: boolean
+          is_pending?: boolean
+          last_downloaded?: string | null
+          last_submitted?: string | null
+          path: string
+          property_url: string
+          updated_at?: string
+          warnings?: number
+          workspace_id: string
+        }
+        Update: {
+          contents?: Json | null
+          created_at?: string
+          errors?: number
+          fetched_at?: string
+          id?: string
+          is_index?: boolean
+          is_pending?: boolean
+          last_downloaded?: string | null
+          last_submitted?: string | null
+          path?: string
+          property_url?: string
+          updated_at?: string
+          warnings?: number
+          workspace_id?: string
+        }
+        Relationships: []
+      }
+      growthmind_gsc_sync_state: {
+        Row: {
+          baseline_pending: boolean
+          connection: Json | null
+          created_at: string
+          error_message: string | null
+          first_data_notified_at: string | null
+          freshness: Json | null
+          id: string
+          last_complete_date: string | null
+          last_synced_at: string | null
+          next_sync_at: string | null
+          property_url: string
+          quota: Json | null
+          requested_end_date: string | null
+          requested_start_date: string | null
+          retry_state: Json | null
+          rows_imported: number
+          status: string
+          sync_kind: string
+          updated_at: string
+          warnings: Json
+          workspace_id: string
+        }
+        Insert: {
+          baseline_pending?: boolean
+          connection?: Json | null
+          created_at?: string
+          error_message?: string | null
+          first_data_notified_at?: string | null
+          freshness?: Json | null
+          id?: string
+          last_complete_date?: string | null
+          last_synced_at?: string | null
+          next_sync_at?: string | null
+          property_url: string
+          quota?: Json | null
+          requested_end_date?: string | null
+          requested_start_date?: string | null
+          retry_state?: Json | null
+          rows_imported?: number
+          status?: string
+          sync_kind?: string
+          updated_at?: string
+          warnings?: Json
+          workspace_id: string
+        }
+        Update: {
+          baseline_pending?: boolean
+          connection?: Json | null
+          created_at?: string
+          error_message?: string | null
+          first_data_notified_at?: string | null
+          freshness?: Json | null
+          id?: string
+          last_complete_date?: string | null
+          last_synced_at?: string | null
+          next_sync_at?: string | null
+          property_url?: string
+          quota?: Json | null
+          requested_end_date?: string | null
+          requested_start_date?: string | null
+          retry_state?: Json | null
+          rows_imported?: number
+          status?: string
+          sync_kind?: string
+          updated_at?: string
+          warnings?: Json
+          workspace_id?: string
+        }
+        Relationships: []
+      }
       growthmind_image_assets: {
         Row: {
           asset_type: string
@@ -6868,6 +7137,72 @@ export type Database = {
           updated_at?: string
           value?: string
           workspace_id?: string
+        }
+        Relationships: []
+      }
+      growthmind_objectives: {
+        Row: {
+          approval_requirements: string | null
+          budget_limit_usd: number | null
+          business_outcome: string | null
+          content_volume: number | null
+          created_at: string
+          created_by: string | null
+          end_date: string | null
+          id: string
+          name: string
+          platforms: Json
+          priority: string
+          start_date: string | null
+          status: string
+          success_metrics: Json
+          target_audience: string | null
+          target_product: string | null
+          updated_at: string
+          workspace_id: string
+          workstreams: Json
+        }
+        Insert: {
+          approval_requirements?: string | null
+          budget_limit_usd?: number | null
+          business_outcome?: string | null
+          content_volume?: number | null
+          created_at?: string
+          created_by?: string | null
+          end_date?: string | null
+          id?: string
+          name: string
+          platforms?: Json
+          priority?: string
+          start_date?: string | null
+          status?: string
+          success_metrics?: Json
+          target_audience?: string | null
+          target_product?: string | null
+          updated_at?: string
+          workspace_id: string
+          workstreams?: Json
+        }
+        Update: {
+          approval_requirements?: string | null
+          budget_limit_usd?: number | null
+          business_outcome?: string | null
+          content_volume?: number | null
+          created_at?: string
+          created_by?: string | null
+          end_date?: string | null
+          id?: string
+          name?: string
+          platforms?: Json
+          priority?: string
+          start_date?: string | null
+          status?: string
+          success_metrics?: Json
+          target_audience?: string | null
+          target_product?: string | null
+          updated_at?: string
+          workspace_id?: string
+          workstreams?: Json
         }
         Relationships: []
       }
@@ -7331,6 +7666,372 @@ export type Database = {
           },
         ]
       }
+      growthmind_public_content_items: {
+        Row: {
+          article_body: string | null
+          author_name: string | null
+          body_format: string
+          canonical_url: string | null
+          category: string | null
+          content_approval_id: string | null
+          content_studio_project_id: string | null
+          content_type: string
+          created_at: string
+          created_by: string | null
+          cta: Json | null
+          current_version: number
+          deployment_package_id: string | null
+          excerpt: string | null
+          execution_id: string | null
+          external_sources: Json
+          featured_image_alt: string | null
+          featured_image_url: string | null
+          gsc_monitoring_state: string
+          id: string
+          internal_links: Json
+          live_url: string | null
+          live_verification_state: string
+          meta_description: string | null
+          meta_title: string | null
+          noindex: boolean
+          og_description: string | null
+          og_image_url: string | null
+          og_title: string | null
+          previous_version: number | null
+          primary_topic: string | null
+          publication_approval_id: string | null
+          published_at: string | null
+          published_version: number | null
+          query_cluster: Json
+          rendered_body: string | null
+          reviewer_name: string | null
+          safety_gate_result: Json | null
+          scheduled_for: string | null
+          scheduled_timezone: string | null
+          seo_campaign_id: string | null
+          site_id: string
+          sitemap_state: string
+          slug: string
+          status: string
+          structured_data: Json | null
+          tags: string[]
+          target_audience: string | null
+          target_country: string | null
+          target_language: string | null
+          target_product: string | null
+          target_service: string | null
+          task_id: string | null
+          title: string
+          updated_at: string
+          withdrawn_at: string | null
+          work_order_id: string | null
+          workspace_id: string
+        }
+        Insert: {
+          article_body?: string | null
+          author_name?: string | null
+          body_format?: string
+          canonical_url?: string | null
+          category?: string | null
+          content_approval_id?: string | null
+          content_studio_project_id?: string | null
+          content_type?: string
+          created_at?: string
+          created_by?: string | null
+          cta?: Json | null
+          current_version?: number
+          deployment_package_id?: string | null
+          excerpt?: string | null
+          execution_id?: string | null
+          external_sources?: Json
+          featured_image_alt?: string | null
+          featured_image_url?: string | null
+          gsc_monitoring_state?: string
+          id?: string
+          internal_links?: Json
+          live_url?: string | null
+          live_verification_state?: string
+          meta_description?: string | null
+          meta_title?: string | null
+          noindex?: boolean
+          og_description?: string | null
+          og_image_url?: string | null
+          og_title?: string | null
+          previous_version?: number | null
+          primary_topic?: string | null
+          publication_approval_id?: string | null
+          published_at?: string | null
+          published_version?: number | null
+          query_cluster?: Json
+          rendered_body?: string | null
+          reviewer_name?: string | null
+          safety_gate_result?: Json | null
+          scheduled_for?: string | null
+          scheduled_timezone?: string | null
+          seo_campaign_id?: string | null
+          site_id: string
+          sitemap_state?: string
+          slug: string
+          status?: string
+          structured_data?: Json | null
+          tags?: string[]
+          target_audience?: string | null
+          target_country?: string | null
+          target_language?: string | null
+          target_product?: string | null
+          target_service?: string | null
+          task_id?: string | null
+          title?: string
+          updated_at?: string
+          withdrawn_at?: string | null
+          work_order_id?: string | null
+          workspace_id: string
+        }
+        Update: {
+          article_body?: string | null
+          author_name?: string | null
+          body_format?: string
+          canonical_url?: string | null
+          category?: string | null
+          content_approval_id?: string | null
+          content_studio_project_id?: string | null
+          content_type?: string
+          created_at?: string
+          created_by?: string | null
+          cta?: Json | null
+          current_version?: number
+          deployment_package_id?: string | null
+          excerpt?: string | null
+          execution_id?: string | null
+          external_sources?: Json
+          featured_image_alt?: string | null
+          featured_image_url?: string | null
+          gsc_monitoring_state?: string
+          id?: string
+          internal_links?: Json
+          live_url?: string | null
+          live_verification_state?: string
+          meta_description?: string | null
+          meta_title?: string | null
+          noindex?: boolean
+          og_description?: string | null
+          og_image_url?: string | null
+          og_title?: string | null
+          previous_version?: number | null
+          primary_topic?: string | null
+          publication_approval_id?: string | null
+          published_at?: string | null
+          published_version?: number | null
+          query_cluster?: Json
+          rendered_body?: string | null
+          reviewer_name?: string | null
+          safety_gate_result?: Json | null
+          scheduled_for?: string | null
+          scheduled_timezone?: string | null
+          seo_campaign_id?: string | null
+          site_id?: string
+          sitemap_state?: string
+          slug?: string
+          status?: string
+          structured_data?: Json | null
+          tags?: string[]
+          target_audience?: string | null
+          target_country?: string | null
+          target_language?: string | null
+          target_product?: string | null
+          target_service?: string | null
+          task_id?: string | null
+          title?: string
+          updated_at?: string
+          withdrawn_at?: string | null
+          work_order_id?: string | null
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "growthmind_public_content_items_site_id_fkey"
+            columns: ["site_id"]
+            isOneToOne: false
+            referencedRelation: "growthmind_public_sites"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "growthmind_public_content_items_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      growthmind_public_content_versions: {
+        Row: {
+          approval_id: string | null
+          approved: boolean
+          change_summary: string | null
+          changed_by: string | null
+          created_at: string
+          id: string
+          is_published_version: boolean
+          item_id: string
+          publication_execution_id: string | null
+          snapshot: Json
+          version_number: number
+          workspace_id: string
+        }
+        Insert: {
+          approval_id?: string | null
+          approved?: boolean
+          change_summary?: string | null
+          changed_by?: string | null
+          created_at?: string
+          id?: string
+          is_published_version?: boolean
+          item_id: string
+          publication_execution_id?: string | null
+          snapshot: Json
+          version_number: number
+          workspace_id: string
+        }
+        Update: {
+          approval_id?: string | null
+          approved?: boolean
+          change_summary?: string | null
+          changed_by?: string | null
+          created_at?: string
+          id?: string
+          is_published_version?: boolean
+          item_id?: string
+          publication_execution_id?: string | null
+          snapshot?: Json
+          version_number?: number
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "growthmind_public_content_versions_item_id_fkey"
+            columns: ["item_id"]
+            isOneToOne: false
+            referencedRelation: "growthmind_public_content_items"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      growthmind_public_sites: {
+        Row: {
+          allowed_origins: string[]
+          canonical_host: string
+          created_at: string
+          display_name: string | null
+          id: string
+          site_key: string
+          status: string
+          updated_at: string
+          workspace_id: string
+        }
+        Insert: {
+          allowed_origins?: string[]
+          canonical_host: string
+          created_at?: string
+          display_name?: string | null
+          id?: string
+          site_key: string
+          status?: string
+          updated_at?: string
+          workspace_id: string
+        }
+        Update: {
+          allowed_origins?: string[]
+          canonical_host?: string
+          created_at?: string
+          display_name?: string | null
+          id?: string
+          site_key?: string
+          status?: string
+          updated_at?: string
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "growthmind_public_sites_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      growthmind_publication_executions: {
+        Row: {
+          approval_id: string | null
+          attempts: number
+          completed_at: string | null
+          created_at: string
+          error_message: string | null
+          evidence: Json
+          id: string
+          item_id: string
+          kind: string
+          max_attempts: number
+          next_attempt_at: string | null
+          requested_by: string | null
+          scheduled_for: string | null
+          status: string
+          steps: Json
+          updated_at: string
+          version_number: number
+          workspace_id: string
+        }
+        Insert: {
+          approval_id?: string | null
+          attempts?: number
+          completed_at?: string | null
+          created_at?: string
+          error_message?: string | null
+          evidence?: Json
+          id?: string
+          item_id: string
+          kind: string
+          max_attempts?: number
+          next_attempt_at?: string | null
+          requested_by?: string | null
+          scheduled_for?: string | null
+          status?: string
+          steps?: Json
+          updated_at?: string
+          version_number: number
+          workspace_id: string
+        }
+        Update: {
+          approval_id?: string | null
+          attempts?: number
+          completed_at?: string | null
+          created_at?: string
+          error_message?: string | null
+          evidence?: Json
+          id?: string
+          item_id?: string
+          kind?: string
+          max_attempts?: number
+          next_attempt_at?: string | null
+          requested_by?: string | null
+          scheduled_for?: string | null
+          status?: string
+          steps?: Json
+          updated_at?: string
+          version_number?: number
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "growthmind_publication_executions_item_id_fkey"
+            columns: ["item_id"]
+            isOneToOne: false
+            referencedRelation: "growthmind_public_content_items"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       growthmind_publishing_jobs: {
         Row: {
           approved_by_user_id: string | null
@@ -7627,6 +8328,210 @@ export type Database = {
         }
         Relationships: []
       }
+      growthmind_seo_campaigns: {
+        Row: {
+          approvals: Json
+          blocked_reason: string | null
+          brief: Json | null
+          campaign_type: string
+          competing_pages: Json | null
+          completed_at: string | null
+          content_project_id: string | null
+          created_at: string
+          created_by_user_id: string | null
+          customer_problem: string | null
+          data_limitations: Json
+          deployment_package_id: string | null
+          evidence: Json | null
+          gsc_evidence: Json | null
+          h1: string | null
+          id: string
+          ideal_reader: string | null
+          language: string | null
+          meta_description: string | null
+          meta_title: string | null
+          monitoring: Json | null
+          name: string
+          outline: Json | null
+          page_decision: string | null
+          page_decision_reason: string | null
+          parent_objective: string | null
+          parent_strategy_id: string | null
+          primary_topic: string | null
+          product_service: string | null
+          proposed_title: string | null
+          proposed_url: string | null
+          query_cluster: Json
+          related_pages: Json | null
+          safety_results: Json | null
+          search_intent: string | null
+          status: string
+          target_country: string | null
+          target_industry: string | null
+          task_id: string | null
+          updated_at: string
+          work_order_id: string | null
+          workspace_id: string
+        }
+        Insert: {
+          approvals?: Json
+          blocked_reason?: string | null
+          brief?: Json | null
+          campaign_type?: string
+          competing_pages?: Json | null
+          completed_at?: string | null
+          content_project_id?: string | null
+          created_at?: string
+          created_by_user_id?: string | null
+          customer_problem?: string | null
+          data_limitations?: Json
+          deployment_package_id?: string | null
+          evidence?: Json | null
+          gsc_evidence?: Json | null
+          h1?: string | null
+          id?: string
+          ideal_reader?: string | null
+          language?: string | null
+          meta_description?: string | null
+          meta_title?: string | null
+          monitoring?: Json | null
+          name: string
+          outline?: Json | null
+          page_decision?: string | null
+          page_decision_reason?: string | null
+          parent_objective?: string | null
+          parent_strategy_id?: string | null
+          primary_topic?: string | null
+          product_service?: string | null
+          proposed_title?: string | null
+          proposed_url?: string | null
+          query_cluster?: Json
+          related_pages?: Json | null
+          safety_results?: Json | null
+          search_intent?: string | null
+          status?: string
+          target_country?: string | null
+          target_industry?: string | null
+          task_id?: string | null
+          updated_at?: string
+          work_order_id?: string | null
+          workspace_id: string
+        }
+        Update: {
+          approvals?: Json
+          blocked_reason?: string | null
+          brief?: Json | null
+          campaign_type?: string
+          competing_pages?: Json | null
+          completed_at?: string | null
+          content_project_id?: string | null
+          created_at?: string
+          created_by_user_id?: string | null
+          customer_problem?: string | null
+          data_limitations?: Json
+          deployment_package_id?: string | null
+          evidence?: Json | null
+          gsc_evidence?: Json | null
+          h1?: string | null
+          id?: string
+          ideal_reader?: string | null
+          language?: string | null
+          meta_description?: string | null
+          meta_title?: string | null
+          monitoring?: Json | null
+          name?: string
+          outline?: Json | null
+          page_decision?: string | null
+          page_decision_reason?: string | null
+          parent_objective?: string | null
+          parent_strategy_id?: string | null
+          primary_topic?: string | null
+          product_service?: string | null
+          proposed_title?: string | null
+          proposed_url?: string | null
+          query_cluster?: Json
+          related_pages?: Json | null
+          safety_results?: Json | null
+          search_intent?: string | null
+          status?: string
+          target_country?: string | null
+          target_industry?: string | null
+          task_id?: string | null
+          updated_at?: string
+          work_order_id?: string | null
+          workspace_id?: string
+        }
+        Relationships: []
+      }
+      growthmind_seo_deployment_packages: {
+        Row: {
+          approvals: Json
+          campaign_id: string | null
+          content_project_id: string | null
+          created_at: string
+          created_by_user_id: string | null
+          id: string
+          live_url: string | null
+          manual_instructions: string | null
+          package: Json
+          page_mode: string | null
+          proposed_route: string | null
+          rollback_content: Json | null
+          status: string
+          target_website: string | null
+          updated_at: string
+          validation: Json | null
+          verified_at: string | null
+          version: number
+          work_order_id: string | null
+          workspace_id: string
+        }
+        Insert: {
+          approvals?: Json
+          campaign_id?: string | null
+          content_project_id?: string | null
+          created_at?: string
+          created_by_user_id?: string | null
+          id?: string
+          live_url?: string | null
+          manual_instructions?: string | null
+          package?: Json
+          page_mode?: string | null
+          proposed_route?: string | null
+          rollback_content?: Json | null
+          status?: string
+          target_website?: string | null
+          updated_at?: string
+          validation?: Json | null
+          verified_at?: string | null
+          version?: number
+          work_order_id?: string | null
+          workspace_id: string
+        }
+        Update: {
+          approvals?: Json
+          campaign_id?: string | null
+          content_project_id?: string | null
+          created_at?: string
+          created_by_user_id?: string | null
+          id?: string
+          live_url?: string | null
+          manual_instructions?: string | null
+          package?: Json
+          page_mode?: string | null
+          proposed_route?: string | null
+          rollback_content?: Json | null
+          status?: string
+          target_website?: string | null
+          updated_at?: string
+          validation?: Json | null
+          verified_at?: string | null
+          version?: number
+          work_order_id?: string | null
+          workspace_id?: string
+        }
+        Relationships: []
+      }
       growthmind_seo_sites: {
         Row: {
           ai_rec_at: string | null
@@ -7659,6 +8564,54 @@ export type Database = {
           keywords?: Json
           updated_at?: string
           url?: string
+          workspace_id?: string
+        }
+        Relationships: []
+      }
+      growthmind_seo_teachings: {
+        Row: {
+          campaigns_influenced: Json
+          confidence: number
+          content: string
+          created_at: string
+          expires_at: string | null
+          id: string
+          owner_user_id: string | null
+          result_note: string | null
+          source: string
+          status: string
+          teaching_type: string
+          updated_at: string
+          workspace_id: string
+        }
+        Insert: {
+          campaigns_influenced?: Json
+          confidence?: number
+          content: string
+          created_at?: string
+          expires_at?: string | null
+          id?: string
+          owner_user_id?: string | null
+          result_note?: string | null
+          source?: string
+          status?: string
+          teaching_type: string
+          updated_at?: string
+          workspace_id: string
+        }
+        Update: {
+          campaigns_influenced?: Json
+          confidence?: number
+          content?: string
+          created_at?: string
+          expires_at?: string | null
+          id?: string
+          owner_user_id?: string | null
+          result_note?: string | null
+          source?: string
+          status?: string
+          teaching_type?: string
+          updated_at?: string
           workspace_id?: string
         }
         Relationships: []
@@ -8787,6 +9740,7 @@ export type Database = {
           description: string | null
           error_message: string | null
           executed_at: string | null
+          execution_id: string | null
           expected_result: string | null
           id: string
           new_state: Json | null
@@ -8801,8 +9755,10 @@ export type Database = {
           sensitive_category: string | null
           source_recommendation_id: string | null
           status: string
+          task_id: string | null
           title: string
           updated_at: string
+          work_order_id: string | null
           workspace_id: string
         }
         Insert: {
@@ -8816,6 +9772,7 @@ export type Database = {
           description?: string | null
           error_message?: string | null
           executed_at?: string | null
+          execution_id?: string | null
           expected_result?: string | null
           id?: string
           new_state?: Json | null
@@ -8830,8 +9787,10 @@ export type Database = {
           sensitive_category?: string | null
           source_recommendation_id?: string | null
           status?: string
+          task_id?: string | null
           title: string
           updated_at?: string
+          work_order_id?: string | null
           workspace_id: string
         }
         Update: {
@@ -8845,6 +9804,7 @@ export type Database = {
           description?: string | null
           error_message?: string | null
           executed_at?: string | null
+          execution_id?: string | null
           expected_result?: string | null
           id?: string
           new_state?: Json | null
@@ -8859,8 +9819,10 @@ export type Database = {
           sensitive_category?: string | null
           source_recommendation_id?: string | null
           status?: string
+          task_id?: string | null
           title?: string
           updated_at?: string
+          work_order_id?: string | null
           workspace_id?: string
         }
         Relationships: []
@@ -9278,8 +10240,12 @@ export type Database = {
       }
       hivemind_tasks: {
         Row: {
+          action_kind: string | null
+          active_execution_id: string | null
+          assigned_mind: string | null
           assigned_to: string | null
           comments: Json
+          completed_at: string | null
           completion_evidence: Json | null
           created_at: string
           department: string | null
@@ -9291,22 +10257,31 @@ export type Database = {
           entity_type: string | null
           escalated_at: string | null
           evidence: Json | null
+          execution_status: string | null
           id: string
+          input_spec: Json | null
           metadata: Json | null
           priority: string
           reason: string | null
           reassess_at: string | null
           reopened_count: number
+          result_summary: string | null
           source: string
           status: string
+          task_category: string
           title: string
           trigger_type: string | null
           updated_at: string
+          work_order_id: string | null
           workspace_id: string
         }
         Insert: {
+          action_kind?: string | null
+          active_execution_id?: string | null
+          assigned_mind?: string | null
           assigned_to?: string | null
           comments?: Json
+          completed_at?: string | null
           completion_evidence?: Json | null
           created_at?: string
           department?: string | null
@@ -9318,22 +10293,31 @@ export type Database = {
           entity_type?: string | null
           escalated_at?: string | null
           evidence?: Json | null
+          execution_status?: string | null
           id?: string
+          input_spec?: Json | null
           metadata?: Json | null
           priority?: string
           reason?: string | null
           reassess_at?: string | null
           reopened_count?: number
+          result_summary?: string | null
           source?: string
           status?: string
+          task_category?: string
           title: string
           trigger_type?: string | null
           updated_at?: string
+          work_order_id?: string | null
           workspace_id: string
         }
         Update: {
+          action_kind?: string | null
+          active_execution_id?: string | null
+          assigned_mind?: string | null
           assigned_to?: string | null
           comments?: Json
+          completed_at?: string | null
           completion_evidence?: Json | null
           created_at?: string
           department?: string | null
@@ -9345,17 +10329,22 @@ export type Database = {
           entity_type?: string | null
           escalated_at?: string | null
           evidence?: Json | null
+          execution_status?: string | null
           id?: string
+          input_spec?: Json | null
           metadata?: Json | null
           priority?: string
           reason?: string | null
           reassess_at?: string | null
           reopened_count?: number
+          result_summary?: string | null
           source?: string
           status?: string
+          task_category?: string
           title?: string
           trigger_type?: string | null
           updated_at?: string
+          work_order_id?: string | null
           workspace_id?: string
         }
         Relationships: []
@@ -9764,6 +10753,87 @@ export type Database = {
         }
         Relationships: []
       }
+      mind_task_executions: {
+        Row: {
+          action_kind: string
+          artifacts: Json
+          assigned_mind: string
+          blocked_reason: string | null
+          cost_summary: Json | null
+          created_at: string
+          current_step: number
+          error_message: string | null
+          evidence: Json | null
+          finished_at: string | null
+          id: string
+          input_spec: Json | null
+          linked_action_id: string | null
+          result: Json | null
+          started_at: string | null
+          status: string
+          steps: Json
+          task_id: string
+          trigger_source: string
+          triggered_by_user: string | null
+          updated_at: string
+          verification: Json | null
+          work_order_id: string | null
+          workspace_id: string
+        }
+        Insert: {
+          action_kind: string
+          artifacts?: Json
+          assigned_mind: string
+          blocked_reason?: string | null
+          cost_summary?: Json | null
+          created_at?: string
+          current_step?: number
+          error_message?: string | null
+          evidence?: Json | null
+          finished_at?: string | null
+          id?: string
+          input_spec?: Json | null
+          linked_action_id?: string | null
+          result?: Json | null
+          started_at?: string | null
+          status?: string
+          steps?: Json
+          task_id: string
+          trigger_source?: string
+          triggered_by_user?: string | null
+          updated_at?: string
+          verification?: Json | null
+          work_order_id?: string | null
+          workspace_id: string
+        }
+        Update: {
+          action_kind?: string
+          artifacts?: Json
+          assigned_mind?: string
+          blocked_reason?: string | null
+          cost_summary?: Json | null
+          created_at?: string
+          current_step?: number
+          error_message?: string | null
+          evidence?: Json | null
+          finished_at?: string | null
+          id?: string
+          input_spec?: Json | null
+          linked_action_id?: string | null
+          result?: Json | null
+          started_at?: string | null
+          status?: string
+          steps?: Json
+          task_id?: string
+          trigger_source?: string
+          triggered_by_user?: string | null
+          updated_at?: string
+          verification?: Json | null
+          work_order_id?: string | null
+          workspace_id?: string
+        }
+        Relationships: []
+      }
       mind_tool_executions: {
         Row: {
           affected_record_id: string | null
@@ -9879,6 +10949,24 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      oauth_state_nonces: {
+        Row: {
+          created_at: string
+          nonce: string
+          purpose: string
+        }
+        Insert: {
+          created_at?: string
+          nonce: string
+          purpose?: string
+        }
+        Update: {
+          created_at?: string
+          nonce?: string
+          purpose?: string
+        }
+        Relationships: []
       }
       package_definitions: {
         Row: {
@@ -10542,6 +11630,105 @@ export type Database = {
           },
         ]
       }
+      retell_deployment_state: {
+        Row: {
+          agent_id: string
+          conversation_flow_id: string | null
+          created_at: string
+          extraction_schema: Json | null
+          extraction_verified: boolean
+          extraction_verified_at: string | null
+          id: string
+          last_deploy_error: string | null
+          last_deploy_status: string
+          last_deployed_at: string | null
+          last_deployed_config: Json | null
+          last_deployed_hash: string | null
+          last_live_hash: string | null
+          last_synced_at: string | null
+          retell_agent_id: string | null
+          updated_at: string
+          workspace_id: string
+        }
+        Insert: {
+          agent_id: string
+          conversation_flow_id?: string | null
+          created_at?: string
+          extraction_schema?: Json | null
+          extraction_verified?: boolean
+          extraction_verified_at?: string | null
+          id?: string
+          last_deploy_error?: string | null
+          last_deploy_status?: string
+          last_deployed_at?: string | null
+          last_deployed_config?: Json | null
+          last_deployed_hash?: string | null
+          last_live_hash?: string | null
+          last_synced_at?: string | null
+          retell_agent_id?: string | null
+          updated_at?: string
+          workspace_id: string
+        }
+        Update: {
+          agent_id?: string
+          conversation_flow_id?: string | null
+          created_at?: string
+          extraction_schema?: Json | null
+          extraction_verified?: boolean
+          extraction_verified_at?: string | null
+          id?: string
+          last_deploy_error?: string | null
+          last_deploy_status?: string
+          last_deployed_at?: string | null
+          last_deployed_config?: Json | null
+          last_deployed_hash?: string | null
+          last_live_hash?: string | null
+          last_synced_at?: string | null
+          retell_agent_id?: string | null
+          updated_at?: string
+          workspace_id?: string
+        }
+        Relationships: []
+      }
+      retell_webhook_config: {
+        Row: {
+          created_at: string
+          failure_count: number
+          last_event_at: string | null
+          last_failure_at: string | null
+          last_success_at: string | null
+          replay_window_seconds: number
+          secret: string
+          updated_at: string
+          verification_enabled: boolean
+          workspace_id: string
+        }
+        Insert: {
+          created_at?: string
+          failure_count?: number
+          last_event_at?: string | null
+          last_failure_at?: string | null
+          last_success_at?: string | null
+          replay_window_seconds?: number
+          secret: string
+          updated_at?: string
+          verification_enabled?: boolean
+          workspace_id: string
+        }
+        Update: {
+          created_at?: string
+          failure_count?: number
+          last_event_at?: string | null
+          last_failure_at?: string | null
+          last_success_at?: string | null
+          replay_window_seconds?: number
+          secret?: string
+          updated_at?: string
+          verification_enabled?: boolean
+          workspace_id?: string
+        }
+        Relationships: []
+      }
       retell_webhook_events: {
         Row: {
           error_message: string | null
@@ -10591,6 +11778,54 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      retell_webhook_processing: {
+        Row: {
+          attempts: number
+          created_at: string
+          dedup_key: string
+          event_log_id: string | null
+          event_type: string
+          id: string
+          last_error: string | null
+          next_retry_at: string | null
+          payload: Json | null
+          retell_call_id: string | null
+          status: string
+          updated_at: string
+          workspace_id: string | null
+        }
+        Insert: {
+          attempts?: number
+          created_at?: string
+          dedup_key: string
+          event_log_id?: string | null
+          event_type: string
+          id?: string
+          last_error?: string | null
+          next_retry_at?: string | null
+          payload?: Json | null
+          retell_call_id?: string | null
+          status?: string
+          updated_at?: string
+          workspace_id?: string | null
+        }
+        Update: {
+          attempts?: number
+          created_at?: string
+          dedup_key?: string
+          event_log_id?: string | null
+          event_type?: string
+          id?: string
+          last_error?: string | null
+          next_retry_at?: string | null
+          payload?: Json | null
+          retell_call_id?: string | null
+          status?: string
+          updated_at?: string
+          workspace_id?: string | null
+        }
+        Relationships: []
       }
       seat_overage_events: {
         Row: {
@@ -11136,6 +12371,203 @@ export type Database = {
           },
         ]
       }
+      systemmind_call_attempts: {
+        Row: {
+          attempt_number: number
+          created_at: string
+          ended_at: string | null
+          error: string | null
+          id: string
+          outcome: string
+          queue_id: string
+          retell_call_id: string | null
+          started_at: string
+          workspace_id: string
+        }
+        Insert: {
+          attempt_number?: number
+          created_at?: string
+          ended_at?: string | null
+          error?: string | null
+          id?: string
+          outcome?: string
+          queue_id: string
+          retell_call_id?: string | null
+          started_at?: string
+          workspace_id: string
+        }
+        Update: {
+          attempt_number?: number
+          created_at?: string
+          ended_at?: string | null
+          error?: string | null
+          id?: string
+          outcome?: string
+          queue_id?: string
+          retell_call_id?: string | null
+          started_at?: string
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "systemmind_call_attempts_queue_id_fkey"
+            columns: ["queue_id"]
+            isOneToOne: false
+            referencedRelation: "systemmind_call_queue"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      systemmind_call_queue: {
+        Row: {
+          activation_id: string | null
+          agent_id: string | null
+          attempt_count: number
+          call_context: Json
+          claimed_at: string | null
+          claimed_by: string | null
+          created_at: string
+          dedup_key: string | null
+          dynamic_variables: Json
+          id: string
+          last_error: string | null
+          lead_id: string | null
+          lead_name: string
+          max_attempts: number
+          missing_required: Json
+          next_attempt_at: string
+          phone: string
+          priority: number
+          status: string
+          status_reason: string
+          trigger_id: string | null
+          updated_at: string
+          workspace_id: string
+        }
+        Insert: {
+          activation_id?: string | null
+          agent_id?: string | null
+          attempt_count?: number
+          call_context?: Json
+          claimed_at?: string | null
+          claimed_by?: string | null
+          created_at?: string
+          dedup_key?: string | null
+          dynamic_variables?: Json
+          id?: string
+          last_error?: string | null
+          lead_id?: string | null
+          lead_name?: string
+          max_attempts?: number
+          missing_required?: Json
+          next_attempt_at?: string
+          phone?: string
+          priority?: number
+          status?: string
+          status_reason?: string
+          trigger_id?: string | null
+          updated_at?: string
+          workspace_id: string
+        }
+        Update: {
+          activation_id?: string | null
+          agent_id?: string | null
+          attempt_count?: number
+          call_context?: Json
+          claimed_at?: string | null
+          claimed_by?: string | null
+          created_at?: string
+          dedup_key?: string | null
+          dynamic_variables?: Json
+          id?: string
+          last_error?: string | null
+          lead_id?: string | null
+          lead_name?: string
+          max_attempts?: number
+          missing_required?: Json
+          next_attempt_at?: string
+          phone?: string
+          priority?: number
+          status?: string
+          status_reason?: string
+          trigger_id?: string | null
+          updated_at?: string
+          workspace_id?: string
+        }
+        Relationships: []
+      }
+      systemmind_call_triggers: {
+        Row: {
+          activation_id: string | null
+          agent_id: string | null
+          calling_window: Json
+          conditions: Json
+          created_at: string
+          created_by_user_id: string | null
+          daily_cap: number
+          dedup_window_minutes: number
+          eligibility: Json
+          enabled: boolean
+          id: string
+          last_evaluated_at: string | null
+          max_attempts: number
+          name: string
+          retry_config: Json
+          schedule: Json
+          summary: string
+          trigger_type: string
+          updated_at: string
+          workflow_id: string | null
+          workspace_id: string
+        }
+        Insert: {
+          activation_id?: string | null
+          agent_id?: string | null
+          calling_window?: Json
+          conditions?: Json
+          created_at?: string
+          created_by_user_id?: string | null
+          daily_cap?: number
+          dedup_window_minutes?: number
+          eligibility?: Json
+          enabled?: boolean
+          id?: string
+          last_evaluated_at?: string | null
+          max_attempts?: number
+          name?: string
+          retry_config?: Json
+          schedule?: Json
+          summary?: string
+          trigger_type?: string
+          updated_at?: string
+          workflow_id?: string | null
+          workspace_id: string
+        }
+        Update: {
+          activation_id?: string | null
+          agent_id?: string | null
+          calling_window?: Json
+          conditions?: Json
+          created_at?: string
+          created_by_user_id?: string | null
+          daily_cap?: number
+          dedup_window_minutes?: number
+          eligibility?: Json
+          enabled?: boolean
+          id?: string
+          last_evaluated_at?: string | null
+          max_attempts?: number
+          name?: string
+          retry_config?: Json
+          schedule?: Json
+          summary?: string
+          trigger_type?: string
+          updated_at?: string
+          workflow_id?: string | null
+          workspace_id?: string
+        }
+        Relationships: []
+      }
       systemmind_conversions: {
         Row: {
           converted_by: string
@@ -11583,6 +13015,68 @@ export type Database = {
         }
         Relationships: []
       }
+      systemmind_execution_steps: {
+        Row: {
+          completed_at: string | null
+          created_at: string
+          error: string | null
+          execution_id: string
+          external_response_masked: Json | null
+          id: string
+          input_masked: Json
+          output_masked: Json
+          resolution_hint: string | null
+          retryable: boolean
+          started_at: string
+          status: string
+          step_key: string
+          step_label: string
+          workspace_id: string
+        }
+        Insert: {
+          completed_at?: string | null
+          created_at?: string
+          error?: string | null
+          execution_id: string
+          external_response_masked?: Json | null
+          id?: string
+          input_masked?: Json
+          output_masked?: Json
+          resolution_hint?: string | null
+          retryable?: boolean
+          started_at?: string
+          status?: string
+          step_key: string
+          step_label?: string
+          workspace_id: string
+        }
+        Update: {
+          completed_at?: string | null
+          created_at?: string
+          error?: string | null
+          execution_id?: string
+          external_response_masked?: Json | null
+          id?: string
+          input_masked?: Json
+          output_masked?: Json
+          resolution_hint?: string | null
+          retryable?: boolean
+          started_at?: string
+          status?: string
+          step_key?: string
+          step_label?: string
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "systemmind_execution_steps_execution_id_fkey"
+            columns: ["execution_id"]
+            isOneToOne: false
+            referencedRelation: "systemmind_workflow_executions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       systemmind_fix_plans: {
         Row: {
           created_at: string
@@ -11891,6 +13385,63 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      systemmind_integration_errors: {
+        Row: {
+          activation_id: string | null
+          agent_id: string | null
+          created_at: string
+          error: string
+          execution_id: string | null
+          id: string
+          kind: string
+          max_retries: number
+          next_retry_at: string | null
+          operation: Json
+          queue_id: string | null
+          resolved_at: string | null
+          retry_count: number
+          status: string
+          updated_at: string
+          workspace_id: string
+        }
+        Insert: {
+          activation_id?: string | null
+          agent_id?: string | null
+          created_at?: string
+          error?: string
+          execution_id?: string | null
+          id?: string
+          kind?: string
+          max_retries?: number
+          next_retry_at?: string | null
+          operation?: Json
+          queue_id?: string | null
+          resolved_at?: string | null
+          retry_count?: number
+          status?: string
+          updated_at?: string
+          workspace_id: string
+        }
+        Update: {
+          activation_id?: string | null
+          agent_id?: string | null
+          created_at?: string
+          error?: string
+          execution_id?: string | null
+          id?: string
+          kind?: string
+          max_retries?: number
+          next_retry_at?: string | null
+          operation?: Json
+          queue_id?: string | null
+          resolved_at?: string | null
+          retry_count?: number
+          status?: string
+          updated_at?: string
+          workspace_id?: string
+        }
+        Relationships: []
       }
       systemmind_intelligence_settings: {
         Row: {
@@ -12765,6 +14316,90 @@ export type Database = {
           },
         ]
       }
+      systemmind_workflow_activations: {
+        Row: {
+          activated_at: string | null
+          activated_by_user_id: string | null
+          admin_override: boolean
+          agent_id: string | null
+          config: Json
+          created_at: string
+          created_by_user_id: string | null
+          crm_connection_id: string | null
+          deactivated_at: string | null
+          health: Json
+          health_checked_at: string | null
+          health_status: string
+          id: string
+          last_test_at: string | null
+          name: string
+          override_by_user_id: string | null
+          override_reason: string | null
+          parent_activation_id: string | null
+          session_id: string | null
+          status: string
+          test_passed: boolean | null
+          test_results: Json
+          updated_at: string
+          version_number: number
+          workspace_id: string
+        }
+        Insert: {
+          activated_at?: string | null
+          activated_by_user_id?: string | null
+          admin_override?: boolean
+          agent_id?: string | null
+          config?: Json
+          created_at?: string
+          created_by_user_id?: string | null
+          crm_connection_id?: string | null
+          deactivated_at?: string | null
+          health?: Json
+          health_checked_at?: string | null
+          health_status?: string
+          id?: string
+          last_test_at?: string | null
+          name?: string
+          override_by_user_id?: string | null
+          override_reason?: string | null
+          parent_activation_id?: string | null
+          session_id?: string | null
+          status?: string
+          test_passed?: boolean | null
+          test_results?: Json
+          updated_at?: string
+          version_number?: number
+          workspace_id: string
+        }
+        Update: {
+          activated_at?: string | null
+          activated_by_user_id?: string | null
+          admin_override?: boolean
+          agent_id?: string | null
+          config?: Json
+          created_at?: string
+          created_by_user_id?: string | null
+          crm_connection_id?: string | null
+          deactivated_at?: string | null
+          health?: Json
+          health_checked_at?: string | null
+          health_status?: string
+          id?: string
+          last_test_at?: string | null
+          name?: string
+          override_by_user_id?: string | null
+          override_reason?: string | null
+          parent_activation_id?: string | null
+          session_id?: string | null
+          status?: string
+          test_passed?: boolean | null
+          test_results?: Json
+          updated_at?: string
+          version_number?: number
+          workspace_id?: string
+        }
+        Relationships: []
+      }
       systemmind_workflow_drafts: {
         Row: {
           category: string | null
@@ -12847,6 +14482,63 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      systemmind_workflow_executions: {
+        Row: {
+          activation_id: string | null
+          agent_id: string | null
+          completed_at: string | null
+          created_at: string
+          error: string | null
+          id: string
+          idempotency_key: string | null
+          kind: string
+          lead_id: string | null
+          queue_id: string | null
+          started_at: string
+          status: string
+          summary: Json
+          trigger_id: string | null
+          trigger_source: string
+          workspace_id: string
+        }
+        Insert: {
+          activation_id?: string | null
+          agent_id?: string | null
+          completed_at?: string | null
+          created_at?: string
+          error?: string | null
+          id?: string
+          idempotency_key?: string | null
+          kind?: string
+          lead_id?: string | null
+          queue_id?: string | null
+          started_at?: string
+          status?: string
+          summary?: Json
+          trigger_id?: string | null
+          trigger_source?: string
+          workspace_id: string
+        }
+        Update: {
+          activation_id?: string | null
+          agent_id?: string | null
+          completed_at?: string | null
+          created_at?: string
+          error?: string | null
+          id?: string
+          idempotency_key?: string | null
+          kind?: string
+          lead_id?: string | null
+          queue_id?: string | null
+          started_at?: string
+          status?: string
+          summary?: Json
+          trigger_id?: string | null
+          trigger_source?: string
+          workspace_id?: string
+        }
+        Relationships: []
       }
       systemmind_workflow_library: {
         Row: {
@@ -14640,6 +16332,66 @@ export type Database = {
           },
         ]
       }
+      work_orders: {
+        Row: {
+          assigned_minds: string[]
+          commercial_objective: string | null
+          completed_at: string | null
+          created_at: string
+          created_by_user_id: string | null
+          evidence: Json | null
+          id: string
+          metadata: Json | null
+          objective: string | null
+          result_summary: string | null
+          source: string
+          source_conversation_id: string | null
+          source_recommendation_id: string | null
+          status: string
+          title: string
+          updated_at: string
+          workspace_id: string
+        }
+        Insert: {
+          assigned_minds?: string[]
+          commercial_objective?: string | null
+          completed_at?: string | null
+          created_at?: string
+          created_by_user_id?: string | null
+          evidence?: Json | null
+          id?: string
+          metadata?: Json | null
+          objective?: string | null
+          result_summary?: string | null
+          source?: string
+          source_conversation_id?: string | null
+          source_recommendation_id?: string | null
+          status?: string
+          title: string
+          updated_at?: string
+          workspace_id: string
+        }
+        Update: {
+          assigned_minds?: string[]
+          commercial_objective?: string | null
+          completed_at?: string | null
+          created_at?: string
+          created_by_user_id?: string | null
+          evidence?: Json | null
+          id?: string
+          metadata?: Json | null
+          objective?: string | null
+          result_summary?: string | null
+          source?: string
+          source_conversation_id?: string | null
+          source_recommendation_id?: string | null
+          status?: string
+          title?: string
+          updated_at?: string
+          workspace_id?: string
+        }
+        Relationships: []
+      }
       workflow_blueprints: {
         Row: {
           activated_workflow_id: string | null
@@ -16059,12 +17811,15 @@ export type Database = {
           growthmind_ci_limits: Json
           growthmind_deep_analysis_daily_limit: number
           growthmind_discovery_daily_limit: number
+          growthmind_jobs_paused: boolean
           growthmind_min_opportunity_score: number
           growthmind_mode: string
+          growthmind_monthly_cost_limit_usd: number | null
           growthmind_operator_enabled: boolean
           growthmind_operator_enabled_at: string | null
           growthmind_operator_enabled_by: string | null
           growthmind_operator_permissions: Json
+          growthmind_publishing_paused: boolean
           growthmind_settings: Json
           growthmind_trend_scout_enabled: boolean
           gsc_access_token: string | null
@@ -16142,12 +17897,15 @@ export type Database = {
           growthmind_ci_limits?: Json
           growthmind_deep_analysis_daily_limit?: number
           growthmind_discovery_daily_limit?: number
+          growthmind_jobs_paused?: boolean
           growthmind_min_opportunity_score?: number
           growthmind_mode?: string
+          growthmind_monthly_cost_limit_usd?: number | null
           growthmind_operator_enabled?: boolean
           growthmind_operator_enabled_at?: string | null
           growthmind_operator_enabled_by?: string | null
           growthmind_operator_permissions?: Json
+          growthmind_publishing_paused?: boolean
           growthmind_settings?: Json
           growthmind_trend_scout_enabled?: boolean
           gsc_access_token?: string | null
@@ -16225,12 +17983,15 @@ export type Database = {
           growthmind_ci_limits?: Json
           growthmind_deep_analysis_daily_limit?: number
           growthmind_discovery_daily_limit?: number
+          growthmind_jobs_paused?: boolean
           growthmind_min_opportunity_score?: number
           growthmind_mode?: string
+          growthmind_monthly_cost_limit_usd?: number | null
           growthmind_operator_enabled?: boolean
           growthmind_operator_enabled_at?: string | null
           growthmind_operator_enabled_by?: string | null
           growthmind_operator_permissions?: Json
+          growthmind_publishing_paused?: boolean
           growthmind_settings?: Json
           growthmind_trend_scout_enabled?: boolean
           gsc_access_token?: string | null

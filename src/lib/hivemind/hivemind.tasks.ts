@@ -26,6 +26,17 @@ export interface HiveMindTask {
   metadata: Record<string, unknown> | null;
   created_at: string;
   updated_at: string;
+  // ── Work-order / execution backbone (nullable for legacy rows) ────────────
+  task_category?: "legacy" | "executable" | "informational" | null;
+  assigned_mind?: string | null;
+  action_kind?: string | null;
+  execution_status?: string | null;
+  work_order_id?: string | null;
+  active_execution_id?: string | null;
+  input_spec?: Record<string, unknown> | null;
+  result_summary?: string | null;
+  completion_evidence?: Record<string, unknown> | null;
+  completed_at?: string | null;
 }
 
 export interface HiveMindEvent {
@@ -935,6 +946,20 @@ export async function updateHiveMindTaskCore(
   },
 ): Promise<{ ok: true }> {
   const { id, ...updates } = data;
+  // Executable tasks are lifecycle-owned by the execution engine: manual
+  // status writes would fake progress/completion without an execution record,
+  // so they are rejected server-side (UI hides the controls, but this is the
+  // enforcement point).
+  if (updates.status !== undefined) {
+    const { data: row, error: re } = await ctx.sb.from("hivemind_tasks")
+      .select("task_category")
+      .eq("id", id).eq("workspace_id", ctx.workspaceId)
+      .maybeSingle();
+    if (re) throw re;
+    if (row?.task_category === "executable") {
+      throw new Error("This task is run by its assigned Mind — approve & run it instead of changing status manually.");
+    }
+  }
   const { error } = await ctx.sb.from("hivemind_tasks")
     .update({ ...updates, updated_at: new Date().toISOString() })
     .eq("id", id)

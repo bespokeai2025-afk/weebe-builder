@@ -166,6 +166,15 @@ export const saveAiRecs = createServerFn({ method: "POST" })
 const GSC_SCOPES = "https://www.googleapis.com/auth/webmasters.readonly";
 const GSC_STATE_TTL_MS = 10 * 60 * 1000; // 10 minutes
 
+/** Canonical server-side OAuth redirect target. Register EXACTLY these in the
+ *  Google Cloud console (one per allowed origin):
+ *    https://webeereceptionist.com/api/oauth/gsc-callback
+ *    https://www.webeereceptionist.com/api/oauth/gsc-callback
+ *  (plus dev/preview origins as needed). The old page-URL redirect
+ *  (`…/growthmind/seo`) caused redirect_uri_mismatch because it varied per
+ *  environment and was never a stable registered URI. */
+export const GSC_CALLBACK_PATH = "/api/oauth/gsc-callback";
+
 function gscClientId(): string {
   const id = process.env.GOOGLE_CLIENT_ID;
   if (!id) throw new Error("GOOGLE_CLIENT_ID is not configured");
@@ -178,36 +187,110 @@ function gscClientSecret(): string {
   return s;
 }
 
-async function signGscState(workspaceId: string, ts: number): Promise<string> {
-  const { createHmac } = await import("crypto");
-  const secret = gscClientSecret();
-  const payload = `${workspaceId}.${ts}`;
-  const sig = createHmac("sha256", secret).update(payload).digest("hex");
-  return Buffer.from(`${payload}.${sig}`).toString("base64url");
+export interface GscOAuthState {
+  workspaceId: string;
+  origin:      string;
+  returnTo:    string;
+  ts:          number;
+  nonce:       string;
 }
 
-async function verifyGscState(state: string, workspaceId: string): Promise<void> {
-  const { createHmac, timingSafeEqual } = await import("crypto");
-  let decoded: string;
+/** One-time consumption of the state nonce (replay protection). Returns true
+ *  the first time a nonce is seen; false on replay. Fails CLOSED. */
+export async function consumeGscStateNonce(nonce: string): Promise<boolean> {
+  if (!nonce || nonce.length < 16) return false;
   try {
-    decoded = Buffer.from(state, "base64url").toString("utf8");
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { error } = await (supabaseAdmin as any)
+      .from("oauth_state_nonces")
+      .insert({ nonce, purpose: "gsc" });
+    if (error) return false; // 23505 duplicate = replay; any other error = fail closed
+    // Best-effort prune of expired nonces (older than the state TTL).
+    void (supabaseAdmin as any)
+      .from("oauth_state_nonces")
+      .delete()
+      .lt("created_at", new Date(Date.now() - 2 * GSC_STATE_TTL_MS).toISOString())
+      .then(() => {});
+    return true;
   } catch {
-    throw new Error("Invalid OAuth state");
+    return false;
   }
-  const parts = decoded.split(".");
-  if (parts.length !== 3) throw new Error("Invalid OAuth state format");
-  const [wid, tsStr, sig] = parts;
-  if (wid !== workspaceId) throw new Error("OAuth state workspace mismatch");
-  const ts = parseInt(tsStr, 10);
-  if (isNaN(ts) || Date.now() - ts > GSC_STATE_TTL_MS) throw new Error("OAuth state expired");
+}
+
+async function signGscState(state: GscOAuthState): Promise<string> {
+  const { createHmac } = await import("crypto");
   const secret  = gscClientSecret();
-  const payload = `${wid}.${tsStr}`;
-  const expected = createHmac("sha256", secret).update(payload).digest("hex");
-  const sigBuf  = Buffer.from(sig,      "hex");
-  const expBuf  = Buffer.from(expected, "hex");
-  if (sigBuf.length !== expBuf.length || !timingSafeEqual(sigBuf, expBuf)) {
-    throw new Error("OAuth state signature invalid");
+  const payload = Buffer.from(JSON.stringify(state)).toString("base64url");
+  const sig     = createHmac("sha256", secret).update(payload).digest("base64url");
+  return `${payload}.${sig}`;
+}
+
+/** Verifies signature + TTL and returns the parsed state, or null. */
+export async function verifyGscState(raw: string): Promise<GscOAuthState | null> {
+  try {
+    const { createHmac, timingSafeEqual } = await import("crypto");
+    const [payload, sig] = raw.split(".");
+    if (!payload || !sig) return null;
+    const secret   = gscClientSecret();
+    const expected = createHmac("sha256", secret).update(payload).digest("base64url");
+    const a = Buffer.from(sig);
+    const b = Buffer.from(expected);
+    if (a.length !== b.length || !timingSafeEqual(a, b)) return null;
+    const state = JSON.parse(Buffer.from(payload, "base64url").toString("utf8")) as GscOAuthState;
+    if (!state.ts || Date.now() - state.ts > GSC_STATE_TTL_MS) return null;
+    if (!state.workspaceId || !state.origin || !state.nonce) return null;
+    return state;
+  } catch {
+    return null;
   }
+}
+
+/** Exchanges the auth code and stores tokens. Used by the server callback
+ *  route (workspace identity comes from the verified HMAC state). */
+export async function exchangeAndStoreGscCode(opts: {
+  workspaceId: string;
+  code:        string;
+  origin:      string;
+}): Promise<void> {
+  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+  const clientId     = gscClientId();
+  const clientSecret = gscClientSecret();
+
+  const tokenRes = await fetch("https://oauth2.googleapis.com/token", {
+    method:  "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body:    new URLSearchParams({
+      code:          opts.code,
+      client_id:     clientId,
+      client_secret: clientSecret,
+      redirect_uri:  `${opts.origin}${GSC_CALLBACK_PATH}`,
+      grant_type:    "authorization_code",
+    }).toString(),
+  });
+
+  if (!tokenRes.ok) {
+    const err = await tokenRes.text();
+    throw new Error(`Token exchange failed: ${err.slice(0, 200)}`);
+  }
+
+  const tokens = await tokenRes.json() as {
+    access_token:   string;
+    refresh_token?: string;
+    expires_in:     number;
+  };
+
+  const expiry = new Date(Date.now() + tokens.expires_in * 1000).toISOString();
+
+  const { error } = await (supabaseAdmin as any)
+    .from("workspace_settings")
+    .upsert({
+      workspace_id:      opts.workspaceId,
+      gsc_access_token:  tokens.access_token,
+      gsc_refresh_token: tokens.refresh_token ?? null,
+      gsc_token_expiry:  expiry,
+    }, { onConflict: "workspace_id" });
+
+  if (error) throw new Error(error.message);
 }
 
 export const getGscStatus = createServerFn({ method: "GET" })
@@ -237,80 +320,37 @@ export const getGscStatus = createServerFn({ method: "GET" })
 export const getGscAuthUrl = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) =>
-    z.object({ redirectUri: z.string().url() }).parse(input)
+    z.object({
+      origin:   z.string().url().max(300),
+      returnTo: z.string().min(1).max(300),
+    }).parse(input)
   )
   .handler(async ({ context, data }) => {
     const workspaceId = context.workspaceId;
     if (!workspaceId) throw new Error("No workspace");
+    const { isAllowedOAuthOrigin, isSafeRelativePath } =
+      await import("@/lib/providers/advertising/google-ads-oauth.functions");
+    if (!isAllowedOAuthOrigin(data.origin)) throw new Error("Origin not allowed for OAuth");
+    if (!isSafeRelativePath(data.returnTo)) throw new Error("returnTo must be a relative in-app path");
     const clientId = gscClientId();
-    const state    = await signGscState(workspaceId, Date.now());
+    const { randomUUID } = await import("crypto");
+    const state    = await signGscState({
+      workspaceId,
+      origin:   data.origin,
+      returnTo: data.returnTo,
+      ts:       Date.now(),
+      nonce:    randomUUID(),
+    });
     const params   = new URLSearchParams({
       client_id:     clientId,
-      redirect_uri:  data.redirectUri,
+      redirect_uri:  `${data.origin}${GSC_CALLBACK_PATH}`,
       response_type: "code",
       scope:         GSC_SCOPES,
       access_type:   "offline",
       prompt:        "consent",
       state,
     });
-    return { url: `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}` };
-  });
-
-export const connectGscToken = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
-    z.object({
-      code:        z.string(),
-      redirectUri: z.string().url(),
-      state:       z.string(),
-    }).parse(input)
-  )
-  .handler(async ({ context, data }) => {
-    const sb          = context.supabase as any;
-    const workspaceId = context.workspaceId;
-    if (!workspaceId) throw new Error("No workspace");
-
-    await verifyGscState(data.state, workspaceId);
-
-    const clientId     = gscClientId();
-    const clientSecret = gscClientSecret();
-
-    const tokenRes = await fetch("https://oauth2.googleapis.com/token", {
-      method:  "POST",
-      headers: { "Content-Type": "application/x-www-form-urlencoded" },
-      body:    new URLSearchParams({
-        code:          data.code,
-        client_id:     clientId,
-        client_secret: clientSecret,
-        redirect_uri:  data.redirectUri,
-        grant_type:    "authorization_code",
-      }).toString(),
-    });
-
-    if (!tokenRes.ok) {
-      const err = await tokenRes.text();
-      throw new Error(`Token exchange failed: ${err}`);
-    }
-
-    const tokens = await tokenRes.json() as {
-      access_token:  string;
-      refresh_token?: string;
-      expires_in:    number;
-    };
-
-    const expiry = new Date(Date.now() + tokens.expires_in * 1000).toISOString();
-
-    const { error } = await sb
-      .from("workspace_settings")
-      .upsert({
-        workspace_id:      workspaceId,
-        gsc_access_token:  tokens.access_token,
-        gsc_refresh_token: tokens.refresh_token ?? null,
-        gsc_token_expiry:  expiry,
-      }, { onConflict: "workspace_id" });
-
-    if (error) throw new Error(error.message);
-    return { ok: true };
+    return { url: `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`, callbackPath: GSC_CALLBACK_PATH };
   });
 
 export const disconnectGsc = createServerFn({ method: "POST" })

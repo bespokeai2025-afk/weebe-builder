@@ -169,9 +169,9 @@ function CallCard({ call }: { call: LiveCall }) {
             <div className="flex items-start gap-2 py-3 text-[11px] text-amber-400/80">
               <Mic className="h-3.5 w-3.5 shrink-0 mt-0.5" />
               <span>
-                Live transcript unavailable:{" "}
-                <code className="text-amber-300">transcript_updated</code> not received
-                from Retell. Confirm this agent's Retell webhook URL points to WEBEE.
+                Live transcript unavailable — no live transcript feed received for
+                this call yet. Check this agent's live-monitoring setup in WEBEE
+                Voice, or contact support.
               </span>
             </div>
           ) : (
@@ -181,7 +181,7 @@ function CallCard({ call }: { call: LiveCall }) {
                 <span className="h-3 w-0.5 rounded-full bg-emerald-400/60 animate-[bounce_1s_ease-in-out_0.15s_infinite]" />
                 <span className="h-3 w-0.5 rounded-full bg-emerald-400/60 animate-[bounce_1s_ease-in-out_0.3s_infinite]" />
               </span>
-              <span>Waiting for Retell transcript_updated event…</span>
+              <span>Waiting for live transcript…</span>
             </div>
           )
         ) : (
