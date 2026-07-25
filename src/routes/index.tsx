@@ -593,7 +593,7 @@ function BuilderSection() {
   ];
 
   return (
-    <section style={{ background: "linear-gradient(180deg, #07142a 0%, #050e1e 100%)", padding: "100px 24px" }}>
+    <section id="builder" style={{ background: "linear-gradient(180deg, #07142a 0%, #050e1e 100%)", padding: "100px 24px" }}>
       <div style={{ maxWidth: 1100, margin: "0 auto", display: "grid", gridTemplateColumns: "1fr 1fr", gap: 72, alignItems: "center" }} className="flex flex-col lg:grid">
         <div className="section-reveal" ref={ref}>
           <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.2em", textTransform: "uppercase", color: "#F5B800", opacity: 0.8, marginBottom: 14 }}>WEBEE Builder</div>
@@ -682,7 +682,7 @@ function VoiceSection() {
   ];
 
   return (
-    <section style={{ background: "#050e1e", padding: "100px 24px" }}>
+    <section id="voice" style={{ background: "#050e1e", padding: "100px 24px" }}>
       <div style={{ maxWidth: 1100, margin: "0 auto", display: "grid", gridTemplateColumns: "1fr 1fr", gap: 72, alignItems: "center" }} className="flex flex-col-reverse lg:grid">
         <div>
           <div className="glass" style={{ borderRadius: 20, overflow: "hidden" }}>
@@ -761,7 +761,7 @@ function DashSection() {
   ];
 
   return (
-    <section style={{ background: "linear-gradient(180deg, #050e1e 0%, #07142a 100%)", padding: "100px 24px" }}>
+    <section id="smart-dash" style={{ background: "linear-gradient(180deg, #050e1e 0%, #07142a 100%)", padding: "100px 24px" }}>
       <div style={{ maxWidth: 1100, margin: "0 auto" }}>
         <div className="section-reveal" ref={ref} style={{ textAlign: "center", marginBottom: 60 }}>
           <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.2em", textTransform: "uppercase", color: "#34D399", opacity: 0.8, marginBottom: 14 }}>Smart Dash</div>
@@ -927,11 +927,30 @@ function CTASection() {
 
 /* ─── Footer ─────────────────────────────────────────────────── */
 function Footer() {
-  const cols = [
-    { heading: "Platform", links: ["Builder", "Voice Agents", "Smart Dash"] },
-    { heading: "Solutions", links: ["Healthcare", "Property", "Automotive", "Trades"] },
-    { heading: "Company",  links: ["About", "Contact", "Partners", "Careers"] },
-    { heading: "Legal",    links: ["Privacy Policy", "Terms of Service", "Security", "Compliance"] },
+  const cols: { heading: string; links: { label: string; to: string }[] }[] = [
+    { heading: "Platform", links: [
+      { label: "Builder",      to: "/#builder" },
+      { label: "Voice Agents", to: "/#voice" },
+      { label: "Smart Dash",   to: "/#smart-dash" },
+    ]},
+    { heading: "Solutions", links: [
+      { label: "Healthcare", to: "/solutions/healthcare" },
+      { label: "Property",   to: "/solutions/property" },
+      { label: "Automotive", to: "/solutions/automotive" },
+      { label: "Trades",     to: "/solutions/trades" },
+    ]},
+    { heading: "Company", links: [
+      { label: "About",    to: "/about" },
+      { label: "Contact",  to: "/contact" },
+      { label: "Partners", to: "/partners" },
+      { label: "Careers",  to: "/careers" },
+    ]},
+    { heading: "Legal", links: [
+      { label: "Privacy Policy",   to: "/privacy" },
+      { label: "Terms of Service", to: "/terms" },
+      { label: "Security",         to: "/security" },
+      { label: "Compliance",       to: "/compliance" },
+    ]},
   ];
   return (
     <footer style={{ background: "#050e1e", borderTop: "1px solid rgba(255,255,255,0.05)", padding: "60px 24px 32px" }}>
@@ -966,7 +985,9 @@ function Footer() {
               <div style={{ fontSize: 10, fontWeight: 700, color: "#fff", letterSpacing: "0.12em", textTransform: "uppercase", marginBottom: 14, opacity: 0.9 }}>{col.heading}</div>
               <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
                 {col.links.map(l => (
-                  <a key={l} href="#" style={{ fontSize: 12.5, color: "rgba(184,197,214,0.55)", textDecoration: "none", transition: "color 0.2s" }} className="hover:text-white">{l}</a>
+                  l.to.startsWith("/#")
+                    ? <a key={l.label} href={l.to} style={{ fontSize: 12.5, color: "rgba(184,197,214,0.55)", textDecoration: "none", transition: "color 0.2s" }} className="hover:text-white">{l.label}</a>
+                    : <Link key={l.label} to={l.to} style={{ fontSize: 12.5, color: "rgba(184,197,214,0.55)", textDecoration: "none", transition: "color 0.2s" }} className="hover:text-white">{l.label}</Link>
                 ))}
                 {col.heading === "Platform" && (
                   <Link to="/docs" style={{ fontSize: 12.5, color: "rgba(184,197,214,0.55)", textDecoration: "none", transition: "color 0.2s" }} className="hover:text-white">API Docs</Link>

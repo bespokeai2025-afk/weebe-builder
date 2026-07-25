@@ -10,14 +10,23 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as UnsubscribeRouteImport } from './routes/unsubscribe'
+import { Route as TermsRouteImport } from './routes/terms'
 import { Route as SignupRouteImport } from './routes/signup'
+import { Route as SecurityRouteImport } from './routes/security'
+import { Route as PrivacyRouteImport } from './routes/privacy'
 import { Route as PricingRouteImport } from './routes/pricing'
+import { Route as PartnersRouteImport } from './routes/partners'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as DocsRouteImport } from './routes/docs'
+import { Route as ContactRouteImport } from './routes/contact'
+import { Route as ComplianceRouteImport } from './routes/compliance'
+import { Route as CareersRouteImport } from './routes/careers'
 import { Route as ApiDocsRouteImport } from './routes/api-docs'
+import { Route as AboutRouteImport } from './routes/about'
 import { Route as AuthenticatedRouteImport } from './routes/_authenticated'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as UploadTokenRouteImport } from './routes/upload.$token'
+import { Route as SolutionsIndustryRouteImport } from './routes/solutions.$industry'
 import { Route as InviteTokenRouteImport } from './routes/invite.$token'
 import { Route as EmailUnsubscribeRouteImport } from './routes/email/unsubscribe'
 import { Route as AuthCallbackRouteImport } from './routes/auth/callback'
@@ -302,14 +311,34 @@ const UnsubscribeRoute = UnsubscribeRouteImport.update({
   path: '/unsubscribe',
   getParentRoute: () => rootRouteImport,
 } as any)
+const TermsRoute = TermsRouteImport.update({
+  id: '/terms',
+  path: '/terms',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const SignupRoute = SignupRouteImport.update({
   id: '/signup',
   path: '/signup',
   getParentRoute: () => rootRouteImport,
 } as any)
+const SecurityRoute = SecurityRouteImport.update({
+  id: '/security',
+  path: '/security',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PrivacyRoute = PrivacyRouteImport.update({
+  id: '/privacy',
+  path: '/privacy',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const PricingRoute = PricingRouteImport.update({
   id: '/pricing',
   path: '/pricing',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PartnersRoute = PartnersRouteImport.update({
+  id: '/partners',
+  path: '/partners',
   getParentRoute: () => rootRouteImport,
 } as any)
 const LoginRoute = LoginRouteImport.update({
@@ -322,9 +351,29 @@ const DocsRoute = DocsRouteImport.update({
   path: '/docs',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ContactRoute = ContactRouteImport.update({
+  id: '/contact',
+  path: '/contact',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ComplianceRoute = ComplianceRouteImport.update({
+  id: '/compliance',
+  path: '/compliance',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CareersRoute = CareersRouteImport.update({
+  id: '/careers',
+  path: '/careers',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiDocsRoute = ApiDocsRouteImport.update({
   id: '/api-docs',
   path: '/api-docs',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AboutRoute = AboutRouteImport.update({
+  id: '/about',
+  path: '/about',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AuthenticatedRoute = AuthenticatedRouteImport.update({
@@ -339,6 +388,11 @@ const IndexRoute = IndexRouteImport.update({
 const UploadTokenRoute = UploadTokenRouteImport.update({
   id: '/upload/$token',
   path: '/upload/$token',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SolutionsIndustryRoute = SolutionsIndustryRouteImport.update({
+  id: '/solutions/$industry',
+  path: '/solutions/$industry',
   getParentRoute: () => rootRouteImport,
 } as any)
 const InviteTokenRoute = InviteTokenRouteImport.update({
@@ -1925,11 +1979,19 @@ const ApiV1MindsActionsIdApproveRoute =
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/about': typeof AboutRoute
   '/api-docs': typeof ApiDocsRoute
+  '/careers': typeof CareersRoute
+  '/compliance': typeof ComplianceRoute
+  '/contact': typeof ContactRoute
   '/docs': typeof DocsRoute
   '/login': typeof LoginRoute
+  '/partners': typeof PartnersRoute
   '/pricing': typeof PricingRoute
+  '/privacy': typeof PrivacyRoute
+  '/security': typeof SecurityRoute
   '/signup': typeof SignupRoute
+  '/terms': typeof TermsRoute
   '/unsubscribe': typeof UnsubscribeRoute
   '/accountsmind': typeof AuthenticatedAccountsmindRoute
   '/admin': typeof AuthenticatedAdminRouteWithChildren
@@ -1966,6 +2028,7 @@ export interface FileRoutesByFullPath {
   '/auth/callback': typeof AuthCallbackRoute
   '/email/unsubscribe': typeof EmailUnsubscribeRoute
   '/invite/$token': typeof InviteTokenRoute
+  '/solutions/$industry': typeof SolutionsIndustryRoute
   '/upload/$token': typeof UploadTokenRoute
   '/admin/accounts': typeof AuthenticatedAdminAccountsRouteWithChildren
   '/admin/analytics': typeof AuthenticatedAdminAnalyticsRoute
@@ -2213,11 +2276,19 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/about': typeof AboutRoute
   '/api-docs': typeof ApiDocsRoute
+  '/careers': typeof CareersRoute
+  '/compliance': typeof ComplianceRoute
+  '/contact': typeof ContactRoute
   '/docs': typeof DocsRoute
   '/login': typeof LoginRoute
+  '/partners': typeof PartnersRoute
   '/pricing': typeof PricingRoute
+  '/privacy': typeof PrivacyRoute
+  '/security': typeof SecurityRoute
   '/signup': typeof SignupRoute
+  '/terms': typeof TermsRoute
   '/unsubscribe': typeof UnsubscribeRoute
   '/accountsmind': typeof AuthenticatedAccountsmindRoute
   '/analytics': typeof AuthenticatedAnalyticsRoute
@@ -2247,6 +2318,7 @@ export interface FileRoutesByTo {
   '/auth/callback': typeof AuthCallbackRoute
   '/email/unsubscribe': typeof EmailUnsubscribeRoute
   '/invite/$token': typeof InviteTokenRoute
+  '/solutions/$industry': typeof SolutionsIndustryRoute
   '/upload/$token': typeof UploadTokenRoute
   '/admin/analytics': typeof AuthenticatedAdminAnalyticsRoute
   '/admin/change-requests': typeof AuthenticatedAdminChangeRequestsRoute
@@ -2493,11 +2565,19 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/_authenticated': typeof AuthenticatedRouteWithChildren
+  '/about': typeof AboutRoute
   '/api-docs': typeof ApiDocsRoute
+  '/careers': typeof CareersRoute
+  '/compliance': typeof ComplianceRoute
+  '/contact': typeof ContactRoute
   '/docs': typeof DocsRoute
   '/login': typeof LoginRoute
+  '/partners': typeof PartnersRoute
   '/pricing': typeof PricingRoute
+  '/privacy': typeof PrivacyRoute
+  '/security': typeof SecurityRoute
   '/signup': typeof SignupRoute
+  '/terms': typeof TermsRoute
   '/unsubscribe': typeof UnsubscribeRoute
   '/_authenticated/accountsmind': typeof AuthenticatedAccountsmindRoute
   '/_authenticated/admin': typeof AuthenticatedAdminRouteWithChildren
@@ -2534,6 +2614,7 @@ export interface FileRoutesById {
   '/auth/callback': typeof AuthCallbackRoute
   '/email/unsubscribe': typeof EmailUnsubscribeRoute
   '/invite/$token': typeof InviteTokenRoute
+  '/solutions/$industry': typeof SolutionsIndustryRoute
   '/upload/$token': typeof UploadTokenRoute
   '/_authenticated/admin/accounts': typeof AuthenticatedAdminAccountsRouteWithChildren
   '/_authenticated/admin/analytics': typeof AuthenticatedAdminAnalyticsRoute
@@ -2783,11 +2864,19 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/about'
     | '/api-docs'
+    | '/careers'
+    | '/compliance'
+    | '/contact'
     | '/docs'
     | '/login'
+    | '/partners'
     | '/pricing'
+    | '/privacy'
+    | '/security'
     | '/signup'
+    | '/terms'
     | '/unsubscribe'
     | '/accountsmind'
     | '/admin'
@@ -2824,6 +2913,7 @@ export interface FileRouteTypes {
     | '/auth/callback'
     | '/email/unsubscribe'
     | '/invite/$token'
+    | '/solutions/$industry'
     | '/upload/$token'
     | '/admin/accounts'
     | '/admin/analytics'
@@ -3071,11 +3161,19 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/about'
     | '/api-docs'
+    | '/careers'
+    | '/compliance'
+    | '/contact'
     | '/docs'
     | '/login'
+    | '/partners'
     | '/pricing'
+    | '/privacy'
+    | '/security'
     | '/signup'
+    | '/terms'
     | '/unsubscribe'
     | '/accountsmind'
     | '/analytics'
@@ -3105,6 +3203,7 @@ export interface FileRouteTypes {
     | '/auth/callback'
     | '/email/unsubscribe'
     | '/invite/$token'
+    | '/solutions/$industry'
     | '/upload/$token'
     | '/admin/analytics'
     | '/admin/change-requests'
@@ -3350,11 +3449,19 @@ export interface FileRouteTypes {
     | '__root__'
     | '/'
     | '/_authenticated'
+    | '/about'
     | '/api-docs'
+    | '/careers'
+    | '/compliance'
+    | '/contact'
     | '/docs'
     | '/login'
+    | '/partners'
     | '/pricing'
+    | '/privacy'
+    | '/security'
     | '/signup'
+    | '/terms'
     | '/unsubscribe'
     | '/_authenticated/accountsmind'
     | '/_authenticated/admin'
@@ -3391,6 +3498,7 @@ export interface FileRouteTypes {
     | '/auth/callback'
     | '/email/unsubscribe'
     | '/invite/$token'
+    | '/solutions/$industry'
     | '/upload/$token'
     | '/_authenticated/admin/accounts'
     | '/_authenticated/admin/analytics'
@@ -3640,16 +3748,25 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AuthenticatedRoute: typeof AuthenticatedRouteWithChildren
+  AboutRoute: typeof AboutRoute
   ApiDocsRoute: typeof ApiDocsRoute
+  CareersRoute: typeof CareersRoute
+  ComplianceRoute: typeof ComplianceRoute
+  ContactRoute: typeof ContactRoute
   DocsRoute: typeof DocsRoute
   LoginRoute: typeof LoginRoute
+  PartnersRoute: typeof PartnersRoute
   PricingRoute: typeof PricingRoute
+  PrivacyRoute: typeof PrivacyRoute
+  SecurityRoute: typeof SecurityRoute
   SignupRoute: typeof SignupRoute
+  TermsRoute: typeof TermsRoute
   UnsubscribeRoute: typeof UnsubscribeRoute
   ApiVoiceCopilotRoute: typeof ApiVoiceCopilotRoute
   AuthCallbackRoute: typeof AuthCallbackRoute
   EmailUnsubscribeRoute: typeof EmailUnsubscribeRoute
   InviteTokenRoute: typeof InviteTokenRoute
+  SolutionsIndustryRoute: typeof SolutionsIndustryRoute
   UploadTokenRoute: typeof UploadTokenRoute
   ApiAdminTestRetellWebhookRoute: typeof ApiAdminTestRetellWebhookRoute
   ApiBuilderImportPdfRoute: typeof ApiBuilderImportPdfRoute
@@ -3747,6 +3864,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof UnsubscribeRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/terms': {
+      id: '/terms'
+      path: '/terms'
+      fullPath: '/terms'
+      preLoaderRoute: typeof TermsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/signup': {
       id: '/signup'
       path: '/signup'
@@ -3754,11 +3878,32 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SignupRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/security': {
+      id: '/security'
+      path: '/security'
+      fullPath: '/security'
+      preLoaderRoute: typeof SecurityRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/privacy': {
+      id: '/privacy'
+      path: '/privacy'
+      fullPath: '/privacy'
+      preLoaderRoute: typeof PrivacyRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/pricing': {
       id: '/pricing'
       path: '/pricing'
       fullPath: '/pricing'
       preLoaderRoute: typeof PricingRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/partners': {
+      id: '/partners'
+      path: '/partners'
+      fullPath: '/partners'
+      preLoaderRoute: typeof PartnersRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/login': {
@@ -3775,11 +3920,39 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DocsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/contact': {
+      id: '/contact'
+      path: '/contact'
+      fullPath: '/contact'
+      preLoaderRoute: typeof ContactRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/compliance': {
+      id: '/compliance'
+      path: '/compliance'
+      fullPath: '/compliance'
+      preLoaderRoute: typeof ComplianceRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/careers': {
+      id: '/careers'
+      path: '/careers'
+      fullPath: '/careers'
+      preLoaderRoute: typeof CareersRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api-docs': {
       id: '/api-docs'
       path: '/api-docs'
       fullPath: '/api-docs'
       preLoaderRoute: typeof ApiDocsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/about': {
+      id: '/about'
+      path: '/about'
+      fullPath: '/about'
+      preLoaderRoute: typeof AboutRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_authenticated': {
@@ -3801,6 +3974,13 @@ declare module '@tanstack/react-router' {
       path: '/upload/$token'
       fullPath: '/upload/$token'
       preLoaderRoute: typeof UploadTokenRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/solutions/$industry': {
+      id: '/solutions/$industry'
+      path: '/solutions/$industry'
+      fullPath: '/solutions/$industry'
+      preLoaderRoute: typeof SolutionsIndustryRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/invite/$token': {
@@ -6553,16 +6733,25 @@ const ApiV1MindsToolsRouteWithChildren = ApiV1MindsToolsRoute._addFileChildren(
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AuthenticatedRoute: AuthenticatedRouteWithChildren,
+  AboutRoute: AboutRoute,
   ApiDocsRoute: ApiDocsRoute,
+  CareersRoute: CareersRoute,
+  ComplianceRoute: ComplianceRoute,
+  ContactRoute: ContactRoute,
   DocsRoute: DocsRoute,
   LoginRoute: LoginRoute,
+  PartnersRoute: PartnersRoute,
   PricingRoute: PricingRoute,
+  PrivacyRoute: PrivacyRoute,
+  SecurityRoute: SecurityRoute,
   SignupRoute: SignupRoute,
+  TermsRoute: TermsRoute,
   UnsubscribeRoute: UnsubscribeRoute,
   ApiVoiceCopilotRoute: ApiVoiceCopilotRoute,
   AuthCallbackRoute: AuthCallbackRoute,
   EmailUnsubscribeRoute: EmailUnsubscribeRoute,
   InviteTokenRoute: InviteTokenRoute,
+  SolutionsIndustryRoute: SolutionsIndustryRoute,
   UploadTokenRoute: UploadTokenRoute,
   ApiAdminTestRetellWebhookRoute: ApiAdminTestRetellWebhookRoute,
   ApiBuilderImportPdfRoute: ApiBuilderImportPdfRoute,

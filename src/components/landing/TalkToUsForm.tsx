@@ -5,6 +5,8 @@ import { cn } from "@/lib/utils";
 interface TalkToUsFormProps {
   onClose: () => void;
   sourcePage?: string;
+  /** When true, renders inline (no full-screen overlay, no close button). */
+  inline?: boolean;
 }
 
 const INTERESTED_IN_OPTIONS = [
@@ -20,7 +22,7 @@ const INTERESTED_IN_OPTIONS = [
 
 const CONTACT_METHOD_OPTIONS = ["Email", "Phone", "WhatsApp"];
 
-export function TalkToUsForm({ onClose, sourcePage }: TalkToUsFormProps) {
+export function TalkToUsForm({ onClose, sourcePage, inline = false }: TalkToUsFormProps) {
   const [form, setForm] = useState({
     name: "",
     email: "",
@@ -79,17 +81,21 @@ export function TalkToUsForm({ onClose, sourcePage }: TalkToUsFormProps) {
     }
   }
 
-  return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 backdrop-blur-md px-4">
-      <div className="w-full max-w-lg max-h-[90vh] overflow-y-auto rounded-2xl border border-white/[0.1] bg-[#0e0e16] shadow-2xl">
+  const card = (
+      <div className={cn(
+        "w-full overflow-y-auto rounded-2xl border border-white/[0.1] bg-[#0e0e16]",
+        inline ? "max-w-none" : "max-w-lg max-h-[90vh] shadow-2xl",
+      )}>
         <div className="sticky top-0 flex items-center justify-between border-b border-white/[0.07] bg-[#0e0e16]/95 px-6 py-4 backdrop-blur-sm z-10">
           <div>
             <p className="font-semibold text-sm">Talk to us</p>
             <p className="text-[11px] text-muted-foreground">Tell us what you need — we'll be in touch today.</p>
           </div>
-          <button onClick={onClose} className="text-muted-foreground hover:text-foreground transition-colors p-1">
-            <X className="h-4 w-4" />
-          </button>
+          {!inline && (
+            <button onClick={onClose} aria-label="Close dialog" className="text-muted-foreground hover:text-foreground transition-colors p-1">
+              <X className="h-4 w-4" />
+            </button>
+          )}
         </div>
 
         {submitted ? (
@@ -237,6 +243,12 @@ export function TalkToUsForm({ onClose, sourcePage }: TalkToUsFormProps) {
           </form>
         )}
       </div>
+  );
+
+  if (inline) return card;
+  return (
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 backdrop-blur-md px-4">
+      {card}
     </div>
   );
 }
