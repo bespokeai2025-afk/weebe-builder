@@ -13,8 +13,9 @@ import { createFileRoute } from "@tanstack/react-router";
 import { createClient } from "@supabase/supabase-js";
 import {
   attachLeadToInboundMessage,
+  isWatiInboundMessageEvent,
   isWatiStatusEvent,
-  normalizeWhatsAppPhone,
+  parseWatiInboundMessage,
 } from "@/lib/whatsapp/wati-campaign.server";
 import {
   applyWatiMessageStatusToRow,
@@ -69,10 +70,6 @@ function extractStatusTrackingId(payload: Record<string, unknown>): string | nul
   return id ? String(id) : null;
 }
 
-function extractExternalId(payload: Record<string, unknown>): string | null {
-  return extractStatusTrackingId(payload);
-}
-
 async function applyMessageStatusUpdate(
   sb: ReturnType<typeof adminClient>,
   workspaceId: string,
@@ -81,15 +78,19 @@ async function applyMessageStatusUpdate(
   payload: Record<string, unknown>,
 ): Promise<void> {
   const phone = extractWatiWebhookPhone(payload);
+  const whatsappMessageId =
+    payload.whatsappMessageId != null ? String(payload.whatsappMessageId) : null;
   const row = await findOutboundMessageForWatiStatus(
     workspaceId,
     trackingId || null,
     phone,
+    whatsappMessageId,
   );
 
   if (!row) {
     console.warn("[WATI WEBHOOK] Status event — no matching message", {
       trackingId,
+      whatsappMessageId,
       phone,
       eventType: payload.eventType,
       status,
@@ -103,57 +104,56 @@ async function applyMessageStatusUpdate(
     currentStatus: row.status,
     newStatus: status,
     campaignId: row.campaign_id,
+    whatsappMessageId,
   });
 
   if (!applied) return;
 }
 
-function normalizeWatiEvent(payload: Record<string, unknown>): {
-  message: {
-    contact_phone: string;
-    contact_name: string | null;
-    body: string;
-    direction: "inbound" | "outbound";
-    external_id: string | null;
-  } | null;
-} {
-  const phone =
-    payload.waId ??
-    payload.phone ??
-    payload.from ??
-    (payload.contact as Record<string, unknown> | undefined)?.phone ??
-    null;
+async function storeInboundMessage(
+  sb: ReturnType<typeof adminClient>,
+  workspaceId: string,
+  message: NonNullable<ReturnType<typeof parseWatiInboundMessage>>,
+): Promise<void> {
+  const leadId = await attachLeadToInboundMessage(
+    sb as any,
+    workspaceId,
+    message.contact_phone,
+    message.contact_name,
+  );
 
-  if (!phone) return { message: null };
-
-  const body =
-    (payload.text as Record<string, unknown> | undefined)?.body ??
-    (payload.message as Record<string, unknown> | undefined)?.text ??
-    payload.text ??
-    payload.caption ??
-    "[Non-text message]";
-
-  const name =
-    payload.senderName ??
-    (payload.contact as Record<string, unknown> | undefined)?.name ??
-    (payload.profile as Record<string, unknown> | undefined)?.name ??
-    null;
-
-  const directionRaw = String(payload.direction ?? payload.type ?? "").toLowerCase();
-  const direction: "inbound" | "outbound" =
-    directionRaw.includes("outbound") || directionRaw.includes("sent_by_business")
-      ? "outbound"
-      : "inbound";
-
-  return {
-    message: {
-      contact_phone: normalizeWhatsAppPhone(String(phone)),
-      contact_name: name ? String(name) : null,
-      body: typeof body === "string" ? body : JSON.stringify(body),
-      direction,
-      external_id: extractExternalId(payload),
-    },
+  const row = {
+    workspace_id: workspaceId,
+    external_id: message.external_id,
+    contact_phone: message.contact_phone,
+    contact_name: message.contact_name,
+    body: message.body,
+    direction: "inbound" as const,
+    provider: "wati",
+    lead_id: leadId,
+    status: "delivered",
+    sent_at: message.sent_at,
+    whatsapp_message_id: message.whatsapp_message_id,
   };
+
+  const { error } = await (sb as any)
+    .from("whatsapp_messages")
+    .upsert(row, { onConflict: "workspace_id,external_id" });
+
+  if (error) {
+    // Column may not exist until migration — retry without whatsapp_message_id
+    if (String(error.message).includes("whatsapp_message_id")) {
+      const { error: retryErr } = await (sb as any)
+        .from("whatsapp_messages")
+        .upsert(
+          { ...row, whatsapp_message_id: undefined },
+          { onConflict: "workspace_id,external_id" },
+        );
+      if (retryErr) throw retryErr;
+      return;
+    }
+    throw error;
+  }
 }
 
 async function resolveWorkspaceId(
@@ -253,12 +253,15 @@ export const Route = createFileRoute("/api/webhook/wati-inbound")({
           if (isWatiTemplateSentEvent(payload)) {
             const localMessageId = extractStatusTrackingId(payload);
             const phone = extractWatiWebhookPhone(payload);
+            const whatsappMessageId =
+              payload.whatsappMessageId != null ? String(payload.whatsappMessageId) : null;
             if (localMessageId && phone) {
               try {
                 const linked = await linkOutboundMessageToWatiLocalId(
                   workspaceId,
                   localMessageId,
                   phone,
+                  whatsappMessageId,
                 );
                 if (!linked) {
                   console.warn("[WATI WEBHOOK] templateMessageSent — no outbound row for phone", {
@@ -293,33 +296,16 @@ export const Route = createFileRoute("/api/webhook/wati-inbound")({
             return json({ ok: true });
           }
 
-          const { message } = normalizeWatiEvent(payload);
-          if (!message || message.direction !== "inbound") {
+          if (isWatiInboundMessageEvent(payload)) {
+            const message = parseWatiInboundMessage(payload);
+            if (message) {
+              try {
+                await storeInboundMessage(sb, workspaceId, message);
+              } catch (e) {
+                console.error("[WATI WEBHOOK] Inbound insert error", e);
+              }
+            }
             return json({ ok: true });
-          }
-
-          try {
-            const leadId = await attachLeadToInboundMessage(
-              sb as any,
-              workspaceId,
-              message.contact_phone,
-              message.contact_name,
-            );
-
-            await (sb as any).from("whatsapp_messages").insert({
-              workspace_id: workspaceId,
-              external_id: message.external_id,
-              contact_phone: message.contact_phone,
-              contact_name: message.contact_name,
-              body: message.body,
-              direction: "inbound",
-              provider: "wati",
-              lead_id: leadId,
-              status: "delivered",
-              sent_at: new Date().toISOString(),
-            });
-          } catch (e) {
-            console.error("[WATI WEBHOOK] DB insert error", e);
           }
 
           return json({ ok: true });

@@ -214,12 +214,14 @@ export function wbahBookingStatus(lead: WbahLeadLike): string | null {
   return wbahAppointmentField(lead, "booking_status");
 }
 
-/** Calendly booking URL — same visibility rules as other appointment columns. */
+/** Calendly booking URL — visible when booking_status is success and URL is http(s). */
 export function wbahCalendlyBookingUrl(lead: WbahLeadLike): string | null {
   if (isWbahPartialQualified(lead)) return null;
+  const status = lead.meta?.booking_status;
   const url = lead.meta?.calendly_booking_url;
+  if ((status ?? "").toLowerCase() !== "success") return null;
   if (url == null || String(url).trim() === "") return null;
-  if (normalizeSentiment(lead.sentiment) === "positive") return String(url).trim();
-  if (hasWbahAppointmentBooked(lead)) return String(url).trim();
-  return null;
+  const trimmed = String(url).trim();
+  if (!/^https?:\/\//i.test(trimmed)) return null;
+  return trimmed;
 }

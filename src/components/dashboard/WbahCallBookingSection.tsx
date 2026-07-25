@@ -2,6 +2,7 @@ import {
   resolveWbahBookingUiState,
   type WbahBookingUiState,
 } from "@/lib/dashboard/wbah-call-booking-display";
+import { WbahCallCalendlyLink } from "@/components/dashboard/WbahCallCalendlyLink";
 import { Badge } from "@/components/ui/badge";
 import { Loader2 } from "lucide-react";
 
@@ -25,7 +26,13 @@ function PendingBlock({ polling }: { polling?: boolean }) {
   );
 }
 
-function BookedBlock({ ui }: { ui: Extract<WbahBookingUiState, { kind: "booked" }> }) {
+function BookedBlock({
+  ui,
+  callRow,
+}: {
+  ui: Extract<WbahBookingUiState, { kind: "booked" }>;
+  callRow: Record<string, unknown>;
+}) {
   return (
     <div className="space-y-2">
       <div className="flex items-center gap-2">
@@ -38,7 +45,15 @@ function BookedBlock({ ui }: { ui: Extract<WbahBookingUiState, { kind: "booked" 
         <Row label="Appointment date" value={ui.dateLabel} />
         <Row label="Appointment time" value={ui.timeLabel} />
         <Row label="Booking status" value={ui.statusLabel} />
-        <Row label="Calendly link" value={ui.calendlyLabel} />
+        <div className="grid grid-cols-[minmax(8rem,34%)_1fr] gap-3 px-3 py-2">
+          <p className="text-[11px] font-medium text-foreground">Calendly booking</p>
+          <WbahCallCalendlyLink
+            row={callRow}
+            label="Open booking"
+            emptyLabel="No booking link"
+            showCopy
+          />
+        </div>
       </div>
     </div>
   );
@@ -61,12 +76,12 @@ export function WbahCallBookingSection({
         Booking
       </p>
       {ui.kind === "pending" && <PendingBlock polling={polling} />}
-      {ui.kind === "booked" && <BookedBlock ui={ui} />}
+      {ui.kind === "booked" && <BookedBlock ui={ui} callRow={callRow} />}
       {ui.kind === "positive_no_booking" && (
         <div className="rounded-lg border border-white/[0.06] divide-y divide-white/[0.04]">
           <Row label="Outcome" value={ui.label} />
           <Row label="Sentiment" value={ui.sentimentLabel} />
-          <Row label="Calendly link" value="Booking link hidden" />
+          <Row label="Calendly booking" value="No booking link" />
         </div>
       )}
       {ui.kind === "normal" && (
@@ -75,7 +90,15 @@ export function WbahCallBookingSection({
           <Row label="Appointment date" value={ui.dateLabel} />
           <Row label="Appointment time" value={ui.timeLabel} />
           <Row label="Booking status" value={ui.statusLabel} />
-          <Row label="Calendly link" value={ui.calendlyLabel} />
+          <div className="grid grid-cols-[minmax(8rem,34%)_1fr] gap-3 px-3 py-2">
+            <p className="text-[11px] font-medium text-foreground">Calendly booking</p>
+            <WbahCallCalendlyLink
+              row={callRow}
+              label="Open booking"
+              emptyLabel="No booking link"
+              showCopy
+            />
+          </div>
         </div>
       )}
       <p className="text-[10px] text-muted-foreground/70 leading-relaxed">

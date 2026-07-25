@@ -93,6 +93,7 @@ import { agentTypeLabel } from "@/components/shared/AgentFilterSelect";
 import { useIsWbahWorkspace } from "@/hooks/useIsWbahWorkspace";
 import { CustomViewsSection } from "@/components/people-views/CustomViewsSection";
 import { WbahCallBookingSection } from "@/components/dashboard/WbahCallBookingSection";
+import { WbahCallCalendlyLink } from "@/components/dashboard/WbahCallCalendlyLink";
 import {
   extractWbahCallBookingFields,
   isWbahCallAnalysisComplete,
@@ -100,7 +101,6 @@ import {
   wbahAppointmentDateCell,
   wbahAppointmentTimeCell,
   wbahBookingStatusCell,
-  wbahCalendlyCell,
 } from "@/lib/dashboard/wbah-call-booking-display";
 
 export const Route = createFileRoute("/_authenticated/data")({
@@ -2949,7 +2949,7 @@ function DataPage() {
                               })()}
                             </td>
                             <td className="px-2 py-0.5 text-[11px] text-muted-foreground whitespace-nowrap">
-                              {wbahCalendlyCell(r)}
+                              <WbahCallCalendlyLink row={r} />
                             </td>
                             <td className="px-2 py-0.5 text-muted-foreground text-[11px] whitespace-nowrap capitalize max-w-[120px] truncate">
                               {r.endReason ? r.endReason.replace(/_/g, " ") : "—"}

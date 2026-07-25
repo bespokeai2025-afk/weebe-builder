@@ -4,6 +4,8 @@
  * carry Calendly fields and would wipe them without merge-on-upsert.
  */
 
+import { normalizeSentiment } from "@/lib/sentiment";
+
 export type WbahBookingFields = {
   appointment_date?: string | null;
   appointment_time?: string | null;
@@ -207,6 +209,56 @@ export async function loadWbahCrmBookingByDigits(
   return map;
 }
 
+/** Load Calendly URLs from any wbah_calls row for each phone (newest first). */
+export async function loadWbahCallCalendlyByDigits(
+  supabaseAdmin: { from: (t: string) => any },
+  workspaceId: string,
+): Promise<Map<string, string>> {
+  const map = new Map<string, string>();
+  try {
+    const PAGE = 1000;
+    let from = 0;
+    for (;;) {
+      const { data, error } = await (supabaseAdmin as any)
+        .from("wbah_calls")
+        .select("phone, calendly_booking_url, started_at")
+        .eq("workspace_id", workspaceId)
+        .not("calendly_booking_url", "is", null)
+        .order("started_at", { ascending: false, nullsFirst: false })
+        .range(from, from + PAGE - 1);
+      if (error) throw error;
+      const batch = (data ?? []) as any[];
+      for (const r of batch) {
+        const url = r.calendly_booking_url;
+        if (url == null || !String(url).trim()) continue;
+        const d = phoneDigits(r.phone);
+        if (d && !map.has(d)) map.set(d, String(url).trim());
+      }
+      if (batch.length < PAGE) break;
+      from += PAGE;
+    }
+  } catch (e: any) {
+    console.warn("[wbah-booking-meta] call Calendly load failed:", e?.message ?? e);
+  }
+  return map;
+}
+
+/**
+ * Calls table is per dial attempt. Contact-level CRM booking (or a prior positive
+ * call) must not appear on neutral voicemail / no-answer rows — only positive
+ * attempts carry booking columns (matches Leads/Qualified definitive outcome).
+ */
+function stripContactBookingFromNonPositiveRow(row: any): any {
+  if (normalizeSentiment(row.sentiment) === "positive") return null;
+  return {
+    ...row,
+    appointment_date: null,
+    appointment_time: null,
+    booking_status: null,
+    calendly_booking_url: null,
+  };
+}
+
 /** Overlay CRM / historical-call booking fields onto wbah_calls rows (for Calls page). */
 export async function enrichWbahCallRowsWithBookings(
   supabaseAdmin: { from: (t: string) => any },
@@ -214,7 +266,10 @@ export async function enrichWbahCallRowsWithBookings(
   rows: any[],
 ): Promise<any[]> {
   if (rows.length === 0) return rows;
-  const crmBookingByDigits = await loadWbahCrmBookingByDigits(supabaseAdmin, workspaceId);
+  const [crmBookingByDigits, callCalendlyByDigits] = await Promise.all([
+    loadWbahCrmBookingByDigits(supabaseAdmin, workspaceId),
+    loadWbahCallCalendlyByDigits(supabaseAdmin, workspaceId),
+  ]);
 
   const byPhone = new Map<string, any[]>();
   for (const r of rows) {
@@ -226,19 +281,28 @@ export async function enrichWbahCallRowsWithBookings(
   }
 
   return rows.map((r) => {
+    const stripped = stripContactBookingFromNonPositiveRow(r);
+    if (stripped) return stripped;
+
     const phone = resolveWbahRowPhone(r);
     const key = phoneDigits(phone) || `id:${r.id}`;
     const calls = byPhone.get(key) ?? [r];
     const bookingCall = findWbahBookingCall(calls);
     const digits = phoneDigits(phone);
     const crm = digits ? crmBookingByDigits.get(digits) ?? null : null;
+    const callCalendlyUrl = digits ? callCalendlyByDigits.get(digits) ?? null : null;
     const appt = resolveWbahBookingFields(r, bookingCall, crm);
+    const calendly_booking_url =
+      appt.calendly_booking_url ??
+      r.calendly_booking_url ??
+      callCalendlyUrl ??
+      null;
     return {
       ...r,
       appointment_date: appt.appointment_date ?? r.appointment_date ?? null,
       appointment_time: appt.appointment_time ?? r.appointment_time ?? null,
       booking_status: appt.booking_status ?? r.booking_status ?? null,
-      calendly_booking_url: appt.calendly_booking_url ?? r.calendly_booking_url ?? null,
+      calendly_booking_url,
       agent_name: appt.agent_name ?? r.agent_name ?? null,
     };
   });

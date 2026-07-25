@@ -640,6 +640,10 @@ async function upsertCallRows(sb: ReturnType<typeof getAdminClient>, rows: NonNu
         out[f] = kept;
       }
     }
+    const incomingUrl = row.calendly_booking_url;
+    if (incomingUrl != null && /^https?:\/\//i.test(String(incomingUrl).trim())) {
+      out.calendly_booking_url = String(incomingUrl).trim();
+    }
     return out;
   });
   const BATCH = 200;
@@ -975,6 +979,12 @@ export async function refreshWbahAppointmentBackfill(opts?: { maxPages?: number;
 
     _apptBackfillAt = Date.now();
     console.log(`[wbah-appt-backfill] upserted=${total} pages=${pages.length}`);
+    try {
+      const { cacheDel } = await import("@/lib/cache/redis.server");
+      await cacheDel(`webee:wbah-calls-live-lite:v2:${workspaceId}`);
+    } catch {
+      /* cache optional */
+    }
     return { rows: total };
   })();
 

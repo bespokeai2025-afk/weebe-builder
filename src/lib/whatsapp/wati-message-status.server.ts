@@ -101,17 +101,24 @@ export async function linkOutboundMessageToWatiLocalId(
   workspaceId: string,
   watiLocalMessageId: string,
   phone: string,
+  whatsappMessageId?: string | null,
 ): Promise<boolean> {
   const localId = String(watiLocalMessageId ?? "").trim();
   if (!localId) return false;
 
   const row = await findRecentOutboundByPhone(workspaceId, phone);
   if (!row) return false;
-  if (row.external_id === localId) return true;
+
+  const patch: Record<string, unknown> = {};
+  if (row.external_id !== localId) patch.external_id = localId;
+  const wamid = whatsappMessageId ? String(whatsappMessageId).trim() : "";
+  if (wamid) patch.whatsapp_message_id = wamid;
+
+  if (Object.keys(patch).length === 0) return true;
 
   await sb()
     .from("whatsapp_messages")
-    .update({ external_id: localId })
+    .update(patch)
     .eq("id", row.id);
   return true;
 }
@@ -175,12 +182,17 @@ export async function applyWatiMessageStatusToRow(opts: {
   currentStatus: string;
   newStatus: string;
   campaignId?: string | null;
+  whatsappMessageId?: string | null;
 }): Promise<boolean> {
   if (!shouldApplyMessageStatus(opts.currentStatus, opts.newStatus)) return false;
 
+  const patch: Record<string, unknown> = { status: opts.newStatus };
+  const wamid = opts.whatsappMessageId ? String(opts.whatsappMessageId).trim() : "";
+  if (wamid) patch.whatsapp_message_id = wamid;
+
   await sb()
     .from("whatsapp_messages")
-    .update({ status: opts.newStatus })
+    .update(patch)
     .eq("id", opts.messageId);
 
   if (opts.campaignId) {
@@ -194,6 +206,7 @@ export async function findOutboundMessageForWatiStatus(
   workspaceId: string,
   trackingId: string | null,
   phone: string | null,
+  whatsappMessageId?: string | null,
 ): Promise<{
   id: string;
   status: string;
@@ -204,7 +217,7 @@ export async function findOutboundMessageForWatiStatus(
   const base = () =>
     sb()
       .from("whatsapp_messages")
-      .select("id, status, campaign_id, external_id, contact_phone")
+      .select("id, status, campaign_id, external_id, contact_phone, whatsapp_message_id")
       .eq("workspace_id", workspaceId)
       .eq("direction", "outbound")
       .eq("provider", "wati");
@@ -212,10 +225,18 @@ export async function findOutboundMessageForWatiStatus(
   if (trackingId) {
     const { data: byExternal } = await base().eq("external_id", trackingId).maybeSingle();
     if (byExternal) return byExternal;
-
-    // WATI sometimes sends whatsappMessageId before we stored it — match recent rows by phone next
   }
 
+  const wamid = whatsappMessageId ? String(whatsappMessageId).trim() : "";
+  if (wamid) {
+    const { data: byWamid } = await base().eq("whatsapp_message_id", wamid).maybeSingle();
+    if (byWamid) return byWamid;
+
+    const { data: byExtWamid } = await base().eq("external_id", wamid).maybeSingle();
+    if (byExtWamid) return byExtWamid;
+  }
+
+  // READ/DELIVERED v2 webhooks omit waId — phone fallback only helps v1 / templateMessageSent.
   if (phone) {
     const match = await findRecentOutboundByPhone(workspaceId, phone);
     if (match) return match;
@@ -227,42 +248,79 @@ export async function findOutboundMessageForWatiStatus(
 async function reconcileViaV3ConversationMessages(
   conn: WatiConn,
   workspaceId: string,
-  msg: { id: string; contact_phone: string; status: string; campaign_id: string | null },
+  msg: { id: string; contact_phone: string; status: string; campaign_id: string | null; external_id?: string | null },
 ): Promise<boolean> {
   const phone = normalizeWhatsAppPhone(msg.contact_phone);
   if (!phone) return false;
 
-  const url = `${watiApiV3Base(conn.tenant_id, conn.api_host)}/conversations/${encodeURIComponent(phone)}/messages?page_number=1&page_size=15`;
   const headers = {
     Authorization: `Bearer ${conn.api_key.replace(/^Bearer\s+/i, "")}`,
     "Content-Type": "application/json",
   };
 
-  try {
-    const res = await fetch(url, { headers });
-    if (!res.ok) return false;
-    const json = (await res.json()) as {
-      message_list?: Array<{ owner?: boolean; status?: string; type?: string }>;
-    };
-    const outbound = (json.message_list ?? []).filter(
-      (m) => m.owner === true && String(m.type ?? "").toLowerCase() !== "ticket",
-    );
-    const latest = outbound[0];
-    if (!latest?.status) return false;
+  const phoneVariants = [phone];
+  if (phone.startsWith("44") && phone.length > 10) phoneVariants.push(phone.slice(2));
+  if (!phone.startsWith("44") && phone.length >= 10) phoneVariants.push(`44${phone}`);
 
-    const newStatus = mapWatiStatusString(latest.status);
-    if (!newStatus) return false;
+  for (const variant of phoneVariants) {
+    const url = `${watiApiV3Base(conn.tenant_id, conn.api_host)}/conversations/${encodeURIComponent(variant)}/messages?page_number=1&page_size=20`;
+    try {
+      const res = await fetch(url, { headers });
+      if (!res.ok) continue;
 
-    return applyWatiMessageStatusToRow({
-      workspaceId,
-      messageId: msg.id,
-      currentStatus: msg.status,
-      newStatus,
-      campaignId: msg.campaign_id,
-    });
-  } catch {
-    return false;
+      const json = (await res.json()) as Record<string, unknown>;
+      const list = (json.message_list ?? json.messages ?? json.data ?? []) as Array<
+        Record<string, unknown>
+      >;
+
+      const outbound = list.filter((m) => {
+        if (m.owner === false) return false;
+        const type = String(m.type ?? "").toLowerCase();
+        return type !== "ticket";
+      });
+
+      const localId = String(msg.external_id ?? "").trim();
+      let match =
+        (localId
+          ? outbound.find(
+              (m) =>
+                String(m.local_message_id ?? m.localMessageId ?? "") === localId ||
+                String(m.local_message_id ?? m.localMessageId ?? "").endsWith(localId),
+            )
+          : null) ?? outbound[0];
+
+      if (!match) continue;
+
+      const newStatus = mapWatiStatusString(
+        match.statusString ?? match.status ?? match.messageStatus,
+      );
+      if (!newStatus) continue;
+
+      const wamid = String(match.whatsapp_message_id ?? match.whatsappMessageId ?? "").trim();
+      const watiLocalId = String(match.local_message_id ?? match.localMessageId ?? "").trim();
+
+      const applied = await applyWatiMessageStatusToRow({
+        workspaceId,
+        messageId: msg.id,
+        currentStatus: msg.status,
+        newStatus,
+        campaignId: msg.campaign_id,
+        whatsappMessageId: wamid || null,
+      });
+
+      if (applied && watiLocalId && watiLocalId !== msg.external_id) {
+        await sb()
+          .from("whatsapp_messages")
+          .update({ external_id: watiLocalId })
+          .eq("id", msg.id);
+      }
+      return applied;
+    } catch {
+      continue;
+    }
   }
+
+  return false;
 }
 
 /** Poll WATI for delivery/read on recent outbound rows (webhook fallback). */
@@ -308,6 +366,9 @@ export async function reconcileWatiOutboundMessageStatuses(workspaceId: string):
               currentStatus: msg.status,
               newStatus,
               campaignId: msg.campaign_id,
+              whatsappMessageId:
+                (json.result as { whatsappMessageId?: string } | undefined)?.whatsappMessageId ??
+                null,
             });
           }
         }

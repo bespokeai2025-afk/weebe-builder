@@ -20,6 +20,7 @@ export type WbahBookingUiState =
       dateLabel: string;
       timeLabel: string;
       statusLabel: string;
+      calendlyUrl: string | null;
       calendlyLabel: string;
     }
   | { kind: "positive_no_booking"; label: string; sentimentLabel: string }
@@ -29,6 +30,7 @@ export type WbahBookingUiState =
       timeLabel: string;
       statusLabel: string;
       sentimentLabel: string | null;
+      calendlyUrl: string | null;
       calendlyLabel: string;
     };
 
@@ -138,10 +140,10 @@ export function inferWbahBookingFromCallSummary(
       /([A-Za-z]+\s+\d{1,2},?\s+\d{4})(?:,?\s*(?:at\s+)?(\d{1,2}:\d{2}(?:\s*[AP]\.?M\.?)?|\d{1,2}\s*[AP]\.?M\.?))?/i,
     );
 
-  if (!dtMatch?.[1]) return { booking_status: "success" };
+  if (!dtMatch?.[1]) return {};
 
   const parsed = Date.parse(dtMatch[1].replace(/,/g, ""));
-  if (Number.isNaN(parsed)) return { booking_status: "success" };
+  if (Number.isNaN(parsed)) return {};
 
   const appointment_date = new Date(parsed).toISOString().slice(0, 10);
   let appointment_time: string | null = null;
@@ -305,11 +307,46 @@ export function formatWbahBookingStatusDisplay(
   return raw.replace(/_/g, " ");
 }
 
-/** calendly_booking_url is redacted server-side — never show N/A as an error. */
-export function formatWbahCalendlyDisplay(url: string | null | undefined): string {
+export function isWbahHttpUrl(url: string | null | undefined): boolean {
   const raw = str(url);
-  if (!raw) return "Booking link hidden";
-  return raw;
+  if (!raw) return false;
+  return /^https?:\/\//i.test(raw);
+}
+
+export function isWbahBookingSuccess(
+  bookingStatus: string | null | undefined,
+): boolean {
+  return (str(bookingStatus) ?? "").toLowerCase() === "success";
+}
+
+/** Show Calendly link only when booking succeeded and URL is a real http(s) link. */
+export function resolveVisibleWbahCalendlyUrl(
+  bookingStatus: string | null | undefined,
+  url: string | null | undefined,
+): string | null {
+  if (!isWbahBookingSuccess(bookingStatus)) return null;
+  if (!isWbahHttpUrl(url)) return null;
+  return str(url);
+}
+
+export function resolveVisibleWbahCalendlyUrlFromFields(
+  fields: WbahCallBookingFields,
+): string | null {
+  return resolveVisibleWbahCalendlyUrl(
+    fields.booking_status,
+    fields.calendly_booking_url,
+  );
+}
+
+/** Plain-text fallback for non-interactive cells (prefer WbahCallCalendlyLink in UI). */
+export function formatWbahCalendlyDisplay(
+  bookingStatus: string | null | undefined,
+  url: string | null | undefined,
+): string {
+  if (resolveVisibleWbahCalendlyUrl(bookingStatus, url)) {
+    return "View Calendly booking";
+  }
+  return "—";
 }
 
 function isWbahBookedFields(fields: WbahCallBookingFields): boolean {
@@ -330,7 +367,8 @@ export function resolveWbahBookingUiState(
 
   const status = (fields.booking_status ?? "").toLowerCase();
   const sentiment = normalizeSentiment(fields.sentimentAnalysis);
-  const calendlyLabel = formatWbahCalendlyDisplay(fields.calendly_booking_url);
+  const calendlyUrl = resolveVisibleWbahCalendlyUrlFromFields(fields);
+  const calendlyLabel = calendlyUrl ? "View Calendly booking" : "No booking link";
 
   if (isWbahBookedFields(fields)) {
     return {
@@ -341,6 +379,7 @@ export function resolveWbahBookingUiState(
         fields.appointment_date,
       ),
       statusLabel: formatWbahBookingStatusDisplay(fields.booking_status),
+      calendlyUrl,
       calendlyLabel,
     };
   }
@@ -365,6 +404,7 @@ export function resolveWbahBookingUiState(
       ? formatWbahBookingStatusDisplay(fields.booking_status)
       : "—",
     sentimentLabel: fields.sentimentAnalysis,
+    calendlyUrl,
     calendlyLabel,
   };
 }
@@ -397,5 +437,22 @@ export function wbahBookingStatusCell(row: Record<string, unknown>): string {
 export function wbahCalendlyCell(row: Record<string, unknown>): string {
   const fields = resolveWbahCallBookingFields(row);
   if (isWbahCallAnalysisPending(fields)) return "—";
-  return formatWbahCalendlyDisplay(fields.calendly_booking_url);
+  return formatWbahCalendlyDisplay(fields.booking_status, fields.calendly_booking_url);
+}
+
+/** Combined appointment label for call-history tables (date + time). */
+export function wbahCallHistoryAppointmentCell(row: Record<string, unknown>): string {
+  const fields = resolveWbahCallBookingFields(row);
+  if (isWbahCallAnalysisPending(fields)) return "—";
+  if (!fields.appointment_date && !fields.appointment_time) return "—";
+  if (fields.appointment_date && fields.appointment_time) {
+    return formatWbahAppointmentTimeDisplay(
+      fields.appointment_time,
+      fields.appointment_date,
+    );
+  }
+  if (fields.appointment_date) {
+    return formatWbahAppointmentDateDisplay(fields.appointment_date);
+  }
+  return formatWbahAppointmentTimeDisplay(fields.appointment_time, fields.appointment_date);
 }
