@@ -255,6 +255,61 @@ export async function runSeoTechAudit(workspaceId: string): Promise<SeoTechAudit
     checks.push({ check: "github_status", status: "skipped", detail: "No GitHub token configured.", evidence: null });
   }
 
+  // 7) Public Content Publishing backbone (§14 continuation programme)
+  const { data: pubSite } = await sb
+    .from("growthmind_public_sites").select("*").eq("workspace_id", workspaceId).eq("status", "active").limit(1).maybeSingle();
+  if (pubSite) {
+    recordsInspected += 1;
+    const [{ count: publishedCount }, { count: deadCount }, { data: pendingExecs }] = await Promise.all([
+      sb.from("growthmind_public_content_items").select("id", { count: "exact", head: true })
+        .eq("site_id", pubSite.id).in("status", ["api_published", "awaiting_website_refresh", "live", "live_verification_failed"]),
+      sb.from("growthmind_publication_executions").select("id", { count: "exact", head: true })
+        .eq("workspace_id", workspaceId).eq("status", "dead_letter"),
+      sb.from("growthmind_publication_executions").select("id, status, next_attempt_at, kind")
+        .eq("workspace_id", workspaceId).in("status", ["pending", "running"]).limit(20),
+    ]);
+    checks.push({
+      check: "public_content_api",
+      status: "pass",
+      detail: `Public Content API: Ready. Site key "${pubSite.site_key}" (${pubSite.canonical_host}) is active with ${publishedCount ?? 0} published article(s) served at /api/public/v1/sites/${pubSite.site_key}/*.`,
+      evidence: { siteKey: pubSite.site_key, canonicalHost: pubSite.canonical_host, publishedArticles: publishedCount ?? 0 },
+    });
+    // Lovable blog frontend availability (probe /blog on the canonical host — allowlisted by construction)
+    const blogUrl = `https://${pubSite.canonical_host}/blog`;
+    const blogRes = await safeFetch(blogUrl);
+    const blogConnected = blogRes.ok && /article|blog|post/i.test(blogRes.text);
+    checks.push({
+      check: "lovable_blog_frontend",
+      status: blogConnected ? "pass" : "warn",
+      detail: blogConnected
+        ? `Lovable Blog Frontend: Connected — ${blogUrl} responds ${blogRes.status}.`
+        : `Lovable Blog Frontend: Not Connected — ${blogUrl} ${blogRes.ok ? "responds but does not render blog content" : `returns HTTP ${blogRes.status}`}. Published articles remain "API Published — Awaiting Lovable Frontend".`,
+      evidence: { url: blogUrl, httpStatus: blogRes.status, connected: blogConnected },
+    });
+    checks.push({
+      check: "publication_capability",
+      status: "pass",
+      detail: blogConnected
+        ? "Publication Capability: API + Frontend."
+        : "Publication Capability: API Only — WEBEE publishes to its public content API; the website renders nothing until Lovable implements the blog frontend. Sitemap.xml: Missing — awaiting Lovable implementation (sitemap-data endpoint is ready).",
+      evidence: { sitemapDataEndpoint: `/api/public/v1/sites/${pubSite.site_key}/sitemap-data` },
+    });
+    if ((deadCount ?? 0) > 0) {
+      checks.push({
+        check: "failed_publication_jobs",
+        status: "fail",
+        detail: `${deadCount} publication execution(s) are dead-lettered after exhausting retries — review and re-run or reject them.`,
+        evidence: { deadLetterCount: deadCount },
+      });
+      rootCauses.push("Publication executions in dead-letter state");
+      proposedFixes.push("Open the article, resolve the recorded execution error and publish again");
+    } else {
+      checks.push({ check: "failed_publication_jobs", status: "pass", detail: "No dead-lettered publication executions.", evidence: { pendingOrRunning: (pendingExecs ?? []).length } });
+    }
+  } else {
+    checks.push({ check: "public_content_api", status: "skipped", detail: "Public Content API: Not Ready — no public site registered for this workspace.", evidence: null });
+  }
+
   return {
     generatedAt: new Date().toISOString(),
     checksPerformed: checks.length,

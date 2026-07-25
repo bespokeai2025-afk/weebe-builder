@@ -19,7 +19,8 @@ export type ActionType     =
   | "send_workflow_draft_to_builder"
   | "activate_lead_intake_workflow"
   | "activate_systemmind_automation"
-  | "seo_campaign_approval";
+  | "seo_campaign_approval"
+  | "content_publication_approval";
 
 export interface HiveMindAction {
   id:             string;
@@ -502,6 +503,22 @@ export async function executeAction(sb: any, workspaceId: string, action: HiveMi
       );
       if (!result.ok) throw new Error(result.error ?? "SEO stage approval failed");
       return { campaignId, stage, status: (result as any).status ?? null };
+    }
+
+    case "content_publication_approval": {
+      const itemId = String(p.itemId ?? "");
+      const stage = String(p.stage ?? "");
+      if (!itemId || !["content", "publication"].includes(stage)) {
+        throw new Error("itemId and stage (content|publication) required");
+      }
+      const engine = await import("@/lib/growthmind/publication-engine.server");
+      // Item ownership + current status are re-validated inside the engine.
+      const approvedBy = (action as any).approved_by ?? "User";
+      const result = stage === "content"
+        ? await engine.approveArticleContent(workspaceId, itemId, action.id, approvedBy)
+        : await engine.approvePublication(workspaceId, itemId, action.id, approvedBy);
+      if (!result.ok) throw new Error(result.error ?? "Content approval failed");
+      return { itemId, stage, state: result.state ?? null };
     }
 
     default:

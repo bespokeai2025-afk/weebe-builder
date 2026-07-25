@@ -5322,6 +5322,50 @@ export type Database = {
         }
         Relationships: []
       }
+      growthmind_content_preview_tokens: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          expires_at: string
+          id: string
+          item_id: string
+          revoked_at: string | null
+          site_id: string
+          token_hash: string
+          workspace_id: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          expires_at: string
+          id?: string
+          item_id: string
+          revoked_at?: string | null
+          site_id: string
+          token_hash: string
+          workspace_id: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          expires_at?: string
+          id?: string
+          item_id?: string
+          revoked_at?: string | null
+          site_id?: string
+          token_hash?: string
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "growthmind_content_preview_tokens_item_id_fkey"
+            columns: ["item_id"]
+            isOneToOne: false
+            referencedRelation: "growthmind_public_content_items"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       growthmind_content_projects: {
         Row: {
           anatomy_id: string | null
@@ -6720,6 +6764,7 @@ export type Database = {
           connection: Json | null
           created_at: string
           error_message: string | null
+          first_data_notified_at: string | null
           freshness: Json | null
           id: string
           last_complete_date: string | null
@@ -6742,6 +6787,7 @@ export type Database = {
           connection?: Json | null
           created_at?: string
           error_message?: string | null
+          first_data_notified_at?: string | null
           freshness?: Json | null
           id?: string
           last_complete_date?: string | null
@@ -6764,6 +6810,7 @@ export type Database = {
           connection?: Json | null
           created_at?: string
           error_message?: string | null
+          first_data_notified_at?: string | null
           freshness?: Json | null
           id?: string
           last_complete_date?: string | null
@@ -7615,6 +7662,372 @@ export type Database = {
             columns: ["workspace_id"]
             isOneToOne: false
             referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      growthmind_public_content_items: {
+        Row: {
+          article_body: string | null
+          author_name: string | null
+          body_format: string
+          canonical_url: string | null
+          category: string | null
+          content_approval_id: string | null
+          content_studio_project_id: string | null
+          content_type: string
+          created_at: string
+          created_by: string | null
+          cta: Json | null
+          current_version: number
+          deployment_package_id: string | null
+          excerpt: string | null
+          execution_id: string | null
+          external_sources: Json
+          featured_image_alt: string | null
+          featured_image_url: string | null
+          gsc_monitoring_state: string
+          id: string
+          internal_links: Json
+          live_url: string | null
+          live_verification_state: string
+          meta_description: string | null
+          meta_title: string | null
+          noindex: boolean
+          og_description: string | null
+          og_image_url: string | null
+          og_title: string | null
+          previous_version: number | null
+          primary_topic: string | null
+          publication_approval_id: string | null
+          published_at: string | null
+          published_version: number | null
+          query_cluster: Json
+          rendered_body: string | null
+          reviewer_name: string | null
+          safety_gate_result: Json | null
+          scheduled_for: string | null
+          scheduled_timezone: string | null
+          seo_campaign_id: string | null
+          site_id: string
+          sitemap_state: string
+          slug: string
+          status: string
+          structured_data: Json | null
+          tags: string[]
+          target_audience: string | null
+          target_country: string | null
+          target_language: string | null
+          target_product: string | null
+          target_service: string | null
+          task_id: string | null
+          title: string
+          updated_at: string
+          withdrawn_at: string | null
+          work_order_id: string | null
+          workspace_id: string
+        }
+        Insert: {
+          article_body?: string | null
+          author_name?: string | null
+          body_format?: string
+          canonical_url?: string | null
+          category?: string | null
+          content_approval_id?: string | null
+          content_studio_project_id?: string | null
+          content_type?: string
+          created_at?: string
+          created_by?: string | null
+          cta?: Json | null
+          current_version?: number
+          deployment_package_id?: string | null
+          excerpt?: string | null
+          execution_id?: string | null
+          external_sources?: Json
+          featured_image_alt?: string | null
+          featured_image_url?: string | null
+          gsc_monitoring_state?: string
+          id?: string
+          internal_links?: Json
+          live_url?: string | null
+          live_verification_state?: string
+          meta_description?: string | null
+          meta_title?: string | null
+          noindex?: boolean
+          og_description?: string | null
+          og_image_url?: string | null
+          og_title?: string | null
+          previous_version?: number | null
+          primary_topic?: string | null
+          publication_approval_id?: string | null
+          published_at?: string | null
+          published_version?: number | null
+          query_cluster?: Json
+          rendered_body?: string | null
+          reviewer_name?: string | null
+          safety_gate_result?: Json | null
+          scheduled_for?: string | null
+          scheduled_timezone?: string | null
+          seo_campaign_id?: string | null
+          site_id: string
+          sitemap_state?: string
+          slug: string
+          status?: string
+          structured_data?: Json | null
+          tags?: string[]
+          target_audience?: string | null
+          target_country?: string | null
+          target_language?: string | null
+          target_product?: string | null
+          target_service?: string | null
+          task_id?: string | null
+          title?: string
+          updated_at?: string
+          withdrawn_at?: string | null
+          work_order_id?: string | null
+          workspace_id: string
+        }
+        Update: {
+          article_body?: string | null
+          author_name?: string | null
+          body_format?: string
+          canonical_url?: string | null
+          category?: string | null
+          content_approval_id?: string | null
+          content_studio_project_id?: string | null
+          content_type?: string
+          created_at?: string
+          created_by?: string | null
+          cta?: Json | null
+          current_version?: number
+          deployment_package_id?: string | null
+          excerpt?: string | null
+          execution_id?: string | null
+          external_sources?: Json
+          featured_image_alt?: string | null
+          featured_image_url?: string | null
+          gsc_monitoring_state?: string
+          id?: string
+          internal_links?: Json
+          live_url?: string | null
+          live_verification_state?: string
+          meta_description?: string | null
+          meta_title?: string | null
+          noindex?: boolean
+          og_description?: string | null
+          og_image_url?: string | null
+          og_title?: string | null
+          previous_version?: number | null
+          primary_topic?: string | null
+          publication_approval_id?: string | null
+          published_at?: string | null
+          published_version?: number | null
+          query_cluster?: Json
+          rendered_body?: string | null
+          reviewer_name?: string | null
+          safety_gate_result?: Json | null
+          scheduled_for?: string | null
+          scheduled_timezone?: string | null
+          seo_campaign_id?: string | null
+          site_id?: string
+          sitemap_state?: string
+          slug?: string
+          status?: string
+          structured_data?: Json | null
+          tags?: string[]
+          target_audience?: string | null
+          target_country?: string | null
+          target_language?: string | null
+          target_product?: string | null
+          target_service?: string | null
+          task_id?: string | null
+          title?: string
+          updated_at?: string
+          withdrawn_at?: string | null
+          work_order_id?: string | null
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "growthmind_public_content_items_site_id_fkey"
+            columns: ["site_id"]
+            isOneToOne: false
+            referencedRelation: "growthmind_public_sites"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "growthmind_public_content_items_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      growthmind_public_content_versions: {
+        Row: {
+          approval_id: string | null
+          approved: boolean
+          change_summary: string | null
+          changed_by: string | null
+          created_at: string
+          id: string
+          is_published_version: boolean
+          item_id: string
+          publication_execution_id: string | null
+          snapshot: Json
+          version_number: number
+          workspace_id: string
+        }
+        Insert: {
+          approval_id?: string | null
+          approved?: boolean
+          change_summary?: string | null
+          changed_by?: string | null
+          created_at?: string
+          id?: string
+          is_published_version?: boolean
+          item_id: string
+          publication_execution_id?: string | null
+          snapshot: Json
+          version_number: number
+          workspace_id: string
+        }
+        Update: {
+          approval_id?: string | null
+          approved?: boolean
+          change_summary?: string | null
+          changed_by?: string | null
+          created_at?: string
+          id?: string
+          is_published_version?: boolean
+          item_id?: string
+          publication_execution_id?: string | null
+          snapshot?: Json
+          version_number?: number
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "growthmind_public_content_versions_item_id_fkey"
+            columns: ["item_id"]
+            isOneToOne: false
+            referencedRelation: "growthmind_public_content_items"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      growthmind_public_sites: {
+        Row: {
+          allowed_origins: string[]
+          canonical_host: string
+          created_at: string
+          display_name: string | null
+          id: string
+          site_key: string
+          status: string
+          updated_at: string
+          workspace_id: string
+        }
+        Insert: {
+          allowed_origins?: string[]
+          canonical_host: string
+          created_at?: string
+          display_name?: string | null
+          id?: string
+          site_key: string
+          status?: string
+          updated_at?: string
+          workspace_id: string
+        }
+        Update: {
+          allowed_origins?: string[]
+          canonical_host?: string
+          created_at?: string
+          display_name?: string | null
+          id?: string
+          site_key?: string
+          status?: string
+          updated_at?: string
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "growthmind_public_sites_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      growthmind_publication_executions: {
+        Row: {
+          approval_id: string | null
+          attempts: number
+          completed_at: string | null
+          created_at: string
+          error_message: string | null
+          evidence: Json
+          id: string
+          item_id: string
+          kind: string
+          max_attempts: number
+          next_attempt_at: string | null
+          requested_by: string | null
+          scheduled_for: string | null
+          status: string
+          steps: Json
+          updated_at: string
+          version_number: number
+          workspace_id: string
+        }
+        Insert: {
+          approval_id?: string | null
+          attempts?: number
+          completed_at?: string | null
+          created_at?: string
+          error_message?: string | null
+          evidence?: Json
+          id?: string
+          item_id: string
+          kind: string
+          max_attempts?: number
+          next_attempt_at?: string | null
+          requested_by?: string | null
+          scheduled_for?: string | null
+          status?: string
+          steps?: Json
+          updated_at?: string
+          version_number: number
+          workspace_id: string
+        }
+        Update: {
+          approval_id?: string | null
+          attempts?: number
+          completed_at?: string | null
+          created_at?: string
+          error_message?: string | null
+          evidence?: Json
+          id?: string
+          item_id?: string
+          kind?: string
+          max_attempts?: number
+          next_attempt_at?: string | null
+          requested_by?: string | null
+          scheduled_for?: string | null
+          status?: string
+          steps?: Json
+          updated_at?: string
+          version_number?: number
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "growthmind_publication_executions_item_id_fkey"
+            columns: ["item_id"]
+            isOneToOne: false
+            referencedRelation: "growthmind_public_content_items"
             referencedColumns: ["id"]
           },
         ]

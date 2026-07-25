@@ -197,6 +197,19 @@ export const Route = createFileRoute("/api/public/campaign-executor")({
             console.warn("[content-publish] tick failed:", pubErr?.message ?? pubErr);
           }
 
+          // Public content scheduled publications (due scheduled_publish executions). Best-effort.
+          try {
+            const { runPublicationTick } = await import(
+              "@/lib/growthmind/publication-engine.server"
+            );
+            const pubTick = await runPublicationTick();
+            if (pubTick.ran > 0) {
+              console.log(`[publication-tick] ran=${pubTick.ran} completed=${pubTick.completed} failed=${pubTick.failed}`);
+            }
+          } catch (ptErr: any) {
+            console.warn("[publication-tick] failed:", ptErr?.message ?? ptErr);
+          }
+
           // GrowthMind performance snapshots + attention scan + learning
           // analysis (checkpointed Meta insights on published content).
           // Best-effort — never blocks the tick.

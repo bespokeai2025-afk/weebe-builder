@@ -1,0 +1,886 @@
+# WEBEE MASTER PROGRAMME CONTINUATION
+# PUBLIC CONTENT PUBLISHING BACKBONE, SITEMAP SERVICE,
+# LOVABLE BLOG CONTRACT AND AUTOMATED SEO MONITORING
+
+The SEO Department checkpoint is accepted.
+
+Preserve all completed work, including:
+
+- Search Console connection to sc-domain:webespokeai.com
+- Auto-refreshing OAuth tokens
+- Search Console scheduler
+- Honest baseline_pending state
+- Sitemap and URL Inspection integrations
+- SEO Department interface
+- Query and Page Intelligence
+- SEO Campaigns
+- Teach GrowthMind SEO
+- Blog Campaign Generator
+- Strategy, brief, article and deployment-package stages
+- Human approval gates
+- SEO Safety Gate
+- Duplicate and cannibalisation controls
+- HiveMind SEO commands
+- SystemMind SEO diagnostics
+- AccountsMind SEO cost tracking
+- Mobile SEO snapshot API
+- Existing work orders, tasks, executions, actions and approvals
+- Existing workspace isolation and permission controls
+- All security fixes from the architect review
+
+Do not repeat the completed SEO build.
+
+Do not rebuild or duplicate:
+
+- GrowthMind
+- HiveMind
+- SystemMind
+- AccountsMind
+- Content Studio
+- SEO Campaigns
+- Search Console OAuth
+- Search Console scheduler
+- Work orders
+- Tasks
+- Executions
+- Actions
+- Approvals
+- SEO Safety Gate
+- Existing article-generation logic
+
+The next objective is to replace the current manual deployment-package-only limitation with a reusable public-content publishing architecture that Lovable can consume.
+
+The target architecture is:
+
+GrowthMind
+→ Content Studio
+→ SEO Safety Gate
+→ Content Approval
+→ Publication Approval
+→ WEBEE Public Content Service
+→ Lovable /blog routes
+→ Live Verification
+→ Sitemap
+→ Search Console Monitoring
+
+Do not automate the Lovable editor through browser automation.
+
+Do not change:
+
+- GoDaddy
+- DNS
+- Nameservers
+- Cloudflare
+- Custom domains
+- Lovable project connection
+- GitHub connection
+
+without explicit approval.
+
+---
+
+# 1. AUDIT EXISTING CONTENT AND DEPLOYMENT STRUCTURES
+
+Inspect only the relevant existing services and tables for:
+
+- Content Studio projects
+- Generated articles
+- SEO campaigns
+- Deployment packages
+- Website targets
+- Article versions
+- Slugs
+- Publishing statuses
+- Publication approvals
+- Scheduled jobs
+- Published URLs
+- Metadata
+- Structured data
+- Images
+- Internal links
+- Sources
+- Sitemap data
+- Search Console monitoring
+
+Reuse existing structures where possible.
+
+Do not create a duplicate article database.
+
+Produce a concise Content Publishing Capability Map showing:
+
+- Existing and reusable
+- Missing
+- Partially implemented
+- Dormant
+- Duplicate or legacy
+
+Do not stop after the audit.
+
+---
+
+# 2. AUTHORITATIVE WEBSITE CONTENT MODEL
+
+Extend the existing Content Studio and SEO records to support public publishing.
+
+Every publishable item must support:
+
+- id
+- workspace_id
+- website_id
+- site_key
+- content_studio_project_id
+- seo_campaign_id
+- work_order_id
+- task_id
+- execution_id
+- content_approval_id
+- publication_approval_id
+- content_type
+- title
+- slug
+- excerpt
+- body_format
+- article_body
+- rendered_body
+- meta_title
+- meta_description
+- canonical_url
+- og_title
+- og_description
+- og_image_url
+- featured_image_url
+- featured_image_alt
+- author_name
+- reviewer_name
+- category
+- tags
+- target_product
+- target_service
+- target_audience
+- target_country
+- target_language
+- primary_topic
+- query_cluster
+- internal_links
+- external_sources
+- structured_data
+- CTA
+- noindex
+- status
+- scheduled_for
+- published_at
+- updated_at
+- withdrawn_at
+- current_version
+- previous_version
+- safety_gate_result
+- live_url
+- live_verification_state
+- sitemap_state
+- Search Console monitoring state
+
+Required publication states:
+
+- Draft
+- Awaiting Brief Approval
+- Awaiting Content Approval
+- Awaiting Publication Approval
+- Scheduled
+- Publishing
+- API Published
+- Awaiting Website Refresh
+- Live
+- Live Verification Failed
+- Updating
+- Withdrawn
+- Blocked
+- Failed
+
+Publishing a record through the public API does not mean Google has indexed it.
+
+Indexing must remain a separate state.
+
+---
+
+# 3. PUBLIC CONTENT API
+
+Create a versioned, read-only public API for the Lovable website.
+
+Preferred conceptual routes:
+
+GET /api/public/v1/sites/:siteKey/posts
+GET /api/public/v1/sites/:siteKey/posts/:slug
+GET /api/public/v1/sites/:siteKey/categories
+GET /api/public/v1/sites/:siteKey/feed
+GET /api/public/v1/sites/:siteKey/sitemap-data
+
+Use equivalent routes where the current architecture has a stronger convention.
+
+The current site key must represent:
+
+webespokeai.com
+
+Public endpoints must only return:
+
+- Published or Live content
+- Content belonging to the requested site
+- Fields required by the public website
+
+Never expose:
+
+- Drafts
+- Rejected articles
+- Approval comments
+- Private prompts
+- CRM records
+- Lead information
+- Call transcripts
+- Customer information
+- Tokens
+- Execution internals
+- Cost data
+- Other workspaces
+- Internal audit information
+
+Add:
+
+- Pagination
+- Category filtering
+- Tag filtering
+- Published-date ordering
+- Updated-date ordering where appropriate
+- Stable response schemas
+- Safe error schemas
+- 404 handling
+- ETag or version-aware caching
+- Published-only database enforcement
+
+---
+
+# 4. PROTECTED PREVIEW SERVICE
+
+Create a secure preview flow for unpublished Content Studio articles.
+
+Requirements:
+
+- Signed, short-lived preview token
+- Article scoped
+- Workspace scoped
+- Website scoped
+- Expiry checked
+- Revocable
+- No public draft listing
+- No preview-token reuse outside its intended article
+- No indexing
+- noindex behaviour
+- Draft Preview indicator
+- Read-only preview
+
+Never expose:
+
+- Service-role credentials
+- Token signing secret
+- Private database credentials
+- Other article drafts
+
+Create or reuse an action such as:
+
+create_article_preview
+
+The preview link must be available from:
+
+- Content Studio
+- GrowthMind
+- HiveMind
+- Tasks
+- Actions where approval is requested
+
+---
+
+# 5. PUBLICATION READINESS VALIDATION
+
+Create one authoritative publication-readiness validator.
+
+An article must not be publishable unless all mandatory requirements pass.
+
+Required checks:
+
+- SEO Safety Gate passed
+- Content approval complete
+- Publication approval complete
+- Website selected
+- Unique valid slug
+- Title present
+- Article body present
+- Meta title present
+- Meta description present
+- CTA present
+- Author or reviewer present
+- No unresolved restricted claim
+- No unresolved privacy issue
+- No unresolved duplicate-content block
+- No unresolved keyword-cannibalisation block
+- No unresolved factuality block
+- No accidental noindex unless explicitly intended
+- Valid canonical
+- Valid image alt text where images exist
+- Internal links validated
+- Structured data valid where provided
+
+Show structured states:
+
+- Incomplete
+- Ready for Content Approval
+- Ready for Publication Approval
+- Ready to Publish
+- Blocked
+
+Do not use one generic Approve button.
+
+Use explicit actions:
+
+- Approve Article Content
+- Approve Publication
+- Schedule Publication
+- Publish Now
+- Reject Publication
+- Request Changes
+
+---
+
+# 6. PUBLICATION EXECUTION ENGINE
+
+Connect publishing to the existing work-order and execution backbone.
+
+Required execution flow:
+
+1. Revalidate workspace.
+2. Revalidate user permissions.
+3. Revalidate package entitlement.
+4. Revalidate website.
+5. Revalidate article version.
+6. Revalidate SEO Safety Gate.
+7. Revalidate content approval.
+8. Revalidate publication approval.
+9. Revalidate slug.
+10. Create a publication execution.
+11. Change the approved version to Publishing.
+12. Publish it through the public-content service.
+13. Confirm the public API returns the item.
+14. Record the expected Lovable URL.
+15. Attempt live verification where the Lovable frontend already supports the route.
+16. Record evidence.
+17. Start sitemap and Search Console monitoring.
+18. Update HiveMind, Tasks, Actions, GrowthMind and Content Studio.
+
+Do not mark the article Live merely because the database record changed.
+
+Use accurate states:
+
+- Publishing
+- API Published
+- Awaiting Lovable Frontend
+- Awaiting Website Refresh
+- Live
+- Live Verification Failed
+- Awaiting Sitemap
+- Monitoring
+
+While the Lovable blog frontend has not yet been added, the honest result should be:
+
+API Published — Awaiting Lovable Frontend
+
+Do not mark that as completed publication.
+
+---
+
+# 7. VERSIONING AND ROLLBACK
+
+Every article must support immutable versions.
+
+Store:
+
+- Version number
+- Previous version
+- Draft version
+- Published version
+- Article diff
+- Metadata diff
+- Change summary
+- User or Mind responsible
+- Approval authorising the version
+- Publication execution
+- Rollback target
+
+Updating a published article must require:
+
+1. New draft version
+2. Safety-gate recheck
+3. Content approval
+4. Publication approval
+5. Publication execution
+6. Live verification
+
+Rollback must restore a previously approved version.
+
+Do not restore an unapproved draft.
+
+Do not permanently delete the article history.
+
+---
+
+# 8. SCHEDULED PUBLICATION
+
+Support:
+
+- Publish now
+- Schedule for date and time
+- Change scheduled time
+- Cancel scheduled publication
+- Withdraw published article
+- Restore withdrawn article
+
+Use the existing reliable background-job architecture.
+
+Requirements:
+
+- Workspace-aware scheduling
+- User timezone support
+- Idempotency
+- Retry limits
+- Dead-letter handling
+- Cancellation
+- No duplicate publication
+- Approval still valid at execution time
+- Correct approved version published
+- Audit events
+- Cost tracking
+
+A scheduled article must not publish when:
+
+- Approval was revoked
+- Article changed after approval
+- Safety Gate became invalid
+- Website was disconnected
+- Workspace permissions changed
+- Publication was cancelled
+
+---
+
+# 9. SITEMAP DATA SERVICE
+
+SystemMind found that the current live site returns 404 for sitemap.xml.
+
+Create the WEBEE-side sitemap content service for Lovable.
+
+The public sitemap-data endpoint must return only:
+
+- Live public pages
+- Published blog articles
+- Canonical URLs
+- Last modified date
+- Change frequency only where meaningful
+- Priority only where deliberately configured
+
+Do not include:
+
+- Drafts
+- Preview links
+- Withdrawn articles
+- Rejected articles
+- Internal API routes
+- Admin routes
+- Authenticated routes
+- Noindex pages
+
+Produce an exact Lovable integration contract for creating:
+
+https://www.webespokeai.com/sitemap.xml
+
+The contract must include:
+
+- WEBEE sitemap endpoint
+- Response format
+- Cache requirements
+- Failure behaviour
+- Existing static website pages
+- Dynamic blog pages
+- Canonical hostname
+- Last-modified rules
+- Exclusion rules
+- Testing requirements
+
+Do not claim sitemap.xml is fixed until the Lovable website serves it successfully.
+
+Keep SystemMind’s current state as:
+
+Sitemap missing — awaiting Lovable implementation
+
+---
+
+# 10. SEARCH CONSOLE SCHEDULER VERIFICATION
+
+The Search Console property is newly verified and currently returns zero performance rows.
+
+Prove that a real recurring sync job exists.
+
+Required new-property behaviour:
+
+- Run once daily
+- Display:
+  Connected — awaiting Google performance data
+- Store:
+  - last_sync_at
+  - next_sync_at
+  - last_success_at
+  - last_data_date
+  - rows_received
+  - provider_state
+  - retry_count
+  - last_error
+
+When data first becomes available:
+
+- Store the first real rows
+- Change state from baseline_pending
+- Notify HiveMind once
+- Trigger GrowthMind opportunity analysis
+- Do not generate duplicate notifications
+- Continue incremental daily syncing
+
+After data exists:
+
+- Import only missing dates
+- Avoid full-history sync on every run
+- Detect meaningful changes
+- Create work orders only when evidence meets thresholds
+
+Do not check every few minutes.
+
+Do not invent data.
+
+---
+
+# 11. LOVABLE FRONTEND INTEGRATION CONTRACT
+
+Produce a complete implementation contract for the existing Lovable website.
+
+Include:
+
+- Production API base URL
+- Site key
+- Public endpoint list
+- Preview endpoint
+- Response schemas
+- Error schemas
+- Pagination
+- Cache behaviour
+- ETag behaviour
+- Article body format
+- Sanitisation requirements
+- Metadata fields
+- Structured-data fields
+- Image fields
+- Category and tag fields
+- Live-status rules
+- Draft-preview rules
+- CORS rules
+- 404 behaviour
+- API-unavailable behaviour
+- Sitemap-data contract
+- Example safe responses
+
+Do not include:
+
+- Secrets
+- Service-role keys
+- Signing secrets
+- Private database fields
+- Internal work-order payloads
+
+The contract must allow Lovable to implement:
+
+- /blog
+- /blog/:slug
+- Preview mode
+- Sitemap.xml
+- RSS or Atom feed where appropriate
+- Article metadata
+- Structured data
+- Internal linking
+- Published-only content
+
+---
+
+# 12. SECURITY
+
+Implement and verify:
+
+- Strict workspace isolation
+- Website isolation
+- Published-only filtering
+- Output validation
+- Input validation
+- Rate limiting
+- Safe cache keys
+- CORS restrictions
+- No wildcard protected CORS
+- Duplicate-slug protection
+- Reserved-slug protection
+- Private-field exclusion
+- HTML sanitisation or safe structured-body rendering
+- Preview-token expiry
+- Preview-token revocation
+- Audit events
+- No internal-network fetches
+- No arbitrary URL fetching
+- No secret logging
+- No tokens in AI prompts
+
+Approve public origins:
+
+- https://webespokeai.com
+- https://www.webespokeai.com
+
+Do not allow another workspace to publish to webespokeai.com.
+
+---
+
+# 13. HIVEMIND AND GROWTHMIND COMMANDS
+
+Add or activate commands such as:
+
+- “Publish the approved article.”
+- “Schedule the article for Monday morning.”
+- “What is blocking publication?”
+- “Give me the preview link.”
+- “Show me the publication checklist.”
+- “Update the published article.”
+- “Roll back the last version.”
+- “Withdraw the article.”
+- “Show me the public API status.”
+- “Is the Lovable blog connected?”
+- “Is sitemap.xml live?”
+- “Has Google discovered the article?”
+
+Every command must use real work orders, executions, approvals and evidence.
+
+HiveMind must distinguish:
+
+- Content Approved
+- Publication Approved
+- API Published
+- Awaiting Lovable Frontend
+- Live
+- Added to Sitemap
+- Submitted to Search Console
+- Indexed
+- Monitoring
+
+Do not collapse these into one Completed state.
+
+---
+
+# 14. SYSTEMMIND RESPONSIBILITIES
+
+SystemMind must check:
+
+- Public API health
+- Article response validity
+- Published-only filtering
+- Preview security
+- CORS
+- Cache isolation
+- Rate limiting
+- Sitemap-data endpoint
+- Live sitemap.xml
+- Lovable blog availability
+- Article live verification
+- Metadata rendering
+- Canonical rendering
+- Structured data
+- Broken links
+- Robots
+- Noindex
+- Search Console scheduler
+- Publication worker
+- Failed publication jobs
+- Rollback readiness
+
+Until Lovable implements the frontend, SystemMind must report:
+
+- Public Content API: Ready or Not Ready
+- Lovable Blog Frontend: Not Connected
+- Sitemap.xml: Missing
+- Publication Capability: API Only
+
+---
+
+# 15. ACCOUNTSMIND RESPONSIBILITIES
+
+Track:
+
+- Article research cost
+- Article-generation cost
+- Image-generation cost
+- Safety-check cost
+- Publication execution cost
+- Monitoring cost
+- Search Console sync cost
+- Cost per published article
+- Cost per organic lead
+- Cost per qualified organic lead
+- Attributed organic revenue
+
+Do not invent attribution.
+
+Use:
+
+- Attributed
+- Partially Attributed
+- Unknown
+
+---
+
+# 16. MOBILE API PARITY
+
+Expose:
+
+- Article publication state
+- Preview availability
+- Publication approvals
+- Scheduled publication
+- Live URL
+- Sitemap state
+- Search Console state
+- Monitoring results
+- Version history
+- Rollback actions where permitted
+
+Use the same records as web.
+
+Do not create mobile-only publication records.
+
+---
+
+# 17. REQUIRED END-TO-END TESTS
+
+Run tests for:
+
+## Public API
+
+- Published article listing
+- Single article retrieval
+- Draft exclusion
+- Withdrawn article exclusion
+- Cross-workspace exclusion
+- Wrong-site exclusion
+- Pagination
+- Category filter
+- Tag filter
+- Invalid slug
+- Duplicate slug
+- Reserved slug
+- Cache behaviour
+- ETag
+- Rate limiting
+- CORS
+
+## Preview
+
+- Valid preview
+- Expired preview
+- Revoked preview
+- Wrong article
+- Wrong workspace
+- Wrong website
+- Noindex behaviour
+- Draft isolation
+
+## Publishing
+
+- Content approval
+- Publication approval
+- Safety Gate validation
+- Publish now
+- Schedule publication
+- Cancel schedule
+- Duplicate worker prevention
+- Failed publication recovery
+- Article update
+- Versioning
+- Rollback
+- Withdrawal
+- Restoration
+
+## Sitemap
+
+- Sitemap-data output
+- Draft exclusion
+- Withdrawn exclusion
+- Canonical host
+- Last-modified date
+- API failure state
+- Lovable contract validation
+
+## Search Console
+
+- Daily new-property sync
+- Zero-row state
+- First-data detection
+- Incremental import
+- Token refresh
+- Quota handling
+- Repeated failure alert
+- Workspace isolation
+- Opportunity trigger
+
+## Platform regression
+
+- Google Ads work orders
+- Unified HiveMind
+- Shared voice
+- SEO Campaign Generator
+- Content Studio
+- Approval permissions
+- WBAH isolation
+- No false completion
+
+---
+
+# 18. REQUIRED CHECKPOINT REPORT
+
+At the next checkpoint report:
+
+1. Existing content structures reused
+2. New structures added
+3. Public API base URL
+4. Site key
+5. Public endpoint list
+6. Response schemas
+7. Preview flow
+8. Publication readiness validator
+9. Publication execution
+10. Publishing states
+11. Scheduling
+12. Versioning
+13. Rollback
+14. Sitemap-data service
+15. Search Console scheduler proof
+16. First-data detection
+17. Lovable integration contract
+18. Security controls
+19. SystemMind health checks
+20. AccountsMind cost tracking
+21. Mobile API additions
+22. Automated test results
+23. Genuine external blockers
+24. Exact next prompt requirements for Lovable
+
+Do not modify the Lovable website during this workstream.
+
+Do not stop after producing a plan.
+
+Implement and test the complete publishing backbone.
+
+After completing this checkpoint, stop before making website changes and provide the exact API and sitemap contract required for the Lovable implementation.

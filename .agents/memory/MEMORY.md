@@ -153,3 +153,4 @@
 - [SEO Department (GSC + blog campaigns)](seo-department-arch.md) — stage approvals via hivemind_actions (action_payload NOT metadata); new action types need kind+case+sensitive+union; manual-only Lovable deploy; SSRF guard on audit fetches.
 - [GSC OAuth canonical callback](gsc-oauth-canonical-callback.md) — server route /api/oauth/gsc-callback + HMAC state {origin,returnTo}; never use page URLs as redirect URIs; register per-origin in Google console.
 - [Website architecture audit](website-architecture-audit.md) — DoH-based read-only fingerprinting (Lovable=185.158.133.1, Replit=34.111.x); no deploy integration → change packages marked Awaiting Website Deployment.
+- [Public Content Publishing backbone](public-content-publishing-arch.md) — Lovable blog API: dual approvals, api_published honesty, snapshot overlay for updating items, SSRF-guarded verify, column-name drift trap.

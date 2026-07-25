@@ -373,9 +373,49 @@ export async function runGscSyncForWorkspace(
       );
     }
 
+    // First-data detection (§10): the moment Google delivers its FIRST
+    // performance rows for a previously baseline-pending property, notify
+    // once (dedup via first_data_notified_at) and open a GrowthMind
+    // opportunity. Never re-fires on later syncs.
+    let firstDataNotifiedAt: string | null = existing?.first_data_notified_at ?? null;
+    if (!baselinePending && existing?.baseline_pending === true && !existing?.first_data_notified_at) {
+      firstDataNotifiedAt = new Date().toISOString();
+      try {
+        const { publishExecutiveEvent } = await import("@/lib/hivemind/executive-events.shared");
+        await publishExecutiveEvent(admin as any, {
+          workspaceId,
+          eventType: "gsc_first_data",
+          sourceSystem: "growthmind",
+          severity: "info",
+          title: "Google Search Console data has started arriving",
+          summary: `Search Console delivered its first ${totalRows} performance rows for ${propertyUrl}. GrowthMind can now begin real SEO performance analysis for this property.`,
+          dedupKey: `gsc_first_data:${workspaceId}:${propertyUrl}`,
+          entityType: "gsc_property",
+          entityId: propertyUrl,
+        } as any);
+      } catch (e: any) {
+        console.warn("[gsc-sync] first-data event failed:", e?.message ?? e);
+      }
+      try {
+        await admin.from("hivemind_tasks").insert({
+          workspace_id: workspaceId,
+          title: "Review first Search Console data",
+          description: `Google Search Console has started returning performance data for ${propertyUrl} (${totalRows} rows). Review early queries/pages in the SEO dashboard — GrowthMind will use this data for opportunity detection from now on.`,
+          status: "suggested",
+          source: "growthmind",
+          trigger_type: "gsc_first_data",
+          entity_type: "gsc_property",
+          entity_id: propertyUrl,
+        });
+      } catch (e: any) {
+        console.warn("[gsc-sync] first-data task failed:", e?.message ?? e);
+      }
+    }
+
     await admin.from("growthmind_gsc_sync_state").upsert(
       {
         ...baseState,
+        first_data_notified_at: firstDataNotifiedAt,
         status: baselinePending ? "baseline_pending" : "completed",
         baseline_pending: baselinePending,
         last_complete_date: maxDateSeen ?? existing?.last_complete_date ?? null,

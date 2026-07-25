@@ -307,6 +307,12 @@ import { Route as AuthenticatedAdminAccountsClientsWebuyanyhouseRouteImport } fr
 import { Route as ApiV1MindsConversationsIdMessagesRouteImport } from './routes/api/v1/minds.conversations.$id.messages'
 import { Route as ApiV1MindsActionsIdRejectRouteImport } from './routes/api/v1/minds.actions.$id.reject'
 import { Route as ApiV1MindsActionsIdApproveRouteImport } from './routes/api/v1/minds.actions.$id.approve'
+import { Route as ApiPublicV1SitesSiteKeySitemapDataRouteImport } from './routes/api/public/v1/sites.$siteKey.sitemap-data'
+import { Route as ApiPublicV1SitesSiteKeyPostsRouteImport } from './routes/api/public/v1/sites.$siteKey.posts'
+import { Route as ApiPublicV1SitesSiteKeyFeedRouteImport } from './routes/api/public/v1/sites.$siteKey.feed'
+import { Route as ApiPublicV1SitesSiteKeyCategoriesRouteImport } from './routes/api/public/v1/sites.$siteKey.categories'
+import { Route as ApiPublicV1SitesSiteKeyPreviewItemIdRouteImport } from './routes/api/public/v1/sites.$siteKey.preview.$itemId'
+import { Route as ApiPublicV1SitesSiteKeyPostsSlugRouteImport } from './routes/api/public/v1/sites.$siteKey.posts.$slug'
 
 const UnsubscribeRoute = UnsubscribeRouteImport.update({
   id: '/unsubscribe',
@@ -1989,6 +1995,42 @@ const ApiV1MindsActionsIdApproveRoute =
     path: '/$id/approve',
     getParentRoute: () => ApiV1MindsActionsRoute,
   } as any)
+const ApiPublicV1SitesSiteKeySitemapDataRoute =
+  ApiPublicV1SitesSiteKeySitemapDataRouteImport.update({
+    id: '/api/public/v1/sites/$siteKey/sitemap-data',
+    path: '/api/public/v1/sites/$siteKey/sitemap-data',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiPublicV1SitesSiteKeyPostsRoute =
+  ApiPublicV1SitesSiteKeyPostsRouteImport.update({
+    id: '/api/public/v1/sites/$siteKey/posts',
+    path: '/api/public/v1/sites/$siteKey/posts',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiPublicV1SitesSiteKeyFeedRoute =
+  ApiPublicV1SitesSiteKeyFeedRouteImport.update({
+    id: '/api/public/v1/sites/$siteKey/feed',
+    path: '/api/public/v1/sites/$siteKey/feed',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiPublicV1SitesSiteKeyCategoriesRoute =
+  ApiPublicV1SitesSiteKeyCategoriesRouteImport.update({
+    id: '/api/public/v1/sites/$siteKey/categories',
+    path: '/api/public/v1/sites/$siteKey/categories',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiPublicV1SitesSiteKeyPreviewItemIdRoute =
+  ApiPublicV1SitesSiteKeyPreviewItemIdRouteImport.update({
+    id: '/api/public/v1/sites/$siteKey/preview/$itemId',
+    path: '/api/public/v1/sites/$siteKey/preview/$itemId',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiPublicV1SitesSiteKeyPostsSlugRoute =
+  ApiPublicV1SitesSiteKeyPostsSlugRouteImport.update({
+    id: '/$slug',
+    path: '/$slug',
+    getParentRoute: () => ApiPublicV1SitesSiteKeyPostsRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -2285,9 +2327,15 @@ export interface FileRoutesByFullPath {
   '/api/v1/minds/tasks/$id': typeof ApiV1MindsTasksIdRoute
   '/api/v1/minds/tools/execute': typeof ApiV1MindsToolsExecuteRoute
   '/admin/accounts/clients/': typeof AuthenticatedAdminAccountsClientsIndexRoute
+  '/api/public/v1/sites/$siteKey/categories': typeof ApiPublicV1SitesSiteKeyCategoriesRoute
+  '/api/public/v1/sites/$siteKey/feed': typeof ApiPublicV1SitesSiteKeyFeedRoute
+  '/api/public/v1/sites/$siteKey/posts': typeof ApiPublicV1SitesSiteKeyPostsRouteWithChildren
+  '/api/public/v1/sites/$siteKey/sitemap-data': typeof ApiPublicV1SitesSiteKeySitemapDataRoute
   '/api/v1/minds/actions/$id/approve': typeof ApiV1MindsActionsIdApproveRoute
   '/api/v1/minds/actions/$id/reject': typeof ApiV1MindsActionsIdRejectRoute
   '/api/v1/minds/conversations/$id/messages': typeof ApiV1MindsConversationsIdMessagesRoute
+  '/api/public/v1/sites/$siteKey/posts/$slug': typeof ApiPublicV1SitesSiteKeyPostsSlugRoute
+  '/api/public/v1/sites/$siteKey/preview/$itemId': typeof ApiPublicV1SitesSiteKeyPreviewItemIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -2574,9 +2622,15 @@ export interface FileRoutesByTo {
   '/api/v1/minds/tasks/$id': typeof ApiV1MindsTasksIdRoute
   '/api/v1/minds/tools/execute': typeof ApiV1MindsToolsExecuteRoute
   '/admin/accounts/clients': typeof AuthenticatedAdminAccountsClientsIndexRoute
+  '/api/public/v1/sites/$siteKey/categories': typeof ApiPublicV1SitesSiteKeyCategoriesRoute
+  '/api/public/v1/sites/$siteKey/feed': typeof ApiPublicV1SitesSiteKeyFeedRoute
+  '/api/public/v1/sites/$siteKey/posts': typeof ApiPublicV1SitesSiteKeyPostsRouteWithChildren
+  '/api/public/v1/sites/$siteKey/sitemap-data': typeof ApiPublicV1SitesSiteKeySitemapDataRoute
   '/api/v1/minds/actions/$id/approve': typeof ApiV1MindsActionsIdApproveRoute
   '/api/v1/minds/actions/$id/reject': typeof ApiV1MindsActionsIdRejectRoute
   '/api/v1/minds/conversations/$id/messages': typeof ApiV1MindsConversationsIdMessagesRoute
+  '/api/public/v1/sites/$siteKey/posts/$slug': typeof ApiPublicV1SitesSiteKeyPostsSlugRoute
+  '/api/public/v1/sites/$siteKey/preview/$itemId': typeof ApiPublicV1SitesSiteKeyPreviewItemIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -2875,9 +2929,15 @@ export interface FileRoutesById {
   '/api/v1/minds/tasks/$id': typeof ApiV1MindsTasksIdRoute
   '/api/v1/minds/tools/execute': typeof ApiV1MindsToolsExecuteRoute
   '/_authenticated/admin/accounts/clients/': typeof AuthenticatedAdminAccountsClientsIndexRoute
+  '/api/public/v1/sites/$siteKey/categories': typeof ApiPublicV1SitesSiteKeyCategoriesRoute
+  '/api/public/v1/sites/$siteKey/feed': typeof ApiPublicV1SitesSiteKeyFeedRoute
+  '/api/public/v1/sites/$siteKey/posts': typeof ApiPublicV1SitesSiteKeyPostsRouteWithChildren
+  '/api/public/v1/sites/$siteKey/sitemap-data': typeof ApiPublicV1SitesSiteKeySitemapDataRoute
   '/api/v1/minds/actions/$id/approve': typeof ApiV1MindsActionsIdApproveRoute
   '/api/v1/minds/actions/$id/reject': typeof ApiV1MindsActionsIdRejectRoute
   '/api/v1/minds/conversations/$id/messages': typeof ApiV1MindsConversationsIdMessagesRoute
+  '/api/public/v1/sites/$siteKey/posts/$slug': typeof ApiPublicV1SitesSiteKeyPostsSlugRoute
+  '/api/public/v1/sites/$siteKey/preview/$itemId': typeof ApiPublicV1SitesSiteKeyPreviewItemIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -3176,9 +3236,15 @@ export interface FileRouteTypes {
     | '/api/v1/minds/tasks/$id'
     | '/api/v1/minds/tools/execute'
     | '/admin/accounts/clients/'
+    | '/api/public/v1/sites/$siteKey/categories'
+    | '/api/public/v1/sites/$siteKey/feed'
+    | '/api/public/v1/sites/$siteKey/posts'
+    | '/api/public/v1/sites/$siteKey/sitemap-data'
     | '/api/v1/minds/actions/$id/approve'
     | '/api/v1/minds/actions/$id/reject'
     | '/api/v1/minds/conversations/$id/messages'
+    | '/api/public/v1/sites/$siteKey/posts/$slug'
+    | '/api/public/v1/sites/$siteKey/preview/$itemId'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -3465,9 +3531,15 @@ export interface FileRouteTypes {
     | '/api/v1/minds/tasks/$id'
     | '/api/v1/minds/tools/execute'
     | '/admin/accounts/clients'
+    | '/api/public/v1/sites/$siteKey/categories'
+    | '/api/public/v1/sites/$siteKey/feed'
+    | '/api/public/v1/sites/$siteKey/posts'
+    | '/api/public/v1/sites/$siteKey/sitemap-data'
     | '/api/v1/minds/actions/$id/approve'
     | '/api/v1/minds/actions/$id/reject'
     | '/api/v1/minds/conversations/$id/messages'
+    | '/api/public/v1/sites/$siteKey/posts/$slug'
+    | '/api/public/v1/sites/$siteKey/preview/$itemId'
   id:
     | '__root__'
     | '/'
@@ -3765,9 +3837,15 @@ export interface FileRouteTypes {
     | '/api/v1/minds/tasks/$id'
     | '/api/v1/minds/tools/execute'
     | '/_authenticated/admin/accounts/clients/'
+    | '/api/public/v1/sites/$siteKey/categories'
+    | '/api/public/v1/sites/$siteKey/feed'
+    | '/api/public/v1/sites/$siteKey/posts'
+    | '/api/public/v1/sites/$siteKey/sitemap-data'
     | '/api/v1/minds/actions/$id/approve'
     | '/api/v1/minds/actions/$id/reject'
     | '/api/v1/minds/conversations/$id/messages'
+    | '/api/public/v1/sites/$siteKey/posts/$slug'
+    | '/api/public/v1/sites/$siteKey/preview/$itemId'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -3879,6 +3957,11 @@ export interface RootRouteChildren {
   LovableEmailQueueProcessRoute: typeof LovableEmailQueueProcessRoute
   LovableEmailTransactionalPreviewRoute: typeof LovableEmailTransactionalPreviewRoute
   LovableEmailTransactionalSendRoute: typeof LovableEmailTransactionalSendRoute
+  ApiPublicV1SitesSiteKeyCategoriesRoute: typeof ApiPublicV1SitesSiteKeyCategoriesRoute
+  ApiPublicV1SitesSiteKeyFeedRoute: typeof ApiPublicV1SitesSiteKeyFeedRoute
+  ApiPublicV1SitesSiteKeyPostsRoute: typeof ApiPublicV1SitesSiteKeyPostsRouteWithChildren
+  ApiPublicV1SitesSiteKeySitemapDataRoute: typeof ApiPublicV1SitesSiteKeySitemapDataRoute
+  ApiPublicV1SitesSiteKeyPreviewItemIdRoute: typeof ApiPublicV1SitesSiteKeyPreviewItemIdRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -5969,6 +6052,48 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiV1MindsActionsIdApproveRouteImport
       parentRoute: typeof ApiV1MindsActionsRoute
     }
+    '/api/public/v1/sites/$siteKey/sitemap-data': {
+      id: '/api/public/v1/sites/$siteKey/sitemap-data'
+      path: '/api/public/v1/sites/$siteKey/sitemap-data'
+      fullPath: '/api/public/v1/sites/$siteKey/sitemap-data'
+      preLoaderRoute: typeof ApiPublicV1SitesSiteKeySitemapDataRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/v1/sites/$siteKey/posts': {
+      id: '/api/public/v1/sites/$siteKey/posts'
+      path: '/api/public/v1/sites/$siteKey/posts'
+      fullPath: '/api/public/v1/sites/$siteKey/posts'
+      preLoaderRoute: typeof ApiPublicV1SitesSiteKeyPostsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/v1/sites/$siteKey/feed': {
+      id: '/api/public/v1/sites/$siteKey/feed'
+      path: '/api/public/v1/sites/$siteKey/feed'
+      fullPath: '/api/public/v1/sites/$siteKey/feed'
+      preLoaderRoute: typeof ApiPublicV1SitesSiteKeyFeedRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/v1/sites/$siteKey/categories': {
+      id: '/api/public/v1/sites/$siteKey/categories'
+      path: '/api/public/v1/sites/$siteKey/categories'
+      fullPath: '/api/public/v1/sites/$siteKey/categories'
+      preLoaderRoute: typeof ApiPublicV1SitesSiteKeyCategoriesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/v1/sites/$siteKey/preview/$itemId': {
+      id: '/api/public/v1/sites/$siteKey/preview/$itemId'
+      path: '/api/public/v1/sites/$siteKey/preview/$itemId'
+      fullPath: '/api/public/v1/sites/$siteKey/preview/$itemId'
+      preLoaderRoute: typeof ApiPublicV1SitesSiteKeyPreviewItemIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/v1/sites/$siteKey/posts/$slug': {
+      id: '/api/public/v1/sites/$siteKey/posts/$slug'
+      path: '/$slug'
+      fullPath: '/api/public/v1/sites/$siteKey/posts/$slug'
+      preLoaderRoute: typeof ApiPublicV1SitesSiteKeyPostsSlugRouteImport
+      parentRoute: typeof ApiPublicV1SitesSiteKeyPostsRoute
+    }
   }
 }
 
@@ -6773,6 +6898,21 @@ const ApiV1MindsToolsRouteWithChildren = ApiV1MindsToolsRoute._addFileChildren(
   ApiV1MindsToolsRouteChildren,
 )
 
+interface ApiPublicV1SitesSiteKeyPostsRouteChildren {
+  ApiPublicV1SitesSiteKeyPostsSlugRoute: typeof ApiPublicV1SitesSiteKeyPostsSlugRoute
+}
+
+const ApiPublicV1SitesSiteKeyPostsRouteChildren: ApiPublicV1SitesSiteKeyPostsRouteChildren =
+  {
+    ApiPublicV1SitesSiteKeyPostsSlugRoute:
+      ApiPublicV1SitesSiteKeyPostsSlugRoute,
+  }
+
+const ApiPublicV1SitesSiteKeyPostsRouteWithChildren =
+  ApiPublicV1SitesSiteKeyPostsRoute._addFileChildren(
+    ApiPublicV1SitesSiteKeyPostsRouteChildren,
+  )
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AuthenticatedRoute: AuthenticatedRouteWithChildren,
@@ -6886,6 +7026,15 @@ const rootRouteChildren: RootRouteChildren = {
   LovableEmailQueueProcessRoute: LovableEmailQueueProcessRoute,
   LovableEmailTransactionalPreviewRoute: LovableEmailTransactionalPreviewRoute,
   LovableEmailTransactionalSendRoute: LovableEmailTransactionalSendRoute,
+  ApiPublicV1SitesSiteKeyCategoriesRoute:
+    ApiPublicV1SitesSiteKeyCategoriesRoute,
+  ApiPublicV1SitesSiteKeyFeedRoute: ApiPublicV1SitesSiteKeyFeedRoute,
+  ApiPublicV1SitesSiteKeyPostsRoute:
+    ApiPublicV1SitesSiteKeyPostsRouteWithChildren,
+  ApiPublicV1SitesSiteKeySitemapDataRoute:
+    ApiPublicV1SitesSiteKeySitemapDataRoute,
+  ApiPublicV1SitesSiteKeyPreviewItemIdRoute:
+    ApiPublicV1SitesSiteKeyPreviewItemIdRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

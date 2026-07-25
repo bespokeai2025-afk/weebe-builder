@@ -58,6 +58,40 @@ export const Route = createFileRoute("/api/v1/seo")({
             packages = p.data ?? [];
           }
 
+          // Public content publishing state (§16 mobile parity — same records as web)
+          let publicContent: any = null;
+          try {
+            const { data: site } = await client
+              .from("growthmind_public_sites")
+              .select("id, site_key, canonical_host, status, allowed_origins")
+              .eq("workspace_id", workspaceId)
+              .eq("status", "active")
+              .limit(1)
+              .maybeSingle();
+            if (site) {
+              const [items, execs] = await Promise.all([
+                client.from("growthmind_public_content_items")
+                  .select("id, slug, title, status, content_type, category, scheduled_for, published_at, live_verification_state, current_version, updated_at")
+                  .eq("workspace_id", workspaceId)
+                  .order("updated_at", { ascending: false })
+                  .limit(100),
+                client.from("growthmind_publication_executions")
+                  .select("id, item_id, kind, status, scheduled_for, attempts, error_message, completed_at, created_at")
+                  .eq("workspace_id", workspaceId)
+                  .order("created_at", { ascending: false })
+                  .limit(50),
+              ]);
+              publicContent = {
+                site: { site_key: site.site_key, canonical_host: site.canonical_host },
+                api_base: `/api/public/v1/sites/${site.site_key}`,
+                sitemap_state: "Missing — awaiting Lovable implementation (sitemap-data endpoint ready)",
+                publication_capability: "API Only — articles are 'API Published — Awaiting Lovable Frontend' until live verification succeeds",
+                articles: items.data ?? [],
+                executions: execs.data ?? [],
+              };
+            }
+          } catch { /* section is additive — never break the snapshot */ }
+
           return jsonOk({
             object: "seo_snapshot",
             connection: {
@@ -69,6 +103,7 @@ export const Route = createFileRoute("/api/v1/seo")({
             recent_inspections: inspections,
             campaigns,
             deployment_packages: packages,
+            public_content: publicContent,
             approval_model:
               "Strategy, brief, article, deployment package and website deployment each require separate explicit approval. Publication is a manual Lovable deployment; live status is only set after URL verification.",
           });
