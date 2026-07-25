@@ -27,6 +27,9 @@ import { DashboardPage, KpiCard, SummaryTooltip, stickyCell, stickyHead } from "
 import { LoadingProgress } from "@/components/dashboard/LoadingProgress";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { WbahCallCountBadge, WbahBookedStickyBadge, wbahAgentColorMapFromLeads } from "@/components/dashboard/WbahNotesButton";
+import { WbahCallCalendlyLink } from "@/components/dashboard/WbahCallCalendlyLink";
+import { WbahContactCallHistoryTable } from "@/components/dashboard/WbahContactCallHistoryTable";
+import type { WbahContactCallHistoryItem } from "@/lib/dashboard/wbah-call-history.types";
 import { cn } from "@/lib/utils";
 import { listCalls, listTestCalls, deleteTestCalls } from "@/lib/dashboard/calls.functions";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -53,7 +56,6 @@ import {
   wbahAppointmentDateCell,
   wbahAppointmentTimeCell,
   wbahBookingStatusCell,
-  wbahCalendlyCell,
 } from "@/lib/dashboard/wbah-call-booking-display";
 
 export const Route = createFileRoute("/_authenticated/calls")({
@@ -431,7 +433,12 @@ function CallsPage() {
     name: string;
     summary: string | null;
   } | null>(null);
-  const [callHistory, setCallHistory] = useState<{ name: string; phone: string; loading: boolean; calls: any[] } | null>(null);
+  const [callHistory, setCallHistory] = useState<{
+    name: string;
+    phone: string;
+    loading: boolean;
+    calls: WbahContactCallHistoryItem[];
+  } | null>(null);
   const getWbahCallDetailFn = useServerFn(getWbahCallDetail);
   const getContactHistoryFn = useServerFn(getWbahContactCallHistory);
 
@@ -460,7 +467,12 @@ function CallsPage() {
     setCallHistory({ name, phone, loading: true, calls: [] });
     try {
       const res = await getContactHistoryFn({ data: { phone } });
-      setCallHistory({ name, phone, loading: false, calls: (res as any)?.calls ?? [] });
+      setCallHistory({
+        name,
+        phone,
+        loading: false,
+        calls: ((res as { calls?: WbahContactCallHistoryItem[] })?.calls ?? []) as WbahContactCallHistoryItem[],
+      });
     } catch {
       setCallHistory({ name, phone, loading: false, calls: [] });
     }
@@ -626,42 +638,11 @@ function CallsPage() {
             ) : callHistory.calls.length === 0 ? (
               <p className="py-6 text-center text-sm text-muted-foreground">No calls found.</p>
             ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-xs">
-                  <thead>
-                    <tr className="border-b border-white/[0.06] text-left text-[10px] uppercase tracking-wide text-muted-foreground">
-                      <th className="px-2 py-1.5">Date</th>
-                      <th className="px-2 py-1.5">Status</th>
-                      <th className="px-2 py-1.5">Sentiment</th>
-                      <th className="px-2 py-1.5">Duration</th>
-                      <th className="px-2 py-1.5">Agent</th>
-                      <th className="px-2 py-1.5">Recording</th>
-                      <th className="px-2 py-1.5">Transcript</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {callHistory.calls.map((c: any) => (
-                      <tr key={c.id} className="border-b border-white/[0.04] align-middle">
-                        <td className="px-2 py-1.5 whitespace-nowrap text-muted-foreground">{c.startedAt ? new Date(c.startedAt).toLocaleString(undefined, { timeZone: WBAH_TIMEZONE }) : "—"}</td>
-                        <td className="px-2 py-1.5 whitespace-nowrap capitalize">{(c.callStatus ?? "—").replace(/_/g, " ")}</td>
-                        <td className="px-2 py-1.5 capitalize">{c.sentiment ?? "—"}</td>
-                        <td className="px-2 py-1.5 whitespace-nowrap text-muted-foreground">{fmtDurSec(c.durationSeconds)}</td>
-                        <td className="px-2 py-1.5 whitespace-nowrap text-muted-foreground">{c.agentName ?? "—"}</td>
-                        <td className="px-2 py-1.5">
-                          {c.recordingUrl
-                            ? <PlayRecordingButton url={c.recordingUrl} contact={callHistory.name || callHistory.phone || "Lead"} className="inline-flex items-center gap-1 text-primary hover:underline" />
-                            : <span className="text-muted-foreground">—</span>}
-                        </td>
-                        <td className="px-2 py-1.5">
-                          {c.hasTranscript
-                            ? <button onClick={() => openWbahTranscript(c, callHistory.name)} className="text-violet-400 hover:underline">View</button>
-                            : <span className="text-muted-foreground">—</span>}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+              <WbahContactCallHistoryTable
+                calls={callHistory.calls}
+                contactLabel={callHistory.name || callHistory.phone || "Contact"}
+                onViewTranscript={(c) => openWbahTranscript(c, callHistory.name)}
+              />
             )}
           </DialogContent>
         </Dialog>
@@ -996,7 +977,7 @@ function CallsPage() {
                           <td className="px-2 py-0.5 text-[11px] text-muted-foreground whitespace-nowrap">{wbahAppointmentTimeCell(c)}</td>
                           <td className="px-2 py-0.5 text-[11px] text-muted-foreground whitespace-nowrap">{wbahBookingStatusCell(c)}</td>
                           <td className="px-2 py-0.5 text-[11px] text-muted-foreground whitespace-nowrap">
-                            {wbahCalendlyCell(c)}
+                            <WbahCallCalendlyLink row={c} />
                           </td>
                           <td className="px-2 py-0.5 text-[11px] text-muted-foreground whitespace-nowrap">{c.end_reason ?? "N/A"}</td>
                           <td className="px-2 py-0.5 text-[11px] text-muted-foreground whitespace-nowrap">{c.disconnection_reason ?? "N/A"}</td>

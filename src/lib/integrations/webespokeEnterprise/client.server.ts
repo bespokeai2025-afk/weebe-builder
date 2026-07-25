@@ -8,6 +8,10 @@
  * Base: WEBESPOKE_API_BASE_URL in .env (default https://uat-api.webespokeai.com)
  */
 
+import type { CallHistoryRow } from "@/lib/dashboard/wbah-call-history.types";
+
+export type { CallHistoryRow };
+
 const DEFAULT_API_BASE = "https://uat-api.webespokeai.com";
 
 export function getWebespokeApiBaseUrl(): string {

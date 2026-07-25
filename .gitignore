@@ -21,12 +21,12 @@ build
 .turbo
 .cache
 
-# Environment & secrets — never commit
-.env
-.env.local
-.env.production
-.env.development
-.env.*.local
+# ironment & secrets — never commit
+.
+..local
+..production
+..development
+..*.local
 *.local
 .dev.vars
 .secrets

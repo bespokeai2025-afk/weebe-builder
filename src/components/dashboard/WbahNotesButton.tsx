@@ -5,6 +5,7 @@ import {
   wbahBookingAgentName,
   wbahCalendlyBookingUrl,
 } from "@/lib/dashboard/wbah-appointment-display";
+import { WbahLeadCalendlyLink } from "@/components/dashboard/WbahCallCalendlyLink";
 import {
   buildWbahAgentColorMap,
   wbahAgentStyle,
@@ -102,19 +103,7 @@ export function WbahCallCountBadge({
 
 /** Clickable Calendly link for table columns. */
 export function WbahCalendlyLink({ lead }: { lead: LeadLike }) {
-  const url = wbahCalendlyBookingUrl(lead);
-  if (!url) return <span className="text-muted-foreground text-[11px]">—</span>;
-  return (
-    <a
-      href={url}
-      target="_blank"
-      rel="noopener noreferrer"
-      className="text-[11px] font-medium text-primary hover:underline whitespace-nowrap"
-      onClick={(e) => e.stopPropagation()}
-    >
-      Calendly
-    </a>
-  );
+  return <WbahLeadCalendlyLink lead={lead} label="Open booking" />;
 }
 
 export function WbahNotesButton({

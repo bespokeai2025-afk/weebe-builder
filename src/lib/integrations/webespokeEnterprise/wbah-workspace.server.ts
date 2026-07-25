@@ -2097,7 +2097,13 @@ export const listWbahCallsLive = createServerFn({ method: "GET" })
     const { supabase, workspaceId } = context;
     if (!workspaceId) throw new Error("No active workspace");
     void refreshWbahLiveData(workspaceId, { lightBackfill: true });
-    return cacheWrap(`webee:wbah-calls-live-lite:v1:${workspaceId}`, 180, async () => {
+    try {
+      const { refreshWbahAppointmentBackfill } = await import("./wbah-leads-sync-tick");
+      await refreshWbahAppointmentBackfill({ maxPages: 8 });
+    } catch (e: any) {
+      console.warn("[listWbahCallsLive] appointment backfill:", e?.message ?? e);
+    }
+    return cacheWrap(`webee:wbah-calls-live-lite:v2:${workspaceId}`, 120, async () => {
       const rows = await readWbahCallsRows(supabase, workspaceId, { lite: true });
       logWbahResponse("listWbahCallsLive", workspaceId, rows.length, rows);
       return rows;
@@ -2298,7 +2304,7 @@ export const getWbahContactCallHistory = createServerFn({ method: "POST" })
     const { data: rows, error } = await (supabase as any)
       .from("wbah_calls")
       .select(
-        "id, customer_name, phone, agent_name, call_status, sentiment, duration_seconds, started_at, recording_url, transcript, call_summary, disconnection_reason, end_reason, appointment_date, appointment_time, booking_status",
+        "id, customer_name, phone, agent_name, call_status, sentiment, duration_seconds, started_at, recording_url, transcript, call_summary, disconnection_reason, end_reason, appointment_date, appointment_time, booking_status, calendly_booking_url",
       )
       .eq("workspace_id", workspaceId)
       .eq("phone", data.phone)
@@ -2318,7 +2324,9 @@ export const getWbahContactCallHistory = createServerFn({ method: "POST" })
       disconnectionReason: r.disconnection_reason ?? null,
       endReason: r.end_reason ?? null,
       appointmentDate: r.appointment_date ?? null,
+      appointmentTime: r.appointment_time ?? null,
       bookingStatus: r.booking_status ?? null,
+      calendlyBookingUrl: r.calendly_booking_url ?? null,
       hasTranscript: !!(r.transcript && String(r.transcript).trim()),
     }));
     return { phone: data.phone, calls };

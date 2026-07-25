@@ -49,6 +49,8 @@ import { getDashboardLiveAgents } from "@/lib/agents/agents.functions";
 import { NotesBookingSheet } from "@/components/dashboard/NotesBookingSheet";
 import { PlayRecordingButton } from "@/components/RecordingPlayerDialog";
 import { WbahNotesButton, WbahBookedStickyBadge, WbahCallCountBadge, WbahCalendlyLink, wbahAgentColorMapFromLeads } from "@/components/dashboard/WbahNotesButton";
+import { WbahContactCallHistoryTable } from "@/components/dashboard/WbahContactCallHistoryTable";
+import type { WbahContactCallHistoryItem } from "@/lib/dashboard/wbah-call-history.types";
 import { useWbahAgentOptions } from "@/hooks/useWbahAgentOptions";
 import { useWorkspaceAgentOptions, rowMatchesAgent, agentTypeLabel } from "@/components/shared/AgentFilterSelect";
 import { wbahDateTimeOptions, WBAH_TIMEZONE } from "@/lib/dashboard/wbah-timezone";
@@ -248,7 +250,12 @@ function QualifiedPage() {
   const listAgentsFn = useServerFn(getDashboardLiveAgents);
   const getContactHistoryFn = useServerFn(getWbahContactCallHistory);
   const getCallDetailFn = useServerFn(getWbahCallDetail);
-  const [callHistory, setCallHistory] = useState<{ name: string; phone: string; loading: boolean; calls: any[] } | null>(null);
+  const [callHistory, setCallHistory] = useState<{
+    name: string;
+    phone: string;
+    loading: boolean;
+    calls: WbahContactCallHistoryItem[];
+  } | null>(null);
 
   function fmtDurQ(sec: number | null | undefined) {
     if (sec == null) return "—";
@@ -260,7 +267,12 @@ function QualifiedPage() {
     setCallHistory({ name: lead.full_name ?? "Contact", phone: lead.phone, loading: true, calls: [] });
     try {
       const res = await getContactHistoryFn({ data: { phone: lead.phone } });
-      setCallHistory({ name: lead.full_name ?? "Contact", phone: lead.phone, loading: false, calls: (res as any)?.calls ?? [] });
+      setCallHistory({
+        name: lead.full_name ?? "Contact",
+        phone: lead.phone,
+        loading: false,
+        calls: ((res as { calls?: WbahContactCallHistoryItem[] })?.calls ?? []) as WbahContactCallHistoryItem[],
+      });
     } catch {
       setCallHistory({ name: lead.full_name ?? "Contact", phone: lead.phone, loading: false, calls: [] });
     }
@@ -935,42 +947,11 @@ function QualifiedPage() {
             ) : callHistory.calls.length === 0 ? (
               <p className="py-6 text-center text-sm text-muted-foreground">No calls found.</p>
             ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-xs">
-                  <thead>
-                    <tr className="border-b border-white/[0.06] text-left text-[10px] uppercase tracking-wide text-muted-foreground">
-                      <th className="px-2 py-1.5">Date</th>
-                      <th className="px-2 py-1.5">Status</th>
-                      <th className="px-2 py-1.5">Sentiment</th>
-                      <th className="px-2 py-1.5">Duration</th>
-                      <th className="px-2 py-1.5">Agent</th>
-                      <th className="px-2 py-1.5">Recording</th>
-                      <th className="px-2 py-1.5">Transcript</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {callHistory.calls.map((c: any) => (
-                      <tr key={c.id} className="border-b border-white/[0.04] align-middle">
-                        <td className="px-2 py-1.5 whitespace-nowrap text-muted-foreground">{c.startedAt ? new Date(c.startedAt).toLocaleString(undefined, { timeZone: WBAH_TIMEZONE }) : "—"}</td>
-                        <td className="px-2 py-1.5 whitespace-nowrap capitalize">{(c.callStatus ?? "—").replace(/_/g, " ")}</td>
-                        <td className="px-2 py-1.5 capitalize">{c.sentiment ?? "—"}</td>
-                        <td className="px-2 py-1.5 whitespace-nowrap text-muted-foreground">{fmtDurQ(c.durationSeconds)}</td>
-                        <td className="px-2 py-1.5 whitespace-nowrap text-muted-foreground">{c.agentName ?? "—"}</td>
-                        <td className="px-2 py-1.5">
-                          {c.recordingUrl
-                            ? <PlayRecordingButton url={c.recordingUrl} contact={callHistory.name || callHistory.phone || "Lead"} className="inline-flex items-center gap-1 text-primary hover:underline" />
-                            : <span className="text-muted-foreground">—</span>}
-                        </td>
-                        <td className="px-2 py-1.5">
-                          {c.hasTranscript
-                            ? <button onClick={() => openHistoryTranscript(c)} className="text-violet-400 hover:underline">View</button>
-                            : <span className="text-muted-foreground">—</span>}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+              <WbahContactCallHistoryTable
+                calls={callHistory.calls}
+                contactLabel={callHistory.name || callHistory.phone || "Lead"}
+                onViewTranscript={openHistoryTranscript}
+              />
             )}
           </DialogContent>
         </Dialog>
