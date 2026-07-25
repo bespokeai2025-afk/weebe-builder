@@ -1,0 +1,113 @@
+Good first checkpoint. The Work-Order and Execution Backbone vertical slice is accepted.
+
+Continue from the approved master programme. Do not repeat the capability audit, redesign the architecture or ask me to choose the next workstream.
+
+First, republish and verify the completed Google Ads execution vertical slice against the deployed application. Confirm that the database migrations are additive and backwards-compatible because development and production share the same database.
+
+Then continue with the next incomplete workstreams in dependency order.
+
+The next priority is to remove the remaining artificial entry point and make the execution backbone operate from normal HiveMind instructions.
+
+Required next milestone:
+
+1. A user tells HiveMind:
+   “Improve the Search for US and Reception campaign for me.”
+
+2. HiveMind resolves the actual campaign and creates one connected work order automatically.
+
+3. Do not require the user to locate and click a separate Ads Analysis button to initiate the intended workflow.
+
+4. HiveMind must explain the exact proposed scope and show Approve & Run.
+
+5. Approval must dispatch the existing six-step GrowthMind Google Ads analysis through the new execution engine.
+
+6. The work order, task, execution and proposed action must remain linked.
+
+7. The related proposed action must appear:
+   - Inside the parent task
+   - In the Action Approval Centre
+   - In HiveMind’s conversation
+
+8. Approving it from any location must update the same action record.
+
+9. HiveMind must know the real action state and report it accurately.
+
+After that, continue with these workstreams:
+
+A. Unify floating HiveMind and full HiveMind Assistant:
+- One conversation store
+- One prompt
+- One workspace context
+- One Business DNA
+- One tool registry
+- One autonomy-mode resolver
+- One voice profile
+- One execution engine
+
+B. Unify Tasks and Actions:
+- Tasks represent operational work
+- Actions represent consequential approvals
+- A task awaiting an action must show Awaiting Action Approval
+- Approval must resume the same execution
+- Completion requires verification evidence
+
+C. Replace raw approval JSON:
+- Render structured campaign information
+- Keep raw payload under a developer-only section
+- Show current versus proposed state
+- Show evidence, risk, approval scope and missing information
+
+D. Add campaign readiness validation:
+- Null budget blocks launch
+- Missing account blocks launch
+- Missing conversion goal blocks launch
+- Missing landing page blocks launch
+- Missing campaign configuration blocks launch
+- Use Incomplete Draft, Ready for Review and Ready for Approval states
+
+E. Connect SystemMind to the shared execution engine:
+- Real diagnostics
+- Integration checks
+- Workflow investigations
+- Safe retries
+- Repair verification
+- Evidence
+
+F. Connect AccountsMind to the shared execution engine:
+- Client-register audits
+- Missing invoice detection
+- Due and overdue payment checks
+- Outgoing and renewal checks
+- Typed reports
+- Evidence
+
+G. Connect the remaining GrowthMind capabilities:
+- Meta
+- Content Studio
+- Trend Scout
+- SEO
+- Keywords
+- Geography
+- Audiences
+- WhatsApp campaigns
+- Call campaigns
+- TikTok
+- LinkedIn
+
+H. Produce the mobile API parity contract.
+
+Do not rebuild the working systems already identified.
+
+Use the new shared execution engine as the orchestration backbone and create adapters into the existing Mind services.
+
+At each checkpoint, provide:
+
+- Code changed
+- Existing services reused
+- Migrations applied
+- Tests passed
+- End-to-end flow demonstrated
+- Remaining limitations
+- Next workstream started
+
+Do not stop after reporting the plan. Continue implementing the next workstream automatically until a genuine external credential, provider permission or deployment approval is required.

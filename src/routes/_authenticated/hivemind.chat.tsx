@@ -5,7 +5,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import {
   Brain, Mic, MicOff, Send, Settings2,
   Loader2, Radio, Square, Play, Pause,
-  X, User, Lightbulb,
+  X, User, Lightbulb, ClipboardList, CheckCircle2, AlertTriangle, ShieldCheck,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { HiveMindShell } from "@/components/hivemind/HiveMindShell";
@@ -14,6 +14,8 @@ import {
   getHiveMindTTS, listHiveMindVoices, getHiveMindSystemContext,
 } from "@/lib/hivemind/hivemind.ai";
 import { useMindConversation } from "@/hooks/useMindConversation";
+import { approveAndRunTask, getTaskExecutionDetail } from "@/lib/hivemind/mind-execution-engine.server";
+import { approveHiveMindAction } from "@/lib/hivemind/hivemind.actions";
 
 export const Route = createFileRoute("/_authenticated/hivemind/chat")({
   head: () => ({ meta: [{ title: "HiveMind Assistant — Webee" }] }),
@@ -22,12 +24,20 @@ export const Route = createFileRoute("/_authenticated/hivemind/chat")({
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 type Role = "user" | "hivemind";
+type WorkOrderProposal = {
+  workOrderId: string;
+  taskId:      string;
+  taskTitle:   string;
+  focusCampaign: { campaignId: string; campaignName: string } | null;
+  days:        number;
+};
 type ChatMessage = {
   id:          string;
   role:        Role;
   content:     string;
   ts:          Date;
   audioBase64?: string | null;
+  workOrders?: WorkOrderProposal[];
 };
 type VoiceSettings = {
   voiceId:     string;
@@ -586,6 +596,164 @@ function HintPanel({ onSelect, onClose }: { onSelect: (q: string) => void; onClo
   );
 }
 
+// ── Work-order proposal card (inline Approve & Run) ───────────────────────────
+const ACTIVE_EXEC_STATES = ["queued", "executing", "verifying"];
+
+function stepDot(status: string) {
+  if (status === "done")    return <CheckCircle2 className="h-3 w-3 text-emerald-400 shrink-0" />;
+  if (status === "running") return <Loader2 className="h-3 w-3 text-violet-400 animate-spin shrink-0" />;
+  if (status === "failed")  return <AlertTriangle className="h-3 w-3 text-red-400 shrink-0" />;
+  if (status === "blocked") return <AlertTriangle className="h-3 w-3 text-amber-400 shrink-0" />;
+  return <span className="h-3 w-3 rounded-full border border-white/20 shrink-0" />;
+}
+
+function WorkOrderProposalCard({ wo }: { wo: WorkOrderProposal }) {
+  const approveRunFn    = useServerFn(approveAndRunTask);
+  const approveActionFn = useServerFn(approveHiveMindAction);
+  const execFn          = useServerFn(getTaskExecutionDetail);
+  const [busy, setBusy]           = useState<"run" | "action" | null>(null);
+  const [started, setStarted]     = useState(false);
+  const [errMsg, setErrMsg]       = useState<string | null>(null);
+  const startedAtRef              = useRef<number | null>(null);
+
+  const { data, refetch } = useQuery({
+    queryKey: ["hivemind-chat-wo", wo.taskId],
+    queryFn: () => execFn({ data: { taskId: wo.taskId } }),
+    refetchInterval: (q) => {
+      const st = (q.state.data as any)?.latest?.status;
+      if (st && ACTIVE_EXEC_STATES.includes(st)) return 2500;
+      // After Approve & Run, keep polling (bounded to 2 min) until the
+      // execution row appears — the first refetch can race its creation.
+      if (startedAtRef.current && !st && Date.now() - startedAtRef.current < 120_000) return 2500;
+      return false;
+    },
+    throwOnError: false,
+  });
+  const latest       = (data as any)?.latest ?? null;
+  const linkedAction = (data as any)?.linkedAction ?? null;
+  const execStatus: string | null = latest?.status ?? null;
+  const running   = started || (execStatus != null && ACTIVE_EXEC_STATES.includes(execStatus));
+  const finished  = execStatus != null && !ACTIVE_EXEC_STATES.includes(execStatus);
+  const steps: any[] = Array.isArray(latest?.steps) ? latest.steps : [];
+
+  async function onApproveRun() {
+    setBusy("run"); setErrMsg(null);
+    try {
+      startedAtRef.current = Date.now();
+      await approveRunFn({ data: { taskId: wo.taskId } });
+      setStarted(true);
+      void refetch();
+    } catch (e: any) {
+      setErrMsg(e?.message ?? "Failed to start execution");
+    } finally { setBusy(null); }
+  }
+
+  async function onApproveAction() {
+    if (!linkedAction?.id) return;
+    setBusy("action"); setErrMsg(null);
+    try {
+      await approveActionFn({ data: { id: linkedAction.id } });
+      void refetch();
+    } catch (e: any) {
+      setErrMsg(e?.message ?? "Failed to approve action");
+    } finally { setBusy(null); }
+  }
+
+  return (
+    <div className="mt-2 w-full rounded-xl border border-violet-500/25 bg-violet-500/[0.06] px-3.5 py-3 space-y-2.5">
+      <div className="flex items-start gap-2">
+        <ClipboardList className="h-4 w-4 text-violet-400 mt-0.5 shrink-0" />
+        <div className="min-w-0">
+          <p className="text-xs font-semibold text-violet-200">{wo.taskTitle}</p>
+          <p className="text-[11px] text-muted-foreground mt-0.5">
+            {wo.focusCampaign ? <>Focus: <span className="text-foreground/90">"{wo.focusCampaign.campaignName}"</span> · </> : null}
+            Last {wo.days} days · Drafts change requests only — no live ad changes.
+          </p>
+        </div>
+      </div>
+
+      {!latest && !started && (
+        <button
+          onClick={onApproveRun}
+          disabled={busy === "run"}
+          className="inline-flex items-center gap-1.5 rounded-lg bg-violet-500 hover:bg-violet-400 disabled:opacity-50 px-3 py-1.5 text-xs font-semibold text-white transition-colors"
+        >
+          {busy === "run" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Play className="h-3.5 w-3.5" />}
+          Approve &amp; Run
+        </button>
+      )}
+
+      {steps.length > 0 && (
+        <div className="space-y-1">
+          {steps.map((s: any, i: number) => (
+            <div key={i} className="flex items-start gap-1.5 text-[11px]">
+              <span className="mt-0.5">{stepDot(s.status)}</span>
+              <span className={cn(
+                s.status === "done" ? "text-foreground/80" :
+                s.status === "running" ? "text-violet-300" :
+                s.status === "failed" ? "text-red-300" :
+                s.status === "blocked" ? "text-amber-300" : "text-muted-foreground/60",
+              )}>
+                {s.label}{s.detail ? <span className="text-muted-foreground/70"> — {s.detail}</span> : null}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {running && !finished && (
+        <p className="text-[11px] text-violet-300 flex items-center gap-1.5">
+          <Loader2 className="h-3 w-3 animate-spin" /> Running… live progress updates automatically.
+        </p>
+      )}
+
+      {finished && (
+        <p className="text-[11px] text-muted-foreground">
+          Execution status: <span className={cn("font-semibold",
+            execStatus === "completed" || execStatus === "partially_completed" ? "text-emerald-300" :
+            execStatus === "awaiting_action_approval" ? "text-amber-300" :
+            execStatus === "failed" ? "text-red-300" : "text-foreground/80",
+          )}>{String(execStatus).replaceAll("_", " ")}</span>
+          {latest?.blocked_reason ? <> — {latest.blocked_reason}</> : null}
+          {latest?.error_message ? <> — {latest.error_message}</> : null}
+        </p>
+      )}
+
+      {linkedAction && (
+        <div className="rounded-lg border border-white/[0.08] bg-white/[0.03] px-2.5 py-2 space-y-1.5">
+          <p className="text-[11px] text-foreground/90 flex items-center gap-1.5">
+            <ShieldCheck className="h-3.5 w-3.5 text-amber-400 shrink-0" />
+            {linkedAction.title}
+            <span className={cn("ml-auto text-[10px] font-semibold uppercase tracking-wide",
+              linkedAction.status === "pending" ? "text-amber-300" :
+              linkedAction.status === "executed" ? "text-emerald-300" :
+              linkedAction.status === "failed" ? "text-red-300" : "text-muted-foreground")}>
+              {linkedAction.status}
+            </span>
+          </p>
+          {linkedAction.status === "pending" && (
+            <>
+              <p className="text-[10px] text-muted-foreground">
+                Same approval record shown on the Tasks page and in the Action Centre — approving anywhere applies once.
+              </p>
+              <button
+                onClick={onApproveAction}
+                disabled={busy === "action"}
+                className="inline-flex items-center gap-1.5 rounded-md bg-amber-500/90 hover:bg-amber-400 disabled:opacity-50 px-2.5 py-1 text-[11px] font-semibold text-black transition-colors"
+              >
+                {busy === "action" ? <Loader2 className="h-3 w-3 animate-spin" /> : <CheckCircle2 className="h-3 w-3" />}
+                Approve change requests
+              </button>
+            </>
+          )}
+        </div>
+      )}
+
+      {errMsg && <p className="text-[11px] text-red-300">{errMsg}</p>}
+    </div>
+  );
+}
+
 // ── Message bubble ─────────────────────────────────────────────────────────────
 function MessageBubble({ msg, onPlay, onStop, isPlaying, ttsLoading }: {
   msg:       ChatMessage;
@@ -618,6 +786,9 @@ function MessageBubble({ msg, onPlay, onStop, isPlaying, ttsLoading }: {
               </div>
             : <MessageText text={msg.content} />
           }
+          {isHive && msg.workOrders?.map(wo => (
+            <WorkOrderProposalCard key={wo.taskId} wo={wo} />
+          ))}
         </div>
 
         <div className={cn("flex items-center gap-1.5", isHive ? "flex-row" : "flex-row-reverse")}>
@@ -797,7 +968,10 @@ function HiveMindChat() {
     try {
       const r = await aiFn({ data: { query: query.trim(), history: historyRef.current.slice(-10), personality: voiceSettings.personality, userName } });
       historyRef.current.push({ role: "assistant", content: r.response });
-      const finalMsg: ChatMessage = { ...placeholder, content: r.response, ts: new Date() };
+      const finalMsg: ChatMessage = {
+        ...placeholder, content: r.response, ts: new Date(),
+        workOrders: (r as any).workOrderProposals?.length ? (r as any).workOrderProposals : undefined,
+      };
       setMessages(prev => prev.map(m => m.id === placeholder.id ? finalMsg : m));
       persistNewMessages([userMsg, finalMsg]);
       if (voiceSettings.autoPlay) setTimeout(() => fetchAndPlayTTS(finalMsg), 200);

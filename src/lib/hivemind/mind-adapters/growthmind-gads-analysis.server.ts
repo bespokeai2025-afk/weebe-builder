@@ -216,7 +216,24 @@ export async function runGadsAnalysisExecution(ctx: AdapterContext): Promise<Ada
 
   steps = stepUpdate(steps, "propose_action", { status: "running" });
   await saveSteps(ctx, steps, 4);
-  const topRecs = openRecs.slice(0, 10);
+  // Honor a campaign focus from the work order (chat-initiated scope): put
+  // that campaign's recommendations first; fall back honestly to account-wide
+  // recommendations when the focus campaign produced none.
+  const focus = ctx.inputSpec?.focus_campaign as { campaign_id?: string | null; campaign_name?: string | null } | undefined;
+  let orderedRecs = openRecs;
+  let focusNote = "";
+  if (focus?.campaign_id || focus?.campaign_name) {
+    const matches = (r: any) =>
+      (focus.campaign_id && String(r.campaign_id ?? "") === String(focus.campaign_id)) ||
+      (focus.campaign_name && (r.campaign_name ?? "").toLowerCase() === focus.campaign_name.toLowerCase());
+    const inFocus = openRecs.filter(matches);
+    const rest = openRecs.filter((r: any) => !matches(r));
+    orderedRecs = [...inFocus, ...rest];
+    focusNote = inFocus.length
+      ? ` (${inFocus.length} for focus campaign "${focus.campaign_name ?? focus.campaign_id}")`
+      : ` (none specific to focus campaign "${focus.campaign_name ?? focus.campaign_id}" — account-wide recommendations proposed)`;
+  }
+  const topRecs = orderedRecs.slice(0, 10);
   const { data: actionRow, error: ae } = await ctx.sb.from("hivemind_actions").insert({
     workspace_id: ctx.workspaceId,
     title: `Create ${topRecs.length} Google Ads change request${topRecs.length === 1 ? "" : "s"} from analysis`,
@@ -242,7 +259,7 @@ export async function runGadsAnalysisExecution(ctx: AdapterContext): Promise<Ada
     return fail(`Failed to propose change-request action: ${ae.message}`);
   }
   steps = stepUpdate(steps, "propose_action", {
-    status: "done", detail: `Action proposed (${topRecs.length} recommendations) — awaiting approval`,
+    status: "done", detail: `Action proposed (${topRecs.length} recommendations)${focusNote} — awaiting approval`,
   });
   steps = stepUpdate(steps, "apply_external", {
     status: "blocked",

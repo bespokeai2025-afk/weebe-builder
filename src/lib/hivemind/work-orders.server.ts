@@ -5,10 +5,90 @@
  * The first supported flow creates a work order with a single executable
  * GrowthMind task (Google Ads campaign analysis). Creation is a proposal:
  * nothing executes until a user approves & runs the task.
+ *
+ * `createGadsAnalysisWorkOrderCore` is the plain (non-server-fn) core so the
+ * HiveMind chat tool registry can create the SAME records from a normal
+ * conversation instruction — one code path, one record chain.
  */
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+
+export interface GadsWorkOrderOptions {
+  title?: string;
+  objective?: string;
+  days?: number;
+  /** Optional campaign focus resolved from live synced data. */
+  focusCampaignId?: string | null;
+  focusCampaignName?: string | null;
+  source?: string;
+  sourceConversationId?: string | null;
+}
+
+export async function createGadsAnalysisWorkOrderCore(
+  sb: any,
+  workspaceId: string,
+  userId: string | null,
+  opts: GadsWorkOrderOptions = {},
+): Promise<{ workOrder: any; task: any }> {
+  // Proposals are blocked in Observe mode (same rule as actions/tasks).
+  const { assertProposalAllowed } = await import("@/lib/hivemind/mode-gate.server");
+  await assertProposalAllowed(sb, workspaceId);
+
+  const days = Math.min(90, Math.max(7, Math.round(opts.days ?? 30)));
+  const focusName = opts.focusCampaignName?.trim() || null;
+  const focusId = opts.focusCampaignId?.trim() || null;
+
+  const { data: wo, error: we } = await sb.from("work_orders").insert({
+    workspace_id: workspaceId,
+    title: opts.title?.trim() ||
+      (focusName ? `Improve "${focusName}" campaign` : "Google Ads campaign optimisation"),
+    objective: opts.objective?.trim() ||
+      (focusName
+        ? `Analyse Google Ads performance with focus on the "${focusName}" campaign and draft prioritised optimisation change requests.`
+        : "Analyse Google Ads performance and draft prioritised optimisation change requests."),
+    status: "open",
+    source: opts.source ?? "manual",
+    source_conversation_id: opts.sourceConversationId ?? null,
+    created_by_user_id: userId,
+    assigned_minds: ["growthmind"],
+    metadata: focusId || focusName
+      ? { focus_campaign_id: focusId, focus_campaign_name: focusName }
+      : null,
+  }).select("*").single();
+  if (we) throw we;
+
+  const { data: task, error: te } = await sb.from("hivemind_tasks").insert({
+    workspace_id: workspaceId,
+    title: focusName
+      ? `Run Google Ads analysis focused on "${focusName}" (last ${days} days)`
+      : `Run Google Ads campaign analysis (last ${days} days)`,
+    description:
+      "Executable task: refreshes Google Ads data, runs the GrowthMind analysis engine, compiles a report and proposes change-request drafts for approval. No live ad changes are made." +
+      (focusName ? ` Change requests are prioritised for the "${focusName}" campaign.` : ""),
+    status: "suggested",
+    priority: "high",
+    source: "work_order",
+    trigger_type: "gads_analysis",
+    task_category: "executable",
+    assigned_mind: "growthmind",
+    action_kind: "growthmind.gads_campaign_analysis",
+    execution_status: "awaiting_approval",
+    input_spec: {
+      days,
+      ...(focusId || focusName
+        ? { focus_campaign: { campaign_id: focusId, campaign_name: focusName } }
+        : {}),
+    },
+    work_order_id: wo.id,
+  }).select("*").single();
+  if (te) {
+    await sb.from("work_orders").delete().eq("id", wo.id).eq("workspace_id", workspaceId);
+    throw te;
+  }
+
+  return { workOrder: wo, task };
+}
 
 export const createGadsAnalysisWorkOrder = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
@@ -23,44 +103,7 @@ export const createGadsAnalysisWorkOrder = createServerFn({ method: "POST" })
     const sb = context.supabase as any;
     const workspaceId = context.workspaceId!;
     const userId = (context as any).userId as string;
-
-    // Proposals are blocked in Observe mode (same rule as actions/tasks).
-    const { assertProposalAllowed } = await import("@/lib/hivemind/mode-gate.server");
-    await assertProposalAllowed(sb, workspaceId);
-
-    const { data: wo, error: we } = await sb.from("work_orders").insert({
-      workspace_id: workspaceId,
-      title: data.title,
-      objective: data.objective ?? "Analyse Google Ads performance and draft prioritised optimisation change requests.",
-      status: "open",
-      source: "manual",
-      created_by_user_id: userId,
-      assigned_minds: ["growthmind"],
-    }).select("*").single();
-    if (we) throw we;
-
-    const { data: task, error: te } = await sb.from("hivemind_tasks").insert({
-      workspace_id: workspaceId,
-      title: `Run Google Ads campaign analysis (last ${data.days} days)`,
-      description:
-        "Executable task: refreshes Google Ads data, runs the GrowthMind analysis engine, compiles a report and proposes change-request drafts for approval. No live ad changes are made.",
-      status: "suggested",
-      priority: "high",
-      source: "work_order",
-      trigger_type: "gads_analysis",
-      task_category: "executable",
-      assigned_mind: "growthmind",
-      action_kind: "growthmind.gads_campaign_analysis",
-      execution_status: "awaiting_approval",
-      input_spec: { days: data.days },
-      work_order_id: wo.id,
-    }).select("*").single();
-    if (te) {
-      await sb.from("work_orders").delete().eq("id", wo.id).eq("workspace_id", workspaceId);
-      throw te;
-    }
-
-    return { workOrder: wo, task } as any;
+    return await createGadsAnalysisWorkOrderCore(sb, workspaceId, userId, data) as any;
   });
 
 export const getWorkOrderDetail = createServerFn({ method: "GET" })

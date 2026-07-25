@@ -1463,6 +1463,13 @@ export const getHiveMindAIResponse = createServerFn({ method: "POST" })
     // Function-calling loop — bounded rounds; every tool call is executed
     // through the guarded Mind tool registry (audited, approval-aware).
     const actionsTaken: Array<{ tool: string; ok: boolean; status?: string }> = [];
+    // Work-order proposals created during THIS chat turn — returned so the UI
+    // can render a real Approve & Run affordance inline in the conversation.
+    const workOrderProposals: Array<{
+      workOrderId: string; taskId: string; taskTitle: string;
+      focusCampaign: { campaignId: string; campaignName: string } | null;
+      days: number;
+    }> = [];
     const MAX_ROUNDS = 4;
     let response = "I couldn't generate a response. Please try again.";
     for (let round = 0; round <= MAX_ROUNDS; round++) {
@@ -1486,6 +1493,19 @@ export const getHiveMindAIResponse = createServerFn({ method: "POST" })
           outcome = { ok: false, error: String(e?.message ?? e).slice(0, 500) };
         }
         actionsTaken.push({ tool: call.function?.name, ok: outcome.ok === true, status: outcome.status as string | undefined });
+        if (
+          call.function?.name === "create_gads_analysis_work_order" &&
+          outcome.ok === true && outcome.status === "created" &&
+          typeof outcome.taskId === "string" && typeof outcome.workOrderId === "string"
+        ) {
+          workOrderProposals.push({
+            workOrderId: outcome.workOrderId as string,
+            taskId: outcome.taskId as string,
+            taskTitle: (outcome.taskTitle as string) ?? "Google Ads analysis",
+            focusCampaign: (outcome.focusCampaign as any) ?? null,
+            days: Number(outcome.days) || 30,
+          });
+        }
         messages.push({
           role: "tool",
           tool_call_id: call.id,
@@ -1493,7 +1513,7 @@ export const getHiveMindAIResponse = createServerFn({ method: "POST" })
         });
       }
     }
-    return { response, actionsTaken };
+    return { response, actionsTaken, workOrderProposals };
   });
 
 // ── getHiveMindMorningBriefing ────────────────────────────────────────────────

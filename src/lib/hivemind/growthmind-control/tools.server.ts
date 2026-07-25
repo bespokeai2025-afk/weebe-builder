@@ -718,3 +718,161 @@ registerWrite({
     return { result: { taskId: data.id }, affectedRecordType: "hivemind_tasks", affectedRecordId: data.id };
   },
 });
+
+// ── Work-order backbone (chat-initiated executions) ──────────────────────────
+
+registerWrite({
+  name: "create_gads_analysis_work_order",
+  title: "Create Google Ads analysis work order",
+  description:
+    "Create a work order with an executable GrowthMind task that analyses Google Ads performance and drafts change requests. " +
+    "Use when the user asks to improve/optimise/analyse a Google Ads campaign or the account. " +
+    "Pass campaignName when the user names a specific campaign — the tool resolves it against the real synced campaigns and focuses the analysis on it. " +
+    "This is a PROPOSAL ONLY: nothing runs until the user clicks Approve & Run (shown in the chat and on the HiveMind Tasks page). " +
+    "If the result is status:'ambiguous' or 'not_found', tell the user the candidate campaign names and ask them to pick one. " +
+    "On success, explain the exact scope (campaign, lookback window, the 6 analysis steps, that changes are drafted as change requests only and NO live ad changes are made) and tell the user to press Approve & Run.",
+  idempotent: false,
+  inputSchema: z.object({
+    campaignName: z.string().max(300).optional(),
+    days: z.number().int().min(7).max(90).optional(),
+    objective: z.string().max(2000).optional(),
+  }),
+  run: async (ctx, i: { campaignName?: string; days?: number; objective?: string }) => {
+    // Resolve the named campaign against REAL synced campaign data.
+    let focus: { campaignId: string; campaignName: string } | null = null;
+    let candidates: Array<{ campaignId: string; name: string; status: string | null }> = [];
+    if (i.campaignName?.trim()) {
+      const { getGadsLiveCampaignSummary } = await import("@/lib/growthmind/gads-live-core.server");
+      const summary = await getGadsLiveCampaignSummary(ctx.workspaceId, 90);
+      const all = summary?.campaigns ?? [];
+      if (!all.length) {
+        return {
+          result: {
+            status: "not_found",
+            error: "No synced Google Ads campaigns found for this workspace. Connect Google Ads in GrowthMind → Ads (or wait for the next sync), then try again.",
+          },
+        };
+      }
+      // Normalise a conversational phrase ("Improve the Search for US and
+      // Reception campaign") down to the campaign-name part before matching.
+      const INTENT_WORDS = new Set([
+        "improve", "improving", "optimise", "optimize", "optimising", "optimizing",
+        "analyse", "analyze", "review", "fix", "boost", "grow", "check",
+        "campaign", "campaigns", "ads", "ad", "please", "my", "our", "the", "this", "that",
+      ]);
+      const norm = (s: string) => s.toLowerCase().replace(/["'’.,!?()]/g, "").replace(/\s+/g, " ").trim();
+      const q = norm(i.campaignName);
+      const qTokens = q.split(" ").filter((t) => t && !INTENT_WORDS.has(t));
+      const exact = all.filter((c) => norm(c.name) === q);
+      const partial = exact.length ? exact : all.filter((c) => {
+        const n = norm(c.name);
+        return n.includes(q) || q.includes(n) ||
+          (qTokens.length > 0 && qTokens.every((t) => n.includes(t)));
+      });
+      if (partial.length === 1) {
+        focus = { campaignId: partial[0].campaignId, campaignName: partial[0].name };
+      } else if (partial.length > 1) {
+        return {
+          result: {
+            status: "ambiguous",
+            candidates: partial.slice(0, 8).map((c) => ({ campaignId: c.campaignId, name: c.name, status: c.status })),
+          },
+        };
+      } else {
+        candidates = all.slice(0, 10).map((c) => ({ campaignId: c.campaignId, name: c.name, status: c.status }));
+        return { result: { status: "not_found", candidates } };
+      }
+    }
+
+    const { createGadsAnalysisWorkOrderCore } = await import("@/lib/hivemind/work-orders.server");
+    const { workOrder, task } = await createGadsAnalysisWorkOrderCore(
+      ctx.sb, ctx.workspaceId, ctx.userId,
+      {
+        days: i.days ?? 30,
+        objective: i.objective,
+        focusCampaignId: focus?.campaignId ?? null,
+        focusCampaignName: focus?.campaignName ?? null,
+        source: "hivemind_chat",
+      },
+    );
+    return {
+      result: {
+        status: "created",
+        workOrderId: workOrder.id,
+        taskId: task.id,
+        taskTitle: task.title,
+        focusCampaign: focus,
+        days: (task.input_spec?.days as number) ?? 30,
+        executionState: task.execution_status,
+        scope: {
+          steps: [
+            "Resolve connected Google Ads account",
+            "Refresh campaign data from Google Ads",
+            "Analyse campaigns, keywords and spend",
+            "Compile analysis report",
+            "Propose change-request action for approval",
+            "Apply changes to Google Ads (external write — always blocked; GrowthMind is advisory-only)",
+          ],
+          external_writes: "never — change requests are internal drafts only",
+        },
+        next_step: "User must press Approve & Run (shown in this chat and on the HiveMind Tasks page).",
+      },
+      affectedRecordType: "work_orders",
+      affectedRecordId: workOrder.id,
+    };
+  },
+});
+
+registerRead({
+  name: "get_work_order_status",
+  title: "Work order / execution status",
+  description:
+    "Get the REAL current state of a work order or executable task: task execution status, live step progress, linked approval action and its status, and the result summary. " +
+    "Use this before answering any question about whether an analysis/work order ran, is running, is blocked or is waiting for an approval. Pass taskId or workOrderId; omit both for the most recent work orders.",
+  inputSchema: z.object({
+    taskId: z.string().uuid().optional(),
+    workOrderId: z.string().uuid().optional(),
+  }),
+  run: async (ctx, i: { taskId?: string; workOrderId?: string }) => {
+    const admin = await getAdmin();
+    let tasksQ = admin.from("hivemind_tasks")
+      .select("id, title, status, task_category, execution_status, active_execution_id, work_order_id, result_summary, created_at")
+      .eq("workspace_id", ctx.workspaceId)
+      .order("created_at", { ascending: false });
+    if (i.taskId) tasksQ = tasksQ.eq("id", i.taskId);
+    else if (i.workOrderId) tasksQ = tasksQ.eq("work_order_id", i.workOrderId);
+    else tasksQ = tasksQ.not("work_order_id", "is", null).limit(5);
+    const { data: tasks, error: te } = await tasksQ.limit(10);
+    if (te) throw new Error(te.message);
+    const out: any[] = [];
+    for (const t of tasks ?? []) {
+      const [{ data: execs }, { data: actions }] = await Promise.all([
+        admin.from("mind_task_executions")
+          .select("id, status, steps, blocked_reason, error_message, linked_action_id, result, started_at, finished_at")
+          .eq("workspace_id", ctx.workspaceId).eq("task_id", t.id)
+          .order("created_at", { ascending: false }).limit(1),
+        admin.from("hivemind_actions")
+          .select("id, title, status, action_type, executed_at, error_message")
+          .eq("workspace_id", ctx.workspaceId).eq("task_id", t.id)
+          .order("created_at", { ascending: false }).limit(3),
+      ]);
+      const latest = execs?.[0] ?? null;
+      out.push({
+        taskId: t.id, title: t.title, taskStatus: t.status,
+        executionStatus: t.execution_status,
+        workOrderId: t.work_order_id,
+        resultSummary: t.result_summary,
+        latestExecution: latest ? {
+          id: latest.id, status: latest.status,
+          steps: (latest.steps ?? []).map((s: any) => ({ label: s.label, status: s.status, detail: s.detail ?? null })),
+          blockedReason: latest.blocked_reason, errorMessage: latest.error_message,
+        } : null,
+        linkedActions: (actions ?? []).map((a: any) => ({
+          id: a.id, title: a.title, status: a.status, actionType: a.action_type,
+          executedAt: a.executed_at, errorMessage: a.error_message,
+        })),
+      });
+    }
+    return { result: { workOrderTasks: out } };
+  },
+});
