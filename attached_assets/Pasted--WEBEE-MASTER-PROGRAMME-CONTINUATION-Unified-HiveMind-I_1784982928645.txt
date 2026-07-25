@@ -1,0 +1,1721 @@
+# WEBEE MASTER PROGRAMME CONTINUATION
+# Unified HiveMind Interfaces, Search Console Repair, Lovable Website Execution,
+# Safe SEO Campaigns and GrowthMind Blog Production
+
+The latest chat-driven Google Ads work-order checkpoint is accepted.
+
+Do not repeat the completed capability audit.
+
+Do not redesign or rebuild the execution backbone.
+
+Do not create another HiveMind, SEO module, Content Studio, campaign database, task system or approval centre.
+
+Continue from the existing approved master programme and preserve everything completed so far.
+
+The completed checkpoint includes:
+
+- Chat-driven Google Ads campaign resolution
+- Automatic work-order creation
+- Inline Approve & Run cards
+- Real six-step GrowthMind analysis execution
+- Shared records across chat, Tasks and Actions
+- Honest campaign focus
+- Work-order status retrieval
+- Duplicate-execution protection
+- Execution recovery
+- Evidence and blocked states
+- Passing component and end-to-end tests
+
+Treat these capabilities as the foundation for all further work.
+
+The next implementation programme must now:
+
+1. Republish and verify the completed Google Ads checkpoint.
+2. Unify floating HiveMind and the full HiveMind Assistant.
+3. Fix the Google Search Console OAuth connection.
+4. Determine the real Lovable, GitHub, hosting, domain and GoDaddy architecture.
+5. Connect GrowthMind SEO to the shared execution backbone.
+6. Add a production-grade SEO Blog Campaign Generator.
+7. Allow approved SEO content and website changes to be genuinely deployed.
+8. Prevent unsafe, low-quality or spam-like AI SEO publishing.
+9. Connect SystemMind, AccountsMind and HiveMind to the SEO workflow.
+10. Expose the same state and capabilities to the mobile API.
+11. Continue the remaining master-programme workstreams after this checkpoint.
+
+Do not stop after producing a plan.
+
+Implement in the dependency order below.
+
+---
+
+# PHASE 1 — REPUBLISH AND VERIFY THE COMPLETED CHECKPOINT
+
+Before beginning new changes:
+
+1. Confirm the existing database changes are additive and backwards-compatible.
+2. Republish the production application at webeereceptionist.com.
+3. Verify the production build version includes the new chat-driven work-order code.
+4. Run a production smoke test without making unapproved advertising changes.
+
+Test this exact production flow:
+
+1. Open HiveMind Assistant.
+2. Enter:
+   “Improve the Search for US and Reception campaign.”
+3. Confirm HiveMind resolves the real synced campaign.
+4. Confirm exactly one work order is created.
+5. Confirm an inline Approve & Run card appears.
+6. Approve the analysis.
+7. Confirm the task changes:
+   queued → executing
+8. Confirm six real execution steps display.
+9. Confirm the same work order appears in Tasks.
+10. Confirm any proposed action appears in Actions.
+11. Confirm all screens reference the same underlying records.
+12. Refresh the browser and confirm state persists.
+13. Confirm no duplicate execution is created through repeated approval.
+14. Confirm no external Google Ads write occurs unless separately authorised.
+15. Confirm the final result contains evidence.
+
+If production verification fails, fix it before continuing.
+
+Do not falsely report production verification from development or staging results.
+
+---
+
+# PHASE 2 — UNIFY FLOATING HIVEMIND AND FULL HIVEMIND ASSISTANT
+
+This is the next previously approved master-programme workstream.
+
+The floating HiveMind chat/voice interface and the full HiveMind Assistant must become two interfaces to one authoritative HiveMind.
+
+Audit the existing implementation and identify differences in:
+
+- API endpoint
+- System prompt
+- Tool registry
+- Conversation storage
+- Conversation identifiers
+- Workspace resolution
+- Business DNA loading
+- User memory
+- Autonomy mode
+- Permissions
+- Approval handling
+- Voice provider
+- Voice ID
+- Speech settings
+- Task creation
+- Action creation
+- Execution polling
+- Attachments
+- Mobile compatibility
+
+## Required unified architecture
+
+Both interfaces must use:
+
+- One server-side HiveMind orchestration service
+- One prompt and behavioural policy
+- One authenticated workspace context
+- One Business DNA source
+- One conversation store
+- One memory source
+- One Mind tool registry
+- One capability resolver
+- One autonomy-mode resolver
+- One work-order service
+- One execution engine
+- One action and approval service
+- One audit service
+- One voice profile
+
+Do not merely copy the same prompt into two frontend components.
+
+Frontend interfaces must call the same backend service.
+
+## Shared conversation behaviour
+
+A conversation started through floating HiveMind must:
+
+- Appear in the full Assistant
+- Retain the same thread title
+- Retain the same messages
+- Retain the same active workspace
+- Retain the same work-order references
+- Retain the same task references
+- Retain the same action references
+- Retain the same attachments
+- Retain the same current objective
+
+A conversation continued through the full Assistant must immediately update the floating interface.
+
+Use real-time updates or safe polling.
+
+Do not duplicate messages when clients reconnect.
+
+## Shared voice configuration
+
+Create or reuse one central HiveMind voice profile with:
+
+- Workspace ID
+- Provider
+- Voice ID
+- Voice name
+- Language
+- Speaking style
+- Speech speed
+- Enabled state
+- Last modified by
+- Last modified date
+
+The floating HiveMind, full Assistant and mobile app must use the same default voice.
+
+A device-level override may exist only when explicitly selected by the user.
+
+Voice requests must use the same HiveMind tools and work-order execution path as typed requests.
+
+Do not run voice requests through a generic AI endpoint.
+
+## Shared autonomy mode
+
+Use one authoritative effective-autonomy function.
+
+Every HiveMind interface and execution handler must use the same result.
+
+The UI must never simultaneously show:
+
+- Operator active
+- Operator required
+
+Display:
+
+- Workspace autonomy mode
+- User effective mode
+- Package restriction
+- Permission restriction
+- Mandatory approval requirements
+
+## Required HiveMind parity test
+
+1. Start a conversation through floating HiveMind voice.
+2. Ask:
+   “What is the status of my Google Ads work order?”
+3. Open the full Assistant.
+4. Confirm the same conversation and response are present.
+5. Continue by typing.
+6. Create a new work order.
+7. Confirm it appears in Tasks.
+8. Approve an action manually in Actions.
+9. Confirm the conversation updates with the real approval result.
+10. Confirm execution resumes.
+11. Confirm the same voice profile is used for spoken output.
+
+Do not mark this workstream complete until this test passes.
+
+---
+
+# PHASE 3 — FIX GOOGLE SEARCH CONSOLE OAUTH
+
+The current connection fails with:
+
+Error 400: redirect_uri_mismatch
+
+The observed redirect URI is:
+
+https://webeereceptionist.com/growthmind/seo
+
+Do not simply add random redirect URIs until one works.
+
+Audit and repair the complete OAuth architecture.
+
+## Audit requirements
+
+Identify:
+
+- Google Cloud project
+- OAuth client ID
+- OAuth client type
+- Environment variables used
+- Frontend connection route
+- Backend callback route
+- Token-exchange service
+- Current requested scopes
+- Current state handling
+- Current token-storage table
+- Current workspace relationship
+- Current production redirect URI
+- Current UAT redirect URI
+- Current development redirect URI
+- Whether Google Ads and Search Console share one OAuth client
+- Whether this creates scope or callback conflicts
+- Whether `/growthmind/seo` is only a visual page rather than a callback handler
+- Whether an existing general Google callback already supports provider-specific state
+
+## Canonical callback
+
+Use a dedicated backend callback unless an appropriate secure existing callback can be reused.
+
+Preferred conceptual path:
+
+/api/integrations/google-search-console/callback
+
+The final path must match the real framework and routing architecture.
+
+The callback must:
+
+- Run server-side
+- Validate signed OAuth state
+- Validate user
+- Validate workspace
+- Validate integration type
+- Validate expiry
+- Prevent replay
+- Exchange the authorisation code securely
+- Store tokens securely
+- Redirect back to the SEO interface after success
+- Display a safe, specific failure on error
+
+Do not expose the Google client secret or refresh token to the browser.
+
+## Environment separation
+
+Production, UAT and development must have explicit callback configuration.
+
+Do not derive production callback URLs from untrusted request headers.
+
+Use canonical trusted application URLs.
+
+Do not use temporary Replit preview URLs for production OAuth.
+
+At the end of implementation, provide the exact authorised redirect URIs that must be added to the correct Google Cloud OAuth client.
+
+Clearly identify:
+
+- OAuth client name
+- Client ID suffix sufficient for identification
+- Google Cloud project
+- Production callback
+- UAT callback
+- Development callback
+
+## Connection capabilities
+
+Support capability levels such as:
+
+- Search Console read only
+- Search Console management
+- Property unavailable
+- Insufficient property permission
+- Reconnection required
+
+Use the minimum Google scopes required.
+
+Read-only access should support:
+
+- Property listing
+- Search performance
+- Query analysis
+- Page analysis
+- Country analysis
+- Device analysis
+- Search appearance where available
+- Sitemap reading
+- URL inspection
+
+Management access should only be requested for supported actions such as approved sitemap operations.
+
+Do not request unrelated Google account permissions.
+
+## Secure token handling
+
+Use the existing workspace integration architecture.
+
+Store or link:
+
+- workspace_id
+- user who connected
+- Google account identifier
+- OAuth client
+- Granted scopes
+- Token-encryption reference
+- Access-token expiry
+- Refresh-token availability
+- Connection status
+- Last refresh
+- Last successful request
+- Last error
+- Selected Search Console property
+- Property permission level
+
+Requirements:
+
+- Encrypt sensitive token data
+- Never include tokens in AI context
+- Never log raw tokens
+- Never expose tokens through API responses
+- Support refresh
+- Support revoke and disconnect
+- Preserve historical SEO data after disconnect
+- Never fall back to another workspace’s Google connection
+
+## Search Console connection UI
+
+Display:
+
+- Connected Google account
+- Selected property
+- Property type
+- Permission level
+- Granted capabilities
+- Last successful sync
+- Token status
+- Sync status
+- Test Connection
+- Select Property
+- Reconnect
+- Disconnect
+
+Error states must be specific:
+
+- Redirect mismatch
+- OAuth state invalid
+- Token exchange failed
+- Property unavailable
+- Missing permission
+- Refresh token failed
+- API quota reached
+- API unavailable
+
+Do not show only “Something went wrong.”
+
+## Required OAuth acceptance test
+
+1. Open GrowthMind SEO.
+2. Select Connect Search Console.
+3. Confirm the intended canonical callback is generated.
+4. Confirm Google login opens without redirect mismatch.
+5. Complete authorisation.
+6. Validate state.
+7. Exchange the code.
+8. Securely store the connection.
+9. List available properties.
+10. Select the correct website property.
+11. Display its permission level.
+12. Run a successful test API call.
+13. Refresh the page.
+14. Confirm the connection remains.
+15. Test token refresh.
+16. Disconnect.
+17. Reconnect.
+18. Confirm historical data remains.
+
+Test production and UAT independently.
+
+---
+
+# PHASE 4 — DETERMINE THE REAL WEBSITE ARCHITECTURE
+
+The user has stated:
+
+- The website was created using Lovable.
+- The domain may be owned or managed through GoDaddy.
+- The user does not know which system actually hosts or deploys the website.
+
+Do not assume GoDaddy hosts it.
+
+Perform a Website Ownership and Deployment Audit.
+
+## Determine and record
+
+- Primary website domain
+- Domain registrar
+- Nameserver provider
+- DNS host
+- Current A, CNAME and relevant DNS routing
+- Actual hosting platform
+- Whether Lovable Cloud hosts the site
+- Lovable project identifier
+- Lovable workspace
+- Publishing state
+- Custom-domain connection
+- GitHub or GitLab connection
+- Repository owner
+- Repository name
+- Default branch
+- Current deployment source
+- Whether Git changes automatically sync back to Lovable
+- Whether Lovable changes sync to Git
+- Whether another host deploys the Git repository
+- Whether Cloudflare or another proxy is present
+- Where environment variables are stored
+- Where sitemap and robots files are generated
+- Where page routes and metadata are defined
+- Whether a blog route or content model already exists
+
+Do not modify DNS during this audit.
+
+Do not transfer the domain.
+
+Do not change nameservers.
+
+Do not disconnect Lovable.
+
+Do not reconnect the repository to a different project.
+
+## Website capability classification
+
+Classify the website connection as one of:
+
+- Lovable Cloud deployment
+- Lovable with GitHub two-way sync
+- GitHub repository deployed externally
+- GoDaddy-hosted website
+- GoDaddy domain/DNS only
+- Unknown and awaiting credentials
+
+Also classify WEBEE’s ability as:
+
+- Read-only website inspection
+- Content draft only
+- Git branch and pull-request creation
+- Approval-gated source editing
+- Approval-gated Lovable publishing
+- Approval-gated external deployment
+- No deployment integration
+
+Display the result in GrowthMind and SystemMind.
+
+## Safe deployment adapter
+
+Do not allow GrowthMind to directly edit production through browser automation.
+
+Create or reuse a typed website deployment adapter.
+
+Preferred safe workflow:
+
+SEO work order
+→ draft changes
+→ isolated branch or version
+→ validation
+→ visual/content review
+→ human approval
+→ deployment through verified route
+→ production verification
+→ rollback available
+
+Use the actual architecture found.
+
+Potential adapters may include:
+
+- GitHub pull request
+- GitHub commit with deployment job
+- Lovable-synchronised repository update
+- Existing CMS content API
+- Existing Lovable project publishing mechanism
+- Existing website backend content table
+
+Do not invent a Lovable API if no supported integration exists.
+
+When direct publishing cannot be safely automated, create a complete approved change package and mark deployment as Awaiting Website Deployment rather than claiming execution.
+
+---
+
+# PHASE 5 — ACTIVATE GROWTHMIND SEO AS A REAL EXECUTION DEPARTMENT
+
+GrowthMind SEO must not remain a dashboard or advice generator.
+
+Connect it to the shared execution backbone.
+
+## Required SEO action families
+
+Reuse existing functions and add adapters where missing:
+
+- connect_search_console
+- test_search_console_connection
+- sync_search_console_data
+- list_search_console_properties
+- select_search_console_property
+- analyse_search_queries
+- analyse_search_pages
+- analyse_search_countries
+- analyse_search_devices
+- inspect_priority_url
+- inspect_index_status
+- audit_sitemaps
+- submit_approved_sitemap
+- detect_declining_queries
+- detect_declining_pages
+- detect_low_ctr_opportunities
+- detect_near_page_one_opportunities
+- detect_keyword_cannibalisation
+- detect_content_gaps
+- analyse_internal_links
+- analyse_metadata
+- analyse_indexability
+- analyse_technical_seo
+- create_seo_strategy
+- create_seo_campaign
+- create_seo_content_brief
+- create_blog_campaign
+- create_blog_article
+- create_content_studio_project
+- create_website_change_request
+- validate_seo_changes
+- deploy_approved_seo_changes
+- verify_deployed_changes
+- monitor_seo_campaign
+- generate_seo_report
+- update_seo_learning
+
+Use equivalent existing names where appropriate.
+
+Do not create duplicate business logic.
+
+## Initial Search Console sync
+
+After connection:
+
+1. List authorised properties.
+2. Select the workspace property.
+3. Validate it against the Business DNA website.
+4. Import available historical performance.
+5. Store incremental daily results.
+6. Track freshness and partial-data conditions.
+7. Avoid unnecessary complete-history syncs.
+8. Apply API quota controls.
+
+Store dimensions and metrics where available:
+
+- Date
+- Query
+- Page
+- Country
+- Device
+- Search appearance
+- Clicks
+- Impressions
+- CTR
+- Average position
+
+Store sitemap and URL inspection results separately.
+
+Do not claim city-level Search Console data when it is unavailable.
+
+Combine Search Console with CRM and campaign data for deeper market analysis.
+
+## SEO evidence sources
+
+GrowthMind must use:
+
+- Business DNA
+- Search Console
+- Website content
+- CRM leads
+- Qualified leads
+- Organic lead sources
+- Call transcripts
+- Customer questions
+- WhatsApp questions
+- Email responses
+- Sales objections
+- Competitor research
+- Product priorities
+- Country availability
+- Existing content performance
+- Content Studio history
+- Analytics where connected
+
+Do not generate SEO campaigns solely from generic keyword lists.
+
+## SEO campaign types
+
+Support:
+
+- Product SEO
+- Service SEO
+- Industry SEO
+- Country SEO
+- Local SEO
+- Topic clusters
+- Comparison pages
+- Use-case pages
+- Objection and FAQ pages
+- Existing-page improvement
+- Low-CTR improvement
+- Near-page-one improvement
+- Internal-linking campaign
+- Technical indexability campaign
+- Structured-data campaign
+- Blog campaign
+- Content refresh campaign
+
+Each campaign must include:
+
+- Business objective
+- Commercial objective
+- Product
+- Audience
+- Search intent
+- Market
+- Language
+- Query cluster
+- Existing page relationship
+- Pages to update
+- Pages to create
+- Internal-link plan
+- CTA
+- Conversion path
+- Evidence
+- Risks
+- Approval requirements
+- Monitoring period
+- Success criteria
+
+Do not promise a number-one ranking.
+
+---
+
+# PHASE 6 — BUILD THE GROWTHMIND SEO BLOG CAMPAIGN GENERATOR
+
+Add a dedicated feature inside the existing GrowthMind Strategy Centre and Content Studio called:
+
+GrowthMind Blog Campaigns
+
+Do not create a disconnected generic article generator.
+
+The generator must work from real business and search evidence.
+
+## Blog campaign creation flow
+
+1. Select workspace and website.
+2. Load Business DNA.
+3. Load active commercial objectives.
+4. Load Search Console data.
+5. Load existing site content.
+6. Load relevant customer questions and objections.
+7. Analyse competitors and search-result gaps using compliant sources.
+8. Detect whether an existing page should be improved before creating a new article.
+9. Detect duplicate or overlapping topics.
+10. Select a commercially relevant topic cluster.
+11. Create a campaign proposal.
+12. Request strategy approval.
+13. Generate a detailed content brief.
+14. Create a Content Studio project.
+15. Draft the article.
+16. Perform quality and safety checks.
+17. Request content approval.
+18. Prepare website deployment changes.
+19. Request deployment approval.
+20. Publish through the verified website adapter.
+21. Verify the live page.
+22. Update sitemap where appropriate and authorised.
+23. Create performance checkpoints.
+24. Learn from results.
+
+## Required blog campaign fields
+
+- Campaign name
+- Business objective
+- Product or service
+- Target customer
+- Country
+- Language
+- Search intent
+- Primary topic
+- Query cluster
+- Existing related pages
+- Competing internal pages
+- Proposed URL
+- Proposed title
+- Meta title
+- Meta description
+- H1
+- Outline
+- Questions to answer
+- Unique WEBEE evidence
+- Product examples
+- Approved claims
+- Restricted claims
+- Internal links
+- External-source requirements
+- CTA
+- Conversion action
+- Hero-image requirement
+- Supporting image requirements
+- Author or reviewer
+- Publishing frequency
+- Approval state
+- Deployment state
+- Measurement plan
+
+## Article-generation requirements
+
+Every article must:
+
+- Satisfy a defined reader need
+- Address a real search intent
+- Provide original business-specific value
+- Connect naturally to a product or service
+- Use accurate claims
+- Avoid unsupported promises
+- Use real examples where authorised
+- Answer important follow-up questions
+- Include a useful CTA
+- Link to relevant internal pages
+- Be readable on mobile
+- Use headings logically
+- Avoid unnecessary repetition
+- Avoid keyword stuffing
+- Avoid generic filler
+- Avoid invented quotes
+- Avoid invented studies
+- Avoid invented customer results
+- Avoid fake author expertise
+- Avoid copied competitor language
+
+Where factual claims require sources, store source references in the Content Studio project.
+
+Do not publish unverifiable facts.
+
+## Content brief
+
+Before drafting, create a reviewable brief containing:
+
+- Search intent
+- Reader
+- Reader problem
+- Commercial opportunity
+- Primary query
+- Supporting queries
+- Existing-page overlap
+- Competitor gap
+- Unique WEBEE angle
+- Required evidence
+- Proposed structure
+- CTA
+- Internal links
+- Risks
+
+Users must be able to approve or change the brief before expensive full generation.
+
+## Existing-page-first logic
+
+Before creating a new article, determine whether:
+
+- An existing article already covers the topic
+- A service page should be improved
+- A product page should be expanded
+- Two existing pages are competing
+- A page can be consolidated
+- A redirect may eventually be needed
+
+Prefer improving a suitable existing page when that creates a better user experience.
+
+Do not produce unnecessary pages solely to increase page count.
+
+## Content Studio integration
+
+Create one real Content Studio project with:
+
+- Brief
+- Article draft
+- Metadata
+- Images
+- Sources
+- Internal links
+- CTA
+- SEO checks
+- Originality result
+- Approval comments
+- Website change diff
+- Deployment status
+- Live URL
+- Performance results
+
+All revisions must update the same project.
+
+Do not create a new disconnected draft for every revision.
+
+## Blog campaign scheduling
+
+Support controlled campaign plans such as:
+
+- One high-quality article per week
+- Two articles per month
+- Product-launch cluster
+- Industry cluster
+- Country-specific cluster
+
+Default to conservative publishing.
+
+Do not default to daily or bulk automatic publication.
+
+Allow limits by:
+
+- Workspace package
+- Monthly article count
+- Weekly article count
+- AI generation cost
+- Approval policy
+- Website authority
+- Content quality history
+
+---
+
+# PHASE 7 — SAFE AI SEO AND WEBSITE PROTECTION
+
+The system must protect the website from low-quality scaled publishing, spam-like patterns, technical SEO mistakes and uncontrolled AI modifications.
+
+Create an SEO Safety Gate that every article and website change must pass.
+
+## Mandatory pre-publication checks
+
+### Originality
+
+Check:
+
+- Textual similarity to existing site content
+- Textual similarity to supplied competitor content
+- Duplicate sections
+- Near-identical location variants
+- Rewritten or synonymised source content
+- Cannibalisation with existing pages
+
+Block excessive similarity.
+
+### Usefulness
+
+Confirm:
+
+- A clear user need
+- A real answer
+- Original insight
+- Business-specific detail
+- Useful examples
+- No excessive filler
+- No sections written only to repeat keywords
+
+### Factuality
+
+Confirm:
+
+- Claims are supported
+- Product capabilities are real
+- Pricing is current or deliberately omitted
+- Results are authorised
+- Statistics have sources
+- Quotes are genuine
+- Customer details have consent
+- Dates are accurate
+
+### Brand and compliance
+
+Confirm:
+
+- Business DNA fit
+- Approved tone
+- Restricted claims excluded
+- No legal guarantees
+- No ranking guarantees
+- No misleading competitor accusations
+- No private customer data
+- No unauthorised testimonials
+
+### Technical SEO
+
+Validate:
+
+- URL format
+- Title
+- Description
+- H1
+- Heading hierarchy
+- Canonical
+- Robots directives
+- Indexability
+- Internal links
+- Broken links
+- Image alt text
+- Page loading
+- Mobile presentation
+- Structured data syntax where used
+- Sitemap inclusion where appropriate
+
+### Website safety
+
+Confirm:
+
+- Existing routes remain intact
+- No accidental page deletion
+- No accidental noindex
+- No accidental disallow
+- No accidental canonical to another domain
+- No broken global template
+- No unreviewed sitewide change
+- A rollback version exists
+
+## Strictly prohibited automatic behaviour
+
+Do not allow:
+
+- Hundreds of automatically generated pages
+- Infinite location-page combinations
+- Search-result scraping converted into articles
+- Competitor articles lightly rewritten
+- Doorway pages
+- Hidden text
+- Keyword stuffing
+- Auto-generated fake reviews
+- Fake customer stories
+- Fake expert authors
+- Fake timestamps
+- Fake statistics
+- Mass backlink schemes
+- Automated comment spam
+- Sitewide title changes without approval
+- Sitewide canonical changes without approval
+- Sitewide robots changes without approval
+- Bulk URL deletion
+- Bulk redirect creation without review
+- Automatic publishing after a failed quality check
+
+## Location-page safeguards
+
+Country or city pages may only be created when there is genuine differentiated value, such as:
+
+- Different service availability
+- Different product configuration
+- Different language
+- Different legal or operational context
+- Different phone-number capability
+- Different examples
+- Different customer needs
+- Different sales process
+
+Do not create near-identical pages with only a place name changed.
+
+## Approval defaults
+
+Default SEO autonomy:
+
+- Strategy may be generated automatically.
+- Briefs may be generated automatically.
+- Full articles may be generated as drafts.
+- Publication requires human approval.
+- Technical high-risk changes always require human approval.
+
+High-risk approval is mandatory for:
+
+- robots.txt
+- noindex
+- canonicals
+- redirects
+- URL changes
+- deletions
+- sitemap deletion
+- sitewide templates
+- mass page creation
+- structured data containing customer claims
+- automatic publication-volume increases
+
+## Monitoring and automatic stop conditions
+
+Pause automated SEO publication when:
+
+- Content quality checks repeatedly fail
+- Search impressions fall materially after a batch
+- Index coverage errors rise
+- Manual-action warnings appear
+- Security warnings appear
+- Duplicate content rises
+- Cannibalisation rises
+- Pages are indexed but receive irrelevant traffic
+- Organic leads decline while traffic rises
+- Deployment verification fails
+- Sitemap errors increase
+- The website connection becomes unhealthy
+
+Create a SystemMind investigation and notify HiveMind.
+
+Do not automatically delete pages in response.
+
+---
+
+# PHASE 8 — WEBSITE DEPLOYMENT, VERSIONING AND ROLLBACK
+
+Every executable website change must create:
+
+- Work order
+- Execution
+- Before snapshot
+- Proposed after snapshot
+- Human-readable diff
+- Technical diff
+- Validation result
+- Approval
+- Deployment record
+- Live verification
+- Rollback reference
+- Evidence
+
+## Deployment states
+
+- Draft
+- Validating
+- Validation Failed
+- Awaiting Content Approval
+- Awaiting Technical Approval
+- Awaiting Deployment Approval
+- Queued for Deployment
+- Deploying
+- Verifying
+- Live
+- Partially Live
+- Rolled Back
+- Blocked
+- Failed
+
+## Deployment verification
+
+After publication, verify:
+
+- Expected URL exists
+- HTTP response succeeds
+- Correct content is visible
+- Correct title is present
+- Correct metadata is present
+- Canonical is correct
+- Robots directives are correct
+- Structured data matches visible content
+- Internal links work
+- Images load
+- Mobile page renders
+- Sitemap contains the URL when appropriate
+
+Do not claim publication succeeded solely because a Git commit succeeded.
+
+Verify the live website.
+
+## Rollback
+
+Support rollback through the actual deployment system.
+
+A failed verification should:
+
+1. Stop additional related deployments.
+2. Record failure evidence.
+3. Offer rollback.
+4. Automatically rollback only where that action is pre-authorised and safe.
+5. Create a SystemMind incident.
+6. Notify HiveMind.
+
+---
+
+# PHASE 9 — SEARCH CONSOLE SITEMAPS AND INDEX STATUS
+
+Connect sitemap and URL-inspection actions to the execution engine.
+
+Support:
+
+- List sitemaps
+- Read sitemap status
+- Read errors and warnings
+- Submit an approved sitemap
+- Verify sitemap submission
+- Inspect selected URLs
+- Store index status
+- Store last-crawl information where available
+- Store robots and canonical findings where available
+
+Do not claim:
+
+- A submitted URL is indexed
+- A sitemap guarantees indexing
+- Indexing guarantees ranking
+- A page will rank by a specific date
+
+Use accurate states:
+
+- Published
+- Submitted in sitemap
+- Discovered
+- Crawled
+- Indexed
+- Not indexed
+- Inspection unavailable
+- Monitoring
+
+Respect Search Console API quotas.
+
+Do not run URL inspection across every page continuously.
+
+Prioritise:
+
+- Newly published pages
+- Changed commercial pages
+- Declining priority pages
+- Pages with suspected index problems
+
+---
+
+# PHASE 10 — SEO STRATEGY AND MANUAL CONTROL CENTRE
+
+Add or activate an SEO area inside GrowthMind Strategy & Approval Centre.
+
+Required sections:
+
+## Overview
+
+- Organic clicks
+- Impressions
+- CTR
+- Average position
+- Organic leads
+- Qualified organic leads
+- Bookings
+- Revenue attribution
+- Winning pages
+- Declining pages
+- Index warnings
+- Current campaigns
+- Pending approvals
+
+## Teach GrowthMind SEO
+
+Allow users to instruct:
+
+- Products to prioritise
+- Industries
+- Countries
+- Languages
+- Customer questions
+- Topics
+- Keywords
+- Topics to avoid
+- Claims to avoid
+- Competitors
+- Publishing limits
+- Required approvals
+- Preferred content style
+
+Use the same GrowthMind learning records already planned.
+
+## Query Intelligence
+
+Show:
+
+- Query
+- Page
+- Country
+- Device
+- Clicks
+- Impressions
+- CTR
+- Position
+- Trend
+- Intent
+- Product relevance
+- Lead quality
+- Recommended action
+
+## Page Intelligence
+
+Show:
+
+- URL
+- Main queries
+- Performance
+- Index state
+- Sitemap state
+- Metadata
+- Internal links
+- Content gaps
+- Recommended change
+- Approval status
+- Deployment state
+
+## Blog Campaigns
+
+Show:
+
+- Proposed topics
+- Approved briefs
+- Drafts
+- Awaiting approval
+- Scheduled
+- Published
+- Monitoring
+- Declining
+- Refresh recommended
+
+## Technical Actions
+
+Show:
+
+- Proposed metadata changes
+- Sitemap actions
+- Index issues
+- Canonical warnings
+- Broken links
+- Structured-data warnings
+- Deployment actions
+
+## Results and Learnings
+
+Show:
+
+- Which articles increased qualified traffic
+- Which topics generated leads
+- Which pages attracted irrelevant visitors
+- Which CTAs generated bookings
+- Which countries performed best
+- Which campaigns were inconclusive
+- Which assumptions were contradicted
+
+---
+
+# PHASE 11 — HIVEMIND SEO ORCHESTRATION
+
+HiveMind must be able to understand and execute commands such as:
+
+- “Fix the Search Console connection.”
+- “What SEO opportunities do we have?”
+- “Create an SEO campaign for WEBEE Receptionist.”
+- “Target UK businesses losing calls after hours.”
+- “Find pages ranking with poor click-through.”
+- “Improve our best opportunity page.”
+- “Create a blog campaign around missed calls.”
+- “Write the strongest article and send it to Content Studio.”
+- “Show me the article before publishing.”
+- “Make the article less generic.”
+- “Add real WEBEE examples.”
+- “Approve the blog brief.”
+- “Approve the final article.”
+- “Deploy it to the Lovable website.”
+- “Check whether the page is live.”
+- “Submit the sitemap.”
+- “Check its index status.”
+- “Which blogs produced qualified leads?”
+- “Pause blog publishing.”
+- “Do not create any more location pages.”
+
+These commands must use real work orders and permissions.
+
+HiveMind must accurately state:
+
+- Analysis prepared
+- Draft created
+- Approval required
+- Deployment queued
+- Live verification succeeded
+- Search Console not connected
+- Website write integration unavailable
+- Index status unavailable
+
+Do not claim work was performed without evidence.
+
+---
+
+# PHASE 12 — SYSTEMMIND SEO RESPONSIBILITIES
+
+Connect SystemMind to SEO work orders for:
+
+- OAuth diagnostics
+- Token refresh failures
+- Property-access errors
+- Search Console API failures
+- API quota problems
+- Website integration health
+- Lovable/Git connection health
+- Deployment failures
+- Sitemap generation
+- Sitemap accessibility
+- robots.txt accessibility
+- noindex detection
+- Canonical validation
+- Broken links
+- Structured-data validation
+- Mobile rendering
+- Rollback
+- Sync-job health
+
+SystemMind must perform real diagnostics rather than generic advice.
+
+Example:
+
+“Search Console connection failed.”
+
+SystemMind must inspect:
+
+- Requested redirect
+- Registered configuration known to WEBEE
+- OAuth client
+- State
+- Callback request
+- Token exchange
+- API response
+- Stored connection
+- Property permission
+
+It must return the exact failed stage and remediation.
+
+---
+
+# PHASE 13 — ACCOUNTSMIND SEO RESPONSIBILITIES
+
+AccountsMind must track:
+
+- AI generation cost
+- Research cost
+- Multimodal cost
+- Content Studio cost
+- Image-generation cost
+- Development cost where recorded
+- Deployment cost
+- External SEO-tool subscriptions
+- Organic leads
+- Qualified organic leads
+- Organic bookings
+- Attributed revenue
+- Cost per organic lead
+- Cost per qualified organic lead
+- Campaign profitability
+
+Do not invent attribution.
+
+Use:
+
+- Unknown
+- Partially attributed
+- Attributed
+
+when evidence varies.
+
+HiveMind must consider SEO cost and commercial outcomes when prioritising campaigns.
+
+---
+
+# PHASE 14 — MOBILE API PARITY
+
+Expose the SEO workflow through the same shared backend used by web.
+
+Mobile must be able to:
+
+- View Search Console connection health
+- View SEO opportunities
+- View blog campaigns
+- Review briefs
+- Review drafts
+- Request changes
+- Approve content
+- Approve deployments where permitted
+- View live URLs
+- View index status
+- View performance
+- Pause campaigns
+- Issue HiveMind voice instructions
+
+Do not create mobile-only SEO records.
+
+Create:
+
+- Versioned endpoints
+- Typed schemas
+- Permission requirements
+- Approval requirements
+- Real-time events
+- Notification deep links
+- Error states
+- Capability parity manifest
+
+If the mobile repository is not present, produce the API contract without claiming the mobile UI was implemented.
+
+---
+
+# PHASE 15 — REQUIRED END-TO-END SEO TEST
+
+Run this complete test:
+
+User instruction:
+
+“Create and execute an SEO and blog campaign for WEBEE Receptionist targeting UK businesses that lose enquiries from missed calls after hours.”
+
+Required flow:
+
+1. The instruction enters the unified HiveMind.
+2. HiveMind resolves the workspace and website.
+3. One SEO work order is created.
+4. GrowthMind loads Business DNA.
+5. GrowthMind loads real Search Console data.
+6. GrowthMind analyses existing site content.
+7. GrowthMind checks for a suitable existing page.
+8. GrowthMind identifies a topic and query cluster.
+9. GrowthMind explains the evidence and limitations.
+10. User approves the SEO strategy.
+11. GrowthMind creates a blog brief.
+12. User approves or edits the brief.
+13. GrowthMind creates one Content Studio project.
+14. GrowthMind generates the article.
+15. Safety and quality checks run.
+16. Similarity and cannibalisation checks run.
+17. Factual and claims checks run.
+18. User reviews the full article and website diff.
+19. User approves publication.
+20. The verified Lovable/Git/deployment adapter applies the change.
+21. The live website is re-read.
+22. Metadata and index directives are verified.
+23. The URL is added to the sitemap where appropriate.
+24. Sitemap submission occurs only when authorised and necessary.
+25. URL inspection status is stored.
+26. Performance checkpoints are created.
+27. HiveMind reports the actual state.
+28. The same state appears in Tasks, Actions, GrowthMind and mobile APIs.
+29. Evidence is attached throughout.
+30. Rollback remains available.
+
+If Search Console is connected but website write access is unavailable:
+
+- Complete steps 1–18.
+- Produce the complete deployment package.
+- Set the execution to Awaiting Website Integration.
+- Do not claim publication.
+
+If website access exists but Search Console is unavailable:
+
+- Allow approved content drafting and deployment only when explicitly authorised.
+- Mark search-performance analysis as blocked.
+- Do not invent keyword or ranking evidence.
+
+---
+
+# PHASE 16 — REQUIRED AUTOMATED TESTS
+
+Add tests for:
+
+## Current checkpoint regression
+
+- Chat campaign resolution
+- Ambiguous campaign
+- Unknown campaign
+- Work-order creation
+- Approve & Run
+- Six-step execution
+- Shared Tasks and Actions records
+- Status reporting
+
+## HiveMind unification
+
+- Shared conversation
+- Shared prompt
+- Shared workspace
+- Shared Business DNA
+- Shared voice
+- Shared autonomy
+- Shared work orders
+- Voice approval
+- Manual approval reflected in conversation
+
+## OAuth
+
+- Correct callback generation
+- Production callback
+- UAT callback
+- Development callback
+- OAuth state signing
+- State expiry
+- Replay rejection
+- Wrong-workspace rejection
+- Token encryption
+- Token refresh
+- Disconnect
+- Reconnect
+- Missing property
+- Insufficient permission
+
+## Search Console
+
+- Property listing
+- Search Analytics sync
+- Pagination
+- Incremental sync
+- Country and device dimensions
+- Data freshness
+- Sitemap listing
+- Sitemap submission approval
+- URL inspection
+- Quota handling
+- Partial data
+- Provider errors
+
+## Lovable and website deployment
+
+- Website architecture detection
+- Git connection detection
+- Read-only state
+- Draft state
+- Branch or version creation
+- Diff generation
+- Validation
+- Approval
+- Deployment
+- Live verification
+- Rollback
+- Failed verification
+
+## Blog campaigns
+
+- Existing-page-first logic
+- Topic selection
+- Query clustering
+- Brief generation
+- Content Studio handoff
+- Revision of same project
+- Duplicate-topic detection
+- Cannibalisation detection
+- Similarity blocking
+- Unsupported-claim blocking
+- Missing-source blocking
+- Publishing-volume limit
+- Quality threshold
+- Deployment approval
+- Performance checkpoint creation
+
+## Safety
+
+- No bulk automatic publishing
+- No location-page duplication
+- No automatic robots changes
+- No automatic noindex changes
+- No automatic canonical changes
+- No fake statistics
+- No fake testimonials
+- No unsupported ranking guarantee
+- No completion without verification
+
+## Platform
+
+- Workspace isolation
+- WBAH isolation
+- Permission enforcement
+- Package enforcement
+- Idempotent execution
+- Retry behaviour
+- Cost limit
+- Web/mobile shared state
+
+---
+
+# PHASE 17 — CONTINUE THE REMAINING MASTER PROGRAMME
+
+After this SEO checkpoint, continue the previously approved programme without requesting a new architecture prompt.
+
+Outstanding programme areas still include:
+
+- Complete Tasks and Actions UI unification
+- Structured approval cards replacing raw JSON
+- Campaign readiness validation
+- SystemMind execution adapter expansion
+- AccountsMind execution adapter expansion
+- Remaining GrowthMind channels
+- Meta
+- Instagram
+- Facebook
+- WhatsApp
+- Call campaigns
+- TikTok
+- LinkedIn
+- Broader Content Studio execution
+- Cross-Mind playbooks
+- Legacy task conversion
+- Mobile parity implementation
+
+Do not consider the wider master programme complete merely because the SEO workstream succeeds.
+
+---
+
+# IMPLEMENTATION RESTRICTIONS
+
+- Preserve all completed execution-backbone work.
+- Preserve the current Google Ads vertical slice.
+- Do not repeat the audit unnecessarily.
+- Do not rebuild working Mind services.
+- Do not create parallel data models.
+- Do not directly edit production without approval.
+- Do not change DNS without explicit approval.
+- Do not transfer the domain.
+- Do not disconnect Lovable.
+- Do not disconnect GitHub.
+- Do not expose Google tokens.
+- Do not expose secrets.
+- Do not bypass RLS.
+- Do not mix workspaces.
+- Do not break WBAH.
+- Do not generate fake Search Console data.
+- Do not invent search volume.
+- Do not guarantee rankings.
+- Do not mass-publish AI content.
+- Do not copy competitor articles.
+- Do not auto-generate doorway pages.
+- Do not report a page live without verifying it.
+- Do not report a page indexed without evidence.
+- Do not treat sitemap submission as guaranteed indexing.
+- Do not create a second Content Studio.
+- Do not create a second blog editor.
+- Do not create a second Search Console integration if one can be repaired.
+- Do not create buttons without backend actions.
+- Do not mark tasks completed because text was generated.
+- Do not stop after providing another plan.
+
+---
+
+# REQUIRED CHECKPOINT REPORT
+
+At the end of this checkpoint provide:
+
+1. Production Google Ads checkpoint verification
+2. HiveMind interfaces found
+3. HiveMind differences found
+4. Shared HiveMind architecture implemented
+5. Shared conversation test
+6. Shared voice test
+7. Shared autonomy test
+8. Search Console redirect mismatch root cause
+9. Google Cloud project and OAuth client identified
+10. Previous redirect URI
+11. Canonical callback implemented
+12. Exact redirect URIs requiring Google Cloud registration
+13. OAuth scopes
+14. Token-storage controls
+15. Search Console property selected
+16. Initial Search Console sync result
+17. Website registrar identified
+18. DNS host identified
+19. Actual website host identified
+20. Lovable project identified
+21. Git repository identified
+22. Deployment mechanism identified
+23. Website capability classification
+24. Existing SEO functions reused
+25. Dormant SEO functions activated
+26. Blog Campaign Generator implemented
+27. Content Studio connection
+28. SEO Safety Gate implemented
+29. Website deployment and rollback implemented
+30. End-to-end SEO campaign result
+31. Tests passed
+32. Mobile API additions
+33. Genuine external blockers
+34. Next master-programme workstream already started
+
+For every external blocker state:
+
+- What is blocked
+- Exact reason
+- Required account or permission
+- Exact user action needed
+- What still works without it
+
+Do not describe Search Console as connected until the real OAuth round trip succeeds.
+
+Do not describe SEO execution as complete until an approved change can either be deployed and verified through the real website route or truthfully stopped at Awaiting Website Integration with the complete deployable package attached.

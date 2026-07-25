@@ -90,6 +90,7 @@ import { Route as ApiPublicCampaignExecutorRouteImport } from './routes/api/publ
 import { Route as ApiPublicApproveUserRouteImport } from './routes/api/public/approve-user'
 import { Route as ApiPublicAdsSyncRouteImport } from './routes/api/public/ads-sync'
 import { Route as ApiOauthMetaCallbackRouteImport } from './routes/api/oauth/meta-callback'
+import { Route as ApiOauthGscCallbackRouteImport } from './routes/api/oauth/gsc-callback'
 import { Route as ApiOauthGoogleAdsCallbackRouteImport } from './routes/api/oauth/google-ads-callback'
 import { Route as ApiMonitoringHealthRouteImport } from './routes/api/monitoring/health'
 import { Route as ApiMonitoringClientErrorRouteImport } from './routes/api/monitoring/client-error'
@@ -717,6 +718,11 @@ const ApiPublicAdsSyncRoute = ApiPublicAdsSyncRouteImport.update({
 const ApiOauthMetaCallbackRoute = ApiOauthMetaCallbackRouteImport.update({
   id: '/api/oauth/meta-callback',
   path: '/api/oauth/meta-callback',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiOauthGscCallbackRoute = ApiOauthGscCallbackRouteImport.update({
+  id: '/api/oauth/gsc-callback',
+  path: '/api/oauth/gsc-callback',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiOauthGoogleAdsCallbackRoute =
@@ -2079,6 +2085,7 @@ export interface FileRoutesByFullPath {
   '/api/monitoring/client-error': typeof ApiMonitoringClientErrorRoute
   '/api/monitoring/health': typeof ApiMonitoringHealthRoute
   '/api/oauth/google-ads-callback': typeof ApiOauthGoogleAdsCallbackRoute
+  '/api/oauth/gsc-callback': typeof ApiOauthGscCallbackRoute
   '/api/oauth/meta-callback': typeof ApiOauthMetaCallbackRoute
   '/api/public/ads-sync': typeof ApiPublicAdsSyncRoute
   '/api/public/approve-user': typeof ApiPublicApproveUserRoute
@@ -2357,6 +2364,7 @@ export interface FileRoutesByTo {
   '/api/monitoring/client-error': typeof ApiMonitoringClientErrorRoute
   '/api/monitoring/health': typeof ApiMonitoringHealthRoute
   '/api/oauth/google-ads-callback': typeof ApiOauthGoogleAdsCallbackRoute
+  '/api/oauth/gsc-callback': typeof ApiOauthGscCallbackRoute
   '/api/oauth/meta-callback': typeof ApiOauthMetaCallbackRoute
   '/api/public/ads-sync': typeof ApiPublicAdsSyncRoute
   '/api/public/approve-user': typeof ApiPublicApproveUserRoute
@@ -2645,6 +2653,7 @@ export interface FileRoutesById {
   '/api/monitoring/client-error': typeof ApiMonitoringClientErrorRoute
   '/api/monitoring/health': typeof ApiMonitoringHealthRoute
   '/api/oauth/google-ads-callback': typeof ApiOauthGoogleAdsCallbackRoute
+  '/api/oauth/gsc-callback': typeof ApiOauthGscCallbackRoute
   '/api/oauth/meta-callback': typeof ApiOauthMetaCallbackRoute
   '/api/public/ads-sync': typeof ApiPublicAdsSyncRoute
   '/api/public/approve-user': typeof ApiPublicApproveUserRoute
@@ -2934,6 +2943,7 @@ export interface FileRouteTypes {
     | '/api/monitoring/client-error'
     | '/api/monitoring/health'
     | '/api/oauth/google-ads-callback'
+    | '/api/oauth/gsc-callback'
     | '/api/oauth/meta-callback'
     | '/api/public/ads-sync'
     | '/api/public/approve-user'
@@ -3212,6 +3222,7 @@ export interface FileRouteTypes {
     | '/api/monitoring/client-error'
     | '/api/monitoring/health'
     | '/api/oauth/google-ads-callback'
+    | '/api/oauth/gsc-callback'
     | '/api/oauth/meta-callback'
     | '/api/public/ads-sync'
     | '/api/public/approve-user'
@@ -3499,6 +3510,7 @@ export interface FileRouteTypes {
     | '/api/monitoring/client-error'
     | '/api/monitoring/health'
     | '/api/oauth/google-ads-callback'
+    | '/api/oauth/gsc-callback'
     | '/api/oauth/meta-callback'
     | '/api/public/ads-sync'
     | '/api/public/approve-user'
@@ -3647,6 +3659,7 @@ export interface RootRouteChildren {
   ApiMonitoringClientErrorRoute: typeof ApiMonitoringClientErrorRoute
   ApiMonitoringHealthRoute: typeof ApiMonitoringHealthRoute
   ApiOauthGoogleAdsCallbackRoute: typeof ApiOauthGoogleAdsCallbackRoute
+  ApiOauthGscCallbackRoute: typeof ApiOauthGscCallbackRoute
   ApiOauthMetaCallbackRoute: typeof ApiOauthMetaCallbackRoute
   ApiPublicAdsSyncRoute: typeof ApiPublicAdsSyncRoute
   ApiPublicApproveUserRoute: typeof ApiPublicApproveUserRoute
@@ -4292,6 +4305,13 @@ declare module '@tanstack/react-router' {
       path: '/api/oauth/meta-callback'
       fullPath: '/api/oauth/meta-callback'
       preLoaderRoute: typeof ApiOauthMetaCallbackRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/oauth/gsc-callback': {
+      id: '/api/oauth/gsc-callback'
+      path: '/api/oauth/gsc-callback'
+      fullPath: '/api/oauth/gsc-callback'
+      preLoaderRoute: typeof ApiOauthGscCallbackRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/oauth/google-ads-callback': {
@@ -6552,6 +6572,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiMonitoringClientErrorRoute: ApiMonitoringClientErrorRoute,
   ApiMonitoringHealthRoute: ApiMonitoringHealthRoute,
   ApiOauthGoogleAdsCallbackRoute: ApiOauthGoogleAdsCallbackRoute,
+  ApiOauthGscCallbackRoute: ApiOauthGscCallbackRoute,
   ApiOauthMetaCallbackRoute: ApiOauthMetaCallbackRoute,
   ApiPublicAdsSyncRoute: ApiPublicAdsSyncRoute,
   ApiPublicApproveUserRoute: ApiPublicApproveUserRoute,

@@ -14,6 +14,12 @@ import {
   getHiveMindTTS, listHiveMindVoices, getHiveMindSystemContext,
 } from "@/lib/hivemind/hivemind.ai";
 import { useMindConversation } from "@/hooks/useMindConversation";
+import {
+  type HiveMindVoiceSettings as VoiceSettings,
+  DEFAULT_HIVEMIND_VOICE as DEFAULT_VOICE,
+  loadHiveMindVoiceSettings as loadVoiceSettings,
+  saveHiveMindVoiceSettings as saveVoiceSettings,
+} from "@/lib/hivemind/voice-profile";
 import { approveAndRunTask, getTaskExecutionDetail } from "@/lib/hivemind/mind-execution-engine.server";
 import { approveHiveMindAction } from "@/lib/hivemind/hivemind.actions";
 
@@ -38,21 +44,6 @@ type ChatMessage = {
   ts:          Date;
   audioBase64?: string | null;
   workOrders?: WorkOrderProposal[];
-};
-type VoiceSettings = {
-  voiceId:     string;
-  voiceName:   string;
-  speed:       number;
-  personality: "professional" | "friendly" | "concise";
-  autoPlay:    boolean;
-};
-
-const DEFAULT_VOICE: VoiceSettings = {
-  voiceId:     "21m00Tcm4TlvDq8ikWAM",
-  voiceName:   "Rachel",
-  speed:       1.0,
-  personality: "professional",
-  autoPlay:    false,
 };
 const SPEED_OPTIONS = [0.7, 0.85, 1.0, 1.15, 1.3, 1.5];
 const PERSONALITIES = ["professional", "friendly", "concise"] as const;
@@ -194,15 +185,6 @@ const HINT_GROUPS: HintGroup[] = [
 function uid() { return Math.random().toString(36).slice(2, 10); }
 function fmtTime(d: Date) {
   return d.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
-}
-function loadVoiceSettings(): VoiceSettings {
-  try {
-    const s = localStorage.getItem("hivemind-voice-settings");
-    return s ? { ...DEFAULT_VOICE, ...JSON.parse(s) } : DEFAULT_VOICE;
-  } catch { return DEFAULT_VOICE; }
-}
-function saveVoiceSettings(s: VoiceSettings) {
-  try { localStorage.setItem("hivemind-voice-settings", JSON.stringify(s)); } catch {}
 }
 
 // ── Markdown-lite renderer ─────────────────────────────────────────────────────
