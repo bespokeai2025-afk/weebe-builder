@@ -25,6 +25,10 @@ args = "component-tests"
 task = "workflow.run"
 args = "Start application"
 
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "prodbuild"
+
 [[workflows.workflow]]
 name = "schema-types-fresh"
 author = "agent"
@@ -58,6 +62,17 @@ waitForPort = 5000
 
 [workflows.workflow.metadata]
 outputType = "webview"
+
+[[workflows.workflow]]
+name = "prodbuild"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "npm run build"
+
+[workflows.workflow.metadata]
+isValidation = true
 
 [[ports]]
 localPort = 3000
