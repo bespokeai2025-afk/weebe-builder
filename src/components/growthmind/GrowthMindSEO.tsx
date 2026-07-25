@@ -1115,7 +1115,15 @@ function GscConnectionPanel({
                 <div className="text-xs text-red-400 py-2">{propsError}</div>
               )}
               {!propsLoading && !propsError && properties.length === 0 && (
-                <p className="text-xs text-muted-foreground py-4 text-center">No properties found in this account.</p>
+                <div className="text-xs text-muted-foreground py-4 space-y-2">
+                  <p className="text-center font-medium text-amber-400/90">The Google account you connected has no Search Console properties.</p>
+                  <p>
+                    Sign in to{" "}
+                    <a href="https://search.google.com/search-console" target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:underline">Google Search Console</a>{" "}
+                    with that account — if your site isn't listed there, either add this account as a user under the property's
+                    Settings → Users and permissions, or disconnect here and reconnect using the Google account that owns the property.
+                  </p>
+                </div>
               )}
               {!propsLoading && !propsError && properties.map(p => (
                 <label key={p} className="flex items-center gap-2.5 cursor-pointer group">

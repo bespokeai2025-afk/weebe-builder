@@ -1,0 +1,464 @@
+# URGENT PRODUCTION SEARCH CONSOLE CONNECTION DIAGNOSTIC
+
+The Phase 2–4 implementation is accepted, but the production Search Console connection still does not complete after republishing.
+
+Do not continue into the SEO/blog implementation yet.
+
+First diagnose and repair the real production OAuth flow end to end.
+
+Preserve all completed master-programme work, including:
+
+- Unified HiveMind interfaces
+- Shared conversation and voice
+- Existing execution backbone
+- Google Ads work orders
+- Search Console server callback
+- Signed single-use OAuth state
+- Website architecture audit
+- SystemMind knowledge updates
+- Workspace isolation and security hardening
+
+Do not create another OAuth integration or callback unless the existing one is proven unusable.
+
+## 1. Inspect the live production authorisation request
+
+Trigger the real Search Console Connect action from:
+
+https://webeereceptionist.com
+
+Capture safely, without exposing secrets:
+
+- Production environment
+- OAuth start endpoint
+- Exact client_id suffix, last 8–12 characters only
+- Exact redirect_uri
+- Exact requested scopes
+- Exact response_type
+- Exact access_type
+- Whether prompt=consent is used when a refresh token is required
+- OAuth state identifier or hash only
+- Return destination
+- Exact Google error code
+- Exact Google error description
+- Correlation ID
+
+Do not display:
+
+- Client secret
+- Full access token
+- Refresh token
+- Raw signed state contents
+
+The production request has previously shown:
+
+- client_id:
+  707027138830-tkl2glo5vtj19lo396ego504k297rl1j.apps.googleusercontent.com
+
+- redirect_uri:
+  https://webeereceptionist.com/api/oauth/gsc-callback
+
+- scope:
+  https://www.googleapis.com/auth/webmasters.readonly
+
+- access_type:
+  offline
+
+Treat those as known evidence, but verify the current live request again.
+
+## 2. Identify the exact failing stage
+
+Do not assume this is still redirect_uri_mismatch.
+
+Determine whether failure occurs at:
+
+1. OAuth authorisation URL generation
+2. Google consent-screen validation
+3. Google app audience or test-user validation
+4. Redirect URI validation
+5. User authorisation
+6. Callback receipt
+7. OAuth state validation
+8. Authorisation-code exchange
+9. Token storage
+10. Search Console API request
+11. Property listing
+12. Workspace connection persistence
+
+Report the exact stage and exact safe provider error.
+
+Support and distinguish:
+
+- redirect_uri_mismatch
+- invalid_client
+- access_denied
+- app_not_configured_for_user
+- app verification pending
+- unverified app restriction
+- invalid_scope
+- state_missing
+- state_invalid
+- state_expired
+- state_replayed
+- code_missing
+- token_exchange_failed
+- invalid_grant
+- refresh_token_missing
+- refresh_failed
+- Search Console API disabled
+- property_list_failed
+- no_accessible_properties
+- insufficient_property_permission
+- API quota exceeded
+- workspace mismatch
+- user mismatch
+- callback route failure
+- database persistence failure
+
+Do not display only “Search Console failed to connect.”
+
+## 3. Confirm the live OAuth client and configuration
+
+Confirm the production request uses:
+
+707027138830-tkl2glo5vtj19lo396ego504k297rl1j.apps.googleusercontent.com
+
+Report safely:
+
+- Google Cloud project name
+- OAuth client display name
+- OAuth client type
+- Client ID suffix
+- Environment variable selecting it
+- Whether production is reading the expected secret
+- Whether the client is also used for:
+  - Google login
+  - Google Ads
+  - Google Calendar
+  - Search Console
+- Whether configuration differs between build time and runtime
+- Whether a stale deployment secret is overriding the new configuration
+
+Do not expose the client secret.
+
+The user has confirmed the correct OAuth client was updated in Google Cloud.
+
+Do not repeatedly tell the user to check whether they edited the correct client unless the live request proves a different client is being used.
+
+## 4. Confirm redirect propagation and runtime configuration
+
+Verify the live request generates exactly:
+
+https://webeereceptionist.com/api/oauth/gsc-callback
+
+Check for:
+
+- Trailing slash differences
+- `www` differences
+- HTTP versus HTTPS
+- Encoded or double-encoded callback
+- Old callback cached in frontend assets
+- Old callback cached in server runtime
+- Old environment variables
+- Generic Google OAuth helper overrides
+- Multiple Search Console Connect buttons
+- Different callback generated on mobile
+- Different callback generated for another workspace
+- Cloudflare caching of an OAuth start response
+- Browser-cached frontend bundles
+- Production deployment not using the latest commit
+
+OAuth-start responses must not be publicly cached.
+
+Set suitable cache headers such as:
+
+Cache-Control: no-store
+
+where appropriate.
+
+## 5. Inspect the callback directly
+
+Verify that this production route exists and is running the new code:
+
+https://webeereceptionist.com/api/oauth/gsc-callback
+
+A direct request without valid OAuth parameters should return a safe controlled error, not:
+
+- 404
+- Generic application HTML
+- Redirect loop
+- SEO page content
+- Server crash
+- Sensitive diagnostic output
+
+Confirm the callback can receive:
+
+- code
+- state
+- error
+- error_description
+
+Confirm the callback correctly handles Google cancellation and provider errors.
+
+## 6. Validate OAuth state implementation
+
+Confirm state is:
+
+- Signed
+- User scoped
+- Workspace scoped
+- Integration scoped
+- Origin scoped
+- Return-location scoped
+- Expiry checked
+- Single use
+- Replay protected
+
+The state currently contains a workspace reference, origin, return path, timestamp and nonce.
+
+Do not log or expose the complete state value.
+
+Check that state validation does not fail because of:
+
+- Different signing secrets across instances
+- Secret changes after deployment
+- Base64 URL decoding
+- Clock differences
+- Database nonce persistence
+- Race conditions
+- Multiple server instances
+- Cache isolation
+- User session loss during Google redirect
+- Cookie SameSite configuration
+- Cookie domain mismatch
+- Session expiry
+- Workspace switching during OAuth
+
+## 7. Validate the production user session
+
+OAuth may leave WEBEE and return several minutes later.
+
+Confirm the authenticated user session survives the Google redirect.
+
+Inspect:
+
+- Authentication cookie
+- Cookie domain
+- SameSite setting
+- Secure flag
+- Session refresh
+- Workspace resolution after callback
+- Whether the callback incorrectly requires a frontend-only session
+- Whether Supabase authentication is restored before connection storage
+
+If the browser session cannot safely be relied on, use the signed state to recover the intended user/workspace and then revalidate against the authenticated session before finalising the connection.
+
+Do not weaken authentication.
+
+## 8. Validate token exchange
+
+Confirm the token exchange uses:
+
+- The same client ID as the authorisation request
+- The matching client secret
+- The exact same redirect URI
+- The returned authorisation code
+- Server-side HTTPS request
+- Correct Google token endpoint
+
+Capture safely:
+
+- HTTP status
+- Google error code
+- Google error description
+- Correlation ID
+
+Do not log the code, tokens or client secret.
+
+Check for:
+
+- invalid_grant
+- Redirect mismatch during token exchange
+- Reused authorisation code
+- Expired code
+- Clock issues
+- Wrong secret
+- Wrong environment secret
+- Code exchanged more than once
+
+The callback and token exchange must be idempotent and concurrency safe.
+
+## 9. Validate consent-screen and audience status
+
+Report what the application can determine and what requires manual Google Cloud verification:
+
+- App publishing status
+- Testing or Production
+- User type
+- Test-user requirement
+- Verification status
+- Brand verification status
+- Sensitive-scope verification status
+- Whether the current account is permitted
+- Whether the app is waiting for Google approval
+
+If Google explicitly reports that verification or approval is pending:
+
+- Show that exact state in WEBEE.
+- Do not label it as a code failure.
+- Display:
+  “Google approval pending”
+- Record the date and safe provider message.
+- Keep Search Console marked:
+  Awaiting Google Approval
+- Allow retry after approval.
+
+Do not rebuild OAuth when Google is the genuine blocker.
+
+## 10. Validate Search Console API readiness
+
+Confirm:
+
+- Search Console API is enabled
+- Requested scope is:
+  https://www.googleapis.com/auth/webmasters.readonly
+- Scope is present in the granted token
+- A real Search Console sites/property-list request succeeds
+- Google account has access to at least one property
+- The correct webespokeai.com property can be selected
+- Property permission level is captured
+- Domain and URL-prefix properties are handled correctly
+
+Distinguish:
+
+- OAuth connected but no properties
+- OAuth connected but insufficient permission
+- OAuth connected and property available
+- OAuth connected but API disabled
+
+## 11. Add a restricted OAuth Diagnostics card
+
+Add a safe diagnostics card to GrowthMind SEO for workspace administrators.
+
+Show:
+
+- Environment
+- Application origin
+- OAuth client suffix
+- Generated callback URI
+- Requested scope
+- Search Console API status
+- OAuth connection status
+- Google approval status where available
+- Last OAuth attempt
+- Last safe error code
+- Last safe error description
+- Last failed stage
+- Last correlation ID
+- Selected property
+- Property permission
+- Last successful API call
+- Last token refresh
+- Retry Connection
+- Reconnect
+- Disconnect
+
+Never show:
+
+- Tokens
+- Client secret
+- Full state
+- Authorisation code
+
+## 12. Required production acceptance test
+
+Do not call the connection fixed until this exact live flow passes:
+
+1. Open the production GrowthMind SEO page.
+2. Click Connect Search Console.
+3. Confirm the generated redirect URI is:
+   https://webeereceptionist.com/api/oauth/gsc-callback
+4. Confirm the request uses client ID ending:
+   k297rl1j
+5. Complete Google authorisation.
+6. Confirm the callback receives the code.
+7. Validate the signed state.
+8. Reject replay of the same state.
+9. Exchange the code server-side.
+10. Store tokens securely.
+11. List real Search Console properties.
+12. Select the correct webespokeai.com property.
+13. Display its real permission level.
+14. Run a real Search Console API request.
+15. Refresh and confirm the connection persists.
+16. Test token refresh.
+17. Confirm workspace isolation.
+18. Confirm no tokens appear in browser storage, frontend responses, HiveMind prompts or logs.
+
+If Google approval is genuinely still pending:
+
+- Prove this using the exact provider error or consent configuration state.
+- Mark the connection Awaiting Google Approval.
+- Do not claim it is connected.
+- Do not repeatedly modify working OAuth code.
+- Continue only SEO work that does not require live Search Console data.
+- Keep Search Console-dependent analysis blocked honestly.
+
+## 13. Continue after success
+
+Once the production Search Console acceptance test succeeds, immediately continue into the previously approved SEO and blog workstreams without requesting another architecture prompt.
+
+Continue with:
+
+- Initial Search Console sync
+- GrowthMind SEO execution adapters
+- SEO Strategy Centre
+- Query Intelligence
+- Page Intelligence
+- SEO campaign builder
+- Blog Campaign Generator
+- Existing-page-first logic
+- Cannibalisation detection
+- Content Studio integration
+- AI SEO Safety Gate
+- Conservative publishing limits
+- Lovable deployment packages
+- Sitemap support
+- URL inspection
+- HiveMind SEO commands
+- SystemMind SEO diagnostics
+- AccountsMind SEO cost tracking
+- Mobile API parity
+- End-to-end SEO campaign test
+
+Do not rebuild completed systems.
+
+## Required checkpoint report
+
+At the next checkpoint report:
+
+1. Exact production error
+2. Exact failing stage
+3. Live client ID suffix
+4. Live redirect URI
+5. OAuth client and project identified
+6. Consent-screen status
+7. Google approval or verification status
+8. Session and cookie findings
+9. State-validation findings
+10. Token-exchange findings
+11. Search Console API status
+12. Property-list result
+13. Selected property
+14. Permission level
+15. Production OAuth round-trip result
+16. Token refresh result
+17. Workspace-isolation result
+18. Code changes made
+19. Deployment version
+20. Automated tests passed
+21. Whether Google remains the genuine external blocker
+22. SEO workstreams started after connection
+
+Do not stop after giving generic instructions.
+
+Diagnose the live production request, identify the exact failed stage, repair anything inside WEBEE’s control, and distinguish clearly between an application fault and a genuine pending Google approval.
