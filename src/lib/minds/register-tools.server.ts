@@ -47,6 +47,7 @@ const HIVEMIND_ACTION_KINDS: HiveMindKind[] = [
   { type: "assign_knowledge_base", mind: "hivemind", title: "Assign knowledge base", description: "Assign a knowledge base to an agent.", cost: "none" },
   { type: "register_resend_webhook", mind: "hivemind", title: "Register Resend webhook", description: "Register the Resend deliverability webhook for this workspace.", cost: "none" },
   { type: "sync_ad_stats", mind: "growthmind", title: "Sync ad stats", description: "Refresh connected ad platform statistics.", cost: "low" },
+  { type: "gads_create_change_requests", mind: "growthmind", title: "Create Google Ads change requests", description: "Convert approved analysis recommendations into internal change-request drafts. Never applies live Google Ads changes.", cost: "none" },
   { type: "growthmind_video_campaign", mind: "growthmind", title: "Video campaign", description: "Generate a GrowthMind video campaign draft.", cost: "high" },
   { type: "growthmind_growth_campaign", mind: "growthmind", title: "Growth campaign", description: "Create a coordinated GrowthMind growth campaign.", cost: "medium" },
   { type: "growthmind_publish_content", mind: "growthmind", title: "Publish content", description: "Publish approved content to a connected social account.", cost: "low" },

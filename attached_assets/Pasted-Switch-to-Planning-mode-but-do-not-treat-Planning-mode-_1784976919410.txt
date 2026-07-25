@@ -1,0 +1,576 @@
+Switch to Planning mode, but do not treat Planning mode as permission to produce a document and stop.
+
+I agree that this should be delivered as a controlled, phased production programme rather than an unsafe one-shot rewrite. However, the purpose of the planning phase is to enable implementation, not postpone it.
+
+Proceed with a hybrid plan-and-build approach:
+
+PHASE ZERO
+Perform the full capability census and architecture audit against the real codebase.
+
+Then, during the same programme, immediately begin implementing the first production workstream:
+
+UNIFIED WORK-ORDER AND EXECUTION BACKBONE
+Approval must create and dispatch a real execution rather than only update a status.
+
+Do not ask me again whether to begin after completing the audit. You are authorised to continue into the first implementation workstream automatically, provided you preserve existing functionality and follow the safety rules below.
+
+# Primary instruction
+
+Reuse, connect and activate the systems that already exist.
+
+Do not rebuild the working:
+
+- Shared Mind tool registry
+- Entitlement and approval gating
+- Autonomy modes
+- Executive Operator playbooks
+- GrowthMind Google Ads integration
+- GrowthMind content intelligence
+- Trend Scout
+- Content Studio handoff
+- Publishing jobs
+- SystemMind diagnostics
+- Workflow generators
+- Agent build workspace
+- AccountsMind invoice suite
+- Executive event backbone
+- Permission system
+- Notification deduplication
+- Existing evidence-based completion flows
+
+The goal is to provide one shared orchestration and execution layer above these existing services.
+
+# Required programme sequence
+
+Create the programme in the following dependency order.
+
+## Workstream 0 — Capability census and architecture map
+
+Audit and document:
+
+- Existing Mind tool registry
+- Existing task tables
+- Existing action and approval tables
+- Existing execution or job tables
+- Existing executive event system
+- Existing queues and workers
+- Existing background jobs
+- Existing HiveMind prompts and endpoints
+- Floating HiveMind
+- Full HiveMind Assistant
+- Voice configurations
+- Autonomy-mode sources
+- GrowthMind services
+- SystemMind services
+- AccountsMind services
+- Content Studio services
+- Google Ads services
+- Meta services
+- CRM services
+- Campaign services
+- Invoice services
+- Mobile-facing endpoints
+- Feature flags
+- Permissions
+- Package entitlements
+- Supabase RLS
+- WBAH-specific logic
+
+For every capability, classify it as:
+
+- Working and connected
+- Working but not connected to HiveMind
+- Partially working
+- Dormant
+- Duplicate
+- Legacy
+- Frontend only
+- Backend only
+- Missing permission
+- Missing integration
+- Provider restricted
+
+Produce a Capability Activation Register.
+
+Do not stop after producing it.
+
+## Workstream 1 — Unified work-order and execution model
+
+Implement the minimum shared backbone required to connect the existing systems.
+
+Required relationship:
+
+Recommendation
+→ Work order
+→ Task
+→ Execution
+→ Proposed action
+→ Approval
+→ Resumed execution
+→ Verified result
+→ Evidence
+→ Completion
+
+Reuse existing tables where possible.
+
+Only add migrations when the current schema cannot support the required relationships.
+
+Every work order must be able to link:
+
+- Workspace
+- Source conversation
+- Source message
+- Recommendation
+- Parent objective
+- Assigned Minds
+- Child tasks
+- Executions
+- Proposed actions
+- Approvals
+- Deliverables
+- Results
+- Monitoring checkpoints
+
+Do not create a parallel task system.
+
+## Workstream 2 — Real execution state machine
+
+Create one authoritative execution state resolver.
+
+Required states:
+
+- Suggested
+- Awaiting Details
+- Awaiting Integration
+- Awaiting Permission
+- Awaiting Approval
+- Approved
+- Queued
+- Planning
+- Executing
+- Awaiting External Result
+- Awaiting User Input
+- Awaiting Action Approval
+- Awaiting Deliverable Approval
+- Partially Completed
+- Completed
+- Blocked
+- Failed
+- Cancelled
+- Rejected
+- Expired
+
+Rules:
+
+- Approval does not equal execution.
+- Approved does not automatically become In Progress.
+- Executing is only valid when a real worker has started.
+- Completed requires a validated result and evidence.
+- Blocked requires a specific blocker and next step.
+- Failed requires the actual error and retry information.
+- A Mind task cannot be manually marked completed without evidence or an authorised override.
+
+## Workstream 3 — Approval dispatch
+
+Fix every approval path that currently only updates status.
+
+When an authorised approval occurs:
+
+1. Revalidate workspace.
+2. Revalidate user permission.
+3. Revalidate package entitlement.
+4. Revalidate autonomy mode.
+5. Revalidate integration access.
+6. Revalidate required fields.
+7. Create or resume an execution.
+8. Dispatch to the correct existing Mind service.
+9. Track each execution step.
+10. Store outputs.
+11. Store errors and warnings.
+12. Verify the resulting state.
+13. Attach evidence.
+14. Update the parent task and work order.
+
+Approval buttons must clearly state their effect:
+
+- Approve and Run Analysis
+- Approve Draft Creation
+- Approve Strategy
+- Approve Creative
+- Approve Budget
+- Approve and Create Externally as Paused
+- Approve and Launch
+- Approve Changes to Existing Campaign
+
+Do not use one vague approval action for every outcome.
+
+## Workstream 4 — Mind execution adapters
+
+Do not rewrite each Mind.
+
+Create adapters that let the shared execution engine invoke existing services.
+
+### GrowthMind adapter
+
+Connect existing GrowthMind capabilities for:
+
+- Google Ads analysis
+- Google Ads drafts and change requests
+- Meta campaign drafts
+- Campaign optimisation
+- Keyword analysis
+- Audience analysis
+- Geographic analysis
+- Trend Scout
+- Content intelligence
+- Content Studio creation
+- Content publishing
+- SEO
+- WhatsApp campaign analysis
+- Call campaign analysis
+- TikTok
+- LinkedIn
+- Growth reporting
+
+### SystemMind adapter
+
+Connect existing SystemMind capabilities for:
+
+- Diagnostics
+- Integration health
+- Webhooks
+- Queues
+- Jobs
+- Agent health
+- Agent deployment
+- Workflow generation
+- Field mapping
+- Dynamic variables
+- CRM sync
+- Calendar sync
+- Post-call extraction
+- Safe retries
+- Repair verification
+
+### AccountsMind adapter
+
+Connect existing AccountsMind capabilities for:
+
+- Client-register audit
+- Missing invoices
+- Invoice validation
+- Due payments
+- Overdue payments
+- Expected income
+- Outgoings
+- Supplier services
+- Renewals
+- Cost aggregation
+- Usage versus package
+- Commercial reporting
+
+### HiveMind adapter
+
+HiveMind must:
+
+- Create objectives
+- Create connected work orders
+- Dispatch Minds
+- Coordinate dependencies
+- Combine results
+- Request approvals
+- Verify evidence
+- Produce executive conclusions
+- Recommend the next action
+
+## Workstream 5 — Unify the two HiveMind interfaces
+
+Make the floating HiveMind and full HiveMind Assistant use:
+
+- One server-side orchestration service
+- One system prompt
+- One conversation store
+- One workspace context
+- One Business DNA
+- One tool registry
+- One memory source
+- One autonomy-mode resolver
+- One voice profile
+- One execution system
+
+The floating interface may remain compact, but it must not have a separate brain.
+
+Required test:
+
+1. Start a voice conversation in floating HiveMind.
+2. Open the full Assistant.
+3. See the same conversation.
+4. Continue it through typed input.
+5. Retain context.
+6. Create a work order by voice.
+7. See it in Tasks.
+8. Approve an action manually.
+9. Confirm HiveMind immediately knows it was approved.
+10. Confirm execution resumes.
+
+## Workstream 6 — Unify Tasks and Actions
+
+Keep both pages, but give them distinct purposes.
+
+Tasks:
+Operational work being performed by a Mind or human.
+
+Actions:
+Consequential changes requiring approval or showing verified executed actions.
+
+When a task produces an action:
+
+- The task becomes Awaiting Action Approval.
+- The action is linked to the same task and execution.
+- The action appears inside the task.
+- It also appears in the Action Approval Centre.
+- Approving from either view updates the same record.
+- The execution resumes.
+- The task completes only after verification.
+
+Do not create unrelated task and action records with matching titles.
+
+## Workstream 7 — Approval UI and readiness validation
+
+Replace raw JSON as the primary approval UI.
+
+Render structured business information.
+
+For campaign approvals show:
+
+- Parent objective
+- Campaign
+- Account
+- Product
+- Objective
+- Audience
+- Countries and areas
+- Keywords or targeting
+- Creative
+- Landing page
+- Conversion goal
+- Budget
+- Duration
+- Current state
+- Proposed state
+- Evidence
+- Risk
+- Missing information
+- Approval scope
+
+Raw payloads may remain under a developer-only expandable panel.
+
+Incomplete drafts must not be launchable.
+
+For example:
+
+- `budget: null` must block launch approval.
+- Missing account must block launch.
+- Missing conversion goal must block launch.
+- Missing landing page must block launch.
+- Missing creative must block launch.
+
+Show:
+
+- Incomplete Draft
+- Complete Draft
+- Ask GrowthMind to Complete
+- Edit Manually
+
+Do not show Approve and Launch until readiness validation passes.
+
+## Workstream 8 — Existing capability activation
+
+Use the Capability Activation Register to connect previously programmed functions to the shared work-order and execution engine.
+
+For every dormant capability:
+
+- Identify why it is dormant.
+- Connect it where code already exists.
+- Repair it where incomplete.
+- Add permissions where missing.
+- Add a Mind action definition.
+- Add test coverage.
+- Add UI access where appropriate.
+- Mark provider-blocked items honestly.
+
+Do not rewrite working functions simply to conform to a new naming system.
+
+## Workstream 9 — Mobile API contract
+
+The mobile project is separate.
+
+In the shared backend, produce:
+
+- Versioned API endpoints
+- Authentication requirements
+- Workspace scoping rules
+- Request and response schemas
+- Conversation endpoints
+- Work-order endpoints
+- Task endpoints
+- Execution endpoints
+- Action and approval endpoints
+- Voice configuration endpoint
+- Autonomy endpoint
+- Notification endpoints
+- Deep-link targets
+- Error schemas
+- Real-time event contract
+- Capability parity manifest
+
+Do not claim the separate mobile repository has been updated unless its code is actually available.
+
+## Workstream 10 — Migration and rollout
+
+Use safe migrations.
+
+Requirements:
+
+- Preserve existing tasks.
+- Preserve existing actions.
+- Preserve existing approvals.
+- Preserve existing conversations.
+- Preserve Content Studio projects.
+- Preserve campaign drafts.
+- Preserve WBAH-specific behaviour.
+- Preserve active campaigns.
+- Preserve current provider integrations.
+
+Legacy tasks without enough structured information must be marked:
+
+Legacy Task
+
+They should not appear as genuinely executing.
+
+Provide:
+
+Convert to Executable Work Order
+
+where sufficient context can be resolved.
+
+Group the current Google Ads tasks under one parent work order where applicable:
+
+- Improve Landing Page
+- Optimise Google Ads Keywords
+- Review Audience Targeting
+- Revise Google Ads Copy
+- Implement A/B Testing
+
+## Workstream 11 — Testing and controlled release
+
+Add feature flags for the new orchestration path during rollout.
+
+Suggested rollout:
+
+1. Development
+2. Automated tests
+3. Staging workspace
+4. Standard internal workspace
+5. WBAH regression validation
+6. Limited production release
+7. Full production activation
+
+Do not run untested migrations directly against live production.
+
+# First implementation milestone
+
+After completing the Phase-Zero audit, immediately implement and demonstrate the following vertical slice:
+
+1. HiveMind creates one connected work order.
+2. The work order creates a GrowthMind task.
+3. Approval creates a real execution record.
+4. Execution dispatches an existing GrowthMind service.
+5. Execution steps appear in the Task Centre.
+6. GrowthMind produces a real deliverable.
+7. A consequential change creates a linked action.
+8. The task changes to Awaiting Action Approval.
+9. The action appears in both Tasks and Actions.
+10. Approval resumes the same execution.
+11. The service applies the authorised action where supported.
+12. The provider or internal system is re-read.
+13. Verification evidence is attached.
+14. The task and work order complete honestly.
+15. HiveMind reports the actual result.
+
+Use the existing Google Ads integration for this first vertical slice where safe.
+
+If Google Ads write access is unavailable:
+
+- Complete the real analysis.
+- Generate real draft changes.
+- Mark the external-write stage as blocked or awaiting integration.
+- Do not fabricate an applied change.
+- Still demonstrate the complete analysis and approval relationship.
+
+# Safety requirements
+
+- Do not rebuild working systems.
+- Do not create parallel databases.
+- Do not create another task centre.
+- Do not create another approval centre.
+- Do not create another HiveMind.
+- Do not change active campaigns during testing without explicit approval.
+- Do not expose secrets.
+- Do not bypass RLS.
+- Do not bypass package entitlements.
+- Do not bypass role permissions.
+- Do not mix WBAH and standard workspace data.
+- Do not mark execution complete without evidence.
+- Do not report provider changes without verifying them.
+- Do not leave tasks in In Progress when no execution exists.
+- Do not use fake progress states.
+- Do not invent analytics.
+- Do not hide failures.
+- Do not continue infinite retries.
+- Do not stop because the overall programme is substantial.
+
+The programme may be phased, but each phase must produce working code, tests and a deployable checkpoint.
+
+# Required output from Planning mode
+
+Produce:
+
+1. Capability Activation Register
+2. Existing architecture diagram
+3. Existing data relationship map
+4. Existing prompt and endpoint comparison for both HiveMind interfaces
+5. Existing autonomy-mode source comparison
+6. Existing task and approval path map
+7. Existing per-Mind execution systems
+8. Duplicate and dormant-function register
+9. Proposed shared model
+10. Database migration sequence
+11. Workstream dependency plan
+12. Risks and rollback controls
+13. Acceptance criteria for every workstream
+14. First vertical-slice implementation plan
+
+Then immediately start implementing Workstream 1 and the first vertical slice.
+
+Do not stop and ask me to select between planning and building again.
+
+You have approval to plan the complete programme and begin building the execution backbone, provided you follow the phased safety and testing requirements above.
+
+At the end of the first checkpoint, report:
+
+- What was audited
+- What was found
+- What was reused
+- What was changed
+- What migrations were applied
+- What tests passed
+- What vertical slice now works
+- What remains next
+- Any genuine external blockers
+
+The ultimate standard remains unchanged:
+
+WEBEE must not merely create suggestions and passive tasks.
+
+WEBEE must understand the business objective, execute authorised work through the correct Mind, produce evidence, verify results and keep HiveMind, Tasks, Actions, web and mobile in one consistent operating state.

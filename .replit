@@ -15,27 +15,15 @@ author = "agent"
 
 [[workflows.workflow.tasks]]
 task = "workflow.run"
-args = "Start application"
-
-[[workflows.workflow.tasks]]
-task = "workflow.run"
 args = "schema-types-fresh"
 
 [[workflows.workflow.tasks]]
 task = "workflow.run"
 args = "component-tests"
 
-[[workflows.workflow]]
-name = "Start application"
-author = "agent"
-
 [[workflows.workflow.tasks]]
-task = "shell.exec"
-args = "npm run dev"
-waitForPort = 5000
-
-[workflows.workflow.metadata]
-outputType = "webview"
+task = "workflow.run"
+args = "Start application"
 
 [[workflows.workflow]]
 name = "schema-types-fresh"
@@ -59,6 +47,18 @@ args = "npx vitest run --config vitest.component.config.ts"
 [workflows.workflow.metadata]
 isValidation = true
 
+[[workflows.workflow]]
+name = "Start application"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "npm run dev"
+waitForPort = 5000
+
+[workflows.workflow.metadata]
+outputType = "webview"
+
 [[ports]]
 localPort = 3000
 externalPort = 3002
@@ -66,14 +66,6 @@ externalPort = 3002
 [[ports]]
 localPort = 5000
 externalPort = 80
-
-[[ports]]
-localPort = 8080
-externalPort = 8080
-
-[[ports]]
-localPort = 8799
-externalPort = 3001
 
 [[ports]]
 localPort = 8801

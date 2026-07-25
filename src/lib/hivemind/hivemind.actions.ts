@@ -207,6 +207,45 @@ export async function executeAction(sb: any, workspaceId: string, action: HiveMi
       return { task_id: data.id };
     }
 
+    case "gads_create_change_requests": {
+      // Converts analysis recommendations into approved change-request DRAFTS.
+      // Internal records only — there is intentionally NO executor for live
+      // Google Ads writes (GrowthMind is advisory-only).
+      const ids = Array.isArray(p.recommendation_ids) ? (p.recommendation_ids as string[]).map(String) : [];
+      if (!ids.length) throw new Error("No recommendation_ids in action payload");
+      const { data: recs, error: re } = await sb.from("growthmind_gads_recommendations")
+        .select("id, account_row_id, customer_id, campaign_id, section, title, recommended_action, evidence, status")
+        .eq("workspace_id", workspaceId).in("id", ids);
+      if (re) throw re;
+      const usable = (recs ?? []).filter((r: any) => r.status !== "applied");
+      if (!usable.length) throw new Error("None of the referenced recommendations are available");
+      const nowIso = new Date().toISOString();
+      const createdIds: string[] = [];
+      for (const rec of usable) {
+        const { data: cr, error: crErr } = await sb.from("growthmind_gads_change_requests").insert({
+          workspace_id: workspaceId,
+          recommendation_id: rec.id,
+          account_row_id: rec.account_row_id,
+          customer_id: rec.customer_id,
+          campaign_id: rec.campaign_id,
+          change_type: rec.section,
+          payload: { title: rec.title, recommendedAction: rec.recommended_action, evidence: rec.evidence },
+          status: "approved",
+          approved_by: (action as any).authorised_by_user_id ?? null,
+        }).select("id").single();
+        if (crErr) throw crErr;
+        createdIds.push(cr.id as string);
+        await sb.from("growthmind_gads_recommendations").update({
+          status: "approved", reviewed_at: nowIso, updated_at: nowIso,
+        }).eq("id", rec.id).eq("workspace_id", workspaceId);
+      }
+      return {
+        change_request_ids: createdIds,
+        change_requests_created: createdIds.length,
+        external_write: "blocked_awaiting_integration",
+      };
+    }
+
     case "create_followup_campaign": {
       const { data, error } = await sb.from("hexmail_campaigns").insert({
         workspace_id: workspaceId,
@@ -780,6 +819,36 @@ export async function approveHiveMindActionCore(
               : null),
           "executed",
         );
+      }
+      // Resume a linked Mind task execution (work-order backbone): verify the
+      // internal change persisted and close out execution + task honestly.
+      if ((action as any).execution_id) {
+        try {
+          const { resumeExecutionForAction } =
+            await import("@/lib/hivemind/mind-execution-engine.server");
+          await resumeExecutionForAction(sb, workspaceId, action as any, result);
+        } catch (resumeErr: any) {
+          // The action itself executed — never undo it; surface the resume
+          // failure on the execution row instead. Move the execution out of
+          // awaiting_action_approval so the lifecycle isn't silently stranded
+          // (blocked is retryable via Approve & Run).
+          const resumeMsg = `Resume after action approval failed: ${resumeErr?.message ?? String(resumeErr)}`;
+          const execId = (action as any).execution_id;
+          await sb.from("mind_task_executions").update({
+            status: "blocked",
+            blocked_reason: resumeMsg,
+            error_message: resumeMsg,
+            updated_at: new Date().toISOString(),
+          }).eq("id", execId).eq("workspace_id", workspaceId)
+            .in("status", ["awaiting_action_approval", "verifying"]);
+          const taskIdForResume = (action as any).task_id;
+          if (taskIdForResume) {
+            await sb.from("hivemind_tasks").update({
+              execution_status: "blocked", updated_at: new Date().toISOString(),
+            }).eq("id", taskIdForResume).eq("workspace_id", workspaceId)
+              .in("execution_status", ["awaiting_action_approval", "executing"]);
+          }
+        }
       }
       return { ok: true, result };
     } catch (err: any) {

@@ -8853,6 +8853,7 @@ export type Database = {
           description: string | null
           error_message: string | null
           executed_at: string | null
+          execution_id: string | null
           expected_result: string | null
           id: string
           new_state: Json | null
@@ -8867,8 +8868,10 @@ export type Database = {
           sensitive_category: string | null
           source_recommendation_id: string | null
           status: string
+          task_id: string | null
           title: string
           updated_at: string
+          work_order_id: string | null
           workspace_id: string
         }
         Insert: {
@@ -8882,6 +8885,7 @@ export type Database = {
           description?: string | null
           error_message?: string | null
           executed_at?: string | null
+          execution_id?: string | null
           expected_result?: string | null
           id?: string
           new_state?: Json | null
@@ -8896,8 +8900,10 @@ export type Database = {
           sensitive_category?: string | null
           source_recommendation_id?: string | null
           status?: string
+          task_id?: string | null
           title: string
           updated_at?: string
+          work_order_id?: string | null
           workspace_id: string
         }
         Update: {
@@ -8911,6 +8917,7 @@ export type Database = {
           description?: string | null
           error_message?: string | null
           executed_at?: string | null
+          execution_id?: string | null
           expected_result?: string | null
           id?: string
           new_state?: Json | null
@@ -8925,8 +8932,10 @@ export type Database = {
           sensitive_category?: string | null
           source_recommendation_id?: string | null
           status?: string
+          task_id?: string | null
           title?: string
           updated_at?: string
+          work_order_id?: string | null
           workspace_id?: string
         }
         Relationships: []
@@ -9344,8 +9353,12 @@ export type Database = {
       }
       hivemind_tasks: {
         Row: {
+          action_kind: string | null
+          active_execution_id: string | null
+          assigned_mind: string | null
           assigned_to: string | null
           comments: Json
+          completed_at: string | null
           completion_evidence: Json | null
           created_at: string
           department: string | null
@@ -9357,22 +9370,31 @@ export type Database = {
           entity_type: string | null
           escalated_at: string | null
           evidence: Json | null
+          execution_status: string | null
           id: string
+          input_spec: Json | null
           metadata: Json | null
           priority: string
           reason: string | null
           reassess_at: string | null
           reopened_count: number
+          result_summary: string | null
           source: string
           status: string
+          task_category: string
           title: string
           trigger_type: string | null
           updated_at: string
+          work_order_id: string | null
           workspace_id: string
         }
         Insert: {
+          action_kind?: string | null
+          active_execution_id?: string | null
+          assigned_mind?: string | null
           assigned_to?: string | null
           comments?: Json
+          completed_at?: string | null
           completion_evidence?: Json | null
           created_at?: string
           department?: string | null
@@ -9384,22 +9406,31 @@ export type Database = {
           entity_type?: string | null
           escalated_at?: string | null
           evidence?: Json | null
+          execution_status?: string | null
           id?: string
+          input_spec?: Json | null
           metadata?: Json | null
           priority?: string
           reason?: string | null
           reassess_at?: string | null
           reopened_count?: number
+          result_summary?: string | null
           source?: string
           status?: string
+          task_category?: string
           title: string
           trigger_type?: string | null
           updated_at?: string
+          work_order_id?: string | null
           workspace_id: string
         }
         Update: {
+          action_kind?: string | null
+          active_execution_id?: string | null
+          assigned_mind?: string | null
           assigned_to?: string | null
           comments?: Json
+          completed_at?: string | null
           completion_evidence?: Json | null
           created_at?: string
           department?: string | null
@@ -9411,17 +9442,22 @@ export type Database = {
           entity_type?: string | null
           escalated_at?: string | null
           evidence?: Json | null
+          execution_status?: string | null
           id?: string
+          input_spec?: Json | null
           metadata?: Json | null
           priority?: string
           reason?: string | null
           reassess_at?: string | null
           reopened_count?: number
+          result_summary?: string | null
           source?: string
           status?: string
+          task_category?: string
           title?: string
           trigger_type?: string | null
           updated_at?: string
+          work_order_id?: string | null
           workspace_id?: string
         }
         Relationships: []
@@ -9826,6 +9862,87 @@ export type Database = {
           title?: string | null
           updated_at?: string
           user_id?: string
+          workspace_id?: string
+        }
+        Relationships: []
+      }
+      mind_task_executions: {
+        Row: {
+          action_kind: string
+          artifacts: Json
+          assigned_mind: string
+          blocked_reason: string | null
+          cost_summary: Json | null
+          created_at: string
+          current_step: number
+          error_message: string | null
+          evidence: Json | null
+          finished_at: string | null
+          id: string
+          input_spec: Json | null
+          linked_action_id: string | null
+          result: Json | null
+          started_at: string | null
+          status: string
+          steps: Json
+          task_id: string
+          trigger_source: string
+          triggered_by_user: string | null
+          updated_at: string
+          verification: Json | null
+          work_order_id: string | null
+          workspace_id: string
+        }
+        Insert: {
+          action_kind: string
+          artifacts?: Json
+          assigned_mind: string
+          blocked_reason?: string | null
+          cost_summary?: Json | null
+          created_at?: string
+          current_step?: number
+          error_message?: string | null
+          evidence?: Json | null
+          finished_at?: string | null
+          id?: string
+          input_spec?: Json | null
+          linked_action_id?: string | null
+          result?: Json | null
+          started_at?: string | null
+          status?: string
+          steps?: Json
+          task_id: string
+          trigger_source?: string
+          triggered_by_user?: string | null
+          updated_at?: string
+          verification?: Json | null
+          work_order_id?: string | null
+          workspace_id: string
+        }
+        Update: {
+          action_kind?: string
+          artifacts?: Json
+          assigned_mind?: string
+          blocked_reason?: string | null
+          cost_summary?: Json | null
+          created_at?: string
+          current_step?: number
+          error_message?: string | null
+          evidence?: Json | null
+          finished_at?: string | null
+          id?: string
+          input_spec?: Json | null
+          linked_action_id?: string | null
+          result?: Json | null
+          started_at?: string | null
+          status?: string
+          steps?: Json
+          task_id?: string
+          trigger_source?: string
+          triggered_by_user?: string | null
+          updated_at?: string
+          verification?: Json | null
+          work_order_id?: string | null
           workspace_id?: string
         }
         Relationships: []
@@ -15309,6 +15426,66 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      work_orders: {
+        Row: {
+          assigned_minds: string[]
+          commercial_objective: string | null
+          completed_at: string | null
+          created_at: string
+          created_by_user_id: string | null
+          evidence: Json | null
+          id: string
+          metadata: Json | null
+          objective: string | null
+          result_summary: string | null
+          source: string
+          source_conversation_id: string | null
+          source_recommendation_id: string | null
+          status: string
+          title: string
+          updated_at: string
+          workspace_id: string
+        }
+        Insert: {
+          assigned_minds?: string[]
+          commercial_objective?: string | null
+          completed_at?: string | null
+          created_at?: string
+          created_by_user_id?: string | null
+          evidence?: Json | null
+          id?: string
+          metadata?: Json | null
+          objective?: string | null
+          result_summary?: string | null
+          source?: string
+          source_conversation_id?: string | null
+          source_recommendation_id?: string | null
+          status?: string
+          title: string
+          updated_at?: string
+          workspace_id: string
+        }
+        Update: {
+          assigned_minds?: string[]
+          commercial_objective?: string | null
+          completed_at?: string | null
+          created_at?: string
+          created_by_user_id?: string | null
+          evidence?: Json | null
+          id?: string
+          metadata?: Json | null
+          objective?: string | null
+          result_summary?: string | null
+          source?: string
+          source_conversation_id?: string | null
+          source_recommendation_id?: string | null
+          status?: string
+          title?: string
+          updated_at?: string
+          workspace_id?: string
+        }
+        Relationships: []
       }
       workflow_blueprints: {
         Row: {

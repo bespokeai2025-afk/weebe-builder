@@ -15,6 +15,13 @@ import {
   addHiveMindTaskComment, deleteHiveMindTask, markHiveMindEventsRead,
   type HiveMindTask, type HiveMindEvent, type TaskStatus, type TaskPriority,
 } from "@/lib/hivemind/hivemind.tasks";
+import { approveAndRunTask, getTaskExecutionDetail } from "@/lib/hivemind/mind-execution-engine.server";
+import { createGadsAnalysisWorkOrder } from "@/lib/hivemind/work-orders.server";
+import {
+  EXECUTION_STATUS_LABELS,
+  type ExecutionStep,
+  type TaskExecutionStatus,
+} from "@/lib/hivemind/execution-state.shared";
 import { Button } from "@/components/ui/button";
 import { RelativeTime } from "@/components/ui/relative-time";
 
@@ -53,6 +60,118 @@ const TRIGGER_LABELS: Record<string, string> = {
   openai_missing:         "AI Setup",
   manual:                 "Manual",
 };
+
+// ── Execution status chips (work-order backbone) ─────────────────────────────
+const EXEC_STATUS_STYLES: Record<string, string> = {
+  draft:                    "bg-slate-500/15 text-slate-400 ring-slate-500/20",
+  awaiting_approval:        "bg-violet-500/15 text-violet-400 ring-violet-500/20",
+  queued:                   "bg-blue-500/15 text-blue-400 ring-blue-500/20",
+  executing:                "bg-amber-500/15 text-amber-400 ring-amber-500/20",
+  awaiting_action_approval: "bg-orange-500/15 text-orange-400 ring-orange-500/20",
+  awaiting_external_result: "bg-orange-500/15 text-orange-400 ring-orange-500/20",
+  verifying:                "bg-cyan-500/15 text-cyan-400 ring-cyan-500/20",
+  completed:                "bg-emerald-500/15 text-emerald-400 ring-emerald-500/20",
+  partially_completed:      "bg-emerald-500/15 text-emerald-300 ring-emerald-500/20",
+  blocked:                  "bg-red-500/15 text-red-400 ring-red-500/20",
+  failed:                   "bg-red-500/15 text-red-400 ring-red-500/20",
+  cancelled:                "bg-slate-500/15 text-slate-400 ring-slate-500/20",
+};
+
+const STEP_ICON_STYLES: Record<string, string> = {
+  pending: "text-muted-foreground/40",
+  running: "text-amber-400",
+  done:    "text-emerald-400",
+  skipped: "text-slate-400",
+  blocked: "text-red-400",
+  failed:  "text-red-400",
+};
+
+function ExecStatusChip({ status }: { status?: string | null }) {
+  if (!status) return null;
+  const label = EXECUTION_STATUS_LABELS[status as TaskExecutionStatus] ?? status;
+  return (
+    <span className={cn(
+      "inline-flex items-center rounded-full px-1.5 py-0.5 text-[10px] font-medium ring-1",
+      EXEC_STATUS_STYLES[status] ?? "bg-white/[0.06] text-muted-foreground ring-white/[0.1]",
+    )}>
+      {label}
+    </span>
+  );
+}
+
+// ── Execution detail panel (steps, linked action, evidence) ──────────────────
+function ExecutionPanel({ task }: { task: HiveMindTask }) {
+  const execFn = useServerFn(getTaskExecutionDetail);
+  const isLive = ["queued", "executing", "verifying"].includes(task.execution_status ?? "");
+  const { data } = useQuery({
+    queryKey: ["hivemind-task-execution", task.id, task.execution_status],
+    queryFn: () => execFn({ data: { taskId: task.id } }),
+    staleTime: 15_000,
+    refetchInterval: isLive ? 4000 : false,
+    throwOnError: false,
+  });
+  const latest = data?.latest;
+  const steps: ExecutionStep[] = Array.isArray(latest?.steps) ? latest.steps : [];
+  if (!latest && !task.result_summary) {
+    return (
+      <p className="text-[11px] text-muted-foreground italic">
+        No execution yet — approve &amp; run to start.
+      </p>
+    );
+  }
+  return (
+    <div className="space-y-2.5">
+      {steps.length > 0 && (
+        <div className="space-y-1">
+          {steps.map((s) => (
+            <div key={s.key} className="flex items-start gap-2">
+              {s.status === "running"
+                ? <Loader2 className="h-3 w-3 mt-0.5 animate-spin text-amber-400 shrink-0" />
+                : s.status === "done"
+                  ? <Check className="h-3 w-3 mt-0.5 text-emerald-400 shrink-0" />
+                  : s.status === "failed" || s.status === "blocked"
+                    ? <AlertTriangle className="h-3 w-3 mt-0.5 text-red-400 shrink-0" />
+                    : <Clock className={cn("h-3 w-3 mt-0.5 shrink-0", STEP_ICON_STYLES[s.status] ?? "text-muted-foreground/40")} />}
+              <div className="min-w-0">
+                <p className={cn("text-[11px]", s.status === "pending" ? "text-muted-foreground/50" : "text-foreground")}>
+                  {s.label}
+                </p>
+                {s.detail && <p className="text-[10px] text-muted-foreground/70">{s.detail}</p>}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+      {latest?.blocked_reason && (
+        <p className="text-[11px] text-red-400/90 bg-red-500/[0.06] border border-red-500/20 rounded-lg px-2.5 py-1.5">
+          Blocked: {latest.blocked_reason}
+        </p>
+      )}
+      {latest?.error_message && (
+        <p className="text-[11px] text-red-400/90 bg-red-500/[0.06] border border-red-500/20 rounded-lg px-2.5 py-1.5">
+          {latest.error_message}
+        </p>
+      )}
+      {data?.linkedAction && (
+        <a
+          href="/hivemind/actions"
+          className="flex items-center gap-2 rounded-lg border border-orange-500/20 bg-orange-500/[0.06] px-2.5 py-1.5 text-[11px] text-orange-300 hover:bg-orange-500/[0.12] transition-colors"
+        >
+          <Zap className="h-3 w-3 shrink-0" />
+          <span className="min-w-0 truncate">
+            Linked action: {data.linkedAction.title} — {data.linkedAction.status}
+          </span>
+          <ArrowRight className="h-3 w-3 ml-auto shrink-0" />
+        </a>
+      )}
+      {task.result_summary && (
+        <p className="text-[11px] text-emerald-300/90 bg-emerald-500/[0.06] border border-emerald-500/20 rounded-lg px-2.5 py-1.5">
+          {task.result_summary}
+        </p>
+      )}
+    </div>
+  );
+}
 
 function fmtDueDate(iso: string) {
   return new Date(iso).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
@@ -111,6 +230,7 @@ function TaskCard({
   onDelete,
   onUpdate,
   onAddComment,
+  onApproveRun,
   isMutating,
 }: {
   task:          HiveMindTask;
@@ -118,6 +238,7 @@ function TaskCard({
   onDelete:      (id: string) => void;
   onUpdate:      (id: string, fields: Partial<HiveMindTask>) => void;
   onAddComment:  (taskId: string, text: string) => void;
+  onApproveRun:  (id: string) => void;
   isMutating:    boolean;
 }) {
   const [open, setOpen]           = useState(false);
@@ -137,7 +258,13 @@ function TaskCard({
     completed:   null,
   };
 
-  const nextAction = NEXT_STATUS[task.status];
+  const isExecutable = task.task_category === "executable";
+  const execStatus = task.execution_status ?? null;
+  const canApproveRun = isExecutable &&
+    ["awaiting_approval", "draft", "blocked", "failed"].includes(execStatus ?? "");
+  const isRunning = isExecutable && ["queued", "executing", "verifying"].includes(execStatus ?? "");
+  // Executable tasks are driven by the execution engine, not manual status moves.
+  const nextAction = isExecutable ? null : NEXT_STATUS[task.status];
 
   function saveAssign() {
     onUpdate(task.id, { assigned_to: assignVal || null });
@@ -223,6 +350,22 @@ function TaskCard({
 
         {/* Actions */}
         <div className="flex items-center gap-1.5 shrink-0">
+          {isExecutable && <ExecStatusChip status={execStatus} />}
+          {canApproveRun && (
+            <button
+              onClick={() => onApproveRun(task.id)}
+              disabled={isMutating}
+              className="flex items-center gap-1 rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-1 text-[11px] font-medium text-emerald-400 hover:bg-emerald-500/20 transition-all disabled:opacity-40"
+            >
+              <Zap className="h-3 w-3" />
+              {["blocked", "failed"].includes(execStatus ?? "") ? "Retry" : "Approve & Run"}
+            </button>
+          )}
+          {isRunning && (
+            <span className="flex items-center gap-1 text-[11px] text-amber-400">
+              <Loader2 className="h-3 w-3 animate-spin" /> Running
+            </span>
+          )}
           {nextAction && (
             <button
               onClick={() => onStatusChange(task.id, nextAction.next)}
@@ -248,6 +391,16 @@ function TaskCard({
           {/* Description */}
           {task.description && (
             <p className="text-xs text-muted-foreground leading-relaxed">{task.description}</p>
+          )}
+
+          {/* Execution detail (executable tasks) */}
+          {isExecutable && (
+            <div>
+              <label className="text-[10px] text-muted-foreground uppercase tracking-wide mb-1.5 block">
+                Execution{task.assigned_mind ? ` — ${task.assigned_mind}` : ""}
+              </label>
+              <ExecutionPanel task={task} />
+            </div>
           )}
 
           {/* Metadata */}
@@ -330,6 +483,7 @@ function TaskCard({
           </div>
 
           {/* Status selector */}
+          {!isExecutable && (
           <div>
             <label className="text-[10px] text-muted-foreground uppercase tracking-wide mb-1.5 block">Status</label>
             <div className="flex gap-1.5">
@@ -350,6 +504,7 @@ function TaskCard({
               ))}
             </div>
           </div>
+          )}
 
           {/* Comments */}
           <div>
@@ -492,6 +647,8 @@ function HiveMindTasks() {
   const commentFn    = useServerFn(addHiveMindTaskComment);
   const deleteFn     = useServerFn(deleteHiveMindTask);
   const markReadFn   = useServerFn(markHiveMindEventsRead);
+  const approveRunFn = useServerFn(approveAndRunTask);
+  const newAnalysisFn = useServerFn(createGadsAnalysisWorkOrder);
 
   const [activeTab, setActiveTab] = useState<TaskStatus>("suggested");
   const [scanning,  setScanning]  = useState(false);
@@ -563,6 +720,42 @@ function HiveMindTasks() {
     await refetch();
   }
 
+  async function handleApproveRun(id: string) {
+    setMutating(true); setScanMsg(null);
+    try {
+      await refetch(); // show queued/executing state promptly
+      const runPromise = approveRunFn({ data: { taskId: id } });
+      // Poll while the execution runs so step progress is visible.
+      const poll = setInterval(() => { void refetch(); void qc.invalidateQueries({ queryKey: ["hivemind-task-execution", id] }); }, 3000);
+      try {
+        await runPromise;
+        setScanMsg("Execution finished — see the task for results");
+      } finally {
+        clearInterval(poll);
+        await refetch();
+        void qc.invalidateQueries({ queryKey: ["hivemind-task-execution", id] });
+      }
+      setTimeout(() => setScanMsg(null), 6000);
+    } catch (err: any) {
+      setScanMsg(null);
+      alert(err?.message ?? "Failed to run task");
+      await refetch();
+    } finally { setMutating(false); }
+  }
+
+  async function handleNewAnalysis() {
+    setMutating(true);
+    try {
+      await newAnalysisFn({ data: {} });
+      setActiveTab("suggested");
+      await refetch();
+      setScanMsg("Google Ads analysis task created — approve & run it below");
+      setTimeout(() => setScanMsg(null), 6000);
+    } catch (err: any) {
+      alert(err?.message ?? "Failed to create analysis task");
+    } finally { setMutating(false); }
+  }
+
   return (
     <HiveMindShell>
       {/* Header */}
@@ -587,6 +780,14 @@ function HiveMindTasks() {
           >
             {scanning ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Zap className="h-3.5 w-3.5" />}
             Scan
+          </button>
+          <button
+            onClick={handleNewAnalysis}
+            disabled={mutating}
+            className="flex items-center gap-1.5 rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-1.5 text-xs font-medium text-emerald-400 hover:bg-emerald-500/20 transition-all disabled:opacity-40"
+          >
+            <Zap className="h-3.5 w-3.5" />
+            Ads Analysis
           </button>
           <button
             onClick={() => setShowCreate(true)}
@@ -674,6 +875,7 @@ function HiveMindTasks() {
                 onDelete={handleDelete}
                 onUpdate={handleUpdate}
                 onAddComment={handleAddComment}
+                onApproveRun={handleApproveRun}
                 isMutating={mutating}
               />
             ))}
