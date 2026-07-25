@@ -55,6 +55,7 @@ const INTELLIGENCE_NAV = [
   { label: "Forecast",        href: "/growthmind/forecast",       icon: LineChart },
   { label: "Playbooks",       href: "/growthmind/playbooks",      icon: BookOpen },
   { label: "SEO",             href: "/growthmind/seo",            icon: Search },
+  { label: "SEO Department",  href: "/growthmind/seo-department", icon: Search, highlight: true },
   { label: "Competitors",     href: "/growthmind/competitors",    icon: Swords },
 ];
 

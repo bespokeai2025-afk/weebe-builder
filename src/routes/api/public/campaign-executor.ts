@@ -32,6 +32,7 @@ import { runAdsSyncTick } from "@/lib/growthmind/growthmind.ads-sync-tick";
 import { runAccountsMindTick } from "@/lib/accountsmind/executor";
 import { runProactiveTick } from "@/lib/hivemind/proactive-engine";
 import { runTrendDiscoveryTick } from "@/lib/growthmind/trend-discovery.server";
+import { runGscSyncTick } from "@/lib/growthmind/gsc-sync-core";
 
 export const Route = createFileRoute("/api/public/campaign-executor")({
   server: {
@@ -98,6 +99,19 @@ export const Route = createFileRoute("/api/public/campaign-executor")({
               ` alerts=${accountsTick.alertsGenerated} hivemind_tasks=${accountsTick.hivemindTasksPosted}` +
               (accountsTick.failed.length ? ` failed=${accountsTick.failed.length}` : ""),
             );
+          }
+
+          // Search Console incremental sync (daily per workspace; no-ops
+          // until next_sync_at is due). Best-effort.
+          try {
+            const gsc = await runGscSyncTick();
+            if (gsc.ran.length || gsc.failed.length) {
+              console.log(
+                `[gsc-sync] ran=${gsc.ran.length} skipped=${gsc.skipped} failed=${gsc.failed.length}`,
+              );
+            }
+          } catch (e: any) {
+            console.warn("[gsc-sync] tick failed:", e?.message ?? e);
           }
 
           // Daily AccountsMind metric snapshots (once per workspace per UTC

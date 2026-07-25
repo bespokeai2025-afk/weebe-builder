@@ -28,6 +28,7 @@ export const SENSITIVE_ACTIONS: Record<string, SensitiveCategory> = {
   activate_lead_intake_workflow: "client_communication",
   activate_systemmind_automation:"deployment",
   review_client_pricing:         "billing",
+  seo_campaign_approval:         "campaign",
 };
 
 export function isSensitiveActionType(actionType: string): boolean {

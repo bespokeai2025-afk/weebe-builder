@@ -18,7 +18,8 @@ export type ActionType     =
   | "sync_ad_stats"
   | "send_workflow_draft_to_builder"
   | "activate_lead_intake_workflow"
-  | "activate_systemmind_automation";
+  | "activate_systemmind_automation"
+  | "seo_campaign_approval";
 
 export interface HiveMindAction {
   id:             string;
@@ -482,6 +483,25 @@ export async function executeAction(sb: any, workspaceId: string, action: HiveMi
         "User",
       );
       return { workflow_id: result.workflow_id, draft_id: result.draft_id };
+    }
+
+    case "seo_campaign_approval": {
+      const campaignId = String(p.campaignId ?? "");
+      const stage = String(p.stage ?? "");
+      if (!campaignId || !stage) throw new Error("campaignId and stage required");
+      const { advanceSeoCampaign } = await import(
+        "@/lib/growthmind/seo-blog-campaign.server"
+      );
+      // Stage + campaign ownership are re-validated inside advanceSeoCampaign;
+      // it only moves the campaign one approved stage forward.
+      const result = await advanceSeoCampaign(
+        workspaceId,
+        campaignId,
+        stage as any,
+        (action as any).approved_by ?? null,
+      );
+      if (!result.ok) throw new Error(result.error ?? "SEO stage approval failed");
+      return { campaignId, stage, status: (result as any).status ?? null };
     }
 
     default:

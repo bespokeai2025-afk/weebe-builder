@@ -73,6 +73,7 @@ import { Route as LovableEmailSuppressionRouteImport } from './routes/lovable/em
 import { Route as ApiWebhookWatiInboundRouteImport } from './routes/api/webhook/wati-inbound'
 import { Route as ApiWebhookCustomTelemetryRouteImport } from './routes/api/webhook/custom-telemetry'
 import { Route as ApiV1WebhooksRouteImport } from './routes/api/v1/webhooks'
+import { Route as ApiV1SeoRouteImport } from './routes/api/v1/seo'
 import { Route as ApiV1ProviderUsageRouteImport } from './routes/api/v1/provider-usage'
 import { Route as ApiV1ProfitabilityRouteImport } from './routes/api/v1/profitability'
 import { Route as ApiV1LeadsRouteImport } from './routes/api/v1/leads'
@@ -173,6 +174,7 @@ import { Route as AuthenticatedGrowthmindStrategyCentreRouteImport } from './rou
 import { Route as AuthenticatedGrowthmindStrategyRouteImport } from './routes/_authenticated/growthmind.strategy'
 import { Route as AuthenticatedGrowthmindSocialAccountsRouteImport } from './routes/_authenticated/growthmind.social-accounts'
 import { Route as AuthenticatedGrowthmindSettingsRouteImport } from './routes/_authenticated/growthmind.settings'
+import { Route as AuthenticatedGrowthmindSeoDepartmentRouteImport } from './routes/_authenticated/growthmind.seo-department'
 import { Route as AuthenticatedGrowthmindSeoRouteImport } from './routes/_authenticated/growthmind.seo'
 import { Route as AuthenticatedGrowthmindScriptPerformanceRouteImport } from './routes/_authenticated/growthmind.script-performance'
 import { Route as AuthenticatedGrowthmindReportsRouteImport } from './routes/_authenticated/growthmind.reports'
@@ -637,6 +639,11 @@ const ApiWebhookCustomTelemetryRoute =
 const ApiV1WebhooksRoute = ApiV1WebhooksRouteImport.update({
   id: '/api/v1/webhooks',
   path: '/api/v1/webhooks',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiV1SeoRoute = ApiV1SeoRouteImport.update({
+  id: '/api/v1/seo',
+  path: '/api/v1/seo',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiV1ProviderUsageRoute = ApiV1ProviderUsageRouteImport.update({
@@ -1212,6 +1219,12 @@ const AuthenticatedGrowthmindSettingsRoute =
   AuthenticatedGrowthmindSettingsRouteImport.update({
     id: '/settings',
     path: '/settings',
+    getParentRoute: () => AuthenticatedGrowthmindRoute,
+  } as any)
+const AuthenticatedGrowthmindSeoDepartmentRoute =
+  AuthenticatedGrowthmindSeoDepartmentRouteImport.update({
+    id: '/seo-department',
+    path: '/seo-department',
     getParentRoute: () => AuthenticatedGrowthmindRoute,
   } as any)
 const AuthenticatedGrowthmindSeoRoute =
@@ -2075,6 +2088,7 @@ export interface FileRoutesByFullPath {
   '/growthmind/reports': typeof AuthenticatedGrowthmindReportsRoute
   '/growthmind/script-performance': typeof AuthenticatedGrowthmindScriptPerformanceRoute
   '/growthmind/seo': typeof AuthenticatedGrowthmindSeoRoute
+  '/growthmind/seo-department': typeof AuthenticatedGrowthmindSeoDepartmentRoute
   '/growthmind/settings': typeof AuthenticatedGrowthmindSettingsRoute
   '/growthmind/social-accounts': typeof AuthenticatedGrowthmindSocialAccountsRoute
   '/growthmind/strategy': typeof AuthenticatedGrowthmindStrategyRoute
@@ -2175,6 +2189,7 @@ export interface FileRoutesByFullPath {
   '/api/v1/leads': typeof ApiV1LeadsRoute
   '/api/v1/profitability': typeof ApiV1ProfitabilityRoute
   '/api/v1/provider-usage': typeof ApiV1ProviderUsageRoute
+  '/api/v1/seo': typeof ApiV1SeoRoute
   '/api/v1/webhooks': typeof ApiV1WebhooksRoute
   '/api/webhook/custom-telemetry': typeof ApiWebhookCustomTelemetryRoute
   '/api/webhook/wati-inbound': typeof ApiWebhookWatiInboundRoute
@@ -2364,6 +2379,7 @@ export interface FileRoutesByTo {
   '/growthmind/reports': typeof AuthenticatedGrowthmindReportsRoute
   '/growthmind/script-performance': typeof AuthenticatedGrowthmindScriptPerformanceRoute
   '/growthmind/seo': typeof AuthenticatedGrowthmindSeoRoute
+  '/growthmind/seo-department': typeof AuthenticatedGrowthmindSeoDepartmentRoute
   '/growthmind/settings': typeof AuthenticatedGrowthmindSettingsRoute
   '/growthmind/social-accounts': typeof AuthenticatedGrowthmindSocialAccountsRoute
   '/growthmind/strategy': typeof AuthenticatedGrowthmindStrategyRoute
@@ -2463,6 +2479,7 @@ export interface FileRoutesByTo {
   '/api/v1/leads': typeof ApiV1LeadsRoute
   '/api/v1/profitability': typeof ApiV1ProfitabilityRoute
   '/api/v1/provider-usage': typeof ApiV1ProviderUsageRoute
+  '/api/v1/seo': typeof ApiV1SeoRoute
   '/api/v1/webhooks': typeof ApiV1WebhooksRoute
   '/api/webhook/custom-telemetry': typeof ApiWebhookCustomTelemetryRoute
   '/api/webhook/wati-inbound': typeof ApiWebhookWatiInboundRoute
@@ -2661,6 +2678,7 @@ export interface FileRoutesById {
   '/_authenticated/growthmind/reports': typeof AuthenticatedGrowthmindReportsRoute
   '/_authenticated/growthmind/script-performance': typeof AuthenticatedGrowthmindScriptPerformanceRoute
   '/_authenticated/growthmind/seo': typeof AuthenticatedGrowthmindSeoRoute
+  '/_authenticated/growthmind/seo-department': typeof AuthenticatedGrowthmindSeoDepartmentRoute
   '/_authenticated/growthmind/settings': typeof AuthenticatedGrowthmindSettingsRoute
   '/_authenticated/growthmind/social-accounts': typeof AuthenticatedGrowthmindSocialAccountsRoute
   '/_authenticated/growthmind/strategy': typeof AuthenticatedGrowthmindStrategyRoute
@@ -2761,6 +2779,7 @@ export interface FileRoutesById {
   '/api/v1/leads': typeof ApiV1LeadsRoute
   '/api/v1/profitability': typeof ApiV1ProfitabilityRoute
   '/api/v1/provider-usage': typeof ApiV1ProviderUsageRoute
+  '/api/v1/seo': typeof ApiV1SeoRoute
   '/api/v1/webhooks': typeof ApiV1WebhooksRoute
   '/api/webhook/custom-telemetry': typeof ApiWebhookCustomTelemetryRoute
   '/api/webhook/wati-inbound': typeof ApiWebhookWatiInboundRoute
@@ -2960,6 +2979,7 @@ export interface FileRouteTypes {
     | '/growthmind/reports'
     | '/growthmind/script-performance'
     | '/growthmind/seo'
+    | '/growthmind/seo-department'
     | '/growthmind/settings'
     | '/growthmind/social-accounts'
     | '/growthmind/strategy'
@@ -3060,6 +3080,7 @@ export interface FileRouteTypes {
     | '/api/v1/leads'
     | '/api/v1/profitability'
     | '/api/v1/provider-usage'
+    | '/api/v1/seo'
     | '/api/v1/webhooks'
     | '/api/webhook/custom-telemetry'
     | '/api/webhook/wati-inbound'
@@ -3249,6 +3270,7 @@ export interface FileRouteTypes {
     | '/growthmind/reports'
     | '/growthmind/script-performance'
     | '/growthmind/seo'
+    | '/growthmind/seo-department'
     | '/growthmind/settings'
     | '/growthmind/social-accounts'
     | '/growthmind/strategy'
@@ -3348,6 +3370,7 @@ export interface FileRouteTypes {
     | '/api/v1/leads'
     | '/api/v1/profitability'
     | '/api/v1/provider-usage'
+    | '/api/v1/seo'
     | '/api/v1/webhooks'
     | '/api/webhook/custom-telemetry'
     | '/api/webhook/wati-inbound'
@@ -3545,6 +3568,7 @@ export interface FileRouteTypes {
     | '/_authenticated/growthmind/reports'
     | '/_authenticated/growthmind/script-performance'
     | '/_authenticated/growthmind/seo'
+    | '/_authenticated/growthmind/seo-department'
     | '/_authenticated/growthmind/settings'
     | '/_authenticated/growthmind/social-accounts'
     | '/_authenticated/growthmind/strategy'
@@ -3645,6 +3669,7 @@ export interface FileRouteTypes {
     | '/api/v1/leads'
     | '/api/v1/profitability'
     | '/api/v1/provider-usage'
+    | '/api/v1/seo'
     | '/api/v1/webhooks'
     | '/api/webhook/custom-telemetry'
     | '/api/webhook/wati-inbound'
@@ -3803,6 +3828,7 @@ export interface RootRouteChildren {
   ApiV1LeadsRoute: typeof ApiV1LeadsRoute
   ApiV1ProfitabilityRoute: typeof ApiV1ProfitabilityRoute
   ApiV1ProviderUsageRoute: typeof ApiV1ProviderUsageRoute
+  ApiV1SeoRoute: typeof ApiV1SeoRoute
   ApiV1WebhooksRoute: typeof ApiV1WebhooksRoute
   ApiWebhookCustomTelemetryRoute: typeof ApiWebhookCustomTelemetryRoute
   ApiWebhookWatiInboundRoute: typeof ApiWebhookWatiInboundRoute
@@ -4303,6 +4329,13 @@ declare module '@tanstack/react-router' {
       path: '/api/v1/webhooks'
       fullPath: '/api/v1/webhooks'
       preLoaderRoute: typeof ApiV1WebhooksRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/v1/seo': {
+      id: '/api/v1/seo'
+      path: '/api/v1/seo'
+      fullPath: '/api/v1/seo'
+      preLoaderRoute: typeof ApiV1SeoRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/v1/provider-usage': {
@@ -5003,6 +5036,13 @@ declare module '@tanstack/react-router' {
       path: '/settings'
       fullPath: '/growthmind/settings'
       preLoaderRoute: typeof AuthenticatedGrowthmindSettingsRouteImport
+      parentRoute: typeof AuthenticatedGrowthmindRoute
+    }
+    '/_authenticated/growthmind/seo-department': {
+      id: '/_authenticated/growthmind/seo-department'
+      path: '/seo-department'
+      fullPath: '/growthmind/seo-department'
+      preLoaderRoute: typeof AuthenticatedGrowthmindSeoDepartmentRouteImport
       parentRoute: typeof AuthenticatedGrowthmindRoute
     }
     '/_authenticated/growthmind/seo': {
@@ -6087,6 +6127,7 @@ interface AuthenticatedGrowthmindRouteChildren {
   AuthenticatedGrowthmindReportsRoute: typeof AuthenticatedGrowthmindReportsRoute
   AuthenticatedGrowthmindScriptPerformanceRoute: typeof AuthenticatedGrowthmindScriptPerformanceRoute
   AuthenticatedGrowthmindSeoRoute: typeof AuthenticatedGrowthmindSeoRoute
+  AuthenticatedGrowthmindSeoDepartmentRoute: typeof AuthenticatedGrowthmindSeoDepartmentRoute
   AuthenticatedGrowthmindSettingsRoute: typeof AuthenticatedGrowthmindSettingsRoute
   AuthenticatedGrowthmindSocialAccountsRoute: typeof AuthenticatedGrowthmindSocialAccountsRoute
   AuthenticatedGrowthmindStrategyRoute: typeof AuthenticatedGrowthmindStrategyRoute
@@ -6154,6 +6195,8 @@ const AuthenticatedGrowthmindRouteChildren: AuthenticatedGrowthmindRouteChildren
     AuthenticatedGrowthmindScriptPerformanceRoute:
       AuthenticatedGrowthmindScriptPerformanceRoute,
     AuthenticatedGrowthmindSeoRoute: AuthenticatedGrowthmindSeoRoute,
+    AuthenticatedGrowthmindSeoDepartmentRoute:
+      AuthenticatedGrowthmindSeoDepartmentRoute,
     AuthenticatedGrowthmindSettingsRoute: AuthenticatedGrowthmindSettingsRoute,
     AuthenticatedGrowthmindSocialAccountsRoute:
       AuthenticatedGrowthmindSocialAccountsRoute,
@@ -6788,6 +6831,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiV1LeadsRoute: ApiV1LeadsRoute,
   ApiV1ProfitabilityRoute: ApiV1ProfitabilityRoute,
   ApiV1ProviderUsageRoute: ApiV1ProviderUsageRoute,
+  ApiV1SeoRoute: ApiV1SeoRoute,
   ApiV1WebhooksRoute: ApiV1WebhooksRoute,
   ApiWebhookCustomTelemetryRoute: ApiWebhookCustomTelemetryRoute,
   ApiWebhookWatiInboundRoute: ApiWebhookWatiInboundRoute,

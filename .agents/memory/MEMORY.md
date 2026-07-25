@@ -150,5 +150,6 @@
 - [Mind execution backbone](mind-execution-backbone.md) — executable tasks engine-driven only; CAS claims + orphan reclaim; resume failure → blocked, never stranded; honest advisory-only states.
 - [HiveMind chat-initiated work orders](hivemind-chat-work-orders.md) — chat tools create proposal-only work orders; normalise conversational names; poll bounded window after approve.
 - [HiveMind executive control over GrowthMind](growthmind-executive-control.md) — ~30 registry tools reuse GrowthMind cores; chat function-calling loop with honest statuses; pause flags + objectives + hourly health→task sweep.
+- [SEO Department (GSC + blog campaigns)](seo-department-arch.md) — stage approvals via hivemind_actions (action_payload NOT metadata); new action types need kind+case+sensitive+union; manual-only Lovable deploy; SSRF guard on audit fetches.
 - [GSC OAuth canonical callback](gsc-oauth-canonical-callback.md) — server route /api/oauth/gsc-callback + HMAC state {origin,returnTo}; never use page URLs as redirect URIs; register per-origin in Google console.
 - [Website architecture audit](website-architecture-audit.md) — DoH-based read-only fingerprinting (Lovable=185.158.133.1, Replit=34.111.x); no deploy integration → change packages marked Awaiting Website Deployment.

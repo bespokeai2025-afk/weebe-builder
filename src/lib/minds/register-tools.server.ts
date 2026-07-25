@@ -24,6 +24,8 @@ import { registerMindTool, type MindToolContext, type MindToolRunResult } from "
 import type { MindKey, MindToolCost } from "./tool-registry.shared";
 // HiveMind executive control tools over GrowthMind (registers on import).
 import "@/lib/hivemind/growthmind-control/tools.server";
+// GrowthMind SEO department tools (registers on import).
+import "@/lib/minds/register-seo-tools.server";
 
 // ── HiveMind action kinds (executed via approve flow → registry) ────────────
 interface HiveMindKind {
@@ -54,6 +56,7 @@ const HIVEMIND_ACTION_KINDS: HiveMindKind[] = [
   { type: "send_workflow_draft_to_builder", mind: "systemmind", title: "Send workflow draft to builder", description: "Hand a generated workflow draft to the Workflow Builder.", cost: "none" },
   { type: "activate_lead_intake_workflow", mind: "systemmind", title: "Activate lead-intake workflow", description: "Activate the webform → auto-call lead intake workflow.", cost: "medium" },
   { type: "activate_systemmind_automation", mind: "systemmind", title: "Activate SystemMind automation", description: "Activate an approved SystemMind automation draft.", cost: "medium" },
+  { type: "seo_campaign_approval", mind: "hivemind", title: "Approve SEO campaign stage", description: "Approve one stage of an SEO blog campaign (strategy, brief, content or deployment). Moves the campaign exactly one stage forward; deployment stays a manual Lovable handoff.", cost: "low" },
 ];
 
 function entitlementForActionType(actionType: string): ActionKey | undefined {
