@@ -10063,6 +10063,24 @@ export type Database = {
           },
         ]
       }
+      oauth_state_nonces: {
+        Row: {
+          created_at: string
+          nonce: string
+          purpose: string
+        }
+        Insert: {
+          created_at?: string
+          nonce: string
+          purpose?: string
+        }
+        Update: {
+          created_at?: string
+          nonce?: string
+          purpose?: string
+        }
+        Relationships: []
+      }
       package_definitions: {
         Row: {
           action_access_json: Json
