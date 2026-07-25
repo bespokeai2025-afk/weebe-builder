@@ -6561,6 +6561,228 @@ export type Database = {
           },
         ]
       }
+      growthmind_gsc_inspections: {
+        Row: {
+          coverage_state: string | null
+          created_at: string
+          google_canonical: string | null
+          id: string
+          indexing_state: string | null
+          inspected_at: string
+          last_crawl_time: string | null
+          page_fetch_state: string | null
+          property_url: string
+          raw: Json | null
+          robots_txt_state: string | null
+          updated_at: string
+          url: string
+          user_canonical: string | null
+          verdict: string | null
+          workspace_id: string
+        }
+        Insert: {
+          coverage_state?: string | null
+          created_at?: string
+          google_canonical?: string | null
+          id?: string
+          indexing_state?: string | null
+          inspected_at?: string
+          last_crawl_time?: string | null
+          page_fetch_state?: string | null
+          property_url: string
+          raw?: Json | null
+          robots_txt_state?: string | null
+          updated_at?: string
+          url: string
+          user_canonical?: string | null
+          verdict?: string | null
+          workspace_id: string
+        }
+        Update: {
+          coverage_state?: string | null
+          created_at?: string
+          google_canonical?: string | null
+          id?: string
+          indexing_state?: string | null
+          inspected_at?: string
+          last_crawl_time?: string | null
+          page_fetch_state?: string | null
+          property_url?: string
+          raw?: Json | null
+          robots_txt_state?: string | null
+          updated_at?: string
+          url?: string
+          user_canonical?: string | null
+          verdict?: string | null
+          workspace_id?: string
+        }
+        Relationships: []
+      }
+      growthmind_gsc_performance: {
+        Row: {
+          clicks: number
+          created_at: string
+          ctr: number | null
+          date: string
+          dim_key: string
+          dimension: string
+          id: string
+          impressions: number
+          position: number | null
+          property_url: string
+          updated_at: string
+          workspace_id: string
+        }
+        Insert: {
+          clicks?: number
+          created_at?: string
+          ctr?: number | null
+          date: string
+          dim_key: string
+          dimension: string
+          id?: string
+          impressions?: number
+          position?: number | null
+          property_url: string
+          updated_at?: string
+          workspace_id: string
+        }
+        Update: {
+          clicks?: number
+          created_at?: string
+          ctr?: number | null
+          date?: string
+          dim_key?: string
+          dimension?: string
+          id?: string
+          impressions?: number
+          position?: number | null
+          property_url?: string
+          updated_at?: string
+          workspace_id?: string
+        }
+        Relationships: []
+      }
+      growthmind_gsc_sitemaps: {
+        Row: {
+          contents: Json | null
+          created_at: string
+          errors: number
+          fetched_at: string
+          id: string
+          is_index: boolean
+          is_pending: boolean
+          last_downloaded: string | null
+          last_submitted: string | null
+          path: string
+          property_url: string
+          updated_at: string
+          warnings: number
+          workspace_id: string
+        }
+        Insert: {
+          contents?: Json | null
+          created_at?: string
+          errors?: number
+          fetched_at?: string
+          id?: string
+          is_index?: boolean
+          is_pending?: boolean
+          last_downloaded?: string | null
+          last_submitted?: string | null
+          path: string
+          property_url: string
+          updated_at?: string
+          warnings?: number
+          workspace_id: string
+        }
+        Update: {
+          contents?: Json | null
+          created_at?: string
+          errors?: number
+          fetched_at?: string
+          id?: string
+          is_index?: boolean
+          is_pending?: boolean
+          last_downloaded?: string | null
+          last_submitted?: string | null
+          path?: string
+          property_url?: string
+          updated_at?: string
+          warnings?: number
+          workspace_id?: string
+        }
+        Relationships: []
+      }
+      growthmind_gsc_sync_state: {
+        Row: {
+          baseline_pending: boolean
+          connection: Json | null
+          created_at: string
+          error_message: string | null
+          freshness: Json | null
+          id: string
+          last_complete_date: string | null
+          last_synced_at: string | null
+          next_sync_at: string | null
+          property_url: string
+          quota: Json | null
+          requested_end_date: string | null
+          requested_start_date: string | null
+          retry_state: Json | null
+          rows_imported: number
+          status: string
+          sync_kind: string
+          updated_at: string
+          warnings: Json
+          workspace_id: string
+        }
+        Insert: {
+          baseline_pending?: boolean
+          connection?: Json | null
+          created_at?: string
+          error_message?: string | null
+          freshness?: Json | null
+          id?: string
+          last_complete_date?: string | null
+          last_synced_at?: string | null
+          next_sync_at?: string | null
+          property_url: string
+          quota?: Json | null
+          requested_end_date?: string | null
+          requested_start_date?: string | null
+          retry_state?: Json | null
+          rows_imported?: number
+          status?: string
+          sync_kind?: string
+          updated_at?: string
+          warnings?: Json
+          workspace_id: string
+        }
+        Update: {
+          baseline_pending?: boolean
+          connection?: Json | null
+          created_at?: string
+          error_message?: string | null
+          freshness?: Json | null
+          id?: string
+          last_complete_date?: string | null
+          last_synced_at?: string | null
+          next_sync_at?: string | null
+          property_url?: string
+          quota?: Json | null
+          requested_end_date?: string | null
+          requested_start_date?: string | null
+          retry_state?: Json | null
+          rows_imported?: number
+          status?: string
+          sync_kind?: string
+          updated_at?: string
+          warnings?: Json
+          workspace_id?: string
+        }
+        Relationships: []
+      }
       growthmind_image_assets: {
         Row: {
           asset_type: string
@@ -7693,6 +7915,210 @@ export type Database = {
         }
         Relationships: []
       }
+      growthmind_seo_campaigns: {
+        Row: {
+          approvals: Json
+          blocked_reason: string | null
+          brief: Json | null
+          campaign_type: string
+          competing_pages: Json | null
+          completed_at: string | null
+          content_project_id: string | null
+          created_at: string
+          created_by_user_id: string | null
+          customer_problem: string | null
+          data_limitations: Json
+          deployment_package_id: string | null
+          evidence: Json | null
+          gsc_evidence: Json | null
+          h1: string | null
+          id: string
+          ideal_reader: string | null
+          language: string | null
+          meta_description: string | null
+          meta_title: string | null
+          monitoring: Json | null
+          name: string
+          outline: Json | null
+          page_decision: string | null
+          page_decision_reason: string | null
+          parent_objective: string | null
+          parent_strategy_id: string | null
+          primary_topic: string | null
+          product_service: string | null
+          proposed_title: string | null
+          proposed_url: string | null
+          query_cluster: Json
+          related_pages: Json | null
+          safety_results: Json | null
+          search_intent: string | null
+          status: string
+          target_country: string | null
+          target_industry: string | null
+          task_id: string | null
+          updated_at: string
+          work_order_id: string | null
+          workspace_id: string
+        }
+        Insert: {
+          approvals?: Json
+          blocked_reason?: string | null
+          brief?: Json | null
+          campaign_type?: string
+          competing_pages?: Json | null
+          completed_at?: string | null
+          content_project_id?: string | null
+          created_at?: string
+          created_by_user_id?: string | null
+          customer_problem?: string | null
+          data_limitations?: Json
+          deployment_package_id?: string | null
+          evidence?: Json | null
+          gsc_evidence?: Json | null
+          h1?: string | null
+          id?: string
+          ideal_reader?: string | null
+          language?: string | null
+          meta_description?: string | null
+          meta_title?: string | null
+          monitoring?: Json | null
+          name: string
+          outline?: Json | null
+          page_decision?: string | null
+          page_decision_reason?: string | null
+          parent_objective?: string | null
+          parent_strategy_id?: string | null
+          primary_topic?: string | null
+          product_service?: string | null
+          proposed_title?: string | null
+          proposed_url?: string | null
+          query_cluster?: Json
+          related_pages?: Json | null
+          safety_results?: Json | null
+          search_intent?: string | null
+          status?: string
+          target_country?: string | null
+          target_industry?: string | null
+          task_id?: string | null
+          updated_at?: string
+          work_order_id?: string | null
+          workspace_id: string
+        }
+        Update: {
+          approvals?: Json
+          blocked_reason?: string | null
+          brief?: Json | null
+          campaign_type?: string
+          competing_pages?: Json | null
+          completed_at?: string | null
+          content_project_id?: string | null
+          created_at?: string
+          created_by_user_id?: string | null
+          customer_problem?: string | null
+          data_limitations?: Json
+          deployment_package_id?: string | null
+          evidence?: Json | null
+          gsc_evidence?: Json | null
+          h1?: string | null
+          id?: string
+          ideal_reader?: string | null
+          language?: string | null
+          meta_description?: string | null
+          meta_title?: string | null
+          monitoring?: Json | null
+          name?: string
+          outline?: Json | null
+          page_decision?: string | null
+          page_decision_reason?: string | null
+          parent_objective?: string | null
+          parent_strategy_id?: string | null
+          primary_topic?: string | null
+          product_service?: string | null
+          proposed_title?: string | null
+          proposed_url?: string | null
+          query_cluster?: Json
+          related_pages?: Json | null
+          safety_results?: Json | null
+          search_intent?: string | null
+          status?: string
+          target_country?: string | null
+          target_industry?: string | null
+          task_id?: string | null
+          updated_at?: string
+          work_order_id?: string | null
+          workspace_id?: string
+        }
+        Relationships: []
+      }
+      growthmind_seo_deployment_packages: {
+        Row: {
+          approvals: Json
+          campaign_id: string | null
+          content_project_id: string | null
+          created_at: string
+          created_by_user_id: string | null
+          id: string
+          live_url: string | null
+          manual_instructions: string | null
+          package: Json
+          page_mode: string | null
+          proposed_route: string | null
+          rollback_content: Json | null
+          status: string
+          target_website: string | null
+          updated_at: string
+          validation: Json | null
+          verified_at: string | null
+          version: number
+          work_order_id: string | null
+          workspace_id: string
+        }
+        Insert: {
+          approvals?: Json
+          campaign_id?: string | null
+          content_project_id?: string | null
+          created_at?: string
+          created_by_user_id?: string | null
+          id?: string
+          live_url?: string | null
+          manual_instructions?: string | null
+          package?: Json
+          page_mode?: string | null
+          proposed_route?: string | null
+          rollback_content?: Json | null
+          status?: string
+          target_website?: string | null
+          updated_at?: string
+          validation?: Json | null
+          verified_at?: string | null
+          version?: number
+          work_order_id?: string | null
+          workspace_id: string
+        }
+        Update: {
+          approvals?: Json
+          campaign_id?: string | null
+          content_project_id?: string | null
+          created_at?: string
+          created_by_user_id?: string | null
+          id?: string
+          live_url?: string | null
+          manual_instructions?: string | null
+          package?: Json
+          page_mode?: string | null
+          proposed_route?: string | null
+          rollback_content?: Json | null
+          status?: string
+          target_website?: string | null
+          updated_at?: string
+          validation?: Json | null
+          verified_at?: string | null
+          version?: number
+          work_order_id?: string | null
+          workspace_id?: string
+        }
+        Relationships: []
+      }
       growthmind_seo_sites: {
         Row: {
           ai_rec_at: string | null
@@ -7725,6 +8151,54 @@ export type Database = {
           keywords?: Json
           updated_at?: string
           url?: string
+          workspace_id?: string
+        }
+        Relationships: []
+      }
+      growthmind_seo_teachings: {
+        Row: {
+          campaigns_influenced: Json
+          confidence: number
+          content: string
+          created_at: string
+          expires_at: string | null
+          id: string
+          owner_user_id: string | null
+          result_note: string | null
+          source: string
+          status: string
+          teaching_type: string
+          updated_at: string
+          workspace_id: string
+        }
+        Insert: {
+          campaigns_influenced?: Json
+          confidence?: number
+          content: string
+          created_at?: string
+          expires_at?: string | null
+          id?: string
+          owner_user_id?: string | null
+          result_note?: string | null
+          source?: string
+          status?: string
+          teaching_type: string
+          updated_at?: string
+          workspace_id: string
+        }
+        Update: {
+          campaigns_influenced?: Json
+          confidence?: number
+          content?: string
+          created_at?: string
+          expires_at?: string | null
+          id?: string
+          owner_user_id?: string | null
+          result_note?: string | null
+          source?: string
+          status?: string
+          teaching_type?: string
+          updated_at?: string
           workspace_id?: string
         }
         Relationships: []
