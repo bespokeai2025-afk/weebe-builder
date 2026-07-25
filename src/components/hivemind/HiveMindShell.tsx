@@ -152,7 +152,12 @@ export function HiveMindShell({ children }: { children: React.ReactNode }) {
   const { data: modeData } = useQuery({
     queryKey: ["hivemind-mode"],
     queryFn:  () => modeFn(),
-    staleTime: Infinity,
+    // Not Infinity: a failed fetch (e.g. a stale session right after a
+    // republish) must self-heal instead of pinning a wrong fallback mode for
+    // the whole session — that made the Action Centre disagree with Settings.
+    staleTime: 30_000,
+    retry: 2,
+    refetchOnWindowFocus: true,
     throwOnError: false,
   });
   const mode: HiveMindMode = modeData?.mode ?? "assistant";
