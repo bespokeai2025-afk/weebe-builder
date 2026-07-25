@@ -27,3 +27,9 @@ description: Lovable blog API — content model, dual approvals, honest states, 
 - Contract doc: docs/LOVABLE_BLOG_INTEGRATION_CONTRACT.md; contract tests:
   tests/component/public-content-contract.test.tsx. E2E script pattern: bundle a
   ts script with esbuild --alias:@=./src and run with node (tsc times out).
+
+## Safety-gate self-collision + blocked recovery
+- The duplicate_title check compares against growthmind_content_calendar including the article's OWN linked content project row (title prefixed "[SEO Campaign]" is normalized away), so items created from a campaign self-collide. Fix: runSeoSafetyGate accepts `excludeCalendarIds`; publication adapter passes only the item's own content_studio_project_id.
+- **Why:** the calendar row IS the same campaign's content project — not a real duplicate; campaign-level dup check still excludes only campaignId.
+- `blocked` items may resubmit via requestContentApproval (gate re-runs); previously required a manual status reset.
+- internal_links must be site-relative paths ("/blog/…"), bare slugs fail readiness.

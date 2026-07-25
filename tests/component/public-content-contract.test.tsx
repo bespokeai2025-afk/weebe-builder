@@ -100,6 +100,21 @@ describe("schema-drift + SSRF guards", () => {
     expect(tools).toContain("live_verification_state");
   });
 
+  it("duplicate-title check excludes only the item's own linked calendar row", () => {
+    const seoLib = readFileSync(path.join(root, "src/lib/growthmind/seo-blog-campaign.server.ts"), "utf8");
+    // gate accepts an explicit exclusion list…
+    expect(seoLib).toContain("excludeCalendarIds");
+    expect(seoLib).toMatch(/!excludeCalendar\.has\(c\.id\)/);
+    // …and the publication adapter only ever passes the item's OWN content project
+    expect(engine).toMatch(/excludeCalendarIds:\s*item\.content_studio_project_id\s*\?\s*\[item\.content_studio_project_id\]\s*:\s*\[\]/);
+    // campaign-level duplicate check still active (real duplicates still fail)
+    expect(seoLib).toMatch(/c\.id !== campaignId/);
+  });
+
+  it("blocked items can resubmit for approval (gate re-runs, no manual reset)", () => {
+    expect(engine).toMatch(/\["draft", "updating", "live_verification_failed", "blocked"\]\.includes\(item\.status\)/);
+  });
+
   it("live-verification fetch is SSRF-guarded", () => {
     expect(engine).toContain("isSafeVerificationHost");
     expect(engine).toMatch(/isSafeVerificationHost\(site\.canonical_host\)/);

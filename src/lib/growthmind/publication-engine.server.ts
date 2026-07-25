@@ -57,6 +57,7 @@ export async function runContentSafetyGate(workspaceId: string, itemId: string):
     metaTitle: item.meta_title ?? "",
     metaDescription: item.meta_description ?? "",
     proposedUrl: `/blog/${item.slug}`,
+    excludeCalendarIds: item.content_studio_project_id ? [item.content_studio_project_id] : [],
   });
   const blocks = gate.failures.map((f) => BLOCK_MAP[f.check]).filter(Boolean);
   await sb.from("growthmind_public_content_items").update({
@@ -95,7 +96,7 @@ async function createPublicationApprovalAction(opts: {
 export async function requestContentApproval(workspaceId: string, itemId: string): Promise<{ ok: boolean; state?: string; error?: string }> {
   const item = await getContentItem(workspaceId, itemId);
   if (!item) return { ok: false, error: "Article not found" };
-  if (!["draft", "updating", "live_verification_failed"].includes(item.status)) {
+  if (!["draft", "updating", "live_verification_failed", "blocked"].includes(item.status)) {
     return { ok: false, error: `Article is "${item.status}" — only drafts can be submitted for content approval.` };
   }
   await runContentSafetyGate(workspaceId, itemId);

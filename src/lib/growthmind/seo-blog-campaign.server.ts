@@ -452,7 +452,7 @@ export type SafetyGateResult = {
 export async function runSeoSafetyGate(
   workspaceId: string,
   campaignId: string | null,
-  draft: { title: string; body: string; metaTitle: string; metaDescription: string; proposedUrl?: string | null },
+  draft: { title: string; body: string; metaTitle: string; metaDescription: string; proposedUrl?: string | null; excludeCalendarIds?: string[] },
 ): Promise<SafetyGateResult> {
   const checks: SafetyGateResult["checks"] = [];
   const add = (check: string, passed: boolean, detail: string) => checks.push({ check, passed, detail });
@@ -480,7 +480,8 @@ export async function runSeoSafetyGate(
   ]);
   const norm = (s: string) => s.toLowerCase().replace(/\[.*?\]/g, "").replace(/[^a-z0-9\s]/g, "").trim();
   const draftNorm = norm(draft.title);
-  const dupContent = (calendar ?? []).filter((c: any) => norm(c.title ?? "") === draftNorm);
+  const excludeCalendar = new Set(draft.excludeCalendarIds ?? []);
+  const dupContent = (calendar ?? []).filter((c: any) => !excludeCalendar.has(c.id) && norm(c.title ?? "") === draftNorm);
   const dupCampaign = (campaigns ?? []).filter((c: any) => c.id !== campaignId && norm(c.proposed_title ?? c.name ?? "") === draftNorm);
   add("duplicate_title", dupContent.length === 0 && dupCampaign.length === 0,
     dupContent.length || dupCampaign.length ? "An existing draft or campaign already targets this exact title." : "No duplicate titles found.");
