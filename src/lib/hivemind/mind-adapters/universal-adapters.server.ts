@@ -1043,13 +1043,13 @@ async function runContentAdapter(
 }
 
 async function checkGscConnected(sb: any, workspaceId: string): Promise<boolean> {
-  const { data } = await sb.from("growthmind_gsc_connections")
+  const { data } = await sb.from("growthmind_gsc_sync_state")
     .select("id").eq("workspace_id", workspaceId).limit(1);
   return (data ?? []).length > 0;
 }
 
 async function checkMetaConnected(sb: any, workspaceId: string): Promise<boolean> {
-  const { data } = await sb.from("growthmind_social_accounts")
+  const { data } = await sb.from("growthmind_social_connections")
     .select("id").eq("workspace_id", workspaceId).limit(1);
   return (data ?? []).length > 0;
 }

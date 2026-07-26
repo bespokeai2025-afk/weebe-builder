@@ -216,8 +216,9 @@ export const approveAndRunTask = createServerFn({ method: "POST" })
     if (!meta) throw new Error(`Unknown executable kind: ${task.action_kind}`);
 
     // 2. Permission + entitlement (role ∩ package ∩ override; fail closed).
+    // Derived per-kind from EXECUTABLE_KINDS.mind — never hardcoded to a single mind.
     const { requirePageAccess } = await import("@/lib/permissions/permissions.server");
-    await requirePageAccess(workspaceId, userId, "growthmind" as any, "approve" as any);
+    await requirePageAccess(workspaceId, userId, meta.mind as any, "approve" as any);
 
     // 3. Autonomy mode gate (explicit human approval path).
     const { getHiveMindModeConfig, assertExecutionAllowed } =
@@ -240,8 +241,8 @@ export const approveAndRunTask = createServerFn({ method: "POST" })
         execution_status: "queued", status: "in_progress", updated_at: nowIso,
       })
       .eq("id", task.id).eq("workspace_id", workspaceId)
-      // Claimable only from non-running states (blocked/failed = retry).
-      .in("execution_status", ["awaiting_approval", "draft", "blocked", "failed"])
+      // Claimable only from non-running states (blocked/failed/worker_interrupted = retry).
+      .in("execution_status", ["awaiting_approval", "draft", "blocked", "failed", "worker_interrupted"])
       .select("id");
     if (ce) throw ce;
     let claimedRows = claimed ?? [];

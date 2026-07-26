@@ -480,8 +480,8 @@ describe("HiveMind — cross-channel objective adapter", () => {
       leads: [],
       suppressed_emails: [],
       agents: [],
-      growthmind_gsc_connections: [],
-      growthmind_social_accounts: [],
+      growthmind_gsc_sync_state: [],
+      growthmind_social_connections: [],
       workspace_settings: [],
       mind_task_executions: [],
     });
@@ -494,8 +494,8 @@ describe("HiveMind — cross-channel objective adapter", () => {
       leads: [{ id: "L1", email: "a@x.com", phone: "+44700000000", whatsapp_opt_in: false, status: "active" }],
       suppressed_emails: [],
       agents: [],
-      growthmind_gsc_connections: [],
-      growthmind_social_accounts: [],
+      growthmind_gsc_sync_state: [],
+      growthmind_social_connections: [],
       workspace_settings: [],
       mind_task_executions: [],
       hivemind_actions: [],
@@ -582,7 +582,7 @@ describe("GrowthMind content adapters — provider_action_unsupported when no pr
   it("SEO campaign: no GSC connection → blocked", async () => {
     const { sb } = makeSb({
       growthmind_seo_department_campaigns: [],
-      growthmind_gsc_connections: [],
+      growthmind_gsc_sync_state: [],
       mind_task_executions: [],
     });
     const outcome = await runSeoCampaignExecution(makeCtx(sb));
@@ -592,7 +592,7 @@ describe("GrowthMind content adapters — provider_action_unsupported when no pr
   it("social content: no Meta account → blocked", async () => {
     const { sb } = makeSb({
       content_recommendations: [],
-      growthmind_social_accounts: [],
+      growthmind_social_connections: [],
       mind_task_executions: [],
     });
     const outcome = await runSocialContentExecution(makeCtx(sb));
@@ -602,7 +602,7 @@ describe("GrowthMind content adapters — provider_action_unsupported when no pr
   it("blog article: no Meta account → blocked", async () => {
     const { sb } = makeSb({
       growthmind_blog_campaigns: [],
-      growthmind_social_accounts: [],
+      growthmind_social_connections: [],
       mind_task_executions: [],
     });
     const outcome = await runBlogArticleExecution(makeCtx(sb));
@@ -621,7 +621,7 @@ describe("GrowthMind content adapters — provider_action_unsupported when no pr
   it("SEO campaign: GSC connected + approved items → awaiting_action_approval", async () => {
     const { sb } = makeSb({
       growthmind_seo_department_campaigns: [{ id: "s1", status: "approved", created_at: "2026-07-01" }],
-      growthmind_gsc_connections: [{ id: "g1" }],
+      growthmind_gsc_sync_state: [{ id: "g1" }],
       mind_task_executions: [],
       hivemind_actions: [],
     });
