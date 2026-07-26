@@ -32,7 +32,7 @@ export type FinancialAuditKind =
   | "outgoings_audit";
 
 export const FINANCIAL_AUDIT_STAGES = [
-  { key: "findings_review",  label: "Findings Review",  kind: "review",    finalSend: false },
+  { key: "findings_review",  label: "Findings Review",  kind: "analysis",  finalSend: false },
   { key: "proposed_actions", label: "Proposed Actions", kind: "analysis",  finalSend: false },
   { key: "execute",          label: "Execute Actions",  kind: "execution", finalSend: true  },
 ] as const;
@@ -333,9 +333,17 @@ export async function createFinancialAuditWorkOrderCore(
     : kind === "outgoings_audit" ? await runOutgoingsAudit(sb, workspaceId)
     : await runClientCostingAudit(sb, workspaceId);
 
+  // Evidence/target labelling must match the REAL inspected source per kind.
+  const auditSourceTable =
+    kind === "renewals_audit" ? "accountsmind_recurring_invoices"
+    : kind === "outgoings_audit" ? "provider_usage_log"
+    : "accountsmind_invoices";
   const targets: PacketTarget[] = [{
     domain: "finance",
-    entity_type: kind === "renewals_audit" ? "recurring_invoice_book" : "invoice_book",
+    entity_type:
+      kind === "renewals_audit" ? "recurring_invoice_book"
+      : kind === "outgoings_audit" ? "provider_spend_ledger"
+      : "invoice_book",
     entity_id: workspaceId,
     entity_name: AUDIT_TITLES[kind],
     resolved: true,
@@ -343,13 +351,13 @@ export async function createFinancialAuditWorkOrderCore(
 
   const evidence: PacketEvidence[] = [
     evidenceItem(
-      kind === "renewals_audit" ? "accountsmind_recurring_invoices" : "accountsmind_invoices",
+      auditSourceTable,
       `Inspected ${audit.records_inspected} real record(s); found ${audit.exceptions.length} exception(s). Totals: ${Object.entries(audit.totals).map(([k, v]) => `${k}=${k.endsWith("_cents") ? pounds(v, audit.currency) : v}`).join(", ") || "none"}.`,
       { records_inspected: audit.records_inspected, totals: audit.totals, exception_count: audit.exceptions.length },
     ),
     ...audit.exceptions.slice(0, 25).map((ex) =>
       evidenceItem(
-        kind === "renewals_audit" ? "accountsmind_recurring_invoices" : "accountsmind_invoices",
+        auditSourceTable,
         `${ex.issue} ${ex.commercial_impact}`,
         {
           record_type: ex.record_type, record_id: ex.record_id, reference: ex.reference,
@@ -429,7 +437,7 @@ export async function createFinancialAuditWorkOrderCore(
       },
     },
     packet: stageTasks[0].packet,
-    readiness: "ready_for_review",
+    readiness: "ready_for_analysis_approval",
     stageTasks,
     triggerType: `accountsmind_${kind}`,
   });

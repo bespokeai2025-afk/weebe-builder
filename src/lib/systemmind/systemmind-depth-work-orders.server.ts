@@ -51,10 +51,10 @@ async function packetHelpers() {
 // ── 1. Agent ↔ CRM integration work order ────────────────────────────────────
 
 export const AGENT_CRM_STAGES: DepthStage[] = [
-  { key: "architecture_review", label: "Architecture Review",     kind: "review",    finalSend: false },
+  { key: "architecture_review", label: "Architecture Review",     kind: "analysis",  finalSend: false },
   { key: "field_mapping",       label: "Field Mapping",           kind: "change",    finalSend: false },
   { key: "triggers_webhooks",   label: "Triggers & Webhooks",     kind: "change",    finalSend: false },
-  { key: "test_rollback",       label: "Test Plan & Rollback",    kind: "review",    finalSend: false },
+  { key: "test_rollback",       label: "Test Plan & Rollback",    kind: "analysis",  finalSend: false },
   { key: "apply",               label: "Apply Integration",       kind: "execution", finalSend: true  },
 ];
 
@@ -307,7 +307,7 @@ export async function createAgentCrmIntegrationWorkOrderCore(
       ? "integration_required"
       : !agentResolved
         ? "target_resolution_required"
-        : "ready_for_review",
+        : "ready_for_analysis_approval",
     stageTasks,
     triggerType: "systemmind_agent_crm_integration",
   });
@@ -318,9 +318,9 @@ export async function createAgentCrmIntegrationWorkOrderCore(
 // ── 2. Workflow depth work order ─────────────────────────────────────────────
 
 export const WORKFLOW_DEPTH_STAGES: DepthStage[] = [
-  { key: "workflow_review", label: "Workflow Review",      kind: "review",    finalSend: false },
+  { key: "workflow_review", label: "Workflow Review",      kind: "analysis",  finalSend: false },
   { key: "change_plan",     label: "Change Plan",          kind: "change",    finalSend: false },
-  { key: "test_rollback",   label: "Test Plan & Rollback", kind: "review",    finalSend: false },
+  { key: "test_rollback",   label: "Test Plan & Rollback", kind: "analysis",  finalSend: false },
   { key: "apply",           label: "Apply Changes",        kind: "execution", finalSend: true  },
 ];
 
@@ -461,7 +461,7 @@ export async function createWorkflowDepthWorkOrderCore(
       failed_runs: failedRuns,
     },
     packet: stageTasks[0].packet,
-    readiness: workflowResolved ? "ready_for_review" : "target_resolution_required",
+    readiness: workflowResolved ? "ready_for_analysis_approval" : "target_resolution_required",
     stageTasks,
     triggerType: "systemmind_workflow_depth",
   });

@@ -244,7 +244,7 @@ export async function createCrossChannelObjectiveWorkOrderCore(
       "Approving the strategy never authorises any send/publish; each channel keeps its own blocked launch approval.",
     ],
     approvalScope: {
-      kind: "review",
+      kind: "analysis",
       summary: `Approve the cross-channel strategy for "${objective}" (${justified.length} justified channel(s), ${skipped.length} skipped).`,
       sensitive: false,
     },
@@ -271,7 +271,7 @@ export async function createCrossChannelObjectiveWorkOrderCore(
       reporting_plan: reportingPlan,
     },
     intelligence_packet: parentPacket,
-    readiness_state: justified.length === 0 ? "blocked" : "ready_for_review",
+    readiness_state: justified.length === 0 ? "blocked" : "ready_for_analysis_approval",
     packet_version: parentPacket.version,
   }).select("*").single();
   if (we) throw we;
@@ -325,7 +325,7 @@ export async function createCrossChannelObjectiveWorkOrderCore(
           "Proposal only — launching this channel requires its own approval chain.",
         ],
         approvalScope: {
-          kind: "review",
+          kind: "analysis",
           summary: `Approve the ${CHANNEL_LABELS[j.channel].toLowerCase()} channel plan for "${objective}".`,
           sensitive: false,
         },

@@ -35,6 +35,20 @@ import {
   assessChannelEvidence,
 } from "@/lib/hivemind/cross-channel-work-orders.server";
 import { evidenceItem } from "@/lib/minds/intelligence-packet.server";
+import { isApprovableReadiness } from "@/lib/minds/intelligence-packet.shared";
+
+/** Every non-final stage task must land in an approvable readiness state, or the
+ *  chain stalls (blocked final stages become unreachable). Final stages are
+ *  intentionally blocked behind prior approvals. */
+function expectStageChainApprovable(tasks: any[]) {
+  for (const t of tasks) {
+    if (t.metadata?.final_send_stage) {
+      expect(isApprovableReadiness(t.readiness_state)).toBe(false);
+    } else {
+      expect(isApprovableReadiness(t.readiness_state)).toBe(true);
+    }
+  }
+}
 import { WBAH_WORKSPACE_ID } from "@/lib/wbah-exclusion.shared";
 
 const WS = "11111111-2222-3333-4444-555555555555";
@@ -176,7 +190,8 @@ describe("Agent↔CRM integration work order", () => {
     });
     const res = await createAgentCrmIntegrationWorkOrderCore(sb, WS, null, { agentName: "Ava" });
     expect(res.connected).toBe(true);
-    expect(inserted.work_orders![0].readiness_state).toBe("ready_for_review");
+    expect(inserted.work_orders![0].readiness_state).toBe("ready_for_analysis_approval");
+    expectStageChainApprovable(res.tasks);
     expect(res.fieldMap).toHaveLength(2);
     const mapped = res.fieldMap.find((m: any) => m.variable === "caller_email") as any;
     const unmapped = res.fieldMap.find((m: any) => m.variable === "budget") as any;
@@ -242,7 +257,8 @@ describe("Workflow depth work order", () => {
     });
     const res = await createWorkflowDepthWorkOrderCore(sb, WS, null, {});
     expect(res.workflowResolved).toBe(true);
-    expect(inserted.work_orders![0].readiness_state).toBe("ready_for_review");
+    expect(inserted.work_orders![0].readiness_state).toBe("ready_for_analysis_approval");
+    expectStageChainApprovable(res.tasks);
     expect(inserted.work_orders![0].metadata.failed_runs).toBe(1);
     expect(res.tasks.map((t: any) => t.metadata.approval_stage)).toEqual(WORKFLOW_DEPTH_STAGES.map((s) => s.key));
     const apply = res.tasks[res.tasks.length - 1];
@@ -279,6 +295,7 @@ describe("Financial audit work orders", () => {
     expect(res.audit.totals.overdue_cents).toBe(100000);
 
     expect(res.tasks.map((t: any) => t.metadata.approval_stage)).toEqual(FINANCIAL_AUDIT_STAGES.map((s) => s.key));
+    expectStageChainApprovable(res.tasks);
     const execute = res.tasks[res.tasks.length - 1];
     expect(execute.metadata.final_send_stage).toBe(true);
     expect(execute.intelligence_packet.approval_scope.sensitive).toBe(true);
@@ -343,6 +360,11 @@ describe("Financial audit work orders", () => {
     expect(steady).toBeUndefined();
     expect(res.audit.totals.month_to_date_cents).toBe(1550);
     expect(inserted.work_orders!.length).toBe(1);
+    // Evidence/target labelling must cite the REAL inspected source, not invoices.
+    const pkt = res.tasks[0].intelligence_packet;
+    expect((pkt.targets as any[])[0].entity_type).toBe("provider_spend_ledger");
+    expect((pkt.evidence as any[]).every((e: any) => e.source === "provider_usage_log")).toBe(true);
+    expectStageChainApprovable(res.tasks);
   });
 
   it("clean audit → honest 'no exceptions' diagnosis, still review-gated", async () => {
@@ -520,8 +542,13 @@ describe("Cross-channel objective orchestration", () => {
     // Shared success criteria + reporting recorded on the parent.
     expect(inserted.work_orders![0].metadata.shared_success_criteria.length).toBeGreaterThan(0);
     expect(inserted.work_orders![0].metadata.reporting_plan).toMatch(/every 7 days/i);
-    // Never authorises sending: strategy approval scope is review, not send.
-    expect(res.strategyTask.intelligence_packet.approval_scope.kind).toBe("review");
+    // Never authorises sending: strategy approval is an approvable analysis stage, not a send.
+    expect(res.strategyTask.intelligence_packet.approval_scope.kind).toBe("analysis");
+    expect(isApprovableReadiness(res.strategyTask.readiness_state)).toBe(true);
+    // Channel tasks stay blocked (not approvable) until the strategy is approved.
+    for (const t of res.channelTasks) {
+      expect(isApprovableReadiness(t.readiness_state)).toBe(false);
+    }
   });
 
   it("no justified channels → parent blocked with honest blocker, zero child tasks", async () => {
