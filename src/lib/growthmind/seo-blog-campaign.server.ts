@@ -19,6 +19,7 @@
  *    duplicate/cannibalising topics, invalid metadata.
  */
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
+import { runContentSafetyCheck } from "@/lib/content-safety/universal-content-safety.server";
 
 const sb = supabaseAdmin as any;
 
@@ -493,6 +494,20 @@ export async function runSeoSafetyGate(
   // 5. Minimum substance (no thin content)
   const words = draft.body.split(/\s+/).filter(Boolean).length;
   add("content_depth", words >= 600, `Article body has ${words} words (minimum 600).`);
+
+  // 6. Universal claim checks (fabricated stats, fake testimonials, guarantees, ranking)
+  //    Run the shared gate on the article body; workspace_restrictions and content_depth
+  //    are already handled above with blog-specific thresholds, so we skip those two.
+  try {
+    const claimResult = await runContentSafetyCheck(draft.body, "blog_article", workspaceId);
+    for (const check of claimResult.checks) {
+      if (!["workspace_restrictions", "content_depth"].includes(check.check)) {
+        add(check.check, check.passed, check.detail);
+      }
+    }
+  } catch (e: any) {
+    add("claim_classifier", false, `Claim classification error — treating as failed: ${e?.message ?? String(e)}`);
+  }
 
   const failures = checks.filter((c) => !c.passed).map((c) => ({ check: c.check, detail: c.detail }));
   return { passed: failures.length === 0, checks, failures, ranAt: new Date().toISOString() };

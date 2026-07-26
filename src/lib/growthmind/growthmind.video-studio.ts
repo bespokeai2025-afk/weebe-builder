@@ -646,6 +646,18 @@ export const generateVideo = createServerFn({ method: "POST" })
       }];
     }
 
+    // ── Universal content safety gate (on script text) ─────────────────────
+    let videoScriptSafety: { passed: boolean; violations: string[]; warnings: string[] } = {
+      passed: true, violations: [], warnings: [],
+    };
+    try {
+      const { runContentSafetyCheck } = await import(/* @vite-ignore */ "@/lib/content-safety/universal-content-safety.server");
+      const safetyResult = await runContentSafetyCheck(script, videoType, workspaceId);
+      videoScriptSafety = { passed: safetyResult.passed, violations: safetyResult.violations, warnings: safetyResult.warnings };
+    } catch (e: any) {
+      console.warn("[content-safety] video gate error (non-blocking):", e?.message ?? String(e));
+    }
+
     // ── Step 3: ElevenLabs voiceover (Balanced + Premium) ─────────────────
     let audioUrl: string | null = null;
     if (qualityMode === "balanced" || qualityMode === "premium") {
@@ -828,7 +840,7 @@ export const generateVideo = createServerFn({ method: "POST" })
     }).then(() => {}).catch(() => {});
 
     return {
-      assetId:    inserted.id as string,
+      assetId:          inserted.id as string,
       title,
       script,
       storyboard,
@@ -836,9 +848,12 @@ export const generateVideo = createServerFn({ method: "POST" })
       videoUrl,
       provider,
       qualityMode,
-      costEstimate: totalCost,
-      strategyBrief: strategyResult.text,
-      valuePointUsed: valuePoint || null,
+      costEstimate:     totalCost,
+      strategyBrief:    strategyResult.text,
+      valuePointUsed:   valuePoint || null,
+      safetyPassed:     videoScriptSafety.passed,
+      safetyViolations: videoScriptSafety.violations,
+      safetyWarnings:   videoScriptSafety.warnings,
     };
   });
 

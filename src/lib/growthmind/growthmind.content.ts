@@ -2,6 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { routeGenerate } from "./model-router.server";
+import { runContentSafetyCheck } from "@/lib/content-safety/universal-content-safety.server";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -503,6 +504,20 @@ export const generateContent = createServerFn({ method: "POST" })
     const title = [typeLabel, brief.offer || brief.targetAudience || brief.keyword]
       .filter(Boolean).join(" — ") || typeLabel;
 
+    // ── Universal content safety gate ─────────────────────────────────────────
+    // Best-effort: a gate failure must never block saving the draft — the result
+    // is surfaced to the caller so the UI can flag violations without losing the
+    // generated content.
+    let safetyCheck: { passed: boolean; violations: string[]; warnings: string[] } = {
+      passed: true, violations: [], warnings: [],
+    };
+    try {
+      const result = await runContentSafetyCheck(mainContent, data.contentType, workspaceId);
+      safetyCheck = { passed: result.passed, violations: result.violations, warnings: result.warnings };
+    } catch (e: any) {
+      console.warn("[content-safety] gate error (non-blocking):", e?.message ?? String(e));
+    }
+
     // ── Save asset ────────────────────────────────────────────────────────────
     const assetPayload = {
       workspace_id: workspaceId,
@@ -510,7 +525,7 @@ export const generateContent = createServerFn({ method: "POST" })
       title,
       content_type: data.contentType,
       content:      mainContent,
-      brief:        { ...data },
+      brief:        { ...data, safety_check: safetyCheck },
       seo_data:     seoData,
       status:       "draft",
       is_favourite: false,
@@ -538,16 +553,19 @@ export const generateContent = createServerFn({ method: "POST" })
     });
 
     return {
-      assetId:      inserted.id as string,
+      assetId:          inserted.id as string,
       title,
-      content:      mainContent,
+      content:          mainContent,
       seoData,
       tokensUsed,
-      provider:     routeResult.provider,
-      model:        routeResult.model,
-      costUsd:      routeResult.costUsd,
-      usedFallback: routeResult.usedFallback,
-      fallbackFrom: routeResult.fallbackFrom ?? null,
+      provider:         routeResult.provider,
+      model:            routeResult.model,
+      costUsd:          routeResult.costUsd,
+      usedFallback:     routeResult.usedFallback,
+      fallbackFrom:     routeResult.fallbackFrom ?? null,
+      safetyPassed:     safetyCheck.passed,
+      safetyViolations: safetyCheck.violations,
+      safetyWarnings:   safetyCheck.warnings,
     };
   });
 
