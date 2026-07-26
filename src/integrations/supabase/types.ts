@@ -10260,8 +10260,11 @@ export type Database = {
           execution_status: string | null
           id: string
           input_spec: Json | null
+          intelligence_packet: Json | null
           metadata: Json | null
+          packet_version: number | null
           priority: string
+          readiness_state: string | null
           reason: string | null
           reassess_at: string | null
           reopened_count: number
@@ -10296,8 +10299,11 @@ export type Database = {
           execution_status?: string | null
           id?: string
           input_spec?: Json | null
+          intelligence_packet?: Json | null
           metadata?: Json | null
+          packet_version?: number | null
           priority?: string
+          readiness_state?: string | null
           reason?: string | null
           reassess_at?: string | null
           reopened_count?: number
@@ -10332,8 +10338,11 @@ export type Database = {
           execution_status?: string | null
           id?: string
           input_spec?: Json | null
+          intelligence_packet?: Json | null
           metadata?: Json | null
+          packet_version?: number | null
           priority?: string
+          readiness_state?: string | null
           reason?: string | null
           reassess_at?: string | null
           reopened_count?: number
@@ -16341,8 +16350,11 @@ export type Database = {
           created_by_user_id: string | null
           evidence: Json | null
           id: string
+          intelligence_packet: Json | null
           metadata: Json | null
           objective: string | null
+          packet_version: number | null
+          readiness_state: string | null
           result_summary: string | null
           source: string
           source_conversation_id: string | null
@@ -16360,8 +16372,11 @@ export type Database = {
           created_by_user_id?: string | null
           evidence?: Json | null
           id?: string
+          intelligence_packet?: Json | null
           metadata?: Json | null
           objective?: string | null
+          packet_version?: number | null
+          readiness_state?: string | null
           result_summary?: string | null
           source?: string
           source_conversation_id?: string | null
@@ -16379,8 +16394,11 @@ export type Database = {
           created_by_user_id?: string | null
           evidence?: Json | null
           id?: string
+          intelligence_packet?: Json | null
           metadata?: Json | null
           objective?: string | null
+          packet_version?: number | null
+          readiness_state?: string | null
           result_summary?: string | null
           source?: string
           source_conversation_id?: string | null

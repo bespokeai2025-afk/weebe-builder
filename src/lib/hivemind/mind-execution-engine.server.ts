@@ -166,6 +166,11 @@ export const approveAndRunTask = createServerFn({ method: "POST" })
     if (task.task_category !== "executable") {
       throw new Error("This task is not executable — it has no execution specification.");
     }
+    // Universal quality gate: an executable task may only run when its
+    // intelligence packet reached an approvable readiness state. (Legacy rows
+    // with no packet/readiness predate the gate and are allowed.)
+    const { assertTaskApprovable } = await import("@/lib/minds/intelligence-packet.server");
+    assertTaskApprovable(task);
     const meta = executableKindMeta(task.action_kind);
     if (!meta) throw new Error(`Unknown executable kind: ${task.action_kind}`);
 

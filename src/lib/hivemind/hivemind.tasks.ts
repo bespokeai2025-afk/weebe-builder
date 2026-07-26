@@ -795,12 +795,34 @@ export const runHiveMindScan = createServerFn({ method: "POST" })
     const newTasks:  any[] = [];
     const newEvents: any[] = [];
 
+    // Universal quality gate: scanner findings become INFORMATIONAL tasks
+    // carrying an evidence packet built from the real finding data.
+    const { buildIntelligencePacket, prepareMindTaskInsert, evidenceItem } =
+      await import("@/lib/minds/intelligence-packet.server");
+
     for (const f of findings) {
       const hasTask = existing.some(
         (t: any) => t.trigger_type === f.trigger_type && t.entity_id === f.entity_id
       );
       if (!hasTask) {
-        newTasks.push({
+        const packet = buildIntelligencePacket({
+          mind: "hivemind",
+          objective: f.description.slice(0, 500),
+          intentSource: `platform_scan:${f.trigger_type}`,
+          targets: [{
+            domain: "general",
+            entity_type: f.entity_type,
+            entity_id: f.entity_id,
+            entity_name: f.entity_name,
+            resolved: true,
+          }],
+          evidence: [evidenceItem(
+            `platform_scan:${f.trigger_type}`,
+            f.description,
+            f.metadata ?? null,
+          )],
+        });
+        newTasks.push(prepareMindTaskInsert({
           workspace_id: workspaceId,
           title:        f.title,
           description:  f.description,
@@ -812,7 +834,7 @@ export const runHiveMindScan = createServerFn({ method: "POST" })
           entity_id:    f.entity_id,
           entity_name:  f.entity_name,
           metadata:     f.metadata ?? null,
-        });
+        }, packet));
       }
 
       const hasEvent = recent.some(
@@ -1001,8 +1023,16 @@ export async function createHiveMindTaskCore(
   const { sb, workspaceId } = ctx;
   const { assertProposalAllowed } = await import("@/lib/hivemind/mode-gate.server");
   await assertProposalAllowed(sb, workspaceId);
+  // Explicit human-created manual reminder — permanently labelled Human Task
+  // (bypasses the packet requirement but can never be executable).
+  const { prepareMindTaskInsert } = await import("@/lib/minds/intelligence-packet.server");
+  const row0 = prepareMindTaskInsert(
+    { workspace_id: workspaceId, ...data, status: "suggested", source: "manual" },
+    null,
+    { humanTask: true },
+  );
   const { data: row, error } = await sb.from("hivemind_tasks")
-    .insert({ workspace_id: workspaceId, ...data, status: "suggested", source: "manual" })
+    .insert(row0)
     .select()
     .single();
   if (error) throw error;

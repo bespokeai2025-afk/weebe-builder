@@ -19,6 +19,7 @@
  *     the client can never inject lead_ids or payload contents.
  */
 import type { HiveMindModeConfig } from "./mode-gate.server";
+import { buildIntelligencePacket, evidenceItem } from "@/lib/minds/intelligence-packet.server";
 
 type Sb = any;
 
@@ -53,6 +54,27 @@ export function ruleOfDedupeKey(dedupeKey: string): string {
 
 function taskDraftFor(rec: RecommendationRow): FollowThroughDraft {
   const rule = ruleOfDedupeKey(rec.dedupe_key);
+  // Universal intelligence packet snapshot — carries the recommendation's own
+  // business issue + diagnosis so the created task is never a shallow record.
+  // Built via the shared builder so it can never drift from the contract.
+  const intelligencePacket = buildIntelligencePacket({
+    mind: "hivemind",
+    objective: rec.recommended_action.slice(0, 500),
+    intentSource: `executive_recommendation:${rule}`.slice(0, 200),
+    targets: [{
+      domain: "general",
+      entity_type: "hivemind_recommendation",
+      entity_id: rec.id,
+      entity_name: rec.title.slice(0, 300),
+      resolved: true,
+    }],
+    evidence: [evidenceItem(
+      "hivemind_recommendations",
+      rec.business_issue.slice(0, 2000),
+      { confidence: rec.confidence, department: rec.department, rule },
+    )],
+    diagnosis: rec.business_issue.slice(0, 2000),
+  });
   return {
     action_type: "create_task",
     title: `Task: ${rec.title}`.slice(0, 300),
@@ -67,6 +89,7 @@ function taskDraftFor(rec: RecommendationRow): FollowThroughDraft {
       entity_id: rec.id,
       entity_name: rec.title.slice(0, 300),
       source_recommendation_id: rec.id,
+      intelligence_packet: intelligencePacket,
     },
   };
 }

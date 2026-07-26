@@ -193,7 +193,34 @@ export async function executeAction(sb: any, workspaceId: string, action: HiveMi
     }
 
     case "create_task": {
-      const { data, error } = await sb.from("hivemind_tasks").insert({
+      // Universal quality gate: informational follow-up tasks carry the
+      // packet snapshot supplied by the proposer (recommendation evidence,
+      // scan finding, etc.) or an evidence-light packet built from the
+      // action's own context — never a bare title+description row.
+      const { buildIntelligencePacket, prepareMindTaskInsert, evidenceItem, sanitizeIncomingPacket } =
+        await import("@/lib/minds/intelligence-packet.server");
+      // Payload packets are UNTRUSTED — strict shape validation; malformed
+      // ones are discarded and replaced by a server-built context packet.
+      const packet = sanitizeIncomingPacket(p.intelligence_packet)
+        ?? buildIntelligencePacket({
+            mind: "hivemind",
+            objective: String(p.description ?? p.title ?? "").slice(0, 500) || String(p.title ?? ""),
+            intentSource: `hivemind_action:create_task${p.trigger_type ? `:${p.trigger_type}` : ""}`,
+            targets: [{
+              domain: "general",
+              entity_type: String(p.entity_type ?? "workspace"),
+              entity_id: p.entity_id != null ? String(p.entity_id) : null,
+              entity_name: p.entity_name != null ? String(p.entity_name) : null,
+              resolved: p.entity_id != null,
+              resolution_note: p.entity_id == null ? "No specific entity attached to this follow-up." : null,
+            }],
+            evidence: [evidenceItem(
+              "hivemind_actions",
+              `Created from approved HiveMind action "${String(p.title ?? "")}"${p.trigger_type ? ` (trigger: ${p.trigger_type})` : ""}.`,
+              { trigger_type: p.trigger_type ?? null },
+            )],
+          });
+      const row = prepareMindTaskInsert({
         workspace_id: workspaceId,
         title:        p.title,
         description:  p.description ?? null,
@@ -204,7 +231,8 @@ export async function executeAction(sb: any, workspaceId: string, action: HiveMi
         entity_type:  p.entity_type ?? null,
         entity_id:    p.entity_id ?? null,
         entity_name:  p.entity_name ?? null,
-      }).select().single();
+      }, packet);
+      const { data, error } = await sb.from("hivemind_tasks").insert(row).select().single();
       if (error) throw error;
       return { task_id: data.id };
     }

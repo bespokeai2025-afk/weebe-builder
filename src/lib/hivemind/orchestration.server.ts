@@ -373,24 +373,46 @@ export async function runOrchestrationPlaybook(
         t.dependsOnIndex != null && indexToId[t.dependsOnIndex]
           ? [indexToId[t.dependsOnIndex]]
           : [];
+      // Universal quality gate: playbook tasks are informational and carry a
+      // packet built from the playbook's own real finding evidence.
+      const { buildIntelligencePacket, prepareMindTaskInsert, evidenceItem } =
+        await import("@/lib/minds/intelligence-packet.server");
+      const packet = buildIntelligencePacket({
+        mind: "hivemind",
+        objective: t.description.slice(0, 500),
+        intentSource: `orchestration_playbook:${playbook}`,
+        targets: [{
+          domain: "general",
+          entity_type: t.entityType,
+          entity_id: t.entityId,
+          entity_name: t.entityName,
+          resolved: true,
+        }],
+        evidence: [evidenceItem(
+          `orchestration:${playbook}`,
+          `Playbook finding for ${t.entityType} "${t.entityName}".`,
+          (t.evidence as Record<string, unknown>) ?? null,
+        )],
+      });
+      const insertRow = prepareMindTaskInsert({
+        workspace_id: workspaceId,
+        title: t.title,
+        description: t.description,
+        status: "suggested",
+        priority: t.priority,
+        source: "ai_scan",
+        department: t.department,
+        trigger_type: triggerType,
+        entity_type: t.entityType,
+        entity_id: dedupKey,
+        entity_name: t.entityName,
+        evidence: t.evidence,
+        dependencies,
+        metadata: { orchestration_playbook: playbook, real_entity_id: t.entityId },
+      }, packet);
       const { data: row, error } = await sb
         .from("hivemind_tasks")
-        .insert({
-          workspace_id: workspaceId,
-          title: t.title,
-          description: t.description,
-          status: "suggested",
-          priority: t.priority,
-          source: "ai_scan",
-          department: t.department,
-          trigger_type: triggerType,
-          entity_type: t.entityType,
-          entity_id: dedupKey,
-          entity_name: t.entityName,
-          evidence: t.evidence,
-          dependencies,
-          metadata: { orchestration_playbook: playbook, real_entity_id: t.entityId },
-        })
+        .insert(insertRow)
         .select("id")
         .maybeSingle();
       if (error || !row?.id) continue;

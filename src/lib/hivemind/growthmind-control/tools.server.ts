@@ -699,20 +699,39 @@ registerWrite({
   }),
   run: async (ctx, i: { title: string; description?: string; priority?: string; dueDate?: string }) => {
     const admin = await getAdmin();
+    // Universal quality gate: a title+description directive is NOT a complete
+    // proposal. It lands as a non-approvable investigation-state task — the
+    // marketing Mind must resolve targets and gather evidence before anything
+    // becomes approvable (no fake executable tasks from shallow directives).
+    const { buildInvestigationPacket, prepareMindTaskInsert } =
+      await import("@/lib/minds/intelligence-packet.server");
+    const packet = buildInvestigationPacket({
+      mind: "growthmind",
+      objective: `${i.title}${i.description ? ` — ${i.description}` : ""}`.slice(0, 500),
+      intentSource: "chat_tool:create_growthmind_task",
+      instruction: i.title,
+      missing: [
+        "target resolution (which campaign/audience/asset this applies to)",
+        "evidence retrieval",
+        "diagnosis",
+        "execution plan and approval scope",
+      ],
+    });
+    const row = prepareMindTaskInsert({
+      workspace_id: ctx.workspaceId,
+      title: i.title,
+      description: i.description ?? null,
+      priority: i.priority ?? "medium",
+      status: "suggested",
+      assigned_to: "growthmind",
+      due_date: i.dueDate ?? null,
+      source: "hivemind_tool",
+      trigger_type: "growthmind_directive",
+      entity_type: "growthmind",
+      metadata: { created_via: "hivemind.create_growthmind_task", created_by_user: ctx.userId },
+    }, packet);
     const { data, error } = await admin.from("hivemind_tasks")
-      .insert({
-        workspace_id: ctx.workspaceId,
-        title: i.title,
-        description: i.description ?? null,
-        priority: i.priority ?? "medium",
-        status: "suggested",
-        assigned_to: "growthmind",
-        due_date: i.dueDate ?? null,
-        source: "hivemind_tool",
-        trigger_type: "growthmind_directive",
-        entity_type: "growthmind",
-        metadata: { created_via: "hivemind.create_growthmind_task", created_by_user: ctx.userId },
-      })
+      .insert(row)
       .select("id").single();
     if (error) throw new Error(error.message);
     return { result: { taskId: data.id }, affectedRecordType: "hivemind_tasks", affectedRecordId: data.id };
