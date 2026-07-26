@@ -1,0 +1,160 @@
+# TARGETED WBAH HIVEMIND CALLS SOURCE FIX
+
+Fix only the remaining WBAH HiveMind call-activity defect identified by the verification report.
+
+Do not modify:
+
+- People → Calls
+- Sidebar Calls page
+- Retell ingestion
+- WBAH lead logic
+- WBAH booking logic
+- Calendar logic
+- Other workspaces
+- Task execution systems
+- SEO/content systems
+- Unrelated files
+
+## Confirmed root cause
+
+In `fetchFullPlatformData`, the calls block still reads the standard `calls` table for every workspace.
+
+For WBAH:
+
+- Standard `calls` table has 89 lifetime rows and 0 today.
+- Real WBAH calls are stored in `wbah_calls`.
+- `wbah_calls` has 720 calls today.
+- HiveMind therefore incorrectly says there were no calls.
+
+The existing `isWbah` branch already overrides leads and bookings correctly, but it does not override the calls block.
+
+## Required fix
+
+Extend the existing `isWbah` branch so all WBAH call metrics come from `wbah_calls`.
+
+Use the configured WBAH timezone:
+
+`Europe/London`
+
+Do not use:
+
+`setHours(0,0,0,0)`
+
+Build the correct London-local day window and convert it to UTC before querying.
+
+For the verified day, the window was:
+
+`2026-07-25 23:00 UTC` inclusive  
+to  
+`2026-07-26 23:00 UTC` exclusive
+
+Calculate this dynamically for every date and handle BST/GMT correctly.
+
+## WBAH calls block
+
+Return at minimum:
+
+- total calls today
+- total calls this month
+- voicemail calls today
+- connected/non-voicemail calls today
+- failed calls today
+- positive-sentiment calls today
+- neutral-sentiment calls today
+- negative-sentiment calls today where available
+- qualified calls today using the existing approved WBAH definition
+- newest call sync timestamp
+- source health
+- data freshness
+
+Use the real WBAH call timestamp field already used by the correct Calls pages.
+
+Use the authoritative provider call ID for deduplication where required.
+
+Do not filter total calls by:
+
+- positive sentiment
+- qualified status
+- transcript availability
+- appointment fields
+- completed-only status
+- a single agent
+- a single campaign
+
+## Failure semantics
+
+The result must distinguish:
+
+- successful query with zero rows
+- query failure
+- unavailable source
+- stale data
+
+Only report “0 calls” when a successful fresh query genuinely returns zero.
+
+For failure or unavailable data, pass an explicit warning into HiveMind:
+
+`Current WBAH call activity is unavailable or delayed.`
+
+Do not silently convert an error or inapplicable source into zero.
+
+## HiveMind context
+
+Ensure the platform-data context block contains the corrected WBAH calls metrics.
+
+HiveMind may continue answering from the live context block; a new chat tool is not required for this narrow fix, provided the context is rebuilt live on every message and now uses `wbah_calls`.
+
+## Targeted verification
+
+After the fix, invoke the real `getHiveMindAIResponse` flow authenticated as the WBAH owner and ask:
+
+1. How many calls have we had today?
+2. How many calls were qualified today?
+3. What happened in the business today?
+
+Compare against the authoritative `wbah_calls` query.
+
+For the currently verified snapshot, the expected source values were:
+
+- Total calls today: 720
+- Voicemails today: 418
+- Positive calls today: 1
+- Neutral calls today: 459
+- Newest sync: 18:12 UTC
+
+Do not hardcode these values because they may change before testing.
+
+## Regression tests
+
+Add targeted tests proving:
+
+- WBAH calls use `wbah_calls`
+- Standard workspaces still use `calls`
+- Europe/London BST day boundaries are correct
+- GMT winter boundaries are correct
+- total calls include all outcomes
+- qualified calls remain a subset
+- failed source returns unavailable, not zero
+- HiveMind daily summary includes WBAH calls
+- no cross-workspace data is exposed
+
+## Final report
+
+Return only:
+
+1. Checkpoint reference
+2. Exact file changed
+3. Exact query changed
+4. Previous source
+5. Corrected source
+6. Timezone implementation
+7. Authoritative call count
+8. HiveMind call count after the fix
+9. Qualified count after the fix
+10. General activity answer after the fix
+11. Targeted tests passed
+12. Confirmation no unrelated files changed
+
+Do not run a repository-wide audit.
+Do not perform a broad refactor.
+Do not report completion until HiveMind matches `wbah_calls`.

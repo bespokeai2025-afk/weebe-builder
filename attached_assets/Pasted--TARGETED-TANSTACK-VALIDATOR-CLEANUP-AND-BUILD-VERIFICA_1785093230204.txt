@@ -1,0 +1,144 @@
+# TARGETED TANSTACK VALIDATOR CLEANUP AND BUILD VERIFICATION
+
+Do not modify product behaviour, HiveMind logic, workspace routing, database queries, UI, integrations, or business features.
+
+The project currently produces approximately 776 TanStack deprecation warnings because server functions and middleware still use:
+
+.inputValidator(...)
+
+TanStack now uses:
+
+.validator(...)
+
+The production build reaches:
+
+✓ 4659 modules transformed
+
+but is killed by the validation runner timeout before a confirmed successful build exit.
+
+Treat these as two separate issues:
+
+1. Deprecated validator API cleanup
+2. Production build completion verification
+
+## 1. Create a checkpoint
+
+Before making changes:
+
+- Create a Git checkpoint
+- Report the commit reference
+- Do not reformat unrelated code
+- Do not update packages
+- Do not change validation schemas or business logic
+
+## 2. Inventory deprecated calls
+
+Find every active use of:
+
+- .inputValidator(
+- inputValidator:
+
+Report:
+
+- Total occurrences
+- Files affected
+- Whether each occurrence belongs to createServerFn or middleware
+- Any unusual use that cannot be safely renamed mechanically
+
+Do not count generated files, build output, node_modules, archived files, or commented-out code.
+
+## 3. Perform the minimal migration
+
+Replace supported TanStack usages:
+
+.inputValidator(schemaOrFunction)
+
+with:
+
+.validator(schemaOrFunction)
+
+Preserve exactly:
+
+- Validation schemas
+- Input and output types
+- Authentication middleware
+- Workspace access checks
+- Handler order
+- Error handling
+- Server-function methods
+- Data passed to handlers
+
+Do not weaken validation.
+
+Do not convert validation libraries or rewrite schemas.
+
+For unusual cases, stop and report them instead of guessing.
+
+## 4. Verify the migration
+
+Run:
+
+- TypeScript checking
+- Targeted server-function tests
+- Existing component tests
+- Search confirming no active inputValidator calls remain
+
+Confirm that calls still receive validated data through the normal `data` field.
+
+## 5. Run one measured production build
+
+Run one production build with:
+
+- No tests in parallel
+- Clean Vite/build cache
+- A reasonable extended timeout
+- Timestamped phase logging
+- CPU and memory observation
+
+Report the time spent in:
+
+- Client transformation
+- SSR transformation
+- Chunk rendering
+- Minification
+- Output writing
+- Any post-build steps
+
+A successful result requires:
+
+- Exit code 0
+- Final build output written
+- Expected client and server artifacts present
+- No deprecated inputValidator warnings
+
+Do not claim success merely because modules were transformed.
+
+## 6. If the build still stalls
+
+If it still fails to finish after the warnings are removed:
+
+- Stop after one attempt
+- Identify the exact final phase
+- Report CPU and memory state
+- Report the last plugin/module/chunk
+- Investigate SSR chunk rendering, circular imports, oversized server bundles, build-time side effects, and post-build hooks
+
+Do not repeatedly rerun the same build.
+
+## Final report
+
+Return only:
+
+1. Checkpoint reference
+2. Number of deprecated calls found
+3. Number migrated
+4. Exceptional cases
+5. Exact files changed
+6. Type-check result
+7. Test result
+8. Remaining warning count
+9. Build phases and durations
+10. Final exit code
+11. Whether deployment artifacts were produced
+12. Remaining cause if the build still times out
+13. Confirmation that business behaviour was not changed
