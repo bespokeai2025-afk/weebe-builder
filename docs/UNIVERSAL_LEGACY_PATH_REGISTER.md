@@ -39,6 +39,26 @@ status changes on executable tasks are already rejected by `updateHiveMindTaskCo
 phases (per-channel builders) migrate rows 9–17 onto `prepareMindTaskInsert` as each department
 gains its own packet builders.
 
+## Stored legacy rows (Task #490 migration engine)
+Rows already sitting in `hivemind_tasks` without a packet are handled by
+`src/lib/minds/legacy-task-migration.server.ts` (`hivemind.classify_legacy_tasks` /
+`hivemind.migrate_legacy_tasks` chat tools):
+- Deterministic 7-class classifier: Invalid / Human Task / Obsolete (closed or stale) /
+  Duplicate / Superseded / Missing Context / Convertible.
+- Convertible rows are upgraded in place with a packet built ONLY from the row's own fields,
+  `task_category = informational`, `action_kind = NULL` — migrated rows are **never executable**
+  and are never auto-executed.
+- Obsolete/duplicate/superseded rows are dismissed with `metadata.legacy_migration` labels;
+  Missing Context / Human Task / Invalid rows are labelled but left untouched.
+- WBAH workspace is hard-excluded from migration.
+
+## New depth creation paths (Task #490 — all packet-backed via `prepareMindTaskInsert`)
+| Path | Mind | Notes |
+|------|------|-------|
+| `systemmind/systemmind-depth-work-orders.server.ts` (agent↔CRM + workflow depth) | systemmind | Staged work orders (5-stage CRM integration, 4-stage workflow depth); Apply stage blocked behind prior approvals + sensitive; readiness `integration_required` / `target_resolution_required` / `ready_for_review`. |
+| `accountsmind/financial-audit-work-orders.server.ts` | accountsmind | Typed audits (invoice / outgoings / renewals / client costing) from real rows; exceptions carry exact cents, commercial impact, proposed action, approval requirement; Execute stage blocked + sensitive (`billing`). |
+| `hivemind/cross-channel-work-orders.server.ts` | hivemind | ONE parent work order per objective; strategy task + dependency-linked child channel tasks only for evidence-justified channels; skipped channels recorded with reasons; never authorises sending. |
+
 ## Frontend-only creation
 No frontend-only insert path exists: all UI creation goes through `createHiveMindTask` (path #6,
 Human Task) or the chat tools (paths #1–#2). RLS + server fns prevent direct client inserts of

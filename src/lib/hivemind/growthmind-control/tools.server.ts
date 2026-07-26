@@ -1426,3 +1426,187 @@ registerWrite({
     };
   },
 });
+
+// ═══════════ Task #490 — depth, audits, migration & orchestration ═══════════
+
+registerWrite({
+  name: "create_agent_crm_integration_work_order",
+  title: "Create agent ↔ CRM integration work order",
+  description:
+    "Produce a COMPLETE agent↔CRM integration work order from REAL workspace data: current architecture, registered dynamic variables, verified CRM field map, triggers & webhooks, pre/post-call data flow, test plan and rollback — never a shallow \"Connect CRM\" task. " +
+    "If no CRM is connected the work order is created in Integration Required state. The final Apply stage stays blocked behind the earlier approvals. PROPOSAL ONLY.",
+  idempotent: false,
+  inputSchema: z.object({
+    agentId: z.string().uuid().optional(),
+    agentName: z.string().max(200).optional(),
+    crmConnectionId: z.string().uuid().optional(),
+    objective: z.string().max(2000).optional(),
+  }),
+  run: async (ctx, i: any) => {
+    const { createAgentCrmIntegrationWorkOrderCore } = await import("@/lib/systemmind/systemmind-depth-work-orders.server");
+    const { workOrder, tasks, connected, agentResolved, fieldMap } = await createAgentCrmIntegrationWorkOrderCore(
+      ctx.sb, ctx.workspaceId, ctx.userId,
+      { agentId: i.agentId, agentName: i.agentName, crmConnectionId: i.crmConnectionId, objective: i.objective, source: "hivemind_tool" },
+    );
+    return {
+      result: {
+        status: "created",
+        workOrderId: workOrder.id,
+        crmConnected: connected,
+        agentResolved,
+        fieldMappings: fieldMap.length,
+        unmappedFields: fieldMap.filter((m: any) => !m.mapped).length,
+        stages: stagesOut(tasks),
+        next_step: !connected
+          ? "BLOCKED: connect a CRM in SystemMind → CRM Connections first — the work order is in Integration Required state."
+          : !agentResolved
+            ? "The target agent could not be uniquely resolved — specify which agent before the stages can proceed."
+            : "Approve each stage in order; the Apply stage stays blocked until Architecture, Field Mapping, Triggers & Webhooks and Test Plan are approved.",
+      },
+      affectedRecordType: "work_orders",
+      affectedRecordId: workOrder.id,
+    };
+  },
+});
+
+registerWrite({
+  name: "create_workflow_depth_work_order",
+  title: "Create workflow depth review work order",
+  description:
+    "Evidence-backed review of a REAL workspace workflow (flow definition, recent run outcomes, failures) producing a node-by-node change plan with test plan and rollback. " +
+    "The final Apply stage stays blocked behind the earlier approvals. PROPOSAL ONLY — the workflow is never modified by this tool.",
+  idempotent: false,
+  inputSchema: z.object({
+    workflowId: z.string().uuid().optional(),
+    workflowName: z.string().max(200).optional(),
+    objective: z.string().max(2000).optional(),
+  }),
+  run: async (ctx, i: any) => {
+    const { createWorkflowDepthWorkOrderCore } = await import("@/lib/systemmind/systemmind-depth-work-orders.server");
+    const { workOrder, tasks, workflowResolved } = await createWorkflowDepthWorkOrderCore(
+      ctx.sb, ctx.workspaceId, ctx.userId,
+      { workflowId: i.workflowId, workflowName: i.workflowName, objective: i.objective, source: "hivemind_tool" },
+    );
+    return {
+      result: {
+        status: "created",
+        workOrderId: workOrder.id,
+        workflowResolved,
+        stages: stagesOut(tasks),
+        next_step: workflowResolved
+          ? "Approve each stage in order; the Apply stage stays blocked until Review, Change Plan and Test Plan are approved."
+          : "The target workflow could not be uniquely resolved — specify which workflow before the stages can proceed.",
+      },
+      affectedRecordType: "work_orders",
+      affectedRecordId: workOrder.id,
+    };
+  },
+});
+
+registerWrite({
+  name: "create_financial_audit_work_order",
+  title: "Create financial audit work order",
+  description:
+    "Run a typed financial audit over REAL AccountsMind records (invoices, recurring schedules, per-client balances): records inspected, exceptions with exact amounts/due dates/commercial impact, and the exact proposed action per record — never a shallow \"Review invoices\" task. " +
+    "The Execute stage is billing-sensitive and stays blocked behind Findings and Proposed Actions approvals. PROPOSAL ONLY — nothing financial changes from this tool.",
+  sensitive: false,
+  requiredActionKey: "billing",
+  idempotent: false,
+  inputSchema: z.object({
+    kind: z.enum(["invoice_audit", "renewals_audit", "client_costing_audit", "outgoings_audit"]),
+    objective: z.string().max(2000).optional(),
+  }),
+  run: async (ctx, i: any) => {
+    const { createFinancialAuditWorkOrderCore } = await import("@/lib/accountsmind/financial-audit-work-orders.server");
+    const { workOrder, tasks, audit } = await createFinancialAuditWorkOrderCore(
+      ctx.sb, ctx.workspaceId, ctx.userId, i.kind, { objective: i.objective, source: "hivemind_tool" },
+    );
+    return {
+      result: {
+        status: "created",
+        workOrderId: workOrder.id,
+        recordsInspected: audit.records_inspected,
+        exceptions: audit.exceptions.length,
+        totals: audit.totals,
+        currency: audit.currency,
+        topExceptions: audit.exceptions.slice(0, 5).map((e) => ({
+          record: e.reference ?? e.record_id, client: e.client, amountCents: e.amount_cents, issue: e.issue,
+        })),
+        stages: stagesOut(tasks),
+        next_step: audit.exceptions.length
+          ? "Review the findings; the Execute stage stays blocked until Findings and Proposed Actions are approved, and every action runs through the billing-gated functions."
+          : "No exceptions found — approve the Findings stage to record the clean audit.",
+      },
+      affectedRecordType: "work_orders",
+      affectedRecordId: workOrder.id,
+    };
+  },
+});
+
+registerRead({
+  name: "classify_legacy_tasks",
+  title: "Classify legacy shallow tasks",
+  description:
+    "Scan pre-standard shallow task rows (no intelligence packet) and classify each as Convertible, Missing Context, Duplicate, Superseded, Obsolete, Human Task or Invalid with a per-row reason. Read-only — changes nothing.",
+  inputSchema: z.object({ limit: z.number().int().min(1).max(500).optional() }),
+  run: async (ctx, i: any) => {
+    const { classifyLegacyTasks } = await import("@/lib/minds/legacy-task-migration.server");
+    const { classifications, counts } = await classifyLegacyTasks(ctx.sb, ctx.workspaceId, { limit: i?.limit });
+    return { result: { counts, total: classifications.length, sample: classifications.slice(0, 25) } };
+  },
+});
+
+registerWrite({
+  name: "migrate_legacy_tasks",
+  title: "Migrate legacy shallow tasks",
+  description:
+    "Upgrade pre-standard shallow task rows: Convertible rows get an honest intelligence packet built ONLY from their own recorded fields (NEVER made executable, never auto-executed); Missing-Context rows are labelled; Duplicate/Superseded/Obsolete/Invalid rows are dismissed with their classification label preserved. Batch-safe and idempotent. Sensitive: bulk-mutates task rows, so it always requires explicit approval and never auto-executes.",
+  sensitive: true,
+  idempotent: true,
+  inputSchema: z.object({ limit: z.number().int().min(1).max(500).optional() }),
+  run: async (ctx, i: any) => {
+    const { migrateLegacyTasks } = await import("@/lib/minds/legacy-task-migration.server");
+    const r = await migrateLegacyTasks(ctx.sb, ctx.workspaceId, { limit: i?.limit });
+    return {
+      result: {
+        scanned: r.scanned, converted: r.converted, labelled: r.labelled, disabled: r.disabled, counts: r.counts,
+        next_step: "Converted tasks are review-only (never executable); check the HiveMind Tasks page for the migrated rows.",
+      },
+    };
+  },
+});
+
+registerWrite({
+  name: "create_cross_channel_objective_work_order",
+  title: "Create cross-channel objective work order",
+  description:
+    "Take ONE cross-channel objective (e.g. \"Generate more UK leads\") and create ONE parent work order with the channel strategy, shared success criteria and reporting plan, plus dependency-linked child tasks ONLY for channels justified by REAL evidence (contactable audience, connected providers, deployed agents). " +
+    "Unjustified channels are skipped with reasons — never ten disconnected generic tasks. Every channel keeps its own blocked launch approval. PROPOSAL ONLY.",
+  idempotent: false,
+  inputSchema: z.object({
+    objective: z.string().min(10).max(2000),
+    channels: z.array(z.enum(["email", "whatsapp", "calls", "social", "seo"])).min(1).max(5).optional(),
+  }),
+  run: async (ctx, i: any) => {
+    const { createCrossChannelObjectiveWorkOrderCore } = await import("@/lib/hivemind/cross-channel-work-orders.server");
+    const { workOrder, strategyTask, channelTasks, justified, skipped } = await createCrossChannelObjectiveWorkOrderCore(
+      ctx.sb, ctx.workspaceId, ctx.userId,
+      { objective: i.objective, channels: i.channels, source: "hivemind_tool" },
+    );
+    return {
+      result: {
+        status: "created",
+        workOrderId: workOrder.id,
+        strategyTaskId: strategyTask.id,
+        justifiedChannels: justified.map((j) => ({ channel: j.channel, reason: j.reason })),
+        skippedChannels: skipped.map((s) => ({ channel: s.channel, reason: s.reason })),
+        channelTasks: channelTasks.map((t: any) => ({ taskId: t.id, channel: t.metadata?.channel ?? null, title: t.title })),
+        next_step: justified.length
+          ? "Approve the channel strategy first; each channel task then needs its own approvals, and every launch/send stays blocked until its own final approval."
+          : "BLOCKED: no channel is currently evidence-justified — connect a provider or build an audience first.",
+      },
+      affectedRecordType: "work_orders",
+      affectedRecordId: workOrder.id,
+    };
+  },
+});
