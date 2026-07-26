@@ -2,6 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { type GrowthMindExecutiveSummary, type SystemMindExecutiveSummary } from "@/lib/executives/executive-council";
+import { buildWbahCallsContextLines } from "@/lib/hivemind/wbah-call-metrics.shared";
 
 // ── WBAH lead derivation ──────────────────────────────────────────────────────
 // WBAH's `leads` table is dup-inflated (~400k rows), so even a COUNT over it exceeds
@@ -75,6 +76,21 @@ export async function fetchFullPlatformData(sb: any, workspaceId: string) {
   const wbahLeadsPromise: Promise<any[] | null> = isWbah
     ? deriveWbahLeadsFromCalls(workspaceId)
     : Promise.resolve(null);
+  // WBAH call metrics: the standard `calls` table holds only a few legacy WBAH rows
+  // (0 today) — real WBAH calls live in `wbah_calls`. Source the calls block from
+  // there, over the Europe/London day window. Dynamic import (string literal) keeps
+  // the service-role module out of the client bundle. On failure the block carries
+  // an explicit "unavailable" warning — never a silent zero.
+  const wbahCallsPromise: Promise<any | null> = isWbah
+    ? import("@/lib/hivemind/wbah-call-metrics.server")
+        .then((m) => m.fetchWbahCallMetrics(workspaceId))
+        .catch((e: any) => {
+          console.error("[HiveMind] WBAH call metrics import error:", e?.message ?? e);
+          return import("@/lib/hivemind/wbah-call-metrics.shared").then((s) =>
+            s.wbahCallMetricsError(s.londonDayWindowUtc()),
+          );
+        })
+    : Promise.resolve(null);
 
   const [ag, ca, le, bo, cp, wa, se, usage, hexCamps, hexEnroll, docs, tasks, actions, kbs, gmRecs, gmGenLogsRes, videoAssetsRes, videoScheduledRes, adAccountsRes, adCampsRes, adAlertsRes, seoSiteRes] = await Promise.all([
     sb.from("agents").select("id,name,retell_agent_id,inbound_phone_number,settings").eq("workspace_id", workspaceId),
@@ -122,6 +138,7 @@ export async function fetchFullPlatformData(sb: any, workspaceId: string) {
   const agents   = ag.data    ?? [];
   const calls    = ca.data    ?? [];
   const wbahLeadRows = await wbahLeadsPromise;
+  const wbahCalls    = await wbahCallsPromise;
   let leads      = le.data    ?? [];
   // Exact lead total even when the row sample is capped at PostgREST's 1000-row limit
   // (large workspaces). Falls back to the sample size if no count was returned.
@@ -386,7 +403,10 @@ export async function fetchFullPlatformData(sb: any, workspaceId: string) {
     today: {
       leads:    leadsToday.length,
       bookings: bksTodayCount,
-      calls:    callsToday.length,
+      // WBAH: calls come from wbah_calls (Europe/London day). Only override with a
+      // number on a successful query — on error keep 0 here; the context builder
+      // replaces the calls block with an explicit "unavailable" warning.
+      calls:    wbahCalls ? (wbahCalls.status === "ok" ? wbahCalls.totalToday : 0) : callsToday.length,
       messages: msgs.filter((m: any) => m.created_at >= todayStr).length,
     },
     week:  { leads: leadsWeek.length, bookings: bksWeekCount },
@@ -398,8 +418,11 @@ export async function fetchFullPlatformData(sb: any, workspaceId: string) {
       avgDuration: avgDur,
       inbound:  calls.filter((c: any) => c.call_type === "inbound").length,
       outbound: calls.filter((c: any) => c.call_type !== "inbound").length,
-      thisMonth: callsMonth.length,
+      thisMonth: isWbah && wbahCalls?.status === "ok" ? wbahCalls.monthTotal : callsMonth.length,
     },
+    // Full WBAH call metrics block (null for all other workspaces) — the context
+    // builder renders this INSTEAD of the standard `calls`-table line for WBAH.
+    wbahCalls,
     leads: {
       isWbah,
       total: leadsTotal, active: activeLeads.length, idle: idleLeads.length,
@@ -787,7 +810,10 @@ export function buildPlatformContext(d: any): string {
   lines.push(`[${new Date().toLocaleString()} | HiveMind Mode: ${(d.mode ?? "recommend").toUpperCase()}]\n`);
 
   // TODAY
-  lines.push(`TODAY: ${d.today.leads} new leads | ${d.today.bookings} bookings | ${d.today.calls} calls | ${d.today.messages} WhatsApp msgs`);
+  const todayCallsStr = d.wbahCalls && d.wbahCalls.status !== "ok"
+    ? "calls UNAVAILABLE"
+    : `${d.today.calls} calls`;
+  lines.push(`TODAY: ${d.today.leads} new leads | ${d.today.bookings} bookings | ${todayCallsStr} | ${d.today.messages} WhatsApp msgs`);
   lines.push(`THIS WEEK: ${d.week.leads} leads | ${d.week.bookings} bookings`);
   lines.push(`THIS MONTH: ${d.month.leads} leads (vs ${d.prevMonth.leads} last month) | ${d.month.bookings} bookings | ${d.month.sales} sales`);
 
@@ -844,7 +870,13 @@ export function buildPlatformContext(d: any): string {
   }
 
   // CALLS
-  lines.push(`\nCALLS (30d): ${d.calls.total} total | ${d.calls.successRate}% success | avg ${d.calls.avgDuration}s | ${d.calls.inbound} inbound | ${d.calls.outbound} outbound | ${d.calls.thisMonth} this month`);
+  // WBAH: the standard `calls` table holds only legacy rows — render the wbah_calls
+  // block instead (Europe/London day, all outcomes, sentiment subsets, freshness).
+  if (d.wbahCalls) {
+    lines.push(...buildWbahCallsContextLines(d.wbahCalls));
+  } else {
+    lines.push(`\nCALLS (30d): ${d.calls.total} total | ${d.calls.successRate}% success | avg ${d.calls.avgDuration}s | ${d.calls.inbound} inbound | ${d.calls.outbound} outbound | ${d.calls.thisMonth} this month`);
+  }
 
   // BOOKINGS
   lines.push(`\nBOOKINGS: ${d.bookings.total} total | ${d.bookings.thisMonth} this month | ${d.bookings.thisWeek} this week | ${d.bookings.today} today`);
