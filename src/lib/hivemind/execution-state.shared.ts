@@ -93,6 +93,24 @@ export function stepUpdate(
   });
 }
 
+// ── New-capability checklist ──────────────────────────────────────────────────
+// When adding a new executable kind, complete EVERY step before landing:
+//
+//  1. Add the kind key + ExecutableKindMeta to EXECUTABLE_KINDS below.
+//  2. Add a matching case to dispatchAdapter() in mind-execution-engine.server.ts
+//     (or a pre-switch if-branch for special routing).
+//  3. Implement the adapter in src/lib/hivemind/mind-adapters/ or
+//     universal-adapters.server.ts; register initialStepsForKind() steps.
+//  4. Register the tool in register-tools.server.ts with enrichCapability()
+//     fields; if access:"write" or sensitive:true, declare featureFamily.
+//  5. Wire runContentSafetyCheck() in the adapter if it produces content drafts.
+//  6. Add at least one test file under tests/ that references the kind string.
+//  7. Run the component-tests workflow — all 10 architecture rules in
+//     tests/component/architecture-enforcement.test.tsx must stay green.
+//  8. Call recordSystemMindPlatformKnowledge() (or the seed script) to teach
+//     every workspace's SystemMind CTO about the new capability.
+// ─────────────────────────────────────────────────────────────────────────────
+
 // ── Executable task kinds (registry of what the engine can dispatch) ─────────
 export interface ExecutableKindMeta {
   mind:  "growthmind" | "systemmind" | "accountsmind" | "hivemind";
