@@ -554,6 +554,48 @@ export async function runContentSafetyCheck(
     unsafeUrls.length === 0 ? "warning" : "violation",
   );
 
+  // ── 9. Broken / placeholder link detection ───────────────────────────────────
+  // Static heuristics only (no HTTP fetch). Flags:
+  //   a) URLs that are syntactically malformed (cannot be parsed by `new URL()`).
+  //   b) URLs pointing to well-known placeholder/example domains.
+  //   c) URLs containing template-placeholder syntax (e.g. [your-url], {{link}}).
+  const PLACEHOLDER_DOMAINS = new Set([
+    "example.com", "example.org", "example.net",
+    "yoursite.com", "your-site.com", "yourwebsite.com", "your-website.com",
+    "yourdomain.com", "your-domain.com", "mydomain.com", "mysite.com",
+    "website.com", "placeholder.com", "sample-site.com", "samplesite.com",
+    "testsite.com", "test-site.com", "demo-site.com", "demosite.com",
+    "insertlinkhere.com", "addlinkhere.com", "linkhere.com",
+  ]);
+  const PLACEHOLDER_URL_PATTERN = /[\[{](?:your[_-]?(?:url|link|website|site)|link|url|href|insert[_-]?link|\d+)[\]}]/i;
+
+  const malformedUrls: string[]    = [];
+  const placeholderUrls: string[]  = [];
+  for (const u of embeddedUrls) {
+    // Skip URLs already flagged as unsafe (check 8)
+    if (!isContentUrlSafe(u)) continue;
+    // a) Malformed — cannot be parsed
+    let parsed: URL | null = null;
+    try { parsed = new URL(u); } catch { malformedUrls.push(u); continue; }
+    // b) Placeholder domain
+    const host = parsed.hostname.replace(/^www\./, "");
+    if (PLACEHOLDER_DOMAINS.has(host)) { placeholderUrls.push(u); continue; }
+    // c) Placeholder syntax anywhere in the URL string
+    if (PLACEHOLDER_URL_PATTERN.test(u)) { placeholderUrls.push(u); continue; }
+  }
+  const brokenLinkIssues = [...malformedUrls, ...placeholderUrls];
+  addCheck(
+    "broken_links",
+    brokenLinkIssues.length === 0,
+    brokenLinkIssues.length === 0
+      ? "No malformed or placeholder URLs detected."
+      : [
+          malformedUrls.length > 0 ? `${malformedUrls.length} malformed URL(s) (unparseable): ${malformedUrls.slice(0, 3).join(", ")}` : "",
+          placeholderUrls.length > 0 ? `${placeholderUrls.length} placeholder URL(s) (must be replaced before publication): ${placeholderUrls.slice(0, 3).join(", ")}` : "",
+        ].filter(Boolean).join("; "),
+    brokenLinkIssues.length === 0 ? "warning" : "violation",
+  );
+
   // ── Universal claim classification pass ────────────────────────────────────
   // Every sentence that could be making a factual assertion gets classified into
   // one of the required categories. Sentences already classified by the violation

@@ -462,6 +462,51 @@ describe("runContentSafetyCheck — check 8: unsafe embedded URLs", () => {
 });
 
 // ════════════════════════════════════════════════════════════════════════════
+// Check 9 — broken / placeholder link detection
+// ════════════════════════════════════════════════════════════════════════════
+
+describe("runContentSafetyCheck — check 9: broken / placeholder link detection", () => {
+  const base = Array(40).fill("Our platform helps businesses grow their revenue and customer base efficiently.").join(" ");
+
+  it("passes when all URLs are well-formed real domains", async () => {
+    const text = `${base} Read the full guide at https://www.webee.ai/guide.`;
+    const result = await runContentSafetyCheck(text, "blog_article", WS);
+    const check = result.checks.find((c) => c.check === "broken_links");
+    expect(check).toBeDefined();
+    expect(check?.passed).toBe(true);
+  });
+
+  it("flags content embedding example.com (placeholder domain)", async () => {
+    const text = `${base} Learn more at https://example.com/about-us.`;
+    const result = await runContentSafetyCheck(text, "blog_article", WS);
+    const check = result.checks.find((c) => c.check === "broken_links");
+    expect(check?.passed).toBe(false);
+    expect(result.violations.some((v) => v.includes("broken_links"))).toBe(true);
+  });
+
+  it("flags yoursite.com as a placeholder domain", async () => {
+    const text = `${base} Visit us at https://yoursite.com for more information.`;
+    const result = await runContentSafetyCheck(text, "blog_article", WS);
+    const check = result.checks.find((c) => c.check === "broken_links");
+    expect(check?.passed).toBe(false);
+  });
+
+  it("flags mysite.com as a placeholder domain", async () => {
+    const text = `${base} Visit https://mysite.com/pricing for details.`;
+    const result = await runContentSafetyCheck(text, "blog_article", WS);
+    const check = result.checks.find((c) => c.check === "broken_links");
+    expect(check?.passed).toBe(false);
+  });
+
+  it("passes when content has no URLs at all", async () => {
+    const result = await runContentSafetyCheck(base, "blog_article", WS);
+    const check = result.checks.find((c) => c.check === "broken_links");
+    expect(check?.passed).toBe(true);
+    expect(check?.detail).toMatch(/no.*url|no malformed/i);
+  });
+});
+
+// ════════════════════════════════════════════════════════════════════════════
 // approved_customer_evidence classification
 // ════════════════════════════════════════════════════════════════════════════
 

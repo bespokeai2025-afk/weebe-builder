@@ -531,6 +531,28 @@ export async function createWhatsAppCampaignWorkOrderCore(
   const rawLeads = await loadAudienceLeads(sb, workspaceId, filter);
   const compliance = filterAudienceForChannel(rawLeads, "whatsapp");
 
+  // ── Safety gate on template copy ────────────────────────────────────────────
+  // Run the universal content safety gate on the matched (or first approved)
+  // template body, if any text is available. Fail-closed on errors.
+  const waTemplateText = matchedTemplate?.body ?? approvedTemplates[0]?.body ?? null;
+  let waSafetyEv: { source: string; description: string; data: Record<string, unknown>; retrieved_at: string };
+  try {
+    if (waTemplateText) {
+      const safetyMod = await import("@/lib/content-safety/universal-content-safety.server");
+      const safetyResult = await safetyMod.runContentSafetyCheck(waTemplateText, "whatsapp_campaign", workspaceId);
+      waSafetyEv = safetyMod.safetyCheckEvidenceItem(safetyResult);
+    } else {
+      waSafetyEv = evidenceItem("safety_check",
+        "Content safety gate: no template copy available at planning stage — gate will apply when copy is produced.",
+        { applied: false, reason: "no_template_text_available" });
+    }
+  } catch (err: any) {
+    console.error("[wa-work-order] Safety gate error:", err?.message ?? err);
+    waSafetyEv = evidenceItem("safety_check",
+      "Content safety gate: error running gate on template copy — treating as unchecked.",
+      { applied: false, reason: "gate_error" });
+  }
+
   const stages = approvalStagesForChannel("whatsapp");
   const targets: PacketTarget[] = [{
     domain: "comms",
@@ -583,16 +605,7 @@ export async function createWhatsAppCampaignWorkOrderCore(
         requested: opts.templateName ?? null,
         requested_found: !!matchedTemplate,
       }),
-    evidenceItem("safety_check",
-      matchedTemplate?.body
-        ? "Content safety gate: template body is a provider-approved WhatsApp template — copy safety will be re-checked if personalisation tokens are rendered before send."
-        : "Content safety gate: template copy not yet staged — safety gate will apply when campaign copy is generated.",
-      {
-        applied: false,
-        reason: "whatsapp_template_not_yet_rendered",
-        template_name: matchedTemplate?.name ?? null,
-        template_status: matchedTemplate?.status ?? null,
-      }),
+    waSafetyEv,
   ];
   const diagnosis =
     `WhatsApp campaign feasibility: ${compliance.eligible.length} of ${rawLeads.length} lead(s) are opted-in and reachable; ` +
@@ -963,6 +976,33 @@ export async function createCallCampaignWorkOrderCore(
     ? `Estimated ~£${((avgCostCents * totalCalls) / 100).toFixed(2)} for ${totalCalls} call(s) at the workspace's real recent average of ${(avgCostCents / 100).toFixed(2)}/call (avg ${avgDurationSec ?? "?"}s).`
     : `No recent call history to base a cost estimate on — actual per-call cost will be recorded from the first calls.`;
 
+  // ── Safety gate on agent script ─────────────────────────────────────────────
+  // Extract the selected agent's flow/script text and run the content safety gate.
+  // The raw agents array retains flow_data; extract text from it for checking.
+  const agentRaw = agent ? ((agents ?? []) as any[]).find((a: any) => a.id === agent.id) : null;
+  const agentFlowText = agentRaw?.flow_data
+    ? JSON.stringify(agentRaw.flow_data).slice(0, 8000)
+    : null;
+  let callSafetyEv: { source: string; description: string; data: Record<string, unknown>; retrieved_at: string };
+  try {
+    if (agentFlowText && agentFlowText.length > 20) {
+      const safetyMod = await import("@/lib/content-safety/universal-content-safety.server");
+      const safetyResult = await safetyMod.runContentSafetyCheck(agentFlowText, "ai_call_script", workspaceId);
+      callSafetyEv = safetyMod.safetyCheckEvidenceItem(safetyResult);
+    } else {
+      callSafetyEv = evidenceItem("safety_check",
+        agent
+          ? "Content safety gate: agent script/flow not available for pre-check — gate will apply when script is reviewed at Agent & Script approval."
+          : "Content safety gate: no agent selected yet — gate will apply to agent script when an agent is assigned.",
+        { applied: false, reason: agent ? "agent_flow_not_readable" : "no_agent_selected", agent_id: agent?.id ?? null });
+    }
+  } catch (err: any) {
+    console.error("[call-work-order] Safety gate error:", err?.message ?? err);
+    callSafetyEv = evidenceItem("safety_check",
+      "Content safety gate: error running gate on agent script — treating as unchecked.",
+      { applied: false, reason: "gate_error", agent_id: agent?.id ?? null });
+  }
+
   const stages = approvalStagesForChannel("call");
   const targets: PacketTarget[] = [
     {
@@ -1016,16 +1056,7 @@ export async function createCallCampaignWorkOrderCore(
       `CRM mapping: ${crmLinked} of ${compliance.eligible.length} eligible lead(s) carry a CRM link (external_source_id); outcomes for the remainder stay local-only.`,
       { crm_linked: crmLinked, local_only: compliance.eligible.length - crmLinked }),
     evidenceItem("calls", costNote, { cost_estimate: costEstimate, recent_calls_sampled: callRows.length }),
-    evidenceItem("safety_check",
-      agent
-        ? "Content safety gate: agent script safety will be checked when the agent's flow/script is reviewed at the Agent & Script approval step."
-        : "Content safety gate: no agent resolved yet — safety gate will apply to agent script when an agent is selected at the Agent & Script approval step.",
-      {
-        applied: false,
-        reason: "call_script_checked_at_agent_approval",
-        agent_id: agent?.id ?? null,
-        agent_name: agent?.name ?? null,
-      }),
+    callSafetyEv,
   ];
   const diagnosis =
     `Call campaign feasibility: ${compliance.eligible.length} of ${rawLeads.length} lead(s) callable (Do-Not-Call and no-phone excluded); ` +
