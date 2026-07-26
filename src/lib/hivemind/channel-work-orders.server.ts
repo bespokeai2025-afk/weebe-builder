@@ -690,10 +690,23 @@ export async function createEmailCampaignWorkOrderCore(
   // Deliverability readiness — real DNS/mailbox health, no domain = blocker.
   const { getEmailReadinessForWorkspace } = await import("@/lib/hexmail/deliverability.server");
   const readiness = await getEmailReadinessForWorkspace(workspaceId);
-  const integrationBlockers = readiness ? [] : [{
-    kind: "integration_missing" as const,
-    detail: "No verified sender domain configured. Add a sender domain in HexMail → Deliverability before email campaigns can proceed.",
-  }];
+  // Domain health failure is a HARD blocker, not just a warning: grade D/F
+  // (score < 55) means SPF/DKIM/DMARC or bounce/complaint health is failing.
+  const healthFailed = !!readiness && readiness.score < 55;
+  const integrationBlockers = !readiness
+    ? [{
+        kind: "integration_missing" as const,
+        detail: "No verified sender domain configured. Add a sender domain in HexMail → Deliverability before email campaigns can proceed.",
+      }]
+    : healthFailed
+      ? [{
+          kind: "other" as const,
+          detail:
+            `Sender domain health check FAILED: score ${readiness.score}/100 (grade ${readiness.grade}).` +
+            (readiness.issues.length ? ` Issues: ${readiness.issues.join("; ")}.` : "") +
+            " Fix deliverability (SPF/DKIM/DMARC, bounces, complaints) before this campaign can send.",
+        }]
+      : [];
 
   const suppressedEmails = await loadSuppressedEmails(sb, workspaceId);
   const filter = opts.audience ?? {};
@@ -730,7 +743,9 @@ export async function createEmailCampaignWorkOrderCore(
   const diagnosis =
     `Email campaign feasibility: ${compliance.eligible.length} of ${rawLeads.length} lead(s) reachable after suppression and dedup; ` +
     (readiness
-      ? `sender domain health ${readiness.score}/100 (${readiness.grade}).`
+      ? healthFailed
+        ? `sender domain health ${readiness.score}/100 (${readiness.grade}) — FAILING; campaign blocked until deliverability is fixed.`
+        : `sender domain health ${readiness.score}/100 (${readiness.grade}).`
       : "no verified sender domain — campaign blocked until deliverability is set up.");
   const objective = opts.objective?.trim() ||
     "Run an email campaign to the eligible lead segment with split Audience/Copy/Sequence/Schedule/Send approvals and suppression enforcement.";
@@ -755,9 +770,14 @@ export async function createEmailCampaignWorkOrderCore(
     title: "Email campaign",
     objective,
     source: opts.source ?? "hivemind_chat",
-    metadata: { channel_kind: "email", sender_domain_configured: !!readiness },
+    metadata: {
+      channel_kind: "email",
+      sender_domain_configured: !!readiness,
+      domain_health_failed: healthFailed,
+      domain_health_score: readiness?.score ?? null,
+    },
     packet: mk(stages[0], `Approve email audience: ${compliance.eligible.length} eligible recipient(s).`, [{ title: "Confirm eligible audience" }]),
-    readiness: readiness ? "ready_for_change_approval" : "integration_required",
+    readiness: !readiness ? "integration_required" : healthFailed ? "blocked" : "ready_for_change_approval",
     triggerType: "email_campaign",
     stageTasks: [
       {
@@ -821,17 +841,26 @@ export async function createCallCampaignWorkOrderCore(
   const { buildIntelligencePacket, evidenceItem } =
     await import("@/lib/minds/intelligence-packet.server");
 
-  // Agent resolution against REAL workspace agents.
+  // Agent resolution against REAL workspace agents (incl. script/flow detail).
   const { data: agents } = await sb.from("agents")
-    .select("id, name, status, settings, retell_agent_id")
+    .select("id, name, status, settings, retell_agent_id, flow_data, updated_at, voice_provider, inbound_phone_number")
     .eq("workspace_id", workspaceId)
     .order("created_at", { ascending: false }).limit(100);
-  const agentList = ((agents ?? []) as any[]).map((a) => ({
-    id: a.id as string,
-    name: (a.name ?? "Unnamed agent") as string,
-    deployed: !!((a.settings as any)?.deployedRetellAgentId || a.retell_agent_id),
-  }));
-  let agent: { id: string; name: string; deployed: boolean } | null = null;
+  const agentList = ((agents ?? []) as any[]).map((a) => {
+    const flowNodes = Array.isArray((a.flow_data as any)?.nodes) ? (a.flow_data as any).nodes.length : 0;
+    const flowText = a.flow_data ? JSON.stringify(a.flow_data).toLowerCase() : "";
+    return {
+      id: a.id as string,
+      name: (a.name ?? "Unnamed agent") as string,
+      deployed: !!((a.settings as any)?.deployedRetellAgentId || a.retell_agent_id),
+      voiceProvider: (a.voice_provider ?? null) as string | null,
+      inboundNumber: (a.inbound_phone_number ?? null) as string | null,
+      scriptVersion: (a.updated_at ?? null) as string | null, // last script/flow edit = version signal
+      flowNodes,
+      calendarLinked: /calcom|cal\.com|calendar|booking/.test(flowText),
+    };
+  });
+  let agent: (typeof agentList)[number] | null = null;
   let agentStatus: "resolved" | "ambiguous" | "not_found" | "none_requested" = "none_requested";
   let agentCandidates: typeof agentList = [];
   if (opts.agentName?.trim()) {
@@ -848,18 +877,76 @@ export async function createCallCampaignWorkOrderCore(
   if (agentStatus === "ambiguous" || agentStatus === "not_found") {
     return { workOrder: null, tasks: [], agent: null, agentStatus, agentCandidates, audienceSummary: "" };
   }
+  // Caller number resolution from REAL workspace phone numbers.
+  const { data: numbers } = await sb.from("phone_numbers")
+    .select("id, phone_number, friendly_name, provider, agent_id, is_active")
+    .eq("workspace_id", workspaceId)
+    .eq("is_active", true)
+    .limit(50);
+  const activeNumbers = ((numbers ?? []) as any[]);
+  const agentNumber = agent
+    ? (activeNumbers.find((n) => n.agent_id === agent!.id)?.phone_number ?? agent.inboundNumber ?? null)
+    : null;
+  const callerNumber: string | null = agentNumber ?? (activeNumbers[0]?.phone_number ?? null);
+
+  // Prior campaign config = real retry/voicemail/concurrency policy evidence.
+  const { data: priorCampaigns } = await sb.from("campaigns")
+    .select("id, name, status, retry_config, schedule_config, phone_number_id")
+    .eq("workspace_id", workspaceId)
+    .order("updated_at", { ascending: false })
+    .limit(5);
+  const priorPolicy = ((priorCampaigns ?? []) as any[]).find((c) => c.retry_config || c.schedule_config) ?? null;
+  const retryPolicy = (priorPolicy?.retry_config ?? null) as Record<string, unknown> | null;
+  const schedulePolicy = (priorPolicy?.schedule_config ?? null) as Record<string, unknown> | null;
+  const concurrency = Number((retryPolicy as any)?.concurrency ?? (schedulePolicy as any)?.concurrency ?? 0) || null;
+
+  // Real call history → duration + per-call cost basis for the estimate.
+  const { data: recentCalls } = await sb.from("calls")
+    .select("duration_seconds, cost_cents")
+    .eq("workspace_id", workspaceId)
+    .order("created_at", { ascending: false })
+    .limit(200);
+  const callRows = ((recentCalls ?? []) as any[]);
+  const durations = callRows.map((c) => Number(c.duration_seconds)).filter((n) => Number.isFinite(n) && n > 0);
+  const costs = callRows.map((c) => Number(c.cost_cents)).filter((n) => Number.isFinite(n) && n > 0);
+  const avgDurationSec = durations.length ? Math.round(durations.reduce((a, b) => a + b, 0) / durations.length) : null;
+  const avgCostCents = costs.length ? Math.round(costs.reduce((a, b) => a + b, 0) / costs.length) : null;
+
   const integrationBlockers = !agentList.length ? [{
     kind: "integration_missing" as const,
     detail: "No AI voice agents exist in this workspace. Build an agent in the Builder before a call campaign can run.",
-  }] : (agent && !agent.deployed ? [{
-    kind: "other" as const,
-    detail: `Agent "${agent.name}" is not deployed — deploy it before launching the campaign.`,
-  }] : []);
+  }] : [
+    ...(agent && !agent.deployed ? [{
+      kind: "other" as const,
+      detail: `Agent "${agent.name}" is not deployed — deploy it before launching the campaign.`,
+    }] : []),
+    ...(!callerNumber ? [{
+      kind: "integration_missing" as const,
+      detail: "No active outbound caller number is configured in this workspace — connect a phone number before the campaign can launch.",
+    }] : []),
+  ];
 
   const filter = opts.audience ?? {};
   const rawLeads = await loadAudienceLeads(sb, workspaceId, filter);
   const compliance = filterAudienceForChannel(rawLeads, "call");
   const dailyVolume = Math.min(500, Math.max(1, Math.round(opts.dailyVolume ?? 50)));
+
+  // CRM mapping over the ELIGIBLE audience (external_source_id = CRM link).
+  const crmLinked = compliance.eligible.filter((l: any) => !!l.external_source_id).length;
+  // Cost estimate from real per-call history; honest note when no history exists.
+  const totalCalls = compliance.eligible.length;
+  const costEstimate = avgCostCents !== null
+    ? {
+        basis: "recent_call_history" as const,
+        avg_cost_cents: avgCostCents,
+        avg_duration_seconds: avgDurationSec,
+        estimated_total_cents: avgCostCents * totalCalls,
+        calls: totalCalls,
+      }
+    : { basis: "no_history" as const, calls: totalCalls };
+  const costNote = avgCostCents !== null
+    ? `Estimated ~£${((avgCostCents * totalCalls) / 100).toFixed(2)} for ${totalCalls} call(s) at the workspace's real recent average of ${(avgCostCents / 100).toFixed(2)}/call (avg ${avgDurationSec ?? "?"}s).`
+    : `No recent call history to base a cost estimate on — actual per-call cost will be recorded from the first calls.`;
 
   const stages = approvalStagesForChannel("call");
   const targets: PacketTarget[] = [
@@ -884,13 +971,43 @@ export async function createCallCampaignWorkOrderCore(
     audienceEvidence(evidenceItem, compliance, filter),
     evidenceItem("agents",
       `${agentList.length} agent(s) in workspace; ${agentList.filter((a) => a.deployed).length} deployed.` +
-      (agent ? ` Selected: "${agent.name}" (${agent.deployed ? "deployed" : "not deployed"}).` : ""),
-      { total: agentList.length, deployed: agentList.filter((a) => a.deployed).length, selected: agent }),
+      (agent
+        ? ` Selected: "${agent.name}" (${agent.deployed ? "deployed" : "not deployed"}; provider ${agent.voiceProvider ?? "unknown"}; ` +
+          `script/flow ${agent.flowNodes} node(s), last edited ${agent.scriptVersion ?? "unknown"}; ` +
+          `calendar/booking step ${agent.calendarLinked ? "present in flow" : "NOT present in flow"}).`
+        : ""),
+      {
+        total: agentList.length,
+        deployed: agentList.filter((a) => a.deployed).length,
+        selected: agent
+          ? {
+              id: agent.id, name: agent.name, deployed: agent.deployed,
+              voice_provider: agent.voiceProvider, script_flow_nodes: agent.flowNodes,
+              script_last_edited_at: agent.scriptVersion, calendar_linked: agent.calendarLinked,
+            }
+          : null,
+      }),
+    evidenceItem("phone_numbers",
+      callerNumber
+        ? `Outbound caller number resolved: ${callerNumber}${agentNumber ? " (agent-assigned)" : " (workspace default — confirm at Agent & Script approval)"}; ${activeNumbers.length} active number(s) in workspace.`
+        : "No active outbound caller number configured — launch is blocked until a number is connected.",
+      { resolved: callerNumber, agent_assigned: !!agentNumber, active_count: activeNumbers.length }),
+    evidenceItem("campaigns",
+      priorPolicy
+        ? `Retry/voicemail/concurrency policy resolved from prior campaign "${priorPolicy.name}" (retry_config ${retryPolicy ? "present" : "absent"}, schedule_config ${schedulePolicy ? "present" : "absent"}${concurrency ? `, concurrency ${concurrency}` : ", concurrency not set — to be fixed at Schedule approval"}).`
+        : "No prior campaign policy exists — retry, voicemail and concurrency policy are UNRESOLVED and must be fixed at the Schedule approval.",
+      { prior_campaign: priorPolicy ? { id: priorPolicy.id, name: priorPolicy.name } : null, retry_config: retryPolicy, schedule_config: schedulePolicy, concurrency }),
+    evidenceItem("leads",
+      `CRM mapping: ${crmLinked} of ${compliance.eligible.length} eligible lead(s) carry a CRM link (external_source_id); outcomes for the remainder stay local-only.`,
+      { crm_linked: crmLinked, local_only: compliance.eligible.length - crmLinked }),
+    evidenceItem("calls", costNote, { cost_estimate: costEstimate, recent_calls_sampled: callRows.length }),
   ];
   const diagnosis =
     `Call campaign feasibility: ${compliance.eligible.length} of ${rawLeads.length} lead(s) callable (Do-Not-Call and no-phone excluded); ` +
     (agent ? `agent "${agent.name}" ${agent.deployed ? "is deployed and ready" : "exists but is NOT deployed"}; ` : "agent selection pending; ") +
-    `proposed volume ${dailyVolume} call(s)/day.`;
+    (callerNumber ? `caller number ${callerNumber}; ` : "NO caller number configured (blocked); ") +
+    (priorPolicy ? "retry/voicemail policy carried from prior campaign; " : "retry/voicemail/concurrency policy unresolved (fixed at Schedule approval); ") +
+    `proposed volume ${dailyVolume} call(s)/day. ${costNote}`;
   const objective = opts.objective?.trim() ||
     "Run an AI call campaign over the callable lead segment with split Audience/Agent & Script/Schedule/Volume/Launch approvals.";
   const intentSource = opts.source === "hivemind_tool" ? "chat_tool:create_call_campaign_work_order" : "manual:call_campaign_work_order";
@@ -914,9 +1031,16 @@ export async function createCallCampaignWorkOrderCore(
     title: agent ? `AI call campaign — ${agent.name}` : "AI call campaign",
     objective,
     source: opts.source ?? "hivemind_chat",
-    metadata: { channel_kind: "call", agent_id: agent?.id ?? null, daily_volume: dailyVolume },
+    metadata: {
+      channel_kind: "call", agent_id: agent?.id ?? null, daily_volume: dailyVolume,
+      caller_number: callerNumber, concurrency, crm_linked_leads: crmLinked, cost_estimate: costEstimate,
+    },
     packet: mk(stages[0], `Approve call audience: ${compliance.eligible.length} callable lead(s).`, [{ title: "Confirm callable audience" }]),
-    readiness: !agentList.length ? "integration_required" : (integrationBlockers.length ? "blocked" : "ready_for_change_approval"),
+    readiness: !agentList.length
+      ? "integration_required"
+      : !callerNumber
+        ? "integration_required"
+        : (integrationBlockers.length ? "blocked" : "ready_for_change_approval"),
     triggerType: "call_campaign",
     stageTasks: [
       {
@@ -929,23 +1053,38 @@ export async function createCallCampaignWorkOrderCore(
         stage: stages[1],
         title: agent ? `Approve Agent & Script: "${agent.name}"` : "Approve Agent & Script: select the calling agent",
         description: agent
-          ? `Agent "${agent.name}" (${agent.deployed ? "deployed" : "NOT deployed"}) and its current script/flow.`
-          : `Select from ${agentList.length} workspace agent(s) (${agentList.filter((a) => a.deployed).length} deployed).`,
+          ? `Agent "${agent.name}" (${agent.deployed ? "deployed" : "NOT deployed"}, provider ${agent.voiceProvider ?? "unknown"}), ` +
+            `script/flow of ${agent.flowNodes} node(s) last edited ${agent.scriptVersion ?? "unknown"}; ` +
+            `calendar/booking step ${agent.calendarLinked ? "present" : "NOT present"} in the flow. ` +
+            (callerNumber ? `Caller number ${callerNumber}${agentNumber ? " (agent-assigned)" : " (workspace default)"}.` : "No caller number configured (blocked).")
+          : `Select from ${agentList.length} workspace agent(s) (${agentList.filter((a) => a.deployed).length} deployed).` +
+            (callerNumber ? ` Caller number ${callerNumber}.` : " No caller number configured (blocked)."),
         packet: mk(stages[1],
-          agent ? `Approve Agent & Script: agent "${agent.name}" with its current flow.` : "Approve Agent & Script: select and approve the calling agent and script.",
-          [{ title: "Confirm the agent and script" }]),
+          agent ? `Approve Agent & Script: agent "${agent.name}" (current flow version) and caller number ${callerNumber ?? "UNRESOLVED"}.` : "Approve Agent & Script: select and approve the calling agent, script and caller number.",
+          [{ title: "Confirm the agent, script version and caller number" }]),
       },
       {
         stage: stages[2],
         title: "Approve Schedule: call window, retries, voicemail policy",
-        description: "Business-hours call window, retry policy and voicemail behaviour.",
-        packet: mk(stages[2], "Approve Schedule: call window, retry and voicemail policy.", [{ title: "Confirm the calling schedule" }]),
+        description:
+          "Business-hours call window, retry policy and voicemail behaviour. " +
+          (priorPolicy
+            ? `Baseline carried from prior campaign "${priorPolicy.name}"${concurrency ? ` (concurrency ${concurrency})` : " (concurrency not set — fix here)"}.`
+            : "No prior policy exists — retry count, voicemail behaviour and concurrency are set and approved HERE."),
+        packet: mk(stages[2],
+          priorPolicy
+            ? `Approve Schedule: call window plus retry/voicemail/concurrency policy (baseline from "${priorPolicy.name}").`
+            : "Approve Schedule: call window, retry count, voicemail behaviour and concurrency (no prior policy — fixed at this approval).",
+          [{ title: "Confirm calling schedule, retry/voicemail policy and concurrency" }]),
       },
       {
         stage: stages[3],
         title: `Approve Volume: up to ${dailyVolume} call(s)/day`,
-        description: `Daily volume cap ${dailyVolume}; total audience ${compliance.eligible.length} lead(s).`,
-        packet: mk(stages[3], `Approve Volume: up to ${dailyVolume} call(s)/day across ${compliance.eligible.length} lead(s).`, [{ title: "Confirm daily call volume" }]),
+        description:
+          `Daily volume cap ${dailyVolume}; total audience ${compliance.eligible.length} lead(s)` +
+          `${concurrency ? `; concurrency ${concurrency}` : ""}. ${costNote} ` +
+          `CRM: ${crmLinked} lead(s) CRM-linked, ${compliance.eligible.length - crmLinked} local-only.`,
+        packet: mk(stages[3], `Approve Volume: up to ${dailyVolume} call(s)/day across ${compliance.eligible.length} lead(s). ${costNote}`, [{ title: "Confirm daily call volume and cost basis" }]),
       },
       {
         stage: stages[4],

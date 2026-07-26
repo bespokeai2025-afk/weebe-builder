@@ -183,6 +183,27 @@ describe("Email campaign core", () => {
     expect(blockers.some((b) => b.kind === "integration_missing")).toBe(true);
   });
 
+  it("failing sender domain health (grade D/F) → blocked readiness with explicit blocker", async () => {
+    deliverabilityMock.getEmailReadinessForWorkspace.mockResolvedValueOnce({
+      score: 40, grade: "D", issues: ["SPF record missing", "12 bounces in last 30 days"],
+    });
+    const { sb, inserted } = makeSb({
+      suppressed_emails: { rows: [] },
+      leads: { rows: [lead()] },
+      hexmail_campaigns: { rows: [] },
+      work_orders: { rows: [] },
+      hivemind_tasks: { rows: [] },
+    });
+    const res = await createEmailCampaignWorkOrderCore(sb, WS, null, {});
+    expect(inserted.work_orders![0].readiness_state).toBe("blocked");
+    const blockers = res.tasks[0].intelligence_packet.blockers as Array<{ kind: string; detail: string }>;
+    const health = blockers.find((b) => /health check FAILED/i.test(b.detail));
+    expect(health).toBeTruthy();
+    expect(health!.detail).toMatch(/SPF record missing/);
+    // Every stage carries the blocker — no fake ready state anywhere.
+    for (const t of res.tasks) expect(t.readiness_state).toBe("blocked");
+  });
+
   it("suppressed addresses are excluded from the audience with evidence", async () => {
     deliverabilityMock.getEmailReadinessForWorkspace.mockResolvedValueOnce({ score: 80, grade: "B", issues: [] });
     const { sb } = makeSb({
@@ -215,6 +236,72 @@ describe("Call campaign core", () => {
     expect(res.agentCandidates.length).toBe(2);
     expect(inserted.work_orders).toBeUndefined();
     expect(inserted.hivemind_tasks).toBeUndefined();
+  });
+
+  it("evidence resolves caller number, script version, retry/concurrency policy, CRM mapping and real cost basis", async () => {
+    const { sb, inserted } = makeSb({
+      agents: { rows: [{
+        id: "a1", name: "Ava Sales", status: "active", settings: {}, retell_agent_id: "r1",
+        flow_data: { nodes: [{ id: "n1" }, { id: "n2", type: "calcom_booking" }], edges: [] },
+        updated_at: "2026-07-10T00:00:00Z", voice_provider: "retell", inbound_phone_number: null,
+      }] },
+      phone_numbers: { rows: [{ id: "p1", phone_number: "+441134960000", friendly_name: "Main", provider: "twilio", agent_id: "a1", is_active: true }] },
+      campaigns: { rows: [{ id: "c1", name: "Q2 outreach", status: "completed", retry_config: { max_retries: 2, concurrency: 3, voicemail: "hangup" }, schedule_config: { window: "09:00-17:00" }, phone_number_id: "p1" }] },
+      calls: { rows: [
+        { duration_seconds: 120, cost_cents: 50 },
+        { duration_seconds: 60, cost_cents: 30 },
+      ] },
+      leads: { rows: [
+        lead({ phone: "+447700900001", external_source_id: "crm-9" }),
+        lead({ phone: "+447700900002", email: "x@example.com" }),
+      ] },
+      work_orders: { rows: [] },
+      hivemind_tasks: { rows: [] },
+    });
+    const res = await createCallCampaignWorkOrderCore(sb, WS, null, { agentName: "Ava Sales", dailyVolume: 25 });
+    expect(res.agentStatus).toBe("resolved");
+    expect(inserted.work_orders![0].readiness_state).toBe("ready_for_change_approval");
+    const wm = inserted.work_orders![0].metadata;
+    expect(wm.caller_number).toBe("+441134960000");
+    expect(wm.concurrency).toBe(3);
+    expect(wm.crm_linked_leads).toBe(1);
+    expect(wm.cost_estimate.basis).toBe("recent_call_history");
+    expect(wm.cost_estimate.avg_cost_cents).toBe(40);
+    expect(wm.cost_estimate.estimated_total_cents).toBe(80);
+
+    const packet = res.tasks[0].intelligence_packet;
+    const bySource = (s: string) => packet.evidence.filter((e: any) => e.source === s);
+    const agentEv = bySource("agents")[0];
+    expect(agentEv.data.selected.script_flow_nodes).toBe(2);
+    expect(agentEv.data.selected.script_last_edited_at).toBe("2026-07-10T00:00:00Z");
+    expect(agentEv.data.selected.calendar_linked).toBe(true);
+    const numEv = bySource("phone_numbers")[0];
+    expect(numEv.data.resolved).toBe("+441134960000");
+    expect(numEv.data.agent_assigned).toBe(true);
+    const polEv = bySource("campaigns")[0];
+    expect(polEv.data.concurrency).toBe(3);
+    expect(polEv.data.retry_config.max_retries).toBe(2);
+    const crmEv = packet.evidence.find((e: any) => e.source === "leads" && e.data?.crm_linked !== undefined);
+    expect(crmEv.data.crm_linked).toBe(1);
+    expect(crmEv.data.local_only).toBe(1);
+    const costEv = bySource("calls")[0];
+    expect(costEv.data.cost_estimate.basis).toBe("recent_call_history");
+  });
+
+  it("no active caller number → integration_required with explicit blocker", async () => {
+    const { sb, inserted } = makeSb({
+      agents: { rows: [{ id: "a1", name: "Ava Sales", status: "active", settings: {}, retell_agent_id: "r1", flow_data: { nodes: [] }, updated_at: "2026-07-10T00:00:00Z", voice_provider: "retell", inbound_phone_number: null }] },
+      phone_numbers: { rows: [] },
+      campaigns: { rows: [] },
+      calls: { rows: [] },
+      leads: { rows: [lead()] },
+      work_orders: { rows: [] },
+      hivemind_tasks: { rows: [] },
+    });
+    const res = await createCallCampaignWorkOrderCore(sb, WS, null, { agentName: "Ava Sales" });
+    expect(inserted.work_orders![0].readiness_state).toBe("integration_required");
+    const blockers = res.tasks[0].intelligence_packet.blockers as Array<{ kind: string; detail: string }>;
+    expect(blockers.some((b) => b.kind === "integration_missing" && /caller number/i.test(b.detail))).toBe(true);
   });
 });
 
