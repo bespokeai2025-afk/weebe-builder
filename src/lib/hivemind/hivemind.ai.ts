@@ -1496,8 +1496,16 @@ export const getHiveMindAIResponse = createServerFn({ method: "POST" })
           outcome = { ok: false, error: String(e?.message ?? e).slice(0, 500) };
         }
         actionsTaken.push({ tool: call.function?.name, ok: outcome.ok === true, status: outcome.status as string | undefined });
+        const WORK_ORDER_TOOLS = new Set([
+          "create_gads_analysis_work_order",
+          "create_sales_pipeline_work_order",
+          "create_followup_sequence_work_order",
+          "create_whatsapp_campaign_work_order",
+          "create_email_campaign_work_order",
+          "create_call_campaign_work_order",
+        ]);
         if (
-          call.function?.name === "create_gads_analysis_work_order" &&
+          WORK_ORDER_TOOLS.has(call.function?.name) &&
           outcome.ok === true && outcome.status === "created" &&
           typeof outcome.taskId === "string" && typeof outcome.workOrderId === "string"
         ) {

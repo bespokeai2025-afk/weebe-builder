@@ -898,3 +898,245 @@ registerRead({
     return { result: { workOrderTasks: out } };
   },
 });
+
+// ── Channel work orders (Task #488: sales/CRM & comms depth) ─────────────────
+// Each tool creates a work order with SPLIT approval-stage tasks through the
+// intelligence-packet quality gate. Proposals only — nothing sends/launches
+// until every stage (including the blocked Send/Launch stage) is approved.
+
+const audienceFilterSchema = z.object({
+  pipelineStage: z.string().max(100).optional(),
+  status: z.string().max(100).optional(),
+  qualificationStatus: z.string().max(100).optional(),
+  maxLeads: z.number().int().min(1).max(5000).optional(),
+}).optional();
+
+registerWrite({
+  name: "create_sales_pipeline_work_order",
+  title: "Create sales pipeline review work order",
+  description:
+    "Analyse the REAL sales pipeline (stage counts, stalled leads, never-contacted, duplicates, missing contact info) and create an evidence-backed review work order with record-tied proposed actions. " +
+    "Use when the user asks to review/improve/clean the pipeline or sales process. PROPOSAL ONLY — no stage moves, no contacting. " +
+    "On success, summarise the real findings (stalled counts, defects) and tell the user the review awaits their approval on the HiveMind Tasks page.",
+  idempotent: false,
+  inputSchema: z.object({
+    objective: z.string().max(2000).optional(),
+    stalledAfterDays: z.number().int().min(3).max(90).optional(),
+  }),
+  run: async (ctx, i: { objective?: string; stalledAfterDays?: number }) => {
+    const { createSalesPipelineWorkOrderCore } = await import("@/lib/hivemind/channel-work-orders.server");
+    const { workOrder, tasks, analysis } = await createSalesPipelineWorkOrderCore(
+      ctx.sb, ctx.workspaceId, ctx.userId,
+      { objective: i.objective, stalledAfterDays: i.stalledAfterDays, source: "hivemind_tool" },
+    );
+    const t = tasks[0];
+    return {
+      result: {
+        status: "created",
+        workOrderId: workOrder.id,
+        taskId: t.id,
+        taskTitle: t.title,
+        readinessState: t.readiness_state ?? null,
+        objective: workOrder.objective ?? null,
+        approvalScopeSummary: (t.intelligence_packet?.approval_scope?.summary as string) ?? null,
+        findings: {
+          totalLeads: analysis.totalLeads,
+          stalled: analysis.stalled.length,
+          neverContacted: analysis.neverContacted,
+          duplicatePhones: analysis.duplicatePhones,
+          missingContactInfo: analysis.missingContactInfo,
+          conversionPct: analysis.conversionPct,
+        },
+        next_step: "Review awaits approval on the HiveMind Tasks page. Nothing changes and no lead is contacted by this approval.",
+      },
+      affectedRecordType: "work_orders",
+      affectedRecordId: workOrder.id,
+    };
+  },
+});
+
+registerWrite({
+  name: "create_followup_sequence_work_order",
+  title: "Create follow-up sequence work order",
+  description:
+    "Propose a multi-touch follow-up sequence (call/email/whatsapp/sms) for a lead segment with consent, opt-out, suppression and duplicate filtering applied to the REAL audience. " +
+    "Creates split approval tasks: Audience, Sequence, Schedule, and a BLOCKED Send stage. Use when the user asks to follow up with / chase / re-engage leads. " +
+    "PROPOSAL ONLY — no lead is contacted until every stage is approved. Report the real eligible-audience numbers and exclusions.",
+  idempotent: false,
+  inputSchema: z.object({
+    channels: z.array(z.enum(["call", "email", "whatsapp", "sms"])).min(1).max(4).optional(),
+    touches: z.number().int().min(1).max(8).optional(),
+    audience: audienceFilterSchema,
+    objective: z.string().max(2000).optional(),
+  }),
+  run: async (ctx, i: any) => {
+    const { createFollowUpSequenceWorkOrderCore } = await import("@/lib/hivemind/channel-work-orders.server");
+    const { workOrder, tasks, audienceSummary } = await createFollowUpSequenceWorkOrderCore(
+      ctx.sb, ctx.workspaceId, ctx.userId,
+      { channels: i.channels, touches: i.touches, audience: i.audience, objective: i.objective, source: "hivemind_tool" },
+    );
+    const first = tasks[0];
+    return {
+      result: {
+        status: "created",
+        workOrderId: workOrder.id,
+        taskId: first.id,
+        taskTitle: first.title,
+        readinessState: first.readiness_state ?? null,
+        objective: workOrder.objective ?? null,
+        approvalScopeSummary: (first.intelligence_packet?.approval_scope?.summary as string) ?? null,
+        audienceSummary,
+        stages: tasks.map((t: any) => ({
+          taskId: t.id, title: t.title,
+          stage: t.metadata?.approval_stage_label ?? null,
+          readinessState: t.readiness_state ?? null,
+        })),
+        next_step: "Each stage needs its own approval; the Send stage stays blocked until Audience, Sequence and Schedule are approved.",
+      },
+      affectedRecordType: "work_orders",
+      affectedRecordId: workOrder.id,
+    };
+  },
+});
+
+registerWrite({
+  name: "create_whatsapp_campaign_work_order",
+  title: "Create WhatsApp campaign work order",
+  description:
+    "Propose a WhatsApp template campaign: resolves the REAL opted-in audience, connected provider (WATI) and synced approved templates, then creates split approval tasks (Audience, Template, Schedule, blocked Send). " +
+    "Use when the user asks to message leads on WhatsApp. Only explicitly opted-in leads are ever included. " +
+    "If the provider is not connected, the work order is created in Integration Required state — say so honestly. PROPOSAL ONLY.",
+  idempotent: false,
+  inputSchema: z.object({
+    templateName: z.string().max(200).optional(),
+    audience: audienceFilterSchema,
+    objective: z.string().max(2000).optional(),
+  }),
+  run: async (ctx, i: any) => {
+    const { createWhatsAppCampaignWorkOrderCore } = await import("@/lib/hivemind/channel-work-orders.server");
+    const { workOrder, tasks, providerConnected, audienceSummary } = await createWhatsAppCampaignWorkOrderCore(
+      ctx.sb, ctx.workspaceId, ctx.userId,
+      { templateName: i.templateName, audience: i.audience, objective: i.objective, source: "hivemind_tool" },
+    );
+    const first = tasks[0];
+    return {
+      result: {
+        status: "created",
+        workOrderId: workOrder.id,
+        taskId: first.id,
+        taskTitle: first.title,
+        readinessState: first.readiness_state ?? null,
+        objective: workOrder.objective ?? null,
+        approvalScopeSummary: (first.intelligence_packet?.approval_scope?.summary as string) ?? null,
+        providerConnected,
+        audienceSummary,
+        stages: tasks.map((t: any) => ({
+          taskId: t.id, title: t.title,
+          stage: t.metadata?.approval_stage_label ?? null,
+          readinessState: t.readiness_state ?? null,
+        })),
+        next_step: providerConnected
+          ? "Each stage needs its own approval; the Send stage stays blocked until the earlier stages are approved."
+          : "BLOCKED: connect a WhatsApp provider (WATI) first — every stage is in Integration Required state.",
+      },
+      affectedRecordType: "work_orders",
+      affectedRecordId: workOrder.id,
+    };
+  },
+});
+
+registerWrite({
+  name: "create_email_campaign_work_order",
+  title: "Create email campaign work order",
+  description:
+    "Propose an email campaign: resolves the REAL eligible audience (suppression list enforced), sender-domain deliverability health and existing HexMail sequences, then creates split approval tasks (Audience, Copy, Sequence, Schedule, blocked Send). " +
+    "Use when the user asks to email leads / run an email campaign. If no verified sender domain exists, the work order is created in Integration Required state — say so honestly. PROPOSAL ONLY.",
+  idempotent: false,
+  inputSchema: z.object({
+    audience: audienceFilterSchema,
+    objective: z.string().max(2000).optional(),
+  }),
+  run: async (ctx, i: any) => {
+    const { createEmailCampaignWorkOrderCore } = await import("@/lib/hivemind/channel-work-orders.server");
+    const { workOrder, tasks, deliverability, audienceSummary } = await createEmailCampaignWorkOrderCore(
+      ctx.sb, ctx.workspaceId, ctx.userId,
+      { audience: i.audience, objective: i.objective, source: "hivemind_tool" },
+    );
+    const first = tasks[0];
+    return {
+      result: {
+        status: "created",
+        workOrderId: workOrder.id,
+        taskId: first.id,
+        taskTitle: first.title,
+        readinessState: first.readiness_state ?? null,
+        objective: workOrder.objective ?? null,
+        approvalScopeSummary: (first.intelligence_packet?.approval_scope?.summary as string) ?? null,
+        deliverability,
+        audienceSummary,
+        stages: tasks.map((t: any) => ({
+          taskId: t.id, title: t.title,
+          stage: t.metadata?.approval_stage_label ?? null,
+          readinessState: t.readiness_state ?? null,
+        })),
+        next_step: deliverability
+          ? "Each stage needs its own approval; the Send stage stays blocked until the earlier stages are approved and the send gate passes."
+          : "BLOCKED: add a verified sender domain in HexMail → Deliverability first — every stage is in Integration Required state.",
+      },
+      affectedRecordType: "work_orders",
+      affectedRecordId: workOrder.id,
+    };
+  },
+});
+
+registerWrite({
+  name: "create_call_campaign_work_order",
+  title: "Create AI call campaign work order",
+  description:
+    "Propose an AI call campaign: resolves the REAL callable audience (Do-Not-Call excluded), the named agent against workspace agents, and creates split approval tasks (Audience, Agent & Script, Schedule, Volume, blocked Launch). " +
+    "Pass agentName when the user names an agent; if the result is status 'ambiguous' or 'not_found', list the candidate agent names and ask the user to pick one. PROPOSAL ONLY — no calls until every stage is approved.",
+  idempotent: false,
+  inputSchema: z.object({
+    agentName: z.string().max(200).optional(),
+    audience: audienceFilterSchema,
+    dailyVolume: z.number().int().min(1).max(500).optional(),
+    objective: z.string().max(2000).optional(),
+  }),
+  run: async (ctx, i: any) => {
+    const { createCallCampaignWorkOrderCore } = await import("@/lib/hivemind/channel-work-orders.server");
+    const r = await createCallCampaignWorkOrderCore(
+      ctx.sb, ctx.workspaceId, ctx.userId,
+      { agentName: i.agentName, audience: i.audience, dailyVolume: i.dailyVolume, objective: i.objective, source: "hivemind_tool" },
+    );
+    if (r.agentStatus === "ambiguous" || r.agentStatus === "not_found") {
+      return {
+        result: {
+          status: r.agentStatus,
+          candidates: r.agentCandidates.map((a) => ({ id: a.id, name: a.name, deployed: a.deployed })),
+        },
+      };
+    }
+    const first = r.tasks[0];
+    return {
+      result: {
+        status: "created",
+        workOrderId: r.workOrder.id,
+        taskId: first.id,
+        taskTitle: first.title,
+        readinessState: first.readiness_state ?? null,
+        objective: r.workOrder.objective ?? null,
+        approvalScopeSummary: (first.intelligence_packet?.approval_scope?.summary as string) ?? null,
+        agent: r.agent,
+        audienceSummary: r.audienceSummary,
+        stages: r.tasks.map((t: any) => ({
+          taskId: t.id, title: t.title,
+          stage: t.metadata?.approval_stage_label ?? null,
+          readinessState: t.readiness_state ?? null,
+        })),
+        next_step: "Each stage needs its own approval; the Launch stage stays blocked until the earlier stages are approved and the agent is deployed.",
+      },
+      affectedRecordType: "work_orders",
+      affectedRecordId: r.workOrder.id,
+    };
+  },
+});
