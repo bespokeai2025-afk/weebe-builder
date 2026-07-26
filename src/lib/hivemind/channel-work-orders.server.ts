@@ -109,14 +109,16 @@ function audienceEvidence(
 }
 
 // ── Shared insert: one work order + one task per approval stage ──────────────
-interface StageTaskSpec {
+// Exported for reuse by social-work-orders.server.ts (Task #489) — the stage
+// type is structural so social stages ({key,label,kind,finalSend}) fit too.
+export interface StageTaskSpec {
   stage: ApprovalStage;
   title: string;
   description: string;
   packet: UniversalMindIntelligencePacket;
 }
 
-async function insertWorkOrderWithStageTasks(
+export async function insertWorkOrderWithStageTasks(
   sb: Sb,
   workspaceId: string,
   userId: string | null,
@@ -186,14 +188,14 @@ async function insertWorkOrderWithStageTasks(
 }
 
 /** Blocker list for the final Send/Launch stage — honest "blocked" readiness. */
-function finalSendBlockers(priorLabels: string[]): Array<{ kind: "other"; detail: string }> {
+export function finalSendBlockers(priorLabels: string[]): Array<{ kind: "other"; detail: string }> {
   return [{
     kind: "other",
     detail: `Awaiting prior stage approvals (${priorLabels.join(", ")}) — sending is never authorised by earlier approvals alone.`,
   }];
 }
 
-function stagePacket(input: {
+export function stagePacket(input: {
   buildIntelligencePacket: (i: any) => UniversalMindIntelligencePacket;
   mind?: string;
   objective: string;

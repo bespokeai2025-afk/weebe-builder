@@ -5634,6 +5634,110 @@ export type Database = {
           },
         ]
       }
+      growthmind_content_variants: {
+        Row: {
+          approval_state: string
+          approval_task_id: string | null
+          approved_at: string | null
+          approved_by: string | null
+          approved_copy_snapshot: Json | null
+          blockers: Json
+          body_copy: string | null
+          caption: string | null
+          channel: string
+          created_at: string
+          cta: string | null
+          deployment_path: string
+          deployment_state: string
+          external_post_id: string | null
+          format_notes: string | null
+          headline: string | null
+          hook: string | null
+          id: string
+          live_url: string | null
+          media_url: string | null
+          performance: Json | null
+          project_id: string
+          provider_record: Json | null
+          publishing_job_id: string | null
+          script: string | null
+          updated_at: string
+          verification_note: string | null
+          work_order_id: string | null
+          workspace_id: string
+        }
+        Insert: {
+          approval_state?: string
+          approval_task_id?: string | null
+          approved_at?: string | null
+          approved_by?: string | null
+          approved_copy_snapshot?: Json | null
+          blockers?: Json
+          body_copy?: string | null
+          caption?: string | null
+          channel: string
+          created_at?: string
+          cta?: string | null
+          deployment_path?: string
+          deployment_state?: string
+          external_post_id?: string | null
+          format_notes?: string | null
+          headline?: string | null
+          hook?: string | null
+          id?: string
+          live_url?: string | null
+          media_url?: string | null
+          performance?: Json | null
+          project_id: string
+          provider_record?: Json | null
+          publishing_job_id?: string | null
+          script?: string | null
+          updated_at?: string
+          verification_note?: string | null
+          work_order_id?: string | null
+          workspace_id: string
+        }
+        Update: {
+          approval_state?: string
+          approval_task_id?: string | null
+          approved_at?: string | null
+          approved_by?: string | null
+          approved_copy_snapshot?: Json | null
+          blockers?: Json
+          body_copy?: string | null
+          caption?: string | null
+          channel?: string
+          created_at?: string
+          cta?: string | null
+          deployment_path?: string
+          deployment_state?: string
+          external_post_id?: string | null
+          format_notes?: string | null
+          headline?: string | null
+          hook?: string | null
+          id?: string
+          live_url?: string | null
+          media_url?: string | null
+          performance?: Json | null
+          project_id?: string
+          provider_record?: Json | null
+          publishing_job_id?: string | null
+          script?: string | null
+          updated_at?: string
+          verification_note?: string | null
+          work_order_id?: string | null
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "growthmind_content_variants_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "growthmind_content_projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       growthmind_discovery_runs: {
         Row: {
           cost_estimate: number

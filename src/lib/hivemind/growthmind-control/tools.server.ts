@@ -1140,3 +1140,289 @@ registerWrite({
     };
   },
 });
+
+// ── Social, content & ads work orders (Task #489) ────────────────────────────
+// Meta / TikTok / LinkedIn / Content-Studio-variants / Google-Ads / SEO chat
+// instructions produce evidence-backed intelligence packets with split scoped
+// approvals. PROPOSALS ONLY — nothing publishes, launches or spends from these
+// tools; final stages are created blocked and hard blockers (missing budget,
+// unverified audio rights, missing creative/destination) can never be approved
+// away.
+
+const budgetSchema = z.object({
+  amount: z.number().positive().nullable().optional(),
+  currency: z.string().max(8).optional(),
+  period: z.enum(["daily", "lifetime"]).optional(),
+}).optional();
+
+const stagesOut = (tasks: any[]) => tasks.map((t: any) => ({
+  taskId: t.id, title: t.title,
+  stage: t.metadata?.approval_stage_label ?? null,
+  readinessState: t.readiness_state ?? null,
+}));
+
+registerWrite({
+  name: "create_meta_campaign_work_order",
+  title: "Create Meta (Facebook/Instagram) campaign work order",
+  description:
+    "Propose a Meta campaign with REAL evidence (connected pages/IG accounts, ad accounts, recent verified posts) and split approval stages: Accounts & Assets, Audience & Placement, Creative & Destination, Budget & Schedule, and a blocked Launch stage. " +
+    "The Launch approval is split into 'Approve and Create as Paused' vs 'Approve and Launch'. Missing budget, creative or destination HARD-BLOCK the Launch stage — report those blockers honestly. " +
+    "If Meta is not connected the work order is created in Integration Required state. PROPOSAL ONLY — nothing is created in Ads Manager by this tool.",
+  idempotent: false,
+  inputSchema: z.object({
+    objective: z.string().max(2000).optional(),
+    campaignObjective: z.string().max(200).optional(),
+    audienceDescription: z.string().max(2000).optional(),
+    placements: z.array(z.string().max(60)).max(10).optional(),
+    creativeCaption: z.string().max(3000).optional(),
+    creativeMediaUrl: z.string().max(2000).optional(),
+    destinationUrl: z.string().max(2000).optional(),
+    conversionEvent: z.string().max(200).optional(),
+    budget: budgetSchema,
+    scheduleStartAt: z.string().max(40).optional(),
+    scheduleEndAt: z.string().max(40).optional(),
+  }),
+  run: async (ctx, i: any) => {
+    const { createMetaCampaignWorkOrderCore } = await import("@/lib/hivemind/social-work-orders.server");
+    const { workOrder, tasks, connected, launchBlockers } = await createMetaCampaignWorkOrderCore(
+      ctx.sb, ctx.workspaceId, ctx.userId,
+      {
+        objective: i.objective,
+        source: "hivemind_tool",
+        spec: {
+          objective: i.campaignObjective ?? null,
+          audienceDescription: i.audienceDescription ?? null,
+          placements: i.placements ?? null,
+          creative: (i.creativeCaption || i.creativeMediaUrl)
+            ? { caption: i.creativeCaption ?? null, mediaUrl: i.creativeMediaUrl ?? null }
+            : null,
+          destinationUrl: i.destinationUrl ?? null,
+          conversionEvent: i.conversionEvent ?? null,
+          budget: i.budget ?? null,
+          schedule: (i.scheduleStartAt || i.scheduleEndAt)
+            ? { startAt: i.scheduleStartAt ?? null, endAt: i.scheduleEndAt ?? null }
+            : null,
+        },
+      },
+    );
+    return {
+      result: {
+        status: "created",
+        workOrderId: workOrder.id,
+        connected,
+        launchBlockers,
+        stages: stagesOut(tasks),
+        next_step: !connected
+          ? "BLOCKED: connect Meta (Facebook/Instagram) first — every stage is in Integration Required state."
+          : launchBlockers.length
+            ? `Launch is HARD-BLOCKED until resolved: ${launchBlockers.join(" ")}`
+            : "Each stage needs its own approval; Launch stays blocked until every earlier stage is approved, then choose 'Create as Paused' or 'Launch'.",
+      },
+      affectedRecordType: "work_orders",
+      affectedRecordId: workOrder.id,
+    };
+  },
+});
+
+registerWrite({
+  name: "create_tiktok_work_order",
+  title: "Create TikTok content/ad work order",
+  description:
+    "Propose TikTok organic content or a TikTok ad with a full production spec (concept, hook, script, shot list, caption, CTA, duration, safe zones) and split approval stages including a mandatory Audio Rights stage. " +
+    "Copyrighted or unverified audio HARD-BLOCKS publication — never suggest bypassing it. WEBEE has no TikTok publish API: the final stage authorises MANUAL publication and nothing is claimed live without a real TikTok post reference. PROPOSAL ONLY.",
+  idempotent: false,
+  inputSchema: z.object({
+    isAd: z.boolean().optional(),
+    concept: z.string().max(1000).optional(),
+    hook: z.string().max(500).optional(),
+    script: z.string().max(5000).optional(),
+    shotList: z.array(z.string().max(300)).max(30).optional(),
+    caption: z.string().max(2200).optional(),
+    cta: z.string().max(300).optional(),
+    durationSeconds: z.number().int().min(1).max(600).optional(),
+    safeZonesChecked: z.boolean().optional(),
+    audioTitle: z.string().max(300).optional(),
+    audioRightsStatus: z.enum(["verified_rights", "original_audio", "unverified", "copyrighted_no_rights"]).optional(),
+    audienceDescription: z.string().max(2000).optional(),
+    optimisationGoal: z.string().max(200).optional(),
+    trackingSetup: z.string().max(500).optional(),
+    budget: budgetSchema,
+    objective: z.string().max(2000).optional(),
+  }),
+  run: async (ctx, i: any) => {
+    const { createTikTokWorkOrderCore } = await import("@/lib/hivemind/social-work-orders.server");
+    const { workOrder, tasks, audioBlocked, adsConnected } = await createTikTokWorkOrderCore(
+      ctx.sb, ctx.workspaceId, ctx.userId,
+      { objective: i.objective, source: "hivemind_tool", proposal: { ...i } },
+    );
+    return {
+      result: {
+        status: "created",
+        workOrderId: workOrder.id,
+        audioBlocked,
+        adsConnected: i.isAd ? adsConnected : null,
+        stages: stagesOut(tasks),
+        next_step: audioBlocked
+          ? "BLOCKED: audio rights are not verified — verify rights or switch to original audio before the Publish stage can ever be approved."
+          : "Each stage needs its own approval; publication is manual and only recorded live with a real TikTok post reference.",
+      },
+      affectedRecordType: "work_orders",
+      affectedRecordId: workOrder.id,
+    };
+  },
+});
+
+registerWrite({
+  name: "create_linkedin_work_order",
+  title: "Create LinkedIn content/ad work order",
+  description:
+    "Propose LinkedIn content or a LinkedIn ad campaign with split approval stages (Entity Resolution first — organisation page vs personal profile — then creative, and for ads: audience facets, lead-gen form, budget). " +
+    "WEBEE has no LinkedIn publish API: the deliverable is a deployment package in 'Awaiting LinkedIn Manual Publication' state — say so honestly. PROPOSAL ONLY.",
+  idempotent: false,
+  inputSchema: z.object({
+    isAd: z.boolean().optional(),
+    entityType: z.enum(["organization", "profile"]).optional(),
+    entityName: z.string().max(300).optional(),
+    headline: z.string().max(400).optional(),
+    body: z.string().max(3000).optional(),
+    mediaUrl: z.string().max(2000).optional(),
+    audienceFacets: z.array(z.string().max(120)).max(20).optional(),
+    leadGenFormName: z.string().max(200).optional(),
+    leadGenFormFields: z.array(z.string().max(80)).max(15).optional(),
+    campaignManagerAccount: z.string().max(200).optional(),
+    budget: budgetSchema,
+    objective: z.string().max(2000).optional(),
+  }),
+  run: async (ctx, i: any) => {
+    const { createLinkedInWorkOrderCore } = await import("@/lib/hivemind/social-work-orders.server");
+    const { workOrder, tasks, adsConnected } = await createLinkedInWorkOrderCore(
+      ctx.sb, ctx.workspaceId, ctx.userId,
+      {
+        objective: i.objective,
+        source: "hivemind_tool",
+        proposal: {
+          isAd: i.isAd,
+          entityType: i.entityType ?? null,
+          entityName: i.entityName ?? null,
+          creative: { headline: i.headline ?? null, body: i.body ?? null, mediaUrl: i.mediaUrl ?? null },
+          audienceFacets: i.audienceFacets ?? null,
+          campaignManagerAccount: i.campaignManagerAccount ?? null,
+          leadGenForm: i.leadGenFormName ? { name: i.leadGenFormName, fields: i.leadGenFormFields ?? null } : null,
+          budget: i.budget ?? null,
+        },
+      },
+    );
+    return {
+      result: {
+        status: "created",
+        workOrderId: workOrder.id,
+        adsConnected: i.isAd ? adsConnected : null,
+        stages: stagesOut(tasks),
+        next_step: "Publication is MANUAL — the final deliverable is a deployment package in 'Awaiting LinkedIn Manual Publication' state until a real LinkedIn reference is recorded.",
+      },
+      affectedRecordType: "work_orders",
+      affectedRecordId: workOrder.id,
+    };
+  },
+});
+
+registerWrite({
+  name: "create_content_deployment_work_order",
+  title: "Deploy a content project across channels (adapted variants)",
+  description:
+    "Fan a Content Studio project out into per-channel ADAPTED variants (blog, meta_ad, fb_post, ig_post, ig_story, ig_reel, tiktok, linkedin_post, linkedin_ad, whatsapp, email, sms, landing), each with its own independent approval. " +
+    "Variant copy must be genuinely adapted — identical copy is blocked by the adaptation gate. Only Meta-family channels have an API publish path; all others become 'awaiting manual publication'. Nothing is claimed live without a verified provider record or live URL. PROPOSAL ONLY.",
+  idempotent: false,
+  inputSchema: z.object({
+    projectId: z.string().uuid(),
+    variants: z.array(z.object({
+      channel: z.enum(["blog", "meta_ad", "fb_post", "ig_post", "ig_story", "ig_reel", "tiktok", "linkedin_post", "linkedin_ad", "whatsapp", "email", "sms", "landing"]),
+      headline: z.string().max(500).optional(),
+      bodyCopy: z.string().max(20000).optional(),
+      caption: z.string().max(3000).optional(),
+      cta: z.string().max(300).optional(),
+      hook: z.string().max(500).optional(),
+      script: z.string().max(10000).optional(),
+    })).min(1).max(13),
+    objective: z.string().max(2000).optional(),
+  }),
+  run: async (ctx, i: any) => {
+    const { createContentDeploymentWorkOrderCore } = await import("@/lib/hivemind/social-work-orders.server");
+    const { workOrder, tasks, variants } = await createContentDeploymentWorkOrderCore(
+      ctx.sb, ctx.workspaceId, ctx.userId,
+      { projectId: i.projectId, variants: i.variants, objective: i.objective, source: "hivemind_tool" },
+    );
+    return {
+      result: {
+        status: "created",
+        workOrderId: workOrder.id,
+        variants: variants.map((v: any) => ({
+          channel: v.channel, state: v.deploymentState, path: v.deploymentPath,
+          adaptationOk: v.adaptationOk, problems: v.problems,
+        })),
+        stages: stagesOut(tasks),
+        next_step: "Each channel variant needs its own approval; variants failing the adaptation gate stay in draft until genuinely adapted copy is provided.",
+      },
+      affectedRecordType: "work_orders",
+      affectedRecordId: workOrder.id,
+    };
+  },
+});
+
+registerWrite({
+  name: "create_gads_packet_work_order",
+  title: "Create Google Ads performance review work order",
+  description:
+    "Evidence-backed Google Ads review from REAL synced 30-day campaign data (spend, clicks, conversions, pending recommendations). All proposed optimisations route through the EXISTING change-request approvals — nothing executes from this work order. " +
+    "If Google Ads is not connected the work order is created in Integration Required state. PROPOSAL ONLY.",
+  idempotent: false,
+  inputSchema: z.object({ objective: z.string().max(2000).optional() }),
+  run: async (ctx, i: any) => {
+    const { createGadsPacketWorkOrderCore } = await import("@/lib/hivemind/social-work-orders.server");
+    const { workOrder, tasks, connected } = await createGadsPacketWorkOrderCore(
+      ctx.sb, ctx.workspaceId, ctx.userId, { objective: i.objective, source: "hivemind_tool" },
+    );
+    return {
+      result: {
+        status: "created",
+        workOrderId: workOrder.id,
+        connected,
+        stages: stagesOut(tasks),
+        next_step: connected
+          ? "Approve the analysis; every optimisation then becomes an individual change request with its own approval."
+          : "BLOCKED: connect Google Ads first — the work order is in Integration Required state.",
+      },
+      affectedRecordType: "work_orders",
+      affectedRecordId: workOrder.id,
+    };
+  },
+});
+
+registerWrite({
+  name: "create_seo_packet_work_order",
+  title: "Create SEO review work order",
+  description:
+    "Evidence-backed SEO review from REAL GSC sites and existing SEO campaigns. Any new blog campaign keeps the existing multi-stage approvals (strategy, brief, content, deployment) — this packet wraps them, never bypasses them. " +
+    "If GSC is not connected the work order is created in Integration Required state. PROPOSAL ONLY.",
+  idempotent: false,
+  inputSchema: z.object({ objective: z.string().max(2000).optional() }),
+  run: async (ctx, i: any) => {
+    const { createSeoPacketWorkOrderCore } = await import("@/lib/hivemind/social-work-orders.server");
+    const { workOrder, tasks, gscConnected } = await createSeoPacketWorkOrderCore(
+      ctx.sb, ctx.workspaceId, ctx.userId, { objective: i.objective, source: "hivemind_tool" },
+    );
+    return {
+      result: {
+        status: "created",
+        workOrderId: workOrder.id,
+        gscConnected,
+        stages: stagesOut(tasks),
+        next_step: gscConnected
+          ? "Approve the strategy review; campaign stages keep their own existing approvals through to manual deployment."
+          : "BLOCKED: connect Google Search Console first — the work order is in Integration Required state.",
+      },
+      affectedRecordType: "work_orders",
+      affectedRecordId: workOrder.id,
+    };
+  },
+});
