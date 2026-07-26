@@ -583,6 +583,16 @@ export async function createWhatsAppCampaignWorkOrderCore(
         requested: opts.templateName ?? null,
         requested_found: !!matchedTemplate,
       }),
+    evidenceItem("safety_check",
+      matchedTemplate?.body
+        ? "Content safety gate: template body is a provider-approved WhatsApp template — copy safety will be re-checked if personalisation tokens are rendered before send."
+        : "Content safety gate: template copy not yet staged — safety gate will apply when campaign copy is generated.",
+      {
+        applied: false,
+        reason: "whatsapp_template_not_yet_rendered",
+        template_name: matchedTemplate?.name ?? null,
+        template_status: matchedTemplate?.status ?? null,
+      }),
   ];
   const diagnosis =
     `WhatsApp campaign feasibility: ${compliance.eligible.length} of ${rawLeads.length} lead(s) are opted-in and reachable; ` +
@@ -741,6 +751,9 @@ export async function createEmailCampaignWorkOrderCore(
     evidenceItem("hexmail_campaigns", `${(hexCampaigns ?? []).length} existing HexMail campaign(s) available as sequence sources.`, {
       campaigns: (hexCampaigns ?? []).map((c: any) => ({ id: c.id, name: c.name, status: c.status })),
     }),
+    evidenceItem("safety_check",
+      "Content safety gate: email copy not yet drafted — safety gate will apply when campaign copy is generated and staged at the Copy approval step.",
+      { applied: false, reason: "email_copy_not_yet_staged" }),
   ];
   const diagnosis =
     `Email campaign feasibility: ${compliance.eligible.length} of ${rawLeads.length} lead(s) reachable after suppression and dedup; ` +
@@ -1003,6 +1016,16 @@ export async function createCallCampaignWorkOrderCore(
       `CRM mapping: ${crmLinked} of ${compliance.eligible.length} eligible lead(s) carry a CRM link (external_source_id); outcomes for the remainder stay local-only.`,
       { crm_linked: crmLinked, local_only: compliance.eligible.length - crmLinked }),
     evidenceItem("calls", costNote, { cost_estimate: costEstimate, recent_calls_sampled: callRows.length }),
+    evidenceItem("safety_check",
+      agent
+        ? "Content safety gate: agent script safety will be checked when the agent's flow/script is reviewed at the Agent & Script approval step."
+        : "Content safety gate: no agent resolved yet — safety gate will apply to agent script when an agent is selected at the Agent & Script approval step.",
+      {
+        applied: false,
+        reason: "call_script_checked_at_agent_approval",
+        agent_id: agent?.id ?? null,
+        agent_name: agent?.name ?? null,
+      }),
   ];
   const diagnosis =
     `Call campaign feasibility: ${compliance.eligible.length} of ${rawLeads.length} lead(s) callable (Do-Not-Call and no-phone excluded); ` +

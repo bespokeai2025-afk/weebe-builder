@@ -818,6 +818,16 @@ export const generateVideo = createServerFn({ method: "POST" })
         .select("id")
         .single();
     }
+    // Graceful fallback: if safety_blocked / safety_evidence columns not yet migrated, strip and retry
+    if (guidedRes.error && isMissingCol(guidedRes.error)) {
+      console.warn("[video-studio] safety_blocked/safety_evidence columns not found — apply SAFETY_GATE_VIDEO_MIGRATION.sql to persist safety gate results");
+      const { safety_blocked: _sb, safety_evidence: _se, ...rowWithoutSafety } = guidedInsertRow as any;
+      guidedRes = await sb
+        .from("growthmind_video_assets")
+        .insert(rowWithoutSafety)
+        .select("id")
+        .single();
+    }
 
     const { data: inserted, error: insertErr } = guidedRes;
 
@@ -1256,6 +1266,16 @@ export const generateVideoFromPrompt = createServerFn({ method: "POST" })
       firstRes = await sb
         .from("growthmind_video_assets")
         .insert(rowWithoutAudio)
+        .select("id")
+        .single();
+    }
+    // Graceful fallback: if safety_blocked / safety_evidence columns not yet migrated, strip and retry
+    if (firstRes.error && isMissingColumn(firstRes.error)) {
+      console.warn("[video-studio] safety_blocked/safety_evidence columns not found — apply SAFETY_GATE_VIDEO_MIGRATION.sql to persist safety gate results");
+      const { safety_blocked: _sb, safety_evidence: _se, ...rowWithoutSafety } = baseInsertRow as any;
+      firstRes = await sb
+        .from("growthmind_video_assets")
+        .insert(rowWithoutSafety)
         .select("id")
         .single();
     }
