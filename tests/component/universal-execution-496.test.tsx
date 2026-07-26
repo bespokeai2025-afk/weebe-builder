@@ -688,7 +688,10 @@ describe("sweepStalledExecutions watchdog", () => {
     expect(result.interrupted).toBe(1);
     expect(updatedRows[0].status).toBe("worker_interrupted");
     expect(updatedRows[0].blocked_reason).toMatch(/Worker did not report progress/);
+    // Task lifecycle cleanup assertions:
     expect(updatedTasks[0].execution_status).toBe("worker_interrupted");
+    expect(updatedTasks[0].status).toBe("suggested");
+    expect(updatedTasks[0].active_execution_id).toBeNull();
   });
 
   it("rows in 'queued' older than threshold → also transitioned to worker_interrupted", async () => {

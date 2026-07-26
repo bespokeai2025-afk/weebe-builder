@@ -166,8 +166,12 @@ async function dispatchAdapter(opts: {
     await transitionExecution(sb, workspaceId, execution.id, "executing", "blocked", {
       ...basePatch, blocked_reason: outcome.blockedReason,
     });
+    // Task is no longer actively running — revert to "suggested" so it can be re-approved
+    // once the blocking condition (e.g. missing provider) is resolved.
     await setTaskExecutionState(sb, workspaceId, task.id, {
       execution_status: "blocked",
+      status: "suggested",
+      active_execution_id: null,
     });
     await setWorkOrderState(sb, workspaceId, task.work_order_id, { status: "blocked" });
     return;
@@ -176,7 +180,12 @@ async function dispatchAdapter(opts: {
   await transitionExecution(sb, workspaceId, execution.id, "executing", "failed", {
     ...basePatch, error_message: outcome.errorMessage, finished_at: nowIso,
   });
-  await setTaskExecutionState(sb, workspaceId, task.id, { execution_status: "failed" });
+  // Revert task to "suggested" — execution failed, clear active pointer so it can be retried.
+  await setTaskExecutionState(sb, workspaceId, task.id, {
+    execution_status: "failed",
+    status: "suggested",
+    active_execution_id: null,
+  });
   await setWorkOrderState(sb, workspaceId, task.work_order_id, { status: "failed" });
   throw new Error(outcome.errorMessage ?? "Execution failed");
 }
@@ -312,7 +321,11 @@ export const approveAndRunTask = createServerFn({ method: "POST" })
           status: "failed", error_message: err?.message ?? String(err),
           finished_at: new Date().toISOString(), updated_at: new Date().toISOString(),
         }).eq("id", execution.id).eq("workspace_id", workspaceId);
-        await setTaskExecutionState(sb, workspaceId, task.id, { execution_status: "failed" });
+        await setTaskExecutionState(sb, workspaceId, task.id, {
+          execution_status: "failed",
+          status: "suggested",
+          active_execution_id: null,
+        });
       }
       throw err;
     }
@@ -446,8 +459,15 @@ export async function sweepStalledExecutions(sb: any, workspaceId: string | null
         .eq("status", row.status)
         .select("id");
       if ((updated ?? []).length) {
+        // Clear active_execution_id so the task is re-claimable; revert status
+        // to "suggested" so it doesn't appear as "in_progress" in the UI.
         await sb.from("hivemind_tasks")
-          .update({ execution_status: "worker_interrupted", updated_at: nowIso })
+          .update({
+            execution_status: "worker_interrupted",
+            status: "suggested",
+            active_execution_id: null,
+            updated_at: nowIso,
+          })
           .eq("id", row.task_id)
           .eq("workspace_id", row.workspace_id);
         interrupted++;
