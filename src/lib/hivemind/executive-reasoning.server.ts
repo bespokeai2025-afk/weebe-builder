@@ -562,14 +562,38 @@ export async function runExecutiveReasoning(
     }
 
     // Task candidates → accountability-shaped hivemind_tasks (deduped).
+    // MIGRATED (Task #500): each row now goes through prepareMindTaskInsert so
+    // it carries a full intelligence packet and readiness_state.
     const taskEvents = events.filter((e) => e.classification === "task_candidate");
+    const { buildIntelligencePacket, prepareMindTaskInsert, evidenceItem } =
+      await import("@/lib/minds/intelligence-packet.server");
     const newTasks: any[] = [];
     for (const ev of taskEvents) {
       const dup = openTasks.some(
         (t) => t.trigger_type === ev.event_type && t.entity_id === String(ev.entity_id ?? ""),
       );
       if (dup) { out.dedupedTasks++; continue; }
-      newTasks.push({
+      const evSummary = ev.summary ? String(ev.summary).slice(0, 2000) : String(ev.title).slice(0, 500);
+      const packet = buildIntelligencePacket({
+        mind: "hivemind",
+        objective: String(ev.title).slice(0, 500),
+        intentSource: `executive_reasoning:${ev.event_type}`,
+        targets: [{
+          domain: "general",
+          entity_type: String(ev.entity_type ?? ""),
+          entity_id: String(ev.entity_id ?? ""),
+          entity_name: null,
+          resolved: true,
+          resolution_note: `Executive event "${ev.event_type}" from ${ev.source_system} on ${String(ev.occurred_at).slice(0, 10)}`,
+        }],
+        evidence: [evidenceItem(
+          `executive_event:${ev.event_type}`,
+          evSummary,
+          ev.evidence && typeof ev.evidence === "object" ? ev.evidence as Record<string, unknown> : null,
+        )],
+        diagnosis: evSummary,
+      });
+      newTasks.push(prepareMindTaskInsert({
         workspace_id: workspaceId,
         title: String(ev.title).slice(0, 300),
         description: ev.summary ? String(ev.summary).slice(0, 2000) : null,
@@ -585,7 +609,7 @@ export async function runExecutiveReasoning(
         evidence: ev.evidence ?? {},
         reassess_at: new Date(Date.now() + REASSESS_DAYS * DAY).toISOString(),
         metadata: { source_event_id: ev.id },
-      });
+      }, packet));
       openTasks.push({ trigger_type: ev.event_type, entity_id: String(ev.entity_id ?? "") });
     }
     // Row-by-row insert so the partial unique index

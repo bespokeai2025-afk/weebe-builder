@@ -183,21 +183,48 @@ export async function writeCampaignReport(sb: Sb, input: CampaignReportInput): P
   } catch { /* non-fatal */ }
 
   // Failure notification → HiveMind task (visible in the action centre).
+  // MIGRATED (Task #500): insert goes through prepareMindTaskInsert so the row
+  // carries an intelligence packet and readiness_state.
   if (isFailureReportType(input.reportType)) {
     try {
       const { assertProposalAllowed } = await import("@/lib/hivemind/mode-gate.server");
       await assertProposalAllowed(sb, input.workspaceId);
-      await sb.from("hivemind_tasks").insert({
+      const { buildIntelligencePacket, prepareMindTaskInsert, evidenceItem } =
+        await import("@/lib/minds/intelligence-packet.server");
+      const title = `Campaign issue: ${input.campaignName ?? "campaign"} — ${input.reportType.replace(/_/g, " ")}`;
+      const description = `${summary}\n\nSee the campaign report for KPIs and recommended actions (report ${reportId}).`;
+      const packet = buildIntelligencePacket({
+        mind: "hivemind",
+        objective: `Investigate campaign failure: ${input.reportType} for "${input.campaignName ?? "campaign"}"`,
+        intentSource: `campaign_reports:${input.reportType}`,
+        targets: [{
+          domain: "campaigns",
+          entity_type: "campaign_report",
+          entity_id: reportId,
+          entity_name: input.campaignName ?? "campaign",
+          resolved: true,
+          resolution_note: `Campaign report ${reportId} (type: ${input.reportType}) has been written.`,
+        }],
+        evidence: [evidenceItem("campaign_report", summary, {
+          reportType:  input.reportType,
+          campaignId:  input.campaignId ?? null,
+          campaignName: input.campaignName ?? null,
+          reportId,
+        })],
+        diagnosis: summary,
+      });
+      const row = prepareMindTaskInsert({
         workspace_id: input.workspaceId,
-        title: `Campaign issue: ${input.campaignName ?? "campaign"} — ${input.reportType.replace(/_/g, " ")}`,
-        description: `${summary}\n\nSee the campaign report for KPIs and recommended actions (report ${reportId}).`,
+        title,
+        description,
         status: "suggested",
         priority: input.reportType === "failed" || input.reportType === "provider_error" ? "high" : "medium",
         source: "campaign_reports",
         trigger_type: `campaign_report_${input.reportType}`,
         entity_type: "campaign_report",
         entity_id: reportId,
-      });
+      }, packet);
+      await sb.from("hivemind_tasks").insert(row);
     } catch { /* non-fatal */ }
   }
 
