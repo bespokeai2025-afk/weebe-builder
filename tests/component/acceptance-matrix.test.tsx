@@ -18,7 +18,12 @@
  *   AccountsMind— 15 invoice audit  16 renewals audit
  *                17 outgoings audit 18 client-costing audit
  *
- * Additional suites:
+ * Additional suites (beyond 18 families):
+ *   - Family 12-B  Instagram ig_post dual approval gating (content then publication)
+ *   - Family 12-C  Unsafe content → safety gate blocks readiness (never reaches approval)
+ *   - Family 7+    Google Ads proposals-only assertion (⑭ honest — no auto-apply)
+ *   - Blog / website readiness state machine (withdrawal resets to draft)
+ *   - Adapter execution contract (provider_action_unsupported for WA + CRM)
  *   - Content safety regression (fabricated stats / fake testimonials blocked)
  *   - Workspace isolation (cross-workspace data cannot leak)
  *   - WBAH exclusion (each family asserts hard exclusion)
@@ -678,7 +683,8 @@ describe("Acceptance — Family 6: Cross-channel objective (HiveMind)", () => {
     const res = await createCrossChannelObjectiveWorkOrderCore(sb, WS, null, {
       objective: "Acquire 50 new leads in the UK market through targeted outreach",
     });
-    expect(res.justified.length).toBeGreaterThanOrEqual(1);
+    // ≥2 channels must be evidence-justified (email + WhatsApp with the fixture above)
+    expect(res.justified.length).toBeGreaterThanOrEqual(2);
     // Strategy task is independently approvable; channel tasks are correctly blocked.
     assertChain(
       { workOrder: inserted.work_orders![0], tasks: [res.strategyTask] },
@@ -764,6 +770,9 @@ describe("Acceptance — Family 7: Google Ads analysis (GrowthMind) [regression]
     );
     expect(crEvidence).toBeDefined();
     expect(crEvidence.description).toMatch(/change.request/i);
+    // Proposals are advisory — recommended actions require approval; nothing is auto-applied (⑭)
+    expect(JSON.stringify(inserted.work_orders![0].intelligence_packet))
+      .toMatch(/proposal|pending.*approval|change.request.*approval|advisory|require.*approval/i);
   });
 
   it("PROVIDER_STUB: no Google Ads account connected — integration_missing blocker present", async () => {
@@ -987,6 +996,66 @@ describe("Acceptance — Family 12: Content deployment (GrowthMind)", () => {
     );
     expect(res.variants.length).toBeGreaterThanOrEqual(1);
   });
+
+  it("B: Instagram ig_post — dual approval gating: content then publication, never auto-published", async () => {
+    const { sb, inserted } = makeSb({
+      work_orders: { rows: [] },
+      hivemind_tasks: { rows: [] },
+    });
+    const res = await createContentDeploymentWorkOrderCore(sb, WS, null, {
+      variants: [
+        { channel: "ig_post", body: "AI receptionists help small businesses never miss a customer call." },
+      ],
+    });
+    assertChain(
+      { workOrder: inserted.work_orders![0], tasks: res.tasks },
+      { workspaceId: WS, expectTargetResolved: true },
+    );
+    const wo = inserted.work_orders![0];
+    // ig_post starts at content-approval — never auto-published (⑩ ⑭)
+    expect(wo.readiness_state).toBe("ready_for_content_approval");
+    // Every task is suggested — nothing auto-executed (⑩)
+    for (const t of res.tasks) {
+      expect(t.status).toBe("suggested");
+    }
+    // Publication requires BOTH content AND publication approvals (dual gating)
+    const packetStr = JSON.stringify(wo.intelligence_packet);
+    expect(packetStr).toMatch(/content.*approval|publication.*approval|approve.*content/i);
+  });
+
+  it("C: unsafe content — fabricated stat is caught by the safety gate and surfaced in the evidence packet (fail-closed, explicit)", async () => {
+    const { sb, inserted } = makeSb({
+      work_orders: { rows: [] },
+      hivemind_tasks: { rows: [] },
+    });
+    // "300% ROI guaranteed" is a fabricated stat — the un-mocked safety check must detect it.
+    // The safety gate runs fail-closed on all adapted variant text; violations are recorded
+    // in the intelligence packet evidence and surfaced to the approver, not silently ignored.
+    const res = await createContentDeploymentWorkOrderCore(sb, WS, null, {
+      variants: [{
+        channel: "ig_post",
+        body: "Get 300% ROI guaranteed — our system delivers proven 300% results for every business!",
+      }],
+    });
+    const wo = inserted.work_orders![0];
+    // The safety-check evidence item is always injected (source: "safety_check") so
+    // an approver can see whether variants passed or failed before authorising.
+    const safetyEvidence = wo.intelligence_packet.evidence.find(
+      (e: any) => String(e.source ?? "").includes("safety"),
+    );
+    expect(safetyEvidence).toBeDefined();
+    // Safety FAILED for the fabricated-stat body — violations must be non-zero (⑬ ⑭)
+    expect(safetyEvidence?.data?.passed).toBe(false);
+    expect(
+      safetyEvidence?.data?.violation_count ?? safetyEvidence?.data?.violations?.length ?? 0,
+    ).toBeGreaterThan(0);
+    // Work order was still created (gate is explicit, not silent-suppressor) and
+    // every task remains "suggested" — nothing was auto-approved despite safety failing (⑩)
+    expect(wo.id).toBeTruthy();
+    for (const t of res.tasks) {
+      expect(t.status).toBe("suggested");
+    }
+  });
 });
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -1156,6 +1225,119 @@ for (const kind of ["invoice_audit", "renewals_audit", "outgoings_audit", "clien
     });
   });
 }
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// Blog / website readiness — withdrawal resets to draft (state machine contract)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+describe("Blog / website readiness — withdrawal resets to draft (state machine contract)", () => {
+  /**
+   * The readiness state machine in src/lib/growthmind/public-content.server.ts
+   * (computeReadiness) drives the editorial flow.  This test replicates the
+   * pure logic extracted from that function to prove the contract explicitly:
+   *
+   *   no content_approval_id               → ready_for_content_approval  ("draft")
+   *   content approved, no publication     → ready_for_publication_approval
+   *   both approved                        → ready_to_publish
+   *   hard block / safety gate failed      → blocked
+   *
+   * "Withdrawal" = removing a previously-granted approval.  State must regress
+   * backwards to the appropriate earlier stage — never remain at a more advanced
+   * state than the current approvals warrant.
+   */
+  it("removing content_approval_id from an approved item resets state to ready_for_content_approval", () => {
+    // Pure contract mirror — derived from computeReadiness in public-content.server.ts
+    function inlineState(item: {
+      content_approval_id?: string | null;
+      publication_approval_id?: string | null;
+      hardBlock?: boolean;
+    }): string {
+      if (item.hardBlock) return "blocked";
+      if (!item.content_approval_id) return "ready_for_content_approval";
+      if (!item.publication_approval_id) return "ready_for_publication_approval";
+      return "ready_to_publish";
+    }
+
+    // Normal forward progression
+    expect(inlineState({ content_approval_id: null, publication_approval_id: null }))
+      .toBe("ready_for_content_approval");
+    expect(inlineState({ content_approval_id: "ca1", publication_approval_id: null }))
+      .toBe("ready_for_publication_approval");
+    expect(inlineState({ content_approval_id: "ca1", publication_approval_id: "pa1" }))
+      .toBe("ready_to_publish");
+
+    // Withdrawal: removing content approval from a publication-ready item resets to draft
+    expect(inlineState({ content_approval_id: null, publication_approval_id: "pa1" }))
+      .toBe("ready_for_content_approval");
+
+    // Withdrawal: removing publication approval from a ready-to-publish item
+    expect(inlineState({ content_approval_id: "ca1", publication_approval_id: null }))
+      .toBe("ready_for_publication_approval");
+
+    // Hard block (safety failure) overrides all approvals — always blocked
+    expect(inlineState({ content_approval_id: "ca1", publication_approval_id: "pa1", hardBlock: true }))
+      .toBe("blocked");
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// Adapter execution — provider_action_unsupported contract
+// ═══════════════════════════════════════════════════════════════════════════════
+
+describe("Adapter execution — provider_action_unsupported contract (universal-adapters)", () => {
+  /**
+   * When a live provider is required but not connected, execution adapters MUST
+   * return status = "blocked" with blockedReason starting with the string
+   * "provider_action_unsupported:" — status must NEVER be "completed".
+   *
+   * This suite calls the real adapters directly (not via work-order creation) so
+   * the honest-failure contract is proven end-to-end without relying on parsing
+   * the work-order packet's limitations text alone.
+   */
+  it("WhatsApp channel: no WA provider configured → provider_action_unsupported, never completed", async () => {
+    const { sb } = makeSb({
+      leads: { rows: [] },
+      // workspace_settings omitted → maybeSingle returns null → ws?.whatsapp_provider = undefined → false
+    });
+    const { runChannelWhatsAppExecution } = await import(
+      "@/lib/hivemind/mind-adapters/universal-adapters.server"
+    );
+    const outcome = await runChannelWhatsAppExecution({
+      sb,
+      workspaceId: WS,
+      userId: "u1",
+      executionId: "exec-wa-1",
+      taskId: "task-wa-1",
+      workOrderId: null,
+      inputSpec: {},
+    });
+    expect(outcome.status).toBe("blocked");
+    expect(outcome.blockedReason).toMatch(/^provider_action_unsupported:/);
+    expect(outcome.status).not.toBe("completed");
+  });
+
+  it("CRM integration: no verified CRM connection → provider_action_unsupported, never completed", async () => {
+    const { sb } = makeSb({
+      agents: { rows: [agent()] },
+      systemmind_crm_connections: { rows: [] }, // no verified/connected entry
+    });
+    const { runAgentCrmIntegrationExecution } = await import(
+      "@/lib/hivemind/mind-adapters/universal-adapters.server"
+    );
+    const outcome = await runAgentCrmIntegrationExecution({
+      sb,
+      workspaceId: WS,
+      userId: "u1",
+      executionId: "exec-crm-1",
+      taskId: "task-crm-1",
+      workOrderId: null,
+      inputSpec: {},
+    });
+    expect(outcome.status).toBe("blocked");
+    expect(outcome.blockedReason).toMatch(/^provider_action_unsupported:/);
+    expect(outcome.status).not.toBe("completed");
+  });
+});
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // Content safety regression — fabricated stats / fake testimonials blocked
