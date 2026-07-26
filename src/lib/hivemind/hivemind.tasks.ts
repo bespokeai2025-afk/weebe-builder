@@ -1,6 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { isHumanTaskRow } from "@/lib/minds/intelligence-packet.shared";
 import { EXECUTIVE_TASK_TYPES } from "@/lib/executives/executive-council";
 
 // ── Types ───────────────────────────────────────────────────────────────────
@@ -37,6 +38,10 @@ export interface HiveMindTask {
   result_summary?: string | null;
   completion_evidence?: Record<string, unknown> | null;
   completed_at?: string | null;
+  // ── Universal intelligence packet (Task #486+) ────────────────────────────
+  intelligence_packet?: Record<string, unknown> | null;
+  readiness_state?: string | null;
+  packet_version?: number | null;
 }
 
 export interface HiveMindEvent {
@@ -968,18 +973,28 @@ export async function updateHiveMindTaskCore(
   },
 ): Promise<{ ok: true }> {
   const { id, ...updates } = data;
-  // Executable tasks are lifecycle-owned by the execution engine: manual
-  // status writes would fake progress/completion without an execution record,
-  // so they are rejected server-side (UI hides the controls, but this is the
-  // enforcement point).
+  // Manual status switching is a Human-Task privilege. Mind task statuses
+  // derive from executions/approvals — manual writes would fake progress:
+  //   • executable tasks: always rejected (engine-owned lifecycle);
+  //   • other Mind tasks (informational/scan-created): only "completed" is
+  //     allowed, as an explicit acknowledgement;
+  //   • Human Tasks (source=manual or metadata.human_task): full control.
+  // UI hides the controls, but this is the enforcement point.
   if (updates.status !== undefined) {
     const { data: row, error: re } = await ctx.sb.from("hivemind_tasks")
-      .select("task_category")
+      .select("task_category, source, metadata")
       .eq("id", id).eq("workspace_id", ctx.workspaceId)
       .maybeSingle();
     if (re) throw re;
-    if (row?.task_category === "executable") {
-      throw new Error("This task is run by its assigned Mind — approve & run it instead of changing status manually.");
+    if (row && !isHumanTaskRow(row)) {
+      if (row.task_category === "executable") {
+        throw new Error("This task is run by its assigned Mind — approve & run it instead of changing status manually.");
+      }
+      if (updates.status !== "completed") {
+        throw new Error(
+          "Mind task statuses are driven by the Mind's own pipeline — you can acknowledge (complete) this task, but not move it manually.",
+        );
+      }
     }
   }
   const { error } = await ctx.sb.from("hivemind_tasks")

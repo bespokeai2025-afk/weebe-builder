@@ -1469,6 +1469,9 @@ export const getHiveMindAIResponse = createServerFn({ method: "POST" })
       workOrderId: string; taskId: string; taskTitle: string;
       focusCampaign: { campaignId: string; campaignName: string } | null;
       days: number;
+      readinessState: string | null;
+      objective: string | null;
+      approvalScopeSummary: string | null;
     }> = [];
     const MAX_ROUNDS = 4;
     let response = "I couldn't generate a response. Please try again.";
@@ -1504,6 +1507,9 @@ export const getHiveMindAIResponse = createServerFn({ method: "POST" })
             taskTitle: (outcome.taskTitle as string) ?? "Google Ads analysis",
             focusCampaign: (outcome.focusCampaign as any) ?? null,
             days: Number(outcome.days) || 30,
+            readinessState: (outcome.readinessState as string) ?? null,
+            objective: (outcome.objective as string) ?? null,
+            approvalScopeSummary: (outcome.approvalScopeSummary as string) ?? null,
           });
         }
         messages.push({

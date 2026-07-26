@@ -24,6 +24,9 @@ import {
 } from "@/lib/hivemind/execution-state.shared";
 import { Button } from "@/components/ui/button";
 import { RelativeTime } from "@/components/ui/relative-time";
+import { isHumanTaskRow, type UniversalMindIntelligencePacket } from "@/lib/minds/intelligence-packet.shared";
+import { readinessControlFor, taskApprovalMeta } from "@/lib/minds/intelligence-packet-ui.shared";
+import { IntelligencePacketPanel, ApprovalDialog, ReadinessBadge } from "@/components/minds/IntelligencePacketPanel";
 
 export const Route = createFileRoute("/_authenticated/hivemind/tasks")({
   head: () => ({ meta: [{ title: "HiveMind Tasks — Webee" }] }),
@@ -249,6 +252,7 @@ function TaskCard({
   const [commentText, setComment] = useState("");
   const [editTitle, setEditTitle]   = useState(false);
   const [titleVal, setTitleVal]   = useState(task.title);
+  const [showApprove, setShowApprove] = useState(false);
   const p = PRIORITY_STYLES[task.priority] ?? PRIORITY_STYLES.medium;
 
   const NEXT_STATUS: Record<TaskStatus, { label: string; next: TaskStatus } | null> = {
@@ -259,12 +263,25 @@ function TaskCard({
   };
 
   const isExecutable = task.task_category === "executable";
+  const isHuman = isHumanTaskRow(task);
+  const packet = (task.intelligence_packet ?? null) as UniversalMindIntelligencePacket | null;
+  // Readiness-driven control (null for pre-gate legacy rows).
+  const control = readinessControlFor(task);
   const execStatus = task.execution_status ?? null;
-  const canApproveRun = isExecutable &&
+  const execApprovable = isExecutable &&
     ["awaiting_approval", "draft", "blocked", "failed"].includes(execStatus ?? "");
+  // A gated task may only surface Approve when its readiness is approvable.
+  const canApproveRun = execApprovable && (control == null || control.kind === "approve");
+  // Fix/review controls are readiness-driven for ALL gated Mind tasks, not
+  // just executable ones — one readiness-appropriate control per card.
+  const showFixControl = (control?.kind === "fix" || control?.kind === "info") &&
+    (isExecutable ? execApprovable : (!isHuman && task.status !== "completed"));
   const isRunning = isExecutable && ["queued", "executing", "verifying"].includes(execStatus ?? "");
-  // Executable tasks are driven by the execution engine, not manual status moves.
-  const nextAction = isExecutable ? null : NEXT_STATUS[task.status];
+  // Manual status switching is a Human-Task privilege (server-enforced too).
+  const nextAction = isHuman ? NEXT_STATUS[task.status] : null;
+  const canAcknowledge = !isHuman && !isExecutable && task.status !== "completed" && !showFixControl;
+  const isRetry = ["blocked", "failed"].includes(execStatus ?? "");
+  const approveLabel = isRetry ? "Retry" : (control?.kind === "approve" ? control.label : "Approve & Run");
 
   function saveAssign() {
     onUpdate(task.id, { assigned_to: assignVal || null });
@@ -350,21 +367,47 @@ function TaskCard({
 
         {/* Actions */}
         <div className="flex items-center gap-1.5 shrink-0">
+          {isHuman && (
+            <span className="text-[10px] rounded-full px-1.5 py-0.5 bg-blue-500/15 text-blue-400 border border-blue-500/25 font-medium whitespace-nowrap">
+              Human Task
+            </span>
+          )}
+          {!isHuman && <ReadinessBadge state={task.readiness_state} />}
           {isExecutable && <ExecStatusChip status={execStatus} />}
           {canApproveRun && (
             <button
-              onClick={() => onApproveRun(task.id)}
+              onClick={() => (isRetry ? onApproveRun(task.id) : setShowApprove(true))}
               disabled={isMutating}
               className="flex items-center gap-1 rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-1 text-[11px] font-medium text-emerald-400 hover:bg-emerald-500/20 transition-all disabled:opacity-40"
             >
               <Zap className="h-3 w-3" />
-              {["blocked", "failed"].includes(execStatus ?? "") ? "Retry" : "Approve & Run"}
+              {approveLabel}
+            </button>
+          )}
+          {showFixControl && control && (
+            <button
+              onClick={() => setOpen(true)}
+              title={control.explanation}
+              className="flex items-center gap-1 rounded-lg border border-amber-500/30 bg-amber-500/10 px-2.5 py-1 text-[11px] font-medium text-amber-400 hover:bg-amber-500/20 transition-all"
+            >
+              <AlertTriangle className="h-3 w-3" />
+              {control.label}
             </button>
           )}
           {isRunning && (
             <span className="flex items-center gap-1 text-[11px] text-amber-400">
               <Loader2 className="h-3 w-3 animate-spin" /> Running
             </span>
+          )}
+          {canAcknowledge && (
+            <button
+              onClick={() => onStatusChange(task.id, "completed")}
+              disabled={isMutating}
+              className="flex items-center gap-1 rounded-lg border border-white/[0.1] bg-white/[0.04] px-2.5 py-1 text-[11px] font-medium text-muted-foreground hover:text-foreground transition-all disabled:opacity-40"
+            >
+              <Check className="h-3 w-3" />
+              Acknowledge
+            </button>
           )}
           {nextAction && (
             <button
@@ -391,6 +434,16 @@ function TaskCard({
           {/* Description */}
           {task.description && (
             <p className="text-xs text-muted-foreground leading-relaxed">{task.description}</p>
+          )}
+
+          {/* Intelligence packet (Mind tasks) */}
+          {packet && (
+            <IntelligencePacketPanel packet={packet} readinessState={task.readiness_state} />
+          )}
+          {showFixControl && control && (
+            <p className="text-[11px] text-amber-300/90 bg-amber-500/[0.06] border border-amber-500/20 rounded-lg px-2.5 py-1.5">
+              {control.explanation}
+            </p>
           )}
 
           {/* Execution detail (executable tasks) */}
@@ -482,8 +535,8 @@ function TaskCard({
             </div>
           </div>
 
-          {/* Status selector */}
-          {!isExecutable && (
+          {/* Status selector — Human Tasks only (server-enforced) */}
+          {isHuman && (
           <div>
             <label className="text-[10px] text-muted-foreground uppercase tracking-wide mb-1.5 block">Status</label>
             <div className="flex gap-1.5">
@@ -554,6 +607,18 @@ function TaskCard({
             </button>
           </div>
         </div>
+      )}
+
+      {/* Rich scoped approval dialog */}
+      {showApprove && (
+        <ApprovalDialog
+          meta={taskApprovalMeta(task)}
+          packet={packet}
+          readinessState={task.readiness_state}
+          busy={isMutating}
+          onCancel={() => setShowApprove(false)}
+          onConfirm={() => { setShowApprove(false); onApproveRun(task.id); }}
+        />
       )}
     </div>
   );

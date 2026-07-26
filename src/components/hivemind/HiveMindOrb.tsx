@@ -61,6 +61,8 @@ const ORB_STYLES = `
 `;
 
 // ── Types ──────────────────────────────────────────────────────────────────────
+import { readinessLabel } from "@/lib/minds/intelligence-packet-ui.shared";
+
 type OrbState = "idle" | "listening" | "thinking" | "speaking" | "error";
 type WorkOrderProposal = {
   workOrderId: string;
@@ -68,6 +70,9 @@ type WorkOrderProposal = {
   taskTitle:   string;
   focusCampaign: { campaignId: string; campaignName: string } | null;
   days:        number;
+  readinessState?: string | null;
+  objective?: string | null;
+  approvalScopeSummary?: string | null;
 };
 type Msg = { id: string; role: "user" | "hm"; content: string; workOrders?: WorkOrderProposal[] };
 
@@ -595,8 +600,22 @@ function MiniChat({ onClose, onStateChange }: {
                       <div className="flex items-center gap-1.5 text-[10px] font-semibold text-emerald-300">
                         <ClipboardList className="h-3 w-3" />
                         Work order ready
+                        {wo.readinessState && (
+                          <span className="rounded-full px-1.5 py-0.5 text-[9px] font-medium"
+                            style={{ background: "rgba(16,185,129,0.15)", border: "1px solid rgba(16,185,129,0.3)" }}>
+                            {readinessLabel(wo.readinessState)}
+                          </span>
+                        )}
                       </div>
                       <div className="mt-0.5 text-[10px] text-emerald-100/80">{wo.taskTitle}</div>
+                      {wo.objective && (
+                        <div className="mt-0.5 text-[10px] text-emerald-100/60 leading-relaxed">{wo.objective}</div>
+                      )}
+                      {wo.approvalScopeSummary && (
+                        <div className="mt-0.5 text-[10px] text-emerald-200/70 leading-relaxed">
+                          Approval scope: {wo.approvalScopeSummary}
+                        </div>
+                      )}
                       <button
                         onClick={() => { onClose(); navigate({ to: "/hivemind/chat" }); }}
                         className="mt-1.5 inline-flex items-center gap-1 rounded-md px-2 py-1 text-[10px] font-medium text-emerald-200 transition-colors hover:text-emerald-100"

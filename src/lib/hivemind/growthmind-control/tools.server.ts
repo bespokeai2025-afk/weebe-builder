@@ -823,6 +823,9 @@ registerWrite({
         focusCampaign: focus,
         days: (task.input_spec?.days as number) ?? 30,
         executionState: task.execution_status,
+        readinessState: task.readiness_state ?? null,
+        objective: (task.intelligence_packet?.objective as string) ?? workOrder.objective ?? null,
+        approvalScopeSummary: (task.intelligence_packet?.approval_scope?.summary as string) ?? null,
         scope: {
           steps: [
             "Resolve connected Google Ads account",
