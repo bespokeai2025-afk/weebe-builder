@@ -433,7 +433,7 @@ export async function resumeExecutionForAction(
  */
 const STALL_THRESHOLD_MS = 8 * 60 * 1000; // 8 minutes
 
-export async function sweepStalledExecutions(sb: any, workspaceId: string | null): Promise<{ interrupted: number }> {
+export async function sweepStalledExecutions(sb: any, workspaceId: string | null): Promise<{ interrupted: number; orphansHealed: number }> {
   const cutoff = new Date(Date.now() - STALL_THRESHOLD_MS).toISOString();
   let q = sb.from("mind_task_executions")
     .select("id, workspace_id, task_id, status, updated_at")
@@ -441,11 +441,10 @@ export async function sweepStalledExecutions(sb: any, workspaceId: string | null
     .lt("updated_at", cutoff);
   if (workspaceId) q = q.eq("workspace_id", workspaceId);
   const { data: stalled } = await q.limit(50);
-  if (!stalled?.length) return { interrupted: 0 };
 
   const nowIso = new Date().toISOString();
   let interrupted = 0;
-  for (const row of stalled) {
+  for (const row of (stalled ?? [])) {
     try {
       assertTransition(row.status as any, "worker_interrupted");
       const { data: updated } = await sb.from("mind_task_executions")
@@ -476,7 +475,44 @@ export async function sweepStalledExecutions(sb: any, workspaceId: string | null
       // Skip rows that already moved to a terminal state between the select and update.
     }
   }
-  return { interrupted };
+
+  // ── Orphan healer ─────────────────────────────────────────────────────────
+  // Tasks left "in_progress" with no active_execution_id pointer — this
+  // happens when the process crashes after claiming the task but before
+  // inserting the execution row. Reset to "suggested" so they can be
+  // re-approved and retried without human intervention.
+  // Wrapped in try/catch: best-effort cleanup that must never fail the tick.
+  let orphansHealed = 0;
+  try {
+    const ORPHAN_THRESHOLD_MS = 5 * 60 * 1000; // 5 minutes
+    const orphanCutoff = new Date(Date.now() - ORPHAN_THRESHOLD_MS).toISOString();
+    let oq = sb.from("hivemind_tasks")
+      .select("id, workspace_id")
+      .eq("status", "in_progress")
+      .is("active_execution_id", null)
+      .lt("updated_at", orphanCutoff);
+    if (workspaceId) oq = oq.eq("workspace_id", workspaceId);
+    const { data: orphans } = await oq.limit(50);
+    for (const orphan of (orphans ?? [])) {
+      try {
+        const { data: healed } = await sb.from("hivemind_tasks")
+          .update({ status: "suggested", updated_at: nowIso })
+          .eq("id", orphan.id)
+          .eq("workspace_id", orphan.workspace_id)
+          // CAS: only reset if still stuck (no race with a legitimate claim).
+          .eq("status", "in_progress")
+          .is("active_execution_id", null)
+          .select("id");
+        if ((healed ?? []).length) orphansHealed++;
+      } catch {
+        // Skip individual orphan if CAS fails or row moved concurrently.
+      }
+    }
+  } catch {
+    // Orphan healer failure must not abort the stall watchdog result.
+  }
+
+  return { interrupted, orphansHealed };
 }
 
 export const runStalledExecutionSweep = createServerFn({ method: "POST" })

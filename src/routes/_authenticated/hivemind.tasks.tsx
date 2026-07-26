@@ -14,6 +14,7 @@ import {
   runHiveMindScan, getHiveMindTasksAndEvents,
   updateHiveMindTask, createHiveMindTask,
   addHiveMindTaskComment, deleteHiveMindTask, markHiveMindEventsRead,
+  acknowledgeMindTask,
   type HiveMindTask, type HiveMindEvent, type TaskStatus, type TaskPriority,
 } from "@/lib/hivemind/hivemind.tasks";
 import { approveAndRunTask, getTaskExecutionDetail } from "@/lib/hivemind/mind-execution-engine.server";
@@ -243,15 +244,17 @@ function TaskCard({
   onUpdate,
   onAddComment,
   onApproveRun,
+  onAcknowledge,
   isMutating,
 }: {
-  task:          HiveMindTask;
-  onStatusChange:(id: string, s: TaskStatus) => void;
-  onDelete:      (id: string) => void;
-  onUpdate:      (id: string, fields: Partial<HiveMindTask>) => void;
-  onAddComment:  (taskId: string, text: string) => void;
-  onApproveRun:  (id: string) => void;
-  isMutating:    boolean;
+  task:           HiveMindTask;
+  onStatusChange: (id: string, s: TaskStatus) => void;
+  onDelete:       (id: string) => void;
+  onUpdate:       (id: string, fields: Partial<HiveMindTask>) => void;
+  onAddComment:   (taskId: string, text: string) => void;
+  onApproveRun:   (id: string) => void;
+  onAcknowledge:  (id: string) => void;
+  isMutating:     boolean;
 }) {
   const [open, setOpen]           = useState(false);
   const [editAssign, setEditAssign] = useState(false);
@@ -278,7 +281,7 @@ function TaskCard({
   const control = readinessControlFor(task);
   const execStatus = task.execution_status ?? null;
   const execApprovable = isExecutable &&
-    ["awaiting_approval", "draft", "blocked", "failed"].includes(execStatus ?? "");
+    ["awaiting_approval", "draft", "blocked", "failed", "worker_interrupted"].includes(execStatus ?? "");
   // A gated task may only surface Approve when its readiness is approvable.
   const canApproveRun = execApprovable && (control == null || control.kind === "approve");
   // Fix/review controls are readiness-driven for ALL gated Mind tasks, not
@@ -289,7 +292,8 @@ function TaskCard({
   // Manual status switching is a Human-Task privilege (server-enforced too).
   const nextAction = isHuman ? NEXT_STATUS[task.status] : null;
   const canAcknowledge = !isHuman && !isExecutable && task.status !== "completed" && !showFixControl;
-  const isRetry = ["blocked", "failed"].includes(execStatus ?? "");
+  // worker_interrupted = execution stalled — treat same as blocked/failed for Retry label.
+  const isRetry = ["blocked", "failed", "worker_interrupted"].includes(execStatus ?? "");
   const approveLabel = isRetry ? "Retry" : (control?.kind === "approve" ? control.label : "Approve & Run");
 
   function saveAssign() {
@@ -410,7 +414,7 @@ function TaskCard({
           )}
           {canAcknowledge && (
             <button
-              onClick={() => onStatusChange(task.id, "completed")}
+              onClick={() => onAcknowledge(task.id)}
               disabled={isMutating}
               className="flex items-center gap-1 rounded-lg border border-white/[0.1] bg-white/[0.04] px-2.5 py-1 text-[11px] font-medium text-muted-foreground hover:text-foreground transition-all disabled:opacity-40"
             >
@@ -866,8 +870,9 @@ function HiveMindTasks() {
   const commentFn    = useServerFn(addHiveMindTaskComment);
   const deleteFn     = useServerFn(deleteHiveMindTask);
   const markReadFn   = useServerFn(markHiveMindEventsRead);
-  const approveRunFn = useServerFn(approveAndRunTask);
-  const newAnalysisFn = useServerFn(createGadsAnalysisWorkOrder);
+  const approveRunFn   = useServerFn(approveAndRunTask);
+  const acknowledgeFn  = useServerFn(acknowledgeMindTask);
+  const newAnalysisFn  = useServerFn(createGadsAnalysisWorkOrder);
 
   const [activeTab, setActiveTab] = useState<TaskStatus>("suggested");
   const [scanning,  setScanning]  = useState(false);
@@ -937,6 +942,13 @@ function HiveMindTasks() {
   async function handleMarkRead() {
     await markReadFn({ data: {} });
     await refetch();
+  }
+
+  async function handleAcknowledge(id: string) {
+    setMutating(true);
+    try { await acknowledgeFn({ data: { id } }); await refetch(); }
+    catch (err: any) { alert(err?.message ?? "Failed to acknowledge task"); }
+    finally { setMutating(false); }
   }
 
   async function handleApproveRun(id: string) {
@@ -1102,6 +1114,7 @@ function HiveMindTasks() {
                 onUpdate={handleUpdate}
                 onAddComment={handleAddComment}
                 onApproveRun={handleApproveRun}
+                onAcknowledge={handleAcknowledge}
                 isMutating={mutating}
               />
             ))}
