@@ -1,14 +1,12 @@
 import { PlayRecordingButton } from "@/components/RecordingPlayerDialog";
 import { WbahCallCalendlyLink, wbahHistoryCallToBookingRow } from "@/components/dashboard/WbahCallCalendlyLink";
 import {
-  formatWbahBookingStatusDisplay,
   isWbahCallAnalysisPending,
+  wbahBookingStatusCell,
   wbahCallHistoryAppointmentCell,
 } from "@/lib/dashboard/wbah-call-booking-display";
 import type { WbahContactCallHistoryItem } from "@/lib/dashboard/wbah-call-history.types";
 import { WBAH_TIMEZONE } from "@/lib/dashboard/wbah-timezone";
-import { Badge } from "@/components/ui/badge";
-import { cn } from "@/lib/utils";
 
 function fmtDurSec(sec: number | null | undefined): string {
   if (sec == null || sec <= 0) return "—";
@@ -20,23 +18,6 @@ function fmtDurSec(sec: number | null | undefined): string {
 function fmtDate(iso: string | null | undefined): string {
   if (!iso) return "—";
   return new Date(iso).toLocaleString(undefined, { timeZone: WBAH_TIMEZONE });
-}
-
-function bookingBadge(status: string | null | undefined) {
-  const label = formatWbahBookingStatusDisplay(status);
-  if (label === "—") return <span className="text-muted-foreground">—</span>;
-  const lower = String(status ?? "").toLowerCase();
-  const tone =
-    lower === "success"
-      ? "bg-green-500/15 text-green-400 border-green-500/30"
-      : lower === "failed"
-        ? "bg-red-500/15 text-red-400 border-red-500/30"
-        : "bg-muted text-muted-foreground border-white/[0.06]";
-  return (
-    <Badge variant="outline" className={cn("text-[10px] capitalize", tone)}>
-      {label}
-    </Badge>
-  );
 }
 
 export function WbahContactCallHistoryTable({
@@ -88,7 +69,7 @@ export function WbahContactCallHistoryTable({
                   {pending ? "—" : wbahCallHistoryAppointmentCell(c as unknown as Record<string, unknown>)}
                 </td>
                 <td className="px-2 py-1.5 whitespace-nowrap">
-                  {pending ? "—" : bookingBadge(c.bookingStatus)}
+                  {pending ? "—" : wbahBookingStatusCell(c as unknown as Record<string, unknown>)}
                 </td>
                 <td className="px-2 py-1.5 whitespace-nowrap">
                   <WbahCallCalendlyLink row={c as unknown as Record<string, unknown>} />

@@ -981,7 +981,7 @@ export async function refreshWbahAppointmentBackfill(opts?: { maxPages?: number;
     console.log(`[wbah-appt-backfill] upserted=${total} pages=${pages.length}`);
     try {
       const { cacheDel } = await import("@/lib/cache/redis.server");
-      await cacheDel(`webee:wbah-calls-live-lite:v2:${workspaceId}`);
+      await cacheDel(`webee:wbah-calls-live-lite:v3:${workspaceId}`);
     } catch {
       /* cache optional */
     }

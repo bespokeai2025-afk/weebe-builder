@@ -49,15 +49,15 @@ export function WbahCallCalendlyLink({
   }
 
   const url = resolveVisibleWbahCalendlyUrlFromFields(fields);
-  const statusBadge = showBookingStatus ? bookingStatusBadge(fields.booking_status) : null;
+  const statusBadge = showBookingStatus && url
+    ? bookingStatusBadge("success")
+    : null;
 
   if (!url) {
-    const statusLower = (fields.booking_status ?? "").toLowerCase();
-    const label = statusLower === "success" ? "No booking link" : emptyLabel;
     return (
       <span className={cn("inline-flex items-center gap-1.5", className)}>
         {statusBadge}
-        <span className="text-muted-foreground text-[11px]">{label}</span>
+        <span className="text-muted-foreground text-[11px]">{emptyLabel}</span>
       </span>
     );
   }

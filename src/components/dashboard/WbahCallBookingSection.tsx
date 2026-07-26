@@ -50,7 +50,6 @@ function BookedBlock({
           <WbahCallCalendlyLink
             row={callRow}
             label="Open booking"
-            emptyLabel="No booking link"
             showCopy
           />
         </div>
@@ -81,7 +80,6 @@ export function WbahCallBookingSection({
         <div className="rounded-lg border border-white/[0.06] divide-y divide-white/[0.04]">
           <Row label="Outcome" value={ui.label} />
           <Row label="Sentiment" value={ui.sentimentLabel} />
-          <Row label="Calendly booking" value="No booking link" />
         </div>
       )}
       {ui.kind === "normal" && (
@@ -95,7 +93,6 @@ export function WbahCallBookingSection({
             <WbahCallCalendlyLink
               row={callRow}
               label="Open booking"
-              emptyLabel="No booking link"
               showCopy
             />
           </div>
