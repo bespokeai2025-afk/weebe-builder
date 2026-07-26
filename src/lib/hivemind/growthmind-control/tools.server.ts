@@ -22,12 +22,89 @@ async function getAdmin(): Promise<Sb> {
 
 const nowIso = () => new Date().toISOString();
 
+// ── Capability spec lookup tables ─────────────────────────────────────────────
+// featureFamily and requiredIntegrations for every tool in this file.
+// registerRead / registerWrite pull from these maps so individual registration
+// objects stay concise. Override by setting the field on the def directly.
+
+const TOOL_FEATURE_FAMILIES: Record<string, string> = {
+  // Read tools
+  get_growthmind_status:                    "monitoring",
+  get_growthmind_health:                    "monitoring",
+  get_content_command_centre:               "content_publishing",
+  get_trend_opportunities:                  "trend_intelligence",
+  get_trend_details:                        "trend_intelligence",
+  get_business_dna:                         "brand_intelligence",
+  get_content_performance:                  "analytics",
+  get_growthmind_costs:                     "finance",
+  get_publishing_failures:                  "monitoring",
+  get_growthmind_objectives:                "strategy",
+  get_content_studio_project_status:        "content_publishing",
+  get_work_order_status:                    "task_management",
+  classify_legacy_tasks:                    "task_management",
+  // Write tools
+  analyse_trend:                            "trend_intelligence",
+  prioritise_trend:                         "trend_intelligence",
+  reject_trend:                             "trend_intelligence",
+  block_trend_source:                       "trend_intelligence",
+  approve_trend_for_adaptation:             "content_production",
+  add_monitored_source:                     "trend_intelligence",
+  set_monitored_source_status:              "trend_intelligence",
+  create_content_studio_project:            "content_production",
+  request_content_changes:                  "content_production",
+  approve_content:                          "content_publishing",
+  schedule_content:                         "content_publishing",
+  cancel_scheduled_content:                 "content_publishing",
+  retry_failed_publication:                 "content_publishing",
+  pause_publishing:                         "monitoring",
+  resume_publishing:                        "monitoring",
+  pause_growthmind_jobs:                    "monitoring",
+  resume_growthmind_jobs:                   "monitoring",
+  update_growthmind_cost_limits:            "finance",
+  resolve_dna_proposal:                     "brand_intelligence",
+  update_growthmind_objectives:             "strategy",
+  set_growthmind_objective_status:          "strategy",
+  create_growthmind_task:                   "task_management",
+  create_gads_analysis_work_order:          "ads_management",
+  create_sales_pipeline_work_order:         "pipeline_management",
+  create_followup_sequence_work_order:      "campaign_management",
+  create_whatsapp_campaign_work_order:      "campaign_management",
+  create_email_campaign_work_order:         "email_campaign",
+  create_call_campaign_work_order:          "call_campaign",
+  create_meta_campaign_work_order:          "social_publishing",
+  create_tiktok_work_order:                 "social_publishing",
+  create_linkedin_work_order:               "social_publishing",
+  create_content_deployment_work_order:     "content_publishing",
+  create_gads_packet_work_order:            "ads_management",
+  create_seo_packet_work_order:             "seo",
+  create_agent_crm_integration_work_order:  "integration_management",
+  create_workflow_depth_work_order:         "workflow_management",
+  create_financial_audit_work_order:        "finance",
+  migrate_legacy_tasks:                     "task_management",
+  create_cross_channel_objective_work_order: "orchestration",
+};
+
+const TOOL_REQUIRED_INTEGRATIONS: Record<string, string[]> = {
+  create_gads_analysis_work_order:     ["google_ads"],
+  create_gads_packet_work_order:       ["google_ads"],
+  create_seo_packet_work_order:        ["google_search_console"],
+  create_whatsapp_campaign_work_order: ["whatsapp"],
+  create_meta_campaign_work_order:     ["meta_social"],
+};
+
 interface ReadToolDef {
   name: string;
   title: string;
   description: string;
   inputSchema?: z.ZodTypeAny;
   cost?: MindToolCost;
+  featureFamily?: string;
+  capabilityState?: import("@/lib/minds/tool-registry.shared").CapabilityState;
+  requiredIntegrations?: string[];
+  rollbackSupported?: boolean;
+  providerLimitations?: string;
+  mobileAvailable?: boolean;
+  currentHealth?: "healthy" | "degraded" | "unavailable";
   run: (ctx: MindToolContext, input: any) => Promise<MindToolRunResult>;
 }
 
@@ -43,6 +120,13 @@ function registerRead(def: ReadToolDef): void {
     idempotent: true,
     estimatedCost: def.cost ?? "none",
     platforms: ["web", "mobile", "api", "system"],
+    featureFamily: def.featureFamily ?? TOOL_FEATURE_FAMILIES[def.name],
+    capabilityState: def.capabilityState ?? "available",
+    requiredIntegrations: def.requiredIntegrations ?? TOOL_REQUIRED_INTEGRATIONS[def.name],
+    rollbackSupported: def.rollbackSupported ?? false,
+    providerLimitations: def.providerLimitations,
+    mobileAvailable: def.mobileAvailable ?? true,
+    currentHealth: def.currentHealth ?? "healthy",
     inputSchema: def.inputSchema,
     run: def.run,
   });
@@ -55,6 +139,7 @@ interface WriteToolDef extends ReadToolDef {
 }
 
 function registerWrite(def: WriteToolDef): void {
+  const isSensitive = def.sensitive === true;
   registerMindTool({
     name: `hivemind.${def.name}`,
     mind: "hivemind",
@@ -62,12 +147,19 @@ function registerWrite(def: WriteToolDef): void {
     description: def.description,
     access: "write",
     surface: "registry",
-    sensitive: def.sensitive === true,
+    sensitive: isSensitive,
     requiredActionKey: def.requiredActionKey,
     modeGateActionType: def.name,
     idempotent: def.idempotent === true,
     estimatedCost: def.cost ?? "low",
     platforms: ["web", "mobile", "api", "system"],
+    featureFamily: def.featureFamily ?? TOOL_FEATURE_FAMILIES[def.name],
+    capabilityState: def.capabilityState ?? (isSensitive ? "approval_required" : "available"),
+    requiredIntegrations: def.requiredIntegrations ?? TOOL_REQUIRED_INTEGRATIONS[def.name],
+    rollbackSupported: def.rollbackSupported ?? false,
+    providerLimitations: def.providerLimitations,
+    mobileAvailable: def.mobileAvailable ?? true,
+    currentHealth: def.currentHealth ?? "healthy",
     inputSchema: def.inputSchema,
     run: def.run,
   });
@@ -1230,6 +1322,7 @@ registerWrite({
   description:
     "Propose TikTok organic content or a TikTok ad with a full production spec (concept, hook, script, shot list, caption, CTA, duration, safe zones) and split approval stages including a mandatory Audio Rights stage. " +
     "Copyrighted or unverified audio HARD-BLOCKS publication — never suggest bypassing it. WEBEE has no TikTok publish API: the final stage authorises MANUAL publication and nothing is claimed live without a real TikTok post reference. PROPOSAL ONLY.",
+  providerLimitations: "No TikTok publish API — publication is always manual; nothing is claimed live without a real TikTok post reference.",
   idempotent: false,
   inputSchema: z.object({
     isAd: z.boolean().optional(),
@@ -1278,6 +1371,7 @@ registerWrite({
   description:
     "Propose LinkedIn content or a LinkedIn ad campaign with split approval stages (Entity Resolution first — organisation page vs personal profile — then creative, and for ads: audience facets, lead-gen form, budget). " +
     "WEBEE has no LinkedIn publish API: the deliverable is a deployment package in 'Awaiting LinkedIn Manual Publication' state — say so honestly. PROPOSAL ONLY.",
+  providerLimitations: "No LinkedIn publish API — the deliverable is always a deployment package in 'Awaiting LinkedIn Manual Publication' state.",
   idempotent: false,
   inputSchema: z.object({
     isAd: z.boolean().optional(),
@@ -1475,6 +1569,7 @@ registerWrite({
   description:
     "Evidence-backed review of a REAL workspace workflow (flow definition, recent run outcomes, failures) producing a node-by-node change plan with test plan and rollback. " +
     "The final Apply stage stays blocked behind the earlier approvals. PROPOSAL ONLY — the workflow is never modified by this tool.",
+  rollbackSupported: true,
   idempotent: false,
   inputSchema: z.object({
     workflowId: z.string().uuid().optional(),
