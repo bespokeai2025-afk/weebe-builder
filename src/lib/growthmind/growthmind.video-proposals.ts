@@ -321,7 +321,7 @@ export const getVideoProposals = createServerFn({ method: "GET" })
 
 export const updateVideoProposalStatus = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({
       proposalId: z.string().uuid(),
       status:     z.enum(["draft", "approved", "rejected"]),

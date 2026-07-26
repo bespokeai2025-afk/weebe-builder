@@ -161,7 +161,7 @@ export const listEmailCampaigns = createServerFn({ method: "GET" })
 
 export const getEmailCampaign = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({ id: z.string().uuid() }).parse(input)
   )
   .handler(async ({ context, data }) => {
@@ -183,7 +183,7 @@ export const getEmailCampaign = createServerFn({ method: "GET" })
 
 export const saveEmailCampaign = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({
       id:          z.string().uuid().optional(),
       name:        z.string().min(1).max(300),
@@ -240,7 +240,7 @@ export const saveEmailCampaign = createServerFn({ method: "POST" })
 
 export const deleteEmailCampaign = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({ id: z.string().uuid() }).parse(input)
   )
   .handler(async ({ context, data }) => {
@@ -260,7 +260,7 @@ export const deleteEmailCampaign = createServerFn({ method: "POST" })
 
 export const generateEmailDraft = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({
       goal:         z.string().default(""),
       audience:     z.string().default(""),
@@ -355,7 +355,7 @@ Write real, specific copy. Make the subject line punchy. The HTML should use inl
 
 export const sendEmailCampaign = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({
       id:       z.string().uuid(),
       testOnly: z.boolean().default(false),
@@ -547,7 +547,7 @@ export const listDomainWarmups = createServerFn({ method: "GET" })
 
 export const createDomainWarmup = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({
       domain:    z.string().min(3).max(253),
       fromEmail: z.string().email(),
@@ -583,7 +583,7 @@ export const createDomainWarmup = createServerFn({ method: "POST" })
 
 export const updateWarmupDay = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({
       id:              z.string().uuid(),
       day:             z.number().int().min(1),
@@ -637,7 +637,7 @@ export const updateWarmupDay = createServerFn({ method: "POST" })
 
 export const updateWarmupStatus = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({
       id:     z.string().uuid(),
       status: z.enum(["active", "paused", "completed", "abandoned"]),

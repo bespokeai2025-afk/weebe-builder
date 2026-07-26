@@ -99,7 +99,7 @@ export interface ContentSeries {
 
 export const getCalendarEntries = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({
       startDate:   z.string().optional(),
       endDate:     z.string().optional(),
@@ -153,7 +153,7 @@ export const getCalendarEntries = createServerFn({ method: "POST" })
 
 export const saveCalendarEntry = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({
       id:            z.string().uuid().optional(),
       title:         z.string().min(1).max(500),
@@ -211,7 +211,7 @@ export const saveCalendarEntry = createServerFn({ method: "POST" })
 
 export const deleteCalendarEntry = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => z.object({ id: z.string().uuid() }).parse(input))
+  .validator((input: unknown) => z.object({ id: z.string().uuid() }).parse(input))
   .handler(async ({ context, data }) => {
     const sb          = context.supabase as any;
     const workspaceId = context.workspaceId;
@@ -260,7 +260,7 @@ export const getCampaigns = createServerFn({ method: "GET" })
 
 export const saveCampaign = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({
       id:           z.string().uuid().optional(),
       name:         z.string().min(1).max(300),
@@ -312,7 +312,7 @@ export const saveCampaign = createServerFn({ method: "POST" })
 
 export const deleteCampaign = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => z.object({ id: z.string().uuid() }).parse(input))
+  .validator((input: unknown) => z.object({ id: z.string().uuid() }).parse(input))
   .handler(async ({ context, data }) => {
     const sb          = context.supabase as any;
     const workspaceId = context.workspaceId;
@@ -360,7 +360,7 @@ export const getSeries = createServerFn({ method: "GET" })
 
 export const saveSeries = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({
       id:          z.string().uuid().optional(),
       name:        z.string().min(1).max(300),
@@ -412,7 +412,7 @@ export const saveSeries = createServerFn({ method: "POST" })
 
 export const deleteSeries = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => z.object({ id: z.string().uuid() }).parse(input))
+  .validator((input: unknown) => z.object({ id: z.string().uuid() }).parse(input))
   .handler(async ({ context, data }) => {
     const sb          = context.supabase as any;
     const workspaceId = context.workspaceId;

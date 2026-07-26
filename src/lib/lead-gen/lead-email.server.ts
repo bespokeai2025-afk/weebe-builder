@@ -269,7 +269,7 @@ export async function sendTemplateEmailToLeadCore(
 
 export const sendComposedEmailToLead = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input) =>
+  .validator((input) =>
     z
       .object({
         leadId: z.string().uuid(),
@@ -300,7 +300,7 @@ export const sendComposedEmailToLead = createServerFn({ method: "POST" })
 
 export const sendTemplateEmailToLead = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input) =>
+  .validator((input) =>
     z
       .object({
         leadId: z.string().uuid(),
@@ -346,7 +346,7 @@ export const getLeadAutoEmailSettings = createServerFn({ method: "GET" })
 
 export const saveLeadAutoEmailSettings = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input) =>
+  .validator((input) =>
     z
       .object({
         enabled: z.boolean(),
@@ -373,7 +373,7 @@ export const saveLeadAutoEmailSettings = createServerFn({ method: "POST" })
 
 export const listLeadEmailLog = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input) => z.object({ leadId: z.string().uuid() }).parse(input))
+  .validator((input) => z.object({ leadId: z.string().uuid() }).parse(input))
   .handler(async ({ context, data }) => {
     const { supabase, workspaceId } = context;
     if (!workspaceId) throw new Error("No active workspace");

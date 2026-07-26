@@ -140,7 +140,7 @@ const StartInput = z.object({
 
 export const startGoogleAdsOAuth = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((i: z.infer<typeof StartInput>) => StartInput.parse(i))
+  .validator((i: z.infer<typeof StartInput>) => StartInput.parse(i))
   .handler(async ({ data, context }) => {
     const workspaceId = context.workspaceId;
     const userId      = context.userId;

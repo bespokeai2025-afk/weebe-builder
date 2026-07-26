@@ -354,7 +354,7 @@ const MAX_ANALYTICS_RANGE_MS = 90 * 24 * 60 * 60 * 1000;
 
 export const getRetellAnalytics = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: any) =>
+  .validator((input: any) =>
     z
       .object({
         days: z.number().int().min(1).max(90).default(30),

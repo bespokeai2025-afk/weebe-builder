@@ -34,7 +34,7 @@ export const getWorkspaceCalendarSettings = createServerFn({ method: "GET" })
 /** Upsert workspace calendar settings. */
 export const saveWorkspaceCalendarSettings = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator(
+  .validator(
     (input: {
       calcomApiKey?: string | null;
       defaultEventTypeId?: number | null;
@@ -186,7 +186,7 @@ export const listCalcomEventTypes = createServerFn({ method: "GET" })
 
 export const setCalendarFlags = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator(
+  .validator(
     (input: { id: string; isAvailability?: boolean; isPrimaryBooking?: boolean }) => input,
   )
   .handler(async ({ context, data }) => {
@@ -214,7 +214,7 @@ export const setCalendarFlags = createServerFn({ method: "POST" })
 
 export const setEventTypeActive = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: { id: string; active: boolean }) => input)
+  .validator((input: { id: string; active: boolean }) => input)
   .handler(async ({ context, data }) => {
     const { error } = await context.supabase
       .from("calcom_event_types")

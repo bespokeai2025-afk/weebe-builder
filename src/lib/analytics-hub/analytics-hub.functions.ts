@@ -79,7 +79,7 @@ function filtersOf(input: AnalyticsInput): AnalyticsFilters {
 
 export const getAnalyticsOverview = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: AnalyticsInput) => input)
+  .validator((input: AnalyticsInput) => input)
   .handler(async ({ data, context }) => {
     const ws = await guard(context, data, "analytics");
     return getAnalyticsOverviewData(ws, filtersOf(data));
@@ -87,7 +87,7 @@ export const getAnalyticsOverview = createServerFn({ method: "POST" })
 
 export const getCampaignAnalytics = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: AnalyticsInput & { compareIds?: string[] }) => input)
+  .validator((input: AnalyticsInput & { compareIds?: string[] }) => input)
   .handler(async ({ data, context }) => {
     const ws = await guard(context, data, "analytics_advanced");
     return getCampaignAnalyticsData(ws, filtersOf(data), { compareIds: data.compareIds });
@@ -95,7 +95,7 @@ export const getCampaignAnalytics = createServerFn({ method: "POST" })
 
 export const getAgentAnalytics = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: AnalyticsInput) => input)
+  .validator((input: AnalyticsInput) => input)
   .handler(async ({ data, context }) => {
     const ws = await guard(context, data, "analytics_advanced");
     return getAgentAnalyticsData(ws, filtersOf(data));
@@ -103,7 +103,7 @@ export const getAgentAnalytics = createServerFn({ method: "POST" })
 
 export const getLeadSourceAnalytics = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: AnalyticsInput) => input)
+  .validator((input: AnalyticsInput) => input)
   .handler(async ({ data, context }) => {
     const ws = await guard(context, data, "analytics_advanced");
     return getLeadSourceAnalyticsData(ws, filtersOf(data));
@@ -111,7 +111,7 @@ export const getLeadSourceAnalytics = createServerFn({ method: "POST" })
 
 export const getCallAnalyticsDeep = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: AnalyticsInput) => input)
+  .validator((input: AnalyticsInput) => input)
   .handler(async ({ data, context }) => {
     const ws = await guard(context, data, "analytics_advanced");
     return getCallAnalyticsDeepData(ws, filtersOf(data));
@@ -119,7 +119,7 @@ export const getCallAnalyticsDeep = createServerFn({ method: "POST" })
 
 export const getSentimentAnalytics = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: AnalyticsInput) => input)
+  .validator((input: AnalyticsInput) => input)
   .handler(async ({ data, context }) => {
     const ws = await guard(context, data, "analytics_advanced");
     return getSentimentAnalyticsData(ws, filtersOf(data));
@@ -127,7 +127,7 @@ export const getSentimentAnalytics = createServerFn({ method: "POST" })
 
 export const getBookingAnalytics = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: AnalyticsInput) => input)
+  .validator((input: AnalyticsInput) => input)
   .handler(async ({ data, context }) => {
     const ws = await guard(context, data, "analytics_advanced");
     return getBookingAnalyticsData(ws, filtersOf(data));
@@ -135,7 +135,7 @@ export const getBookingAnalytics = createServerFn({ method: "POST" })
 
 export const getWorkflowAnalytics = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: AnalyticsInput) => input)
+  .validator((input: AnalyticsInput) => input)
   .handler(async ({ data, context }) => {
     const ws = await guard(context, data, "analytics_advanced");
     return getWorkflowAnalyticsData(ws, filtersOf(data));
@@ -143,7 +143,7 @@ export const getWorkflowAnalytics = createServerFn({ method: "POST" })
 
 export const getFollowUpAnalytics = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: AnalyticsInput) => input)
+  .validator((input: AnalyticsInput) => input)
   .handler(async ({ data, context }) => {
     const ws = await guard(context, data, "analytics_advanced");
     return getFollowUpAnalyticsData(ws, filtersOf(data));
@@ -151,7 +151,7 @@ export const getFollowUpAnalytics = createServerFn({ method: "POST" })
 
 export const getFinancialAnalytics = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: AnalyticsInput) => input)
+  .validator((input: AnalyticsInput) => input)
   .handler(async ({ data, context }) => {
     const ws = await guard(context, data, "analytics_financial");
     return getFinancialAnalyticsData(ws, filtersOf(data));
@@ -159,7 +159,7 @@ export const getFinancialAnalytics = createServerFn({ method: "POST" })
 
 export const getLeadAnalytics = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: AnalyticsInput) => input)
+  .validator((input: AnalyticsInput) => input)
   .handler(async ({ data, context }) => {
     const ws = await guard(context, data, "analytics_advanced");
     return getLeadAnalyticsData(ws, filtersOf(data));
@@ -167,7 +167,7 @@ export const getLeadAnalytics = createServerFn({ method: "POST" })
 
 export const getAnalyticsFilterOptions = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: AnalyticsInput) => input)
+  .validator((input: AnalyticsInput) => input)
   .handler(async ({ data, context }) => {
     const ws = await guard(context, data, "analytics_advanced");
     return getAnalyticsFilterOptionsData(ws);

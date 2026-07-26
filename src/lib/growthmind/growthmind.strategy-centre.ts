@@ -201,7 +201,7 @@ async function collectBusinessContext(sb: any, workspaceId: string) {
 
 export const generateStrategyCentre = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({
       strategyType: z.enum([
         "30_day", "60_day", "90_day",
@@ -464,7 +464,7 @@ export const listStrategyCentre = createServerFn({ method: "GET" })
 
 export const getStrategyCentre = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => z.object({ id: z.string().uuid() }).parse(input))
+  .validator((input: unknown) => z.object({ id: z.string().uuid() }).parse(input))
   .handler(async ({ context, data }) => {
     const sb          = context.supabase as any;
     const workspaceId = context.workspaceId;
@@ -485,7 +485,7 @@ export const getStrategyCentre = createServerFn({ method: "GET" })
 
 export const sendStrategyCentreToHiveMind = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => z.object({ strategyId: z.string().uuid() }).parse(input))
+  .validator((input: unknown) => z.object({ strategyId: z.string().uuid() }).parse(input))
   .handler(async ({ context, data }) => {
     const sb          = context.supabase as any;
     const workspaceId = context.workspaceId;
@@ -560,7 +560,7 @@ export const sendStrategyCentreToHiveMind = createServerFn({ method: "POST" })
 
 export const approveStrategyCentre = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => z.object({ strategyId: z.string().uuid() }).parse(input))
+  .validator((input: unknown) => z.object({ strategyId: z.string().uuid() }).parse(input))
   .handler(async ({ context, data }) => {
     const sb          = context.supabase as any;
     const workspaceId = context.workspaceId;
@@ -613,7 +613,7 @@ export const approveStrategyCentre = createServerFn({ method: "POST" })
 
 export const rejectStrategyCentre = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({ strategyId: z.string().uuid(), reason: z.string().optional() }).parse(input),
   )
   .handler(async ({ context, data }) => {
@@ -648,7 +648,7 @@ export const rejectStrategyCentre = createServerFn({ method: "POST" })
 
 export const deleteStrategyCentre = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => z.object({ strategyId: z.string().uuid() }).parse(input))
+  .validator((input: unknown) => z.object({ strategyId: z.string().uuid() }).parse(input))
   .handler(async ({ context, data }) => {
     const sb          = context.supabase as any;
     const workspaceId = context.workspaceId;
@@ -718,7 +718,7 @@ export async function getStrategyCentreSummary(sb: any, workspaceId: string) {
 
 export const updateStrategyCentre = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({
       strategyId:            z.string().uuid(),
       executiveSummary:      z.string().optional(),
@@ -757,7 +757,7 @@ export const updateStrategyCentre = createServerFn({ method: "POST" })
 
 export const getStrategyTasks = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => z.object({ strategyId: z.string().uuid() }).parse(input))
+  .validator((input: unknown) => z.object({ strategyId: z.string().uuid() }).parse(input))
   .handler(async ({ context, data }) => {
     const sb          = context.supabase as any;
     const workspaceId = context.workspaceId;
@@ -785,7 +785,7 @@ export const getStrategyTasks = createServerFn({ method: "GET" })
 
 export const getStrategyAssets = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => z.object({ strategyId: z.string().uuid() }).parse(input))
+  .validator((input: unknown) => z.object({ strategyId: z.string().uuid() }).parse(input))
   .handler(async ({ context, data }) => {
     const sb          = context.supabase as any;
     const workspaceId = context.workspaceId;
@@ -806,7 +806,7 @@ export const getStrategyAssets = createServerFn({ method: "GET" })
 
 export const updateStrategyTask = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({
       taskId: z.string().uuid(),
       status: z.enum(["pending", "in_progress", "completed"]),

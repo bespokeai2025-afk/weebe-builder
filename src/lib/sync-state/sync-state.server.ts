@@ -109,7 +109,7 @@ export async function recordSyncState(input: RecordSyncInput): Promise<void> {
 // applied:false (never throws) when the migration has not been applied yet.
 export const getSyncState = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
-  .inputValidator(z.object({ workspaceId: z.string().uuid().optional() }))
+  .validator(z.object({ workspaceId: z.string().uuid().optional() }))
   .handler(async ({ data, context }) => {
     const targetWs = data?.workspaceId ?? context.workspaceId;
     if (!targetWs) throw new Error("No workspace specified");

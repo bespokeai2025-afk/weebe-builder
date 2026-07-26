@@ -22,7 +22,7 @@ function getAppUrl(): string {
  */
 export const createInvite = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: { email: string; roleKey?: string }) => input)
+  .validator((input: { email: string; roleKey?: string }) => input)
   .handler(async ({ context, data }) => {
     const { userId, workspaceId } = context;
     if (!workspaceId) throw new Error("No active workspace");
@@ -117,7 +117,7 @@ export const createInvite = createServerFn({ method: "POST" })
 
 /** Look up an invite by token (public — used on the accept page). */
 export const getInviteByToken = createServerFn({ method: "GET" })
-  .inputValidator((input: { token: string }) => input)
+  .validator((input: { token: string }) => input)
   .handler(async ({ data }) => {
     const { data: invite } = await (supabaseAdmin as any)
       .from("workspace_invites")
@@ -146,7 +146,7 @@ export const getInviteByToken = createServerFn({ method: "GET" })
  */
 export const acceptInvite = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: { token: string }) => input)
+  .validator((input: { token: string }) => input)
   .handler(async ({ context, data }) => {
     const { userId } = context;
     const sb = supabaseAdmin as any;
@@ -283,7 +283,7 @@ export const listInvites = createServerFn({ method: "GET" })
  */
 export const revokeInvite = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: { inviteId: string }) => input)
+  .validator((input: { inviteId: string }) => input)
   .handler(async ({ context, data }) => {
     const { userId, workspaceId } = context;
     if (!workspaceId) throw new Error("No active workspace");

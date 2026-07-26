@@ -22,7 +22,7 @@ export const listWebformSources = createServerFn({ method: "GET" })
 // ── Create webform source ─────────────────────────────────────────────────────
 export const createWebformSource = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({
       name:                  z.string().min(1).max(100),
       default_source_type:   z.string().default("website_form"),
@@ -53,7 +53,7 @@ export const createWebformSource = createServerFn({ method: "POST" })
 // ── Update webform source ─────────────────────────────────────────────────────
 export const updateWebformSource = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({
       id:                    z.string().uuid(),
       name:                  z.string().min(1).max(100).optional(),
@@ -83,7 +83,7 @@ export const updateWebformSource = createServerFn({ method: "POST" })
 // ── Delete webform source ─────────────────────────────────────────────────────
 export const deleteWebformSource = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => z.object({ id: z.string().uuid() }).parse(input))
+  .validator((input: unknown) => z.object({ id: z.string().uuid() }).parse(input))
   .handler(async ({ context, data }) => {
     const { workspaceId } = context;
     if (!workspaceId) throw new Error("No workspace");
@@ -99,7 +99,7 @@ export const deleteWebformSource = createServerFn({ method: "POST" })
 // ── List webform submissions ───────────────────────────────────────────────────
 export const listWebformSubmissions = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({
       webformSourceId: z.string().uuid().optional(),
       limit:           z.number().int().min(1).max(100).default(50),

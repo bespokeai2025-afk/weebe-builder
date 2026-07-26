@@ -21,7 +21,7 @@ export const getWorkspaceSettings = createServerFn({ method: "GET" })
 
 export const saveWorkspaceSettings = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input) =>
+  .validator((input) =>
     z
       .object({
         business_name: z.string().nullable().optional(),
@@ -218,7 +218,7 @@ export const getElevenLabsKey = createServerFn({ method: "GET" })
 
 export const saveElevenLabsApiKey = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: { key: string }) => input)
+  .validator((input: { key: string }) => input)
   .handler(async ({ context, data }) => {
     const workspaceId = context.workspaceId;
     if (!workspaceId) throw new Error("No active workspace");
@@ -272,7 +272,7 @@ export const getOpenAiKey = createServerFn({ method: "GET" })
 
 export const saveOpenAiApiKey = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: { key: string }) => input)
+  .validator((input: { key: string }) => input)
   .handler(async ({ context, data }) => {
     const workspaceId = context.workspaceId;
     if (!workspaceId) throw new Error("No active workspace");

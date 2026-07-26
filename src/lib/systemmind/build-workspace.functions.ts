@@ -12,7 +12,7 @@ function requireWorkspaceId(workspaceId: string | undefined): string {
 
 export const createBuildSession = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({
       title:            z.string().max(200).optional(),
       sourcePage:       z.string().max(60).optional(),
@@ -57,7 +57,7 @@ export const listBuildSessions = createServerFn({ method: "GET" })
 
 export const getBuildSession = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({ sessionId: z.string().uuid() }).parse(input),
   )
   .handler(async ({ data, context }) => {
@@ -75,7 +75,7 @@ export const getBuildSession = createServerFn({ method: "GET" })
 
 export const setBuildSessionArchived = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({ sessionId: z.string().uuid(), archived: z.boolean() }).parse(input),
   )
   .handler(async ({ data, context }) => {
@@ -99,7 +99,7 @@ export const setBuildSessionArchived = createServerFn({ method: "POST" })
 
 export const deleteBuildSession = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({ sessionId: z.string().uuid() }).parse(input),
   )
   .handler(async ({ data, context }) => {
@@ -124,7 +124,7 @@ export const deleteBuildSession = createServerFn({ method: "POST" })
 
 export const promptBuildSession = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({
       sessionId: z.string().uuid(),
       prompt:    z.string().min(3).max(8000),
@@ -154,7 +154,7 @@ export const promptBuildSession = createServerFn({ method: "POST" })
 
 export const restoreBuildVersion = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({ sessionId: z.string().uuid(), versionId: z.string().uuid() }).parse(input),
   )
   .handler(async ({ data, context }) => {
@@ -177,7 +177,7 @@ export const restoreBuildVersion = createServerFn({ method: "POST" })
 
 export const setBuildVersionNotes = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({
       sessionId: z.string().uuid(),
       versionId: z.string().uuid(),
@@ -208,7 +208,7 @@ export const setBuildVersionNotes = createServerFn({ method: "POST" })
 
 export const simulateBuildVersion = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({ sessionId: z.string().uuid(), versionId: z.string().uuid() }).parse(input),
   )
   .handler(async ({ data, context }) => {
@@ -231,7 +231,7 @@ export const simulateBuildVersion = createServerFn({ method: "POST" })
 
 export const getBuildApplySafetyReport = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({ sessionId: z.string().uuid(), versionId: z.string().uuid() }).parse(input),
   )
   .handler(async ({ data, context }) => {
@@ -254,7 +254,7 @@ export const getBuildApplySafetyReport = createServerFn({ method: "POST" })
 
 export const applyBuildVersion = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({
       sessionId:    z.string().uuid(),
       versionId:    z.string().uuid(),
@@ -287,7 +287,7 @@ export const applyBuildVersion = createServerFn({ method: "POST" })
 
 export const rollbackBuildApply = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({ sessionId: z.string().uuid(), snapshotId: z.string().uuid() }).parse(input),
   )
   .handler(async ({ data, context }) => {
@@ -310,7 +310,7 @@ export const rollbackBuildApply = createServerFn({ method: "POST" })
 
 export const markBuildVersionDeployed = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({
       sessionId:    z.string().uuid(),
       versionId:    z.string().uuid(),
@@ -341,7 +341,7 @@ export const markBuildVersionDeployed = createServerFn({ method: "POST" })
 
 export const getBuildProvenanceForAgent = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({ agentId: z.string().uuid() }).parse(input),
   )
   .handler(async ({ data, context }) => {
@@ -364,7 +364,7 @@ export const getBuildProvenanceForAgent = createServerFn({ method: "GET" })
 
 export const getSystemMindUsageSummary = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({ days: z.number().int().min(1).max(365).default(30) }).parse(input ?? {}),
   )
   .handler(async ({ data, context }) => {
@@ -385,7 +385,7 @@ export const getSystemMindUsageSummary = createServerFn({ method: "GET" })
 
 export const getSystemMindUsageAdmin = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth, requirePlatformAdmin])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({
       workspaceId:   z.string().uuid().optional(),
       monthStartIso: z.string().datetime({ offset: true }).optional(),
@@ -422,7 +422,7 @@ export const listSystemMindPricingHistory = createServerFn({ method: "GET" })
 
 export const saveSystemMindPricing = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth, requirePlatformAdmin])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({
       base_charge_per_run_usd:    z.number().min(0).max(1000),
       charge_per_minute_usd:      z.number().min(0).max(1000),
@@ -450,7 +450,7 @@ export const saveSystemMindPricing = createServerFn({ method: "POST" })
 
 export const getBuildTestCallState = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({ sessionId: z.string().uuid() }).parse(input),
   )
   .handler(async ({ data, context }) => {
@@ -471,7 +471,7 @@ export const getBuildTestCallState = createServerFn({ method: "GET" })
 
 export const listBuildTestCallCandidates = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({ sessionId: z.string().uuid() }).parse(input),
   )
   .handler(async ({ data, context }) => {
@@ -492,7 +492,7 @@ export const listBuildTestCallCandidates = createServerFn({ method: "GET" })
 
 export const analyzeBuildTestCall = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({
       sessionId: z.string().uuid(),
       callId:    z.string().uuid(),
@@ -520,7 +520,7 @@ export const analyzeBuildTestCall = createServerFn({ method: "POST" })
 
 export const overrideBuildTestPassed = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({
       sessionId: z.string().uuid(),
       reason:    z.string().min(5).max(2000),

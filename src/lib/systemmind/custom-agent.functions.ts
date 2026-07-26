@@ -68,7 +68,7 @@ function parseJson(raw: string, fallback: any = {}): any {
 // ── A: Generate workflow draft from description ────────────────────────────────
 export const generateCustomWorkflowFn = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((d: any) => d)
+  .validator((d: any) => d)
   .handler(async ({ context, data }: any) => {
     {
       const { requirePageAccessEntitled } = await import(
@@ -113,7 +113,7 @@ export const generateCustomWorkflowFn = createServerFn({ method: "POST" })
 // ── B: Analyze script for deployment configuration ────────────────────────────
 export const analyzeScriptFn = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((d: any) => d)
+  .validator((d: any) => d)
   .handler(async ({ context, data }: any) => {
     {
       const { requirePageAccessEntitled } = await import(
@@ -264,7 +264,7 @@ Be thorough and practical. Identify ALL data points mentioned in the script for 
 // ── Save / upsert custom agent config ─────────────────────────────────────────
 export const saveCustomAgentConfigFn = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((d: any) => d)
+  .validator((d: any) => d)
   .handler(async ({ context, data }: any) => {
     {
       const { requirePageAccessEntitled } = await import(
@@ -327,7 +327,7 @@ export const saveCustomAgentConfigFn = createServerFn({ method: "POST" })
 // ── Get custom agent config for an agent ──────────────────────────────────────
 export const getCustomAgentConfigFn = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((d: any) => d)
+  .validator((d: any) => d)
   .handler(async ({ context, data }: any) => {
     {
       const { requirePageAccessEntitled } = await import(
@@ -353,7 +353,7 @@ export const getCustomAgentConfigFn = createServerFn({ method: "POST" })
 // ── Create admin change request ────────────────────────────────────────────────
 export const createAdminChangeRequestFn = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((d: any) => d)
+  .validator((d: any) => d)
   .handler(async ({ context, data }: any) => {
     {
       const { requirePageAccessEntitled } = await import(
@@ -432,7 +432,7 @@ export const createAdminChangeRequestFn = createServerFn({ method: "POST" })
 // ── Admin: list all change requests ───────────────────────────────────────────
 export const adminListChangeRequestsFn = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((d: any) => d)
+  .validator((d: any) => d)
   .handler(async ({ context, data }: any) => {
     const { status } = (data ?? {}) as { status?: string };
     const { supabase } = context as any;
@@ -459,7 +459,7 @@ export const adminListChangeRequestsFn = createServerFn({ method: "POST" })
 // ── Admin: update change request ──────────────────────────────────────────────
 export const adminUpdateChangeRequestFn = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((d: any) => d)
+  .validator((d: any) => d)
   .handler(async ({ context, data }: any) => {
     const { id, status, billingStatus, quoteAmountPence, adminNotes } = data as {
       id: string;

@@ -171,7 +171,7 @@ export const getGoalsWithProgress = createServerFn({ method: "GET" })
 
 export const createGoal = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({
       metric:   z.enum(["leads", "bookings", "sales", "call_success_rate", "calls_made"]),
       label:    z.string().min(1).max(120),
@@ -200,7 +200,7 @@ export const createGoal = createServerFn({ method: "POST" })
 
 export const deleteGoal = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => z.object({ id: z.string().uuid() }).parse(input))
+  .validator((input: unknown) => z.object({ id: z.string().uuid() }).parse(input))
   .handler(async ({ context, data }) => {
     const sb          = context.supabase as any;
     const workspaceId = context.workspaceId;

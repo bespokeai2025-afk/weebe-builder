@@ -301,7 +301,7 @@ function buildGrowthMindRetrievalQuery(pd: any): string {
 // ── AI Response ────────────────────────────────────────────────────────────────
 export const getGrowthMindAIResponse = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({
       messages:    z.array(z.object({ role: z.enum(["user","assistant"]), content: z.string() })),
       platformData: z.any().optional(),
@@ -429,7 +429,7 @@ Rules:
 // ── Morning Growth Briefing ────────────────────────────────────────────────────
 export const getGrowthMindBriefing = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({ platformData: z.any().optional() }).parse(input)
   )
   .handler(async ({ context, data }) => {
@@ -488,7 +488,7 @@ Be specific with numbers. Start with "Good ${getTimeOfDay()}!" Keep it under 100
 // ── TTS ───────────────────────────────────────────────────────────────────────
 export const getGrowthMindTTS = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({
       text:    z.string().max(3000),
       voiceId: z.string().default("21m00Tcm4TlvDq8ikWAM"),
@@ -547,7 +547,7 @@ function getTimeOfDay() {
 // ── System context (for external use) ─────────────────────────────────────────
 export const getGrowthMindSystemContext = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({ platformData: z.any().optional() }).parse(input)
   )
   .handler(async ({ context, data }) => {

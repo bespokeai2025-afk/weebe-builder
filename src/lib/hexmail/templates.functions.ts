@@ -29,7 +29,7 @@ export interface HexmailTemplate {
 
 export const listHexmailTemplates = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input) =>
+  .validator((input) =>
     z
       .object({ type: z.string().optional(), includeArchived: z.boolean().optional() })
       .parse(input),
@@ -52,7 +52,7 @@ export const listHexmailTemplates = createServerFn({ method: "POST" })
 
 export const upsertHexmailTemplate = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input) =>
+  .validator((input) =>
     z
       .object({
         id: z.string().optional(),
@@ -125,7 +125,7 @@ export const upsertHexmailTemplate = createServerFn({ method: "POST" })
 
 export const cloneHexmailTemplate = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input) => z.object({ id: z.string() }).parse(input))
+  .validator((input) => z.object({ id: z.string() }).parse(input))
   .handler(async ({ context, data }) => {
     const { supabase, workspaceId } = context;
     if (!workspaceId) throw new Error("No active workspace");
@@ -156,7 +156,7 @@ export const cloneHexmailTemplate = createServerFn({ method: "POST" })
 
 export const archiveHexmailTemplate = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input) =>
+  .validator((input) =>
     z.object({ id: z.string(), archive: z.boolean() }).parse(input),
   )
   .handler(async ({ context, data }) => {
@@ -174,7 +174,7 @@ export const archiveHexmailTemplate = createServerFn({ method: "POST" })
 
 export const incrementTemplateUsage = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input) => z.object({ id: z.string() }).parse(input))
+  .validator((input) => z.object({ id: z.string() }).parse(input))
   .handler(async ({ context, data }) => {
     const { supabase, workspaceId } = context;
     if (!workspaceId) throw new Error("No active workspace");

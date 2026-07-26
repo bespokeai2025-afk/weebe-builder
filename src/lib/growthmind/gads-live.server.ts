@@ -86,7 +86,7 @@ export const discoverGadsAccounts = createServerFn({ method: "POST" })
 
 export const selectGadsAccount = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((i: unknown) => z.object({
+  .validator((i: unknown) => z.object({
     customerId:      z.string().regex(/^[\d-]{5,20}$/, "Customer ID must be numeric (e.g. 123-456-7890)"),
     loginCustomerId: z.string().regex(/^[\d-]{5,20}$/).nullable().optional(),
     label:           z.string().max(120).optional(),
@@ -179,7 +179,7 @@ const DashboardInput = z.object({
 
 export const getGadsDashboard = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((i: unknown) => DashboardInput.parse(i ?? {}))
+  .validator((i: unknown) => DashboardInput.parse(i ?? {}))
   .handler(async ({ context, data }) => {
     const workspaceId = context.workspaceId;
     if (!workspaceId) throw new Error("No workspace");
@@ -260,7 +260,7 @@ export const getGadsDashboard = createServerFn({ method: "POST" })
 
 export const getGadsCampaignDetail = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((i: unknown) => z.object({ campaignId: z.string().min(1).max(40) }).parse(i))
+  .validator((i: unknown) => z.object({ campaignId: z.string().min(1).max(40) }).parse(i))
   .handler(async ({ context, data }) => {
     const workspaceId = context.workspaceId;
     if (!workspaceId) throw new Error("No workspace");
@@ -297,7 +297,7 @@ export const getGadsCampaignDetail = createServerFn({ method: "POST" })
 
 export const setGadsRecommendationStatus = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((i: unknown) => z.object({
+  .validator((i: unknown) => z.object({
     id:     z.string().uuid(),
     status: z.enum(["under_review", "approved", "rejected", "dismissed"]),
   }).parse(i))

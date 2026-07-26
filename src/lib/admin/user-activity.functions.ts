@@ -31,7 +31,7 @@ export type UserActivityRow = {
 /** Admin: list users with their recent email send activity. */
 export const listUserActivity = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: { onlyUnreviewed?: boolean } = {}) => input)
+  .validator((input: { onlyUnreviewed?: boolean } = {}) => input)
   .handler(async ({ context, data }): Promise<UserActivityRow[]> => {
     await assertAdmin(context.userId);
 
@@ -88,7 +88,7 @@ export const listUserActivity = createServerFn({ method: "GET" })
 /** Admin: toggle reviewed state on a user profile. */
 export const setUserReviewed = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: { profileId: string; reviewed: boolean }) => input)
+  .validator((input: { profileId: string; reviewed: boolean }) => input)
   .handler(async ({ context, data }) => {
     await assertAdmin(context.userId);
     const { error } = await supabaseAdmin

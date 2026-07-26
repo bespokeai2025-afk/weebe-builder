@@ -128,7 +128,7 @@ function transferSchemaMismatches(
 
 export const deployAgentToRetell = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator(
+  .validator(
     (input: {
       agent: Record<string, unknown>;
       agentId?: string;
@@ -893,7 +893,7 @@ Read the \`confirmation_message\` field from the response. If a \`meeting_url\` 
 
 export const createRetellWebCall = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: { agentId: string }) => input)
+  .validator((input: { agentId: string }) => input)
   .handler(async ({ data, context }) => {
     const agentId = (data.agentId ?? "").trim();
     if (!agentId || !agentId.startsWith("agent_")) {
@@ -943,7 +943,7 @@ export const createRetellWebCall = createServerFn({ method: "POST" })
  */
 export const fetchRetellAgent = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: { agentId: string }) => input)
+  .validator((input: { agentId: string }) => input)
   .handler(async ({ data, context }) => {
     const agentId = (data.agentId ?? "").trim();
     if (!agentId.startsWith("agent_")) {
@@ -1072,7 +1072,7 @@ export const listWorkspaceRetellAgents = createServerFn({ method: "GET" })
  */
 export const fetchWorkspaceRetellAgent = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: { agentId: string }) => input)
+  .validator((input: { agentId: string }) => input)
   .handler(async ({ data, context }) => {
     const agentId = (data.agentId ?? "").trim();
     if (!agentId.startsWith("agent_")) {
@@ -1119,7 +1119,7 @@ export const fetchWorkspaceRetellAgent = createServerFn({ method: "POST" })
  */
 export const cloneCustomVoice = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator(
+  .validator(
     (input: {
       voiceName: string;
       voiceProvider?: "elevenlabs" | "cartesia" | "minimax" | "fish_audio" | "platform";
@@ -1213,7 +1213,7 @@ export const cloneCustomVoice = createServerFn({ method: "POST" })
  */
 export const searchElevenLabsVoices = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: { query: string }) => input)
+  .validator((input: { query: string }) => input)
   .handler(async ({ data, context }) => {
     const workspaceId = (context as any).workspaceId ?? null;
 
@@ -1284,7 +1284,7 @@ export const searchElevenLabsVoices = createServerFn({ method: "POST" })
  */
 export const previewElevenLabsVoice = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: { voiceId: string; text: string }) => input)
+  .validator((input: { voiceId: string; text: string }) => input)
   .handler(async ({ data, context }) => {
     const workspaceId = (context as any).workspaceId ?? null;
 
@@ -1341,7 +1341,7 @@ export const previewElevenLabsVoice = createServerFn({ method: "POST" })
  */
 export const previewRetellVoice = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: { voiceId: string; text: string }) => input)
+  .validator((input: { voiceId: string; text: string }) => input)
   .handler(async ({ data, context }) => {
     const workspaceId = (context as any).workspaceId ?? null;
 
@@ -1392,7 +1392,7 @@ export const previewRetellVoice = createServerFn({ method: "POST" })
  */
 export const addElevenLabsCommunityVoice = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: { elevenLabsVoiceId: string; voiceName: string; publicOwnerId?: string | null }) => input)
+  .validator((input: { elevenLabsVoiceId: string; voiceName: string; publicOwnerId?: string | null }) => input)
   .handler(async ({ data }) => {
     const apiKey = process.env.RETELL_API_KEY;
     if (!apiKey) throw new Error("RETELL_API_KEY is not configured");
@@ -1433,7 +1433,7 @@ export const addElevenLabsCommunityVoice = createServerFn({ method: "POST" })
  */
 export const buyRetellPhoneNumber = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator(
+  .validator(
     (input: {
       areaCode?: number;
       tollFree?: boolean;
@@ -1457,7 +1457,7 @@ export const buyRetellPhoneNumber = createServerFn({ method: "POST" })
  */
 export const importSipPhoneNumber = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator(
+  .validator(
     (input: {
       phoneNumber: string;
       terminationUri: string;
@@ -1481,7 +1481,7 @@ export const importSipPhoneNumber = createServerFn({ method: "POST" })
 /** List phone numbers the workspace owns (for the deploy dialog). */
 export const listRetellPhoneNumbers = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator(
+  .validator(
     (input: { productionApiKey?: string; agentRowId?: string } | undefined) => input ?? {},
   )
   .handler(async ({ data, context }) => {
@@ -1499,7 +1499,7 @@ export const listRetellPhoneNumbers = createServerFn({ method: "POST" })
  */
 export const deleteRetellPhoneNumber = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator(
+  .validator(
     (input: {
       phoneNumber: string;
       productionApiKey?: string;
@@ -1522,7 +1522,7 @@ export const deleteRetellPhoneNumber = createServerFn({ method: "POST" })
 /** Attach an already-owned number to a specific agent (for inbound). */
 export const assignNumberToAgent = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator(
+  .validator(
     (input: {
       phoneNumber: string;
       inboundAgentId?: string;
@@ -1548,7 +1548,7 @@ export const assignNumberToAgent = createServerFn({ method: "POST" })
  */
 export const cloneRetellAgentForDeploy = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator(
+  .validator(
     (input: {
       sourceAgentId: string;
       agentName?: string;
@@ -1885,7 +1885,7 @@ function translateToElevenLabsTools(retellTools: unknown[]): unknown[] {
 
 export const deployElevenLabsAgent = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator(
+  .validator(
     (input: {
       agentId?: string | null;
       agentName: string;
@@ -1986,7 +1986,7 @@ export const deployElevenLabsAgent = createServerFn({ method: "POST" })
  */
 export const getElevenLabsSignedUrl = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: { agentId: string }) => input)
+  .validator((input: { agentId: string }) => input)
   .handler(async ({ context, data }) => {
     const workspaceId = (context as Record<string, unknown>).workspaceId as string | null ?? null;
     const elKey = await resolveElevenLabsApiKey(workspaceId);

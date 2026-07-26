@@ -44,7 +44,7 @@ async function uniqueSlug(base: string): Promise<string> {
  */
 export const adminCreateClientWorkspace = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator(
+  .validator(
     z.object({
       name:       z.string().min(2, "Name must be at least 2 chars"),
       ownerEmail: z.string().email("Invalid email"),
@@ -97,7 +97,7 @@ export const adminCreateClientWorkspace = createServerFn({ method: "POST" })
  */
 export const adminSetWorkspaceStatus = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator(
+  .validator(
     z.object({
       workspaceId: z.string().uuid(),
       status:      z.enum(["active", "suspended"]),

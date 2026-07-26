@@ -941,7 +941,7 @@ export const getHiveMindTasksAndEvents = createServerFn({ method: "GET" })
 // ── updateHiveMindTask ────────────────────────────────────────────────────────
 export const updateHiveMindTask = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({
       id:          z.string().uuid(),
       status:      z.enum(["suggested","approved","in_progress","completed"]).optional(),
@@ -1018,7 +1018,7 @@ export async function updateHiveMindTaskCore(
 // ── acknowledgeMindTask ───────────────────────────────────────────────────────
 export const acknowledgeMindTask = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => z.object({ id: z.string().uuid() }).parse(input))
+  .validator((input: unknown) => z.object({ id: z.string().uuid() }).parse(input))
   .handler(async ({ context, data }) =>
     acknowledgeMindTaskCore(
       { sb: context.supabase as any, workspaceId: context.workspaceId! },
@@ -1066,7 +1066,7 @@ export async function acknowledgeMindTaskCore(
 // ── createHiveMindTask ────────────────────────────────────────────────────────
 export const createHiveMindTask = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({
       title:       z.string().min(1).max(300),
       description: z.string().max(2000).optional(),
@@ -1115,7 +1115,7 @@ export async function createHiveMindTaskCore(
 // ── addHiveMindTaskComment ────────────────────────────────────────────────────
 export const addHiveMindTaskComment = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({
       taskId: z.string().uuid(),
       author: z.string().min(1).max(100),
@@ -1145,7 +1145,7 @@ export const addHiveMindTaskComment = createServerFn({ method: "POST" })
 // ── deleteHiveMindTask ────────────────────────────────────────────────────────
 export const deleteHiveMindTask = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => z.object({ id: z.string().uuid() }).parse(input))
+  .validator((input: unknown) => z.object({ id: z.string().uuid() }).parse(input))
   .handler(async ({ context, data }) => {
     const sb = context.supabase as any;
     const { error } = await sb.from("hivemind_tasks")
@@ -1159,7 +1159,7 @@ export const deleteHiveMindTask = createServerFn({ method: "POST" })
 // ── markHiveMindEventsRead ────────────────────────────────────────────────────
 export const markHiveMindEventsRead = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({ ids: z.array(z.string().uuid()).optional() }).parse(input)
   )
   .handler(async ({ context, data }) => {

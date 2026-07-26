@@ -493,7 +493,7 @@ const generateVideoSchema = z.object({
 
 export const generateVideo = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => generateVideoSchema.parse(input))
+  .validator((input: unknown) => generateVideoSchema.parse(input))
   .handler(async ({ context, data }) => {
     const sb          = context.supabase as any;
     const workspaceId = context.workspaceId;
@@ -1000,7 +1000,7 @@ const generateVideoFromPromptSchema = z.object({
 
 export const generateVideoFromPrompt = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => generateVideoFromPromptSchema.parse(input))
+  .validator((input: unknown) => generateVideoFromPromptSchema.parse(input))
   .handler(async ({ context, data }) => {
     const sb          = context.supabase as any;
     const workspaceId = context.workspaceId;
@@ -1370,7 +1370,7 @@ export const generateVideoFromPrompt = createServerFn({ method: "POST" })
 
 export const getVideoAssets = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({
       videoType: z.string().nullish(),
       limit:     z.number().int().min(1).max(200).default(100),
@@ -1442,7 +1442,7 @@ export const getVideoAssets = createServerFn({ method: "GET" })
 
 export const deleteVideoAsset = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => z.object({ id: z.string().uuid() }).parse(input))
+  .validator((input: unknown) => z.object({ id: z.string().uuid() }).parse(input))
   .handler(async ({ context, data }) => {
     const sb          = context.supabase as any;
     const workspaceId = context.workspaceId;
@@ -1474,7 +1474,7 @@ export type CreativeScore = {
 
 export const scoreVideoCreative = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({
       assetId: z.string().uuid(),
     }).parse(input)
@@ -1549,7 +1549,7 @@ Return ONLY valid JSON:
 
 export const generateVideoVariants = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({
       campaignId:  z.string().uuid().nullish(),
       videoType:   z.string().min(1),
@@ -1644,7 +1644,7 @@ export const generateVideoVariants = createServerFn({ method: "POST" })
 
 export const scheduleVideoAsset = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({
       assetId:       z.string().uuid(),
       scheduledDate: z.string(),
@@ -1775,7 +1775,7 @@ export const getVideoCostStats = createServerFn({ method: "GET" })
 
 export const retryVideoJob = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => z.object({ id: z.string().uuid() }).parse(input))
+  .validator((input: unknown) => z.object({ id: z.string().uuid() }).parse(input))
   .handler(async ({ context, data }) => {
     const sb          = context.supabase as any;
     const workspaceId = context.workspaceId;
@@ -1863,7 +1863,7 @@ export const retryVideoJob = createServerFn({ method: "POST" })
 
 export const pollVideoJob = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => z.object({ id: z.string().uuid() }).parse(input))
+  .validator((input: unknown) => z.object({ id: z.string().uuid() }).parse(input))
   .handler(async ({ context, data }) => {
     const sb          = context.supabase as any;
     const workspaceId = context.workspaceId;
@@ -2026,7 +2026,7 @@ export const clearFailedVideoAssets = createServerFn({ method: "POST" })
 
 export const getVideoDownloadUrl = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => z.object({ id: z.string().uuid() }).parse(input))
+  .validator((input: unknown) => z.object({ id: z.string().uuid() }).parse(input))
   .handler(async ({ context, data }) => {
     const sb          = context.supabase as any;
     const workspaceId = context.workspaceId;
@@ -2248,7 +2248,7 @@ export const getVeoStatus = createServerFn({ method: "POST" })
 
 export const getVideoClips = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => z.object({ assetId: z.string().uuid() }).parse(input ?? {}))
+  .validator((input: unknown) => z.object({ assetId: z.string().uuid() }).parse(input ?? {}))
   .handler(async ({ context, data }) => {
     const sb          = context.supabase as any;
     const workspaceId = context.workspaceId;
@@ -2294,7 +2294,7 @@ export const getVideoClips = createServerFn({ method: "GET" })
 
 export const triggerVideoAssembly = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => z.object({ assetId: z.string().uuid() }).parse(input))
+  .validator((input: unknown) => z.object({ assetId: z.string().uuid() }).parse(input))
   .handler(async ({ context, data }) => {
     const sb          = context.supabase as any;
     const workspaceId = context.workspaceId;

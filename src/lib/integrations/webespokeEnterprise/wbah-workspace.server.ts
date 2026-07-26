@@ -694,7 +694,7 @@ export const previewWbahDynamicsCategorySync = createServerFn({ method: "GET" })
 
 export const syncWbahDynamicsCategories = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((i) => z.object({ scheduleCampaign: z.boolean().default(false) }).parse(i ?? {}))
+  .validator((i) => z.object({ scheduleCampaign: z.boolean().default(false) }).parse(i ?? {}))
   .handler(async ({ context, data }) => {
     const cbs = await requireWbahCbs(context.userId);
     const res = await api.wbahSyncDynamicsCategories(
@@ -988,7 +988,7 @@ export const getWbahCampaignScheduleOptions = createServerFn({ method: "GET" })
 
 export const createWbahCampaign = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((i) => wbahCampaignFormSchema.parse(i ?? {}))
+  .validator((i) => wbahCampaignFormSchema.parse(i ?? {}))
   .handler(async ({ context, data }) => {
     const cbs = await requireWbahCbs(context.userId);
     const res = await api.wbahCreateCampaign(
@@ -1003,7 +1003,7 @@ export const createWbahCampaign = createServerFn({ method: "POST" })
 
 export const pauseWbahCampaign = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((i) => z.object({ id: z.string() }).parse(i ?? {}))
+  .validator((i) => z.object({ id: z.string() }).parse(i ?? {}))
   .handler(async ({ context, data }) => {
     const cbs = await requireWbahCbs(context.userId);
     const res = await api.wbahPauseCampaign(
@@ -1018,7 +1018,7 @@ export const pauseWbahCampaign = createServerFn({ method: "POST" })
 
 export const resumeWbahCampaign = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((i) => z.object({ id: z.string() }).parse(i ?? {}))
+  .validator((i) => z.object({ id: z.string() }).parse(i ?? {}))
   .handler(async ({ context, data }) => {
     const cbs = await requireWbahCbs(context.userId);
     const res = await api.wbahResumeCampaign(
@@ -1033,7 +1033,7 @@ export const resumeWbahCampaign = createServerFn({ method: "POST" })
 
 export const deleteWbahCampaign = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((i) => z.object({ id: z.string() }).parse(i ?? {}))
+  .validator((i) => z.object({ id: z.string() }).parse(i ?? {}))
   .handler(async ({ context, data }) => {
     const cbs = await requireWbahCbs(context.userId);
     const res = await api.wbahDeleteCampaign(
@@ -1048,7 +1048,7 @@ export const deleteWbahCampaign = createServerFn({ method: "POST" })
 
 export const updateWbahCampaignSettings = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((i) =>
+  .validator((i) =>
     wbahCampaignFormFields
       .extend({ id: z.string().min(1) })
       .superRefine(refineCampaignDateRange)
@@ -1070,7 +1070,7 @@ export const updateWbahCampaignSettings = createServerFn({ method: "POST" })
 
 export const toggleWbahCampaignVoicemailSetting = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((i) =>
+  .validator((i) =>
     z.object({ id: z.string(), voicemail_enabled: z.boolean() }).parse(i ?? {}),
   )
   .handler(async ({ context, data }) => {
@@ -2169,7 +2169,7 @@ const WBAH_CALL_STATUS_FILTER: Record<string, string[]> = {
 
 export const listWbahCallsPaged = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator(
+  .validator(
     z.object({
       page: z.coerce.number().int().min(1).default(1),
       pageSize: z.coerce.number().int().min(1).max(100).default(50),
@@ -2297,7 +2297,7 @@ export const listWbahCallsPaged = createServerFn({ method: "POST" })
 // and Qualified pages.
 export const getWbahContactCallHistory = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator(z.object({ phone: z.string().min(1) }))
+  .validator(z.object({ phone: z.string().min(1) }))
   .handler(async ({ context, data }) => {
     const { supabase, workspaceId } = context;
     if (!workspaceId) throw new Error("No active workspace");
@@ -2336,7 +2336,7 @@ export const getWbahContactCallHistory = createServerFn({ method: "POST" })
 // Loaded on demand when a user opens a call — never included in the list page.
 export const getWbahCallDetail = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator(z.object({ id: z.string().min(1) }))
+  .validator(z.object({ id: z.string().min(1) }))
   .handler(async ({ context, data }) => {
     const { supabase, workspaceId } = context;
     if (!workspaceId) throw new Error("No active workspace");
@@ -2507,7 +2507,7 @@ async function requireWbahRetellKey(userId: string): Promise<string> {
 
 export const getWbahRetellCalls = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((i) =>
+  .validator((i) =>
     z
       .object({
         paginationKey: z.string().nullable().default(null),
@@ -2621,7 +2621,7 @@ function inferWbahDashboardType(name: string): string {
 
 export const reconcileWbahRetellAgents = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator(z.object({ apply: z.coerce.boolean().default(false) }))
+  .validator(z.object({ apply: z.coerce.boolean().default(false) }))
   .handler(async ({ context, data }) => {
     const { retellFetch } = await import("@/lib/providers/retell/client.server");
     const apiKey = await requireWbahRetellKey(context.userId);
@@ -3201,7 +3201,7 @@ export const listWbahPeopleCategories = createServerFn({ method: "GET" })
 
 export const listWbahCategorizedLeads = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator(
+  .validator(
     z.object({
       // Accepts either the legacy enum slugs (disqualified / tried_to_contact /
       // rebooking) or a live "Lead Filter Master" category name ("Disqualified",
@@ -3261,7 +3261,7 @@ export const getWbahCallbackSummary = createServerFn({ method: "GET" })
 
 export const listWbahCallbacks = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator(
+  .validator(
     z.object({
       status: wbahCallbackStatusSchema.default("pending"),
       page: z.coerce.number().int().min(1).default(1),

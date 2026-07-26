@@ -17,7 +17,7 @@ const TYPE_CONTEXT: Record<string, string> = {
 
 export const aiEditTemplateContent = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input) =>
+  .validator((input) =>
     z.object({
       content:     z.string(),
       instruction: z.string().min(1).max(2000),
@@ -71,7 +71,7 @@ Keep the tone professional and appropriate for the document type.`;
 
 export const extractTemplateDocumentText = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input) =>
+  .validator((input) =>
     z.object({
       publicUrl: z.string().url(),
       mimeType:  z.string().optional(),
@@ -117,7 +117,7 @@ export const extractTemplateDocumentText = createServerFn({ method: "POST" })
 
 export const createTemplateDocumentUploadUrl = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input) =>
+  .validator((input) =>
     z.object({
       fileName: z.string().min(1),
       mimeType: z.string().optional(),

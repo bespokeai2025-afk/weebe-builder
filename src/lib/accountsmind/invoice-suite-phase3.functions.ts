@@ -37,7 +37,7 @@ async function nextCreditNoteNumber(sb: any): Promise<string> {
 
 export const createCreditNote = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth, requirePlatformAdmin])
-  .inputValidator((input) =>
+  .validator((input) =>
     z
       .object({
         invoiceId: z.string().uuid(),
@@ -131,7 +131,7 @@ export const createCreditNote = createServerFn({ method: "POST" })
 
 export const listCreditNotes = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth, requirePlatformAdmin])
-  .inputValidator((input) => z.object({ invoiceId: z.string().uuid().nullish() }).parse(input ?? {}))
+  .validator((input) => z.object({ invoiceId: z.string().uuid().nullish() }).parse(input ?? {}))
   .handler(async ({ data }) => {
     const sb = supabaseAdmin as any;
     let q = sb.from("accountsmind_credit_notes").select("*").order("created_at", { ascending: false }).limit(200);
@@ -152,7 +152,7 @@ function csvCell(v: unknown): string {
 
 export const exportInvoicesCsv = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth, requirePlatformAdmin])
-  .inputValidator((input) => z.object({ status: z.string().max(30).nullish(), workspaceId: z.string().uuid().nullish() }).parse(input ?? {}))
+  .validator((input) => z.object({ status: z.string().max(30).nullish(), workspaceId: z.string().uuid().nullish() }).parse(input ?? {}))
   .handler(async ({ data }) => {
     const sb = supabaseAdmin as any;
     let q = sb
@@ -217,7 +217,7 @@ const serviceCsvRow = z.object({
 
 export const importServicesCsv = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth, requirePlatformAdmin])
-  .inputValidator((input) => z.object({ rows: z.array(serviceCsvRow).min(1).max(500) }).parse(input))
+  .validator((input) => z.object({ rows: z.array(serviceCsvRow).min(1).max(500) }).parse(input))
   .handler(async ({ data, context }) => {
     const sb = supabaseAdmin as any;
     const userId = (context as any).userId ?? null;
@@ -358,7 +358,7 @@ const overlayFieldSchema = z.object({
 
 export const saveTemplateOverlayFields = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth, requirePlatformAdmin])
-  .inputValidator((input) =>
+  .validator((input) =>
     z.object({ templateId: z.string().uuid(), fields: z.array(overlayFieldSchema).max(120) }).parse(input),
   )
   .handler(async ({ data }) => {
@@ -376,7 +376,7 @@ export const saveTemplateOverlayFields = createServerFn({ method: "POST" })
 
 export const getTemplateFileUrl = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth, requirePlatformAdmin])
-  .inputValidator((input) => z.object({ templateId: z.string().uuid() }).parse(input))
+  .validator((input) => z.object({ templateId: z.string().uuid() }).parse(input))
   .handler(async ({ data }) => {
     const sb = supabaseAdmin as any;
     const { data: tpl } = await sb.from("accountsmind_invoice_templates").select("storage_path,file_name").eq("id", data.templateId).maybeSingle();

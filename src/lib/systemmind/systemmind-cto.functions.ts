@@ -60,7 +60,7 @@ export const listSystemMindRecommendations = createServerFn({ method: "GET" })
 
 export const generateSystemMindRecommendations = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => z.object({}).parse(input ?? {}))
+  .validator((input: unknown) => z.object({}).parse(input ?? {}))
   .handler(async ({ context }) => {
     {
       const { requireSystemMindEdit } = await import(
@@ -77,7 +77,7 @@ export const generateSystemMindRecommendations = createServerFn({ method: "POST"
 
 export const dismissSystemMindRecommendation = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => z.object({ id: z.string() }).parse(input))
+  .validator((input: unknown) => z.object({ id: z.string() }).parse(input))
   .handler(async ({ context, data }) => {
     {
       const { requireSystemMindEdit } = await import(
@@ -110,7 +110,7 @@ export const listSystemMindAudits = createServerFn({ method: "GET" })
 
 export const runSystemMindAudit = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => z.object({}).parse(input ?? {}))
+  .validator((input: unknown) => z.object({}).parse(input ?? {}))
   .handler(async ({ context }) => {
     {
       const { requireSystemMindEdit } = await import(
@@ -144,7 +144,7 @@ export const listSystemMindFixPlans = createServerFn({ method: "GET" })
 
 export const generateSystemMindFixPlan = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({ title: z.string(), detail: z.string(), sourceType: z.string().optional(), sourceId: z.string().optional() }).parse(input),
   )
   .handler(async ({ context, data }) => {
@@ -163,7 +163,7 @@ export const generateSystemMindFixPlan = createServerFn({ method: "POST" })
 
 export const updateFixPlanStep = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({ planId: z.string(), stepIdx: z.number(), done: z.boolean() }).parse(input),
   )
   .handler(async ({ context, data }) => {
@@ -198,7 +198,7 @@ export const listSystemMindTasks = createServerFn({ method: "GET" })
 
 export const createSystemMindTask = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({
       title: z.string(),
       description: z.string().optional(),
@@ -223,7 +223,7 @@ export const createSystemMindTask = createServerFn({ method: "POST" })
 
 export const updateSystemMindTask = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({
       id: z.string(),
       title: z.string().optional(),
@@ -251,7 +251,7 @@ export const updateSystemMindTask = createServerFn({ method: "POST" })
 
 export const deleteSystemMindTask = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => z.object({ id: z.string() }).parse(input))
+  .validator((input: unknown) => z.object({ id: z.string() }).parse(input))
   .handler(async ({ context, data }) => {
     {
       const { requireSystemMindEdit } = await import(
@@ -284,7 +284,7 @@ export const listSystemMindReports = createServerFn({ method: "GET" })
 
 export const getSystemMindReport = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => z.object({ id: z.string() }).parse(input))
+  .validator((input: unknown) => z.object({ id: z.string() }).parse(input))
   .handler(async ({ context, data }) => {
     {
       const { requireSystemMindView } = await import(
@@ -300,7 +300,7 @@ export const getSystemMindReport = createServerFn({ method: "GET" })
 
 export const generateSystemMindReport = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => z.object({}).parse(input ?? {}))
+  .validator((input: unknown) => z.object({}).parse(input ?? {}))
   .handler(async ({ context }) => {
     {
       const { requireSystemMindEdit } = await import(
@@ -333,7 +333,7 @@ export const getArchitectureLayers = createServerFn({ method: "GET" })
 
 export const getArchitectureLayer = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => z.object({ layer: z.string() }).parse(input))
+  .validator((input: unknown) => z.object({ layer: z.string() }).parse(input))
   .handler(async ({ context, data }) => {
     {
       const { requireSystemMindView } = await import(
@@ -365,7 +365,7 @@ export const getSystemMindCTOSettings = createServerFn({ method: "GET" })
 
 export const saveSystemMindCTOSettings = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({
       persona: z.enum(["professional", "concise", "friendly"]).optional(),
       morningBriefing: z.boolean().optional(),

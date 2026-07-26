@@ -10,7 +10,7 @@ function requireWorkspaceId(workspaceId: string | undefined): string {
 // ── generateAccountsMindConfigDraft ───────────────────────────────────────────
 export const generateAccountsMindConfigDraft = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({
       description: z.string().min(10).max(4000),
     }).parse(input),
@@ -30,7 +30,7 @@ export const generateAccountsMindConfigDraft = createServerFn({ method: "POST" }
 // ── listAccountsMindConfig ────────────────────────────────────────────────────
 export const listAccountsMindConfig = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({ includeNonActive: z.boolean().optional() }).parse(input ?? {}),
   )
   .handler(async ({ data, context }) => {
@@ -58,7 +58,7 @@ export const getClientVisibleConfig = createServerFn({ method: "GET" })
 // ── computeAccountsMindMetrics (internal dashboard values) ───────────────────
 export const computeAccountsMindMetrics = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({ keys: z.array(z.string().max(80)).max(40) }).parse(input),
   )
   .handler(async ({ data, context }) => {
@@ -74,7 +74,7 @@ export const computeAccountsMindMetrics = createServerFn({ method: "POST" })
 // ── getAccountsMindMetricSeries (historical snapshots for trend widgets) ─────
 export const getAccountsMindMetricSeries = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({
       keys: z.array(z.string().max(80)).max(40),
       days: z.number().int().min(1).max(90).optional(),
@@ -94,7 +94,7 @@ export const getAccountsMindMetricSeries = createServerFn({ method: "POST" })
 // ── setConfigItemStatus ───────────────────────────────────────────────────────
 export const setConfigItemStatus = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({
       kind:   z.enum(["field", "stat", "widget"]),
       id:     z.string().uuid(),
@@ -118,7 +118,7 @@ export const setConfigItemStatus = createServerFn({ method: "POST" })
 // ── rollbackConfigItem ────────────────────────────────────────────────────────
 export const rollbackConfigItem = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({
       kind: z.enum(["field", "stat", "widget"]),
       id:   z.string().uuid(),
@@ -139,7 +139,7 @@ export const rollbackConfigItem = createServerFn({ method: "POST" })
 // ── setAccountsMindFieldValue ─────────────────────────────────────────────────
 export const setAccountsMindFieldValue = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({
       fieldDefId: z.string().uuid(),
       entityType: z.string().min(1).max(40),
@@ -165,7 +165,7 @@ export const setAccountsMindFieldValue = createServerFn({ method: "POST" })
 // ── listAccountsMindFieldValues ───────────────────────────────────────────────
 export const listAccountsMindFieldValues = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({
       entityType: z.string().min(1).max(40),
       entityId:   z.string().min(1).max(200),
@@ -205,7 +205,7 @@ export const getAccountsMindIndustryState = createServerFn({ method: "GET" })
 
 export const applyAccountsMindIndustryPreset = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({ industryKey: z.string().min(1).max(60) }).parse(input),
   )
   .handler(async ({ data, context }) => {

@@ -109,7 +109,7 @@ export const getGrowthPlans = createServerFn({ method: "GET" })
 
 export const saveGrowthPlan = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({
       id:                  z.string().uuid().optional(),
       name:                z.string().min(1).max(300),
@@ -169,7 +169,7 @@ export const saveGrowthPlan = createServerFn({ method: "POST" })
 
 export const deleteGrowthPlan = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => z.object({ id: z.string().uuid() }).parse(input))
+  .validator((input: unknown) => z.object({ id: z.string().uuid() }).parse(input))
   .handler(async ({ context, data }) => {
     const sb          = context.supabase as any;
     const workspaceId = context.workspaceId;
@@ -234,7 +234,7 @@ const WEEK_TEMPLATES: Record<PlanType, Array<{ week: number; items: Array<{ type
 
 export const generateGrowthPlan = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({
       planId:              z.string().uuid(),
       planType:            z.enum(["30_day", "60_day", "90_day", "annual"]).default("90_day"),
@@ -423,7 +423,7 @@ Return ONLY the numbered list.`,
 
 export const getMarketingTasks = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({
       status: z.string().optional(),
       planId: z.string().uuid().optional(),
@@ -470,7 +470,7 @@ export const getMarketingTasks = createServerFn({ method: "POST" })
 
 export const saveMarketingTask = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({
       id:          z.string().uuid().optional(),
       title:       z.string().min(1).max(500),
@@ -520,7 +520,7 @@ export const saveMarketingTask = createServerFn({ method: "POST" })
 
 export const completeMarketingTask = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => z.object({ id: z.string().uuid() }).parse(input))
+  .validator((input: unknown) => z.object({ id: z.string().uuid() }).parse(input))
   .handler(async ({ context, data }) => {
     const sb          = context.supabase as any;
     const workspaceId = context.workspaceId;
@@ -536,7 +536,7 @@ export const completeMarketingTask = createServerFn({ method: "POST" })
 
 export const deleteMarketingTask = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => z.object({ id: z.string().uuid() }).parse(input))
+  .validator((input: unknown) => z.object({ id: z.string().uuid() }).parse(input))
   .handler(async ({ context, data }) => {
     const sb          = context.supabase as any;
     const workspaceId = context.workspaceId;

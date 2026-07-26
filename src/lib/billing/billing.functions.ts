@@ -38,7 +38,7 @@ async function resolveOrCreateCustomer(
 
 export const createBillingCheckoutSession = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((data: { priceId: string; returnUrl: string; environment: StripeEnv }) => {
+  .validator((data: { priceId: string; returnUrl: string; environment: StripeEnv }) => {
     if (!/^[a-zA-Z0-9_-]+$/.test(data.priceId)) throw new Error("Invalid priceId");
     return data;
   })
@@ -74,7 +74,7 @@ export const createBillingCheckoutSession = createServerFn({ method: "POST" })
 
 export const createBillingPortalSession = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((data: { returnUrl?: string; environment: StripeEnv }) => data)
+  .validator((data: { returnUrl?: string; environment: StripeEnv }) => data)
   .handler(async ({ data, context }): Promise<PortalResult> => {
     const { supabase, userId } = context;
     const { data: sub, error } = await supabase
@@ -103,7 +103,7 @@ export const createBillingPortalSession = createServerFn({ method: "POST" })
 // Aggregated billing summary for the /billing page.
 export const getBillingSummary = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((data: { environment: StripeEnv }) => data)
+  .validator((data: { environment: StripeEnv }) => data)
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
 
@@ -164,7 +164,7 @@ export const getBillingSummary = createServerFn({ method: "GET" })
 // Used by the agent deploy flow to block over-quota deploys server-side.
 export const getMyPlanGate = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((data: { environment: StripeEnv }) => data)
+  .validator((data: { environment: StripeEnv }) => data)
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
     const [{ data: sub }, { count }] = await Promise.all([

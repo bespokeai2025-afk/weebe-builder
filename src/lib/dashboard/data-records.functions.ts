@@ -36,7 +36,7 @@ const DataRowSchema = z.object({
 // lead assignment — are row-filtered for assignedRecordsOnly roles.
 export const listDataRecords = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input) =>
+  .validator((input) =>
     z
       .object({
         search: z.string().optional(),
@@ -91,7 +91,7 @@ export const listDataRecords = createServerFn({ method: "POST" })
 
 export const assignAgentToRecords = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input) =>
+  .validator((input) =>
     RecordIdsSchema.extend({
       agentId: z.string().uuid().nullable(),
     }).parse(input),
@@ -113,7 +113,7 @@ export const assignAgentToRecords = createServerFn({ method: "POST" })
 
 export const scheduleCallsForRecords = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input) =>
+  .validator((input) =>
     RecordIdsSchema.extend({
       scheduledAt: z.string().datetime().nullable(),
       agentId: z.string().uuid().nullable().optional(),
@@ -141,7 +141,7 @@ export const scheduleCallsForRecords = createServerFn({ method: "POST" })
 
 export const setRecordCallStatus = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input) =>
+  .validator((input) =>
     RecordIdsSchema.extend({
       status: z.enum(["needs_to_call", "queued", "calling", "completed", "failed", "do_not_call", "disqualified"]),
     }).parse(input),
@@ -171,7 +171,7 @@ export const setRecordCallStatus = createServerFn({ method: "POST" })
  */
 export const resetDataRecord = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input) => RecordIdsSchema.parse(input))
+  .validator((input) => RecordIdsSchema.parse(input))
   .handler(async ({ context, data }) => {
     const { supabase } = context;
     const workspaceId = context.workspaceId;
@@ -202,7 +202,7 @@ export const resetDataRecord = createServerFn({ method: "POST" })
 
 export const startCallingRecords = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input) =>
+  .validator((input) =>
     RecordIdsSchema.extend({
       agentId: z.string().uuid().nullable().optional(),
       fromNumber: z.string().min(3).max(32).nullable().optional(),
@@ -423,7 +423,7 @@ const FIXED_COLUMNS: Array<{ value: string; label: string }> = [
  */
 export const getDataRecordSchema = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input) =>
+  .validator((input) =>
     z.object({ agentRowId: z.string().uuid().nullable().optional() }).parse(input ?? {}),
   )
   .handler(async ({ context, data }) => {
@@ -480,7 +480,7 @@ export const getDataRecordSchema = createServerFn({ method: "POST" })
 
 export const importDataRecords = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input) =>
+  .validator((input) =>
     z
       .object({
         rows: z.array(DataRowSchema).min(1).max(5000),
@@ -596,7 +596,7 @@ export type QualifiedLeadRow = {
 
 export const fetchQualifiedLeads = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input) => z.object({}).parse(input ?? {}))
+  .validator((input) => z.object({}).parse(input ?? {}))
   .handler(async ({ context }): Promise<QualifiedLeadRow[]> => {
     const { workspaceId } = context;
     if (!workspaceId) throw new Error("No active workspace");
@@ -625,7 +625,7 @@ export type CrmPersonRow = {
 
 export const fetchCrmPeople = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input) => z.object({}).parse(input ?? {}))
+  .validator((input) => z.object({}).parse(input ?? {}))
   .handler(async ({ context }): Promise<CrmPersonRow[]> => {
     const workspaceId = context.workspaceId;
     if (!workspaceId) throw new Error("No active workspace");

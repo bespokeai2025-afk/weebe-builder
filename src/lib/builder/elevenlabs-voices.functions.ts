@@ -32,7 +32,7 @@ export interface CloneVoiceResult {
  */
 export const cloneElevenLabsVoice = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator(
+  .validator(
     (data: { name: string; fileName: string; mimeType: string; base64: string }) => data,
   )
   .handler(async ({ data }): Promise<CloneVoiceResult> => {

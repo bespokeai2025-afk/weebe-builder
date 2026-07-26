@@ -297,7 +297,7 @@ const UpsertSchema = z.object({
 
 export const upsertBusinessDna = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((data: unknown) => UpsertSchema.parse(data))
+  .validator((data: unknown) => UpsertSchema.parse(data))
   .handler(async ({ context, data }) => {
     const sb          = context.supabase as any;
     const workspaceId = context.workspaceId;
@@ -566,7 +566,7 @@ export async function resolveDnaProposalCore(
 
 export const resolveDnaProposal = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({
       proposalId: z.string().uuid(),
       decision:   z.enum(["approve", "reject"]),

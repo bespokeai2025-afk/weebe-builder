@@ -91,7 +91,7 @@ export const listNotificationSettings = createServerFn({ method: "GET" })
 
 export const updateNotificationSetting = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator(
+  .validator(
     (input: {
       eventKey: string;
       enabled: boolean;
@@ -201,7 +201,7 @@ export async function listWorkspaceNotificationsCore(
 
 export const listWorkspaceNotifications = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input?: { limit?: number; unreadOnly?: boolean; severity?: string }) => input ?? {})
+  .validator((input?: { limit?: number; unreadOnly?: boolean; severity?: string }) => input ?? {})
   .handler(async ({ context, data }) => {
     const { workspaceId, userId } = context;
     if (!workspaceId) throw new Error("No active workspace");
@@ -235,7 +235,7 @@ export async function markNotificationsReadCore(
 
 export const markNotificationsRead = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: { ids?: string[]; all?: boolean }) => input)
+  .validator((input: { ids?: string[]; all?: boolean }) => input)
   .handler(async ({ context, data }) => {
     const { workspaceId, userId } = context;
     if (!workspaceId) throw new Error("No active workspace");
@@ -272,7 +272,7 @@ export const listCriticalNotifications = createServerFn({ method: "GET" })
  */
 export const sendTestNotificationEmail = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: { eventKey: string }) => input)
+  .validator((input: { eventKey: string }) => input)
   .handler(async ({ context, data }) => {
     const { workspaceId, userId } = context;
     if (!workspaceId) throw new Error("No active workspace");

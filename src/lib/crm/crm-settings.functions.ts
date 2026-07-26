@@ -29,7 +29,7 @@ export const getCrmSettings = createServerFn({ method: "GET" })
 
 export const saveCrmSettings = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input) =>
+  .validator((input) =>
     z
       .object({
         hubspot_api_key:          z.string().nullable().optional(),
@@ -68,7 +68,7 @@ export const saveCrmSettings = createServerFn({ method: "POST" })
 
 export const validateHubspotKey = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input) => z.object({ apiKey: z.string().min(1) }).parse(input))
+  .validator((input) => z.object({ apiKey: z.string().min(1) }).parse(input))
   .handler(async ({ data }) => {
     const { validateHubSpotKey } = await import("./hubspot.adapter");
     const ok = await validateHubSpotKey(data.apiKey);
@@ -77,7 +77,7 @@ export const validateHubspotKey = createServerFn({ method: "POST" })
 
 export const validateGhlKey = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input) =>
+  .validator((input) =>
     z.object({ apiKey: z.string().min(1), locationId: z.string().min(1) }).parse(input),
   )
   .handler(async ({ data }) => {
@@ -88,7 +88,7 @@ export const validateGhlKey = createServerFn({ method: "POST" })
 
 export const validateWebespokeKey = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input) =>
+  .validator((input) =>
     z.object({ apiKey: z.string().min(1), apiUrl: z.string().url() }).parse(input),
   )
   .handler(async ({ data }) => {
@@ -99,7 +99,7 @@ export const validateWebespokeKey = createServerFn({ method: "POST" })
 
 export const validateSalesforceCredentials = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input) =>
+  .validator((input) =>
     z.object({ instanceUrl: z.string().url(), accessToken: z.string().min(1) }).parse(input),
   )
   .handler(async ({ data }) => {
@@ -115,7 +115,7 @@ export const validateSalesforceCredentials = createServerFn({ method: "POST" })
 
 export const validatePipedriveToken = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input) => z.object({ apiToken: z.string().min(1) }).parse(input))
+  .validator((input) => z.object({ apiToken: z.string().min(1) }).parse(input))
   .handler(async ({ data }) => {
     try {
       const resp = await fetch(`https://api.pipedrive.com/v1/users/me?api_token=${data.apiToken}`);

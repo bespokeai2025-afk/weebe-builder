@@ -1424,7 +1424,7 @@ async function getElevenLabsKey(sb: any, workspaceId: string): Promise<string> {
 // ── getHiveMindAIResponse ─────────────────────────────────────────────────────
 export const getHiveMindAIResponse = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({
       query:       z.string().min(1).max(2000),
       history:     z.array(z.object({ role: z.enum(["user", "assistant"]), content: z.string() })).optional(),
@@ -1612,7 +1612,7 @@ export const getHiveMindMorningBriefing = createServerFn({ method: "GET" })
 // Called once when a voice session starts — injects full live data into the prompt
 export const getHiveMindSystemContext = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({
       personality: z.string().optional(),
       voiceId:     z.string().optional(),
@@ -1716,7 +1716,7 @@ export const getHiveMindSystemContext = createServerFn({ method: "GET" })
 // ── getHiveMindTTS ────────────────────────────────────────────────────────────
 export const getHiveMindTTS = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({
       text:    z.string().min(1).max(5000),
       voiceId: z.string().default("21m00Tcm4TlvDq8ikWAM"),

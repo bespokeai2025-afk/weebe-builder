@@ -206,7 +206,7 @@ export const getCampaignDrafts = createServerFn({ method: "GET" })
 
 export const generateCampaignDraft = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((data: unknown) =>
+  .validator((data: unknown) =>
     z.object({
       campaignType:         z.string(),
       budget:               z.number().nullable().default(null),
@@ -362,7 +362,7 @@ export const generateCampaignDraft = createServerFn({ method: "POST" })
 
 export const deleteCampaignDraft = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((data: unknown) => z.object({ draftId: z.string().uuid() }).parse(data))
+  .validator((data: unknown) => z.object({ draftId: z.string().uuid() }).parse(data))
   .handler(async ({ context, data }) => {
     const sb          = context.supabase as any;
     const workspaceId = context.workspaceId;
@@ -380,7 +380,7 @@ export const deleteCampaignDraft = createServerFn({ method: "POST" })
 
 export const sendCampaignToHiveMind = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((data: unknown) => z.object({ draftId: z.string().uuid() }).parse(data))
+  .validator((data: unknown) => z.object({ draftId: z.string().uuid() }).parse(data))
   .handler(async ({ context, data }) => {
     const sb          = context.supabase as any;
     const workspaceId = context.workspaceId;

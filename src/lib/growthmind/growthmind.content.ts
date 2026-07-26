@@ -189,7 +189,7 @@ SEO_DATA_JSON:
 
 export const getContentAssets = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({
       folderId:    z.string().uuid().nullish(),
       contentType: z.string().nullish(),
@@ -277,7 +277,7 @@ const assetInputSchema = z.object({
 
 export const saveContentAsset = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => assetInputSchema.parse(input))
+  .validator((input: unknown) => assetInputSchema.parse(input))
   .handler(async ({ context, data }) => {
     const sb          = context.supabase as any;
     const workspaceId = context.workspaceId;
@@ -321,7 +321,7 @@ export const saveContentAsset = createServerFn({ method: "POST" })
 
 export const deleteContentAsset = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => z.object({ id: z.string().uuid() }).parse(input))
+  .validator((input: unknown) => z.object({ id: z.string().uuid() }).parse(input))
   .handler(async ({ context, data }) => {
     const sb          = context.supabase as any;
     const workspaceId = context.workspaceId;
@@ -339,7 +339,7 @@ export const deleteContentAsset = createServerFn({ method: "POST" })
 
 export const toggleFavourite = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({ id: z.string().uuid(), isFavourite: z.boolean() }).parse(input)
   )
   .handler(async ({ context, data }) => {
@@ -380,7 +380,7 @@ const briefSchema = z.object({
 
 export const generateContent = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => briefSchema.parse(input))
+  .validator((input: unknown) => briefSchema.parse(input))
   .handler(async ({ context, data }) => {
     const sb          = context.supabase as any;
     const workspaceId = context.workspaceId;
@@ -612,7 +612,7 @@ export const getModelSettings = createServerFn({ method: "GET" })
 
 export const saveModelSettings = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({
       mode:     z.enum(["smart", "manual"]),
       provider: z.string().optional(),

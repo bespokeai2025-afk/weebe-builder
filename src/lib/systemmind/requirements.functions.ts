@@ -13,7 +13,7 @@ function requireWorkspaceId(workspaceId: string | undefined): string {
 
 export const startRequirementsInterview = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({ agentId: z.string().uuid() }).parse(input),
   )
   .handler(async ({ data, context }) => {
@@ -35,7 +35,7 @@ export const startRequirementsInterview = createServerFn({ method: "POST" })
 
 export const getRequirementsInterview = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({ interviewId: z.string().uuid() }).parse(input),
   )
   .handler(async ({ data, context }) => {
@@ -56,7 +56,7 @@ export const getRequirementsInterview = createServerFn({ method: "GET" })
 
 export const answerRequirementsQuestions = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({
       interviewId: z.string().uuid(),
       answers:     z.record(z.union([z.string().max(2000), z.number(), z.boolean()]))
@@ -83,7 +83,7 @@ export const answerRequirementsQuestions = createServerFn({ method: "POST" })
 
 export const generateRequirementsVersion = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({ interviewId: z.string().uuid() }).parse(input),
   )
   .handler(async ({ data, context }) => {
@@ -105,7 +105,7 @@ export const generateRequirementsVersion = createServerFn({ method: "POST" })
 
 export const setScriptAdditionStatus = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({
       interviewId: z.string().uuid(),
       additionId:  z.string().min(1).max(60),
@@ -133,7 +133,7 @@ export const setScriptAdditionStatus = createServerFn({ method: "POST" })
 
 export const simulateRequirements = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({
       interviewId: z.string().uuid(),
       outcome:     z.string().max(40).nullable().optional(),
@@ -159,7 +159,7 @@ export const simulateRequirements = createServerFn({ method: "POST" })
 
 export const repromptRequirements = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({
       interviewId: z.string().uuid(),
       instruction: z.string().min(3).max(2000),

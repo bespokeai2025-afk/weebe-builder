@@ -29,7 +29,7 @@ export const listTokens = createServerFn({ method: "GET" })
 
 export const createToken = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: { name: string }) => input)
+  .validator((input: { name: string }) => input)
   .handler(async ({ context, data }) => {
     const { supabase, userId, workspaceId } = context;
     if (!workspaceId) throw new Error("No active workspace");
@@ -48,7 +48,7 @@ export const createToken = createServerFn({ method: "POST" })
 
 export const revokeToken = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: { id: string }) => input)
+  .validator((input: { id: string }) => input)
   .handler(async ({ context, data }) => {
     const { supabase } = context;
 

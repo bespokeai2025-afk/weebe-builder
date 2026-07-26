@@ -56,7 +56,7 @@ export const getMetaAdsSettings = createServerFn({ method: "GET" })
 
 export const saveMetaAdsSettings = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({
       accessToken: z.string().min(1),
       adAccountId: z.string().min(1),
@@ -93,7 +93,7 @@ export const saveMetaAdsSettings = createServerFn({ method: "POST" })
 
 export const verifyMetaCredentials = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({
       accessToken: z.string().min(1),
       adAccountId: z.string().min(1),
@@ -115,7 +115,7 @@ export const verifyMetaCredentials = createServerFn({ method: "POST" })
 
 export const publishToMeta = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({
       adContent:      z.string().min(1),
       adTitle:        z.string().min(1),

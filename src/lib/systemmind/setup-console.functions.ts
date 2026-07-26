@@ -14,7 +14,7 @@ function requireWorkspaceId(workspaceId: string | undefined): string {
 
 export const scanAgentForSetup = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({
       sessionId: z.string().uuid(),
       agentId:   z.string().uuid().nullable().optional(),
@@ -36,7 +36,7 @@ export const scanAgentForSetup = createServerFn({ method: "POST" })
 
 export const getSetupState = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({ sessionId: z.string().uuid() }).parse(input),
   )
   .handler(async ({ data, context }) => {
@@ -87,7 +87,7 @@ const TriggerRuleInputSchema = z.object({
 
 export const updateSetupState = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({
       sessionId:      z.string().uuid(),
       mappingPatches: z.array(MappingPatchSchema).max(150).optional(),
@@ -114,7 +114,7 @@ export const updateSetupState = createServerFn({ method: "POST" })
 
 export const refreshSetupCrmStatus = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({ sessionId: z.string().uuid() }).parse(input),
   )
   .handler(async ({ data, context }) => {
@@ -133,7 +133,7 @@ export const refreshSetupCrmStatus = createServerFn({ method: "POST" })
 
 export const generateSetupTestPayload = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({ sessionId: z.string().uuid() }).parse(input),
   )
   .handler(async ({ data, context }) => {
@@ -152,7 +152,7 @@ export const generateSetupTestPayload = createServerFn({ method: "POST" })
 
 export const runSetupTest = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({ sessionId: z.string().uuid() }).parse(input),
   )
   .handler(async ({ data, context }) => {
@@ -171,7 +171,7 @@ export const runSetupTest = createServerFn({ method: "POST" })
 
 export const approveSetup = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({ sessionId: z.string().uuid() }).parse(input),
   )
   .handler(async ({ data, context }) => {
@@ -237,7 +237,7 @@ const ContextPatchInputSchema = z.object({
 
 export const saveSetupContext = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({ sessionId: z.string().uuid(), patch: ContextPatchInputSchema }).parse(input),
   )
   .handler(async ({ data, context }) => {
@@ -258,7 +258,7 @@ export const saveSetupContext = createServerFn({ method: "POST" })
 
 export const autoSuggestSetupContext = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({ sessionId: z.string().uuid() }).parse(input),
   )
   .handler(async ({ data, context }) => {
@@ -278,7 +278,7 @@ export const autoSuggestSetupContext = createServerFn({ method: "POST" })
 
 export const confirmSetupContext = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({ sessionId: z.string().uuid() }).parse(input),
   )
   .handler(async ({ data, context }) => {

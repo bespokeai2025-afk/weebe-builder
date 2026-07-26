@@ -203,7 +203,7 @@ function summarizeResult(result: Record<string, any> | null): string {
 // ── approveAndRunTask ─────────────────────────────────────────────────────────
 export const approveAndRunTask = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => z.object({ taskId: z.string().uuid() }).parse(input))
+  .validator((input: unknown) => z.object({ taskId: z.string().uuid() }).parse(input))
   .handler(async ({ context, data }) => {
     const sb = context.supabase as any;
     const workspaceId = context.workspaceId!;
@@ -517,7 +517,7 @@ export async function sweepStalledExecutions(sb: any, workspaceId: string | null
 
 export const runStalledExecutionSweep = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => z.object({}).parse(input))
+  .validator((input: unknown) => z.object({}).parse(input))
   .handler(async ({ context }) => {
     const sb = context.supabase as any;
     const workspaceId = context.workspaceId!;
@@ -528,7 +528,7 @@ export const runStalledExecutionSweep = createServerFn({ method: "POST" })
 // ── Read: execution detail for a task ────────────────────────────────────────
 export const getTaskExecutionDetail = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => z.object({ taskId: z.string().uuid() }).parse(input))
+  .validator((input: unknown) => z.object({ taskId: z.string().uuid() }).parse(input))
   .handler(async ({ context, data }) => {
     const sb = context.supabase as any;
     const workspaceId = context.workspaceId!;

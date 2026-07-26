@@ -34,7 +34,7 @@ export const getMyGenerationLimits = createServerFn({ method: "GET" })
 
 export const saveMyGenerationLimits = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((data: Partial<GenerationLimits> & { workspaceId: string }) => data)
+  .validator((data: Partial<GenerationLimits> & { workspaceId: string }) => data)
   .handler(async ({ data, context: _ }) => {
     const { workspaceId, ...limits } = data;
     await setGenerationLimits(workspaceId, limits);

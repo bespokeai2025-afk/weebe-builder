@@ -147,7 +147,7 @@ export async function createGadsAnalysisWorkOrderCore(
 
 export const createGadsAnalysisWorkOrder = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({
       title:     z.string().min(1).max(300).default("Google Ads campaign optimisation"),
       objective: z.string().max(2000).optional(),
@@ -163,7 +163,7 @@ export const createGadsAnalysisWorkOrder = createServerFn({ method: "POST" })
 
 export const getWorkOrderDetail = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => z.object({ id: z.string().uuid() }).parse(input))
+  .validator((input: unknown) => z.object({ id: z.string().uuid() }).parse(input))
   .handler(async ({ context, data }) => {
     const sb = context.supabase as any;
     const workspaceId = context.workspaceId!;

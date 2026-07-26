@@ -18,7 +18,7 @@ export const listUsers = createServerFn({ method: "GET" })
 
 export const createUser = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth, requirePlatformAdmin])
-  .inputValidator(
+  .validator(
     (input: { email: string; password: string; fullName?: string; userType?: "admin" | "user" }) =>
       input,
   )
@@ -47,7 +47,7 @@ export const createUser = createServerFn({ method: "POST" })
 
 export const updateUserType = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth, requirePlatformAdmin])
-  .inputValidator((input: { userId: string; userType: "admin" | "user" }) => input)
+  .validator((input: { userId: string; userType: "admin" | "user" }) => input)
   .handler(async ({ data }) => {
     if (data.userType === "user") {
       const { count, error: countErr } = await supabaseAdmin
@@ -69,7 +69,7 @@ export const updateUserType = createServerFn({ method: "POST" })
 
 export const deactivateUser = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth, requirePlatformAdmin])
-  .inputValidator((input: { userId: string }) => input)
+  .validator((input: { userId: string }) => input)
   .handler(async ({ data }) => {
     const { error } = await supabaseAdmin.auth.admin.updateUserById(data.userId, {
       ban_duration: "36500d",
@@ -80,7 +80,7 @@ export const deactivateUser = createServerFn({ method: "POST" })
 
 export const addUserCredits = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth, requirePlatformAdmin])
-  .inputValidator((input: { profileId: string; dollars: number }) => input)
+  .validator((input: { profileId: string; dollars: number }) => input)
   .handler(async ({ data }) => {
     if (!Number.isFinite(data.dollars) || data.dollars <= 0 || data.dollars > 10000)
       throw new Error("Enter a dollar amount between 0.01 and 10000");
@@ -102,7 +102,7 @@ export const addUserCredits = createServerFn({ method: "POST" })
 
 export const resetUserSpend = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth, requirePlatformAdmin])
-  .inputValidator((input: { profileId: string }) => input)
+  .validator((input: { profileId: string }) => input)
   .handler(async ({ data }) => {
     const { error } = await supabaseAdmin
       .from("profiles")

@@ -159,7 +159,7 @@ export const getLeadAutoCallSettings = createServerFn({ method: "GET" })
 
 export const saveLeadAutoCallSettings = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input) =>
+  .validator((input) =>
     z
       .object({
         enabled: z.boolean(),

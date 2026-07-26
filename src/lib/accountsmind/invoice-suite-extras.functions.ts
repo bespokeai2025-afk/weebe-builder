@@ -47,7 +47,7 @@ function escapeHtml(s: string): string {
 
 export const sendInvoiceEmail = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth, requirePlatformAdmin])
-  .inputValidator((input) =>
+  .validator((input) =>
     z
       .object({
         invoiceId: z.string().uuid(),
@@ -124,7 +124,7 @@ export const sendInvoiceEmail = createServerFn({ method: "POST" })
 
 export const importInvoice = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth, requirePlatformAdmin])
-  .inputValidator((input) =>
+  .validator((input) =>
     z
       .object({
         workspaceId: z.string().uuid(),
@@ -224,7 +224,7 @@ const SAMPLE_ITEMS = [
 
 export const testRenderInvoiceTemplate = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth, requirePlatformAdmin])
-  .inputValidator((input) => z.object({ templateId: z.string().uuid() }).parse(input))
+  .validator((input) => z.object({ templateId: z.string().uuid() }).parse(input))
   .handler(async ({ data }) => {
     const sb = supabaseAdmin as any;
     const { data: tpl } = await sb.from("accountsmind_invoice_templates").select("*").eq("id", data.templateId).maybeSingle();
@@ -367,7 +367,7 @@ export const listRecurringInvoices = createServerFn({ method: "GET" })
 
 export const saveRecurringInvoice = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth, requirePlatformAdmin])
-  .inputValidator((input) =>
+  .validator((input) =>
     z
       .object({
         id: z.string().uuid().nullish(),
@@ -428,7 +428,7 @@ export const saveRecurringInvoice = createServerFn({ method: "POST" })
 
 export const deleteRecurringInvoice = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth, requirePlatformAdmin])
-  .inputValidator((input) => z.object({ id: z.string().uuid() }).parse(input))
+  .validator((input) => z.object({ id: z.string().uuid() }).parse(input))
   .handler(async ({ data }) => {
     const sb = supabaseAdmin as any;
     // Generated invoices keep their recurring_id for history; deleting the

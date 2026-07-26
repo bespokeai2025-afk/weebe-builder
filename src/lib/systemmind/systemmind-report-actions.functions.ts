@@ -26,7 +26,7 @@ function requireWorkspaceId(workspaceId: string | undefined): string {
 // ── generate_report ───────────────────────────────────────────────────────────
 export const systemMindGenerateReport = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         reportType: z.string().min(1).max(60),
@@ -95,7 +95,7 @@ export const systemMindGenerateReport = createServerFn({ method: "POST" })
  */
 export const systemMindSetupCampaignReportSchedule = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         recipients: z.array(z.string().email()).max(50).nullish(),
@@ -151,7 +151,7 @@ export const systemMindSetupCampaignReportSchedule = createServerFn({ method: "P
 // ── explain_report ────────────────────────────────────────────────────────────
 export const systemMindExplainReport = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({ reportId: z.string().uuid() }).parse(input),
   )
   .handler(async ({ data, context }) => {
@@ -208,7 +208,7 @@ export const systemMindExplainReport = createServerFn({ method: "POST" })
 // ── diagnose_campaign_report ──────────────────────────────────────────────────
 export const systemMindDiagnoseCampaignReport = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({ reportId: z.string().uuid() }).parse(input),
   )
   .handler(async ({ data, context }) => {

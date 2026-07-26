@@ -18,7 +18,7 @@ export interface PostCallExtracted {
 
 export const extractPostCallVariables = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator(
+  .validator(
     (data: {
       transcript: Array<{ role: "user" | "agent"; text: string }>;
       variables: BuilderVariable[];

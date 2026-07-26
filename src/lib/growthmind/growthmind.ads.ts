@@ -115,7 +115,7 @@ export const getAdsAccounts = createServerFn({ method: "GET" })
 // ── Create or update an ad account connection ──────────────────────────────────
 export const saveAdsAccount = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({
       id:         z.string().uuid().optional(),
       platform:   z.enum(["google", "meta", "linkedin", "tiktok"]),
@@ -181,7 +181,7 @@ export const saveAdsAccount = createServerFn({ method: "POST" })
 // ── Delete an ad account (campaigns cascade-deleted by FK) ────────────────────
 export const deleteAdsAccount = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({ id: z.string().uuid() }).parse(input)
   )
   .handler(async ({ context, data }) => {
@@ -202,7 +202,7 @@ export const deleteAdsAccount = createServerFn({ method: "POST" })
 // ── Get campaigns for an account (or all for the workspace) ───────────────────
 export const getAdsCampaigns = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({ accountId: z.string().uuid().optional() }).parse(input)
   )
   .handler(async ({ context, data }) => {
@@ -228,7 +228,7 @@ export const getAdsCampaigns = createServerFn({ method: "POST" })
 // ── Save a campaign row (create or update) ────────────────────────────────────
 export const saveAdsCampaign = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({
       id:             z.string().uuid().optional(),
       ads_account_id: z.string().uuid(),
@@ -304,7 +304,7 @@ export const saveAdsCampaign = createServerFn({ method: "POST" })
 // ── Delete a campaign ─────────────────────────────────────────────────────────
 export const deleteAdsCampaign = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({ id: z.string().uuid() }).parse(input)
   )
   .handler(async ({ context, data }) => {
@@ -325,7 +325,7 @@ export const deleteAdsCampaign = createServerFn({ method: "POST" })
 // ── Generate AI ad recommendations and persist to growthmind_recommendations ──
 export const getAdsRecommendations = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({
       accounts:  z.array(z.any()),
       campaigns: z.array(z.any()),

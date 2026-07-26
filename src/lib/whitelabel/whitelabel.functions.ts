@@ -53,7 +53,7 @@ export const adminListWhitelabelPartners = createServerFn({ method: "GET" })
 
 export const adminCreateWhitelabelPartner = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((d: WhitelabelPartner) => d)
+  .validator((d: WhitelabelPartner) => d)
   .handler(async ({ context, data }) => {
     await assertAdmin(context.userId);
     const { data: created, error } = await supabaseAdmin
@@ -89,7 +89,7 @@ export const adminCreateWhitelabelPartner = createServerFn({ method: "POST" })
 
 export const adminUpdateWhitelabelPartner = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((d: WhitelabelPartner & { id: string }) => d)
+  .validator((d: WhitelabelPartner & { id: string }) => d)
   .handler(async ({ context, data }) => {
     await assertAdmin(context.userId);
     const { id, ...rest } = data;
@@ -103,7 +103,7 @@ export const adminUpdateWhitelabelPartner = createServerFn({ method: "POST" })
 
 export const adminToggleWhitelabelPartner = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((d: { id: string; active: boolean }) => d)
+  .validator((d: { id: string; active: boolean }) => d)
   .handler(async ({ context, data }) => {
     await assertAdmin(context.userId);
     const { error } = await supabaseAdmin
@@ -116,7 +116,7 @@ export const adminToggleWhitelabelPartner = createServerFn({ method: "POST" })
 
 export const adminDeleteWhitelabelPartner = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((d: { id: string }) => d)
+  .validator((d: { id: string }) => d)
   .handler(async ({ context, data }) => {
     await assertAdmin(context.userId);
     const { error } = await supabaseAdmin

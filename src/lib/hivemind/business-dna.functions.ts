@@ -8,7 +8,7 @@ import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 // ── Get full DNA profile ───────────────────────────────────────────────────────
 export const getBusinessDnaFn = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((d: any) => d)
+  .validator((d: any) => d)
   .handler(async ({ context }: any) => {
     const { supabase, workspaceId } = context as any;
     const { data, error } = await supabase
@@ -23,7 +23,7 @@ export const getBusinessDnaFn = createServerFn({ method: "POST" })
 // ── Update DNA fields manually ─────────────────────────────────────────────────
 export const updateBusinessDnaFn = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((d: any) => d)
+  .validator((d: any) => d)
   .handler(async ({ context, data }: any) => {
     const { supabase, workspaceId } = context as any;
     const { fields } = data as { fields: Record<string, any> };
@@ -54,7 +54,7 @@ export const updateBusinessDnaFn = createServerFn({ method: "POST" })
 // ── Run DNA discovery engine ───────────────────────────────────────────────────
 export const runDnaDiscoveryFn = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((d: any) => d)
+  .validator((d: any) => d)
   .handler(async ({ context }: any) => {
     const { supabase, workspaceId } = context as any;
     const { data: ws } = await supabase
@@ -86,7 +86,7 @@ export const runDnaDiscoveryFn = createServerFn({ method: "POST" })
 // ── Generate briefing on demand ────────────────────────────────────────────────
 export const generateBriefingFn = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((d: any) => d)
+  .validator((d: any) => d)
   .handler(async ({ context, data }: any) => {
     const { type = "daily" } = (data ?? {}) as { type?: "daily" | "weekly" | "monthly" };
     const { supabase, workspaceId } = context as any;
@@ -106,7 +106,7 @@ export const generateBriefingFn = createServerFn({ method: "POST" })
 // ── List stored briefings ──────────────────────────────────────────────────────
 export const listBriefingsFn = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((d: any) => d)
+  .validator((d: any) => d)
   .handler(async ({ context, data }: any) => {
     const { type, limit = 20 } = (data ?? {}) as { type?: string; limit?: number };
     const { supabase, workspaceId } = context as any;
@@ -128,7 +128,7 @@ export const listBriefingsFn = createServerFn({ method: "POST" })
 // ── Get single briefing (full content) ────────────────────────────────────────
 export const getBriefingFn = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((d: any) => d)
+  .validator((d: any) => d)
   .handler(async ({ context, data }: any) => {
     const { id } = data as { id: string };
     const { supabase, workspaceId } = context as any;
@@ -151,7 +151,7 @@ export const getBriefingFn = createServerFn({ method: "POST" })
 // ── Mark briefing read ─────────────────────────────────────────────────────────
 export const markBriefingReadFn = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((d: any) => d)
+  .validator((d: any) => d)
   .handler(async ({ context, data }: any) => {
     const { id } = data as { id: string };
     const { supabase, workspaceId } = context as any;
@@ -166,7 +166,7 @@ export const markBriefingReadFn = createServerFn({ method: "POST" })
 // ── Get unread briefing count ──────────────────────────────────────────────────
 export const getUnreadBriefingCountFn = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((d: any) => d)
+  .validator((d: any) => d)
   .handler(async ({ context }: any) => {
     const { supabase, workspaceId } = context as any;
     const { count } = await supabase
@@ -180,7 +180,7 @@ export const getUnreadBriefingCountFn = createServerFn({ method: "POST" })
 // ── Proactive campaign proposals (DNA-driven) ─────────────────────────────────
 export const generateDnaProposalsFn = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((d: any) => d)
+  .validator((d: any) => d)
   .handler(async ({ context }: any) => {
     const { supabase, workspaceId } = context as any;
 

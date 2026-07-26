@@ -88,7 +88,7 @@ export const getLeadCustomFields = createServerFn({ method: "GET" })
 
 export const getOverviewStats = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input) =>
+  .validator((input) =>
     z.object({ daysSince: z.number().int().min(1).optional() }).parse(input ?? {}),
   )
   .handler(async ({ context, data }) => {
@@ -339,7 +339,7 @@ export const getOverviewStats = createServerFn({ method: "POST" })
 
 export const listLeads = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input) =>
+  .validator((input) =>
     z
       .object({
         status: z.string().optional(),
@@ -417,7 +417,7 @@ export const listLeads = createServerFn({ method: "POST" })
 
 export const upsertLead = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input) =>
+  .validator((input) =>
     z
       .object({
         id: z.string().uuid().optional(),
@@ -477,7 +477,7 @@ export const upsertLead = createServerFn({ method: "POST" })
 
 export const setLeadStatus = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input) =>
+  .validator((input) =>
     z
       .object({
         id: z.string().uuid(),
@@ -510,7 +510,7 @@ export const setLeadStatus = createServerFn({ method: "POST" })
 
 export const deleteLead = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input) => z.object({ id: z.string().uuid() }).parse(input))
+  .validator((input) => z.object({ id: z.string().uuid() }).parse(input))
   .handler(async ({ context, data }) => {
     const { supabase, workspaceId } = context;
     const { error } = await (supabase as any)
@@ -524,7 +524,7 @@ export const deleteLead = createServerFn({ method: "POST" })
 
 export const removeLeads = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input) =>
+  .validator((input) =>
     z.object({ leadIds: z.array(z.string().uuid()).min(1).max(500) }).parse(input),
   )
   .handler(async ({ context, data }) => {
@@ -542,7 +542,7 @@ export const removeLeads = createServerFn({ method: "POST" })
 
 export const startQualificationCallsForLeads = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input) =>
+  .validator((input) =>
     z
       .object({
         leadIds: z.array(z.string().uuid()).min(1).max(200),
@@ -693,7 +693,7 @@ export const startQualificationCallsForLeads = createServerFn({ method: "POST" }
 // ── Schedule outbound calls for a future time ─────────────────────────────
 export const scheduleQualificationCalls = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input) =>
+  .validator((input) =>
     z
       .object({
         leadIds: z.array(z.string().uuid()).min(1).max(200),

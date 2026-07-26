@@ -17,7 +17,7 @@ export const getApiEngineStatus = createServerFn({ method: "GET" })
 
 export const seedWbahProfile = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth, requirePlatformAdmin])
-  .inputValidator((i: { workspaceId: string }) =>
+  .validator((i: { workspaceId: string }) =>
     z.object({ workspaceId: z.string().uuid() }).parse(i),
   )
   .handler(async ({ data }) => {
@@ -41,7 +41,7 @@ export const listApiProfiles = createServerFn({ method: "GET" })
 
 export const getApiEngineLogs = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth, requirePlatformAdmin])
-  .inputValidator((i: { hours?: number; moduleKey?: string }) =>
+  .validator((i: { hours?: number; moduleKey?: string }) =>
     z.object({
       hours:     z.number().optional(),
       moduleKey: z.string().optional(),

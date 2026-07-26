@@ -43,7 +43,7 @@ const reportTypeSchema = z.enum(
 
 export const listAnalyticsReports = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input) =>
+  .validator((input) =>
     z
       .object({
         reportType: z.string().max(60).nullish(),
@@ -74,7 +74,7 @@ export const listAnalyticsReports = createServerFn({ method: "GET" })
 
 export const getAnalyticsReport = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input) => z.object({ id: z.string().uuid() }).parse(input))
+  .validator((input) => z.object({ id: z.string().uuid() }).parse(input))
   .handler(async ({ data, context }) => {
     const { workspaceId } = await ctxWs(context);
     const { data: row, error } = await (supabaseAdmin as any)
@@ -92,7 +92,7 @@ export const getAnalyticsReport = createServerFn({ method: "GET" })
 
 export const generateReportNow = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input) =>
+  .validator((input) =>
     z
       .object({
         reportType: reportTypeSchema,
@@ -140,7 +140,7 @@ export const generateReportNow = createServerFn({ method: "POST" })
 
 export const sendReport = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input) =>
+  .validator((input) =>
     z
       .object({
         reportId: z.string().uuid(),
@@ -186,7 +186,7 @@ export const listReportSchedules = createServerFn({ method: "GET" })
 
 export const createReportSchedule = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input) =>
+  .validator((input) =>
     z
       .object({
         reportType: reportTypeSchema,
@@ -235,7 +235,7 @@ export const createReportSchedule = createServerFn({ method: "POST" })
 
 export const updateReportSchedule = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input) =>
+  .validator((input) =>
     z
       .object({
         id: z.string().uuid(),
@@ -284,7 +284,7 @@ export const updateReportSchedule = createServerFn({ method: "POST" })
 
 export const deleteReportSchedule = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input) => z.object({ id: z.string().uuid() }).parse(input))
+  .validator((input) => z.object({ id: z.string().uuid() }).parse(input))
   .handler(async ({ data, context }) => {
     const { workspaceId, userId } = await ctxWs(context);
     await requireFeatureAccess(workspaceId, userId, "analytics_scheduled_reports");

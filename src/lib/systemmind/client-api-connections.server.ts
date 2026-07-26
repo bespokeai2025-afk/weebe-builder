@@ -107,7 +107,7 @@ export const listClientApiConnections = createServerFn({ method: "GET" })
 
 export const saveClientApiConnection = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth, requirePlatformAdmin])
-  .inputValidator((i: {
+  .validator((i: {
     id?: string;
     name: string;
     baseUrl: string;
@@ -180,7 +180,7 @@ export const saveClientApiConnection = createServerFn({ method: "POST" })
 
 export const deleteClientApiConnection = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth, requirePlatformAdmin])
-  .inputValidator((i: { id: string }) => z.object({ id: z.string() }).parse(i))
+  .validator((i: { id: string }) => z.object({ id: z.string() }).parse(i))
   .handler(async ({ data }) => {
     const sb = supabaseAdmin as any;
     const { error } = await sb.from("client_api_connections").delete().eq("id", data.id);
@@ -190,7 +190,7 @@ export const deleteClientApiConnection = createServerFn({ method: "POST" })
 
 export const getClientApiConnection = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth, requirePlatformAdmin])
-  .inputValidator((i: { id: string }) => z.object({ id: z.string() }).parse(i))
+  .validator((i: { id: string }) => z.object({ id: z.string() }).parse(i))
   .handler(async ({ data }) => {
     const sb = supabaseAdmin as any;
     const { data: row, error } = await sb
@@ -205,7 +205,7 @@ export const getClientApiConnection = createServerFn({ method: "POST" })
 
 export const updateConnectionStatus = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth, requirePlatformAdmin])
-  .inputValidator((i: { id: string; status: string }) =>
+  .validator((i: { id: string; status: string }) =>
     z.object({ id: z.string(), status: z.string() }).parse(i),
   )
   .handler(async ({ data }) => {
@@ -219,7 +219,7 @@ export const updateConnectionStatus = createServerFn({ method: "POST" })
 
 export const saveEncryptedToken = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth, requirePlatformAdmin])
-  .inputValidator((i: { id: string; tokenKey: string; tokenValue: string }) =>
+  .validator((i: { id: string; tokenKey: string; tokenValue: string }) =>
     z.object({ id: z.string(), tokenKey: z.string(), tokenValue: z.string() }).parse(i),
   )
   .handler(async ({ data }) => {

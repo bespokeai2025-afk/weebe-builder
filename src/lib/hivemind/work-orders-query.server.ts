@@ -152,7 +152,7 @@ export const getWorkOrders = createServerFn({ method: "GET" })
 
 export const getWorkOrderDetail = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => z.object({ id: z.string().uuid() }).parse(input))
+  .validator((input: unknown) => z.object({ id: z.string().uuid() }).parse(input))
   .handler(async ({ context, data }) => {
     const workspaceId = context.workspaceId;
     if (!workspaceId) throw new Error("No workspace");

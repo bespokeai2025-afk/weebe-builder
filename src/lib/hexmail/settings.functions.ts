@@ -58,7 +58,7 @@ export const getHexmailSettings = createServerFn({ method: "GET" })
 
 export const saveHexmailSettings = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input) =>
+  .validator((input) =>
     z
       .object({
         activeProvider: z.enum(["sendgrid", "resend", "postmark"]).nullable(),
@@ -118,7 +118,7 @@ export const saveHexmailSettings = createServerFn({ method: "POST" })
 
 export const testHexmailProvider = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input) =>
+  .validator((input) =>
     z
       .object({
         provider: z.enum(["sendgrid", "resend", "postmark"]),

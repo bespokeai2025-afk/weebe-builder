@@ -116,7 +116,7 @@ async function readCache(dataType: string): Promise<unknown[]> {
 
 export const requestWebespokeEnterpriseOtp = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth, requirePlatformAdmin])
-  .inputValidator((i: { email: string }) =>
+  .validator((i: { email: string }) =>
     z.object({ email: z.string().email() }).parse(i),
   )
   .handler(async ({ data }) => {
@@ -141,7 +141,7 @@ export const requestWebespokeEnterpriseOtp = createServerFn({ method: "POST" })
 
 export const verifyWebespokeEnterpriseOtp = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth, requirePlatformAdmin])
-  .inputValidator((i: { email: string; otp: string }) =>
+  .validator((i: { email: string; otp: string }) =>
     z.object({ email: z.string().email(), otp: z.string().min(4) }).parse(i),
   )
   .handler(async ({ data }) => {

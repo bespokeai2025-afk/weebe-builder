@@ -445,7 +445,7 @@ const triggerAdsSync = createServerFn({ method: "POST" })
 
 const acknowledgeAlert = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((i: { alertId: string }) => i)
+  .validator((i: { alertId: string }) => i)
   .handler(async ({ data, context }) => {
     const sb = context.supabase as any;
     await sb.from("growthmind_ad_budget_alerts")
@@ -518,7 +518,7 @@ interface TrendPoint {
 
 const getAdsTrendData = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((i: { days: number }) => i)
+  .validator((i: { days: number }) => i)
   .handler(async ({ data, context }): Promise<TrendPoint[]> => {
     const sb          = context.supabase as any;
     const workspaceId = context.workspaceId;
@@ -657,7 +657,7 @@ const getBudgetCaps = createServerFn({ method: "GET" })
 
 const saveBudgetCap = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((i: { platform: string; monthly_budget_cap: number | null; alert_at_pct: number; currency: string }) => i)
+  .validator((i: { platform: string; monthly_budget_cap: number | null; alert_at_pct: number; currency: string }) => i)
   .handler(async ({ data, context }) => {
     const sb = context.supabase as any;
     const { workspaceId } = context;

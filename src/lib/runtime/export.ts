@@ -251,7 +251,7 @@ export function unpackAgentRow(row: {
  */
 export const exportAgentRuntimeDefinition = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: { id: string }) => input)
+  .validator((input: { id: string }) => input)
   .handler(async ({ context, data }) => {
     const { supabase } = context;
     const { data: row, error } = await supabase
@@ -273,7 +273,7 @@ export const exportAgentRuntimeDefinition = createServerFn({ method: "POST" })
  */
 export const getAgentRuntimeSummary = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: { id: string }) => input)
+  .validator((input: { id: string }) => input)
   .handler(async ({ context, data }): Promise<AgentRuntimeSummary> => {
     const { supabase } = context;
     const { data: row, error } = await supabase

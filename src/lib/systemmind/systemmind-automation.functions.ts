@@ -10,7 +10,7 @@ function requireWorkspaceId(workspaceId: string | undefined): string {
 // ── generateAutomationDraft ───────────────────────────────────────────────────
 export const generateAutomationDraft = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({
       description: z.string().min(10).max(4000),
     }).parse(input),
@@ -63,7 +63,7 @@ export const listAutomationRuns = createServerFn({ method: "GET" })
 // ── listAutomationAudit ───────────────────────────────────────────────────────
 export const listAutomationAudit = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({ targetId: z.string().optional() }).parse(input ?? {}),
   )
   .handler(async ({ data, context }) => {
@@ -80,7 +80,7 @@ export const listAutomationAudit = createServerFn({ method: "GET" })
 // ── submitDraftForApproval ────────────────────────────────────────────────────
 export const submitDraftForApproval = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({ draftId: z.string().uuid() }).parse(input),
   )
   .handler(async ({ data, context }) => {
@@ -97,7 +97,7 @@ export const submitDraftForApproval = createServerFn({ method: "POST" })
 // ── rejectAutomationDraft ─────────────────────────────────────────────────────
 export const rejectAutomationDraft = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({ draftId: z.string().uuid() }).parse(input),
   )
   .handler(async ({ data, context }) => {
@@ -115,7 +115,7 @@ export const rejectAutomationDraft = createServerFn({ method: "POST" })
 // ── setAutomationPaused ───────────────────────────────────────────────────────
 export const setAutomationPaused = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({ draftId: z.string().uuid(), paused: z.boolean() }).parse(input),
   )
   .handler(async ({ data, context }) => {

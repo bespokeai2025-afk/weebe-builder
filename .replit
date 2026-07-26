@@ -72,7 +72,7 @@ task = "shell.exec"
 args = "npm run build"
 
 [workflows.workflow.metadata]
-isValidation = true
+outputType = "console"
 
 [[ports]]
 localPort = 3000

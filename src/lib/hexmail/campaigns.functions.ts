@@ -66,7 +66,7 @@ const stepSchema = z.object({
 
 export const listHexmailCampaigns = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input) =>
+  .validator((input) =>
     z.object({
       includeArchived: z.boolean().optional(),
       includeSteps:    z.boolean().optional(),
@@ -107,7 +107,7 @@ export const listHexmailCampaigns = createServerFn({ method: "POST" })
 
 export const getHexmailCampaignWithSteps = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input) => z.object({ id: z.string() }).parse(input))
+  .validator((input) => z.object({ id: z.string() }).parse(input))
   .handler(async ({ context, data }) => {
     const { supabase, workspaceId } = context;
     if (!workspaceId) throw new Error("No active workspace");
@@ -143,7 +143,7 @@ const configSchema = z
 
 export const saveHexmailCampaign = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input) =>
+  .validator((input) =>
     z
       .object({
         id: z.string().optional(),
@@ -209,7 +209,7 @@ export const saveHexmailCampaign = createServerFn({ method: "POST" })
 
 export const updateHexmailCampaignStatus = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input) =>
+  .validator((input) =>
     z
       .object({
         id: z.string(),
@@ -232,7 +232,7 @@ export const updateHexmailCampaignStatus = createServerFn({ method: "POST" })
 
 export const deleteHexmailCampaign = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input) => z.object({ id: z.string() }).parse(input))
+  .validator((input) => z.object({ id: z.string() }).parse(input))
   .handler(async ({ context, data }) => {
     const { supabase, workspaceId } = context;
     if (!workspaceId) throw new Error("No active workspace");
@@ -248,7 +248,7 @@ export const deleteHexmailCampaign = createServerFn({ method: "POST" })
 
 export const enrollLeadInCampaign = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input) =>
+  .validator((input) =>
     z.object({
       leadId:     z.string().uuid(),
       campaignId: z.string().uuid(),
@@ -287,7 +287,7 @@ export const enrollLeadInCampaign = createServerFn({ method: "POST" })
 
 export const listLeadEnrollments = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input) => z.object({ leadId: z.string().uuid() }).parse(input))
+  .validator((input) => z.object({ leadId: z.string().uuid() }).parse(input))
   .handler(async ({ context, data }) => {
     const { supabase, workspaceId } = context;
     if (!workspaceId) throw new Error("No active workspace");

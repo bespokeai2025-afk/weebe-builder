@@ -38,7 +38,7 @@ export type CallCampaign = {
 
 export const listCallCampaigns = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input) =>
+  .validator((input) =>
     z.object({ pageType: z.enum(["data", "qualified", "leads"]) }).parse(input),
   )
   .handler(async ({ context, data }) => {
@@ -110,7 +110,7 @@ const campaignInput = z.object({
 
 export const createCallCampaign = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input) => campaignInput.parse(input))
+  .validator((input) => campaignInput.parse(input))
   .handler(async ({ context, data }) => {
     const { supabase, workspaceId, userId } = context;
     if (!workspaceId) throw new Error("No active workspace");
@@ -153,7 +153,7 @@ export const createCallCampaign = createServerFn({ method: "POST" })
 
 export const updateCallCampaign = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input) =>
+  .validator((input) =>
     campaignInput.extend({ id: z.string().uuid() }).parse(input),
   )
   .handler(async ({ context, data }) => {
@@ -193,7 +193,7 @@ export const updateCallCampaign = createServerFn({ method: "POST" })
 
 export const deleteCallCampaign = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input) => z.object({ id: z.string().uuid() }).parse(input))
+  .validator((input) => z.object({ id: z.string().uuid() }).parse(input))
   .handler(async ({ context, data }) => {
     const { supabase } = context;
     const sb = supabase as any;
@@ -204,7 +204,7 @@ export const deleteCallCampaign = createServerFn({ method: "POST" })
 
 export const toggleCallCampaignPause = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input) =>
+  .validator((input) =>
     z.object({ id: z.string().uuid(), currentStatus: z.string() }).parse(input),
   )
   .handler(async ({ context, data }) => {

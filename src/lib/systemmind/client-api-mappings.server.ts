@@ -25,7 +25,7 @@ export const WEBEE_MODULE_KEYS = [
 
 export const listEndpointMappings = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth, requirePlatformAdmin])
-  .inputValidator((i: { connectionId: string }) =>
+  .validator((i: { connectionId: string }) =>
     z.object({ connectionId: z.string() }).parse(i),
   )
   .handler(async ({ data }) => {
@@ -41,7 +41,7 @@ export const listEndpointMappings = createServerFn({ method: "POST" })
 
 export const saveEndpointMapping = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth, requirePlatformAdmin])
-  .inputValidator((i: {
+  .validator((i: {
     id?: string;
     connectionId: string;
     workspaceId?: string;
@@ -108,7 +108,7 @@ export const saveEndpointMapping = createServerFn({ method: "POST" })
 
 export const deleteEndpointMapping = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth, requirePlatformAdmin])
-  .inputValidator((i: { id: string }) => z.object({ id: z.string() }).parse(i))
+  .validator((i: { id: string }) => z.object({ id: z.string() }).parse(i))
   .handler(async ({ data }) => {
     const sb = supabaseAdmin as any;
     const { error } = await sb.from("client_api_endpoint_mappings").delete().eq("id", data.id);

@@ -43,7 +43,7 @@ export const getGrowthMindMode = createServerFn({ method: "GET" })
 
 export const setGrowthMindMode = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({
       mode: z.enum(["observe", "recommend", "assistant", "operator"]),
       operatorPermissions: z.record(z.boolean()).optional(),
@@ -109,7 +109,7 @@ export const setGrowthMindMode = createServerFn({ method: "POST" })
 // ── Activity log read (for UI) ────────────────────────────────────────────────
 export const getGrowthMindActivityLog = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({
       category: z.string().optional(),
       limit:    z.number().int().min(1).max(200).default(50),

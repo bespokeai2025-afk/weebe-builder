@@ -609,7 +609,7 @@ export const getHiveMindMode = createServerFn({ method: "GET" })
 // ── setHiveMindMode ───────────────────────────────────────────────────────────
 export const setHiveMindMode = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({
       mode: z.enum(["observe","recommend","assistant","operator","executive_operator"]),
       operatorPermissions: z.record(z.boolean()).optional(),
@@ -716,7 +716,7 @@ export const getHiveMindLearningSummary = createServerFn({ method: "GET" })
 // ── proposeHiveMindAction ─────────────────────────────────────────────────────
 export const proposeHiveMindAction = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({
       title:          z.string().min(1).max(300),
       description:    z.string().max(2000).optional(),
@@ -939,7 +939,7 @@ export async function approveHiveMindActionCore(
 
 export const approveHiveMindAction = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({
       id:          z.string().uuid(),
       approved_by: z.string().default("User"),
@@ -980,7 +980,7 @@ export async function rejectHiveMindActionCore(
 
 export const rejectHiveMindAction = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({ id: z.string().uuid() }).parse(input)
   )
   .handler(async ({ context, data }) =>
@@ -993,7 +993,7 @@ export const rejectHiveMindAction = createServerFn({ method: "POST" })
 // ── deleteHiveMindAction ──────────────────────────────────────────────────────
 export const deleteHiveMindAction = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({ id: z.string().uuid() }).parse(input)
   )
   .handler(async ({ context, data }) => {

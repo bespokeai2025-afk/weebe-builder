@@ -130,7 +130,7 @@ export const getWatiConnection = createServerFn({ method: "GET" })
 
 export const connectWati = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input) =>
+  .validator((input) =>
     z.object({
       apiKey: z.string().min(10),
       tenantId: z.string().min(1),
@@ -348,7 +348,7 @@ export const syncWatiTemplates = createServerFn({ method: "POST" })
 /** Create + submit template to WATI (Meta review via WATI). */
 export const createWatiTemplate = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input) =>
+  .validator((input) =>
     z
       .object({
         elementName: z.string().min(1).max(80),
