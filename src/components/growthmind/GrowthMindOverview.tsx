@@ -21,6 +21,7 @@ import { getCurrentValuePoint } from "@/lib/growthmind/trending-value-engine.ser
 import { getOpportunities, runOpportunityEngine } from "@/lib/growthmind/opportunity-engine.server";
 import { getCMODashboardData, runCMOAnalysis, updateProposalStatus } from "@/lib/executives/executive-bridge";
 import { toast } from "sonner";
+import { ActiveWorkOrdersWidget } from "@/components/minds/ActiveWorkOrdersWidget";
 
 function TrendPill({ pct, label = "wow" }: { pct: number | null; label?: string }) {
   if (pct === null) return null;
@@ -957,6 +958,13 @@ export function GrowthMindOverview() {
                 ))}
               </div>
             </div>
+
+            {/* Active Work Orders */}
+            <ActiveWorkOrdersWidget
+              minds={["growthmind"]}
+              title="GrowthMind Work Orders"
+              viewAllHref="/hivemind/work-orders"
+            />
 
             {/* Provider Awareness */}
             {providerData && (() => {
