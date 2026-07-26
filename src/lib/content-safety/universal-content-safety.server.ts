@@ -212,6 +212,46 @@ const PII_PATTERNS: RegExp[] = [
   /\b(?:\+\d{1,3}[\s\-.]?)?\(?\d{3}\)?[\s\-.]?\d{3}[\s\-.]?\d{4}\b/,
 ];
 
+// ── URL extraction & safety check ────────────────────────────────────────────
+
+/** Extract all URLs from generated content text. */
+export function extractUrls(text: string): string[] {
+  const urlRe = /https?:\/\/[^\s"'<>)\]]+/gi;
+  return Array.from(new Set(text.match(urlRe) ?? []));
+}
+
+/**
+ * Returns false when the URL's hostname looks private/internal/non-public.
+ * Mirrors the pattern in publication-engine.server.ts#isSafeVerificationHost
+ * but operates on a full URL string rather than a hostname.
+ * Does NOT do DNS resolution — structural check only (safe for content scanning).
+ */
+export function isContentUrlSafe(raw: string): boolean {
+  let u: URL;
+  try {
+    u = new URL(raw);
+  } catch {
+    return false;
+  }
+  if (u.protocol !== "https:" && u.protocol !== "http:") return false;
+  const h = u.hostname.toLowerCase();
+  if (h === "localhost" || h.endsWith(".localhost") || h.endsWith(".local") || h.endsWith(".internal")) return false;
+  // Raw IPv4
+  if (/^\d+\.\d+\.\d+\.\d+$/.test(h)) {
+    const p = h.split(".").map(Number);
+    if (
+      p[0] === 0 || p[0] === 10 || p[0] === 127 ||
+      (p[0] === 100 && p[1] >= 64 && p[1] <= 127) ||
+      (p[0] === 169 && p[1] === 254) ||
+      (p[0] === 172 && p[1] >= 16 && p[1] <= 31) ||
+      (p[0] === 192 && p[1] === 168)
+    ) return false;
+  }
+  // IPv6 literals
+  if (h.startsWith("[")) return false;
+  return true;
+}
+
 // ── Pure helpers (exported for tests) ────────────────────────────────────────
 
 /** Split text into sentences for per-claim analysis. */
@@ -270,9 +310,11 @@ async function fetchWorkspaceRestrictions(workspaceId: string): Promise<Array<{ 
 
 async function fetchBusinessDnaAllowList(workspaceId: string): Promise<string[]> {
   try {
+    // Select both known allow-list sources; `verified_claims` may not exist on older schemas
+    // — PostgREST will return the column when present and omit it silently when absent.
     const { data } = await sb
       .from("growthmind_business_dna")
-      .select("unique_selling_points")
+      .select("unique_selling_points, verified_claims")
       .eq("workspace_id", workspaceId)
       .maybeSingle();
     if (!data) return [];
@@ -285,9 +327,8 @@ async function fetchBusinessDnaAllowList(workspaceId: string): Promise<string[]>
           .filter((s: string) => s.length > 5),
       );
     }
-    // Also check a `verified_claims` column if it exists (graceful — column may not be present yet)
-    if (Array.isArray((data as any).verified_claims)) {
-      claims.push(...(data as any).verified_claims.map(String).filter((s: string) => s.length > 5));
+    if (Array.isArray(data.verified_claims)) {
+      claims.push(...data.verified_claims.map(String).filter((s: string) => s.length > 5));
     }
     return claims;
   } catch {
@@ -346,12 +387,19 @@ export async function runContentSafetyCheck(
   );
 
   // ── 2. Fabricated statistics ────────────────────────────────────────────────
-  const fabricatedStatSentences = sentences.filter(
-    (s) =>
-      FABRICATED_STAT_PATTERNS.some((p) => p.test(s)) &&
-      !hasSourcingContext(s) &&
-      !matchesAllowList(s, allowedClaims),
-  );
+  // Sentences that match a stat pattern AND are covered by the workspace allow-list
+  // are classified as approved_customer_evidence (verified claim on file).
+  const statFlaggedAll   = sentences.filter((s) => FABRICATED_STAT_PATTERNS.some((p) => p.test(s)) && !hasSourcingContext(s));
+  const statAllowListed  = statFlaggedAll.filter((s) => matchesAllowList(s, allowedClaims));
+  const fabricatedStatSentences = statFlaggedAll.filter((s) => !matchesAllowList(s, allowedClaims));
+
+  for (const s of statAllowListed) {
+    claimClassifications.push({
+      text:     s.slice(0, 200),
+      category: "approved_customer_evidence",
+      reason:   "Numeric claim matches workspace-approved claim in Business DNA allow-list",
+    });
+  }
   for (const s of fabricatedStatSentences) {
     claimClassifications.push({
       text:     s.slice(0, 200),
@@ -363,7 +411,7 @@ export async function runContentSafetyCheck(
     "fabricated_statistics",
     fabricatedStatSentences.length === 0,
     fabricatedStatSentences.length === 0
-      ? "No unsourced statistics detected."
+      ? `No unsourced statistics detected${statAllowListed.length ? ` (${statAllowListed.length} stat(s) exempted by workspace allow-list)` : ""}.`
       : `${fabricatedStatSentences.length} sentence(s) contain unsourced statistics: ${fabricatedStatSentences
           .slice(0, 2)
           .map((s) => `"${s.slice(0, 80)}"`)
@@ -372,11 +420,19 @@ export async function runContentSafetyCheck(
   );
 
   // ── 3. Fake testimonials / invented quotations ──────────────────────────────
-  const testimonialSentences = sentences.filter(
-    (s) =>
-      FAKE_TESTIMONIAL_PATTERNS.some((p) => p.test(s)) &&
-      !matchesAllowList(s, allowedClaims),
-  );
+  const testimonialFlaggedAll  = sentences.filter((s) => FAKE_TESTIMONIAL_PATTERNS.some((p) => p.test(s)));
+  const testimonialAllowListed = testimonialFlaggedAll.filter((s) => matchesAllowList(s, allowedClaims));
+  const testimonialSentences   = testimonialFlaggedAll.filter((s) => !matchesAllowList(s, allowedClaims));
+
+  for (const s of testimonialAllowListed) {
+    if (!claimClassifications.find((c) => c.text === s.slice(0, 200))) {
+      claimClassifications.push({
+        text:     s.slice(0, 200),
+        category: "approved_customer_evidence",
+        reason:   "Testimonial/quotation matches workspace-approved evidence in Business DNA",
+      });
+    }
+  }
   for (const s of testimonialSentences) {
     if (!claimClassifications.find((c) => c.text === s.slice(0, 200))) {
       claimClassifications.push({
@@ -399,12 +455,19 @@ export async function runContentSafetyCheck(
   );
 
   // ── 4. Unsupported performance guarantees ──────────────────────────────────
-  const guaranteeSentences = sentences.filter(
-    (s) =>
-      GUARANTEE_PATTERNS.some((p) => p.test(s)) &&
-      !hasSourcingContext(s) &&
-      !matchesAllowList(s, allowedClaims),
-  );
+  const guaranteeFlaggedAll  = sentences.filter((s) => GUARANTEE_PATTERNS.some((p) => p.test(s)) && !hasSourcingContext(s));
+  const guaranteeAllowListed = guaranteeFlaggedAll.filter((s) => matchesAllowList(s, allowedClaims));
+  const guaranteeSentences   = guaranteeFlaggedAll.filter((s) => !matchesAllowList(s, allowedClaims));
+
+  for (const s of guaranteeAllowListed) {
+    if (!claimClassifications.find((c) => c.text === s.slice(0, 200))) {
+      claimClassifications.push({
+        text:     s.slice(0, 200),
+        category: "approved_customer_evidence",
+        reason:   "Guarantee claim matches workspace-approved claim in Business DNA allow-list",
+      });
+    }
+  }
   for (const s of guaranteeSentences) {
     if (!claimClassifications.find((c) => c.text === s.slice(0, 200))) {
       claimClassifications.push({
@@ -427,12 +490,19 @@ export async function runContentSafetyCheck(
   );
 
   // ── 5. Absolute ranking guarantees ─────────────────────────────────────────
-  const rankingSentences = sentences.filter(
-    (s) =>
-      RANKING_GUARANTEE_PATTERNS.some((p) => p.test(s)) &&
-      !hasSourcingContext(s) &&
-      !matchesAllowList(s, allowedClaims),
-  );
+  const rankingFlaggedAll  = sentences.filter((s) => RANKING_GUARANTEE_PATTERNS.some((p) => p.test(s)) && !hasSourcingContext(s));
+  const rankingAllowListed = rankingFlaggedAll.filter((s) => matchesAllowList(s, allowedClaims));
+  const rankingSentences   = rankingFlaggedAll.filter((s) => !matchesAllowList(s, allowedClaims));
+
+  for (const s of rankingAllowListed) {
+    if (!claimClassifications.find((c) => c.text === s.slice(0, 200))) {
+      claimClassifications.push({
+        text:     s.slice(0, 200),
+        category: "approved_customer_evidence",
+        reason:   "Ranking claim matches workspace-approved claim in Business DNA allow-list",
+      });
+    }
+  }
   for (const s of rankingSentences) {
     if (!claimClassifications.find((c) => c.text === s.slice(0, 200))) {
       claimClassifications.push({
@@ -475,6 +545,20 @@ export async function runContentSafetyCheck(
       ? `Content has ${wordCount} words (minimum ${minWords} for ${contentKind}).`
       : `Content has ${wordCount} words — below the minimum of ${minWords} for ${contentKind}.`,
     wordCount >= minWords ? "warning" : "violation",
+  );
+
+  // ── 8. Unsafe embedded URLs ─────────────────────────────────────────────────
+  // Structural check (no DNS) — flags private/internal hosts embedded in content.
+  // Uses isContentUrlSafe() which mirrors the SSRF guard in publication-engine.
+  const embeddedUrls  = extractUrls(text);
+  const unsafeUrls    = embeddedUrls.filter((u) => !isContentUrlSafe(u));
+  addCheck(
+    "unsafe_urls",
+    unsafeUrls.length === 0,
+    unsafeUrls.length === 0
+      ? `${embeddedUrls.length > 0 ? `${embeddedUrls.length} URL(s) found, all structurally safe.` : "No embedded URLs detected."}`
+      : `${unsafeUrls.length} URL(s) point to private/internal/non-public hosts and must be removed: ${unsafeUrls.slice(0, 3).join(", ")}`,
+    unsafeUrls.length === 0 ? "warning" : "violation",
   );
 
   const violations = checks.filter((c) => !c.passed && c.severity === "violation").map((c) => `${c.check}: ${c.detail}`);

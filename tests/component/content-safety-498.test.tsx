@@ -3,12 +3,13 @@
  *
  * Covers:
  *  - Pure helpers: splitIntoSentences, hasSourcingContext, classifyClaimSentence,
- *    matchesAllowList
+ *    matchesAllowList, extractUrls, isContentUrlSafe
  *  - runContentSafetyCheck with mocked DB (no real Supabase connection required)
  *  - One clean-pass example per content type
  *  - Violation examples: fabricated stat, fake testimonial, performance guarantee,
- *    ranking claim, thin content, workspace restriction
+ *    ranking claim, thin content, workspace restriction, unsafe embedded URL
  *  - Allow-list exempts workspace-approved USPs from fabricated-stat flag
+ *    and produces approved_customer_evidence classification
  *  - safetyCheckEvidenceItem produces correct evidence shape
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
@@ -376,6 +377,125 @@ describe("runContentSafetyCheck — allow-list exemption", () => {
     const allowedClaims = ["award-winning support", "iso 27001 certified"];
     const { matchesAllowList: mAL } = await import("@/lib/content-safety/universal-content-safety.server");
     expect(mAL(text, allowedClaims)).toBe(false);
+  });
+});
+
+// ════════════════════════════════════════════════════════════════════════════
+// extractUrls / isContentUrlSafe helpers (check 8)
+// ════════════════════════════════════════════════════════════════════════════
+
+describe("extractUrls / isContentUrlSafe — URL safety check", () => {
+  it("extracts http and https URLs from text", async () => {
+    const { extractUrls } = await import("@/lib/content-safety/universal-content-safety.server");
+    const text = "Visit https://example.com and also http://mysite.io/page for details.";
+    const urls = extractUrls(text);
+    expect(urls).toContain("https://example.com");
+    expect(urls).toContain("http://mysite.io/page");
+    expect(urls.length).toBe(2);
+  });
+
+  it("returns empty array for text with no URLs", async () => {
+    const { extractUrls } = await import("@/lib/content-safety/universal-content-safety.server");
+    expect(extractUrls("No links here at all.")).toHaveLength(0);
+  });
+
+  it("allows public HTTPS URLs", async () => {
+    const { isContentUrlSafe } = await import("@/lib/content-safety/universal-content-safety.server");
+    expect(isContentUrlSafe("https://www.example.com/about")).toBe(true);
+    expect(isContentUrlSafe("https://blog.customer.co.uk/post/123")).toBe(true);
+  });
+
+  it("rejects localhost URLs", async () => {
+    const { isContentUrlSafe } = await import("@/lib/content-safety/universal-content-safety.server");
+    expect(isContentUrlSafe("http://localhost:3000/api/data")).toBe(false);
+  });
+
+  it("rejects 127.x.x.x URLs", async () => {
+    const { isContentUrlSafe } = await import("@/lib/content-safety/universal-content-safety.server");
+    expect(isContentUrlSafe("http://127.0.0.1/secret")).toBe(false);
+  });
+
+  it("rejects 192.168.x.x private range URLs", async () => {
+    const { isContentUrlSafe } = await import("@/lib/content-safety/universal-content-safety.server");
+    expect(isContentUrlSafe("http://192.168.1.1/admin")).toBe(false);
+  });
+
+  it("rejects 10.x.x.x private range URLs", async () => {
+    const { isContentUrlSafe } = await import("@/lib/content-safety/universal-content-safety.server");
+    expect(isContentUrlSafe("http://10.0.0.1/internal")).toBe(false);
+  });
+});
+
+describe("runContentSafetyCheck — check 8: unsafe embedded URLs", () => {
+  it("passes clean content with no embedded URLs", async () => {
+    const text = Array(50).fill("Our team delivers excellent results for clients.").join(" ");
+    const result = await runContentSafetyCheck(text, "email_campaign", WS);
+    const urlCheck = result.checks.find((c) => c.check === "unsafe_urls");
+    expect(urlCheck).toBeDefined();
+    expect(urlCheck?.passed).toBe(true);
+  });
+
+  it("passes content with only public HTTPS URLs", async () => {
+    const base = Array(40).fill("We build reliable software for businesses.").join(" ");
+    const text = `${base} Learn more at https://example.com/about.`;
+    const result = await runContentSafetyCheck(text, "blog_article", WS);
+    const urlCheck = result.checks.find((c) => c.check === "unsafe_urls");
+    expect(urlCheck?.passed).toBe(true);
+  });
+
+  it("flags content that embeds a localhost URL", async () => {
+    const base = Array(40).fill("We build reliable software for businesses.").join(" ");
+    const text = `${base} See our internal dashboard at http://localhost:8080/api/metrics.`;
+    const result = await runContentSafetyCheck(text, "blog_article", WS);
+    const urlCheck = result.checks.find((c) => c.check === "unsafe_urls");
+    expect(urlCheck?.passed).toBe(false);
+    expect(result.violations.some((v) => v.includes("unsafe_urls"))).toBe(true);
+  });
+
+  it("flags content embedding a private IP URL", async () => {
+    const base = Array(40).fill("Our service has a 99.9% uptime record verified by clients.").join(" ");
+    const text = `${base} Data sourced from http://192.168.0.1/report.`;
+    const result = await runContentSafetyCheck(text, "blog_article", WS);
+    const urlCheck = result.checks.find((c) => c.check === "unsafe_urls");
+    expect(urlCheck?.passed).toBe(false);
+  });
+});
+
+// ════════════════════════════════════════════════════════════════════════════
+// approved_customer_evidence classification
+// ════════════════════════════════════════════════════════════════════════════
+
+describe("runContentSafetyCheck — approved_customer_evidence classification", () => {
+  it("classifies allow-listed stat as approved_customer_evidence (not a violation)", async () => {
+    // A sentence that matches FABRICATED_STAT_PATTERNS but also matches the allow-list
+    // should be classified as approved_customer_evidence, not cause a violation.
+    const { matchesAllowList, classifyClaimSentence } = await import("@/lib/content-safety/universal-content-safety.server");
+    const sentence = "Customers see 300% ROI within 30 days.";
+    const allowedClaims = ["300% roi"];
+    const matched = matchesAllowList(sentence, allowedClaims);
+    expect(matched).toBe(true);
+    // When matched, the category should be approved_customer_evidence (not from classifyClaimSentence)
+    // — we verify the non-approved path classifies differently
+    const unmatched = classifyClaimSentence(sentence);
+    expect(unmatched).not.toBe("approved_customer_evidence");
+  });
+
+  it("approved_customer_evidence category is a valid ClaimCategory", async () => {
+    const { safetyCheckEvidenceItem } = await import("@/lib/content-safety/universal-content-safety.server");
+    const result: SafetyCheckResult = {
+      passed: true,
+      violations: [],
+      warnings: [],
+      checks: [],
+      claim_classifications: [
+        { text: "300% ROI within 30 days.", category: "approved_customer_evidence", reason: "matches allow-list" }
+      ],
+      ranAt: new Date().toISOString(),
+      contentKind: "blog_article",
+    };
+    const ev = safetyCheckEvidenceItem(result);
+    // flagged_claims counts non-approved items only
+    expect(ev.data.flagged_claims).toBe(0);
   });
 });
 

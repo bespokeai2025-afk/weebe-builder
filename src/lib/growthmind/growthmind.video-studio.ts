@@ -647,15 +647,19 @@ export const generateVideo = createServerFn({ method: "POST" })
     }
 
     // ── Universal content safety gate (on script text) ─────────────────────
+    // Script is always saved but safety_blocked: true is stored in the asset
+    // when violations exist — downstream paths check this before allowing export.
     let videoScriptSafety: { passed: boolean; violations: string[]; warnings: string[] } = {
       passed: true, violations: [], warnings: [],
     };
+    let videoSafetyEvidence: { source: string; description: string; data: Record<string, unknown>; retrieved_at: string } | null = null;
     try {
-      const { runContentSafetyCheck } = await import(/* @vite-ignore */ "@/lib/content-safety/universal-content-safety.server");
-      const safetyResult = await runContentSafetyCheck(script, videoType, workspaceId);
+      const safetyMod = await import(/* @vite-ignore */ "@/lib/content-safety/universal-content-safety.server");
+      const safetyResult = await safetyMod.runContentSafetyCheck(script, videoType, workspaceId);
       videoScriptSafety = { passed: safetyResult.passed, violations: safetyResult.violations, warnings: safetyResult.warnings };
+      videoSafetyEvidence = safetyMod.safetyCheckEvidenceItem(safetyResult);
     } catch (e: any) {
-      console.warn("[content-safety] video gate error (non-blocking):", e?.message ?? String(e));
+      console.warn("[content-safety] video gate error:", e?.message ?? String(e));
     }
 
     // ── Step 3: ElevenLabs voiceover (Balanced + Premium) ─────────────────
@@ -776,6 +780,11 @@ export const generateVideo = createServerFn({ method: "POST" })
       knowledge_context_id:   data.knowledgeContextId ?? null,
       knowledge_context_name: ctx.contextType !== "default" ? ctx.contextName : null,
       business_name:          ctx.companyName,
+      // Safety gate result stored alongside the script for downstream checks.
+      // safety_blocked: true prevents the asset from being exported/published
+      // until violations are resolved.
+      safety_blocked:         !videoScriptSafety.passed,
+      safety_evidence:        videoSafetyEvidence ?? null,
       created_at:             new Date().toISOString(),
     };
 

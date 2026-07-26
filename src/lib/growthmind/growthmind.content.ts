@@ -2,7 +2,10 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { routeGenerate } from "./model-router.server";
-import { runContentSafetyCheck } from "@/lib/content-safety/universal-content-safety.server";
+import {
+  runContentSafetyCheck,
+  safetyCheckEvidenceItem,
+} from "@/lib/content-safety/universal-content-safety.server";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -505,18 +508,25 @@ export const generateContent = createServerFn({ method: "POST" })
       .filter(Boolean).join(" — ") || typeLabel;
 
     // ── Universal content safety gate ─────────────────────────────────────────
-    // Best-effort: a gate failure must never block saving the draft — the result
-    // is surfaced to the caller so the UI can flag violations without losing the
-    // generated content.
+    // Draft is always saved (never lose generated content), but safety results
+    // are attached as evidence and `safety_blocked: true` is stored in the brief
+    // when violations exist — downstream publication/approval paths check this
+    // flag and refuse to promote a blocked draft to an approvable state.
+    let safetyCheckFull: Awaited<ReturnType<typeof runContentSafetyCheck>> | null = null;
     let safetyCheck: { passed: boolean; violations: string[]; warnings: string[] } = {
       passed: true, violations: [], warnings: [],
     };
     try {
-      const result = await runContentSafetyCheck(mainContent, data.contentType, workspaceId);
-      safetyCheck = { passed: result.passed, violations: result.violations, warnings: result.warnings };
+      safetyCheckFull = await runContentSafetyCheck(mainContent, data.contentType, workspaceId);
+      safetyCheck = {
+        passed:     safetyCheckFull.passed,
+        violations: safetyCheckFull.violations,
+        warnings:   safetyCheckFull.warnings,
+      };
     } catch (e: any) {
-      console.warn("[content-safety] gate error (non-blocking):", e?.message ?? String(e));
+      console.warn("[content-safety] gate error:", e?.message ?? String(e));
     }
+    const safetyEvidence = safetyCheckFull ? safetyCheckEvidenceItem(safetyCheckFull) : null;
 
     // ── Save asset ────────────────────────────────────────────────────────────
     const assetPayload = {
@@ -525,7 +535,12 @@ export const generateContent = createServerFn({ method: "POST" })
       title,
       content_type: data.contentType,
       content:      mainContent,
-      brief:        { ...data, safety_check: safetyCheck },
+      brief: {
+        ...data,
+        safety_check:   safetyCheck,
+        safety_blocked: !safetyCheck.passed,
+        safety_evidence: safetyEvidence,
+      },
       seo_data:     seoData,
       status:       "draft",
       is_favourite: false,
