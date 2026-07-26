@@ -14,7 +14,8 @@ export type ExecutionStatus =
   | "partially_completed"
   | "blocked"
   | "failed"
-  | "cancelled";
+  | "cancelled"
+  | "worker_interrupted";
 
 export type TaskExecutionStatus = "draft" | "awaiting_approval" | ExecutionStatus;
 
@@ -25,7 +26,7 @@ export const TERMINAL_EXECUTION_STATES: ReadonlySet<ExecutionStatus> = new Set([
 /** Legal transitions. Key = from, values = allowed to. */
 export const EXECUTION_TRANSITIONS: Readonly<Record<ExecutionStatus, readonly ExecutionStatus[]>> = {
   queued:                    ["executing", "cancelled", "failed", "blocked"],
-  executing:                 ["awaiting_action_approval", "awaiting_external_result", "verifying", "completed", "partially_completed", "blocked", "failed", "cancelled"],
+  executing:                 ["awaiting_action_approval", "awaiting_external_result", "verifying", "completed", "partially_completed", "blocked", "failed", "cancelled", "worker_interrupted"],
   awaiting_action_approval:  ["executing", "verifying", "blocked", "failed", "cancelled", "partially_completed"],
   awaiting_external_result:  ["executing", "verifying", "blocked", "failed", "cancelled"],
   verifying:                 ["completed", "partially_completed", "failed", "blocked"],
@@ -34,6 +35,7 @@ export const EXECUTION_TRANSITIONS: Readonly<Record<ExecutionStatus, readonly Ex
   blocked:                   ["queued", "executing", "cancelled", "failed"],
   failed:                    [],
   cancelled:                 [],
+  worker_interrupted:        ["queued", "cancelled", "failed"],
 };
 
 export function canTransition(from: ExecutionStatus, to: ExecutionStatus): boolean {
@@ -59,6 +61,7 @@ export const EXECUTION_STATUS_LABELS: Readonly<Record<TaskExecutionStatus, strin
   blocked:                  "Blocked",
   failed:                   "Failed",
   cancelled:                "Cancelled",
+  worker_interrupted:       "Interrupted",
 };
 
 // ── Steps ─────────────────────────────────────────────────────────────────────
@@ -98,14 +101,166 @@ export interface ExecutableKindMeta {
   requiredActionKey: string;
   /** Fields required in input_spec before the task can be approved & run. */
   requiredInputFields: readonly string[];
+  /**
+   * Whether the adapter may mutate provider state (write to an external API).
+   * Informational; used by UI + audit trail. Mutation always requires a linked
+   * hivemind_action approval — never auto-applied.
+   */
+  providerMutating: boolean;
+  /**
+   * Whether the execution can be rolled back (adapter snapshots before apply).
+   */
+  rollbackSupported: boolean;
 }
 
 export const EXECUTABLE_KINDS: Readonly<Record<string, ExecutableKindMeta>> = {
+  // ── GrowthMind ──────────────────────────────────────────────────────────────
   "growthmind.gads_campaign_analysis": {
     mind: "growthmind",
     label: "Google Ads Campaign Analysis",
     requiredActionKey: "growthmind.view",
     requiredInputFields: [],
+    providerMutating: false,
+    rollbackSupported: false,
+  },
+  "growthmind.seo_campaign": {
+    mind: "growthmind",
+    label: "SEO Campaign Execution",
+    requiredActionKey: "growthmind.view",
+    requiredInputFields: [],
+    providerMutating: false,
+    rollbackSupported: false,
+  },
+  "growthmind.social_content": {
+    mind: "growthmind",
+    label: "Social Content Publishing",
+    requiredActionKey: "growthmind.view",
+    requiredInputFields: [],
+    providerMutating: false,
+    rollbackSupported: false,
+  },
+  "growthmind.blog_article": {
+    mind: "growthmind",
+    label: "Blog Article Publishing",
+    requiredActionKey: "growthmind.view",
+    requiredInputFields: [],
+    providerMutating: false,
+    rollbackSupported: false,
+  },
+  "growthmind.video_campaign": {
+    mind: "growthmind",
+    label: "Video Campaign Execution",
+    requiredActionKey: "growthmind.view",
+    requiredInputFields: [],
+    providerMutating: false,
+    rollbackSupported: false,
+  },
+  // ── SystemMind ──────────────────────────────────────────────────────────────
+  "systemmind.agent_crm_integration": {
+    mind: "systemmind",
+    label: "Agent ↔ CRM Integration Apply",
+    requiredActionKey: "systemmind.view",
+    requiredInputFields: [],
+    providerMutating: true,
+    rollbackSupported: true,
+  },
+  "systemmind.workflow_depth": {
+    mind: "systemmind",
+    label: "Workflow Depth Review Apply",
+    requiredActionKey: "systemmind.view",
+    requiredInputFields: [],
+    providerMutating: true,
+    rollbackSupported: true,
+  },
+  // ── AccountsMind ────────────────────────────────────────────────────────────
+  "accountsmind.invoice_audit": {
+    mind: "accountsmind",
+    label: "Invoice Audit Execution",
+    requiredActionKey: "accountsmind.view",
+    requiredInputFields: [],
+    providerMutating: true,
+    rollbackSupported: false,
+  },
+  "accountsmind.renewals_audit": {
+    mind: "accountsmind",
+    label: "Renewals Audit Execution",
+    requiredActionKey: "accountsmind.view",
+    requiredInputFields: [],
+    providerMutating: true,
+    rollbackSupported: false,
+  },
+  "accountsmind.outgoings_audit": {
+    mind: "accountsmind",
+    label: "Outgoings Audit Execution",
+    requiredActionKey: "accountsmind.view",
+    requiredInputFields: [],
+    providerMutating: false,
+    rollbackSupported: false,
+  },
+  "accountsmind.client_costing": {
+    mind: "accountsmind",
+    label: "Client Revenue Audit Execution",
+    requiredActionKey: "accountsmind.view",
+    requiredInputFields: [],
+    providerMutating: false,
+    rollbackSupported: false,
+  },
+  // ── HiveMind ────────────────────────────────────────────────────────────────
+  "hivemind.cross_channel_objective": {
+    mind: "hivemind",
+    label: "Cross-Channel Objective Launch",
+    requiredActionKey: "hivemind.view",
+    requiredInputFields: [],
+    providerMutating: false,
+    rollbackSupported: false,
+  },
+  "hivemind.channel_followup": {
+    mind: "hivemind",
+    label: "Follow-Up Sequence Send",
+    requiredActionKey: "hivemind.view",
+    requiredInputFields: [],
+    providerMutating: true,
+    rollbackSupported: false,
+  },
+  "hivemind.channel_whatsapp": {
+    mind: "hivemind",
+    label: "WhatsApp Campaign Send",
+    requiredActionKey: "hivemind.view",
+    requiredInputFields: [],
+    providerMutating: true,
+    rollbackSupported: false,
+  },
+  "hivemind.channel_email": {
+    mind: "hivemind",
+    label: "Email Campaign Send",
+    requiredActionKey: "hivemind.view",
+    requiredInputFields: [],
+    providerMutating: true,
+    rollbackSupported: false,
+  },
+  "hivemind.channel_calls": {
+    mind: "hivemind",
+    label: "AI Call Campaign Launch",
+    requiredActionKey: "hivemind.view",
+    requiredInputFields: [],
+    providerMutating: true,
+    rollbackSupported: false,
+  },
+  "hivemind.sales_pipeline_review": {
+    mind: "hivemind",
+    label: "Sales Pipeline Review",
+    requiredActionKey: "hivemind.view",
+    requiredInputFields: [],
+    providerMutating: false,
+    rollbackSupported: false,
+  },
+  "hivemind.legacy_task_migration": {
+    mind: "hivemind",
+    label: "Legacy Task Migration",
+    requiredActionKey: "hivemind.view",
+    requiredInputFields: [],
+    providerMutating: false,
+    rollbackSupported: false,
   },
 };
 
