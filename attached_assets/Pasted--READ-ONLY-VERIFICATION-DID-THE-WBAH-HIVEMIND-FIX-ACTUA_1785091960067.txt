@@ -1,0 +1,92 @@
+# READ-ONLY VERIFICATION — DID THE WBAH HIVEMIND FIX ACTUALLY WORK?
+
+Do not change any code, database records, configuration, integrations, prompts, or UI.
+
+Do not start another build or refactor.
+
+Verify whether the previous WeBuyAnyHouse HiveMind live-activity fix genuinely works in the current deployed environment.
+
+Use the real WeBuyAnyHouse workspace.
+
+## 1. Get the authoritative live data
+
+Retrieve today’s real values from the same existing sources used by the correct WEBEE pages:
+
+- Total calls today
+- Qualified calls today
+- Positive calls today
+- Bookings created today
+- Appointments scheduled for today
+- Leads created or updated today
+
+Use the configured WBAH workspace timezone and report the exact timezone and UTC date boundaries.
+
+## 2. Test HiveMind directly
+
+Ask HiveMind these exact questions:
+
+1. How many calls have we had today?
+2. How many calls were qualified today?
+3. How many positive leads have we had today?
+4. How many bookings were created today?
+5. How many appointments are scheduled for today?
+6. What has happened in the business today?
+
+For each question capture:
+
+- HiveMind’s exact answer
+- Tool selected
+- Workspace ID used
+- Service or API queried
+- Raw tool result
+- Date field used
+- Timezone used
+- Filters applied
+- Cache used
+- Final answer returned to the user
+
+## 3. Compare the results
+
+Create a comparison table:
+
+- Metric
+- Authoritative source count
+- HiveMind count
+- Match or mismatch
+- Difference
+- Explanation
+
+The fix only passes if:
+
+- HiveMind uses the correct WBAH workspace.
+- HiveMind performs a live data lookup.
+- Total calls include all outcomes.
+- Qualified and positive calls are separate subsets.
+- Bookings created today are separate from appointments scheduled today.
+- General activity includes real calls, bookings, leads, and relevant pipeline activity.
+- HiveMind does not answer from memory or cached prose.
+- Failed retrieval returns unavailable or delayed, not zero.
+- Counts match the authoritative source, allowing only a clearly explained live sync delay.
+
+## 4. Final verdict
+
+Return exactly one verdict:
+
+- VERIFIED FIXED
+- PARTIALLY FIXED
+- NOT FIXED
+
+Then report:
+
+1. Authoritative counts
+2. HiveMind counts
+3. Exact mismatches
+4. Tool-routing evidence
+5. Workspace and timezone evidence
+6. Whether any query failure was converted into zero
+7. Exact remaining fault, if any
+8. The smallest required next fix
+
+Do not make any changes during this verification.
+Do not report success based only on code inspection or automated tests.
+Prove the result using the real HiveMind responses and live WBAH data.

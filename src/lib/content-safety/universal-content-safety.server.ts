@@ -103,11 +103,44 @@ function minWordsFor(contentKind: string): number {
   return MIN_WORDS[contentKind] ?? DEFAULT_MIN_WORDS;
 }
 
+// ── HTML stripping ────────────────────────────────────────────────────────────
+
+/**
+ * Strip HTML tags and decode common HTML entities so pattern checks work on
+ * plain text regardless of whether the article body is stored as HTML or
+ * markdown. Applied before all sentence-level analysis.
+ */
+export function stripHtmlForSafety(raw: string): string {
+  return raw
+    .replace(/<script[\s\S]*?<\/script>/gi, " ")
+    .replace(/<style[\s\S]*?<\/style>/gi, " ")
+    .replace(/<[^>]+>/g, " ")
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&ldquo;/g, "\u201C")
+    .replace(/&rdquo;/g, "\u201D")
+    .replace(/&lsquo;/g, "\u2018")
+    .replace(/&rsquo;/g, "\u2019")
+    .replace(/&mdash;/g, "\u2014")
+    .replace(/&ndash;/g, "\u2013")
+    .replace(/&[a-z]+;/g, " ")
+    .replace(/&#\d+;/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
 // ── Claim detection patterns ──────────────────────────────────────────────────
 
 /**
  * Fabricated / unsourced statistic patterns.
  * A sentence matching any of these — without a source marker — is flagged.
+ *
+ * IMPORTANT: keep broad — the exemption path (hasSourcingContext +
+ * matchesAllowList) handles legitimate claims; false negatives are more
+ * dangerous than false positives here.
  */
 const FABRICATED_STAT_PATTERNS: RegExp[] = [
   /\b(\d[\d,.]*\s*%)\s+(?:roi|return|increase|growth|improvement|conversion|uplift|savings?|reduction|boost|more)\b/i,
@@ -116,21 +149,52 @@ const FABRICATED_STAT_PATTERNS: RegExp[] = [
   /\b(?:customers?|clients?|users?|businesses?)\s+(?:see|get|achieve|experience|report|gain(?:ed?)?)\s+(\d[\d,.]*\s*%)/i,
   /\b(\$[\d,.]+[KMBkmb]?)\s+(?:saved?|revenue|profit|roi|return|growth|generated?)\b/i,
   /\b(?:average|typical)\s+(?:customer|client|user)\s+(?:sees?|gets?|saves?|earns?)\s+\d/i,
+  // "N% of [people group] who/that [verb]..." — covers "70% of customers who call..."
+  // Requires the "who/that" relative clause so bare estimates like
+  // "approximately 60% of businesses report…" are not flagged.
+  /\b(\d[\d,.]*\s*%)\s+of\s+(?:customers?|clients?|users?|businesses?|callers?|people|respondents?|consumers?|prospects?)\s+(?:who|that)\b/i,
+  // "N% [will|would|do|don't|are|were]..." — standalone percentage claims
+  /\b(\d[\d,.]*\s*%)\s+(?:will|would|do|don'?t|are|were|have|had|say|report|prefer|choose|agree|believe)\b/i,
+  // "reduced by N%" / "fell by N%" — outcome stat without action verb first
+  /\b(?:reduced?|fell?|dropped?|declined?|lost?|gained?|won?|converted?)\s+(?:by\s+)?(\d[\d,.]*\s*%)/i,
+  // "N% reduction/increase/improvement in..."
+  /\b(\d[\d,.]*\s*%)\s+(?:reduction|increase|improvement|decline|growth|drop|rise)\s+in\b/i,
+];
+
+/**
+ * Vague source patterns — "according to recent studies", "research shows" etc.
+ * without a named publisher/organisation. A claim attributed ONLY to a vague
+ * source is not treated as externally sourced and is still flagged.
+ *
+ * A "named source" requires a specific organisation, publication, or dataset
+ * name after the source phrase (e.g. "according to Ofcom", "data from ONS").
+ */
+const VAGUE_SOURCE_PATTERNS: RegExp[] = [
+  /\baccording\s+to\s+(?:recent|new|latest|some|various|many|several|a\s+(?:recent|new|latest|number\s+of))\s+(?:studies?|research|reports?|surveys?|data|statistics?|findings?)\b/i,
+  /\b(?:studies?|research|surveys?|reports?|statistics?|findings?)\s+(?:show|suggest|indicate|reveal|find|found|prove|demonstrate)s?\b/i,
+  /\bdata\s+(?:shows?|suggests?|indicates?|reveals?)\b(?!\s+from\b)/i,
+  /\bexperts?\s+(?:say|agree|believe|suggest|recommend)s?\b(?!\s+(?:at|from|in)\b)/i,
+  /\bit\s+(?:is|has\s+been)\s+(?:estimated?|suggested?|reported?|found)\s+that\b/i,
 ];
 
 /**
  * Fake testimonial / invented quotation patterns.
  * Quoted text attributed to a person, or customer-name references.
+ * Works on both plain text and HTML-decoded text (run stripHtmlForSafety first).
  */
 const FAKE_TESTIMONIAL_PATTERNS: RegExp[] = [
-  // "Quote text" — Name or "Quote" - Name
+  // "Quote text" — Name or "Quote" - Name (straight, curly, or HTML-entity quotes)
   /["\u201C\u201D]([^"\u201C\u201D]{10,200})["\u201C\u201D]\s*[-\u2013\u2014]\s*[A-Z][a-z]/,
   // said/says/commented/shared: "quote"
-  /\b(?:said|says|commented|shared|remarked|noted|told us)\s*[:,.]\s*["\u201C\u201D]/i,
+  /\b(?:said|says|commented|shared|remarked|noted|told us)\s*[:,.]\s*["\u201C\u201D"]/i,
   // Our customer John / Our client Jane
   /\bour\s+(?:customer|client)\s+[A-Z][a-z]+\b/,
-  // Case Study: CompanyName Inc
-  /\bcase\s+study\s*[:.]?\s+[A-Z][a-z]+\s+(?:Inc|Ltd|LLC|Corp|Co)\b/i,
+  // Case Study: CompanyName Inc/Ltd/LLC/Corp/Co or stand-alone "Case Study:"
+  /\bcase\s+study\s*[:.]?\s+[A-Z][a-z]+\s+(?:Inc|Ltd|LLC|Corp|Co|Group|Agency|Consulting|Solutions)\b/i,
+  // "Name, [Role] at Company" — attribution pattern for invented people
+  /\b[A-Z][a-z]+\s+[A-Z][a-z]+,\s+(?:CEO|MD|Director|Manager|Owner|Founder|Head|VP)\b/,
+  // "testimonial" or "customer story" blocks
+  /\b(?:testimonial|customer\s+(?:story|success\s+story|spotlight|quote|review))\b/i,
 ];
 
 /** Unsupported absolute performance / savings guarantees. */
@@ -158,9 +222,14 @@ const RANKING_GUARANTEE_PATTERNS: RegExp[] = [
   /\bmarket[-\s]leading\b/i,
 ];
 
-/** Patterns indicating the claim has a stated source — exempt from flagging. */
+/**
+ * Patterns indicating the claim has a NAMED/SPECIFIC stated source — exempt
+ * from flagging. Vague sources ("recent studies", "research shows") are NOT
+ * listed here; they are handled by VAGUE_SOURCE_PATTERNS below.
+ */
 const SOURCED_PATTERNS: RegExp[] = [
-  /\baccording\s+to\b/i,
+  // "according to [named org/publication]" — but NOT "according to recent/some/various studies"
+  /\baccording\s+to\s+(?!(?:recent|new|latest|some|various|many|several|a\s+(?:recent|new|latest|number))\s+(?:studies?|research|reports?|surveys?|data|statistics?|findings?))\S/i,
   /\bsource(?:d)?\s*[:]\s*/i,
   /\bcited?\s+(?:from|in|by)\b/i,
   /\bpublished\s+(?:in|by)\b/i,
@@ -354,8 +423,11 @@ export async function runContentSafetyCheck(
     severity: "violation" | "warning" = "violation",
   ) => checks.push({ check, passed, detail, severity });
 
-  const sentences = splitIntoSentences(text);
-  const haystack  = text.toLowerCase();
+  // Strip HTML before any pattern analysis so checks work correctly on
+  // HTML-format article bodies (entities decoded, tags removed).
+  const cleanText = stripHtmlForSafety(text);
+  const sentences = splitIntoSentences(cleanText);
+  const haystack  = cleanText.toLowerCase();
 
   const [restrictions, allowedClaims] = await Promise.all([
     fetchWorkspaceRestrictions(workspaceId),
@@ -410,6 +482,38 @@ export async function runContentSafetyCheck(
           .map((s) => `"${s.slice(0, 80)}"`)
           .join("; ")}`,
     fabricatedStatSentences.length === 0 ? "warning" : "violation",
+  );
+
+  // ── 2b. Vague-source statistics ─────────────────────────────────────────────
+  // Stats attributed to "recent studies", "research shows" etc. without a
+  // named publisher/organisation are still unsupported even if hasSourcingContext
+  // would have exempted them under the old rules. These are a separate block so
+  // they are distinguishable in audit logs from completely unsourced stats.
+  const vagueSourceSentences = sentences.filter((s) => {
+    const hasStatPattern = FABRICATED_STAT_PATTERNS.some((p) => p.test(s));
+    const hasVagueSource = VAGUE_SOURCE_PATTERNS.some((p) => p.test(s));
+    const isAllowListed  = matchesAllowList(s, allowedClaims);
+    return hasStatPattern && hasVagueSource && !isAllowListed;
+  });
+  for (const s of vagueSourceSentences) {
+    if (!claimClassifications.find((c) => c.text === s.slice(0, 200))) {
+      claimClassifications.push({
+        text:     s.slice(0, 200),
+        category: "unclassified_flagged",
+        reason:   "Statistic attributed to a vague, unnamed source ('recent studies', 'research shows' etc.)",
+      });
+    }
+  }
+  addCheck(
+    "vague_sourced_statistics",
+    vagueSourceSentences.length === 0,
+    vagueSourceSentences.length === 0
+      ? "No statistics attributed to vague/unnamed sources detected."
+      : `${vagueSourceSentences.length} sentence(s) contain statistics attributed to unnamed sources ('recent studies', 'research shows' etc.): ${vagueSourceSentences
+          .slice(0, 2)
+          .map((s) => `"${s.slice(0, 100)}"`)
+          .join("; ")} — require a named publisher/dataset or label as an estimate/hypothesis.`,
+    vagueSourceSentences.length === 0 ? "warning" : "violation",
   );
 
   // ── 3. Fake testimonials / invented quotations ──────────────────────────────

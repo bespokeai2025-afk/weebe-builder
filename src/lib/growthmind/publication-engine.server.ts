@@ -45,6 +45,11 @@ const BLOCK_MAP: Record<string, string> = {
   cannibalisation: "cannibalisation",
   factuality: "factuality",
   privacy: "privacy",
+  fabricated_statistics: "factuality",
+  vague_sourced_statistics: "factuality",
+  fake_testimonials: "factuality",
+  performance_guarantees: "factuality",
+  ranking_guarantees: "factuality",
 };
 
 /** Runs the existing SEO Safety Gate against the item's CURRENT content and stores the result. */

@@ -19,7 +19,7 @@
  *    duplicate/cannibalising topics, invalid metadata.
  */
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
-import { runContentSafetyCheck } from "@/lib/content-safety/universal-content-safety.server";
+import { runContentSafetyCheck, stripHtmlForSafety } from "@/lib/content-safety/universal-content-safety.server";
 
 const sb = supabaseAdmin as any;
 
@@ -458,9 +458,13 @@ export async function runSeoSafetyGate(
   const checks: SafetyGateResult["checks"] = [];
   const add = (check: string, passed: boolean, detail: string) => checks.push({ check, passed, detail });
 
+  // Strip HTML from the body so all pattern checks operate on plain text
+  // regardless of whether the body is stored as HTML or markdown.
+  const cleanBody = stripHtmlForSafety(draft.body);
+
   // 1. Restricted claims / topics to avoid (teachings)
   const restrictions = await getActiveTeachings(workspaceId, ["restricted_claim", "topic_to_avoid"]);
-  const haystack = `${draft.title}\n${draft.metaTitle}\n${draft.metaDescription}\n${draft.body}`.toLowerCase();
+  const haystack = `${draft.title}\n${draft.metaTitle}\n${draft.metaDescription}\n${cleanBody}`.toLowerCase();
   const violated = restrictions.filter((r) => {
     const needle = r.content.toLowerCase().replace(/^(never|avoid|don'?t)\s+(say|claim|mention|write about)\s*/i, "").trim();
     return needle.length > 3 && haystack.includes(needle);
@@ -491,15 +495,16 @@ export async function runSeoSafetyGate(
   const url = draft.proposedUrl ?? "";
   add("url_format", !url || /^\/[a-z0-9\-\/]*$/.test(url), url ? `Proposed URL "${url}" ${/^\/[a-z0-9\-\/]*$/.test(url) ? "is" : "is NOT"} a clean lowercase slug path.` : "No URL proposed yet.");
 
-  // 5. Minimum substance (no thin content)
-  const words = draft.body.split(/\s+/).filter(Boolean).length;
+  // 5. Minimum substance (no thin content — count words on the clean text)
+  const words = cleanBody.split(/\s+/).filter(Boolean).length;
   add("content_depth", words >= 600, `Article body has ${words} words (minimum 600).`);
 
-  // 6. Universal claim checks (fabricated stats, fake testimonials, guarantees, ranking)
-  //    Run the shared gate on the article body; workspace_restrictions and content_depth
-  //    are already handled above with blog-specific thresholds, so we skip those two.
+  // 6. Universal claim checks (fabricated stats, vague-sourced stats, fake
+  //    testimonials, guarantees, ranking). runContentSafetyCheck applies its
+  //    own HTML strip, so passing cleanBody is safe (idempotent strip).
+  //    Skip workspace_restrictions and content_depth — handled above.
   try {
-    const claimResult = await runContentSafetyCheck(draft.body, "blog_article", workspaceId);
+    const claimResult = await runContentSafetyCheck(cleanBody, "blog_article", workspaceId);
     for (const check of claimResult.checks) {
       if (!["workspace_restrictions", "content_depth"].includes(check.check)) {
         add(check.check, check.passed, check.detail);
