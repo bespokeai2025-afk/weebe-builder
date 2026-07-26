@@ -243,6 +243,10 @@ export async function executeAction(sb: any, workspaceId: string, action: HiveMi
       // Google Ads writes (GrowthMind is advisory-only).
       const ids = Array.isArray(p.recommendation_ids) ? (p.recommendation_ids as string[]).map(String) : [];
       if (!ids.length) throw new Error("No recommendation_ids in action payload");
+      // growthmind_gads_change_requests is server-write-only (authenticated has
+      // SELECT only) — writes must use the admin client. Safe: every statement
+      // below is scoped to the approved action's workspace_id.
+      const { supabaseAdmin: gadsAdmin } = await import("@/integrations/supabase/client.server");
       const { data: recs, error: re } = await sb.from("growthmind_gads_recommendations")
         .select("id, account_row_id, customer_id, campaign_id, section, title, recommended_action, evidence, status")
         .eq("workspace_id", workspaceId).in("id", ids);
@@ -252,7 +256,7 @@ export async function executeAction(sb: any, workspaceId: string, action: HiveMi
       const nowIso = new Date().toISOString();
       const createdIds: string[] = [];
       for (const rec of usable) {
-        const { data: cr, error: crErr } = await sb.from("growthmind_gads_change_requests").insert({
+        const { data: cr, error: crErr } = await (gadsAdmin as any).from("growthmind_gads_change_requests").insert({
           workspace_id: workspaceId,
           recommendation_id: rec.id,
           account_row_id: rec.account_row_id,
@@ -265,7 +269,7 @@ export async function executeAction(sb: any, workspaceId: string, action: HiveMi
         }).select("id").single();
         if (crErr) throw crErr;
         createdIds.push(cr.id as string);
-        await sb.from("growthmind_gads_recommendations").update({
+        await (gadsAdmin as any).from("growthmind_gads_recommendations").update({
           status: "approved", reviewed_at: nowIso, updated_at: nowIso,
         }).eq("id", rec.id).eq("workspace_id", workspaceId);
       }
@@ -920,6 +924,28 @@ export async function approveHiveMindActionCore(
       await sb.from("hivemind_actions").update({
         status: "failed", error_message: err?.message ?? String(err), updated_at: new Date().toISOString(),
       }).eq("id", data.id);
+      // Un-strand any linked Mind task execution: a failed action must not
+      // leave the execution sitting in awaiting_action_approval forever.
+      // "blocked" is retryable via Approve & Run.
+      if ((action as any).execution_id) {
+        const failMsg = `Approved action failed: ${err?.message ?? String(err)}`;
+        const nowIso = new Date().toISOString();
+        try {
+          await sb.from("mind_task_executions").update({
+            status: "blocked",
+            blocked_reason: failMsg,
+            error_message: failMsg,
+            updated_at: nowIso,
+          }).eq("id", (action as any).execution_id).eq("workspace_id", workspaceId)
+            .in("status", ["awaiting_action_approval", "verifying"]);
+          if ((action as any).task_id) {
+            await sb.from("hivemind_tasks").update({
+              execution_status: "blocked", updated_at: nowIso,
+            }).eq("id", (action as any).task_id).eq("workspace_id", workspaceId)
+              .in("execution_status", ["awaiting_action_approval", "executing"]);
+          }
+        } catch { /* best-effort — never mask the original error */ }
+      }
       try {
         const { reflectActionOutcomeOnRecommendation } =
           await import("@/lib/hivemind/executive-followthrough.server");

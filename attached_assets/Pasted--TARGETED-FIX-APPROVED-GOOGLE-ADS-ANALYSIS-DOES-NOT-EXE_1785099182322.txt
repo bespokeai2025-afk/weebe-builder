@@ -1,0 +1,225 @@
+# TARGETED FIX — APPROVED GOOGLE ADS ANALYSIS DOES NOT EXECUTE
+
+Fix only the execution path for approved GrowthMind Google Ads analysis tasks.
+
+Do not redesign the task UI.
+Do not modify Google Ads campaigns, budgets, keywords or live account settings.
+Do not refactor unrelated Minds, workflows or analytics systems.
+Do not create a second competing execution system.
+
+## Confirmed behaviour
+
+This task is created correctly:
+
+Title:
+Run Google Ads analysis focused on "Search for US and Reception" (last 30 days)
+
+Type:
+gads_analysis
+
+Initial state:
+Ready for Analysis Approval / Awaiting Approval
+
+The user clicks:
+
+Approve Analysis
+
+But the task does not appear to perform the promised execution:
+
+- refresh Google Ads data
+- run GrowthMind analysis
+- compile a report
+- create prioritised change-request drafts
+
+The Intelligence Packet and approval card exist, but execution appears not to start.
+
+## Phase 1 — Trace the real approval path before changing code
+
+Use the real existing task and trace:
+
+Approve Analysis button
+→ frontend handler
+→ server function/API
+→ approval record
+→ work order
+→ execution record
+→ dispatcher
+→ GrowthMind Google Ads executor
+→ sync service
+→ analysis engine
+→ report storage
+→ change-request creation
+→ task status/progress update
+→ UI refresh
+
+For each stage report:
+
+- function called
+- record ID
+- workspace ID
+- current status
+- previous status
+- database table
+- timestamp
+- error
+- whether the next stage was invoked
+
+Identify the first stage where execution stops.
+
+Do not claim the task executed merely because approval_status changed.
+
+## Required lifecycle
+
+The lifecycle must be:
+
+1. `awaiting_analysis_approval`
+2. User approves
+3. Approval saved as approved
+4. Execution record created
+5. Execution placed into runnable state
+6. Dispatcher claims execution
+7. Google Ads data refresh begins
+8. GrowthMind analysis runs
+9. Report is stored
+10. Change-request drafts are stored
+11. Evidence is attached
+12. Task becomes completed
+
+The task must not jump directly from Approved to Completed.
+
+## Fix the smallest failed layer
+
+Possible faults to inspect:
+
+- approval handler only updates approval status
+- no execution record is created
+- execution exists but remains queued
+- dispatcher ignores `gads_analysis`
+- task type mismatch such as `gads_analysis` versus another registered capability name
+- capability registry has no executor
+- worker only runs on a scheduler that is not active
+- execution payload is missing campaign ID or workspace ID
+- campaign name is present but resolved campaign ID is not passed
+- execution is rejected by an approval guard even after approval
+- stale frontend query hides real progress
+- error is swallowed and task remains In Progress
+- task completion is set without report evidence
+- duplicate or idempotency guard incorrectly blocks the first execution
+
+Do not add fake progress timers.
+
+## Execution requirements
+
+When approval succeeds, the task must automatically execute without requiring another manual status change.
+
+The execution must use:
+
+- active workspace
+- connected Google Ads account
+- resolved campaign: `Search for US and Reception`
+- last 30 days
+- read-only Google Ads access
+- no live ad modifications
+
+The executor must:
+
+1. Refresh Google Ads campaign data
+2. Load campaign, ad-group, keyword and search-term metrics
+3. Run the GrowthMind analysis engine
+4. Store a structured analysis report
+5. Create specific internal change-request drafts
+6. Attach evidence and source timestamps
+7. Mark execution complete only after persisted results are verified
+
+## Real progress states
+
+The UI should reflect persisted backend progress:
+
+- Approved
+- Queued
+- Refreshing Google Ads data
+- Analysing campaign performance
+- Analysing keywords and search terms
+- Compiling report
+- Drafting change requests
+- Completed
+
+Progress must come from the execution record, not local UI state.
+
+On failure, display:
+
+- failed stage
+- error message
+- retry option
+- last successful step
+
+Do not leave failed executions permanently shown as In Progress.
+
+## Idempotency and retry
+
+Ensure:
+
+- clicking Approve twice does not create duplicate executions
+- refreshing the browser does not restart the task
+- only one active execution exists per approved work order
+- a failed execution can be retried safely
+- retry creates or resets the correct execution without duplicating reports or change requests
+
+## Verification using the real task
+
+Use the actual approved task for:
+
+`Search for US and Reception`
+
+Verify:
+
+1. Approval is stored.
+2. An execution record is created.
+3. The dispatcher claims it.
+4. Google Ads refresh runs.
+5. Real campaign metrics are loaded.
+6. An analysis report is stored.
+7. Specific change-request drafts are created.
+8. Evidence is attached.
+9. UI progress updates.
+10. The task reaches Completed only after all outputs exist.
+
+The final report must include actual campaign metrics such as:
+
+- spend
+- impressions
+- clicks
+- CTR
+- average CPC
+- conversions
+- cost per conversion
+- campaign status
+- keyword findings
+- search-term findings
+
+Change-request drafts must be specific and evidence-based, not generic advice.
+
+## Final report
+
+Return only:
+
+1. Checkpoint reference
+2. Exact first failing stage
+3. Root cause
+4. Exact files changed
+5. Approval record result
+6. Execution record result
+7. Dispatcher result
+8. Google Ads refresh result
+9. Analysis report ID and summary
+10. Change requests created
+11. Evidence attached
+12. Final execution status
+13. Real progress states observed
+14. Targeted tests passed
+15. Confirmation no live Google Ads changes were made
+16. Confirmation no unrelated systems changed
+
+Do not report success based only on code inspection.
+Do not report success because the approval status changed.
+Prove execution using persisted records, real logs and stored analysis output.

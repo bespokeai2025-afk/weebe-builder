@@ -24,6 +24,14 @@ Rules future work must keep:
   `growthmind_gads_change_requests` rows (internal), external writes are always honest-blocked.
   Consequential internal changes go through a linked `hivemind_actions` row
   (`gads_create_change_requests`) and the execution waits in `awaiting_action_approval`.
+- **Approved actions run under the user's authenticated client** — if an action kind writes to a
+  server-write-only table (authenticated has SELECT only, e.g. `growthmind_gads_change_requests`),
+  the executor must use the admin client for those writes, workspace-scoped.
+  **Why:** the whole approve→execute→resume chain died at the final insert with
+  "permission denied", stranding the execution in `awaiting_action_approval`.
+- **Action failure must un-strand the execution** — the approve-flow failure catch transitions the
+  linked execution/task to `blocked` (retryable) exactly like the resume-failure path; never leave
+  them in `awaiting_action_approval` after the action failed.
 - New adapters register by dispatch kind in the engine; each adapter reports steps into the
   execution's `steps` JSONB so the UI panel (polls `getTaskExecutionDetail`, 4s while live) shows
   live progress.
