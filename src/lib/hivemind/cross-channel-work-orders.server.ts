@@ -61,8 +61,9 @@ export async function assessChannelEvidence(
   const leads: any[] = leadRows ?? [];
 
   // Email: contactable emails minus suppression list (fail loud on suppression).
+  // suppressed_emails is a global list (no workspace_id column).
   const { data: suppRows, error: suppErr } = await sb.from("suppressed_emails")
-    .select("email").eq("workspace_id", workspaceId).limit(5000);
+    .select("email").limit(5000);
   if (suppErr) throw new Error(`Suppression list could not be loaded (${suppErr.message}); refusing to plan email outreach without it.`);
   const suppressed = new Set((suppRows ?? []).map((r: any) => String(r.email).toLowerCase()));
   const emailable = leads.filter((l) => l.email && !suppressed.has(String(l.email).toLowerCase()));

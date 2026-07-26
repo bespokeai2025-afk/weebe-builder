@@ -151,7 +151,7 @@ export function classifyLegacyTaskRows(rows: Array<Record<string, any>>): Legacy
 /** Load legacy rows (pre-gate) + open packet-backed rows for supersession checks. */
 export async function loadLegacyTaskRows(sb: Sb, workspaceId: string, limit = 200): Promise<Array<Record<string, any>>> {
   const { data: legacy, error } = await sb.from("hivemind_tasks")
-    .select("id, title, description, status, source, mind, trigger_type, entity_type, entity_id, metadata, intelligence_packet, readiness_state, created_at")
+    .select("id, title, description, status, source, assigned_mind, trigger_type, entity_type, entity_id, metadata, intelligence_packet, readiness_state, created_at")
     .eq("workspace_id", workspaceId)
     .is("readiness_state", null)
     .is("intelligence_packet", null)
@@ -191,7 +191,7 @@ export function buildLegacyConversionPacket(row: Record<string, any>) {
   const title = String(row.title ?? "").trim();
   const description = String(row.description ?? "").trim();
   const packet = buildIntelligencePacket({
-    mind: String(row.mind ?? "hivemind"),
+    mind: String(row.assigned_mind ?? "hivemind"),
     objective: title.length >= 10 ? title : `${title} — ${description}`.slice(0, 200),
     intentSource: "legacy_migration:convert",
     instruction: description || null,
