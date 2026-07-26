@@ -136,12 +136,22 @@ const DISCONNECT_COLORS = [CHART.danger, CHART.warning, CHART.primary, CHART.acc
 interface AdsPlatformTotals {
   campaigns: number; spend: number; impressions: number; clicks: number;
   conversions: number; roas: number | null; ctr: number | null; lastSyncedAt: string | null;
+  avgCpc?: number | null; costPerConv?: number | null;
+}
+interface AdsGoogleConn {
+  connected: boolean;
+  state: string | null;          // e.g. "sync_healthy" | "needs_reconnect"
+  accountName: string | null;
+  customerId: string | null;
+  lastSyncedAt: string | null;
+  syncError: string | null;
 }
 interface AdsData {
   hasSyncedData: boolean;
   byPlatform:   Record<string, AdsPlatformTotals>;
   totalSpend:   number;
-  topCampaigns: Array<{ name: string; platform: string; spend: number; roas: number | null; clicks: number; impressions: number }>;
+  topCampaigns: Array<{ name: string; platform: string; spend: number; roas: number | null; clicks: number; impressions: number; status?: string | null }>;
+  google?: AdsGoogleConn;
 }
 interface SeoSite {
   url: string; keywordCount: number; totalImpressions: number;
@@ -219,11 +229,60 @@ const getMarketingAnalytics = createServerFn({ method: "GET" })
       t.roas = t.spend > 0 && rev > 0 ? +(rev / t.spend).toFixed(2) : null;
       t.ctr  = t.impressions > 0 ? +((t.clicks / t.impressions) * 100).toFixed(2) : null;
     }
-    const topCampaigns = adRows.slice(0, 10).map((r: any) => ({
+    const topCampaigns: AdsData["topCampaigns"] = adRows.slice(0, 10).map((r: any) => ({
       name: String(r.name ?? "—"), platform: String(r.platform ?? ""),
       spend: Number(r.spend ?? 0), roas: r.roas != null ? Number(r.roas) : null,
       clicks: Number(r.clicks ?? 0), impressions: Number(r.impressions ?? 0),
     }));
+
+    // ── Live Google Ads (single source of truth: growthmind_gads_campaign_daily) ──
+    // The legacy growthmind_ad_campaigns table is never written by the live Google
+    // engine, so Google data must come from the live daily table instead.
+    let google: AdsGoogleConn = { connected: false, state: null, accountName: null, customerId: null, lastSyncedAt: null, syncError: null };
+    try {
+      if (!workspaceId) throw new Error("no workspace in context");
+      const core = await import("@/lib/growthmind/gads-live-core.server");
+      const [acct, live] = await Promise.all([
+        core.getGoogleAccountRow(workspaceId),
+        core.getGadsLiveCampaignSummary(workspaceId, 30),
+      ]);
+      if (acct) {
+        google = {
+          connected:    true,
+          state:        acct.connection_state ?? null,
+          accountName:  acct.descriptive_name ?? acct.label ?? null,
+          customerId:   acct.customer_id ?? null,
+          lastSyncedAt: acct.last_synced_at ?? null,
+          syncError:    acct.sync_error ?? null,
+        };
+      }
+      if (live && live.campaigns.length > 0) {
+        const g: AdsPlatformTotals = { campaigns: 0, spend: 0, impressions: 0, clicks: 0, conversions: 0, roas: null, ctr: null, lastSyncedAt: google.lastSyncedAt, avgCpc: null, costPerConv: null };
+        for (const c of live.campaigns) {
+          g.campaigns++; g.spend += c.cost; g.impressions += c.impressions;
+          g.clicks += c.clicks; g.conversions += c.conversions;
+        }
+        const gRev = live.campaigns.reduce((a, c) => a + c.conversionsValue, 0);
+        g.roas        = g.spend > 0 && gRev > 0 ? +(gRev / g.spend).toFixed(2) : null;
+        g.ctr         = g.impressions > 0 ? +((g.clicks / g.impressions) * 100).toFixed(2) : null;
+        g.avgCpc      = g.clicks > 0 ? +(g.spend / g.clicks).toFixed(2) : null;
+        g.costPerConv = g.conversions > 0 ? +(g.spend / g.conversions).toFixed(2) : null;
+        byPlatform.google = g;
+        // Replace any legacy google campaign entries with live ones, keep other platforms.
+        const nonGoogle = topCampaigns.filter((c) => c.platform !== "google");
+        const liveTop = live.campaigns.slice(0, 10).map((c) => ({
+          name: c.name, platform: "google", spend: +c.cost.toFixed(2),
+          roas: c.cost > 0 && c.conversionsValue > 0 ? +(c.conversionsValue / c.cost).toFixed(2) : null,
+          clicks: c.clicks, impressions: c.impressions, status: c.status,
+        }));
+        topCampaigns.length = 0;
+        topCampaigns.push(...[...nonGoogle, ...liveTop].sort((a, b) => b.spend - a.spend).slice(0, 10));
+      }
+    } catch (e) {
+      console.error("[analytics] live Google Ads merge failed:", e);
+      if (google.connected) google.syncError = google.syncError ?? "Live Google Ads data could not be loaded";
+    }
+
     const totalSpend = Object.values(byPlatform).reduce((a, t) => a + t.spend, 0);
 
     const seoRows: any[] = seoRes.data ?? [];
@@ -252,7 +311,7 @@ const getMarketingAnalytics = createServerFn({ method: "GET" })
     });
 
     return {
-      ads:      { hasSyncedData: adRows.length > 0, byPlatform, totalSpend, topCampaigns },
+      ads:      { hasSyncedData: Object.keys(byPlatform).length > 0, byPlatform, totalSpend, topCampaigns, google },
       seo:      { sites: seoSites },
       email:    { total: emailRows.length, byStatus: emailByStatus, recentCampaigns: recentEmails },
       whatsapp: { total: waRows.length, totalSent: waSent, totalDelivered: waDelivered, totalRead: waRead, totalReplied: waReplied, recentCampaigns: recentWa },
@@ -1399,7 +1458,14 @@ function CreditsTab({ q }: { q: any }) {
 // ── Marketing sub-tab components ───────────────────────────────────────────────
 function AdsTab({ data }: { data: AdsData }) {
   const platforms = Object.keys(data.byPlatform);
+  const g = data.google;
   if (!data.hasSyncedData) {
+    if (g?.connected && (g.state === "needs_reconnect" || g.syncError)) {
+      return <EmptyState icon={BarChart2} title="Google Ads analytics are temporarily unavailable" message={g.state === "needs_reconnect" ? "The Google Ads connection needs to be reconnected in GrowthMind → Data Sources." : (g.syncError ?? "The last Google Ads sync failed. Try refreshing from GrowthMind → Data Sources.")} />;
+    }
+    if (g?.connected) {
+      return <EmptyState icon={BarChart2} title="Google Ads is connected — no campaign data yet" message={`Account ${g.accountName ?? ""} (${g.customerId ?? "no account selected"}) is connected, but no campaign performance has synced for the last 30 days.`} />;
+    }
     return <EmptyState icon={BarChart2} title="No ad data synced yet" message="Connect Meta Ads, Google Ads, or TikTok Ads in GrowthMind → Data Sources to start pulling campaign performance." />;
   }
   const barData = platforms.map((p) => ({ name: PLATFORM_LABELS[p] ?? p, spend: +data.byPlatform[p].spend.toFixed(2), clicks: data.byPlatform[p].clicks, conversions: data.byPlatform[p].conversions, fill: PLATFORM_COLORS[p] ?? "#7c3aed" }));
@@ -1421,8 +1487,13 @@ function AdsTab({ data }: { data: AdsData }) {
                 <MktMetric label="Clicks"      value={fmtNum(t.clicks)} />
                 <MktMetric label="CTR"         value={t.ctr != null ? `${t.ctr}%` : "—"} />
                 <MktMetric label="Conversions" value={fmtNum(t.conversions)} />
+                {t.avgCpc != null && <MktMetric label="Avg CPC" value={`£${t.avgCpc.toFixed(2)}`} />}
+                {t.costPerConv != null && <MktMetric label="Cost / conv." value={`£${t.costPerConv.toFixed(2)}`} />}
               </div>
-              {t.lastSyncedAt && <p className="text-[10px] text-muted-foreground mt-2">Synced {fmtDateShort(t.lastSyncedAt)}</p>}
+              {p === "google" && g?.connected && (
+                <p className="text-[10px] text-muted-foreground mt-2">{g.accountName ?? "Google Ads"} · {g.customerId ?? "—"}</p>
+              )}
+              {t.lastSyncedAt && <p className="text-[10px] text-muted-foreground mt-1">Synced {fmtDateShort(t.lastSyncedAt)}</p>}
             </MktPanel>
           );
         })}
@@ -1444,7 +1515,7 @@ function AdsTab({ data }: { data: AdsData }) {
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-white/[0.06]">
-                  <MTh>Campaign</MTh><MTh>Platform</MTh><MTh align="right">Spend</MTh><MTh align="right">Impressions</MTh><MTh align="right">Clicks</MTh><MTh align="right">ROAS</MTh>
+                  <MTh>Campaign</MTh><MTh>Platform</MTh><MTh>Status</MTh><MTh align="right">Spend</MTh><MTh align="right">Impressions</MTh><MTh align="right">Clicks</MTh><MTh align="right">ROAS</MTh>
                 </tr>
               </thead>
               <tbody>
@@ -1452,6 +1523,7 @@ function AdsTab({ data }: { data: AdsData }) {
                   <tr key={i} className="border-b border-white/[0.04] hover:bg-white/[0.02]">
                     <td className="py-2 pr-4 max-w-[200px] truncate font-medium">{c.name}</td>
                     <td className="py-2 pr-4"><Badge variant="outline" className="text-[10px]" style={{ borderColor: PLATFORM_COLORS[c.platform] ?? "#7c3aed", color: PLATFORM_COLORS[c.platform] ?? "inherit" }}>{PLATFORM_LABELS[c.platform] ?? c.platform}</Badge></td>
+                    <td className="py-2 pr-4"><span className="text-xs capitalize text-muted-foreground">{c.status ?? "—"}</span></td>
                     <MTd align="right">{fmtCurrency(c.spend)}</MTd>
                     <MTd align="right">{fmtNum(c.impressions)}</MTd>
                     <MTd align="right">{fmtNum(c.clicks)}</MTd>
