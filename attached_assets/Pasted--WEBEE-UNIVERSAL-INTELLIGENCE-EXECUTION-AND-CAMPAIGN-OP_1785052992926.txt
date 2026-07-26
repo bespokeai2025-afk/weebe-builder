@@ -1,0 +1,1967 @@
+# WEBEE UNIVERSAL INTELLIGENCE, EXECUTION AND CAMPAIGN OPERATING STANDARD
+# Eliminate Shallow Tasks Across Every Mind, Channel, Campaign and Business Function
+
+Pause unrelated feature expansion until this cross-platform defect is fixed and verified.
+
+The current production Tasks interface still creates shallow records such as:
+
+Title:
+Optimize Google Ads Keywords
+
+Description:
+Review and refine keywords for the Google Ads campaign, focusing on long-tail keywords relevant to our services.
+
+Type:
+growthmind_directive
+
+Created via:
+hivemind.create_growthmind_task
+
+This task contains no resolved campaign, evidence, analysis, proposed changes, deliverables, execution plan, success criteria or verification.
+
+It still exposes:
+
+- A vague Approve button
+- Manual Suggested / Approved / In Progress / Completed controls
+- No real execution depth
+- No provider targets
+- No change preview
+- No measurable outcome
+- No linked action
+- No evidence
+
+This proves that legacy shallow-task pathways are still bypassing the shared work-order and execution architecture.
+
+This must be fixed once across the whole WEBEE platform.
+
+The fix must apply to:
+
+- HiveMind
+- GrowthMind
+- SystemMind
+- AccountsMind
+- Google Ads
+- Search Console
+- SEO
+- Blog campaigns
+- Content Studio
+- Public content publishing
+- Meta
+- Facebook
+- Instagram
+- TikTok
+- LinkedIn
+- WhatsApp
+- BuzzChat
+- Email
+- HexMail
+- SMS
+- Call campaigns
+- Retell agents
+- Sales pipelines
+- WEBEE CRM
+- External CRMs
+- Leads
+- Follow-Up Centre
+- Calendars and bookings
+- Workflows
+- Webhooks
+- Integrations
+- Invoices
+- Clients
+- Outgoings
+- Commercial reports
+- Analytics and reporting
+- Mobile and web
+
+Do not solve this by making descriptions longer.
+
+Do not solve this with additional generic AI prose.
+
+Do not create another task system.
+
+Do not create another recommendation system.
+
+Do not create another approval centre.
+
+Do not rebuild the existing execution backbone.
+
+The objective is to enforce one evidence-first intelligence, planning, approval, execution and verification standard across every WEBEE capability.
+
+---
+
+# 1. FIND EVERY SHALLOW CREATION PATH
+
+Audit all code paths capable of creating:
+
+- Recommendations
+- Work orders
+- Tasks
+- Actions
+- Campaign proposals
+- Content proposals
+- Sales tasks
+- Lead-follow-up tasks
+- CRM tasks
+- GrowthMind directives
+- SystemMind directives
+- AccountsMind directives
+- HiveMind tasks
+- Executive recommendations
+- Cross-Mind playbooks
+- Scheduled campaigns
+- Automated follow-ups
+- Content Studio projects
+- Campaign drafts
+- Workflow-build tasks
+- Agent-setup tasks
+- Finance and invoice tasks
+
+Search specifically for:
+
+- hivemind.create_growthmind_task
+- growthmind_directive
+- systemmind_directive
+- accountsmind_directive
+- create_task
+- create_mind_task
+- create_campaign_task
+- create_followup_task
+- create_content_task
+- create_sales_task
+- create_pipeline_task
+- Direct database inserts into task tables
+- Frontend-only task creation
+- Recommendation-to-task conversions
+- Generic title-and-description generators
+- Legacy approval flows
+- Manual status mutation
+- Tasks created without work_order_id
+- Tasks created without structured objectives
+- Tasks created without evidence
+- Tasks created without executions
+- Tasks created without target entities
+
+Create a Universal Legacy Path Register containing:
+
+- Path
+- Caller
+- Mind
+- Feature or channel
+- Task type
+- Target table
+- Whether it creates a work order
+- Whether it resolves real entities
+- Whether it retrieves live evidence
+- Whether it creates an execution
+- Whether approval dispatches real work
+- Whether completion requires verification
+- Replacement or repair required
+
+Do not stop after the audit.
+
+Repair, migrate or disable every active shallow path.
+
+No Mind-generated task may bypass:
+
+- Objective resolution
+- Entity resolution
+- Evidence collection
+- Capability resolution
+- Work-order creation
+- Execution planning
+- Approval rules
+- Verification
+- Completion evidence
+
+---
+
+# 2. ONE UNIVERSAL MIND INTELLIGENCE PACKET
+
+Create one authoritative typed server-side contract used by every Mind and feature.
+
+Use an architecture-compatible name such as:
+
+UniversalMindIntelligencePacket
+
+Every recommendation, work order, executable task, consequential action and report must link to this packet.
+
+## Objective
+
+- Original instruction
+- Resolved business objective
+- Commercial objective
+- Operational objective
+- Customer objective
+- Requested result
+- Parent objective
+- Priority
+- Priority reason
+- Deadline
+- Scope
+- Explicit exclusions
+
+## Workspace context
+
+- Workspace
+- User
+- Role
+- Effective autonomy mode
+- Package entitlement
+- Permissions
+- Business DNA
+- Connected providers
+- Active commercial priorities
+- Previous conversation
+- Related work orders
+- Related campaigns
+- Relevant learnings
+- Temporary instructions
+
+## Target entities
+
+Support typed references for:
+
+### Marketing
+
+- Advertising account
+- Campaign
+- Ad set
+- Ad group
+- Ad
+- Creative
+- Keyword
+- Search term
+- Audience
+- Landing page
+- Search Console property
+- Website
+- Article
+- Social account
+- Social page
+- Social post
+
+### Sales and CRM
+
+- Lead
+- Qualified lead
+- Contact
+- Company
+- Opportunity
+- Deal
+- Pipeline
+- Pipeline stage
+- CRM
+- CRM field
+- Follow-up sequence
+- Salesperson
+- Appointment
+- Booking
+- Calendar
+
+### Communications
+
+- WhatsApp account
+- WhatsApp number
+- WhatsApp template
+- WhatsApp campaign
+- WhatsApp conversation
+- Email account
+- Email domain
+- Email campaign
+- Email sequence
+- Email template
+- SMS campaign
+- Contact list
+- Segment
+
+### Voice and agents
+
+- Voice agent
+- Agent version
+- Script
+- Function
+- Dynamic variable
+- Post-call field
+- Call campaign
+- Phone number
+- Call queue
+- Call schedule
+- Retell workspace
+- Call record
+
+### Systems
+
+- Workflow
+- Webhook
+- Integration
+- API credential reference
+- Queue
+- Background job
+- Database table
+- Provider connection
+- Deployment
+- Website route
+
+### Finance
+
+- Client
+- Invoice
+- Payment
+- Outgoing
+- Supplier
+- Subscription
+- Renewal
+- Package
+- Usage record
+- Cost record
+
+Each target must contain:
+
+- Entity type
+- Provider
+- Internal ID
+- Provider ID
+- Display name
+- Workspace
+- Resolution confidence
+- Current state
+- Last synced date
+- Data freshness
+- Connection state
+
+## Evidence
+
+- Data sources consulted
+- Provider APIs called
+- Internal records inspected
+- Date range
+- Current metrics
+- Current configuration
+- Current status
+- Relevant history
+- Current problems
+- Opportunities
+- Missing data
+- Conflicting evidence
+- Evidence references
+- Data freshness
+- Sample size
+- Confidence
+
+## Diagnosis
+
+- Problem or opportunity
+- Why it matters
+- Root cause
+- Supporting evidence
+- Alternative explanations
+- Assumptions
+- Commercial impact
+- Customer impact
+- Technical impact
+- Operational impact
+- Risk of doing nothing
+- Confidence
+
+## Plan
+
+Each step must include:
+
+- Step number
+- Assigned Mind
+- Capability
+- Tool or provider
+- Input
+- Expected output
+- Dependency
+- Approval requirement
+- Risk
+- Retry behaviour
+- Validation method
+- Evidence required
+
+## Proposed changes
+
+Each change must include:
+
+- Target entity
+- Current value or state
+- Proposed value or state
+- Reason
+- Evidence
+- Expected effect
+- Risk
+- Reversibility
+- Approval scope
+- Provider-write requirement
+- Rollback method
+- Verification method
+
+## Deliverables
+
+Support deliverables including:
+
+- Marketing analysis
+- Campaign strategy
+- Campaign draft
+- Audience plan
+- Keyword plan
+- Creative pack
+- Social post
+- Video script
+- Video asset
+- Email campaign
+- WhatsApp campaign
+- SMS campaign
+- Follow-up sequence
+- Sales pipeline plan
+- CRM field mapping
+- Workflow
+- Agent configuration
+- Content brief
+- Blog article
+- Website publication
+- SEO report
+- Invoice
+- Financial audit
+- Commercial report
+- System diagnosis
+- Repair
+- Deployment package
+
+## Success criteria
+
+- Provider metrics
+- Internal metrics
+- Lead metrics
+- Qualified-lead metrics
+- Booking metrics
+- Revenue metrics
+- Cost metrics
+- Delivery metrics
+- Technical validation
+- Completion evidence
+- Monitoring period
+- Minimum sample size
+- Final evaluation rule
+
+## Limitations
+
+- Missing data
+- Missing integration
+- Missing permission
+- Missing provider support
+- Provider delay
+- Insufficient sample
+- Unknown attribution
+- Human action required
+- Draft-only capability
+- External approval required
+- Unsupported deployment route
+
+## Cost
+
+Where measurable:
+
+- AI cost
+- Provider cost
+- Advertising spend impact
+- Messaging cost
+- Email cost
+- Call cost
+- Content-generation cost
+- Deployment cost
+- Human effort
+- Ongoing cost
+
+Never invent costs.
+
+Use Unknown where evidence is unavailable.
+
+## Approval
+
+- Exact approval action
+- Why it is required
+- Exact scope
+- What it authorises
+- What it does not authorise
+- Target record
+- Version
+- Expiry
+- Reapproval triggers
+- Risk
+- Reversibility
+
+## Monitoring
+
+- Baseline
+- Checkpoints
+- Metrics
+- Alerts
+- Owner
+- Next review
+- Learning outcome
+- Stop conditions
+
+---
+
+# 3. UNIVERSAL INTELLIGENCE QUALITY GATE
+
+Create one authoritative server validator such as:
+
+validateUniversalMindIntelligencePacket()
+
+A Mind-generated proposal must not become approvable unless it contains:
+
+- Resolved objective
+- Resolved target or explicit investigation task
+- Current evidence
+- Diagnosis
+- Concrete deliverable
+- Execution plan
+- Success criteria
+- Limitations
+- Correct approval scope
+- Verification plan
+
+Use readiness states:
+
+- Insufficient Context
+- Target Resolution Required
+- Integration Required
+- Evidence Gathering
+- Investigation Required
+- Proposal Incomplete
+- Ready for Review
+- Ready for Analysis Approval
+- Ready for Content Approval
+- Ready for Change Approval
+- Ready for Publication Approval
+- Ready for Execution
+- Blocked
+
+Do not display Approve for an incomplete proposal.
+
+Use exact controls:
+
+- Supply Missing Details
+- Select Campaign
+- Select Pipeline
+- Select Audience
+- Connect Provider
+- Refresh Data
+- Run Investigation
+- Complete Strategy
+- Generate Draft
+- Review Deliverable
+- Approve and Run Analysis
+- Approve Draft
+- Approve Provider Changes
+- Approve Publication
+
+Reject shallow server-side task creation.
+
+A Mind task containing only:
+
+- Title
+- Description
+- Assigned Mind
+- Priority
+
+must fail unless explicitly classified as a human-created manual reminder.
+
+---
+
+# 4. UNIVERSAL INTELLIGENCE PIPELINE
+
+Every natural-language instruction must pass through:
+
+Instruction
+→ intent classification
+→ business-objective resolution
+→ target resolution
+→ workspace context
+→ provider/internal evidence retrieval
+→ diagnosis
+→ capability resolution
+→ cross-Mind enrichment
+→ intelligence validation
+→ work-order creation
+→ task planning
+→ approval proposal
+→ execution
+→ verification
+→ evidence
+→ monitoring
+→ learning
+
+No generic task may be created before this process.
+
+If critical context is missing, create an investigation or clarification state—not a fake executable task.
+
+---
+
+# 5. SALES PIPELINE AND CRM DEPTH STANDARD
+
+Commands such as:
+
+- “Improve the sales pipeline.”
+- “Follow up our best leads.”
+- “Move qualified leads forward.”
+- “Improve conversions.”
+- “Fix the CRM process.”
+
+must analyse real pipeline and CRM records.
+
+Required evidence where available:
+
+- Pipeline
+- Stages
+- Leads per stage
+- Stage conversion
+- Time in stage
+- Stalled opportunities
+- Lead source
+- Last contact
+- Next action
+- Lead owner
+- Lead quality
+- Call outcome
+- Sentiment
+- Qualification fields
+- Booking state
+- Follow-up state
+- Deal value
+- Expected revenue
+- Lost reasons
+- CRM sync state
+- Duplicate records
+- Missing fields
+
+Every proposed sales action must show:
+
+- Lead or segment
+- Current stage
+- Current evidence
+- Proposed stage or action
+- Reason
+- Assigned owner or Mind
+- Contact channel
+- Message or call strategy
+- Follow-up schedule
+- Risk
+- Approval requirement
+- Success criteria
+
+Examples of valid deliverables:
+
+- Pipeline diagnostic
+- Stalled-lead recovery campaign
+- Qualified-lead prioritisation
+- Follow-up sequence
+- CRM field cleanup
+- Stage-definition update
+- Sales script
+- Booking campaign
+- Salesperson task list
+
+Never create:
+
+“Review the pipeline.”
+
+Create a real analysis tied to actual records.
+
+Do not automatically move opportunities, contact leads or alter CRM fields without the required approval.
+
+---
+
+# 6. WHATSAPP AND BUZZCHAT CAMPAIGN DEPTH STANDARD
+
+Commands such as:
+
+- “Launch a WhatsApp campaign.”
+- “Follow up leads on WhatsApp.”
+- “Create a WhatsApp broadcast.”
+- “Improve WhatsApp conversions.”
+
+must resolve:
+
+- Workspace
+- Provider
+- WhatsApp account
+- Phone number
+- Template
+- Audience
+- Segment
+- Consent basis
+- Country
+- Campaign objective
+- Send window
+- Message volume
+- Cost
+- Opt-out rules
+
+Required evidence:
+
+- Contact count
+- Consent status
+- Opt-out state
+- Previous campaign performance
+- Template approval state
+- Delivery rate
+- Read rate where available
+- Reply rate
+- Positive replies
+- Qualified leads
+- Bookings
+- Failed messages
+- Provider errors
+- Country restrictions
+- Estimated message cost
+- Frequency history
+
+Every proposed WhatsApp campaign must include:
+
+- Audience definition
+- Exclusion rules
+- Template
+- Personalisation fields
+- Message sequence
+- CTA
+- Send schedule
+- Volume
+- Cost estimate
+- Provider
+- Compliance checks
+- Stop conditions
+- Success criteria
+- Follow-up handling
+
+Separate approvals:
+
+- Approve Audience
+- Approve WhatsApp Template
+- Approve Campaign Schedule
+- Approve and Send Campaign
+- Approve Follow-Up Sequence
+
+Do not send until all required approvals and provider checks pass.
+
+Do not contact opted-out or unconsented recipients.
+
+Do not create a generic task such as:
+
+“Create a WhatsApp campaign.”
+
+Create the complete evidence-backed campaign package.
+
+---
+
+# 7. EMAIL AND HEXMAIL DEPTH STANDARD
+
+Commands such as:
+
+- “Launch an email campaign.”
+- “Create a nurture sequence.”
+- “Follow up these leads.”
+- “Improve email performance.”
+
+must resolve:
+
+- Sending account
+- Sending domain
+- Domain health
+- Audience
+- Segment
+- Consent
+- Suppression list
+- Campaign objective
+- Existing sequence
+- Product
+- CTA
+
+Required evidence:
+
+- Deliverability
+- Domain authentication
+- SPF
+- DKIM
+- DMARC
+- Warming state
+- Bounce rate
+- Open rate where reliable
+- Click rate
+- Reply rate
+- Positive reply rate
+- Unsubscribe rate
+- Spam complaints
+- Qualified leads
+- Bookings
+- Conversion
+- Previous subject-line results
+- Sending frequency
+- Provider limits
+
+Every email proposal must include:
+
+- Audience
+- Exclusions
+- Subject lines
+- Preview text
+- Email body
+- Personalisation
+- CTA
+- Sequence timing
+- Send volume
+- A/B test
+- Suppression rules
+- Compliance
+- Deliverability risk
+- Cost
+- Success criteria
+
+Separate approvals:
+
+- Approve Audience
+- Approve Email Copy
+- Approve Sequence
+- Approve Schedule
+- Approve and Send
+
+A copy approval must not authorise sending.
+
+Do not allow campaigns to run when domain health or suppression checks fail.
+
+---
+
+# 8. META, FACEBOOK AND INSTAGRAM DEPTH STANDARD
+
+Commands such as:
+
+- “Create a Meta campaign.”
+- “Post this on Instagram.”
+- “Improve Facebook ads.”
+- “Deploy this content to Meta.”
+
+must resolve:
+
+- Meta business account
+- Ad account
+- Facebook page
+- Instagram account
+- Pixel or dataset
+- Campaign
+- Ad set
+- Audience
+- Placement
+- Creative
+- Destination
+- Conversion event
+- Budget
+- Schedule
+
+Required evidence:
+
+- Spend
+- Reach
+- Impressions
+- Frequency
+- CPM
+- Clicks
+- CTR
+- CPC
+- Landing-page views
+- Leads
+- Qualified leads
+- Bookings
+- Conversions
+- Cost per lead
+- Cost per qualified lead
+- Creative results
+- Placement results
+- Audience results
+- Geographic results
+- Device results
+- Conversion tracking
+- Attribution limitations
+
+Every campaign proposal must include:
+
+- Objective
+- Conversion event
+- Audience
+- Exclusions
+- Countries/areas
+- Placement
+- Creative assets
+- Copy variants
+- CTA
+- Landing page
+- Budget
+- Schedule
+- Tracking
+- Experiment plan
+- Risks
+- Success criteria
+
+Every organic post proposal must include:
+
+- Target account
+- Format
+- Caption
+- Creative
+- Hashtags where relevant
+- CTA
+- Schedule
+- Approval
+- Publishing state
+- Live post ID
+- Verification
+
+Separate approvals:
+
+- Approve Meta Strategy
+- Approve Audience
+- Approve Creative
+- Approve Budget
+- Approve and Create as Paused
+- Approve and Launch
+- Approve Organic Post
+- Approve and Publish Post
+
+Do not allow `budget: null` or missing destination/creative to reach launch approval.
+
+Do not claim a campaign or post is live until Meta returns and WEBEE verifies the provider record.
+
+---
+
+# 9. TIKTOK CAMPAIGN AND CONTENT DEPLOYMENT STANDARD
+
+Commands such as:
+
+- “Create a TikTok campaign.”
+- “Make this into a TikTok.”
+- “Post the video to TikTok.”
+- “Improve TikTok performance.”
+
+must resolve:
+
+- TikTok business account
+- TikTok Ads account
+- TikTok profile
+- Campaign
+- Ad group
+- Pixel/event
+- Audience
+- Creative
+- Video asset
+- Caption
+- Destination
+- Budget
+- Schedule
+
+Required evidence:
+
+- Views
+- Watch time
+- Completion rate
+- Engagement
+- Click-through
+- Leads
+- Conversions
+- Qualified leads
+- Cost
+- Audience results
+- Creative results
+- Hook performance
+- Drop-off points
+- Landing-page performance
+- Provider permissions
+
+Every TikTok content proposal must include:
+
+- Business objective
+- Viewer
+- Hook
+- Script
+- Shot list
+- Voiceover
+- On-screen text
+- Caption
+- CTA
+- Duration
+- Aspect ratio
+- Safe-zone requirements
+- Music or audio rights status
+- Brand compliance
+- Publishing schedule
+- Measurement plan
+
+Every TikTok ad proposal must additionally include:
+
+- Campaign objective
+- Ad group
+- Audience
+- Placements
+- Optimisation event
+- Bid/budget
+- Tracking
+- Landing page
+- Experiment
+- Success criteria
+
+Separate approvals:
+
+- Approve TikTok Concept
+- Approve Script
+- Approve Video
+- Approve Caption
+- Approve Budget
+- Approve TikTok Campaign
+- Approve and Publish
+
+Do not generate or publish copyrighted audio without verified rights.
+
+Do not claim publishing succeeded until TikTok returns a provider post or campaign identifier and it is verified.
+
+---
+
+# 10. LINKEDIN CAMPAIGN AND CONTENT DEPLOYMENT STANDARD
+
+Commands such as:
+
+- “Create a LinkedIn campaign.”
+- “Post this on LinkedIn.”
+- “Create founder content.”
+- “Target investors on LinkedIn.”
+
+must resolve:
+
+- LinkedIn organisation
+- LinkedIn profile where supported
+- Campaign Manager account
+- Campaign group
+- Campaign
+- Audience
+- Job functions
+- Seniority
+- Industry
+- Company size
+- Geography
+- Creative
+- Lead-gen form
+- Destination
+- Budget
+- Schedule
+
+Required evidence:
+
+- Impressions
+- Clicks
+- CTR
+- CPC
+- Leads
+- Lead-form completion
+- Qualified leads
+- Cost per lead
+- Audience performance
+- Creative performance
+- Company or industry performance
+- Previous organic engagement
+- Follower profile
+- Provider permission state
+
+Organic LinkedIn content must include:
+
+- Target account
+- Audience
+- Post objective
+- Format
+- Hook
+- Body
+- CTA
+- Asset
+- Hashtags where relevant
+- Publish time
+- Evidence
+- Success criteria
+
+Paid LinkedIn campaigns must include:
+
+- Campaign objective
+- Audience
+- Exclusions
+- Lead form or destination
+- Creative
+- Budget
+- Bid strategy
+- Schedule
+- Tracking
+- Success criteria
+
+Separate approvals:
+
+- Approve LinkedIn Strategy
+- Approve Audience
+- Approve Post
+- Approve Lead Form
+- Approve Budget
+- Approve and Launch
+
+Do not claim a post or campaign is live until verified through LinkedIn.
+
+Where LinkedIn’s API does not support the requested action, produce a complete deployment package and mark:
+
+Awaiting LinkedIn Manual Publication
+
+Do not fabricate provider support.
+
+---
+
+# 11. CONTENT STUDIO AND CROSS-CHANNEL DEPLOYMENT
+
+Content Studio must remain the single source for content production.
+
+Do not create separate editors for:
+
+- Meta
+- TikTok
+- LinkedIn
+- WhatsApp
+- Email
+- Blog
+- SMS
+
+One Content Studio project may contain channel variants:
+
+- Blog article
+- Meta ad
+- Facebook post
+- Instagram feed post
+- Instagram story
+- Instagram reel
+- TikTok video
+- LinkedIn post
+- LinkedIn ad
+- WhatsApp message
+- Email
+- SMS
+- Landing-page copy
+
+Each channel variant must contain:
+
+- Parent campaign
+- Objective
+- Target audience
+- Channel
+- Format
+- Copy
+- Creative
+- CTA
+- Destination
+- Claims
+- Sources
+- Approval state
+- Deployment state
+- Provider record
+- Live URL or ID
+- Performance
+
+Use one source concept with channel-specific adaptation.
+
+Do not copy the exact same text across every channel.
+
+Preserve the core message while adapting:
+
+- Length
+- Hook
+- Tone
+- Format
+- CTA
+- Visual ratio
+- Platform conventions
+- Audience intent
+
+Required deployment states:
+
+- Draft
+- Awaiting Review
+- Awaiting Content Approval
+- Awaiting Channel Approval
+- Scheduled
+- Publishing
+- Published
+- Verification Failed
+- Monitoring
+- Blocked
+
+Publication requires channel-specific approval.
+
+---
+
+# 12. SALES FOLLOW-UP CENTRE DEPTH STANDARD
+
+Commands such as:
+
+- “Follow up all unresponsive leads.”
+- “Create a 90-day sequence.”
+- “Recover old leads.”
+- “Follow up qualified leads.”
+
+must resolve:
+
+- Lead segment
+- Lead status
+- Last contact
+- Preferred channel
+- Consent
+- Time zone
+- Qualification
+- Product
+- Previous responses
+- Existing sequence
+- Exclusion state
+
+The proposed sequence must show:
+
+- Day/time
+- Channel
+- Message or call objective
+- Template
+- Personalisation
+- Stop condition
+- Response handling
+- Booking route
+- Escalation
+- Owner
+- Cost
+- Approval requirement
+
+Support coordinated:
+
+- Calls
+- WhatsApp
+- Email
+- SMS
+
+Do not send duplicate or overlapping follow-ups.
+
+Stop sequences when:
+
+- Lead replies
+- Lead opts out
+- Lead books
+- Lead is disqualified
+- Lead is manually paused
+- Legal/compliance restrictions apply
+
+---
+
+# 13. CALL CAMPAIGN DEPTH STANDARD
+
+Commands such as:
+
+- “Launch a call campaign.”
+- “Call qualified leads.”
+- “Improve call conversions.”
+- “Deploy this agent to a campaign.”
+
+must resolve:
+
+- Voice agent
+- Agent version
+- Script
+- Lead segment
+- Phone number
+- Campaign
+- Schedule
+- Time zone
+- Concurrency
+- Retry policy
+- Voicemail policy
+- CRM mapping
+- Calendar
+- Post-call extraction
+
+Required evidence:
+
+- Contact count
+- Consent/legal status
+- Call outcomes
+- Answer rate
+- Qualification rate
+- Booking rate
+- Call duration
+- Cost
+- Agent performance
+- Failed-call reasons
+- Time-of-day performance
+- Lead quality
+- CRM sync health
+- Calendar health
+
+Every call campaign must include:
+
+- Audience
+- Exclusions
+- Agent
+- Script version
+- Phone number
+- Schedule
+- Concurrency
+- Call limits
+- Retry rules
+- Voicemail rules
+- CRM mapping
+- Calendar functions
+- Success criteria
+- Cost estimate
+- Stop conditions
+
+Separate approvals:
+
+- Approve Audience
+- Approve Agent and Script
+- Approve Schedule
+- Approve Call Volume
+- Approve and Launch
+
+---
+
+# 14. AGENT, CRM AND WORKFLOW DEPTH STANDARD
+
+Commands such as:
+
+- “Set up this agent.”
+- “Connect the agent to the CRM.”
+- “Fix the workflow.”
+- “Map the variables.”
+
+must resolve:
+
+- Agent
+- Script
+- Dynamic variables
+- Functions
+- CRM
+- CRM objects
+- Fields
+- Trigger
+- Webhook
+- Calendar
+- Post-call fields
+- Queue
+- Campaign
+- Provider credentials
+
+SystemMind must inspect:
+
+- Agent configuration
+- Script variables
+- Function definitions
+- Existing field mappings
+- Existing workflow
+- Webhook delivery
+- Logs
+- Provider responses
+- Retries
+- Dead-letter events
+- Permission state
+
+The proposal must contain:
+
+- Current architecture
+- Missing context
+- Required credentials
+- Field map
+- Trigger condition
+- Pre-call data
+- Post-call data
+- Provider actions
+- Test plan
+- Rollback
+- Verification
+
+Never create:
+
+“Connect CRM.”
+
+Create the complete implementation work order.
+
+---
+
+# 15. GOOGLE ADS AND SEO
+
+Retain all depth requirements from the earlier task-intelligence prompt.
+
+Google Ads must use real:
+
+- Campaigns
+- Keywords
+- Search terms
+- Match types
+- Negatives
+- Spend
+- Clicks
+- Conversions
+- Tracking
+- Landing pages
+- Devices
+- Locations
+- Schedules
+
+SEO must use real:
+
+- Search Console property
+- Queries
+- Pages
+- Countries
+- Devices
+- Clicks
+- Impressions
+- CTR
+- Position
+- Sitemap
+- Index data
+- Existing page analysis
+- Content Studio
+- Publication state
+
+Do not weaken the previously established Google Ads and SEO requirements.
+
+---
+
+# 16. ACCOUNTSMIND DEPTH STANDARD
+
+AccountsMind tasks must inspect actual:
+
+- Clients
+- Invoices
+- Amounts
+- Due dates
+- Payment states
+- Outgoings
+- Suppliers
+- Renewals
+- Subscriptions
+- Usage
+- Costs
+- Revenue attribution
+- Package limits
+
+Do not create generic tasks such as:
+
+“Review invoices.”
+
+Create typed audits showing:
+
+- Records inspected
+- Exceptions
+- Amounts
+- Due dates
+- Commercial impact
+- Exact proposed action
+- Approval requirement
+- Evidence
+
+---
+
+# 17. TASK UI ACROSS ALL FEATURES
+
+Upgrade the existing Tasks interface.
+
+Do not create another Tasks page.
+
+Every Mind task must show by default:
+
+- Objective
+- Target
+- Assigned Mind
+- Channel or system
+- Readiness
+- Current state
+- Executive summary
+- Evidence highlights
+- Proposed outcome
+- Approval needed
+- Data freshness
+- Confidence
+- Main blocker
+
+Expandable sections:
+
+- Full evidence
+- Diagnosis
+- Execution plan
+- Proposed changes
+- Audience/segment
+- Content or creative
+- Costs
+- Risks
+- Success criteria
+- Monitoring
+- Execution log
+- Provider evidence
+- Developer details
+
+Do not prominently expose raw UUIDs.
+
+Move technical IDs to Developer Details.
+
+Channel-specific sections must appear when relevant.
+
+Examples:
+
+### Sales
+
+- Leads
+- Pipeline stages
+- Conversion
+- Follow-up plan
+
+### WhatsApp
+
+- Audience
+- Template
+- Volume
+- Compliance
+- Estimated cost
+
+### Email
+
+- Deliverability
+- Audience
+- Copy
+- Sequence
+- Suppression
+
+### Meta/TikTok/LinkedIn
+
+- Account
+- Audience
+- Creative
+- Budget
+- Schedule
+- Tracking
+- Provider state
+
+### Content
+
+- Brief
+- Assets
+- Channel variants
+- Claims
+- Approval
+- Publishing state
+
+---
+
+# 18. REMOVE FALSE MANUAL STATUS CONTROLS
+
+Mind-executed tasks must not allow manual switching between:
+
+- Suggested
+- Approved
+- In Progress
+- Completed
+
+Execution states must be controlled by the shared engine.
+
+Only human-created tasks may have manual status controls and must be labelled:
+
+Human Task
+
+For Mind tasks:
+
+- Approved requires valid approval
+- Queued requires dispatcher acceptance
+- Executing requires a running worker
+- Awaiting Approval requires a real approval dependency
+- Completed requires validated evidence
+- Failed requires a real failure
+- Blocked requires a real blocker
+
+---
+
+# 19. EXPLICIT APPROVALS ACROSS ALL FEATURES
+
+Replace generic Approve buttons.
+
+Use exact labels, including:
+
+## Sales and CRM
+
+- Approve Pipeline Strategy
+- Approve Lead Segment
+- Approve CRM Changes
+- Approve Follow-Up Plan
+- Approve and Start Follow-Up
+
+## WhatsApp
+
+- Approve Audience
+- Approve WhatsApp Template
+- Approve Schedule
+- Approve and Send
+
+## Email
+
+- Approve Audience
+- Approve Email Copy
+- Approve Sequence
+- Approve and Send
+
+## Meta
+
+- Approve Strategy
+- Approve Audience
+- Approve Creative
+- Approve Budget
+- Approve and Create as Paused
+- Approve and Launch
+- Approve and Publish Post
+
+## TikTok
+
+- Approve Concept
+- Approve Script
+- Approve Video
+- Approve Caption
+- Approve Budget
+- Approve and Publish
+
+## LinkedIn
+
+- Approve LinkedIn Strategy
+- Approve Audience
+- Approve Post
+- Approve Budget
+- Approve and Launch
+
+## Content and SEO
+
+- Approve Content Brief
+- Approve Article Content
+- Approve Channel Variants
+- Approve Publication
+- Approve Sitemap Submission
+
+## Agents and workflows
+
+- Approve Field Mapping
+- Approve Workflow
+- Approve Agent Deployment
+- Approve Campaign Launch
+
+Every approval must explain:
+
+- Exact effect
+- Records affected
+- Provider affected
+- Current state
+- Proposed state
+- Risk
+- Reversibility
+- Version
+- What happens next
+- What is not authorised
+
+Approval must dispatch or resume a real execution.
+
+---
+
+# 20. LEGACY TASK MIGRATION ACROSS THE PLATFORM
+
+Find existing shallow tasks for:
+
+- Google Ads
+- SEO
+- Sales pipeline
+- Leads
+- CRM
+- WhatsApp
+- Email
+- SMS
+- Calls
+- Agents
+- Workflows
+- Meta
+- Instagram
+- TikTok
+- LinkedIn
+- Content
+- Invoices
+- Accounts
+
+Classify:
+
+- Convertible
+- Missing Context
+- Duplicate
+- Superseded
+- Obsolete
+- Human Task
+- Invalid
+
+Convertible tasks must be upgraded to:
+
+- Work order
+- Intelligence packet
+- Real target
+- Evidence
+- Execution plan
+- Correct approval
+- Success criteria
+- Monitoring
+
+Do not execute migrated legacy tasks automatically.
+
+---
+
+# 21. CROSS-CHANNEL ORCHESTRATION
+
+HiveMind must be able to create one connected business objective spanning several channels.
+
+Example:
+
+“Generate more WEBEE Receptionist leads in the UK.”
+
+HiveMind should be able to coordinate:
+
+- GrowthMind market analysis
+- Google Ads
+- Meta
+- LinkedIn
+- TikTok
+- SEO
+- Blog
+- Email
+- WhatsApp
+- Call follow-up
+- Sales pipeline
+- AccountsMind budget review
+- SystemMind tracking verification
+
+It must not create ten disconnected generic tasks.
+
+It must create:
+
+- One parent work order
+- Channel strategy
+- Dependencies
+- Channel-specific tasks
+- Separate approvals
+- Shared success criteria
+- Shared reporting
+- Commercial comparison
+
+HiveMind must identify which channels are justified by evidence.
+
+Do not create every channel simply because it exists.
+
+---
+
+# 22. REQUIRED ACCEPTANCE TESTS
+
+## Google Ads
+
+“Optimise Google Ads keywords.”
+
+Must produce resolved campaigns, real evidence, exact keyword proposals and separate provider-change approval.
+
+## Sales pipeline
+
+“Improve my sales pipeline.”
+
+Must analyse real stages, stalled leads, conversions and produce a specific pipeline recovery plan.
+
+## WhatsApp
+
+“Run a WhatsApp campaign for qualified leads.”
+
+Must resolve the segment, consent, template, volume, cost, schedule and approvals.
+
+## Email
+
+“Create an email nurture campaign.”
+
+Must check domain health, audience, suppression, sequence, copy, deliverability and send approval.
+
+## Meta
+
+“Create and launch a Meta lead campaign.”
+
+Must include account, audience, creative, budget, destination, tracking and readiness validation.
+
+## TikTok
+
+“Create and post a TikTok for WEBEE Receptionist.”
+
+Must produce concept, script, video requirements, caption, CTA, approval and verified publication or honest manual-deployment blocker.
+
+## LinkedIn
+
+“Create a LinkedIn campaign targeting investors.”
+
+Must define the account, audience, format, content, CTA, budget where paid and verified deployment state.
+
+## Content deployment
+
+“Turn this campaign into content for every channel.”
+
+Must create one Content Studio project with adapted channel variants, not identical copied text.
+
+## Follow-up
+
+“Follow up all qualified leads.”
+
+Must resolve real leads, channels, timing, consent, stop conditions and booking flow.
+
+## Agent/workflow
+
+“Connect my voice agent to the CRM.”
+
+Must resolve the agent, CRM, variables, mappings, triggers, webhooks, testing and rollback.
+
+## AccountsMind
+
+“Improve cash flow.”
+
+Must inspect actual records and produce exact evidence-backed actions.
+
+---
+
+# 23. TESTING
+
+Add automated tests for:
+
+- Generic task rejection
+- Evidence requirement
+- Target resolution
+- Deliverable requirement
+- Approval-scope requirement
+- Manual status rejection
+- Legacy task conversion
+- Workspace isolation
+- WBAH isolation
+- Provider permission enforcement
+- Content approval
+- Publication approval
+- Campaign readiness
+- Audience validation
+- Consent validation
+- Suppression validation
+- Budget validation
+- Duplicate-send protection
+- Duplicate-post protection
+- Provider verification
+- Failure and retry handling
+- Completion evidence
+- Web/mobile parity
+
+Add feature-specific tests for:
+
+- Sales pipelines
+- CRM
+- WhatsApp
+- Email
+- SMS
+- Call campaigns
+- Meta
+- Instagram
+- TikTok
+- LinkedIn
+- Google Ads
+- SEO
+- Content Studio
+- Public content
+- Agents
+- Workflows
+- AccountsMind
+
+---
+
+# 24. DEFINITION OF COMPLETE
+
+This workstream is not complete because:
+
+- Descriptions became longer
+- More AI text appears
+- More fields were added
+- More task cards were created
+- Generic buttons were renamed
+- A campaign draft exists
+- A content asset exists
+
+It is complete only when:
+
+1. Every Mind feature uses the universal intelligence packet.
+2. Shallow task creation is rejected server-side.
+3. Legacy creators are disabled or migrated.
+4. Real target entities are resolved.
+5. Current evidence is loaded.
+6. Plans contain concrete deliverables.
+7. Approval scopes are explicit.
+8. Approval triggers execution.
+9. Provider writes are verified.
+10. Provider limitations are reported honestly.
+11. Manual false statuses are removed.
+12. Sales tasks contain real pipeline depth.
+13. WhatsApp tasks contain audience, consent and template depth.
+14. Email tasks contain deliverability and sequence depth.
+15. Meta tasks contain audience, creative, budget and tracking depth.
+16. TikTok tasks contain concept, video, caption and deployment depth.
+17. LinkedIn tasks contain audience, format and provider depth.
+18. Content Studio produces channel-specific variants.
+19. Call tasks contain agent, schedule, limits and CRM depth.
+20. Agent/workflow tasks contain mappings, triggers and verification.
+21. AccountsMind tasks contain real financial records.
+22. Completion requires evidence.
+23. Production-compatible tests pass.
+
+---
+
+# REQUIRED CHECKPOINT REPORT
+
+At completion report:
+
+1. Root cause of shallow tasks
+2. Every legacy creator found
+3. Paths disabled
+4. Paths migrated
+5. Universal intelligence packet
+6. Quality gate
+7. Work-order enforcement
+8. Sales pipeline implementation
+9. CRM implementation
+10. WhatsApp implementation
+11. Email and HexMail implementation
+12. SMS implementation
+13. Call campaign implementation
+14. Meta implementation
+15. Facebook implementation
+16. Instagram implementation
+17. TikTok implementation
+18. LinkedIn implementation
+19. Content Studio cross-channel implementation
+20. SEO and Google Ads implementation
+21. Agent/workflow implementation
+22. AccountsMind implementation
+23. Task UI changes
+24. Approval UI changes
+25. Manual-status removal
+26. Legacy migration
+27. Cross-channel orchestration
+28. Acceptance-test results
+29. Automated tests
+30. Production tests
+31. Workspace and WBAH isolation
+32. Genuine provider limitations
+33. Next master-programme workstream resumed
+
+Do not stop after producing a plan.
+
+Implement this as the universal WEBEE operating and intelligence standard.
+
+Do not continue unrelated expansion until the current shallow Google Ads task and every cross-feature acceptance test pass.
