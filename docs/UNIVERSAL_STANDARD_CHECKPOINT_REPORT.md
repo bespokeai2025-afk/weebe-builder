@@ -153,7 +153,7 @@ and target resolution required, deliverable plans present, approval scopes expli
 rejected, legacy conversion safe, provider limitations honest.
 
 ## 29. Automated tests
-`tests/component/universal-standard-490.test.tsx` — 17 tests covering agent↔CRM
+`tests/component/universal-standard-490.test.tsx` — 20 tests covering agent↔CRM
 (integration_required / verified field map / ambiguous target / WBAH), workflow depth, all three
 audit kinds + clean audit + WBAH, the 7-class classifier, conversion packet safety, migrate
 convert+dismiss, cross-channel evidence justification, parent/child dependencies, blocked
