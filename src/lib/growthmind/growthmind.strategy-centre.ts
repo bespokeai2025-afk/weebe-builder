@@ -402,6 +402,9 @@ Only include keys from: [${assetEngineList}]`;
 
       const { assertProposalAllowed } = await import("@/lib/hivemind/mode-gate.server");
       await assertProposalAllowed(sb, workspaceId);
+      // JUSTIFIED-EXCEPTION (Task #500): writes to hivemind_actions (approval queue),
+      // not hivemind_tasks. The intelligence packet gate fires in hivemind.actions.ts::executeAction
+      // when the action is approved and a hivemind_tasks row is created.
       const { data: hmAction } = await sb.from("hivemind_actions").insert({
         workspace_id:   workspaceId,
         title:          `GrowthMind ${typeLabel2}: ${raw.selected_service ?? "Growth Strategy"}`,
@@ -524,6 +527,9 @@ export const sendStrategyCentreToHiveMind = createServerFn({ method: "POST" })
     // Create hivemind_action (blocked in observe mode)
     const { assertProposalAllowed } = await import("@/lib/hivemind/mode-gate.server");
     await assertProposalAllowed(sb, workspaceId);
+    // JUSTIFIED-EXCEPTION (Task #500): writes to hivemind_actions (approval queue),
+    // not hivemind_tasks. The intelligence packet gate fires in hivemind.actions.ts::executeAction
+    // when the action is approved and a hivemind_tasks row is created.
     const { data: action, error: ae } = await sb.from("hivemind_actions").insert({
       workspace_id:   workspaceId,
       title:          `GrowthMind ${typeLabel}: ${strategy.selectedService ?? "Growth Strategy"}`,

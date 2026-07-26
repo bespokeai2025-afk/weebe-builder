@@ -649,6 +649,9 @@ export async function generateScriptRecommendation(
   if (error) return { ok: false, error: error.message };
 
   // Approval-queue visibility (best-effort, matches existing proposal drafts)
+  // JUSTIFIED-EXCEPTION (Task #500): writes to hivemind_actions (approval queue),
+  // not hivemind_tasks. The intelligence packet gate fires in hivemind.actions.ts::executeAction
+  // when the action is approved and a hivemind_tasks row is created.
   try {
     await sb.from("hivemind_actions").insert({
       workspace_id: workspaceId,

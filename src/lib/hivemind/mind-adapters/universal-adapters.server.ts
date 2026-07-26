@@ -74,6 +74,9 @@ async function proposeLinkedAction(
     sensitive?: boolean;
   },
 ): Promise<{ actionId: string } | { error: string }> {
+  // JUSTIFIED-EXCEPTION (Task #500): writes to hivemind_actions (approval queue),
+  // not hivemind_tasks. Runs inside an approved work order adapter context; the
+  // intelligence packet gate fires in hivemind.actions.ts::executeAction at approval time.
   const { data, error } = await ctx.sb.from("hivemind_actions").insert({
     workspace_id: ctx.workspaceId,
     title: opts.title,

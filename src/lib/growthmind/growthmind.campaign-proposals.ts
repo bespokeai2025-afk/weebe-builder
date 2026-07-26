@@ -254,6 +254,9 @@ export async function createAutonomousDrafts(
     }).catch(() => {});
 
     // Approval queue item
+    // JUSTIFIED-EXCEPTION (Task #500): writes to hivemind_actions (approval queue),
+    // not hivemind_tasks. The intelligence packet gate fires in hivemind.actions.ts::executeAction
+    // when the action is approved and a hivemind_tasks row is created.
     await sb.from("hivemind_actions").insert({
       workspace_id: workspaceId,
       action_type:  "campaign_proposal",
@@ -270,6 +273,7 @@ export async function createAutonomousDrafts(
   const funnelProposal = proposals.find(p => p.channels.includes("AI Calling") || p.title.toLowerCase().includes("re-engage"))
     ?? proposals[0];
   if (funnelProposal) {
+    // JUSTIFIED-EXCEPTION (Task #500): approval-queue record — see campaign_proposal above.
     await sb.from("hivemind_actions").insert({
       workspace_id: workspaceId,
       action_type:  "funnel_reengagement",
@@ -295,6 +299,7 @@ export async function createAutonomousDrafts(
   // 3. WhatsApp broadcast draft
   const waDraft = proposals.find(p => p.channels.includes("WhatsApp"));
   if (waDraft) {
+    // JUSTIFIED-EXCEPTION (Task #500): approval-queue record — see campaign_proposal above.
     await sb.from("hivemind_actions").insert({
       workspace_id: workspaceId,
       action_type:  "whatsapp_broadcast",
@@ -321,6 +326,7 @@ export async function createAutonomousDrafts(
     p.channels.includes("Email") || p.contentPlan.toLowerCase().includes("hexmail") || p.contentPlan.toLowerCase().includes("email")
   );
   if (emailBody) {
+    // JUSTIFIED-EXCEPTION (Task #500): approval-queue record — see campaign_proposal above.
     await sb.from("hivemind_actions").insert({
       workspace_id: workspaceId,
       action_type:  "email_sequence",

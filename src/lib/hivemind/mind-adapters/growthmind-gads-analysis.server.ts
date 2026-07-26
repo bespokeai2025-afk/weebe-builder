@@ -234,6 +234,9 @@ export async function runGadsAnalysisExecution(ctx: AdapterContext): Promise<Ada
       : ` (none specific to focus campaign "${focus.campaign_name ?? focus.campaign_id}" — account-wide recommendations proposed)`;
   }
   const topRecs = orderedRecs.slice(0, 10);
+  // JUSTIFIED-EXCEPTION (Task #500): writes to hivemind_actions (approval queue),
+  // not hivemind_tasks. Runs inside an approved work order context; the intelligence
+  // packet gate fires in hivemind.actions.ts::executeAction when the action is approved.
   const { data: actionRow, error: ae } = await ctx.sb.from("hivemind_actions").insert({
     workspace_id: ctx.workspaceId,
     title: `Create ${topRecs.length} Google Ads change request${topRecs.length === 1 ? "" : "s"} from analysis`,

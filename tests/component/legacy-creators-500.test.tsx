@@ -9,7 +9,7 @@
  *     executive_reasoning).
  *  4. runHiveMindScan is already compliant — its output uses prepareMindTaskInsert.
  */
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import {
   assertNoLegacyDirectInsert,
   assertRowHasIntelligencePacket,
@@ -499,5 +499,132 @@ describe("LEGACY_CREATOR_BLOCKED pattern (for future disabled creators)", () => 
       async () => { throw new Error("LEGACY_CREATOR_BLOCKED: this creator is disabled by Task #500 audit."); },
       "LEGACY_CREATOR_BLOCKED",
     );
+  });
+});
+
+// ── INTEGRATION TESTS — call the real production function with a mocked DB ───
+//
+// These tests use vi.doMock() + vi.resetModules() to call the actual production
+// creator function (not a locally-reconstructed pattern) and assert that every
+// row it inserts into hivemind_tasks carries a valid intelligence packet.
+//
+// Functions that depend on live AI calls (writeCampaignReport, runExecutiveReasoning,
+// runAccountsMindTick, runContentAttentionScan) cannot be fully integration-tested
+// here without a mock AI layer; their migration is covered by the packet-pattern
+// verification tests in sections 3–6 above, which exercise the exact same
+// buildIntelligencePacket + prepareMindTaskInsert production utilities.
+
+describe("INTEGRATION — runGrowthMindMonitoringSweep (real function, mocked DB)", () => {
+  beforeEach(() => { vi.resetModules(); });
+  afterEach(() => { vi.restoreAllMocks(); });
+
+  it("calls hivemind_tasks insert with a packet-backed row for each actionable (critical/warning) check", async () => {
+    const capturedInserts: Record<string, unknown>[] = [];
+
+    vi.doMock("@/integrations/supabase/client.server", () => ({
+      supabaseAdmin: {
+        from: () => ({
+          insert: async (row: Record<string, unknown>) => {
+            capturedInserts.push(row);
+            return { data: { id: "mock-id" }, error: null };
+          },
+        }),
+      },
+    }));
+
+    vi.doMock("@/lib/hivemind/growthmind-control/executive-view.server", () => ({
+      checkGrowthMindOperationalHealth: async () => ({
+        checks: [
+          { ok: false, severity: "critical", key: "token_expired",  message: "Token expired" },
+          { ok: false, severity: "warning",  key: "low_content",    message: "Content sparse" },
+          { ok: true,  severity: "info",     key: "healthy_check",  message: "All systems go" },
+          { ok: false, severity: "info",     key: "info_only",      message: "Info only — not actionable" },
+        ],
+      }),
+    }));
+
+    const { runGrowthMindMonitoringSweep } = await import(
+      "@/lib/hivemind/growthmind-control/monitoring.server"
+    );
+    const result = await runGrowthMindMonitoringSweep(WS);
+
+    expect(result.tasksCreated).toBe(2);
+    expect(result.deduped).toBe(0);
+    expect(capturedInserts).toHaveLength(2);
+    for (const row of capturedInserts) {
+      assertRowHasIntelligencePacket(row as any, {
+        expectedMind: "growthmind",
+        expectedSource: "growthmind_monitoring",
+        expectedTriggerType: "growthmind_health",
+      });
+      expect(row.status).toBe("suggested");
+    }
+    expect((capturedInserts[0] as any).entity_id).toBe("token_expired");
+    expect((capturedInserts[1] as any).entity_id).toBe("low_content");
+  });
+
+  it("returns zero inserts when all checks pass (no actionable issues)", async () => {
+    const capturedInserts: Record<string, unknown>[] = [];
+
+    vi.doMock("@/integrations/supabase/client.server", () => ({
+      supabaseAdmin: {
+        from: () => ({
+          insert: async (row: Record<string, unknown>) => {
+            capturedInserts.push(row);
+            return { data: { id: "mock-id" }, error: null };
+          },
+        }),
+      },
+    }));
+
+    vi.doMock("@/lib/hivemind/growthmind-control/executive-view.server", () => ({
+      checkGrowthMindOperationalHealth: async () => ({
+        checks: [
+          { ok: true, severity: "info", key: "all_good", message: "Everything healthy" },
+        ],
+      }),
+    }));
+
+    const { runGrowthMindMonitoringSweep } = await import(
+      "@/lib/hivemind/growthmind-control/monitoring.server"
+    );
+    const result = await runGrowthMindMonitoringSweep(WS);
+
+    expect(result.tasksCreated).toBe(0);
+    expect(capturedInserts).toHaveLength(0);
+  });
+
+  it("counts a 23505 conflict response as deduped (not tasksCreated), inserts no duplicate packet", async () => {
+    const capturedInserts: Record<string, unknown>[] = [];
+
+    vi.doMock("@/integrations/supabase/client.server", () => ({
+      supabaseAdmin: {
+        from: () => ({
+          insert: async (row: Record<string, unknown>) => {
+            capturedInserts.push(row);
+            return { data: null, error: { code: "23505", message: "duplicate key" } };
+          },
+        }),
+      },
+    }));
+
+    vi.doMock("@/lib/hivemind/growthmind-control/executive-view.server", () => ({
+      checkGrowthMindOperationalHealth: async () => ({
+        checks: [
+          { ok: false, severity: "warning", key: "dup_check", message: "Already open" },
+        ],
+      }),
+    }));
+
+    const { runGrowthMindMonitoringSweep } = await import(
+      "@/lib/hivemind/growthmind-control/monitoring.server"
+    );
+    const result = await runGrowthMindMonitoringSweep(WS);
+
+    expect(result.tasksCreated).toBe(0);
+    expect(result.deduped).toBe(1);
+    // The insert WAS attempted with a packet-backed row (dedup is a DB-side operation)
+    expect(capturedInserts).toHaveLength(1);
+    assertRowHasIntelligencePacket(capturedInserts[0] as any, { expectedMind: "growthmind" });
   });
 });

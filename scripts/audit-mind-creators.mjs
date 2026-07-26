@@ -207,7 +207,7 @@ const statusBadge = (s) => ({
   "needs-review":        "⚠️ needs-review",
 })[s] ?? s;
 
-const cols = ["Function", "File", "Line", "Table", "Feature", "Mind", "Packet Required", "Adapter Registered", "Status"];
+const cols = ["Function", "File", "Line", "Table", "Feature", "Mind", "Packet Required", "Work Order Required", "Adapter Registered", "Status"];
 const rows = entries.map((e) => [
   `\`${e.function}\``,
   `\`${e.file}\``,
@@ -216,6 +216,7 @@ const rows = entries.map((e) => [
   e.feature,
   e.mind,
   e.packet_required ? "Yes" : "No",
+  e.work_order_required ? "Yes" : "No",
   e.adapter_registered ? "Yes" : "No",
   statusBadge(e.status),
 ]);

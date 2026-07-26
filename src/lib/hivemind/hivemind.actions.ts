@@ -1653,6 +1653,9 @@ export const generateOperatorActions = createServerFn({ method: "POST" })
     } catch { /* graceful — accountsmind tables may not exist yet */ }
 
     if (proposed.length > 0) {
+      // JUSTIFIED-EXCEPTION (Task #500): writes to hivemind_actions (approval queue),
+      // not hivemind_tasks. These are follow-through proposal records; the intelligence
+      // packet gate fires in executeAction below when the action is approved.
       await sb.from("hivemind_actions").insert(proposed);
     }
 
