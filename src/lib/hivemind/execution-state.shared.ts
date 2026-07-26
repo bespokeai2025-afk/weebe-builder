@@ -25,7 +25,7 @@ export const TERMINAL_EXECUTION_STATES: ReadonlySet<ExecutionStatus> = new Set([
 
 /** Legal transitions. Key = from, values = allowed to. */
 export const EXECUTION_TRANSITIONS: Readonly<Record<ExecutionStatus, readonly ExecutionStatus[]>> = {
-  queued:                    ["executing", "cancelled", "failed", "blocked"],
+  queued:                    ["executing", "cancelled", "failed", "blocked", "worker_interrupted"],
   executing:                 ["awaiting_action_approval", "awaiting_external_result", "verifying", "completed", "partially_completed", "blocked", "failed", "cancelled", "worker_interrupted"],
   awaiting_action_approval:  ["executing", "verifying", "blocked", "failed", "cancelled", "partially_completed"],
   awaiting_external_result:  ["executing", "verifying", "blocked", "failed", "cancelled"],

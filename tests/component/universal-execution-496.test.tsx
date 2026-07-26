@@ -41,6 +41,7 @@ import {
   runVideoCampaignExecution,
   initialStepsForKind,
 } from "@/lib/hivemind/mind-adapters/universal-adapters.server";
+import { sweepStalledExecutions } from "@/lib/hivemind/mind-execution-engine.server";
 import {
   canTransition,
   EXECUTABLE_KINDS,
@@ -399,23 +400,37 @@ describe("HiveMind — channel email adapter", () => {
 });
 
 describe("HiveMind — channel WhatsApp adapter", () => {
-  it("no opt-in leads → blocked with provider_action_unsupported", async () => {
+  it("no whatsapp_provider in workspace_settings → blocked with provider_action_unsupported", async () => {
     const { sb } = makeSb({
-      leads: [{ id: "L1", phone: "+44700000000", whatsapp_opt_in: false }],
+      leads: [{ id: "L1", phone: "+44700000000", whatsapp_opt_in: true }],
+      workspace_settings: [],
       mind_task_executions: [],
     });
     const outcome = await runChannelWhatsAppExecution(makeCtx(sb));
     assertBlockedWithUnsupported(outcome);
+    expect(outcome.blockedReason).toMatch(/whatsapp/i);
   });
 
-  it("opted-in lead → awaiting_action_approval", async () => {
+  it("opted-in lead + WA provider configured → awaiting_action_approval", async () => {
     const { sb } = makeSb({
       leads: [{ id: "L1", phone: "+44700000000", whatsapp_opt_in: true }],
+      workspace_settings: [{ workspace_id: WS, whatsapp_provider: "twilio", twilio_account_sid: "ACfake" }],
       mind_task_executions: [],
       hivemind_actions: [],
     });
     const outcome = await runChannelWhatsAppExecution(makeCtx(sb));
     assertAwaitingAction(outcome);
+  });
+
+  it("WA provider configured but no opted-in leads → blocked (zero eligible)", async () => {
+    const { sb } = makeSb({
+      leads: [{ id: "L1", phone: "+44700000000", whatsapp_opt_in: false }],
+      workspace_settings: [{ workspace_id: WS, whatsapp_provider: "twilio" }],
+      mind_task_executions: [],
+    });
+    const outcome = await runChannelWhatsAppExecution(makeCtx(sb));
+    assertBlockedWithUnsupported(outcome);
+    expect(outcome.blockedReason).toMatch(/zero eligible/i);
   });
 });
 
@@ -526,20 +541,37 @@ describe("HiveMind — sales pipeline review adapter", () => {
 // HiveMind legacy task migration adapter
 // ════════════════════════════════════════════════════════════════════════════
 describe("HiveMind — legacy task migration adapter", () => {
-  it("legacy tasks present → completed with migration counts in result", async () => {
-    const old = new Date(Date.now() - 120 * 86400000).toISOString();
+  it("no legacy tasks → completed (nothing to migrate), non-empty steps", async () => {
     const { sb } = makeSb({
-      hivemind_tasks: [
-        { id: "t1", title: "Chase invoice", description: "Client Acme has not paid.", status: "suggested", source: "ai_scan", trigger_type: "invoice_overdue", entity_type: "invoice", entity_id: "I1", created_at: new Date().toISOString(), metadata: {}, intelligence_packet: null, readiness_state: null },
-        { id: "t2", title: "Ancient thing", description: "", status: "suggested", source: "ai_scan", created_at: old, metadata: {}, intelligence_packet: null, readiness_state: null },
-      ],
+      hivemind_tasks: [],
       mind_task_executions: [],
     });
     const outcome = await runLegacyTaskMigrationExecution(makeCtx(sb));
     expect(outcome.status).toBe("completed");
     assertStepsNonEmpty(outcome.steps);
-    expect(outcome.result?.scanned).toBeGreaterThan(0);
+    expect(outcome.result?.scanned).toBe(0);
     expect(outcome.artifacts[0].type).toBe("legacy_migration_report");
+    expect(outcome.linkedActionId).toBeNull();
+  });
+
+  it("legacy tasks present → awaiting_action_approval (migration plan proposed, not auto-executed)", async () => {
+    const old = new Date(Date.now() - 120 * 86400000).toISOString();
+    const { sb, inserted } = makeSb({
+      hivemind_tasks: [
+        { id: "t1", title: "Chase invoice", description: "Client Acme has not paid.", status: "suggested", source: "ai_scan", trigger_type: "invoice_overdue", entity_type: "invoice", entity_id: "I1", created_at: new Date().toISOString(), metadata: {}, intelligence_packet: null, readiness_state: null },
+        { id: "t2", title: "Ancient thing", description: "", status: "suggested", source: "ai_scan", created_at: old, metadata: {}, intelligence_packet: null, readiness_state: null },
+      ],
+      mind_task_executions: [],
+      hivemind_actions: [],
+    });
+    const outcome = await runLegacyTaskMigrationExecution(makeCtx(sb));
+    assertAwaitingAction(outcome);
+    assertStepsNonEmpty(outcome.steps);
+    expect(outcome.artifacts[0].type).toBe("legacy_migration_report");
+    expect(outcome.artifacts[0].scanned).toBeGreaterThan(0);
+    // Verify NO direct mutations happened — only a proposal
+    expect(inserted.hivemind_tasks).toBeUndefined();
+    expect(inserted.hivemind_actions![0].action_type).toBe("hivemind_execute_legacy_task_migration");
   });
 });
 
@@ -596,5 +628,174 @@ describe("GrowthMind content adapters — provider_action_unsupported when no pr
     const outcome = await runSeoCampaignExecution(makeCtx(sb));
     assertAwaitingAction(outcome);
     expect(outcome.artifacts[0].type).toBe("seo_campaign_brief");
+  });
+});
+
+// ════════════════════════════════════════════════════════════════════════════
+// Stall watchdog — sweepStalledExecutions behaviour
+// ════════════════════════════════════════════════════════════════════════════
+describe("sweepStalledExecutions watchdog", () => {
+  const staleTs = new Date(Date.now() - 10 * 60 * 1000).toISOString(); // 10 min ago
+  const freshTs = new Date(Date.now() - 2 * 60 * 1000).toISOString();  // 2 min ago
+
+  it("rows in 'executing' older than threshold → transitioned to worker_interrupted, count returned", async () => {
+    const updatedRows: any[] = [];
+    const updatedTasks: any[] = [];
+
+    // Fake SB for watchdog: the update chain is
+    //   .update({}).eq("id").eq("workspace_id").eq("status").select("id")
+    // = 3 .eq() calls then .select().
+    const updateChain = (id: string, patch: any) => ({
+      eq: () => ({ eq: () => ({ eq: () => ({ select: () => ({
+        then: (resolve: any) => resolve({ data: [{ id }], error: null }),
+      }) }) }) }),
+    });
+
+    const sb = {
+      from: (table: string) => {
+        if (table === "mind_task_executions") {
+          const b: any = {
+            select: () => b,
+            in: () => b,
+            lt: () => b,
+            eq: () => b,
+            limit: () => ({
+              then: (resolve: any) => resolve({
+                data: [{ id: "ex-stale", workspace_id: WS, task_id: "t1", status: "executing", updated_at: staleTs }],
+                error: null,
+              }),
+            }),
+            update: (patch: any) => {
+              updatedRows.push(patch);
+              return updateChain("ex-stale", patch);
+            },
+          };
+          return b;
+        }
+        if (table === "hivemind_tasks") {
+          return {
+            update: (patch: any) => {
+              updatedTasks.push(patch);
+              return { eq: () => ({ eq: () => Promise.resolve({ error: null }) }) };
+            },
+          };
+        }
+        return { select: () => ({ eq: () => ({ limit: () => ({ then: (r: any) => r({ data: [], error: null }) }) }) }) };
+      },
+    };
+
+    const result = await sweepStalledExecutions(sb as any, WS);
+    expect(result.interrupted).toBe(1);
+    expect(updatedRows[0].status).toBe("worker_interrupted");
+    expect(updatedRows[0].blocked_reason).toMatch(/Worker did not report progress/);
+    expect(updatedTasks[0].execution_status).toBe("worker_interrupted");
+  });
+
+  it("rows in 'queued' older than threshold → also transitioned to worker_interrupted", async () => {
+    const updatedRows: any[] = [];
+
+    const updateChain = (id: string, patch: any) => ({
+      eq: () => ({ eq: () => ({ eq: () => ({ select: () => ({
+        then: (resolve: any) => resolve({ data: [{ id }], error: null }),
+      }) }) }) }),
+    });
+
+    const sb = {
+      from: (table: string) => {
+        if (table === "mind_task_executions") {
+          const b: any = {
+            select: () => b,
+            in: () => b,
+            lt: () => b,
+            eq: () => b,
+            limit: () => ({
+              then: (resolve: any) => resolve({
+                data: [{ id: "ex-q", workspace_id: WS, task_id: "t2", status: "queued", updated_at: staleTs }],
+                error: null,
+              }),
+            }),
+            update: (patch: any) => {
+              updatedRows.push(patch);
+              return updateChain("ex-q", patch);
+            },
+          };
+          return b;
+        }
+        if (table === "hivemind_tasks") {
+          return { update: () => ({ eq: () => ({ eq: () => Promise.resolve({ error: null }) }) }) };
+        }
+        return { select: () => ({ eq: () => ({ limit: () => ({ then: (r: any) => r({ data: [], error: null }) }) }) }) };
+      },
+    };
+
+    const result = await sweepStalledExecutions(sb as any, WS);
+    expect(result.interrupted).toBe(1);
+    expect(updatedRows[0].status).toBe("worker_interrupted");
+  });
+
+  it("fresh 'executing' rows (within threshold) → NOT transitioned (0 interrupted)", async () => {
+    const sb = {
+      from: (table: string) => {
+        if (table === "mind_task_executions") {
+          const b: any = {
+            select: () => b,
+            in: () => b,
+            lt: () => b,
+            eq: () => b,
+            limit: () => ({
+              then: (resolve: any) => resolve({
+                // The fake lt filter here doesn't filter — we return empty to simulate
+                // that the DB's lt(updated_at, cutoff) would exclude fresh rows.
+                data: [],
+                error: null,
+              }),
+            }),
+          };
+          return b;
+        }
+        return { select: () => ({ eq: () => ({ limit: () => ({ then: (r: any) => r({ data: [], error: null }) }) }) }) };
+      },
+    };
+
+    const result = await sweepStalledExecutions(sb as any, WS);
+    expect(result.interrupted).toBe(0);
+  });
+
+  it("completed rows are never transitioned (assertTransition guard)", async () => {
+    const updatedRows: any[] = [];
+
+    const sb = {
+      from: (table: string) => {
+        if (table === "mind_task_executions") {
+          const b: any = {
+            select: () => b,
+            in: () => b,
+            lt: () => b,
+            eq: () => b,
+            limit: () => ({
+              then: (resolve: any) => resolve({
+                data: [{ id: "ex-done", workspace_id: WS, task_id: "t3", status: "completed", updated_at: staleTs }],
+                error: null,
+              }),
+            }),
+            update: (patch: any) => {
+              updatedRows.push(patch);
+              return {
+                eq: () => ({ eq: () => ({ eq: () => ({ eq: () => ({ select: () => ({
+                  then: (resolve: any) => resolve({ data: [], error: null }),
+                }) }) }) }) }),
+              };
+            },
+          };
+          return b;
+        }
+        return { select: () => ({ eq: () => ({ limit: () => ({ then: (r: any) => r({ data: [], error: null }) }) }) }) };
+      },
+    };
+
+    const result = await sweepStalledExecutions(sb as any, WS);
+    expect(result.interrupted).toBe(0);
+    // No update should have been attempted (assertTransition throws for completed→worker_interrupted)
+    expect(updatedRows).toHaveLength(0);
   });
 });

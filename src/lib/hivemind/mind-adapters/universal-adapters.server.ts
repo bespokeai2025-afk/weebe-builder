@@ -300,7 +300,11 @@ export async function runWorkflowDepthExecution(ctx: AdapterContext): Promise<Ad
 }
 
 // ════════════════════════════════════════════════════════════════════════════
-// AccountsMind adapters — read-only audit re-run, then linked action for billing
+// AccountsMind adapters — pure read-only audit, then linked action for billing
+//
+// We call the exported runXxxAudit helpers directly (read-only) and NEVER
+// call createFinancialAuditWorkOrderCore, which inserts work_orders /
+// hivemind_tasks rows.  Mutations are gated behind a linked hivemind_action.
 // ════════════════════════════════════════════════════════════════════════════
 
 const FINANCIAL_AUDIT_EXEC_STEPS = [
@@ -313,23 +317,29 @@ const FINANCIAL_AUDIT_EXEC_STEPS = [
 
 export function initialFinancialAuditSteps(): ExecutionStep[] { return makeSteps(FINANCIAL_AUDIT_EXEC_STEPS); }
 
-async function runFinancialAuditAdapter(
-  ctx: AdapterContext,
-  auditKind: "invoice_audit" | "renewals_audit" | "outgoings_audit" | "client_costing_audit",
-): Promise<AdapterOutcome> {
+type AuditKind = "invoice_audit" | "renewals_audit" | "outgoings_audit" | "client_costing_audit";
+
+async function runFinancialAuditAdapter(ctx: AdapterContext, auditKind: AuditKind): Promise<AdapterOutcome> {
   let steps = initialFinancialAuditSteps();
 
   steps = stepUpdate(steps, "load_records", { status: "running" });
   await saveSteps(ctx, steps, 0);
 
-  const { createFinancialAuditWorkOrderCore } = await import(
-    "@/lib/accountsmind/financial-audit-work-orders.server"
-  );
+  // Import ONLY the pure audit runners — no work-order creation side effects.
+  const {
+    runInvoiceAudit,
+    runRenewalsAudit,
+    runOutgoingsAudit,
+    runClientCostingAudit,
+  } = await import("@/lib/accountsmind/financial-audit-work-orders.server");
 
   let audit: any;
   try {
-    const res = await createFinancialAuditWorkOrderCore(ctx.sb, ctx.workspaceId, ctx.userId, auditKind, {});
-    audit = res.audit;
+    audit =
+      auditKind === "invoice_audit"      ? await runInvoiceAudit(ctx.sb, ctx.workspaceId)
+      : auditKind === "renewals_audit"   ? await runRenewalsAudit(ctx.sb, ctx.workspaceId)
+      : auditKind === "outgoings_audit"  ? await runOutgoingsAudit(ctx.sb, ctx.workspaceId)
+      : await runClientCostingAudit(ctx.sb, ctx.workspaceId);
   } catch (err: any) {
     steps = stepUpdate(steps, "load_records", { status: "failed", detail: err?.message ?? String(err) });
     await saveSteps(ctx, steps, 0);
@@ -441,10 +451,18 @@ const CHANNEL_SEND_STEPS = [
 
 export function initialChannelSendSteps(): ExecutionStep[] { return makeSteps(CHANNEL_SEND_STEPS); }
 
+/**
+ * runChannelSendAdapter — core channel send adapter.
+ *
+ * providerCheck: explicit async function returning true/false for the
+ * specific channel's provider connectivity.  Each channel wrapper supplies
+ * its own check so the gate is never accidentally skipped by passing an
+ * empty table string.
+ */
 async function runChannelSendAdapter(
   ctx: AdapterContext,
   channel: "email" | "whatsapp" | "calls" | "followup",
-  providerTable: string,
+  providerCheck: () => Promise<boolean>,
   actionType: string,
   sensitive: boolean,
 ): Promise<AdapterOutcome> {
@@ -492,16 +510,11 @@ async function runChannelSendAdapter(
   });
   await saveSteps(ctx, steps, 2);
 
-  // 3. Schedule + provider check
+  // 3. Provider connectivity + schedule confirm
   steps = stepUpdate(steps, "schedule_confirm", { status: "running" });
   await saveSteps(ctx, steps, 2);
 
-  let providerConnected = true;
-  if (providerTable) {
-    const { data: provRows } = await ctx.sb.from(providerTable)
-      .select("id").eq("workspace_id", ctx.workspaceId).limit(1);
-    providerConnected = (provRows ?? []).length > 0;
-  }
+  const providerConnected = await providerCheck();
 
   if (!providerConnected) {
     steps = stepUpdate(steps, "schedule_confirm", {
@@ -563,17 +576,63 @@ async function runChannelSendAdapter(
   };
 }
 
+// ── Per-channel provider checks ──────────────────────────────────────────────
+
+/**
+ * Email: WEBEE provides platform-level email via Resend as a fallback for
+ * every workspace.  Individual workspaces may also configure a custom SMTP
+ * or provider — but the channel is always available.  Returns true always.
+ */
+async function checkEmailProviderConnected(_sb: any, _workspaceId: string): Promise<boolean> {
+  return true;
+}
+
+/**
+ * WhatsApp: workspace must have a configured whatsapp_provider in its
+ * workspace_settings row (Twilio, WATI, or Meta).  Without one the channel
+ * cannot send.
+ */
+async function checkWhatsAppProviderConnected(sb: any, workspaceId: string): Promise<boolean> {
+  const { data: ws } = await sb.from("workspace_settings")
+    .select("whatsapp_provider").eq("workspace_id", workspaceId).maybeSingle();
+  return !!(ws?.whatsapp_provider);
+}
+
+/**
+ * Calls: an outbound voice agent must exist in this workspace.
+ */
+async function checkCallsProviderConnected(sb: any, workspaceId: string): Promise<boolean> {
+  const { data: rows } = await sb.from("agents")
+    .select("id").eq("workspace_id", workspaceId).limit(1);
+  return (rows ?? []).length > 0;
+}
+
+/**
+ * Follow-up sequences: email-based (uses platform Resend), always available.
+ */
+async function checkFollowUpProviderConnected(_sb: any, _workspaceId: string): Promise<boolean> {
+  return true;
+}
+
 export async function runChannelEmailExecution(ctx: AdapterContext): Promise<AdapterOutcome> {
-  return runChannelSendAdapter(ctx, "email", "", "hivemind_execute_email_campaign", true);
+  return runChannelSendAdapter(ctx, "email",
+    () => checkEmailProviderConnected(ctx.sb, ctx.workspaceId),
+    "hivemind_execute_email_campaign", true);
 }
 export async function runChannelWhatsAppExecution(ctx: AdapterContext): Promise<AdapterOutcome> {
-  return runChannelSendAdapter(ctx, "whatsapp", "", "hivemind_execute_whatsapp_campaign", true);
+  return runChannelSendAdapter(ctx, "whatsapp",
+    () => checkWhatsAppProviderConnected(ctx.sb, ctx.workspaceId),
+    "hivemind_execute_whatsapp_campaign", true);
 }
 export async function runChannelCallsExecution(ctx: AdapterContext): Promise<AdapterOutcome> {
-  return runChannelSendAdapter(ctx, "calls", "agents", "hivemind_execute_call_campaign", true);
+  return runChannelSendAdapter(ctx, "calls",
+    () => checkCallsProviderConnected(ctx.sb, ctx.workspaceId),
+    "hivemind_execute_call_campaign", true);
 }
 export async function runChannelFollowUpExecution(ctx: AdapterContext): Promise<AdapterOutcome> {
-  return runChannelSendAdapter(ctx, "followup", "", "hivemind_execute_followup_sequence", true);
+  return runChannelSendAdapter(ctx, "followup",
+    () => checkFollowUpProviderConnected(ctx.sb, ctx.workspaceId),
+    "hivemind_execute_followup_sequence", true);
 }
 
 // ────────────────────────────────────────────────────────────────────────────
@@ -772,12 +831,17 @@ export async function runSalesPipelineReviewExecution(ctx: AdapterContext): Prom
 
 // ────────────────────────────────────────────────────────────────────────────
 // HiveMind legacy task migration
+//
+// Classification is read-only.  Actual task mutations (convert/label/dismiss)
+// are NOT executed inline — they are proposed as a linked hivemind_action so
+// the user can approve or reject the migration plan before anything changes.
 // ────────────────────────────────────────────────────────────────────────────
 
 const LEGACY_MIGRATION_STEPS = [
-  { key: "classify",  label: "Classify legacy shallow tasks" },
-  { key: "migrate",   label: "Migrate: convert convertible, label others, dismiss obsolete" },
-  { key: "report",    label: "Compile migration report" },
+  { key: "classify",       label: "Classify legacy shallow tasks (read-only)" },
+  { key: "report",         label: "Compile migration plan report" },
+  { key: "propose_migrate",label: "Propose migration action for approval" },
+  { key: "execute_migrate",label: "Execute approved migration (convert/label/dismiss)" },
 ];
 
 export function initialLegacyMigrationSteps(): ExecutionStep[] { return makeSteps(LEGACY_MIGRATION_STEPS); }
@@ -785,51 +849,83 @@ export function initialLegacyMigrationSteps(): ExecutionStep[] { return makeStep
 export async function runLegacyTaskMigrationExecution(ctx: AdapterContext): Promise<AdapterOutcome> {
   let steps = initialLegacyMigrationSteps();
 
+  // 1. Classify — purely read-only
   steps = stepUpdate(steps, "classify", { status: "running" });
   await saveSteps(ctx, steps, 0);
 
-  const { classifyLegacyTasks, migrateLegacyTasks } = await import("@/lib/minds/legacy-task-migration.server");
+  const { classifyLegacyTasks } = await import("@/lib/minds/legacy-task-migration.server");
   const { classifications, counts } = await classifyLegacyTasks(ctx.sb, ctx.workspaceId, { limit: 200 });
 
+  const dismissable = (counts.obsolete ?? 0) + (counts.duplicate ?? 0) + (counts.superseded ?? 0) + (counts.invalid ?? 0);
   steps = stepUpdate(steps, "classify", {
     status: "done",
-    detail: `${classifications.length} legacy task(s) classified: ${counts.convertible} convertible, ${counts.obsolete + counts.duplicate + counts.superseded + counts.invalid} to dismiss, ${counts.missing_context} need context.`,
+    detail: `${classifications.length} legacy task(s) classified: ${counts.convertible} convertible, ${dismissable} to dismiss, ${counts.missing_context ?? 0} need context.`,
   });
   await saveSteps(ctx, steps, 1);
 
-  steps = stepUpdate(steps, "migrate", { status: "running" });
-  await saveSteps(ctx, steps, 1);
-
-  const result = await migrateLegacyTasks(ctx.sb, ctx.workspaceId, { limit: 200 });
-
-  steps = stepUpdate(steps, "migrate", {
-    status: "done",
-    detail: `Converted: ${result.converted}, labelled: ${result.labelled}, dismissed: ${result.disabled}.`,
-  });
-  await saveSteps(ctx, steps, 2);
-
+  // 2. Compile report artifact (read-only; nothing mutated yet)
   steps = stepUpdate(steps, "report", { status: "running" });
-  await saveSteps(ctx, steps, 2);
+  await saveSteps(ctx, steps, 1);
   const artifacts = [{
     type: "legacy_migration_report",
     generated_at: new Date().toISOString(),
-    scanned: result.scanned,
-    converted: result.converted,
-    labelled: result.labelled,
-    disabled: result.disabled,
-    counts: result.counts,
+    scanned: classifications.length,
+    counts,
+    preview: classifications.slice(0, 25).map((c: any) => ({ taskId: c.taskId, klass: c.klass, reason: c.reason })),
   }];
-  steps = stepUpdate(steps, "report", { status: "done", detail: "Migration report compiled." });
+  steps = stepUpdate(steps, "report", {
+    status: "done",
+    detail: `Migration plan compiled: ${counts.convertible} convert, ${dismissable} dismiss, ${counts.missing_context ?? 0} need context.`,
+  });
   await saveSteps(ctx, steps, 2);
 
-  return {
-    status: "completed", steps, artifacts,
-    result: {
-      summary: `Legacy migration complete: ${result.converted} converted, ${result.labelled} labelled, ${result.disabled} dismissed.`,
-      ...result,
+  // 3. If nothing to act on, report clean and return completed
+  const actionable = (counts.convertible ?? 0) + dismissable;
+  if (actionable === 0) {
+    steps = stepUpdate(steps, "propose_migrate", { status: "skipped", detail: "No actionable legacy tasks — all tasks are already up to date." });
+    steps = stepUpdate(steps, "execute_migrate", { status: "skipped", detail: "Nothing to migrate." });
+    await saveSteps(ctx, steps, 3);
+    return {
+      status: "completed", steps, artifacts,
+      result: { summary: `Legacy task scan complete: ${classifications.length} task(s) scanned, 0 actionable.`, scanned: classifications.length, ...counts },
+      evidence: { scanned: classifications.length, actionable: 0, verified_at: new Date().toISOString() },
+      linkedActionId: null, blockedReason: null, errorMessage: null,
+    };
+  }
+
+  // 4. Propose migration action — mutations happen ONLY after approval
+  steps = stepUpdate(steps, "propose_migrate", { status: "running" });
+  await saveSteps(ctx, steps, 2);
+
+  const actionResult = await proposeLinkedAction(ctx, {
+    title: `Migrate ${actionable} legacy task(s): ${counts.convertible} convert, ${dismissable} dismiss`,
+    description: `Apply the approved migration plan: convert ${counts.convertible} task(s) to intelligence-packet standard and dismiss ${dismissable} obsolete/duplicate task(s). No task changes happen until this action is approved.`,
+    action_type: "hivemind_execute_legacy_task_migration",
+    action_payload: {
+      scanned: classifications.length,
+      convertible: counts.convertible,
+      dismissable,
+      missing_context: counts.missing_context ?? 0,
+      preview_task_ids: classifications.slice(0, 50).map((c: any) => c.taskId),
     },
-    evidence: { scanned: result.scanned, converted: result.converted, labelled: result.labelled, disabled: result.disabled, verified_at: new Date().toISOString() },
-    linkedActionId: null, blockedReason: null, errorMessage: null,
+    sensitive: false,
+  });
+
+  if ("error" in actionResult) {
+    steps = stepUpdate(steps, "propose_migrate", { status: "failed", detail: actionResult.error });
+    await saveSteps(ctx, steps, 2);
+    return fail(steps, `Failed to propose migration action: ${actionResult.error}`);
+  }
+
+  steps = stepUpdate(steps, "propose_migrate", { status: "done", detail: "Migration plan proposed — awaiting approval." });
+  steps = stepUpdate(steps, "execute_migrate", { status: "blocked", detail: "Awaiting migration action approval before any task changes." });
+  await saveSteps(ctx, steps, 3);
+
+  return {
+    status: "awaiting_action_approval", steps, artifacts,
+    result: null, evidence: null,
+    linkedActionId: actionResult.actionId,
+    blockedReason: null, errorMessage: null,
   };
 }
 

@@ -67,8 +67,10 @@ function pounds(cents: number, currency: string): string {
 }
 
 // ── Typed audits (real rows only) ────────────────────────────────────────────
+// These are exported so execution adapters can run a pure read-only audit
+// without calling createFinancialAuditWorkOrderCore (which inserts rows).
 
-async function runInvoiceAudit(sb: Sb, workspaceId: string): Promise<FinancialAuditResult> {
+export async function runInvoiceAudit(sb: Sb, workspaceId: string): Promise<FinancialAuditResult> {
   const { data, error } = await sb.from("accountsmind_invoices")
     .select("id, invoice_number, client_name, status, total_cents, amount_paid_cents, currency, due_date, issue_date, paid_at")
     .eq("workspace_id", workspaceId)
@@ -119,7 +121,7 @@ async function runInvoiceAudit(sb: Sb, workspaceId: string): Promise<FinancialAu
   };
 }
 
-async function runRenewalsAudit(sb: Sb, workspaceId: string): Promise<FinancialAuditResult> {
+export async function runRenewalsAudit(sb: Sb, workspaceId: string): Promise<FinancialAuditResult> {
   const { data, error } = await sb.from("accountsmind_recurring_invoices")
     .select("id, name, active, day_of_month, last_generated_month, currency, items_json, due_days")
     .eq("workspace_id", workspaceId)
@@ -184,7 +186,7 @@ async function runRenewalsAudit(sb: Sb, workspaceId: string): Promise<FinancialA
   };
 }
 
-async function runClientCostingAudit(sb: Sb, workspaceId: string): Promise<FinancialAuditResult> {
+export async function runClientCostingAudit(sb: Sb, workspaceId: string): Promise<FinancialAuditResult> {
   const { data, error } = await sb.from("accountsmind_invoices")
     .select("id, invoice_number, client_name, status, total_cents, amount_paid_cents, currency, paid_at, due_date")
     .eq("workspace_id", workspaceId)
@@ -238,7 +240,7 @@ async function runClientCostingAudit(sb: Sb, workspaceId: string): Promise<Finan
   };
 }
 
-async function runOutgoingsAudit(sb: Sb, workspaceId: string): Promise<FinancialAuditResult> {
+export async function runOutgoingsAudit(sb: Sb, workspaceId: string): Promise<FinancialAuditResult> {
   // Real provider spend rows (USD) — this month vs the previous month, per provider.
   const now = new Date();
   const monthStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1)).toISOString();
