@@ -310,27 +310,20 @@ async function fetchWorkspaceRestrictions(workspaceId: string): Promise<Array<{ 
 
 async function fetchBusinessDnaAllowList(workspaceId: string): Promise<string[]> {
   try {
-    // Select both known allow-list sources; `verified_claims` may not exist on older schemas
-    // — PostgREST will return the column when present and omit it silently when absent.
+    // Both columns are strings in the schema (pipe/semicolon/newline-delimited lists).
+    // `approved_claims` is the canonical allow-list; `unique_selling_points` holds USPs
+    // that the workspace has confirmed are accurate.
     const { data } = await sb
       .from("growthmind_business_dna")
-      .select("unique_selling_points, verified_claims")
+      .select("unique_selling_points, approved_claims")
       .eq("workspace_id", workspaceId)
       .maybeSingle();
     if (!data) return [];
-    const claims: string[] = [];
-    if (typeof data.unique_selling_points === "string" && data.unique_selling_points.trim()) {
-      claims.push(
-        ...data.unique_selling_points
-          .split(/[;,\n]/)
-          .map((s: string) => s.trim())
-          .filter((s: string) => s.length > 5),
-      );
-    }
-    if (Array.isArray(data.verified_claims)) {
-      claims.push(...data.verified_claims.map(String).filter((s: string) => s.length > 5));
-    }
-    return claims;
+    const parseColumn = (col: string | null | undefined): string[] =>
+      (typeof col === "string" && col.trim())
+        ? col.split(/[;,\n]/).map((s) => s.trim()).filter((s) => s.length > 5)
+        : [];
+    return [...parseColumn(data.unique_selling_points), ...parseColumn(data.approved_claims)];
   } catch {
     return [];
   }
@@ -561,6 +554,53 @@ export async function runContentSafetyCheck(
     unsafeUrls.length === 0 ? "warning" : "violation",
   );
 
+  // ── Universal claim classification pass ────────────────────────────────────
+  // Every sentence that could be making a factual assertion gets classified into
+  // one of the required categories. Sentences already classified by the violation
+  // checks above are skipped (they already have a category).
+  const classifiedTexts = new Set(claimClassifications.map((c) => c.text));
+  for (const s of sentences) {
+    const key = s.slice(0, 200);
+    if (classifiedTexts.has(key)) continue;               // already classified by a check
+    if (s.trim().endsWith("?")) continue;                  // skip questions
+    if (s.split(/\s+/).length < 5) continue;               // skip very short fragments
+
+    // Heuristic: a sentence is "factual-sounding" if it contains a quantitative
+    // term, a performance word, or any of the sourcing/estimate/hypothesis patterns.
+    const hasQuantitative    = /\d|%|roi|revenue|growth|increase|decrease|improv|reduc|cost|saving|customer/i.test(s);
+    const hasClaim           = /\bis\b|\bare\b|\bhas\b|\bhave\b|\benables?\b|\bhelps?\b|\bdrives?\b|\bdeliver/i.test(s);
+    const hasSourcing        = hasSourcingContext(s);
+    const hasEstimateOrHypo  = ESTIMATE_PATTERNS.some((p) => p.test(s)) ||
+                               HYPOTHESIS_PATTERNS.some((p) => p.test(s)) ||
+                               HYPOTHETICAL_PATTERNS.some((p) => p.test(s));
+
+    if (!hasQuantitative && !hasClaim && !hasSourcing && !hasEstimateOrHypo) continue;
+
+    // Apply classification hierarchy.
+    let category: ClaimCategory;
+    let reason: string;
+
+    if (matchesAllowList(s, allowedClaims)) {
+      category = "approved_customer_evidence";
+      reason   = "Matches workspace-approved claim in Business DNA";
+    } else {
+      category = classifyClaimSentence(s);
+      reason   = (() => {
+        switch (category) {
+          case "verified_internal_fact":              return "Contains a sourcing marker referencing internal data";
+          case "verified_external_source":            return "Contains an explicit external source citation";
+          case "labelled_estimate":                   return "Claim is clearly labelled as an estimate";
+          case "labelled_hypothesis":                 return "Claim is clearly labelled as a hypothesis or belief";
+          case "labelled_hypothetical":               return "Claim is clearly labelled as a hypothetical example";
+          default:                                    return "Factual assertion without a declared source or label";
+        }
+      })();
+    }
+
+    claimClassifications.push({ text: key, category, reason });
+    classifiedTexts.add(key);
+  }
+
   const violations = checks.filter((c) => !c.passed && c.severity === "violation").map((c) => `${c.check}: ${c.detail}`);
   const warnings   = checks.filter((c) => !c.passed && c.severity === "warning").map((c) => `${c.check}: ${c.detail}`);
 
@@ -592,7 +632,7 @@ export function safetyCheckEvidenceItem(result: SafetyCheckResult): {
   retrieved_at: string;
 } {
   return {
-    source: "content_safety_gate",
+    source: "safety_check",
     description: result.passed
       ? `Content safety gate passed (${result.checks.length} checks, ${result.warnings.length} warning(s)).`
       : `Content safety gate FAILED: ${result.violations.length} violation(s) — ${result.violations

@@ -130,7 +130,7 @@ function injectSafetyGateBlockerIfNeeded(
   packet: UniversalMindIntelligencePacket,
 ): UniversalMindIntelligencePacket {
   const safetyEvidence = packet.evidence.find(
-    (e) => e.source === "content_safety_gate" && e.data?.passed === false,
+    (e) => e.source === "safety_check" && e.data?.passed === false,
   );
   if (!safetyEvidence) return packet;
 

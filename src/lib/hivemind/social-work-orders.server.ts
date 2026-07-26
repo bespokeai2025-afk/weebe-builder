@@ -680,7 +680,7 @@ export async function createContentDeploymentWorkOrderCore(
     ...(variantSafetyEvidenceItem
       ? [variantSafetyEvidenceItem]
       : [f.evidenceItem(
-          "content_safety_gate",
+          "safety_check",
           variantSafetyPassed
             ? "Content safety gate: all adapted variant text passed."
             : `Content safety gate: ${variantSafetyViolations.length} violation(s) — variants blocked.`,

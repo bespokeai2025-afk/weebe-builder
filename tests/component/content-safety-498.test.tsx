@@ -512,7 +512,7 @@ describe("prepareMindTaskInsert — safety gate blocker injection", () => {
     } = await import("@/lib/minds/intelligence-packet.server");
 
     const safetyFailEvidence = {
-      source: "content_safety_gate",
+      source: "safety_check",
       description: "FAILED: 1 violation(s). Approval blocked.",
       data: { passed: false, violation_count: 1, violations: ["fabricated_statistics: some detail"] },
       retrieved_at: new Date().toISOString(),
@@ -558,7 +558,7 @@ describe("prepareMindTaskInsert — safety gate blocker injection", () => {
     } = await import("@/lib/minds/intelligence-packet.server");
 
     const safetyPassEvidence = {
-      source: "content_safety_gate",
+      source: "safety_check",
       description: "PASSED: all checks cleared.",
       data: { passed: true, violation_count: 0, violations: [] },
       retrieved_at: new Date().toISOString(),
@@ -606,7 +606,7 @@ describe("prepareMindTaskInsert — safety gate blocker injection", () => {
     } = await import("@/lib/minds/intelligence-packet.server");
 
     const safetyFailEvidence = {
-      source: "content_safety_gate",
+      source: "safety_check",
       description: "FAILED: 2 violation(s).",
       data: { passed: false, violation_count: 2, violations: ["v1", "v2"] },
       retrieved_at: new Date().toISOString(),
@@ -655,7 +655,7 @@ describe("safetyCheckEvidenceItem", () => {
       contentKind: "email_campaign",
     };
     const ev = safetyCheckEvidenceItem(result);
-    expect(ev.source).toBe("content_safety_gate");
+    expect(ev.source).toBe("safety_check");
     expect(ev.data.passed).toBe(true);
     expect(typeof ev.retrieved_at).toBe("string");
   });
