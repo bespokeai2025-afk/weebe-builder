@@ -321,7 +321,7 @@ async function fetchBusinessDnaAllowList(workspaceId: string): Promise<string[]>
     if (!data) return [];
     const parseColumn = (col: string | null | undefined): string[] =>
       (typeof col === "string" && col.trim())
-        ? col.split(/[;,\n]/).map((s) => s.trim()).filter((s) => s.length > 5)
+        ? col.split(/[;,|\n]/).map((s) => s.trim()).filter((s) => s.length > 5)
         : [];
     return [...parseColumn(data.unique_selling_points), ...parseColumn(data.approved_claims)];
   } catch {

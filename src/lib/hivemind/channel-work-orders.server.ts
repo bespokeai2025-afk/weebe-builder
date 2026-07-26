@@ -542,15 +542,23 @@ export async function createWhatsAppCampaignWorkOrderCore(
       const safetyResult = await safetyMod.runContentSafetyCheck(waTemplateText, "whatsapp_campaign", workspaceId);
       waSafetyEv = safetyMod.safetyCheckEvidenceItem(safetyResult);
     } else {
-      waSafetyEv = evidenceItem("safety_check",
-        "Content safety gate: no template copy available at planning stage — gate will apply when copy is produced.",
-        { applied: false, reason: "no_template_text_available" });
+      // No template copy available yet — fail-closed so approval is blocked until
+      // a real template body can be checked. The packet blocker fires on passed===false.
+      waSafetyEv = {
+        source: "safety_check",
+        description: "Content safety gate FAILED: no WhatsApp template copy is available to check — approval blocked until a template is staged and passes the gate.",
+        data: { passed: false, violation_count: 1, violations: ["gate_error: no template copy available — stage a template before approving"], warnings: [] },
+        retrieved_at: new Date().toISOString(),
+      };
     }
   } catch (err: any) {
     console.error("[wa-work-order] Safety gate error:", err?.message ?? err);
-    waSafetyEv = evidenceItem("safety_check",
-      "Content safety gate: error running gate on template copy — treating as unchecked.",
-      { applied: false, reason: "gate_error" });
+    waSafetyEv = {
+      source: "safety_check",
+      description: "Content safety gate FAILED: gate error on template copy — approval blocked until the gate runs successfully.",
+      data: { passed: false, violation_count: 1, violations: [`gate_error: ${(err?.message ?? "unknown error").slice(0, 200)}`], warnings: [] },
+      retrieved_at: new Date().toISOString(),
+    };
   }
 
   const stages = approvalStagesForChannel("whatsapp");
@@ -753,7 +761,51 @@ export async function createEmailCampaignWorkOrderCore(
     resolved: true,
     resolution_note: `${compliance.eligible.length} eligible recipient(s) after suppression/dedup; sender domain ${readiness ? `health ${readiness.score}/100 (${readiness.grade})` : "missing"}.`,
   }];
-  const evidence: PacketEvidence[] = [
+  // ── Safety gate on email template copy (for the Copy approval stage) ────────
+  // Load available active email templates and run the gate on the first one so
+  // the Copy stage packet gets a real pass/fail evidence item.
+  // All other stages (Audience/Sequence/Schedule/Send) use a non-blocking
+  // "applied: false" placeholder — copy hasn't been selected yet for those stages.
+  const { data: emailTemplates } = await sb.from("hexmail_templates")
+    .select("id, name, content, subject")
+    .eq("workspace_id", workspaceId)
+    .eq("type", "email")
+    .eq("status", "active")
+    .order("updated_at", { ascending: false })
+    .limit(3);
+  const availableEmailTemplates = (emailTemplates ?? []) as any[];
+
+  let copyStageSafetyEv: { source: string; description: string; data: Record<string, unknown>; retrieved_at: string };
+  try {
+    if (availableEmailTemplates.length > 0 && availableEmailTemplates[0].content?.trim()) {
+      const safetyMod = await import("@/lib/content-safety/universal-content-safety.server");
+      const safetyResult = await safetyMod.runContentSafetyCheck(
+        availableEmailTemplates[0].content, "email_campaign", workspaceId,
+      );
+      copyStageSafetyEv = safetyMod.safetyCheckEvidenceItem(safetyResult);
+    } else {
+      copyStageSafetyEv = {
+        source: "safety_check",
+        description: "Content safety gate FAILED: no email template copy is staged — approval blocked until an email template with content is created and passes the gate.",
+        data: { passed: false, violation_count: 1, violations: ["gate_error: no email template copy available — create an email template in HexMail before approving the Copy stage"], warnings: [], templates_checked: 0 },
+        retrieved_at: new Date().toISOString(),
+      };
+    }
+  } catch (err: any) {
+    console.error("[email-work-order] Safety gate error:", err?.message ?? err);
+    copyStageSafetyEv = {
+      source: "safety_check",
+      description: "Content safety gate FAILED: gate error on email template — approval blocked until the gate runs successfully.",
+      data: { passed: false, violation_count: 1, violations: [`gate_error: ${(err?.message ?? "unknown error").slice(0, 200)}`], warnings: [] },
+      retrieved_at: new Date().toISOString(),
+    };
+  }
+  // Non-copy stages: safety gate is N/A (copy not yet selected) — use a non-blocking placeholder.
+  const nonCopyStageSafetyEv = evidenceItem("safety_check",
+    "Content safety gate: copy not applicable for this approval stage.",
+    { applied: false, reason: "non_copy_stage" });
+
+  const baseEvidence: PacketEvidence[] = [
     audienceEvidence(evidenceItem, compliance, filter),
     evidenceItem("email_sender_domains",
       readiness
@@ -764,17 +816,19 @@ export async function createEmailCampaignWorkOrderCore(
     evidenceItem("hexmail_campaigns", `${(hexCampaigns ?? []).length} existing HexMail campaign(s) available as sequence sources.`, {
       campaigns: (hexCampaigns ?? []).map((c: any) => ({ id: c.id, name: c.name, status: c.status })),
     }),
-    evidenceItem("safety_check",
-      "Content safety gate: email copy not yet drafted — safety gate will apply when campaign copy is generated and staged at the Copy approval step.",
-      { applied: false, reason: "email_copy_not_yet_staged" }),
+    evidenceItem("hexmail_templates",
+      `${availableEmailTemplates.length} active email template(s) available${availableEmailTemplates.length > 0 ? `: ${availableEmailTemplates.map((t: any) => t.name).join(", ")}` : " — create a template in HexMail before the Copy stage"}.`,
+      { count: availableEmailTemplates.length, names: availableEmailTemplates.map((t: any) => t.name) }),
   ];
+
   const diagnosis =
     `Email campaign feasibility: ${compliance.eligible.length} of ${rawLeads.length} lead(s) reachable after suppression and dedup; ` +
     (readiness
       ? healthFailed
         ? `sender domain health ${readiness.score}/100 (${readiness.grade}) — FAILING; campaign blocked until deliverability is fixed.`
         : `sender domain health ${readiness.score}/100 (${readiness.grade}).`
-      : "no verified sender domain — campaign blocked until deliverability is set up.");
+      : "no verified sender domain — campaign blocked until deliverability is set up.") +
+    ` ${availableEmailTemplates.length} email template(s) available for copy selection.`;
   const objective = opts.objective?.trim() ||
     "Run an email campaign to the eligible lead segment with split Audience/Copy/Sequence/Schedule/Send approvals and suppression enforcement.";
   const intentSource = opts.source === "hivemind_tool" ? "chat_tool:create_email_campaign_work_order" : "manual:email_work_order";
@@ -784,11 +838,15 @@ export async function createEmailCampaignWorkOrderCore(
     "Sending requires ALL stage approvals plus a healthy verified sender domain.",
   ];
 
-  const mk = (stage: ApprovalStage, summary: string, planSteps: Array<{ title: string }>) =>
+  // Per-stage evidence: Copy stage gets a real gate result; all other stages get a non-blocking placeholder.
+  const copyStageEvidence: PacketEvidence[] = [...baseEvidence, copyStageSafetyEv];
+  const otherStageEvidence: PacketEvidence[] = [...baseEvidence, nonCopyStageSafetyEv];
+
+  const mk = (stage: ApprovalStage, summary: string, planSteps: Array<{ title: string }>, isCopyStage = false) =>
     stagePacket({
       buildIntelligencePacket, objective, intentSource,
       instruction: opts.instruction, stage, allStages: stages,
-      targets, evidence, diagnosis, planSteps,
+      targets, evidence: isCopyStage ? copyStageEvidence : otherStageEvidence, diagnosis, planSteps,
       deliverables: [`${stage.label} approval for the email campaign`],
       successCriteria: ["Zero sends to suppressed addresses", "Send gate passes at send time"],
       limitations, approvalSummary: summary, integrationBlockers,
@@ -818,7 +876,7 @@ export async function createEmailCampaignWorkOrderCore(
         stage: stages[1],
         title: "Approve Copy: campaign email content",
         description: "Email copy drafted/selected for this campaign — approving copy never authorises sending.",
-        packet: mk(stages[1], "Approve Copy for this campaign. Approving copy does NOT authorise sending.", [{ title: "Review and approve the email copy" }]),
+        packet: mk(stages[1], "Approve Copy for this campaign. Approving copy does NOT authorise sending.", [{ title: "Review and approve the email copy" }], true),
       },
       {
         stage: stages[2],
@@ -990,17 +1048,27 @@ export async function createCallCampaignWorkOrderCore(
       const safetyResult = await safetyMod.runContentSafetyCheck(agentFlowText, "ai_call_script", workspaceId);
       callSafetyEv = safetyMod.safetyCheckEvidenceItem(safetyResult);
     } else {
-      callSafetyEv = evidenceItem("safety_check",
-        agent
-          ? "Content safety gate: agent script/flow not available for pre-check — gate will apply when script is reviewed at Agent & Script approval."
-          : "Content safety gate: no agent selected yet — gate will apply to agent script when an agent is assigned.",
-        { applied: false, reason: agent ? "agent_flow_not_readable" : "no_agent_selected", agent_id: agent?.id ?? null });
+      // No agent script text available — fail-closed so approval is blocked until
+      // a real agent is assigned and its script can be checked.
+      const reason = agent ? "agent_flow_not_readable" : "no_agent_selected";
+      const detail = agent
+        ? `gate_error: agent "${agent.name}" flow data is not readable — reassign the agent or ensure flow data is present before approving`
+        : "gate_error: no agent assigned — select an agent and ensure its flow/script is present before approving";
+      callSafetyEv = {
+        source: "safety_check",
+        description: "Content safety gate FAILED: agent script not available — approval blocked until an agent with a readable script is assigned.",
+        data: { passed: false, violation_count: 1, violations: [detail], warnings: [], reason, agent_id: agent?.id ?? null },
+        retrieved_at: new Date().toISOString(),
+      };
     }
   } catch (err: any) {
     console.error("[call-work-order] Safety gate error:", err?.message ?? err);
-    callSafetyEv = evidenceItem("safety_check",
-      "Content safety gate: error running gate on agent script — treating as unchecked.",
-      { applied: false, reason: "gate_error", agent_id: agent?.id ?? null });
+    callSafetyEv = {
+      source: "safety_check",
+      description: "Content safety gate FAILED: gate error on agent script — approval blocked until the gate runs successfully.",
+      data: { passed: false, violation_count: 1, violations: [`gate_error: ${(err?.message ?? "unknown error").slice(0, 200)}`], warnings: [], agent_id: agent?.id ?? null },
+      retrieved_at: new Date().toISOString(),
+    };
   }
 
   const stages = approvalStagesForChannel("call");

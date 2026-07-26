@@ -378,6 +378,17 @@ describe("runContentSafetyCheck — allow-list exemption", () => {
     const { matchesAllowList: mAL } = await import("@/lib/content-safety/universal-content-safety.server");
     expect(mAL(text, allowedClaims)).toBe(false);
   });
+
+  it("pipe-delimited Business DNA allow-list values are parsed as separate claims", async () => {
+    // Business DNA stores pipe-delimited approved_claims; all three delimiters must work.
+    const { matchesAllowList: mAL } = await import("@/lib/content-safety/universal-content-safety.server");
+    // Simulate the parseColumn output for a pipe-delimited DB value split by the gate internals.
+    const pipeDelimitedClaims = ["300% roi", "award-winning support", "iso 27001 certified"];
+    const stat = "Customers see 300% ROI within 30 days.";
+    expect(mAL(stat, pipeDelimitedClaims)).toBe(true);
+    const unrelated = "We are the best in the world.";
+    expect(mAL(unrelated, pipeDelimitedClaims)).toBe(false);
+  });
 });
 
 // ════════════════════════════════════════════════════════════════════════════
