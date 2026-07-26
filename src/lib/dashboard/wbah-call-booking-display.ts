@@ -1,6 +1,10 @@
 import { normalizeSentiment } from "@/lib/sentiment";
 import { WBAH_TIMEZONE } from "@/lib/dashboard/wbah-timezone";
-import { isWbahBookingStatus } from "@/lib/dashboard/wbah-booking-meta";
+import {
+  confirmedCalendlyBookingUrl,
+  isConfirmedCalendlyBooking,
+  sanitizeWbahBookingFields,
+} from "@/lib/dashboard/wbah-booking-meta";
 
 export type WbahCallBookingFields = {
   event: string | null;
@@ -96,94 +100,34 @@ export function extractWbahCallBookingFields(
   };
 }
 
+/** Re-export — single source of truth for confirmed booking detection. */
+export { isConfirmedCalendlyBooking };
+
 function eventLower(fields: WbahCallBookingFields): string {
   return (fields.event ?? fields.call_status ?? "").toLowerCase();
 }
 
-const BOOKED_SUMMARY_RE =
-  /\b(?:appointment was successfully booked|successfully booked|appointment (?:has been )?booked|booking confirmed|that'?s all booked in|all booked in for you|got you down for|booked in for)\b/i;
-
-function parseTimePart(timePart: string): { hour: number; minute: number } | null {
-  const raw = timePart.trim();
-  const hm = raw.match(/^(\d{1,2}):(\d{2})(?:\s*([AP]\.?M\.?))?$/i);
-  if (hm) {
-    let hour = Number(hm[1]);
-    const minute = Number(hm[2]);
-    const ampm = (hm[3] ?? "").toUpperCase();
-    if (ampm.startsWith("P") && hour < 12) hour += 12;
-    if (ampm.startsWith("A") && hour === 12) hour = 0;
-    if (hour >= 0 && hour <= 23 && minute >= 0 && minute <= 59) return { hour, minute };
-  }
-  const amOnly = raw.match(/^(\d{1,2})\s*([AP]\.?M\.?)$/i);
-  if (amOnly) {
-    let hour = Number(amOnly[1]);
-    const ampm = amOnly[2].toUpperCase();
-    if (ampm.startsWith("P") && hour < 12) hour += 12;
-    if (ampm.startsWith("A") && hour === 12) hour = 0;
-    if (hour >= 0 && hour <= 23) return { hour, minute: 0 };
-  }
-  return null;
-}
-
-/** Retell calls often only carry booking in call_summary — infer structured fields. */
-export function inferWbahBookingFromCallSummary(
-  summary: string | null | undefined,
-): Pick<WbahCallBookingFields, "appointment_date" | "appointment_time" | "booking_status"> {
-  const text = str(summary);
-  if (!text || !BOOKED_SUMMARY_RE.test(text)) return {};
-
-  const dtMatch =
-    text.match(
-      /(?:booked for|booked on|booked in for|scheduled for|down for|got you down for)\s+([A-Za-z]+\s+\d{1,2},?\s+\d{4})(?:,?\s*(?:at\s+)?(\d{1,2}:\d{2}(?:\s*[AP]\.?M\.?)?|\d{1,2}\s*[AP]\.?M\.?))?/i,
-    ) ??
-    text.match(
-      /([A-Za-z]+\s+\d{1,2},?\s+\d{4})(?:,?\s*(?:at\s+)?(\d{1,2}:\d{2}(?:\s*[AP]\.?M\.?)?|\d{1,2}\s*[AP]\.?M\.?))?/i,
-    );
-
-  if (!dtMatch?.[1]) return {};
-
-  const parsed = Date.parse(dtMatch[1].replace(/,/g, ""));
-  if (Number.isNaN(parsed)) return {};
-
-  const appointment_date = new Date(parsed).toISOString().slice(0, 10);
-  let appointment_time: string | null = null;
-  if (dtMatch[2]) {
-    const t = parseTimePart(dtMatch[2]);
-    if (t) {
-      // UK wall-clock time from call summary — never store naive ISO (browser TZ skews display).
-      appointment_time = `${String(t.hour).padStart(2, "0")}:${String(t.minute).padStart(2, "0")}`;
-    }
-  }
-
-  return { appointment_date, appointment_time, booking_status: "success" };
-}
-
-/** Merge DB/CRM fields with call_summary inference when structured booking is missing. */
-export function mergeInferredWbahBookingFields(
-  fields: WbahCallBookingFields,
-): WbahCallBookingFields {
-  if (fields.appointment_date && fields.booking_status) return fields;
-
-  const inferred = inferWbahBookingFromCallSummary(fields.call_summary);
-  if (!inferred.appointment_date && !inferred.booking_status) return fields;
-
-  return {
-    ...fields,
-    appointment_date: fields.appointment_date ?? inferred.appointment_date ?? null,
-    appointment_time: fields.appointment_time ?? inferred.appointment_time ?? null,
-    booking_status: fields.booking_status ?? inferred.booking_status ?? null,
-  };
-}
-
+/** Display-only booking fields — never infer from call_summary or slot URLs. */
 export function resolveWbahCallBookingFields(
   row: Record<string, unknown> | null | undefined,
 ): WbahCallBookingFields {
-  return mergeInferredWbahBookingFields(extractWbahCallBookingFields(row));
+  return sanitizeWbahBookingFields(extractWbahCallBookingFields(row));
 }
 
-/** True when Retell/WeeBespoke analysis has not landed yet (call_ended, no booking/sentiment). */
+/** Backend sends explicit N/A on TTC→DQ transfer calls — do not override. */
+export function resolveWbahDisplaySentiment(
+  row: Record<string, unknown> | null | undefined,
+): string | null {
+  const r = row ?? {};
+  const rawSent =
+    r.sentimentAnalysis ?? r.sentiment ?? r.sentiment_analysis ?? r.SentimentAnalysis;
+  if (rawSent != null && /^n\/a$/i.test(String(rawSent).trim())) return "N/A";
+  return str(rawSent);
+}
+
+/** True when Retell/WeeBespoke analysis has not landed yet (call_ended, no sentiment). */
 export function isWbahCallAnalysisPending(fields: WbahCallBookingFields): boolean {
-  if (fields.appointment_date || fields.booking_status) return false;
+  if (isConfirmedCalendlyBooking(fields)) return false;
 
   const ev = eventLower(fields);
   if (ev === "call_analyzed" || ev === "analyzed") return false;
@@ -194,7 +138,6 @@ export function isWbahCallAnalysisPending(fields: WbahCallBookingFields): boolea
   if (sentiment) return false;
   if (fields.call_summary?.trim()) return false;
 
-  // DB normalizes ended/analyzed → "completed"; treat as pending until data arrives.
   if (ev === "completed" || ev === "ended") return true;
 
   return false;
@@ -241,6 +184,28 @@ export function formatWbahAppointmentDateDisplay(
   return raw;
 }
 
+function parseTimePart(timePart: string): { hour: number; minute: number } | null {
+  const raw = timePart.trim();
+  const hm = raw.match(/^(\d{1,2}):(\d{2})(?:\s*([AP]\.?M\.?))?$/i);
+  if (hm) {
+    let hour = Number(hm[1]);
+    const minute = Number(hm[2]);
+    const ampm = (hm[3] ?? "").toUpperCase();
+    if (ampm.startsWith("P") && hour < 12) hour += 12;
+    if (ampm.startsWith("A") && hour === 12) hour = 0;
+    if (hour >= 0 && hour <= 23 && minute >= 0 && minute <= 59) return { hour, minute };
+  }
+  const amOnly = raw.match(/^(\d{1,2})\s*([AP]\.?M\.?)$/i);
+  if (amOnly) {
+    let hour = Number(amOnly[1]);
+    const ampm = amOnly[2].toUpperCase();
+    if (ampm.startsWith("P") && hour < 12) hour += 12;
+    if (ampm.startsWith("A") && hour === 12) hour = 0;
+    if (hour >= 0 && hour <= 23) return { hour, minute: 0 };
+  }
+  return null;
+}
+
 /** Format HH:mm as UK appointment wall-clock (not converted from viewer timezone). */
 function formatUkWallClockTime(hour: number, minute: number): string {
   const d = new Date(Date.UTC(1970, 0, 1, hour, minute));
@@ -259,7 +224,6 @@ export function formatWbahAppointmentTimeDisplay(
   const raw = str(appointmentTime);
   if (!raw) return "—";
 
-  // Naive ISO without timezone = UK wall clock (WeeBespoke/Retell appointment slots).
   if (/T\d/.test(raw) && !/[zZ]|[+-]\d{2}:?\d{2}$/.test(raw)) {
     const m = raw.match(/^(\d{4}-\d{2}-\d{2})T(\d{1,2}):(\d{2})/);
     if (m) {
@@ -267,7 +231,6 @@ export function formatWbahAppointmentTimeDisplay(
     }
   }
 
-  // Full ISO datetime with timezone (e.g. 2026-07-24T10:00:00.000Z)
   if (/T\d/.test(raw)) {
     try {
       const d = new Date(raw);
@@ -307,53 +270,28 @@ export function formatWbahBookingStatusDisplay(
   return raw.replace(/_/g, " ");
 }
 
-export function isWbahHttpUrl(url: string | null | undefined): boolean {
-  const raw = str(url);
-  if (!raw) return false;
-  return /^https?:\/\//i.test(raw);
-}
-
-export function isWbahBookingSuccess(
-  bookingStatus: string | null | undefined,
-): boolean {
-  return (str(bookingStatus) ?? "").toLowerCase() === "success";
-}
-
-/** Show Calendly link only when booking succeeded and URL is a real http(s) link. */
+/** Show Calendly link only for confirmed reschedulings/ URLs. */
 export function resolveVisibleWbahCalendlyUrl(
-  bookingStatus: string | null | undefined,
+  _bookingStatus: string | null | undefined,
   url: string | null | undefined,
 ): string | null {
-  if (!isWbahBookingSuccess(bookingStatus)) return null;
-  if (!isWbahHttpUrl(url)) return null;
-  return str(url);
+  return confirmedCalendlyBookingUrl({ calendly_booking_url: url });
 }
 
 export function resolveVisibleWbahCalendlyUrlFromFields(
   fields: WbahCallBookingFields,
 ): string | null {
-  return resolveVisibleWbahCalendlyUrl(
-    fields.booking_status,
-    fields.calendly_booking_url,
-  );
+  return confirmedCalendlyBookingUrl(fields);
 }
 
-/** Plain-text fallback for non-interactive cells (prefer WbahCallCalendlyLink in UI). */
 export function formatWbahCalendlyDisplay(
-  bookingStatus: string | null | undefined,
+  _bookingStatus: string | null | undefined,
   url: string | null | undefined,
 ): string {
-  if (resolveVisibleWbahCalendlyUrl(bookingStatus, url)) {
+  if (resolveVisibleWbahCalendlyUrl(null, url)) {
     return "View Calendly booking";
   }
   return "—";
-}
-
-function isWbahBookedFields(fields: WbahCallBookingFields): boolean {
-  if (!fields.appointment_date) return false;
-  const status = (fields.booking_status ?? "").toLowerCase();
-  if (!status) return true;
-  return status === "success" || isWbahBookingStatus(status);
 }
 
 export function resolveWbahBookingUiState(
@@ -365,12 +303,11 @@ export function resolveWbahBookingUiState(
     return { kind: "pending", label: "Call analysis pending…" };
   }
 
-  const status = (fields.booking_status ?? "").toLowerCase();
   const sentiment = normalizeSentiment(fields.sentimentAnalysis);
   const calendlyUrl = resolveVisibleWbahCalendlyUrlFromFields(fields);
-  const calendlyLabel = calendlyUrl ? "View Calendly booking" : "No booking link";
+  const calendlyLabel = calendlyUrl ? "View Calendly booking" : "—";
 
-  if (isWbahBookedFields(fields)) {
+  if (isConfirmedCalendlyBooking(fields)) {
     return {
       kind: "booked",
       dateLabel: formatWbahAppointmentDateDisplay(fields.appointment_date),
@@ -378,13 +315,13 @@ export function resolveWbahBookingUiState(
         fields.appointment_time,
         fields.appointment_date,
       ),
-      statusLabel: formatWbahBookingStatusDisplay(fields.booking_status),
+      statusLabel: "success",
       calendlyUrl,
       calendlyLabel,
     };
   }
 
-  if (sentiment === "positive" && !fields.appointment_date && status !== "success") {
+  if (sentiment === "positive") {
     return {
       kind: "positive_no_booking",
       label: "Positive call — no booking detected",
@@ -394,44 +331,35 @@ export function resolveWbahBookingUiState(
 
   return {
     kind: "normal",
-    dateLabel: fields.appointment_date
-      ? formatWbahAppointmentDateDisplay(fields.appointment_date)
-      : "—",
-    timeLabel: fields.appointment_time
-      ? formatWbahAppointmentTimeDisplay(fields.appointment_time, fields.appointment_date)
-      : "—",
-    statusLabel: fields.booking_status
-      ? formatWbahBookingStatusDisplay(fields.booking_status)
-      : "—",
+    dateLabel: "—",
+    timeLabel: "—",
+    statusLabel: "—",
     sentimentLabel: fields.sentimentAnalysis,
-    calendlyUrl,
-    calendlyLabel,
+    calendlyUrl: null,
+    calendlyLabel: "—",
   };
 }
 
-/** Table cell: appointment date column. */
 export function wbahAppointmentDateCell(row: Record<string, unknown>): string {
   const ui = resolveWbahBookingUiState(row);
   if (ui.kind === "pending") return ui.label;
-  if (ui.kind === "positive_no_booking") return "—";
   if (ui.kind === "booked") return ui.dateLabel;
-  return ui.dateLabel;
+  return "—";
 }
 
 export function wbahAppointmentTimeCell(row: Record<string, unknown>): string {
   const ui = resolveWbahBookingUiState(row);
   if (ui.kind === "pending") return "—";
-  if (ui.kind === "positive_no_booking") return "—";
   if (ui.kind === "booked") return ui.timeLabel;
-  return ui.timeLabel;
+  return "—";
 }
 
 export function wbahBookingStatusCell(row: Record<string, unknown>): string {
   const ui = resolveWbahBookingUiState(row);
   if (ui.kind === "pending") return "—";
-  if (ui.kind === "positive_no_booking") return ui.label;
+  if (ui.kind === "positive_no_booking") return "—";
   if (ui.kind === "booked") return ui.statusLabel;
-  return ui.statusLabel;
+  return "—";
 }
 
 export function wbahCalendlyCell(row: Record<string, unknown>): string {
@@ -440,11 +368,10 @@ export function wbahCalendlyCell(row: Record<string, unknown>): string {
   return formatWbahCalendlyDisplay(fields.booking_status, fields.calendly_booking_url);
 }
 
-/** Combined appointment label for call-history tables (date + time). */
 export function wbahCallHistoryAppointmentCell(row: Record<string, unknown>): string {
   const fields = resolveWbahCallBookingFields(row);
   if (isWbahCallAnalysisPending(fields)) return "—";
-  if (!fields.appointment_date && !fields.appointment_time) return "—";
+  if (!isConfirmedCalendlyBooking(fields)) return "—";
   if (fields.appointment_date && fields.appointment_time) {
     return formatWbahAppointmentTimeDisplay(
       fields.appointment_time,
@@ -454,5 +381,5 @@ export function wbahCallHistoryAppointmentCell(row: Record<string, unknown>): st
   if (fields.appointment_date) {
     return formatWbahAppointmentDateDisplay(fields.appointment_date);
   }
-  return formatWbahAppointmentTimeDisplay(fields.appointment_time, fields.appointment_date);
+  return "—";
 }

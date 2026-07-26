@@ -22,13 +22,13 @@ import {
   phoneDigits,
   isWbahRecordBooked,
   listWbahBookedContacts,
+  sanitizeWbahBookingFields,
   WBAH_BOOKED_STATUSES,
 } from "@/lib/dashboard/wbah-booking-meta";
 import { getWbahCallsAggregate } from "./wbah-leads.server";
 import { recordSyncState } from "@/lib/sync-state/sync-state.server";
 import { cacheWrap, cacheGet, cacheSet } from "@/lib/cache/redis.server";
 import { requireActiveWbahWorkspace } from "@/lib/wbah-exclusion.shared";
-import { mergeInferredWbahBookingFields } from "@/lib/dashboard/wbah-call-booking-display";
 import * as api from "./client.server";
 import { wbahCallsParamTest, wbahCallsPostPage, wbahLeadsParamTest } from "./client.server";
 import { getCampaignData } from "@/lib/api-engine/data-source-router.server";
@@ -2103,7 +2103,7 @@ export const listWbahCallsLive = createServerFn({ method: "GET" })
     } catch (e: any) {
       console.warn("[listWbahCallsLive] appointment backfill:", e?.message ?? e);
     }
-    return cacheWrap(`webee:wbah-calls-live-lite:v2:${workspaceId}`, 120, async () => {
+    return cacheWrap(`webee:wbah-calls-live-lite:v3:${workspaceId}`, 120, async () => {
       const rows = await readWbahCallsRows(supabase, workspaceId, { lite: true });
       logWbahResponse("listWbahCallsLive", workspaceId, rows.length, rows);
       return rows;
@@ -2393,17 +2393,9 @@ export const getWbahCallDetail = createServerFn({ method: "POST" })
 
     const crmBookingByDigits = await loadWbahCrmBookingByDigits(supabaseAdmin, workspaceId);
     const crm = row?.phone ? crmBookingByDigits.get(phoneDigits(row.phone)) ?? null : null;
-    const appt = resolveWbahBookingFields(row ?? {}, row ?? {}, crm);
-    const inferred = mergeInferredWbahBookingFields({
-      event: null,
-      appointment_date: appt.appointment_date ?? null,
-      appointment_time: appt.appointment_time ?? null,
-      booking_status: appt.booking_status ?? null,
-      sentimentAnalysis: row?.sentiment ?? null,
-      calendly_booking_url: appt.calendly_booking_url ?? null,
-      call_summary: row?.call_summary ?? null,
-      call_status: row?.call_status ?? null,
-    });
+    const appt = sanitizeWbahBookingFields(
+      resolveWbahBookingFields(row ?? {}, row ?? {}, crm),
+    );
 
     return {
       id: data.id,
@@ -2412,10 +2404,10 @@ export const getWbahCallDetail = createServerFn({ method: "POST" })
       recordingUrl: row?.recording_url ?? null,
       sentiment: row?.sentiment ?? null,
       callStatus: row?.call_status ?? null,
-      appointment_date: inferred.appointment_date ?? null,
-      appointment_time: inferred.appointment_time ?? null,
-      booking_status: inferred.booking_status ?? null,
-      calendly_booking_url: inferred.calendly_booking_url ?? null,
+      appointment_date: appt.appointment_date ?? null,
+      appointment_time: appt.appointment_time ?? null,
+      booking_status: appt.booking_status ?? null,
+      calendly_booking_url: appt.calendly_booking_url ?? null,
       customer_name: row?.customer_name ?? null,
       phone: row?.phone ?? null,
       agent_name: row?.agent_name ?? null,

@@ -98,10 +98,12 @@ import {
   extractWbahCallBookingFields,
   isWbahCallAnalysisComplete,
   isWbahCallAnalysisPending,
+  resolveWbahDisplaySentiment,
   wbahAppointmentDateCell,
   wbahAppointmentTimeCell,
   wbahBookingStatusCell,
 } from "@/lib/dashboard/wbah-call-booking-display";
+import { sanitizeWbahBookingFields } from "@/lib/dashboard/wbah-booking-meta";
 
 export const Route = createFileRoute("/_authenticated/data")({
   head: () => ({ meta: [{ title: "Data Records — Webee" }] }),
@@ -1472,10 +1474,27 @@ function DataPage() {
 
   function mapWbahCatRow(r: any, idx: number) {
     const raw = (r.meta?.raw_lead ?? {}) as any;
+    const rawCrm = (r.meta?.raw_crm ?? {}) as Record<string, unknown>;
     const crm =
       (r.meta?.crm as WbahCrmData | null | undefined) ??
       parseWbahCrmData((r.meta?.raw_crm ?? null) as Record<string, unknown> | null);
     const dqReasonShort = crm ? dqReasonLabel(crm) : null;
+    const booking = sanitizeWbahBookingFields({
+      appointment_date:
+        r.meta?.appointment_date ??
+        raw.appointment_date ??
+        rawCrm.call_appointment_date ??
+        null,
+      appointment_time:
+        raw.appointment_time ?? r.meta?.appointment_time ?? rawCrm.call_appointment_time ?? null,
+      booking_status:
+        r.meta?.booking_status ?? raw.booking_status ?? rawCrm.call_booking_status ?? null,
+      calendly_booking_url:
+        raw.calendly_booking_url ??
+        r.meta?.calendly_booking_url ??
+        rawCrm.call_calendly_booking_url ??
+        null,
+    });
     return {
       id: r.id,
       srNo: idx + 1,
@@ -1491,14 +1510,14 @@ function DataPage() {
       dqReasonFull: crm?.disqualification_reason ?? null,
       disqualifiedAt: crm?.disqualified_at ?? null,
       disconnectionReason: raw.disconnectionReason ?? null,
-      appointmentDate: r.meta?.appointment_date ?? raw.appointment_date ?? null,
-      appointmentTime: raw.appointment_time ?? r.meta?.appointment_time ?? null,
-      bookingStatus: r.meta?.booking_status ?? raw.booking_status ?? null,
-      calendlyBookingUrl: raw.calendly_booking_url ?? r.meta?.calendly_booking_url ?? null,
-      appointment_date: r.meta?.appointment_date ?? raw.appointment_date ?? null,
-      appointment_time: raw.appointment_time ?? r.meta?.appointment_time ?? null,
-      booking_status: r.meta?.booking_status ?? raw.booking_status ?? null,
-      calendly_booking_url: raw.calendly_booking_url ?? r.meta?.calendly_booking_url ?? null,
+      appointmentDate: booking.appointment_date,
+      appointmentTime: booking.appointment_time,
+      bookingStatus: booking.booking_status,
+      calendlyBookingUrl: booking.calendly_booking_url,
+      appointment_date: booking.appointment_date,
+      appointment_time: booking.appointment_time,
+      booking_status: booking.booking_status,
+      calendly_booking_url: booking.calendly_booking_url,
       call_status: raw.callStatus ?? r.callStatus ?? null,
       sentimentAnalysis: raw.sentimentAnalysis ?? r.sentimentAnalysis ?? null,
       agentName: raw.agentName ?? null,
@@ -2778,7 +2797,7 @@ function DataPage() {
                     <tbody>
                       {pag.sliced.map((r: any, rowIdx: number) => {
                         const statusBadge = wbahCallStatusBadge(r.callStatus);
-                        const sentBadge = wbahSentimentBadge(r.sentimentAnalysis);
+                        const sentBadge = wbahSentimentBadge(resolveWbahDisplaySentiment(r));
                         const isSelected = wbahSelected.has(r.id);
                         const rowSrNo = (pag.page - 1) * Number(pag.pageSize) + rowIdx + 1;
                         return (
@@ -2933,13 +2952,6 @@ function DataPage() {
                                 const statusText = wbahBookingStatusCell(r);
                                 if (statusText === "—") {
                                   return <span className="text-muted-foreground/40 text-[11px]">—</span>;
-                                }
-                                if (statusText.includes("no booking")) {
-                                  return (
-                                    <span className="text-[10px] text-muted-foreground italic">
-                                      {statusText}
-                                    </span>
-                                  );
                                 }
                                 return (
                                   <span className="inline-flex items-center rounded-full bg-muted px-2 py-0.5 text-[10px] font-medium text-muted-foreground ring-1 ring-white/[0.06] capitalize">

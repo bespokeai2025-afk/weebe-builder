@@ -1,5 +1,8 @@
 import { normalizeSentiment } from "@/lib/sentiment";
-import { isWbahRecordBooked } from "@/lib/dashboard/wbah-booking-meta";
+import {
+  confirmedCalendlyBookingUrl,
+  isConfirmedCalendlyBooking,
+} from "@/lib/dashboard/wbah-booking-meta";
 import { WBAH_TIMEZONE } from "@/lib/dashboard/wbah-timezone";
 
 const PARTIAL_QUALIFIED_MS = 5 * 60 * 1000;
@@ -17,9 +20,9 @@ type WbahLeadLike = {
   } | null;
 };
 
-/** True when the contact has a Calendly / CRM appointment booked. */
+/** True when the contact has a confirmed Calendly reschedulings/ booking. */
 export function hasWbahAppointmentBooked(lead: WbahLeadLike): boolean {
-  return isWbahRecordBooked(lead.meta ?? undefined);
+  return isConfirmedCalendlyBooking(lead.meta ?? undefined);
 }
 
 export function wbahBookingAgentName(lead: WbahLeadLike): string | null {
@@ -183,21 +186,15 @@ function formatWbahAppointmentDate(v: string): string {
   return v;
 }
 
-/**
- * Appointment columns: hidden for partial-qualified only.
- * Shown whenever booking data exists (positive calls, or booked contacts whose
- * latest call is neutral/negative but CRM still carries the Calendly slot).
- */
 function wbahAppointmentField(
   lead: WbahLeadLike,
   field: "appointment_date" | "appointment_time" | "booking_status",
 ): string | null {
   if (isWbahPartialQualified(lead)) return null;
+  if (!isConfirmedCalendlyBooking(lead.meta ?? undefined)) return null;
   const v = lead.meta?.[field];
   if (v == null || String(v).trim() === "") return null;
-  if (normalizeSentiment(lead.sentiment) === "positive") return String(v);
-  if (hasWbahAppointmentBooked(lead)) return String(v);
-  return null;
+  return String(v);
 }
 
 export function wbahAppointmentDate(lead: WbahLeadLike): string | null {
@@ -214,14 +211,8 @@ export function wbahBookingStatus(lead: WbahLeadLike): string | null {
   return wbahAppointmentField(lead, "booking_status");
 }
 
-/** Calendly booking URL — visible when booking_status is success and URL is http(s). */
+/** Calendly booking URL — only reschedulings/ confirmed bookings. */
 export function wbahCalendlyBookingUrl(lead: WbahLeadLike): string | null {
   if (isWbahPartialQualified(lead)) return null;
-  const status = lead.meta?.booking_status;
-  const url = lead.meta?.calendly_booking_url;
-  if ((status ?? "").toLowerCase() !== "success") return null;
-  if (url == null || String(url).trim() === "") return null;
-  const trimmed = String(url).trim();
-  if (!/^https?:\/\//i.test(trimmed)) return null;
-  return trimmed;
+  return confirmedCalendlyBookingUrl(lead.meta ?? undefined);
 }

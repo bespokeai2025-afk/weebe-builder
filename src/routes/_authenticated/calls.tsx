@@ -56,6 +56,7 @@ import {
   wbahAppointmentDateCell,
   wbahAppointmentTimeCell,
   wbahBookingStatusCell,
+  resolveWbahDisplaySentiment,
 } from "@/lib/dashboard/wbah-call-booking-display";
 
 export const Route = createFileRoute("/_authenticated/calls")({
@@ -71,6 +72,13 @@ function fmtDuration(s?: number | null) {
   const m = Math.floor(s / 60);
   const r = s % 60;
   return `${m}m ${r}s`;
+}
+
+function fmtWbahSentiment(c: Record<string, unknown>): string {
+  const s = resolveWbahDisplaySentiment(c) ?? String(c.sentiment ?? "");
+  if (!s) return "Neutral";
+  if (/^n\/a$/i.test(s)) return "N/A";
+  return s.charAt(0).toUpperCase() + s.slice(1);
 }
 
 function sentimentClass(v?: string | null) {
@@ -958,8 +966,8 @@ function CallsPage() {
                               : <span className="text-[11px] text-muted-foreground">N/A</span>}
                           </td>
                           <td className="px-2 py-0.5">
-                            <span className={cn("text-[11px] capitalize", sentimentClass(c.sentiment ?? "neutral").replace(/bg-\S+/g, "").replace(/\s+/g, " ").trim())}>
-                              {c.sentiment ? c.sentiment.charAt(0).toUpperCase() + c.sentiment.slice(1) : "Neutral"}
+                            <span className={cn("text-[11px] capitalize", sentimentClass((resolveWbahDisplaySentiment(c) ?? c.sentiment ?? "neutral").toLowerCase()).replace(/bg-\S+/g, "").replace(/\s+/g, " ").trim())}>
+                              {fmtWbahSentiment(c)}
                             </span>
                           </td>
                           <td className="max-w-[200px] px-2 py-0.5 text-xs text-muted-foreground align-middle">

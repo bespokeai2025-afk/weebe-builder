@@ -3,8 +3,13 @@
  * Dynamics FetchXML sync runs on the backend; WEBEE only calls JWT/CRM APIs.
  */
 import * as api from "./client.server";
-import { phoneDigits, loadWbahCrmBookingByDigits, resolveWbahBookingFields } from "@/lib/dashboard/wbah-booking-meta";
-import { mergeInferredWbahBookingFields } from "@/lib/dashboard/wbah-call-booking-display";
+import {
+  loadWbahCrmBookingByDigits,
+  phoneDigits,
+  resolveWbahBookingFields,
+  isConfirmedCalendlyBooking,
+  sanitizeWbahBookingFields,
+} from "@/lib/dashboard/wbah-booking-meta";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { DYNAMICS_CATEGORY_LABELS, type DynamicsCategorySlug } from "./wbah-campaign-sync.types";
 import { parseWbahCrmData, type WbahCrmData } from "./wbah-crm-data.types";
@@ -217,15 +222,32 @@ function mapCrmRow(raw: Record<string, unknown>, categoryLabel: string): WbahPeo
   const leadStatus = pickStr(raw, "lead_status", "leadStatus") ?? categoryLabel;
   const crm = parseWbahCrmData(raw);
 
+  const rawLeadBooking = sanitizeWbahBookingFields({
+    appointment_date: strOrNull(
+      raw.appointment_date ?? raw.appointmentDate ?? raw.call_appointment_date,
+    ),
+    appointment_time: strOrNull(
+      raw.appointment_time ?? raw.appointmentTime ?? raw.call_appointment_time,
+    ),
+    booking_status: strOrNull(
+      raw.booking_status ?? raw.bookingStatus ?? raw.call_booking_status,
+    ),
+    calendly_booking_url: strOrNull(
+      raw.calendly_booking_url ??
+        raw.calendlyBookingUrl ??
+        raw.call_calendly_booking_url,
+    ),
+  });
+
   const rawLead: Record<string, unknown> = {
     callStatus: raw.callStatus ?? raw.call_status ?? null,
     sentimentAnalysis: raw.sentimentAnalysis ?? raw.sentiment_analysis ?? null,
     disconnectionReason: raw.disconnectionReason ?? raw.disconnection_reason ?? null,
     endReason: raw.endReason ?? raw.end_reason ?? null,
-    appointment_date: raw.appointment_date ?? raw.appointmentDate ?? null,
-    appointment_time: raw.appointment_time ?? raw.appointmentTime ?? null,
-    booking_status: raw.booking_status ?? raw.bookingStatus ?? null,
-    calendly_booking_url: raw.calendly_booking_url ?? raw.calendlyBookingUrl ?? null,
+    appointment_date: rawLeadBooking.appointment_date,
+    appointment_time: rawLeadBooking.appointment_time,
+    booking_status: rawLeadBooking.booking_status,
+    calendly_booking_url: rawLeadBooking.calendly_booking_url,
     agentName: raw.agentName ?? raw.agent_name ?? null,
     startTimestamp: raw.startTimestamp ?? raw.start_timestamp ?? null,
     durationMs: raw.durationMs ?? raw.duration_ms ?? null,
@@ -258,8 +280,8 @@ function mapCrmRow(raw: Record<string, unknown>, categoryLabel: string): WbahPeo
       raw_call: undefined,
       crm,
       lead_status: leadStatus,
-      appointment_date: (rawLead.appointment_date as string | null) ?? null,
-      booking_status: (rawLead.booking_status as string | null) ?? null,
+      appointment_date: rawLeadBooking.appointment_date ?? null,
+      booking_status: rawLeadBooking.booking_status ?? null,
       recording_url: (rawLead.recordingUrl as string | null) ?? null,
       crm_loaded_at: loadedAt,
     },
@@ -341,13 +363,19 @@ function mergeWbahCallIntoRawLead(
     ...postCall,
     ...dynamicVars,
     callStatus: call.call_status ?? raw.callStatus ?? null,
-    sentimentAnalysis: call.sentiment ?? raw.sentimentAnalysis ?? null,
+    sentimentAnalysis: (() => {
+      const rawSent = strOrNull(raw.sentimentAnalysis);
+      if (rawSent && /^n\/a$/i.test(rawSent)) return rawSent;
+      return strOrNull(call.sentiment) ?? rawSent ?? null;
+    })(),
     disconnectionReason: call.disconnection_reason ?? raw.disconnectionReason ?? null,
     endReason: call.end_reason ?? raw.endReason ?? null,
-    appointment_date: call.appointment_date ?? raw.appointment_date ?? null,
-    appointment_time: call.appointment_time ?? raw.appointment_time ?? null,
-    booking_status: call.booking_status ?? raw.booking_status ?? null,
-    calendly_booking_url: call.calendly_booking_url ?? raw.calendly_booking_url ?? null,
+    ...sanitizeWbahBookingFields({
+      appointment_date: strOrNull(call.appointment_date ?? raw.appointment_date),
+      appointment_time: strOrNull(call.appointment_time ?? raw.appointment_time),
+      booking_status: strOrNull(call.booking_status ?? raw.booking_status),
+      calendly_booking_url: strOrNull(call.calendly_booking_url ?? raw.calendly_booking_url),
+    }),
     agentName: call.agent_name ?? raw.agentName ?? null,
     startTimestamp:
       startedMs != null && !Number.isNaN(startedMs)
@@ -370,21 +398,22 @@ function mergeWbahCallIntoRawLead(
 function applyBookingFieldsToRawLead(
   rawLead: Record<string, unknown>,
 ): Record<string, unknown> {
-  const merged = mergeInferredWbahBookingFields({
-    event: null,
+  const sanitized = sanitizeWbahBookingFields({
     appointment_date: strOrNull(rawLead.appointment_date),
     appointment_time: strOrNull(rawLead.appointment_time),
     booking_status: strOrNull(rawLead.booking_status),
-    sentimentAnalysis: strOrNull(rawLead.sentimentAnalysis),
     calendly_booking_url: strOrNull(rawLead.calendly_booking_url),
-    call_summary: strOrNull(rawLead.callSummary ?? rawLead.call_summary),
-    call_status: strOrNull(rawLead.callStatus),
   });
   return {
     ...rawLead,
-    appointment_date: merged.appointment_date,
-    appointment_time: merged.appointment_time,
-    booking_status: merged.booking_status,
+    appointment_date: sanitized.appointment_date,
+    appointment_time: sanitized.appointment_time,
+    booking_status: sanitized.booking_status,
+    calendly_booking_url: sanitized.calendly_booking_url,
+    call_appointment_date: null,
+    call_appointment_time: null,
+    call_booking_status: null,
+    call_calendly_booking_url: null,
   };
 }
 
@@ -419,30 +448,41 @@ export async function enrichPeopleCrmRowsWithWbahCalls(
 
     let rawLead = row.meta.raw_lead;
     if (call) {
-      const appt = resolveWbahBookingFields(call, call, crm);
+      const appt = sanitizeWbahBookingFields(resolveWbahBookingFields(call, call, crm));
       rawLead = mergeWbahCallIntoRawLead(rawLead, { ...call, ...appt });
-    } else if (crm) {
+    } else if (crm && isConfirmedCalendlyBooking(crm)) {
       rawLead = {
         ...rawLead,
-        appointment_date: crm.appointment_date ?? rawLead.appointment_date ?? null,
-        appointment_time: crm.appointment_time ?? rawLead.appointment_time ?? null,
-        booking_status: crm.booking_status ?? rawLead.booking_status ?? null,
-        calendly_booking_url:
-          crm.calendly_booking_url ?? rawLead.calendly_booking_url ?? null,
+        ...sanitizeWbahBookingFields({
+          appointment_date: strOrNull(crm.appointment_date ?? rawLead.appointment_date),
+          appointment_time: strOrNull(crm.appointment_time ?? rawLead.appointment_time),
+          booking_status: strOrNull(crm.booking_status ?? rawLead.booking_status),
+          calendly_booking_url: strOrNull(
+            crm.calendly_booking_url ?? rawLead.calendly_booking_url,
+          ),
+        }),
         agentName: crm.agent_name ?? rawLead.agentName ?? null,
       };
     }
 
     rawLead = applyBookingFieldsToRawLead(rawLead);
+    const metaBooking = sanitizeWbahBookingFields({
+      appointment_date: strOrNull(rawLead.appointment_date),
+      appointment_time: strOrNull(rawLead.appointment_time),
+      booking_status: strOrNull(rawLead.booking_status),
+      calendly_booking_url: strOrNull(rawLead.calendly_booking_url),
+    });
 
     return {
       ...row,
       meta: {
         ...row.meta,
         raw_lead: rawLead,
-        raw_call: call ? { ...call, ...resolveWbahBookingFields(call, call, crm) } : row.meta.raw_call,
-        appointment_date: (rawLead.appointment_date as string | null) ?? row.meta.appointment_date,
-        booking_status: (rawLead.booking_status as string | null) ?? row.meta.booking_status,
+        raw_call: call
+          ? sanitizeWbahBookingFields({ ...call, ...resolveWbahBookingFields(call, call, crm) })
+          : row.meta.raw_call,
+        appointment_date: metaBooking.appointment_date ?? null,
+        booking_status: metaBooking.booking_status ?? null,
         recording_url: (rawLead.recordingUrl as string | null) ?? row.meta.recording_url,
       },
     };

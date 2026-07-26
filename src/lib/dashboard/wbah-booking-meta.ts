@@ -32,11 +32,52 @@ export function isWbahBookingStatus(status: string | null | undefined): boolean 
   return (WBAH_BOOKED_STATUSES as readonly string[]).includes(bs);
 }
 
+/** Real Calendly booking — only reschedulings/ URLs (not slot links calendly.com/d/...). */
+export function isConfirmedCalendlyBooking(
+  row:
+    | {
+        calendly_booking_url?: string | null;
+        calendlyBookingUrl?: string | null;
+        booking_status?: string | null;
+        bookingStatus?: string | null;
+      }
+    | null
+    | undefined,
+): boolean {
+  const url = String(row?.calendly_booking_url ?? row?.calendlyBookingUrl ?? "").trim();
+  if (!url) return false;
+  // Slot-picker links (calendly.com/d/...) are never confirmed bookings.
+  if (/calendly\.com\/d\//i.test(url)) return false;
+  return url.includes("reschedulings/");
+}
+
+export function confirmedCalendlyBookingUrl(
+  row:
+    | {
+        calendly_booking_url?: string | null;
+        calendlyBookingUrl?: string | null;
+      }
+    | null
+    | undefined,
+): string | null {
+  const url = String(row?.calendly_booking_url ?? row?.calendlyBookingUrl ?? "").trim();
+  return url.includes("reschedulings/") ? url : null;
+}
+
 export function isWbahRecordBooked(c: WbahBookingFields | null | undefined): boolean {
-  if (!c) return false;
-  if (c.calendly_booking_url != null && String(c.calendly_booking_url).trim() !== "") return true;
-  if (isWbahBookingStatus(c.booking_status)) return true;
-  return !!(c.appointment_date && String(c.appointment_date).trim());
+  return isConfirmedCalendlyBooking(c ?? undefined);
+}
+
+/** Strip false-positive booking fields before display / enrichment overlay. */
+export function sanitizeWbahBookingFields<T extends WbahBookingFields>(fields: T): T {
+  if (isConfirmedCalendlyBooking(fields)) return fields;
+  return {
+    ...fields,
+    appointment_date: null,
+    appointment_time: null,
+    booking_status: null,
+    calendly_booking_url: null,
+  };
 }
 
 export function phoneDigits(phone: string | null | undefined): string {
@@ -71,10 +112,7 @@ export function resolveWbahRowPhone(
 /** Pick the best booking-bearing call from a contact's call history (latest first). */
 export function findWbahBookingCall<T extends WbahBookingFields>(calls: T[]): T | null {
   for (const c of calls) {
-    if (c.calendly_booking_url != null && String(c.calendly_booking_url).trim() !== "") return c;
-  }
-  for (const c of calls) {
-    if (isWbahRecordBooked(c)) return c;
+    if (isConfirmedCalendlyBooking(c)) return c;
   }
   return null;
 }
@@ -229,10 +267,10 @@ export async function loadWbahCallCalendlyByDigits(
       if (error) throw error;
       const batch = (data ?? []) as any[];
       for (const r of batch) {
-        const url = r.calendly_booking_url;
-        if (url == null || !String(url).trim()) continue;
+        const url = confirmedCalendlyBookingUrl(r);
+        if (!url) continue;
         const d = phoneDigits(r.phone);
-        if (d && !map.has(d)) map.set(d, String(url).trim());
+        if (d && !map.has(d)) map.set(d, url);
       }
       if (batch.length < PAGE) break;
       from += PAGE;
@@ -291,19 +329,21 @@ export async function enrichWbahCallRowsWithBookings(
     const digits = phoneDigits(phone);
     const crm = digits ? crmBookingByDigits.get(digits) ?? null : null;
     const callCalendlyUrl = digits ? callCalendlyByDigits.get(digits) ?? null : null;
-    const appt = resolveWbahBookingFields(r, bookingCall, crm);
+    const appt = sanitizeWbahBookingFields(
+      resolveWbahBookingFields(r, bookingCall, crm),
+    );
     const calendly_booking_url =
       appt.calendly_booking_url ??
-      r.calendly_booking_url ??
+      confirmedCalendlyBookingUrl(r) ??
       callCalendlyUrl ??
       null;
-    return {
+    return sanitizeWbahBookingFields({
       ...r,
       appointment_date: appt.appointment_date ?? r.appointment_date ?? null,
       appointment_time: appt.appointment_time ?? r.appointment_time ?? null,
       booking_status: appt.booking_status ?? r.booking_status ?? null,
       calendly_booking_url,
       agent_name: appt.agent_name ?? r.agent_name ?? null,
-    };
+    });
   });
 }
