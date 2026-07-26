@@ -1196,6 +1196,27 @@ export const generateVideoFromPrompt = createServerFn({ method: "POST" })
     // has_audio = true when Veo 3+ is the provider and native audio was requested.
     const freeFormHasNativeAudio = provider === "veo3" && data.generateVeoAudio;
 
+    // ── Universal content safety gate (freeform path) ─────────────────────────
+    // Mirrors the identical check in the guided generateVideo path.
+    // Fail-closed: any error in the gate defaults to blocked.
+    let freeFormScriptSafety: { passed: boolean; violations: string[]; warnings: string[] } = {
+      passed: true, violations: [], warnings: [],
+    };
+    let freeFormSafetyEvidence: { source: string; description: string; data: Record<string, unknown>; retrieved_at: string } | null = null;
+    try {
+      const safetyMod = await import("@/lib/content-safety/universal-content-safety.server");
+      const safetyResult = await safetyMod.runContentSafetyCheck(engineResult.script, videoType, workspaceId);
+      freeFormScriptSafety = { passed: safetyResult.passed, violations: safetyResult.violations, warnings: safetyResult.warnings };
+      freeFormSafetyEvidence = safetyMod.safetyCheckEvidenceItem(safetyResult);
+    } catch (safetyErr: any) {
+      console.error("[video-studio-freeform] Safety gate error:", safetyErr?.message ?? safetyErr);
+      freeFormScriptSafety = {
+        passed: false,
+        violations: ["gate_error: Content safety gate failed to run — treating as blocked"],
+        warnings: [],
+      };
+    }
+
     const baseInsertRow = {
       workspace_id:               workspaceId,
       title:                      engineResult.title,
@@ -1222,6 +1243,8 @@ export const generateVideoFromPrompt = createServerFn({ method: "POST" })
       knowledge_context_id:       data.knowledgeContextId ?? null,
       knowledge_context_name:     ctx2.contextType !== "default" ? ctx2.contextName : null,
       business_name:              ctx2.companyName,
+      safety_blocked:             !freeFormScriptSafety.passed,
+      safety_evidence:            freeFormSafetyEvidence ?? null,
       created_at:                 new Date().toISOString(),
     };
     const multiClipFields = {
@@ -1337,6 +1360,9 @@ export const generateVideoFromPrompt = createServerFn({ method: "POST" })
       strategyBrief:    engineResult.marketingAngle,
       isComposite:      isCompositeVideo,
       clipCount:        isCompositeVideo ? clipCount : 1,
+      safetyPassed:     freeFormScriptSafety.passed,
+      safetyViolations: freeFormScriptSafety.violations,
+      safetyWarnings:   freeFormScriptSafety.warnings,
     };
   });
 
