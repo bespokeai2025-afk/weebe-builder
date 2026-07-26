@@ -135,7 +135,9 @@ export function prepareMindTaskInsert(
   if (opts.humanTask === true || isHumanTaskRow(row)) {
     return {
       ...row,
-      task_category: row.task_category ?? "informational",
+      // Hard-forced: a Human Task can never be executable, even if a caller
+      // pre-set task_category.
+      task_category: "informational",
       metadata: { ...(row.metadata ?? {}), human_task: true, task_class: "human_task" },
       intelligence_packet: packet ?? null,
       readiness_state: null,
