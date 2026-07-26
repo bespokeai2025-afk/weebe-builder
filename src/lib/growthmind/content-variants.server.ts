@@ -222,10 +222,11 @@ export async function transitionVariantDeployment(
     throw new Error(`Invalid deployment transition ${from} → ${to}.`);
   }
   if (to === "published") {
-    if (v.deployment_path === "api" && !extras.externalPostId) {
+    // Accept either a value supplied now or one already persisted on the row.
+    if (v.deployment_path === "api" && !extras.externalPostId && !v.external_post_id) {
       throw new Error("Refusing to mark published: no verified provider record (external_post_id). Nothing is claimed live without one.");
     }
-    if (v.deployment_path === "manual" && !extras.liveUrl) {
+    if (v.deployment_path === "manual" && !extras.liveUrl && !v.live_url) {
       throw new Error("Refusing to mark published: manual-path variants need the live URL confirming manual publication.");
     }
   }

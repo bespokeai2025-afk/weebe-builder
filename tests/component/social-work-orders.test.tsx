@@ -313,6 +313,12 @@ describe("Content deployment core + variant model", () => {
     await expect(transitionVariantDeployment(WS, "v2", "published", {}))
       .rejects.toThrow(/live URL/i);
 
+    // A persisted external_post_id on the row satisfies the publish gate without resending it
+    adminHolder.sb = makeSb({ growthmind_content_variants: { rows: [{ ...apiVariant, external_post_id: "ig_123" }] } }).sb;
+    const published = await transitionVariantDeployment(WS, "v1", "published", {});
+    expect(published.deployment_state).toBe("published");
+    expect(published.external_post_id).toBe("ig_123");
+
     // Invalid transition rejected by the state machine
     adminHolder.sb = makeSb({ growthmind_content_variants: { rows: [{ ...apiVariant, deployment_state: "draft" }] } }).sb;
     await expect(transitionVariantDeployment(WS, "v1", "published", { externalPostId: "x" }))
