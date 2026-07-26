@@ -270,6 +270,11 @@ function makeSb(tables: Record<string, TableSpec>) {
     const result = () => {
       if (spec.error) return { data: null, error: spec.error };
       let rows = spec.rows ?? [];
+      // eq filters: rows without the column pass through (backward-compat);
+      // rows WITH the column are filtered by value — enables workspace isolation tests.
+      for (const { col, val } of state.eqs ?? []) {
+        rows = rows.filter((r: any) => !(col in r) || r[col] === val);
+      }
       for (const col of state.isNull ?? []) rows = rows.filter((r: any) => r[col] == null);
       for (const col of state.notNull ?? []) rows = rows.filter((r: any) => r[col] != null);
       for (const f of state.ranges ?? []) rows = rows.filter(f);
@@ -278,7 +283,7 @@ function makeSb(tables: Record<string, TableSpec>) {
 
     const b: any = {
       select: (..._a: any[]) => b,
-      eq:     (..._a: any[]) => b,
+      eq:     (col: string, val: any) => { (state.eqs ??= []).push({ col, val }); return b; },
       neq:    (..._a: any[]) => b,
       in:     (..._a: any[]) => b,
       not:    (col: string, op: string, val: any) => {
@@ -1016,6 +1021,15 @@ describe("Acceptance — Family 13: Agent↔CRM integration (SystemMind)", () =>
     const applyTask = res.tasks[res.tasks.length - 1];
     expect(applyTask.metadata.approval_stage).toBe("apply");
     expect(applyTask.intelligence_packet.approval_scope.sensitive).toBe(true);
+
+    // ⑭ Honest completion — the apply stage must be non-approvable at creation
+    // AND its packet must explicitly declare that nothing auto-executes:
+    // provider actions only run after each stage is individually approved and
+    // Apply runs through the existing gated pipelines (not auto-executed).
+    const applyPacketStr = JSON.stringify(applyTask.intelligence_packet);
+    expect(applyPacketStr).toMatch(
+      /nothing is changed until|gated pipeline|not changed until|approval.*required/i,
+    );
   });
 });
 
@@ -1047,6 +1061,15 @@ describe("Acceptance — Family 14: Workflow depth review (SystemMind)", () => {
     const applyTask = res.tasks[res.tasks.length - 1];
     expect(applyTask.metadata.approval_stage).toBe("apply");
     expect(applyTask.intelligence_packet.approval_scope.sensitive).toBe(true);
+
+    // ⑭ Honest completion — apply stage is non-approvable at creation (assertChain ⑭)
+    // AND the packet must explicitly state that no provider action is auto-executed:
+    // workflow changes only apply after each stage is individually approved and
+    // Apply runs through the existing gated pipelines / gated save path.
+    const applyPacketStr = JSON.stringify(applyTask.intelligence_packet);
+    expect(applyPacketStr).toMatch(
+      /nothing is changed until|not modified until|gated pipeline|gated save path|until each stage is approved/i,
+    );
   });
 });
 
@@ -1223,77 +1246,112 @@ describe("Content safety regression — fabricated stat blocked across content t
 // ═══════════════════════════════════════════════════════════════════════════════
 
 describe("Workspace isolation — cross-workspace data cannot leak", () => {
-  it("sales pipeline: WS1 work order is stamped with WS1; WS2 query returns WS2 work order", async () => {
-    const { sb: sb1, inserted: ins1 } = makeSb({
-      leads: { rows: [lead()] },
-      work_orders: { rows: [] },
+  /**
+   * All three tests share ONE fake-sb instance containing rows from BOTH
+   * workspaces.  Because `.eq("workspace_id", wsId)` now actually filters
+   * rows (rows that have the column are filtered; rows without it pass
+   * through for backward compat), each core function can only see its own
+   * workspace's data.  Using two separate sb instances would make cross-
+   * workspace leakage structurally impossible and would not verify filters.
+   */
+
+  it("sales pipeline: one shared source — each workspace sees only its own leads", async () => {
+    // Single shared sb with leads from BOTH workspaces
+    const { sb, inserted } = makeSb({
+      leads: {
+        rows: [
+          lead({ workspace_id: WS,   email: "lead-ws1@isolation.test" }),
+          lead({ workspace_id: WS_2, email: "lead-ws2@isolation.test" }),
+        ],
+      },
+      work_orders:   { rows: [] },
       hivemind_tasks: { rows: [] },
     });
-    const { sb: sb2, inserted: ins2 } = makeSb({
-      leads: { rows: [lead({ email: "ws2@example.com" })] },
-      work_orders: { rows: [] },
-      hivemind_tasks: { rows: [] },
-    });
-    const res1 = await createSalesPipelineWorkOrderCore(sb1, WS, null);
-    const res2 = await createSalesPipelineWorkOrderCore(sb2, WS_2, null);
 
-    // Each work order belongs to its own workspace (⑮)
-    expect(ins1.work_orders![0].workspace_id).toBe(WS);
-    expect(ins2.work_orders![0].workspace_id).toBe(WS_2);
+    // Call for WS1 — query filters by workspace_id=WS (only 1 lead visible)
+    await createSalesPipelineWorkOrderCore(sb, WS, null);
+    // Call for WS2 on the SAME sb — query filters by workspace_id=WS_2
+    await createSalesPipelineWorkOrderCore(sb, WS_2, null);
 
-    // Cross-workspace: WS1's inserted rows never appear in WS2's builder
-    expect(ins1.work_orders![0].id).not.toBe(ins2.work_orders![0].id);
-    // WS2 builder has no knowledge of WS1 rows
-    expect(Object.keys(ins1)).not.toContain("growthmind_ads_accounts");
-    expect((ins2.work_orders ?? []).every((wo: any) => wo.workspace_id === WS_2)).toBe(true);
+    expect(inserted.work_orders).toHaveLength(2);
+    const [wo1, wo2] = inserted.work_orders!;
+
+    // Structural isolation: correct workspace stamps
+    expect(wo1.workspace_id).toBe(WS);
+    expect(wo2.workspace_id).toBe(WS_2);
+    // IDs are distinct — rows are never shared
+    expect(wo1.id).not.toBe(wo2.id);
+    // Cross-visibility: WS1's work order packet must not reference WS2's lead email
+    expect(JSON.stringify(wo1)).not.toContain("lead-ws2@isolation.test");
+    // WS2's work order packet must not reference WS1's lead email
+    expect(JSON.stringify(wo2)).not.toContain("lead-ws1@isolation.test");
   });
 
-  it("email campaign: WS1 and WS2 produce isolated work orders with distinct workspace IDs", async () => {
+  it("email campaign: one shared source — WS1 and WS2 produce non-overlapping work orders", async () => {
     deliverabilityMock.getEmailReadinessForWorkspace.mockResolvedValue({
       score: 85, grade: "B", issues: [],
     });
-    const mkEmailSb = (ws: string) =>
-      makeSb({
-        suppressed_emails: { rows: [] },
-        leads: { rows: [lead({ email: `lead@ws-${ws.slice(0, 4)}.example.com` })] },
-        hexmail_campaigns: { rows: [] },
-        hexmail_templates: { rows: [hexmailTemplate()] },
-        work_orders: { rows: [] },
-        hivemind_tasks: { rows: [] },
-      });
+    // Single shared sb — suppressed_emails and templates are workspace-agnostic fixtures
+    const { sb, inserted } = makeSb({
+      suppressed_emails: { rows: [] },
+      leads: {
+        rows: [
+          lead({ workspace_id: WS,   email: "ws1-lead@isolation.test" }),
+          lead({ workspace_id: WS_2, email: "ws2-lead@isolation.test" }),
+        ],
+      },
+      hexmail_campaigns: { rows: [] },
+      hexmail_templates: { rows: [hexmailTemplate()] },
+      work_orders:       { rows: [] },
+      hivemind_tasks:    { rows: [] },
+    });
 
-    const { sb: sb1, inserted: ins1 } = mkEmailSb(WS);
-    const { sb: sb2, inserted: ins2 } = mkEmailSb(WS_2);
+    await createEmailCampaignWorkOrderCore(sb, WS, null);
+    await createEmailCampaignWorkOrderCore(sb, WS_2, null);
 
-    await createEmailCampaignWorkOrderCore(sb1, WS, null);
-    await createEmailCampaignWorkOrderCore(sb2, WS_2, null);
-
-    expect(ins1.work_orders![0].workspace_id).toBe(WS);
-    expect(ins2.work_orders![0].workspace_id).toBe(WS_2);
-    expect(ins1.work_orders![0].id).not.toBe(ins2.work_orders![0].id);
+    expect(inserted.work_orders).toHaveLength(2);
+    const [wo1, wo2] = inserted.work_orders!;
+    expect(wo1.workspace_id).toBe(WS);
+    expect(wo2.workspace_id).toBe(WS_2);
+    expect(wo1.id).not.toBe(wo2.id);
+    // Non-visibility: each work order's packet must not expose the other workspace's email
+    expect(JSON.stringify(wo1)).not.toContain("ws2-lead@isolation.test");
+    expect(JSON.stringify(wo2)).not.toContain("ws1-lead@isolation.test");
   });
 
-  it("Google Ads: each workspace sees only its own account evidence", async () => {
-    const mkGadsSb = (ws: string, accountId: string) =>
-      makeSb({
-        growthmind_ads_accounts: { rows: [gadsAccount({ id: accountId, workspace_id: ws })] },
-        growthmind_gads_campaign_daily: { rows: [gadsCampaignDaily({ workspace_id: ws })] },
-        growthmind_gads_recommendations: { rows: [] },
-        growthmind_gads_change_requests: { rows: [] },
-        work_orders: { rows: [] },
-        hivemind_tasks: { rows: [] },
-      });
+  it("Google Ads: one shared source — each workspace sees only its own account evidence", async () => {
+    // Single shared sb with ads accounts from BOTH workspaces
+    const { sb, inserted } = makeSb({
+      growthmind_ads_accounts: {
+        rows: [
+          gadsAccount({ id: "acct-ws1", workspace_id: WS }),
+          gadsAccount({ id: "acct-ws2", workspace_id: WS_2 }),
+        ],
+      },
+      growthmind_gads_campaign_daily: {
+        rows: [
+          gadsCampaignDaily({ workspace_id: WS }),
+          gadsCampaignDaily({ workspace_id: WS_2 }),
+        ],
+      },
+      growthmind_gads_recommendations: { rows: [] },
+      growthmind_gads_change_requests:  { rows: [] },
+      work_orders:   { rows: [] },
+      hivemind_tasks: { rows: [] },
+    });
 
-    const { sb: sb1, inserted: ins1 } = mkGadsSb(WS, "acct-ws1");
-    const { sb: sb2, inserted: ins2 } = mkGadsSb(WS_2, "acct-ws2");
+    await createGadsPacketWorkOrderCore(sb, WS, null);
+    await createGadsPacketWorkOrderCore(sb, WS_2, null);
 
-    await createGadsPacketWorkOrderCore(sb1, WS, null);
-    await createGadsPacketWorkOrderCore(sb2, WS_2, null);
-
-    expect(ins1.work_orders![0].workspace_id).toBe(WS);
-    expect(ins2.work_orders![0].workspace_id).toBe(WS_2);
-    // Work orders have different ids — no sharing
-    expect(ins1.work_orders![0].id).not.toBe(ins2.work_orders![0].id);
+    expect(inserted.work_orders).toHaveLength(2);
+    const [wo1, wo2] = inserted.work_orders!;
+    expect(wo1.workspace_id).toBe(WS);
+    expect(wo2.workspace_id).toBe(WS_2);
+    expect(wo1.id).not.toBe(wo2.id);
+    // Account evidence must be workspace-scoped: WS2's account ID must not appear in WS1's packet
+    expect(JSON.stringify(wo1)).not.toContain("acct-ws2");
+    // WS1's account ID must not appear in WS2's packet
+    expect(JSON.stringify(wo2)).not.toContain("acct-ws1");
   });
 });
 

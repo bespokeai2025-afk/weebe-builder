@@ -33,6 +33,9 @@ const CI_MODE = process.argv.includes("--ci");
 console.log("▶  Running universal acceptance test matrix…\n");
 
 let rawOutput = "";
+// exitCode: 0 = all pass, non-zero = vitest reported failures.
+// We ALWAYS respect the actual process exit code for CI — parsing is only
+// for human-readable reporting metadata and can miss edge cases.
 let exitCode = 0;
 
 try {
@@ -40,9 +43,12 @@ try {
     "npx vitest run --config vitest.component.config.ts tests/component/acceptance-matrix.test.tsx --reporter=verbose 2>&1",
     { cwd: ROOT, encoding: "utf8" },
   );
+  // execSync throws on non-zero exit; reaching here means exit code 0
+  exitCode = 0;
 } catch (err) {
-  rawOutput = err.stdout ?? "";
-  exitCode = err.status ?? 1;
+  rawOutput = (err.stdout ?? "") + (err.stderr ?? "");
+  // Preserve the real exit code from vitest — never assume 0 if it threw
+  exitCode = (typeof err.status === "number" && err.status !== 0) ? err.status : 1;
 }
 
 // ── 2. Parse results ──────────────────────────────────────────────────────────
@@ -165,12 +171,18 @@ writeFileSync(docPath, doc, "utf8");
 console.log(`\n📄  Updated docs/ACCEPTANCE_TEST_MATRIX.md`);
 
 // ── 5. Exit ───────────────────────────────────────────────────────────────────
+// Use the real vitest exit code as the authoritative failure signal in CI.
+// Parsed failure counts are used only for reporting — they can miss failures
+// when output format changes.  exitCode is always set correctly from the
+// execSync catch block above.
 
-if (CI_MODE && totalFailed > 0) {
-  console.error(`\n❌  ${totalFailed} test(s) failed — exiting with code 1 (--ci mode).`);
-  process.exit(1);
-}
-
-if (totalFailed > 0) {
-  console.warn(`\n⚠️   ${totalFailed} test(s) failed. Re-run with --ci to exit non-zero.`);
+if (CI_MODE) {
+  if (exitCode !== 0) {
+    const detail = totalFailed > 0 ? `${totalFailed} test(s) failed` : "vitest exited non-zero";
+    console.error(`\n❌  ${detail} — exiting with code ${exitCode} (--ci mode).`);
+    process.exit(exitCode);
+  }
+} else if (exitCode !== 0 || totalFailed > 0) {
+  const detail = totalFailed > 0 ? `${totalFailed} test(s) failed` : "vitest exited non-zero";
+  console.warn(`\n⚠️   ${detail}. Re-run with --ci to exit non-zero.`);
 }
