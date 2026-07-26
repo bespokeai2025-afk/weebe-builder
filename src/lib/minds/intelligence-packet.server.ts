@@ -121,6 +121,43 @@ export interface PrepareMindTaskOptions {
 }
 
 /**
+ * If the packet's evidence array contains a `content_safety_gate` item with
+ * `data.passed === false`, inject a hard blocker so the readiness state is
+ * forced to "blocked". The safety evidence item is the authoritative record;
+ * this converts it into the mechanism the validator already knows about.
+ */
+function injectSafetyGateBlockerIfNeeded(
+  packet: UniversalMindIntelligencePacket,
+): UniversalMindIntelligencePacket {
+  const safetyEvidence = packet.evidence.find(
+    (e) => e.source === "content_safety_gate" && e.data?.passed === false,
+  );
+  if (!safetyEvidence) return packet;
+
+  // Only add the blocker if it isn't already present.
+  const existingBlocker = (packet.blockers ?? []).find(
+    (b) => b.kind === "other" && b.detail.startsWith("Content safety gate"),
+  );
+  if (existingBlocker) return packet;
+
+  const violationCount = typeof safetyEvidence.data?.violation_count === "number"
+    ? safetyEvidence.data.violation_count
+    : "unknown";
+  return {
+    ...packet,
+    blockers: [
+      ...(packet.blockers ?? []),
+      {
+        kind: "other" as const,
+        detail: `Content safety gate failed with ${violationCount} violation(s). ` +
+          "Resolve all safety violations before this task can be approved. " +
+          "See the content_safety_gate evidence item for details.",
+      },
+    ],
+  };
+}
+
+/**
  * Validate + enrich a hivemind_tasks insert row. Returns the row with
  * intelligence_packet / readiness_state / packet_version / task_category set.
  * Throws MindTaskQualityGateError on shallow Mind output.
@@ -158,7 +195,11 @@ export function prepareMindTaskInsert(
     );
   }
 
-  const v = validateUniversalMindIntelligencePacket(packet);
+  // 3. Auto-inject a hard blocker when the packet includes a failed
+  //    content_safety_gate evidence item so readiness is forced to "blocked".
+  const enrichedPacket = injectSafetyGateBlockerIfNeeded(packet);
+
+  const v = validateUniversalMindIntelligencePacket(enrichedPacket);
   const isExecutable = row.task_category === "executable" || !!row.action_kind;
 
   if (isExecutable && !v.approvable) {
@@ -170,7 +211,7 @@ export function prepareMindTaskInsert(
         action_kind: null,
         execution_status: null,
         input_spec: null,
-        intelligence_packet: { ...packet, missing: [...(packet.missing ?? []), ...v.missing] },
+        intelligence_packet: { ...enrichedPacket, missing: [...(enrichedPacket.missing ?? []), ...v.missing] },
         readiness_state: v.readiness,
         packet_version: INTELLIGENCE_PACKET_VERSION,
         metadata: { ...(row.metadata ?? {}), task_class: "informational", downgraded_from_executable: true },
@@ -187,7 +228,7 @@ export function prepareMindTaskInsert(
   return {
     ...row,
     task_category: row.task_category ?? "informational",
-    intelligence_packet: packet,
+    intelligence_packet: enrichedPacket,
     readiness_state: v.readiness,
     packet_version: INTELLIGENCE_PACKET_VERSION,
     metadata: {

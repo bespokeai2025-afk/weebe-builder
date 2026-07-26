@@ -649,8 +649,12 @@ export const generateVideo = createServerFn({ method: "POST" })
     // ── Universal content safety gate (on script text) ─────────────────────
     // Script is always saved but safety_blocked: true is stored in the asset
     // when violations exist — downstream paths check this before allowing export.
+    // Fail-closed: gate errors are treated as blocking violations so a script
+    // is never silently cleared when the gate itself fails to run.
     let videoScriptSafety: { passed: boolean; violations: string[]; warnings: string[] } = {
-      passed: true, violations: [], warnings: [],
+      passed: false,
+      violations: ["gate_error: Content safety gate could not run — video script blocked until gate succeeds."],
+      warnings: [],
     };
     let videoSafetyEvidence: { source: string; description: string; data: Record<string, unknown>; retrieved_at: string } | null = null;
     try {
@@ -659,7 +663,7 @@ export const generateVideo = createServerFn({ method: "POST" })
       videoScriptSafety = { passed: safetyResult.passed, violations: safetyResult.violations, warnings: safetyResult.warnings };
       videoSafetyEvidence = safetyMod.safetyCheckEvidenceItem(safetyResult);
     } catch (e: any) {
-      console.warn("[content-safety] video gate error:", e?.message ?? String(e));
+      console.error("[content-safety] video gate error (fail-closed):", e?.message ?? String(e));
     }
 
     // ── Step 3: ElevenLabs voiceover (Balanced + Premium) ─────────────────

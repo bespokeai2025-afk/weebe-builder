@@ -512,9 +512,13 @@ export const generateContent = createServerFn({ method: "POST" })
     // are attached as evidence and `safety_blocked: true` is stored in the brief
     // when violations exist — downstream publication/approval paths check this
     // flag and refuse to promote a blocked draft to an approvable state.
+    // Fail-closed: if the gate itself errors, treat it as a blocking violation
+    // so drafts are never silently promoted past a gate that couldn't run.
     let safetyCheckFull: Awaited<ReturnType<typeof runContentSafetyCheck>> | null = null;
     let safetyCheck: { passed: boolean; violations: string[]; warnings: string[] } = {
-      passed: true, violations: [], warnings: [],
+      passed: false,
+      violations: ["gate_error: Content safety gate could not run — draft blocked until gate succeeds."],
+      warnings: [],
     };
     try {
       safetyCheckFull = await runContentSafetyCheck(mainContent, data.contentType, workspaceId);
@@ -524,7 +528,7 @@ export const generateContent = createServerFn({ method: "POST" })
         warnings:   safetyCheckFull.warnings,
       };
     } catch (e: any) {
-      console.warn("[content-safety] gate error:", e?.message ?? String(e));
+      console.error("[content-safety] gate error (fail-closed):", e?.message ?? String(e));
     }
     const safetyEvidence = safetyCheckFull ? safetyCheckEvidenceItem(safetyCheckFull) : null;
 

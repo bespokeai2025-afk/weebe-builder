@@ -500,6 +500,146 @@ describe("runContentSafetyCheck — approved_customer_evidence classification", 
 });
 
 // ════════════════════════════════════════════════════════════════════════════
+// injectSafetyGateBlockerIfNeeded (via prepareMindTaskInsert)
+// ════════════════════════════════════════════════════════════════════════════
+
+describe("prepareMindTaskInsert — safety gate blocker injection", () => {
+  it("forces readiness to 'blocked' when packet evidence contains a failed content_safety_gate item", async () => {
+    const {
+      prepareMindTaskInsert,
+      buildIntelligencePacket,
+      evidenceItem,
+    } = await import("@/lib/minds/intelligence-packet.server");
+
+    const safetyFailEvidence = {
+      source: "content_safety_gate",
+      description: "FAILED: 1 violation(s). Approval blocked.",
+      data: { passed: false, violation_count: 1, violations: ["fabricated_statistics: some detail"] },
+      retrieved_at: new Date().toISOString(),
+    };
+
+    const packet = buildIntelligencePacket({
+      mind: "growthmind",
+      objective: "Deploy a social campaign for product launch",
+      intentSource: "chat_tool:create_content_deployment_work_order",
+      targets: [{
+        domain: "content",
+        entity_type: "content_project",
+        entity_id: "proj-123",
+        entity_name: "Product Launch",
+        resolved: true,
+      }],
+      evidence: [
+        evidenceItem("growthmind_content_projects", "Project found.", { project_id: "proj-123" }),
+        safetyFailEvidence,
+      ],
+      diagnosis: "Content deployment ready but safety gate failed.",
+      deliverables: ["Approved content for all channels"],
+      successCriteria: ["No safety violations"],
+      limitations: ["Manual publication required for LinkedIn."],
+      approvalScope: { kind: "content", summary: "Approve content variants for deployment", sensitive: false },
+    });
+
+    const row = prepareMindTaskInsert(
+      { workspace_id: "ws-1", task_category: "informational" },
+      packet,
+    );
+
+    expect(row.readiness_state).toBe("blocked");
+    const storedPacket = row.intelligence_packet as any;
+    expect(storedPacket.blockers?.some((b: any) => b.detail.startsWith("Content safety gate"))).toBe(true);
+  });
+
+  it("does NOT inject a blocker when content_safety_gate evidence shows passed: true", async () => {
+    const {
+      prepareMindTaskInsert,
+      buildIntelligencePacket,
+      evidenceItem,
+    } = await import("@/lib/minds/intelligence-packet.server");
+
+    const safetyPassEvidence = {
+      source: "content_safety_gate",
+      description: "PASSED: all checks cleared.",
+      data: { passed: true, violation_count: 0, violations: [] },
+      retrieved_at: new Date().toISOString(),
+    };
+
+    const packet = buildIntelligencePacket({
+      mind: "growthmind",
+      objective: "Deploy social content after safety gate clearance",
+      intentSource: "chat_tool:create_content_deployment_work_order",
+      targets: [{
+        domain: "content",
+        entity_type: "content_project",
+        entity_id: "proj-456",
+        entity_name: "Cleared Campaign",
+        resolved: true,
+      }],
+      evidence: [
+        evidenceItem("growthmind_content_projects", "Project found.", { project_id: "proj-456" }),
+        safetyPassEvidence,
+      ],
+      diagnosis: "Content deployment ready; safety gate passed.",
+      deliverables: ["Approved content for all channels"],
+      successCriteria: ["No safety violations"],
+      limitations: ["Manual publication required for LinkedIn."],
+      approvalScope: { kind: "content", summary: "Approve content variants", sensitive: false },
+    });
+
+    const row = prepareMindTaskInsert(
+      { workspace_id: "ws-1", task_category: "informational" },
+      packet,
+    );
+
+    expect(row.readiness_state).not.toBe("blocked");
+    const storedPacket = row.intelligence_packet as any;
+    const safetyBlocker = (storedPacket.blockers ?? []).find((b: any) =>
+      b.detail.startsWith("Content safety gate"));
+    expect(safetyBlocker).toBeUndefined();
+  });
+
+  it("does NOT add a duplicate safety blocker when one already exists", async () => {
+    const {
+      prepareMindTaskInsert,
+      buildIntelligencePacket,
+      evidenceItem,
+    } = await import("@/lib/minds/intelligence-packet.server");
+
+    const safetyFailEvidence = {
+      source: "content_safety_gate",
+      description: "FAILED: 2 violation(s).",
+      data: { passed: false, violation_count: 2, violations: ["v1", "v2"] },
+      retrieved_at: new Date().toISOString(),
+    };
+
+    const packet = buildIntelligencePacket({
+      mind: "growthmind",
+      objective: "Deploy blocked content",
+      intentSource: "chat_tool:create_content_deployment_work_order",
+      targets: [{ domain: "content", entity_type: "content_project", entity_id: "proj-789", entity_name: "Blocked", resolved: true }],
+      evidence: [safetyFailEvidence],
+      diagnosis: "Safety gate failed.",
+      deliverables: ["Approved content"],
+      successCriteria: ["Pass safety gate"],
+      limitations: [],
+      approvalScope: { kind: "content", summary: "Approve content", sensitive: false },
+      // Pre-existing blocker — should not add a second one
+      blockers: [{ kind: "other", detail: "Content safety gate failed with 2 violation(s). Resolve all safety violations before this task can be approved. See the content_safety_gate evidence item for details." }],
+    });
+
+    const row = prepareMindTaskInsert(
+      { workspace_id: "ws-1", task_category: "informational" },
+      packet,
+    );
+
+    const storedPacket = row.intelligence_packet as any;
+    const safetyBlockers = (storedPacket.blockers ?? []).filter((b: any) =>
+      b.detail.startsWith("Content safety gate"));
+    expect(safetyBlockers.length).toBe(1);
+  });
+});
+
+// ════════════════════════════════════════════════════════════════════════════
 // safetyCheckEvidenceItem
 // ════════════════════════════════════════════════════════════════════════════
 

@@ -622,6 +622,39 @@ export async function createContentDeploymentWorkOrderCore(
   const adapted = variants.filter((v) => v.adaptationOk);
   const failed = variants.filter((v) => !v.adaptationOk);
 
+  // ── Universal content safety gate on all adapted variant text ──────────────
+  // Fail-closed: gate errors are treated as blocking violations so adapted
+  // copy is never silently cleared when the gate itself fails to run.
+  let variantSafetyPassed = false;
+  let variantSafetyViolations: string[] = [
+    "gate_error: Content safety gate could not run — variants blocked until gate succeeds.",
+  ];
+  let variantSafetyEvidenceItem: PacketEvidence | null = null;
+  try {
+    const safetyMod = await import(/* @vite-ignore */ "@/lib/content-safety/universal-content-safety.server");
+    // Concatenate all adapted variant copy into a single pass so one evidence
+    // item covers the whole deployment package.
+    const combinedText = adapted
+      .map((v: any) => [v.title, v.adaptedBody ?? v.body ?? ""].filter(Boolean).join(" "))
+      .join("\n\n");
+    if (combinedText.trim().length > 0) {
+      const safetyResult = await safetyMod.runContentSafetyCheck(
+        combinedText,
+        "social_post",
+        workspaceId,
+      );
+      variantSafetyPassed      = safetyResult.passed;
+      variantSafetyViolations  = safetyResult.violations;
+      variantSafetyEvidenceItem = safetyMod.safetyCheckEvidenceItem(safetyResult);
+    } else {
+      // No adapted text to check — gate passes vacuously.
+      variantSafetyPassed     = true;
+      variantSafetyViolations = [];
+    }
+  } catch (e: any) {
+    console.error("[content-safety] content-deployment gate error (fail-closed):", e?.message ?? String(e));
+  }
+
   const targets: PacketTarget[] = [{
     domain: "content",
     entity_type: "content_project",
@@ -642,6 +675,17 @@ export async function createContentDeploymentWorkOrderCore(
           channel: v.channel, state: v.deploymentState, path: v.deploymentPath, problems: v.problems,
         })),
       }),
+    // Safety gate evidence — prepareMindTaskInsert will auto-inject a blocker
+    // into the packet when passed === false, driving readiness to "blocked".
+    ...(variantSafetyEvidenceItem
+      ? [variantSafetyEvidenceItem]
+      : [f.evidenceItem(
+          "content_safety_gate",
+          variantSafetyPassed
+            ? "Content safety gate: all adapted variant text passed."
+            : `Content safety gate: ${variantSafetyViolations.length} violation(s) — variants blocked.`,
+          { passed: variantSafetyPassed, violation_count: variantSafetyViolations.length, violations: variantSafetyViolations.slice(0, 5) },
+        )]),
   ];
   const apiChannels = variants.filter((v) => v.deploymentPath === "api").map((v) => v.channel);
   const manualChannels = variants.filter((v) => v.deploymentPath === "manual").map((v) => v.channel);
