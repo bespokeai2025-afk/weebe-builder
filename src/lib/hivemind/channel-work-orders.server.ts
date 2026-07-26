@@ -26,6 +26,9 @@ import {
   sequenceHasNoOverlappingSends,
   analysePipelineLeads,
   pipelineProposedChanges,
+  summariseAudiencePreferences,
+  summariseCountryDistribution,
+  estimateWhatsAppCampaignCost,
   SEQUENCE_STOP_CONDITIONS,
   type ApprovalStage,
   type AudienceComplianceResult,
@@ -42,7 +45,8 @@ import type {
 type Sb = any;
 
 const LEAD_AUDIENCE_COLUMNS =
-  "id, full_name, phone, email, status, pipeline_stage, whatsapp_opt_in, last_contacted_at, updated_at, created_at, qualification_status";
+  "id, full_name, phone, email, status, pipeline_stage, whatsapp_opt_in, last_contacted_at, updated_at, created_at, qualification_status, " +
+  "sale_amount, call_outcome, objections, external_source_id, source, state_name, meta";
 
 async function guards(sb: Sb, workspaceId: string): Promise<void> {
   const { assertNotWbahWorkspace } = await import("@/lib/wbah-exclusion.shared");
@@ -287,6 +291,11 @@ export async function createSalesPipelineWorkOrderCore(
         duplicate_phones: analysis.duplicatePhones,
         won: analysis.wonCount,
         conversion_pct: analysis.conversionPct,
+        deal_value: analysis.dealValue,
+        lost_reasons: analysis.lostReasons,
+        lost_without_reason: analysis.lostWithoutReason,
+        crm_sync_state: analysis.syncState,
+        missing_critical_fields: analysis.missingCriticalFields,
       }),
     ],
     diagnosis: analysis.diagnosis,
@@ -387,11 +396,19 @@ export async function createFollowUpSequenceWorkOrderCore(
     resolved: true,
     resolution_note: `${anyEligible.size} lead(s) eligible on at least one channel after consent/suppression/dedup filtering.`,
   }];
+  const eligibleLeads = rawLeads.filter((l) => anyEligible.has(l.id));
+  const preferences = summariseAudiencePreferences(eligibleLeads as any[]);
   const evidence: PacketEvidence[] = [
     ...compliances.map((c) => audienceEvidence(evidenceItem, c, filter)),
     evidenceItem("sequence_plan", `${plan.length}-touch plan over ${plan.length ? plan[plan.length - 1].day + 1 : 0} day(s); one touch per day max.`, {
       steps: plan,
       stop_conditions: SEQUENCE_STOP_CONDITIONS,
+    }),
+    evidenceItem("leads", `Per-lead scheduling signals for the eligible segment: ${preferences.summary}`, {
+      timezones: preferences.timezones,
+      unknown_timezone: preferences.unknownTimezone,
+      preferred_channels: preferences.preferredChannels,
+      unknown_preferred_channel: preferences.unknownPreferredChannel,
     }),
   ];
   const diagnosis =
@@ -488,7 +505,7 @@ export async function createWhatsAppCampaignWorkOrderCore(
 
   // Provider resolution — real connection rows, honest blocker when absent.
   const { data: wati } = await sb.from("wati_connections")
-    .select("workspace_id, tenant_id, api_host, status")
+    .select("workspace_id, tenant_id, api_host, status, last_tested_at, error_message")
     .eq("workspace_id", workspaceId).maybeSingle();
   const providerConnected = !!wati;
   const integrationBlockers = providerConnected ? [] : [{
@@ -521,11 +538,39 @@ export async function createWhatsAppCampaignWorkOrderCore(
     resolved: true,
     resolution_note: `${compliance.eligible.length} opted-in lead(s); provider ${providerConnected ? "connected (WATI)" : "NOT connected"}.`,
   }];
+  const countries = summariseCountryDistribution(compliance.eligible.map((l) => l.phone));
+  const cost = estimateWhatsAppCampaignCost(compliance.eligible.length);
   const evidence: PacketEvidence[] = [
     audienceEvidence(evidenceItem, compliance, filter),
     evidenceItem("wati_connections",
-      providerConnected ? "WATI connection present for this workspace." : "No WATI connection found.",
-      { connected: providerConnected }),
+      providerConnected
+        ? `WATI connection present (tenant ${wati.tenant_id}, status "${wati.status}"` +
+          `${wati.last_tested_at ? `, last tested ${wati.last_tested_at}` : ", never tested"}). ` +
+          "Sending WhatsApp number is managed inside the WATI tenant and is not stored in WEBEE — " +
+          "confirm the sender number in WATI before Send approval."
+        : "No WATI connection found.",
+      providerConnected
+        ? {
+            connected: true,
+            tenant_id: wati.tenant_id,
+            api_host: wati.api_host ?? null,
+            status: wati.status,
+            last_tested_at: wati.last_tested_at ?? null,
+            error_message: wati.error_message ?? null,
+            sender_number_known: false,
+          }
+        : { connected: false }),
+    evidenceItem("leads",
+      `Destination country mix for the ${compliance.eligible.length} eligible number(s): ${countries.summary}.`,
+      { by_country: countries.byCountry, unknown_prefix: countries.unknown }),
+    evidenceItem("cost_estimate", cost.note, {
+      messages: cost.messages,
+      per_message_low: cost.perMessageLow,
+      per_message_high: cost.perMessageHigh,
+      total_low: cost.totalLow,
+      total_high: cost.totalHigh,
+      assumption: true,
+    }),
     evidenceItem("wati_templates",
       `${(templates ?? []).length} synced template(s); ${approvedTemplates.length} approved.` +
       (opts.templateName ? (matchedTemplate ? ` Requested template "${matchedTemplate.name}" found (status: ${matchedTemplate.status}).` : ` Requested template "${opts.templateName}" NOT found.`) : ""),
@@ -539,9 +584,11 @@ export async function createWhatsAppCampaignWorkOrderCore(
   ];
   const diagnosis =
     `WhatsApp campaign feasibility: ${compliance.eligible.length} of ${rawLeads.length} lead(s) are opted-in and reachable; ` +
-    `${approvedTemplates.length} approved template(s) available; provider ${providerConnected ? "connected" : "missing — campaign blocked until connected"}.`;
+    `${approvedTemplates.length} approved template(s) available; provider ${providerConnected ? "connected" : "missing — campaign blocked until connected"}. ` +
+    `Volume: ${compliance.eligible.length} message(s); estimated cost ${cost.totalLow}–${cost.totalHigh} GBP (assumed rate). ` +
+    `Countries: ${countries.summary}.`;
   const objective = opts.objective?.trim() ||
-    "Send a WhatsApp template campaign to the opted-in lead segment with split Audience/Template/Schedule/Send approvals.";
+    "Send a WhatsApp template campaign to the opted-in lead segment with split Audience/Template/Schedule/Follow-Up/Send approvals.";
   const intentSource = opts.source === "hivemind_tool" ? "chat_tool:create_whatsapp_campaign_work_order" : "manual:whatsapp_work_order";
   const limitations = [
     "Only leads with explicit WhatsApp opt-in are ever included — no exceptions.",
@@ -557,6 +604,7 @@ export async function createWhatsAppCampaignWorkOrderCore(
       deliverables: [`${stage.label} approval for the WhatsApp campaign`],
       successCriteria: ["Zero messages to non-opted-in numbers", "Only approved templates used"],
       limitations, approvalSummary: summary, integrationBlockers,
+      costNote: cost.note,
     });
 
   const result = await insertWorkOrderWithStageTasks(sb, workspaceId, userId, {
@@ -590,15 +638,31 @@ export async function createWhatsAppCampaignWorkOrderCore(
       },
       {
         stage: stages[2],
-        title: "Approve Schedule: send window and pacing",
-        description: "Business-hours send window, paced sending, no repeats to the same number.",
-        packet: mk(stages[2], "Approve Schedule: business-hours window, paced sending, one message per lead.", [{ title: "Confirm send window and pacing" }]),
+        title: "Approve Schedule: send window, pacing and country rules",
+        description:
+          `Business-hours send window, paced sending, no repeats to the same number. Destination mix: ${countries.summary}.` +
+          (countries.unknown ? " Numbers without a recognised country prefix must have their local-time rules confirmed here." : ""),
+        packet: mk(stages[2],
+          `Approve Schedule: business-hours window, paced sending, one message per lead. Country mix: ${countries.summary}.`,
+          [{ title: "Confirm send window, pacing and per-country timing rules" }]),
       },
       {
         stage: stages[3],
+        title: "Approve Follow-Up: reply handling and follow-up policy",
+        description:
+          "How replies are handled and whether any follow-up touches are allowed after the initial template. " +
+          "Any follow-up sequence needs its own Audience/Sequence/Schedule/Send approvals — this stage only fixes the policy.",
+        packet: mk(stages[3],
+          "Approve Follow-Up policy: reply routing and whether follow-up touches are permitted (any actual sequence requires its own approvals).",
+          [{ title: "Confirm reply handling and follow-up policy" }]),
+      },
+      {
+        stage: stages[4],
         title: "Send approval (blocked until prior approvals)",
-        description: "Final authorisation. Created blocked — requires Audience, Template and Schedule approvals plus a connected provider.",
-        packet: mk(stages[3], `Authorise sending to ${compliance.eligible.length} opted-in lead(s) via WATI. Requires all prior approvals.`, [{ title: "Send the approved campaign" }]),
+        description:
+          `Final authorisation. Created blocked — requires Audience, Template, Schedule and Follow-Up approvals plus a connected provider. ` +
+          `Volume ${compliance.eligible.length} message(s); ${cost.note}`,
+        packet: mk(stages[4], `Authorise sending to ${compliance.eligible.length} opted-in lead(s) via WATI. Requires all prior approvals.`, [{ title: "Send the approved campaign" }]),
       },
     ],
   });

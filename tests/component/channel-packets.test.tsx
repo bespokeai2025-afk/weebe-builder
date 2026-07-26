@@ -103,9 +103,9 @@ describe("approvalStagesForChannel — split approvals", () => {
     }
   });
 
-  it("whatsapp has Audience/Template/Schedule/Send; email adds Copy+Sequence; call has Agent & Volume", () => {
+  it("whatsapp has Audience/Template/Schedule/Follow-Up/Send; email adds Copy+Sequence; call has Agent & Volume", () => {
     expect(approvalStagesForChannel("whatsapp").map((s) => s.key))
-      .toEqual(["audience", "template", "schedule", "send"]);
+      .toEqual(["audience", "template", "schedule", "follow_up", "send"]);
     expect(approvalStagesForChannel("email").map((s) => s.key))
       .toEqual(["audience", "copy", "sequence", "schedule", "send"]);
     expect(approvalStagesForChannel("call").map((s) => s.key))
