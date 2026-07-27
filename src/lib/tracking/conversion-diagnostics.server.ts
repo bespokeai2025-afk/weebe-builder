@@ -155,3 +155,81 @@ export const getConversionDiagnostics = createServerFn({ method: "GET" })
       checkedAt: new Date().toISOString(),
     };
   });
+
+// ── Data Manager readiness check (safe, non-production validation) ───────────
+// validateOnly dry-run + read-only conversion-action inspection. Never uploads
+// a conversion; never changes any advertising setting.
+export const runDataManagerReadinessCheck = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const workspaceId = await requireMember(context);
+
+    const { validateDataManagerSetup } = await import("@/lib/tracking/datamanager-upload.server");
+    const resolved = await resolveDataManagerTarget(workspaceId);
+    const target = resolved.ok ? resolved.target : null;
+
+    // Read-only GAQL inspection of the configured conversion action (status,
+    // primary/secondary). Best-effort — analytics scope covers this read.
+    let conversionAction: {
+      id: string; name: string | null; status: string | null;
+      type: string | null; primaryForGoal: boolean | null;
+    } | null = null;
+    let conversionActionError: string | null = null;
+    if (target) {
+      try {
+        if (!/^\d+$/.test(target.productDestinationId)) {
+          throw new Error("Configured conversion action id is not numeric");
+        }
+        const { gaqlSearch } = await import("@/lib/growthmind/gads-live-core.server");
+        const rows = await gaqlSearch(
+          {
+            workspaceId,
+            customerId: target.operatingAccountId,
+            loginCustomerId: target.loginAccountId,
+          },
+          `SELECT conversion_action.id, conversion_action.name, conversion_action.status,
+                  conversion_action.type, conversion_action.primary_for_goal
+           FROM conversion_action
+           WHERE conversion_action.id = ${target.productDestinationId}`,
+        );
+        const c = (rows[0] as any)?.conversionAction ?? null;
+        if (c) {
+          conversionAction = {
+            id: String(c.id ?? target.productDestinationId),
+            name: c.name ?? null,
+            status: c.status ?? null,
+            type: c.type ?? null,
+            primaryForGoal: typeof c.primaryForGoal === "boolean" ? c.primaryForGoal : null,
+          };
+        } else {
+          conversionActionError = "Conversion action not found in the connected Google Ads account";
+        }
+      } catch (err) {
+        conversionActionError = String((err as Error)?.message ?? err).slice(0, 300);
+      }
+    }
+
+    // validateOnly ingest dry-run (nothing is recorded by Google).
+    const validation = await validateDataManagerSetup(workspaceId).catch((err) => ({
+      ok: false as const,
+      scopeOk: false,
+      error: String((err as Error)?.message ?? err).slice(0, 300),
+    }));
+
+    return {
+      configured: Boolean(target),
+      configError: resolved.ok ? null : resolved.reason,
+      scopeGranted: Boolean(target?.scopeOk),
+      reauthorisationRequired: Boolean(target && !target.scopeOk),
+      operatingAccountId: target?.operatingAccountId ?? null,
+      productDestinationId: target?.productDestinationId ?? null,
+      legacyFallbackEnabled: Boolean(target?.legacyFallbackEnabled),
+      conversionAction,
+      conversionActionError,
+      validation: {
+        ok: Boolean((validation as any).ok),
+        httpStatus: (validation as any).httpStatus ?? null,
+        error: (validation as any).error ?? null,
+      },
+    };
+  });

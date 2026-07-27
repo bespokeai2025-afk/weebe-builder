@@ -15,3 +15,5 @@ description: Offline conversion uploads use Google Data Manager API as primary; 
 - **Identifier normalisation:** Google hashes AFTER normalising — email trim/lowercase + gmail dot removal, phone strict E.164 (never guess country; UK 0-prefix is the only assumed market). Mismatched normalisation silently matches nothing.
 - **Tenant boundary:** the lead PII lookup for hashed identifiers must be scoped `.eq(workspace_id)` as well as lead id — a mismatched lead_id must yield NO identifier route (enforced by a source-contract test).
 - validateOnly:true is a true dry-run — safe way to verify scope/account/destination without recording a conversion.
+
+**Connection upgrade (in-place):** DM scope is added to the existing Google Ads connection via incremental OAuth (`include_granted_scopes=true`); callback merges scopes/tokens into the SAME provider row and updates the SAME growthmind_ads_accounts row — never insert a second connection. Missing DM scope must degrade only the conversion-upload card, never the whole integration status. Readiness check = read-only GAQL conversion_action inspect + validateOnly ingest dry-run (member-gated).

@@ -1,0 +1,178 @@
+# UPGRADE THE EXISTING GOOGLE ADS CONNECTION FOR CONVERSION UPLOADS
+
+Do not create a second Google Ads connection.
+
+The existing WEBEE Google Ads connection is healthy and currently shows:
+
+- Google sign-in verified
+- API access verified
+- Ads account selected
+- Data sync healthy
+- Account ID: 3550820264
+- One connected Google Ads account
+
+Preserve that existing account, tokens, analytics sync, customer selection, campaigns and workspace ownership.
+
+## Objective
+
+Extend the same existing Google Ads connection so it also supports Google Data Manager API conversion uploads.
+
+This is an OAuth capability upgrade, not a new account connection.
+
+## Existing conversion destination
+
+Workspace:
+c13db1d5-22e4-44ad-b678-6f296c31a947
+
+Google Ads customer:
+3550820264
+
+Conversion action:
+WEBEE Qualified Lead
+
+Conversion action ID:
+7699121648
+
+Resource name:
+customers/3550820264/conversionActions/7699121648
+
+Type:
+UPLOAD_CLICKS
+
+## 1. Inspect the current connection
+
+Report:
+
+- existing OAuth scopes
+- whether `https://www.googleapis.com/auth/adwords` is present
+- whether `https://www.googleapis.com/auth/datamanager` is present
+- refresh-token status
+- selected Google Ads customer
+- workspace provider record
+- whether Data Manager conversion uploads are currently ready
+
+Do not disconnect or replace the existing account.
+
+## 2. Add incremental Data Manager authorisation
+
+Add the required OAuth scope:
+
+https://www.googleapis.com/auth/datamanager
+
+Preserve all existing Google Ads and Search Console scopes.
+
+Use incremental authorisation where supported.
+
+If Google requires fresh consent:
+
+- mark the existing connection as `reauthorisation_required`
+- show a clear button named `Enable Conversion Uploads`
+- reconnect the same Google account
+- update the existing provider record
+- do not insert a second Google Ads account row
+- do not lose the selected customer ID
+- do not interrupt current analytics sync
+
+Use the appropriate OAuth consent parameters so Google returns permission for the new scope.
+
+## 3. Improve the connection UI
+
+On the existing Google Ads connection card, show separate statuses:
+
+- Analytics access
+- Data sync
+- Conversion action configured
+- Attribution transport
+- Data Manager OAuth
+- Conversion upload readiness
+- Last successful conversion upload
+- Last provider error
+
+The card must distinguish:
+
+- Analytics connected
+- Conversion uploads need permission
+- Conversion uploads configured
+- Conversion uploads ready
+- Conversion uploads failed
+- Reauthorisation required
+
+Do not show the whole integration as disconnected merely because Data Manager permission is missing.
+
+Do not show conversion uploads as ready merely because analytics sync works.
+
+## 4. Configure the existing conversion destination
+
+Use:
+
+- operating account: Google Ads customer 3550820264
+- product destination ID: 7699121648
+- conversion action type: UPLOAD_CLICKS
+- existing workspace-specific provider configuration
+
+Do not hardcode these globally.
+
+Do not create another Google Ads customer selection.
+
+## 5. Confirm upload implementation
+
+Inspect whether WEBEE currently uses:
+
+- legacy Google Ads UploadClickConversions
+- Data Manager API
+- both
+- neither
+
+Make Data Manager API the primary transport for new genuine conversion events.
+
+The legacy uploader must not run for the same event.
+
+If the Data Manager uploader has not yet been implemented, build it using the existing conversion_events ledger, attribution fields, deduplication and evidence system.
+
+## 6. Safe validation
+
+After authorisation, run a non-production validation/readiness check.
+
+Verify:
+
+- Data Manager scope granted
+- account access valid
+- operating account is 3550820264
+- product destination is 7699121648
+- conversion action is enabled
+- conversion action is Secondary
+- event mapping is valid
+- genuine gclid/gbraid/wbraid events can be queued
+- synthetic test events cannot be uploaded
+
+Do not upload a fabricated conversion.
+
+## 7. Preserve current Google Ads operation
+
+Confirm:
+
+- existing campaign analytics remain visible
+- Sync now still works
+- `Search for US and Reception` still appears
+- no duplicate Google Ads account appears
+- no campaign, budget, bid, keyword or ad changes occur
+- another workspace cannot access this destination
+
+## Final report
+
+Return only:
+
+1. Existing Google Ads connection preserved
+2. Scopes before
+3. Data Manager scope result
+4. Whether reauthorisation was required
+5. Existing account row reused
+6. Duplicate account count
+7. Customer ID
+8. Conversion action ID
+9. Data Manager readiness
+10. Current upload transport
+11. UI status result
+12. Analytics sync regression result
+13. Remaining manual action
+14. Confirmation no advertising settings changed

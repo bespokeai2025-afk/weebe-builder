@@ -225,6 +225,10 @@ export const startGoogleAdsOAuth = createServerFn({ method: "POST" })
       scope:         GOOGLE_ADS_OAUTH_SCOPES,
       access_type:   "offline",
       prompt:        "consent",
+      // Incremental authorisation: Google merges previously granted scopes
+      // (e.g. adwords from the original connection) into the new grant, so
+      // upgrading to Data Manager never drops existing analytics access.
+      include_granted_scopes: "true",
       state,
     });
 
