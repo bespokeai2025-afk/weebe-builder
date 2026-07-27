@@ -575,7 +575,7 @@ function MiniChat({ onClose, onStateChange }: {
           className="text-sky-400/30 hover:text-sky-400/70 transition-colors ml-1">
           <Minus className="h-3.5 w-3.5" />
         </button>
-        <button onClick={() => { stopAudio(); onClose(); }}
+        <button onClick={() => { stopAudio(); onClose(); }} aria-label="Close"
           className="text-sky-400/30 hover:text-sky-400/70 transition-colors">
           <X className="h-3.5 w-3.5" />
         </button>
@@ -689,7 +689,7 @@ function MiniChat({ onClose, onStateChange }: {
             />
 
             {thinking ? (
-              <button onClick={() => streamAbortRef.current?.abort()}
+              <button onClick={() => { ttsGenRef.current++; stopAudio(); streamAbortRef.current?.abort(); }}
                 title="Stop generating"
                 className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border transition-all"
                 style={{ background: "rgba(239,68,68,0.15)", border: "1px solid rgba(239,68,68,0.35)", color: "#f87171" }}
