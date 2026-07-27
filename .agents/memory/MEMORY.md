@@ -119,8 +119,7 @@
 - [lead_created notification event](lead-created-notification.md) — every new-lead insert path must call notifyNewLead (create branch only); silent-failure trap: wrong dynamic-import path inside best-effort catch.
 - [Inline head scripts & hydration](head-inline-scripts-hydration.md) — bootstrap scripts must go in root route head() scripts config, not raw JSX in <head>, or injected preview scripts crash hydration.
 - [Builder live Retell agent load](builder-live-retell-load.md) — workspace-key-only (fail closed, no platform fallback); loadFlow must pass agentRowId: null or Save overwrites the previously open agent.
-- [HiveMind executive event backbone](hivemind-executive-events.md) — never-throw publisher + dedup key; mirror runs before notif prefs; recon reads local tables via CAS claims; classifier stays deterministic.
-- [HiveMind data connections](hivemind-data-connections.md) — per-block degradation rule; suppressed_emails only via own failed sends; WBAH bookings = wbah_calls appointment fields, never calendar_bookings.
+- [HiveMind executive event backbone](hivemind-executive-events.md) — never-throw publisher + dedup key; mirror before notif prefs; CAS recon; data-connection rules in hivemind-data-connections.md (WBAH bookings = wbah_calls fields).
 - [HiveMind action safety & learning loop](hivemind-action-safety-learning.md) — mode gates fail closed; sensitive actions never auto-exec; CAS approval consume + post-consume re-validation; ±0.2 bounded confidence learning.
 - [Shared PDF overlay engine](shared-pdf-overlay-engine.md) — one renderer+designer in src/lib(components)/documents serves invoices AND Hexmail docs; never fetch stored URLs server-side, download via storage path.
 - [SystemMind Build Setup Console](systemmind-setup-console.md) — per-session setup state gates Apply only when a row exists; secrets never in setup table; extend computeRequiredInputs for new checks.
@@ -136,8 +135,7 @@
 - [Executive recommendation follow-through](executive-followthrough.md) — recs propose only pending hivemind_actions (mode-gated, sensitive-flagged, server-built payloads); outcomes reflect back, terminal recs never resurrected.
 - [Mind API dual-auth pattern](mind-api-dual-auth.md) — /api/v1/minds/* JWT vs HMAC rules; getClaims throws on malformed JWT; WEBESPOKE_ADMIN creds are NOT Supabase logins.
 - [Mind conversation persistence](mind-conversation-persistence.md) — per-USER RLS (not workspace-members), one active conv per (ws,user,mind), chunked idempotent appends; briefing gated on empty history.
-- [GrowthMind Phase 5 performance & learning](growthmind-phase5-performance-learning.md) — checkpoint snapshots in metrics JSONB; learnings are proposals only (accept-gated, ±0.2/[0.7,1.3] clamps); chat writes audited, never schedule unapproved content.
-- [GrowthMind script performance](growthmind-script-performance.md) — 30d call-script analytics; WBAH routing + 6h snapshot cache; recommendations are advisory drafts only, never touch production agents.
+- [GrowthMind Phase 5 performance & learning](growthmind-phase5-performance-learning.md) — proposals-only learnings (accept-gated, clamped); never schedule unapproved content; script-performance analytics rules in growthmind-script-performance.md (advisory drafts only).
 - [SystemMind Variable Engine](systemmind-variable-engine.md) — agent scanner + reviewed variable registry; re-scan never clobbers reviewed rows; credential NAMES only; e2e config lives at repo root.
 - [Executive Operator orchestration](executive-operator-orchestration.md) — 5th HiveMind mode; playbooks are proposal-only; manual runs need operator-class mode SERVER-side; leads.updated_at trigger blocks stale fixtures (use replica-role SQL).
 - [SystemMind CRM connection engine](systemmind-crm-connections.md) — executable connectors w/ strict all-keys masked reads, echoed-secret scrubbing, SSRF guard; separate from runtime CRM adapters.
@@ -155,5 +153,6 @@
 - [TanStack route nesting needs Outlet](tanstack-route-nesting-outlet.md) — dotted child route renders nothing if parent lacks <Outlet/>; un-nest via `parent_.$id.tsx`, URL/Links unchanged.
 - [Data Manager conversion transport](datamanager-conversion-transport.md) — conversions upload via Data Manager API (scope reauth trap, accepted≠verified, legacy only behind flag).
 - [Prod build OOM heap cap](prodbuild-oom-heap.md) — max-old-space-size must stay well under machine RAM or vite SSR build is OOM-killed silently (FAILED, no error, dist/server empty).
+- [HiveMind streaming pipeline](hivemind-streaming-conversational.md) — all chat surfaces share prepareHiveMindChat+runHiveMindToolLoop; SSE route uses anon-key RLS client (never admin); depth/tone in hivemind-style.shared.ts.
 - [Conversion tracking & Ads attribution](conversion-tracking-arch.md) — server-side conversion_events ledger, gated offline upload, honest statuses; contact form's users-embed lookup silently skipped lead creation for months.
 - [GAds deep-analysis reports](gads-deep-analysis-arch.md) — read-only GAQL deep fetch + deterministic classification + advisory-only AI sections persisted to growthmind_gads_analysis_reports; viewer on work-order page.

@@ -104,6 +104,7 @@ import { Route as ApiOauthGscCallbackRouteImport } from './routes/api/oauth/gsc-
 import { Route as ApiOauthGoogleAdsCallbackRouteImport } from './routes/api/oauth/google-ads-callback'
 import { Route as ApiMonitoringHealthRouteImport } from './routes/api/monitoring/health'
 import { Route as ApiMonitoringClientErrorRouteImport } from './routes/api/monitoring/client-error'
+import { Route as ApiHivemindChatStreamRouteImport } from './routes/api/hivemind/chat-stream'
 import { Route as ApiDashboardLiveCallsSseRouteImport } from './routes/api/dashboard/live-calls-sse'
 import { Route as ApiBuilderScriptTemplateRouteImport } from './routes/api/builder/script-template'
 import { Route as ApiBuilderScanPdfRouteImport } from './routes/api/builder/scan-pdf'
@@ -811,6 +812,11 @@ const ApiMonitoringClientErrorRoute =
     path: '/api/monitoring/client-error',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiHivemindChatStreamRoute = ApiHivemindChatStreamRouteImport.update({
+  id: '/api/hivemind/chat-stream',
+  path: '/api/hivemind/chat-stream',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiDashboardLiveCallsSseRoute =
   ApiDashboardLiveCallsSseRouteImport.update({
     id: '/api/dashboard/live-calls-sse',
@@ -2216,6 +2222,7 @@ export interface FileRoutesByFullPath {
   '/api/builder/scan-pdf': typeof ApiBuilderScanPdfRoute
   '/api/builder/script-template': typeof ApiBuilderScriptTemplateRoute
   '/api/dashboard/live-calls-sse': typeof ApiDashboardLiveCallsSseRoute
+  '/api/hivemind/chat-stream': typeof ApiHivemindChatStreamRoute
   '/api/monitoring/client-error': typeof ApiMonitoringClientErrorRoute
   '/api/monitoring/health': typeof ApiMonitoringHealthRoute
   '/api/oauth/google-ads-callback': typeof ApiOauthGoogleAdsCallbackRoute
@@ -2514,6 +2521,7 @@ export interface FileRoutesByTo {
   '/api/builder/scan-pdf': typeof ApiBuilderScanPdfRoute
   '/api/builder/script-template': typeof ApiBuilderScriptTemplateRoute
   '/api/dashboard/live-calls-sse': typeof ApiDashboardLiveCallsSseRoute
+  '/api/hivemind/chat-stream': typeof ApiHivemindChatStreamRoute
   '/api/monitoring/client-error': typeof ApiMonitoringClientErrorRoute
   '/api/monitoring/health': typeof ApiMonitoringHealthRoute
   '/api/oauth/google-ads-callback': typeof ApiOauthGoogleAdsCallbackRoute
@@ -2822,6 +2830,7 @@ export interface FileRoutesById {
   '/api/builder/scan-pdf': typeof ApiBuilderScanPdfRoute
   '/api/builder/script-template': typeof ApiBuilderScriptTemplateRoute
   '/api/dashboard/live-calls-sse': typeof ApiDashboardLiveCallsSseRoute
+  '/api/hivemind/chat-stream': typeof ApiHivemindChatStreamRoute
   '/api/monitoring/client-error': typeof ApiMonitoringClientErrorRoute
   '/api/monitoring/health': typeof ApiMonitoringHealthRoute
   '/api/oauth/google-ads-callback': typeof ApiOauthGoogleAdsCallbackRoute
@@ -3131,6 +3140,7 @@ export interface FileRouteTypes {
     | '/api/builder/scan-pdf'
     | '/api/builder/script-template'
     | '/api/dashboard/live-calls-sse'
+    | '/api/hivemind/chat-stream'
     | '/api/monitoring/client-error'
     | '/api/monitoring/health'
     | '/api/oauth/google-ads-callback'
@@ -3429,6 +3439,7 @@ export interface FileRouteTypes {
     | '/api/builder/scan-pdf'
     | '/api/builder/script-template'
     | '/api/dashboard/live-calls-sse'
+    | '/api/hivemind/chat-stream'
     | '/api/monitoring/client-error'
     | '/api/monitoring/health'
     | '/api/oauth/google-ads-callback'
@@ -3736,6 +3747,7 @@ export interface FileRouteTypes {
     | '/api/builder/scan-pdf'
     | '/api/builder/script-template'
     | '/api/dashboard/live-calls-sse'
+    | '/api/hivemind/chat-stream'
     | '/api/monitoring/client-error'
     | '/api/monitoring/health'
     | '/api/oauth/google-ads-callback'
@@ -3902,6 +3914,7 @@ export interface RootRouteChildren {
   ApiBuilderScanPdfRoute: typeof ApiBuilderScanPdfRoute
   ApiBuilderScriptTemplateRoute: typeof ApiBuilderScriptTemplateRoute
   ApiDashboardLiveCallsSseRoute: typeof ApiDashboardLiveCallsSseRoute
+  ApiHivemindChatStreamRoute: typeof ApiHivemindChatStreamRoute
   ApiMonitoringClientErrorRoute: typeof ApiMonitoringClientErrorRoute
   ApiMonitoringHealthRoute: typeof ApiMonitoringHealthRoute
   ApiOauthGoogleAdsCallbackRoute: typeof ApiOauthGoogleAdsCallbackRoute
@@ -4655,6 +4668,13 @@ declare module '@tanstack/react-router' {
       path: '/api/monitoring/client-error'
       fullPath: '/api/monitoring/client-error'
       preLoaderRoute: typeof ApiMonitoringClientErrorRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/hivemind/chat-stream': {
+      id: '/api/hivemind/chat-stream'
+      path: '/api/hivemind/chat-stream'
+      fullPath: '/api/hivemind/chat-stream'
+      preLoaderRoute: typeof ApiHivemindChatStreamRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/dashboard/live-calls-sse': {
@@ -6986,6 +7006,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiBuilderScanPdfRoute: ApiBuilderScanPdfRoute,
   ApiBuilderScriptTemplateRoute: ApiBuilderScriptTemplateRoute,
   ApiDashboardLiveCallsSseRoute: ApiDashboardLiveCallsSseRoute,
+  ApiHivemindChatStreamRoute: ApiHivemindChatStreamRoute,
   ApiMonitoringClientErrorRoute: ApiMonitoringClientErrorRoute,
   ApiMonitoringHealthRoute: ApiMonitoringHealthRoute,
   ApiOauthGoogleAdsCallbackRoute: ApiOauthGoogleAdsCallbackRoute,

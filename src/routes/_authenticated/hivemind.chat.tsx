@@ -11,6 +11,9 @@ import { cn } from "@/lib/utils";
 import { HiveMindShell } from "@/components/hivemind/HiveMindShell";
 import {
   getHiveMindAIResponse, getHiveMindMorningBriefing,
+} from "@/lib/hivemind/hivemind.ai";
+import { streamHiveMindChat } from "@/lib/hivemind/use-hivemind-stream";
+import {
   getHiveMindTTS, listHiveMindVoices, getHiveMindSystemContext,
 } from "@/lib/hivemind/hivemind.ai";
 import { useMindConversation } from "@/hooks/useMindConversation";
@@ -938,7 +941,10 @@ function HiveMindChat() {
     } finally { setTtsLoadingId(null); }
   }
 
-  // Send message
+  // Send message — streams tokens from /api/hivemind/chat-stream so the answer
+  // starts rendering immediately; falls back to the non-streaming server fn if
+  // the stream can't be established (both share the same server pipeline).
+  const streamAbortRef = useRef<AbortController | null>(null);
   async function sendMessage(query: string) {
     if (!query.trim() || isThinking) return;
     const userMsg: ChatMessage = { id: uid(), role: "user", content: query.trim(), ts: new Date() };
@@ -947,20 +953,44 @@ function HiveMindChat() {
     historyRef.current.push({ role: "user", content: query.trim() });
     setInput("");
     setIsThinking(true);
+    const abort = new AbortController();
+    streamAbortRef.current = abort;
     try {
-      const r = await aiFn({ data: { query: query.trim(), history: historyRef.current.slice(-10), personality: voiceSettings.personality, userName } });
+      const args = { query: query.trim(), history: historyRef.current.slice(-10), personality: voiceSettings.personality, userName };
+      let r: { response: string; workOrderProposals?: any[] };
+      try {
+        r = await streamHiveMindChat({
+          ...args,
+          signal: abort.signal,
+          onToken: (fullText) => {
+            setMessages(prev => prev.map(m => m.id === placeholder.id ? { ...m, content: fullText } : m));
+          },
+        });
+      } catch (streamErr: any) {
+        if (abort.signal.aborted) throw streamErr;
+        // Stream unavailable — fall back to the classic server fn.
+        r = await aiFn({ data: args });
+      }
       historyRef.current.push({ role: "assistant", content: r.response });
       const finalMsg: ChatMessage = {
         ...placeholder, content: r.response, ts: new Date(),
-        workOrders: (r as any).workOrderProposals?.length ? (r as any).workOrderProposals : undefined,
+        workOrders: r.workOrderProposals?.length ? (r.workOrderProposals as any) : undefined,
       };
       setMessages(prev => prev.map(m => m.id === placeholder.id ? finalMsg : m));
       persistNewMessages([userMsg, finalMsg]);
       if (voiceSettings.autoPlay) setTimeout(() => fetchAndPlayTTS(finalMsg), 200);
     } catch (e: any) {
-      setMessages(prev => prev.map(m => m.id === placeholder.id
-        ? { ...m, content: `Sorry, I couldn't respond: ${e.message ?? "unknown error"}` } : m));
-    } finally { setIsThinking(false); }
+      if (abort.signal.aborted) {
+        setMessages(prev => prev.map(m => m.id === placeholder.id && m.content === ""
+          ? { ...m, content: "Stopped." } : m));
+      } else {
+        setMessages(prev => prev.map(m => m.id === placeholder.id
+          ? { ...m, content: `Sorry, I couldn't respond: ${e.message ?? "unknown error"}` } : m));
+      }
+    } finally {
+      streamAbortRef.current = null;
+      setIsThinking(false);
+    }
   }
 
   // Web Speech API

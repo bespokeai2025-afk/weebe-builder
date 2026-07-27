@@ -4,6 +4,7 @@ import { useRouterState, useNavigate } from "@tanstack/react-router";
 import { Send, Mic, MicOff, X, Minus, Loader2, ChevronRight, User, ExternalLink, ClipboardList } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { getHiveMindAIResponse, getHiveMindTTS } from "@/lib/hivemind/hivemind.ai";
+import { streamHiveMindChat } from "@/lib/hivemind/use-hivemind-stream";
 import { useMindConversation } from "@/hooks/useMindConversation";
 import { loadHiveMindVoiceSettings, loadHiveMindUserName } from "@/lib/hivemind/voice-profile";
 
@@ -444,12 +445,25 @@ function MiniChat({ onClose, onStateChange }: {
     setInput("");
     setThinking(true);
     try {
-      const r = await aiFn({ data: { query: text.trim(), history: historyRef.current.slice(-6), personality: prefs.current.personality, userName: userName.current } });
+      const args = { query: text.trim(), history: historyRef.current.slice(-6), personality: prefs.current.personality, userName: userName.current };
+      // Stream tokens so the reply renders as it's generated; fall back to the
+      // non-streaming server fn if the stream can't be established.
+      let r: { response: string; workOrderProposals?: any[] };
+      try {
+        r = await streamHiveMindChat({
+          ...args,
+          onToken: (fullText) => {
+            setMessages(prev => prev.map(m => m.id === placeholder.id ? { ...m, content: fullText } : m));
+          },
+        });
+      } catch {
+        r = await aiFn({ data: args });
+      }
       historyRef.current.push({ role: "assistant", content: r.response });
       const reply: Msg = {
         ...placeholder,
         content: r.response,
-        workOrders: (r as any).workOrderProposals?.length ? (r as any).workOrderProposals : undefined,
+        workOrders: r.workOrderProposals?.length ? (r.workOrderProposals as any) : undefined,
       };
       setMessages(prev => prev.map(m => m.id === placeholder.id ? reply : m));
       persistNewMessages([userMsg, reply]);
