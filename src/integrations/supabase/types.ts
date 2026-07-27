@@ -6132,6 +6132,63 @@ export type Database = {
           },
         ]
       }
+      growthmind_gads_analysis_reports: {
+        Row: {
+          account_row_id: string | null
+          campaign_id: string | null
+          campaign_name: string | null
+          created_at: string
+          date_from: string | null
+          date_to: string | null
+          execution_id: string | null
+          id: string
+          period_days: number
+          sections: Json
+          source_meta: Json
+          status: string
+          task_id: string | null
+          updated_at: string
+          work_order_id: string | null
+          workspace_id: string
+        }
+        Insert: {
+          account_row_id?: string | null
+          campaign_id?: string | null
+          campaign_name?: string | null
+          created_at?: string
+          date_from?: string | null
+          date_to?: string | null
+          execution_id?: string | null
+          id?: string
+          period_days?: number
+          sections?: Json
+          source_meta?: Json
+          status?: string
+          task_id?: string | null
+          updated_at?: string
+          work_order_id?: string | null
+          workspace_id: string
+        }
+        Update: {
+          account_row_id?: string | null
+          campaign_id?: string | null
+          campaign_name?: string | null
+          created_at?: string
+          date_from?: string | null
+          date_to?: string | null
+          execution_id?: string | null
+          id?: string
+          period_days?: number
+          sections?: Json
+          source_meta?: Json
+          status?: string
+          task_id?: string | null
+          updated_at?: string
+          work_order_id?: string | null
+          workspace_id?: string
+        }
+        Relationships: []
+      }
       growthmind_gads_campaign_daily: {
         Row: {
           account_row_id: string

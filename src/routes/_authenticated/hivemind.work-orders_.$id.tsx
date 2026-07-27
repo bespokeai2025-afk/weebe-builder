@@ -18,6 +18,8 @@ import { HiveMindShell } from "@/components/hivemind/HiveMindShell";
 import { RelativeTime } from "@/components/ui/relative-time";
 import { IntelligencePacketPanel, ReadinessBadge } from "@/components/minds/IntelligencePacketPanel";
 import type { UniversalMindIntelligencePacket } from "@/lib/minds/intelligence-packet.shared";
+import { GadsAnalysisReportViewer } from "@/components/growthmind/GadsAnalysisReportViewer";
+import { getGadsAnalysisReport } from "@/lib/growthmind/gads-analysis-report.server";
 import {
   getWorkOrderDetail,
   workOrderStatusLabel,
@@ -384,10 +386,18 @@ function StageSequence({ wo }: { wo: WorkOrderSummary }) {
 function WorkOrderDetailPage() {
   const { id } = Route.useParams();
   const getFn = useServerFn(getWorkOrderDetail);
+  const getReportFn = useServerFn(getGadsAnalysisReport);
 
   const { data: wo, isLoading, error, refetch } = useQuery({
     queryKey: ["work-order-detail", id],
     queryFn: () => getFn({ data: { id } }),
+    staleTime: 30_000,
+    throwOnError: false,
+  });
+
+  const { data: gadsReport } = useQuery({
+    queryKey: ["work-order-gads-report", id],
+    queryFn: () => getReportFn({ data: { workOrderId: id } }),
     staleTime: 30_000,
     throwOnError: false,
   });
@@ -432,6 +442,11 @@ function WorkOrderDetailPage() {
         <>
           <WorkOrderHeader wo={wo as WorkOrderSummary} />
           <WorkOrderPacketSummary wo={wo as WorkOrderSummary} />
+          {gadsReport && (
+            <div className="px-5 py-5 border-b border-white/[0.06]">
+              <GadsAnalysisReportViewer report={gadsReport as any} />
+            </div>
+          )}
           <StageSequence wo={wo as WorkOrderSummary} />
         </>
       ) : (

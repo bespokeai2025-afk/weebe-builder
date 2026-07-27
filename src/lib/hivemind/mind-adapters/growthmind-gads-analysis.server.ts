@@ -43,12 +43,22 @@ export interface AdapterOutcome {
 }
 
 const STEP_DEFS: Array<{ key: string; label: string }> = [
-  { key: "resolve_account",     label: "Resolve connected Google Ads account" },
-  { key: "sync_data",           label: "Refresh campaign data from Google Ads" },
-  { key: "analyze",             label: "Analyse campaigns, keywords and spend" },
-  { key: "compile_deliverable", label: "Compile analysis report" },
-  { key: "propose_action",      label: "Propose change-request action for approval" },
-  { key: "apply_external",      label: "Apply changes to Google Ads (external write)" },
+  { key: "resolve_account",               label: "Resolve connected Google Ads account" },
+  { key: "sync_data",                     label: "Refreshing Google Ads data" },
+  { key: "analyze",                       label: "Loading campaigns and generating recommendations" },
+  { key: "analyze_campaign",              label: "Analysing campaign settings and impression share" },
+  { key: "analyze_keywords",              label: "Analysing keywords" },
+  { key: "analyze_search_terms",          label: "Analysing search terms" },
+  { key: "analyze_ads",                   label: "Analysing ads" },
+  { key: "analyze_landing_pages",         label: "Analysing landing pages" },
+  { key: "generate_keyword_opportunities", label: "Generating keyword opportunities" },
+  { key: "create_ad_concepts",            label: "Creating ad concepts" },
+  { key: "create_page_layouts",           label: "Creating page layouts" },
+  { key: "draft_change_requests",         label: "Drafting change requests" },
+  { key: "compile_report",                label: "Compiling report" },
+  { key: "verify_evidence",               label: "Verifying evidence" },
+  { key: "propose_action",                label: "Propose change-request action for approval" },
+  { key: "apply_external",                label: "Apply changes to Google Ads (external write)" },
 ];
 
 export function initialGadsAnalysisSteps(): ExecutionStep[] {
@@ -158,9 +168,124 @@ export async function runGadsAnalysisExecution(ctx: AdapterContext): Promise<Ada
   }
   await saveSteps(ctx, steps, 3);
 
-  // 4. Compile deliverable ─────────────────────────────────────────────────────
-  steps = stepUpdate(steps, "compile_deliverable", { status: "running" });
-  await saveSteps(ctx, steps, 3);
+  // 4. Deep row-level analysis of the focus campaign ──────────────────────────
+  const idxOf = (key: string) => Math.max(0, STEP_DEFS.findIndex(s => s.key === key));
+  const focus = ctx.inputSpec?.focus_campaign as { campaign_id?: string | null; campaign_name?: string | null } | undefined;
+  let focusCampaignId: string | null = focus?.campaign_id ? String(focus.campaign_id) : null;
+  const focusCampaignName: string | null = focus?.campaign_name ?? null;
+  if (!focusCampaignId && focusCampaignName) {
+    // Resolve the campaign id from synced data by (case-insensitive) name.
+    const { data: match } = await ctx.sb.from("growthmind_gads_campaign_daily")
+      .select("campaign_id, campaign_name")
+      .eq("workspace_id", ctx.workspaceId).eq("account_row_id", account.id)
+      .ilike("campaign_name", focusCampaignName)
+      .order("date", { ascending: false }).limit(1).maybeSingle();
+    if (match?.campaign_id) focusCampaignId = String(match.campaign_id);
+  }
+  if (!focusCampaignId) {
+    // No explicit focus: pick the highest-spend campaign in the window so the
+    // deep report is always about a real, active campaign.
+    const days = Number(ctx.inputSpec?.days) || 30;
+    const since = new Date(Date.now() - days * 86_400_000).toISOString().slice(0, 10);
+    const { data: rows } = await ctx.sb.from("growthmind_gads_campaign_daily")
+      .select("campaign_id, campaign_name, cost_micros")
+      .eq("workspace_id", ctx.workspaceId).eq("account_row_id", account.id)
+      .gte("date", since).limit(2000);
+    const bySpend = new Map<string, number>();
+    for (const r of rows ?? []) {
+      bySpend.set(String(r.campaign_id), (bySpend.get(String(r.campaign_id)) ?? 0) + Number(r.cost_micros ?? 0));
+    }
+    const top = Array.from(bySpend.entries()).sort((a, b) => b[1] - a[1])[0];
+    if (top) focusCampaignId = top[0];
+  }
+
+  let deepReportId: string | null = null;
+  let deepCounters: Record<string, number> | null = null;
+  let deepErrors: string[] = [];
+  if (focusCampaignId) {
+    try {
+      const { fetchGadsDeepData } = await import("@/lib/growthmind/gads-deep-fetch.server");
+      const { buildGadsDeepAnalysisReport } = await import("@/lib/growthmind/gads-deep-analysis.server");
+      const deepData = await fetchGadsDeepData({
+        workspaceId: ctx.workspaceId,
+        customerId: String(account.customer_id),
+        loginCustomerId: account.login_customer_id ? String(account.login_customer_id) : null,
+        campaignId: focusCampaignId,
+        days: Number(ctx.inputSpec?.days) || 30,
+      });
+      const currency = String(account.currency_code ?? "GBP").toUpperCase();
+      const curSym = currency === "GBP" ? "£" : currency === "USD" ? "$" : currency === "EUR" ? "€" : `${currency} `;
+      const built = await buildGadsDeepAnalysisReport({
+        workspaceId: ctx.workspaceId,
+        accountRowId: account.id,
+        currencySymbol: curSym,
+        data: deepData,
+        workOrderId: ctx.workOrderId ?? null,
+        taskId: ctx.taskId ?? null,
+        executionId: ctx.executionId ?? null,
+        onStage: async (stageKey, status, detail) => {
+          steps = stepUpdate(steps, stageKey, {
+            status: status === "running" ? "running" : status === "failed" ? "failed" : "done",
+            ...(detail ? { detail } : {}),
+          });
+          await saveSteps(ctx, steps, idxOf(stageKey));
+        },
+      });
+      deepReportId = built.reportId;
+      deepCounters = built.counters;
+      deepErrors = built.sectionErrors;
+    } catch (err: any) {
+      const msg = err?.message ?? String(err);
+      deepErrors.push(msg);
+      // Mark all not-yet-finished deep stages as failed — never leave them "running".
+      for (const def of STEP_DEFS) {
+        const st = steps.find(s => s.key === def.key);
+        if (st && ["analyze_campaign", "analyze_keywords", "analyze_search_terms", "analyze_ads",
+          "analyze_landing_pages", "generate_keyword_opportunities", "create_ad_concepts",
+          "create_page_layouts", "draft_change_requests", "compile_report"].includes(def.key)
+          && (st.status === "pending" || st.status === "running")) {
+          steps = stepUpdate(steps, def.key, { status: "failed", detail: `Deep analysis aborted: ${msg}`.slice(0, 200) });
+        }
+      }
+      await saveSteps(ctx, steps, idxOf("compile_report"));
+    }
+  } else {
+    for (const key of ["analyze_campaign", "analyze_keywords", "analyze_search_terms", "analyze_ads",
+      "analyze_landing_pages", "generate_keyword_opportunities", "create_ad_concepts",
+      "create_page_layouts", "draft_change_requests", "compile_report"]) {
+      steps = stepUpdate(steps, key, { status: "skipped", detail: "No campaign with spend found to deep-analyse." });
+    }
+    await saveSteps(ctx, steps, idxOf("compile_report"));
+  }
+
+  // 5. Verify evidence — confirm the stored report really exists and is complete
+  steps = stepUpdate(steps, "verify_evidence", { status: "running" });
+  await saveSteps(ctx, steps, idxOf("verify_evidence"));
+  let verifiedSections = 0;
+  if (deepReportId) {
+    const { data: storedReport } = await ctx.sb.from("growthmind_gads_analysis_reports")
+      .select("id, status, sections").eq("id", deepReportId).eq("workspace_id", ctx.workspaceId).maybeSingle();
+    verifiedSections = storedReport?.sections ? Object.keys(storedReport.sections).length : 0;
+    if (!storedReport || verifiedSections < 5) {
+      steps = stepUpdate(steps, "verify_evidence", {
+        status: "failed",
+        detail: storedReport ? `Stored report only has ${verifiedSections} sections.` : "Stored report not found after insert.",
+      });
+      await saveSteps(ctx, steps, idxOf("verify_evidence"));
+      return fail("Deep analysis report failed post-storage verification.");
+    }
+    steps = stepUpdate(steps, "verify_evidence", {
+      status: "done",
+      detail: `Report ${deepReportId.slice(0, 8)}… verified: ${verifiedSections} sections stored${deepErrors.length ? `, ${deepErrors.length} section warning(s)` : ""}`,
+    });
+  } else {
+    steps = stepUpdate(steps, "verify_evidence", {
+      status: deepErrors.length ? "failed" : "skipped",
+      detail: deepErrors.length ? `Deep analysis did not produce a report: ${deepErrors[0]}`.slice(0, 250) : "No deep report generated.",
+    });
+  }
+  await saveSteps(ctx, steps, idxOf("verify_evidence"));
+
   const { data: recs } = await ctx.sb.from("growthmind_gads_recommendations")
     .select("id, section, priority, confidence, title, campaign_id, campaign_name, evidence, expected_benefit, recommended_action, status, created_at")
     .eq("workspace_id", ctx.workspaceId).eq("account_row_id", account.id)
@@ -186,12 +311,11 @@ export async function runGadsAnalysisExecution(ctx: AdapterContext): Promise<Ada
       recommended_action: r.recommended_action,
     })),
     kpi_summary: kpiSummaryText,
+    deep_report_id: deepReportId,
+    deep_report_counters: deepCounters,
+    deep_report_warnings: deepErrors.length ? deepErrors : undefined,
   };
   artifacts.push(report);
-  steps = stepUpdate(steps, "compile_deliverable", {
-    status: "done", detail: `Report compiled (${openRecs.length} open recommendation${openRecs.length === 1 ? "" : "s"})`,
-  });
-  await saveSteps(ctx, steps, 4);
 
   // 5. Propose consequential action (if there is anything to change) ──────────
   if (openRecs.length === 0) {
@@ -201,13 +325,15 @@ export async function runGadsAnalysisExecution(ctx: AdapterContext): Promise<Ada
     steps = stepUpdate(steps, "apply_external", {
       status: "skipped", detail: "No changes proposed.",
     });
-    await saveSteps(ctx, steps, 5);
+    await saveSteps(ctx, steps, idxOf("apply_external"));
     return {
       status: "completed", steps, artifacts,
-      result: { recommendations_generated: generated, open_recommendations: 0 },
+      result: { recommendations_generated: generated, open_recommendations: 0, deep_report_id: deepReportId },
       evidence: {
         report_artifact: true,
         recommendations_generated: generated,
+        deep_report_id: deepReportId,
+        deep_report_sections: verifiedSections,
         verified_at: new Date().toISOString(),
       },
       linkedActionId: null, blockedReason: null, errorMessage: null,
@@ -215,11 +341,10 @@ export async function runGadsAnalysisExecution(ctx: AdapterContext): Promise<Ada
   }
 
   steps = stepUpdate(steps, "propose_action", { status: "running" });
-  await saveSteps(ctx, steps, 4);
+  await saveSteps(ctx, steps, idxOf("propose_action"));
   // Honor a campaign focus from the work order (chat-initiated scope): put
   // that campaign's recommendations first; fall back honestly to account-wide
   // recommendations when the focus campaign produced none.
-  const focus = ctx.inputSpec?.focus_campaign as { campaign_id?: string | null; campaign_name?: string | null } | undefined;
   let orderedRecs = openRecs;
   let focusNote = "";
   if (focus?.campaign_id || focus?.campaign_name) {
@@ -248,6 +373,7 @@ export async function runGadsAnalysisExecution(ctx: AdapterContext): Promise<Ada
       recommendation_ids: topRecs.map((r: any) => r.id),
       account_row_id: account.id,
       summary: topRecs.map((r: any) => r.title).slice(0, 5),
+      report_id: deepReportId,
     },
     proposed_by: "growthmind",
     status: "pending",
@@ -258,7 +384,7 @@ export async function runGadsAnalysisExecution(ctx: AdapterContext): Promise<Ada
   }).select("id").single();
   if (ae) {
     steps = stepUpdate(steps, "propose_action", { status: "failed", detail: ae.message });
-    await saveSteps(ctx, steps, 4);
+    await saveSteps(ctx, steps, idxOf("propose_action"));
     return fail(`Failed to propose change-request action: ${ae.message}`);
   }
   steps = stepUpdate(steps, "propose_action", {
@@ -268,7 +394,7 @@ export async function runGadsAnalysisExecution(ctx: AdapterContext): Promise<Ada
     status: "blocked",
     detail: "External Google Ads write is awaiting integration — GrowthMind is advisory-only; changes are drafted as change requests, never auto-applied.",
   });
-  await saveSteps(ctx, steps, 5);
+  await saveSteps(ctx, steps, idxOf("apply_external"));
 
   return {
     status: "awaiting_action_approval", steps, artifacts,

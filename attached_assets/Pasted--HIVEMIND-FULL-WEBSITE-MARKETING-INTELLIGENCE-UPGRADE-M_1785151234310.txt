@@ -1,0 +1,1094 @@
+# HIVEMIND FULL WEBSITE + MARKETING INTELLIGENCE UPGRADE
+# MAKE HIVEMIND ANALYSE THE WEBSITE, ADS, SEO, CONTENT AND SOCIAL ACTIVITY PROPERLY
+
+Upgrade HiveMind so it can perform a complete, evidence-based analysis of the user’s website and marketing operation, rather than returning generic recommendations.
+
+HiveMind must act as the orchestrator.
+
+Use:
+
+- HiveMind for orchestration, decisions, prioritisation and reporting
+- GrowthMind for Google Ads, SEO, content, social media and conversion analysis
+- SystemMind for website technical checks, integrations, tracking and deployment readiness
+- AccountsMind for cost, spend, budget and commercial-impact analysis
+- Business DNA for company positioning, products, audience and brand context
+- Work Orders, Tasks, Actions, Approvals and Reports for execution and audit history
+
+Do not create a separate competing marketing system.
+
+Preserve all existing:
+
+- WBAH HiveMind fixes
+- Google Ads integration
+- Search Console integration
+- GrowthMind analysis
+- work orders
+- execution records
+- task approvals
+- Actions Centre
+- workspace isolation
+- content-safety controls
+- website routes
+- API integrations
+- analytics
+- SEO metadata
+- blog safety blocks
+- existing working features
+
+Do not run a general repository refactor.
+
+# PRIMARY WEBSITE
+
+Analyse the actual live website:
+
+https://www.webespokeai.com
+
+Also analyse any real landing pages used by Google Ads.
+
+Primary campaign:
+
+`Search for US and Reception`
+
+Primary product:
+
+`WEBEE Receptionist`
+
+Company name:
+
+`Webespoke AI`
+
+Platform name:
+
+`WEBEE`
+
+# CURRENT PROBLEM
+
+HiveMind currently creates shallow tasks and generic recommendations.
+
+It must instead:
+
+1. Retrieve real live data.
+2. Analyse the actual rendered website.
+3. Analyse Google Ads performance.
+4. Analyse keywords and search terms.
+5. Analyse SEO and Search Console data.
+6. Analyse landing pages and homepage structure.
+7. Analyse conversion tracking.
+8. Analyse social-media readiness and connected accounts.
+9. Analyse content and blog opportunities.
+10. Produce detailed reports.
+11. Create exact change requests.
+12. Request approval.
+13. Execute approved changes where a verified integration exists.
+14. Verify the result after execution.
+15. Store evidence.
+
+HiveMind must never pretend an action was completed when it only created a recommendation.
+
+# PHASE 1 — HIVEMIND ORCHESTRATION
+
+When the user asks questions such as:
+
+- Analyse my website
+- Analyse my landing page
+- Improve my Google Ads
+- Analyse my SEO
+- Improve the homepage
+- Suggest keywords
+- Write blogs
+- Improve conversions
+- Analyse my Meta account
+- Create social content
+- Improve my marketing
+- What should we change?
+- Run a complete growth audit
+
+HiveMind must create a real multi-stage work order and dispatch the correct specialist capabilities.
+
+Example execution stages:
+
+1. Resolve active workspace
+2. Load Business DNA
+3. Confirm connected services
+4. Fetch live website
+5. Render desktop and mobile views
+6. Load Google Ads data
+7. Load Search Console data
+8. Load analytics data
+9. Analyse campaign performance
+10. Analyse keywords
+11. Analyse search terms
+12. Analyse ads
+13. Analyse landing pages
+14. Analyse homepage
+15. Analyse conversion tracking
+16. Analyse content opportunities
+17. Analyse social accounts
+18. Analyse competitors
+19. Compile report
+20. Create prioritised change requests
+21. Request separate approvals
+22. Execute approved actions
+23. Verify results
+24. Store evidence
+
+Progress must come from persisted execution records.
+
+Do not use fake loading timers.
+
+# PHASE 2 — LIVE WEBSITE ANALYSIS
+
+HiveMind must analyse the actual rendered website, not only source code.
+
+Use a real browser/rendering service such as Playwright where available.
+
+Analyse the website at:
+
+- 320px mobile
+- 375px mobile
+- 430px mobile
+- tablet
+- desktop
+
+Capture evidence such as:
+
+- rendered screenshots
+- page title
+- meta description
+- canonical
+- headings
+- visible copy
+- buttons
+- links
+- images
+- alt text
+- forms
+- navigation
+- page structure
+- response status
+- page-load measurements where genuinely available
+
+Do not claim to have analysed a webpage unless it was successfully fetched and rendered.
+
+## Homepage analysis
+
+Analyse:
+
+- hero section
+- headline
+- subheadline
+- CTA hierarchy
+- product clarity
+- visual hierarchy
+- background colour
+- spacing
+- typography
+- mobile layout
+- navigation
+- trust
+- product demonstrations
+- use cases
+- integrations
+- pricing entry points
+- footer
+- accessibility
+- conversion path
+
+Determine whether the homepage clearly communicates:
+
+- what WEBEE is
+- who it is for
+- the main customer outcome
+- why WEBEE Receptionist is the primary product
+- how the other WEBEE products fit together
+- what the visitor should do next
+
+## White-background requirement
+
+The desired homepage design is the previous clean white version.
+
+HiveMind must identify whether the current homepage uses:
+
+- a full-page blue background
+- a blue hero background
+- a blue gradient wash
+- a blue overlay
+- white text designed for a dark background
+- low-contrast cards or buttons
+
+Create a website change request recommending:
+
+- main homepage background restored to white
+- blue used only for controlled brand accents
+- dark headings
+- neutral body text
+- clear section boundaries
+- primary blue Book a Demo CTA
+- secondary Start Free Trial CTA
+- correct text and card contrast
+
+Do not automatically deploy this visual change without website-content approval and website-deployment approval.
+
+# PHASE 3 — LANDING-PAGE CONVERSION ANALYSIS
+
+Analyse every real landing page used by the Google Ads campaign.
+
+For each landing page report:
+
+- destination URL
+- campaign
+- ad group
+- keyword theme
+- search intent
+- headline
+- supporting copy
+- primary CTA
+- secondary CTA
+- message match
+- mobile design
+- form length
+- booking flow
+- Call Ava placement
+- telephone CTA
+- trust signals
+- proof
+- integrations
+- FAQs
+- objection handling
+- pricing clarity
+- analytics
+- conversion tracking
+- accessibility
+- page speed where genuinely available
+
+Identify:
+
+- mismatch between keyword and page
+- mismatch between ad and page
+- unclear product
+- weak headline
+- vague CTA
+- excessive navigation
+- excessive form fields
+- poor mobile layout
+- missing product demo
+- unsupported claims
+- low-trust wording
+- missing conversion event
+- broken links
+- missing confirmation flow
+
+## Landing-page blueprint
+
+Create a complete recommended layout with:
+
+1. Trust or announcement strip
+2. Hero
+3. Clear headline
+4. Supporting statement
+5. Primary CTA
+6. Secondary CTA
+7. Product demonstration
+8. Customer problem
+9. WEBEE solution
+10. Feature-benefit grid
+11. How it works
+12. Call-handling workflow
+13. Integrations
+14. Use cases
+15. Objection handling
+16. FAQ
+17. Final CTA
+18. Footer trust information
+
+For every section include:
+
+- purpose
+- suggested heading
+- suggested copy
+- CTA
+- required asset
+- evidence required
+- mobile behaviour
+- conversion rationale
+
+Do not invent proof, statistics or testimonials.
+
+# PHASE 4 — HOMEPAGE BLUEPRINT
+
+Create a detailed homepage structure for WEBEE.
+
+The hierarchy should be:
+
+## Primary product
+
+- WEBEE Receptionist
+
+## Voice AI
+
+- Receptionist
+- Qualify
+- Lead Gen
+- Swarm
+
+## Business OS
+
+- HiveMind
+- GrowthMind
+- SystemMind
+- AccountsMind
+
+## Communication
+
+- HexMail
+- BuzzChat
+- Follow-Up Centre
+
+## Platform
+
+- WEBEE Builder
+- Smart Dashboard
+- CRM
+- Analytics
+
+Recommend:
+
+- hero structure
+- headline
+- subheadline
+- CTA hierarchy
+- navigation
+- product-group navigation
+- demonstration area
+- workflow diagrams
+- capability cards
+- use cases
+- integration section
+- how-it-works section
+- pricing entry point
+- trust section
+- FAQ
+- footer structure
+
+Provide both:
+
+- written recommendation
+- wireframe-style section order
+
+Do not deploy changes during analysis.
+
+# PHASE 5 — GOOGLE ADS ANALYSIS
+
+Refresh and analyse the real Google Ads campaign:
+
+`Search for US and Reception`
+
+Period:
+
+Last 30 days
+
+Retrieve where available:
+
+- campaign status
+- budget
+- bidding strategy
+- spend
+- impressions
+- clicks
+- CTR
+- average CPC
+- conversions
+- conversion rate
+- cost per conversion
+- impression share
+- lost impression share from budget
+- lost impression share from rank
+- top impression share
+- absolute-top impression share
+- devices
+- locations
+- schedules
+- networks
+- conversion actions
+
+## Ad groups
+
+Analyse every ad group:
+
+- spend
+- impressions
+- clicks
+- CTR
+- CPC
+- conversions
+- conversion rate
+- cost per conversion
+- keywords
+- ads
+- landing page
+- performance against campaign average
+
+## Keywords
+
+Create a row-level table containing:
+
+- keyword
+- campaign
+- ad group
+- status
+- match type
+- impressions
+- clicks
+- CTR
+- CPC
+- spend
+- conversions
+- conversion rate
+- cost per conversion
+- quality score where available
+- ad relevance
+- landing-page experience
+- recommended action
+- evidence
+- confidence
+- approval required
+
+Classify keywords as:
+
+- Scale
+- Keep
+- Monitor
+- Reduce bid
+- Change match type
+- Move ad group
+- Pause candidate
+- Remove candidate
+- Insufficient data
+
+Do not recommend pausing solely because a keyword has zero conversions when the spend or traffic volume is too low.
+
+## Search terms
+
+Analyse real search terms.
+
+Show:
+
+- search term
+- matched keyword
+- match type
+- campaign
+- ad group
+- impressions
+- clicks
+- spend
+- conversions
+- commercial intent
+- relevance
+- suggested keyword
+- suggested negative
+- proposed ad group
+- evidence
+
+## Suggested keywords
+
+Generate suggested keywords using:
+
+- successful search terms
+- existing keywords
+- Business DNA
+- website copy
+- Search Console
+- landing pages
+- verified competitor information
+- product categories
+- real customer intent
+
+For each suggestion include:
+
+- keyword
+- match type
+- intent
+- funnel stage
+- campaign
+- ad group
+- landing page
+- source
+- reason
+- overlap
+- negative conflicts
+- confidence
+- priority
+
+Do not invent search volume, CPC or competition.
+
+When data is unavailable display:
+
+`Keyword Planner data is not available for this recommendation.`
+
+## Negative keywords
+
+Group negative-keyword proposals by:
+
+- irrelevant services
+- employment intent
+- free software intent
+- educational intent
+- consumer intent
+- irrelevant countries
+- unrelated technology
+- low-commercial-intent research
+- existing wasted search terms
+- brand safety
+
+For each negative show:
+
+- keyword
+- match type
+- evidence
+- affected search terms
+- possible benefit
+- risk
+- confidence
+- approval requirement
+
+# PHASE 6 — AD COPY AND AD LAYOUTS
+
+Analyse all available ads and responsive-search-ad assets.
+
+Show:
+
+- headlines
+- descriptions
+- status
+- performance
+- ad strength
+- asset labels
+- duplicate messaging
+- missing benefits
+- missing objections
+- keyword relevance
+- landing-page relevance
+- CTA quality
+
+Create at least three complete proposed ad concepts:
+
+## Concept A — Never miss a call
+
+Focus on:
+
+- answering calls
+- after-hours coverage
+- booking appointments
+- capturing enquiries
+
+## Concept B — AI receptionist efficiency
+
+Focus on:
+
+- reducing manual call handling
+- 24/7 availability
+- qualification
+- routing
+- integrations
+
+## Concept C — Revenue recovery
+
+Focus on:
+
+- missed enquiries
+- follow-up
+- lead capture
+- booked opportunities
+
+For each concept provide:
+
+- target campaign
+- ad group
+- keyword theme
+- headlines
+- descriptions
+- CTA
+- final URL
+- landing-page message
+- audience
+- differentiation
+- unsupported claims to avoid
+- approval requirement
+
+Do not invent:
+
+- performance results
+- customer numbers
+- savings
+- testimonials
+- awards
+- guaranteed outcomes
+- number-one claims
+
+# PHASE 7 — SEO ANALYSIS
+
+Use connected Search Console and the actual live website.
+
+Analyse:
+
+- clicks
+- impressions
+- CTR
+- average position
+- queries
+- pages
+- countries
+- devices
+- indexed pages
+- crawl issues
+- sitemap status
+- page titles
+- descriptions
+- headings
+- canonicals
+- structured data
+- internal links
+- broken links
+- orphan pages
+- duplicate content
+- thin pages
+- missing alt text
+- Core Web Vitals where available
+- mobile experience
+- content gaps
+
+Produce:
+
+- quick wins
+- technical fixes
+- page-level improvements
+- keyword opportunities
+- internal-link opportunities
+- new page recommendations
+- blog opportunities
+- monitoring plan
+
+Clearly separate:
+
+- verified Search Console data
+- verified website evidence
+- external evidence
+- inference
+- unavailable information
+
+# PHASE 8 — BLOG WRITING
+
+HiveMind must be able to ask GrowthMind to:
+
+1. Find verified SEO opportunities.
+2. Create a content brief.
+3. Draft a complete article.
+4. Validate claims.
+5. Validate links.
+6. Create metadata.
+7. Create structured data.
+8. Create internal links.
+9. Request content approval.
+10. Request publication approval.
+11. Publish through the verified website publishing integration.
+12. Confirm the article URL.
+13. Monitor Search Console performance.
+
+Content must never contain:
+
+- invented statistics
+- fabricated customers
+- fake case studies
+- invented testimonials
+- invented people
+- unsupported savings
+- unsupported rankings
+- nonexistent links
+
+Every factual claim must have:
+
+- verified internal evidence
+- verified external evidence
+- approved customer evidence
+- or be clearly labelled as an example, estimate or hypothesis
+
+# PHASE 9 — META AND SOCIAL MEDIA
+
+HiveMind must inspect the real status of:
+
+- Meta connection
+- Facebook Page
+- Instagram professional account
+- permissions
+- posting capability
+- media-upload capability
+- insights capability
+- scheduled publishing
+- token status
+- last successful sync
+- last successful post
+
+Do not display “connected” solely because OAuth succeeded.
+
+Separate capability states:
+
+- account connected
+- insights readable
+- posts readable
+- draft content available
+- image/video publishing available
+- scheduled publishing available
+- comments/messages available
+- live write execution verified
+
+HiveMind may use GrowthMind to create:
+
+- Facebook posts
+- Instagram captions
+- carousel outlines
+- short-video scripts
+- Reel concepts
+- campaign calendars
+- hashtags
+- CTAs
+- repurposed blog content
+
+Publishing workflow:
+
+Content draft
+→ preview
+→ approval
+→ publishing executor
+→ Meta API response
+→ live URL verification
+→ evidence stored
+
+If the executor has not been verified, HiveMind must say:
+
+`Meta publishing is not currently verified. The content is ready as a draft.`
+
+Do not claim content has been posted unless the live post URL is verified.
+
+# PHASE 10 — COMPETITOR ANALYSIS
+
+Use verified public sources where an approved research integration exists.
+
+Analyse:
+
+- competitor
+- source
+- homepage headline
+- positioning
+- product offer
+- CTA
+- keyword themes
+- landing-page structure
+- content strategy
+- ad messaging where verifiable
+- strengths
+- weaknesses
+- WEBEE differentiation opportunities
+
+Label every finding as:
+
+- Verified
+- Inferred
+- Unavailable
+
+Do not fabricate competitor pricing, traffic, spend, conversions or campaign structure.
+
+# PHASE 11 — CONVERSION TRACKING
+
+Inspect:
+
+- Google Ads conversion actions
+- website forms
+- demo bookings
+- free-trial submissions
+- phone calls
+- Call Ava interactions
+- lead creation
+- Calendly or Cal.com bookings
+- Meta pixel
+- Google tags
+- analytics events
+- enhanced conversions
+- duplicate conversions
+- missing events
+- broken attribution
+- thank-you pages
+- server-side events where available
+
+Report:
+
+- event
+- source
+- destination
+- status
+- last activity
+- duplication risk
+- missing data
+- recommended fix
+- verification method
+
+Do not judge campaign success when conversion tracking is not proven reliable.
+
+# PHASE 12 — PRIORITISED ACTION PLAN
+
+Create change requests grouped into:
+
+- Critical tracking fixes
+- Homepage changes
+- Landing-page changes
+- Google Ads keywords
+- Negative keywords
+- Ad copy
+- Campaign structure
+- Conversion improvements
+- SEO technical fixes
+- SEO content changes
+- Blog production
+- Meta content
+- Meta publishing
+- Monitoring
+
+Each change request must contain:
+
+- exact action
+- current state
+- proposed state
+- evidence
+- expected directional benefit
+- confidence
+- risk
+- reversibility
+- approval type
+- implementation owner
+- verification method
+- rollback method
+
+Do not use generic tasks such as:
+
+- improve website
+- optimise SEO
+- improve keywords
+- create better ads
+
+Every task must be precise.
+
+# PHASE 13 — APPROVAL MODEL
+
+Use separate approvals:
+
+## Analysis approval
+
+Allows read-only analysis.
+
+## Google Ads approval
+
+Allows only the exact Google Ads changes listed.
+
+## Website-content approval
+
+Allows exact copy or visual changes.
+
+## Website-deployment approval
+
+Allows deployment after content approval.
+
+## Blog-content approval
+
+Approves article wording.
+
+## Blog-publication approval
+
+Approves publishing.
+
+## Meta-content approval
+
+Approves exact social content.
+
+## Meta-publication approval
+
+Approves posting to the connected account.
+
+## Budget approval
+
+Required for any increase in spend.
+
+One approval must never imply another.
+
+# PHASE 14 — ACTUAL EXECUTION
+
+After explicit approval, HiveMind must dispatch real executors.
+
+Possible executors include:
+
+- Google Ads write executor
+- website content executor
+- website deployment integration
+- blog publishing API
+- Meta publishing executor
+- SEO technical executor
+- analytics/tracking executor
+
+Before execution, verify the capability exists.
+
+If no verified executor exists, do not pretend to execute.
+
+Instead create:
+
+- a blocked action
+- the reason
+- the missing integration
+- exact setup required
+- an implementation-ready change request
+
+Where the website is hosted externally and direct deployment is unavailable, HiveMind may produce an exact Lovable implementation prompt, but must label it:
+
+`External website change — manual Lovable execution required.`
+
+It must not claim the website changed until the live page is verified.
+
+# PHASE 15 — REPORT UI
+
+The completed HiveMind report must be accessible from:
+
+- Assistant
+- Work Orders
+- Tasks
+- Actions
+- Reports
+- GrowthMind
+- linked campaign
+
+The Work Order Details view should contain:
+
+- Executive Summary
+- Homepage
+- Landing Pages
+- Google Ads
+- Ad Groups
+- Keywords
+- Search Terms
+- Suggested Keywords
+- Negative Keywords
+- Ads
+- Ad Concepts
+- SEO
+- Search Console
+- Blog Opportunities
+- Social Media
+- Meta
+- Competitors
+- Conversion Tracking
+- Change Requests
+- Approvals
+- Evidence
+- Monitoring
+
+Include:
+
+- sortable tables
+- filters
+- source labels
+- timestamps
+- data-freshness indicator
+- approval state
+- execution state
+- export to PDF
+- CSV export for keyword/search-term tables
+
+# PHASE 16 — QUALITY GATES
+
+The work order must not complete when:
+
+- the live website was not fetched
+- the Google Ads data was not fetched
+- Search Console failed
+- a source error was converted to zero
+- the result contains only generic recommendations
+- keywords were not analysed individually
+- search terms were not analysed
+- no suggested keywords were produced
+- no negative keywords were produced
+- ads were not analysed
+- no landing-page blueprint was produced
+- no homepage blueprint was produced
+- content contains unsupported claims
+- change requests are vague
+- evidence was not stored
+- report sections were not persisted
+
+For unavailable data, show:
+
+- source unavailable
+- reason
+- last successful sync
+- recommended corrective action
+
+Do not invent missing data.
+
+# PHASE 17 — REAL VERIFICATION
+
+Use the real connected workspace.
+
+Run this request through the actual HiveMind chat:
+
+`Analyse our complete marketing operation. Analyse the live homepage, Google Ads campaign "Search for US and Reception", landing pages, SEO, Search Console, keywords, search terms, ads, conversion tracking, blog opportunities and Meta publishing readiness. Give me a prioritised report and exact change requests. Do not make live changes.`
+
+Verify that HiveMind:
+
+1. Creates a real work order.
+2. Dispatches GrowthMind and SystemMind analysis.
+3. Fetches the real website.
+4. Fetches Google Ads data.
+5. Fetches Search Console data.
+6. Produces keyword-level analysis.
+7. Produces search-term analysis.
+8. Produces suggested keywords.
+9. Produces negative keywords.
+10. Produces three complete ad concepts.
+11. Produces a homepage blueprint.
+12. Produces landing-page blueprints.
+13. Diagnoses tracking.
+14. Reports Meta readiness honestly.
+15. Creates precise change requests.
+16. Stores evidence.
+17. Makes no live changes.
+18. Displays the full report in Work Order Details.
+
+# FINAL REPORT
+
+Return only:
+
+1. Checkpoint reference
+2. Root cause of the shallow HiveMind analysis
+3. HiveMind orchestration changes
+4. Existing systems reused
+5. Exact files changed
+6. Specialist capabilities dispatched
+7. Website pages analysed
+8. Google Ads metrics retrieved
+9. Keywords analysed
+10. Search terms analysed
+11. Suggested keywords generated
+12. Negative keywords generated
+13. Ads analysed
+14. Ad concepts produced
+15. Homepage blueprint result
+16. Landing-page blueprint result
+17. SEO analysis result
+18. Blog capability result
+19. Meta capability result
+20. Conversion-tracking result
+21. Change requests produced
+22. Report UI result
+23. Real HiveMind execution result
+24. Tests passed
+25. Confirmation no live changes were made
+26. Confirmation no unrelated systems changed
+
+Do not claim completion based on mocked data, UI components or code inspection.
+
+Prove the capability through the real HiveMind chat, persisted work order, live data, stored evidence and visible detailed report.

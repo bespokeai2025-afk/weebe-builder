@@ -1,0 +1,897 @@
+# READ-ONLY AUDIT — HIVEMIND COMPLETE MARKETING INTELLIGENCE UPGRADE
+# PROVE WHAT WAS BUILT, WHAT ACTUALLY WORKS, AND HOW EFFECTIVE IT WILL BE
+
+Perform a complete evidence-based audit of the recent HiveMind marketing-intelligence upgrade.
+
+Do not change:
+
+- code
+- database records
+- prompts
+- integrations
+- OAuth settings
+- website content
+- Google Ads
+- Meta accounts
+- Search Console
+- workflows
+- tasks
+- approvals
+- work orders
+- production configuration
+
+Do not repair anything during this audit.
+
+The purpose is to determine:
+
+1. What was actually implemented
+2. What is only partially implemented
+3. What is only UI or placeholder logic
+4. What is genuinely connected to live data
+5. What has been verified through the real HiveMind flow
+6. How useful and effective the system will be in practice
+7. What remains before HiveMind can reliably operate as WEBEE’s complete marketing command centre
+
+## AUDIT SCOPE
+
+Audit the implementation covering:
+
+- HiveMind orchestration
+- GrowthMind dispatch
+- SystemMind dispatch
+- AccountsMind commercial analysis
+- Business DNA usage
+- live website analysis
+- homepage analysis
+- landing-page analysis
+- Google Ads analysis
+- campaign analysis
+- ad-group analysis
+- keyword analysis
+- search-term analysis
+- suggested keywords
+- negative keywords
+- ad-copy analysis
+- proposed ad concepts
+- landing-page blueprints
+- homepage blueprints
+- SEO analysis
+- Search Console analysis
+- blog research and writing
+- content-safety controls
+- article publishing
+- Meta connection and publishing readiness
+- competitor research
+- conversion tracking
+- work orders
+- tasks
+- executions
+- progress states
+- change requests
+- approvals
+- reports
+- Work Order Details
+- evidence storage
+- post-execution verification
+- workspace isolation
+
+## PART 1 — IMPLEMENTATION INVENTORY
+
+Search the actual repository and identify every file, route, service, table, component, executor and capability added or changed for this upgrade.
+
+Create an inventory containing:
+
+- capability
+- exact file
+- exact function or component
+- purpose
+- input
+- output
+- database table
+- API/provider dependency
+- workspace-scoping method
+- current implementation status
+
+Use these status labels only:
+
+- `Implemented and live-verified`
+- `Implemented but not live-verified`
+- `Partially implemented`
+- `UI only`
+- `Mock or placeholder`
+- `Planned but absent`
+- `Broken`
+- `Blocked by missing integration`
+
+Do not describe a capability as implemented merely because:
+
+- a button exists
+- a card exists
+- a prompt mentions it
+- a status label exists
+- a type or interface exists
+- a mock test passes
+- a report section renders empty
+- a task can be created
+
+## PART 2 — HIVEMIND ORCHESTRATION AUDIT
+
+Trace the real HiveMind request:
+
+`Analyse our complete marketing operation. Analyse the live homepage, Google Ads campaign "Search for US and Reception", landing pages, SEO, Search Console, keywords, search terms, ads, conversion tracking, blog opportunities and Meta publishing readiness. Give me a prioritised report and exact change requests. Do not make live changes.`
+
+Capture the complete real execution path:
+
+HiveMind chat
+→ intent resolution
+→ work-order creation
+→ capability resolution
+→ specialist dispatch
+→ execution creation
+→ worker/dispatcher
+→ provider calls
+→ report generation
+→ report persistence
+→ change-request creation
+→ evidence storage
+→ task completion
+→ Work Order Details display
+
+For every stage show:
+
+- function called
+- file
+- record ID
+- workspace ID
+- capability name
+- status
+- start time
+- finish time
+- result
+- error
+- evidence
+- whether the next stage was actually invoked
+
+Identify any stage where HiveMind:
+
+- generates prose instead of dispatching work
+- creates a task but no execution
+- creates progress without backend work
+- marks completion before outputs exist
+- uses static context instead of live data
+- silently converts provider failures into empty results
+- creates generic recommendations without evidence
+
+## PART 3 — LIVE WEBSITE ANALYSIS AUDIT
+
+Determine whether HiveMind can genuinely analyse the live website.
+
+Verify whether it:
+
+- fetches `https://www.webespokeai.com`
+- follows redirects correctly
+- renders JavaScript
+- uses Playwright or another real browser renderer
+- captures screenshots
+- tests mobile, tablet and desktop sizes
+- reads visible page content
+- reads headings, links, buttons, forms and images
+- identifies background colours
+- detects the blue-versus-white homepage issue
+- checks mobile overflow
+- checks CTA visibility
+- checks navigation
+- checks accessibility
+- checks metadata, canonicals and JSON-LD
+- stores evidence from the rendered page
+
+Show the actual pages and viewport sizes analysed.
+
+Confirm whether HiveMind can genuinely inspect:
+
+- the homepage hero
+- WEBEE Receptionist positioning
+- CTA hierarchy
+- product navigation
+- visual hierarchy
+- trust content
+- product demonstrations
+- page copy
+- white-background requirement
+- mobile layout
+- footer
+- forms
+- Call Ava
+
+If the live page was not rendered, state clearly that the website analysis is not reliable.
+
+## PART 4 — GOOGLE ADS AUDIT
+
+Use the real connected Google Ads account and campaign:
+
+`Search for US and Reception`
+
+Period:
+
+Last 30 days
+
+Confirm which real data is retrieved:
+
+- campaign metrics
+- ad groups
+- keywords
+- search terms
+- ads
+- responsive-search-ad assets
+- conversion actions
+- devices
+- locations
+- schedules
+- impression share
+- lost impression share
+- quality score
+- ad relevance
+- landing-page experience
+
+For every field classify it as:
+
+- live API data
+- synced database data
+- calculated
+- inferred
+- unavailable
+- placeholder
+
+Report:
+
+- number of campaigns analysed
+- number of ad groups analysed
+- number of keywords analysed
+- number of search terms analysed
+- number of ads analysed
+- newest data timestamp
+- last successful API sync
+- missing data
+- API errors
+- data freshness
+
+Verify that the report contains row-level keyword analysis rather than campaign-level generic advice.
+
+Verify that suggested keywords have genuine sources.
+
+Confirm the system does not invent:
+
+- search volume
+- CPC
+- competition
+- forecasts
+- conversions
+- performance projections
+
+## PART 5 — KEYWORD QUALITY AUDIT
+
+Inspect the generated keyword analysis.
+
+For each recommendation check whether it includes:
+
+- keyword
+- current match type
+- campaign
+- ad group
+- impressions
+- clicks
+- spend
+- conversions
+- evidence
+- classification
+- reason
+- confidence
+- risk
+- approval requirement
+
+Check whether keywords are correctly classified as:
+
+- Scale
+- Keep
+- Monitor
+- Reduce bid
+- Change match type
+- Move ad group
+- Pause candidate
+- Remove candidate
+- Insufficient data
+
+Identify unsafe logic such as:
+
+- pausing because conversions are zero despite insufficient spend
+- ignoring broken conversion tracking
+- recommending keywords with no connection to WEBEE
+- recommending duplicates
+- recommending keywords already blocked by negatives
+- mixing UK and US intent
+- mixing consumer and business intent
+- recommending competitor terms without appropriate caution
+
+Score keyword-analysis quality from 0–10 and explain the evidence behind the score.
+
+## PART 6 — SUGGESTED AND NEGATIVE KEYWORD AUDIT
+
+Verify the system genuinely generates:
+
+### Suggested keywords
+
+For each suggestion check:
+
+- source
+- search intent
+- funnel stage
+- match type
+- campaign
+- ad group
+- landing page
+- overlap
+- negative conflicts
+- confidence
+- priority
+
+### Negative keywords
+
+For each negative check:
+
+- evidence
+- affected search term
+- proposed match type
+- benefit
+- blocking risk
+- confidence
+- approval requirement
+
+Report:
+
+- number of suggested keywords
+- number of negative keywords
+- number based on real search terms
+- number based on Business DNA
+- number inferred without external keyword data
+- number that appear unsafe, irrelevant or duplicated
+
+## PART 7 — AD COPY AND CREATIVE AUDIT
+
+Determine whether HiveMind genuinely analyses existing ads.
+
+Verify whether it retrieves:
+
+- current headlines
+- descriptions
+- final URLs
+- status
+- impressions
+- clicks
+- CTR
+- conversions
+- asset-performance labels
+- ad strength
+- approval status
+
+Inspect the proposed ad concepts.
+
+Confirm each concept includes:
+
+- campaign
+- ad group
+- keyword theme
+- audience
+- headlines
+- descriptions
+- CTA
+- final URL
+- landing-page message
+- differentiation
+- claims requiring verification
+- approval requirement
+
+Check Google Ads character limits and policy safety.
+
+Identify:
+
+- unsupported claims
+- invented savings
+- invented customer results
+- guaranteed outcomes
+- duplicate headlines
+- weak differentiation
+- vague CTAs
+- poor keyword relevance
+
+Score the proposed ad concepts from 0–10.
+
+## PART 8 — LANDING-PAGE AND HOMEPAGE BLUEPRINT AUDIT
+
+Inspect the generated blueprints.
+
+Confirm whether the landing-page blueprint contains:
+
+1. Trust strip
+2. Hero
+3. Headline
+4. Subheadline
+5. Primary CTA
+6. Secondary CTA
+7. Product demonstration
+8. Customer problem
+9. WEBEE solution
+10. Feature-benefit grid
+11. How it works
+12. Call workflow
+13. Integrations
+14. Use cases
+15. Objection handling
+16. FAQ
+17. Final CTA
+18. Footer trust information
+
+For every section confirm whether it includes:
+
+- purpose
+- heading
+- suggested copy
+- CTA
+- asset
+- evidence requirement
+- mobile behaviour
+- conversion rationale
+
+Confirm whether the homepage blueprint correctly represents:
+
+- WEBEE Receptionist
+- Voice AI
+- Business OS
+- Communication
+- Platform
+
+Assess whether recommendations are:
+
+- specific to the real WEBEE website
+- based on rendered-page evidence
+- aligned with Business DNA
+- consistent with the desired white-background design
+- practical for Lovable implementation
+- free of fabricated proof
+
+Score both blueprints from 0–10.
+
+## PART 9 — SEO AND SEARCH CONSOLE AUDIT
+
+Confirm whether Search Console data is genuinely connected and available.
+
+Report:
+
+- property
+- date range
+- clicks
+- impressions
+- CTR
+- average position
+- query rows
+- page rows
+- device rows
+- country rows
+- last successful sync
+- current data freshness
+- sitemap status
+- indexing status
+
+Verify whether the SEO audit uses:
+
+- real Search Console data
+- real live website evidence
+- inferred recommendations
+- external research
+
+Check for:
+
+- title issues
+- description issues
+- heading structure
+- canonicals
+- JSON-LD
+- broken links
+- internal links
+- orphan pages
+- thin content
+- missing alt text
+- sitemap problems
+- crawl problems
+- mobile issues
+- content gaps
+
+Confirm that unavailable information is labelled unavailable rather than invented.
+
+Score SEO-analysis usefulness from 0–10.
+
+## PART 10 — BLOG CAPABILITY AUDIT
+
+Audit the complete blog workflow:
+
+Opportunity
+→ brief
+→ article
+→ safety validation
+→ content approval
+→ publication approval
+→ publishing API
+→ live article
+→ sitemap/RSS
+→ monitoring
+
+Confirm whether the system can genuinely:
+
+- identify a Search Console opportunity
+- create a brief
+- produce a full article
+- validate factual claims
+- validate statistics
+- validate internal links
+- validate external sources
+- create metadata
+- create structured data
+- create internal links
+- request content approval
+- request publication approval
+- publish
+- verify the live URL
+- update sitemap/RSS
+- monitor performance
+
+Specifically verify that the unsafe article controls remain active for:
+
+`missed-calls-ai-receptionist-uk-businesses`
+
+State whether the backend unsafe version remains publicly accessible anywhere.
+
+Score blog readiness as:
+
+- Drafting readiness
+- Safety readiness
+- Approval readiness
+- Publishing readiness
+- Monitoring readiness
+
+Each score must be 0–10.
+
+## PART 11 — META AND SOCIAL AUDIT
+
+Inspect the real implementation for:
+
+- Meta OAuth
+- Facebook Page selection
+- Instagram professional-account selection
+- token storage
+- token refresh
+- permissions
+- insights reading
+- post reading
+- image publishing
+- video publishing
+- Reel publishing
+- scheduled publishing
+- live-post verification
+- post URL storage
+- error handling
+- workspace isolation
+
+Classify every social capability as:
+
+- live and verified
+- implemented but unverified
+- draft creation only
+- connection only
+- absent
+- blocked by permission
+- blocked by missing executor
+
+Do not call Meta “working” merely because OAuth succeeded.
+
+Confirm whether HiveMind honestly says:
+
+`Meta publishing is not currently verified. The content is ready as a draft.`
+
+when publishing has not been proven.
+
+Score:
+
+- content creation
+- Meta analytics
+- Facebook publishing
+- Instagram publishing
+- scheduling
+- verification and evidence
+
+Each from 0–10.
+
+## PART 12 — CONVERSION-TRACKING AUDIT
+
+Audit whether HiveMind can inspect:
+
+- Google Ads conversions
+- demo forms
+- free-trial forms
+- contact forms
+- Cal.com or Calendly bookings
+- phone calls
+- Call Ava interactions
+- lead creation
+- Google Analytics events
+- Google tags
+- Meta pixel
+- enhanced conversions
+- duplicate conversions
+- missing events
+- thank-you pages
+- server-side events
+
+For each event report:
+
+- source
+- event name
+- destination
+- status
+- last activity
+- evidence
+- duplication risk
+- missing configuration
+- impact on marketing decisions
+
+Determine whether current Google Ads recommendations can be trusted when conversion tracking shows zero.
+
+Score conversion-tracking reliability from 0–10.
+
+## PART 13 — APPROVAL AND EXECUTION AUDIT
+
+Verify that approvals are separated into:
+
+- analysis approval
+- Google Ads change approval
+- website-content approval
+- website-deployment approval
+- blog-content approval
+- blog-publication approval
+- Meta-content approval
+- Meta-publication approval
+- budget approval
+
+Check whether approval of analysis can accidentally trigger live changes.
+
+Trace whether approved changes can actually execute through:
+
+- Google Ads write executor
+- website executor
+- blog publisher
+- Meta publisher
+- tracking executor
+
+For each executor report:
+
+- exists
+- registered capability
+- dispatcher support
+- supported actions
+- approval guard
+- idempotency
+- retry
+- rollback
+- post-change verification
+- evidence
+- live verification status
+
+Do not describe proposed executors as working executors.
+
+## PART 14 — WORK ORDER DETAILS AND REPORT UI AUDIT
+
+Open the real completed analysis from Work Orders.
+
+Verify that the Details button works and the report contains:
+
+- Executive Summary
+- Homepage
+- Landing Pages
+- Google Ads
+- Ad Groups
+- Keywords
+- Search Terms
+- Suggested Keywords
+- Negative Keywords
+- Ads
+- Ad Concepts
+- SEO
+- Search Console
+- Blog
+- Meta
+- Competitors
+- Conversion Tracking
+- Change Requests
+- Approvals
+- Evidence
+- Monitoring
+
+Check:
+
+- report data persistence
+- correct work-order ID
+- correct workspace
+- filters
+- tables
+- sorting
+- timestamps
+- data freshness
+- evidence links
+- PDF export
+- CSV export
+- loading states
+- failure states
+- browser refresh persistence
+
+## PART 15 — EFFECTIVENESS ASSESSMENT
+
+Score the current system from 0–10 for:
+
+- HiveMind orchestration
+- live website analysis
+- Google Ads campaign analysis
+- keyword analysis
+- suggested keywords
+- negative-keyword analysis
+- ad-copy analysis
+- landing-page analysis
+- homepage analysis
+- SEO
+- blog writing
+- blog safety
+- blog publishing
+- Meta content creation
+- Meta publishing
+- conversion tracking
+- approvals
+- execution
+- reporting
+- evidence
+- workspace isolation
+- reliability
+- commercial usefulness
+
+For each score provide:
+
+- evidence
+- current strength
+- current weakness
+- practical consequence
+- what would raise the score
+
+Do not award a high score based on planned architecture.
+
+## PART 16 — PRACTICAL EFFECTIVENESS
+
+Give an honest assessment of what the system could successfully do today.
+
+Use these classifications:
+
+### Reliable now
+
+Capabilities that are live-verified and safe to depend on.
+
+### Useful with human review
+
+Capabilities that produce value but need checking before use.
+
+### Experimental
+
+Capabilities that exist but have not been proven sufficiently.
+
+### Not ready
+
+Capabilities that would give misleading results or cannot execute.
+
+### Blocked
+
+Capabilities prevented by missing provider access, permissions or deployment integrations.
+
+For every capability explain the likely business impact.
+
+## PART 17 — FAILURE AND RISK AUDIT
+
+Identify the highest-risk issues, including:
+
+- invented data
+- generic advice
+- provider failures shown as zero
+- stale analytics
+- wrong workspace
+- incomplete conversion tracking
+- incomplete campaign data
+- recommendations based on too little traffic
+- unsafe content
+- fake completion states
+- approvals not dispatching execution
+- website analysis without browser rendering
+- Meta connection mistaken for publishing capability
+- missing evidence
+- report data disappearing after refresh
+- partial execution with no rollback
+
+Rank each risk:
+
+- Critical
+- High
+- Medium
+- Low
+
+## PART 18 — FINAL VERDICT
+
+Return one overall verdict:
+
+- `PRODUCTION READY`
+- `MOSTLY READY WITH DEFINED GAPS`
+- `PARTIALLY EFFECTIVE`
+- `EARLY IMPLEMENTATION`
+- `NOT FUNCTIONAL`
+
+Do not choose the verdict based on test quantity alone.
+
+Base it on:
+
+- real live execution
+- real provider data
+- stored outputs
+- end-user usefulness
+- reliability
+- safety
+- verification
+
+## FINAL REPORT FORMAT
+
+Return:
+
+1. Overall verdict
+2. Executive summary
+3. What was genuinely completed
+4. What was partially completed
+5. What is UI or placeholder only
+6. What is absent
+7. Real HiveMind execution evidence
+8. Website-analysis evidence
+9. Google Ads evidence
+10. Keyword-analysis evidence
+11. SEO evidence
+12. Blog evidence
+13. Meta evidence
+14. Conversion-tracking evidence
+15. Approval and execution evidence
+16. Work Order Details evidence
+17. Capability scorecard
+18. Reliable-now capabilities
+19. Human-review capabilities
+20. Experimental capabilities
+21. Not-ready capabilities
+22. Critical blockers
+23. Highest-impact next fixes
+24. Estimated effectiveness after those fixes
+25. Confirmation that this audit made no changes
+
+For every conclusion provide:
+
+- exact file
+- record
+- API result
+- screenshot
+- database result
+- log
+- test
+- or live response
+
+Do not rely on developer claims from earlier completion messages.
+
+Do not modify the application.
+
+Do not produce a repair prompt during this audit.
+
+Prove the current state independently.

@@ -1,0 +1,835 @@
+# MAJOR TARGETED UPGRADE — PROPER GROWTHMIND GOOGLE ADS ANALYSIS
+
+Upgrade the existing GrowthMind Google Ads analysis capability so it produces a detailed, evidence-based marketing report rather than a short generic recommendation.
+
+Focus campaign:
+
+`Search for US and Reception`
+
+Analysis period:
+
+Last 30 days
+
+Do not modify live Google Ads campaigns during this task.
+
+Do not pause keywords, add keywords, change budgets, edit ads, or change landing pages without a separate explicit approval.
+
+Preserve:
+
+- existing Google Ads OAuth
+- existing Google Ads data sync
+- work orders
+- execution records
+- task approvals
+- Actions Centre
+- existing workspace isolation
+- existing campaign data
+- existing GrowthMind architecture
+
+Do not create a competing analytics system.
+
+## CURRENT PROBLEM
+
+The current GrowthMind output is not detailed enough.
+
+It must provide proper analysis covering:
+
+- campaign performance
+- keyword performance
+- search terms
+- suggested keywords
+- negative keywords
+- match types
+- ad copy and ad layouts
+- ad-group structure
+- landing-page analysis
+- homepage layouts
+- conversion optimisation
+- competitor positioning
+- budgets
+- conversion tracking
+- exact proposed changes
+- monitoring plan
+
+The final result must be stored as a detailed report and accessible through:
+
+- Work Order Details
+- GrowthMind reports
+- linked Task
+- linked Actions
+- Assistant conversation
+
+Do not return a small generic paragraph.
+
+# PHASE 1 — LOAD THE REAL DATA
+
+Refresh and load the real connected Google Ads data for the selected workspace and campaign.
+
+Retrieve all available data for the last 30 days, including:
+
+## Campaign data
+
+- campaign name
+- campaign ID
+- campaign status
+- campaign type
+- bidding strategy
+- daily budget
+- spend
+- impressions
+- clicks
+- CTR
+- average CPC
+- conversions
+- conversion value
+- cost per conversion
+- conversion rate
+- impression share
+- search lost impression share due to budget
+- search lost impression share due to rank
+- top impression share
+- absolute-top impression share
+- campaign start date
+- campaign targeting
+- locations
+- languages
+- devices
+- networks
+- ad schedule
+
+## Ad-group data
+
+For every ad group:
+
+- name
+- status
+- spend
+- impressions
+- clicks
+- CTR
+- CPC
+- conversions
+- conversion rate
+- cost per conversion
+- keywords
+- ads
+- landing page
+- performance compared with campaign average
+
+## Keyword data
+
+For every keyword:
+
+- keyword text
+- keyword ID
+- ad group
+- status
+- match type
+- quality score where available
+- expected CTR rating
+- ad relevance rating
+- landing-page experience rating
+- impressions
+- clicks
+- CTR
+- average CPC
+- spend
+- conversions
+- conversion rate
+- cost per conversion
+- impression share
+- top impression rate
+- absolute-top impression rate
+- final URL
+- approval status
+- first-page bid estimate where available
+- top-of-page bid estimate where available
+
+## Search-term data
+
+Retrieve the actual search terms that triggered ads.
+
+For every search term, show:
+
+- search term
+- matched keyword
+- match type
+- campaign
+- ad group
+- impressions
+- clicks
+- spend
+- conversions
+- cost per conversion
+- relevance
+- commercial intent
+- whether it should become a keyword
+- whether it should become a negative keyword
+- whether it is irrelevant
+- whether it indicates a new ad-group opportunity
+
+Do not hide search terms merely because they have zero conversions.
+
+## Conversion data
+
+Inspect:
+
+- configured conversion actions
+- primary versus secondary conversions
+- call conversions
+- form submissions
+- booking conversions
+- imported conversions
+- enhanced conversions
+- conversion values
+- attribution model
+- conversion window
+- tracking status
+- recent conversion activity
+
+Clearly state when conversion tracking is missing, incomplete, duplicated, or unreliable.
+
+Do not call a campaign unsuccessful solely because conversions show zero when tracking is not proven to be working.
+
+# PHASE 2 — CAMPAIGN DIAGNOSIS
+
+Produce a proper diagnosis with supporting figures.
+
+The diagnosis must answer:
+
+1. Is the campaign receiving enough traffic to judge performance?
+2. Is the CTR strong or weak compared with the campaign’s own ad groups and keywords?
+3. Is CPC increasing or decreasing?
+4. Is the campaign limited by budget?
+5. Is it limited by ad rank?
+6. Are search terms commercially relevant?
+7. Are broad-match keywords wasting spend?
+8. Are high-intent queries being captured?
+9. Are ads closely matched to keyword intent?
+10. Are landing pages closely matched to the ads?
+11. Is conversion tracking reliable?
+12. Are mobile and desktop performance materially different?
+13. Are locations producing different results?
+14. Are certain days or hours wasting spend?
+15. Is the campaign structure too broad?
+16. Are unrelated services combined in one campaign or ad group?
+17. Are keywords competing against each other?
+18. Are negative keywords missing?
+19. Are ads receiving meaningful impressions but weak engagement?
+20. Is the campaign ready for scaling, or should it first be corrected?
+
+Every conclusion must refer to real evidence.
+
+Do not use statements such as:
+
+- improve targeting
+- optimise keywords
+- create better ads
+- improve the landing page
+
+unless the report explains exactly what is wrong and exactly what should change.
+
+# PHASE 3 — DETAILED KEYWORD ANALYSIS
+
+Create a keyword table with one row per keyword.
+
+Classify every keyword as:
+
+- Scale
+- Keep
+- Monitor
+- Reduce bid
+- Change match type
+- Move to another ad group
+- Pause candidate
+- Remove candidate
+- Insufficient data
+
+For every classification include:
+
+- exact keyword
+- current metrics
+- reason
+- evidence
+- confidence
+- recommended action
+- risk
+- approval requirement
+
+A keyword must not be recommended for pausing merely because it has no conversions when:
+
+- spend is too low
+- tracking is unreliable
+- traffic volume is insufficient
+- the conversion window has not elapsed
+
+## Suggested keywords
+
+Generate a detailed suggested-keyword list using:
+
+- successful search terms
+- existing converting keywords
+- Business DNA
+- WEBEE product descriptions
+- landing-page content
+- connected Search Console data where relevant
+- verified competitor research where available
+- real user intent
+- product and service categories
+
+For each suggested keyword provide:
+
+- keyword text
+- recommended match type
+- search intent
+- funnel stage
+- proposed campaign
+- proposed ad group
+- proposed landing page
+- source of the suggestion
+- why it is relevant
+- overlap with existing keywords
+- negative-keyword conflicts
+- confidence
+- priority
+
+Group suggestions into themes, such as:
+
+- AI receptionist
+- virtual receptionist
+- missed-call recovery
+- after-hours call handling
+- appointment booking
+- lead qualification
+- voice AI
+- industry-specific receptionist terms
+- branded terms
+- competitor-alternative terms where legally and strategically appropriate
+
+Do not invent search volume, CPC, competition, or forecasts.
+
+Only show those values when retrieved from a real connected data source. Otherwise label them:
+
+`Data unavailable — requires Keyword Planner or an approved keyword-data provider.`
+
+## Negative keywords
+
+Create negative-keyword recommendations grouped by:
+
+- irrelevant service
+- job seeker
+- free or open-source intent
+- training or educational intent
+- consumer rather than business intent
+- unrelated geography
+- unrelated technology
+- low-commercial-intent research
+- existing search-term waste
+- brand-safety exclusion
+
+For every proposed negative keyword show:
+
+- keyword or phrase
+- evidence
+- search terms affected
+- match type
+- expected benefit
+- risk of blocking useful traffic
+- confidence
+- approval requirement
+
+# PHASE 4 — AD AND CREATIVE ANALYSIS
+
+Analyse every existing ad and responsive-search-ad asset.
+
+Show:
+
+- ad status
+- ad strength where available
+- impressions
+- clicks
+- CTR
+- conversions
+- landing page
+- headlines
+- descriptions
+- asset performance labels where available
+- message consistency
+- duplicated assets
+- weak or generic messaging
+- missing product benefits
+- missing objections
+- missing calls to action
+- keyword-to-ad relevance
+- ad-to-landing-page relevance
+
+## Produce proposed ad layouts
+
+Create at least three clearly different ad concepts for the campaign.
+
+Examples:
+
+### Concept A — Direct-response receptionist
+
+Focus:
+
+- never miss a call
+- answer calls after hours
+- book appointments
+- qualify leads
+- deploy quickly
+
+### Concept B — Cost and operational efficiency
+
+Focus:
+
+- reduce manual call handling
+- provide 24/7 coverage
+- route and qualify enquiries
+- integrate with business workflows
+
+### Concept C — Revenue recovery
+
+Focus:
+
+- recover missed enquiries
+- follow up with leads
+- capture caller information
+- turn more calls into booked opportunities
+
+For each concept provide:
+
+- campaign
+- ad group
+- target keyword theme
+- proposed headlines
+- proposed descriptions
+- call to action
+- final URL
+- landing-page message
+- target audience
+- intent
+- differentiation
+- claims requiring verification
+- assets that must not be used
+- implementation risks
+
+Validate all proposed ads against the current Google Ads format and policy constraints before creating change requests.
+
+Do not invent:
+
+- customer numbers
+- savings percentages
+- awards
+- testimonials
+- performance results
+- guaranteed outcomes
+- unsupported “number one” claims
+
+# PHASE 5 — CAMPAIGN AND AD-GROUP STRUCTURE
+
+Analyse whether the current campaign structure is appropriate.
+
+Produce a proposed account structure showing:
+
+- campaign
+- ad groups
+- keyword themes
+- match types
+- negative keywords
+- ad concept
+- landing page
+- conversion goal
+- audience
+- geographic targeting
+
+Determine whether `Search for US and Reception` should remain one campaign or be separated into clearer campaigns such as:
+
+- US AI Receptionist
+- AI Receptionist UK
+- Missed Call Recovery
+- Appointment Booking
+- Lead Qualification
+- Industry-specific campaigns
+- Brand campaign
+- Remarketing campaign where supported
+
+Do not automatically recommend splitting the campaign.
+
+Explain the benefits, risks, data requirements, and budget impact of any proposed restructure.
+
+# PHASE 6 — LANDING PAGE AND HOMEPAGE ANALYSIS
+
+Analyse the real destination URLs used by the campaign.
+
+Inspect:
+
+- headline
+- subheadline
+- hero section
+- CTA
+- message match
+- mobile layout
+- page speed data where genuinely available
+- navigation distractions
+- form length
+- booking flow
+- telephone CTA
+- social proof
+- trust signals
+- product clarity
+- use cases
+- FAQs
+- objection handling
+- pricing visibility
+- conversion tracking
+- privacy wording
+- accessibility
+- page structure
+
+Do not claim to have analysed a page unless the page was genuinely fetched or supplied through an approved integration.
+
+## Landing-page blueprint
+
+Produce a detailed recommended landing-page layout for the campaign.
+
+The layout should include:
+
+1. Announcement or trust strip
+2. Hero headline
+3. Supporting subheadline
+4. Primary CTA
+5. Secondary CTA
+6. Product demonstration
+7. Main customer problems
+8. How WEBEE Receptionist solves them
+9. Feature and benefit grid
+10. How deployment works
+11. Call-handling workflow
+12. Integrations section
+13. Use cases
+14. Objection-handling section
+15. FAQ
+16. Final CTA
+17. Footer trust and compliance information
+
+For every section provide:
+
+- purpose
+- suggested heading
+- suggested copy
+- CTA
+- required asset
+- supporting evidence needed
+- mobile behaviour
+- conversion rationale
+
+## Homepage layout recommendations
+
+Produce a separate homepage blueprint for WEBEE.
+
+The homepage should clearly distinguish:
+
+### Primary product
+
+- WEBEE Receptionist
+
+### Voice AI
+
+- Receptionist
+- Qualify
+- Lead Gen
+- Swarm
+
+### Business OS
+
+- HiveMind
+- GrowthMind
+- SystemMind
+- AccountsMind
+
+### Communication
+
+- HexMail
+- BuzzChat
+- Follow-Up Centre
+
+### Platform
+
+- WEBEE Builder
+- Smart Dashboard
+- CRM
+- Analytics
+
+Recommend:
+
+- hero layout
+- product navigation
+- visual hierarchy
+- CTA hierarchy
+- product demonstration areas
+- workflow diagrams
+- feature cards
+- use-case sections
+- trust sections
+- integration sections
+- pricing entry points
+- footer structure
+
+Do not alter the website during this analysis.
+
+Create design recommendations and wireframe-style section plans only.
+
+# PHASE 7 — BUSINESS DNA AND COMPETITOR INTELLIGENCE
+
+Use the workspace Business DNA to ensure recommendations match:
+
+- WEBEE positioning
+- product set
+- target customers
+- regions
+- pricing
+- sales proposition
+- brand language
+- operational capabilities
+
+Use verified competitor information only when a real research source is available.
+
+For competitor analysis show:
+
+- competitor
+- source
+- positioning
+- headline
+- offer
+- CTA
+- keyword themes
+- landing-page structure
+- strengths
+- weaknesses
+- differentiation opportunity for WEBEE
+
+Do not fabricate competitor pricing, features, ads, traffic, or performance.
+
+Clearly label information as:
+
+- verified
+- inferred
+- unavailable
+
+# PHASE 8 — PRIORITISED CHANGE REQUESTS
+
+After completing the report, create specific change-request drafts.
+
+Group them into:
+
+- Critical tracking fixes
+- Keyword changes
+- Negative keywords
+- Ad-copy changes
+- Ad-group restructuring
+- Campaign restructuring
+- Budget recommendations
+- Landing-page changes
+- Homepage changes
+- Conversion improvements
+- Monitoring actions
+
+Every change request must include:
+
+- exact action
+- affected account object
+- current state
+- proposed state
+- supporting evidence
+- expected directional impact
+- confidence
+- risk
+- reversibility
+- approval required
+- implementation owner
+- verification method
+- rollback method
+
+Do not use fake precision.
+
+Do not invent expected percentage improvements.
+
+## Approval levels
+
+Use separate approval categories:
+
+### Analysis approval
+
+Read-only analysis only.
+
+### Google Ads change approval
+
+Required before any Google Ads API mutation.
+
+### Website-content approval
+
+Required before changing website copy.
+
+### Website-deployment approval
+
+Required before deploying website changes.
+
+### Budget approval
+
+Required separately for any spend increase.
+
+A user approving analysis must not automatically approve implementation.
+
+# PHASE 9 — DETAILED REPORT UI
+
+Upgrade the Work Order Details view so the completed analysis is readable and useful.
+
+Include tabs or clearly separated sections for:
+
+- Executive Summary
+- Campaign
+- Ad Groups
+- Keywords
+- Search Terms
+- Suggested Keywords
+- Negative Keywords
+- Ads
+- Proposed Ad Layouts
+- Landing Pages
+- Homepage Layout
+- Competitors
+- Tracking
+- Change Requests
+- Evidence
+- Monitoring
+
+Add:
+
+- sortable tables
+- filters
+- campaign selector
+- ad-group selector
+- date selector
+- search
+- priority filters
+- confidence filters
+- approval status
+- evidence links
+- data freshness timestamp
+- export to PDF
+- export to CSV where appropriate
+
+The Details button must open the full analysis for the selected work order.
+
+Do not hide the report behind a generic task description.
+
+# PHASE 10 — EXECUTION AND PERSISTENCE
+
+When the user approves analysis:
+
+1. Create or reuse the execution record.
+2. Refresh Google Ads data.
+3. Run the full analysis.
+4. Persist every report section.
+5. Persist source timestamps.
+6. Persist the intelligence packet.
+7. Create linked change-request drafts.
+8. Link the report to the work order.
+9. Link it to the task.
+10. Link approvals and Actions.
+11. Mark the task complete only when the stored report has been verified.
+
+Progress must show real stages:
+
+- Refreshing Google Ads data
+- Loading campaigns
+- Analysing keywords
+- Analysing search terms
+- Analysing ads
+- Analysing landing pages
+- Generating keyword opportunities
+- Creating ad concepts
+- Creating page layouts
+- Compiling report
+- Drafting change requests
+- Verifying evidence
+- Completed
+
+Do not use fake progress timers.
+
+# QUALITY RULES
+
+The report fails quality review when it:
+
+- contains only generic advice
+- provides no real metrics
+- does not analyse individual keywords
+- does not include search terms
+- does not suggest keywords
+- does not suggest negative keywords
+- does not analyse ads
+- does not include proposed ad copy
+- does not analyse landing pages
+- does not include page-layout recommendations
+- does not create specific change requests
+- invents statistics
+- invents competitor data
+- invents projections
+- reports zero when data retrieval failed
+- completes without persisted evidence
+
+# VERIFICATION
+
+Use the real connected workspace and the real campaign:
+
+`Search for US and Reception`
+
+Run the full analysis and prove that it produces:
+
+1. Real campaign totals
+2. Detailed ad-group analysis
+3. A row-level keyword report
+4. Search-term findings
+5. Suggested keyword groups
+6. Proposed negative keywords
+7. At least three complete ad concepts
+8. A campaign-structure recommendation
+9. A detailed landing-page blueprint
+10. A detailed WEBEE homepage blueprint
+11. Conversion-tracking diagnosis
+12. Prioritised change requests
+13. Data sources and timestamps
+14. A stored report visible through Work Order Details
+15. No live Google Ads changes
+
+## FINAL REPORT
+
+Return only:
+
+1. Checkpoint reference
+2. Root cause of the shallow analysis
+3. Existing systems reused
+4. Exact files changed
+5. New report sections
+6. Google Ads data fields retrieved
+7. Number of keywords analysed
+8. Number of search terms analysed
+9. Suggested keywords created
+10. Negative keywords proposed
+11. Ad concepts created
+12. Landing-page blueprint status
+13. Homepage blueprint status
+14. Change requests created
+15. Work Order Details result
+16. Evidence and freshness result
+17. Targeted tests passed
+18. Real analysis execution result
+19. Confirmation no live campaigns were modified
+20. Confirmation no unrelated systems changed
+
+Do not run a repository-wide refactor.
+
+Do not report completion based only on UI components or mocked test data.
+
+Prove the result using the real connected Google Ads campaign and the persisted GrowthMind report.
