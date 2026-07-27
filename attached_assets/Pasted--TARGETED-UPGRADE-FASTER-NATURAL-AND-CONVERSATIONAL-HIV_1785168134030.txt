@@ -1,0 +1,410 @@
+# TARGETED UPGRADE — FASTER, NATURAL AND CONVERSATIONAL HIVEMIND RESPONSES
+
+HiveMind responses currently feel slow, robotic and overly structured.
+
+Improve the existing HiveMind response experience across:
+
+- Full Assistant
+- Floating HiveMind orb
+- Voice mode
+- Mobile
+- Desktop
+
+Do not create another HiveMind implementation.
+Do not weaken live-data checks, approvals, workspace isolation, evidence requirements or execution safety.
+Do not modify unrelated Minds or business systems.
+
+## 1. Measure the current response path first
+
+Before changing code, trace a real HiveMind message through:
+
+User input
+→ frontend submission
+→ conversation loading
+→ workspace resolution
+→ platform-data context
+→ intent classification
+→ tool selection
+→ tool execution
+→ prompt construction
+→ model request
+→ first streamed token
+→ completed response
+→ UI rendering
+
+Measure:
+
+- frontend submission delay
+- server-function duration
+- workspace-context loading time
+- platform-data loading time
+- tool-selection time
+- tool execution time
+- LLM time to first token
+- full response generation time
+- response-rendering time
+- total end-to-end latency
+- prompt token count
+- response token count
+- number of database queries
+- number of provider calls
+- whether independent calls run sequentially unnecessarily
+- whether old conversation history is repeatedly resent in full
+
+Test at minimum:
+
+1. “How many calls have we had today?”
+2. “What happened in the business today?”
+3. “How is our Google Ads campaign performing?”
+4. “What should I focus on today?”
+5. “Create a task to review our negative keywords.”
+
+Identify the real slowest stages before optimising.
+
+## 2. Preserve correctness
+
+HiveMind must continue to:
+
+- use the active workspace
+- retrieve live data when the question requires it
+- use `wbah_calls` for WBAH call activity
+- use Europe/London boundaries for WBAH
+- use real Google Ads data for advertising questions
+- distinguish unavailable data from genuine zero values
+- require approvals for external changes
+- attach evidence to completed actions
+- avoid cross-workspace leakage
+
+Do not improve speed by removing required live-data lookups.
+
+Do not answer live business questions from memory merely to appear faster.
+
+## 3. Improve conversational tone
+
+HiveMind should sound like an intelligent, commercially aware colleague rather than a database report or automated support bot.
+
+Use:
+
+- natural contractions such as “we’ve”, “you’re” and “I’d”
+- direct answers at the beginning
+- short, clear paragraphs
+- normal conversational transitions
+- business-aware language
+- confident recommendations when evidence supports them
+- honest uncertainty when evidence is incomplete
+- occasional acknowledgement of the user’s goal
+- adaptive detail based on the question
+
+Avoid:
+
+- repeating the user’s question
+- constant headings such as “Diagnosis”, “Evidence” and “Recommendation”
+- unnecessary numbered lists
+- generic phrases like “Based on the available data”
+- excessive disclaimers
+- repeatedly explaining that it is an AI
+- stiff phrases such as “There have been zero calls recorded”
+- dumping raw platform context
+- explaining internal tools or database names unless asked
+- long reports when the user asked a simple question
+
+### Example
+
+Robotic:
+
+“There have been 720 calls today. There was 1 qualified call. There were 418 voicemail outcomes.”
+
+Better:
+
+“We’ve had 720 calls today. Most were voicemails — 418 — and one call was marked as qualified. I’d look at why the connected-call rate is so low before increasing volume.”
+
+HiveMind must not use that exact wording or those numbers unless they are current.
+
+## 4. Use response-depth modes
+
+Automatically choose the response depth from the user’s request.
+
+### Quick answer
+
+For simple factual questions:
+
+- answer in one to three short paragraphs
+- give the key number immediately
+- include one useful interpretation where appropriate
+- do not generate a full report
+
+### Conversational analysis
+
+For questions such as “How are we doing?”:
+
+- concise summary
+- key evidence
+- strongest concern
+- recommended next action
+
+### Detailed report
+
+Use detailed sections and tables only when the user asks for:
+
+- a report
+- full analysis
+- breakdown
+- comparison
+- audit
+- execution plan
+
+Do not default every response to report format.
+
+## 5. Improve dialogue continuity
+
+HiveMind should understand follow-up questions such as:
+
+- “Why?”
+- “What caused that?”
+- “Do it.”
+- “Which one is best?”
+- “What about bookings?”
+- “Compare it with yesterday.”
+
+Use the active conversation context without repeating all old history into every model request.
+
+Preserve:
+
+- current topic
+- selected campaign
+- selected workspace
+- referenced work order
+- referenced task
+- user’s last requested action
+
+Do not confuse conversation memory with live business data.
+
+When the user asks a live follow-up, reuse the resolved context but refresh the required metrics.
+
+## 6. Reduce unnecessary latency
+
+Inspect and safely optimise:
+
+- duplicate workspace lookups
+- repeated profile/member queries
+- repeated Business DNA loading
+- sequential independent database requests
+- repeated loading of unchanged static context
+- excessive conversation history
+- oversized intelligence packets added to simple questions
+- duplicated tool calls
+- frontend waiting for the complete response before rendering
+- unnecessary post-response refreshes
+- repeated React Query invalidations
+- model calls made before basic deterministic data is available
+- provider requests that should use cached synced data
+- slow tool routing caused by sending the entire capability registry
+
+Use bounded caching only for genuinely stable information such as:
+
+- Business DNA
+- workspace configuration
+- capability descriptions
+- product definitions
+
+Do not cache live calls, leads, bookings, active execution status or rapidly changing campaign data as natural-language answers.
+
+## 7. Stream responses properly
+
+Where the current model/provider supports streaming:
+
+- display the first useful words as soon as they arrive
+- do not wait for the entire answer before rendering
+- maintain a visible thinking/loading state before the first token
+- avoid character-by-character flicker
+- preserve markdown rendering while streaming
+- support cancellation
+- stop duplicate submissions
+- prevent two simultaneous responses to one message
+
+If streaming is already implemented, trace why the user still experiences delay.
+
+## 8. Use deterministic summaries where appropriate
+
+For simple live metrics, build a compact structured data result before the LLM response.
+
+Example internal input:
+
+- calls today
+- qualified calls
+- bookings
+- leads
+- freshness
+- source health
+
+Allow the model to convert that into natural language.
+
+Do not send enormous raw record lists to the model when aggregate figures are sufficient.
+
+For detailed analysis, keep row-level data available through tools or report sections rather than stuffing all rows into the conversational prompt.
+
+## 9. Improve recommendations
+
+HiveMind should not merely recite figures.
+
+When useful, responses should include:
+
+- what changed
+- why it matters
+- the most likely cause
+- the most important next action
+- whether HiveMind can prepare or execute that action
+- whether approval is required
+
+Do not force a recommendation into every trivial answer.
+
+Recommendations must be based on real evidence, not generic business advice.
+
+## 10. Voice-mode behaviour
+
+Voice responses should be shorter and more natural than written reports.
+
+For voice:
+
+- answer the direct question first
+- use short sentences
+- avoid long lists
+- avoid reading IDs, URLs or database language aloud
+- offer one next action
+- allow interruption
+- stop speaking when interrupted
+- preserve the same facts as the written HiveMind response
+
+Voice, orb and full Assistant must use the same underlying conversation and workspace context.
+
+## 11. Tone configuration
+
+Create or reuse a central HiveMind response-style configuration rather than hardcoding tone independently across multiple interfaces.
+
+Recommended default characteristics:
+
+- direct
+- commercially intelligent
+- conversational
+- proactive
+- concise by default
+- detailed on request
+- honest
+- not overly enthusiastic
+- not robotic
+- not patronising
+
+Do not change GrowthMind, SystemMind and AccountsMind into identical personalities.
+
+HiveMind can summarise their findings conversationally while preserving specialist evidence.
+
+## 12. Failure responses
+
+Replace robotic or misleading failure responses.
+
+Bad:
+
+“No data was returned.”
+
+Better:
+
+“I couldn’t retrieve the current call data just now, so I don’t want to give you an incorrect total. The last source check failed at 14:32.”
+
+Bad:
+
+“Execution failed.”
+
+Better:
+
+“The analysis stopped while refreshing Google Ads data. Your account is still connected, but Google returned a permission error. Nothing was changed.”
+
+Include:
+
+- what failed
+- whether data may be stale
+- whether anything changed
+- the practical next action
+
+Do not expose secrets or technical stack traces to normal users.
+
+## 13. Target performance goals
+
+Measure rather than hardcode artificial success.
+
+Target where technically realistic:
+
+- UI acknowledgement after submit: under 150 ms
+- first loading state: immediate
+- first streamed response token for simple questions: ideally under 2 seconds
+- live internal-data answer: ideally under 3 seconds
+- provider-dependent answer: visible progress immediately, then honest completion
+- simple answer length: generally under 150 words
+- no repeated full-context queries where unchanged
+- no duplicate tool calls
+- stable memory after repeated conversations
+
+Do not fake fast progress with timers.
+
+## 14. Real verification
+
+Test the actual deployed HiveMind using the real workspace.
+
+Ask:
+
+1. “How many calls have we had today?”
+2. “What happened in the business today?”
+3. “How is Search for US and Reception performing?”
+4. “What should I focus on today?”
+5. “Why are you recommending that?”
+6. “Okay, prepare the task.”
+7. “Give me the full detailed report.”
+
+Verify:
+
+- simple questions receive concise conversational answers
+- follow-ups retain context
+- detailed requests still produce detailed reports
+- live data remains correct
+- first-token and total latency improve
+- no fabricated information appears
+- actions still require the correct approval
+- full Assistant, orb and voice remain aligned
+
+Have a human-style quality review compare before and after responses for:
+
+- naturalness
+- clarity
+- directness
+- usefulness
+- repetition
+- confidence
+- accuracy
+- response length
+
+## Final report
+
+Return only:
+
+1. Checkpoint reference
+2. Slowest stages before changes
+3. Latency measurements before
+4. Root causes
+5. Exact files changed
+6. Context-size changes
+7. Database/provider-call reductions
+8. Streaming result
+9. Tone and response-depth implementation
+10. Example responses before and after
+11. Live-data accuracy result
+12. Follow-up-context result
+13. Voice/orb/full-Assistant parity result
+14. Latency measurements after
+15. Tests passed
+16. Production-build result
+17. Remaining limitations
+18. Confirmation no data accuracy or approval controls were weakened
+19. Confirmation no unrelated systems changed
+
+Do not report success because the prompt wording changed.
+
+Prove the improvement through measured latency and real before-and-after HiveMind conversations.
