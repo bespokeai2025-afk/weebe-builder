@@ -3,7 +3,7 @@ name: HiveMind streaming + conversational pipeline
 description: Shared prep/tool-loop for all HiveMind chat surfaces, SSE endpoint auth model, depth/tone config rules
 ---
 
-# HiveMind streaming + conversational pipeline (Task era: July 2026)
+# HiveMind streaming + conversational pipeline
 
 - All HiveMind chat surfaces (full Assistant page, orb, voice prompt) share ONE pipeline:
   `prepareHiveMindChat()` (single Promise.all: platform data + councils + knowledge RAG +

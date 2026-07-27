@@ -981,8 +981,9 @@ function HiveMindChat() {
       if (voiceSettings.autoPlay) setTimeout(() => fetchAndPlayTTS(finalMsg), 200);
     } catch (e: any) {
       if (abort.signal.aborted) {
-        setMessages(prev => prev.map(m => m.id === placeholder.id && m.content === ""
-          ? { ...m, content: "Stopped." } : m));
+        // Keep whatever streamed so far and mark the message as stopped.
+        setMessages(prev => prev.map(m => m.id === placeholder.id
+          ? { ...m, content: m.content ? `${m.content}\n\n(Stopped)` : "Stopped." } : m));
       } else {
         setMessages(prev => prev.map(m => m.id === placeholder.id
           ? { ...m, content: `Sorry, I couldn't respond: ${e.message ?? "unknown error"}` } : m));
@@ -1225,14 +1226,24 @@ function HiveMindChat() {
                 <Lightbulb className="h-4 w-4" />
               </button>
 
-              {/* Send */}
-              <button
-                onClick={() => sendMessage(input)}
-                disabled={!input.trim() || isThinking}
-                className="h-9 w-9 rounded-xl bg-violet-600 hover:bg-violet-500 disabled:opacity-40 flex items-center justify-center shrink-0 transition-all"
-              >
-                {isThinking ? <Loader2 className="h-4 w-4 text-white animate-spin" /> : <Send className="h-4 w-4 text-white" />}
-              </button>
+              {/* Send / Stop */}
+              {isThinking ? (
+                <button
+                  onClick={() => streamAbortRef.current?.abort()}
+                  title="Stop generating"
+                  className="h-9 w-9 rounded-xl bg-red-600/80 hover:bg-red-500 flex items-center justify-center shrink-0 transition-all"
+                >
+                  <Square className="h-3.5 w-3.5 text-white fill-current" />
+                </button>
+              ) : (
+                <button
+                  onClick={() => sendMessage(input)}
+                  disabled={!input.trim()}
+                  className="h-9 w-9 rounded-xl bg-violet-600 hover:bg-violet-500 disabled:opacity-40 flex items-center justify-center shrink-0 transition-all"
+                >
+                  <Send className="h-4 w-4 text-white" />
+                </button>
+              )}
             </div>
           </div>
         </div>

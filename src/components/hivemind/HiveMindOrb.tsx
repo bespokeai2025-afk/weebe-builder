@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { useRouterState, useNavigate } from "@tanstack/react-router";
-import { Send, Mic, MicOff, X, Minus, Loader2, ChevronRight, User, ExternalLink, ClipboardList } from "lucide-react";
+import { Send, Mic, MicOff, X, Minus, Loader2, ChevronRight, User, ExternalLink, ClipboardList, Square } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { getHiveMindAIResponse, getHiveMindTTS } from "@/lib/hivemind/hivemind.ai";
 import { streamHiveMindChat } from "@/lib/hivemind/use-hivemind-stream";
@@ -436,6 +436,7 @@ function MiniChat({ onClose, onStateChange }: {
     } catch { if (gen === ttsGenRef.current) setSpeaking(false); }
   }
 
+  const streamAbortRef = useRef<AbortController | null>(null);
   async function send(text: string) {
     if (!text.trim() || thinking) return;
     const userMsg: Msg     = { id: uid(), role: "user", content: text.trim() };
@@ -444,6 +445,8 @@ function MiniChat({ onClose, onStateChange }: {
     historyRef.current.push({ role: "user", content: text.trim() });
     setInput("");
     setThinking(true);
+    const abort = new AbortController();
+    streamAbortRef.current = abort;
     try {
       const args = { query: text.trim(), history: historyRef.current.slice(-6), personality: prefs.current.personality, userName: userName.current };
       // Stream tokens so the reply renders as it's generated; fall back to the
@@ -452,11 +455,13 @@ function MiniChat({ onClose, onStateChange }: {
       try {
         r = await streamHiveMindChat({
           ...args,
+          signal: abort.signal,
           onToken: (fullText) => {
             setMessages(prev => prev.map(m => m.id === placeholder.id ? { ...m, content: fullText } : m));
           },
         });
-      } catch {
+      } catch (streamErr) {
+        if (abort.signal.aborted) throw streamErr;
         r = await aiFn({ data: args });
       }
       historyRef.current.push({ role: "assistant", content: r.response });
@@ -469,12 +474,20 @@ function MiniChat({ onClose, onStateChange }: {
       persistNewMessages([userMsg, reply]);
       playTTS(r.response);
     } catch (err: any) {
-      const msg = err?.message ?? String(err ?? "Unknown error");
-      setMessages(prev => prev.map(m => m.id === placeholder.id
-        ? { ...m, content: `Error: ${msg.slice(0, 200)}` }
-        : m
-      ));
-    } finally { setThinking(false); }
+      if (abort.signal.aborted) {
+        // Keep whatever streamed so far and mark the message as stopped.
+        setMessages(prev => prev.map(m => m.id === placeholder.id
+          ? { ...m, content: m.content ? `${m.content}\n\n(Stopped)` : "Stopped." } : m));
+      } else {
+        setMessages(prev => prev.map(m => m.id === placeholder.id
+          ? { ...m, content: "Sorry — I couldn't get an answer just now. Please try again in a moment." }
+          : m
+        ));
+      }
+    } finally {
+      streamAbortRef.current = null;
+      setThinking(false);
+    }
   }
 
   function toggleMic() {
@@ -675,13 +688,23 @@ function MiniChat({ onClose, onStateChange }: {
               className="flex-1 bg-transparent text-xs placeholder:text-sky-400/25 focus:outline-none min-w-0 text-sky-100"
             />
 
-            <button onClick={() => send(input)}
-              disabled={!input.trim() || thinking}
-              className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border transition-all disabled:opacity-25"
-              style={{ background: "rgba(14,165,233,0.12)", border: "1px solid rgba(14,165,233,0.25)", color: "#38bdf8" }}
-            >
-              <Send className="h-3 w-3" />
-            </button>
+            {thinking ? (
+              <button onClick={() => streamAbortRef.current?.abort()}
+                title="Stop generating"
+                className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border transition-all"
+                style={{ background: "rgba(239,68,68,0.15)", border: "1px solid rgba(239,68,68,0.35)", color: "#f87171" }}
+              >
+                <Square className="h-3 w-3 fill-current" />
+              </button>
+            ) : (
+              <button onClick={() => send(input)}
+                disabled={!input.trim()}
+                className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border transition-all disabled:opacity-25"
+                style={{ background: "rgba(14,165,233,0.12)", border: "1px solid rgba(14,165,233,0.25)", color: "#38bdf8" }}
+              >
+                <Send className="h-3 w-3" />
+              </button>
+            )}
           </div>
         </>
       )}
