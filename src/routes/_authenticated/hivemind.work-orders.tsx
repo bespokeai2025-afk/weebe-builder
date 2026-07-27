@@ -108,6 +108,7 @@ function WorkOrderCard({ wo }: { wo: WorkOrderSummary }) {
           <Link
             to="/hivemind/work-orders/$id"
             params={{ id: wo.id }}
+            aria-label={`View details for work order: ${wo.title}`}
             className="flex items-center gap-1 rounded-lg border border-white/[0.08] bg-white/[0.03] px-2.5 py-1.5 text-[11px] font-medium text-muted-foreground hover:text-foreground hover:border-violet-500/30 transition-all shrink-0"
           >
             Details

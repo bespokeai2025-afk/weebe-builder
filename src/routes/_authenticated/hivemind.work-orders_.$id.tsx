@@ -30,7 +30,7 @@ import {
   type WorkOrderStageTask,
 } from "@/lib/hivemind/work-orders-query.server";
 
-export const Route = createFileRoute("/_authenticated/hivemind/work-orders/$id")({
+export const Route = createFileRoute("/_authenticated/hivemind/work-orders_/$id")({
   head: () => ({ meta: [{ title: "Work Order — Webee" }] }),
   component: WorkOrderDetailPage,
 });
@@ -385,7 +385,7 @@ function WorkOrderDetailPage() {
   const { id } = Route.useParams();
   const getFn = useServerFn(getWorkOrderDetail);
 
-  const { data: wo, isLoading, error } = useQuery({
+  const { data: wo, isLoading, error, refetch } = useQuery({
     queryKey: ["work-order-detail", id],
     queryFn: () => getFn({ data: { id } }),
     staleTime: 30_000,
@@ -418,8 +418,15 @@ function WorkOrderDetailPage() {
       ) : error ? (
         <div className="px-5 py-10 text-center">
           <AlertTriangle className="h-8 w-8 text-red-400/50 mx-auto mb-2" />
-          <p className="text-sm text-red-300">Failed to load work order</p>
-          <p className="text-xs text-muted-foreground mt-1">{(error as any)?.message}</p>
+          <p className="text-sm text-red-300">Work order details could not be loaded.</p>
+          <p className="text-xs text-muted-foreground mt-1">Work order ID: {id}</p>
+          <p className="text-xs text-muted-foreground/70 mt-1">{(error as any)?.message ?? String(error)}</p>
+          <button
+            onClick={() => void refetch()}
+            className="mt-3 inline-flex items-center gap-1.5 rounded-lg border border-white/[0.08] bg-white/[0.04] px-3 py-1.5 text-xs font-medium text-muted-foreground hover:text-foreground transition-all"
+          >
+            <Loader2 className="h-3.5 w-3.5" /> Retry
+          </button>
         </div>
       ) : wo ? (
         <>

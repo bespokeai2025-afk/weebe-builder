@@ -284,7 +284,7 @@ import { Route as ApiInternalAgentToolsIdRouteImport } from './routes/api/intern
 import { Route as AuthenticatedSystemmindClientsSetupRouteImport } from './routes/_authenticated/systemmind.clients.setup'
 import { Route as AuthenticatedSystemmindClientsApiProbeRouteImport } from './routes/_authenticated/systemmind.clients.api-probe'
 import { Route as AuthenticatedSettingsProvidersCategoryRouteImport } from './routes/_authenticated/settings.providers.$category'
-import { Route as AuthenticatedHivemindWorkOrdersIdRouteImport } from './routes/_authenticated/hivemind.work-orders.$id'
+import { Route as AuthenticatedHivemindWorkOrdersIdRouteImport } from './routes/_authenticated/hivemind.work-orders_.$id'
 import { Route as AuthenticatedGrowthmindContentProjectsProjectIdRouteImport } from './routes/_authenticated/growthmind.content-projects.$projectId'
 import { Route as AuthenticatedGrowthmindAnatomyItemIdRouteImport } from './routes/_authenticated/growthmind.anatomy.$itemId'
 import { Route as AuthenticatedAdminAccountsWorkspaceConfigRouteImport } from './routes/_authenticated/admin.accounts.workspace-config'
@@ -1864,9 +1864,9 @@ const AuthenticatedSettingsProvidersCategoryRoute =
   } as any)
 const AuthenticatedHivemindWorkOrdersIdRoute =
   AuthenticatedHivemindWorkOrdersIdRouteImport.update({
-    id: '/$id',
-    path: '/$id',
-    getParentRoute: () => AuthenticatedHivemindWorkOrdersRoute,
+    id: '/work-orders_/$id',
+    path: '/work-orders/$id',
+    getParentRoute: () => AuthenticatedHivemindRoute,
   } as any)
 const AuthenticatedGrowthmindContentProjectsProjectIdRoute =
   AuthenticatedGrowthmindContentProjectsProjectIdRouteImport.update({
@@ -2167,7 +2167,7 @@ export interface FileRoutesByFullPath {
   '/hivemind/settings': typeof AuthenticatedHivemindSettingsRoute
   '/hivemind/system-health': typeof AuthenticatedHivemindSystemHealthRoute
   '/hivemind/tasks': typeof AuthenticatedHivemindTasksRoute
-  '/hivemind/work-orders': typeof AuthenticatedHivemindWorkOrdersRouteWithChildren
+  '/hivemind/work-orders': typeof AuthenticatedHivemindWorkOrdersRoute
   '/hivemind/workflow-intelligence': typeof AuthenticatedHivemindWorkflowIntelligenceRoute
   '/knowledge-centre/$slug': typeof AuthenticatedKnowledgeCentreSlugRoute
   '/leads/webforms': typeof AuthenticatedLeadsWebformsRoute
@@ -2466,7 +2466,7 @@ export interface FileRoutesByTo {
   '/hivemind/settings': typeof AuthenticatedHivemindSettingsRoute
   '/hivemind/system-health': typeof AuthenticatedHivemindSystemHealthRoute
   '/hivemind/tasks': typeof AuthenticatedHivemindTasksRoute
-  '/hivemind/work-orders': typeof AuthenticatedHivemindWorkOrdersRouteWithChildren
+  '/hivemind/work-orders': typeof AuthenticatedHivemindWorkOrdersRoute
   '/hivemind/workflow-intelligence': typeof AuthenticatedHivemindWorkflowIntelligenceRoute
   '/knowledge-centre/$slug': typeof AuthenticatedKnowledgeCentreSlugRoute
   '/leads/webforms': typeof AuthenticatedLeadsWebformsRoute
@@ -2773,7 +2773,7 @@ export interface FileRoutesById {
   '/_authenticated/hivemind/settings': typeof AuthenticatedHivemindSettingsRoute
   '/_authenticated/hivemind/system-health': typeof AuthenticatedHivemindSystemHealthRoute
   '/_authenticated/hivemind/tasks': typeof AuthenticatedHivemindTasksRoute
-  '/_authenticated/hivemind/work-orders': typeof AuthenticatedHivemindWorkOrdersRouteWithChildren
+  '/_authenticated/hivemind/work-orders': typeof AuthenticatedHivemindWorkOrdersRoute
   '/_authenticated/hivemind/workflow-intelligence': typeof AuthenticatedHivemindWorkflowIntelligenceRoute
   '/_authenticated/knowledge-centre/$slug': typeof AuthenticatedKnowledgeCentreSlugRoute
   '/_authenticated/leads/webforms': typeof AuthenticatedLeadsWebformsRoute
@@ -2875,7 +2875,7 @@ export interface FileRoutesById {
   '/_authenticated/admin/accounts/workspace-config': typeof AuthenticatedAdminAccountsWorkspaceConfigRoute
   '/_authenticated/growthmind/anatomy/$itemId': typeof AuthenticatedGrowthmindAnatomyItemIdRoute
   '/_authenticated/growthmind/content-projects/$projectId': typeof AuthenticatedGrowthmindContentProjectsProjectIdRoute
-  '/_authenticated/hivemind/work-orders/$id': typeof AuthenticatedHivemindWorkOrdersIdRoute
+  '/_authenticated/hivemind/work-orders_/$id': typeof AuthenticatedHivemindWorkOrdersIdRoute
   '/_authenticated/settings/providers/$category': typeof AuthenticatedSettingsProvidersCategoryRoute
   '/_authenticated/systemmind/clients/api-probe': typeof AuthenticatedSystemmindClientsApiProbeRoute
   '/_authenticated/systemmind/clients/setup': typeof AuthenticatedSystemmindClientsSetupRoute
@@ -3789,7 +3789,7 @@ export interface FileRouteTypes {
     | '/_authenticated/admin/accounts/workspace-config'
     | '/_authenticated/growthmind/anatomy/$itemId'
     | '/_authenticated/growthmind/content-projects/$projectId'
-    | '/_authenticated/hivemind/work-orders/$id'
+    | '/_authenticated/hivemind/work-orders_/$id'
     | '/_authenticated/settings/providers/$category'
     | '/_authenticated/systemmind/clients/api-probe'
     | '/_authenticated/systemmind/clients/setup'
@@ -5917,12 +5917,12 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedSettingsProvidersCategoryRouteImport
       parentRoute: typeof AuthenticatedSettingsProvidersRoute
     }
-    '/_authenticated/hivemind/work-orders/$id': {
-      id: '/_authenticated/hivemind/work-orders/$id'
-      path: '/$id'
+    '/_authenticated/hivemind/work-orders_/$id': {
+      id: '/_authenticated/hivemind/work-orders_/$id'
+      path: '/work-orders/$id'
       fullPath: '/hivemind/work-orders/$id'
       preLoaderRoute: typeof AuthenticatedHivemindWorkOrdersIdRouteImport
-      parentRoute: typeof AuthenticatedHivemindWorkOrdersRoute
+      parentRoute: typeof AuthenticatedHivemindRoute
     }
     '/_authenticated/growthmind/content-projects/$projectId': {
       id: '/_authenticated/growthmind/content-projects/$projectId'
@@ -6410,21 +6410,6 @@ const AuthenticatedHexmailRouteChildren: AuthenticatedHexmailRouteChildren = {
 const AuthenticatedHexmailRouteWithChildren =
   AuthenticatedHexmailRoute._addFileChildren(AuthenticatedHexmailRouteChildren)
 
-interface AuthenticatedHivemindWorkOrdersRouteChildren {
-  AuthenticatedHivemindWorkOrdersIdRoute: typeof AuthenticatedHivemindWorkOrdersIdRoute
-}
-
-const AuthenticatedHivemindWorkOrdersRouteChildren: AuthenticatedHivemindWorkOrdersRouteChildren =
-  {
-    AuthenticatedHivemindWorkOrdersIdRoute:
-      AuthenticatedHivemindWorkOrdersIdRoute,
-  }
-
-const AuthenticatedHivemindWorkOrdersRouteWithChildren =
-  AuthenticatedHivemindWorkOrdersRoute._addFileChildren(
-    AuthenticatedHivemindWorkOrdersRouteChildren,
-  )
-
 interface AuthenticatedHivemindRouteChildren {
   AuthenticatedHivemindActionsRoute: typeof AuthenticatedHivemindActionsRoute
   AuthenticatedHivemindBriefingRoute: typeof AuthenticatedHivemindBriefingRoute
@@ -6436,9 +6421,10 @@ interface AuthenticatedHivemindRouteChildren {
   AuthenticatedHivemindSettingsRoute: typeof AuthenticatedHivemindSettingsRoute
   AuthenticatedHivemindSystemHealthRoute: typeof AuthenticatedHivemindSystemHealthRoute
   AuthenticatedHivemindTasksRoute: typeof AuthenticatedHivemindTasksRoute
-  AuthenticatedHivemindWorkOrdersRoute: typeof AuthenticatedHivemindWorkOrdersRouteWithChildren
+  AuthenticatedHivemindWorkOrdersRoute: typeof AuthenticatedHivemindWorkOrdersRoute
   AuthenticatedHivemindWorkflowIntelligenceRoute: typeof AuthenticatedHivemindWorkflowIntelligenceRoute
   AuthenticatedHivemindIndexRoute: typeof AuthenticatedHivemindIndexRoute
+  AuthenticatedHivemindWorkOrdersIdRoute: typeof AuthenticatedHivemindWorkOrdersIdRoute
 }
 
 const AuthenticatedHivemindRouteChildren: AuthenticatedHivemindRouteChildren = {
@@ -6454,11 +6440,12 @@ const AuthenticatedHivemindRouteChildren: AuthenticatedHivemindRouteChildren = {
   AuthenticatedHivemindSystemHealthRoute:
     AuthenticatedHivemindSystemHealthRoute,
   AuthenticatedHivemindTasksRoute: AuthenticatedHivemindTasksRoute,
-  AuthenticatedHivemindWorkOrdersRoute:
-    AuthenticatedHivemindWorkOrdersRouteWithChildren,
+  AuthenticatedHivemindWorkOrdersRoute: AuthenticatedHivemindWorkOrdersRoute,
   AuthenticatedHivemindWorkflowIntelligenceRoute:
     AuthenticatedHivemindWorkflowIntelligenceRoute,
   AuthenticatedHivemindIndexRoute: AuthenticatedHivemindIndexRoute,
+  AuthenticatedHivemindWorkOrdersIdRoute:
+    AuthenticatedHivemindWorkOrdersIdRoute,
 }
 
 const AuthenticatedHivemindRouteWithChildren =

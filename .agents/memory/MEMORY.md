@@ -156,4 +156,5 @@
 - [HiveMind WBAH calls source](hivemind-wbah-calls-source.md) — WBAH call metrics from wbah_calls (London day window); provider id IS row id; fail loud "unavailable", never silent zeros.
 - [Public Content Publishing backbone](public-content-publishing-arch.md) — Lovable blog API: dual approvals, api_published honesty, snapshot overlay for updating items, SSRF-guarded verify, column-name drift trap.
 - [Universal Mind Intelligence Packet gate](universal-intelligence-packet.md) — all Mind task inserts go through prepareMindTaskInsert; only ready_for_* states approvable; sanitize untrusted payload packets; never hand-build packet literals.
+- [TanStack route nesting needs Outlet](tanstack-route-nesting-outlet.md) — dotted child route renders nothing if parent lacks <Outlet/>; un-nest via `parent_.$id.tsx`, URL/Links unchanged.
 - [Prod build OOM heap cap](prodbuild-oom-heap.md) — max-old-space-size must stay well under machine RAM or vite SSR build is OOM-killed silently (FAILED, no error, dist/server empty).
