@@ -1,0 +1,182 @@
+# STEP 1 — GOOGLE ADS CONVERSION TRACKING VERIFICATION AND REPAIR
+
+Fix only WEBEE’s conversion-tracking visibility and reliability.
+
+Do not modify:
+
+- Google Ads campaigns
+- budgets
+- bids
+- keywords
+- ads
+- GrowthMind recommendations
+- unrelated integrations
+- unrelated website design
+
+## Confirmed current situation
+
+The campaign `Search for US and Reception` has:
+
+- £121.58 spend
+- 22 clicks
+- 0 recorded conversions
+
+The homepage contains Google Ads tag:
+
+AW-18259674793
+
+However, tag firing and conversion delivery have not been proven.
+
+GrowthMind must not make high-confidence optimisation decisions based on zero conversions until conversion tracking is verified.
+
+## Phase 1 — Read-only tracking audit
+
+Trace the real conversion path for:
+
+1. Book a Demo form
+2. Start Free Trial form
+3. Contact form
+4. Call Ava successful lead
+5. Calendar booking
+6. Qualified phone call
+7. Any existing thank-you page
+8. Any CRM lead created from paid traffic
+
+For each conversion point report:
+
+- frontend event
+- server function/API
+- database record
+- Google tag event
+- Google Ads conversion action
+- conversion action ID/label
+- whether it is primary or secondary
+- whether a value is assigned
+- whether consent is required
+- whether the event is sent once or could duplicate
+- whether GCLID, GBRAID or WBRAID is preserved
+- whether the event can be tied back to a campaign
+
+Inspect:
+
+- Google tag installation
+- Google Tag Manager if present
+- browser network calls
+- form success handlers
+- booking callbacks
+- route changes
+- SPA navigation
+- consent mode
+- enhanced conversion configuration
+- Google Ads conversion-action status
+- recent conversion diagnostics
+
+Do not assume that tag presence means the conversion fires.
+
+## Phase 2 — Define the approved conversion model
+
+Create a clear conversion map.
+
+Recommended primary conversions:
+
+- completed demo booking
+- completed free-trial signup
+- qualified paid-ad lead
+- qualified inbound call where attribution is available
+
+Recommended secondary conversions:
+
+- contact-form submission
+- Call Ava interaction
+- pricing-page engagement
+- partial form completion
+
+Do not silently change primary/secondary status in Google Ads.
+
+Draft any Google Ads-side changes for separate approval.
+
+## Phase 3 — Apply the smallest repair
+
+Fix only the broken tracking layers.
+
+Requirements:
+
+- fire events only after confirmed success
+- never fire on button click alone
+- prevent duplicate events
+- persist attribution identifiers where legally and technically permitted
+- link attribution to the WEBEE lead, booking or call record
+- preserve workspace isolation
+- record event delivery status
+- record provider response/errors
+- do not expose personal information in logs
+- use consent-aware handling where required
+
+If enhanced conversions are implemented, hash eligible data correctly and do not send it without the required consent and policy compliance.
+
+## Phase 4 — Tracking evidence dashboard
+
+Add a focused conversion diagnostics section showing:
+
+- conversion name
+- source
+- last event received
+- events in last 24 hours
+- events in last 30 days
+- Google Ads acknowledgement status
+- duplicate count
+- failure count
+- attribution-data availability
+- tracking health
+- last checked time
+
+GrowthMind must receive an explicit tracking-health signal:
+
+- verified
+- partial
+- broken
+- unavailable
+
+When tracking is broken, recommendations dependent on conversions must be labelled low confidence.
+
+## Phase 5 — Controlled test
+
+Perform one controlled test for each available primary conversion path.
+
+Use a test or internal record where possible.
+
+Prove:
+
+1. User action completed successfully.
+2. WEBEE created the correct record.
+3. Conversion event fired once.
+4. Attribution data was preserved where available.
+5. Google accepted or acknowledged the event.
+6. Evidence was stored.
+7. No duplicate event occurred.
+
+Do not fabricate a GCLID or claim Google Ads attribution when no genuine ad-click identifier exists.
+
+## Final report
+
+Return only:
+
+1. Checkpoint reference
+2. Conversion points audited
+3. Root causes found
+4. Exact files changed
+5. Google Ads conversion actions found
+6. Primary/secondary conversion map
+7. Tag firing result
+8. Form tracking result
+9. Booking tracking result
+10. Call tracking result
+11. Attribution result
+12. Duplicate protection result
+13. Controlled test evidence
+14. Remaining manual Google steps
+15. Targeted tests passed
+16. Confirmation no Google Ads campaign settings changed
+17. Confirmation no unrelated systems changed
+
+Do not report tracking as fixed until at least one real conversion path has been proven end-to-end.

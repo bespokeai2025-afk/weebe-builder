@@ -445,11 +445,34 @@ export async function buildGadsDeepAnalysisReport(args: DeepAnalysisArgs): Promi
       trackingFindings.push("No conversions were attributed to any conversion action in this window (all-conversions segment view is empty).");
     }
   }
+  // Server-side conversion tracking health (conversion_events ledger).
+  let trackingHealth: import("@/lib/tracking/conversion-tracking-health.server").TrackingHealth | null = null;
+  try {
+    const { computeConversionTrackingHealth } =
+      await import("@/lib/tracking/conversion-tracking-health.server");
+    trackingHealth = await computeConversionTrackingHealth(args.workspaceId, {
+      windowDays: 30,
+      adClicksInWindow: totals.clicks,
+    });
+    trackingFindings.push(`Server-side tracking health: ${trackingHealth.signal.toUpperCase()} — ${trackingHealth.reasons[0] ?? ""}`);
+    if (trackingHealth.signal !== "verified") {
+      trackingFindings.push(
+        "Conversion tracking is NOT verified end-to-end — all conversion-dependent recommendations in this report are LOW CONFIDENCE until at least one conversion is acknowledged by Google.",
+      );
+    }
+  } catch (err) {
+    console.error("[GADS-ANALYSIS] tracking health computation failed:", (err as Error)?.message);
+  }
+
   sections.tracking = {
     error: data.conversionActions.error,
     conversionActions: convActions,
     conversionsByAction: data.conversionsByAction.rows,
     findings: trackingFindings,
+    healthSignal: trackingHealth?.signal ?? null,
+    healthReasons: trackingHealth?.reasons ?? [],
+    conversionDependentRecommendationsLowConfidence:
+      trackingHealth ? trackingHealth.signal !== "verified" : null,
   };
 
   // ── LANDING PAGES (real fetch) ──────────────────────────────────────────────

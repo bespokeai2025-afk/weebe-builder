@@ -12,6 +12,11 @@ import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { sendResendEmail, escapeHtml, renderBasicEmail } from "@/lib/email/resend.server";
 import { toLeadSourceEnum, WEBEE_ADMIN_EMAIL } from "@/lib/lead-gen/webforms.server";
 import {
+  extractClickIds,
+  sanitizeLandingUrl,
+  recordConversionEvent,
+} from "@/lib/tracking/conversion-events.server";
+import {
   detectOtpProvider,
   sendOtp,
   checkTwilioVerifyCode,
@@ -54,12 +59,34 @@ export type AvaCallRequestRow = {
   call_outcome: Record<string, unknown> | null;
   lead_id: string | null;
   processed_at: string | null;
+  attribution?: Record<string, unknown> | null;
 };
 
 function hashOtp(requestId: string, otp: string): string {
   // OTP_SECRET (optional) hardens the hash; requestId already salts it.
   const secret = process.env.OTP_SECRET?.trim() ?? "";
   return createHash("sha256").update(`${secret}:${requestId}:${otp}`).digest("hex");
+}
+
+/** Sanitised attribution snapshot stored on the ava_call_requests row. */
+function buildAvaAttribution(raw: Record<string, unknown> | null | undefined): Record<string, unknown> | null {
+  if (!raw || typeof raw !== "object") return null;
+  const clickIds = extractClickIds(raw);
+  const s = (v: unknown, max = 300): string | null => {
+    const str = typeof v === "string" ? v.trim().slice(0, max) : "";
+    return str || null;
+  };
+  const out = {
+    gclid:        clickIds.gclid,
+    gbraid:       clickIds.gbraid,
+    wbraid:       clickIds.wbraid,
+    landing_url:  sanitizeLandingUrl(raw.landing_url ?? raw.landing_page),
+    referrer:     s(raw.referrer),
+    utm_source:   s(raw.utm_source, 120),
+    utm_medium:   s(raw.utm_medium, 120),
+    utm_campaign: s(raw.utm_campaign, 120),
+  };
+  return Object.values(out).some((v) => v != null) ? out : null;
 }
 
 export function normalizePhoneE164(raw: string): string | null {
@@ -134,6 +161,7 @@ export async function createAvaCallRequest(input: {
   phone?: string;
   website?: string;
   consent?: unknown;
+  attribution?: Record<string, unknown> | null;
   ip: string | null;
   userAgent: string | null;
 }): Promise<
@@ -221,6 +249,7 @@ export async function createAvaCallRequest(input: {
       status: "pending_verification",
       ip_address: input.ip,
       user_agent: input.userAgent?.slice(0, 300) ?? null,
+      attribution: buildAvaAttribution(input.attribution),
     } as never)
     .select("id")
     .single();
@@ -648,6 +677,40 @@ export async function processAvaCallAnalyzed(call: AvaAnalyzedCall, isNoAnswerCa
       });
     } catch { /* best-effort */ }
   }
+
+  // Persist ad attribution captured at request time + record the conversion
+  // event (best-effort — never fail lead processing over tracking).
+  const attr = (request.attribution ?? {}) as Record<string, unknown>;
+  const attrClickIds = extractClickIds(attr);
+  try {
+    if (attrClickIds.gclid || attrClickIds.gbraid || attrClickIds.wbraid) {
+      await supabaseAdmin
+        .from("leads")
+        .update({
+          ...(attrClickIds.gclid  ? { gclid:  attrClickIds.gclid }  : {}),
+          ...(attrClickIds.gbraid ? { gbraid: attrClickIds.gbraid } : {}),
+          ...(attrClickIds.wbraid ? { wbraid: attrClickIds.wbraid } : {}),
+          updated_at: now,
+        } as never)
+        .eq("id", leadId);
+    }
+  } catch { /* best-effort */ }
+  try {
+    await recordConversionEvent({
+      workspaceId,
+      conversionName: "ava_qualified_lead",
+      source: "ava_call",
+      leadId,
+      recordRef: {
+        ava_call_request_id: request.id,
+        retell_call_id: callId,
+        booking_slot: bookingSlot,
+      },
+      clickIds: attrClickIds,
+      landingUrl: sanitizeLandingUrl(attr.landing_url),
+      dedupKey: `ava_call:${request.id}`,
+    });
+  } catch { /* best-effort */ }
 
   // Best-effort note + admin notification — never fail processing over these.
   try {

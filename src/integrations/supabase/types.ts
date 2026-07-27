@@ -1420,6 +1420,7 @@ export type Database = {
       }
       ava_call_requests: {
         Row: {
+          attribution: Json | null
           call_outcome: Json | null
           created_at: string
           email: string
@@ -1441,6 +1442,7 @@ export type Database = {
           workspace_id: string
         }
         Insert: {
+          attribution?: Json | null
           call_outcome?: Json | null
           created_at?: string
           email: string
@@ -1462,6 +1464,7 @@ export type Database = {
           workspace_id: string
         }
         Update: {
+          attribution?: Json | null
           call_outcome?: Json | null
           created_at?: string
           email?: string
@@ -2495,6 +2498,66 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      conversion_events: {
+        Row: {
+          conversion_name: string
+          created_at: string
+          dedup_key: string
+          delivery_status: string
+          gbraid: string | null
+          gclid: string | null
+          id: string
+          landing_url: string | null
+          last_error: string | null
+          lead_id: string | null
+          provider_response: Json | null
+          record_ref: Json
+          source: string
+          updated_at: string
+          uploaded_at: string | null
+          wbraid: string | null
+          workspace_id: string
+        }
+        Insert: {
+          conversion_name: string
+          created_at?: string
+          dedup_key: string
+          delivery_status?: string
+          gbraid?: string | null
+          gclid?: string | null
+          id?: string
+          landing_url?: string | null
+          last_error?: string | null
+          lead_id?: string | null
+          provider_response?: Json | null
+          record_ref?: Json
+          source: string
+          updated_at?: string
+          uploaded_at?: string | null
+          wbraid?: string | null
+          workspace_id: string
+        }
+        Update: {
+          conversion_name?: string
+          created_at?: string
+          dedup_key?: string
+          delivery_status?: string
+          gbraid?: string | null
+          gclid?: string | null
+          id?: string
+          landing_url?: string | null
+          last_error?: string | null
+          lead_id?: string | null
+          provider_response?: Json | null
+          record_ref?: Json
+          source?: string
+          updated_at?: string
+          uploaded_at?: string | null
+          wbraid?: string | null
+          workspace_id?: string
+        }
+        Relationships: []
       }
       cost_engine_client_estimates: {
         Row: {
@@ -10603,6 +10666,8 @@ export type Database = {
           external_source_id: string | null
           full_name: string | null
           funding_amount: number | null
+          gbraid: string | null
+          gclid: string | null
           id: string
           interest_level: string | null
           last_contacted_at: string | null
@@ -10638,6 +10703,7 @@ export type Database = {
           utm_campaign: string | null
           utm_medium: string | null
           utm_source: string | null
+          wbraid: string | null
           whatsapp_opt_in: boolean | null
           workspace_id: string
         }
@@ -10661,6 +10727,8 @@ export type Database = {
           external_source_id?: string | null
           full_name?: string | null
           funding_amount?: number | null
+          gbraid?: string | null
+          gclid?: string | null
           id?: string
           interest_level?: string | null
           last_contacted_at?: string | null
@@ -10696,6 +10764,7 @@ export type Database = {
           utm_campaign?: string | null
           utm_medium?: string | null
           utm_source?: string | null
+          wbraid?: string | null
           whatsapp_opt_in?: boolean | null
           workspace_id: string
         }
@@ -10719,6 +10788,8 @@ export type Database = {
           external_source_id?: string | null
           full_name?: string | null
           funding_amount?: number | null
+          gbraid?: string | null
+          gclid?: string | null
           id?: string
           interest_level?: string | null
           last_contacted_at?: string | null
@@ -10754,6 +10825,7 @@ export type Database = {
           utm_campaign?: string | null
           utm_medium?: string | null
           utm_source?: string | null
+          wbraid?: string | null
           whatsapp_opt_in?: boolean | null
           workspace_id?: string
         }

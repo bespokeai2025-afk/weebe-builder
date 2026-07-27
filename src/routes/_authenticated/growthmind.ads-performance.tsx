@@ -4,6 +4,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import React, { useState } from "react";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { GrowthMindShell } from "@/components/growthmind/GrowthMindShell";
+import { ConversionDiagnosticsPanel } from "@/components/growthmind/ConversionDiagnosticsPanel";
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, Legend,
@@ -1870,6 +1871,9 @@ function AdsPerformancePage() {
                 </p>
               </div>
             )}
+
+            {/* Conversion tracking diagnostics */}
+            <ConversionDiagnosticsPanel />
 
             {/* Sync history */}
             <SyncHistoryPanel />

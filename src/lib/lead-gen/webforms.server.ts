@@ -2,6 +2,7 @@
 // Handles field mapping, lead creation/deduplication, submission storage, notifications.
 
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
+import { extractClickIds, sanitizeLandingUrl, recordConversionEvent } from "@/lib/tracking/conversion-events.server";
 import { sendResendEmail, escapeHtml, renderBasicEmail } from "@/lib/email/resend.server";
 import { sendWorkspaceEmail } from "@/lib/email/email-dispatch.server";
 import { sendTemplateEmailToLeadCore } from "@/lib/lead-gen/lead-email.server";
@@ -63,12 +64,17 @@ function mapPayload(
 }
 
 function extractUtm(raw: Record<string, unknown>) {
+  const clickIds = extractClickIds(raw);
   return {
     utm_source:   raw.utm_source   ? String(raw.utm_source)   : null,
     utm_medium:   raw.utm_medium   ? String(raw.utm_medium)   : null,
     utm_campaign: raw.utm_campaign ? String(raw.utm_campaign) : null,
     referrer:     raw.referrer     ? String(raw.referrer)     : null,
     source_page:  raw.source_page  ? String(raw.source_page)  : null,
+    gclid:        clickIds.gclid,
+    gbraid:       clickIds.gbraid,
+    wbraid:       clickIds.wbraid,
+    landing_url:  sanitizeLandingUrl(raw.landing_url ?? raw.landing_page ?? raw.source_page),
   };
 }
 
@@ -374,6 +380,10 @@ export async function processWebformSubmission(opts: {
         utm_medium:     utm.utm_medium,
         utm_campaign:   utm.utm_campaign,
         referrer:       utm.referrer,
+        // Only overwrite click IDs when a real one was captured.
+        ...(utm.gclid  ? { gclid:  utm.gclid }  : {}),
+        ...(utm.gbraid ? { gbraid: utm.gbraid } : {}),
+        ...(utm.wbraid ? { wbraid: utm.wbraid } : {}),
         updated_at:     new Date().toISOString(),
       })
       .eq("id", leadId);
@@ -396,6 +406,9 @@ export async function processWebformSubmission(opts: {
         utm_medium:     utm.utm_medium,
         utm_campaign:   utm.utm_campaign,
         referrer:       utm.referrer,
+        gclid:          utm.gclid,
+        gbraid:         utm.gbraid,
+        wbraid:         utm.wbraid,
         meta:           {
           website:            mapped.website ?? null,
           preferred_contact:  toJsonScalar(raw.preferred_contact_method ?? raw.preferred_contact),
@@ -407,6 +420,7 @@ export async function processWebformSubmission(opts: {
                 "email_address","phone","mobile","phone_number","company","company_name",
                 "message","notes","enquiry","website","website_url","utm_source",
                 "utm_medium","utm_campaign","referrer","source_page","_hp","fax","url2","address2",
+                "gclid","gbraid","wbraid","landing_url","landing_page",
               ].includes(k.toLowerCase()))
               .filter(([k]) => /^[a-zA-Z0-9_-]{1,64}$/.test(k))
               .slice(0, 20)
@@ -557,6 +571,28 @@ export async function processWebformSubmission(opts: {
     }
   }
 
+  // Record the conversion event (best-effort, never blocks the submission).
+  // Fires only here — i.e. after the lead was genuinely created/updated.
+  try {
+    await recordConversionEvent({
+      workspaceId,
+      conversionName: sourceType === "webee_website_form" ? "contact_form_submission" : "webform_lead",
+      source: sourceType === "webee_website_form" ? "contact_form" : "webform",
+      leadId,
+      recordRef: {
+        submission_id: submission?.id ?? null,
+        webform_source_id: webformSourceId,
+        form_name: formName,
+        lead_status: leadStatus,
+      },
+      clickIds: { gclid: utm.gclid, gbraid: utm.gbraid, wbraid: utm.wbraid },
+      landingUrl: utm.landing_url,
+      dedupKey: submission?.id
+        ? `webform:${submission.id}`
+        : `webform:${workspaceId}:${leadId}:${Date.now()}`,
+    });
+  } catch { /* best-effort */ }
+
   return { ok: true, leadId, submissionId: submission?.id, status: leadStatus };
 }
 
@@ -575,20 +611,38 @@ export async function processContactForm(fields: {
   utm_source?: string;
   utm_campaign?: string;
   utm_medium?: string;
+  referrer?: string;
+  gclid?: string;
+  gbraid?: string;
+  wbraid?: string;
+  landing_url?: string;
 }, meta: { ip: string | null; userAgent: string | null }): Promise<{ ok: boolean; error?: string }> {
   // Find WEBEE admin workspace
   const adminWorkspaceId = process.env.WEBEE_ADMIN_WORKSPACE_ID ?? null;
   let workspaceId: string | null = adminWorkspaceId;
 
   if (!workspaceId) {
+    // Resolve via profiles (email → auth user id → membership). The previous
+    // `users!inner(email)` embed referenced a non-existent public.users table,
+    // which made this lookup always fail and silently skip lead creation.
     try {
-      const { data: ws } = await supabaseAdmin
-        .from("workspace_members")
-        .select("workspace_id, users!inner(email)")
-        .eq("users.email", WEBEE_ADMIN_EMAIL)
-        .limit(1)
-        .single();
-      workspaceId = ws?.workspace_id ?? null;
+      const { data: profile } = await supabaseAdmin
+        .from("profiles")
+        .select("user_id, default_workspace_id")
+        .eq("email", WEBEE_ADMIN_EMAIL)
+        .maybeSingle();
+      if (profile?.default_workspace_id) {
+        workspaceId = profile.default_workspace_id as string;
+      } else if (profile?.user_id) {
+        const { data: member } = await supabaseAdmin
+          .from("workspace_members")
+          .select("workspace_id")
+          .eq("user_id", profile.user_id)
+          .order("role", { ascending: true }) // deterministic pick
+          .limit(1)
+          .maybeSingle();
+        workspaceId = (member?.workspace_id as string | undefined) ?? null;
+      }
     } catch { workspaceId = null; }
   }
 
