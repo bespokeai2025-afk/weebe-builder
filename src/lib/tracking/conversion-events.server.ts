@@ -140,11 +140,22 @@ export async function recordConversionEvent(
     const eventId = (data as { id: string }).id;
 
     // Attempt Google acknowledgement only for fresh, attributed events.
+    // Primary transport: Google Data Manager API. The legacy Google Ads
+    // uploadClickConversions path runs ONLY when the workspace explicitly
+    // sets legacyClickConversionFallback="true" (documented fallback for
+    // proven allowlisted accounts) — never both for the same event.
     if (initialStatus === "recorded") {
       try {
-        const { maybeUploadClickConversion } =
-          await import("@/lib/tracking/gads-conversion-upload.server");
-        await maybeUploadClickConversion(eventId);
+        const { resolveDataManagerTarget, maybeUploadViaDataManager } =
+          await import("@/lib/tracking/datamanager-upload.server");
+        const resolved = await resolveDataManagerTarget(input.workspaceId);
+        if (resolved.ok && resolved.target.legacyFallbackEnabled) {
+          const { maybeUploadClickConversion } =
+            await import("@/lib/tracking/gads-conversion-upload.server");
+          await maybeUploadClickConversion(eventId);
+        } else {
+          await maybeUploadViaDataManager(eventId);
+        }
       } catch (err) {
         console.error("[CONVERSION] upload attempt errored:", (err as Error)?.message);
       }

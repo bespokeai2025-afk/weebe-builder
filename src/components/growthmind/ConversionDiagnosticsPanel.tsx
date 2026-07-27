@@ -55,11 +55,56 @@ export function ConversionDiagnosticsPanel() {
         ))}
       </ul>
 
+      <div className="flex flex-wrap items-center gap-2 text-[11px]">
+        <Badge variant="outline" className="text-[10px] border-white/[0.1] bg-white/[0.03] text-muted-foreground">
+          Transport: {data.uploadConfig.transport === "data_manager" ? "Google Data Manager API" : "Legacy click conversions (fallback)"}
+        </Badge>
+        {data.uploadConfig.hasDataManagerScope ? (
+          <Badge variant="outline" className="text-[10px] gap-1 text-emerald-400 border-emerald-500/30 bg-emerald-500/10">
+            <CheckCircle2 className="h-3 w-3" /> Data Manager access granted
+          </Badge>
+        ) : (
+          <Badge variant="outline" className="text-[10px] gap-1 text-amber-400 border-amber-500/30 bg-amber-500/10">
+            <AlertTriangle className="h-3 w-3" /> Data Manager access not granted
+          </Badge>
+        )}
+      </div>
+
+      {data.uploadConfig.reauthorisationRequired && (
+        <p className="text-[11px] text-amber-400/90 leading-snug">
+          The Google connection was authorised before Data Manager access was added. Reconnect with
+          Google (Advertising settings → Connect with Google) to grant the new permission — uploads
+          are held until then.
+        </p>
+      )}
+
       {!data.uploadConfig.uploadActionConfigured && (
         <p className="text-[11px] text-amber-400/90 leading-snug">
           Google acknowledgement requires an upload-type conversion action in Google Ads plus the
           <span className="font-mono"> uploadConversionActionId</span> provider setting — a drafted
           Google Ads change awaiting approval.
+        </p>
+      )}
+
+      {data.statusCounts && (
+        <div className="flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-muted-foreground">
+          <span>Queued: <span className="text-foreground">{data.statusCounts.queued}</span></span>
+          <span>Submitted: <span className="text-foreground">{data.statusCounts.submitted}</span></span>
+          <span>Accepted: <span className={cn(data.statusCounts.accepted > 0 ? "text-emerald-400" : "text-foreground")}>{data.statusCounts.accepted}</span></span>
+          <span>Awaiting verification: <span className="text-foreground">{data.statusCounts.verificationPending}</span></span>
+          <span>Rejected: <span className={cn(data.statusCounts.rejected > 0 ? "text-red-400" : "text-foreground")}>{data.statusCounts.rejected}</span></span>
+          <span>Duplicates blocked: <span className="text-foreground">{data.statusCounts.duplicates}</span></span>
+        </div>
+      )}
+
+      {data.lastProviderError && (
+        <p className="text-[11px] text-red-400/90 leading-snug break-all">
+          Last provider error: {data.lastProviderError.message}
+        </p>
+      )}
+      {data.lastSuccessfulUploadAt && (
+        <p className="text-[11px] text-muted-foreground">
+          Last successful upload: {new Date(data.lastSuccessfulUploadAt).toLocaleString()}
         </p>
       )}
 

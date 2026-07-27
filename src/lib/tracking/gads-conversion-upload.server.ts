@@ -85,6 +85,44 @@ export async function maybeUploadClickConversion(eventId: string): Promise<void>
     const ev = data as ConversionEventRow | null;
     if (!ev) return;
     if (!(ev.gclid || ev.gbraid || ev.wbraid)) return; // never upload without real attribution
+    // LEGACY adapter — disabled by default. Runs only behind the explicit
+    // legacyClickConversionFallback="true" flag in google_ads provider
+    // settings (documented fallback for proven allowlisted accounts). The
+    // primary transport is the Data Manager API (datamanager-upload.server.ts).
+    {
+      const { data: ps } = await supabaseAdmin
+        .from("provider_settings")
+        .select("credentials")
+        .eq("workspace_id", ev.workspace_id)
+        .eq("provider_category", "advertising")
+        .eq("provider_name", "google_ads")
+        .maybeSingle();
+      const flag = ((ps as { credentials?: Record<string, string> } | null)?.credentials ?? {})
+        .legacyClickConversionFallback;
+      if (flag !== "true") {
+        await supabaseAdmin
+          .from("conversion_events")
+          .update({
+            delivery_status: "pending_config",
+            last_error: "Legacy uploadClickConversions is disabled — Data Manager API is the primary transport",
+            updated_at: new Date().toISOString(),
+          } as never)
+          .eq("id", ev.id)
+          .in("delivery_status", ["recorded", "queued"]);
+        return;
+      }
+    }
+    // Idempotency: claim the event before uploading (same CAS rule as the
+    // Data Manager transport — legacy and DM can never both run one event).
+    {
+      const { data: claimed } = await supabaseAdmin
+        .from("conversion_events")
+        .update({ delivery_status: "upload_attempted", updated_at: new Date().toISOString() } as never)
+        .eq("id", ev.id)
+        .in("delivery_status", ["recorded", "queued"])
+        .select("id");
+      if (!claimed || (claimed as unknown[]).length === 0) return;
+    }
 
     const setStatus = async (
       status: string,
