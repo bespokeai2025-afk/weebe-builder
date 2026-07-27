@@ -1,0 +1,100 @@
+# CONFIGURE THE NEW WEBEE QUALIFIED LEAD CONVERSION
+
+The Google Ads offline conversion action has now been created manually.
+
+Google Ads account:
+355-082-0264
+
+Expected conversion action name:
+WEBEE Qualified Lead
+
+Do not modify campaigns, budgets, bids, keywords, ads, existing conversions or bidding goals.
+
+## 1. Locate the action
+
+Query the connected Google Ads account and find the exact offline conversion action created for qualified leads.
+
+Return:
+
+- conversion action name
+- numeric ID
+- resource name
+- type
+- category
+- status
+- primary_for_goal
+- owner customer
+- creation date where available
+
+Do not select the existing page-load or lead-form conversion actions.
+
+## 2. Validate the type
+
+Confirm the action supports offline/enhanced-conversion-for-leads uploads.
+
+Report whether it is compatible with:
+
+- Google Data Manager API
+- legacy Google Ads UploadClickConversions
+- both
+- neither
+
+## 3. Determine WEBEE’s supported upload method
+
+Inspect WEBEE’s existing conversion upload implementation.
+
+Because Google changed offline conversion uploads from 15 June 2026, determine whether the connected Google Ads developer token is eligible for continued UploadClickConversions access.
+
+Return exactly one:
+
+- DATA_MANAGER_API_REQUIRED
+- DATA_MANAGER_API_ALREADY_IMPLEMENTED
+- LEGACY_GOOGLE_ADS_API_ALLOWED
+- UPLOAD_EXECUTOR_MISSING
+- UNABLE_TO_VERIFY
+
+Do not send a fabricated conversion to test eligibility.
+
+## 4. Configure the workspace
+
+Save the correct conversion action ID into the active workspace setting:
+
+uploadConversionActionId
+
+Also save the full resource name where required.
+
+Confirm:
+
+- customer ID is 3550820264
+- configuration is workspace-specific
+- the conversion action belongs to the correct account
+- another workspace cannot access it
+- no global hardcoded fallback is used
+
+## 5. Check readiness
+
+Verify:
+
+- conversion action is enabled
+- enhanced conversions for leads are enabled
+- customer data terms are accepted
+- Google Ads connection is healthy
+- auto-tagging is enabled where available
+- conversion event ledger is active
+- no uploads occur without real attribution
+- pending events remain honest while configuration is incomplete
+
+## Final report
+
+Return only:
+
+1. Conversion action found
+2. Conversion action ID
+3. Resource name
+4. Action type
+5. Primary or secondary status
+6. uploadConversionActionId saved
+7. Current WEBEE uploader
+8. Required uploader after Google’s June 2026 change
+9. Remaining development or configuration required
+10. Confirmation no advertising settings were changed
