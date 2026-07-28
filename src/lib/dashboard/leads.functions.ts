@@ -687,6 +687,12 @@ export const startQualificationCallsForLeads = createServerFn({ method: "POST" }
       }
     }
 
+    if (errors.length > 0) {
+      console.error(
+        "[QUALIFY] start-calls errors:",
+        JSON.stringify({ workspaceId, agentId: data.agentId, fromNumber, retellAgentId, errors }),
+      );
+    }
     return { placed, queued, failed, limitReached, errors };
   });
 

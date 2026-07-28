@@ -455,9 +455,17 @@ function QualifiedPage() {
       const limitMsg = (result as any).limitReached > 0
         ? ` · ${(result as any).limitReached} at daily limit`
         : "";
-      toast.success(`Calling started — ${result.placed} calls placed`, {
-        description: result.failed > 0 ? `${result.failed} failed${limitMsg}` : limitMsg || undefined,
-      });
+      const firstError = (result as any).errors?.[0]?.message as string | undefined;
+      const failMsg = result.failed > 0
+        ? `${result.failed} failed${firstError ? ` — ${firstError}` : ""}${limitMsg}`
+        : limitMsg || undefined;
+      if (result.placed === 0 && result.failed > 0) {
+        toast.error("Calls failed", { description: failMsg });
+      } else {
+        toast.success(`Calling started — ${result.placed} calls placed`, {
+          description: failMsg,
+        });
+      }
       setCallDialogOpen(false);
       setSelectedIds(new Set());
       refresh();
