@@ -97,6 +97,36 @@ export function CampaignUsageSection({ filter }: { filter: AnalyticsFilterState 
         </InsightCard>
       )}
 
+      {d.reconciliation && !d.reconciliation.reconciled && (
+        <InsightCard tone="warning" icon={AlertTriangle} title="Reconciliation mismatch">
+          Campaign totals do not add up to the workspace total for this range
+          ({fmtMin((d.reconciliation.attributedSeconds ?? 0) / 60)} attributed vs {fmtMin((d.reconciliation.workspaceSeconds ?? 0) / 60)} workspace).
+          Figures shown are real recorded data, but attribution needs review.
+        </InsightCard>
+      )}
+
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-muted-foreground">
+        <span>{fmtInt(d.dedupedCallCount)} unique calls counted</span>
+        {(d.duplicatesRemoved ?? 0) + (d.crossSourceDuplicatesExcluded ?? 0) > 0 && (
+          <span>{fmtInt((d.duplicatesRemoved ?? 0) + (d.crossSourceDuplicatesExcluded ?? 0))} duplicate records excluded</span>
+        )}
+        {(ws.missingDurationCalls ?? 0) > 0 && (
+          <span>{fmtInt(ws.missingDurationCalls)} calls with no recorded duration (counted as calls, 0 minutes)</span>
+        )}
+        {(d.excludedInvalidCount ?? 0) > 0 && (
+          <span>{fmtInt(d.excludedInvalidCount)} records excluded (invalid duration)</span>
+        )}
+        {d.reconciliation?.reconciled && <span>Totals reconciled ✓</span>}
+        {d.lastSyncedAt && (
+          <span>Last synced {new Date(d.lastSyncedAt).toLocaleString("en-GB")}</span>
+        )}
+        {d.unassigned && (d.unassigned.totalCalls ?? 0) > 0 && d.unassignedReasons && (
+          <span>
+            Unassigned: {fmtInt(d.unassignedReasons.noAgent)} no agent, {fmtInt(d.unassignedReasons.agentNotInAnyCampaign)} agent not in a campaign, {fmtInt(d.unassignedReasons.ambiguousAgent)} ambiguous agent
+          </span>
+        )}
+      </div>
+
       <ChartCard title="Minutes Used Over Time" icon={Timer} color={CHART.primary}>
         {series.length === 0 ? (
           <EmptyState icon={Timer} title="No usage" message="No call minutes recorded in this range." />

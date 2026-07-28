@@ -52,10 +52,10 @@ describe("dedupeCalls", () => {
 });
 
 describe("isValidUsageCall", () => {
-  it("accepts zero and positive finite durations, rejects null/NaN/negative", () => {
+  it("accepts zero/positive/null (real attempt, no duration), rejects NaN/negative", () => {
     expect(isValidUsageCall(call({ durationSeconds: 0 }))).toBe(true);
     expect(isValidUsageCall(call({ durationSeconds: 12.5 }))).toBe(true);
-    expect(isValidUsageCall(call({ durationSeconds: null }))).toBe(false);
+    expect(isValidUsageCall(call({ durationSeconds: null }))).toBe(true); // no-answer attempt
     expect(isValidUsageCall(call({ durationSeconds: NaN }))).toBe(false);
     expect(isValidUsageCall(call({ durationSeconds: -5 }))).toBe(false);
   });
@@ -93,13 +93,19 @@ describe("aggregateCampaignUsage", () => {
       call({ campaignId: "c2", durationSeconds: 125 }),
       call({ agentId: "agent_1", durationSeconds: 45 }), // agent fallback → c1
       call({ durationSeconds: 33 }), // unassigned
-      call({ durationSeconds: null }), // invalid → excluded everywhere
+      call({ durationSeconds: null }), // no-answer: counts as a call, 0 minutes
+      call({ durationSeconds: -4 }), // corrupt → excluded everywhere
     ];
     const r = aggregateCampaignUsage({ calls, campaigns, now: NOW });
     const sum = r.campaigns.reduce((a, c) => a + c.totalDurationSeconds, 0) + r.unassigned.totalDurationSeconds;
     expect(sum).toBe(r.workspace.totalDurationSeconds);
     expect(r.workspace.totalDurationSeconds).toBe(61 + 30.5 + 125 + 45 + 33);
+    expect(r.workspace.totalCalls).toBe(6); // null-duration attempt still counts
+    expect(r.workspace.missingDurationCalls).toBe(1);
     expect(r.excludedInvalidCount).toBe(1);
+    expect(r.reconciliation.reconciled).toBe(true);
+    expect(r.reconciliation.attributedSeconds).toBe(r.reconciliation.workspaceSeconds);
+    expect(r.reconciliation.attributedCalls).toBe(r.workspace.totalCalls);
     const c1 = r.campaigns.find((c) => c.campaignId === "c1")!;
     expect(c1.totalDurationSeconds).toBe(61 + 30.5 + 45);
     expect(c1.minutesUsed).toBe(roundMinutes(136.5));
@@ -115,6 +121,22 @@ describe("aggregateCampaignUsage", () => {
     const r = aggregateCampaignUsage({ calls, campaigns, now: NOW });
     expect(r.workspace.totalDurationSeconds).toBe(100);
     expect(r.dedupedCallCount).toBe(1);
+    expect(r.duplicatesRemoved).toBe(1);
+  });
+
+  it("breaks down unassigned reasons (no agent / unmapped agent / ambiguous agent)", () => {
+    const shared = [
+      { id: "c1", name: "One", agentId: "agent_shared" },
+      { id: "c2", name: "Two", agentId: "agent_shared" },
+    ];
+    const calls = [
+      call({ durationSeconds: 10 }), // no agent
+      call({ agentId: "agent_unknown", durationSeconds: 10 }), // agent in no campaign
+      call({ agentId: "agent_shared", durationSeconds: 10 }), // ambiguous
+    ];
+    const r = aggregateCampaignUsage({ calls, campaigns: shared, now: NOW });
+    expect(r.unassignedReasons).toEqual({ noAgent: 1, agentNotInAnyCampaign: 1, ambiguousAgent: 1 });
+    expect(r.unassigned.totalCalls).toBe(3);
   });
 
   it("emits cost only from real cost data, never invents", () => {

@@ -77,12 +77,19 @@ export function londonScheduledUtc(now: Date, hour: number, minute: number): Dat
 
 // ── Snapshot + attribution ───────────────────────────────────────────────────
 
-export async function loadWbahCampaignSnapshot(sb: Sb): Promise<WbahCampaignSnapshotRow[]> {
-  const { data, error } = await sb
+export async function loadWbahCampaignSnapshot(
+  sb: Sb,
+  opts?: { includeDeleted?: boolean },
+): Promise<WbahCampaignSnapshotRow[]> {
+  let q = sb
     .from("wbah_campaign_snapshot")
     .select("*")
-    .eq("workspace_id", WBAH_WORKSPACE_ID)
-    .eq("is_deleted", false);
+    .eq("workspace_id", WBAH_WORKSPACE_ID);
+  // Historical analytics need deleted campaigns too — calls they made still
+  // exist and must attribute to the campaign that made them, not drift to a
+  // surviving same-agent campaign or Unassigned.
+  if (!opts?.includeDeleted) q = q.eq("is_deleted", false);
+  const { data, error } = await q;
   if (error) {
     console.warn("[wbah-campaign-reporting] snapshot read failed:", error.message);
     return [];

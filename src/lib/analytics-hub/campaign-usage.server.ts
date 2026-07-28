@@ -45,6 +45,10 @@ export interface CampaignUsageData extends CampaignUsageResult {
   series: { bucket: string; minutesUsed: number; calls: number; connectedMinutes: number }[];
   granularity: UsageGranularity;
   truncated: boolean;
+  /** WBAH only: weak-id sync rows dropped at read time because a Retell row for the same call exists. */
+  crossSourceDuplicatesExcluded: number;
+  /** WBAH only: most recent sync timestamp among counted rows. */
+  lastSyncedAt: string | null;
   error: string | null;
 }
 
@@ -55,7 +59,7 @@ const inflight = new Map<string, Promise<CampaignUsageData>>();
 
 function cacheKey(workspaceId: string, f: CampaignUsageFilters): string {
   return [
-    "cu1", workspaceId, f.dateFilter ?? "30d", f.customStart ?? "", f.customEnd ?? "",
+    "cu2", workspaceId, f.dateFilter ?? "30d", f.customStart ?? "", f.customEnd ?? "",
     f.campaignId ?? "", f.agentId ?? "", f.direction ?? "", f.callStatus ?? "",
     f.sentiment ?? "", f.qualifiedOnly ? "q" : "", f.granularity ?? "day",
   ].join("|");
@@ -89,8 +93,13 @@ async function fetchStandardUsageCalls(
       .from("calls")
       .select("id, retell_call_id, campaign_id, agent_id, call_type, call_status, call_successful, sentiment, is_voicemail, in_voicemail, duration_seconds, cost_cents, created_at, started_at")
       .eq("workspace_id", workspaceId)
-      .gte("created_at", range.startIso)
-      .lte("created_at", range.endIso)
+      // Canonical reporting timestamp is started_at (call time), matching the
+      // WBAH branch; rows that never started (no started_at) fall back to
+      // created_at so pending/failed attempts still appear in their window.
+      .or(
+        `and(started_at.gte.${range.startIso},started_at.lte.${range.endIso}),` +
+        `and(started_at.is.null,created_at.gte.${range.startIso},created_at.lte.${range.endIso})`,
+      )
       .order("created_at", { ascending: false })
       .range(p * PAGE, p * PAGE + PAGE - 1);
     if (f.agentId) q = q.eq("agent_id", f.agentId);
@@ -124,12 +133,18 @@ async function fetchStandardUsageCalls(
 // ── WBAH ──────────────────────────────────────────────────────────────────────
 async function fetchWbahUsage(
   sb: Sb, workspaceId: string, range: ResolvedRange, f: CampaignUsageFilters,
-): Promise<{ calls: UsageCallInput[]; campaigns: { id: string; name: string; agentId?: string | null }[]; truncated: boolean }> {
+): Promise<{
+  calls: UsageCallInput[];
+  campaigns: { id: string; name: string; agentId?: string | null }[];
+  truncated: boolean;
+  crossSourceDuplicatesExcluded: number;
+  lastSyncedAt: string | null;
+}> {
   const rows: any[] = [];
   for (let p = 0; p < MAX_PAGES; p++) {
     let q = sb
       .from("wbah_calls")
-      .select("id, sentiment, call_status, disconnection_reason, end_reason, booking_status, appointment_date, duration_seconds, started_at, meta")
+      .select("id, phone, sentiment, call_status, disconnection_reason, end_reason, booking_status, appointment_date, duration_seconds, started_at, synced_at, meta")
       .eq("workspace_id", workspaceId)
       .gte("started_at", range.startIso)
       .lte("started_at", range.endIso)
@@ -143,19 +158,56 @@ async function fetchWbahUsage(
     if (batch.length < PAGE) break;
   }
 
+  // ── Cross-source dedup ────────────────────────────────────────────────────
+  // Older syncs created weak-id rows (id not "call_…") for calls that ALSO
+  // have an authoritative Retell row — same phone within a short window.
+  // Count the Retell row once and drop the weak twin (read-time guard; the
+  // durable cleanup lives in scripts/cleanup-wbah-weak-duplicates.mjs).
+  const WEAK_DUP_WINDOW_MS = 600_000;
+  const retellByPhone = new Map<string, number[]>();
+  for (const r of rows) {
+    if (typeof r.id === "string" && r.id.startsWith("call_") && r.phone) {
+      const t = new Date(r.started_at ?? 0).getTime();
+      if (!Number.isNaN(t)) {
+        const arr = retellByPhone.get(String(r.phone)) ?? [];
+        arr.push(t);
+        retellByPhone.set(String(r.phone), arr);
+      }
+    }
+  }
+  let crossSourceDuplicatesExcluded = 0;
+  const dedupedRows = rows.filter((r) => {
+    if (typeof r.id === "string" && r.id.startsWith("call_")) return true;
+    const times = r.phone ? retellByPhone.get(String(r.phone)) : undefined;
+    if (!times || !r.started_at) return true;
+    const t = new Date(r.started_at).getTime();
+    if (Number.isNaN(t)) return true;
+    const isDup = times.some((rt) => Math.abs(rt - t) <= WEAK_DUP_WINDOW_MS);
+    if (isDup) crossSourceDuplicatesExcluded += 1;
+    return !isDup;
+  });
+
+  let lastSyncedAt: string | null = null;
+  for (const r of rows) {
+    if (r.synced_at && (!lastSyncedAt || r.synced_at > lastSyncedAt)) lastSyncedAt = r.synced_at;
+  }
+
   // Campaign attribution via the WeeBespoke campaign snapshot (agent + nearest
   // scheduled London call slot) — same rules as the dialler analytics view.
+  // Deleted campaigns are INCLUDED for attribution: their historical calls
+  // must stay attributed to them, not drift to a surviving same-agent
+  // campaign or Unassigned.
   let snapshot: any[] = [];
   let attribute: ((agentId: any, startedAt: any) => any) | null = null;
   try {
     const mod = await import("@/lib/integrations/webespokeEnterprise/wbah-campaign-reporting.server");
-    snapshot = await mod.loadWbahCampaignSnapshot(sb);
+    snapshot = await mod.loadWbahCampaignSnapshot(sb, { includeDeleted: true });
     if (snapshot.length > 0) {
       attribute = (agentId, startedAt) => mod.attributeWbahCampaign(snapshot, agentId, startedAt);
     }
   } catch { /* snapshot unavailable — everything lands in Unassigned */ }
 
-  const calls: UsageCallInput[] = rows.map((c) => {
+  const calls: UsageCallInput[] = dedupedRows.map((c) => {
     const camp = attribute ? attribute((c.meta as any)?.agent_id ?? null, c.started_at) : null;
     const s = String(c.sentiment ?? "").toLowerCase();
     return {
@@ -173,9 +225,18 @@ async function fetchWbahUsage(
       costCents: null, // no per-call cost data for WBAH — never invent
     };
   });
-  const campaigns = snapshot.map((s: any) => ({ id: String(s.id), name: String(s.name ?? "Campaign") }));
+  const campaigns = snapshot.map((s: any) => ({
+    id: String(s.id),
+    name: `${String(s.name ?? "Campaign")}${s.is_deleted ? " (deleted)" : ""}`,
+  }));
   const filtered = f.qualifiedOnly ? calls.filter((c) => c.qualified) : calls;
-  return { calls: filtered, campaigns, truncated: rows.length >= PAGE * MAX_PAGES };
+  return {
+    calls: filtered,
+    campaigns,
+    truncated: rows.length >= PAGE * MAX_PAGES,
+    crossSourceDuplicatesExcluded,
+    lastSyncedAt,
+  };
 }
 
 // ── Public API ────────────────────────────────────────────────────────────────
@@ -203,7 +264,7 @@ export async function getCampaignUsageData(
 /** Invalidate the in-process usage cache for a workspace (call after syncs/corrections). */
 export function invalidateCampaignUsageCache(workspaceId: string): void {
   for (const k of cache.keys()) {
-    if (k.startsWith(`cu1|${workspaceId}|`)) cache.delete(k);
+    if (k.startsWith(`cu2|${workspaceId}|`)) cache.delete(k);
   }
 }
 
@@ -219,12 +280,19 @@ async function computeCampaignUsage(
   const empty: CampaignUsageData = {
     workspaceId, range, mode: isWbah ? "wbah_dialler" : "standard",
     campaigns: [], unassigned: null as any, workspace: null as any,
-    dedupedCallCount: 0, excludedInvalidCount: 0,
-    series: [], granularity, truncated: false, error: null,
+    dedupedCallCount: 0, excludedInvalidCount: 0, duplicatesRemoved: 0,
+    reconciliation: {
+      attributedSeconds: 0, workspaceSeconds: 0, reconciled: true,
+      attributedCalls: 0, workspaceCalls: 0,
+    },
+    unassignedReasons: { noAgent: 0, agentNotInAnyCampaign: 0, ambiguousAgent: 0 },
+    series: [], granularity, truncated: false,
+    crossSourceDuplicatesExcluded: 0, lastSyncedAt: null, error: null,
   };
   try {
     if (isWbah) {
-      const { calls, campaigns, truncated } = await fetchWbahUsage(sb, workspaceId, range, f);
+      const { calls, campaigns, truncated, crossSourceDuplicatesExcluded, lastSyncedAt } =
+        await fetchWbahUsage(sb, workspaceId, range, f);
       const agg = aggregateCampaignUsage({ calls, campaigns });
       if (f.campaignId) {
         // Campaign-scoped view — tiles/unassigned/series reflect only the
@@ -237,6 +305,8 @@ async function computeCampaignUsage(
           campaigns: agg.campaigns.filter((c) => c.campaignId === f.campaignId),
           series: buildUsageSeries(scoped, granularity),
           truncated,
+          crossSourceDuplicatesExcluded,
+          lastSyncedAt,
         };
       }
       return {
@@ -244,6 +314,8 @@ async function computeCampaignUsage(
         ...agg,
         series: buildUsageSeries(calls, granularity),
         truncated,
+        crossSourceDuplicatesExcluded,
+        lastSyncedAt,
       };
     }
 

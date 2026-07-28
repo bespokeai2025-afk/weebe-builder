@@ -34,6 +34,8 @@ export interface UsageCallInput {
 
 export interface UsageBucket {
   totalCalls: number;
+  /** Calls counted that have NO provider duration (e.g. no-answer attempts). */
+  missingDurationCalls: number;
   totalDurationSeconds: number;
   minutesUsed: number;
   connectedMinutes: number;
@@ -98,10 +100,15 @@ export function dedupeCalls(calls: UsageCallInput[]): UsageCallInput[] {
   return out;
 }
 
-/** Valid for usage counting: non-negative finite duration. */
+/**
+ * Countable as a call: every deduped provider record counts, EXCEPT records
+ * with a corrupt (negative / non-finite) duration. A null duration is a real
+ * call attempt with no recorded duration (e.g. no-answer) — it counts as a
+ * call and contributes 0 seconds, flagged via missingDurationCalls.
+ */
 export function isValidUsageCall(c: UsageCallInput): boolean {
   const d = c.durationSeconds;
-  return d != null && Number.isFinite(d) && d >= 0;
+  return d == null || (Number.isFinite(d) && d >= 0);
 }
 
 /**
@@ -124,7 +131,7 @@ export function attributeCall(
 
 function emptyBucket(): UsageBucket & { _durs: number[] } {
   return {
-    totalCalls: 0, totalDurationSeconds: 0, minutesUsed: 0,
+    totalCalls: 0, missingDurationCalls: 0, totalDurationSeconds: 0, minutesUsed: 0,
     connectedMinutes: 0, voicemailMinutes: 0, failedMinutes: 0,
     inboundMinutes: 0, outboundMinutes: 0,
     averageDurationSeconds: 0, longestCallSeconds: 0, shortestValidCallSeconds: null,
@@ -138,6 +145,7 @@ function emptyBucket(): UsageBucket & { _durs: number[] } {
 function addToBucket(b: ReturnType<typeof emptyBucket>, c: UsageCallInput) {
   const d = c.durationSeconds ?? 0;
   b.totalCalls += 1;
+  if (c.durationSeconds == null) b.missingDurationCalls += 1;
   b.totalDurationSeconds += d;
   if (c.classification === "connected") b.connectedMinutes += d;
   else if (c.classification === "voicemail") b.voicemailMinutes += d;
@@ -194,12 +202,36 @@ export interface AggregateInput {
   now?: Date;
 }
 
+export interface UsageReconciliation {
+  /** Σ campaign seconds + unassigned seconds (must equal workspaceSeconds). */
+  attributedSeconds: number;
+  workspaceSeconds: number;
+  /** True when the attributed sum matches the workspace total exactly. */
+  reconciled: boolean;
+  /** Same identity check on call counts. */
+  attributedCalls: number;
+  workspaceCalls: number;
+}
+
+export interface UnassignedReasons {
+  /** No campaign id on the call and no agent id at all. */
+  noAgent: number;
+  /** Agent known but mapped to zero campaigns. */
+  agentNotInAnyCampaign: number;
+  /** Agent mapped to more than one campaign (ambiguous — never guessed). */
+  ambiguousAgent: number;
+}
+
 export interface CampaignUsageResult {
   campaigns: CampaignUsageRow[];
   unassigned: CampaignUsageRow;
   workspace: UsageBucket & { minutesToday: number; minutesThisWeek: number; minutesThisMonth: number };
   dedupedCallCount: number;
   excludedInvalidCount: number;
+  /** Duplicate provider records removed before counting. */
+  duplicatesRemoved: number;
+  reconciliation: UsageReconciliation;
+  unassignedReasons: UnassignedReasons;
 }
 
 function inWindow(iso: string | null, from: Date, to: Date): boolean {
@@ -251,8 +283,18 @@ export function aggregateCampaignUsage(input: AggregateInput): CampaignUsageResu
   const wsBucket = emptyBucket();
   let wsToday = 0, wsWeek = 0, wsMonth = 0;
 
+  const unassignedReasons: UnassignedReasons = { noAgent: 0, agentNotInAnyCampaign: 0, ambiguousAgent: 0 };
+
   for (const c of valid) {
     const cid = attributeCall(c, knownIds, agentCampaigns);
+    if (cid == null) {
+      if (!c.agentId) unassignedReasons.noAgent += 1;
+      else {
+        const s = agentCampaigns.get(c.agentId);
+        if (s && s.size > 1) unassignedReasons.ambiguousAgent += 1;
+        else unassignedReasons.agentNotInAnyCampaign += 1;
+      }
+    }
     const b = buckets.get(cid) ?? emptyBucket();
     addToBucket(b, c);
     buckets.set(cid, b);
@@ -295,9 +337,15 @@ export function aggregateCampaignUsage(input: AggregateInput): CampaignUsageResu
     if (!buckets.has(c.id)) campaignRows.push(toRow(c.id));
   }
 
+  const unassignedRow = toRow(null);
+  const attributedSeconds =
+    campaignRows.reduce((a, r) => a + r.totalDurationSeconds, 0) + unassignedRow.totalDurationSeconds;
+  const attributedCalls =
+    campaignRows.reduce((a, r) => a + r.totalCalls, 0) + unassignedRow.totalCalls;
+
   return {
     campaigns: campaignRows,
-    unassigned: toRow(null),
+    unassigned: unassignedRow,
     workspace: {
       ...workspaceFinal,
       minutesToday: roundMinutes(wsToday),
@@ -306,6 +354,15 @@ export function aggregateCampaignUsage(input: AggregateInput): CampaignUsageResu
     },
     dedupedCallCount: valid.length,
     excludedInvalidCount,
+    duplicatesRemoved: input.calls.length - deduped.length,
+    reconciliation: {
+      attributedSeconds,
+      workspaceSeconds: wsSeconds,
+      reconciled: attributedSeconds === wsSeconds && attributedCalls === workspaceFinal.totalCalls,
+      attributedCalls,
+      workspaceCalls: workspaceFinal.totalCalls,
+    },
+    unassignedReasons,
   };
 }
 

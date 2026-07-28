@@ -73,9 +73,11 @@ export const getWorkspaceUsageDashboard = createServerFn({ method: "GET" })
     const [callsRes, usageLogRes, waRes, emailRes, videoRes, settingsRes] = await Promise.all([
       admin
         .from("calls")
-        .select("duration_seconds, call_status")
+        .select("id, retell_call_id, duration_seconds, call_status")
         .eq("workspace_id", workspaceId)
-        .gte("started_at", periodStart),
+        // Canonical timestamp semantics: start time, created_at fallback
+        // for legacy rows that never recorded started_at.
+        .or(`started_at.gte.${periodStart},and(started_at.is.null,created_at.gte.${periodStart})`),
       admin
         .from("provider_usage_log")
         .select("provider_category, provider_name, cost_usd, units")
@@ -110,8 +112,21 @@ export const getWorkspaceUsageDashboard = createServerFn({ method: "GET" })
     const genLogs     = videoRes.data ?? [];
     const genLimits   = (settingsRes.data?.generation_limits ?? {}) as Record<string, number | null>;
 
-    const completedCalls = calls.filter(c => c.call_status === "ended" || c.call_status === "completed");
-    const minutesUsed    = completedCalls.reduce((acc, c) => acc + (Number(c.duration_seconds) || 0), 0) / 60;
+    // Canonical usage rules (same as campaign analytics): dedup by provider
+    // call id, count EVERY unique call, sum real recorded durations only —
+    // a voicemail or failed call with recorded duration is still real usage.
+    const seenCallKeys = new Set<string>();
+    const uniqueCalls = (calls as any[]).filter((c) => {
+      const key = c.retell_call_id ? `p:${c.retell_call_id}` : `l:${c.id}`;
+      if (seenCallKeys.has(key)) return false;
+      seenCallKeys.add(key);
+      return true;
+    });
+    const totalCallSeconds = uniqueCalls.reduce((acc, c) => {
+      const d = Number(c.duration_seconds);
+      return acc + (Number.isFinite(d) && d > 0 ? d : 0);
+    }, 0);
+    const minutesUsed = totalCallSeconds / 60;
 
     const voiceCostUsd = usageLog
       .filter(r => ["voice", "telephony", "retell", "hyperstream", "voxstream"].includes(r.provider_category))
@@ -147,8 +162,8 @@ export const getWorkspaceUsageDashboard = createServerFn({ method: "GET" })
     return {
       period: { start: periodStart, end: periodEnd },
       voice: {
-        minutesUsed:     Math.round(minutesUsed * 10) / 10,
-        callsMade:       completedCalls.length,
+        minutesUsed:     Math.round(minutesUsed * 100) / 100,
+        callsMade:       uniqueCalls.length,
         costUsd:         Math.round(voiceCostUsd * 100) / 100,
         includedMinutes: 0,
       },

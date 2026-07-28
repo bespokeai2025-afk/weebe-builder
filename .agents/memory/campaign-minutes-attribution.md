@@ -15,4 +15,10 @@ Campaign minutes-used tracking attributes calls in strict order: explicit `calls
 
 **How to apply:** shared core is `src/lib/analytics-hub/campaign-usage.shared.ts` (+ `.server.ts`); historic un-attributable calls stay Unassigned by design (`scripts/backfill-campaign-minutes.mjs` is idempotent/conservative).
 
+**Canonical counting rules (2026-07 accuracy audit):** null-duration calls (no-answer attempts) COUNT as calls with 0 seconds; only negative/NaN durations are excluded (surfaced as an integrity count). All three surfaces (analytics usage, campaign report KPIs, billing dashboard) must use the same rules: dedup by provider call id, filter on started_at with created_at fallback for legacy rows, roundMinutes 2dp. Any drift between them is a bug, not a preference.
+
+**WBAH weak-id twins:** older WeeBespoke syncs created non-`call_` id rows twinning real Retell rows (same phone within 600s) — they double-counted minutes. Cleaned once (backup in .local/analytics_audit/); a read-time guard in the WBAH branch must keep excluding any future twins.
+
+**Reconciliation invariant:** campaign totals + unassigned must equal workspace totals (seconds AND calls) from the same deduped set; the UI shows a warning card if it ever fails — never hide the mismatch.
+
 **Billing rate cost:** platform rate is £0.36/min (`BILLING_RATE_GBP_PER_MINUTE` in the shared core); `rateCostGbp` is derived minutes×rate on every bucket and is deliberately separate from `totalCostCents` (real recorded provider cost only) — never merge or substitute them.

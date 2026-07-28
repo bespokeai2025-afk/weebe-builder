@@ -13,6 +13,7 @@
 
 import { isWbahWorkspaceId } from "../wbah-exclusion.shared";
 import { emitCampaignNotification } from "../notifications/notification-engine.shared";
+import { roundMinutes } from "../analytics-hub/campaign-usage.shared";
 
 type Sb = any;
 
@@ -58,20 +59,35 @@ export async function computeCampaignKpis(
 ): Promise<Record<string, unknown>> {
   const kpis: Record<string, unknown> = { ...(opts.extra ?? {}) };
   try {
-    let q = sb
-      .from("calls")
-      .select("id, retell_call_id, call_status, sentiment, is_voicemail, duration_seconds, cost_cents")
-      .eq("workspace_id", workspaceId)
-      .limit(1000);
-    // Prefer explicit campaign attribution (calls.campaign_id) when available;
-    // fall back to the agent/window heuristic for older calls.
-    if (opts.campaignId) q = q.eq("campaign_id", opts.campaignId);
-    else if (opts.agentId) q = q.eq("agent_id", opts.agentId);
-    if (opts.sinceIso) q = q.gte("created_at", opts.sinceIso);
-    const { data } = await q;
-    // Dedup by provider call id so retried webhooks never double-count.
+    // Paged fetch — a single .limit(1000) silently under-counted busy
+    // campaigns (PostgREST caps at 1000 rows per request).
+    const PAGE = 1000;
+    const raw: any[] = [];
+    for (let p = 0; p < 10; p++) {
+      let q = sb
+        .from("calls")
+        .select("id, retell_call_id, call_status, sentiment, is_voicemail, duration_seconds, cost_cents")
+        .eq("workspace_id", workspaceId)
+        .order("created_at", { ascending: false })
+        .range(p * PAGE, p * PAGE + PAGE - 1);
+      // Prefer explicit campaign attribution (calls.campaign_id) when available;
+      // fall back to the agent/window heuristic for older calls.
+      if (opts.campaignId) q = q.eq("campaign_id", opts.campaignId);
+      else if (opts.agentId) q = q.eq("agent_id", opts.agentId);
+      // Canonical timestamp semantics: filter on call start time, falling
+      // back to created_at for legacy rows with no started_at.
+      if (opts.sinceIso) {
+        q = q.or(`started_at.gte.${opts.sinceIso},and(started_at.is.null,created_at.gte.${opts.sinceIso})`);
+      }
+      const { data } = await q;
+      const batch = (data ?? []) as any[];
+      raw.push(...batch);
+      if (batch.length < PAGE) break;
+    }
+    // Dedup by provider call id so retried webhooks never double-count —
+    // same rule as the canonical analytics core (dedupeCalls).
     const seen = new Set<string>();
-    const rows: any[] = (data ?? []).filter((r: any) => {
+    const rows: any[] = raw.filter((r: any) => {
       const key = r.retell_call_id ? `p:${r.retell_call_id}` : `l:${r.id}`;
       if (seen.has(key)) return false;
       seen.add(key);
@@ -83,8 +99,8 @@ export async function computeCampaignKpis(
     const totalSecs = rows.reduce((a, r) => a + (Number.isFinite(r.duration_seconds) && r.duration_seconds > 0 ? r.duration_seconds : 0), 0);
     const connectedSecs = answered.reduce((a, r) => a + (Number.isFinite(r.duration_seconds) && r.duration_seconds > 0 ? r.duration_seconds : 0), 0);
     kpis.total_duration_seconds = totalSecs;
-    kpis.total_minutes_used = Math.round((totalSecs / 60) * 100) / 100;
-    kpis.connected_minutes = Math.round((connectedSecs / 60) * 100) / 100;
+    kpis.total_minutes_used = roundMinutes(totalSecs);
+    kpis.connected_minutes = roundMinutes(connectedSecs);
     kpis.calls_total = rows.length;
     kpis.calls_answered = answered.length;
     kpis.calls_voicemail = rows.filter((r) => r.is_voicemail).length;
