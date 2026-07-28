@@ -35,8 +35,12 @@ import { getCampaignData } from "@/lib/api-engine/data-source-router.server";
 import type { CampaignScheduleOptions, DynamicsCategorySyncResult } from "./wbah-campaign-sync.types";
 import {
   WBAH_CAMPAIGN_LEAD_STATUS_OPTIONS,
+  campaignSyncCategorySlugForLeadStatus,
+  normalizeCampaignLeadStatus,
+  parseCampaignLeadStatusOptionsFromApi,
   resolveCampaignScheduleOptions,
-} from "./wbah-campaign-sync.types";
+  TEST_LEAD_STATUS,
+} from "@/lib/integrations/webespokeEnterprise/wbah-campaign-sync.types";
 
 // ── Internal: require webuyanyhouse membership + get API token callbacks ───────
 
@@ -567,12 +571,22 @@ function normalizeWbahCampaign(raw: any): any {
   }
   if (out.created_at == null && raw.createdAt != null) out.created_at = raw.createdAt;
   if (typeof raw.status === "string") out.status = raw.status.toLowerCase();
+  const rawLeadStatus = raw.lead_status ?? raw.leadStatus ?? out.lead_status;
+  if (rawLeadStatus != null) {
+    const original = String(rawLeadStatus).trim();
+    const normalized = normalizeCampaignLeadStatus(original);
+    out.lead_status = normalized;
+    out.lead_status_raw = original;
+    if (normalized && normalized !== original) {
+      out._lead_status_needs_repair = true;
+    }
+  }
+  const slug = campaignSyncCategorySlugForLeadStatus(out.lead_status as string | undefined);
+  if (slug && out.sync_category_slug == null && raw.sync_category_slug == null) {
+    out.sync_category_slug = slug;
+  }
   return out;
 }
-
-const wbahCampaignLeadStatusValues = WBAH_CAMPAIGN_LEAD_STATUS_OPTIONS.map(
-  (o) => o.value,
-) as [string, string, string];
 
 const wbahDateOnly = z
   .union([z.literal(""), z.null(), z.string().regex(/^\d{4}-\d{2}-\d{2}$/)])
@@ -582,7 +596,7 @@ const wbahDateOnly = z
 const wbahCampaignFormFields = z.object({
   campaign_name: z.string().min(1).max(120),
   agent_id: z.string().nullable().optional(),
-  lead_status: z.enum(wbahCampaignLeadStatusValues),
+  lead_status: z.string().trim().min(1).max(120),
   call_time: z.string().default("09:00"),
   timezone: z.string().default("Europe/London"),
   frequency_type: z.enum(["daily", "custom"]).default("daily"),
@@ -617,10 +631,13 @@ function uiCampaignFormToUatPayload(
   const call_minute = Math.min(59, Math.max(0, parseInt(mmRaw, 10) || 0));
   const weekdays =
     data.days_of_week && data.days_of_week.length > 0 ? data.days_of_week : null;
+  const lead_status = normalizeCampaignLeadStatus(data.lead_status);
+  const sync_category_slug = campaignSyncCategorySlugForLeadStatus(lead_status);
   return {
     name: data.campaign_name.trim(),
     agent_id: data.agent_id || null,
-    lead_status: data.lead_status,
+    lead_status,
+    ...(sync_category_slug ? { sync_category_slug } : {}),
     call_hour,
     call_minute,
     timezone: data.timezone ?? "Europe/London",
@@ -909,35 +926,34 @@ export const getWbahCampaignLeadStatusOptions = createServerFn({ method: "GET" }
   .handler(async ({ context }) => {
     await requireWbahView(context.userId, context.workspaceId);
     const cbs = await requireWbahCbs(context.userId);
+    const staticFallback = WBAH_CAMPAIGN_LEAD_STATUS_OPTIONS.map((o) => ({
+      value: o.value,
+      label: o.label,
+      source: "dynamics" as const,
+    }));
     try {
       const res = await api.wbahGetCampaignLeadStatusOptions(
         cbs.getTokens,
         cbs.saveNewAccessToken,
         cbs.reloginFn,
       );
-      if (res.ok && res.data) {
-        const envelope = res.data as Record<string, unknown>;
-        const inner = Array.isArray(envelope.data)
-          ? envelope.data
-          : Array.isArray(envelope)
-            ? envelope
-            : null;
-        if (inner && inner.length > 0) {
-          return inner.map((o: any) => ({
-            value: String(o.value ?? o.label ?? ""),
-            label: String(o.label ?? o.value ?? ""),
-            source: (o.source as string | undefined) ?? "dynamics",
-          }));
+      if (!res.ok) {
+        console.warn(
+          "[wbah] GET /campaigns/lead-status-options failed:",
+          res.status,
+          res.error?.slice(0, 120),
+        );
+      } else if (res.data) {
+        const parsed = parseCampaignLeadStatusOptionsFromApi(res.data);
+        if (parsed.length > 0) {
+          return { options: parsed, fromApi: true as const };
         }
+        console.warn("[wbah] lead-status-options: empty or unparseable payload");
       }
-    } catch {
-      /* fall through to static list */
+    } catch (e) {
+      console.warn("[wbah] lead-status-options error:", (e as Error).message);
     }
-    return WBAH_CAMPAIGN_LEAD_STATUS_OPTIONS.map((o) => ({
-      value: o.value,
-      label: o.label,
-      source: "dynamics" as const,
-    }));
+    return { options: staticFallback, fromApi: false as const };
   });
 
 export const getWbahCampaignScheduleOptions = createServerFn({ method: "GET" })
@@ -3231,7 +3247,15 @@ export const listWbahCategorizedLeads = createServerFn({ method: "POST" })
       data.limit,
       data.search,
     );
-    const rows = await enrichPeopleCrmRowsWithWbahCalls(workspaceId, result.rows);
+    let rows = result.rows;
+    try {
+      rows = await enrichPeopleCrmRowsWithWbahCalls(workspaceId, result.rows);
+    } catch (e: unknown) {
+      console.warn(
+        "[wbah] enrichPeopleCrmRowsWithWbahCalls failed:",
+        e instanceof Error ? e.message : e,
+      );
+    }
     return { ...result, rows };
   });
 

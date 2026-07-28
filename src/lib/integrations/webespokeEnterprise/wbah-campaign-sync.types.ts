@@ -1,10 +1,12 @@
 export type DynamicsCategorySlug =
   | "disqualified"
   | "tried_to_contact"
-  | "rebook_initial_consultation";
+  | "rebook_initial_consultation"
+  | "test_lead"
+  | "callback_request";
 
 export type DynamicsCategorySyncCategory = {
-  slug: DynamicsCategorySlug;
+  slug: string;
   leadStatus: string;
   dynamicsFetched: number;
   skippedNoMobile: number;
@@ -29,11 +31,170 @@ export interface DynamicsCategorySyncResult {
   duplicateLeadIds: DynamicsCategoryDuplicateLead[];
 }
 
+export const TEST_LEAD_STATUS = "Test Lead";
+export const TEST_LEAD_SLUG = "test_lead";
+
 export const DYNAMICS_CATEGORY_LABELS: Record<DynamicsCategorySlug, string> = {
   disqualified: "Disqualified",
   tried_to_contact: "Tried To Contact",
   rebook_initial_consultation: "Rebook Initial Consultation",
+  test_lead: TEST_LEAD_STATUS,
+  callback_request: "Callback Request",
 };
+
+export type WbahCampaignLeadStatusOption = {
+  value: string;
+  label: string;
+  source?: string;
+  isRebookSync?: boolean;
+};
+
+export function isTestLeadSource(source: string | null | undefined): boolean {
+  return String(source ?? "").toLowerCase() === "test";
+}
+
+export function isTestLeadStatus(value: string | null | undefined): boolean {
+  return normalizeCampaignLeadStatus(value) === TEST_LEAD_STATUS;
+}
+
+/** Map API/UI variants ("Test", test_lead, …) → canonical campaign filter "Test Lead". */
+export function normalizeCampaignLeadStatus(value: string | null | undefined): string {
+  const v = String(value ?? "").trim();
+  if (!v) return v;
+  const lower = v.toLowerCase().replace(/_/g, " ").replace(/\s+/g, " ").trim();
+  if (lower === "test" || lower === "test lead" || lower === "testlead") {
+    return TEST_LEAD_STATUS;
+  }
+  return v;
+}
+
+const LEAD_STATUS_SYNC_SLUG: Record<string, DynamicsCategorySlug> = {
+  [DYNAMICS_CATEGORY_LABELS.disqualified]: "disqualified",
+  [DYNAMICS_CATEGORY_LABELS.tried_to_contact]: "tried_to_contact",
+  [DYNAMICS_CATEGORY_LABELS.rebook_initial_consultation]: "rebook_initial_consultation",
+  [TEST_LEAD_STATUS]: "test_lead",
+};
+
+/** CRM cohort slug used by Dynamics sync — backend may match on this instead of lead_status alone. */
+export function campaignSyncCategorySlugForLeadStatus(
+  leadStatus: string | null | undefined,
+): DynamicsCategorySlug | null {
+  const normalized = normalizeCampaignLeadStatus(leadStatus);
+  return LEAD_STATUS_SYNC_SLUG[normalized] ?? null;
+}
+
+export function normalizeCampaignLeadStatusOption(
+  option: WbahCampaignLeadStatusOption,
+): WbahCampaignLeadStatusOption {
+  const label = String(option.label ?? option.value ?? "").trim();
+  const value = String(option.value ?? option.label ?? "").trim();
+  // Only canonicalize category-sync Test Lead (source=test). Keep picklist "TestLead" distinct
+  // so both options can appear in the dropdown without Radix Select value collisions.
+  if (isTestLeadSource(option.source)) {
+    return {
+      ...option,
+      value: TEST_LEAD_STATUS,
+      label: label || TEST_LEAD_STATUS,
+    };
+  }
+  return { ...option, value, label: label || value };
+}
+
+/** Legacy Dynamics picklist option — not the category-sync cohort used for UAT test campaigns. */
+export function isPicklistTestLeadOption(option: WbahCampaignLeadStatusOption): boolean {
+  const v = String(option.value ?? "").trim();
+  return v === "TestLead" && !isTestLeadSource(option.source);
+}
+
+export type WbahCampaignLeadStatusOptionsResult = {
+  options: WbahCampaignLeadStatusOption[];
+  fromApi: boolean;
+};
+
+function mapRawLeadStatusOptions(raw: unknown[]): WbahCampaignLeadStatusOption[] {
+  return raw
+    .map((item) => {
+      if (!item || typeof item !== "object") return null;
+      const o = item as Record<string, unknown>;
+      const value = String(o.value ?? o.label ?? "").trim();
+      const label = String(o.label ?? o.value ?? "").trim();
+      if (!value && !label) return null;
+      return normalizeCampaignLeadStatusOption({
+        value: value || label,
+        label: label || value,
+        source: (o.source as string | undefined) ?? "dynamics",
+        isRebookSync: Boolean(o.isRebookSync),
+      });
+    })
+    .filter((x): x is WbahCampaignLeadStatusOption => x != null);
+}
+
+/** Parse GET /campaigns/lead-status-options — never drops source=test or picklist TestLead. */
+export function parseCampaignLeadStatusOptionsFromApi(
+  body: unknown,
+): WbahCampaignLeadStatusOption[] {
+  if (!body) return [];
+  if (Array.isArray(body)) return mapRawLeadStatusOptions(body);
+  if (typeof body !== "object") return [];
+
+  const o = body as Record<string, unknown>;
+  if (Array.isArray(o.data)) return mapRawLeadStatusOptions(o.data);
+
+  if (o.data && typeof o.data === "object" && !Array.isArray(o.data)) {
+    const inner = o.data as Record<string, unknown>;
+    if (Array.isArray(inner.options)) return mapRawLeadStatusOptions(inner.options);
+    if (Array.isArray(inner.leadStatusOptions)) {
+      return mapRawLeadStatusOptions(inner.leadStatusOptions);
+    }
+  }
+
+  if (Array.isArray(o.options)) return mapRawLeadStatusOptions(o.options);
+  return [];
+}
+
+export function isTestLeadCategorySlug(slug: string | null | undefined): boolean {
+  const s = String(slug ?? "")
+    .trim()
+    .toLowerCase();
+  return s === TEST_LEAD_SLUG || s === "testlead" || s === "test_lead";
+}
+
+export function dynamicsCategoryLabel(slug: string, leadStatus?: string): string {
+  return (
+    DYNAMICS_CATEGORY_LABELS[slug as DynamicsCategorySlug] ??
+    leadStatus ??
+    slug.replace(/_/g, " ")
+  );
+}
+
+export function hasTestLeadSyncEnabled(
+  options: WbahCampaignLeadStatusOption[] | null | undefined,
+): boolean {
+  return (options ?? []).some(
+    (o) => isTestLeadSource(o.source) || isTestLeadStatus(o.value),
+  );
+}
+
+export function hasTestLeadInSyncPreview(
+  result: DynamicsCategorySyncResult | null | undefined,
+): boolean {
+  return (result?.categories ?? []).some((c) => isTestLeadCategorySlug(c.slug));
+}
+
+/** Backend opt-in — treat disabled/unknown test cohort reads as empty, not hard errors. */
+export function isTestLeadSyncDisabledError(message: string | null | undefined): boolean {
+  const m = String(message ?? "").toLowerCase();
+  if (!m) return false;
+  return (
+    /test lead/.test(m) ||
+    /test_lead/.test(m) ||
+    /not enabled/.test(m) ||
+    /disabled/.test(m) ||
+    /invalid.*sync_category/.test(m) ||
+    /unknown.*category/.test(m) ||
+    /unsupported.*category/.test(m)
+  );
+}
 
 /** Campaign lead_status picker — Dynamics-synced cohorts only (DQ / TTC / RIC). */
 export const WBAH_CAMPAIGN_LEAD_STATUS_OPTIONS: { value: string; label: string }[] = [

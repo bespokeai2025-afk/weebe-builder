@@ -470,7 +470,10 @@ export async function getLatestWbahCallsForPhones(
           .or(orFilter)
           .order("started_at", { ascending: false })
           .limit(250);
-        if (error) throw new Error(`wbah_calls phone lookup failed: ${error.message}`);
+        if (error) {
+          console.warn("[wbah-leads] wbah_calls phone lookup failed:", error.message);
+          continue;
+        }
 
         for (const call of (data ?? []) as Record<string, unknown>[]) {
           const tail = phoneTail(String(call.phone ?? ""));

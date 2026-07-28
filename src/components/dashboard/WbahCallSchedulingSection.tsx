@@ -54,14 +54,30 @@ import {
   getWbahCampaignScheduleOptions,
   getWbahCampaignLeadStatusOptions,
 } from "@/lib/integrations/webespokeEnterprise/wbah-workspace.server";
-import type { DynamicsCategorySyncResult } from "@/lib/integrations/webespokeEnterprise/wbah-campaign-sync.types";
+import type {
+  DynamicsCategorySyncResult,
+  WbahCampaignLeadStatusOption,
+} from "@/lib/integrations/webespokeEnterprise/wbah-campaign-sync.types";
 import {
   DYNAMICS_CATEGORY_LABELS,
   WBAH_CAMPAIGN_LEAD_STATUS_OPTIONS,
+  dynamicsCategoryLabel,
   formatCampaignScheduleSummary,
+  hasTestLeadInSyncPreview,
+  hasTestLeadSyncEnabled,
   isCampaignScheduleExpired,
+  isPicklistTestLeadOption,
+  isTestLeadCategorySlug,
+  isTestLeadSource,
+  isTestLeadStatus,
   resolveCampaignScheduleOptions,
+  TEST_LEAD_STATUS,
+  normalizeCampaignLeadStatus,
 } from "@/lib/integrations/webespokeEnterprise/wbah-campaign-sync.types";
+import {
+  isLikelyProductionFrontend,
+  WbahTestLeadBadge,
+} from "@/components/dashboard/WbahTestLeadBadge";
 
 const TIMEZONES = [
   { value: "Europe/London", label: "London (GMT/BST)" },
@@ -97,6 +113,9 @@ type WbahCampaign = {
   end_date?: string | null;
   days_of_week_list?: number[] | null;
   voicemail_enabled?: boolean;
+  _lead_status_needs_repair?: boolean;
+  lead_status_raw?: string | null;
+  sync_category_slug?: string | null;
 };
 
 type WbahAgent = {
@@ -202,7 +221,8 @@ export function WbahCallSchedulingSection() {
   const leadStatusOptionsQ = useQuery({
     queryKey: QK_LEAD_STATUS_OPTIONS,
     queryFn: () => leadStatusOptionsFn(),
-    staleTime: 10 * 60_000,
+    staleTime: 60_000,
+    refetchOnMount: "always",
     throwOnError: false,
   });
 
@@ -211,10 +231,15 @@ export function WbahCallSchedulingSection() {
 
   const campaigns = (campaignsQ.data ?? []) as WbahCampaign[];
   const agents    = (agentsQ.data ?? []) as WbahAgent[];
-  const leadStatusOptions =
-    (leadStatusOptionsQ.data?.length ?? 0) > 0
-      ? (leadStatusOptionsQ.data as { value: string; label: string }[])
-      : CAMPAIGN_LEAD_STATUS_OPTIONS;
+  const leadStatusFromApi = leadStatusOptionsQ.data?.fromApi ?? false;
+  const leadStatusOptions: WbahCampaignLeadStatusOption[] =
+    leadStatusOptionsQ.isLoading
+      ? []
+      : (leadStatusOptionsQ.data?.options?.length ?? 0) > 0
+        ? leadStatusOptionsQ.data!.options
+        : CAMPAIGN_LEAD_STATUS_OPTIONS.map((o) => ({ ...o, source: "dynamics" as const }));
+  const testLeadSyncEnabled = hasTestLeadSyncEnabled(leadStatusOptions);
+  const testLeadInLastPreview = hasTestLeadInSyncPreview(syncResult);
   const scheduleResolved = resolveCampaignScheduleOptions(scheduleOptionsQ.data ?? null);
   const scheduleWeekdays = scheduleResolved.weekdays;
   const scheduleExamples = scheduleResolved.examples;
@@ -236,14 +261,17 @@ export function WbahCallSchedulingSection() {
     setDialogOpen(true);
     void qc.invalidateQueries({ queryKey: QK_AGENTS });
     void qc.invalidateQueries({ queryKey: QK_SCHEDULE_OPTIONS });
+    void qc.invalidateQueries({ queryKey: QK_LEAD_STATUS_OPTIONS });
   }
 
   function openEdit(c: WbahCampaign) {
     setEditTarget(c);
-    const status = c.lead_status ?? "";
-    const allowed = CAMPAIGN_LEAD_STATUS_OPTIONS.some((o) => o.value === status)
+    const status = normalizeCampaignLeadStatus(c.lead_status ?? "");
+    const allowed = leadStatusOptions.some((o) => o.value === status)
       ? status
-      : DYNAMICS_CATEGORY_LABELS.disqualified;
+      : leadStatusOptions.some((o) => o.value === TEST_LEAD_STATUS) && isTestLeadStatus(status)
+        ? TEST_LEAD_STATUS
+        : leadStatusOptions[0]?.value ?? DYNAMICS_CATEGORY_LABELS.disqualified;
     setForm({
       campaign_name:    campaignName(c),
       agent_id:         c.agent_id ?? "",
@@ -260,6 +288,7 @@ export function WbahCallSchedulingSection() {
     setDialogOpen(true);
     void qc.invalidateQueries({ queryKey: QK_AGENTS });
     void qc.invalidateQueries({ queryKey: QK_SCHEDULE_OPTIONS });
+    void qc.invalidateQueries({ queryKey: QK_LEAD_STATUS_OPTIONS });
   }
 
   function applyWeekdayPreset(days: number[] | null) {
@@ -313,44 +342,108 @@ export function WbahCallSchedulingSection() {
   }
 
   function renderSyncResultTable(result: DynamicsCategorySyncResult, showWrites: boolean) {
+    const testRow = result.categories.find((c) => isTestLeadCategorySlug(c.slug));
     return (
-      <div className="mt-3 overflow-x-auto rounded-lg border border-white/[0.06]">
+      <div className="mt-3 space-y-2">
+        {result.dryRun && !hasTestLeadInSyncPreview(result) && (
+          <div className="rounded-lg border border-sky-500/30 bg-sky-500/10 px-3 py-2 text-[11px] text-sky-200">
+            Test Lead sync disabled on server. Set{" "}
+            <code className="rounded bg-black/20 px-1">ENABLE_TEST_LEAD_CATEGORY_SYNC=true</code> on
+            UAT.
+          </div>
+        )}
+        {testRow && testRow.dynamicsFetched === 0 && (
+          <div className="rounded-lg border border-white/[0.08] bg-white/[0.02] px-3 py-2 text-[11px] text-muted-foreground">
+            No test leads in Dynamics matching the test view.
+          </div>
+        )}
+        {testRow && testRow.skippedNoMobile > 0 && (
+          <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-[11px] text-amber-200">
+            {testRow.skippedNoMobile} test lead{testRow.skippedNoMobile === 1 ? "" : "s"} skipped —
+            no mobile number in Dynamics.
+          </div>
+        )}
+        <div className="overflow-x-auto rounded-lg border border-white/[0.06]">
         <table className="w-full text-left text-[11px]">
           <thead>
             <tr className="border-b border-white/[0.06] bg-white/[0.02] text-muted-foreground">
               <th className="px-3 py-2 font-medium">Category</th>
-              <th className="px-3 py-2 font-medium">Dynamics</th>
-              <th className="px-3 py-2 font-medium">No mobile</th>
-              {showWrites && (
-                <>
-                  <th className="px-3 py-2 font-medium">Inserted</th>
-                  <th className="px-3 py-2 font-medium">Updated</th>
-                  <th className="px-3 py-2 font-medium">Expired</th>
-                </>
-              )}
+              <th className="px-3 py-2 font-medium">Fetched</th>
+              <th className="px-3 py-2 font-medium">Inserted</th>
+              <th className="px-3 py-2 font-medium">Updated</th>
+              <th className="px-3 py-2 font-medium">Skipped (no mobile)</th>
+              {showWrites && <th className="px-3 py-2 font-medium">Expired</th>}
             </tr>
           </thead>
           <tbody>
-            {result.categories.map((c) => (
-              <tr key={c.slug} className="border-b border-white/[0.04] last:border-0">
-                <td className="px-3 py-2 font-medium text-foreground">
-                  {DYNAMICS_CATEGORY_LABELS[c.slug] ?? c.leadStatus}
+            {result.categories.map((c) => {
+              const isTest = isTestLeadCategorySlug(c.slug);
+              return (
+              <tr
+                key={c.slug}
+                className={cn(
+                  "border-b border-white/[0.04] last:border-0",
+                  isTest && "bg-amber-500/[0.04]",
+                )}
+              >
+                <td
+                  className="px-3 py-2 font-medium text-foreground"
+                  title={
+                    isTest
+                      ? "Synced from Dynamics view where new_currentstatus = 181510001"
+                      : undefined
+                  }
+                >
+                  <span className="inline-flex items-center gap-1.5">
+                    {dynamicsCategoryLabel(c.slug, c.leadStatus)}
+                    {isTest && <WbahTestLeadBadge label="UAT" />}
+                  </span>
                 </td>
                 <td className="px-3 py-2 tabular-nums">{c.dynamicsFetched}</td>
+                <td className="px-3 py-2 tabular-nums text-emerald-400">{c.insertedCount}</td>
+                <td className="px-3 py-2 tabular-nums text-blue-400">{c.updatedCount}</td>
                 <td className="px-3 py-2 tabular-nums text-muted-foreground">{c.skippedNoMobile}</td>
                 {showWrites && (
-                  <>
-                    <td className="px-3 py-2 tabular-nums text-emerald-400">{c.insertedCount}</td>
-                    <td className="px-3 py-2 tabular-nums text-blue-400">{c.updatedCount}</td>
-                    <td className="px-3 py-2 tabular-nums text-amber-400">{c.expiredCount}</td>
-                  </>
+                  <td className="px-3 py-2 tabular-nums text-amber-400">{c.expiredCount}</td>
                 )}
               </tr>
-            ))}
+            );
+            })}
           </tbody>
         </table>
+        </div>
       </div>
     );
+  }
+
+  async function handleRepairTargeting(c: WbahCampaign) {
+    const id = campaignId(c);
+    if (!id) return;
+    setSaving(true);
+    try {
+      await updateFn({
+        data: {
+          id,
+          campaign_name: campaignName(c),
+          agent_id: c.agent_id ?? null,
+          lead_status: normalizeCampaignLeadStatus(c.lead_status) || TEST_LEAD_STATUS,
+          call_time: c.call_time ?? "09:00",
+          timezone: c.timezone ?? "Europe/London",
+          frequency_type: c.frequency_type ?? "daily",
+          interval_days: c.interval_days ?? 1,
+          start_date: c.start_date ?? null,
+          end_date: c.end_date ?? null,
+          days_of_week: c.days_of_week_list ?? null,
+          voicemail_enabled: c.voicemail_enabled ?? false,
+        },
+      });
+      toast.success("Campaign targeting updated — uses Test Lead + sync_category_slug=test_lead");
+      qc.invalidateQueries({ queryKey: QK_CAMPAIGNS });
+    } catch (e) {
+      toast.error("Failed to fix targeting", { description: (e as Error).message });
+    } finally {
+      setSaving(false);
+    }
   }
 
   async function handleSave() {
@@ -371,7 +464,7 @@ export function WbahCallSchedulingSection() {
       const payload = {
         campaign_name:    form.campaign_name.trim(),
         agent_id:         form.agent_id || null,
-        lead_status:      form.lead_status,
+        lead_status:      normalizeCampaignLeadStatus(form.lead_status),
         call_time:        form.call_time,
         timezone:         form.timezone,
         frequency_type:   form.frequency_type,
@@ -468,8 +561,9 @@ export function WbahCallSchedulingSection() {
               Dynamics lead sync
             </div>
             <p className="mt-1 text-[11px] text-muted-foreground max-w-xl">
-              Import Disqualified, Tried To Contact, and Rebook Initial Consultation from Dynamics
-              into CRM_data for campaign dialing.
+              Import Disqualified, Tried To Contact, Rebook Initial Consultation
+              {testLeadSyncEnabled ? ", and Test Lead (UAT)" : ""} from Dynamics into CRM_data for
+              campaign dialing.
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
@@ -512,6 +606,13 @@ export function WbahCallSchedulingSection() {
               {syncResult.dryRun ? "Preview results" : "Last sync results"}
             </p>
             {renderSyncResultTable(syncResult, !syncResult.dryRun)}
+            {!testLeadInLastPreview && syncResult.dryRun && leadStatusOptionsQ.isSuccess && (
+              <p className="mt-2 text-[10px] text-muted-foreground">
+                Test Lead not included — enable{" "}
+                <code className="rounded bg-muted px-1">ENABLE_TEST_LEAD_CATEGORY_SYNC</code> on
+                UAT to sync test cohorts.
+              </p>
+            )}
             {!syncResult.dryRun && syncResult.campaignsScheduled.length > 0 && (
               <p className="mt-2 text-[11px] text-muted-foreground">
                 Campaigns scheduled:{" "}
@@ -594,7 +695,33 @@ export function WbahCallSchedulingSection() {
                     <Phone className="h-4 w-4 text-blue-400" />
                   </div>
                   <div className="min-w-0">
-                    <p className="text-sm font-semibold truncate">{campaignName(c)}</p>
+                    <div className="flex items-center gap-2 min-w-0">
+                      <p className="text-sm font-semibold truncate">{campaignName(c)}</p>
+                      {isTestLeadStatus(c.lead_status) && <WbahTestLeadBadge />}
+                    </div>
+                    {isTestLeadStatus(c.lead_status) &&
+                      campaignStatus(c) === "active" &&
+                      isLikelyProductionFrontend() && (
+                        <p className="mt-1 text-[10px] text-amber-400">
+                          This campaign dials Test Lead records only.
+                        </p>
+                      )}
+                    {c._lead_status_needs_repair && (
+                      <div className="mt-2 rounded-lg border border-amber-500/40 bg-amber-500/10 px-2.5 py-2 text-[10px] text-amber-200">
+                        Stored filter is &quot;{c.lead_status_raw ?? c.lead_status}&quot; but CRM
+                        test leads use <strong>Test Lead</strong> (
+                        <code className="rounded bg-black/20 px-1">sync_category_slug=test_lead</code>
+                        ).
+                        <button
+                          type="button"
+                          className="ml-2 underline font-medium text-amber-100 hover:text-white"
+                          disabled={saving}
+                          onClick={() => void handleRepairTargeting(c)}
+                        >
+                          Fix targeting
+                        </button>
+                      </div>
+                    )}
                   </div>
                 </div>
                 <div className="flex items-center gap-2 shrink-0">
@@ -638,7 +765,10 @@ export function WbahCallSchedulingSection() {
               <div className="mt-3 grid grid-cols-2 gap-x-6 gap-y-1.5 text-[11px] sm:grid-cols-4">
                 <div>
                   <p className="text-muted-foreground">Lead Status</p>
-                  <p className="font-medium text-foreground mt-0.5">{statusLabel(c.lead_status)}</p>
+                  <p className="font-medium text-foreground mt-0.5 inline-flex items-center gap-1.5">
+                    {statusLabel(c.lead_status)}
+                    {isTestLeadStatus(c.lead_status) && <WbahTestLeadBadge label="UAT" />}
+                  </p>
                 </div>
                 <div>
                   <p className="text-muted-foreground">Agent</p>
@@ -770,22 +900,65 @@ export function WbahCallSchedulingSection() {
               </div>
               <div>
                 <Label className="text-xs">Target Lead Status</Label>
-                <Select
-                  value={form.lead_status}
-                  onValueChange={(v) => setForm((f) => ({ ...f, lead_status: v }))}
-                >
-                  <SelectTrigger className="mt-1 h-8 text-xs">
-                    <SelectValue placeholder="Select lead category" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {leadStatusOptions.map((s) => (
-                      <SelectItem key={s.value} value={s.value}>
-                        {s.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                {form.lead_status === "Callback Request" ? (
+                {leadStatusOptionsQ.isLoading ? (
+                  <div className="mt-1 flex h-8 items-center gap-2 rounded-md border border-white/[0.06] px-3 text-xs text-muted-foreground">
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    Loading lead statuses…
+                  </div>
+                ) : (
+                  <Select
+                    value={form.lead_status}
+                    onValueChange={(v) => setForm((f) => ({ ...f, lead_status: v }))}
+                  >
+                    <SelectTrigger className="mt-1 h-8 text-xs">
+                      <SelectValue placeholder="Select lead category" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {leadStatusOptions.map((s) => (
+                        <SelectItem
+                          key={`${s.value}:${s.source ?? "dynamics"}`}
+                          value={s.value}
+                        >
+                          <span className="inline-flex items-center gap-1.5">
+                            {s.label}
+                            {isTestLeadSource(s.source) && <WbahTestLeadBadge label="UAT" />}
+                            {isPicklistTestLeadOption(s) && (
+                              <span className="text-[10px] text-muted-foreground">(picklist)</span>
+                            )}
+                          </span>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+                {leadStatusOptionsQ.isError && (
+                  <p className="mt-1.5 text-[10px] text-amber-400">
+                    Could not load lead statuses — check API connection and hard refresh.
+                  </p>
+                )}
+                {leadStatusOptionsQ.isSuccess && !leadStatusFromApi && (
+                  <p className="mt-1.5 text-[10px] text-amber-400">
+                    Using default statuses — GET /campaigns/lead-status-options did not return options.
+                  </p>
+                )}
+                {form.lead_status === TEST_LEAD_STATUS || isTestLeadSource(
+                  leadStatusOptions.find((o) => o.value === form.lead_status)?.source,
+                ) ? (
+                  <p className="mt-1.5 text-[10px] text-amber-300/90">
+                    Test Lead — Dynamics test view only. Use for UAT campaigns, not live TTC/DQ
+                    sweeps.
+                  </p>
+                ) : isPicklistTestLeadOption(
+                  leadStatusOptions.find((o) => o.value === form.lead_status) ?? {
+                    value: form.lead_status,
+                    label: form.lead_status,
+                  },
+                ) ? (
+                  <p className="mt-1.5 text-[10px] text-amber-400">
+                    TestLead (picklist) does not match category-sync leads. Choose{" "}
+                    <strong>Test Lead</strong> (UAT) for test campaigns.
+                  </p>
+                ) : form.lead_status === "Callback Request" ? (
                   <p className="mt-1.5 text-[10px] text-muted-foreground">
                     Targets leads with a pending callback request (is_callback_pending). Includes
                     leads from Dynamics sync and AI call webhooks. Calls fire at the requested time
@@ -795,6 +968,11 @@ export function WbahCallSchedulingSection() {
                   <p className="mt-1.5 text-[10px] text-muted-foreground">
                     Leads auto-moved from Tried To Contact (negative sentiment) remain callable under
                     Disqualified campaigns.
+                  </p>
+                )}
+                {leadStatusFromApi && !testLeadSyncEnabled && (
+                  <p className="mt-1.5 text-[10px] text-muted-foreground">
+                    Test Lead sync is not enabled on this environment.
                   </p>
                 )}
               </div>
@@ -998,7 +1176,8 @@ export function WbahCallSchedulingSection() {
           </DialogHeader>
           <p className="text-xs text-muted-foreground">
             Import leads from Dynamics into CRM_data? This updates Disqualified, Tried To Contact,
-            and Rebook Initial Consultation cohorts (30-day retention).
+            Rebook Initial Consultation
+            {testLeadSyncEnabled ? ", and Test Lead (UAT)" : ""} cohorts (30-day retention).
           </p>
           <label className="flex items-start gap-2 mt-3 cursor-pointer">
             <Checkbox
