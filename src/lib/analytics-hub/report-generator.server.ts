@@ -283,6 +283,7 @@ async function buildReportContent(
         }
         const kpis = await computeCampaignKpis(sb, workspaceId, {
           agentId: retellAgentId,
+          campaignId: campaign.id,
           sinceIso: campaign.created_at ?? startIso,
         });
         metrics.campaign_kpis = kpis;

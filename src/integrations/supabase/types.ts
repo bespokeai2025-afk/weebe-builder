@@ -1934,6 +1934,7 @@ export type Database = {
           call_successful: boolean | null
           call_summary: string | null
           call_type: Database["public"]["Enums"]["call_type"]
+          campaign_id: string | null
           channel_type: string | null
           cost_cents: number | null
           created_at: string
@@ -1963,6 +1964,7 @@ export type Database = {
           call_successful?: boolean | null
           call_summary?: string | null
           call_type?: Database["public"]["Enums"]["call_type"]
+          campaign_id?: string | null
           channel_type?: string | null
           cost_cents?: number | null
           created_at?: string
@@ -1992,6 +1994,7 @@ export type Database = {
           call_successful?: boolean | null
           call_summary?: string | null
           call_type?: Database["public"]["Enums"]["call_type"]
+          campaign_id?: string | null
           channel_type?: string | null
           cost_cents?: number | null
           created_at?: string
@@ -2014,6 +2017,13 @@ export type Database = {
           workspace_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "calls_campaign_id_fkey"
+            columns: ["campaign_id"]
+            isOneToOne: false
+            referencedRelation: "campaigns"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "calls_lead_id_fkey"
             columns: ["lead_id"]

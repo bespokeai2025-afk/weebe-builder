@@ -437,6 +437,7 @@ export async function runCampaignTick(opts?: {
               .eq("workspace_id", campaign.workspace_id);
             await sb.from("calls").insert({
               workspace_id: campaign.workspace_id,
+              campaign_id: campaign.id,
               retell_call_id: call?.call_id ?? null,
               agent_id: retellAgentId,
               agent_name: agent.name ?? null,

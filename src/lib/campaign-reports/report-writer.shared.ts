@@ -54,22 +54,37 @@ export function isFailureReportType(t: string): boolean {
 export async function computeCampaignKpis(
   sb: Sb,
   workspaceId: string,
-  opts: { agentId?: string | null; sinceIso?: string | null; extra?: Record<string, unknown> },
+  opts: { agentId?: string | null; campaignId?: string | null; sinceIso?: string | null; extra?: Record<string, unknown> },
 ): Promise<Record<string, unknown>> {
   const kpis: Record<string, unknown> = { ...(opts.extra ?? {}) };
   try {
     let q = sb
       .from("calls")
-      .select("call_status, sentiment, is_voicemail, duration_seconds, cost_cents")
+      .select("id, retell_call_id, call_status, sentiment, is_voicemail, duration_seconds, cost_cents")
       .eq("workspace_id", workspaceId)
       .limit(1000);
-    if (opts.agentId) q = q.eq("agent_id", opts.agentId);
+    // Prefer explicit campaign attribution (calls.campaign_id) when available;
+    // fall back to the agent/window heuristic for older calls.
+    if (opts.campaignId) q = q.eq("campaign_id", opts.campaignId);
+    else if (opts.agentId) q = q.eq("agent_id", opts.agentId);
     if (opts.sinceIso) q = q.gte("created_at", opts.sinceIso);
     const { data } = await q;
-    const rows: any[] = data ?? [];
+    // Dedup by provider call id so retried webhooks never double-count.
+    const seen = new Set<string>();
+    const rows: any[] = (data ?? []).filter((r: any) => {
+      const key = r.retell_call_id ? `p:${r.retell_call_id}` : `l:${r.id}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
     const answered = rows.filter((r) => r.call_status === "completed" && !r.is_voicemail);
     const positive = rows.filter((r) => r.sentiment === "positive");
     const durations = rows.map((r) => r.duration_seconds ?? 0).filter((d) => d > 0);
+    const totalSecs = rows.reduce((a, r) => a + (Number.isFinite(r.duration_seconds) && r.duration_seconds > 0 ? r.duration_seconds : 0), 0);
+    const connectedSecs = answered.reduce((a, r) => a + (Number.isFinite(r.duration_seconds) && r.duration_seconds > 0 ? r.duration_seconds : 0), 0);
+    kpis.total_duration_seconds = totalSecs;
+    kpis.total_minutes_used = Math.round((totalSecs / 60) * 100) / 100;
+    kpis.connected_minutes = Math.round((connectedSecs / 60) * 100) / 100;
     kpis.calls_total = rows.length;
     kpis.calls_answered = answered.length;
     kpis.calls_voicemail = rows.filter((r) => r.is_voicemail).length;

@@ -10,6 +10,7 @@ import {
   ChartCard, InsightCard, TabError, MetricTile, CompactDonut,
   CHART, SENTIMENT_COLORS, gbp, pct, fmtInt, fmtSecs,
 } from "./shared";
+import { CampaignUsageSection } from "./CampaignUsageSection";
 
 export function CampaignsTab({ filter }: { filter: AnalyticsFilterState }) {
   const fn = useServerFn(getCampaignAnalytics);
@@ -26,7 +27,7 @@ export function CampaignsTab({ filter }: { filter: AnalyticsFilterState }) {
   if (d.error === "not_available_for_wbah")
     return <div className="px-6 pt-6"><EmptyState icon={Megaphone} title="Not available" message="Campaign analytics is not applicable to this workspace." /></div>;
   if (d.error) return <TabError message={`Campaign error: ${d.error}`} />;
-  if (d.mode === "wbah_dialler") return <WbahDiallerView w={d.wbah ?? {}} />;
+  if (d.mode === "wbah_dialler") return <WbahDiallerView w={d.wbah ?? {}} filter={filter} />;
 
   const campaigns: any[] = d.campaigns ?? [];
   const failures: any[] = d.failures ?? [];
@@ -34,6 +35,8 @@ export function CampaignsTab({ filter }: { filter: AnalyticsFilterState }) {
 
   return (
     <div className="space-y-5 px-6 pt-5">
+      <CampaignUsageSection filter={filter} />
+
       <ChartCard title="Today's Schedule" icon={CalendarClock} color={CHART.primary}>
         {schedule.length === 0 ? (
           <EmptyState
@@ -129,7 +132,7 @@ export function CampaignsTab({ filter }: { filter: AnalyticsFilterState }) {
 }
 
 /** WBAH — WeeBespoke dialler activity report (WBAH has no WEBEE campaigns). */
-function WbahDiallerView({ w }: { w: any }) {
+function WbahDiallerView({ w, filter }: { w: any; filter: AnalyticsFilterState }) {
   const total = Number(w.total ?? 0);
   const sent = w.sentiment ?? {};
   const reasons: any[] = w.reasons ?? [];
@@ -157,6 +160,8 @@ function WbahDiallerView({ w }: { w: any }) {
         <MetricTile label="Negative sentiment" value={fmtInt(sent.negative)} icon={Frown} color={CHART.danger} />
         <MetricTile label="Booked" value={fmtInt(w.booked)} icon={CalendarCheck} color={CHART.accent} />
       </div>
+
+      <CampaignUsageSection filter={filter} />
 
       {w.truncated && (
         <InsightCard tone="warning" icon={AlertTriangle} title="Large date range">

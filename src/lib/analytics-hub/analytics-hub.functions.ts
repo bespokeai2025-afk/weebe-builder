@@ -165,6 +165,28 @@ export const getLeadAnalytics = createServerFn({ method: "POST" })
     return getLeadAnalyticsData(ws, filtersOf(data));
   });
 
+export const getCampaignUsage = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .validator((input: AnalyticsInput & {
+    direction?: "inbound" | "outbound" | null;
+    callStatus?: string | null;
+    sentiment?: "positive" | "neutral" | "negative" | null;
+    qualifiedOnly?: boolean | null;
+    granularity?: "hour" | "day" | "week" | "month" | null;
+  }) => input)
+  .handler(async ({ data, context }) => {
+    const ws = await guard(context, data, "analytics_advanced");
+    const { getCampaignUsageData } = await import("./campaign-usage.server");
+    return getCampaignUsageData(ws, {
+      ...filtersOf(data),
+      direction: data.direction ?? null,
+      callStatus: data.callStatus ?? null,
+      sentiment: data.sentiment ?? null,
+      qualifiedOnly: data.qualifiedOnly ?? null,
+      granularity: data.granularity ?? null,
+    });
+  });
+
 export const getAnalyticsFilterOptions = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: AnalyticsInput) => input)

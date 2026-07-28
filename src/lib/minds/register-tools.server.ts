@@ -192,6 +192,47 @@ registerMindTool({
   },
 });
 
+registerMindTool({
+  name: "hivemind.get_campaign_minutes_used",
+  mind: "hivemind",
+  title: "Get campaign minutes used",
+  description: "Per-campaign call minutes-used usage for this workspace: total/connected/voicemail minutes, calls, today/week/month windows, % of workspace, plus the Unassigned Campaign bucket. Real call durations only — no estimates.",
+  access: "read",
+  surface: "registry",
+  sensitive: false,
+  idempotent: true,
+  estimatedCost: "none",
+  platforms: ["web", "mobile", "api", "system"],
+  featureFamily: "analytics",
+  capabilityState: "available",
+  rollbackSupported: false,
+  mobileAvailable: true,
+  currentHealth: "healthy",
+  inputSchema: z.object({
+    dateFilter: z.string().optional(),
+    campaignId: z.string().optional(),
+  }).optional(),
+  run: async (ctx: MindToolContext, input?: { dateFilter?: string; campaignId?: string }): Promise<MindToolRunResult> => {
+    // String-literal dynamic import (prod Rollup requirement).
+    const { getCampaignUsageData } = await import("@/lib/analytics-hub/campaign-usage.server");
+    const d = await getCampaignUsageData(ctx.workspaceId, {
+      dateFilter: (input?.dateFilter ?? "30d") as any,
+      campaignId: input?.campaignId ?? null,
+    });
+    return {
+      result: {
+        mode: d.mode,
+        range: d.range,
+        workspace: d.workspace,
+        campaigns: d.campaigns,
+        unassigned: d.unassigned,
+        truncated: d.truncated,
+        error: d.error,
+      },
+    };
+  },
+});
+
 // ── Declared capabilities (catalog completeness; executed on their own
 //    surfaces, audited there via auditServerFnToolRun where consequential) ───
 type Declared = {
