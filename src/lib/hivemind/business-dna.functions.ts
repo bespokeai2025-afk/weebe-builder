@@ -211,3 +211,31 @@ export const generateDnaProposalsFn = createServerFn({ method: "POST" })
 
     return result;
   });
+
+// ── Create a HiveMind task from a validated briefing recommendation ───────────
+// The recommendation is re-read from the stored (workspace-scoped) briefing —
+// the client only sends ids, never the payload, so it cannot be tampered with.
+export const createBriefingTaskFn = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .validator((d: any) => d)
+  .handler(async ({ context, data }: any) => {
+    const { briefingId, recommendationId } = data as { briefingId: string; recommendationId: string };
+    const { supabase, workspaceId } = context as any;
+    if (!briefingId || !recommendationId) throw new Error("briefingId and recommendationId are required");
+
+    const { data: row, error } = await supabase
+      .from("hivemind_briefings")
+      .select("id, meta")
+      .eq("id", briefingId)
+      .eq("workspace_id", workspaceId)
+      .single();
+    if (error || !row) throw new Error("Briefing not found");
+
+    const recs = (row.meta?.validated?.recommendedActions ?? []) as any[];
+    const rec = recs.find((r) => r.id === recommendationId);
+    if (!rec) throw new Error("Recommendation not found on this briefing");
+
+    const { createBriefingRecommendationTask } = await import("@/lib/hivemind/validated-briefing.server");
+    const result = await createBriefingRecommendationTask(supabase, workspaceId, rec, { briefingId });
+    return { ok: true, taskId: result.taskId };
+  });

@@ -1,0 +1,259 @@
+Upgrade HiveMind’s daily briefing engine so it reads, validates, interprets, and communicates business data correctly. Do not simply format raw API values into bullet points.
+
+## Core Requirement
+
+HiveMind must behave like a highly capable human COO speaking naturally to the business owner. It must understand the difference between:
+
+* Raw totals
+* Today’s activity
+* Historical totals
+* Connected calls
+* Answered calls
+* Voicemails
+* Failed calls
+* Qualified leads
+* Positive sentiment
+* Bookings
+* Conversions
+* Missing data
+* Zero activity
+
+It must never present contradictory or mathematically incorrect information.
+
+## 1. Validate Every Metric Before Responding
+
+Before generating a briefing, run an internal data-validation step.
+
+HiveMind must:
+
+1. Confirm that percentages match the underlying numbers.
+2. Check whether categories overlap.
+3. Check whether category totals add up to the overall total.
+4. Identify records with missing or unknown classifications.
+5. Separate today’s data from all-time data.
+6. Distinguish a genuine zero from unavailable or disconnected data.
+7. Never silently guess the meaning of an ambiguous field.
+
+Example:
+
+If there are 380 total calls and 159 connected calls:
+
+159 ÷ 380 × 100 = 41.8%
+
+HiveMind must not report a 65.5% connection rate unless the system can clearly identify the denominator used.
+
+If 159 connected calls plus 221 voicemails equals all 380 calls, but the API also reports 55 failed calls, HiveMind must not add these together blindly. It should identify that the datasets or statuses overlap and say:
+
+“There appears to be a reporting mismatch: connected calls and voicemails already account for all 380 calls, while another source reports 55 failures. I’m checking whether failed attempts are being counted separately or duplicated.”
+
+## 2. Never Treat Missing Financial Data as £0
+
+Only report:
+
+* Revenue: £0
+* Costs: £0
+
+when the relevant financial systems have been checked and genuinely contain confirmed zero values.
+
+When AccountsMind, banking, invoices, usage costs, or revenue systems are not connected or have not returned data, say:
+
+“Financial performance could not be confirmed from the currently connected data.”
+
+Do not make the business look as though it has generated no revenue when financial data is merely unavailable.
+
+## 3. Separate Business Outcomes Correctly
+
+HiveMind must not confuse positive sentiment with conversion.
+
+Use these definitions:
+
+* Connection rate: human-connected calls divided by eligible call attempts.
+* Voicemail rate: voicemail outcomes divided by eligible call attempts.
+* Qualification rate: qualified calls divided by connected calls.
+* Booking rate: confirmed bookings divided by connected or qualified calls, with the denominator clearly stated.
+* Lead conversion rate: leads reaching the configured conversion outcome divided by eligible leads.
+* Sentiment: a descriptive call classification, not automatically a conversion.
+* Unknown sentiment: calls without completed sentiment analysis.
+
+Every percentage must include a tooltip or internal metadata showing:
+
+* Numerator
+* Denominator
+* Formula
+* Data source
+* Time range
+
+## 4. Fix Agent Reporting
+
+Clearly separate:
+
+* Total agents in the workspace
+* Deployed agents
+* Undeployed agents
+* Active agents receiving calls
+* Disabled agents
+* Draft agents
+
+Do not say “12 agents deployed” and then name undeployed agents without explaining the total.
+
+Correct format:
+
+“You currently have 12 agents in the workspace. Nine are deployed and three remain in draft: Conversation Flow Agent, Alex, and Clare.”
+
+Use the actual values returned by the API.
+
+## 5. Speak Naturally
+
+Remove robotic headings followed by long data dumps.
+
+HiveMind should sound like an experienced operator giving Nathan a concise verbal briefing.
+
+Use natural transitions such as:
+
+* “Here’s what stands out today.”
+* “The main concern is…”
+* “The encouraging part is…”
+* “There’s also a data issue I don’t trust yet.”
+* “My recommendation is…”
+* “The first action I’d take is…”
+
+Avoid phrases such as:
+
+* “If you want further insights, let me know.”
+* “It may be worth exploring.”
+* “Here’s your detailed report.”
+* “Notably, several…”
+* “Based on the provided data…”
+
+HiveMind should be decisive, direct, and conversational.
+
+## 6. Prioritise Insight Over Volume
+
+The spoken briefing should usually follow this structure:
+
+1. One-sentence overall assessment
+2. What performed well
+3. What underperformed
+4. Any data-quality warnings
+5. The three most important actions
+6. A direct question asking which action to execute
+
+Do not read every name, every total, or every inactive agent aloud unless specifically asked.
+
+Lead names and detailed tables should appear in the visual UI while HiveMind summarises them verbally.
+
+## 7. Make Recommendations Specific
+
+Do not make vague recommendations such as “adjust your outreach approach.”
+
+Recommendations must be based on the actual data.
+
+For this example, suitable recommendations would include:
+
+* Create an immediate follow-up queue for the six qualified calls.
+* Review why none of the qualified conversations generated a booking.
+* Retry voicemail outcomes during alternative calling windows.
+* Activate an SMS, email, or WhatsApp follow-up sequence for unanswered calls where consent permits.
+* Inspect the booking function and calendar availability logs.
+* Investigate the conflicting failed-call and connection-rate calculations.
+* Review the draft email campaign, which currently has no enrolled leads.
+
+Each recommendation must specify:
+
+* The issue
+* The proposed action
+* Expected outcome
+* Whether approval is required
+* Which WEBEE department will execute it
+* How success will be verified
+
+## 8. Support Voice and Screen Modes
+
+Create two response formats from the same validated briefing object.
+
+### Voice response
+
+* Approximately 80–160 words by default
+* Natural sentences
+* No markdown
+* No excessive statistics
+* No reading long lists
+* Pause naturally between topics
+* Speak numbers in an understandable way
+* Ask one clear closing question
+
+### Screen response
+
+* Executive summary
+* Verified KPI cards
+* Data-quality warnings
+* Key findings
+* Recommended actions
+* Supporting tables
+* Links to the affected leads, calls, agents, campaigns, and bookings
+
+The voice and screen response must use the same validated source data.
+
+## 9. Example Voice Style
+
+The desired voice should sound like this:
+
+“Today was busy, but the results were weaker than the activity level suggests. There were 380 recorded calls, with 159 reaching a person and 221 going to voicemail. That means the apparent human connection rate is about 42%, not the 65.5% currently displayed, so there is a reporting calculation that needs correcting.
+
+Six calls were marked as qualified, but none produced a booking today. That is the most important commercial issue. I would first review those six calls, confirm whether the booking function was offered correctly, and place every unbooked qualified lead into an immediate follow-up queue.
+
+I’ve also found a conflict in the call totals because another field reports 55 failed calls even though connected calls and voicemails already account for all 380 records. Should I investigate the reporting issue first, or start the qualified-lead follow-ups?”
+
+## 10. Implementation Requirements
+
+Refactor the briefing pipeline into these stages:
+
+1. Retrieve workspace-scoped data.
+2. Normalize all source fields into a shared schema.
+3. Validate totals and formulas.
+4. Flag contradictions and missing data.
+5. Calculate verified KPIs.
+6. Rank issues by commercial impact.
+7. Generate recommended actions.
+8. Generate separate voice and visual outputs.
+9. Store the briefing, calculations, warnings, and sources for audit.
+10. Allow HiveMind actions to be approved and executed through the existing Task and Action Centre workflow.
+
+Create a shared `validatedBusinessBriefing` object containing:
+
+* reportingPeriod
+* dataSources
+* sourceFreshness
+* verifiedMetrics
+* unverifiedMetrics
+* dataWarnings
+* positiveOutcomes
+* commercialRisks
+* recommendedActions
+* voiceSummary
+* screenSummary
+* generatedAt
+* workspaceId
+
+Do not break any current HiveMind, GrowthMind, SystemMind, AccountsMind, analytics, lead, Retell, campaign, booking, or multi-tenant functionality.
+
+All queries must remain scoped to the authenticated workspace.
+
+## Acceptance Tests
+
+The implementation is only complete when:
+
+1. 159 out of 380 is reported as 41.8%.
+2. Contradictory totals are flagged rather than hidden.
+3. Missing financial data is not reported as £0.
+4. Historical lead totals are clearly separated from today’s new leads.
+5. Sentiment totals identify unclassified records.
+6. Deployed and undeployed agents are reported separately.
+7. Voice responses sound natural when spoken aloud.
+8. Voice responses do not read large lists.
+9. Recommendations are specific and executable.
+10. Every displayed KPI can be traced to its source and formula.
+11. HiveMind can create an actionable task from each recommendation.
+12. The same data produces consistent voice and visual briefings.
+
+Audit the existing implementation before changing it. Preserve working functionality, fix the root data-mapping and calculation issues, and provide a completion report showing every modified file, formula, test, and API source.

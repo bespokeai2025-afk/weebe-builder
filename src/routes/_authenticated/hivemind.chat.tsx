@@ -47,6 +47,8 @@ type ChatMessage = {
   ts:          Date;
   audioBase64?: string | null;
   workOrders?: WorkOrderProposal[];
+  /** Natural spoken variant (validated briefing) — TTS speaks this instead of the on-screen markdown. */
+  voiceText?: string | null;
 };
 const SPEED_OPTIONS = [0.7, 0.85, 1.0, 1.15, 1.3, 1.5];
 const PERSONALITIES = ["professional", "friendly", "concise"] as const;
@@ -911,7 +913,7 @@ function HiveMindChat() {
     queryKey: ["hivemind-briefing"],
     queryFn: async () => {
       const r = await briefingFn();
-      const msg: ChatMessage = { id: "briefing", role: "hivemind", content: r.briefing, ts: new Date() };
+      const msg: ChatMessage = { id: "briefing", role: "hivemind", content: r.briefing, ts: new Date(), voiceText: (r as any).voiceBriefing ?? null };
       setMessages(prev => (prev.length === 0 ? [msg] : prev));
       return r;
     },
@@ -933,7 +935,8 @@ function HiveMindChat() {
     if (msg.audioBase64) { playAudio(msg.id, msg.audioBase64, voiceSettings.speed); return; }
     setTtsLoadingId(msg.id);
     try {
-      const r = await ttsFn({ data: { text: msg.content.slice(0, 800), voiceId: voiceSettings.voiceId, speed: voiceSettings.speed } });
+      const spoken = (msg.voiceText && msg.voiceText.trim()) || msg.content;
+      const r = await ttsFn({ data: { text: spoken.slice(0, 1200), voiceId: voiceSettings.voiceId, speed: voiceSettings.speed } });
       if (r.audioBase64) {
         setMessages(prev => prev.map(m => m.id === msg.id ? { ...m, audioBase64: r.audioBase64 } : m));
         playAudio(msg.id, r.audioBase64, voiceSettings.speed);

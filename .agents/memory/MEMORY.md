@@ -152,7 +152,8 @@
 - [Universal Mind Intelligence Packet gate](universal-intelligence-packet.md) — all Mind task inserts go through prepareMindTaskInsert; only ready_for_* states approvable; sanitize untrusted payload packets; never hand-build packet literals.
 - [TanStack route nesting needs Outlet](tanstack-route-nesting-outlet.md) — dotted child route renders nothing if parent lacks <Outlet/>; un-nest via `parent_.$id.tsx`, URL/Links unchanged.
 - [Data Manager conversion transport](datamanager-conversion-transport.md) — conversions upload via Data Manager API (scope reauth trap, accepted≠verified, legacy only behind flag).
-- [Prod build OOM heap cap](prodbuild-oom-heap.md) — max-old-space-size must stay well under machine RAM or vite SSR build is OOM-killed silently (FAILED, no error, dist/server empty).
+- [Prod build OOM heap cap](prodbuild-oom-heap.md) — max-old-space-size must stay well under machine RAM or vite SSR build is OOM-killed silently (FAILED, no error, dist/server empty); killing tsserver (~1.7GB) frees enough to build.
+- [HiveMind validated briefing pipeline](hivemind-validated-briefing.md) — one ValidatedBusinessBriefing drives voice+screen; unverified financials never £0; validation failure = explicit degraded state, never silent fallback.
 - [HiveMind streaming pipeline](hivemind-streaming-conversational.md) — all chat surfaces share prepareHiveMindChat+runHiveMindToolLoop; SSE route uses anon-key RLS client (never admin); depth/tone in hivemind-style.shared.ts.
 - [Conversion tracking & Ads attribution](conversion-tracking-arch.md) — server-side conversion_events ledger, gated offline upload, honest statuses; contact form's users-embed lookup silently skipped lead creation for months.
 - [GAds deep-analysis reports](gads-deep-analysis-arch.md) — read-only GAQL deep fetch + deterministic classification + advisory-only AI sections persisted to growthmind_gads_analysis_reports; viewer on work-order page.

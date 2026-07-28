@@ -1743,7 +1743,44 @@ export const getHiveMindMorningBriefing = createServerFn({ method: "GET" })
       console.error("[HiveMind] briefing RAG failed:", (e as Error)?.message);
     }
 
-    const briefing = buildMorningBriefing(d, gm, sm, knowledgeNote);
+    // ── Validated briefing pipeline (spec: validate → verify → rank → output) ──
+    // ONE ValidatedBusinessBriefing object feeds BOTH the screen markdown and
+    // the natural spoken voice summary, so the two can never disagree. Falls
+    // back to the legacy deterministic builder only if the pipeline throws.
+    let briefing: string;
+    let voiceBriefing: string | null = null;
+    let validatedMeta: { dataWarnings: any[]; verifiedMetrics: any[]; unverifiedMetrics: any[]; recommendedActions: any[] } | null = null;
+    try {
+      const { buildValidatedBusinessBriefing } = await import("@/lib/hivemind/validated-briefing.server");
+      const vb = await buildValidatedBusinessBriefing(sb, workspaceId, d);
+      const hour = new Date().getHours();
+      const greeting = hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
+      const extra: string[] = [];
+      if (gm) {
+        extra.push(`\n**Marketing (CMO advisory)** — readiness ${gm.marketingReadinessScore}/100 (${gm.label})`);
+        const topOpp = gm.topOpportunities?.[0];
+        if (topOpp) extra.push(`• Top opportunity: ${topOpp.label} — ${topOpp.detail}`);
+      }
+      if (sm) {
+        extra.push(`\n**Systems (CTO advisory)** — reliability ${sm.reliabilityScore}/100 (${sm.label}), ${sm.integrations.connected}/${sm.integrations.total} integrations connected`);
+      }
+      if (knowledgeNote) extra.push(`\n**Playbook insight** — ${knowledgeNote}`);
+      const { buildScreenSummary } = await import("@/lib/hivemind/validated-briefing.shared");
+      briefing = buildScreenSummary(vb, { greeting }) + (extra.length ? `\n${extra.join("\n")}` : "");
+      voiceBriefing = vb.voiceSummary;
+      validatedMeta = {
+        dataWarnings: vb.dataWarnings,
+        verifiedMetrics: vb.verifiedMetrics,
+        unverifiedMetrics: vb.unverifiedMetrics,
+        recommendedActions: vb.recommendedActions,
+      };
+    } catch (e) {
+      console.error("[HiveMind] validated briefing pipeline failed — falling back:", (e as Error)?.message);
+      // Explicit degraded state — never let a non-validated briefing pass as validated.
+      briefing =
+        "⚠️ Validated metrics are unavailable for this briefing — the figures below come from the raw snapshot and have not passed verification.\n\n" +
+        buildMorningBriefing(d, gm, sm, knowledgeNote);
+    }
 
     // Record the briefing as a shared executive event (deduped within 6h).
     try {
@@ -1758,7 +1795,7 @@ export const getHiveMindMorningBriefing = createServerFn({ method: "GET" })
       console.error("[HiveMind] record briefing event failed:", (e as Error)?.message);
     }
 
-    return { briefing };
+    return { briefing, voiceBriefing, validated: validatedMeta };
   });
 
 // ── getHiveMindSystemContext (voice relay) ────────────────────────────────────
