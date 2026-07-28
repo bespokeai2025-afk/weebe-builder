@@ -23,6 +23,7 @@ import {
   Eye,
 } from "lucide-react";
 import { WbahCallSchedulingSection } from "@/components/dashboard/WbahCallSchedulingSection";
+import { WbahTestLeadBadge } from "@/components/dashboard/WbahTestLeadBadge";
 import { WbahCallbacksPanel } from "@/components/dashboard/WbahCallbacksPanel";
 import { StartCallsDialog } from "@/components/dashboard/StartCallsDialog";
 import { DashboardPage, KpiCard, stickyCell, stickyHead } from "@/components/dashboard/PageShell";
@@ -104,6 +105,7 @@ import {
   wbahBookingStatusCell,
 } from "@/lib/dashboard/wbah-call-booking-display";
 import { sanitizeWbahBookingFields } from "@/lib/dashboard/wbah-booking-meta";
+import { isTestLeadStatus, isTestLeadSyncDisabledError, TEST_LEAD_STATUS } from "@/lib/integrations/webespokeEnterprise/wbah-campaign-sync.types";
 
 export const Route = createFileRoute("/_authenticated/data")({
   head: () => ({ meta: [{ title: "Data Records — Webee" }] }),
@@ -637,10 +639,16 @@ const WBAH_CAT_STYLES: Record<string, WbahCatStyle> = {
     banner: "bg-slate-500/5 border-slate-500/10 text-slate-300",
   },
   testlead: {
-    active: "border-zinc-400 text-zinc-300",
-    badge: "bg-zinc-500/20 text-zinc-300",
-    icon: "text-zinc-400",
-    banner: "bg-zinc-500/5 border-zinc-500/10 text-zinc-300",
+    active: "border-amber-400 text-amber-300",
+    badge: "bg-amber-500/20 text-amber-400 ring-1 ring-amber-500/30",
+    icon: "text-amber-400",
+    banner: "bg-amber-500/5 border-amber-500/10 text-amber-400",
+  },
+  test_lead: {
+    active: "border-amber-400 text-amber-300",
+    badge: "bg-amber-500/20 text-amber-400 ring-1 ring-amber-500/30",
+    icon: "text-amber-400",
+    banner: "bg-amber-500/5 border-amber-500/10 text-amber-400",
   },
 };
 
@@ -649,6 +657,7 @@ const WBAH_PEOPLE_TABS: { name: string; count: number }[] = [
   { name: "Disqualified", count: 0 },
   { name: "Tried To Contact", count: 0 },
   { name: "Rebook Initial Consultation", count: 0 },
+  { name: "Test Lead", count: 0 },
   { name: "Callback Request", count: 0 },
 ];
 
@@ -1495,6 +1504,7 @@ function DataPage() {
         rawCrm.call_calendly_booking_url ??
         null,
     });
+    const leadStatusVal = crm?.lead_status ?? r.meta?.lead_status ?? raw.lead_status ?? null;
     return {
       id: r.id,
       srNo: idx + 1,
@@ -1503,7 +1513,11 @@ function DataPage() {
       email: r.email ?? raw.email ?? raw.emailAddress ?? null,
       callType: r.external_status_label ?? "Lead",
       callStatus: raw.callStatus ?? null,
-      leadStatus: crm?.lead_status ?? r.meta?.lead_status ?? null,
+      leadStatus: leadStatusVal,
+      isTestLead:
+        isTestLeadStatus(leadStatusVal) ||
+        isTestLeadStatus(r.external_status_label) ||
+        isTestLeadStatus(raw.lead_status),
       needToCall: crm?.need_to_call ?? null,
       isCallable: isWbahLeadCallable(crm),
       dqReason: dqReasonShort,
@@ -2426,6 +2440,7 @@ function DataPage() {
                   >
                     {isCatTab && <AlertCircle className={`h-3 w-3 ${style?.icon ?? ""}`} />}
                     {tab.label}
+                    {tab.id === "Test Lead" && <WbahTestLeadBadge className="ml-0.5" />}
                     {tab.count > 0 && (
                       <span
                         className={`ml-1 rounded-full px-1.5 py-0.5 text-[10px] font-semibold ${
@@ -2701,7 +2716,23 @@ function DataPage() {
                     className="py-20"
                   />
                 );
-              if (error)
+              if (error) {
+                const testLeadDisabled =
+                  wbahPeopleSubTab === TEST_LEAD_STATUS &&
+                  isTestLeadSyncDisabledError(error);
+                if (testLeadDisabled) {
+                  return (
+                    <div className="flex flex-col items-center gap-2 py-16 px-6 text-center text-sm">
+                      <AlertCircle className="h-8 w-8 text-amber-400/80" />
+                      <p className="font-medium text-foreground">Test Lead sync is not enabled</p>
+                      <p className="max-w-md text-xs text-muted-foreground">
+                        Set{" "}
+                        <code className="rounded bg-muted px-1">ENABLE_TEST_LEAD_CATEGORY_SYNC=true</code>{" "}
+                        on UAT, then run <strong>Sync from Dynamics</strong> in Campaigns.
+                      </p>
+                    </div>
+                  );
+                }
                 return (
                   <div className="flex flex-col items-center gap-2 py-16 text-sm">
                     <AlertCircle className="h-8 w-8 text-destructive/60" />
@@ -2712,7 +2743,23 @@ function DataPage() {
                     </Button>
                   </div>
                 );
-              if (empty)
+              }
+              if (empty) {
+                if (wbahPeopleSubTab === TEST_LEAD_STATUS) {
+                  return (
+                    <div className="flex flex-col items-center gap-2 py-16 px-6 text-center">
+                      <Users className="h-8 w-8 text-muted-foreground" />
+                      <p className="text-sm font-medium">No test leads in CRM yet</p>
+                      <p className="max-w-md text-xs text-muted-foreground">
+                        Sync from Dynamics in the Campaigns tab after enabling Test Lead on UAT.
+                        Test leads appear here with a <strong>TEST</strong> badge.
+                      </p>
+                      <Button variant="outline" size="sm" className="mt-2" onClick={onLoad}>
+                        <RefreshCw className="mr-1.5 h-3.5 w-3.5" /> Refresh Test Lead
+                      </Button>
+                    </div>
+                  );
+                }
                 return (
                   <div className="flex flex-col items-center gap-2 py-16">
                     <Users className="h-8 w-8 text-muted-foreground" />
@@ -2725,6 +2772,7 @@ function DataPage() {
                     </Button>
                   </div>
                 );
+              }
 
               return (
                 <div className="min-w-0 overflow-x-auto">
@@ -2843,6 +2891,7 @@ function DataPage() {
                                 >
                                   {r.name || "—"}
                                 </button>
+                                {r.isTestLead && <WbahTestLeadBadge />}
                                 <button
                                   type="button"
                                   onClick={() => openWbahLeadDetail(r)}

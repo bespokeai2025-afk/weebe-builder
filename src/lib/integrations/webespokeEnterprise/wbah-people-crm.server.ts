@@ -11,7 +11,12 @@ import {
   sanitizeWbahBookingFields,
 } from "@/lib/dashboard/wbah-booking-meta";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
-import { DYNAMICS_CATEGORY_LABELS, type DynamicsCategorySlug } from "./wbah-campaign-sync.types";
+import {
+  DYNAMICS_CATEGORY_LABELS,
+  TEST_LEAD_STATUS,
+  isTestLeadSyncDisabledError,
+  type DynamicsCategorySlug,
+} from "./wbah-campaign-sync.types";
 import { parseWbahCrmData, type WbahCrmData } from "./wbah-crm-data.types";
 
 export type WbahPeopleCategoryRow = {
@@ -73,6 +78,11 @@ export const WBAH_PEOPLE_CRM_CATEGORIES: WbahPeopleCrmCategory[] = [
     label: DYNAMICS_CATEGORY_LABELS.rebook_initial_consultation,
     leadStatus: "Rebook Initial Consultation",
   },
+  {
+    slug: "test_lead",
+    label: DYNAMICS_CATEGORY_LABELS.test_lead,
+    leadStatus: TEST_LEAD_STATUS,
+  },
   { slug: "callback_request", label: "Callback Request", callbackOnly: true },
 ];
 
@@ -87,6 +97,7 @@ function wbahCatSlug(s: string): string {
 export function normalizeWbahPeopleCategorySlug(category: string): string {
   const slug = wbahCatSlug(category);
   if (slug === "rebooking" || slug === "rebook") return "rebook_initial_consultation";
+  if (slug === "test_lead" || slug === "testlead" || slug === "test") return "test_lead";
   if (slug === "call_back_request") return "callback_request";
   const byLabel = WBAH_PEOPLE_CRM_CATEGORIES.find((c) => wbahCatSlug(c.label) === slug);
   if (byLabel) return byLabel.slug;
@@ -146,17 +157,28 @@ function extractPagination(raw: unknown): {
   };
 }
 
-function parseCrmApiResponse(res: api.ApiResponse<unknown>): {
+function parseCrmApiResponse(
+  res: api.ApiResponse<unknown>,
+  cat?: WbahPeopleCrmCategory,
+): {
   records: Record<string, unknown>[];
   pagination: ReturnType<typeof extractPagination>;
 } {
   if (!res.ok) {
-    throw new Error(res.error ?? `CRM API failed (HTTP ${res.status})`);
+    const errMsg = res.error ?? `CRM API failed (HTTP ${res.status})`;
+    if (cat?.slug === "test_lead" && isTestLeadSyncDisabledError(errMsg)) {
+      return { records: [], pagination: null };
+    }
+    throw new Error(errMsg);
   }
   const body = res.data as Record<string, unknown> | null;
   if (!body) throw new Error("Empty CRM API response");
   if (body.result === false) {
-    throw new Error(String(body.message ?? "CRM API returned an error"));
+    const msg = String(body.message ?? "CRM API returned an error");
+    if (cat?.slug === "test_lead" && isTestLeadSyncDisabledError(msg)) {
+      return { records: [], pagination: null };
+    }
+    throw new Error(msg);
   }
   return {
     records: extractRecords(body),
@@ -206,6 +228,10 @@ function buildCrmQuery(
     params.set("isCallbackPending", "true");
   } else {
     params.set("sync_category_slug", cat.slug);
+    // Some UAT builds also filter test cohort by leadStatus display name.
+    if (cat.slug === "test_lead" && cat.leadStatus) {
+      params.set("leadStatus", cat.leadStatus);
+    }
   }
   if (search?.trim()) {
     params.set("search", search.trim());
@@ -299,7 +325,7 @@ async function fetchCrmPage(
 ) {
   const path = buildCrmQuery(cat, page, pageSize, search);
   const res = await api.wbahGetCrmDataPath(path, cbs.getTokens, cbs.saveNewAccessToken, cbs.reloginFn);
-  const { records: rawRecords, pagination } = parseCrmApiResponse(res);
+  const { records: rawRecords, pagination } = parseCrmApiResponse(res, cat);
 
   // Backend filters by sync_category_slug / isCallbackPending — trust pagination.totalItems.
   if (pagination) {
@@ -430,13 +456,20 @@ export async function enrichPeopleCrmRowsWithWbahCalls(
 ): Promise<WbahPeopleCategoryRow[]> {
   if (!rows.length) return rows;
   const { getLatestWbahCallsForPhones } = await import("./wbah-leads.server");
-  const [lookup, crmBookingByDigits] = await Promise.all([
-    getLatestWbahCallsForPhones(
-      workspaceId,
-      rows.map((r) => r.phone),
-    ),
-    loadWbahCrmBookingByDigits(supabaseAdmin, workspaceId),
-  ]);
+  let lookup = new Map<string, Record<string, unknown>>();
+  let crmBookingByDigits: Awaited<ReturnType<typeof loadWbahCrmBookingByDigits>> = new Map();
+  try {
+    [lookup, crmBookingByDigits] = await Promise.all([
+      getLatestWbahCallsForPhones(
+        workspaceId,
+        rows.map((r) => r.phone),
+      ),
+      loadWbahCrmBookingByDigits(supabaseAdmin, workspaceId),
+    ]);
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : String(e);
+    console.warn("[wbah-people-crm] call overlay skipped:", msg);
+  }
   if (lookup.size === 0 && crmBookingByDigits.size === 0) return rows;
 
   return rows.map((row) => {

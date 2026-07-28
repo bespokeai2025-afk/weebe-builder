@@ -41,8 +41,10 @@ import { getWbahCampaigns, getWbahAgentsForCampaign, getWbahCampaignScheduleOpti
 import {
   formatCampaignScheduleSummary,
   isCampaignScheduleExpired,
+  isTestLeadStatus,
   resolveCampaignScheduleOptions,
 } from "@/lib/integrations/webespokeEnterprise/wbah-campaign-sync.types";
+import { isLikelyProductionFrontend, WbahTestLeadBadge } from "@/components/dashboard/WbahTestLeadBadge";
 import { SavedFiltersSection } from "@/components/people-views/SavedFiltersSection";
 import { CampaignReportsPanel, CampaignFailureBanner } from "@/components/campaign-reports/CampaignReportsPanel";
 import { CampaignNotificationsBanner } from "@/components/notifications/CampaignNotificationsBanner";
@@ -750,7 +752,15 @@ function WbahCampaignsTab() {
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 flex-wrap">
                   <h3 className="font-semibold truncate">{c.name ?? c.campaign_name ?? `Campaign ${c.id}`}</h3>
+                  {isTestLeadStatus(c.lead_status) && <WbahTestLeadBadge />}
                   {wbahStatusBadge(c.status ?? c.campaign_status ?? "unknown")}
+                  {isTestLeadStatus(c.lead_status) &&
+                    (c.status === "active" || c.campaign_status === "active") &&
+                    isLikelyProductionFrontend() && (
+                      <span className="text-[10px] text-amber-400">
+                        Dials Test Lead records only
+                      </span>
+                    )}
                   {isCampaignScheduleExpired(c.end_date) && (
                     <span className="inline-flex rounded-full bg-amber-500/15 px-2 py-0.5 text-xs font-medium text-amber-400">
                       Schedule expired
