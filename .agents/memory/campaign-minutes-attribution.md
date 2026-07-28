@@ -14,3 +14,5 @@ Campaign minutes-used tracking attributes calls in strict order: explicit `calls
 **Filter consistency:** when a campaignId filter is applied, workspace totals/unassigned/series must all be recomputed from the scoped call set, not just the campaign row list — otherwise tiles and table disagree.
 
 **How to apply:** shared core is `src/lib/analytics-hub/campaign-usage.shared.ts` (+ `.server.ts`); historic un-attributable calls stay Unassigned by design (`scripts/backfill-campaign-minutes.mjs` is idempotent/conservative).
+
+**Billing rate cost:** platform rate is £0.36/min (`BILLING_RATE_GBP_PER_MINUTE` in the shared core); `rateCostGbp` is derived minutes×rate on every bucket and is deliberately separate from `totalCostCents` (real recorded provider cost only) — never merge or substitute them.

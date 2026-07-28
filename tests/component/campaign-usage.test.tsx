@@ -134,6 +134,31 @@ describe("aggregateCampaignUsage", () => {
     expect(c1.costPerMinuteCents).toBe(15); // 30c over 2 minutes
   });
 
+  it("derives rate cost at £0.36/min for every bucket", () => {
+    const calls = [
+      call({ campaignId: "c1", durationSeconds: 600 }), // 10 min → £3.60
+      call({ durationSeconds: 300 }), // unassigned, 5 min → £1.80
+    ];
+    const r = aggregateCampaignUsage({ calls, campaigns, now: NOW });
+    expect(r.campaigns.find((c) => c.campaignId === "c1")!.rateCostGbp).toBe(3.6);
+    expect(r.unassigned.rateCostGbp).toBe(1.8);
+    expect(r.workspace.rateCostGbp).toBe(5.4);
+    // Rate cost is derived, never a substitute for real recorded cost.
+    expect(r.workspace.totalCostCents).toBe(null);
+  });
+
+  it("rate cost reconciles across buckets within rounding tolerance (fractional seconds)", () => {
+    const calls = [
+      call({ campaignId: "c1", durationSeconds: 61.7 }),
+      call({ campaignId: "c2", durationSeconds: 33.33 }),
+      call({ agentId: "agent_1", durationSeconds: 45.05 }),
+      call({ durationSeconds: 17.9 }),
+    ];
+    const r = aggregateCampaignUsage({ calls, campaigns, now: NOW });
+    const sum = r.campaigns.reduce((a, c) => a + c.rateCostGbp, 0) + r.unassigned.rateCostGbp;
+    expect(Math.abs(sum - r.workspace.rateCostGbp)).toBeLessThanOrEqual(0.01 * (r.campaigns.length + 1));
+  });
+
   it("computes today / ISO-week / month windows and % of workspace", () => {
     const calls = [
       call({ campaignId: "c1", startedAt: "2026-07-28T09:00:00Z", durationSeconds: 120 }), // today (Tue)

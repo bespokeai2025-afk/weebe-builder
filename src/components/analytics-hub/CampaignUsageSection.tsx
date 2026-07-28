@@ -4,7 +4,8 @@ import { useServerFn } from "@tanstack/react-start";
 import {
   ResponsiveContainer, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip,
 } from "recharts";
-import { Timer, AlertTriangle, ArrowUpDown, PhoneCall, Voicemail, CalendarDays } from "lucide-react";
+import { Timer, AlertTriangle, ArrowUpDown, PhoneCall, Voicemail, CalendarDays, PoundSterling } from "lucide-react";
+import { BILLING_RATE_GBP_PER_MINUTE } from "@/lib/analytics-hub/campaign-usage.shared";
 import { getCampaignUsage } from "@/lib/analytics-hub/analytics-hub.functions";
 import { LoadingProgress } from "@/components/dashboard/LoadingProgress";
 import { EmptyState, TableHead, Th } from "@/components/dashboard/PageShell";
@@ -18,7 +19,12 @@ function fmtMin(n: number | null | undefined): string {
   return `${n.toLocaleString("en-GB", { maximumFractionDigits: 2 })} min`;
 }
 
-type SortKey = "minutesUsed" | "totalCalls" | "connectedMinutes" | "minutesThisMonth" | "percentageOfWorkspaceMinutes";
+function fmtGbp(n: number | null | undefined): string {
+  if (n == null || !Number.isFinite(n)) return "—";
+  return n.toLocaleString("en-GB", { style: "currency", currency: "GBP" });
+}
+
+type SortKey = "minutesUsed" | "totalCalls" | "connectedMinutes" | "minutesThisMonth" | "percentageOfWorkspaceMinutes" | "rateCostGbp";
 
 /**
  * Minutes Used per campaign — tiles, usage-over-time chart and sortable
@@ -69,8 +75,15 @@ export function CampaignUsageSection({ filter }: { filter: AnalyticsFilterState 
 
   return (
     <div className="space-y-5">
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-4 xl:grid-cols-7">
         <MetricTile label="Minutes used" value={fmtMin(ws.minutesUsed)} sub={`${fmtInt(ws.totalCalls)} calls`} icon={Timer} color={CHART.primary} />
+        <MetricTile
+          label="Cost"
+          value={fmtGbp(ws.rateCostGbp)}
+          sub={`@ £${BILLING_RATE_GBP_PER_MINUTE.toFixed(2)}/min`}
+          icon={PoundSterling}
+          color={CHART.warning}
+        />
         <MetricTile label="Connected minutes" value={fmtMin(ws.connectedMinutes)} icon={PhoneCall} color={CHART.success} />
         <MetricTile label="Voicemail minutes" value={fmtMin(ws.voicemailMinutes)} icon={Voicemail} color={CHART.warning} />
         <MetricTile label="Today" value={fmtMin(ws.minutesToday)} icon={CalendarDays} color={CHART.accent} />
@@ -124,7 +137,8 @@ export function CampaignUsageSection({ filter }: { filter: AnalyticsFilterState 
                 <Th>Voicemail min</Th>
                 <Th>{sortBtn("minutesThisMonth", "This month")}</Th>
                 <Th>{sortBtn("percentageOfWorkspaceMinutes", "% of workspace")}</Th>
-                <Th>Cost</Th>
+                <Th>{sortBtn("rateCostGbp", `Cost @ £${BILLING_RATE_GBP_PER_MINUTE.toFixed(2)}/min`)}</Th>
+                <Th>Recorded cost</Th>
               </TableHead>
               <tbody>
                 {rows.map((c: any) => (
@@ -142,6 +156,7 @@ export function CampaignUsageSection({ filter }: { filter: AnalyticsFilterState 
                     <td className="px-3 py-2 tabular-nums text-muted-foreground">{fmtMin(c.voicemailMinutes)}</td>
                     <td className="px-3 py-2 tabular-nums">{fmtMin(c.minutesThisMonth)}</td>
                     <td className="px-3 py-2 tabular-nums">{Number(c.percentageOfWorkspaceMinutes ?? 0)}%</td>
+                    <td className="px-3 py-2 tabular-nums font-medium">{fmtGbp(c.rateCostGbp)}</td>
                     <td className="px-3 py-2 tabular-nums text-muted-foreground">{c.totalCostCents != null ? gbp(c.totalCostCents) : "—"}</td>
                   </tr>
                 ))}

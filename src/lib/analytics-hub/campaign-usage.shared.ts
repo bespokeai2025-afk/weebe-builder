@@ -52,6 +52,8 @@ export interface UsageBucket {
   /** Real cost of counted calls (only from stored cost data); null when no cost data exists. */
   totalCostCents: number | null;
   costPerMinuteCents: number | null;
+  /** Deterministic billed cost: minutes used × BILLING_RATE_GBP_PER_MINUTE. */
+  rateCostGbp: number;
 }
 
 export interface CampaignUsageRow extends UsageBucket {
@@ -64,6 +66,18 @@ export interface CampaignUsageRow extends UsageBucket {
 }
 
 export const UNASSIGNED_CAMPAIGN = "Unassigned Campaign";
+
+/**
+ * Platform billing rate: £0.36 per minute of call time. Rate cost is a
+ * deterministic derived figure (minutes × rate) — distinct from
+ * totalCostCents, which is only real recorded provider cost.
+ */
+export const BILLING_RATE_GBP_PER_MINUTE = 0.36;
+
+/** Rate-based cost in GBP (2dp) for a duration in seconds. */
+export function rateCostGbpFor(totalDurationSeconds: number): number {
+  return Math.round((totalDurationSeconds / 60) * BILLING_RATE_GBP_PER_MINUTE * 100) / 100;
+}
 
 export function roundMinutes(seconds: number): number {
   return Math.round((seconds / 60) * 100) / 100;
@@ -116,6 +130,7 @@ function emptyBucket(): UsageBucket & { _durs: number[] } {
     averageDurationSeconds: 0, longestCallSeconds: 0, shortestValidCallSeconds: null,
     qualifiedMinutes: 0, positiveMinutes: 0, neutralMinutes: 0, negativeMinutes: 0,
     bookedMinutes: 0, totalCostCents: null, costPerMinuteCents: null,
+    rateCostGbp: 0,
     _durs: [],
   };
 }
@@ -167,6 +182,7 @@ function finalizeBucket(b: ReturnType<typeof emptyBucket>): UsageBucket {
     costPerMinuteCents: b.totalCostCents != null && minutes > 0
       ? Math.round(b.totalCostCents / minutes)
       : null,
+    rateCostGbp: rateCostGbpFor(b.totalDurationSeconds),
   };
 }
 
