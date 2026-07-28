@@ -213,7 +213,10 @@ export const getDashboardLiveAgents = createServerFn({ method: "GET" })
 
       if (phonesResp.status === "fulfilled" && Array.isArray(phonesResp.value)) {
         for (const pn of phonesResp.value as Array<Record<string, unknown>>) {
-          const agentId = pn.inbound_agent_id as string | undefined;
+          const inboundArr = pn.inbound_agents as Array<{ agent_id?: string }> | undefined;
+          const agentId =
+            (Array.isArray(inboundArr) ? inboundArr[0]?.agent_id : undefined) ??
+            (pn.inbound_agent_id as string | undefined);
           const phone = pn.phone_number as string | undefined;
           if (agentId && phone) phoneMap[agentId] = phone;
         }

@@ -327,13 +327,21 @@ export const syncRetellReceptionist = createServerFn({ method: "GET" })
       console.error("Retell list-phone-numbers failed:", e);
     }
 
-    const ours = (phoneNumbers ?? []).map((p: any) => ({
-      phone_number: p.phone_number ?? p.phone_number_pretty ?? null,
-      nickname: p.nickname ?? null,
-      inbound_agent_id: p.inbound_agent_id ?? null,
-      outbound_agent_id: p.outbound_agent_id ?? null,
-      is_ours: localAgentIds.has(p.inbound_agent_id) || localAgentIds.has(p.outbound_agent_id),
-    }));
+    // Retell now returns inbound_agents/outbound_agents arrays; keep legacy
+    // single-id fields as fallback for older responses.
+    const firstAgentId = (arr: any, legacy: any): string | null =>
+      (Array.isArray(arr) && arr[0]?.agent_id) || legacy || null;
+    const ours = (phoneNumbers ?? []).map((p: any) => {
+      const inboundId = firstAgentId(p.inbound_agents, p.inbound_agent_id);
+      const outboundId = firstAgentId(p.outbound_agents, p.outbound_agent_id);
+      return {
+        phone_number: p.phone_number ?? p.phone_number_pretty ?? null,
+        nickname: p.nickname ?? null,
+        inbound_agent_id: inboundId,
+        outbound_agent_id: outboundId,
+        is_ours: localAgentIds.has(inboundId) || localAgentIds.has(outboundId),
+      };
+    });
 
     const liveAgents = (retellAgents ?? []).map((a: any) => ({
       agent_id: a.agent_id,

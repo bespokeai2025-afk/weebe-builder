@@ -3,7 +3,7 @@ import { createFileRoute, Link, useNavigate, useSearch } from "@tanstack/react-r
 import { z } from "zod";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Loader2, Plus, Radio, Search, Zap } from "lucide-react";
+import { Activity, Loader2, Plus, Radio, Search, Zap } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useTablePagination, TablePagBar } from "@/components/ui/table-pagination";
@@ -224,6 +224,12 @@ function MyAgentsPage() {
                 className="h-9 w-56 border-white/[0.06] bg-white/[0.02] pl-8 text-sm"
               />
             </div>
+            <Button asChild size="sm" variant="outline" className="h-9 gap-1.5">
+              <Link to="/agent-health">
+                <Activity className="h-4 w-4" />
+                Agent Health
+              </Link>
+            </Button>
             <Button asChild size="sm" className="h-9 gap-1.5">
               <Link to="/agents/new">
                 <Plus className="h-4 w-4" />

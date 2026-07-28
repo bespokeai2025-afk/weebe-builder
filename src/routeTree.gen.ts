@@ -60,6 +60,7 @@ import { Route as AuthenticatedCalendarRouteImport } from './routes/_authenticat
 import { Route as AuthenticatedBuilderRouteImport } from './routes/_authenticated/builder'
 import { Route as AuthenticatedBillingRouteImport } from './routes/_authenticated/billing'
 import { Route as AuthenticatedAnalyticsRouteImport } from './routes/_authenticated/analytics'
+import { Route as AuthenticatedAgentHealthRouteImport } from './routes/_authenticated/agent-health'
 import { Route as AuthenticatedAdminRouteImport } from './routes/_authenticated/admin'
 import { Route as AuthenticatedAccountsmindRouteImport } from './routes/_authenticated/accountsmind'
 import { Route as AuthenticatedSystemmindIndexRouteImport } from './routes/_authenticated/systemmind.index'
@@ -578,6 +579,12 @@ const AuthenticatedAnalyticsRoute = AuthenticatedAnalyticsRouteImport.update({
   path: '/analytics',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
+const AuthenticatedAgentHealthRoute =
+  AuthenticatedAgentHealthRouteImport.update({
+    id: '/agent-health',
+    path: '/agent-health',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
 const AuthenticatedAdminRoute = AuthenticatedAdminRouteImport.update({
   id: '/admin',
   path: '/admin',
@@ -2070,6 +2077,7 @@ export interface FileRoutesByFullPath {
   '/unsubscribe': typeof UnsubscribeRoute
   '/accountsmind': typeof AuthenticatedAccountsmindRoute
   '/admin': typeof AuthenticatedAdminRouteWithChildren
+  '/agent-health': typeof AuthenticatedAgentHealthRoute
   '/analytics': typeof AuthenticatedAnalyticsRoute
   '/billing': typeof AuthenticatedBillingRouteWithChildren
   '/builder': typeof AuthenticatedBuilderRoute
@@ -2377,6 +2385,7 @@ export interface FileRoutesByTo {
   '/terms': typeof TermsRoute
   '/unsubscribe': typeof UnsubscribeRoute
   '/accountsmind': typeof AuthenticatedAccountsmindRoute
+  '/agent-health': typeof AuthenticatedAgentHealthRoute
   '/analytics': typeof AuthenticatedAnalyticsRoute
   '/billing': typeof AuthenticatedBillingRouteWithChildren
   '/builder': typeof AuthenticatedBuilderRoute
@@ -2678,6 +2687,7 @@ export interface FileRoutesById {
   '/unsubscribe': typeof UnsubscribeRoute
   '/_authenticated/accountsmind': typeof AuthenticatedAccountsmindRoute
   '/_authenticated/admin': typeof AuthenticatedAdminRouteWithChildren
+  '/_authenticated/agent-health': typeof AuthenticatedAgentHealthRoute
   '/_authenticated/analytics': typeof AuthenticatedAnalyticsRoute
   '/_authenticated/billing': typeof AuthenticatedBillingRouteWithChildren
   '/_authenticated/builder': typeof AuthenticatedBuilderRoute
@@ -2988,6 +2998,7 @@ export interface FileRouteTypes {
     | '/unsubscribe'
     | '/accountsmind'
     | '/admin'
+    | '/agent-health'
     | '/analytics'
     | '/billing'
     | '/builder'
@@ -3295,6 +3306,7 @@ export interface FileRouteTypes {
     | '/terms'
     | '/unsubscribe'
     | '/accountsmind'
+    | '/agent-health'
     | '/analytics'
     | '/billing'
     | '/builder'
@@ -3595,6 +3607,7 @@ export interface FileRouteTypes {
     | '/unsubscribe'
     | '/_authenticated/accountsmind'
     | '/_authenticated/admin'
+    | '/_authenticated/agent-health'
     | '/_authenticated/analytics'
     | '/_authenticated/billing'
     | '/_authenticated/builder'
@@ -4360,6 +4373,13 @@ declare module '@tanstack/react-router' {
       path: '/analytics'
       fullPath: '/analytics'
       preLoaderRoute: typeof AuthenticatedAnalyticsRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/agent-health': {
+      id: '/_authenticated/agent-health'
+      path: '/agent-health'
+      fullPath: '/agent-health'
+      preLoaderRoute: typeof AuthenticatedAgentHealthRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
     '/_authenticated/admin': {
@@ -6643,6 +6663,7 @@ const AuthenticatedSettingsProvidersRouteWithChildren =
 interface AuthenticatedRouteChildren {
   AuthenticatedAccountsmindRoute: typeof AuthenticatedAccountsmindRoute
   AuthenticatedAdminRoute: typeof AuthenticatedAdminRouteWithChildren
+  AuthenticatedAgentHealthRoute: typeof AuthenticatedAgentHealthRoute
   AuthenticatedAnalyticsRoute: typeof AuthenticatedAnalyticsRoute
   AuthenticatedBillingRoute: typeof AuthenticatedBillingRouteWithChildren
   AuthenticatedBuilderRoute: typeof AuthenticatedBuilderRoute
@@ -6686,6 +6707,7 @@ interface AuthenticatedRouteChildren {
 const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedAccountsmindRoute: AuthenticatedAccountsmindRoute,
   AuthenticatedAdminRoute: AuthenticatedAdminRouteWithChildren,
+  AuthenticatedAgentHealthRoute: AuthenticatedAgentHealthRoute,
   AuthenticatedAnalyticsRoute: AuthenticatedAnalyticsRoute,
   AuthenticatedBillingRoute: AuthenticatedBillingRouteWithChildren,
   AuthenticatedBuilderRoute: AuthenticatedBuilderRoute,
