@@ -1,0 +1,353 @@
+# URGENT: Repair WBAH Campaign-Minute Reconciliation
+
+The WBAH Minutes Used by Campaign report is still incorrect.
+
+Do not redesign the interface and do not merely change displayed values.
+Trace and repair the underlying production calculations.
+
+CURRENT VERIFIED SCREENSHOT EVIDENCE
+
+For the Retell billing period shown as 29 July 2026:
+
+Retell reports:
+- Total call minutes: 125.8
+- Total recorded provider cost: $38.41
+- Average provider cost: approximately $0.305 per minute
+
+WEBEE currently displays:
+- 9 AM TTC Sweep: 47.60 minutes from 205 calls
+- 11 AM TTC Sweep: 30.63 minutes from 183 calls
+- Other displayed campaigns: zero
+- Visible campaign total: 78.23 minutes
+
+The report is therefore missing 47.57 minutes from its campaign rows.
+
+The workspace percentages imply an internal WEBEE workspace total of
+approximately 123.4 minutes:
+
+- 47.60 / 38.6% ≈ 123.32
+- 30.63 / 24.8% ≈ 123.51
+
+This indicates two separate defects:
+
+1. Approximately 45.2 minutes are included in the WEBEE workspace
+   denominator but are not displayed against a campaign.
+2. Approximately 2.4 additional minutes are missing compared with Retell.
+
+Do not hardcode these screenshot values. Use them only as the controlled
+reconciliation period for proving that the repair works.
+
+## 1. Confirm the exact data period
+
+Determine the exact start and end timestamps used by Retell for the billing
+period displayed as 29 July 2026.
+
+Compare this with the current WEBEE report period and workspace timezone.
+
+Ensure both systems are comparing the same:
+
+- Retell workspace
+- Calendar date
+- Start timestamp
+- End timestamp
+- Timezone
+- Call inclusion rules
+- Billing-duration definition
+
+Do not compare a Retell daily total with a WEBEE monthly, rolling or
+timezone-shifted range.
+
+Show the applied reporting period clearly in the WEBEE interface.
+
+## 2. Use the authoritative Retell workspace
+
+Resolve which Retell organisation and API credentials belong to the WBAH
+workspace.
+
+Do not use a global, default or admin-level Retell workspace accidentally.
+
+Log safely:
+
+- WEBEE workspace
+- Retell organisation
+- Number of Retell calls retrieved
+- Number of pages retrieved
+- Reporting period
+- Last successful sync
+
+Never display complete credentials.
+
+## 3. Repair the Retell calls sync
+
+Confirm the production sync uses:
+
+POST /v3/list-calls
+
+Do not continue using the deprecated POST /v2/list-calls endpoint.
+
+Support the new response structure and retrieve every page using the
+returned pagination cursor until no more pages remain.
+
+A sync must not be marked complete when only the first page has been read.
+
+Handle:
+
+- Pagination
+- Rate limits
+- Retries
+- Cursor persistence
+- Partial sync failures
+- Updated calls
+- Duplicate webhook events
+- Unique Retell call IDs
+
+Deduplicate using the authoritative Retell call ID.
+
+## 4. Reconcile provider-billed minutes correctly
+
+Inspect the real Retell call response and determine the authoritative field
+used for billable call minutes.
+
+Do not automatically assume:
+
+- Connected duration
+- Transcript duration
+- Recording duration
+- Ring duration
+- Local timestamp difference
+
+Verify the field and its units against the Retell billing total.
+
+Sum the raw authoritative duration first and convert to minutes afterwards.
+
+Do not round individual calls before aggregation.
+
+Produce an internal reconciliation table containing:
+
+- Retell call ID
+- Provider duration
+- Provider cost where available
+- WEBEE workspace
+- Campaign
+- Campaign run
+- Batch ID
+- Agent
+- Call status
+- Attribution method
+- Exclusion reason
+- Reconciliation status
+
+This technical table must be admin-only.
+
+## 5. Repair campaign attribution
+
+Every Retell call in the WBAH reporting period must be placed into exactly
+one of these buckets:
+
+- A verified WEBEE campaign
+- Unassigned
+- Explicitly excluded with a recorded reason
+
+Use attribution priority:
+
+1. WEBEE campaign ID stored when the call was initiated
+2. WEBEE campaign-run ID
+3. Retell batch-call ID mapped to a WEBEE campaign
+4. Campaign metadata or dynamic variables on the call
+5. Stored historical campaign reference
+6. Historical agent-to-campaign mapping valid when the call occurred
+
+Do not map calls only using the current agent ID because one agent can be
+used by several campaigns.
+
+Do not omit calls that cannot be attributed.
+
+Add a visible campaign row:
+
+Unassigned
+
+The user-facing campaign total must include the Unassigned row.
+
+## 6. Mandatory reconciliation formulas
+
+For the same workspace and period:
+
+Assigned campaign minutes
++ Unassigned minutes
++ Explicitly excluded minutes
+=
+Retell provider minutes
+
+And:
+
+Sum of every displayed campaign row
++ Unassigned
+=
+WEBEE workspace total
+
+Do not display “Verified” unless these equations reconcile within the
+provider’s documented rounding tolerance.
+
+Any difference must be visible as:
+
+Provider reconciliation difference
+
+Never hide the difference.
+
+## 7. Fix AVG / CALL
+
+The current averages are visibly incorrect.
+
+For the screenshot values:
+
+- 47.60 / 205 = approximately 0.232 minutes, or 14 seconds
+- 30.63 / 183 = approximately 0.167 minutes, or 10 seconds
+
+The interface currently shows 0.3 minutes for both.
+
+Calculate:
+
+Average duration =
+total authoritative duration seconds
+divided by unique calls included in that row
+
+Display the result as a human-readable duration:
+
+- 14 seconds
+- 1 minute 12 seconds
+- 4 minutes 8 seconds
+
+Do not round short calls up to misleading tenths of a minute.
+
+Add a tooltip showing the precise calculation.
+
+## 8. Fix the “This month” column
+
+The “This month” column currently repeats the exact same value as
+“Minutes used.”
+
+Audit whether both columns are bound to the same API property.
+
+“Minutes used” must represent the currently selected reporting period.
+
+“This month” must independently represent the full current calendar month
+in the workspace timezone.
+
+If the selected reporting period is already the current month, hide the
+duplicate column or label it clearly instead of displaying the same metric
+twice.
+
+## 9. Separate actual provider cost from client charge
+
+The existing column:
+
+Cost @ £0.36/min
+
+is a calculated client charge:
+
+billable minutes × £0.36
+
+It is not Retell’s actual recorded provider cost.
+
+Rename it:
+
+Client Usage Charge
+
+Add a separate column:
+
+Actual Provider Cost
+
+For the controlled Retell period, this should reconcile with the provider’s
+recorded $38.41 total when all calls are included.
+
+Keep currencies separate:
+
+- Actual Retell cost: USD
+- Client charge: GBP
+
+Do not compare, total or display them as the same currency.
+
+Do not perform an implicit currency conversion.
+
+Where actual per-call provider cost is unavailable, show:
+
+Provider cost unavailable
+
+Do not show zero.
+
+## 10. Backfill the WBAH period
+
+After correcting attribution and calculations:
+
+- Re-import the complete controlled Retell period
+- Deduplicate existing calls
+- Repair missing campaign references
+- Recalculate all campaign summaries
+- Recalculate workspace totals
+- Recalculate averages
+- Recalculate monthly totals
+- Import provider-recorded costs where available
+- Invalidate stale report caches
+
+The process must be idempotent and must not duplicate calls.
+
+## 11. Add a visible reconciliation summary
+
+Above the campaign table, display:
+
+Retell provider minutes
+Assigned campaign minutes
+Unassigned minutes
+Excluded minutes
+Difference
+Last successful sync
+Data status
+
+Use plain-English statuses:
+
+- Verified
+- Unassigned calls require mapping
+- Sync incomplete
+- Provider mismatch detected
+- Provider unavailable
+
+Do not show raw JSON to normal users.
+
+## 12. Acceptance test for the supplied screenshots
+
+For the exact Retell workspace and billing period shown:
+
+1. Retell provider minutes must be retrieved independently.
+2. Every provider call must appear exactly once in WEBEE.
+3. Every call must be assigned, unassigned or explicitly excluded.
+4. The displayed campaign rows plus Unassigned must reconcile to the
+   provider total.
+5. The unexplained 47.57-minute difference must no longer exist.
+6. The AVG / CALL values must be mathematically correct.
+7. “This month” must use an independent monthly calculation.
+8. Actual provider cost must be separate from the £0.36 client charge.
+9. The report must clearly display the last successful provider sync.
+10. No deprecated Retell endpoint may remain in the production path.
+
+## 13. Completion response
+
+Do not respond only with “fixed.”
+
+Provide:
+
+- Exact root cause of the missing 47.57 minutes
+- Number of calls that were unassigned
+- Minutes that were unassigned
+- Calls missing from the Retell sync
+- Pagination problems found
+- Duration field and unit used
+- Timezone difference found
+- Duplicate calls removed
+- Campaign mappings repaired
+- Corrected provider total
+- Corrected campaign totals
+- Corrected actual provider cost
+- Corrected client charge
+- Screenshots of the reconciled report
+- Automated test results
+- Confirmation that existing WBAH calls and workflows remain operational

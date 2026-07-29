@@ -274,6 +274,8 @@ export async function getWbahDiallerAnalytics(sb: Sb, workspaceId: string, range
   // the aggregates.
   let snapshotCampaigns: any[] = [];
   let attributeCampaign: ((agentId: any, startedAt: any) => any) | null = null;
+  let isTestCampaign: (c: any) => boolean = () => false;
+  const testExcluded = { calls: 0, seconds: 0, campaignIds: new Set<string>() };
   try {
     const mod = await import(
       "@/lib/integrations/webespokeEnterprise/wbah-campaign-reporting.server"
@@ -286,8 +288,12 @@ export async function getWbahDiallerAnalytics(sb: Sb, workspaceId: string, range
       attributeCampaign = (agentId, startedAt) =>
         mod.attributeWbahCampaign(snapshotCampaigns, agentId, startedAt);
     }
-  } catch {
-    /* snapshot unavailable — skip per-campaign breakdown */
+    isTestCampaign = mod.isWbahTestCampaign;
+  } catch (e: any) {
+    // Snapshot unavailable — per-campaign breakdown is skipped AND test-campaign
+    // exclusion is disabled (everything lands in Unassigned). Log loudly so the
+    // degraded mode is observable rather than silently over-counting.
+    console.warn("[analytics-hub] WBAH campaign snapshot unavailable — test exclusion disabled:", e?.message ?? e);
   }
   const byCampaign: Record<string, {
     id: string; name: string; leadStatus: string | null; scheduledTime: string | null;
@@ -306,6 +312,28 @@ export async function getWbahDiallerAnalytics(sb: Sb, workspaceId: string, range
   const negatives: any[] = [];
 
   for (const c of rows) {
+    // Attribution precedence:
+    //   1. Verified — the call row carries a stored campaign_id (stamped by
+    //      the campaign-run tracker or the sync itself).
+    //   2. Inferred — matched by dialling agent + nearest scheduled UK slot.
+    //   3. Unassigned — no reliable link to any campaign.
+    const storedId = c.campaign_id != null ? String(c.campaign_id) : null;
+    const storedCamp = storedId ? campaignById.get(storedId) : null;
+    const inferredCamp = !storedCamp && attributeCampaign
+      ? attributeCampaign((c.meta as any)?.agent_id ?? null, c.started_at)
+      : null;
+    const camp = storedCamp ?? inferredCamp;
+
+    // Calls made by deleted TEST campaigns (system testing) are excluded from
+    // this entire report — counted separately in testExcluded and explained in
+    // the UI footnote so the total still reconciles with the Calls page.
+    if (camp && isTestCampaign(camp)) {
+      testExcluded.calls++;
+      testExcluded.seconds += Number(c.duration_seconds ?? 0) || 0;
+      testExcluded.campaignIds.add(String(camp.id));
+      continue;
+    }
+
     const vm = isVoicemail(c);
     const st = String(c.call_status ?? "").toLowerCase();
     const conn = !vm && (st === "completed" || st === "answered" || st === "connected");
@@ -321,17 +349,6 @@ export async function getWbahDiallerAnalytics(sb: Sb, workspaceId: string, range
     if (c.booking_status || c.appointment_date) booked++;
     byReason[reason] = (byReason[reason] ?? 0) + 1;
     {
-      // Attribution precedence:
-      //   1. Verified — the call row carries a stored campaign_id (stamped by
-      //      the campaign-run tracker or the sync itself).
-      //   2. Inferred — matched by dialling agent + nearest scheduled UK slot.
-      //   3. Unassigned — no reliable link to any campaign.
-      const storedId = c.campaign_id != null ? String(c.campaign_id) : null;
-      const storedCamp = storedId ? campaignById.get(storedId) : null;
-      const inferredCamp = !storedCamp && attributeCampaign
-        ? attributeCampaign((c.meta as any)?.agent_id ?? null, c.started_at)
-        : null;
-      const camp = storedCamp ?? inferredCamp;
       if (camp) {
         if (storedCamp) attributionVerified++; else attributionInferred++;
         const entry = (byCampaign[camp.id] ??= {
@@ -382,10 +399,14 @@ export async function getWbahDiallerAnalytics(sb: Sb, workspaceId: string, range
       byDay[day] = d;
     }
     if (s === "positive" && converted.length < 100) {
+      // Booking date + time: prefer the agent's structured callback_datetime
+      // (London wall clock); appointment_date alone is date-only.
+      const rawDt = (c.meta as any)?.custom_analysis?.callback_datetime;
       converted.push({
         id: c.id, name: c.customer_name ?? "Unknown", phone: c.phone ?? null,
         booked: Boolean(c.booking_status || c.appointment_date),
         appointmentDate: c.appointment_date ?? null,
+        appointmentDateTime: typeof rawDt === "string" && rawDt.length >= 16 ? rawDt : null,
         durationSeconds: c.duration_seconds ?? 0, at: c.started_at,
       });
     }
@@ -397,7 +418,9 @@ export async function getWbahDiallerAnalytics(sb: Sb, workspaceId: string, range
     }
   }
 
-  const total = rows.length;
+  // Test-campaign calls are excluded from every figure in this report; the
+  // footnote reports them so the range still reconciles with the Calls page.
+  const total = rows.length - testExcluded.calls;
   const reasons = Object.entries(byReason)
     .map(([reason, count]) => ({ reason, count, pct: rate(count, total) }))
     .sort((a, b) => b.count - a.count);
@@ -419,6 +442,11 @@ export async function getWbahDiallerAnalytics(sb: Sb, workspaceId: string, range
     reasons, trend, converted, negatives,
     campaigns,
     campaignsUnattributed: unattributed,
+    testExcluded: {
+      calls: testExcluded.calls,
+      minutes: Math.round((testExcluded.seconds / 60) * 100) / 100,
+      campaigns: testExcluded.campaignIds.size,
+    },
     attribution: {
       verified: attributionVerified,
       inferred: attributionInferred,
@@ -677,7 +705,7 @@ export async function getCampaignAnalyticsData(
       const k = (latestKpiByCampaign[c.id] ?? (c.stats ?? {})) as any;
       const callsTotal = Number(k.calls_total ?? 0);
       const answered = Number(k.calls_answered ?? 0);
-      const costCents = Number(k.total_cost_cents ?? 0);
+      // Provider costs (Retell USD) are WEBEE-internal — never sent to clients.
       return {
         id: c.id, name: c.name, status: c.status, agentId: c.agent_id,
         launchedAt: c.created_at, completedAt: c.status === "completed" ? c.updated_at : null,
@@ -685,10 +713,7 @@ export async function getCampaignAnalyticsData(
         callsVoicemail: Number(k.calls_voicemail ?? 0), callsFailed: Number(k.calls_failed ?? 0),
         positiveSentiment: Number(k.positive_sentiment ?? 0),
         avgDurationSeconds: Number(k.avg_duration_seconds ?? 0),
-        totalCostCents: costCents,
         connectionRate: rate(answered, callsTotal),
-        costPerCallCents: callsTotal > 0 ? Math.round(costCents / callsTotal) : 0,
-        costPerConnectedCents: answered > 0 ? Math.round(costCents / answered) : 0,
       };
     });
 
@@ -800,8 +825,8 @@ export async function getAgentAnalyticsData(workspaceId: string, filters?: Analy
       a.durationSum += Number(c.duration_seconds ?? 0);
       map[aid] = a;
     }
+    // Provider costs (Retell USD) are WEBEE-internal — never sent to clients.
     const agents = Object.values(map).map((a: any) => {
-      const costCents = costByAgent[a.agentId] ?? 0;
       return {
         agentId: a.agentId, name: a.name, total: a.total,
         connected: a.connected, missed: a.missed, voicemail: a.voicemail, failed: a.failed,
@@ -809,8 +834,6 @@ export async function getAgentAnalyticsData(workspaceId: string, filters?: Analy
         positiveRate: rate(a.positive, a.total), neutralRate: rate(a.neutral, a.total), negativeRate: rate(a.negative, a.total),
         bookings: a.bookings, bookingRate: rate(a.bookings, a.total),
         avgDurationSeconds: a.total > 0 ? Math.round(a.durationSum / a.total) : 0,
-        totalCostCents: costCents,
-        costPerConnectedCents: a.connected > 0 ? Math.round(costCents / a.connected) : 0,
       };
     }).sort((x, y) => y.total - x.total);
     return { ...base, agents };

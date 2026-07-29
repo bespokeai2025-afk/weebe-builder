@@ -43,7 +43,13 @@ export interface UsageBucket {
   failedMinutes: number;
   inboundMinutes: number;
   outboundMinutes: number;
+  /** Mean over calls WITH a positive duration (legacy display metric). */
   averageDurationSeconds: number;
+  /**
+   * Authoritative average: total duration seconds ÷ ALL unique calls counted
+   * in this bucket (including 0-duration attempts). 1dp precision.
+   */
+  avgSecondsPerCall: number;
   longestCallSeconds: number;
   shortestValidCallSeconds: number | null;
   qualifiedMinutes: number;
@@ -61,6 +67,10 @@ export interface UsageBucket {
 export interface CampaignUsageRow extends UsageBucket {
   campaignId: string | null; // null = Unassigned Campaign
   campaignName: string;
+  /** Deleted campaigns keep their attributed minutes but are hidden from the table UI. */
+  isDeleted?: boolean;
+  /** Deleted system-test campaigns — hidden from the client table, footnoted. */
+  isTest?: boolean;
   percentageOfWorkspaceMinutes: number;
   minutesToday: number;
   minutesThisWeek: number;
@@ -75,6 +85,19 @@ export const UNASSIGNED_CAMPAIGN = "Unassigned Campaign";
  * totalCostCents, which is only real recorded provider cost.
  */
 export const BILLING_RATE_GBP_PER_MINUTE = 0.36;
+
+/** Human-readable duration, e.g. "14s", "1m 12s", "4m 8s", "1h 2m". */
+export function formatDurationHuman(seconds: number | null | undefined): string {
+  if (seconds == null || !Number.isFinite(seconds) || seconds < 0) return "—";
+  const s = Math.round(seconds);
+  if (s < 60) return `${s}s`;
+  const m = Math.floor(s / 60);
+  const rem = s % 60;
+  if (m < 60) return rem > 0 ? `${m}m ${rem}s` : `${m}m`;
+  const h = Math.floor(m / 60);
+  const mm = m % 60;
+  return mm > 0 ? `${h}h ${mm}m` : `${h}h`;
+}
 
 /** Rate-based cost in GBP (2dp) for a duration in seconds. */
 export function rateCostGbpFor(totalDurationSeconds: number): number {
@@ -134,7 +157,7 @@ function emptyBucket(): UsageBucket & { _durs: number[] } {
     totalCalls: 0, missingDurationCalls: 0, totalDurationSeconds: 0, minutesUsed: 0,
     connectedMinutes: 0, voicemailMinutes: 0, failedMinutes: 0,
     inboundMinutes: 0, outboundMinutes: 0,
-    averageDurationSeconds: 0, longestCallSeconds: 0, shortestValidCallSeconds: null,
+    averageDurationSeconds: 0, avgSecondsPerCall: 0, longestCallSeconds: 0, shortestValidCallSeconds: null,
     qualifiedMinutes: 0, positiveMinutes: 0, neutralMinutes: 0, negativeMinutes: 0,
     bookedMinutes: 0, totalCostCents: null, costPerMinuteCents: null,
     rateCostGbp: 0,
@@ -186,6 +209,7 @@ function finalizeBucket(b: ReturnType<typeof emptyBucket>): UsageBucket {
     negativeMinutes: roundMinutes(b.negativeMinutes),
     bookedMinutes: roundMinutes(b.bookedMinutes),
     averageDurationSeconds: avg,
+    avgSecondsPerCall: b.totalCalls > 0 ? Math.round((b.totalDurationSeconds / b.totalCalls) * 10) / 10 : 0,
     totalCostCents: b.totalCostCents != null ? Math.round(b.totalCostCents) : null,
     costPerMinuteCents: b.totalCostCents != null && minutes > 0
       ? Math.round(b.totalCostCents / minutes)
@@ -277,6 +301,8 @@ export function aggregateCampaignUsage(input: AggregateInput): CampaignUsageResu
   }
 
   const nameById = new Map(input.campaigns.map((c) => [c.id, c.name]));
+  const deletedById = new Map(input.campaigns.map((c) => [c.id, Boolean((c as any).isDeleted)]));
+  const testById = new Map(input.campaigns.map((c) => [c.id, Boolean((c as any).isTest)]));
   const buckets = new Map<string | null, ReturnType<typeof emptyBucket>>();
   const windows = windowStarts(now);
   const windowSecs = new Map<string | null, { today: number; week: number; month: number }>();
@@ -319,6 +345,8 @@ export function aggregateCampaignUsage(input: AggregateInput): CampaignUsageResu
       ...fin,
       campaignId: cid,
       campaignName: cid ? (nameById.get(cid) ?? "Campaign") : UNASSIGNED_CAMPAIGN,
+      isDeleted: cid ? (deletedById.get(cid) ?? false) : false,
+      isTest: cid ? (testById.get(cid) ?? false) : false,
       percentageOfWorkspaceMinutes: wsSeconds > 0
         ? Math.round((fin.totalDurationSeconds / wsSeconds) * 1000) / 10
         : 0,

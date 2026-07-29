@@ -25,10 +25,13 @@ function retellAnalyticsKey(workspaceId: string, range: RetellAnalyticsRange) {
   // v6: call payloads are now trimmed server-side (transcript dropped,
   // _isVoicemail precomputed) — the shape changed, so v5 entries must not serve.
   // v7: optional custom startMs/endMs window (Retell upper_threshold filter).
+  // v8: WBAH reads wbah_calls again (single authoritative source, now WITH
+  // agent attribution) and preset windows floor to Europe/London days for
+  // WBAH — different call sets than v7, so v7 entries must not serve.
   if (range.kind === "custom") {
-    return `webee:analytics:${workspaceId}:retell:v7:range:${range.startMs}-${range.endMs}`;
+    return `webee:analytics:${workspaceId}:retell:v8:range:${range.startMs}-${range.endMs}`;
   }
-  return `webee:analytics:${workspaceId}:retell:v7:${range.days}d`;
+  return `webee:analytics:${workspaceId}:retell:v8:${range.days}d`;
 }
 
 function retellAgentsKey(workspaceId: string) {
@@ -40,6 +43,36 @@ function startOfUtcDayMs(ms: number): number {
   const d = new Date(ms);
   d.setUTCHours(0, 0, 0, 0);
   return d.getTime();
+}
+
+// ── Timezone-aware day floor (mirrors startOfDayMsInTz in analytics.tsx) ──────
+// WBAH preset windows floor to Europe/London days so the analytics page uses
+// the SAME day boundaries as every other WBAH page (wbah_calls views).
+function tzOffsetMsAt(ms: number, tz: string): number {
+  const dtf = new Intl.DateTimeFormat("en-GB", {
+    timeZone: tz, year: "numeric", month: "2-digit", day: "2-digit",
+    hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false,
+  });
+  const p = Object.fromEntries(dtf.formatToParts(new Date(ms)).map((x) => [x.type, x.value]));
+  const asUtcMs = Date.UTC(
+    Number(p.year), Number(p.month) - 1, Number(p.day),
+    Number(p.hour === "24" ? "0" : p.hour), Number(p.minute), Number(p.second),
+  );
+  return asUtcMs - Math.floor(ms / 1000) * 1000;
+}
+
+function startOfDayMsInTzServer(ms: number, tz: string): number {
+  // Local calendar date at `ms`, then the UTC instant of that date's local
+  // midnight using the offset at the candidate midnight itself (re-derived
+  // once) so DST-transition days resolve correctly.
+  const dtf = new Intl.DateTimeFormat("en-GB", {
+    timeZone: tz, year: "numeric", month: "2-digit", day: "2-digit",
+  });
+  const p = Object.fromEntries(dtf.formatToParts(new Date(ms)).map((x) => [x.type, x.value]));
+  const dayStartAsUtc = Date.UTC(Number(p.year), Number(p.month) - 1, Number(p.day));
+  let candidate = dayStartAsUtc - tzOffsetMsAt(ms, tz);
+  candidate = dayStartAsUtc - tzOffsetMsAt(candidate, tz);
+  return candidate;
 }
 
 // ── Voicemail heuristic (server-side mirror of the client) ────────────────────
@@ -427,8 +460,19 @@ export const getRetellAnalytics = createServerFn({ method: "POST" })
       async () => {
     const startedAtMs = Date.now();
     const nowMs = Date.now();
-    // Preset windows floor to whole UTC days (00:00 UTC of day (days-1) ago → now).
-    // Custom windows honour exact startMs/endMs (Retell upper_threshold + client filter).
+
+    // Resolve the workspace's Retell key + agent allow-list FIRST (needed to
+    // pick the day-boundary timezone below). Prefers the workspace's OWN key
+    // (all agents belong to it); falls back to the shared platform key
+    // restricted to agents deployed in this workspace (fail closed, so one
+    // workspace can never see another's calls).
+    const { workspaceSlug, apiKey, keySource, deployedAgentIds } =
+      await resolveRetellContext(sb, workspaceId);
+    const isWbahWs = workspaceSlug === "webuyanyhouse";
+
+    // Preset windows floor to whole days: Europe/London days for WBAH (matching
+    // every other WBAH page), UTC days for all other workspaces. Custom windows
+    // honour exact startMs/endMs.
     let sinceMs: number;
     let untilMs: number;
     if (data.startMs != null && data.endMs != null) {
@@ -436,18 +480,13 @@ export const getRetellAnalytics = createServerFn({ method: "POST" })
       untilMs = Math.min(data.endMs, nowMs);
     } else {
       const days = data.days ?? 30;
-      sinceMs = startOfUtcDayMs(nowMs) - (days - 1) * 24 * 60 * 60 * 1000;
+      const dayFloor = (ms: number) =>
+        isWbahWs ? startOfDayMsInTzServer(ms, "Europe/London") : startOfUtcDayMs(ms);
+      sinceMs = dayFloor(nowMs - (days - 1) * 24 * 60 * 60 * 1000);
       untilMs = nowMs;
     }
     const sinceIso = new Date(sinceMs).toISOString();
     const untilIso = new Date(untilMs).toISOString();
-
-    // Resolve the workspace's Retell key + agent allow-list. Prefers the
-    // workspace's OWN key (all agents belong to it); falls back to the shared
-    // platform key restricted to agents deployed in this workspace (fail closed,
-    // so one workspace can never see another's calls).
-    const { workspaceSlug, apiKey, keySource, deployedAgentIds } =
-      await resolveRetellContext(sb, workspaceId);
 
     let calls: any[] = [];
     let error: string | null = null;
@@ -456,15 +495,13 @@ export const getRetellAnalytics = createServerFn({ method: "POST" })
     let retellPages = 0;
     let retellTruncated = false;
 
-    // WBAH note: this workspace's calls are ALSO synced into wbah_calls, but the
-    // sync drops the agent name (agent_name is always null), so that feed can't
-    // power a per-agent view.  The SAME calls live in WBAH's own Retell account
-    // WITH agent attribution, and the volumes match closely (~7.4k vs ~7.2k in
-    // 30d).  So on the analytics page ONLY, WBAH is treated like any other
-    // Retell workspace: we read from the Retell API here (giving real per-agent
-    // data) and DO NOT also read wbah_calls below (which would double-count).
-    // Every other page still uses wbah_calls unchanged.
-    if (apiKey) {
+    // WBAH note: wbah_calls is the SINGLE authoritative source for WBAH
+    // everywhere, including this page. The sync now stores agent attribution
+    // (agent_name + meta.agent_id), so wbah_calls fully powers the per-agent
+    // view. The Retell API is NOT read for WBAH here — a live-API read uses
+    // different sync timing and day boundaries than every other WBAH page and
+    // caused mismatched totals (e.g. 467 vs 511 calls for the same range).
+    if (apiKey && !isWbahWs) {
       // Fetch agent list — when using a workspace-specific key every agent
       // belongs to that workspace; when using the platform key restrict to
       // agents that are actually deployed in this workspace.
@@ -598,11 +635,79 @@ export const getRetellAnalytics = createServerFn({ method: "POST" })
       console.warn("[analytics] ElevenLabs DB call fetch failed:", e?.message);
     }
 
-    // WBAH no longer reads wbah_calls on the analytics page — it is served from
-    // the Retell API above (real per-agent data) like any other Retell
-    // workspace.  Every OTHER WBAH page still uses wbah_calls unchanged.  Kept
-    // as an empty array so the merge / meta below stay untouched.
-    const wbahCalls: any[] = [];
+    // ── WBAH: serve the analytics page from wbah_calls (authoritative) ───────
+    // Same source, same Europe/London day boundaries as every other WBAH page,
+    // so totals always agree across Reports / Calls / Analytics. Rows map to
+    // the slim Retell call shape computeAnalytics expects. Voicemails keep
+    // in_voicemail=false so WBAH continues to COUNT them (WBAH-specific rule;
+    // other workspaces screen voicemails out).
+    let wbahCalls: any[] = [];
+    if (isWbahWs) {
+      try {
+        // 90d is currently ~38k rows and growing — keep generous headroom and
+        // surface truncation honestly if the cap is ever hit.
+        const PAGE = 1000;
+        const MAX_WBAH_ROWS = 120000;
+        const rows: any[] = [];
+        for (let from = 0; from < MAX_WBAH_ROWS; from += PAGE) {
+          const { data: page, error: pageErr } = await sb
+            .from("wbah_calls")
+            .select("id, started_at, duration_seconds, status, end_reason, sentiment, direction, phone_number, agent_name, meta")
+            .eq("workspace_id", workspaceId)
+            .gte("started_at", sinceIso)
+            .lte("started_at", untilIso)
+            .order("started_at", { ascending: false })
+            .range(from, from + PAGE - 1);
+          if (pageErr) throw pageErr;
+          rows.push(...(page ?? []));
+          if (!page || page.length < PAGE) break;
+        }
+        if (rows.length >= MAX_WBAH_ROWS) retellTruncated = true;
+        const seenIds = new Set<string>();
+        for (const c of rows) {
+          const callId = String(c.id);
+          if (seenIds.has(callId)) continue;
+          seenIds.add(callId);
+          const agentId = (c.meta as any)?.agent_id ?? "wbah-dialler";
+          if (!agentNames[agentId]) {
+            agentNames[agentId] = c.agent_name ?? "WBAH Dialler";
+            agentIds.push(agentId);
+          }
+          const startTs = c.started_at ? new Date(c.started_at).getTime() : null;
+          const durationMs = Number.isFinite(Number((c.meta as any)?.duration_ms))
+            ? Number((c.meta as any).duration_ms)
+            : c.duration_seconds != null
+              ? Number(c.duration_seconds) * 1000
+              : null;
+          const s = (c.sentiment ?? "").toLowerCase();
+          wbahCalls.push({
+            call_id: callId,
+            agent_id: agentId,
+            call_status: c.status ?? "ended",
+            call_type: "phone_call",
+            direction: c.direction === "inbound" ? "inbound" : "outbound",
+            from_number: null,
+            to_number: c.phone_number ?? null,
+            start_timestamp: startTs,
+            end_timestamp: startTs != null && durationMs != null ? startTs + durationMs : null,
+            duration_ms: durationMs,
+            disconnection_reason: c.end_reason ?? null,
+            call_analysis: {
+              user_sentiment: ["positive", "neutral", "negative"].includes(s)
+                ? s.charAt(0).toUpperCase() + s.slice(1)
+                : null,
+              call_successful: null,
+              in_voicemail: false, // WBAH counts voicemails (see note above)
+              call_summary: null,
+            },
+            _provider: "WBAH",
+          });
+        }
+      } catch (e: any) {
+        error = e?.message || "Failed to load WBAH call data";
+        console.error("[analytics] wbah_calls fetch failed:", e);
+      }
+    }
 
     const allCalls = [...calls, ...elCalls, ...wbahCalls];
     // configured = true when Retell agents, VoxStream calls, or WBAH calls exist

@@ -132,7 +132,9 @@ async function listPaged(
     // when a page contributes nothing new (dedupe by natural record id).
     let added = 0;
     for (const it of items) {
-      const id = String(it?.agent_id ?? it?.call_id ?? it?.phone_number ?? "");
+      // call_id MUST come first: call records also carry agent_id, and keying
+      // on agent_id collapses every call after the first per agent.
+      const id = String(it?.call_id ?? it?.agent_id ?? it?.phone_number ?? "");
       if (id) {
         if (seenIds.has(id)) continue;
         seenIds.add(id);

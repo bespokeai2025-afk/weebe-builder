@@ -209,7 +209,8 @@ async function snapshotWorkspace(
     const durations = rows.map((r) => r.duration_seconds ?? 0).filter((d) => d > 0);
     snap.avg_duration_seconds =
       durations.length > 0 ? Math.round(durations.reduce((a, b) => a + b, 0) / durations.length) : 0;
-    snap.total_cost_cents = rows.reduce((a, r) => a + (r.cost_cents ?? 0), 0);
+    // Provider costs (Retell USD) are WEBEE-internal and NEVER stored in
+    // client-facing report snapshots — clients only see the GBP usage charge.
 
     if (!wbah) {
       const { count: bookings } = await sb

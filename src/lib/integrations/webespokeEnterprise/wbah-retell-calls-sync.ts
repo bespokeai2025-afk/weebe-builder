@@ -88,6 +88,10 @@ function buildRetellCallRow(c: any, workspaceId: string) {
     lead_id:              dv.lead_id != null ? String(dv.lead_id) : null,
     meta: {
       source:          "retell",
+      // Actual provider-recorded cost (Retell call_cost.combined_cost, USD
+      // cents) and raw duration — used for provider cost/duration recon.
+      cost_usd_cents:  typeof c.call_cost?.combined_cost === "number" ? c.call_cost.combined_cost : null,
+      duration_ms:     Number.isFinite(Number(c.duration_ms)) ? Number(c.duration_ms) : null,
       call_successful: c.call_analysis?.call_successful ?? null,
       in_voicemail:    c.call_analysis?.in_voicemail ?? null,
       lead_id:         dv.lead_id ?? null,
