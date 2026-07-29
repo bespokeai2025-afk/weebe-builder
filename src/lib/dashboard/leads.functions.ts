@@ -666,7 +666,7 @@ export const startQualificationCallsForLeads = createServerFn({ method: "POST" }
           retell_llm_dynamic_variables: dynamicVars,
         };
 
-        const call = await retellFetch<any>("/v2/create-phone-call", callPayload, resolvedKey);
+        const call = await retellFetch<any>("/v2/create-phone-call", callPayload, "POST", resolvedKey);
 
         await sb.from("leads").update({ status: "calling", updated_at: now }).eq("id", lead.id);
         await sb.from("calls").insert({
@@ -857,7 +857,7 @@ export const fireScheduledCalls = createServerFn({ method: "POST" })
           retell_llm_dynamic_variables: dynamicVars,
         };
 
-        const call = await retellFetch<any>("/v2/create-phone-call", callPayload, resolvedKey);
+        const call = await retellFetch<any>("/v2/create-phone-call", callPayload, "POST", resolvedKey);
         await sb.from("calls").insert({
           workspace_id: workspaceId,
           retell_call_id: call?.call_id ?? null,
