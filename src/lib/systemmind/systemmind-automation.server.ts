@@ -442,6 +442,9 @@ export async function submitDraftForApprovalServer(
   const { assertProposalAllowed } = await import("@/lib/hivemind/mode-gate.server");
   await assertProposalAllowed(sb, workspaceId);
 
+  // JUSTIFIED-EXCEPTION (Task #500): writes to hivemind_actions (approval queue),
+  // not hivemind_tasks. This is a draft-for-approval record; the intelligence packet
+  // gate fires in hivemind.actions.ts::executeAction when the action is approved.
   const { data: action, error } = await sb.from("hivemind_actions").insert({
     workspace_id:   workspaceId,
     title:          `Activate SystemMind automation: "${draft.title}"`,

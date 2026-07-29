@@ -104,7 +104,7 @@ const AddInput = z.object({
 
 export const addMonitoredSource = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((i: z.infer<typeof AddInput>) => AddInput.parse(i))
+  .validator((i: z.infer<typeof AddInput>) => AddInput.parse(i))
   .handler(async ({ data, context }) => {
     const workspaceId = context.workspaceId;
     const userId = context.userId;
@@ -159,7 +159,7 @@ const UpdateInput = z.object({
 
 export const updateMonitoredSource = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((i: z.infer<typeof UpdateInput>) => UpdateInput.parse(i))
+  .validator((i: z.infer<typeof UpdateInput>) => UpdateInput.parse(i))
   .handler(async ({ data, context }) => {
     const workspaceId = context.workspaceId;
     if (!workspaceId) throw new Error("No workspace");
@@ -192,7 +192,7 @@ const RemoveInput = z.object({ id: z.string().uuid() });
 
 export const removeMonitoredSource = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((i: z.infer<typeof RemoveInput>) => RemoveInput.parse(i))
+  .validator((i: z.infer<typeof RemoveInput>) => RemoveInput.parse(i))
   .handler(async ({ data, context }) => {
     const workspaceId = context.workspaceId;
     if (!workspaceId) throw new Error("No workspace");

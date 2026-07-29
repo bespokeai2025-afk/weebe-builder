@@ -1,0 +1,166 @@
+# TARGETED FIX — WORK ORDERS “DETAILS” BUTTON DOES NOT OPEN
+
+Fix only the non-working Details buttons on:
+
+HiveMind → Work Orders
+
+Do not redesign the Work Orders page.
+Do not change work-order execution logic, approvals, Google Ads analysis, task statuses, or unrelated navigation.
+
+## Confirmed issue
+
+The Work Orders page renders active work-order cards correctly.
+
+Visible examples include:
+
+- Google Ads campaign optimisation
+- Improve "Search for US and Reception" campaign
+
+Each card has a visible `Details` button, but clicking it does not open or navigate to the work-order details.
+
+## Phase 1 — Trace the real click before changing code
+
+Inspect the existing Details button and trace:
+
+Details button click
+→ click handler
+→ selected work-order ID
+→ router/navigation or drawer/modal state
+→ details query/server function
+→ returned work-order data
+→ rendered details view
+
+Report the first failing stage.
+
+Explicitly inspect for:
+
+- missing `onClick`
+- handler receiving no work-order ID
+- wrong ID field used
+- button inside another clickable element
+- click propagation being cancelled
+- transparent overlay intercepting clicks
+- CSS `pointer-events: none`
+- disabled state incorrectly applied
+- route not registered
+- incorrect route path
+- route parameter mismatch
+- drawer/modal state never set
+- details component rendered behind another layer
+- incorrect `z-index`
+- details query failing silently
+- workspace filter rejecting the record
+- stale query cache
+- button implemented visually but not functionally
+
+Do not guess. Test the actual rendered button.
+
+## Required behaviour
+
+Clicking `Details` must open the selected work order and show:
+
+- title
+- description
+- owning Mind
+- work-order type
+- current status
+- progress percentage
+- stages
+- approval state
+- execution state
+- intelligence packet
+- evidence sources
+- proposed changes
+- success criteria
+- limitations and risks
+- monitoring plan
+- created and updated timestamps
+- linked task
+- linked actions
+- linked report
+- execution errors, if present
+
+The details view may use the existing route, drawer, or modal. Reuse the current intended implementation rather than creating a duplicate system.
+
+## Correct record selection
+
+Each Details button must open the record for that exact card.
+
+Verify:
+
+- The Google Ads campaign optimisation button opens its own work order.
+- The “Search for US and Reception” button opens its own work order.
+- Work-order IDs are not confused with task IDs, execution IDs, approval IDs, or action IDs.
+- Refreshing the details page or view preserves the selected record where supported.
+- Closing the view returns to Work Orders without losing the list state.
+
+## Error handling
+
+If the details query fails, display a visible error:
+
+`Work order details could not be loaded.`
+
+Include:
+
+- retry control
+- error log
+- work-order ID used
+
+Do not allow the button to fail silently.
+
+## Workspace isolation
+
+Ensure the details query checks:
+
+- authenticated user
+- active workspace
+- work-order workspace ID
+
+A user must never be able to open another workspace’s work order by changing the URL or ID.
+
+## Accessibility
+
+Ensure the Details control:
+
+- is a real button or valid link
+- works with mouse
+- works with Enter
+- works with Space when implemented as a button
+- has a visible focus state
+- has an accessible label including the work-order title where practical
+
+## Verification
+
+Using the real Work Orders page:
+
+1. Click Details on `Google Ads campaign optimisation`.
+2. Confirm the correct work-order details open.
+3. Close or navigate back.
+4. Click Details on `Improve "Search for US and Reception" campaign`.
+5. Confirm a different correct work order opens.
+6. Confirm the URL or drawer state uses the correct record ID.
+7. Refresh while viewing details and confirm expected behaviour.
+8. Test keyboard activation.
+9. Test an invalid work-order ID.
+10. Confirm another workspace cannot access the record.
+
+## Final report
+
+Return only:
+
+1. Checkpoint reference
+2. First failing stage
+3. Root cause
+4. Exact files changed
+5. Existing details route/component reused
+6. ID passed before and after
+7. Click behaviour before and after
+8. Error handling added
+9. Workspace-isolation result
+10. Targeted tests passed
+11. Confirmation no execution or approval logic changed
+12. Confirmation no unrelated files changed
+
+Do not run a repository-wide audit.
+Do not redesign the page.
+Do not report success until both visible Details buttons open their correct real work orders.

@@ -711,7 +711,7 @@ export const previewWbahDynamicsCategorySync = createServerFn({ method: "GET" })
 
 export const syncWbahDynamicsCategories = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((i) => z.object({ scheduleCampaign: z.boolean().default(false) }).parse(i ?? {}))
+  .validator((i) => z.object({ scheduleCampaign: z.boolean().default(false) }).parse(i ?? {}))
   .handler(async ({ context, data }) => {
     const cbs = await requireWbahCbs(context.userId);
     const res = await api.wbahSyncDynamicsCategories(
@@ -1004,7 +1004,7 @@ export const getWbahCampaignScheduleOptions = createServerFn({ method: "GET" })
 
 export const createWbahCampaign = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((i) => wbahCampaignFormSchema.parse(i ?? {}))
+  .validator((i) => wbahCampaignFormSchema.parse(i ?? {}))
   .handler(async ({ context, data }) => {
     const cbs = await requireWbahCbs(context.userId);
     const res = await api.wbahCreateCampaign(
@@ -1019,7 +1019,7 @@ export const createWbahCampaign = createServerFn({ method: "POST" })
 
 export const pauseWbahCampaign = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((i) => z.object({ id: z.string() }).parse(i ?? {}))
+  .validator((i) => z.object({ id: z.string() }).parse(i ?? {}))
   .handler(async ({ context, data }) => {
     const cbs = await requireWbahCbs(context.userId);
     const res = await api.wbahPauseCampaign(
@@ -1034,7 +1034,7 @@ export const pauseWbahCampaign = createServerFn({ method: "POST" })
 
 export const resumeWbahCampaign = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((i) => z.object({ id: z.string() }).parse(i ?? {}))
+  .validator((i) => z.object({ id: z.string() }).parse(i ?? {}))
   .handler(async ({ context, data }) => {
     const cbs = await requireWbahCbs(context.userId);
     const res = await api.wbahResumeCampaign(
@@ -1049,7 +1049,7 @@ export const resumeWbahCampaign = createServerFn({ method: "POST" })
 
 export const deleteWbahCampaign = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((i) => z.object({ id: z.string() }).parse(i ?? {}))
+  .validator((i) => z.object({ id: z.string() }).parse(i ?? {}))
   .handler(async ({ context, data }) => {
     const cbs = await requireWbahCbs(context.userId);
     const res = await api.wbahDeleteCampaign(
@@ -1064,7 +1064,7 @@ export const deleteWbahCampaign = createServerFn({ method: "POST" })
 
 export const updateWbahCampaignSettings = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((i) =>
+  .validator((i) =>
     wbahCampaignFormFields
       .extend({ id: z.string().min(1) })
       .superRefine(refineCampaignDateRange)
@@ -1086,7 +1086,7 @@ export const updateWbahCampaignSettings = createServerFn({ method: "POST" })
 
 export const toggleWbahCampaignVoicemailSetting = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((i) =>
+  .validator((i) =>
     z.object({ id: z.string(), voicemail_enabled: z.boolean() }).parse(i ?? {}),
   )
   .handler(async ({ context, data }) => {
@@ -2185,7 +2185,7 @@ const WBAH_CALL_STATUS_FILTER: Record<string, string[]> = {
 
 export const listWbahCallsPaged = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator(
+  .validator(
     z.object({
       page: z.coerce.number().int().min(1).default(1),
       pageSize: z.coerce.number().int().min(1).max(100).default(50),
@@ -2313,7 +2313,7 @@ export const listWbahCallsPaged = createServerFn({ method: "POST" })
 // and Qualified pages.
 export const getWbahContactCallHistory = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator(z.object({ phone: z.string().min(1) }))
+  .validator(z.object({ phone: z.string().min(1) }))
   .handler(async ({ context, data }) => {
     const { supabase, workspaceId } = context;
     if (!workspaceId) throw new Error("No active workspace");
@@ -2352,7 +2352,7 @@ export const getWbahContactCallHistory = createServerFn({ method: "POST" })
 // Loaded on demand when a user opens a call — never included in the list page.
 export const getWbahCallDetail = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator(z.object({ id: z.string().min(1) }))
+  .validator(z.object({ id: z.string().min(1) }))
   .handler(async ({ context, data }) => {
     const { supabase, workspaceId } = context;
     if (!workspaceId) throw new Error("No active workspace");
@@ -2523,7 +2523,7 @@ async function requireWbahRetellKey(userId: string): Promise<string> {
 
 export const getWbahRetellCalls = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((i) =>
+  .validator((i) =>
     z
       .object({
         paginationKey: z.string().nullable().default(null),
@@ -2531,20 +2531,20 @@ export const getWbahRetellCalls = createServerFn({ method: "POST" })
       .parse(i ?? {}),
   )
   .handler(async ({ context, data }) => {
-    const { retellFetch } = await import("@/lib/providers/retell/client.server");
+    const { listRetellAgents, listRetellCallsPage } = await import(
+      "@/lib/providers/retell/list.server"
+    );
     const apiKey = await requireWbahRetellKey(context.userId);
 
     // Fetch agents + calls in parallel
     const [agentList, callRes] = await Promise.all([
-      retellFetch<any[]>("/list-agents", null, "GET", apiKey).catch(() => []),
-      retellFetch<any>(
-        "/v2/list-calls",
+      listRetellAgents(apiKey).catch(() => []),
+      listRetellCallsPage(
         {
           limit: 50,
           sort_order: "descending",
           ...(data.paginationKey ? { pagination_key: data.paginationKey } : {}),
         },
-        "POST",
         apiKey,
       ),
     ]);
@@ -2554,8 +2554,8 @@ export const getWbahRetellCalls = createServerFn({ method: "POST" })
       if (a.agent_id) agentNames[a.agent_id] = a.agent_name ?? a.agent_id;
     }
 
-    const calls: any[] = Array.isArray(callRes) ? callRes : (callRes?.calls ?? []);
-    const nextPaginationKey: string | null = callRes?.pagination_key ?? null;
+    const calls: any[] = callRes.items;
+    const nextPaginationKey: string | null = callRes.hasMore ? (callRes.paginationKey ?? null) : null;
 
     const records = calls.map((c: any) => ({
       id: String(c.call_id ?? Math.random()),
@@ -2590,21 +2590,21 @@ export const getWbahRetellCalls = createServerFn({ method: "POST" })
 export const getWbahRetellAgents = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
-    const { retellFetch } = await import("@/lib/providers/retell/client.server");
+    const { listRetellAgents, listRetellCallsPage } = await import(
+      "@/lib/providers/retell/list.server"
+    );
     const apiKey = await requireWbahRetellKey(context.userId);
 
     const [agentList, liveRes] = await Promise.all([
-      retellFetch<any[]>("/list-agents", null, "GET", apiKey).catch(() => []),
-      retellFetch<any>(
-        "/v2/list-calls",
+      listRetellAgents(apiKey).catch(() => []),
+      listRetellCallsPage(
         { filter_criteria: { call_status: ["ongoing"] }, limit: 20 },
-        "POST",
         apiKey,
       ).catch(() => null),
     ]);
 
     const liveCallAgentIds = new Set<string>(
-      (Array.isArray(liveRes) ? liveRes : (liveRes?.calls ?? []))
+      (liveRes?.items ?? [])
         .map((c: any) => c.agent_id)
         .filter(Boolean),
     );
@@ -2637,15 +2637,15 @@ function inferWbahDashboardType(name: string): string {
 
 export const reconcileWbahRetellAgents = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator(z.object({ apply: z.coerce.boolean().default(false) }))
+  .validator(z.object({ apply: z.coerce.boolean().default(false) }))
   .handler(async ({ context, data }) => {
-    const { retellFetch } = await import("@/lib/providers/retell/client.server");
+    const { listRetellAgents } = await import("@/lib/providers/retell/list.server");
     const apiKey = await requireWbahRetellKey(context.userId);
     const isAdmin = await isPlatformAdmin(context.userId);
     if (data.apply && !isAdmin) throw new Error("Admin access required to apply changes");
 
     // Live Retell agents (dedupe versions by agent_id).
-    const agentList = await retellFetch<any[]>("/list-agents", null, "GET", apiKey).catch(() => []);
+    const agentList = await listRetellAgents(apiKey).catch(() => []);
     const retellById = new Map<string, string>();
     for (const a of agentList ?? []) {
       if (a?.agent_id && !retellById.has(a.agent_id))
@@ -3217,7 +3217,7 @@ export const listWbahPeopleCategories = createServerFn({ method: "GET" })
 
 export const listWbahCategorizedLeads = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator(
+  .validator(
     z.object({
       // Accepts either the legacy enum slugs (disqualified / tried_to_contact /
       // rebooking) or a live "Lead Filter Master" category name ("Disqualified",
@@ -3285,7 +3285,7 @@ export const getWbahCallbackSummary = createServerFn({ method: "GET" })
 
 export const listWbahCallbacks = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator(
+  .validator(
     z.object({
       status: wbahCallbackStatusSchema.default("pending"),
       page: z.coerce.number().int().min(1).default(1),
@@ -3520,8 +3520,10 @@ async function buildWbahAgentPhoneMap(
   apiKey: string,
   neededDigits: Set<string>,
 ): Promise<Record<string, string>> {
-  const { retellFetch } = await import("@/lib/providers/retell/client.server");
-  const agentList = await retellFetch<any[]>("/list-agents", null, "GET", apiKey).catch(() => []);
+  const { listRetellAgents, listRetellCallsPage } = await import(
+    "@/lib/providers/retell/list.server"
+  );
+  const agentList = await listRetellAgents(apiKey).catch(() => []);
   const agentNames: Record<string, string> = {};
   for (const a of agentList ?? []) {
     if (a.agent_id) agentNames[a.agent_id] = a.agent_name ?? a.agent_id;
@@ -3530,19 +3532,17 @@ async function buildWbahAgentPhoneMap(
   const map: Record<string, string> = {};
   const remaining = new Set(neededDigits);
   const MAX_PAGES = 20;
-  let paginationKey: string | null = null;
+  let paginationKey: string | undefined;
   for (let page = 0; page < MAX_PAGES && remaining.size > 0; page++) {
-    const callRes: any = await retellFetch<any>(
-      "/v2/list-calls",
+    const callRes = await listRetellCallsPage(
       {
         limit: 50,
         sort_order: "descending",
         ...(paginationKey ? { pagination_key: paginationKey } : {}),
       },
-      "POST",
       apiKey,
     );
-    const calls: any[] = Array.isArray(callRes) ? callRes : (callRes?.calls ?? []);
+    const calls: any[] = callRes.items;
     if (calls.length === 0) break;
     for (const c of calls) {
       const d = String(c.to_number ?? "").replace(/\D/g, "");
@@ -3553,7 +3553,7 @@ async function buildWbahAgentPhoneMap(
         remaining.delete(d);
       }
     }
-    paginationKey = callRes?.pagination_key ?? null;
+    paginationKey = callRes.hasMore ? callRes.paginationKey : undefined;
     if (!paginationKey) break;
   }
   return map;

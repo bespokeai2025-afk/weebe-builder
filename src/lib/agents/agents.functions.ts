@@ -2,7 +2,6 @@ import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import type { Database } from "@/integrations/supabase/types";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
-import { retellFetch } from "@/lib/providers/retell/client.server";
 import { createVoiceProviderWithFallback } from "@/lib/providers/voice/factory";
 import { goLiveAgentService, saveAgentPhoneNumberService } from "@/lib/agents/agent-golive.server";
 
@@ -197,9 +196,12 @@ export const getDashboardLiveAgents = createServerFn({ method: "GET" })
     const phoneMap: Record<string, string> = {}; // agent_id -> phone number
 
     try {
+      const { listRetellAgents, listRetellPhoneNumbers } = await import(
+        "@/lib/providers/retell/list.server"
+      );
       const [agentsResp, phonesResp] = await Promise.allSettled([
-        retellFetch<unknown>("/list-agents", undefined, "GET", wsKey),
-        retellFetch<unknown>("/list-phone-numbers", undefined, "GET", wsKey),
+        listRetellAgents(wsKey),
+        listRetellPhoneNumbers(wsKey),
       ]);
 
       if (agentsResp.status === "fulfilled" && Array.isArray(agentsResp.value)) {
@@ -213,7 +215,10 @@ export const getDashboardLiveAgents = createServerFn({ method: "GET" })
 
       if (phonesResp.status === "fulfilled" && Array.isArray(phonesResp.value)) {
         for (const pn of phonesResp.value as Array<Record<string, unknown>>) {
-          const agentId = pn.inbound_agent_id as string | undefined;
+          const inboundArr = pn.inbound_agents as Array<{ agent_id?: string }> | undefined;
+          const agentId =
+            (Array.isArray(inboundArr) ? inboundArr[0]?.agent_id : undefined) ??
+            (pn.inbound_agent_id as string | undefined);
           const phone = pn.phone_number as string | undefined;
           if (agentId && phone) phoneMap[agentId] = phone;
         }
@@ -310,7 +315,7 @@ export const getDashboardLiveAgents = createServerFn({ method: "GET" })
 /** Load a specific agent by row id. */
 export const getMyAgent = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: { id: string }) => input)
+  .validator((input: { id: string }) => input)
   .handler(async ({ context, data }) => {
     const { supabase } = context;
     const { data: row, error } = await supabase
@@ -325,7 +330,7 @@ export const getMyAgent = createServerFn({ method: "POST" })
 /** Look up an existing row by Retell agent ID (so reloading by ID restores cost history). */
 export const getMyAgentByRetellId = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: { retellAgentId: string }) => input)
+  .validator((input: { retellAgentId: string }) => input)
   .handler(async ({ context, data }) => {
     const { supabase } = context;
     const { data: row, error } = await supabase
@@ -402,7 +407,7 @@ function compileOpenAISchema(
 
 export const upsertMyAgent = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator(
+  .validator(
     (input: {
       id?: string;
       retellAgentId?: string | null;
@@ -497,7 +502,7 @@ export const upsertMyAgent = createServerFn({ method: "POST" })
 /** Add seconds to an agent's cost counter (atomic-ish increment via read-modify-write). */
 export const addAgentCallSeconds = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: { id: string; seconds: number }) => input)
+  .validator((input: { id: string; seconds: number }) => input)
   .handler(async ({ context, data }) => {
     const { supabase } = context;
     const { data: cur, error: readErr } = await supabase
@@ -517,7 +522,7 @@ export const addAgentCallSeconds = createServerFn({ method: "POST" })
 
 export const deleteMyAgent = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: { id: string }) => input)
+  .validator((input: { id: string }) => input)
   .handler(async ({ context, data }) => {
     const { supabase } = context;
     const { error } = await supabase.from("agents").delete().eq("id", data.id);
@@ -531,7 +536,7 @@ export const deleteMyAgent = createServerFn({ method: "POST" })
  */
 export const saveAgentCalcom = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator(
+  .validator(
     (input: { id: string; calcomApiKey: string | null; calcomEventTypeId?: string | null }) =>
       input,
   )
@@ -586,7 +591,7 @@ export const saveAgentCalcom = createServerFn({ method: "POST" })
 /** Verify a Cal.com API key and return the user's event types for the dropdown. */
 export const fetchCalcomEventTypes = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: { apiKey: string }) => input)
+  .validator((input: { apiKey: string }) => input)
   .handler(async ({ data }) => {
     const { listEventTypes } = await import("@/lib/calendar/calcom.server");
     try {
@@ -608,7 +613,7 @@ export const fetchCalcomEventTypes = createServerFn({ method: "POST" })
 /** Save the deployed phone number onto an agent's settings JSON. */
 export const saveAgentPhoneNumber = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: { id: string; phoneNumber: string | null }) => input)
+  .validator((input: { id: string; phoneNumber: string | null }) => input)
   .handler(async ({ context, data }) => {
     return saveAgentPhoneNumberService({ supabase: context.supabase, ...data });
   });
@@ -620,7 +625,7 @@ export const saveAgentPhoneNumber = createServerFn({ method: "POST" })
  */
 export const saveAgentDeployedRetellId = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator(
+  .validator(
     (input: { id: string; deployedRetellAgentId: string; deployedConversationFlowId?: string }) =>
       input,
   )
@@ -651,7 +656,7 @@ export const saveAgentDeployedRetellId = createServerFn({ method: "POST" })
  */
 export const goLiveAgent = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: { id: string; agentType: AgentGoLiveType }) => input)
+  .validator((input: { id: string; agentType: AgentGoLiveType }) => input)
   .handler(async ({ context, data }) => {
     return goLiveAgentService({
       supabase: context.supabase,
@@ -667,7 +672,7 @@ export const goLiveAgent = createServerFn({ method: "POST" })
  */
 export const setAgentVoiceProvider = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: { id: string; provider: "RETELL" | "OPENAI_REALTIME" }) => input)
+  .validator((input: { id: string; provider: "RETELL" | "OPENAI_REALTIME" }) => input)
   .handler(async ({ context, data }) => {
     const { supabase } = context;
     const sb = supabase as any;
@@ -778,7 +783,7 @@ export const setAgentVoiceProvider = createServerFn({ method: "POST" })
 
 export const createOpenAIRealtimeSession = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: { agentRowId: string }) => input)
+  .validator((input: { agentRowId: string }) => input)
   .handler(async ({ context, data }) => {
     const { supabase } = context;
 
@@ -865,7 +870,7 @@ export const createOpenAIRealtimeSession = createServerFn({ method: "POST" })
 /** Buy a Twilio phone number directly (used for OpenAI Realtime agents). */
 export const buyTwilioPhoneNumber = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator(
+  .validator(
     (input: { areaCode?: number; tollFree?: boolean; nickname?: string; countryCode?: string }) => input,
   )
   .handler(async ({ data, context }) => {
@@ -921,7 +926,7 @@ export const buyTwilioPhoneNumber = createServerFn({ method: "POST" })
 /** List Twilio phone numbers owned by this workspace (for OpenAI Realtime agents). */
 export const listTwilioPhoneNumbers = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: Record<string, never> | undefined) => input ?? {})
+  .validator((input: Record<string, never> | undefined) => input ?? {})
   .handler(async ({ context }) => {
     const { supabase } = context;
     const { data: ws } = await (supabase as any)

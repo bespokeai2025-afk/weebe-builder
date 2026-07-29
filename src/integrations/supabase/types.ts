@@ -1187,6 +1187,81 @@ export type Database = {
           },
         ]
       }
+      ai_usage_ledger: {
+        Row: {
+          cached_input_tokens: number
+          created_at: string
+          department: string
+          endpoint: string | null
+          error_message: string | null
+          estimated_cost_usd: number
+          fallback_from: string | null
+          fallback_used: boolean
+          feature: string
+          id: string
+          input_tokens: number
+          latency_ms: number | null
+          output_tokens: number
+          provider: string
+          reasoning_tokens: number
+          request_id: string | null
+          requested_model: string
+          returned_model: string | null
+          routing: Json | null
+          status: string
+          video_seconds: number
+          workspace_id: string | null
+        }
+        Insert: {
+          cached_input_tokens?: number
+          created_at?: string
+          department: string
+          endpoint?: string | null
+          error_message?: string | null
+          estimated_cost_usd?: number
+          fallback_from?: string | null
+          fallback_used?: boolean
+          feature: string
+          id?: string
+          input_tokens?: number
+          latency_ms?: number | null
+          output_tokens?: number
+          provider: string
+          reasoning_tokens?: number
+          request_id?: string | null
+          requested_model: string
+          returned_model?: string | null
+          routing?: Json | null
+          status: string
+          video_seconds?: number
+          workspace_id?: string | null
+        }
+        Update: {
+          cached_input_tokens?: number
+          created_at?: string
+          department?: string
+          endpoint?: string | null
+          error_message?: string | null
+          estimated_cost_usd?: number
+          fallback_from?: string | null
+          fallback_used?: boolean
+          feature?: string
+          id?: string
+          input_tokens?: number
+          latency_ms?: number | null
+          output_tokens?: number
+          provider?: string
+          reasoning_tokens?: number
+          request_id?: string | null
+          requested_model?: string
+          returned_model?: string | null
+          routing?: Json | null
+          status?: string
+          video_seconds?: number
+          workspace_id?: string | null
+        }
+        Relationships: []
+      }
       analytics_report_schedules: {
         Row: {
           created_at: string
@@ -1420,6 +1495,7 @@ export type Database = {
       }
       ava_call_requests: {
         Row: {
+          attribution: Json | null
           call_outcome: Json | null
           created_at: string
           email: string
@@ -1441,6 +1517,7 @@ export type Database = {
           workspace_id: string
         }
         Insert: {
+          attribution?: Json | null
           call_outcome?: Json | null
           created_at?: string
           email: string
@@ -1462,6 +1539,7 @@ export type Database = {
           workspace_id: string
         }
         Update: {
+          attribution?: Json | null
           call_outcome?: Json | null
           created_at?: string
           email?: string
@@ -1931,6 +2009,7 @@ export type Database = {
           call_successful: boolean | null
           call_summary: string | null
           call_type: Database["public"]["Enums"]["call_type"]
+          campaign_id: string | null
           channel_type: string | null
           cost_cents: number | null
           created_at: string
@@ -1960,6 +2039,7 @@ export type Database = {
           call_successful?: boolean | null
           call_summary?: string | null
           call_type?: Database["public"]["Enums"]["call_type"]
+          campaign_id?: string | null
           channel_type?: string | null
           cost_cents?: number | null
           created_at?: string
@@ -1989,6 +2069,7 @@ export type Database = {
           call_successful?: boolean | null
           call_summary?: string | null
           call_type?: Database["public"]["Enums"]["call_type"]
+          campaign_id?: string | null
           channel_type?: string | null
           cost_cents?: number | null
           created_at?: string
@@ -2011,6 +2092,13 @@ export type Database = {
           workspace_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "calls_campaign_id_fkey"
+            columns: ["campaign_id"]
+            isOneToOne: false
+            referencedRelation: "campaigns"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "calls_lead_id_fkey"
             columns: ["lead_id"]
@@ -2495,6 +2583,66 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      conversion_events: {
+        Row: {
+          conversion_name: string
+          created_at: string
+          dedup_key: string
+          delivery_status: string
+          gbraid: string | null
+          gclid: string | null
+          id: string
+          landing_url: string | null
+          last_error: string | null
+          lead_id: string | null
+          provider_response: Json | null
+          record_ref: Json
+          source: string
+          updated_at: string
+          uploaded_at: string | null
+          wbraid: string | null
+          workspace_id: string
+        }
+        Insert: {
+          conversion_name: string
+          created_at?: string
+          dedup_key: string
+          delivery_status?: string
+          gbraid?: string | null
+          gclid?: string | null
+          id?: string
+          landing_url?: string | null
+          last_error?: string | null
+          lead_id?: string | null
+          provider_response?: Json | null
+          record_ref?: Json
+          source: string
+          updated_at?: string
+          uploaded_at?: string | null
+          wbraid?: string | null
+          workspace_id: string
+        }
+        Update: {
+          conversion_name?: string
+          created_at?: string
+          dedup_key?: string
+          delivery_status?: string
+          gbraid?: string | null
+          gclid?: string | null
+          id?: string
+          landing_url?: string | null
+          last_error?: string | null
+          lead_id?: string | null
+          provider_response?: Json | null
+          record_ref?: Json
+          source?: string
+          updated_at?: string
+          uploaded_at?: string | null
+          wbraid?: string | null
+          workspace_id?: string
+        }
+        Relationships: []
       }
       cost_engine_client_estimates: {
         Row: {
@@ -5634,6 +5782,110 @@ export type Database = {
           },
         ]
       }
+      growthmind_content_variants: {
+        Row: {
+          approval_state: string
+          approval_task_id: string | null
+          approved_at: string | null
+          approved_by: string | null
+          approved_copy_snapshot: Json | null
+          blockers: Json
+          body_copy: string | null
+          caption: string | null
+          channel: string
+          created_at: string
+          cta: string | null
+          deployment_path: string
+          deployment_state: string
+          external_post_id: string | null
+          format_notes: string | null
+          headline: string | null
+          hook: string | null
+          id: string
+          live_url: string | null
+          media_url: string | null
+          performance: Json | null
+          project_id: string
+          provider_record: Json | null
+          publishing_job_id: string | null
+          script: string | null
+          updated_at: string
+          verification_note: string | null
+          work_order_id: string | null
+          workspace_id: string
+        }
+        Insert: {
+          approval_state?: string
+          approval_task_id?: string | null
+          approved_at?: string | null
+          approved_by?: string | null
+          approved_copy_snapshot?: Json | null
+          blockers?: Json
+          body_copy?: string | null
+          caption?: string | null
+          channel: string
+          created_at?: string
+          cta?: string | null
+          deployment_path?: string
+          deployment_state?: string
+          external_post_id?: string | null
+          format_notes?: string | null
+          headline?: string | null
+          hook?: string | null
+          id?: string
+          live_url?: string | null
+          media_url?: string | null
+          performance?: Json | null
+          project_id: string
+          provider_record?: Json | null
+          publishing_job_id?: string | null
+          script?: string | null
+          updated_at?: string
+          verification_note?: string | null
+          work_order_id?: string | null
+          workspace_id: string
+        }
+        Update: {
+          approval_state?: string
+          approval_task_id?: string | null
+          approved_at?: string | null
+          approved_by?: string | null
+          approved_copy_snapshot?: Json | null
+          blockers?: Json
+          body_copy?: string | null
+          caption?: string | null
+          channel?: string
+          created_at?: string
+          cta?: string | null
+          deployment_path?: string
+          deployment_state?: string
+          external_post_id?: string | null
+          format_notes?: string | null
+          headline?: string | null
+          hook?: string | null
+          id?: string
+          live_url?: string | null
+          media_url?: string | null
+          performance?: Json | null
+          project_id?: string
+          provider_record?: Json | null
+          publishing_job_id?: string | null
+          script?: string | null
+          updated_at?: string
+          verification_note?: string | null
+          work_order_id?: string | null
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "growthmind_content_variants_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "growthmind_content_projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       growthmind_discovery_runs: {
         Row: {
           cost_estimate: number
@@ -6027,6 +6279,63 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      growthmind_gads_analysis_reports: {
+        Row: {
+          account_row_id: string | null
+          campaign_id: string | null
+          campaign_name: string | null
+          created_at: string
+          date_from: string | null
+          date_to: string | null
+          execution_id: string | null
+          id: string
+          period_days: number
+          sections: Json
+          source_meta: Json
+          status: string
+          task_id: string | null
+          updated_at: string
+          work_order_id: string | null
+          workspace_id: string
+        }
+        Insert: {
+          account_row_id?: string | null
+          campaign_id?: string | null
+          campaign_name?: string | null
+          created_at?: string
+          date_from?: string | null
+          date_to?: string | null
+          execution_id?: string | null
+          id?: string
+          period_days?: number
+          sections?: Json
+          source_meta?: Json
+          status?: string
+          task_id?: string | null
+          updated_at?: string
+          work_order_id?: string | null
+          workspace_id: string
+        }
+        Update: {
+          account_row_id?: string | null
+          campaign_id?: string | null
+          campaign_name?: string | null
+          created_at?: string
+          date_from?: string | null
+          date_to?: string | null
+          execution_id?: string | null
+          id?: string
+          period_days?: number
+          sections?: Json
+          source_meta?: Json
+          status?: string
+          task_id?: string | null
+          updated_at?: string
+          work_order_id?: string | null
+          workspace_id?: string
+        }
+        Relationships: []
       }
       growthmind_gads_campaign_daily: {
         Row: {
@@ -9434,6 +9743,126 @@ export type Database = {
           },
         ]
       }
+      growthmind_video_jobs: {
+        Row: {
+          actual_cost_usd: number | null
+          approval_consumed_at: string | null
+          approval_required: boolean
+          approved_at: string | null
+          approved_by: string | null
+          aspect_ratio: string
+          asset_id: string | null
+          brand_context: Json | null
+          campaign_id: string | null
+          claimed_at: string | null
+          completed_at: string | null
+          created_at: string
+          duration_seconds: number
+          estimated_cost_usd: number
+          failure_reason: string | null
+          generate_audio: boolean
+          generation_type: string
+          id: string
+          last_frame_image_url: string | null
+          model: string
+          output_storage_path: string | null
+          output_url: string | null
+          plan: Json | null
+          poll_count: number
+          prompt: string
+          prompt_version: number
+          provider: string
+          provider_operation_id: string | null
+          quality_tier: string
+          reference_image_url: string | null
+          resolution: string
+          status: string
+          submitted_at: string | null
+          updated_at: string
+          user_id: string | null
+          variations: number
+          workspace_id: string
+        }
+        Insert: {
+          actual_cost_usd?: number | null
+          approval_consumed_at?: string | null
+          approval_required?: boolean
+          approved_at?: string | null
+          approved_by?: string | null
+          aspect_ratio?: string
+          asset_id?: string | null
+          brand_context?: Json | null
+          campaign_id?: string | null
+          claimed_at?: string | null
+          completed_at?: string | null
+          created_at?: string
+          duration_seconds?: number
+          estimated_cost_usd?: number
+          failure_reason?: string | null
+          generate_audio?: boolean
+          generation_type?: string
+          id?: string
+          last_frame_image_url?: string | null
+          model?: string
+          output_storage_path?: string | null
+          output_url?: string | null
+          plan?: Json | null
+          poll_count?: number
+          prompt?: string
+          prompt_version?: number
+          provider?: string
+          provider_operation_id?: string | null
+          quality_tier?: string
+          reference_image_url?: string | null
+          resolution?: string
+          status?: string
+          submitted_at?: string | null
+          updated_at?: string
+          user_id?: string | null
+          variations?: number
+          workspace_id: string
+        }
+        Update: {
+          actual_cost_usd?: number | null
+          approval_consumed_at?: string | null
+          approval_required?: boolean
+          approved_at?: string | null
+          approved_by?: string | null
+          aspect_ratio?: string
+          asset_id?: string | null
+          brand_context?: Json | null
+          campaign_id?: string | null
+          claimed_at?: string | null
+          completed_at?: string | null
+          created_at?: string
+          duration_seconds?: number
+          estimated_cost_usd?: number
+          failure_reason?: string | null
+          generate_audio?: boolean
+          generation_type?: string
+          id?: string
+          last_frame_image_url?: string | null
+          model?: string
+          output_storage_path?: string | null
+          output_url?: string | null
+          plan?: Json | null
+          poll_count?: number
+          prompt?: string
+          prompt_version?: number
+          provider?: string
+          provider_operation_id?: string | null
+          quality_tier?: string
+          reference_image_url?: string | null
+          resolution?: string
+          status?: string
+          submitted_at?: string | null
+          updated_at?: string
+          user_id?: string | null
+          variations?: number
+          workspace_id?: string
+        }
+        Relationships: []
+      }
       growthmind_video_performance: {
         Row: {
           appointments: number
@@ -10260,8 +10689,11 @@ export type Database = {
           execution_status: string | null
           id: string
           input_spec: Json | null
+          intelligence_packet: Json | null
           metadata: Json | null
+          packet_version: number | null
           priority: string
+          readiness_state: string | null
           reason: string | null
           reassess_at: string | null
           reopened_count: number
@@ -10296,8 +10728,11 @@ export type Database = {
           execution_status?: string | null
           id?: string
           input_spec?: Json | null
+          intelligence_packet?: Json | null
           metadata?: Json | null
+          packet_version?: number | null
           priority?: string
+          readiness_state?: string | null
           reason?: string | null
           reassess_at?: string | null
           reopened_count?: number
@@ -10332,8 +10767,11 @@ export type Database = {
           execution_status?: string | null
           id?: string
           input_spec?: Json | null
+          intelligence_packet?: Json | null
           metadata?: Json | null
+          packet_version?: number | null
           priority?: string
+          readiness_state?: string | null
           reason?: string | null
           reassess_at?: string | null
           reopened_count?: number
@@ -10433,6 +10871,8 @@ export type Database = {
           external_source_id: string | null
           full_name: string | null
           funding_amount: number | null
+          gbraid: string | null
+          gclid: string | null
           id: string
           interest_level: string | null
           last_contacted_at: string | null
@@ -10468,6 +10908,7 @@ export type Database = {
           utm_campaign: string | null
           utm_medium: string | null
           utm_source: string | null
+          wbraid: string | null
           whatsapp_opt_in: boolean | null
           workspace_id: string
         }
@@ -10491,6 +10932,8 @@ export type Database = {
           external_source_id?: string | null
           full_name?: string | null
           funding_amount?: number | null
+          gbraid?: string | null
+          gclid?: string | null
           id?: string
           interest_level?: string | null
           last_contacted_at?: string | null
@@ -10526,6 +10969,7 @@ export type Database = {
           utm_campaign?: string | null
           utm_medium?: string | null
           utm_source?: string | null
+          wbraid?: string | null
           whatsapp_opt_in?: boolean | null
           workspace_id: string
         }
@@ -10549,6 +10993,8 @@ export type Database = {
           external_source_id?: string | null
           full_name?: string | null
           funding_amount?: number | null
+          gbraid?: string | null
+          gclid?: string | null
           id?: string
           interest_level?: string | null
           last_contacted_at?: string | null
@@ -10584,6 +11030,7 @@ export type Database = {
           utm_campaign?: string | null
           utm_medium?: string | null
           utm_source?: string | null
+          wbraid?: string | null
           whatsapp_opt_in?: boolean | null
           workspace_id?: string
         }
@@ -15273,13 +15720,17 @@ export type Database = {
           call_status: string | null
           call_summary: string | null
           call_type: string | null
+          campaign_id: string | null
+          campaign_run_id: string | null
           customer_name: string | null
           disconnection_reason: string | null
           duration_seconds: number | null
           end_reason: string | null
           id: string
+          lead_id: string | null
           meta: Json | null
           phone: string | null
+          provider_call_id: string | null
           recording_url: string | null
           sentiment: string | null
           started_at: string | null
@@ -15297,13 +15748,17 @@ export type Database = {
           call_status?: string | null
           call_summary?: string | null
           call_type?: string | null
+          campaign_id?: string | null
+          campaign_run_id?: string | null
           customer_name?: string | null
           disconnection_reason?: string | null
           duration_seconds?: number | null
           end_reason?: string | null
           id: string
+          lead_id?: string | null
           meta?: Json | null
           phone?: string | null
+          provider_call_id?: string | null
           recording_url?: string | null
           sentiment?: string | null
           started_at?: string | null
@@ -15321,13 +15776,17 @@ export type Database = {
           call_status?: string | null
           call_summary?: string | null
           call_type?: string | null
+          campaign_id?: string | null
+          campaign_run_id?: string | null
           customer_name?: string | null
           disconnection_reason?: string | null
           duration_seconds?: number | null
           end_reason?: string | null
           id?: string
+          lead_id?: string | null
           meta?: Json | null
           phone?: string | null
+          provider_call_id?: string | null
           recording_url?: string | null
           sentiment?: string | null
           started_at?: string | null
@@ -16341,8 +16800,11 @@ export type Database = {
           created_by_user_id: string | null
           evidence: Json | null
           id: string
+          intelligence_packet: Json | null
           metadata: Json | null
           objective: string | null
+          packet_version: number | null
+          readiness_state: string | null
           result_summary: string | null
           source: string
           source_conversation_id: string | null
@@ -16360,8 +16822,11 @@ export type Database = {
           created_by_user_id?: string | null
           evidence?: Json | null
           id?: string
+          intelligence_packet?: Json | null
           metadata?: Json | null
           objective?: string | null
+          packet_version?: number | null
+          readiness_state?: string | null
           result_summary?: string | null
           source?: string
           source_conversation_id?: string | null
@@ -16379,8 +16844,11 @@ export type Database = {
           created_by_user_id?: string | null
           evidence?: Json | null
           id?: string
+          intelligence_packet?: Json | null
           metadata?: Json | null
           objective?: string | null
+          packet_version?: number | null
+          readiness_state?: string | null
           result_summary?: string | null
           source?: string
           source_conversation_id?: string | null

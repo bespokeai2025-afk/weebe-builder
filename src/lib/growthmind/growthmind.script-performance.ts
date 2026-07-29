@@ -18,7 +18,7 @@ export const getScriptPerformance = createServerFn({ method: "GET" })
 
 export const runScriptPerformanceAnalysis = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({ force: z.boolean().optional() }).optional().parse(input)
   )
   .handler(async ({ context, data }) => {
@@ -32,7 +32,7 @@ export const runScriptPerformanceAnalysis = createServerFn({ method: "POST" })
 
 export const createScriptRecommendation = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({
       kind:        z.enum(["revision", "ab_experiment"]),
       agentKey:    z.string().max(200).nullable().optional(),

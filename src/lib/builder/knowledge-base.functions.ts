@@ -106,7 +106,7 @@ export const listRetellKnowledgeBases = createServerFn({ method: "GET" })
 
 export const createRetellKnowledgeBase = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((d: { name: string }) => d)
+  .validator((d: { name: string }) => d)
   .handler(async ({ context, data }) => {
     const key = await resolveRetellKey((context as any).workspaceId);
     const result = await retellKbFetch("/v2/create-knowledge-base", {
@@ -118,7 +118,7 @@ export const createRetellKnowledgeBase = createServerFn({ method: "POST" })
 
 export const deleteRetellKnowledgeBase = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((d: { kbId: string }) => d)
+  .validator((d: { kbId: string }) => d)
   .handler(async ({ context, data }) => {
     const key = await resolveRetellKey((context as any).workspaceId);
     await retellKbFetch(`/v2/delete-knowledge-base/${data.kbId}`, null, "DELETE", key);
@@ -127,7 +127,7 @@ export const deleteRetellKnowledgeBase = createServerFn({ method: "POST" })
 
 export const addTextToRetellKb = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((d: { kbId: string; text: string; sourceId: string }) => d)
+  .validator((d: { kbId: string; text: string; sourceId: string }) => d)
   .handler(async ({ context, data }) => {
     const key = await resolveRetellKey((context as any).workspaceId);
     const result = await retellKbFetch("/v2/add-knowledge-base-sources", {
@@ -139,7 +139,7 @@ export const addTextToRetellKb = createServerFn({ method: "POST" })
 
 export const addUrlToRetellKb = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((d: { kbId: string; url: string; sourceId: string }) => d)
+  .validator((d: { kbId: string; url: string; sourceId: string }) => d)
   .handler(async ({ context, data }) => {
     const key = await resolveRetellKey((context as any).workspaceId);
     const result = await retellKbFetch("/v2/add-knowledge-base-sources", {
@@ -151,7 +151,7 @@ export const addUrlToRetellKb = createServerFn({ method: "POST" })
 
 export const addFileToRetellKb = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((d: {
+  .validator((d: {
     kbId: string;
     fileBase64: string;
     fileName: string;

@@ -215,16 +215,16 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
         href: appCss,
       },
     ],
-    // Inline bootstrap scripts rendered via HeadContent (not raw JSX in the
-    // shell) so hydration tolerates scripts injected into <head> by the Replit
-    // dev preview / browser extensions. Raw positional <script> JSX in <head>
-    // pairs against injected tags and crashes hydration.
-    scripts: [
-      { children: themeInitScript },
-      { children: errorReportScript },
-      { children: chunkReloadScript },
-      { children: swCleanupScript },
-    ],
+    // Bootstrap logic (theme init, error reporter, stale-build reload, SW
+    // cleanup) lives in the external /bootstrap.js static file — NOT inline
+    // <script> children. Inline scripts hydrate positionally, so scripts
+    // injected into <head> by the Replit dev preview / browser extensions
+    // pair against them and crash hydration ("Hydration failed" + "Invalid
+    // hook call" on every page load). An async external script is a React 19
+    // hoistable resource matched by URL, immune to injected tags. Dark theme
+    // still applies before paint because the shell renders
+    // <html class="dark"> (the default) server-side.
+    scripts: [{ src: "/bootstrap.js?v=1", async: true }],
   }),
   shellComponent: RootShell,
   component: RootComponent,
@@ -232,28 +232,12 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
   errorComponent: ErrorComponent,
 });
 
-const themeInitScript = `(function(){try{var t=localStorage.getItem('theme');var d=t?t==='dark':true;document.documentElement.classList.toggle('dark',d);}catch(e){document.documentElement.classList.add('dark');}})();`;
-
-// After a republish, browsers holding the previous build's HTML/JS request old
-// hashed chunks (e.g. assets/builder-XXXX.js) that no longer exist → 404 → the
-// route (e.g. /builder) never loads. Vite fires "vite:preloadError" when a
-// dynamic chunk import fails; reload once (timestamp-guarded, max once/20s) so
-// the browser picks up the fresh build instead of showing a dead page.
-const chunkReloadScript = `(function(){function guard(){try{var k='chunk-autoreload-ts';var last=parseInt(sessionStorage.getItem(k)||'0',10);if(Date.now()-last>20000){sessionStorage.setItem(k,String(Date.now()));var u=new URL(window.location.href);u.searchParams.set('_v',String(Date.now()));window.location.replace(u.toString());return true;}}catch(e){}return false;}window.addEventListener('vite:preloadError',function(e){if(guard()&&e&&e.preventDefault)e.preventDefault();});window.addEventListener('error',function(e){var m=(e&&e.message)||'';if(/Failed to fetch dynamically imported module|Importing a module script failed|error loading dynamically imported module|Loading (CSS )?chunk|Invalid server function|Unexpected token '<'|is not valid JSON|Unexpected end of JSON|MIME type/i.test(m))guard();},true);window.addEventListener('unhandledrejection',function(e){var m=String((e&&e.reason&&e.reason.message)||e.reason||'');if(/Failed to fetch dynamically imported module|Importing a module script failed|error loading dynamically imported module|Loading (CSS )?chunk|Invalid server function|Unexpected token '<'|is not valid JSON|Unexpected end of JSON|MIME type/i.test(m))guard();});})();`;
-
-// Some browsers hold a stale service worker / CacheStorage from an earlier
-// build of this domain, which keeps serving months-old JS and crashes with
-// errors (e.g. "Illegal constructor") no current code produces. Unregister any
-// service workers and purge caches once per session so those browsers recover.
-const swCleanupScript = `(function(){try{if(sessionStorage.getItem('sw-cleanup-done'))return;sessionStorage.setItem('sw-cleanup-done','1');}catch(e){}try{if(navigator.serviceWorker&&navigator.serviceWorker.getRegistrations){navigator.serviceWorker.getRegistrations().then(function(rs){var had=rs.length>0;rs.forEach(function(r){r.unregister();});if(had)setTimeout(function(){window.location.reload();},400);}).catch(function(){});}}catch(e){}try{if(window.caches&&caches.keys){caches.keys().then(function(ks){ks.forEach(function(k){caches.delete(k);});}).catch(function(){});}}catch(e){}})();`;
-
-// Report the FIRST uncaught error per page load to the server so production
-// crashes leave a stack trace in the deployment logs.
-const errorReportScript = `(function(){var sent=false;var skip=/Hydration failed|error while hydrating|hydration mismatch|Invalid hook call/i;function rep(msg,stack){if(sent)return;if(skip.test(String(msg||'')))return;sent=true;try{fetch('/api/monitoring/client-error',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({message:String(msg||'').slice(0,500),stack:String(stack||'').slice(0,2000),url:window.location.href}),keepalive:true}).catch(function(){});}catch(e){}}window.addEventListener('error',function(e){var er=e&&e.error;rep((er&&er.message)||e.message,er&&er.stack);},true);window.addEventListener('unhandledrejection',function(e){var r=e&&e.reason;rep((r&&r.message)||String(r),r&&r.stack);});})();`;
-
 function RootShell({ children }: { children: React.ReactNode }) {
+  // className="dark" server-side so dark mode (the default) applies before
+  // /bootstrap.js runs; the script removes the class for light-mode users.
+  // suppressHydrationWarning tolerates the class differing at hydration time.
   return (
-    <html lang="en" suppressHydrationWarning>
+    <html lang="en" className="dark" suppressHydrationWarning>
       <head>
         <HeadContent />
       </head>

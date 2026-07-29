@@ -16,6 +16,16 @@ import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { upsertProviderSetting } from "../usage.server";
 
 export const GOOGLE_ADS_OAUTH_SCOPE = "https://www.googleapis.com/auth/adwords";
+/** Google Data Manager API scope — required for offline conversion ingestion
+ *  after Google's June 2026 move away from legacy uploadClickConversions. */
+export const DATA_MANAGER_OAUTH_SCOPE = "https://www.googleapis.com/auth/datamanager";
+/** All scopes requested by Connect with Google (adwords preserved). */
+export const GOOGLE_ADS_OAUTH_SCOPES = `${GOOGLE_ADS_OAUTH_SCOPE} ${DATA_MANAGER_OAUTH_SCOPE}`;
+
+/** True when the stored grantedScopes string covers the Data Manager scope. */
+export function grantedScopesIncludeDataManager(grantedScopes: string | undefined | null): boolean {
+  return String(grantedScopes ?? "").split(/\s+/).includes(DATA_MANAGER_OAUTH_SCOPE);
+}
 export const GOOGLE_ADS_CALLBACK_PATH = "/api/oauth/google-ads-callback";
 
 /** A safe in-app relative path: starts with exactly one "/" (blocks "//evil.com"). */
@@ -112,12 +122,17 @@ export const getGoogleAdsOAuthStatus = createServerFn({ method: "GET" })
       .maybeSingle();
 
     const creds = (data?.credentials ?? {}) as Record<string, string>;
+    const hasDataManagerScope = grantedScopesIncludeDataManager(creds.grantedScopes);
     return {
       hasClientId:       !!creds.clientId,
       hasClientSecret:   !!creds.clientSecret,
       hasDeveloperToken: !!creds.developerToken,
       hasRefreshToken:   !!creds.refreshToken,
       hasCustomerId:     !!creds.customerId,
+      hasDataManagerScope,
+      // Connected before the Data Manager scope was added — a reconnect is
+      // required before offline conversion uploads can flow.
+      reauthorisationRequired: !!creds.refreshToken && !hasDataManagerScope,
       status:            (data?.status as string) ?? "disconnected",
       callbackPath:      GOOGLE_ADS_CALLBACK_PATH,
     };
@@ -140,7 +155,7 @@ const StartInput = z.object({
 
 export const startGoogleAdsOAuth = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((i: z.infer<typeof StartInput>) => StartInput.parse(i))
+  .validator((i: z.infer<typeof StartInput>) => StartInput.parse(i))
   .handler(async ({ data, context }) => {
     const workspaceId = context.workspaceId;
     const userId      = context.userId;
@@ -207,9 +222,13 @@ export const startGoogleAdsOAuth = createServerFn({ method: "POST" })
       client_id:     creds.clientId,
       redirect_uri:  redirectUri,
       response_type: "code",
-      scope:         GOOGLE_ADS_OAUTH_SCOPE,
+      scope:         GOOGLE_ADS_OAUTH_SCOPES,
       access_type:   "offline",
       prompt:        "consent",
+      // Incremental authorisation: Google merges previously granted scopes
+      // (e.g. adwords from the original connection) into the new grant, so
+      // upgrading to Data Manager never drops existing analytics access.
+      include_granted_scopes: "true",
       state,
     });
 

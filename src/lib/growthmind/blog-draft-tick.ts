@@ -246,6 +246,9 @@ async function tickWorkspace(
 
   const { isProposalAllowed } = await import("@/lib/hivemind/mode-gate.server");
   if (insertedId && (await isProposalAllowed(sb as any, workspaceId))) {
+    // JUSTIFIED-EXCEPTION (Task #500): writes to hivemind_actions (approval queue),
+    // not hivemind_tasks. The intelligence packet gate fires in hivemind.actions.ts::executeAction
+    // when the action is approved and a hivemind_tasks row is created.
     await Promise.resolve((sb as any).from("hivemind_actions").insert({
       workspace_id: workspaceId,
       action_type:  "blog_draft",

@@ -16,7 +16,7 @@ async function ensureBucket() {
 
 export const saveHyperStreamTestCall = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input) =>
+  .validator((input) =>
     z
       .object({
         agentId: z.string().nullable().optional(),
@@ -107,7 +107,7 @@ export const saveHyperStreamTestCall = createServerFn({ method: "POST" })
 
 export const updateCallSentiment = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input) =>
+  .validator((input) =>
     z
       .object({
         callId: z.string(),

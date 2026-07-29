@@ -13,6 +13,7 @@
 
 import { isWbahWorkspaceId } from "../wbah-exclusion.shared";
 import { emitCampaignNotification } from "../notifications/notification-engine.shared";
+import { roundMinutes } from "../analytics-hub/campaign-usage.shared";
 
 type Sb = any;
 
@@ -54,22 +55,52 @@ export function isFailureReportType(t: string): boolean {
 export async function computeCampaignKpis(
   sb: Sb,
   workspaceId: string,
-  opts: { agentId?: string | null; sinceIso?: string | null; extra?: Record<string, unknown> },
+  opts: { agentId?: string | null; campaignId?: string | null; sinceIso?: string | null; extra?: Record<string, unknown> },
 ): Promise<Record<string, unknown>> {
   const kpis: Record<string, unknown> = { ...(opts.extra ?? {}) };
   try {
-    let q = sb
-      .from("calls")
-      .select("call_status, sentiment, is_voicemail, duration_seconds, cost_cents")
-      .eq("workspace_id", workspaceId)
-      .limit(1000);
-    if (opts.agentId) q = q.eq("agent_id", opts.agentId);
-    if (opts.sinceIso) q = q.gte("created_at", opts.sinceIso);
-    const { data } = await q;
-    const rows: any[] = data ?? [];
+    // Paged fetch — a single .limit(1000) silently under-counted busy
+    // campaigns (PostgREST caps at 1000 rows per request).
+    const PAGE = 1000;
+    const raw: any[] = [];
+    for (let p = 0; p < 10; p++) {
+      let q = sb
+        .from("calls")
+        .select("id, retell_call_id, call_status, sentiment, is_voicemail, duration_seconds, cost_cents")
+        .eq("workspace_id", workspaceId)
+        .order("created_at", { ascending: false })
+        .range(p * PAGE, p * PAGE + PAGE - 1);
+      // Prefer explicit campaign attribution (calls.campaign_id) when available;
+      // fall back to the agent/window heuristic for older calls.
+      if (opts.campaignId) q = q.eq("campaign_id", opts.campaignId);
+      else if (opts.agentId) q = q.eq("agent_id", opts.agentId);
+      // Canonical timestamp semantics: filter on call start time, falling
+      // back to created_at for legacy rows with no started_at.
+      if (opts.sinceIso) {
+        q = q.or(`started_at.gte.${opts.sinceIso},and(started_at.is.null,created_at.gte.${opts.sinceIso})`);
+      }
+      const { data } = await q;
+      const batch = (data ?? []) as any[];
+      raw.push(...batch);
+      if (batch.length < PAGE) break;
+    }
+    // Dedup by provider call id so retried webhooks never double-count —
+    // same rule as the canonical analytics core (dedupeCalls).
+    const seen = new Set<string>();
+    const rows: any[] = raw.filter((r: any) => {
+      const key = r.retell_call_id ? `p:${r.retell_call_id}` : `l:${r.id}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
     const answered = rows.filter((r) => r.call_status === "completed" && !r.is_voicemail);
     const positive = rows.filter((r) => r.sentiment === "positive");
     const durations = rows.map((r) => r.duration_seconds ?? 0).filter((d) => d > 0);
+    const totalSecs = rows.reduce((a, r) => a + (Number.isFinite(r.duration_seconds) && r.duration_seconds > 0 ? r.duration_seconds : 0), 0);
+    const connectedSecs = answered.reduce((a, r) => a + (Number.isFinite(r.duration_seconds) && r.duration_seconds > 0 ? r.duration_seconds : 0), 0);
+    kpis.total_duration_seconds = totalSecs;
+    kpis.total_minutes_used = roundMinutes(totalSecs);
+    kpis.connected_minutes = roundMinutes(connectedSecs);
     kpis.calls_total = rows.length;
     kpis.calls_answered = answered.length;
     kpis.calls_voicemail = rows.filter((r) => r.is_voicemail).length;
@@ -183,21 +214,48 @@ export async function writeCampaignReport(sb: Sb, input: CampaignReportInput): P
   } catch { /* non-fatal */ }
 
   // Failure notification → HiveMind task (visible in the action centre).
+  // MIGRATED (Task #500): insert goes through prepareMindTaskInsert so the row
+  // carries an intelligence packet and readiness_state.
   if (isFailureReportType(input.reportType)) {
     try {
       const { assertProposalAllowed } = await import("@/lib/hivemind/mode-gate.server");
       await assertProposalAllowed(sb, input.workspaceId);
-      await sb.from("hivemind_tasks").insert({
+      const { buildIntelligencePacket, prepareMindTaskInsert, evidenceItem } =
+        await import("@/lib/minds/intelligence-packet.server");
+      const title = `Campaign issue: ${input.campaignName ?? "campaign"} — ${input.reportType.replace(/_/g, " ")}`;
+      const description = `${summary}\n\nSee the campaign report for KPIs and recommended actions (report ${reportId}).`;
+      const packet = buildIntelligencePacket({
+        mind: "hivemind",
+        objective: `Investigate campaign failure: ${input.reportType} for "${input.campaignName ?? "campaign"}"`,
+        intentSource: `campaign_reports:${input.reportType}`,
+        targets: [{
+          domain: "campaigns",
+          entity_type: "campaign_report",
+          entity_id: reportId,
+          entity_name: input.campaignName ?? "campaign",
+          resolved: true,
+          resolution_note: `Campaign report ${reportId} (type: ${input.reportType}) has been written.`,
+        }],
+        evidence: [evidenceItem("campaign_report", summary, {
+          reportType:  input.reportType,
+          campaignId:  input.campaignId ?? null,
+          campaignName: input.campaignName ?? null,
+          reportId,
+        })],
+        diagnosis: summary,
+      });
+      const row = prepareMindTaskInsert({
         workspace_id: input.workspaceId,
-        title: `Campaign issue: ${input.campaignName ?? "campaign"} — ${input.reportType.replace(/_/g, " ")}`,
-        description: `${summary}\n\nSee the campaign report for KPIs and recommended actions (report ${reportId}).`,
+        title,
+        description,
         status: "suggested",
         priority: input.reportType === "failed" || input.reportType === "provider_error" ? "high" : "medium",
         source: "campaign_reports",
         trigger_type: `campaign_report_${input.reportType}`,
         entity_type: "campaign_report",
         entity_id: reportId,
-      });
+      }, packet);
+      await sb.from("hivemind_tasks").insert(row);
     } catch { /* non-fatal */ }
   }
 

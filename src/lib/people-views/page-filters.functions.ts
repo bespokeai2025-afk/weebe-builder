@@ -32,7 +32,7 @@ const pageKeySchema = z.enum(PAGE_KEYS as [PageKey, ...PageKey[]]);
 
 export const listWorkspacePageFilters = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input) =>
+  .validator((input) =>
     z.object({ pageKey: pageKeySchema.nullish() }).parse(input ?? {}),
   )
   .handler(async ({ data, context }) => {
@@ -42,7 +42,7 @@ export const listWorkspacePageFilters = createServerFn({ method: "GET" })
 
 export const getPageFilterFieldCatalog = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input) => z.object({ pageKey: pageKeySchema }).parse(input))
+  .validator((input) => z.object({ pageKey: pageKeySchema }).parse(input))
   .handler(async ({ data }) => {
     const ds = PAGE_DATASETS[data.pageKey];
     return {
@@ -59,7 +59,7 @@ export const getPageFilterFieldCatalog = createServerFn({ method: "GET" })
 
 export const createWorkspacePageFilter = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input) =>
+  .validator((input) =>
     z
       .object({
         pageKey: pageKeySchema,
@@ -92,7 +92,7 @@ export const createWorkspacePageFilter = createServerFn({ method: "POST" })
 
 export const updateWorkspacePageFilter = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input) =>
+  .validator((input) =>
     z
       .object({
         id: z.string().uuid(),
@@ -117,7 +117,7 @@ export const updateWorkspacePageFilter = createServerFn({ method: "POST" })
 
 export const duplicateWorkspacePageFilter = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input) => z.object({ id: z.string().uuid() }).parse(input))
+  .validator((input) => z.object({ id: z.string().uuid() }).parse(input))
   .handler(async ({ data, context }) => {
     const { workspaceId, userId, role } = await ctxRole(context);
     return duplicatePageFilter({ workspaceId, userId, role, id: data.id });
@@ -125,7 +125,7 @@ export const duplicateWorkspacePageFilter = createServerFn({ method: "POST" })
 
 export const setDefaultWorkspacePageFilter = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input) =>
+  .validator((input) =>
     z.object({ id: z.string().uuid(), isDefault: z.boolean() }).parse(input),
   )
   .handler(async ({ data, context }) => {
@@ -135,7 +135,7 @@ export const setDefaultWorkspacePageFilter = createServerFn({ method: "POST" })
 
 export const rollbackWorkspacePageFilter = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input) =>
+  .validator((input) =>
     z.object({ id: z.string().uuid(), versionId: z.string().uuid() }).parse(input),
   )
   .handler(async ({ data, context }) => {
@@ -145,7 +145,7 @@ export const rollbackWorkspacePageFilter = createServerFn({ method: "POST" })
 
 export const listWorkspacePageFilterVersions = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input) => z.object({ id: z.string().uuid() }).parse(input))
+  .validator((input) => z.object({ id: z.string().uuid() }).parse(input))
   .handler(async ({ data, context }) => {
     const { workspaceId } = await ctxRole(context);
     return listPageFilterVersions(workspaceId, data.id);
@@ -153,7 +153,7 @@ export const listWorkspacePageFilterVersions = createServerFn({ method: "GET" })
 
 export const dryRunWorkspacePageFilter = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input) =>
+  .validator((input) =>
     z
       .object({
         pageKey: pageKeySchema,
@@ -175,7 +175,7 @@ export const dryRunWorkspacePageFilter = createServerFn({ method: "POST" })
 
 export const runWorkspacePageFilter = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input) =>
+  .validator((input) =>
     z.object({ id: z.string().uuid(), limit: z.number().int().min(1).max(500).nullish() }).parse(input),
   )
   .handler(async ({ data, context }) => {

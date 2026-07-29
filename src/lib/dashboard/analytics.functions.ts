@@ -2,6 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { retellFetch } from "@/lib/providers/retell/client.server";
+import { listRetellAgents, listRetellPhoneNumbers, listRetellCallsPage } from "@/lib/providers/retell/list.server";
 import { cacheWrap } from "@/lib/cache/redis.server";
 
 const RETELL_ANALYTICS_TTL = 15 * 60; // 15 minutes
@@ -109,10 +110,10 @@ function trimRetellCall(c: any): any {
   };
 }
 
-// Paginate Retell /v2/list-calls for a single [lowerMs, upperMs] window,
-// descending by start_timestamp, cursoring on the last returned call_id (Retell
-// returns a plain array with no pagination_key field). Returns the raw calls
-// plus page count and whether the window hit its page cap.
+// Paginate Retell POST /v3/list-calls for a single [lowerMs, upperMs] window,
+// descending by start_timestamp, cursoring on pagination_key while has_more.
+// Returns the raw calls (deduped by call_id) plus page count and whether the
+// window hit its page cap.
 async function fetchCallsWindow(
   apiKey: string,
   agentIds: string[],
@@ -122,28 +123,34 @@ async function fetchCallsWindow(
   maxPages: number,
 ): Promise<{ calls: any[]; pages: number; truncated: boolean }> {
   const out: any[] = [];
+  const seen = new Set<string>();
   let paginationKey: string | undefined;
   let page = 0;
+  let hasMore = true;
   do {
     const startFilter: Record<string, number> = { lower_threshold: lowerMs };
     if (upperMs != null) startFilter.upper_threshold = upperMs;
-    const body: Record<string, any> = {
-      filter_criteria: { agent_id: agentIds, start_timestamp: startFilter },
-      limit: pageSize,
-      sort_order: "descending",
-    };
-    if (paginationKey) body.pagination_key = paginationKey;
-
-    const res = await retellFetch<any>("/v2/list-calls", body, "POST", apiKey);
-    const page_calls: any[] = Array.isArray(res) ? res : (res?.calls ?? []);
-    out.push(...page_calls);
-    paginationKey =
-      res?.pagination_key ??
-      (page_calls.length === pageSize ? page_calls[page_calls.length - 1]?.call_id : undefined);
+    const res = await listRetellCallsPage(
+      {
+        filter_criteria: { agent_id: agentIds, start_timestamp: startFilter },
+        limit: pageSize,
+        sort_order: "descending",
+        ...(paginationKey ? { pagination_key: paginationKey } : {}),
+      },
+      apiKey,
+    );
+    for (const c of res.items) {
+      const id = String(c?.call_id ?? "");
+      if (id && seen.has(id)) continue;
+      if (id) seen.add(id);
+      out.push(c);
+    }
+    paginationKey = res.paginationKey;
+    hasMore = res.hasMore;
     page++;
-  } while (paginationKey && page < maxPages);
+  } while (hasMore && paginationKey && page < maxPages);
 
-  return { calls: out, pages: page, truncated: !!paginationKey && page >= maxPages };
+  return { calls: out, pages: page, truncated: hasMore && !!paginationKey && page >= maxPages };
 }
 
 type RetellContext = {
@@ -255,10 +262,10 @@ export const listVoiceAgents = createServerFn({ method: "GET" })
         let raw: any[] = [];
         let error: string | null = null;
         try {
-          raw = await retellFetch<any[]>("/list-agents", null, "GET", ctx.apiKey);
+          raw = await listRetellAgents(ctx.apiKey);
         } catch (e: any) {
           error = e?.message || "Failed to load Retell agents";
-          console.error("[analytics] listVoiceAgents /list-agents failed:", e?.message);
+          console.error("[analytics] listVoiceAgents /v2/list-agents failed:", e?.message);
         }
 
         // Retell /list-agents returns one row per agent VERSION, so a workspace
@@ -317,23 +324,31 @@ export const syncRetellReceptionist = createServerFn({ method: "GET" })
     let retellAgents: any[] = [];
     let phoneNumbers: any[] = [];
     try {
-      retellAgents = await retellFetch<any[]>("/list-agents", null, "GET");
+      retellAgents = await listRetellAgents();
     } catch (e) {
-      console.error("Retell list-agents failed:", e);
+      console.error("Retell v2/list-agents failed:", e);
     }
     try {
-      phoneNumbers = await retellFetch<any[]>("/list-phone-numbers", null, "GET");
+      phoneNumbers = await listRetellPhoneNumbers();
     } catch (e) {
-      console.error("Retell list-phone-numbers failed:", e);
+      console.error("Retell v2/list-phone-numbers failed:", e);
     }
 
-    const ours = (phoneNumbers ?? []).map((p: any) => ({
-      phone_number: p.phone_number ?? p.phone_number_pretty ?? null,
-      nickname: p.nickname ?? null,
-      inbound_agent_id: p.inbound_agent_id ?? null,
-      outbound_agent_id: p.outbound_agent_id ?? null,
-      is_ours: localAgentIds.has(p.inbound_agent_id) || localAgentIds.has(p.outbound_agent_id),
-    }));
+    // Retell now returns inbound_agents/outbound_agents arrays; keep legacy
+    // single-id fields as fallback for older responses.
+    const firstAgentId = (arr: any, legacy: any): string | null =>
+      (Array.isArray(arr) && arr[0]?.agent_id) || legacy || null;
+    const ours = (phoneNumbers ?? []).map((p: any) => {
+      const inboundId = firstAgentId(p.inbound_agents, p.inbound_agent_id);
+      const outboundId = firstAgentId(p.outbound_agents, p.outbound_agent_id);
+      return {
+        phone_number: p.phone_number ?? p.phone_number_pretty ?? null,
+        nickname: p.nickname ?? null,
+        inbound_agent_id: inboundId,
+        outbound_agent_id: outboundId,
+        is_ours: localAgentIds.has(inboundId) || localAgentIds.has(outboundId),
+      };
+    });
 
     const liveAgents = (retellAgents ?? []).map((a: any) => ({
       agent_id: a.agent_id,
@@ -354,7 +369,7 @@ const MAX_ANALYTICS_RANGE_MS = 90 * 24 * 60 * 60 * 1000;
 
 export const getRetellAnalytics = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: any) =>
+  .validator((input: any) =>
     z
       .object({
         days: z.number().int().min(1).max(90).default(30),
@@ -454,7 +469,7 @@ export const getRetellAnalytics = createServerFn({ method: "POST" })
       // belongs to that workspace; when using the platform key restrict to
       // agents that are actually deployed in this workspace.
       try {
-        const agentList = await retellFetch<any[]>("/list-agents", null, "GET", apiKey);
+        const agentList = await listRetellAgents(apiKey);
         for (const a of agentList ?? []) {
           if (!a.agent_id) continue;
           // Platform key: skip agents not deployed in this workspace
@@ -689,22 +704,20 @@ export const getLiveCalls = createServerFn({ method: "GET" })
     // Resolve agent names
     const agentNames: Record<string, string> = {};
     try {
-      const agentList = await retellFetch<any[]>("/list-agents", null, "GET", apiKey);
+      const agentList = await listRetellAgents(apiKey);
       for (const a of agentList ?? []) {
         if (a.agent_id) agentNames[a.agent_id] = a.agent_name ?? a.agent_id;
       }
     } catch { /* ignore */ }
 
-    // Step 1: list ongoing call IDs
+    // Step 1: list ongoing call IDs (single page is fine — bounded to 20)
     let stubs: any[] = [];
     try {
-      const res = await retellFetch<any>(
-        "/v2/list-calls",
+      const res = await listRetellCallsPage(
         { filter_criteria: { call_status: ["ongoing"] }, limit: 20, sort_order: "descending" },
-        "POST",
         apiKey,
       );
-      stubs = Array.isArray(res) ? res : (res?.calls ?? []);
+      stubs = res.items;
     } catch { /* ignore — returns empty */ }
 
     // Step 2: fetch full call detail for each (transcript only lives on get-call)

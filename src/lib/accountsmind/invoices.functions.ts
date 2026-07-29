@@ -52,7 +52,7 @@ function extractTags(xml: string): string[] {
 
 export const uploadInvoiceTemplate = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth, requirePlatformAdmin])
-  .inputValidator((input) =>
+  .validator((input) =>
     z
       .object({
         name: z.string().min(1).max(200),
@@ -133,7 +133,7 @@ export const listInvoiceTemplates = createServerFn({ method: "GET" })
 
 export const deleteInvoiceTemplate = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth, requirePlatformAdmin])
-  .inputValidator((input) => z.object({ id: z.string().uuid() }).parse(input))
+  .validator((input) => z.object({ id: z.string().uuid() }).parse(input))
   .handler(async ({ data }) => {
     const sb = supabaseAdmin as any;
     const { data: row } = await sb
@@ -165,7 +165,7 @@ async function nextInvoiceNumber(sb: any): Promise<string> {
 
 export const generateInvoice = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth, requirePlatformAdmin])
-  .inputValidator((input) =>
+  .validator((input) =>
     z
       .object({
         templateId: z.string().uuid().nullish(), // required for docx, ignored for pdf
@@ -418,7 +418,7 @@ export const INVOICE_STATUSES = ["unpaid", "sent", "paid", "overdue", "cancelled
 
 export const updateInvoiceStatus = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth, requirePlatformAdmin])
-  .inputValidator((input) =>
+  .validator((input) =>
     z
       .object({
         id: z.string().uuid(),
@@ -455,7 +455,7 @@ export const updateInvoiceStatus = createServerFn({ method: "POST" })
 
 export const getInvoiceDownloadUrl = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth, requirePlatformAdmin])
-  .inputValidator((input) => z.object({ id: z.string().uuid() }).parse(input))
+  .validator((input) => z.object({ id: z.string().uuid() }).parse(input))
   .handler(async ({ data }) => {
     const sb = supabaseAdmin as any;
     const { data: row } = await sb
@@ -474,7 +474,7 @@ export const getInvoiceDownloadUrl = createServerFn({ method: "POST" })
 
 export const deleteInvoice = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth, requirePlatformAdmin])
-  .inputValidator((input) => z.object({ id: z.string().uuid() }).parse(input))
+  .validator((input) => z.object({ id: z.string().uuid() }).parse(input))
   .handler(async ({ data }) => {
     const sb = supabaseAdmin as any;
     const { data: row } = await sb

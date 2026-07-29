@@ -11,7 +11,7 @@ const playbookSchema = z.enum(["campaign_underperforming", "invoice_missing", "l
 
 export const runOrchestrationPlaybookFn = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({ playbook: playbookSchema }).parse(input)
   )
   .handler(async ({ context, data }) => {

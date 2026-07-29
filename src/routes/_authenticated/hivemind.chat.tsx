@@ -11,6 +11,9 @@ import { cn } from "@/lib/utils";
 import { HiveMindShell } from "@/components/hivemind/HiveMindShell";
 import {
   getHiveMindAIResponse, getHiveMindMorningBriefing,
+} from "@/lib/hivemind/hivemind.ai";
+import { streamHiveMindChat } from "@/lib/hivemind/use-hivemind-stream";
+import {
   getHiveMindTTS, listHiveMindVoices, getHiveMindSystemContext,
 } from "@/lib/hivemind/hivemind.ai";
 import { useMindConversation } from "@/hooks/useMindConversation";
@@ -44,6 +47,8 @@ type ChatMessage = {
   ts:          Date;
   audioBase64?: string | null;
   workOrders?: WorkOrderProposal[];
+  /** Natural spoken variant (validated briefing) — TTS speaks this instead of the on-screen markdown. */
+  voiceText?: string | null;
 };
 const SPEED_OPTIONS = [0.7, 0.85, 1.0, 1.15, 1.3, 1.5];
 const PERSONALITIES = ["professional", "friendly", "concise"] as const;
@@ -908,7 +913,7 @@ function HiveMindChat() {
     queryKey: ["hivemind-briefing"],
     queryFn: async () => {
       const r = await briefingFn();
-      const msg: ChatMessage = { id: "briefing", role: "hivemind", content: r.briefing, ts: new Date() };
+      const msg: ChatMessage = { id: "briefing", role: "hivemind", content: r.briefing, ts: new Date(), voiceText: (r as any).voiceBriefing ?? null };
       setMessages(prev => (prev.length === 0 ? [msg] : prev));
       return r;
     },
@@ -930,7 +935,8 @@ function HiveMindChat() {
     if (msg.audioBase64) { playAudio(msg.id, msg.audioBase64, voiceSettings.speed); return; }
     setTtsLoadingId(msg.id);
     try {
-      const r = await ttsFn({ data: { text: msg.content.slice(0, 800), voiceId: voiceSettings.voiceId, speed: voiceSettings.speed } });
+      const spoken = (msg.voiceText && msg.voiceText.trim()) || msg.content;
+      const r = await ttsFn({ data: { text: spoken.slice(0, 1200), voiceId: voiceSettings.voiceId, speed: voiceSettings.speed } });
       if (r.audioBase64) {
         setMessages(prev => prev.map(m => m.id === msg.id ? { ...m, audioBase64: r.audioBase64 } : m));
         playAudio(msg.id, r.audioBase64, voiceSettings.speed);
@@ -938,7 +944,10 @@ function HiveMindChat() {
     } finally { setTtsLoadingId(null); }
   }
 
-  // Send message
+  // Send message — streams tokens from /api/hivemind/chat-stream so the answer
+  // starts rendering immediately; falls back to the non-streaming server fn if
+  // the stream can't be established (both share the same server pipeline).
+  const streamAbortRef = useRef<AbortController | null>(null);
   async function sendMessage(query: string) {
     if (!query.trim() || isThinking) return;
     const userMsg: ChatMessage = { id: uid(), role: "user", content: query.trim(), ts: new Date() };
@@ -947,20 +956,45 @@ function HiveMindChat() {
     historyRef.current.push({ role: "user", content: query.trim() });
     setInput("");
     setIsThinking(true);
+    const abort = new AbortController();
+    streamAbortRef.current = abort;
     try {
-      const r = await aiFn({ data: { query: query.trim(), history: historyRef.current.slice(-10), personality: voiceSettings.personality, userName } });
+      const args = { query: query.trim(), history: historyRef.current.slice(-10), personality: voiceSettings.personality, userName };
+      let r: { response: string; workOrderProposals?: any[] };
+      try {
+        r = await streamHiveMindChat({
+          ...args,
+          signal: abort.signal,
+          onToken: (fullText) => {
+            setMessages(prev => prev.map(m => m.id === placeholder.id ? { ...m, content: fullText } : m));
+          },
+        });
+      } catch (streamErr: any) {
+        if (abort.signal.aborted) throw streamErr;
+        // Stream unavailable — fall back to the classic server fn.
+        r = await aiFn({ data: args });
+      }
       historyRef.current.push({ role: "assistant", content: r.response });
       const finalMsg: ChatMessage = {
         ...placeholder, content: r.response, ts: new Date(),
-        workOrders: (r as any).workOrderProposals?.length ? (r as any).workOrderProposals : undefined,
+        workOrders: r.workOrderProposals?.length ? (r.workOrderProposals as any) : undefined,
       };
       setMessages(prev => prev.map(m => m.id === placeholder.id ? finalMsg : m));
       persistNewMessages([userMsg, finalMsg]);
       if (voiceSettings.autoPlay) setTimeout(() => fetchAndPlayTTS(finalMsg), 200);
     } catch (e: any) {
-      setMessages(prev => prev.map(m => m.id === placeholder.id
-        ? { ...m, content: `Sorry, I couldn't respond: ${e.message ?? "unknown error"}` } : m));
-    } finally { setIsThinking(false); }
+      if (abort.signal.aborted) {
+        // Keep whatever streamed so far and mark the message as stopped.
+        setMessages(prev => prev.map(m => m.id === placeholder.id
+          ? { ...m, content: m.content ? `${m.content}\n\n(Stopped)` : "Stopped." } : m));
+      } else {
+        setMessages(prev => prev.map(m => m.id === placeholder.id
+          ? { ...m, content: `Sorry, I couldn't respond: ${e.message ?? "unknown error"}` } : m));
+      }
+    } finally {
+      streamAbortRef.current = null;
+      setIsThinking(false);
+    }
   }
 
   // Web Speech API
@@ -1195,14 +1229,24 @@ function HiveMindChat() {
                 <Lightbulb className="h-4 w-4" />
               </button>
 
-              {/* Send */}
-              <button
-                onClick={() => sendMessage(input)}
-                disabled={!input.trim() || isThinking}
-                className="h-9 w-9 rounded-xl bg-violet-600 hover:bg-violet-500 disabled:opacity-40 flex items-center justify-center shrink-0 transition-all"
-              >
-                {isThinking ? <Loader2 className="h-4 w-4 text-white animate-spin" /> : <Send className="h-4 w-4 text-white" />}
-              </button>
+              {/* Send / Stop */}
+              {isThinking ? (
+                <button
+                  onClick={() => streamAbortRef.current?.abort()}
+                  title="Stop generating"
+                  className="h-9 w-9 rounded-xl bg-red-600/80 hover:bg-red-500 flex items-center justify-center shrink-0 transition-all"
+                >
+                  <Square className="h-3.5 w-3.5 text-white fill-current" />
+                </button>
+              ) : (
+                <button
+                  onClick={() => sendMessage(input)}
+                  disabled={!input.trim()}
+                  className="h-9 w-9 rounded-xl bg-violet-600 hover:bg-violet-500 disabled:opacity-40 flex items-center justify-center shrink-0 transition-all"
+                >
+                  <Send className="h-4 w-4 text-white" />
+                </button>
+              )}
             </div>
           </div>
         </div>

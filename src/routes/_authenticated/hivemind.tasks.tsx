@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useState, useRef } from "react";
@@ -6,6 +6,7 @@ import {
   Brain, Plus, RefreshCw, CheckCircle2, Clock, AlertTriangle,
   ChevronDown, ChevronUp, Trash2, User, CalendarDays, MessageSquare,
   Loader2, Bell, BellOff, Zap, X, Check, ArrowRight, Sparkles,
+  GitBranch, ChevronRight, Ban, BarChart3, ShieldCheck,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { HiveMindShell } from "@/components/hivemind/HiveMindShell";
@@ -13,6 +14,7 @@ import {
   runHiveMindScan, getHiveMindTasksAndEvents,
   updateHiveMindTask, createHiveMindTask,
   addHiveMindTaskComment, deleteHiveMindTask, markHiveMindEventsRead,
+  acknowledgeMindTask,
   type HiveMindTask, type HiveMindEvent, type TaskStatus, type TaskPriority,
 } from "@/lib/hivemind/hivemind.tasks";
 import { approveAndRunTask, getTaskExecutionDetail } from "@/lib/hivemind/mind-execution-engine.server";
@@ -24,6 +26,17 @@ import {
 } from "@/lib/hivemind/execution-state.shared";
 import { Button } from "@/components/ui/button";
 import { RelativeTime } from "@/components/ui/relative-time";
+import { isHumanTaskRow, type UniversalMindIntelligencePacket } from "@/lib/minds/intelligence-packet.shared";
+import { readinessControlFor, taskApprovalMeta } from "@/lib/minds/intelligence-packet-ui.shared";
+import { IntelligencePacketPanel, ApprovalDialog, ReadinessBadge } from "@/components/minds/IntelligencePacketPanel";
+import {
+  getWorkOrders,
+  workOrderStatusLabel,
+  workOrderProgressPct,
+  stageBlockers,
+  packetAuditFindings,
+  type WorkOrderSummary,
+} from "@/lib/hivemind/work-orders-query.server";
 
 export const Route = createFileRoute("/_authenticated/hivemind/tasks")({
   head: () => ({ meta: [{ title: "HiveMind Tasks — Webee" }] }),
@@ -231,15 +244,17 @@ function TaskCard({
   onUpdate,
   onAddComment,
   onApproveRun,
+  onAcknowledge,
   isMutating,
 }: {
-  task:          HiveMindTask;
-  onStatusChange:(id: string, s: TaskStatus) => void;
-  onDelete:      (id: string) => void;
-  onUpdate:      (id: string, fields: Partial<HiveMindTask>) => void;
-  onAddComment:  (taskId: string, text: string) => void;
-  onApproveRun:  (id: string) => void;
-  isMutating:    boolean;
+  task:           HiveMindTask;
+  onStatusChange: (id: string, s: TaskStatus) => void;
+  onDelete:       (id: string) => void;
+  onUpdate:       (id: string, fields: Partial<HiveMindTask>) => void;
+  onAddComment:   (taskId: string, text: string) => void;
+  onApproveRun:   (id: string) => void;
+  onAcknowledge:  (id: string) => void;
+  isMutating:     boolean;
 }) {
   const [open, setOpen]           = useState(false);
   const [editAssign, setEditAssign] = useState(false);
@@ -249,6 +264,7 @@ function TaskCard({
   const [commentText, setComment] = useState("");
   const [editTitle, setEditTitle]   = useState(false);
   const [titleVal, setTitleVal]   = useState(task.title);
+  const [showApprove, setShowApprove] = useState(false);
   const p = PRIORITY_STYLES[task.priority] ?? PRIORITY_STYLES.medium;
 
   const NEXT_STATUS: Record<TaskStatus, { label: string; next: TaskStatus } | null> = {
@@ -259,12 +275,26 @@ function TaskCard({
   };
 
   const isExecutable = task.task_category === "executable";
+  const isHuman = isHumanTaskRow(task);
+  const packet = (task.intelligence_packet ?? null) as UniversalMindIntelligencePacket | null;
+  // Readiness-driven control (null for pre-gate legacy rows).
+  const control = readinessControlFor(task);
   const execStatus = task.execution_status ?? null;
-  const canApproveRun = isExecutable &&
-    ["awaiting_approval", "draft", "blocked", "failed"].includes(execStatus ?? "");
+  const execApprovable = isExecutable &&
+    ["awaiting_approval", "draft", "blocked", "failed", "worker_interrupted"].includes(execStatus ?? "");
+  // A gated task may only surface Approve when its readiness is approvable.
+  const canApproveRun = execApprovable && (control == null || control.kind === "approve");
+  // Fix/review controls are readiness-driven for ALL gated Mind tasks, not
+  // just executable ones — one readiness-appropriate control per card.
+  const showFixControl = (control?.kind === "fix" || control?.kind === "info") &&
+    (isExecutable ? execApprovable : (!isHuman && task.status !== "completed"));
   const isRunning = isExecutable && ["queued", "executing", "verifying"].includes(execStatus ?? "");
-  // Executable tasks are driven by the execution engine, not manual status moves.
-  const nextAction = isExecutable ? null : NEXT_STATUS[task.status];
+  // Manual status switching is a Human-Task privilege (server-enforced too).
+  const nextAction = isHuman ? NEXT_STATUS[task.status] : null;
+  const canAcknowledge = !isHuman && !isExecutable && task.status !== "completed" && !showFixControl;
+  // worker_interrupted = execution stalled — treat same as blocked/failed for Retry label.
+  const isRetry = ["blocked", "failed", "worker_interrupted"].includes(execStatus ?? "");
+  const approveLabel = isRetry ? "Retry" : (control?.kind === "approve" ? control.label : "Approve & Run");
 
   function saveAssign() {
     onUpdate(task.id, { assigned_to: assignVal || null });
@@ -350,21 +380,47 @@ function TaskCard({
 
         {/* Actions */}
         <div className="flex items-center gap-1.5 shrink-0">
+          {isHuman && (
+            <span className="text-[10px] rounded-full px-1.5 py-0.5 bg-blue-500/15 text-blue-400 border border-blue-500/25 font-medium whitespace-nowrap">
+              Human Task
+            </span>
+          )}
+          {!isHuman && <ReadinessBadge state={task.readiness_state} />}
           {isExecutable && <ExecStatusChip status={execStatus} />}
           {canApproveRun && (
             <button
-              onClick={() => onApproveRun(task.id)}
+              onClick={() => (isRetry ? onApproveRun(task.id) : setShowApprove(true))}
               disabled={isMutating}
               className="flex items-center gap-1 rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-1 text-[11px] font-medium text-emerald-400 hover:bg-emerald-500/20 transition-all disabled:opacity-40"
             >
               <Zap className="h-3 w-3" />
-              {["blocked", "failed"].includes(execStatus ?? "") ? "Retry" : "Approve & Run"}
+              {approveLabel}
+            </button>
+          )}
+          {showFixControl && control && (
+            <button
+              onClick={() => setOpen(true)}
+              title={control.explanation}
+              className="flex items-center gap-1 rounded-lg border border-amber-500/30 bg-amber-500/10 px-2.5 py-1 text-[11px] font-medium text-amber-400 hover:bg-amber-500/20 transition-all"
+            >
+              <AlertTriangle className="h-3 w-3" />
+              {control.label}
             </button>
           )}
           {isRunning && (
             <span className="flex items-center gap-1 text-[11px] text-amber-400">
               <Loader2 className="h-3 w-3 animate-spin" /> Running
             </span>
+          )}
+          {canAcknowledge && (
+            <button
+              onClick={() => onAcknowledge(task.id)}
+              disabled={isMutating}
+              className="flex items-center gap-1 rounded-lg border border-white/[0.1] bg-white/[0.04] px-2.5 py-1 text-[11px] font-medium text-muted-foreground hover:text-foreground transition-all disabled:opacity-40"
+            >
+              <Check className="h-3 w-3" />
+              Acknowledge
+            </button>
           )}
           {nextAction && (
             <button
@@ -391,6 +447,16 @@ function TaskCard({
           {/* Description */}
           {task.description && (
             <p className="text-xs text-muted-foreground leading-relaxed">{task.description}</p>
+          )}
+
+          {/* Intelligence packet (Mind tasks) */}
+          {packet && (
+            <IntelligencePacketPanel packet={packet} readinessState={task.readiness_state} />
+          )}
+          {showFixControl && control && (
+            <p className="text-[11px] text-amber-300/90 bg-amber-500/[0.06] border border-amber-500/20 rounded-lg px-2.5 py-1.5">
+              {control.explanation}
+            </p>
           )}
 
           {/* Execution detail (executable tasks) */}
@@ -482,8 +548,8 @@ function TaskCard({
             </div>
           </div>
 
-          {/* Status selector */}
-          {!isExecutable && (
+          {/* Status selector — Human Tasks only (server-enforced) */}
+          {isHuman && (
           <div>
             <label className="text-[10px] text-muted-foreground uppercase tracking-wide mb-1.5 block">Status</label>
             <div className="flex gap-1.5">
@@ -554,6 +620,18 @@ function TaskCard({
             </button>
           </div>
         </div>
+      )}
+
+      {/* Rich scoped approval dialog */}
+      {showApprove && (
+        <ApprovalDialog
+          meta={taskApprovalMeta(task)}
+          packet={packet}
+          readinessState={task.readiness_state}
+          busy={isMutating}
+          onCancel={() => setShowApprove(false)}
+          onConfirm={() => { setShowApprove(false); onApproveRun(task.id); }}
+        />
       )}
     </div>
   );
@@ -637,6 +715,151 @@ function CreateTaskModal({ onClose, onCreate }: {
   );
 }
 
+// ── Work Orders Panel (active work orders with stage summary) ─────────────────
+const WO_STATUS_STYLES: Record<string, string> = {
+  open:                "bg-sky-500/15 text-sky-400 border-sky-500/25",
+  in_progress:         "bg-amber-500/15 text-amber-400 border-amber-500/25",
+  awaiting_approval:   "bg-violet-500/15 text-violet-400 border-violet-500/25",
+  blocked:             "bg-red-500/15 text-red-400 border-red-500/25",
+  partially_completed: "bg-emerald-500/15 text-emerald-300 border-emerald-500/25",
+  completed:           "bg-emerald-500/15 text-emerald-400 border-emerald-500/25",
+  cancelled:           "bg-slate-500/15 text-slate-400 border-slate-500/25",
+  failed:              "bg-red-500/15 text-red-400 border-red-500/25",
+};
+
+function WorkOrderRow({ wo }: { wo: WorkOrderSummary }) {
+  const pct = workOrderProgressPct(wo);
+  const label = workOrderStatusLabel(wo.status);
+  const style = WO_STATUS_STYLES[wo.status] ?? "bg-white/[0.05] text-muted-foreground border-white/[0.1]";
+  const hasBlockers = wo.blocker_count > 0;
+  const approvableStages = wo.stage_tasks.filter(
+    (t) => t.readiness_state &&
+      ["ready_for_analysis_approval","ready_for_content_approval",
+       "ready_for_change_approval","ready_for_publication_approval","ready_for_execution"].includes(t.readiness_state) &&
+      t.status !== "completed"
+  );
+
+  return (
+    <div className="rounded-xl border border-white/[0.07] bg-[hsl(var(--card))] hover:border-violet-500/20 transition-all">
+      <div className="px-4 py-3 flex items-start gap-3">
+        <div className={cn(
+          "h-9 w-9 rounded-lg flex items-center justify-center shrink-0",
+          hasBlockers ? "bg-red-500/10" : "bg-violet-500/10",
+        )}>
+          <GitBranch className={cn("h-4 w-4", hasBlockers ? "text-red-400" : "text-violet-400")} />
+        </div>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 flex-wrap mb-0.5">
+            <span className={cn("text-[10px] rounded-full px-1.5 py-0.5 border font-medium", style)}>
+              {label}
+            </span>
+            {wo.channel_kind && (
+              <span className="text-[10px] text-muted-foreground/60 bg-white/[0.04] rounded-full px-1.5 py-0.5 capitalize">
+                {wo.channel_kind.replace(/_/g, " ")}
+              </span>
+            )}
+            {wo.assigned_minds.map((m) => (
+              <span key={m} className="text-[10px] text-muted-foreground/50 capitalize">{m}</span>
+            ))}
+          </div>
+          <p className="text-sm font-medium">{wo.title}</p>
+          {wo.objective && (
+            <p className="text-[11px] text-muted-foreground/70 mt-0.5 line-clamp-1">{wo.objective}</p>
+          )}
+          <div className="flex items-center gap-3 mt-2 flex-wrap">
+            <span className="text-[10px] text-muted-foreground/60">
+              {wo.completed_stages}/{wo.stage_count} stage{wo.stage_count !== 1 ? "s" : ""}
+            </span>
+            {hasBlockers && (
+              <span className="flex items-center gap-1 text-[10px] text-red-400">
+                <AlertTriangle className="h-2.5 w-2.5" />
+                {wo.blocker_count} blocker{wo.blocker_count !== 1 ? "s" : ""}
+              </span>
+            )}
+            {approvableStages.length > 0 && (
+              <span className="flex items-center gap-1 text-[10px] text-violet-400">
+                <ShieldCheck className="h-2.5 w-2.5" />
+                {approvableStages.length} awaiting approval
+              </span>
+            )}
+            {wo.stage_count > 0 && (
+              <div className="flex items-center gap-1.5">
+                <div className="h-1 w-20 rounded-full bg-white/[0.06] overflow-hidden">
+                  <div className="h-full rounded-full bg-violet-500/50" style={{ width: `${pct}%` }} />
+                </div>
+                <span className="text-[10px] text-muted-foreground/50">{pct}%</span>
+              </div>
+            )}
+            <span className="text-[10px] text-muted-foreground/40">
+              <RelativeTime date={wo.updated_at} short />
+            </span>
+          </div>
+        </div>
+        <Link
+          to="/hivemind/work-orders/$id"
+          params={{ id: wo.id }}
+          className="flex items-center gap-1 rounded-lg border border-white/[0.08] bg-white/[0.03] px-2.5 py-1.5 text-[11px] font-medium text-muted-foreground hover:text-foreground hover:border-violet-500/30 transition-all shrink-0"
+        >
+          Details
+          <ChevronRight className="h-3 w-3" />
+        </Link>
+      </div>
+    </div>
+  );
+}
+
+function WorkOrdersPanel() {
+  const getWoFn = useServerFn(getWorkOrders);
+  const { data: workOrders, isLoading } = useQuery({
+    queryKey: ["hivemind-work-orders-panel"],
+    queryFn: () => getWoFn(),
+    staleTime: 30_000,
+    throwOnError: false,
+  });
+
+  const activeWOs = ((workOrders ?? []) as WorkOrderSummary[]).filter(
+    (wo) => !["completed", "cancelled"].includes(wo.status),
+  );
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center gap-2 py-3 text-muted-foreground/60 text-xs">
+        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+        Loading work orders…
+      </div>
+    );
+  }
+
+  if (!activeWOs.length) return null;
+
+  return (
+    <div className="mb-6">
+      <div className="flex items-center justify-between mb-3">
+        <div className="flex items-center gap-2">
+          <GitBranch className="h-4 w-4 text-violet-400" />
+          <span className="text-xs font-semibold uppercase tracking-[0.1em] text-muted-foreground">
+            Active Work Orders
+          </span>
+          <span className="rounded-full bg-violet-500/20 px-1.5 py-0.5 text-[9px] font-semibold text-violet-400 leading-none">
+            {activeWOs.length}
+          </span>
+        </div>
+        <Link
+          to="/hivemind/work-orders"
+          className="text-[11px] text-muted-foreground hover:text-foreground transition-colors"
+        >
+          View all →
+        </Link>
+      </div>
+      <div className="space-y-2">
+        {activeWOs.slice(0, 5).map((wo) => (
+          <WorkOrderRow key={wo.id} wo={wo} />
+        ))}
+      </div>
+    </div>
+  );
+}
+
 // ── Main component ────────────────────────────────────────────────────────────
 function HiveMindTasks() {
   const qc           = useQueryClient();
@@ -647,8 +870,9 @@ function HiveMindTasks() {
   const commentFn    = useServerFn(addHiveMindTaskComment);
   const deleteFn     = useServerFn(deleteHiveMindTask);
   const markReadFn   = useServerFn(markHiveMindEventsRead);
-  const approveRunFn = useServerFn(approveAndRunTask);
-  const newAnalysisFn = useServerFn(createGadsAnalysisWorkOrder);
+  const approveRunFn   = useServerFn(approveAndRunTask);
+  const acknowledgeFn  = useServerFn(acknowledgeMindTask);
+  const newAnalysisFn  = useServerFn(createGadsAnalysisWorkOrder);
 
   const [activeTab, setActiveTab] = useState<TaskStatus>("suggested");
   const [scanning,  setScanning]  = useState(false);
@@ -718,6 +942,13 @@ function HiveMindTasks() {
   async function handleMarkRead() {
     await markReadFn({ data: {} });
     await refetch();
+  }
+
+  async function handleAcknowledge(id: string) {
+    setMutating(true);
+    try { await acknowledgeFn({ data: { id } }); await refetch(); }
+    catch (err: any) { alert(err?.message ?? "Failed to acknowledge task"); }
+    finally { setMutating(false); }
   }
 
   async function handleApproveRun(id: string) {
@@ -836,8 +1067,15 @@ function HiveMindTasks() {
         </div>
       </div>
 
+      {/* Work Orders Panel — shown on the suggested tab */}
+      {activeTab === "suggested" && !isLoading && (
+        <div className="px-5 pt-5">
+          <WorkOrdersPanel />
+        </div>
+      )}
+
       {/* Task list */}
-      <div className="px-5 py-5">
+      <div className={cn("px-5", activeTab === "suggested" && !isLoading ? "pb-5" : "py-5")}>
         {isLoading ? (
           <div className="flex items-center justify-center py-16 text-muted-foreground">
             <Loader2 className="h-5 w-5 animate-spin mr-2" />
@@ -876,6 +1114,7 @@ function HiveMindTasks() {
                 onUpdate={handleUpdate}
                 onAddComment={handleAddComment}
                 onApproveRun={handleApproveRun}
+                onAcknowledge={handleAcknowledge}
                 isMutating={mutating}
               />
             ))}

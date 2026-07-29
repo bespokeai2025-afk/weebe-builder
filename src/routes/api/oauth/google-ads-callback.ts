@@ -90,13 +90,16 @@ export const Route = createFileRoute("/api/oauth/google-ads-callback")({
           });
         }
 
-        // Store refresh token in provider_settings (merged) and mark connected
+        // Store refresh token in provider_settings (merged) and mark connected.
+        // grantedScopes records exactly what Google granted for THIS token —
+        // Data Manager access is never assumed from an old token.
+        const grantedScopes = typeof tokenJson.scope === "string" ? tokenJson.scope : "";
         await upsertProviderSetting({
           workspaceId: state.workspaceId,
           category: "advertising",
           providerName: "google_ads",
           status: "connected",
-          credentials: { ...creds, refreshToken },
+          credentials: { ...creds, refreshToken, grantedScopes },
         });
 
         // If initiated from GrowthMind, upsert the google growthmind_ads_accounts

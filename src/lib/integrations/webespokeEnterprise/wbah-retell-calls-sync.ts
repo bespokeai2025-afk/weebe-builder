@@ -10,7 +10,6 @@
 import { createClient } from "@supabase/supabase-js";
 
 const WBAH_SLUG = "webuyanyhouse";
-const RETELL_BASE = "https://api.retellai.com";
 
 function getAdminClient() {
   const url = process.env.SUPABASE_URL ?? process.env.VITE_SUPABASE_URL ?? "";
@@ -24,22 +23,6 @@ type Sb = ReturnType<typeof getAdminClient>;
 let _inFlight: Promise<{ synced: number; pages: number; caughtUp: boolean }> | null = null;
 let _lastRunAt = 0;
 const MIN_INTERVAL_MS = 60 * 1000;
-
-async function retellPost(path: string, apiKey: string, body: unknown): Promise<any> {
-  const res = await fetch(`${RETELL_BASE}${path}`, {
-    method: "POST",
-    headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-  });
-  if (!res.ok) throw new Error(`Retell ${path} → ${res.status}`);
-  return res.json();
-}
-
-async function retellGet(path: string, apiKey: string): Promise<any> {
-  const res = await fetch(`${RETELL_BASE}${path}`, { headers: { Authorization: `Bearer ${apiKey}` } });
-  if (!res.ok) throw new Error(`Retell ${path} → ${res.status}`);
-  return res.json();
-}
 
 function normStatus(rawStatus: string, durationMs: number): string {
   const s = (rawStatus ?? "").toLowerCase();
@@ -98,6 +81,11 @@ function buildRetellCallRow(c: any, workspaceId: string) {
     booking_status:       null,
     calendly_booking_url: null,
     call_count:           1,
+    // Verified attribution columns — provider call id is authoritative here;
+    // campaign_id is stamped separately by the campaign-run tracker (never
+    // overwritten by this upsert since it isn't in the supplied columns).
+    provider_call_id:     String(callId),
+    lead_id:              dv.lead_id != null ? String(dv.lead_id) : null,
     meta: {
       source:          "retell",
       call_successful: c.call_analysis?.call_successful ?? null,
@@ -129,6 +117,7 @@ async function upsertRows(sb: Sb, rows: any[]): Promise<void> {
   const { data: existing } = await (sb as any)
     .from("wbah_calls")
     .select("id, appointment_date, appointment_time, booking_status, calendly_booking_url")
+    .eq("workspace_id", rows[0].workspace_id)
     .in("id", ids);
   const byId = new Map<string, any>(((existing ?? []) as any[]).map((e) => [String(e.id), e]));
 
@@ -176,31 +165,39 @@ export async function refreshWbahCallsFromRetell(opts?: { full?: boolean; maxPag
     // agent_id → name (list-agents returns one row per version; dedupe).
     const agentNames: Record<string, string> = {};
     try {
-      const agents = await retellGet("/list-agents", apiKey);
+      const { listRetellAgents } = await import("@/lib/providers/retell/list.server");
+      const agents = await listRetellAgents(apiKey);
       for (const a of (Array.isArray(agents) ? agents : []) as any[]) {
         if (a.agent_id && !agentNames[a.agent_id]) agentNames[a.agent_id] = a.agent_name ?? a.agent_id;
       }
     } catch { /* non-fatal */ }
 
+    const { listRetellCallsPage } = await import("@/lib/providers/retell/list.server");
+
     let synced = 0;
     let pages = 0;
     let caughtUp = false;
-    let paginationKey: string | null = null;
+    let paginationKey: string | undefined;
     const PAGE = 1000;
 
     for (; pages < maxPages; pages++) {
-      let res: any;
+      let res: Awaited<ReturnType<typeof listRetellCallsPage>>;
       try {
-        res = await retellPost("/v2/list-calls", apiKey, {
-          limit: PAGE,
-          sort_order: "descending",
-          ...(paginationKey ? { pagination_key: paginationKey } : {}),
-        });
+        res = await listRetellCallsPage(
+          {
+            limit: PAGE,
+            sort_order: "descending",
+            ...(paginationKey ? { pagination_key: paginationKey } : {}),
+          },
+          apiKey,
+        );
       } catch (e: any) {
-        console.warn(`[wbah-retell-calls] list-calls page ${pages + 1} failed: ${e?.message}`);
-        break;
+        // Do NOT report success on a failed page — surface the failure so the
+        // sync outcome is honest (no silent partial sync).
+        console.error(`[wbah-retell-calls] v3/list-calls page ${pages + 1} failed: ${e?.message}`);
+        throw new Error(`Retell v3/list-calls page ${pages + 1} failed: ${e?.message ?? e}`);
       }
-      const calls: any[] = Array.isArray(res) ? res : (res?.calls ?? []);
+      const calls: any[] = res.items;
       if (calls.length === 0) { caughtUp = true; break; }
 
       const rows = calls
@@ -225,10 +222,9 @@ export async function refreshWbahCallsFromRetell(opts?: { full?: boolean; maxPag
         synced += rows.length;
       }
 
-      // Retell v2 paginates by passing the LAST call_id as pagination_key.
-      if (calls.length < PAGE) { caughtUp = true; break; }
-      paginationKey = calls[calls.length - 1]?.call_id ?? null;
-      if (!paginationKey) { caughtUp = true; break; }
+      // Retell v3 paginates via pagination_key while has_more is true.
+      if (!res.hasMore || !res.paginationKey) { caughtUp = true; break; }
+      paginationKey = res.paginationKey;
     }
 
     _lastRunAt = Date.now();

@@ -52,7 +52,7 @@ export const getResellerOverview = createServerFn({ method: "GET" })
 
 export const createChildClient = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input) =>
+  .validator((input) =>
     z
       .object({
         clientName: z.string().min(1).max(120),
@@ -80,7 +80,7 @@ export const createChildClient = createServerFn({ method: "POST" })
 
 export const setChildSuspended = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input) =>
+  .validator((input) =>
     z.object({ clientId: z.string().uuid(), suspended: z.boolean() }).parse(input),
   )
   .handler(async ({ context, data }) => {
@@ -99,7 +99,7 @@ export const setChildSuspended = createServerFn({ method: "POST" })
 
 export const requestClientUpgrade = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input) =>
+  .validator((input) =>
     z
       .object({ clientId: z.string().uuid(), requestedPackageKey: z.string().min(1).max(60) })
       .parse(input),
@@ -141,7 +141,7 @@ export const getMyWhiteLabelSettings = createServerFn({ method: "GET" })
 
 export const saveMyWhiteLabelSettings = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input) =>
+  .validator((input) =>
     z
       .object({
         brand_name: z.string().max(120).optional(),

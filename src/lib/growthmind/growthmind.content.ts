@@ -2,6 +2,10 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { routeGenerate } from "./model-router.server";
+import {
+  runContentSafetyCheck,
+  safetyCheckEvidenceItem,
+} from "@/lib/content-safety/universal-content-safety.server";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -185,7 +189,7 @@ SEO_DATA_JSON:
 
 export const getContentAssets = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({
       folderId:    z.string().uuid().nullish(),
       contentType: z.string().nullish(),
@@ -273,7 +277,7 @@ const assetInputSchema = z.object({
 
 export const saveContentAsset = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => assetInputSchema.parse(input))
+  .validator((input: unknown) => assetInputSchema.parse(input))
   .handler(async ({ context, data }) => {
     const sb          = context.supabase as any;
     const workspaceId = context.workspaceId;
@@ -317,7 +321,7 @@ export const saveContentAsset = createServerFn({ method: "POST" })
 
 export const deleteContentAsset = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => z.object({ id: z.string().uuid() }).parse(input))
+  .validator((input: unknown) => z.object({ id: z.string().uuid() }).parse(input))
   .handler(async ({ context, data }) => {
     const sb          = context.supabase as any;
     const workspaceId = context.workspaceId;
@@ -335,7 +339,7 @@ export const deleteContentAsset = createServerFn({ method: "POST" })
 
 export const toggleFavourite = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({ id: z.string().uuid(), isFavourite: z.boolean() }).parse(input)
   )
   .handler(async ({ context, data }) => {
@@ -376,7 +380,7 @@ const briefSchema = z.object({
 
 export const generateContent = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => briefSchema.parse(input))
+  .validator((input: unknown) => briefSchema.parse(input))
   .handler(async ({ context, data }) => {
     const sb          = context.supabase as any;
     const workspaceId = context.workspaceId;
@@ -503,6 +507,31 @@ export const generateContent = createServerFn({ method: "POST" })
     const title = [typeLabel, brief.offer || brief.targetAudience || brief.keyword]
       .filter(Boolean).join(" — ") || typeLabel;
 
+    // ── Universal content safety gate ─────────────────────────────────────────
+    // Draft is always saved (never lose generated content), but safety results
+    // are attached as evidence and `safety_blocked: true` is stored in the brief
+    // when violations exist — downstream publication/approval paths check this
+    // flag and refuse to promote a blocked draft to an approvable state.
+    // Fail-closed: if the gate itself errors, treat it as a blocking violation
+    // so drafts are never silently promoted past a gate that couldn't run.
+    let safetyCheckFull: Awaited<ReturnType<typeof runContentSafetyCheck>> | null = null;
+    let safetyCheck: { passed: boolean; violations: string[]; warnings: string[] } = {
+      passed: false,
+      violations: ["gate_error: Content safety gate could not run — draft blocked until gate succeeds."],
+      warnings: [],
+    };
+    try {
+      safetyCheckFull = await runContentSafetyCheck(mainContent, data.contentType, workspaceId);
+      safetyCheck = {
+        passed:     safetyCheckFull.passed,
+        violations: safetyCheckFull.violations,
+        warnings:   safetyCheckFull.warnings,
+      };
+    } catch (e: any) {
+      console.error("[content-safety] gate error (fail-closed):", e?.message ?? String(e));
+    }
+    const safetyEvidence = safetyCheckFull ? safetyCheckEvidenceItem(safetyCheckFull) : null;
+
     // ── Save asset ────────────────────────────────────────────────────────────
     const assetPayload = {
       workspace_id: workspaceId,
@@ -510,7 +539,12 @@ export const generateContent = createServerFn({ method: "POST" })
       title,
       content_type: data.contentType,
       content:      mainContent,
-      brief:        { ...data },
+      brief: {
+        ...data,
+        safety_check:   safetyCheck,
+        safety_blocked: !safetyCheck.passed,
+        safety_evidence: safetyEvidence,
+      },
       seo_data:     seoData,
       status:       "draft",
       is_favourite: false,
@@ -538,16 +572,19 @@ export const generateContent = createServerFn({ method: "POST" })
     });
 
     return {
-      assetId:      inserted.id as string,
+      assetId:          inserted.id as string,
       title,
-      content:      mainContent,
+      content:          mainContent,
       seoData,
       tokensUsed,
-      provider:     routeResult.provider,
-      model:        routeResult.model,
-      costUsd:      routeResult.costUsd,
-      usedFallback: routeResult.usedFallback,
-      fallbackFrom: routeResult.fallbackFrom ?? null,
+      provider:         routeResult.provider,
+      model:            routeResult.model,
+      costUsd:          routeResult.costUsd,
+      usedFallback:     routeResult.usedFallback,
+      fallbackFrom:     routeResult.fallbackFrom ?? null,
+      safetyPassed:     safetyCheck.passed,
+      safetyViolations: safetyCheck.violations,
+      safetyWarnings:   safetyCheck.warnings,
     };
   });
 
@@ -575,7 +612,7 @@ export const getModelSettings = createServerFn({ method: "GET" })
 
 export const saveModelSettings = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({
       mode:     z.enum(["smart", "manual"]),
       provider: z.string().optional(),

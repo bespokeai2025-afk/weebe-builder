@@ -36,7 +36,7 @@ export const listLegacyConversionSources = createServerFn({ method: "GET" })
 
 export const convertLegacySourceToDraft = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({
       sourceType:  z.enum(SOURCE_TYPES),
       sourceId:    z.string().min(1).max(200).nullable().optional(),
@@ -66,7 +66,7 @@ export const convertLegacySourceToDraft = createServerFn({ method: "POST" })
 
 export const getConversionForSession = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({ sessionId: z.string().uuid() }).parse(input),
   )
   .handler(async ({ data, context }) => {

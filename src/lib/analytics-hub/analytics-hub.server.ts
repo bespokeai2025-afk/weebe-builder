@@ -37,56 +37,123 @@ export interface AnalyticsFilters {
 }
 
 export interface ResolvedRange {
+  /** Inclusive start instant. */
   startIso: string;
+  /** EXCLUSIVE end instant — query with .lt(), never .lte(). */
   endIso: string;
   filter: AnalyticsDateFilter;
   days: number;
+  /** IANA timezone the day boundaries were computed in (undefined = UTC). */
+  timezone?: string;
 }
 
-/** Resolve a date filter into an inclusive [startIso, endIso] UTC window. */
-export function resolveDateRange(filters?: AnalyticsFilters): ResolvedRange {
+// ── Timezone-aware day boundaries ────────────────────────────────────────────
+// Day filters must respect the workspace's business timezone (Europe/London
+// for WBAH). Computed via Intl offsets so DST transitions are handled exactly.
+
+/** Offset (minutes) of `tz` vs UTC at the given instant. */
+function tzOffsetMinutes(at: Date, tz: string): number {
+  const fmt = new Intl.DateTimeFormat("en-GB", {
+    timeZone: tz, hour12: false,
+    year: "numeric", month: "2-digit", day: "2-digit",
+    hour: "2-digit", minute: "2-digit",
+  });
+  const p: Record<string, string> = {};
+  for (const part of fmt.formatToParts(at)) p[part.type] = part.value;
+  const asUtc = Date.UTC(+p.year, +p.month - 1, +p.day, +p.hour % 24, +p.minute);
+  return Math.round((asUtc - at.getTime()) / 60_000);
+}
+
+/** Calendar Y/M/D of the instant in `tz` (UTC when tz undefined). */
+function tzYmd(at: Date, tz?: string): { y: number; m: number; d: number } {
+  const shifted = tz ? new Date(at.getTime() + tzOffsetMinutes(at, tz) * 60_000) : at;
+  return { y: shifted.getUTCFullYear(), m: shifted.getUTCMonth(), d: shifted.getUTCDate() };
+}
+
+/**
+ * UTC instant of local midnight for the given calendar day in `tz`.
+ * DST-safe: iterates the offset once so the boundary is exact even on
+ * transition days.
+ */
+function tzDayStartUtc(y: number, m: number, d: number, tz?: string): Date {
+  if (!tz) return new Date(Date.UTC(y, m, d, 0, 0, 0, 0));
+  let guess = Date.UTC(y, m, d, 0, 0, 0, 0) - tzOffsetMinutes(new Date(Date.UTC(y, m, d)), tz) * 60_000;
+  // Re-derive with the offset at the guessed instant (handles DST-change days).
+  guess = Date.UTC(y, m, d, 0, 0, 0, 0) - tzOffsetMinutes(new Date(guess), tz) * 60_000;
+  return new Date(guess);
+}
+
+const DATE_ONLY_RE = /^\d{4}-\d{2}-\d{2}$/;
+
+/**
+ * Resolve a date filter into an [startIso, endIso) window — inclusive start,
+ * EXCLUSIVE end. Day boundaries are computed in `tz` (UTC when omitted).
+ */
+export function resolveDateRange(filters?: AnalyticsFilters, tz?: string): ResolvedRange {
   const filter = filters?.dateFilter ?? "30d";
   const now = new Date();
-  const endOfToday = new Date(now); endOfToday.setUTCHours(23, 59, 59, 999);
-  const startOfToday = new Date(now); startOfToday.setUTCHours(0, 0, 0, 0);
+  const t = tzYmd(now, tz);
+  const startOfToday = tzDayStartUtc(t.y, t.m, t.d, tz);
+  const startOfTomorrow = tzDayStartUtc(t.y, t.m, t.d + 1, tz);
 
-  const mk = (start: Date, end: Date): ResolvedRange => {
-    const days = Math.max(1, Math.round((end.getTime() - start.getTime()) / 86_400_000));
-    return { startIso: start.toISOString(), endIso: end.toISOString(), filter, days };
+  const mk = (start: Date, endExclusive: Date): ResolvedRange => {
+    const days = Math.max(1, Math.round((endExclusive.getTime() - start.getTime()) / 86_400_000));
+    return { startIso: start.toISOString(), endIso: endExclusive.toISOString(), filter, days, timezone: tz };
   };
 
   switch (filter) {
     case "today":
-      return mk(startOfToday, endOfToday);
-    case "yesterday": {
-      const y = new Date(now.getTime() - 86_400_000);
-      const s = new Date(y); s.setUTCHours(0, 0, 0, 0);
-      const e = new Date(y); e.setUTCHours(23, 59, 59, 999);
-      return mk(s, e);
-    }
+      return mk(startOfToday, startOfTomorrow);
+    case "yesterday":
+      return mk(tzDayStartUtc(t.y, t.m, t.d - 1, tz), startOfToday);
     case "7d":
-      return mk(new Date(now.getTime() - 7 * 86_400_000), endOfToday);
-    case "this_month": {
-      const s = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1, 0, 0, 0, 0));
-      return mk(s, endOfToday);
-    }
-    case "last_month": {
-      const s = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 1, 1, 0, 0, 0, 0));
-      const e = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 0, 23, 59, 59, 999));
-      return mk(s, e);
-    }
+      return mk(tzDayStartUtc(t.y, t.m, t.d - 6, tz), startOfTomorrow);
+    case "this_month":
+      return mk(tzDayStartUtc(t.y, t.m, 1, tz), startOfTomorrow);
+    case "last_month":
+      return mk(tzDayStartUtc(t.y, t.m - 1, 1, tz), tzDayStartUtc(t.y, t.m, 1, tz));
     case "custom": {
-      const s = filters?.customStart ? new Date(filters.customStart) : new Date(now.getTime() - 30 * 86_400_000);
-      const e = filters?.customEnd ? new Date(filters.customEnd) : endOfToday;
-      if (isNaN(s.getTime()) || isNaN(e.getTime()) || e < s) {
-        return mk(new Date(now.getTime() - 30 * 86_400_000), endOfToday);
+      const rawStart = filters?.customStart ?? null;
+      const rawEnd = filters?.customEnd ?? null;
+      // Date-only values ("2026-07-29") mean whole local days in `tz`:
+      // start = local midnight, end = NEXT local midnight (exclusive).
+      let s: Date;
+      if (rawStart && DATE_ONLY_RE.test(rawStart.trim())) {
+        const [y, m, d] = rawStart.trim().split("-").map(Number);
+        s = tzDayStartUtc(y, m - 1, d, tz);
+      } else {
+        s = rawStart ? new Date(rawStart) : tzDayStartUtc(t.y, t.m, t.d - 29, tz);
+      }
+      let e: Date;
+      if (rawEnd && DATE_ONLY_RE.test(rawEnd.trim())) {
+        const [y, m, d] = rawEnd.trim().split("-").map(Number);
+        e = tzDayStartUtc(y, m - 1, d + 1, tz);
+      } else if (rawEnd) {
+        // Timestamp custom ends were historically inclusive — keep the last
+        // instant included under exclusive-end semantics.
+        e = new Date(new Date(rawEnd).getTime() + 1);
+      } else {
+        e = startOfTomorrow;
+      }
+      if (isNaN(s.getTime()) || isNaN(e.getTime()) || e <= s) {
+        return mk(tzDayStartUtc(t.y, t.m, t.d - 29, tz), startOfTomorrow);
       }
       return mk(s, e);
     }
     case "30d":
     default:
-      return mk(new Date(now.getTime() - 30 * 86_400_000), endOfToday);
+      return mk(tzDayStartUtc(t.y, t.m, t.d - 29, tz), startOfTomorrow);
   }
+}
+
+/** Business timezone for a workspace's day-based analytics filters. */
+export function workspaceAnalyticsTimezone(workspaceId: string): string | undefined {
+  return isWbahWorkspaceId(workspaceId) ? "Europe/London" : undefined;
+}
+
+/** resolveDateRange in the workspace's business timezone. */
+export function resolveDateRangeFor(workspaceId: string, filters?: AnalyticsFilters): ResolvedRange {
+  return resolveDateRange(filters, workspaceAnalyticsTimezone(workspaceId));
 }
 
 // ── Small helpers ─────────────────────────────────────────────────────────────
@@ -99,10 +166,13 @@ function safeDiv(a: number, b: number): number {
 function centsToPounds(cents: number): number {
   return Math.round(cents) / 100;
 }
-function dayKey(iso: string | null | undefined): string | null {
+function dayKey(iso: string | null | undefined, tz?: string): string | null {
   if (!iso) return null;
   const d = new Date(iso);
-  return isNaN(d.getTime()) ? null : d.toISOString().slice(0, 10);
+  if (isNaN(d.getTime())) return null;
+  if (!tz) return d.toISOString().slice(0, 10);
+  const { y, m, d: dd } = tzYmd(d, tz);
+  return `${y}-${String(m + 1).padStart(2, "0")}-${String(dd).padStart(2, "0")}`;
 }
 
 const VOICEMAIL_STATUSES = new Set(["voicemail"]);
@@ -129,46 +199,52 @@ function classifyStandardCall(c: any): "voicemail" | "connected" | "missed" | "f
 // ── Standard-workspace call fetch (paged — PostgREST caps single responses at
 // 1000 rows, so busy workspaces need chunked .range() fetches) ────────────────
 const CALL_FETCH_PAGE = 1000;
-const CALL_FETCH_MAX_PAGES = 25;
+// Hard safety valve only — ranges are never silently truncated. If a window
+// genuinely exceeds this many rows we throw loudly instead of under-counting.
+const CALL_FETCH_SAFETY_PAGES = 500;
+
+/**
+ * Paginate a builder-producing query until exhausted. Throws (never truncates
+ * silently) if the safety valve is hit.
+ */
+export async function fetchAllPages(makeQuery: (from: number, to: number) => any, label: string): Promise<any[]> {
+  const rows: any[] = [];
+  for (let p = 0; p < CALL_FETCH_SAFETY_PAGES; p++) {
+    const { data, error } = await makeQuery(p * CALL_FETCH_PAGE, p * CALL_FETCH_PAGE + CALL_FETCH_PAGE - 1);
+    if (error) throw new Error(error.message);
+    const batch = (data ?? []) as any[];
+    rows.push(...batch);
+    if (batch.length < CALL_FETCH_PAGE) return rows;
+  }
+  throw new Error(`${label}: date range exceeds ${CALL_FETCH_PAGE * CALL_FETCH_SAFETY_PAGES} rows — narrow the range`);
+}
 
 async function fetchStandardCalls(sb: Sb, workspaceId: string, range: ResolvedRange, filters?: AnalyticsFilters) {
-  const rows: any[] = [];
-  for (let p = 0; p < CALL_FETCH_MAX_PAGES; p++) {
+  return fetchAllPages((from, to) => {
     let q = sb
       .from("calls")
       .select("id, agent_id, agent_name, call_status, call_successful, sentiment, is_voicemail, in_voicemail, duration_seconds, cost_cents, disconnection_reason, created_at, started_at, lead_id, provider")
       .eq("workspace_id", workspaceId)
       .gte("created_at", range.startIso)
-      .lte("created_at", range.endIso)
+      .lt("created_at", range.endIso)
       .order("created_at", { ascending: false })
-      .range(p * CALL_FETCH_PAGE, p * CALL_FETCH_PAGE + CALL_FETCH_PAGE - 1);
+      .order("id", { ascending: false })
+      .range(from, to);
     if (filters?.agentId) q = q.eq("agent_id", filters.agentId);
-    const { data, error } = await q;
-    if (error) throw new Error(error.message);
-    const batch = (data ?? []) as any[];
-    rows.push(...batch);
-    if (batch.length < CALL_FETCH_PAGE) break;
-  }
-  return rows;
+    return q;
+  }, "calls fetch");
 }
 
 async function fetchWbahCalls(sb: Sb, workspaceId: string, range: ResolvedRange) {
-  const rows: any[] = [];
-  for (let p = 0; p < CALL_FETCH_MAX_PAGES; p++) {
-    const { data, error } = await sb
-      .from("wbah_calls")
-      .select("id, agent_name, call_status, sentiment, duration_seconds, booking_status, appointment_date, disconnection_reason, started_at, synced_at, call_count")
-      .eq("workspace_id", workspaceId)
-      .gte("started_at", range.startIso)
-      .lte("started_at", range.endIso)
-      .order("started_at", { ascending: false })
-      .range(p * CALL_FETCH_PAGE, p * CALL_FETCH_PAGE + CALL_FETCH_PAGE - 1);
-    if (error) throw new Error(error.message);
-    const batch = (data ?? []) as any[];
-    rows.push(...batch);
-    if (batch.length < CALL_FETCH_PAGE) break;
-  }
-  return rows;
+  return fetchAllPages((from, to) => sb
+    .from("wbah_calls")
+    .select("id, agent_name, call_status, sentiment, duration_seconds, booking_status, appointment_date, disconnection_reason, started_at, synced_at, call_count")
+    .eq("workspace_id", workspaceId)
+    .gte("started_at", range.startIso)
+    .lt("started_at", range.endIso)
+    .order("started_at", { ascending: false })
+    .order("id", { ascending: false })
+    .range(from, to), "wbah_calls fetch");
 }
 
 /**
@@ -177,23 +253,15 @@ async function fetchWbahCalls(sb: Sb, workspaceId: string, range: ResolvedRange)
  * PostgREST's 1000-row cap for a 30d window) with a hard page cap.
  */
 export async function getWbahDiallerAnalytics(sb: Sb, workspaceId: string, range: ResolvedRange) {
-  const PAGE = 1000;
-  const MAX_PAGES = 25;
-  const rows: any[] = [];
-  for (let p = 0; p < MAX_PAGES; p++) {
-    const { data, error } = await sb
-      .from("wbah_calls")
-      .select("id, customer_name, phone, sentiment, call_status, disconnection_reason, end_reason, booking_status, appointment_date, duration_seconds, started_at, meta")
-      .eq("workspace_id", workspaceId)
-      .gte("started_at", range.startIso)
-      .lte("started_at", range.endIso)
-      .order("started_at", { ascending: false })
-      .range(p * PAGE, p * PAGE + PAGE - 1);
-    if (error) throw new Error(error.message);
-    const batch = (data ?? []) as any[];
-    rows.push(...batch);
-    if (batch.length < PAGE) break;
-  }
+  const rows: any[] = await fetchAllPages((from, to) => sb
+    .from("wbah_calls")
+    .select("id, customer_name, phone, sentiment, call_status, disconnection_reason, end_reason, booking_status, appointment_date, duration_seconds, started_at, campaign_id, meta")
+    .eq("workspace_id", workspaceId)
+    .gte("started_at", range.startIso)
+    .lt("started_at", range.endIso)
+    .order("started_at", { ascending: false })
+    .order("id", { ascending: false })
+    .range(from, to), "wbah dialler fetch");
 
   const isVoicemail = (c: any) => {
     const r = String(c.disconnection_reason ?? c.end_reason ?? "").toLowerCase();
@@ -210,7 +278,10 @@ export async function getWbahDiallerAnalytics(sb: Sb, workspaceId: string, range
     const mod = await import(
       "@/lib/integrations/webespokeEnterprise/wbah-campaign-reporting.server"
     );
-    snapshotCampaigns = await mod.loadWbahCampaignSnapshot(sb);
+    // includeDeleted — calls made by since-deleted campaigns must still
+    // attribute to the campaign that made them, not drift onto a surviving
+    // same-agent campaign (which silently inflates its numbers).
+    snapshotCampaigns = await mod.loadWbahCampaignSnapshot(sb, { includeDeleted: true });
     if (snapshotCampaigns.length > 0) {
       attributeCampaign = (agentId, startedAt) =>
         mod.attributeWbahCampaign(snapshotCampaigns, agentId, startedAt);
@@ -222,8 +293,11 @@ export async function getWbahDiallerAnalytics(sb: Sb, workspaceId: string, range
     id: string; name: string; leadStatus: string | null; scheduledTime: string | null;
     calls: number; connected: number; voicemail: number; booked: number;
     positive: number; neutral: number; negative: number;
+    verified: number; inferred: number;
   }> = {};
+  const campaignById = new Map<string, any>(snapshotCampaigns.map((c: any) => [String(c.id), c]));
   let unattributed = 0;
+  let attributionVerified = 0, attributionInferred = 0;
 
   let connected = 0, voicemail = 0, positive = 0, neutral = 0, negative = 0, booked = 0;
   const byReason: Record<string, number> = {};
@@ -237,7 +311,7 @@ export async function getWbahDiallerAnalytics(sb: Sb, workspaceId: string, range
     const conn = !vm && (st === "completed" || st === "answered" || st === "connected");
     const s = String(c.sentiment ?? "").toLowerCase();
     const reason = String(c.disconnection_reason ?? c.end_reason ?? "unknown");
-    const day = dayKey(c.started_at);
+    const day = dayKey(c.started_at, range.timezone);
 
     if (vm) voicemail++;
     if (conn) connected++;
@@ -246,20 +320,33 @@ export async function getWbahDiallerAnalytics(sb: Sb, workspaceId: string, range
     else if (s === "neutral") neutral++;
     if (c.booking_status || c.appointment_date) booked++;
     byReason[reason] = (byReason[reason] ?? 0) + 1;
-    if (attributeCampaign) {
-      const camp = attributeCampaign((c.meta as any)?.agent_id ?? null, c.started_at);
+    {
+      // Attribution precedence:
+      //   1. Verified — the call row carries a stored campaign_id (stamped by
+      //      the campaign-run tracker or the sync itself).
+      //   2. Inferred — matched by dialling agent + nearest scheduled UK slot.
+      //   3. Unassigned — no reliable link to any campaign.
+      const storedId = c.campaign_id != null ? String(c.campaign_id) : null;
+      const storedCamp = storedId ? campaignById.get(storedId) : null;
+      const inferredCamp = !storedCamp && attributeCampaign
+        ? attributeCampaign((c.meta as any)?.agent_id ?? null, c.started_at)
+        : null;
+      const camp = storedCamp ?? inferredCamp;
       if (camp) {
+        if (storedCamp) attributionVerified++; else attributionInferred++;
         const entry = (byCampaign[camp.id] ??= {
           id: camp.id,
-          name: camp.name,
+          name: camp.is_deleted ? `${camp.name} (deleted)` : camp.name,
           leadStatus: camp.lead_status ?? null,
           scheduledTime: camp.call_hour != null
             ? `${String(camp.call_hour).padStart(2, "0")}:${String(camp.call_minute ?? 0).padStart(2, "0")}`
             : null,
           calls: 0, connected: 0, voicemail: 0, booked: 0,
           positive: 0, neutral: 0, negative: 0,
+          verified: 0, inferred: 0,
         });
         entry.calls++;
+        if (storedCamp) entry.verified++; else entry.inferred++;
         if (conn) entry.connected++;
         if (vm) entry.voicemail++;
         if (c.booking_status || c.appointment_date) entry.booked++;
@@ -268,6 +355,24 @@ export async function getWbahDiallerAnalytics(sb: Sb, workspaceId: string, range
         else if (s === "neutral") entry.neutral++;
       } else {
         unattributed++;
+        // Count unmatched calls in a visible bucket so the per-campaign table
+        // always sums to the range total (matches the Calls page exactly).
+        const entry = (byCampaign["__unassigned__"] ??= {
+          id: "__unassigned__",
+          name: "Unassigned (agent not linked to a campaign)",
+          leadStatus: null,
+          scheduledTime: null,
+          calls: 0, connected: 0, voicemail: 0, booked: 0,
+          positive: 0, neutral: 0, negative: 0,
+          verified: 0, inferred: 0,
+        });
+        entry.calls++;
+        if (conn) entry.connected++;
+        if (vm) entry.voicemail++;
+        if (c.booking_status || c.appointment_date) entry.booked++;
+        if (s === "positive") entry.positive++;
+        else if (s === "negative") entry.negative++;
+        else if (s === "neutral") entry.neutral++;
       }
     }
     if (day) {
@@ -314,7 +419,13 @@ export async function getWbahDiallerAnalytics(sb: Sb, workspaceId: string, range
     reasons, trend, converted, negatives,
     campaigns,
     campaignsUnattributed: unattributed,
-    truncated: rows.length >= PAGE * MAX_PAGES,
+    attribution: {
+      verified: attributionVerified,
+      inferred: attributionInferred,
+      unassigned: unattributed,
+    },
+    // Fetch is exhaustive (throws rather than truncating) — kept for API compat.
+    truncated: false,
   };
 }
 
@@ -333,12 +444,12 @@ async function fetchCostTotals(sb: Sb, workspaceId: string, range: ResolvedRange
       sb.from("call_profitability")
         .select("total_cost_cents, selling_price_cents, profit_cents, created_at")
         .eq("workspace_id", workspaceId)
-        .gte("created_at", range.startIso).lte("created_at", range.endIso)
+        .gte("created_at", range.startIso).lt("created_at", range.endIso)
         .limit(ROW_CAP),
       sb.from("provider_usage_log")
         .select("provider_category, provider_name, cost_usd, created_at")
         .eq("workspace_id", workspaceId)
-        .gte("created_at", range.startIso).lte("created_at", range.endIso)
+        .gte("created_at", range.startIso).lt("created_at", range.endIso)
         .limit(ROW_CAP),
     ]);
     for (const r of (prof ?? []) as any[]) {
@@ -360,7 +471,7 @@ async function fetchCostTotals(sb: Sb, workspaceId: string, range: ResolvedRange
 // ── 1. Executive Overview ─────────────────────────────────────────────────────
 export async function getAnalyticsOverviewData(workspaceId: string, filters?: AnalyticsFilters) {
   const sb = supabaseAdmin as any;
-  const range = resolveDateRange(filters);
+  const range = resolveDateRangeFor(workspaceId, filters);
   const isWbah = isWbahWorkspaceId(workspaceId);
   const empty = {
     workspaceId, isWbah, range,
@@ -402,18 +513,18 @@ export async function getAnalyticsOverviewData(workspaceId: string, filters?: An
       fetchStandardCalls(sb, workspaceId, range, filters),
       sb.from("leads").select("id", { count: "exact", head: true }).eq("workspace_id", workspaceId),
       sb.from("leads").select("id", { count: "exact", head: true }).eq("workspace_id", workspaceId)
-        .gte("created_at", range.startIso).lte("created_at", range.endIso),
+        .gte("created_at", range.startIso).lt("created_at", range.endIso),
       sb.from("leads").select("id", { count: "exact", head: true }).eq("workspace_id", workspaceId)
         .eq("qualification_status", "qualified")
-        .gte("created_at", range.startIso).lte("created_at", range.endIso),
+        .gte("created_at", range.startIso).lt("created_at", range.endIso),
       sb.from("calendar_bookings").select("id, status, lead_id, created_at", { count: "exact" })
         .eq("workspace_id", workspaceId)
-        .gte("created_at", range.startIso).lte("created_at", range.endIso).limit(ROW_CAP),
+        .gte("created_at", range.startIso).lt("created_at", range.endIso).limit(ROW_CAP),
       fetchCostTotals(sb, workspaceId, range),
       sb.from("campaign_reports")
         .select("report_type, campaign_name, kpi_json, failure_reason, created_at")
         .eq("workspace_id", workspaceId)
-        .gte("created_at", range.startIso).lte("created_at", range.endIso)
+        .gte("created_at", range.startIso).lt("created_at", range.endIso)
         .order("created_at", { ascending: false }).limit(200),
     ]);
 
@@ -439,11 +550,11 @@ export async function getAnalyticsOverviewData(workspaceId: string, filters?: An
     try {
       const { count: cbCount } = await sb.from("leads").select("id", { count: "exact", head: true })
         .eq("workspace_id", workspaceId).eq("callback_requested", true)
-        .gte("updated_at", range.startIso).lte("updated_at", range.endIso);
+        .gte("updated_at", range.startIso).lt("updated_at", range.endIso);
       callbacks = cbCount ?? 0;
       const { count: fuCount } = await sb.from("hivemind_tasks").select("id", { count: "exact", head: true })
         .eq("workspace_id", workspaceId).eq("source", "follow_up")
-        .gte("created_at", range.startIso).lte("created_at", range.endIso);
+        .gte("created_at", range.startIso).lt("created_at", range.endIso);
       followUpsCreated = fuCount ?? 0;
     } catch { /* optional */ }
 
@@ -525,7 +636,7 @@ export async function getCampaignAnalyticsData(
   opts?: { compareIds?: string[] },
 ) {
   const sb = supabaseAdmin as any;
-  const range = resolveDateRange(filters);
+  const range = resolveDateRangeFor(workspaceId, filters);
   const base = { workspaceId, range, campaigns: [] as any[], failures: [] as any[], schedule: [] as any[], compare: null as any, mode: "standard" as "standard" | "wbah_dialler", wbah: null as any, error: null as string | null };
   if (isWbahWorkspaceId(workspaceId)) {
     // WBAH runs its calling on the external WeeBespoke dialler, not WEBEE
@@ -642,7 +753,7 @@ export async function getCampaignAnalyticsData(
 // ── 3. Agent Analytics ────────────────────────────────────────────────────────
 export async function getAgentAnalyticsData(workspaceId: string, filters?: AnalyticsFilters) {
   const sb = supabaseAdmin as any;
-  const range = resolveDateRange(filters);
+  const range = resolveDateRangeFor(workspaceId, filters);
   const base = { workspaceId, range, agents: [] as any[], error: null as string | null };
   try {
     const isWbah = isWbahWorkspaceId(workspaceId);
@@ -654,7 +765,7 @@ export async function getAgentAnalyticsData(workspaceId: string, filters?: Analy
         const { data: prof } = await sb.from("call_profitability")
           .select("agent_id, total_cost_cents, created_at")
           .eq("workspace_id", workspaceId)
-          .gte("created_at", range.startIso).lte("created_at", range.endIso).limit(ROW_CAP);
+          .gte("created_at", range.startIso).lt("created_at", range.endIso).limit(ROW_CAP);
         for (const p of (prof ?? []) as any[]) {
           const aid = p.agent_id ?? "unknown";
           costByAgent[aid] = (costByAgent[aid] ?? 0) + (p.total_cost_cents ?? 0);
@@ -711,7 +822,7 @@ export async function getAgentAnalyticsData(workspaceId: string, filters?: Analy
 // ── 4. Lead Source Analytics ──────────────────────────────────────────────────
 export async function getLeadSourceAnalyticsData(workspaceId: string, filters?: AnalyticsFilters) {
   const sb = supabaseAdmin as any;
-  const range = resolveDateRange(filters);
+  const range = resolveDateRangeFor(workspaceId, filters);
   const base = { workspaceId, range, sources: [] as any[], error: null as string | null };
   if (isWbahWorkspaceId(workspaceId)) return { ...base, error: "not_available_for_wbah" };
   try {
@@ -719,7 +830,7 @@ export async function getLeadSourceAnalyticsData(workspaceId: string, filters?: 
     const { data: leads } = await sb.from("leads")
       .select("id, source, qualification_status, callback_requested, created_at")
       .eq("workspace_id", workspaceId)
-      .gte("created_at", range.startIso).lte("created_at", range.endIso)
+      .gte("created_at", range.startIso).lt("created_at", range.endIso)
       .order("created_at", { ascending: false })
       .limit(ROW_CAP);
     const rows = (leads ?? []) as any[];
@@ -752,7 +863,7 @@ export async function getLeadSourceAnalyticsData(workspaceId: string, filters?: 
 // ── 5. Call Analytics (deep) ──────────────────────────────────────────────────
 export async function getCallAnalyticsDeepData(workspaceId: string, filters?: AnalyticsFilters) {
   const sb = supabaseAdmin as any;
-  const range = resolveDateRange(filters);
+  const range = resolveDateRangeFor(workspaceId, filters);
   const base = {
     workspaceId, range,
     volumeByDay: [] as Array<{ day: string; count: number }>,
@@ -772,7 +883,7 @@ export async function getCallAnalyticsDeepData(workspaceId: string, filters?: An
     let durSum = 0, durMax = 0, durMin = Number.MAX_SAFE_INTEGER, durCount = 0;
     for (const c of calls) {
       const startIso = isWbah ? c.started_at : (c.started_at ?? c.created_at);
-      const dk = dayKey(startIso);
+      const dk = dayKey(startIso, range.timezone);
       if (dk) byDay[dk] = (byDay[dk] ?? 0) + 1;
       let hr: number | null = null;
       if (startIso) { const d = new Date(startIso); if (!isNaN(d.getTime())) hr = d.getUTCHours(); }
@@ -815,7 +926,7 @@ export async function getCallAnalyticsDeepData(workspaceId: string, filters?: An
 // ── 6. Sentiment Analytics ────────────────────────────────────────────────────
 export async function getSentimentAnalyticsData(workspaceId: string, filters?: AnalyticsFilters) {
   const sb = supabaseAdmin as any;
-  const range = resolveDateRange(filters);
+  const range = resolveDateRangeFor(workspaceId, filters);
   const base = {
     workspaceId, range,
     counts: { positive: 0, neutral: 0, negative: 0, unknown: 0 },
@@ -838,7 +949,7 @@ export async function getSentimentAnalyticsData(workspaceId: string, filters?: A
       const a = byAgent[aid] ?? { name, pos: 0, neg: 0, total: 0 };
       a.total++; if (s === "positive") a.pos++; else if (s === "negative") a.neg++;
       byAgent[aid] = a;
-      const dk = dayKey(isWbah ? c.started_at : (c.started_at ?? c.created_at));
+      const dk = dayKey(isWbah ? c.started_at : (c.started_at ?? c.created_at), range.timezone);
       if (dk) { const d = byDay[dk] ?? { pos: 0, neg: 0, neu: 0 }; if (s === "positive") d.pos++; else if (s === "negative") d.neg++; else if (s === "neutral") d.neu++; byDay[dk] = d; }
     }
     const total = calls.length;
@@ -857,7 +968,7 @@ export async function getSentimentAnalyticsData(workspaceId: string, filters?: A
 // ── 7. Booking Analytics ──────────────────────────────────────────────────────
 export async function getBookingAnalyticsData(workspaceId: string, filters?: AnalyticsFilters) {
   const sb = supabaseAdmin as any;
-  const range = resolveDateRange(filters);
+  const range = resolveDateRangeFor(workspaceId, filters);
   const base = {
     workspaceId, range, total: 0,
     byStatus: {} as Record<string, number>,
@@ -875,7 +986,7 @@ export async function getBookingAnalyticsData(workspaceId: string, filters?: Ana
           total++;
           const st = String(c.booking_status ?? "booked");
           byStatus[st] = (byStatus[st] ?? 0) + 1;
-          const dk = dayKey(c.appointment_date ?? c.started_at);
+          const dk = dayKey(c.appointment_date ?? c.started_at, range.timezone);
           if (dk) byDay[dk] = (byDay[dk] ?? 0) + 1;
         }
       }
@@ -884,7 +995,7 @@ export async function getBookingAnalyticsData(workspaceId: string, filters?: Ana
     const { data: bookings } = await sb.from("calendar_bookings")
       .select("id, status, source, start_at, created_at, lead_id")
       .eq("workspace_id", workspaceId)
-      .gte("created_at", range.startIso).lte("created_at", range.endIso)
+      .gte("created_at", range.startIso).lt("created_at", range.endIso)
       .order("created_at", { ascending: false }).limit(ROW_CAP);
     const rows = (bookings ?? []) as any[];
     const byStatus: Record<string, number> = {};
@@ -893,7 +1004,7 @@ export async function getBookingAnalyticsData(workspaceId: string, filters?: Ana
     for (const b of rows) {
       const st = String(b.status ?? "pending"); byStatus[st] = (byStatus[st] ?? 0) + 1;
       const src = String(b.source ?? "unknown"); bySource[src] = (bySource[src] ?? 0) + 1;
-      const dk = dayKey(b.created_at); if (dk) byDay[dk] = (byDay[dk] ?? 0) + 1;
+      const dk = dayKey(b.created_at, range.timezone); if (dk) byDay[dk] = (byDay[dk] ?? 0) + 1;
     }
 
     // Booking anomaly: a lead still marked "need_to_call" despite an existing
@@ -929,7 +1040,7 @@ export async function getBookingAnalyticsData(workspaceId: string, filters?: Ana
 // ── 8. Workflow Analytics ─────────────────────────────────────────────────────
 export async function getWorkflowAnalyticsData(workspaceId: string, filters?: AnalyticsFilters) {
   const sb = supabaseAdmin as any;
-  const range = resolveDateRange(filters);
+  const range = resolveDateRangeFor(workspaceId, filters);
   const base = { workspaceId, range, workflows: [] as any[], error: null as string | null };
   if (isWbahWorkspaceId(workspaceId)) return { ...base, error: "not_available_for_wbah" };
   try {
@@ -937,7 +1048,7 @@ export async function getWorkflowAnalyticsData(workspaceId: string, filters?: An
       sb.from("workspace_workflows").select("id, name, status, trigger_type").eq("workspace_id", workspaceId).limit(200),
       sb.from("workflow_runs").select("workflow_id, status, error, started_at, completed_at")
         .eq("workspace_id", workspaceId)
-        .gte("started_at", range.startIso).lte("started_at", range.endIso)
+        .gte("started_at", range.startIso).lt("started_at", range.endIso)
         .order("started_at", { ascending: false }).limit(ROW_CAP),
     ]);
     const wfMap: Record<string, any> = {};
@@ -967,7 +1078,7 @@ export async function getWorkflowAnalyticsData(workspaceId: string, filters?: An
 // ── 9. Follow-up Analytics ────────────────────────────────────────────────────
 export async function getFollowUpAnalyticsData(workspaceId: string, filters?: AnalyticsFilters) {
   const sb = supabaseAdmin as any;
-  const range = resolveDateRange(filters);
+  const range = resolveDateRangeFor(workspaceId, filters);
   const base = {
     workspaceId, range,
     created: 0, completed: 0, overdue: 0,
@@ -980,16 +1091,16 @@ export async function getFollowUpAnalyticsData(workspaceId: string, filters?: An
     const [createdRes, completedRes, overdueRes, tasksRes] = await Promise.all([
       sb.from("hivemind_tasks").select("id", { count: "exact", head: true })
         .eq("workspace_id", workspaceId).eq("source", "follow_up")
-        .gte("created_at", range.startIso).lte("created_at", range.endIso),
+        .gte("created_at", range.startIso).lt("created_at", range.endIso),
       sb.from("hivemind_tasks").select("id", { count: "exact", head: true })
         .eq("workspace_id", workspaceId).eq("source", "follow_up").eq("status", "completed")
-        .gte("updated_at", range.startIso).lte("updated_at", range.endIso),
+        .gte("updated_at", range.startIso).lt("updated_at", range.endIso),
       sb.from("hivemind_tasks").select("id", { count: "exact", head: true })
         .eq("workspace_id", workspaceId).eq("source", "follow_up").neq("status", "completed")
         .lt("due_date", nowIso),
       sb.from("hivemind_tasks").select("trigger_type, metadata")
         .eq("workspace_id", workspaceId).eq("source", "follow_up")
-        .gte("created_at", range.startIso).lte("created_at", range.endIso).limit(ROW_CAP),
+        .gte("created_at", range.startIso).lt("created_at", range.endIso).limit(ROW_CAP),
     ]);
     const byChannel: Record<string, number> = {};
     for (const t of (tasksRes.data ?? []) as any[]) {
@@ -1012,7 +1123,7 @@ export async function getFollowUpAnalyticsData(workspaceId: string, filters?: An
 // ── 10. Financial Analytics ───────────────────────────────────────────────────
 export async function getFinancialAnalyticsData(workspaceId: string, filters?: AnalyticsFilters) {
   const sb = supabaseAdmin as any;
-  const range = resolveDateRange(filters);
+  const range = resolveDateRangeFor(workspaceId, filters);
   const base = {
     workspaceId, range,
     minutesUsed: 0, minutesRemaining: null as number | null,
@@ -1036,9 +1147,9 @@ export async function getFinancialAnalyticsData(workspaceId: string, filters?: A
     try {
       const { data: prof } = await sb.from("call_profitability")
         .select("total_cost_cents, created_at").eq("workspace_id", workspaceId)
-        .gte("created_at", range.startIso).lte("created_at", range.endIso).limit(ROW_CAP);
+        .gte("created_at", range.startIso).lt("created_at", range.endIso).limit(ROW_CAP);
       for (const p of (prof ?? []) as any[]) {
-        const dk = dayKey(p.created_at); if (dk) trend[dk] = (trend[dk] ?? 0) + (p.total_cost_cents ?? 0);
+        const dk = dayKey(p.created_at, range.timezone); if (dk) trend[dk] = (trend[dk] ?? 0) + (p.total_cost_cents ?? 0);
       }
     } catch { /* optional */ }
 
@@ -1052,9 +1163,9 @@ export async function getFinancialAnalyticsData(workspaceId: string, filters?: A
     let leadsNew = 0, qualified = 0, bookings = 0;
     if (!isWbah) {
       const [ln, qn, bn] = await Promise.all([
-        sb.from("leads").select("id", { count: "exact", head: true }).eq("workspace_id", workspaceId).gte("created_at", range.startIso).lte("created_at", range.endIso),
-        sb.from("leads").select("id", { count: "exact", head: true }).eq("workspace_id", workspaceId).eq("qualification_status", "qualified").gte("created_at", range.startIso).lte("created_at", range.endIso),
-        sb.from("calendar_bookings").select("id", { count: "exact", head: true }).eq("workspace_id", workspaceId).gte("created_at", range.startIso).lte("created_at", range.endIso),
+        sb.from("leads").select("id", { count: "exact", head: true }).eq("workspace_id", workspaceId).gte("created_at", range.startIso).lt("created_at", range.endIso),
+        sb.from("leads").select("id", { count: "exact", head: true }).eq("workspace_id", workspaceId).eq("qualification_status", "qualified").gte("created_at", range.startIso).lt("created_at", range.endIso),
+        sb.from("calendar_bookings").select("id", { count: "exact", head: true }).eq("workspace_id", workspaceId).gte("created_at", range.startIso).lt("created_at", range.endIso),
       ]);
       leadsNew = ln.count ?? 0; qualified = qn.count ?? 0; bookings = bn.count ?? 0;
     }
@@ -1092,7 +1203,7 @@ export async function getFinancialAnalyticsData(workspaceId: string, filters?: A
  */
 export async function getLeadAnalyticsData(workspaceId: string, filters?: AnalyticsFilters) {
   const sb = supabaseAdmin as any;
-  const range = resolveDateRange(filters);
+  const range = resolveDateRangeFor(workspaceId, filters);
   const base = {
     workspaceId, range,
     total: 0, newInRange: 0, qualified: 0, bookings: 0,
@@ -1106,7 +1217,7 @@ export async function getLeadAnalyticsData(workspaceId: string, filters?: Analyt
     const countWindow = (extra: (q: any) => any) =>
       extra(sb.from("leads").select("id", { count: "exact", head: true })
         .eq("workspace_id", workspaceId)
-        .gte("created_at", range.startIso).lte("created_at", range.endIso));
+        .gte("created_at", range.startIso).lt("created_at", range.endIso));
 
     const srcFilter = filters?.source ?? null;
 
@@ -1116,7 +1227,7 @@ export async function getLeadAnalyticsData(workspaceId: string, filters?: Analyt
         .then((r: any) => r, () => ({ count: 0 })),
       sb.from("calendar_bookings").select("id", { count: "exact", head: true })
         .eq("workspace_id", workspaceId)
-        .gte("created_at", range.startIso).lte("created_at", range.endIso),
+        .gte("created_at", range.startIso).lt("created_at", range.endIso),
       Promise.all(LEAD_STATUS_VALUES.map((st) =>
         countWindow((q: any) => { let x = q.eq("status", st); if (srcFilter) x = x.eq("source", srcFilter); return x; })
           .then((r: any) => ({ status: st, count: r.count ?? 0 }), () => ({ status: st, count: 0 })))),

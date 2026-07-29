@@ -45,7 +45,7 @@ function ctxOf(context: any): MindConvCtx {
  */
 export const getOrCreateActiveMindConversation = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input) =>
+  .validator((input) =>
     z
       .object({
         mind: z.enum(MINDS),
@@ -60,7 +60,7 @@ export const getOrCreateActiveMindConversation = createServerFn({ method: "POST"
 /** Append one or more messages (a user/assistant exchange) to a conversation. */
 export const appendMindMessages = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input) =>
+  .validator((input) =>
     z
       .object({
         conversationId: z.string().uuid(),
@@ -87,7 +87,7 @@ export const appendMindMessages = createServerFn({ method: "POST" })
 /** List the user's conversations for a Mind (most recent first). */
 export const listMindConversations = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input) =>
+  .validator((input) =>
     z
       .object({
         mind: z.enum(MINDS),
@@ -103,7 +103,7 @@ export const listMindConversations = createServerFn({ method: "POST" })
 /** Load older messages for a conversation (paginated, before a cursor). */
 export const loadMindConversationMessages = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input) =>
+  .validator((input) =>
     z
       .object({
         conversationId: z.string().uuid(),
@@ -119,7 +119,7 @@ export const loadMindConversationMessages = createServerFn({ method: "POST" })
 /** Rename a conversation or update its current objective. */
 export const renameMindConversation = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input) =>
+  .validator((input) =>
     z
       .object({
         conversationId: z.string().uuid(),
@@ -138,7 +138,7 @@ export const renameMindConversation = createServerFn({ method: "POST" })
  */
 export const archiveMindConversation = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input) =>
+  .validator((input) =>
     z.object({ conversationId: z.string().uuid() }).parse(input),
   )
   .handler(async ({ data, context }) =>

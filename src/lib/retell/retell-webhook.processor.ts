@@ -737,10 +737,35 @@ export async function processRetellWebhook(
     containsVoicemailKeyword(call.transcript);
   console.log(`[voicemail] call ${callId} → is_voicemail=${isVoicemail}`);
 
+  // Campaign attribution: the campaign executor stamps Retell call metadata
+  // with { campaign_id, workspace_id }. Metadata is untrusted input — the
+  // campaign must exist AND belong to the resolved workspace (verified in DB)
+  // before it is persisted, so tampered metadata can never link a call to
+  // another tenant's campaign.
+  const metaCampaignId = await (async () => {
+    const md = (call as any)?.metadata ?? {};
+    const cid = typeof md.campaign_id === "string" ? md.campaign_id : null;
+    const mws = typeof md.workspace_id === "string" ? md.workspace_id : null;
+    if (!cid || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(cid)) return null;
+    if (mws && mws !== workspaceId) return null;
+    try {
+      const { data: camp } = await supabaseAdmin
+        .from("campaigns")
+        .select("id")
+        .eq("id", cid)
+        .eq("workspace_id", workspaceId)
+        .maybeSingle();
+      return camp?.id ? cid : null;
+    } catch {
+      return null; // fail closed — leave unassigned rather than trust metadata
+    }
+  })();
+
   const row = {
     workspace_id: workspaceId,
     lead_id: leadId,
     retell_call_id: callId,
+    campaign_id: metaCampaignId,
     agent_id: incomingAgentId,
     agent_name: agentRow.name as string,
     call_type: callType,

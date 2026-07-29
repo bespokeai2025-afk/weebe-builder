@@ -30,12 +30,22 @@ export type VeoGenerateParams = {
   durationSeconds?: number;
   referenceUrl?:    string;
   generateAudio?:   boolean;  // Veo 3+ native AI audio — controllable on Vertex; always-on for Gemini API Veo 3
+  /** Veo 3.1 options */
+  model?:           string;   // per-request model override (e.g. veo-3.1-generate-preview)
+  resolution?:      "720p" | "1080p";
+  sampleCount?:     number;   // variations (1–2 on Veo 3.1 preview)
+  /** image-to-video: inline reference image */
+  referenceImageBase64?: string;
+  referenceImageMime?:   string;
+  /** frame guidance: final frame image */
+  lastFrameBase64?:      string;
+  lastFrameMime?:        string;
 };
 
 export type VeoJobResult =
   | { status: "pending";    jobId: string }
   | { status: "processing"; jobId: string }
-  | { status: "completed";  jobId: string; videoUrl: string }
+  | { status: "completed";  jobId: string; videoUrl: string; videoUrls?: string[] }
   | { status: "failed";     jobId: string; error?: string };
 
 const GEMINI_BASE   = "https://generativelanguage.googleapis.com/v1beta";  // :predictLongRunning LRO endpoint
@@ -128,26 +138,42 @@ export class VeoProvider {
       );
     }
 
+    const requestModel = (params.model ?? "").trim() || this.model;
+
     const doRequest = async (token: string): Promise<Response> => {
       const instance: Record<string, unknown> = { prompt: params.prompt };
-      if (params.referenceUrl) instance.image = { gcsUri: params.referenceUrl };
+      if (params.referenceImageBase64) {
+        instance.image = {
+          bytesBase64Encoded: params.referenceImageBase64,
+          mimeType:           params.referenceImageMime ?? "image/png",
+        };
+      } else if (params.referenceUrl) {
+        instance.image = { gcsUri: params.referenceUrl };
+      }
+      if (params.lastFrameBase64) {
+        instance.lastFrame = {
+          bytesBase64Encoded: params.lastFrameBase64,
+          mimeType:           params.lastFrameMime ?? "image/png",
+        };
+      }
 
       if (this.authMode === "gemini_api_key") {
         // Gemini Developer API: :predictLongRunning is the documented LRO endpoint for Veo.
         // Veo 3+ on Gemini API generates audio by default; generateAudio=true is a no-op,
         // generateAudio=false is ignored (audio cannot be disabled on Gemini Developer API).
-        const endpoint = `${GEMINI_BASE}/models/${this.model}:predictLongRunning?key=${encodeURIComponent(this.geminiKey)}`;
-        const audioCapable = isAudioCapableModel(this.model);
+        const endpoint = `${GEMINI_BASE}/models/${requestModel}:predictLongRunning?key=${encodeURIComponent(this.geminiKey)}`;
+        const audioCapable = isAudioCapableModel(requestModel);
         const body = {
           instances: [instance],
           parameters: {
             aspectRatio:     params.aspectRatio     ?? "16:9",
             durationSeconds: params.durationSeconds ?? 8,
-            sampleCount:     1,
+            sampleCount:     Math.min(Math.max(params.sampleCount ?? 1, 1), 4),
+            ...(params.resolution ? { resolution: params.resolution } : {}),
             ...(audioCapable ? { generateAudio: params.generateAudio ?? true } : {}),
           },
         };
-        console.log("[veo-provider] Gemini API POST", endpoint.replace(/key=[^&]+/, "key=***"), `model=${this.model} audioCapable=${audioCapable}`);
+        console.log("[veo-provider] Gemini API POST", endpoint.replace(/key=[^&]+/, "key=***"), `model=${requestModel} audioCapable=${audioCapable}`);
         console.log("[veo-provider] body:", JSON.stringify(body).slice(0, 400));
         return fetch(endpoint, {
           method:  "POST",
@@ -160,13 +186,14 @@ export class VeoProvider {
       } else {
         const endpoint =
           `${VERTEX_BASE}/projects/${encodeURIComponent(this.project)}` +
-          `/locations/${this.location}/publishers/google/models/${this.model}:predictLongRunning`;
+          `/locations/${this.location}/publishers/google/models/${requestModel}:predictLongRunning`;
         const body = {
           instances: [instance],
           parameters: {
             aspectRatio:     params.aspectRatio     ?? "16:9",
             durationSeconds: params.durationSeconds ?? 8,
-            sampleCount:     1,
+            sampleCount:     Math.min(Math.max(params.sampleCount ?? 1, 1), 4),
+            ...(params.resolution ? { resolution: params.resolution } : {}),
             generateAudio:   params.generateAudio ?? true,  // Fully controllable on Vertex AI
           },
         };
@@ -233,12 +260,16 @@ export class VeoProvider {
 
     // ── Gemini API response: { response: { generateVideoResponse: { generatedSamples: [...] } } }
     const geminiSamples: any[] = json.response?.generateVideoResponse?.generatedSamples ?? [];
+    const sampleUrls: string[] = [];
     for (const sample of geminiSamples) {
       const uri = sample?.video?.uri ?? sample?.video?.gcsUri ?? sample?.videoUri;
-      if (typeof uri === "string" && uri) return { status: "completed", jobId, videoUrl: uri };
-      if (sample?.video?.bytesBase64Encoded) {
-        return { status: "completed", jobId, videoUrl: `data:video/mp4;base64,${sample.video.bytesBase64Encoded}` };
+      if (typeof uri === "string" && uri) sampleUrls.push(uri);
+      else if (sample?.video?.bytesBase64Encoded) {
+        sampleUrls.push(`data:video/mp4;base64,${sample.video.bytesBase64Encoded}`);
       }
+    }
+    if (sampleUrls.length > 0) {
+      return { status: "completed", jobId, videoUrl: sampleUrls[0], videoUrls: sampleUrls };
     }
 
     // ── Vertex AI response: { response: { predictions: [...] } }

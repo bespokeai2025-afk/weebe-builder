@@ -662,7 +662,7 @@ export async function buildGrowthMindData(sb: any, workspaceId: string) {
 // Client generates recs from platform data, then calls this to persist them.
 export const saveGrowthMindRecommendations = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({
       recommendations: z.array(z.object({
         category:     z.string(),

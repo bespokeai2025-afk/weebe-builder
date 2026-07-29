@@ -1,0 +1,908 @@
+# CRITICAL SCOPE OVERRIDE
+# APPLY THE INTELLIGENCE AND EXECUTION FIX TO EVERY WEBEE CAPABILITY
+
+The previous instruction must not be implemented as a Google Ads-specific repair or as a patch for the example task.
+
+The Google Ads task and unsafe article are evidence of a platform-wide architectural defect.
+
+Implement the solution as a mandatory universal enforcement layer covering:
+
+- Every existing WEBEE function
+- Every existing Mind tool
+- Every existing workflow
+- Every current integration
+- Every background job
+- Every action and approval
+- Every task creator
+- Every campaign type
+- Every future capability added after this workstream
+
+Do not limit the work to features explicitly named in the prompt.
+
+The named features are acceptance-test examples, not the boundary of the implementation.
+
+---
+
+# 1. UNIVERSAL SCOPE
+
+The enforcement layer must apply to all current and future capabilities within:
+
+## HiveMind
+
+- Chat instructions
+- Voice instructions
+- Executive recommendations
+- Cross-Mind orchestration
+- Work orders
+- Tasks
+- Actions
+- Reports
+- Briefings
+- Scheduled operations
+- Operator mode
+- Executive Operator mode
+- Mobile and web
+
+## GrowthMind
+
+- Google Ads
+- Meta Ads
+- Facebook
+- Instagram
+- TikTok
+- LinkedIn
+- Search Console
+- SEO
+- Blog campaigns
+- Organic social campaigns
+- Paid social campaigns
+- Content Studio
+- Images
+- Videos
+- Scripts
+- Landing pages
+- Keyword research
+- Competitor intelligence
+- Audience intelligence
+- Geographic intelligence
+- Campaign experiments
+- Campaign monitoring
+- Marketing reports
+- Lead attribution
+
+## Sales and CRM
+
+- WEBEE CRM
+- External CRM systems
+- Sales pipelines
+- Leads
+- Qualified leads
+- Opportunities
+- Deals
+- Pipeline stages
+- Lead prioritisation
+- Lead assignment
+- Lead scoring
+- CRM field updates
+- CRM mappings
+- Stalled-opportunity recovery
+- Booking recovery
+- Sales scripts
+- Sales reporting
+
+## Messaging
+
+- WhatsApp
+- BuzzChat
+- WATI
+- Meta WhatsApp Cloud API
+- Twilio WhatsApp
+- WhatsApp broadcasts
+- WhatsApp templates
+- WhatsApp sequences
+- Email
+- HexMail
+- Email warming
+- Email broadcasts
+- Email sequences
+- SMS
+- Follow-Up Centre
+- Multi-channel follow-up
+- Opt-outs
+- Consent
+- Suppression lists
+
+## Voice and calls
+
+- Retell
+- Voice agents
+- Inbound calls
+- Outbound calls
+- Call campaigns
+- Call queues
+- Concurrency
+- Call schedules
+- Phone numbers
+- Call retries
+- Voicemail
+- Call transfer
+- Call scripts
+- Dynamic variables
+- Pre-call data
+- Post-call extraction
+- Recordings
+- Transcripts
+- Analytics
+- Booking functions
+- Calendar functions
+
+## SystemMind
+
+- Agent building
+- Agent deployment
+- Workflow building
+- CRM integrations
+- Webhooks
+- Field mapping
+- API integrations
+- Credentials
+- Queues
+- Scheduled jobs
+- Database diagnostics
+- System health
+- Deployment diagnostics
+- OAuth
+- Provider connections
+- Website diagnostics
+- Mobile parity
+- Security checks
+- Technical repairs
+- Test calls
+- Rollbacks
+
+## AccountsMind
+
+- Clients
+- Invoices
+- Payments
+- Outstanding balances
+- Outgoings
+- Suppliers
+- Subscriptions
+- Renewals
+- Usage
+- Provider costs
+- AI costs
+- Advertising costs
+- Messaging costs
+- Call costs
+- Profitability
+- Revenue attribution
+- Package limits
+- Financial reports
+- Read-only bank-feed analysis
+
+## Website and publishing
+
+- Content Studio
+- Blog generation
+- Public content API
+- Lovable publishing
+- GitHub deployment packages
+- Sitemap
+- Robots
+- Canonicals
+- Metadata
+- Structured data
+- Search Console monitoring
+- Article updates
+- Scheduling
+- Withdrawals
+- Rollbacks
+- Live verification
+
+## Platform administration
+
+- User sign-up requests
+- Roles
+- Permissions
+- Entitlements
+- Packages
+- Notifications
+- White-label controls
+- Workspace configuration
+- Integration configuration
+- Cost Engine
+- Analytics Centre
+- Reports
+- Mobile APIs
+
+This list is not exhaustive.
+
+Discover all additional functions from the real repository and include them automatically.
+
+---
+
+# 2. CENTRAL ENFORCEMENT — NOT FEATURE-BY-FEATURE PATCHES
+
+Do not add separate intelligence fixes inside every feature while leaving the central creation paths unchanged.
+
+Create one authoritative server-side enforcement layer through which every Mind-generated operation must pass.
+
+Equivalent architecture:
+
+Mind instruction
+→ universal instruction interpreter
+→ objective resolver
+→ entity resolver
+→ context and evidence loader
+→ capability resolver
+→ intelligence packet
+→ quality gate
+→ work order
+→ task plan
+→ execution
+→ approval
+→ provider/internal action
+→ verification
+→ evidence
+→ monitoring
+→ learning
+
+Enforce this at the shared services that create:
+
+- Recommendations
+- Work orders
+- Tasks
+- Executions
+- Actions
+- Campaigns
+- Content projects
+- Reports
+
+No feature may bypass the universal layer with a direct database insert or isolated helper.
+
+Add protections at several levels:
+
+1. Shared service validation
+2. Task/work-order creation middleware
+3. Execution dispatch validation
+4. Database constraints where appropriate
+5. UI safeguards
+6. Automated architecture tests
+
+A prompt instruction alone is not sufficient.
+
+---
+
+# 3. UNIVERSAL CAPABILITY REGISTRY
+
+Extend the existing shared Mind tool registry into the authoritative capability registry.
+
+Every capability must declare:
+
+- Capability ID
+- Mind owner
+- Feature family
+- Supported objectives
+- Required target types
+- Required evidence
+- Required integrations
+- Required credentials
+- Required permissions
+- Required entitlements
+- Read-only or write capability
+- Draft-only or executable
+- Approval requirements
+- Tool adapter
+- Execution-step generator
+- Validation adapter
+- Verification adapter
+- Rollback support
+- Cost estimator
+- Provider limitations
+- Mobile availability
+- Current health
+
+Capability states:
+
+- Available
+- Read Only
+- Draft Only
+- Approval Required
+- Integration Required
+- Credential Required
+- Permission Required
+- Provider Unsupported
+- Temporarily Unavailable
+- Partially Implemented
+- Dormant
+- Broken
+- Deprecated
+
+When a new capability is added in the future, it must register this contract before any Mind can create an executable task from it.
+
+Reject unregistered executable capabilities.
+
+---
+
+# 4. UNIVERSAL EXECUTION CONTRACT
+
+Every Mind-generated executable operation must have:
+
+- Parent work order
+- Intelligence packet
+- Resolved capability
+- Resolved target
+- Execution ID
+- Ordered steps
+- Current step
+- Progress events
+- Artifacts
+- Deliverables
+- Proposed changes
+- Applied changes
+- Evidence
+- Costs
+- Approval dependencies
+- Verification
+- Retry policy
+- Blocked reason
+- Completion criteria
+
+This applies equally to:
+
+- Analysing an advertising campaign
+- Sending a WhatsApp campaign
+- Publishing social content
+- Updating a CRM field
+- Starting calls
+- Creating an invoice
+- Building a workflow
+- Publishing a blog
+- Repairing an integration
+- Moving a lead
+- Producing a report
+- Running an SEO analysis
+
+There must be no feature where “In Progress” means only that a status column was updated.
+
+---
+
+# 5. UNIVERSAL TASK CLASSIFICATION
+
+Every task must be explicitly classified as one of:
+
+- Evidence Investigation
+- Analysis Execution
+- Draft Production
+- Internal Safe Mutation
+- External Provider Mutation
+- Approval-Gated Campaign
+- Approval-Gated Publication
+- Human Operational Task
+- Monitoring Task
+- Verification Task
+- Repair Task
+- Report Generation
+- Blocked External Dependency
+
+Each class has its own:
+
+- Required fields
+- Execution rules
+- Approval requirements
+- Progress model
+- Verification model
+- Completion criteria
+
+Only `Human Operational Task` may use manually editable progress states.
+
+All Mind-generated task classes must derive state from executions.
+
+---
+
+# 6. UNIVERSAL PROGRESS STANDARD
+
+Every running execution across every feature must show:
+
+- Execution ID
+- Capability
+- Assigned Mind
+- Start time
+- Last activity
+- Current step
+- Completed steps
+- Total steps
+- Real progress
+- Records inspected
+- Tool or provider currently used
+- Deliverables created
+- Proposed changes
+- Applied changes
+- Safe errors
+- Retries
+- Cost
+- Blocker
+- Next step
+
+Progress must be based on execution steps—not elapsed time and not fabricated AI percentages.
+
+When no active execution exists, the task must not display:
+
+Executing
+or
+In Progress
+
+When an execution stops producing activity, transition it to a real recoverable state such as:
+
+- Blocked
+- Worker Interrupted
+- Provider Unavailable
+- Retry Scheduled
+- Awaiting Approval
+- Awaiting User Input
+
+Do not leave it silently In Progress.
+
+---
+
+# 7. UNIVERSAL CHANGE SET
+
+Every operation that proposes or applies a change must create a structured Change Set.
+
+Each change contains:
+
+- System or provider
+- Account
+- Target entity
+- Target identifier
+- Current state
+- Proposed state
+- Approved state
+- Applied state
+- Reason
+- Evidence
+- Risk
+- Approval
+- Reversibility
+- Rollback
+- Provider response
+- Verification result
+- Timestamp
+
+This applies to all changes, including:
+
+- Google Ads keywords
+- Meta audiences
+- TikTok campaigns
+- LinkedIn posts
+- WhatsApp sends
+- Email sends
+- CRM field updates
+- Pipeline-stage changes
+- Agent configuration
+- Workflow field mappings
+- Calendar configuration
+- Invoice creation
+- Website content
+- SEO metadata
+- Sitemap submissions
+
+The UI must distinguish:
+
+- Proposed
+- Approved
+- Applying
+- Applied
+- Failed
+- Verified
+- Rolled Back
+
+AI-generated descriptions are not evidence that a change occurred.
+
+---
+
+# 8. UNIVERSAL CONTENT SAFETY
+
+The repaired safety gate must apply to all generated or deployed content, not only blogs.
+
+Apply it to:
+
+- Blog articles
+- Landing pages
+- Meta ads
+- Facebook posts
+- Instagram posts
+- Reels
+- TikTok scripts
+- TikTok captions
+- LinkedIn posts
+- LinkedIn ads
+- WhatsApp templates
+- WhatsApp messages
+- Email copy
+- SMS
+- Voice scripts
+- Sales scripts
+- Case studies
+- Reports
+- Proposals
+- Website copy
+
+Block universally:
+
+- Fabricated statistics
+- Fake testimonials
+- Fake customer names
+- Fake case studies
+- Unsupported performance claims
+- Unsupported savings claims
+- Ranking guarantees
+- Unsupported product capabilities
+- Invented quotations
+- Copied competitor wording
+- Private customer information
+- Unauthorised transcript material
+- Broken links
+- Unsafe URLs
+- Unapproved regulated claims
+
+Every factual claim must be one of:
+
+- Verified internal fact
+- Verified external source
+- Approved customer evidence
+- Clearly labelled estimate
+- Clearly labelled hypothesis
+- Clearly labelled hypothetical example
+
+Never present generated examples as real evidence.
+
+No channel may bypass the content-safety gate merely because it has a shorter format.
+
+---
+
+# 9. UNIVERSAL APPROVAL STANDARD
+
+No feature may use one vague `Approve` button when the effect is consequential.
+
+Approval labels must describe the exact authorised action.
+
+Examples:
+
+- Approve and Run Analysis
+- Approve Audience
+- Approve Content
+- Approve Campaign Plan
+- Approve Budget
+- Approve Schedule
+- Approve and Create as Paused
+- Approve and Launch
+- Approve and Send
+- Approve CRM Changes
+- Approve Pipeline Changes
+- Approve Agent Configuration
+- Approve Workflow Deployment
+- Approve Invoice Creation
+- Approve Article Publication
+- Approve Social Publication
+- Approve Sitemap Submission
+
+Every approval must record:
+
+- Exact target
+- Exact version
+- Exact changes
+- Exact provider
+- Exact effect
+- What is not authorised
+- Risk
+- Reversibility
+- Expiry
+- Conditions requiring reapproval
+
+Approval must dispatch or resume an execution.
+
+Approval must never only change a status field.
+
+---
+
+# 10. PROVIDER-SPECIFIC ADAPTERS
+
+The universal layer must call typed provider adapters.
+
+Provider-specific logic belongs in adapters, but enforcement remains central.
+
+Examples include:
+
+- Google Ads adapter
+- Search Console adapter
+- Meta adapter
+- Instagram adapter
+- TikTok adapter
+- LinkedIn adapter
+- WhatsApp adapter
+- WATI adapter
+- Twilio adapter
+- Email adapter
+- Resend adapter
+- Retell adapter
+- Cal.com adapter
+- Google Calendar adapter
+- CRM adapters
+- Lovable/public-content adapter
+- Supabase adapter
+- Finance/bank-feed adapters
+
+Every adapter must return a standard typed result:
+
+- Started
+- Completed
+- Failed
+- Blocked
+- Records processed
+- Changes proposed
+- Changes applied
+- Provider identifiers
+- Provider response
+- Evidence
+- Cost
+- Warnings
+- Retryability
+- Verification
+- Provider limitations
+
+If direct provider execution is unsupported, return:
+
+Provider Action Unsupported
+
+or:
+
+Awaiting Manual Deployment
+
+Do not pretend the action was completed.
+
+---
+
+# 11. FUTURE-FEATURE ENFORCEMENT
+
+Add an automated architecture test that fails whenever a new feature:
+
+- Creates a Mind task directly
+- Creates a task without a work order
+- Creates an executable task without an intelligence packet
+- Creates an execution without steps
+- Uses generic approval for a consequential action
+- Allows manual completion of a Mind task
+- Marks completion without evidence
+- Applies a provider change without verification
+- Publishes content without the safety gate
+
+This ensures the problem cannot return when new WEBEE functions are introduced.
+
+Add a development checklist and registration test for every new capability.
+
+---
+
+# 12. REPOSITORY-WIDE COVERAGE PROOF
+
+Do not claim universal coverage based on a sample of channels.
+
+Produce a machine-generated registry of all current task/action creators in the repository.
+
+For each creator report:
+
+- Function
+- File
+- Feature
+- Mind
+- Current status
+- Universal enforcement enabled
+- Work-order required
+- Intelligence packet required
+- Execution required
+- Approval required
+- Verification required
+- Migration status
+
+Coverage must reach 100% for active Mind-generated creators.
+
+Any legitimate exception must be identified and justified.
+
+No hidden legacy pathway may remain active.
+
+---
+
+# 13. REQUIRED UNIVERSAL ACCEPTANCE TEST MATRIX
+
+Run at least one real end-to-end acceptance test for every major capability family.
+
+## Executive orchestration
+
+“Generate more qualified WEBEE Receptionist leads.”
+
+## Google Ads
+
+“Optimise my Google Ads keywords.”
+
+## Meta
+
+“Create a Meta lead campaign.”
+
+## Organic social
+
+“Create and publish an Instagram campaign.”
+
+## TikTok
+
+“Create and deploy a TikTok campaign.”
+
+## LinkedIn
+
+“Create a LinkedIn campaign targeting investors.”
+
+## SEO
+
+“Find our strongest organic-search opportunity.”
+
+## Blog and website
+
+“Create and publish a safe blog article.”
+
+## Sales pipeline
+
+“Improve our sales pipeline.”
+
+## CRM
+
+“Recover stalled qualified opportunities.”
+
+## WhatsApp
+
+“Send a campaign to qualified opted-in leads.”
+
+## Email
+
+“Create and send a lead-nurture sequence.”
+
+## Follow-Up Centre
+
+“Create a 90-day multi-channel follow-up sequence.”
+
+## Calls
+
+“Launch a call campaign for qualified leads.”
+
+## Agent deployment
+
+“Deploy the selected voice agent.”
+
+## Workflow
+
+“Connect the selected agent to the CRM.”
+
+## Calendar
+
+“Repair booking availability and live appointment creation.”
+
+## AccountsMind
+
+“Review overdue income and improve cash flow.”
+
+## Reporting
+
+“Create an executive performance report.”
+
+For each test prove:
+
+1. Objective resolved
+2. Target resolved
+3. Evidence loaded
+4. Intelligence packet passed
+5. Work order created
+6. Execution created
+7. Steps visible
+8. Progress visible
+9. Approval scope explicit
+10. Execution performed
+11. Changes displayed
+12. Provider/internal verification completed
+13. Evidence attached
+14. Completion honest
+15. Workspace isolation maintained
+
+Where a live provider is unavailable, use a provider-contract test and report the external limitation honestly.
+
+---
+
+# 14. CURRENT TASK AND ARTICLE ARE REGRESSION CASES
+
+The Google Ads task and unsafe blog article remain mandatory regression tests, but they are not the full scope.
+
+The Google Ads test must prove:
+
+- No shallow task
+- No manual In Progress
+- Real campaign evidence
+- Real execution steps
+- Exact keyword proposals
+- Separate provider-change approval
+- Verified result
+
+The article test must prove:
+
+- Unsupported statistics blocked
+- Fake case studies blocked
+- Fake testimonials blocked
+- Broken links blocked
+- Unsafe version withdrawn
+- Corrected version created
+- New approvals required
+- No automatic republishing
+
+Fixing only these two records does not complete the workstream.
+
+---
+
+# 15. UNIVERSAL DEFINITION OF COMPLETE
+
+This workstream is complete only when:
+
+1. Every active Mind-generated creator is registered.
+2. Every active creator passes through central enforcement.
+3. All executable work has a work order.
+4. All executable work has an intelligence packet.
+5. All executions have steps.
+6. Running work shows real progress.
+7. Consequential changes have explicit approvals.
+8. Approvals dispatch execution.
+9. Changes are stored structurally.
+10. Applied changes are verified.
+11. Completion requires evidence.
+12. Manual false progress is removed.
+13. Content safety applies to every channel.
+14. Legacy shallow pathways are disabled or migrated.
+15. Future unregistered pathways fail automated tests.
+16. Major capability-family acceptance tests pass.
+17. Web and mobile show the same records and state.
+18. Workspace and WBAH isolation pass.
+19. Provider limitations are reported honestly.
+20. No feature can claim work was done merely because a status changed.
+
+---
+
+# REQUIRED CHECKPOINT REPORT
+
+Provide:
+
+1. Total active task/action creators discovered
+2. Total covered by universal enforcement
+3. Coverage percentage
+4. Remaining exceptions
+5. Central enforcement architecture
+6. Capability-registry changes
+7. Intelligence-packet enforcement
+8. Execution enforcement
+9. Progress enforcement
+10. Change-set enforcement
+11. Approval enforcement
+12. Content-safety enforcement
+13. Legacy paths disabled
+14. Legacy paths migrated
+15. Future-feature architecture tests
+16. Acceptance-test result for every capability family
+17. Current Google Ads regression result
+18. Unsafe article regression result
+19. Production-compatible tests
+20. Web/mobile parity
+21. Workspace isolation
+22. WBAH isolation
+23. Genuine provider limitations
+24. Next master-programme workstream resumed
+
+Do not stop after fixing the example task.
+
+Do not report completion until all active creators and capability families are covered.
+
+Implement this as the permanent operating contract for the entire WEBEE platform.

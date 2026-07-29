@@ -215,7 +215,7 @@ async function chat(apiKey: string, systemPrompt: string, messages: any[], maxTo
 // ── Chat ───────────────────────────────────────────────────────────────────────
 export const getSystemMindAIResponse = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({
       messages: z.array(z.object({ role: z.enum(["user", "assistant"]), content: z.string() })),
       platformData: z.any().optional(),
@@ -260,7 +260,7 @@ export const getSystemMindAIResponse = createServerFn({ method: "POST" })
 // ── Morning briefing ─────────────────────────────────────────────────────────--
 export const getSystemMindBriefing = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => z.object({ platformData: z.any().optional() }).parse(input ?? {}))
+  .validator((input: unknown) => z.object({ platformData: z.any().optional() }).parse(input ?? {}))
   .handler(async ({ context, data }) => {
     const { workspaceId } = context;
     const settings = (context as any).settings ?? {};

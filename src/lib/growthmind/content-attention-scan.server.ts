@@ -171,11 +171,35 @@ export async function runContentAttentionScan(workspaceId: string): Promise<{ fi
   let newTasks = 0, newEvents = 0;
   const eventRows: any[] = [];
 
+  // MIGRATED (Task #500): scanner findings now go through prepareMindTaskInsert
+  // so every row carries an intelligence packet and readiness_state, matching
+  // the universal quality gate enforced by runHiveMindScan.
+  const { buildIntelligencePacket, prepareMindTaskInsert, evidenceItem } =
+    await import("@/lib/minds/intelligence-packet.server");
+
   for (const f of findings) {
     const hasTask = existing.some((t: any) => t.trigger_type === f.trigger_type && t.entity_id === f.entity_id);
     if (!hasTask) {
-      // Row-by-row: the open-task partial unique index makes 23505 = deduped.
-      const { error } = await admin.from("hivemind_tasks").insert({
+      const packet = buildIntelligencePacket({
+        mind: "growthmind",
+        objective: f.description.slice(0, 500),
+        intentSource: `content_scan:${f.trigger_type}`,
+        targets: [{
+          domain: "marketing",
+          entity_type: f.entity_type,
+          entity_id: f.entity_id,
+          entity_name: f.entity_name,
+          resolved: true,
+          resolution_note: `Detected by GrowthMind content attention scan (severity: ${f.severity}).`,
+        }],
+        evidence: [evidenceItem(
+          `content_scan:${f.trigger_type}`,
+          f.description,
+          (f as any).metadata ?? null,
+        )],
+        diagnosis: f.description,
+      });
+      const taskRow = prepareMindTaskInsert({
         workspace_id: workspaceId,
         title:        f.title,
         description:  f.description,
@@ -186,8 +210,10 @@ export async function runContentAttentionScan(workspaceId: string): Promise<{ fi
         entity_type:  f.entity_type,
         entity_id:    f.entity_id,
         entity_name:  f.entity_name,
-        metadata:     f.metadata ?? null,
-      });
+        metadata:     (f as any).metadata ?? null,
+      }, packet);
+      // Row-by-row: the open-task partial unique index makes 23505 = deduped.
+      const { error } = await admin.from("hivemind_tasks").insert(taskRow);
       if (!error) newTasks++;
       else if (error.code !== "23505") console.warn("[attention-scan] task insert failed:", error.message);
     }

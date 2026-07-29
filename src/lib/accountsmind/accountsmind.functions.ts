@@ -12,7 +12,7 @@ import {
 
 export const getBillingProfile = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth, requirePlatformAdmin])
-  .inputValidator((input: { workspaceId: string }) => input)
+  .validator((input: { workspaceId: string }) => input)
   .handler(async ({ data }) => {
     const { data: profile, error } = await supabaseAdmin
       .from("client_billing_profiles")
@@ -37,7 +37,7 @@ export const getInvoiceSenderSettings = createServerFn({ method: "GET" })
 
 export const upsertInvoiceSenderSettings = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth, requirePlatformAdmin])
-  .inputValidator((input: { fromName: string; fromAddress: string }) => ({
+  .validator((input: { fromName: string; fromAddress: string }) => ({
     fromName: String(input.fromName ?? "").slice(0, 200),
     fromAddress: String(input.fromAddress ?? "").slice(0, 1000),
   }))
@@ -54,7 +54,7 @@ export const upsertInvoiceSenderSettings = createServerFn({ method: "POST" })
 
 export const upsertBillingProfile = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth, requirePlatformAdmin])
-  .inputValidator(
+  .validator(
     (input: {
       workspaceId:          string;
       monthlyChargeCents:   number;
@@ -109,7 +109,7 @@ export const upsertBillingProfile = createServerFn({ method: "POST" })
 
 export const computeAndStoreClientCost = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth, requirePlatformAdmin])
-  .inputValidator((input: { workspaceId: string; month?: string }) => input)
+  .validator((input: { workspaceId: string; month?: string }) => input)
   .handler(async ({ data }) => {
     const monthDate = data.month ? new Date(data.month) : new Date();
     const breakdown = await computeClientMonthlyCost(data.workspaceId, monthDate);
@@ -128,7 +128,7 @@ export const computeAndStoreClientCost = createServerFn({ method: "POST" })
 
 export const getClientMonthlyCosts = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth, requirePlatformAdmin])
-  .inputValidator((input: { workspaceId: string; limit?: number }) => input)
+  .validator((input: { workspaceId: string; limit?: number }) => input)
   .handler(async ({ data }) => {
     const { data: rows, error } = await supabaseAdmin
       .from("client_monthly_costs")
@@ -286,7 +286,7 @@ export const listAccountsClients = createServerFn({ method: "GET" })
 
 export const setClientIndustry = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth, requirePlatformAdmin])
-  .inputValidator((input: { workspaceId: string; industryKey: string }) => input)
+  .validator((input: { workspaceId: string; industryKey: string }) => input)
   .handler(async ({ data }) => {
     const { setWorkspaceIndustryServer } = await import("@/lib/accountsmind/industry.server");
     await setWorkspaceIndustryServer(data.workspaceId, data.industryKey);
@@ -297,7 +297,7 @@ export const setClientIndustry = createServerFn({ method: "POST" })
 
 export const getClientDetail = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth, requirePlatformAdmin])
-  .inputValidator((input: { workspaceId: string }) => input)
+  .validator((input: { workspaceId: string }) => input)
   .handler(async ({ data }) => {
     const now = new Date();
     const monthStr = new Date(now.getFullYear(), now.getMonth(), 1)
@@ -325,7 +325,7 @@ export const getClientDetail = createServerFn({ method: "GET" })
 
 export const listProviderRecharges = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth, requirePlatformAdmin])
-  .inputValidator((input?: { limit?: number; workspaceId?: string }) => input ?? {})
+  .validator((input?: { limit?: number; workspaceId?: string }) => input ?? {})
   .handler(async ({ data }) => {
     let q = supabaseAdmin
       .from("provider_recharge_events")
@@ -340,7 +340,7 @@ export const listProviderRecharges = createServerFn({ method: "GET" })
 
 export const recordProviderRecharge = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth, requirePlatformAdmin])
-  .inputValidator(
+  .validator(
     (input: {
       providerCategory: string;
       providerName:     string;
@@ -372,7 +372,7 @@ export const recordProviderRecharge = createServerFn({ method: "POST" })
 
 export const listAccountsAlerts = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth, requirePlatformAdmin])
-  .inputValidator((input?: { status?: string; severity?: string }) => input ?? {})
+  .validator((input?: { status?: string; severity?: string }) => input ?? {})
   .handler(async ({ data }) => {
     let q = supabaseAdmin
       .from("accountsmind_alerts")
@@ -388,7 +388,7 @@ export const listAccountsAlerts = createServerFn({ method: "GET" })
 
 export const resolveAlert = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth, requirePlatformAdmin])
-  .inputValidator((input: { alertId: string }) => input)
+  .validator((input: { alertId: string }) => input)
   .handler(async ({ data }) => {
     const { error } = await supabaseAdmin
       .from("accountsmind_alerts")

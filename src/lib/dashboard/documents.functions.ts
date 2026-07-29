@@ -21,7 +21,7 @@ async function ensureBucket() {
 /** List all documents for a contact by their data_records.id */
 export const listContactDocuments = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input) =>
+  .validator((input) =>
     z.object({ contactId: z.string() }).parse(input),
   )
   .handler(async ({ context, data }) => {
@@ -41,7 +41,7 @@ export const listContactDocuments = createServerFn({ method: "POST" })
 /** Look up a contact by phone (mobile_number in data_records) and return their docs + token */
 export const listContactDocsByPhone = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input) =>
+  .validator((input) =>
     z.object({ phone: z.string() }).parse(input),
   )
   .handler(async ({ context, data }) => {
@@ -78,7 +78,7 @@ export const listContactDocsByPhone = createServerFn({ method: "POST" })
 /** Delete a document and remove it from storage */
 export const deleteContactDocument = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input) =>
+  .validator((input) =>
     z.object({ id: z.string(), storagePath: z.string() }).parse(input),
   )
   .handler(async ({ context, data }) => {
@@ -98,7 +98,7 @@ export const deleteContactDocument = createServerFn({ method: "POST" })
 /** Get the upload token for a contact by their data_records.id */
 export const getContactUploadToken = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input) =>
+  .validator((input) =>
     z.object({ contactId: z.string() }).parse(input),
   )
   .handler(async ({ context, data }) => {
@@ -123,7 +123,7 @@ export const getContactUploadToken = createServerFn({ method: "POST" })
 
 /** Create a signed upload URL for a client using their upload token */
 export const getSignedUploadUrl = createServerFn({ method: "POST" })
-  .inputValidator((input) =>
+  .validator((input) =>
     z.object({
       token:    z.string().uuid(),
       fileName: z.string().min(1),
@@ -160,7 +160,7 @@ export const getSignedUploadUrl = createServerFn({ method: "POST" })
 
 /** Record a completed upload in the database */
 export const recordDocumentUpload = createServerFn({ method: "POST" })
-  .inputValidator((input) =>
+  .validator((input) =>
     z.object({
       uploadToken: z.string().uuid(),
       fileName:    z.string().min(1),

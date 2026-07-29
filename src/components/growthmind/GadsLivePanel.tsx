@@ -18,6 +18,8 @@ import {
   getGadsCampaignDetail,
   setGadsRecommendationStatus,
 } from "@/lib/growthmind/gads-live.server";
+import { getConversionDiagnostics, runDataManagerReadinessCheck } from "@/lib/tracking/conversion-diagnostics.server";
+import { startGoogleAdsOAuth } from "@/lib/providers/advertising/google-ads-oauth.functions";
 
 // ── 4-stage connection status card ─────────────────────────────────────────────
 
@@ -32,6 +34,128 @@ function StageDot({ done, active }: { done: boolean; active: boolean }) {
   if (done) return <CheckCircle2 className="h-4 w-4 text-emerald-400 shrink-0" />;
   if (active) return <Circle className="h-4 w-4 text-amber-400 shrink-0" />;
   return <Circle className="h-4 w-4 text-muted-foreground/30 shrink-0" />;
+}
+
+// ── Conversion uploads status block (Data Manager transport) ───────────────────
+// Renders alongside — never instead of — the analytics stages: a missing Data
+// Manager permission must not make the whole integration look disconnected.
+
+function ConversionUploadStatus() {
+  const diagFn      = useServerFn(getConversionDiagnostics);
+  const readinessFn = useServerFn(runDataManagerReadinessCheck);
+  const startOAuth  = useServerFn(startGoogleAdsOAuth);
+  const [enabling, setEnabling] = useState(false);
+
+  const { data: diag, refetch } = useQuery({
+    queryKey: ["conversion-diagnostics"],
+    queryFn:  () => diagFn(),
+    staleTime: 60_000,
+    throwOnError: false,
+  });
+
+  const readinessMut = useMutation({
+    mutationFn: () => readinessFn(),
+    onSuccess: (r: any) => {
+      if (r?.reauthorisationRequired) {
+        toast.warning("Conversion uploads need permission", { description: "Reconnect Google via Enable Conversion Uploads to grant the Data Manager permission." });
+      } else if (r?.validation?.ok) {
+        toast.success("Conversion uploads ready", { description: `Account ${r.operatingAccountId} → conversion action ${r.productDestinationId}. Dry-run validation passed — nothing was uploaded.` });
+      } else {
+        toast.error("Conversion uploads not ready", { description: r?.validation?.error ?? r?.configError ?? "Validation failed" });
+      }
+      refetch();
+    },
+    onError: (e: any) => toast.error("Readiness check failed", { description: e?.message }),
+  });
+
+  async function handleEnable() {
+    setEnabling(true);
+    try {
+      const res = await startOAuth({
+        data: { source: "growthmind" as const, origin: window.location.origin, returnTo: window.location.pathname },
+      }) as any;
+      if (res?.url) window.location.href = res.url;
+      else { toast.error("Could not start Google sign-in"); setEnabling(false); }
+    } catch (e: any) {
+      toast.error(e?.message ?? "Could not start Google sign-in");
+      setEnabling(false);
+    }
+  }
+
+  if (!diag) return null;
+  const cfg = diag.uploadConfig ?? ({} as any);
+  const counts = diag.statusCounts ?? ({} as any);
+
+  // One honest headline state for conversion uploads (independent of analytics)
+  const headline: { label: string; tone: "ok" | "warn" | "bad" | "muted" } =
+    !cfg.hasGadsAccount            ? { label: "Analytics connected — conversion uploads not configured", tone: "muted" } :
+    cfg.reauthorisationRequired    ? { label: "Conversion uploads need permission — reauthorisation required", tone: "warn" } :
+    !cfg.uploadActionConfigured    ? { label: "Conversion uploads not configured — no conversion action set", tone: "warn" } :
+    (counts.rejected ?? 0) > 0 && (counts.accepted ?? 0) === 0
+                                   ? { label: "Conversion uploads failed", tone: "bad" } :
+    diag.lastSuccessfulUploadAt    ? { label: "Conversion uploads ready", tone: "ok" } :
+                                     { label: "Conversion uploads configured — awaiting first genuine conversion", tone: "ok" };
+
+  const rows: Array<{ label: string; value: string; ok?: boolean | null }> = [
+    { label: "Attribution transport", value: cfg.transport === "legacy_click_conversions" ? "Legacy click conversions (fallback flag on)" : "Google Data Manager API", ok: cfg.transport !== "legacy_click_conversions" },
+    { label: "Data Manager OAuth", value: cfg.hasDataManagerScope ? "Permission granted" : "Permission missing — reconnect required", ok: !!cfg.hasDataManagerScope },
+    { label: "Conversion action", value: cfg.uploadActionConfigured ? "Configured" : "Not configured", ok: !!cfg.uploadActionConfigured },
+    { label: "Last successful upload", value: diag.lastSuccessfulUploadAt ? new Date(diag.lastSuccessfulUploadAt).toLocaleString() : "None yet", ok: diag.lastSuccessfulUploadAt ? true : null },
+    { label: "Last provider error", value: diag.lastProviderError ? diag.lastProviderError.message.slice(0, 140) : "None", ok: diag.lastProviderError ? false : true },
+  ];
+
+  return (
+    <div className="px-4 py-3 border-t border-white/[0.05]">
+      <div className="flex items-center gap-2 flex-wrap">
+        <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-[0.08em]">Conversion uploads</p>
+        <span className={cn(
+          "rounded-full px-2 py-0.5 text-[10px] font-medium",
+          headline.tone === "ok"   ? "bg-emerald-500/10 text-emerald-400" :
+          headline.tone === "warn" ? "bg-amber-500/10 text-amber-400" :
+          headline.tone === "bad"  ? "bg-red-500/10 text-red-400" :
+                                     "bg-slate-500/10 text-slate-400",
+        )}>
+          {headline.label}
+        </span>
+      </div>
+
+      <div className="mt-2 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-6 gap-y-1">
+        {rows.map((r) => (
+          <div key={r.label} className="flex items-center gap-1.5 min-w-0">
+            {r.ok === true  ? <CheckCircle2 className="h-3 w-3 text-emerald-400 shrink-0" /> :
+             r.ok === false ? <AlertTriangle className="h-3 w-3 text-amber-400 shrink-0" /> :
+                              <Circle className="h-3 w-3 text-muted-foreground/30 shrink-0" />}
+            <span className="text-[10px] text-muted-foreground/70 shrink-0">{r.label}:</span>
+            <span className="text-[10px] truncate">{r.value}</span>
+          </div>
+        ))}
+      </div>
+
+      <div className="flex flex-wrap items-center gap-2 mt-2.5">
+        {cfg.reauthorisationRequired && (
+          <Button size="sm" className="h-7 text-[11px] bg-white text-black hover:bg-white/90 gap-1.5"
+            onClick={handleEnable} disabled={enabling}>
+            {enabling ? <Loader2 className="h-3 w-3 animate-spin" /> : <ShieldCheck className="h-3 w-3" />}
+            Enable Conversion Uploads
+          </Button>
+        )}
+        {cfg.hasDataManagerScope && (
+          <Button size="sm" variant="outline" className="h-7 text-[11px] gap-1.5"
+            onClick={() => readinessMut.mutate()} disabled={readinessMut.isPending}>
+            {readinessMut.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : <ShieldCheck className="h-3 w-3" />}
+            Check upload readiness
+          </Button>
+        )}
+        {cfg.reauthorisationRequired && (
+          <p className="text-[10px] text-muted-foreground leading-relaxed basis-full">
+            Your Google Ads analytics connection keeps working as-is. Enabling conversion uploads re-signs
+            in with the same Google account to add one extra permission — your selected account, campaigns
+            and data sync are preserved.
+          </p>
+        )}
+      </div>
+    </div>
+  );
 }
 
 function fmtGBP(n: number, currency?: string | null) {
@@ -278,6 +402,9 @@ export function GadsLivePanel({ onConnectClick }: { onConnectClick: () => void }
           )}
         </div>
       </div>
+
+      {/* ── Conversion uploads (Data Manager) — separate from analytics status ── */}
+      {state?.accountSelected && <ConversionUploadStatus />}
 
       {/* ── Account selector (after discovery before selection, or when changing account) ── */}
       {state?.apiVerified && (changingAccount || !state?.accountSelected) && discovered && (

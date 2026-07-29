@@ -841,6 +841,11 @@ export async function convertLegacySourceServer(args: {
     try {
       const { assertProposalAllowed } = await import("@/lib/hivemind/mode-gate.server");
       await assertProposalAllowed(sb(), workspaceId);
+      // JUSTIFIED-EXCEPTION (Task #500): this is a human-task class row, not
+      // AI Mind output. The Legacy Logic Converter creates it to surface items
+      // that need a human to manually review and re-implement. The task carries
+      // no intelligence packet by design — it IS the review notice, and adding
+      // a packet would invent evidence that the converter does not have.
       await sb().from("hivemind_tasks").insert({
         workspace_id: workspaceId,
         title:        `Review unconverted logic from "${report.source_name}"`.slice(0, 200),

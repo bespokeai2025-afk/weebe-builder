@@ -25,7 +25,7 @@ await saveSiteFn({ data: { id, url, keywords } });
 ## Validator method name flipped by version
 - Around v1.167–early 1.168: `.inputValidator()` was the only valid chain method — `.validator()` did not exist and crashed at runtime.
 - As of `@tanstack/react-start` ~1.168.27 (July 2026): `.inputValidator()` still works but is **deprecated**; the build emits warnings recommending `.validator()`.
-- **How to apply:** don't mass-rename — `.inputValidator()` warnings are cosmetic and safe. For new code on ≥1.168.27, prefer `.validator()`. Always check the installed version before assuming which name is valid.
+- **How to apply:** repo was fully migrated to `.validator()` on 2026-07-26 (781 call sites) — use `.validator()` for all new code; never reintroduce `.inputValidator()`. Always check the installed version before assuming which name is valid.
 
 ## How to apply
 - Any `useServerFn` call where you pass arguments: wrap as `{ data: { ... } }`.

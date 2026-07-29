@@ -493,7 +493,7 @@ const generateVideoSchema = z.object({
 
 export const generateVideo = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => generateVideoSchema.parse(input))
+  .validator((input: unknown) => generateVideoSchema.parse(input))
   .handler(async ({ context, data }) => {
     const sb          = context.supabase as any;
     const workspaceId = context.workspaceId;
@@ -646,6 +646,26 @@ export const generateVideo = createServerFn({ method: "POST" })
       }];
     }
 
+    // ── Universal content safety gate (on script text) ─────────────────────
+    // Script is always saved but safety_blocked: true is stored in the asset
+    // when violations exist — downstream paths check this before allowing export.
+    // Fail-closed: gate errors are treated as blocking violations so a script
+    // is never silently cleared when the gate itself fails to run.
+    let videoScriptSafety: { passed: boolean; violations: string[]; warnings: string[] } = {
+      passed: false,
+      violations: ["gate_error: Content safety gate could not run — video script blocked until gate succeeds."],
+      warnings: [],
+    };
+    let videoSafetyEvidence: { source: string; description: string; data: Record<string, unknown>; retrieved_at: string } | null = null;
+    try {
+      const safetyMod = await import(/* @vite-ignore */ "@/lib/content-safety/universal-content-safety.server");
+      const safetyResult = await safetyMod.runContentSafetyCheck(script, videoType, workspaceId);
+      videoScriptSafety = { passed: safetyResult.passed, violations: safetyResult.violations, warnings: safetyResult.warnings };
+      videoSafetyEvidence = safetyMod.safetyCheckEvidenceItem(safetyResult);
+    } catch (e: any) {
+      console.error("[content-safety] video gate error (fail-closed):", e?.message ?? String(e));
+    }
+
     // ── Step 3: ElevenLabs voiceover (Balanced + Premium) ─────────────────
     let audioUrl: string | null = null;
     if (qualityMode === "balanced" || qualityMode === "premium") {
@@ -764,6 +784,11 @@ export const generateVideo = createServerFn({ method: "POST" })
       knowledge_context_id:   data.knowledgeContextId ?? null,
       knowledge_context_name: ctx.contextType !== "default" ? ctx.contextName : null,
       business_name:          ctx.companyName,
+      // Safety gate result stored alongside the script for downstream checks.
+      // safety_blocked: true prevents the asset from being exported/published
+      // until violations are resolved.
+      safety_blocked:         !videoScriptSafety.passed,
+      safety_evidence:        videoSafetyEvidence ?? null,
       created_at:             new Date().toISOString(),
     };
 
@@ -790,6 +815,16 @@ export const generateVideo = createServerFn({ method: "POST" })
       guidedRes = await sb
         .from("growthmind_video_assets")
         .insert(rowWithoutAudio)
+        .select("id")
+        .single();
+    }
+    // Graceful fallback: if safety_blocked / safety_evidence columns not yet migrated, strip and retry
+    if (guidedRes.error && isMissingCol(guidedRes.error)) {
+      console.warn("[video-studio] safety_blocked/safety_evidence columns not found — apply SAFETY_GATE_VIDEO_MIGRATION.sql to persist safety gate results");
+      const { safety_blocked: _sb, safety_evidence: _se, ...rowWithoutSafety } = guidedInsertRow as any;
+      guidedRes = await sb
+        .from("growthmind_video_assets")
+        .insert(rowWithoutSafety)
         .select("id")
         .single();
     }
@@ -828,7 +863,7 @@ export const generateVideo = createServerFn({ method: "POST" })
     }).then(() => {}).catch(() => {});
 
     return {
-      assetId:    inserted.id as string,
+      assetId:          inserted.id as string,
       title,
       script,
       storyboard,
@@ -836,9 +871,12 @@ export const generateVideo = createServerFn({ method: "POST" })
       videoUrl,
       provider,
       qualityMode,
-      costEstimate: totalCost,
-      strategyBrief: strategyResult.text,
-      valuePointUsed: valuePoint || null,
+      costEstimate:     totalCost,
+      strategyBrief:    strategyResult.text,
+      valuePointUsed:   valuePoint || null,
+      safetyPassed:     videoScriptSafety.passed,
+      safetyViolations: videoScriptSafety.violations,
+      safetyWarnings:   videoScriptSafety.warnings,
     };
   });
 
@@ -962,7 +1000,7 @@ const generateVideoFromPromptSchema = z.object({
 
 export const generateVideoFromPrompt = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => generateVideoFromPromptSchema.parse(input))
+  .validator((input: unknown) => generateVideoFromPromptSchema.parse(input))
   .handler(async ({ context, data }) => {
     const sb          = context.supabase as any;
     const workspaceId = context.workspaceId;
@@ -1158,6 +1196,27 @@ export const generateVideoFromPrompt = createServerFn({ method: "POST" })
     // has_audio = true when Veo 3+ is the provider and native audio was requested.
     const freeFormHasNativeAudio = provider === "veo3" && data.generateVeoAudio;
 
+    // ── Universal content safety gate (freeform path) ─────────────────────────
+    // Mirrors the identical check in the guided generateVideo path.
+    // Fail-closed: any error in the gate defaults to blocked.
+    let freeFormScriptSafety: { passed: boolean; violations: string[]; warnings: string[] } = {
+      passed: true, violations: [], warnings: [],
+    };
+    let freeFormSafetyEvidence: { source: string; description: string; data: Record<string, unknown>; retrieved_at: string } | null = null;
+    try {
+      const safetyMod = await import("@/lib/content-safety/universal-content-safety.server");
+      const safetyResult = await safetyMod.runContentSafetyCheck(engineResult.script, videoType, workspaceId);
+      freeFormScriptSafety = { passed: safetyResult.passed, violations: safetyResult.violations, warnings: safetyResult.warnings };
+      freeFormSafetyEvidence = safetyMod.safetyCheckEvidenceItem(safetyResult);
+    } catch (safetyErr: any) {
+      console.error("[video-studio-freeform] Safety gate error:", safetyErr?.message ?? safetyErr);
+      freeFormScriptSafety = {
+        passed: false,
+        violations: ["gate_error: Content safety gate failed to run — treating as blocked"],
+        warnings: [],
+      };
+    }
+
     const baseInsertRow = {
       workspace_id:               workspaceId,
       title:                      engineResult.title,
@@ -1184,6 +1243,8 @@ export const generateVideoFromPrompt = createServerFn({ method: "POST" })
       knowledge_context_id:       data.knowledgeContextId ?? null,
       knowledge_context_name:     ctx2.contextType !== "default" ? ctx2.contextName : null,
       business_name:              ctx2.companyName,
+      safety_blocked:             !freeFormScriptSafety.passed,
+      safety_evidence:            freeFormSafetyEvidence ?? null,
       created_at:                 new Date().toISOString(),
     };
     const multiClipFields = {
@@ -1228,6 +1289,16 @@ export const generateVideoFromPrompt = createServerFn({ method: "POST" })
       firstRes = await sb
         .from("growthmind_video_assets")
         .insert(rowWithoutAudio)
+        .select("id")
+        .single();
+    }
+    // Graceful fallback: if safety_blocked / safety_evidence columns not yet migrated, strip and retry
+    if (firstRes.error && isMissingColumn(firstRes.error)) {
+      console.warn("[video-studio] safety_blocked/safety_evidence columns not found — apply SAFETY_GATE_VIDEO_MIGRATION.sql to persist safety gate results");
+      const { safety_blocked: _sb, safety_evidence: _se, ...rowWithoutSafety } = baseInsertRow as any;
+      firstRes = await sb
+        .from("growthmind_video_assets")
+        .insert(rowWithoutSafety)
         .select("id")
         .single();
     }
@@ -1289,6 +1360,9 @@ export const generateVideoFromPrompt = createServerFn({ method: "POST" })
       strategyBrief:    engineResult.marketingAngle,
       isComposite:      isCompositeVideo,
       clipCount:        isCompositeVideo ? clipCount : 1,
+      safetyPassed:     freeFormScriptSafety.passed,
+      safetyViolations: freeFormScriptSafety.violations,
+      safetyWarnings:   freeFormScriptSafety.warnings,
     };
   });
 
@@ -1296,7 +1370,7 @@ export const generateVideoFromPrompt = createServerFn({ method: "POST" })
 
 export const getVideoAssets = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({
       videoType: z.string().nullish(),
       limit:     z.number().int().min(1).max(200).default(100),
@@ -1368,7 +1442,7 @@ export const getVideoAssets = createServerFn({ method: "GET" })
 
 export const deleteVideoAsset = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => z.object({ id: z.string().uuid() }).parse(input))
+  .validator((input: unknown) => z.object({ id: z.string().uuid() }).parse(input))
   .handler(async ({ context, data }) => {
     const sb          = context.supabase as any;
     const workspaceId = context.workspaceId;
@@ -1400,7 +1474,7 @@ export type CreativeScore = {
 
 export const scoreVideoCreative = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({
       assetId: z.string().uuid(),
     }).parse(input)
@@ -1475,7 +1549,7 @@ Return ONLY valid JSON:
 
 export const generateVideoVariants = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({
       campaignId:  z.string().uuid().nullish(),
       videoType:   z.string().min(1),
@@ -1570,7 +1644,7 @@ export const generateVideoVariants = createServerFn({ method: "POST" })
 
 export const scheduleVideoAsset = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({
       assetId:       z.string().uuid(),
       scheduledDate: z.string(),
@@ -1701,7 +1775,7 @@ export const getVideoCostStats = createServerFn({ method: "GET" })
 
 export const retryVideoJob = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => z.object({ id: z.string().uuid() }).parse(input))
+  .validator((input: unknown) => z.object({ id: z.string().uuid() }).parse(input))
   .handler(async ({ context, data }) => {
     const sb          = context.supabase as any;
     const workspaceId = context.workspaceId;
@@ -1789,7 +1863,7 @@ export const retryVideoJob = createServerFn({ method: "POST" })
 
 export const pollVideoJob = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => z.object({ id: z.string().uuid() }).parse(input))
+  .validator((input: unknown) => z.object({ id: z.string().uuid() }).parse(input))
   .handler(async ({ context, data }) => {
     const sb          = context.supabase as any;
     const workspaceId = context.workspaceId;
@@ -1952,7 +2026,7 @@ export const clearFailedVideoAssets = createServerFn({ method: "POST" })
 
 export const getVideoDownloadUrl = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => z.object({ id: z.string().uuid() }).parse(input))
+  .validator((input: unknown) => z.object({ id: z.string().uuid() }).parse(input))
   .handler(async ({ context, data }) => {
     const sb          = context.supabase as any;
     const workspaceId = context.workspaceId;
@@ -2174,7 +2248,7 @@ export const getVeoStatus = createServerFn({ method: "POST" })
 
 export const getVideoClips = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => z.object({ assetId: z.string().uuid() }).parse(input ?? {}))
+  .validator((input: unknown) => z.object({ assetId: z.string().uuid() }).parse(input ?? {}))
   .handler(async ({ context, data }) => {
     const sb          = context.supabase as any;
     const workspaceId = context.workspaceId;
@@ -2220,7 +2294,7 @@ export const getVideoClips = createServerFn({ method: "GET" })
 
 export const triggerVideoAssembly = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => z.object({ assetId: z.string().uuid() }).parse(input))
+  .validator((input: unknown) => z.object({ assetId: z.string().uuid() }).parse(input))
   .handler(async ({ context, data }) => {
     const sb          = context.supabase as any;
     const workspaceId = context.workspaceId;

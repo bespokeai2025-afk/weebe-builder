@@ -38,7 +38,7 @@ export const listPlatformKnowledgeBases = createServerFn({ method: "POST" })
 /** Returns documents for a platform KB. Usable by any authenticated user. */
 export const getPlatformDocuments = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input) =>
+  .validator((input) =>
     z.object({ kbSlug: z.string().min(1) }).parse(input),
   )
   .handler(async ({ data }) => {
@@ -95,7 +95,7 @@ export const getPlatformKnowledgeStats = createServerFn({ method: "POST" })
 // ── Admin: upload URL for a platform document ─────────────────────────────────
 export const getPlatformUploadUrl = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input) =>
+  .validator((input) =>
     z.object({
       kbSlug:   z.string().min(1),
       fileName: z.string().min(1),
@@ -131,7 +131,7 @@ export const getPlatformUploadUrl = createServerFn({ method: "POST" })
 // ── Admin: record + index a completed platform upload ────────────────────────
 export const recordPlatformDocument = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input) =>
+  .validator((input) =>
     z.object({
       kbSlug:      z.string().min(1),
       title:       z.string().min(1),
@@ -182,7 +182,7 @@ export const recordPlatformDocument = createServerFn({ method: "POST" })
 // ── Admin: delete a platform document ────────────────────────────────────────
 export const deletePlatformDocument = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input) =>
+  .validator((input) =>
     z.object({ documentId: z.string().uuid() }).parse(input),
   )
   .handler(async ({ context, data }) => {
@@ -216,7 +216,7 @@ export const deletePlatformDocument = createServerFn({ method: "POST" })
 // ── Admin: re-index a platform document ──────────────────────────────────────
 export const reindexPlatformDocument = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input) =>
+  .validator((input) =>
     z.object({ documentId: z.string().uuid() }).parse(input),
   )
   .handler(async ({ context, data }) => {
@@ -247,7 +247,7 @@ export const reindexPlatformDocument = createServerFn({ method: "POST" })
 // ── Admin: seed the 7 default platform documents ──────────────────────────────
 export const seedPlatformDefaults = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input) =>
+  .validator((input) =>
     z.object({ limit: z.number().int().min(1).max(5).optional() }).parse(input ?? {}),
   )
   .handler(async ({ context, data }) => {

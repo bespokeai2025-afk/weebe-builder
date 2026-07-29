@@ -50,7 +50,7 @@ const ItemInput = z.object({ itemId: z.string().uuid() });
 /** Anatomy page bundle: item + anatomy (if any) + adaptations + budget. */
 export const getContentAnatomyBundle = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((i: z.infer<typeof ItemInput>) => ItemInput.parse(i))
+  .validator((i: z.infer<typeof ItemInput>) => ItemInput.parse(i))
   .handler(async ({ data, context }) => {
     const sb = context.supabase as any;
     const workspaceId = context.workspaceId;
@@ -101,7 +101,7 @@ export const getContentAnatomyBundle = createServerFn({ method: "GET" })
 /** Run the multimodal deep analysis for one item (user-triggered, daily-capped). */
 export const runDeepVideoAnalysis = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((i: z.infer<typeof ItemInput>) => ItemInput.parse(i))
+  .validator((i: z.infer<typeof ItemInput>) => ItemInput.parse(i))
   .handler(async ({ data, context }) => {
     const workspaceId = context.workspaceId;
     if (!workspaceId) throw new Error("No workspace");
@@ -128,7 +128,7 @@ export const runDeepVideoAnalysis = createServerFn({ method: "POST" })
 /** Generate an original adaptation brief from the anatomy (user-triggered). */
 export const generateTrendAdaptation = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((i: z.infer<typeof ItemInput>) => ItemInput.parse(i))
+  .validator((i: z.infer<typeof ItemInput>) => ItemInput.parse(i))
   .handler(async ({ data, context }) => {
     const workspaceId = context.workspaceId;
     if (!workspaceId) throw new Error("No workspace");

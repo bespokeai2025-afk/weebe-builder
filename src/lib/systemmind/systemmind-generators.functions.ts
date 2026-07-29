@@ -10,7 +10,7 @@ function requireWorkspaceId(workspaceId: string | undefined): string {
 // ── generateWhatsAppSetupDraft ────────────────────────────────────────────────
 export const generateWhatsAppSetupDraft = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({
       provider:    z.enum(["twilio", "wati", "meta"]),
       description: z.string().min(10).max(4000),
@@ -38,7 +38,7 @@ export const generateWhatsAppSetupDraft = createServerFn({ method: "POST" })
 // ── generateFollowUpSequenceDraft ─────────────────────────────────────────────
 export const generateFollowUpSequenceDraft = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({
       description: z.string().min(10).max(4000),
     }).parse(input),
@@ -64,7 +64,7 @@ export const generateFollowUpSequenceDraft = createServerFn({ method: "POST" })
 // ── convertN8nWorkflowToDraft ─────────────────────────────────────────────────
 export const convertN8nWorkflowToDraft = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({
       n8nRowId: z.string().uuid(),
     }).parse(input),
@@ -90,7 +90,7 @@ export const convertN8nWorkflowToDraft = createServerFn({ method: "POST" })
 // ── getAutomationDraftDetail ──────────────────────────────────────────────────
 export const getAutomationDraftDetail = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({ draftId: z.string().uuid() }).parse(input),
   )
   .handler(async ({ data, context }) => {

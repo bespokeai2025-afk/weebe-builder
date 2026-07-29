@@ -33,7 +33,7 @@ export const listCampaigns = createServerFn({ method: "GET" })
 
 export const createCampaign = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input) =>
+  .validator((input) =>
     z
       .object({
         name: z.string().min(1).max(120),
@@ -66,7 +66,7 @@ export const createCampaign = createServerFn({ method: "POST" })
 
 export const deleteCampaign = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input) => z.object({ id: z.string().uuid() }).parse(input))
+  .validator((input) => z.object({ id: z.string().uuid() }).parse(input))
   .handler(async ({ context, data }) => {
     const { supabase } = context;
     const sb = supabase as any;
@@ -77,7 +77,7 @@ export const deleteCampaign = createServerFn({ method: "POST" })
 
 export const getCampaignStats = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input) =>
+  .validator((input) =>
     z.object({ campaignId: z.string().uuid().nullable().optional() }).parse(input ?? {}),
   )
   .handler(async ({ context, data }) => {

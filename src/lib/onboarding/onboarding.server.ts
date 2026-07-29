@@ -71,7 +71,7 @@ export const getOnboardingState = createServerFn({ method: "POST" })
 
 export const setOnboardingPath = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((d: { data: { path: OnboardingPath } }) => d)
+  .validator((d: { data: { path: OnboardingPath } }) => d)
   .handler(async ({ data, context }): Promise<OnboardingState> => {
     const { workspaceId, userId } = context;
     const sb = supabaseAdmin as any;
@@ -103,7 +103,7 @@ export const setOnboardingPath = createServerFn({ method: "POST" })
 
 export const completeOnboardingStep = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((d: {
+  .validator((d: {
     data: Partial<{
       business_dna_done: boolean;
       knowledge_uploaded: boolean;
@@ -150,7 +150,7 @@ export const dismissOnboarding = createServerFn({ method: "POST" })
 // Quick Business DNA save during onboarding wizard
 export const saveOnboardingBusinessDna = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((d: {
+  .validator((d: {
     data: {
       companyName: string;
       industry: string;

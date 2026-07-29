@@ -29,8 +29,8 @@ const SETTINGS_HREF = "/hivemind/settings";
 const MODE_VISIBILITY: Record<HiveMindMode, string[]> = {
   observe:   ["/hivemind", "/hivemind/business-dna", "/hivemind/briefings", "/hivemind/briefing", "/hivemind/system-health", "/hivemind/workflow-intelligence", SETTINGS_HREF],
   recommend: ["/hivemind", "/hivemind/business-dna", "/hivemind/briefings", "/hivemind/briefing", "/hivemind/recommendations", "/hivemind/reports", "/hivemind/system-health", "/hivemind/workflow-intelligence", SETTINGS_HREF],
-  assistant: ["/hivemind", "/hivemind/business-dna", "/hivemind/briefings", "/hivemind/briefing", "/hivemind/chat", "/hivemind/tasks", "/hivemind/recommendations", "/hivemind/reports", "/hivemind/system-health", "/hivemind/workflow-intelligence", SETTINGS_HREF],
-  operator:  ["/hivemind", "/hivemind/business-dna", "/hivemind/briefings", "/hivemind/briefing", "/hivemind/chat", "/hivemind/tasks", "/hivemind/actions", "/hivemind/recommendations", "/hivemind/reports", "/hivemind/system-health", "/hivemind/workflow-intelligence", SETTINGS_HREF],
+  assistant: ["/hivemind", "/hivemind/business-dna", "/hivemind/briefings", "/hivemind/briefing", "/hivemind/chat", "/hivemind/tasks", "/hivemind/work-orders", "/hivemind/recommendations", "/hivemind/reports", "/hivemind/system-health", "/hivemind/workflow-intelligence", SETTINGS_HREF],
+  operator:  ["/hivemind", "/hivemind/business-dna", "/hivemind/briefings", "/hivemind/briefing", "/hivemind/chat", "/hivemind/tasks", "/hivemind/work-orders", "/hivemind/actions", "/hivemind/recommendations", "/hivemind/reports", "/hivemind/system-health", "/hivemind/workflow-intelligence", SETTINGS_HREF],
 };
 
 const ALL_NAV = [
@@ -40,6 +40,7 @@ const ALL_NAV = [
   { label: "Briefing",        href: "/hivemind/briefing",         icon: Newspaper },
   { label: "Assistant",       href: "/hivemind/chat",             icon: MessageSquareMore, highlight: true },
   { label: "Tasks",           href: "/hivemind/tasks",            icon: CheckCircle2,       tasks: true },
+  { label: "Work Orders",     href: "/hivemind/work-orders",      icon: GitBranch },
   { label: "Actions",         href: "/hivemind/actions",          icon: Zap,                actions: true },
   { label: "Recommendations", href: "/hivemind/recommendations",  icon: Lightbulb },
   { label: "Reports",         href: "/hivemind/reports",          icon: FileText },
@@ -152,7 +153,12 @@ export function HiveMindShell({ children }: { children: React.ReactNode }) {
   const { data: modeData } = useQuery({
     queryKey: ["hivemind-mode"],
     queryFn:  () => modeFn(),
-    staleTime: Infinity,
+    // Not Infinity: a failed fetch (e.g. a stale session right after a
+    // republish) must self-heal instead of pinning a wrong fallback mode for
+    // the whole session — that made the Action Centre disagree with Settings.
+    staleTime: 30_000,
+    retry: 2,
+    refetchOnWindowFocus: true,
     throwOnError: false,
   });
   const mode: HiveMindMode = modeData?.mode ?? "assistant";

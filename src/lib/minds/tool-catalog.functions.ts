@@ -51,7 +51,7 @@ export async function buildMindToolCatalog(
 
 export const getMindToolCatalog = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input) => z.object({ workspaceId: z.string().uuid() }).parse(input))
+  .validator((input) => z.object({ workspaceId: z.string().uuid() }).parse(input))
   .handler(async ({ data, context }): Promise<{ tools: MindToolCatalogEntry[] }> => {
     const userId = (context as any).userId as string;
     return buildMindToolCatalog(data.workspaceId, userId);

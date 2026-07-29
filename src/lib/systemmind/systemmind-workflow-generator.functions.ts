@@ -5,7 +5,7 @@ import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 // ── generateWorkflowDraft ─────────────────────────────────────────────────────
 export const generateWorkflowDraft = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator(
+  .validator(
     z.object({
       description:  z.string().min(10),
       workflowType: z.string(),
@@ -50,7 +50,7 @@ export const listGeneratorDrafts = createServerFn({ method: "GET" })
 // ── getWorkflowDraftById ──────────────────────────────────────────────────────
 export const getGeneratorDraftById = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
-  .inputValidator(z.object({ draftId: z.string() }))
+  .validator(z.object({ draftId: z.string() }))
   .handler(async ({ data, context }) => {
     {
       const { requireSystemMindView } = await import(
@@ -67,7 +67,7 @@ export const getGeneratorDraftById = createServerFn({ method: "GET" })
 // ── updateWorkflowDraftStatus ─────────────────────────────────────────────────
 export const updateGeneratorDraftStatus = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator(z.object({ draftId: z.string(), status: z.string() }))
+  .validator(z.object({ draftId: z.string(), status: z.string() }))
   .handler(async ({ data, context }) => {
     {
       const { requireSystemMindEdit } = await import(
@@ -85,7 +85,7 @@ export const updateGeneratorDraftStatus = createServerFn({ method: "POST" })
 // ── proposeSendDraftToBuilder ─────────────────────────────────────────────────
 export const proposeSendDraftToBuilder = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator(
+  .validator(
     z.object({
       draftId:                  z.string(),
       draftTitle:               z.string(),

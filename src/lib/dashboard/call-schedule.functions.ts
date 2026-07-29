@@ -33,7 +33,7 @@ export const getCallSchedule = createServerFn({ method: "GET" })
 
 export const setCallSchedule = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input) => CallScheduleSchema.parse(input))
+  .validator((input) => CallScheduleSchema.parse(input))
   .handler(async ({ context, data }) => {
     const { supabase } = context;
     const workspaceId = context.workspaceId;

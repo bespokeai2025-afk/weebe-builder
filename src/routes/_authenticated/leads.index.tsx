@@ -701,9 +701,17 @@ function LeadsPage() {
       const limitMsg = (result as any).limitReached > 0
         ? ` · ${(result as any).limitReached} at daily limit`
         : "";
-      toast.success(`Qualification started — ${result.placed} calls placed`, {
-        description: result.failed > 0 ? `${result.failed} failed${limitMsg}` : limitMsg || undefined,
-      });
+      const firstError = (result as any).errors?.[0]?.message as string | undefined;
+      const failMsg = result.failed > 0
+        ? `${result.failed} failed${firstError ? ` — ${firstError}` : ""}${limitMsg}`
+        : limitMsg || undefined;
+      if (result.placed === 0 && result.failed > 0) {
+        toast.error("Qualification calls failed", { description: failMsg });
+      } else {
+        toast.success(`Qualification started — ${result.placed} calls placed`, {
+          description: failMsg,
+        });
+      }
       setQualDialogOpen(false);
       setSelectedIds(new Set());
       qc.invalidateQueries({ queryKey: ["leads-all"] });

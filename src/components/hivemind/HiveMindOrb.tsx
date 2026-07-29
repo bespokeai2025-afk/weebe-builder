@@ -1,9 +1,10 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { useRouterState, useNavigate } from "@tanstack/react-router";
-import { Send, Mic, MicOff, X, Minus, Loader2, ChevronRight, User, ExternalLink, ClipboardList } from "lucide-react";
+import { Send, Mic, MicOff, X, Minus, Loader2, ChevronRight, User, ExternalLink, ClipboardList, Square } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { getHiveMindAIResponse, getHiveMindTTS } from "@/lib/hivemind/hivemind.ai";
+import { streamHiveMindChat } from "@/lib/hivemind/use-hivemind-stream";
 import { useMindConversation } from "@/hooks/useMindConversation";
 import { loadHiveMindVoiceSettings, loadHiveMindUserName } from "@/lib/hivemind/voice-profile";
 
@@ -61,6 +62,8 @@ const ORB_STYLES = `
 `;
 
 // ── Types ──────────────────────────────────────────────────────────────────────
+import { readinessLabel } from "@/lib/minds/intelligence-packet-ui.shared";
+
 type OrbState = "idle" | "listening" | "thinking" | "speaking" | "error";
 type WorkOrderProposal = {
   workOrderId: string;
@@ -68,6 +71,9 @@ type WorkOrderProposal = {
   taskTitle:   string;
   focusCampaign: { campaignId: string; campaignName: string } | null;
   days:        number;
+  readinessState?: string | null;
+  objective?: string | null;
+  approvalScopeSummary?: string | null;
 };
 type Msg = { id: string; role: "user" | "hm"; content: string; workOrders?: WorkOrderProposal[] };
 
@@ -430,6 +436,7 @@ function MiniChat({ onClose, onStateChange }: {
     } catch { if (gen === ttsGenRef.current) setSpeaking(false); }
   }
 
+  const streamAbortRef = useRef<AbortController | null>(null);
   async function send(text: string) {
     if (!text.trim() || thinking) return;
     const userMsg: Msg     = { id: uid(), role: "user", content: text.trim() };
@@ -438,24 +445,49 @@ function MiniChat({ onClose, onStateChange }: {
     historyRef.current.push({ role: "user", content: text.trim() });
     setInput("");
     setThinking(true);
+    const abort = new AbortController();
+    streamAbortRef.current = abort;
     try {
-      const r = await aiFn({ data: { query: text.trim(), history: historyRef.current.slice(-6), personality: prefs.current.personality, userName: userName.current } });
+      const args = { query: text.trim(), history: historyRef.current.slice(-6), personality: prefs.current.personality, userName: userName.current };
+      // Stream tokens so the reply renders as it's generated; fall back to the
+      // non-streaming server fn if the stream can't be established.
+      let r: { response: string; workOrderProposals?: any[] };
+      try {
+        r = await streamHiveMindChat({
+          ...args,
+          signal: abort.signal,
+          onToken: (fullText) => {
+            setMessages(prev => prev.map(m => m.id === placeholder.id ? { ...m, content: fullText } : m));
+          },
+        });
+      } catch (streamErr) {
+        if (abort.signal.aborted) throw streamErr;
+        r = await aiFn({ data: args });
+      }
       historyRef.current.push({ role: "assistant", content: r.response });
       const reply: Msg = {
         ...placeholder,
         content: r.response,
-        workOrders: (r as any).workOrderProposals?.length ? (r as any).workOrderProposals : undefined,
+        workOrders: r.workOrderProposals?.length ? (r.workOrderProposals as any) : undefined,
       };
       setMessages(prev => prev.map(m => m.id === placeholder.id ? reply : m));
       persistNewMessages([userMsg, reply]);
       playTTS(r.response);
     } catch (err: any) {
-      const msg = err?.message ?? String(err ?? "Unknown error");
-      setMessages(prev => prev.map(m => m.id === placeholder.id
-        ? { ...m, content: `Error: ${msg.slice(0, 200)}` }
-        : m
-      ));
-    } finally { setThinking(false); }
+      if (abort.signal.aborted) {
+        // Keep whatever streamed so far and mark the message as stopped.
+        setMessages(prev => prev.map(m => m.id === placeholder.id
+          ? { ...m, content: m.content ? `${m.content}\n\n(Stopped)` : "Stopped." } : m));
+      } else {
+        setMessages(prev => prev.map(m => m.id === placeholder.id
+          ? { ...m, content: "Sorry — I couldn't get an answer just now. Please try again in a moment." }
+          : m
+        ));
+      }
+    } finally {
+      streamAbortRef.current = null;
+      setThinking(false);
+    }
   }
 
   function toggleMic() {
@@ -543,7 +575,7 @@ function MiniChat({ onClose, onStateChange }: {
           className="text-sky-400/30 hover:text-sky-400/70 transition-colors ml-1">
           <Minus className="h-3.5 w-3.5" />
         </button>
-        <button onClick={() => { stopAudio(); onClose(); }}
+        <button onClick={() => { stopAudio(); onClose(); }} aria-label="Close"
           className="text-sky-400/30 hover:text-sky-400/70 transition-colors">
           <X className="h-3.5 w-3.5" />
         </button>
@@ -595,8 +627,22 @@ function MiniChat({ onClose, onStateChange }: {
                       <div className="flex items-center gap-1.5 text-[10px] font-semibold text-emerald-300">
                         <ClipboardList className="h-3 w-3" />
                         Work order ready
+                        {wo.readinessState && (
+                          <span className="rounded-full px-1.5 py-0.5 text-[9px] font-medium"
+                            style={{ background: "rgba(16,185,129,0.15)", border: "1px solid rgba(16,185,129,0.3)" }}>
+                            {readinessLabel(wo.readinessState)}
+                          </span>
+                        )}
                       </div>
                       <div className="mt-0.5 text-[10px] text-emerald-100/80">{wo.taskTitle}</div>
+                      {wo.objective && (
+                        <div className="mt-0.5 text-[10px] text-emerald-100/60 leading-relaxed">{wo.objective}</div>
+                      )}
+                      {wo.approvalScopeSummary && (
+                        <div className="mt-0.5 text-[10px] text-emerald-200/70 leading-relaxed">
+                          Approval scope: {wo.approvalScopeSummary}
+                        </div>
+                      )}
                       <button
                         onClick={() => { onClose(); navigate({ to: "/hivemind/chat" }); }}
                         className="mt-1.5 inline-flex items-center gap-1 rounded-md px-2 py-1 text-[10px] font-medium text-emerald-200 transition-colors hover:text-emerald-100"
@@ -642,13 +688,23 @@ function MiniChat({ onClose, onStateChange }: {
               className="flex-1 bg-transparent text-xs placeholder:text-sky-400/25 focus:outline-none min-w-0 text-sky-100"
             />
 
-            <button onClick={() => send(input)}
-              disabled={!input.trim() || thinking}
-              className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border transition-all disabled:opacity-25"
-              style={{ background: "rgba(14,165,233,0.12)", border: "1px solid rgba(14,165,233,0.25)", color: "#38bdf8" }}
-            >
-              <Send className="h-3 w-3" />
-            </button>
+            {thinking ? (
+              <button onClick={() => { ttsGenRef.current++; stopAudio(); streamAbortRef.current?.abort(); }}
+                title="Stop generating"
+                className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border transition-all"
+                style={{ background: "rgba(239,68,68,0.15)", border: "1px solid rgba(239,68,68,0.35)", color: "#f87171" }}
+              >
+                <Square className="h-3 w-3 fill-current" />
+              </button>
+            ) : (
+              <button onClick={() => send(input)}
+                disabled={!input.trim()}
+                className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border transition-all disabled:opacity-25"
+                style={{ background: "rgba(14,165,233,0.12)", border: "1px solid rgba(14,165,233,0.25)", color: "#38bdf8" }}
+              >
+                <Send className="h-3 w-3" />
+              </button>
+            )}
           </div>
         </>
       )}

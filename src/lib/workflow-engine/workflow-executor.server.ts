@@ -274,6 +274,12 @@ async function executeStep(
         if (!(await isProposalAllowed(sb, ctx.workspaceId))) {
           return ok(step, { skipped: "hivemind_observe_mode" });
         }
+        // JUSTIFIED-EXCEPTION (Task #500): this task is created by a
+        // user-authored workflow step node ("create_task"), not by autonomous AI
+        // Mind output. The intelligence packet would carry no meaningful evidence
+        // because the step is a deterministic user instruction ("create a task
+        // when this workflow reaches this node"). Wrapping it in prepareMindTaskInsert
+        // would add packet overhead with no diagnostic value.
         const { error } = await sb.from("hivemind_tasks").insert({
           workspace_id:    ctx.workspaceId,
           title:           step.title ?? "Workflow task",
@@ -320,6 +326,9 @@ async function executeStep(
         if (!(await isProposalAllowed(sb, ctx.workspaceId))) {
           return ok(step, { skipped: "hivemind_observe_mode" });
         }
+        // JUSTIFIED-EXCEPTION (Task #500): notification task from a user-authored
+        // workflow step node — not autonomous AI Mind output. Equivalent to a
+        // human-task class row; no intelligence packet is warranted.
         await sb.from("hivemind_tasks").insert({
           workspace_id: ctx.workspaceId,
           title:        step.title ?? `Workflow notification: ${ctx.runId.slice(0, 8)}`,

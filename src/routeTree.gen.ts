@@ -60,6 +60,7 @@ import { Route as AuthenticatedCalendarRouteImport } from './routes/_authenticat
 import { Route as AuthenticatedBuilderRouteImport } from './routes/_authenticated/builder'
 import { Route as AuthenticatedBillingRouteImport } from './routes/_authenticated/billing'
 import { Route as AuthenticatedAnalyticsRouteImport } from './routes/_authenticated/analytics'
+import { Route as AuthenticatedAgentHealthRouteImport } from './routes/_authenticated/agent-health'
 import { Route as AuthenticatedAdminRouteImport } from './routes/_authenticated/admin'
 import { Route as AuthenticatedAccountsmindRouteImport } from './routes/_authenticated/accountsmind'
 import { Route as AuthenticatedSystemmindIndexRouteImport } from './routes/_authenticated/systemmind.index'
@@ -104,6 +105,7 @@ import { Route as ApiOauthGscCallbackRouteImport } from './routes/api/oauth/gsc-
 import { Route as ApiOauthGoogleAdsCallbackRouteImport } from './routes/api/oauth/google-ads-callback'
 import { Route as ApiMonitoringHealthRouteImport } from './routes/api/monitoring/health'
 import { Route as ApiMonitoringClientErrorRouteImport } from './routes/api/monitoring/client-error'
+import { Route as ApiHivemindChatStreamRouteImport } from './routes/api/hivemind/chat-stream'
 import { Route as ApiDashboardLiveCallsSseRouteImport } from './routes/api/dashboard/live-calls-sse'
 import { Route as ApiBuilderScriptTemplateRouteImport } from './routes/api/builder/script-template'
 import { Route as ApiBuilderScanPdfRouteImport } from './routes/api/builder/scan-pdf'
@@ -152,6 +154,7 @@ import { Route as AuthenticatedSettingsAccountRouteImport } from './routes/_auth
 import { Route as AuthenticatedLeadsWebformsRouteImport } from './routes/_authenticated/leads.webforms'
 import { Route as AuthenticatedKnowledgeCentreSlugRouteImport } from './routes/_authenticated/knowledge-centre.$slug'
 import { Route as AuthenticatedHivemindWorkflowIntelligenceRouteImport } from './routes/_authenticated/hivemind.workflow-intelligence'
+import { Route as AuthenticatedHivemindWorkOrdersRouteImport } from './routes/_authenticated/hivemind.work-orders'
 import { Route as AuthenticatedHivemindTasksRouteImport } from './routes/_authenticated/hivemind.tasks'
 import { Route as AuthenticatedHivemindSystemHealthRouteImport } from './routes/_authenticated/hivemind.system-health'
 import { Route as AuthenticatedHivemindSettingsRouteImport } from './routes/_authenticated/hivemind.settings'
@@ -219,6 +222,7 @@ import { Route as AuthenticatedAdminPackagesRouteImport } from './routes/_authen
 import { Route as AuthenticatedAdminCostEngineRouteImport } from './routes/_authenticated/admin.cost-engine'
 import { Route as AuthenticatedAdminChangeRequestsRouteImport } from './routes/_authenticated/admin.change-requests'
 import { Route as AuthenticatedAdminAnalyticsRouteImport } from './routes/_authenticated/admin.analytics'
+import { Route as AuthenticatedAdminAiUsageRouteImport } from './routes/_authenticated/admin.ai-usage'
 import { Route as AuthenticatedAdminAccountsRouteImport } from './routes/_authenticated/admin.accounts'
 import { Route as AuthenticatedSystemmindClientsIndexRouteImport } from './routes/_authenticated/systemmind.clients.index'
 import { Route as AuthenticatedAdminAccountsIndexRouteImport } from './routes/_authenticated/admin.accounts.index'
@@ -283,6 +287,7 @@ import { Route as ApiInternalAgentToolsIdRouteImport } from './routes/api/intern
 import { Route as AuthenticatedSystemmindClientsSetupRouteImport } from './routes/_authenticated/systemmind.clients.setup'
 import { Route as AuthenticatedSystemmindClientsApiProbeRouteImport } from './routes/_authenticated/systemmind.clients.api-probe'
 import { Route as AuthenticatedSettingsProvidersCategoryRouteImport } from './routes/_authenticated/settings.providers.$category'
+import { Route as AuthenticatedHivemindWorkOrdersIdRouteImport } from './routes/_authenticated/hivemind.work-orders_.$id'
 import { Route as AuthenticatedGrowthmindContentProjectsProjectIdRouteImport } from './routes/_authenticated/growthmind.content-projects.$projectId'
 import { Route as AuthenticatedGrowthmindAnatomyItemIdRouteImport } from './routes/_authenticated/growthmind.anatomy.$itemId'
 import { Route as AuthenticatedAdminAccountsWorkspaceConfigRouteImport } from './routes/_authenticated/admin.accounts.workspace-config'
@@ -575,6 +580,12 @@ const AuthenticatedAnalyticsRoute = AuthenticatedAnalyticsRouteImport.update({
   path: '/analytics',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
+const AuthenticatedAgentHealthRoute =
+  AuthenticatedAgentHealthRouteImport.update({
+    id: '/agent-health',
+    path: '/agent-health',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
 const AuthenticatedAdminRoute = AuthenticatedAdminRouteImport.update({
   id: '/admin',
   path: '/admin',
@@ -809,6 +820,11 @@ const ApiMonitoringClientErrorRoute =
     path: '/api/monitoring/client-error',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiHivemindChatStreamRoute = ApiHivemindChatStreamRouteImport.update({
+  id: '/api/hivemind/chat-stream',
+  path: '/api/hivemind/chat-stream',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiDashboardLiveCallsSseRoute =
   ApiDashboardLiveCallsSseRouteImport.update({
     id: '/api/dashboard/live-calls-sse',
@@ -1093,6 +1109,12 @@ const AuthenticatedHivemindWorkflowIntelligenceRoute =
   AuthenticatedHivemindWorkflowIntelligenceRouteImport.update({
     id: '/workflow-intelligence',
     path: '/workflow-intelligence',
+    getParentRoute: () => AuthenticatedHivemindRoute,
+  } as any)
+const AuthenticatedHivemindWorkOrdersRoute =
+  AuthenticatedHivemindWorkOrdersRouteImport.update({
+    id: '/work-orders',
+    path: '/work-orders',
     getParentRoute: () => AuthenticatedHivemindRoute,
   } as any)
 const AuthenticatedHivemindTasksRoute =
@@ -1495,6 +1517,12 @@ const AuthenticatedAdminAnalyticsRoute =
     path: '/analytics',
     getParentRoute: () => AuthenticatedAdminRoute,
   } as any)
+const AuthenticatedAdminAiUsageRoute =
+  AuthenticatedAdminAiUsageRouteImport.update({
+    id: '/ai-usage',
+    path: '/ai-usage',
+    getParentRoute: () => AuthenticatedAdminRoute,
+  } as any)
 const AuthenticatedAdminAccountsRoute =
   AuthenticatedAdminAccountsRouteImport.update({
     id: '/accounts',
@@ -1854,6 +1882,12 @@ const AuthenticatedSettingsProvidersCategoryRoute =
     path: '/$category',
     getParentRoute: () => AuthenticatedSettingsProvidersRoute,
   } as any)
+const AuthenticatedHivemindWorkOrdersIdRoute =
+  AuthenticatedHivemindWorkOrdersIdRouteImport.update({
+    id: '/work-orders_/$id',
+    path: '/work-orders/$id',
+    getParentRoute: () => AuthenticatedHivemindRoute,
+  } as any)
 const AuthenticatedGrowthmindContentProjectsProjectIdRoute =
   AuthenticatedGrowthmindContentProjectsProjectIdRouteImport.update({
     id: '/content-projects/$projectId',
@@ -2050,6 +2084,7 @@ export interface FileRoutesByFullPath {
   '/unsubscribe': typeof UnsubscribeRoute
   '/accountsmind': typeof AuthenticatedAccountsmindRoute
   '/admin': typeof AuthenticatedAdminRouteWithChildren
+  '/agent-health': typeof AuthenticatedAgentHealthRoute
   '/analytics': typeof AuthenticatedAnalyticsRoute
   '/billing': typeof AuthenticatedBillingRouteWithChildren
   '/builder': typeof AuthenticatedBuilderRoute
@@ -2086,6 +2121,7 @@ export interface FileRoutesByFullPath {
   '/solutions/$industry': typeof SolutionsIndustryRoute
   '/upload/$token': typeof UploadTokenRoute
   '/admin/accounts': typeof AuthenticatedAdminAccountsRouteWithChildren
+  '/admin/ai-usage': typeof AuthenticatedAdminAiUsageRoute
   '/admin/analytics': typeof AuthenticatedAdminAnalyticsRoute
   '/admin/change-requests': typeof AuthenticatedAdminChangeRequestsRoute
   '/admin/cost-engine': typeof AuthenticatedAdminCostEngineRoute
@@ -2153,6 +2189,7 @@ export interface FileRoutesByFullPath {
   '/hivemind/settings': typeof AuthenticatedHivemindSettingsRoute
   '/hivemind/system-health': typeof AuthenticatedHivemindSystemHealthRoute
   '/hivemind/tasks': typeof AuthenticatedHivemindTasksRoute
+  '/hivemind/work-orders': typeof AuthenticatedHivemindWorkOrdersRoute
   '/hivemind/workflow-intelligence': typeof AuthenticatedHivemindWorkflowIntelligenceRoute
   '/knowledge-centre/$slug': typeof AuthenticatedKnowledgeCentreSlugRoute
   '/leads/webforms': typeof AuthenticatedLeadsWebformsRoute
@@ -2201,6 +2238,7 @@ export interface FileRoutesByFullPath {
   '/api/builder/scan-pdf': typeof ApiBuilderScanPdfRoute
   '/api/builder/script-template': typeof ApiBuilderScriptTemplateRoute
   '/api/dashboard/live-calls-sse': typeof ApiDashboardLiveCallsSseRoute
+  '/api/hivemind/chat-stream': typeof ApiHivemindChatStreamRoute
   '/api/monitoring/client-error': typeof ApiMonitoringClientErrorRoute
   '/api/monitoring/health': typeof ApiMonitoringHealthRoute
   '/api/oauth/google-ads-callback': typeof ApiOauthGoogleAdsCallbackRoute
@@ -2254,6 +2292,7 @@ export interface FileRoutesByFullPath {
   '/admin/accounts/workspace-config': typeof AuthenticatedAdminAccountsWorkspaceConfigRoute
   '/growthmind/anatomy/$itemId': typeof AuthenticatedGrowthmindAnatomyItemIdRoute
   '/growthmind/content-projects/$projectId': typeof AuthenticatedGrowthmindContentProjectsProjectIdRoute
+  '/hivemind/work-orders/$id': typeof AuthenticatedHivemindWorkOrdersIdRoute
   '/settings/providers/$category': typeof AuthenticatedSettingsProvidersCategoryRoute
   '/systemmind/clients/api-probe': typeof AuthenticatedSystemmindClientsApiProbeRoute
   '/systemmind/clients/setup': typeof AuthenticatedSystemmindClientsSetupRoute
@@ -2354,6 +2393,7 @@ export interface FileRoutesByTo {
   '/terms': typeof TermsRoute
   '/unsubscribe': typeof UnsubscribeRoute
   '/accountsmind': typeof AuthenticatedAccountsmindRoute
+  '/agent-health': typeof AuthenticatedAgentHealthRoute
   '/analytics': typeof AuthenticatedAnalyticsRoute
   '/billing': typeof AuthenticatedBillingRouteWithChildren
   '/builder': typeof AuthenticatedBuilderRoute
@@ -2383,6 +2423,7 @@ export interface FileRoutesByTo {
   '/invite/$token': typeof InviteTokenRoute
   '/solutions/$industry': typeof SolutionsIndustryRoute
   '/upload/$token': typeof UploadTokenRoute
+  '/admin/ai-usage': typeof AuthenticatedAdminAiUsageRoute
   '/admin/analytics': typeof AuthenticatedAdminAnalyticsRoute
   '/admin/change-requests': typeof AuthenticatedAdminChangeRequestsRoute
   '/admin/cost-engine': typeof AuthenticatedAdminCostEngineRoute
@@ -2450,6 +2491,7 @@ export interface FileRoutesByTo {
   '/hivemind/settings': typeof AuthenticatedHivemindSettingsRoute
   '/hivemind/system-health': typeof AuthenticatedHivemindSystemHealthRoute
   '/hivemind/tasks': typeof AuthenticatedHivemindTasksRoute
+  '/hivemind/work-orders': typeof AuthenticatedHivemindWorkOrdersRoute
   '/hivemind/workflow-intelligence': typeof AuthenticatedHivemindWorkflowIntelligenceRoute
   '/knowledge-centre/$slug': typeof AuthenticatedKnowledgeCentreSlugRoute
   '/leads/webforms': typeof AuthenticatedLeadsWebformsRoute
@@ -2497,6 +2539,7 @@ export interface FileRoutesByTo {
   '/api/builder/scan-pdf': typeof ApiBuilderScanPdfRoute
   '/api/builder/script-template': typeof ApiBuilderScriptTemplateRoute
   '/api/dashboard/live-calls-sse': typeof ApiDashboardLiveCallsSseRoute
+  '/api/hivemind/chat-stream': typeof ApiHivemindChatStreamRoute
   '/api/monitoring/client-error': typeof ApiMonitoringClientErrorRoute
   '/api/monitoring/health': typeof ApiMonitoringHealthRoute
   '/api/oauth/google-ads-callback': typeof ApiOauthGoogleAdsCallbackRoute
@@ -2549,6 +2592,7 @@ export interface FileRoutesByTo {
   '/admin/accounts/workspace-config': typeof AuthenticatedAdminAccountsWorkspaceConfigRoute
   '/growthmind/anatomy/$itemId': typeof AuthenticatedGrowthmindAnatomyItemIdRoute
   '/growthmind/content-projects/$projectId': typeof AuthenticatedGrowthmindContentProjectsProjectIdRoute
+  '/hivemind/work-orders/$id': typeof AuthenticatedHivemindWorkOrdersIdRoute
   '/settings/providers/$category': typeof AuthenticatedSettingsProvidersCategoryRoute
   '/systemmind/clients/api-probe': typeof AuthenticatedSystemmindClientsApiProbeRoute
   '/systemmind/clients/setup': typeof AuthenticatedSystemmindClientsSetupRoute
@@ -2652,6 +2696,7 @@ export interface FileRoutesById {
   '/unsubscribe': typeof UnsubscribeRoute
   '/_authenticated/accountsmind': typeof AuthenticatedAccountsmindRoute
   '/_authenticated/admin': typeof AuthenticatedAdminRouteWithChildren
+  '/_authenticated/agent-health': typeof AuthenticatedAgentHealthRoute
   '/_authenticated/analytics': typeof AuthenticatedAnalyticsRoute
   '/_authenticated/billing': typeof AuthenticatedBillingRouteWithChildren
   '/_authenticated/builder': typeof AuthenticatedBuilderRoute
@@ -2688,6 +2733,7 @@ export interface FileRoutesById {
   '/solutions/$industry': typeof SolutionsIndustryRoute
   '/upload/$token': typeof UploadTokenRoute
   '/_authenticated/admin/accounts': typeof AuthenticatedAdminAccountsRouteWithChildren
+  '/_authenticated/admin/ai-usage': typeof AuthenticatedAdminAiUsageRoute
   '/_authenticated/admin/analytics': typeof AuthenticatedAdminAnalyticsRoute
   '/_authenticated/admin/change-requests': typeof AuthenticatedAdminChangeRequestsRoute
   '/_authenticated/admin/cost-engine': typeof AuthenticatedAdminCostEngineRoute
@@ -2755,6 +2801,7 @@ export interface FileRoutesById {
   '/_authenticated/hivemind/settings': typeof AuthenticatedHivemindSettingsRoute
   '/_authenticated/hivemind/system-health': typeof AuthenticatedHivemindSystemHealthRoute
   '/_authenticated/hivemind/tasks': typeof AuthenticatedHivemindTasksRoute
+  '/_authenticated/hivemind/work-orders': typeof AuthenticatedHivemindWorkOrdersRoute
   '/_authenticated/hivemind/workflow-intelligence': typeof AuthenticatedHivemindWorkflowIntelligenceRoute
   '/_authenticated/knowledge-centre/$slug': typeof AuthenticatedKnowledgeCentreSlugRoute
   '/_authenticated/leads/webforms': typeof AuthenticatedLeadsWebformsRoute
@@ -2803,6 +2850,7 @@ export interface FileRoutesById {
   '/api/builder/scan-pdf': typeof ApiBuilderScanPdfRoute
   '/api/builder/script-template': typeof ApiBuilderScriptTemplateRoute
   '/api/dashboard/live-calls-sse': typeof ApiDashboardLiveCallsSseRoute
+  '/api/hivemind/chat-stream': typeof ApiHivemindChatStreamRoute
   '/api/monitoring/client-error': typeof ApiMonitoringClientErrorRoute
   '/api/monitoring/health': typeof ApiMonitoringHealthRoute
   '/api/oauth/google-ads-callback': typeof ApiOauthGoogleAdsCallbackRoute
@@ -2856,6 +2904,7 @@ export interface FileRoutesById {
   '/_authenticated/admin/accounts/workspace-config': typeof AuthenticatedAdminAccountsWorkspaceConfigRoute
   '/_authenticated/growthmind/anatomy/$itemId': typeof AuthenticatedGrowthmindAnatomyItemIdRoute
   '/_authenticated/growthmind/content-projects/$projectId': typeof AuthenticatedGrowthmindContentProjectsProjectIdRoute
+  '/_authenticated/hivemind/work-orders_/$id': typeof AuthenticatedHivemindWorkOrdersIdRoute
   '/_authenticated/settings/providers/$category': typeof AuthenticatedSettingsProvidersCategoryRoute
   '/_authenticated/systemmind/clients/api-probe': typeof AuthenticatedSystemmindClientsApiProbeRoute
   '/_authenticated/systemmind/clients/setup': typeof AuthenticatedSystemmindClientsSetupRoute
@@ -2959,6 +3008,7 @@ export interface FileRouteTypes {
     | '/unsubscribe'
     | '/accountsmind'
     | '/admin'
+    | '/agent-health'
     | '/analytics'
     | '/billing'
     | '/builder'
@@ -2995,6 +3045,7 @@ export interface FileRouteTypes {
     | '/solutions/$industry'
     | '/upload/$token'
     | '/admin/accounts'
+    | '/admin/ai-usage'
     | '/admin/analytics'
     | '/admin/change-requests'
     | '/admin/cost-engine'
@@ -3062,6 +3113,7 @@ export interface FileRouteTypes {
     | '/hivemind/settings'
     | '/hivemind/system-health'
     | '/hivemind/tasks'
+    | '/hivemind/work-orders'
     | '/hivemind/workflow-intelligence'
     | '/knowledge-centre/$slug'
     | '/leads/webforms'
@@ -3110,6 +3162,7 @@ export interface FileRouteTypes {
     | '/api/builder/scan-pdf'
     | '/api/builder/script-template'
     | '/api/dashboard/live-calls-sse'
+    | '/api/hivemind/chat-stream'
     | '/api/monitoring/client-error'
     | '/api/monitoring/health'
     | '/api/oauth/google-ads-callback'
@@ -3163,6 +3216,7 @@ export interface FileRouteTypes {
     | '/admin/accounts/workspace-config'
     | '/growthmind/anatomy/$itemId'
     | '/growthmind/content-projects/$projectId'
+    | '/hivemind/work-orders/$id'
     | '/settings/providers/$category'
     | '/systemmind/clients/api-probe'
     | '/systemmind/clients/setup'
@@ -3263,6 +3317,7 @@ export interface FileRouteTypes {
     | '/terms'
     | '/unsubscribe'
     | '/accountsmind'
+    | '/agent-health'
     | '/analytics'
     | '/billing'
     | '/builder'
@@ -3292,6 +3347,7 @@ export interface FileRouteTypes {
     | '/invite/$token'
     | '/solutions/$industry'
     | '/upload/$token'
+    | '/admin/ai-usage'
     | '/admin/analytics'
     | '/admin/change-requests'
     | '/admin/cost-engine'
@@ -3359,6 +3415,7 @@ export interface FileRouteTypes {
     | '/hivemind/settings'
     | '/hivemind/system-health'
     | '/hivemind/tasks'
+    | '/hivemind/work-orders'
     | '/hivemind/workflow-intelligence'
     | '/knowledge-centre/$slug'
     | '/leads/webforms'
@@ -3406,6 +3463,7 @@ export interface FileRouteTypes {
     | '/api/builder/scan-pdf'
     | '/api/builder/script-template'
     | '/api/dashboard/live-calls-sse'
+    | '/api/hivemind/chat-stream'
     | '/api/monitoring/client-error'
     | '/api/monitoring/health'
     | '/api/oauth/google-ads-callback'
@@ -3458,6 +3516,7 @@ export interface FileRouteTypes {
     | '/admin/accounts/workspace-config'
     | '/growthmind/anatomy/$itemId'
     | '/growthmind/content-projects/$projectId'
+    | '/hivemind/work-orders/$id'
     | '/settings/providers/$category'
     | '/systemmind/clients/api-probe'
     | '/systemmind/clients/setup'
@@ -3560,6 +3619,7 @@ export interface FileRouteTypes {
     | '/unsubscribe'
     | '/_authenticated/accountsmind'
     | '/_authenticated/admin'
+    | '/_authenticated/agent-health'
     | '/_authenticated/analytics'
     | '/_authenticated/billing'
     | '/_authenticated/builder'
@@ -3596,6 +3656,7 @@ export interface FileRouteTypes {
     | '/solutions/$industry'
     | '/upload/$token'
     | '/_authenticated/admin/accounts'
+    | '/_authenticated/admin/ai-usage'
     | '/_authenticated/admin/analytics'
     | '/_authenticated/admin/change-requests'
     | '/_authenticated/admin/cost-engine'
@@ -3663,6 +3724,7 @@ export interface FileRouteTypes {
     | '/_authenticated/hivemind/settings'
     | '/_authenticated/hivemind/system-health'
     | '/_authenticated/hivemind/tasks'
+    | '/_authenticated/hivemind/work-orders'
     | '/_authenticated/hivemind/workflow-intelligence'
     | '/_authenticated/knowledge-centre/$slug'
     | '/_authenticated/leads/webforms'
@@ -3711,6 +3773,7 @@ export interface FileRouteTypes {
     | '/api/builder/scan-pdf'
     | '/api/builder/script-template'
     | '/api/dashboard/live-calls-sse'
+    | '/api/hivemind/chat-stream'
     | '/api/monitoring/client-error'
     | '/api/monitoring/health'
     | '/api/oauth/google-ads-callback'
@@ -3764,6 +3827,7 @@ export interface FileRouteTypes {
     | '/_authenticated/admin/accounts/workspace-config'
     | '/_authenticated/growthmind/anatomy/$itemId'
     | '/_authenticated/growthmind/content-projects/$projectId'
+    | '/_authenticated/hivemind/work-orders_/$id'
     | '/_authenticated/settings/providers/$category'
     | '/_authenticated/systemmind/clients/api-probe'
     | '/_authenticated/systemmind/clients/setup'
@@ -3876,6 +3940,7 @@ export interface RootRouteChildren {
   ApiBuilderScanPdfRoute: typeof ApiBuilderScanPdfRoute
   ApiBuilderScriptTemplateRoute: typeof ApiBuilderScriptTemplateRoute
   ApiDashboardLiveCallsSseRoute: typeof ApiDashboardLiveCallsSseRoute
+  ApiHivemindChatStreamRoute: typeof ApiHivemindChatStreamRoute
   ApiMonitoringClientErrorRoute: typeof ApiMonitoringClientErrorRoute
   ApiMonitoringHealthRoute: typeof ApiMonitoringHealthRoute
   ApiOauthGoogleAdsCallbackRoute: typeof ApiOauthGoogleAdsCallbackRoute
@@ -4323,6 +4388,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAnalyticsRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
+    '/_authenticated/agent-health': {
+      id: '/_authenticated/agent-health'
+      path: '/agent-health'
+      fullPath: '/agent-health'
+      preLoaderRoute: typeof AuthenticatedAgentHealthRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
     '/_authenticated/admin': {
       id: '/_authenticated/admin'
       path: '/admin'
@@ -4629,6 +4701,13 @@ declare module '@tanstack/react-router' {
       path: '/api/monitoring/client-error'
       fullPath: '/api/monitoring/client-error'
       preLoaderRoute: typeof ApiMonitoringClientErrorRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/hivemind/chat-stream': {
+      id: '/api/hivemind/chat-stream'
+      path: '/api/hivemind/chat-stream'
+      fullPath: '/api/hivemind/chat-stream'
+      preLoaderRoute: typeof ApiHivemindChatStreamRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/dashboard/live-calls-sse': {
@@ -4965,6 +5044,13 @@ declare module '@tanstack/react-router' {
       path: '/workflow-intelligence'
       fullPath: '/hivemind/workflow-intelligence'
       preLoaderRoute: typeof AuthenticatedHivemindWorkflowIntelligenceRouteImport
+      parentRoute: typeof AuthenticatedHivemindRoute
+    }
+    '/_authenticated/hivemind/work-orders': {
+      id: '/_authenticated/hivemind/work-orders'
+      path: '/work-orders'
+      fullPath: '/hivemind/work-orders'
+      preLoaderRoute: typeof AuthenticatedHivemindWorkOrdersRouteImport
       parentRoute: typeof AuthenticatedHivemindRoute
     }
     '/_authenticated/hivemind/tasks': {
@@ -5436,6 +5522,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminAnalyticsRouteImport
       parentRoute: typeof AuthenticatedAdminRoute
     }
+    '/_authenticated/admin/ai-usage': {
+      id: '/_authenticated/admin/ai-usage'
+      path: '/ai-usage'
+      fullPath: '/admin/ai-usage'
+      preLoaderRoute: typeof AuthenticatedAdminAiUsageRouteImport
+      parentRoute: typeof AuthenticatedAdminRoute
+    }
     '/_authenticated/admin/accounts': {
       id: '/_authenticated/admin/accounts'
       path: '/accounts'
@@ -5884,6 +5977,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedSettingsProvidersCategoryRouteImport
       parentRoute: typeof AuthenticatedSettingsProvidersRoute
     }
+    '/_authenticated/hivemind/work-orders_/$id': {
+      id: '/_authenticated/hivemind/work-orders_/$id'
+      path: '/work-orders/$id'
+      fullPath: '/hivemind/work-orders/$id'
+      preLoaderRoute: typeof AuthenticatedHivemindWorkOrdersIdRouteImport
+      parentRoute: typeof AuthenticatedHivemindRoute
+    }
     '/_authenticated/growthmind/content-projects/$projectId': {
       id: '/_authenticated/growthmind/content-projects/$projectId'
       path: '/content-projects/$projectId'
@@ -6160,6 +6260,7 @@ const AuthenticatedAdminAccountsRouteWithChildren =
 
 interface AuthenticatedAdminRouteChildren {
   AuthenticatedAdminAccountsRoute: typeof AuthenticatedAdminAccountsRouteWithChildren
+  AuthenticatedAdminAiUsageRoute: typeof AuthenticatedAdminAiUsageRoute
   AuthenticatedAdminAnalyticsRoute: typeof AuthenticatedAdminAnalyticsRoute
   AuthenticatedAdminChangeRequestsRoute: typeof AuthenticatedAdminChangeRequestsRoute
   AuthenticatedAdminCostEngineRoute: typeof AuthenticatedAdminCostEngineRoute
@@ -6176,6 +6277,7 @@ interface AuthenticatedAdminRouteChildren {
 
 const AuthenticatedAdminRouteChildren: AuthenticatedAdminRouteChildren = {
   AuthenticatedAdminAccountsRoute: AuthenticatedAdminAccountsRouteWithChildren,
+  AuthenticatedAdminAiUsageRoute: AuthenticatedAdminAiUsageRoute,
   AuthenticatedAdminAnalyticsRoute: AuthenticatedAdminAnalyticsRoute,
   AuthenticatedAdminChangeRequestsRoute: AuthenticatedAdminChangeRequestsRoute,
   AuthenticatedAdminCostEngineRoute: AuthenticatedAdminCostEngineRoute,
@@ -6381,8 +6483,10 @@ interface AuthenticatedHivemindRouteChildren {
   AuthenticatedHivemindSettingsRoute: typeof AuthenticatedHivemindSettingsRoute
   AuthenticatedHivemindSystemHealthRoute: typeof AuthenticatedHivemindSystemHealthRoute
   AuthenticatedHivemindTasksRoute: typeof AuthenticatedHivemindTasksRoute
+  AuthenticatedHivemindWorkOrdersRoute: typeof AuthenticatedHivemindWorkOrdersRoute
   AuthenticatedHivemindWorkflowIntelligenceRoute: typeof AuthenticatedHivemindWorkflowIntelligenceRoute
   AuthenticatedHivemindIndexRoute: typeof AuthenticatedHivemindIndexRoute
+  AuthenticatedHivemindWorkOrdersIdRoute: typeof AuthenticatedHivemindWorkOrdersIdRoute
 }
 
 const AuthenticatedHivemindRouteChildren: AuthenticatedHivemindRouteChildren = {
@@ -6398,9 +6502,12 @@ const AuthenticatedHivemindRouteChildren: AuthenticatedHivemindRouteChildren = {
   AuthenticatedHivemindSystemHealthRoute:
     AuthenticatedHivemindSystemHealthRoute,
   AuthenticatedHivemindTasksRoute: AuthenticatedHivemindTasksRoute,
+  AuthenticatedHivemindWorkOrdersRoute: AuthenticatedHivemindWorkOrdersRoute,
   AuthenticatedHivemindWorkflowIntelligenceRoute:
     AuthenticatedHivemindWorkflowIntelligenceRoute,
   AuthenticatedHivemindIndexRoute: AuthenticatedHivemindIndexRoute,
+  AuthenticatedHivemindWorkOrdersIdRoute:
+    AuthenticatedHivemindWorkOrdersIdRoute,
 }
 
 const AuthenticatedHivemindRouteWithChildren =
@@ -6578,6 +6685,7 @@ const AuthenticatedSettingsProvidersRouteWithChildren =
 interface AuthenticatedRouteChildren {
   AuthenticatedAccountsmindRoute: typeof AuthenticatedAccountsmindRoute
   AuthenticatedAdminRoute: typeof AuthenticatedAdminRouteWithChildren
+  AuthenticatedAgentHealthRoute: typeof AuthenticatedAgentHealthRoute
   AuthenticatedAnalyticsRoute: typeof AuthenticatedAnalyticsRoute
   AuthenticatedBillingRoute: typeof AuthenticatedBillingRouteWithChildren
   AuthenticatedBuilderRoute: typeof AuthenticatedBuilderRoute
@@ -6621,6 +6729,7 @@ interface AuthenticatedRouteChildren {
 const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedAccountsmindRoute: AuthenticatedAccountsmindRoute,
   AuthenticatedAdminRoute: AuthenticatedAdminRouteWithChildren,
+  AuthenticatedAgentHealthRoute: AuthenticatedAgentHealthRoute,
   AuthenticatedAnalyticsRoute: AuthenticatedAnalyticsRoute,
   AuthenticatedBillingRoute: AuthenticatedBillingRouteWithChildren,
   AuthenticatedBuilderRoute: AuthenticatedBuilderRoute,
@@ -6941,6 +7050,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiBuilderScanPdfRoute: ApiBuilderScanPdfRoute,
   ApiBuilderScriptTemplateRoute: ApiBuilderScriptTemplateRoute,
   ApiDashboardLiveCallsSseRoute: ApiDashboardLiveCallsSseRoute,
+  ApiHivemindChatStreamRoute: ApiHivemindChatStreamRoute,
   ApiMonitoringClientErrorRoute: ApiMonitoringClientErrorRoute,
   ApiMonitoringHealthRoute: ApiMonitoringHealthRoute,
   ApiOauthGoogleAdsCallbackRoute: ApiOauthGoogleAdsCallbackRoute,

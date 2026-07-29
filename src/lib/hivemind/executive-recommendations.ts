@@ -100,7 +100,7 @@ const USER_TRANSITIONS: Record<string, string[]> = {
 
 export const updateExecutiveRecommendationStatus = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({
       id: z.string().uuid(),
       status: z.enum(["acknowledged", "under_review", "dismissed", "completed", "reopened"]),
@@ -136,7 +136,7 @@ export const updateExecutiveRecommendationStatus = createServerFn({ method: "POS
 // ── actOnExecutiveRecommendation (follow-through via approvals) ──────────────
 export const actOnExecutiveRecommendation = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({ id: z.string().uuid() }).parse(input)
   )
   .handler(async ({ context, data }) => {

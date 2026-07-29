@@ -73,21 +73,62 @@ async function dispatchAdapter(opts: {
 }): Promise<void> {
   const { sb, workspaceId, userId, execution, task } = opts;
   const kind = String(task.action_kind ?? "");
-
-  if (kind !== "growthmind.gads_campaign_analysis") {
-    throw new Error(`No execution adapter registered for kind "${kind}"`);
-  }
-
-  const { runGadsAnalysisExecution } = await import(
-    "@/lib/hivemind/mind-adapters/growthmind-gads-analysis.server"
-  );
-  const outcome = await runGadsAnalysisExecution({
+  const ctx = {
     sb, workspaceId, userId,
     executionId: execution.id,
     taskId: task.id,
     workOrderId: task.work_order_id ?? null,
     inputSpec: (task.input_spec as Record<string, any>) ?? {},
-  });
+  };
+
+  let outcome: import("@/lib/hivemind/mind-adapters/universal-adapters.server").AdapterOutcome;
+
+  if (kind === "growthmind.gads_campaign_analysis") {
+    const { runGadsAnalysisExecution } = await import(
+      "@/lib/hivemind/mind-adapters/growthmind-gads-analysis.server"
+    );
+    outcome = await runGadsAnalysisExecution(ctx);
+  } else {
+    const u = await import("@/lib/hivemind/mind-adapters/universal-adapters.server");
+    switch (kind) {
+      case "systemmind.agent_crm_integration":
+        outcome = await u.runAgentCrmIntegrationExecution(ctx); break;
+      case "systemmind.workflow_depth":
+        outcome = await u.runWorkflowDepthExecution(ctx); break;
+      case "accountsmind.invoice_audit":
+        outcome = await u.runInvoiceAuditExecution(ctx); break;
+      case "accountsmind.renewals_audit":
+        outcome = await u.runRenewalsAuditExecution(ctx); break;
+      case "accountsmind.outgoings_audit":
+        outcome = await u.runOutgoingsAuditExecution(ctx); break;
+      case "accountsmind.client_costing":
+        outcome = await u.runClientCostingExecution(ctx); break;
+      case "hivemind.cross_channel_objective":
+        outcome = await u.runCrossChannelObjectiveExecution(ctx); break;
+      case "hivemind.channel_followup":
+        outcome = await u.runChannelFollowUpExecution(ctx); break;
+      case "hivemind.channel_whatsapp":
+        outcome = await u.runChannelWhatsAppExecution(ctx); break;
+      case "hivemind.channel_email":
+        outcome = await u.runChannelEmailExecution(ctx); break;
+      case "hivemind.channel_calls":
+        outcome = await u.runChannelCallsExecution(ctx); break;
+      case "hivemind.sales_pipeline_review":
+        outcome = await u.runSalesPipelineReviewExecution(ctx); break;
+      case "hivemind.legacy_task_migration":
+        outcome = await u.runLegacyTaskMigrationExecution(ctx); break;
+      case "growthmind.seo_campaign":
+        outcome = await u.runSeoCampaignExecution(ctx); break;
+      case "growthmind.social_content":
+        outcome = await u.runSocialContentExecution(ctx); break;
+      case "growthmind.blog_article":
+        outcome = await u.runBlogArticleExecution(ctx); break;
+      case "growthmind.video_campaign":
+        outcome = await u.runVideoCampaignExecution(ctx); break;
+      default:
+        throw new Error(`No execution adapter registered for kind "${kind}"`);
+    }
+  }
 
   const nowIso = new Date().toISOString();
   const basePatch: Record<string, any> = {
@@ -125,8 +166,12 @@ async function dispatchAdapter(opts: {
     await transitionExecution(sb, workspaceId, execution.id, "executing", "blocked", {
       ...basePatch, blocked_reason: outcome.blockedReason,
     });
+    // Task is no longer actively running — revert to "suggested" so it can be re-approved
+    // once the blocking condition (e.g. missing provider) is resolved.
     await setTaskExecutionState(sb, workspaceId, task.id, {
       execution_status: "blocked",
+      status: "suggested",
+      active_execution_id: null,
     });
     await setWorkOrderState(sb, workspaceId, task.work_order_id, { status: "blocked" });
     return;
@@ -135,7 +180,12 @@ async function dispatchAdapter(opts: {
   await transitionExecution(sb, workspaceId, execution.id, "executing", "failed", {
     ...basePatch, error_message: outcome.errorMessage, finished_at: nowIso,
   });
-  await setTaskExecutionState(sb, workspaceId, task.id, { execution_status: "failed" });
+  // Revert task to "suggested" — execution failed, clear active pointer so it can be retried.
+  await setTaskExecutionState(sb, workspaceId, task.id, {
+    execution_status: "failed",
+    status: "suggested",
+    active_execution_id: null,
+  });
   await setWorkOrderState(sb, workspaceId, task.work_order_id, { status: "failed" });
   throw new Error(outcome.errorMessage ?? "Execution failed");
 }
@@ -153,7 +203,7 @@ function summarizeResult(result: Record<string, any> | null): string {
 // ── approveAndRunTask ─────────────────────────────────────────────────────────
 export const approveAndRunTask = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => z.object({ taskId: z.string().uuid() }).parse(input))
+  .validator((input: unknown) => z.object({ taskId: z.string().uuid() }).parse(input))
   .handler(async ({ context, data }) => {
     const sb = context.supabase as any;
     const workspaceId = context.workspaceId!;
@@ -166,12 +216,18 @@ export const approveAndRunTask = createServerFn({ method: "POST" })
     if (task.task_category !== "executable") {
       throw new Error("This task is not executable — it has no execution specification.");
     }
+    // Universal quality gate: an executable task may only run when its
+    // intelligence packet reached an approvable readiness state. (Legacy rows
+    // with no packet/readiness predate the gate and are allowed.)
+    const { assertTaskApprovable } = await import("@/lib/minds/intelligence-packet.server");
+    assertTaskApprovable(task);
     const meta = executableKindMeta(task.action_kind);
     if (!meta) throw new Error(`Unknown executable kind: ${task.action_kind}`);
 
     // 2. Permission + entitlement (role ∩ package ∩ override; fail closed).
+    // Derived per-kind from EXECUTABLE_KINDS.mind — never hardcoded to a single mind.
     const { requirePageAccess } = await import("@/lib/permissions/permissions.server");
-    await requirePageAccess(workspaceId, userId, "growthmind" as any, "approve" as any);
+    await requirePageAccess(workspaceId, userId, meta.mind as any, "approve" as any);
 
     // 3. Autonomy mode gate (explicit human approval path).
     const { getHiveMindModeConfig, assertExecutionAllowed } =
@@ -194,8 +250,8 @@ export const approveAndRunTask = createServerFn({ method: "POST" })
         execution_status: "queued", status: "in_progress", updated_at: nowIso,
       })
       .eq("id", task.id).eq("workspace_id", workspaceId)
-      // Claimable only from non-running states (blocked/failed = retry).
-      .in("execution_status", ["awaiting_approval", "draft", "blocked", "failed"])
+      // Claimable only from non-running states (blocked/failed/worker_interrupted = retry).
+      .in("execution_status", ["awaiting_approval", "draft", "blocked", "failed", "worker_interrupted"])
       .select("id");
     if (ce) throw ce;
     let claimedRows = claimed ?? [];
@@ -217,9 +273,12 @@ export const approveAndRunTask = createServerFn({ method: "POST" })
     }
 
     // 6. Create the execution record.
-    const { initialGadsAnalysisSteps } = await import(
-      "@/lib/hivemind/mind-adapters/growthmind-gads-analysis.server"
+    const { initialStepsForKind } = await import(
+      "@/lib/hivemind/mind-adapters/universal-adapters.server"
     );
+    const initialSteps = task.action_kind === "growthmind.gads_campaign_analysis"
+      ? (await import("@/lib/hivemind/mind-adapters/growthmind-gads-analysis.server")).initialGadsAnalysisSteps()
+      : initialStepsForKind(String(task.action_kind ?? ""));
     const { data: execution, error: ee } = await sb.from("mind_task_executions").insert({
       workspace_id: workspaceId,
       task_id: task.id,
@@ -230,7 +289,7 @@ export const approveAndRunTask = createServerFn({ method: "POST" })
       trigger_source: "user_approval",
       triggered_by_user: userId,
       input_spec: spec,
-      steps: initialGadsAnalysisSteps(),
+      steps: initialSteps,
     }).select("*").single();
     if (ee) {
       // Roll the claim back so the task is retryable.
@@ -262,7 +321,11 @@ export const approveAndRunTask = createServerFn({ method: "POST" })
           status: "failed", error_message: err?.message ?? String(err),
           finished_at: new Date().toISOString(), updated_at: new Date().toISOString(),
         }).eq("id", execution.id).eq("workspace_id", workspaceId);
-        await setTaskExecutionState(sb, workspaceId, task.id, { execution_status: "failed" });
+        await setTaskExecutionState(sb, workspaceId, task.id, {
+          execution_status: "failed",
+          status: "suggested",
+          active_execution_id: null,
+        });
       }
       throw err;
     }
@@ -355,10 +418,117 @@ export async function resumeExecutionForAction(
   });
 }
 
+// ── Stall watchdog ────────────────────────────────────────────────────────────
+/**
+ * Find execution rows that have been in "executing" or "queued" state for
+ * longer than STALL_THRESHOLD_MS with no update and mark them
+ * "worker_interrupted" so they can be retried or cancelled.
+ *
+ * Called from the campaign executor tick (every 5 min in dev; pg_cron hit in
+ * prod) and exposed as a server fn for on-demand admin use.
+ *
+ * Safety: uses a workspace-scoped RLS client so only rows visible to the
+ * caller can be transitioned; uses assertTransition to enforce the state
+ * machine; never touches terminal rows.
+ */
+const STALL_THRESHOLD_MS = 8 * 60 * 1000; // 8 minutes
+
+export async function sweepStalledExecutions(sb: any, workspaceId: string | null): Promise<{ interrupted: number; orphansHealed: number }> {
+  const cutoff = new Date(Date.now() - STALL_THRESHOLD_MS).toISOString();
+  let q = sb.from("mind_task_executions")
+    .select("id, workspace_id, task_id, status, updated_at")
+    .in("status", ["queued", "executing"])
+    .lt("updated_at", cutoff);
+  if (workspaceId) q = q.eq("workspace_id", workspaceId);
+  const { data: stalled } = await q.limit(50);
+
+  const nowIso = new Date().toISOString();
+  let interrupted = 0;
+  for (const row of (stalled ?? [])) {
+    try {
+      assertTransition(row.status as any, "worker_interrupted");
+      const { data: updated } = await sb.from("mind_task_executions")
+        .update({
+          status: "worker_interrupted",
+          blocked_reason: `Worker did not report progress for >${STALL_THRESHOLD_MS / 60000} minutes (last update: ${row.updated_at}). Safe to retry.`,
+          updated_at: nowIso,
+        })
+        .eq("id", row.id)
+        .eq("workspace_id", row.workspace_id)
+        .eq("status", row.status)
+        .select("id");
+      if ((updated ?? []).length) {
+        // Clear active_execution_id so the task is re-claimable; revert status
+        // to "suggested" so it doesn't appear as "in_progress" in the UI.
+        await sb.from("hivemind_tasks")
+          .update({
+            execution_status: "worker_interrupted",
+            status: "suggested",
+            active_execution_id: null,
+            updated_at: nowIso,
+          })
+          .eq("id", row.task_id)
+          .eq("workspace_id", row.workspace_id);
+        interrupted++;
+      }
+    } catch {
+      // Skip rows that already moved to a terminal state between the select and update.
+    }
+  }
+
+  // ── Orphan healer ─────────────────────────────────────────────────────────
+  // Tasks left "in_progress" with no active_execution_id pointer — this
+  // happens when the process crashes after claiming the task but before
+  // inserting the execution row. Reset to "suggested" so they can be
+  // re-approved and retried without human intervention.
+  // Wrapped in try/catch: best-effort cleanup that must never fail the tick.
+  let orphansHealed = 0;
+  try {
+    const ORPHAN_THRESHOLD_MS = 5 * 60 * 1000; // 5 minutes
+    const orphanCutoff = new Date(Date.now() - ORPHAN_THRESHOLD_MS).toISOString();
+    let oq = sb.from("hivemind_tasks")
+      .select("id, workspace_id")
+      .eq("status", "in_progress")
+      .is("active_execution_id", null)
+      .lt("updated_at", orphanCutoff);
+    if (workspaceId) oq = oq.eq("workspace_id", workspaceId);
+    const { data: orphans } = await oq.limit(50);
+    for (const orphan of (orphans ?? [])) {
+      try {
+        const { data: healed } = await sb.from("hivemind_tasks")
+          .update({ status: "suggested", updated_at: nowIso })
+          .eq("id", orphan.id)
+          .eq("workspace_id", orphan.workspace_id)
+          // CAS: only reset if still stuck (no race with a legitimate claim).
+          .eq("status", "in_progress")
+          .is("active_execution_id", null)
+          .select("id");
+        if ((healed ?? []).length) orphansHealed++;
+      } catch {
+        // Skip individual orphan if CAS fails or row moved concurrently.
+      }
+    }
+  } catch {
+    // Orphan healer failure must not abort the stall watchdog result.
+  }
+
+  return { interrupted, orphansHealed };
+}
+
+export const runStalledExecutionSweep = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .validator((input: unknown) => z.object({}).parse(input))
+  .handler(async ({ context }) => {
+    const sb = context.supabase as any;
+    const workspaceId = context.workspaceId!;
+    const result = await sweepStalledExecutions(sb, workspaceId);
+    return result;
+  });
+
 // ── Read: execution detail for a task ────────────────────────────────────────
 export const getTaskExecutionDetail = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => z.object({ taskId: z.string().uuid() }).parse(input))
+  .validator((input: unknown) => z.object({ taskId: z.string().uuid() }).parse(input))
   .handler(async ({ context, data }) => {
     const sb = context.supabase as any;
     const workspaceId = context.workspaceId!;

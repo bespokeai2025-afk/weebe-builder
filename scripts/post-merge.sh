@@ -34,3 +34,5 @@ node scripts/apply-executive-events-migration.mjs
 
 # Apply SystemMind call runtime tables (triggers/queue/executions — idempotent)
 node scripts/apply-call-runtime-migration.mjs
+
+node scripts/apply-calls-campaign-id-migration.mjs

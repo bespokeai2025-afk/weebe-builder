@@ -39,6 +39,55 @@ export async function createGadsAnalysisWorkOrderCore(
   const focusName = opts.focusCampaignName?.trim() || null;
   const focusId = opts.focusCampaignId?.trim() || null;
 
+  // Universal intelligence packet — the full evidence-backed proposal that
+  // makes this task approvable (Ready for Analysis Approval).
+  const { buildIntelligencePacket, prepareMindTaskInsert, evidenceItem } =
+    await import("@/lib/minds/intelligence-packet.server");
+  const packet = buildIntelligencePacket({
+    mind: "growthmind",
+    objective: opts.objective?.trim() ||
+      (focusName
+        ? `Analyse Google Ads performance with focus on the "${focusName}" campaign and draft prioritised optimisation change requests.`
+        : "Analyse Google Ads performance and draft prioritised optimisation change requests."),
+    intentSource: opts.source === "hivemind_tool" ? "chat_tool:create_gads_analysis_work_order" : "manual:gads_work_order",
+    targets: [{
+      domain: "marketing",
+      entity_type: focusId || focusName ? "gads_campaign" : "gads_account",
+      entity_id: focusId,
+      entity_name: focusName ?? "Google Ads account",
+      resolved: true,
+      resolution_note: focusName ? "Resolved against live synced campaign data." : null,
+    }],
+    evidence: [evidenceItem(
+      "growthmind_gads_campaigns",
+      `Synced Google Ads data available for the last ${days} days${focusName ? `; focus campaign "${focusName}" resolved against live synced campaigns` : ""}.`,
+      { lookback_days: days, focus_campaign_id: focusId, focus_campaign_name: focusName },
+    )],
+    diagnosis:
+      "Campaign performance has not been analysed recently; the GrowthMind analysis engine will refresh data, evaluate performance and identify optimisation opportunities.",
+    planSteps: [
+      { title: "Refresh Google Ads data", action_kind: "growthmind.gads_campaign_analysis" },
+      { title: "Run performance analysis across campaigns, ad groups, keywords and budgets" },
+      { title: "Compile analysis report" },
+      { title: "Draft prioritised change requests for separate approval" },
+    ],
+    proposedChanges: [{
+      target: focusName ? `Google Ads campaign "${focusName}"` : "Google Ads account",
+      change: "Draft internal change requests only — no live Google Ads changes are made.",
+      reversible: true,
+    }],
+    deliverables: ["Analysis report", "Prioritised change-request drafts (approval required)"],
+    successCriteria: ["Analysis completes with a report", "Change requests are drafted and verified internally"],
+    limitations: ["GrowthMind is advisory-only: applying changes to Google Ads requires separate approval and the external write integration."],
+    cost: { known: false, note: "Internal analysis — no ad spend is changed by this task." },
+    approvalScope: {
+      kind: "analysis",
+      summary: `Approve & run a read-only Google Ads analysis (last ${days} days${focusName ? `, focused on "${focusName}"` : ""}). Drafts change requests; makes no live changes.`,
+      sensitive: false,
+    },
+    monitoring: { metrics: ["recommendations_generated", "change_requests_created"], reassess_after_days: 14 },
+  });
+
   const { data: wo, error: we } = await sb.from("work_orders").insert({
     workspace_id: workspaceId,
     title: opts.title?.trim() ||
@@ -55,10 +104,13 @@ export async function createGadsAnalysisWorkOrderCore(
     metadata: focusId || focusName
       ? { focus_campaign_id: focusId, focus_campaign_name: focusName }
       : null,
+    intelligence_packet: packet,
+    readiness_state: "ready_for_analysis_approval",
+    packet_version: packet.version,
   }).select("*").single();
   if (we) throw we;
 
-  const { data: task, error: te } = await sb.from("hivemind_tasks").insert({
+  const taskRow = prepareMindTaskInsert({
     workspace_id: workspaceId,
     title: focusName
       ? `Run Google Ads analysis focused on "${focusName}" (last ${days} days)`
@@ -81,7 +133,10 @@ export async function createGadsAnalysisWorkOrderCore(
         : {}),
     },
     work_order_id: wo.id,
-  }).select("*").single();
+  }, packet);
+
+  const { data: task, error: te } = await sb.from("hivemind_tasks")
+    .insert(taskRow).select("*").single();
   if (te) {
     await sb.from("work_orders").delete().eq("id", wo.id).eq("workspace_id", workspaceId);
     throw te;
@@ -92,7 +147,7 @@ export async function createGadsAnalysisWorkOrderCore(
 
 export const createGadsAnalysisWorkOrder = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({
       title:     z.string().min(1).max(300).default("Google Ads campaign optimisation"),
       objective: z.string().max(2000).optional(),
@@ -108,7 +163,7 @@ export const createGadsAnalysisWorkOrder = createServerFn({ method: "POST" })
 
 export const getWorkOrderDetail = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => z.object({ id: z.string().uuid() }).parse(input))
+  .validator((input: unknown) => z.object({ id: z.string().uuid() }).parse(input))
   .handler(async ({ context, data }) => {
     const sb = context.supabase as any;
     const workspaceId = context.workspaceId!;

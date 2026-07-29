@@ -1,0 +1,369 @@
+## Add Minutes Used Per Campaign to Analytics and Reports — All Client Workspaces
+
+Implement campaign-level call-minute tracking across the entire WEBEE platform.
+
+This must work for:
+
+* WeBuyAnyHouse (WBAH)
+* Standard WEBEE client accounts
+* Existing client workspaces
+* All future client workspaces
+* Internal and external CRM-connected campaigns
+
+The implementation must be fully multi-tenant. A client must never see another workspace’s calls, campaigns, usage or reporting data.
+
+### Core Requirement
+
+For every campaign, show the total number of call minutes used during the selected reporting period.
+
+```text
+Minutes Used = Total valid call duration in seconds ÷ 60
+```
+
+Use real production call-duration data. Do not use estimates, mock data or generated placeholder values.
+
+Display the total rounded to two decimal places while retaining full precision internally.
+
+Example:
+
+```text
+Total duration: 4,935 seconds
+Minutes used: 82.25
+```
+
+### Data Source Audit
+
+Before changing the system, inspect the current production architecture and identify:
+
+* How calls are associated with workspaces
+* How calls are associated with campaigns
+* The authoritative Retell call-duration field
+* WBAH-specific call tables such as `wbah_calls`
+* Standard workspace call tables
+* Existing analytics aggregation services
+* Existing reports APIs
+* Campaign IDs and campaign-name fields
+* Retell agent and batch-call identifiers
+* CRM campaign identifiers where applicable
+
+Create one reliable normalized aggregation method that supports both WBAH and standard accounts without breaking their existing data sources.
+
+Do not force WBAH onto the standard data path if WBAH currently uses a separate production pipeline.
+
+### Required Metrics
+
+Add the following metrics for each campaign:
+
+* Total minutes used
+* Total call duration in seconds
+* Total calls
+* Connected-call minutes
+* Voicemail minutes
+* Failed-call minutes, where duration exists
+* Inbound minutes
+* Outbound minutes
+* Average call duration
+* Longest call
+* Shortest valid call
+* Percentage of total workspace minutes
+* Minutes used today
+* Minutes used this week
+* Minutes used this month
+* Minutes used in the selected date range
+
+Where available, also calculate:
+
+* Qualified-call minutes
+* Positive-sentiment call minutes
+* Neutral-sentiment call minutes
+* Negative-sentiment call minutes
+* Booked-call minutes
+* Cost per minute
+* Estimated campaign call cost
+
+Cost information must only appear where the workspace has valid pricing or cost configuration. Never invent a cost-per-minute value.
+
+### Analytics Centre
+
+Add a prominent **Minutes Used** metric to the campaign analytics view.
+
+The campaign table should include:
+
+| Campaign | Calls | Connected | Minutes Used | Average Duration | Qualified | Bookings |
+| -------- | ----: | --------: | -----------: | ---------------: | --------: | -------: |
+
+Allow sorting by:
+
+* Minutes used
+* Call count
+* Average duration
+* Connected minutes
+* Qualified calls
+* Bookings
+
+Add filters for:
+
+* Workspace
+* Campaign
+* Agent
+* Call direction
+* Call status
+* Sentiment
+* Qualified status
+* Date range
+* Today
+* This week
+* This month
+* Custom dates
+
+Normal client users must only have access to their own workspace. Workspace selection should only be available to authorised WEBEE administrators.
+
+### Campaign Detail Page
+
+Add a usage section to each campaign:
+
+```text
+Minutes Used
+Connected Minutes
+Voicemail Minutes
+Average Call Duration
+Total Calls
+Percentage of Workspace Usage
+```
+
+Include a usage-over-time chart supporting:
+
+* Hourly
+* Daily
+* Weekly
+* Monthly
+
+The chart must respond to the selected date range and campaign filters.
+
+### Reports System
+
+Add minutes-used data to:
+
+* Campaign performance reports
+* Daily reports
+* Weekly reports
+* Monthly reports
+* Custom reports
+* HiveMind reports
+* Automated emailed reports
+* PDF exports
+* CSV exports
+* Spreadsheet exports
+
+Every report must clearly show:
+
+* Reporting period
+* Workspace
+* Campaign
+* Total calls
+* Total duration
+* Total minutes used
+* Connected minutes
+* Average duration
+
+### HiveMind Integration
+
+Make the new metric available to HiveMind so it can answer questions such as:
+
+* “How many minutes has each campaign used today?”
+* “Which campaign used the most minutes this week?”
+* “How many minutes has WBAH used this month?”
+* “Compare minutes used across my campaigns.”
+* “Which campaign is consuming minutes without producing qualified leads?”
+* “What is the minutes-per-booking rate?”
+* “Which campaign has the highest usage but the lowest conversion?”
+
+HiveMind must use the same trusted analytics aggregation service as the Analytics Centre. It must not independently calculate conflicting totals.
+
+### Multi-Tenant Security
+
+Every query and aggregation must be scoped by `workspace_id`.
+
+Where WBAH uses a separate table or API, map the records into the analytics aggregation layer while preserving WBAH workspace ownership.
+
+Enforce:
+
+* Server-side workspace validation
+* Supabase RLS where applicable
+* Role-based access
+* No client-controlled workspace overrides
+* No cross-workspace joins without authorised admin access
+* No leakage through exports, charts, cache keys or HiveMind responses
+
+Never rely only on frontend filtering for tenant security.
+
+### Call Inclusion Rules
+
+Count a call when:
+
+* It belongs to the selected workspace
+* It belongs to the selected campaign
+* It has a valid call identifier
+* It contains a valid non-negative duration
+* It falls within the selected date range
+
+Exclude:
+
+* Duplicate synced calls
+* Deleted records
+* Invalid call records
+* Test calls explicitly marked as tests
+* Internal development calls
+* Records with no workspace ownership
+* Records that cannot be reliably attributed to a campaign
+
+Do not automatically exclude voicemail or unanswered calls when they have a genuine billable duration. Categorise them separately but include them in total usage where appropriate.
+
+### Duplicate Prevention
+
+Use the Retell call ID or equivalent authoritative provider call ID as the deduplication key.
+
+A call must never be counted more than once if it appears in:
+
+* Retell analytics data
+* Local call records
+* WBAH call records
+* Synced CRM records
+* Webhook event records
+
+Create a clear source-priority and deduplication strategy.
+
+### Campaign Attribution
+
+Campaign attribution should use the strongest available identifier in this order:
+
+1. Internal WEBEE campaign ID
+2. Retell batch-call or campaign ID
+3. Stored campaign reference on the call
+4. CRM campaign ID
+5. Agent-to-campaign mapping valid at the time of the call
+
+Do not assign all calls from an agent to one campaign if that agent is used by multiple campaigns.
+
+Calls that cannot be attributed confidently should appear under:
+
+```text
+Unassigned Campaign
+```
+
+This category must be visible to administrators so mapping problems can be corrected.
+
+### Performance
+
+Do not run expensive raw-call summations on every page load.
+
+Use an appropriate production-safe approach such as:
+
+* Indexed aggregate queries
+* Materialized views
+* Daily usage summary tables
+* Incremental aggregation
+* Cached server-side analytics responses
+
+Aggregation must update when:
+
+* A call completes
+* Retell analytics sync runs
+* A call record is corrected
+* A campaign mapping changes
+* Historical calls are imported
+
+Provide a safe backfill process for existing calls across all workspaces.
+
+### Backfill
+
+Backfill historical minute usage for:
+
+* WBAH
+* All existing standard workspaces
+* All active campaigns
+* Archived campaigns with historical calls
+
+The backfill must:
+
+* Be idempotent
+* Support batching
+* Avoid duplicates
+* Log failures
+* Be resumable
+* Not overload Supabase or Retell
+* Not interrupt live calls or existing analytics syncs
+
+### API Output
+
+Update the relevant analytics and reporting endpoints to return fields similar to:
+
+```json
+{
+  "workspace_id": "workspace_id",
+  "campaign_id": "campaign_id",
+  "campaign_name": "Campaign Name",
+  "total_calls": 120,
+  "total_duration_seconds": 29610,
+  "total_minutes_used": 493.5,
+  "connected_minutes": 322.15,
+  "voicemail_minutes": 146.8,
+  "average_duration_seconds": 246.75,
+  "percentage_of_workspace_minutes": 31.4
+}
+```
+
+Use consistent naming and calculation rules across every endpoint.
+
+### Testing Requirements
+
+Test:
+
+* WBAH campaign usage
+* Standard client campaign usage
+* Multiple campaigns in one workspace
+* The same Retell agent used across multiple campaigns
+* Inbound and outbound calls
+* Voicemail calls
+* Failed calls with duration
+* Calls with zero duration
+* Duplicate call records
+* Unassigned calls
+* Archived campaigns
+* Custom date ranges
+* Timezone boundaries
+* Workspace isolation
+* Admin cross-workspace reporting
+* CSV and PDF export totals
+* HiveMind answers
+* Historical backfill
+* Analytics sync retries
+
+Add reconciliation tests confirming:
+
+```text
+Sum of campaign minutes + unassigned minutes
+=
+Total workspace minutes for the same period
+```
+
+Minor rounding differences may only occur at the display layer.
+
+### Completion Criteria
+
+Do not mark this task complete until:
+
+* Minutes used appears in campaign analytics
+* Minutes used appears in reports
+* WBAH data is correctly included
+* Standard client data is correctly included
+* Existing workspaces have historical data backfilled
+* Filters and date ranges work
+* Exports contain the metric
+* HiveMind can read and compare the metric
+* Duplicate calls are not counted
+* Tenant isolation tests pass
+* Totals reconcile against raw provider durations
+* Existing calls, reports and Retell syncs remain operational
+
+Do not rebuild or replace working analytics features unnecessarily. Extend the current architecture safely, preserve existing functionality and document every schema, API and UI change made.

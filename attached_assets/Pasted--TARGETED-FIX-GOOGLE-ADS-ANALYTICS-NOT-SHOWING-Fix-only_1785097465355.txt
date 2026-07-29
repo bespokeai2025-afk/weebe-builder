@@ -1,0 +1,208 @@
+# TARGETED FIX — GOOGLE ADS ANALYTICS NOT SHOWING
+
+Fix only the missing Google Ads paid-ad analytics in WEBEE.
+
+Do not modify:
+
+- Search Console
+- SEO Department
+- WBAH call data
+- HiveMind call fixes
+- Task execution architecture
+- Other workspaces
+- Unrelated analytics providers
+- Existing working OAuth connections
+
+The application is running faster and Google appears connected, but no paid-ad analytics are visible.
+
+Treat this as a Google Ads connection, account-selection, ingestion, workspace-routing, or frontend-query issue.
+
+## 1. Confirm what Google connection currently exists
+
+For the active WEBEE workspace, report separately:
+
+- Google Search Console connection status
+- Google Ads OAuth connection status
+- Google Ads access token status
+- Google Ads refresh token status
+- OAuth scopes granted
+- Google Ads developer token configuration
+- Google Ads login customer ID
+- Selected Google Ads customer ID
+- Whether the selected account is a manager account or client account
+- Last successful Google Ads API request
+- Last successful analytics sync
+
+Do not treat Search Console connectivity as Google Ads connectivity.
+
+## 2. List accessible Google Ads accounts
+
+Using the authenticated Google Ads connection, retrieve the real accessible customer accounts.
+
+Show:
+
+- customer ID
+- account name
+- manager/client status
+- currency
+- timezone
+- account enabled status
+- whether campaigns exist
+- whether the workspace has selected this account
+
+If multiple accounts are available, ensure WEBEE stores one explicit selected client customer ID per workspace.
+
+Do not automatically use the first account returned.
+
+If the user connected through a manager account, use the manager ID as `login-customer-id` and query the selected client account as the customer ID.
+
+## 3. Run a direct read-only Google Ads analytics query
+
+For the selected customer account, query the last 30 days and report:
+
+- campaigns
+- campaign status
+- campaign type
+- impressions
+- clicks
+- spend/cost
+- CTR
+- average CPC
+- conversions
+- conversion value
+- cost per conversion
+
+Also report:
+
+- raw API success or error
+- customer ID queried
+- login customer ID used
+- date range
+- currency
+- timezone
+- rows returned
+
+Do not make any campaign changes.
+
+## 4. Trace the analytics data path
+
+Trace:
+
+Google Ads API
+→ Google Ads adapter
+→ workspace-selected customer account
+→ analytics sync service
+→ database/storage
+→ Analytics Centre API
+→ paid-ads analytics UI
+
+At each layer report:
+
+- source
+- workspace ID
+- customer ID
+- rows returned
+- last updated time
+- errors
+- filters
+- date range
+
+Identify the first point where valid Google Ads data becomes empty.
+
+## 5. Check likely faults
+
+Explicitly inspect for:
+
+- only Search Console connected
+- missing `adwords` OAuth scope
+- missing refresh token
+- invalid or absent developer token
+- wrong customer ID
+- manager account queried as a normal client account
+- missing `login-customer-id`
+- customer ID stored with hyphens when the adapter expects digits
+- expired token not refreshing
+- analytics scheduler disabled or failing
+- sync writing to another workspace
+- database rows missing workspace_id
+- Analytics Centre reading an obsolete table
+- frontend filters defaulting to an unavailable campaign
+- date range returning no rows
+- currency micros not converted correctly
+- API errors converted into an empty analytics response
+
+Do not silently display zeros when the provider request failed.
+
+## 6. Fix the smallest failed layer
+
+Apply only the smallest safe fix required.
+
+The paid-ads analytics page must show:
+
+- connected Google Ads account
+- account name
+- customer ID
+- data freshness
+- total spend
+- impressions
+- clicks
+- CTR
+- average CPC
+- conversions
+- cost per conversion
+- campaign table
+- campaign status
+- selected date range
+
+If Google Ads is connected but no client account is selected, show an account-selection interface instead of an empty analytics page.
+
+If the API is unavailable, show:
+
+`Google Ads analytics are temporarily unavailable.`
+
+If only Search Console is connected, show:
+
+`Google Search Console is connected, but Google Ads is not connected.`
+
+Never present a failed or missing connection as zero performance.
+
+## 7. Workspace isolation
+
+Ensure:
+
+- Google Ads credentials are workspace-specific
+- selected customer account is workspace-specific
+- analytics rows contain workspace_id
+- no other workspace’s Ads data can appear
+- no fallback to a global Google Ads account
+
+## 8. Targeted verification
+
+After the fix, verify using the real connected workspace:
+
+1. Accessible Google Ads accounts appear.
+2. The correct client account is selected.
+3. A direct 30-day API query returns campaign metrics.
+4. The Analytics Centre shows the same totals.
+5. Campaign filters list the real campaigns.
+6. Refreshing the page does not remove the data.
+7. Token refresh works.
+8. Another workspace cannot access these figures.
+
+Report only:
+
+1. Whether Search Console, Google Ads, or both were connected
+2. Root cause
+3. Selected Google Ads customer account
+4. Direct API metrics returned
+5. First failing data layer
+6. Exact files changed
+7. Exact configuration corrected
+8. Database/storage changes
+9. Analytics page result
+10. Targeted tests passed
+11. Confirmation no unrelated systems changed
+
+Do not run a repository-wide audit.
+Do not perform a broad refactor.
+Do not modify campaigns or budgets.

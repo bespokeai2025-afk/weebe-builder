@@ -127,7 +127,7 @@ const StartInput = z.object({
 
 export const startMetaOAuth = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((i: z.infer<typeof StartInput>) => StartInput.parse(i))
+  .validator((i: z.infer<typeof StartInput>) => StartInput.parse(i))
   .handler(async ({ data, context }) => {
     const workspaceId = context.workspaceId;
     const userId      = context.userId;
@@ -200,7 +200,7 @@ const DisconnectInput = z.object({ connectionId: z.string().uuid() });
 
 export const disconnectMetaSocial = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((i: z.infer<typeof DisconnectInput>) => DisconnectInput.parse(i))
+  .validator((i: z.infer<typeof DisconnectInput>) => DisconnectInput.parse(i))
   .handler(async ({ data, context }) => {
     const workspaceId = context.workspaceId;
     const userId      = context.userId;

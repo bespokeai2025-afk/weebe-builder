@@ -23,7 +23,7 @@ async function noWbah(workspaceId: string) {
 
 export const getWizardStatusFn = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((i: { agentId?: string | null; activationId?: string | null }) =>
+  .validator((i: { agentId?: string | null; activationId?: string | null }) =>
     z.object({ agentId: z.string().uuid().nullish(), activationId: z.string().uuid().nullish() }).parse(i))
   .handler(async ({ data, context }) => {
     await gate(context, "view");
@@ -61,7 +61,7 @@ export const listWizardAgentsFn = createServerFn({ method: "POST" })
 
 export const getOrCreateDraftActivationFn = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((i: { agentId: string; name?: string }) =>
+  .validator((i: { agentId: string; name?: string }) =>
     z.object({ agentId: z.string().uuid(), name: z.string().max(200).optional() }).parse(i))
   .handler(async ({ data, context }) => {
     await gate(context, "edit");
@@ -76,7 +76,7 @@ export const getOrCreateDraftActivationFn = createServerFn({ method: "POST" })
 
 export const listActivationVersionsFn = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((i: { agentId: string }) => z.object({ agentId: z.string().uuid() }).parse(i))
+  .validator((i: { agentId: string }) => z.object({ agentId: z.string().uuid() }).parse(i))
   .handler(async ({ data, context }) => {
     await gate(context, "view");
     await noWbah(context.workspaceId);
@@ -94,7 +94,7 @@ export const listActivationVersionsFn = createServerFn({ method: "POST" })
 
 export const runWorkflowTestsFn = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((i: { activationId: string }) => z.object({ activationId: z.string().uuid() }).parse(i))
+  .validator((i: { activationId: string }) => z.object({ activationId: z.string().uuid() }).parse(i))
   .handler(async ({ data, context }) => {
     await gate(context, "edit");
     const { runWorkflowTestsServer } = await import("@/lib/systemmind/call-runtime/setup-wizard.server");
@@ -107,7 +107,7 @@ export const runWorkflowTestsFn = createServerFn({ method: "POST" })
 
 export const activateWorkflowFn = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((i: { activationId: string; overrideReason?: string }) =>
+  .validator((i: { activationId: string; overrideReason?: string }) =>
     z.object({ activationId: z.string().uuid(), overrideReason: z.string().max(500).optional() }).parse(i))
   .handler(async ({ data, context }) => {
     // Live-impact: must match the chat-surface tool (requiredActionKey "systemmind_approval").
@@ -123,7 +123,7 @@ export const activateWorkflowFn = createServerFn({ method: "POST" })
 
 export const setWorkflowStateFn = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((i: { activationId: string; action: "pause" | "resume" | "rollback" }) =>
+  .validator((i: { activationId: string; action: "pause" | "resume" | "rollback" }) =>
     z.object({ activationId: z.string().uuid(), action: z.enum(["pause", "resume", "rollback"]) }).parse(i))
   .handler(async ({ data, context }) => {
     // Live-impact: must match the chat-surface tool (requiredActionKey "systemmind_approval").
@@ -139,7 +139,7 @@ export const setWorkflowStateFn = createServerFn({ method: "POST" })
 
 export const getWorkflowHealthFn = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((i: { activationId: string }) => z.object({ activationId: z.string().uuid() }).parse(i))
+  .validator((i: { activationId: string }) => z.object({ activationId: z.string().uuid() }).parse(i))
   .handler(async ({ data, context }) => {
     await gate(context, "view");
     await noWbah(context.workspaceId);
@@ -171,7 +171,7 @@ const TriggerInputSchema = z.object({
 
 export const saveCallTriggerFn = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((i: z.input<typeof TriggerInputSchema>) => TriggerInputSchema.parse(i))
+  .validator((i: z.input<typeof TriggerInputSchema>) => TriggerInputSchema.parse(i))
   .handler(async ({ data, context }) => {
     // Live-impact: must match the chat-surface tool (requiredActionKey "systemmind_approval").
     await gate(context, "approval");
@@ -187,7 +187,7 @@ export const saveCallTriggerFn = createServerFn({ method: "POST" })
 
 export const setTriggerEnabledFn = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((i: { id: string; enabled: boolean }) =>
+  .validator((i: { id: string; enabled: boolean }) =>
     z.object({ id: z.string().uuid(), enabled: z.boolean() }).parse(i))
   .handler(async ({ data, context }) => {
     // Live-impact (enabling/disabling changes calling behavior): approval, like save.
@@ -199,7 +199,7 @@ export const setTriggerEnabledFn = createServerFn({ method: "POST" })
 
 export const listCallTriggersFn = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((i: { agentId: string }) => z.object({ agentId: z.string().uuid() }).parse(i))
+  .validator((i: { agentId: string }) => z.object({ agentId: z.string().uuid() }).parse(i))
   .handler(async ({ data, context }) => {
     await gate(context, "view");
     await noWbah(context.workspaceId);
@@ -218,7 +218,7 @@ export const listCallTriggersFn = createServerFn({ method: "POST" })
 
 export const listCallQueueFn = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((i: { agentId?: string | null; status?: string | null }) =>
+  .validator((i: { agentId?: string | null; status?: string | null }) =>
     z.object({ agentId: z.string().uuid().nullish(), status: z.string().max(40).nullish() }).parse(i))
   .handler(async ({ data, context }) => {
     await gate(context, "view");
@@ -239,7 +239,7 @@ export const listCallQueueFn = createServerFn({ method: "POST" })
 
 export const controlQueueEntryFn = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((i: { id: string; action: "pause" | "resume" | "cancel" | "retry_now" }) =>
+  .validator((i: { id: string; action: "pause" | "resume" | "cancel" | "retry_now" }) =>
     z.object({ id: z.string().uuid(), action: z.enum(["pause", "resume", "cancel", "retry_now"]) }).parse(i))
   .handler(async ({ data, context }) => {
     // Live-impact (pausing/resuming/cancelling/retrying live call queue entries): approval,
@@ -252,7 +252,7 @@ export const controlQueueEntryFn = createServerFn({ method: "POST" })
 
 export const listWorkflowExecutionsFn = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((i: { agentId?: string | null; limit?: number }) =>
+  .validator((i: { agentId?: string | null; limit?: number }) =>
     z.object({ agentId: z.string().uuid().nullish(), limit: z.number().int().min(1).max(100).optional() }).parse(i))
   .handler(async ({ data, context }) => {
     await gate(context, "view");
@@ -272,7 +272,7 @@ export const listWorkflowExecutionsFn = createServerFn({ method: "POST" })
 
 export const getExecutionTimelineFn = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((i: { executionId: string }) => z.object({ executionId: z.string().uuid() }).parse(i))
+  .validator((i: { executionId: string }) => z.object({ executionId: z.string().uuid() }).parse(i))
   .handler(async ({ data, context }) => {
     await gate(context, "view");
     await noWbah(context.workspaceId);
@@ -293,7 +293,7 @@ export const getExecutionTimelineFn = createServerFn({ method: "POST" })
 
 export const listIntegrationErrorsFn = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((i: { agentId?: string | null } | undefined) =>
+  .validator((i: { agentId?: string | null } | undefined) =>
     z.object({ agentId: z.string().uuid().nullish() }).optional().parse(i ?? {}),
   )
   .handler(async ({ data, context }) => {
@@ -315,7 +315,7 @@ export const listIntegrationErrorsFn = createServerFn({ method: "POST" })
 
 export const retryIntegrationErrorFn = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((i: { id: string }) => z.object({ id: z.string().uuid() }).parse(i))
+  .validator((i: { id: string }) => z.object({ id: z.string().uuid() }).parse(i))
   .handler(async ({ data, context }) => {
     // Live-impact (re-triggers a live integration action): approval, matching queue controls.
     await gate(context, "approval");

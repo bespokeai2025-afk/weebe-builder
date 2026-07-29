@@ -47,7 +47,7 @@ export const getMyWorkspaceRequest = createServerFn({ method: "GET" })
 /** Current user: submit a workspace creation request. */
 export const requestWorkspace = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: { workspaceName: string }) => {
+  .validator((input: { workspaceName: string }) => {
     const name = (input?.workspaceName ?? "").trim();
     if (!name || name.length < 2 || name.length > 80)
       throw new Error("Workspace name must be 2-80 characters");
@@ -105,7 +105,7 @@ export const listWorkspaceRequests = createServerFn({ method: "GET" })
  */
 export const decideWorkspaceRequest = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator(
+  .validator(
     (input: { id: string; approve: boolean; retellApiKey?: string }) => input,
   )
   .handler(async ({ context, data }) => {

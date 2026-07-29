@@ -240,7 +240,7 @@ const UpdatePriorityInput = z.object({
 
 export const updateProviderPriority = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((i: z.infer<typeof UpdatePriorityInput>) => UpdatePriorityInput.parse(i))
+  .validator((i: z.infer<typeof UpdatePriorityInput>) => UpdatePriorityInput.parse(i))
   .handler(async ({ data, context }) => {
     const workspaceId = context.workspaceId;
     if (!workspaceId) throw new Error("No workspace");
@@ -294,7 +294,7 @@ const SaveCredentialsInput = z.object({
 
 export const saveProviderCredentials = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((i: z.infer<typeof SaveCredentialsInput>) => SaveCredentialsInput.parse(i))
+  .validator((i: z.infer<typeof SaveCredentialsInput>) => SaveCredentialsInput.parse(i))
   .handler(async ({ data, context }) => {
     const workspaceId = context.workspaceId;
     if (!workspaceId) throw new Error("No workspace");
@@ -396,7 +396,7 @@ const TestConnectionInput = z.object({
 
 export const testProviderConnection = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((i: z.infer<typeof TestConnectionInput>) => TestConnectionInput.parse(i))
+  .validator((i: z.infer<typeof TestConnectionInput>) => TestConnectionInput.parse(i))
   .handler(async ({ data, context }): Promise<{ ok: boolean; latencyMs: number; error?: string }> => {
     const workspaceId = context.workspaceId;
     if (!workspaceId) throw new Error("No workspace");
@@ -430,7 +430,7 @@ const ToggleEnabledInput = z.object({
 
 export const toggleProviderEnabled = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((i: z.infer<typeof ToggleEnabledInput>) => ToggleEnabledInput.parse(i))
+  .validator((i: z.infer<typeof ToggleEnabledInput>) => ToggleEnabledInput.parse(i))
   .handler(async ({ data, context }) => {
     const workspaceId = context.workspaceId;
     if (!workspaceId) throw new Error("No workspace");

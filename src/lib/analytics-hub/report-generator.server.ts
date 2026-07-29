@@ -15,6 +15,7 @@
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { isWbahWorkspaceId } from "@/lib/wbah-exclusion.shared";
 import { computeCampaignKpis } from "@/lib/campaign-reports/report-writer.shared";
+import { resolveDateRangeFor } from "@/lib/analytics-hub/analytics-hub.server";
 
 type Sb = any;
 
@@ -108,56 +109,23 @@ export interface GenerateAnalyticsReportArgs {
 
 // ── Date range resolution (mirrors filterToDates pattern) ────────────────────
 
+/**
+ * Delegates to the analytics hub's timezone-aware range resolver so reports
+ * use the exact same day boundaries as the Analytics pages (workspace
+ * business timezone, inclusive start, EXCLUSIVE end).
+ */
 export function resolveReportDateRange(
+  workspaceId: string,
   dateFilter?: string | null,
   startIso?: string | null,
   endIso?: string | null,
 ): { startIso: string; endIso: string; label: string } {
-  const now = new Date();
-  const end = new Date(now);
-  const start = new Date(now);
-  const label = dateFilter ?? "30d";
-
-  const startOfDay = (d: Date) => {
-    const x = new Date(d);
-    x.setUTCHours(0, 0, 0, 0);
-    return x;
-  };
-  const endOfDay = (d: Date) => {
-    const x = new Date(d);
-    x.setUTCHours(23, 59, 59, 999);
-    return x;
-  };
-
-  switch (dateFilter) {
-    case "today":
-      return { startIso: startOfDay(now).toISOString(), endIso: endOfDay(now).toISOString(), label };
-    case "yesterday": {
-      const y = new Date(now);
-      y.setUTCDate(y.getUTCDate() - 1);
-      return { startIso: startOfDay(y).toISOString(), endIso: endOfDay(y).toISOString(), label };
-    }
-    case "7d":
-      start.setUTCDate(start.getUTCDate() - 7);
-      return { startIso: start.toISOString(), endIso: end.toISOString(), label };
-    case "this_month": {
-      const s = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1, 0, 0, 0));
-      return { startIso: s.toISOString(), endIso: end.toISOString(), label };
-    }
-    case "last_month": {
-      const s = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 1, 1, 0, 0, 0));
-      const e = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 0, 23, 59, 59));
-      return { startIso: s.toISOString(), endIso: e.toISOString(), label };
-    }
-    case "custom":
-      if (startIso && endIso) return { startIso, endIso, label };
-      break;
-    case "30d":
-    default:
-      break;
-  }
-  start.setUTCDate(start.getUTCDate() - 30);
-  return { startIso: start.toISOString(), endIso: end.toISOString(), label: label ?? "30d" };
+  const range = resolveDateRangeFor(workspaceId, {
+    dateFilter: (dateFilter ?? "30d") as any,
+    customStart: startIso ?? null,
+    customEnd: endIso ?? null,
+  });
+  return { startIso: range.startIso, endIso: range.endIso, label: dateFilter ?? "30d" };
 }
 
 // ── Content builders ─────────────────────────────────────────────────────────
@@ -190,7 +158,7 @@ async function snapshotWorkspace(
         .select("id", { count: "exact", head: true })
         .eq("workspace_id", workspaceId)
         .gte("created_at", startIso)
-        .lte("created_at", endIso);
+        .lt("created_at", endIso);
       const { count: qualified } = await sb
         .from("leads")
         .select("id", { count: "exact", head: true })
@@ -201,15 +169,35 @@ async function snapshotWorkspace(
       snap.leads_qualified = qualified ?? 0;
     }
 
-    const callsTable = wbah ? "wbah_calls" : "calls";
-    const { data: calls } = await sb
-      .from(callsTable)
-      .select("call_status, sentiment, is_voicemail, duration_seconds, cost_cents, created_at")
-      .eq("workspace_id", workspaceId)
-      .gte("created_at", startIso)
-      .lte("created_at", endIso)
-      .limit(1000);
-    const rows: any[] = calls ?? [];
+    let rows: any[];
+    if (wbah) {
+      // wbah_calls has no created_at/is_voicemail/cost_cents — use started_at
+      // (same timestamp basis as the analytics page so totals reconcile) and
+      // derive voicemail from end_reason. Exhaustive paging: a single WBAH day
+      // regularly exceeds 1000 dials.
+      const { fetchAllPages } = await import("./analytics-hub.server");
+      rows = await fetchAllPages(
+        (from: number, to: number) => sb
+          .from("wbah_calls")
+          .select("call_status, sentiment, end_reason, duration_seconds, started_at")
+          .eq("workspace_id", workspaceId)
+          .gte("started_at", startIso)
+          .lt("started_at", endIso)
+          .order("started_at", { ascending: true })
+          .range(from, to),
+        "wbah report snapshot",
+      );
+      for (const r of rows) r.is_voicemail = r.end_reason === "voicemail_reached";
+    } else {
+      const { data: calls } = await sb
+        .from("calls")
+        .select("call_status, sentiment, is_voicemail, duration_seconds, cost_cents, created_at")
+        .eq("workspace_id", workspaceId)
+        .gte("created_at", startIso)
+        .lt("created_at", endIso)
+        .limit(1000);
+      rows = calls ?? [];
+    }
     const answered = rows.filter((r) => r.call_status === "completed" && !r.is_voicemail);
     snap.calls_total = rows.length;
     snap.calls_connected = answered.length;
@@ -229,7 +217,7 @@ async function snapshotWorkspace(
         .select("id", { count: "exact", head: true })
         .eq("workspace_id", workspaceId)
         .gte("created_at", startIso)
-        .lte("created_at", endIso);
+        .lt("created_at", endIso);
       snap.bookings = bookings ?? 0;
     }
   } catch (err: any) {
@@ -283,6 +271,7 @@ async function buildReportContent(
         }
         const kpis = await computeCampaignKpis(sb, workspaceId, {
           agentId: retellAgentId,
+          campaignId: campaign.id,
           sinceIso: campaign.created_at ?? startIso,
         });
         metrics.campaign_kpis = kpis;
@@ -346,7 +335,7 @@ async function buildReportContent(
           .select("agent_id, agent_name, call_status, sentiment, is_voicemail, duration_seconds")
           .eq("workspace_id", workspaceId)
           .gte("created_at", startIso)
-          .lte("created_at", endIso)
+          .lt("created_at", endIso)
           .limit(1000);
         const byAgent: Record<string, any> = {};
         for (const c of calls ?? []) {
@@ -373,7 +362,7 @@ async function buildReportContent(
             .select("source, qualification_status")
             .eq("workspace_id", workspaceId)
             .gte("created_at", startIso)
-            .lte("created_at", endIso)
+            .lt("created_at", endIso)
             .limit(1000);
           const bySource: Record<string, any> = {};
           for (const l of leads ?? []) {
@@ -579,6 +568,7 @@ export async function generateAnalyticsReport(
     }
     const sb = supabaseAdmin as any;
     const { startIso, endIso } = resolveReportDateRange(
+      args.workspaceId,
       args.dateFilter,
       args.dateRangeStart,
       args.dateRangeEnd,

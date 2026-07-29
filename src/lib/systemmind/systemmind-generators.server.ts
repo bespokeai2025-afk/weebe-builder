@@ -480,6 +480,12 @@ export async function activateWhatsAppSetupKind(
     const seen = new Set(((existing ?? []) as any[]).map((t) => String(t.entity_id)));
     const fresh = taskRows.filter((t) => !seen.has(t.entity_id));
     const { isProposalAllowed } = await import("@/lib/hivemind/mode-gate.server");
+    // JUSTIFIED-EXCEPTION (Task #500): these are setup-checklist scaffold tasks
+    // created by a SystemMind generator activation, not autonomous AI Mind output.
+    // Tasks are deterministic, isProposalAllowed-gated, and serve as a human
+    // setup guide rather than an AI proposal. The shallow insert is intentional
+    // because no intelligence packet is meaningful here — the "evidence" is the
+    // provider configuration state already shown to the user in the same UI.
     if (fresh.length > 0 && (await isProposalAllowed(sb, workspaceId))) {
       await sb.from("hivemind_tasks").insert(fresh);
     }

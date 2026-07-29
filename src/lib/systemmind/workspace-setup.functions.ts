@@ -10,7 +10,7 @@ function requireWorkspaceId(workspaceId: string | undefined): string {
 // ── generateOnboardingPlan ────────────────────────────────────────────────────
 export const generateOnboardingPlan = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({
       description: z.string().min(10).max(4000),
     }).parse(input),

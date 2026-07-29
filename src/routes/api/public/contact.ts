@@ -63,6 +63,11 @@ export const Route = createFileRoute("/api/public/contact")({
             utm_source:               fields.utm_source,
             utm_campaign:             fields.utm_campaign,
             utm_medium:               fields.utm_medium,
+            referrer:                 fields.referrer,
+            gclid:                    fields.gclid,
+            gbraid:                   fields.gbraid,
+            wbraid:                   fields.wbraid,
+            landing_url:              fields.landing_url ?? fields.landing_page,
           },
           { ip, userAgent: request.headers.get("user-agent") },
         );

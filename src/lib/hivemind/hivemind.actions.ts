@@ -193,7 +193,34 @@ export async function executeAction(sb: any, workspaceId: string, action: HiveMi
     }
 
     case "create_task": {
-      const { data, error } = await sb.from("hivemind_tasks").insert({
+      // Universal quality gate: informational follow-up tasks carry the
+      // packet snapshot supplied by the proposer (recommendation evidence,
+      // scan finding, etc.) or an evidence-light packet built from the
+      // action's own context — never a bare title+description row.
+      const { buildIntelligencePacket, prepareMindTaskInsert, evidenceItem, sanitizeIncomingPacket } =
+        await import("@/lib/minds/intelligence-packet.server");
+      // Payload packets are UNTRUSTED — strict shape validation; malformed
+      // ones are discarded and replaced by a server-built context packet.
+      const packet = sanitizeIncomingPacket(p.intelligence_packet)
+        ?? buildIntelligencePacket({
+            mind: "hivemind",
+            objective: String(p.description ?? p.title ?? "").slice(0, 500) || String(p.title ?? ""),
+            intentSource: `hivemind_action:create_task${p.trigger_type ? `:${p.trigger_type}` : ""}`,
+            targets: [{
+              domain: "general",
+              entity_type: String(p.entity_type ?? "workspace"),
+              entity_id: p.entity_id != null ? String(p.entity_id) : null,
+              entity_name: p.entity_name != null ? String(p.entity_name) : null,
+              resolved: p.entity_id != null,
+              resolution_note: p.entity_id == null ? "No specific entity attached to this follow-up." : null,
+            }],
+            evidence: [evidenceItem(
+              "hivemind_actions",
+              `Created from approved HiveMind action "${String(p.title ?? "")}"${p.trigger_type ? ` (trigger: ${p.trigger_type})` : ""}.`,
+              { trigger_type: p.trigger_type ?? null },
+            )],
+          });
+      const row = prepareMindTaskInsert({
         workspace_id: workspaceId,
         title:        p.title,
         description:  p.description ?? null,
@@ -204,7 +231,8 @@ export async function executeAction(sb: any, workspaceId: string, action: HiveMi
         entity_type:  p.entity_type ?? null,
         entity_id:    p.entity_id ?? null,
         entity_name:  p.entity_name ?? null,
-      }).select().single();
+      }, packet);
+      const { data, error } = await sb.from("hivemind_tasks").insert(row).select().single();
       if (error) throw error;
       return { task_id: data.id };
     }
@@ -215,6 +243,10 @@ export async function executeAction(sb: any, workspaceId: string, action: HiveMi
       // Google Ads writes (GrowthMind is advisory-only).
       const ids = Array.isArray(p.recommendation_ids) ? (p.recommendation_ids as string[]).map(String) : [];
       if (!ids.length) throw new Error("No recommendation_ids in action payload");
+      // growthmind_gads_change_requests is server-write-only (authenticated has
+      // SELECT only) — writes must use the admin client. Safe: every statement
+      // below is scoped to the approved action's workspace_id.
+      const { supabaseAdmin: gadsAdmin } = await import("@/integrations/supabase/client.server");
       const { data: recs, error: re } = await sb.from("growthmind_gads_recommendations")
         .select("id, account_row_id, customer_id, campaign_id, section, title, recommended_action, evidence, status")
         .eq("workspace_id", workspaceId).in("id", ids);
@@ -224,7 +256,7 @@ export async function executeAction(sb: any, workspaceId: string, action: HiveMi
       const nowIso = new Date().toISOString();
       const createdIds: string[] = [];
       for (const rec of usable) {
-        const { data: cr, error: crErr } = await sb.from("growthmind_gads_change_requests").insert({
+        const { data: cr, error: crErr } = await (gadsAdmin as any).from("growthmind_gads_change_requests").insert({
           workspace_id: workspaceId,
           recommendation_id: rec.id,
           account_row_id: rec.account_row_id,
@@ -237,7 +269,7 @@ export async function executeAction(sb: any, workspaceId: string, action: HiveMi
         }).select("id").single();
         if (crErr) throw crErr;
         createdIds.push(cr.id as string);
-        await sb.from("growthmind_gads_recommendations").update({
+        await (gadsAdmin as any).from("growthmind_gads_recommendations").update({
           status: "approved", reviewed_at: nowIso, updated_at: nowIso,
         }).eq("id", rec.id).eq("workspace_id", workspaceId);
       }
@@ -581,7 +613,7 @@ export const getHiveMindMode = createServerFn({ method: "GET" })
 // ── setHiveMindMode ───────────────────────────────────────────────────────────
 export const setHiveMindMode = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({
       mode: z.enum(["observe","recommend","assistant","operator","executive_operator"]),
       operatorPermissions: z.record(z.boolean()).optional(),
@@ -688,7 +720,7 @@ export const getHiveMindLearningSummary = createServerFn({ method: "GET" })
 // ── proposeHiveMindAction ─────────────────────────────────────────────────────
 export const proposeHiveMindAction = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({
       title:          z.string().min(1).max(300),
       description:    z.string().max(2000).optional(),
@@ -892,6 +924,28 @@ export async function approveHiveMindActionCore(
       await sb.from("hivemind_actions").update({
         status: "failed", error_message: err?.message ?? String(err), updated_at: new Date().toISOString(),
       }).eq("id", data.id);
+      // Un-strand any linked Mind task execution: a failed action must not
+      // leave the execution sitting in awaiting_action_approval forever.
+      // "blocked" is retryable via Approve & Run.
+      if ((action as any).execution_id) {
+        const failMsg = `Approved action failed: ${err?.message ?? String(err)}`;
+        const nowIso = new Date().toISOString();
+        try {
+          await sb.from("mind_task_executions").update({
+            status: "blocked",
+            blocked_reason: failMsg,
+            error_message: failMsg,
+            updated_at: nowIso,
+          }).eq("id", (action as any).execution_id).eq("workspace_id", workspaceId)
+            .in("status", ["awaiting_action_approval", "verifying"]);
+          if ((action as any).task_id) {
+            await sb.from("hivemind_tasks").update({
+              execution_status: "blocked", updated_at: nowIso,
+            }).eq("id", (action as any).task_id).eq("workspace_id", workspaceId)
+              .in("execution_status", ["awaiting_action_approval", "executing"]);
+          }
+        } catch { /* best-effort — never mask the original error */ }
+      }
       try {
         const { reflectActionOutcomeOnRecommendation } =
           await import("@/lib/hivemind/executive-followthrough.server");
@@ -911,7 +965,7 @@ export async function approveHiveMindActionCore(
 
 export const approveHiveMindAction = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({
       id:          z.string().uuid(),
       approved_by: z.string().default("User"),
@@ -952,7 +1006,7 @@ export async function rejectHiveMindActionCore(
 
 export const rejectHiveMindAction = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({ id: z.string().uuid() }).parse(input)
   )
   .handler(async ({ context, data }) =>
@@ -965,7 +1019,7 @@ export const rejectHiveMindAction = createServerFn({ method: "POST" })
 // ── deleteHiveMindAction ──────────────────────────────────────────────────────
 export const deleteHiveMindAction = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({ id: z.string().uuid() }).parse(input)
   )
   .handler(async ({ context, data }) => {
@@ -1625,6 +1679,9 @@ export const generateOperatorActions = createServerFn({ method: "POST" })
     } catch { /* graceful — accountsmind tables may not exist yet */ }
 
     if (proposed.length > 0) {
+      // JUSTIFIED-EXCEPTION (Task #500): writes to hivemind_actions (approval queue),
+      // not hivemind_tasks. These are follow-through proposal records; the intelligence
+      // packet gate fires in executeAction below when the action is approved.
       await sb.from("hivemind_actions").insert(proposed);
     }
 

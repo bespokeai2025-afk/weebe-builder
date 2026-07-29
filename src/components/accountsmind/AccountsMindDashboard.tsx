@@ -13,6 +13,7 @@ import {
   Bell, RefreshCw, AlertTriangle, CheckCircle, BarChart3,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { ActiveWorkOrdersWidget } from "@/components/minds/ActiveWorkOrdersWidget";
 
 function fmt(cents: number, currency = "£") {
   return `${currency}${(cents / 100).toFixed(2)}`;
@@ -232,6 +233,13 @@ export function AccountsMindDashboard() {
           </div>
         ))}
       </div>
+
+      {/* Active Work Orders */}
+      <ActiveWorkOrdersWidget
+        minds={["accountsmind"]}
+        title="AccountsMind Work Orders"
+        viewAllHref="/hivemind/work-orders"
+      />
     </div>
   );
 }

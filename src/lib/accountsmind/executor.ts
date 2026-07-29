@@ -119,7 +119,29 @@ export async function runAccountsMindTick(): Promise<AccountsMindTickResult> {
 
         const { isProposalAllowed } = await import("@/lib/hivemind/mode-gate.server");
         if (!existing && (await isProposalAllowed(sb, wid))) {
-          await sb.from("hivemind_tasks").insert({
+          // MIGRATED (Task #500): wrap with prepareMindTaskInsert so the row
+          // carries an intelligence packet and readiness_state.
+          const { buildIntelligencePacket, prepareMindTaskInsert, evidenceItem } =
+            await import("@/lib/minds/intelligence-packet.server");
+          const packet = buildIntelligencePacket({
+            mind: "accountsmind",
+            objective: `Resolve critical AccountsMind billing alert: ${alert.title}`.slice(0, 500),
+            intentSource: `accountsmind_executor:${alert.alert_type}`,
+            targets: [{
+              domain: "finance",
+              entity_type: "accountsmind_alert",
+              entity_id: alert.alert_type,
+              entity_name: alert.title,
+              resolved: true,
+              resolution_note: "Critical alert detected by AccountsMind auto-executor.",
+            }],
+            evidence: [evidenceItem("accountsmind_alert", alert.message, {
+              alertType: alert.alert_type,
+              alertId:   alert.id,
+            })],
+            diagnosis: alert.message,
+          });
+          const row = prepareMindTaskInsert({
             workspace_id:     wid,
             trigger_type:     "accountsmind_alert",
             entity_id:        alert.alert_type,
@@ -129,7 +151,8 @@ export async function runAccountsMindTick(): Promise<AccountsMindTickResult> {
             suggested_action: "Review client billing profile and cost breakdown in AccountsMind.",
             priority:         "high",
             status:           "open",
-          });
+          }, packet);
+          await sb.from("hivemind_tasks").insert(row);
           result.hivemindTasksPosted++;
         }
       }

@@ -20,7 +20,7 @@ export const listExecutiveKnowledgeBases = createServerFn({ method: "POST" })
 /** Create a private signed upload URL for an executive knowledge document. */
 export const getExecutiveUploadUrl = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input) =>
+  .validator((input) =>
     z.object({
       slug:     z.string().min(1),
       fileName: z.string().min(1),
@@ -50,7 +50,7 @@ export const getExecutiveUploadUrl = createServerFn({ method: "POST" })
 /** Record a completed upload and synchronously index it (extract→chunk→embed). */
 export const recordExecutiveDocument = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input) =>
+  .validator((input) =>
     z.object({
       slug:        z.string().min(1),
       title:       z.string().min(1),
@@ -101,7 +101,7 @@ export const recordExecutiveDocument = createServerFn({ method: "POST" })
 /** List documents for a KB slug (or all executive docs when slug omitted). */
 export const listExecutiveDocuments = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input) =>
+  .validator((input) =>
     z.object({ slug: z.string().optional() }).parse(input ?? {}),
   )
   .handler(async ({ context, data }) => {
@@ -130,7 +130,7 @@ export const listExecutiveDocuments = createServerFn({ method: "POST" })
 /** Delete an executive document (storage file + row; chunks cascade). */
 export const deleteExecutiveDocument = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input) =>
+  .validator((input) =>
     z.object({ id: z.string() }).parse(input),
   )
   .handler(async ({ context, data }) => {
@@ -158,7 +158,7 @@ export const deleteExecutiveDocument = createServerFn({ method: "POST" })
 /** Re-run extraction + embedding for an existing uploaded document. */
 export const reindexExecutiveDocument = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input) =>
+  .validator((input) =>
     z.object({ id: z.string() }).parse(input),
   )
   .handler(async ({ context, data }) => {
@@ -180,7 +180,7 @@ export const reindexExecutiveDocument = createServerFn({ method: "POST" })
 /** Retrieve knowledge for an executive (mind_type), enforcing access rules. */
 export const queryExecutiveKnowledge = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input) =>
+  .validator((input) =>
     z.object({
       mindType: z.string().min(1),
       query:    z.string().min(1),
@@ -205,7 +205,7 @@ export const queryExecutiveKnowledge = createServerFn({ method: "POST" })
 /** Seed (idempotently) AI-generated starter knowledge — processes a batch per call. */
 export const seedExecutiveStarterKnowledge = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input) =>
+  .validator((input) =>
     z.object({ limit: z.number().int().min(1).max(10).optional() }).parse(input ?? {}),
   )
   .handler(async ({ context, data }) => {

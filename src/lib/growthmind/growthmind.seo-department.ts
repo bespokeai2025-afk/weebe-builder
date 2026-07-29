@@ -110,7 +110,7 @@ export const triggerGscSyncNow = createServerFn({ method: "POST" })
 
 export const inspectPriorityUrl = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => z.object({ url: z.string().url().max(2000) }).parse(input))
+  .validator((input: unknown) => z.object({ url: z.string().url().max(2000) }).parse(input))
   .handler(async ({ context, data }) => {
     const workspaceId = context.workspaceId;
     if (!workspaceId) throw new Error("No workspace");
@@ -122,7 +122,7 @@ export const inspectPriorityUrl = createServerFn({ method: "POST" })
 
 export const getSeoIntelligence = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({
       dimension: z.enum(["query", "page", "country", "device", "search_appearance"]),
       days: z.number().int().min(7).max(480).default(90),
@@ -137,7 +137,7 @@ export const getSeoIntelligence = createServerFn({ method: "POST" })
 
 export const getSeoOpportunities = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({ kinds: z.array(z.string()).default([]) }).parse(input))
   .handler(async ({ context, data }) => {
     const workspaceId = context.workspaceId;
@@ -173,7 +173,7 @@ export const listSeoTeachings = createServerFn({ method: "GET" })
 
 export const saveSeoTeaching = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({
       id: z.string().uuid().optional(),
       teachingType: z.enum(teachingTypes),
@@ -209,7 +209,7 @@ export const saveSeoTeaching = createServerFn({ method: "POST" })
 
 export const deleteSeoTeaching = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => z.object({ id: z.string().uuid() }).parse(input))
+  .validator((input: unknown) => z.object({ id: z.string().uuid() }).parse(input))
   .handler(async ({ context, data }) => {
     const sb = context.supabase as any;
     const workspaceId = context.workspaceId;
@@ -239,7 +239,7 @@ export const listSeoCampaigns = createServerFn({ method: "GET" })
 
 export const createSeoCampaign = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({
       name: z.string().min(3).max(200),
       campaignType: z.enum(["strategy","general","product","service","industry","country","local","existing_page_improvement","content_refresh","internal_link","metadata","technical","blog"]).default("blog"),
@@ -264,7 +264,7 @@ export const createSeoCampaign = createServerFn({ method: "POST" })
 
 export const approveSeoCampaignStage = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({
       campaignId: z.string().uuid(),
       stage: z.enum(["strategy", "brief", "content", "deployment"]),
@@ -283,7 +283,7 @@ export const approveSeoCampaignStage = createServerFn({ method: "POST" })
 
 export const markSeoPackageDeployed = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({ packageId: z.string().uuid(), liveUrl: z.string().url().max(2000) }).parse(input))
   .handler(async ({ context, data }) => {
     const workspaceId = context.workspaceId;
@@ -294,7 +294,7 @@ export const markSeoPackageDeployed = createServerFn({ method: "POST" })
 
 export const cancelSeoCampaign = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => z.object({ campaignId: z.string().uuid() }).parse(input))
+  .validator((input: unknown) => z.object({ campaignId: z.string().uuid() }).parse(input))
   .handler(async ({ context, data }) => {
     const sb = context.supabase as any;
     const workspaceId = context.workspaceId;
@@ -310,7 +310,7 @@ export const cancelSeoCampaign = createServerFn({ method: "POST" })
 
 export const getSeoCampaignDetail = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => z.object({ campaignId: z.string().uuid() }).parse(input))
+  .validator((input: unknown) => z.object({ campaignId: z.string().uuid() }).parse(input))
   .handler(async ({ context, data }) => {
     const sb = context.supabase as any;
     const workspaceId = context.workspaceId;

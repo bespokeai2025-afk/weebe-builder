@@ -215,8 +215,12 @@ export async function buyRetellPhoneNumberService(args: {
     args.agentRowId,
     args.workspaceId,
   );
-  if (args.inboundAgentId && agentIdSafe) body.inbound_agent_id = args.inboundAgentId;
-  if (args.outboundAgentId && agentIdSafe) body.outbound_agent_id = args.outboundAgentId;
+  // Retell deprecated the single-agent fields (inbound_agent_id/outbound_agent_id)
+  // on 2026-03-31 — requests using them now fail with 400. Use the agents-array shape.
+  if (args.inboundAgentId && agentIdSafe)
+    body.inbound_agents = [{ agent_id: args.inboundAgentId, weight: 1 }];
+  if (args.outboundAgentId && agentIdSafe)
+    body.outbound_agents = [{ agent_id: args.outboundAgentId, weight: 1 }];
 
   const resp = await retellFetchForAgent(
     `/create-phone-number`,
@@ -265,8 +269,10 @@ export async function importSipPhoneNumberService(args: {
     args.agentRowId,
     args.workspaceId,
   );
-  if (args.inboundAgentId && agentIdSafe) body.inbound_agent_id = args.inboundAgentId;
-  if (args.outboundAgentId && agentIdSafe) body.outbound_agent_id = args.outboundAgentId;
+  if (args.inboundAgentId && agentIdSafe)
+    body.inbound_agents = [{ agent_id: args.inboundAgentId, weight: 1 }];
+  if (args.outboundAgentId && agentIdSafe)
+    body.outbound_agents = [{ agent_id: args.outboundAgentId, weight: 1 }];
   const resp = await retellFetchForAgent(
     `/import-phone-number`,
     body,
@@ -295,17 +301,30 @@ export async function listRetellPhoneNumbersService(args: {
     outboundAgentId: string | null;
   }>
 > {
-  let resp: Record<string, unknown>;
+  // POST-DEPRECATION: GET /v2/list-phone-numbers with items[] + pagination_key
+  // paging (the old GET /list-phone-numbers returned a bare array).
+  const collected: unknown[] = [];
   try {
-    resp = await retellFetchForAgent(
-      `/list-phone-numbers`,
-      undefined,
-      "GET",
-      args.userId,
-      args.agentRowId,
-      args.productionApiKey,
-      args.workspaceId,
-    );
+    let cursor: string | undefined;
+    for (let page = 0; page < 100; page++) {
+      const path = cursor
+        ? `/v2/list-phone-numbers?pagination_key=${encodeURIComponent(cursor)}`
+        : `/v2/list-phone-numbers`;
+      const resp = (await retellFetchForAgent(
+        path,
+        undefined,
+        "GET",
+        args.userId,
+        args.agentRowId,
+        args.productionApiKey,
+        args.workspaceId,
+      )) as any;
+      const items: unknown[] = Array.isArray(resp) ? resp : Array.isArray(resp?.items) ? resp.items : [];
+      collected.push(...items);
+      cursor = typeof resp?.pagination_key === "string" && resp.pagination_key ? resp.pagination_key : undefined;
+      const hasMore = typeof resp?.has_more === "boolean" ? resp.has_more && !!cursor : false;
+      if (!hasMore || items.length === 0) break;
+    }
   } catch (error) {
     if (isRetellAuthError(error)) {
       console.warn("[retell] list-phone-numbers auth failed", {
@@ -319,14 +338,24 @@ export async function listRetellPhoneNumbersService(args: {
     }
     throw error;
   }
-  const arr = Array.isArray(resp) ? resp : [];
+  const arr = collected;
+  const firstAgentId = (v: unknown): string | null => {
+    if (Array.isArray(v) && v.length > 0) {
+      const id = (v[0] as Record<string, unknown>)?.agent_id;
+      return typeof id === "string" ? id : null;
+    }
+    return null;
+  };
   return arr.map((n) => {
     const item = n as Record<string, unknown>;
     return {
       phoneNumber: String(item.phone_number ?? ""),
       nickname: String(item.nickname ?? ""),
-      inboundAgentId: (item.inbound_agent_id as string | undefined) ?? null,
-      outboundAgentId: (item.outbound_agent_id as string | undefined) ?? null,
+      // Support both the current agents-array shape and the legacy single-id fields.
+      inboundAgentId:
+        firstAgentId(item.inbound_agents) ?? ((item.inbound_agent_id as string | undefined) ?? null),
+      outboundAgentId:
+        firstAgentId(item.outbound_agents) ?? ((item.outbound_agent_id as string | undefined) ?? null),
     };
   });
 }
@@ -348,10 +377,12 @@ export async function assignNumberToAgentService(args: {
     args.workspaceId,
   );
   if (args.inboundAgentId !== undefined) {
-    body.inbound_agent_id = agentIdSafe ? args.inboundAgentId : null;
+    body.inbound_agents =
+      agentIdSafe && args.inboundAgentId ? [{ agent_id: args.inboundAgentId, weight: 1 }] : [];
   }
   if (args.outboundAgentId !== undefined) {
-    body.outbound_agent_id = agentIdSafe ? args.outboundAgentId : null;
+    body.outbound_agents =
+      agentIdSafe && args.outboundAgentId ? [{ agent_id: args.outboundAgentId, weight: 1 }] : [];
   }
   const resp = await retellFetchForAgent(
     `/update-phone-number/${encodeURIComponent(args.phoneNumber)}`,

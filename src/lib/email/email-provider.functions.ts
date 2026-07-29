@@ -98,7 +98,7 @@ const saveSchema = z.object({
 
 export const saveEmailProviderSettings = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input) => saveSchema.parse(input))
+  .validator((input) => saveSchema.parse(input))
   .handler(async ({ data: input, context }) => {
     const { workspaceId, userId } = await ctxGuard(context, "edit");
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
@@ -170,7 +170,7 @@ export const saveEmailProviderSettings = createServerFn({ method: "POST" })
 
 export const sendEmailProviderTest = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input) => z.object({ to: z.string().email().max(200) }).parse(input))
+  .validator((input) => z.object({ to: z.string().email().max(200) }).parse(input))
   .handler(async ({ data: input, context }) => {
     const { workspaceId, userId } = await ctxGuard(context, "edit");
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");

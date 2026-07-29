@@ -66,7 +66,7 @@ export const listAgentTemplates = createServerFn({ method: "GET" })
 /** Load a single template by id. */
 export const getAgentTemplate = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: { id: string }) => input)
+  .validator((input: { id: string }) => input)
   .handler(async ({ context, data }) => {
     const { supabase } = context;
     const { data: row, error } = await supabase
@@ -81,7 +81,7 @@ export const getAgentTemplate = createServerFn({ method: "POST" })
 /** Create or update a template. Scope=global requires admin role. */
 export const upsertAgentTemplate = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator(
+  .validator(
     (input: {
       id?: string;
       scope: TemplateScope;
@@ -139,7 +139,7 @@ export const upsertAgentTemplate = createServerFn({ method: "POST" })
 
 export const deleteAgentTemplate = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: { id: string }) => input)
+  .validator((input: { id: string }) => input)
   .handler(async ({ context, data }) => {
     const { supabase, userId } = context;
     // Look up scope first to know if we need admin client.

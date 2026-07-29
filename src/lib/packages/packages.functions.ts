@@ -82,7 +82,7 @@ export const getWorkspacePackageSummary = createServerFn({ method: "GET" })
 /** Set the quantity of a chargeable add-on (currently extra_staff_user). */
 export const setAddonQuantity = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: { addonKey: string; quantity: number }) => input)
+  .validator((input: { addonKey: string; quantity: number }) => input)
   .handler(async ({ context, data }) => {
     const { userId, workspaceId } = context;
     if (!workspaceId) throw new Error("No active workspace");
@@ -186,7 +186,7 @@ export const listUserAccessOverrides = createServerFn({ method: "GET" })
 /** Create/update a per-user visibility override. Owners cannot be restricted. */
 export const setUserAccessOverride = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator(
+  .validator(
     (input: {
       targetUserId: string;
       pageAccess?: Record<string, string>;
@@ -257,7 +257,7 @@ export const setUserAccessOverride = createServerFn({ method: "POST" })
 /** Remove a per-user override (revert to role + package defaults). */
 export const clearUserAccessOverride = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: { targetUserId: string }) => input)
+  .validator((input: { targetUserId: string }) => input)
   .handler(async ({ context, data }) => {
     const { userId, workspaceId } = context;
     if (!workspaceId) throw new Error("No active workspace");

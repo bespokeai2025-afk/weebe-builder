@@ -38,7 +38,7 @@ const APPROVAL_ACTION_TYPES = [
 
 export const startAgentDeployment = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         agentId: z.string().uuid(),
@@ -66,7 +66,7 @@ export const startAgentDeployment = createServerFn({ method: "POST" })
 
 export const getDeploymentChecklist = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => z.object({ deploymentId: z.string().uuid() }).parse(input))
+  .validator((input: unknown) => z.object({ deploymentId: z.string().uuid() }).parse(input))
   .handler(async ({ data, context }) => {
     {
       const { requireSystemMindView } = await import(
@@ -85,7 +85,7 @@ export const getDeploymentChecklist = createServerFn({ method: "GET" })
 
 export const getDeploymentForAgent = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => z.object({ agentId: z.string().uuid() }).parse(input))
+  .validator((input: unknown) => z.object({ agentId: z.string().uuid() }).parse(input))
   .handler(async ({ data, context }) => {
     {
       const { requireSystemMindView } = await import(
@@ -124,7 +124,7 @@ export const listAgentDeployments = createServerFn({ method: "GET" })
 
 export const setDeploymentChecklistOverride = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         deploymentId: z.string().uuid(),
@@ -161,7 +161,7 @@ export const setDeploymentChecklistOverride = createServerFn({ method: "POST" })
 
 export const setDeploymentActive = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({ deploymentId: z.string().uuid(), active: z.boolean() }).parse(input),
   )
   .handler(async ({ data, context }) => {
@@ -187,7 +187,7 @@ export const setDeploymentActive = createServerFn({ method: "POST" })
 
 export const requestDeploymentApproval = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         deploymentId: z.string().uuid(),
@@ -217,7 +217,7 @@ export const requestDeploymentApproval = createServerFn({ method: "POST" })
 
 export const decideDeploymentApproval = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({ approvalId: z.string().uuid(), approve: z.boolean() }).parse(input),
   )
   .handler(async ({ data, context }) => {
@@ -236,7 +236,7 @@ export const decideDeploymentApproval = createServerFn({ method: "POST" })
 
 export const executeApprovedDeploymentAction = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => z.object({ approvalId: z.string().uuid() }).parse(input))
+  .validator((input: unknown) => z.object({ approvalId: z.string().uuid() }).parse(input))
   .handler(async ({ data, context }) => {
     await requireAction(context.workspaceId, context.userId, "systemmind_approval");
     const { executeApprovedDeploymentActionServer } = await import(
@@ -254,7 +254,7 @@ export const executeApprovedDeploymentAction = createServerFn({ method: "POST" }
 
 export const listDeploymentWorkspaceNumbers = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({ agentRowId: z.string().uuid().optional() }).parse(input),
   )
   .handler(async ({ data, context }) => {

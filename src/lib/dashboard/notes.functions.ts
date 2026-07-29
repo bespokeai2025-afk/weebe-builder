@@ -9,7 +9,7 @@ const ENTITY_TYPES = ["lead", "contact", "call"] as const;
 
 export const addEntityNote = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input) =>
+  .validator((input) =>
     z
       .object({
         entityType: z.enum(ENTITY_TYPES),
@@ -38,7 +38,7 @@ export const addEntityNote = createServerFn({ method: "POST" })
 
 export const listEntityNotes = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input) =>
+  .validator((input) =>
     z
       .object({
         entityType: z.enum(ENTITY_TYPES),
@@ -62,7 +62,7 @@ export const listEntityNotes = createServerFn({ method: "POST" })
 
 export const deleteEntityNote = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input) =>
+  .validator((input) =>
     z.object({ id: z.string().uuid() }).parse(input),
   )
   .handler(async ({ context, data }) => {
@@ -79,7 +79,7 @@ export const deleteEntityNote = createServerFn({ method: "POST" })
 
 export const createManualBooking = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input) =>
+  .validator((input) =>
     z
       .object({
         title: z.string().min(1).max(200),

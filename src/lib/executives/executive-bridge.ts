@@ -33,7 +33,7 @@ export const getExecutiveCouncilSummary = createServerFn({ method: "GET" })
 // ── Record an executive event ──────────────────────────────────────────────────
 export const recordExecutiveEvent = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({
       source:     z.enum(["hivemind", "growthmind", "systemmind"]),
       event_type: z.string().min(1).max(120),
@@ -215,7 +215,7 @@ export const runCMOAnalysis = createServerFn({ method: "POST" })
 // ── Update proposal status (approve / reject / draft) ─────────────────────────
 export const updateProposalStatus = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({
       proposalType: z.enum(["campaign", "video"]),
       proposalId:   z.string().uuid(),
@@ -285,7 +285,7 @@ export const getAllProposals = createServerFn({ method: "GET" })
 // ── Read executive events ──────────────────────────────────────────────────────
 export const getExecutiveEvents = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({ limit: z.number().int().min(1).max(100).optional() }).optional().parse(input)
   )
   .handler(async ({ context, data }) => {

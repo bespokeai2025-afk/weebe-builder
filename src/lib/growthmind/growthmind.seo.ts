@@ -80,7 +80,7 @@ export const getSeoSite = createServerFn({ method: "GET" })
 
 export const saveSeoSite = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({
       id:           z.string().uuid().optional(),
       url:          z.string().url("Please enter a valid URL"),
@@ -134,7 +134,7 @@ export const saveSeoSite = createServerFn({ method: "POST" })
 
 export const saveAiRecs = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({
       id:   z.string().uuid(),
       text: z.string(),
@@ -319,7 +319,7 @@ export const getGscStatus = createServerFn({ method: "GET" })
 
 export const getGscAuthUrl = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({
       origin:   z.string().url().max(300),
       returnTo: z.string().min(1).max(300),
@@ -376,7 +376,7 @@ export const disconnectGsc = createServerFn({ method: "POST" })
 
 export const saveGscProperty = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({
       propertyUrl:  z.string(),
       autoMatched:  z.boolean().default(false),
@@ -469,7 +469,7 @@ export const listGscProperties = createServerFn({ method: "GET" })
 
 export const fetchGscQueries = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({
       propertyUrl: z.string(),
       rowLimit:    z.number().int().min(1).max(500).default(50),
@@ -550,7 +550,7 @@ export const fetchGscQueries = createServerFn({ method: "POST" })
 
 export const syncGscToKeywords = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({
       siteId:      z.string().uuid(),
       propertyUrl: z.string(),
@@ -715,7 +715,7 @@ export const listSeoBriefs = createServerFn({ method: "GET" })
 
 export const generateSeoBrief = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({
       url:        z.string().url(),
       pageTitle:  z.string().max(300).default(""),
@@ -843,7 +843,7 @@ The brief should be specific, actionable, and tailored to the business above.`;
 
 export const deleteSeoBrief = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({ id: z.string().uuid() }).parse(input)
   )
   .handler(async ({ context, data }) => {
@@ -1010,7 +1010,7 @@ export type MetaTagResult = {
 
 export const generateMetaTags = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({
       url:        z.string().url(),
       pageTitle:  z.string().max(300).default(""),

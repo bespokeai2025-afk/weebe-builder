@@ -1,6 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { isHumanTaskRow } from "@/lib/minds/intelligence-packet.shared";
 import { EXECUTIVE_TASK_TYPES } from "@/lib/executives/executive-council";
 
 // ── Types ───────────────────────────────────────────────────────────────────
@@ -37,6 +38,10 @@ export interface HiveMindTask {
   result_summary?: string | null;
   completion_evidence?: Record<string, unknown> | null;
   completed_at?: string | null;
+  // ── Universal intelligence packet (Task #486+) ────────────────────────────
+  intelligence_packet?: Record<string, unknown> | null;
+  readiness_state?: string | null;
+  packet_version?: number | null;
 }
 
 export interface HiveMindEvent {
@@ -795,12 +800,34 @@ export const runHiveMindScan = createServerFn({ method: "POST" })
     const newTasks:  any[] = [];
     const newEvents: any[] = [];
 
+    // Universal quality gate: scanner findings become INFORMATIONAL tasks
+    // carrying an evidence packet built from the real finding data.
+    const { buildIntelligencePacket, prepareMindTaskInsert, evidenceItem } =
+      await import("@/lib/minds/intelligence-packet.server");
+
     for (const f of findings) {
       const hasTask = existing.some(
         (t: any) => t.trigger_type === f.trigger_type && t.entity_id === f.entity_id
       );
       if (!hasTask) {
-        newTasks.push({
+        const packet = buildIntelligencePacket({
+          mind: "hivemind",
+          objective: f.description.slice(0, 500),
+          intentSource: `platform_scan:${f.trigger_type}`,
+          targets: [{
+            domain: "general",
+            entity_type: f.entity_type,
+            entity_id: f.entity_id,
+            entity_name: f.entity_name,
+            resolved: true,
+          }],
+          evidence: [evidenceItem(
+            `platform_scan:${f.trigger_type}`,
+            f.description,
+            f.metadata ?? null,
+          )],
+        });
+        newTasks.push(prepareMindTaskInsert({
           workspace_id: workspaceId,
           title:        f.title,
           description:  f.description,
@@ -812,7 +839,7 @@ export const runHiveMindScan = createServerFn({ method: "POST" })
           entity_id:    f.entity_id,
           entity_name:  f.entity_name,
           metadata:     f.metadata ?? null,
-        });
+        }, packet));
       }
 
       const hasEvent = recent.some(
@@ -914,7 +941,7 @@ export const getHiveMindTasksAndEvents = createServerFn({ method: "GET" })
 // ── updateHiveMindTask ────────────────────────────────────────────────────────
 export const updateHiveMindTask = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({
       id:          z.string().uuid(),
       status:      z.enum(["suggested","approved","in_progress","completed"]).optional(),
@@ -946,18 +973,38 @@ export async function updateHiveMindTaskCore(
   },
 ): Promise<{ ok: true }> {
   const { id, ...updates } = data;
-  // Executable tasks are lifecycle-owned by the execution engine: manual
-  // status writes would fake progress/completion without an execution record,
-  // so they are rejected server-side (UI hides the controls, but this is the
-  // enforcement point).
+  // Manual status switching is a Human-Task privilege. Mind task statuses
+  // derive from executions/approvals — manual writes would fake progress:
+  //   • executable tasks: always rejected (engine-owned lifecycle);
+  //   • informational Mind tasks with an intelligence packet: must use
+  //     acknowledgeMindTask which records evidence — direct "completed" is
+  //     also rejected here to prevent silent status faking;
+  //   • other informational tasks (no packet / pre-gate legacy): only
+  //     "completed" is allowed as a lightweight acknowledgement;
+  //   • Human Tasks (source=manual or metadata.human_task): full control.
+  // UI hides the controls, but this is the server-side enforcement point.
   if (updates.status !== undefined) {
     const { data: row, error: re } = await ctx.sb.from("hivemind_tasks")
-      .select("task_category")
+      .select("task_category, source, metadata, intelligence_packet")
       .eq("id", id).eq("workspace_id", ctx.workspaceId)
       .maybeSingle();
     if (re) throw re;
-    if (row?.task_category === "executable") {
-      throw new Error("This task is run by its assigned Mind — approve & run it instead of changing status manually.");
+    if (row && !isHumanTaskRow(row)) {
+      if (row.task_category === "executable") {
+        throw new Error("This task is run by its assigned Mind — approve & run it instead of changing status manually.");
+      }
+      if (updates.status !== "completed") {
+        throw new Error(
+          "Mind task statuses are driven by the Mind's own pipeline — you can acknowledge (complete) this task, but not move it manually.",
+        );
+      }
+      // Packet-backed informational tasks must be acknowledged via
+      // acknowledgeMindTask so the evidence timestamp is recorded.
+      if (row.task_category === "informational" && row.intelligence_packet != null) {
+        throw new Error(
+          "This task was generated by a Mind — use the Acknowledge button to mark it done with evidence recorded.",
+        );
+      }
     }
   }
   const { error } = await ctx.sb.from("hivemind_tasks")
@@ -968,10 +1015,58 @@ export async function updateHiveMindTaskCore(
   return { ok: true };
 }
 
+// ── acknowledgeMindTask ───────────────────────────────────────────────────────
+export const acknowledgeMindTask = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .validator((input: unknown) => z.object({ id: z.string().uuid() }).parse(input))
+  .handler(async ({ context, data }) =>
+    acknowledgeMindTaskCore(
+      { sb: context.supabase as any, workspaceId: context.workspaceId! },
+      { id: data.id },
+    )
+  );
+
+/**
+ * Shared acknowledge core — marks an informational Mind task completed and
+ * records `acknowledged_at` in metadata as lightweight evidence.
+ *
+ * Blocked on:
+ *   • executable tasks — use approveAndRunTask instead;
+ *   • human tasks — use updateHiveMindTask with full status cycle.
+ */
+export async function acknowledgeMindTaskCore(
+  ctx: { sb: any; workspaceId: string },
+  data: { id: string },
+): Promise<{ ok: true }> {
+  const { data: row, error: re } = await ctx.sb.from("hivemind_tasks")
+    .select("task_category, source, metadata, intelligence_packet, status")
+    .eq("id", data.id).eq("workspace_id", ctx.workspaceId)
+    .maybeSingle();
+  if (re) throw re;
+  if (!row) throw new Error("Task not found.");
+  if (row.task_category === "executable") {
+    throw new Error("Executable tasks cannot be acknowledged — use Approve & Run to start them.");
+  }
+  if (isHumanTaskRow(row)) {
+    throw new Error("Human tasks use the manual status cycle, not the acknowledge action.");
+  }
+  const now = new Date().toISOString();
+  const updatedMetadata: Record<string, unknown> = {
+    ...(row.metadata ?? {}),
+    acknowledged_at: now,
+  };
+  const { error } = await ctx.sb.from("hivemind_tasks")
+    .update({ status: "completed", metadata: updatedMetadata, updated_at: now })
+    .eq("id", data.id)
+    .eq("workspace_id", ctx.workspaceId);
+  if (error) throw error;
+  return { ok: true };
+}
+
 // ── createHiveMindTask ────────────────────────────────────────────────────────
 export const createHiveMindTask = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({
       title:       z.string().min(1).max(300),
       description: z.string().max(2000).optional(),
@@ -1001,8 +1096,16 @@ export async function createHiveMindTaskCore(
   const { sb, workspaceId } = ctx;
   const { assertProposalAllowed } = await import("@/lib/hivemind/mode-gate.server");
   await assertProposalAllowed(sb, workspaceId);
+  // Explicit human-created manual reminder — permanently labelled Human Task
+  // (bypasses the packet requirement but can never be executable).
+  const { prepareMindTaskInsert } = await import("@/lib/minds/intelligence-packet.server");
+  const row0 = prepareMindTaskInsert(
+    { workspace_id: workspaceId, ...data, status: "suggested", source: "manual" },
+    null,
+    { humanTask: true },
+  );
   const { data: row, error } = await sb.from("hivemind_tasks")
-    .insert({ workspace_id: workspaceId, ...data, status: "suggested", source: "manual" })
+    .insert(row0)
     .select()
     .single();
   if (error) throw error;
@@ -1012,7 +1115,7 @@ export async function createHiveMindTaskCore(
 // ── addHiveMindTaskComment ────────────────────────────────────────────────────
 export const addHiveMindTaskComment = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({
       taskId: z.string().uuid(),
       author: z.string().min(1).max(100),
@@ -1042,7 +1145,7 @@ export const addHiveMindTaskComment = createServerFn({ method: "POST" })
 // ── deleteHiveMindTask ────────────────────────────────────────────────────────
 export const deleteHiveMindTask = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => z.object({ id: z.string().uuid() }).parse(input))
+  .validator((input: unknown) => z.object({ id: z.string().uuid() }).parse(input))
   .handler(async ({ context, data }) => {
     const sb = context.supabase as any;
     const { error } = await sb.from("hivemind_tasks")
@@ -1056,7 +1159,7 @@ export const deleteHiveMindTask = createServerFn({ method: "POST" })
 // ── markHiveMindEventsRead ────────────────────────────────────────────────────
 export const markHiveMindEventsRead = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({ ids: z.array(z.string().uuid()).optional() }).parse(input)
   )
   .handler(async ({ context, data }) => {

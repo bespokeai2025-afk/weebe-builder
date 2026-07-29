@@ -50,3 +50,11 @@ Normalised by sync code (`normaliseWbahCall`):
 - `"no_answer"` — raw: "not_connected", "voicemail", "no_answer", "missed"
 - `"failed"` — raw: "failed"
 - fallback: raw value or "completed"
+
+## Column trap: wbah_calls has no created_at / is_voicemail / cost_cents
+Any query on wbah_calls must filter/select `started_at` (not created_at) and derive
+voicemail from `end_reason === "voicemail_reached"`. Selecting a nonexistent column makes
+PostgREST error — inside a try/catch this silently zeroes whole report snapshots
+(the Analytics Hub WBAH report snapshot failed this way for months).
+**How to apply:** timestamp basis for every WBAH surface = started_at, so single-day
+totals reconcile with the analytics page (London window, inclusive start / exclusive end).

@@ -29,7 +29,7 @@ export const getKnowledgeGraphSummaryFn = createServerFn({ method: "POST" })
 
 export const listKnowledgeGraphNodesFn = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth, requirePlatformAdmin])
-  .inputValidator((input) =>
+  .validator((input) =>
     z
       .object({
         nodeType: z.string().optional(),
@@ -47,7 +47,7 @@ export const listKnowledgeGraphNodesFn = createServerFn({ method: "POST" })
 
 export const getKnowledgeGraphViewFn = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth, requirePlatformAdmin])
-  .inputValidator((input) =>
+  .validator((input) =>
     z.object({ limit: z.number().int().positive().max(1000).optional() }).parse(input ?? {}),
   )
   .handler(async ({ context, data }) => {
@@ -59,7 +59,7 @@ export const getKnowledgeGraphViewFn = createServerFn({ method: "POST" })
 
 export const getNodeDependenciesFn = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth, requirePlatformAdmin])
-  .inputValidator((input) =>
+  .validator((input) =>
     z
       .object({
         nodeId: z.string().uuid(),

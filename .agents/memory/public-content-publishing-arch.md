@@ -33,3 +33,7 @@ description: Lovable blog API — content model, dual approvals, honest states, 
 - **Why:** the calendar row IS the same campaign's content project — not a real duplicate; campaign-level dup check still excludes only campaignId.
 - `blocked` items may resubmit via requestContentApproval (gate re-runs); previously required a manual status reset.
 - internal_links must be site-relative paths ("/blog/…"), bare slugs fail readiness.
+
+## Approval ≠ publish; mode-query staleness
+- Approving the publication action only sets ready_to_publish — publishing still needs an explicit publishNow/schedule (by design). "No pending actions + not published" usually means both approvals already executed and the publish trigger is the missing step; check hivemind_actions status before assuming a visibility bug.
+- The `["hivemind-mode"]` query must never use staleTime Infinity with silent error fallback: a failed fetch (stale session after republish) pins a wrong fallback mode all session and makes Action Centre messaging contradict Settings. Use short staleTime + retry + refetchOnWindowFocus.

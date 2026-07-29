@@ -266,6 +266,9 @@ export async function createAutonomousVideoQueueEntries(
 
   for (const proposal of proposals.slice(0, 2)) {
     try {
+      // JUSTIFIED-EXCEPTION (Task #500): writes to hivemind_actions (approval queue),
+      // not hivemind_tasks. The intelligence packet gate fires in hivemind.actions.ts::executeAction
+      // when the action is approved and a hivemind_tasks row is created.
       await sb.from("hivemind_actions").insert({
         workspace_id: workspaceId,
         action_type:  "video_proposal",
@@ -318,7 +321,7 @@ export const getVideoProposals = createServerFn({ method: "GET" })
 
 export const updateVideoProposalStatus = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({
       proposalId: z.string().uuid(),
       status:     z.enum(["draft", "approved", "rejected"]),

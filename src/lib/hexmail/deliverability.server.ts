@@ -232,7 +232,7 @@ export const getSenderDomains = createServerFn({ method: "GET" })
 // Add sender domain
 export const addSenderDomain = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator(z.object({
+  .validator(z.object({
     domain:        z.string().min(3),
     provider:      z.string().default("resend"),
     dkimSelector:  z.string().optional(),
@@ -281,7 +281,7 @@ export const addSenderDomain = createServerFn({ method: "POST" })
 // Re-check DNS for a domain
 export const recheckDomainDns = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator(z.object({ domainId: z.string().uuid() }))
+  .validator(z.object({ domainId: z.string().uuid() }))
   .handler(async ({ context, data }) => {
     const sb = context.supabase as any;
     const workspaceId = context.workspaceId;
@@ -325,7 +325,7 @@ export const recheckDomainDns = createServerFn({ method: "POST" })
 // Update domain DKIM selector
 export const updateDkimSelector = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator(z.object({ domainId: z.string().uuid(), selector: z.string().min(1) }))
+  .validator(z.object({ domainId: z.string().uuid(), selector: z.string().min(1) }))
   .handler(async ({ context, data }) => {
     const sb = context.supabase as any;
     const workspaceId = context.workspaceId;
@@ -339,7 +339,7 @@ export const updateDkimSelector = createServerFn({ method: "POST" })
 // Delete sender domain
 export const deleteSenderDomain = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator(z.object({ domainId: z.string().uuid() }))
+  .validator(z.object({ domainId: z.string().uuid() }))
   .handler(async ({ context, data }) => {
     const sb = context.supabase as any;
     const workspaceId = context.workspaceId;
@@ -368,7 +368,7 @@ export const getMailboxes = createServerFn({ method: "GET" })
 // Add mailbox
 export const addMailbox = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator(z.object({
+  .validator(z.object({
     domainId:       z.string().uuid(),
     emailAddress:   z.string().email(),
     dailySendLimit: z.number().int().min(1).max(10000).default(50),
@@ -393,7 +393,7 @@ export const addMailbox = createServerFn({ method: "POST" })
 // Update mailbox status / limits
 export const updateMailbox = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator(z.object({
+  .validator(z.object({
     mailboxId:      z.string().uuid(),
     status:         z.string().optional(),
     dailySendLimit: z.number().int().min(1).max(10000).optional(),
@@ -415,7 +415,7 @@ export const updateMailbox = createServerFn({ method: "POST" })
 // Delete mailbox
 export const deleteMailbox = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator(z.object({ mailboxId: z.string().uuid() }))
+  .validator(z.object({ mailboxId: z.string().uuid() }))
   .handler(async ({ context, data }) => {
     const sb = context.supabase as any;
     const workspaceId = context.workspaceId;
@@ -444,7 +444,7 @@ export const getWarmupPlans = createServerFn({ method: "GET" })
 // Create warmup plan
 export const createWarmupPlan = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator(z.object({
+  .validator(z.object({
     domainId:             z.string().uuid(),
     mailboxId:            z.string().uuid(),
     name:                 z.string().min(1),
@@ -497,7 +497,7 @@ export const createWarmupPlan = createServerFn({ method: "POST" })
 // Pause / resume / cancel warmup plan
 export const updateWarmupPlan = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator(z.object({
+  .validator(z.object({
     planId: z.string().uuid(),
     status: z.enum(["active", "paused", "cancelled"]),
   }))
@@ -514,7 +514,7 @@ export const updateWarmupPlan = createServerFn({ method: "POST" })
 // Get warmup daily targets for a plan
 export const getWarmupProgress = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
-  .inputValidator(z.object({ planId: z.string().uuid() }))
+  .validator(z.object({ planId: z.string().uuid() }))
   .handler(async ({ context, data }) => {
     const sb = context.supabase as any;
     const workspaceId = context.workspaceId;
@@ -549,7 +549,7 @@ export const getReputationEvents = createServerFn({ method: "GET" })
 // Pre-send safety gate — checks if a sender email is safe to send from
 export const checkSendGate = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator(z.object({ senderEmail: z.string().email() }))
+  .validator(z.object({ senderEmail: z.string().email() }))
   .handler(async ({ context, data }) => {
     const sb = context.supabase as any;
     const workspaceId = context.workspaceId;
@@ -837,7 +837,7 @@ export async function checkResendWebhookStatusForWorkspace(workspaceId: string):
 
 export const deleteResendWebhook = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input) => z.object({ webhookId: z.string() }).parse(input))
+  .validator((input) => z.object({ webhookId: z.string() }).parse(input))
   .handler(async ({ context, data }) => {
     const { supabase, workspaceId } = context;
     if (!workspaceId) throw new Error("No active workspace");

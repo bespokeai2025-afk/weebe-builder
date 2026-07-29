@@ -54,7 +54,7 @@ const FeedInput = z.object({
 
 export const getTrendFeed = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((i: z.infer<typeof FeedInput> | undefined) => (i ? FeedInput.parse(i) : {}))
+  .validator((i: z.infer<typeof FeedInput> | undefined) => (i ? FeedInput.parse(i) : {}))
   .handler(async ({ data, context }) => {
     const sb = context.supabase as any;
     const workspaceId = context.workspaceId;
@@ -240,7 +240,7 @@ export async function applyTrendItemActionCore(
 
 export const applyTrendItemAction = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((i: z.infer<typeof ItemActionInput>) => ItemActionInput.parse(i))
+  .validator((i: z.infer<typeof ItemActionInput>) => ItemActionInput.parse(i))
   .handler(async ({ data, context }) => {
     const workspaceId = context.workspaceId;
     if (!workspaceId) throw new Error("No workspace");
@@ -376,7 +376,7 @@ export async function createContentFromTrendCore(
 
 export const createContentFromTrend = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((i: z.infer<typeof CreateContentInput>) => CreateContentInput.parse(i))
+  .validator((i: z.infer<typeof CreateContentInput>) => CreateContentInput.parse(i))
   .handler(async ({ data, context }) => {
     const workspaceId = context.workspaceId;
     if (!workspaceId) throw new Error("No workspace");
@@ -397,7 +397,7 @@ const SettingsInput = z.object({
 
 export const updateTrendScoutSettings = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((i: z.infer<typeof SettingsInput>) => SettingsInput.parse(i))
+  .validator((i: z.infer<typeof SettingsInput>) => SettingsInput.parse(i))
   .handler(async ({ data, context }) => {
     const workspaceId = context.workspaceId;
     const userId = context.userId;

@@ -550,7 +550,7 @@ function ReportViewModal({ q, onClose }: { q: any; onClose: () => void }) {
             <div>
               <h4 className="mb-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Insights</h4>
               <ul className="list-disc pl-4 text-xs text-foreground/70">
-                {r.insights_json.map((it: any, i: number) => <li key={i}>{typeof it === "string" ? it : it?.text ?? JSON.stringify(it)}</li>)}
+                {r.insights_json.map((it: any, i: number) => <li key={i}>{renderInsight(it)}</li>)}
               </ul>
             </div>
           )}
@@ -558,18 +558,84 @@ function ReportViewModal({ q, onClose }: { q: any; onClose: () => void }) {
             <div>
               <h4 className="mb-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Recommendations</h4>
               <ul className="list-disc pl-4 text-xs text-foreground/70">
-                {r.recommendations_json.map((it: any, i: number) => <li key={i}>{typeof it === "string" ? it : it?.action ?? JSON.stringify(it)}</li>)}
+                {r.recommendations_json.map((it: any, i: number) => <li key={i}>{renderInsight(it)}</li>)}
               </ul>
             </div>
           )}
-          {r.metrics_json && (
-            <pre className="max-h-56 overflow-auto rounded-lg border border-white/[0.06] bg-card/40 p-3 text-[11px] text-muted-foreground">
-              {JSON.stringify(r.metrics_json, null, 2)}
-            </pre>
-          )}
+          {r.metrics_json && <MetricsGrid metrics={r.metrics_json} />}
         </div>
       )}
     </ModalShell>
+  );
+}
+
+/** Render an insight/recommendation entry as readable text — entries may be
+ *  plain strings, JSON-stringified objects, or objects with text/title/detail/action. */
+function renderInsight(it: any): string {
+  let v = it;
+  if (typeof v === "string") {
+    const t = v.trim();
+    if (t.startsWith("{") && t.endsWith("}")) {
+      try { v = JSON.parse(t); } catch { return v; }
+    } else return v;
+  }
+  if (v && typeof v === "object") {
+    const title = v.title ?? v.text ?? v.action ?? null;
+    const detail = v.detail ?? v.description ?? null;
+    if (title && detail) return `${title} — ${detail}`;
+    if (title) return String(title);
+    if (detail) return String(detail);
+  }
+  return typeof v === "object" ? JSON.stringify(v) : String(v);
+}
+
+const METRIC_LABELS: Record<string, string> = {
+  run_date: "Run date", frequency: "Frequency", campaign_name: "Campaign",
+  campaign_id: "Campaign ID", campaign_agent_id: "Agent",
+  calls_total: "Calls dialled", calls_connected: "Connected",
+  calls_voicemail: "Voicemail", calls_failed: "Failed",
+  meetings_booked: "Booked", positive_sentiment: "Positive sentiment",
+  negative_sentiment: "Negative sentiment", neutral_sentiment: "Neutral sentiment",
+  connection_rate: "Connection rate", voicemail_rate: "Voicemail rate",
+  total_cost_cents: "Total cost", date_range_start: "Window start", date_range_end: "Window end",
+};
+const METRIC_HIDDEN = new Set(["campaign_id", "campaign_agent_id"]);
+
+function fmtMetricValue(key: string, v: any): string {
+  if (v == null || v === "") return "—";
+  if (key === "total_cost_cents") return `£${(Number(v) / 100).toFixed(2)}`;
+  if (/_rate$/.test(key)) return `${Number(v).toFixed(1)}%`;
+  if (/^date_range_|_at$/.test(key) || /^\d{4}-\d{2}-\d{2}T/.test(String(v))) {
+    const d = new Date(String(v));
+    if (!Number.isNaN(d.getTime()))
+      return d.toLocaleString("en-GB", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit", timeZone: "Europe/London" });
+  }
+  if (typeof v === "number") return v.toLocaleString("en-GB");
+  if (typeof v === "object") return JSON.stringify(v);
+  return String(v);
+}
+
+/** Human-readable key metrics grid (replaces the old raw JSON dump). */
+function MetricsGrid({ metrics }: { metrics: any }) {
+  if (!metrics || typeof metrics !== "object" || Array.isArray(metrics)) return null;
+  const entries = Object.entries(metrics).filter(
+    ([k, v]) => !METRIC_HIDDEN.has(k) && (typeof v !== "object" || v === null),
+  );
+  if (entries.length === 0) return null;
+  return (
+    <div>
+      <h4 className="mb-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Key figures</h4>
+      <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 rounded-lg border border-white/[0.06] bg-card/40 p-3 sm:grid-cols-3">
+        {entries.map(([k, v]) => (
+          <div key={k} className="min-w-0">
+            <div className="truncate text-[11px] text-muted-foreground">
+              {METRIC_LABELS[k] ?? k.replace(/_/g, " ").replace(/^./, (c) => c.toUpperCase())}
+            </div>
+            <div className="truncate text-xs font-medium tabular-nums text-foreground/90">{fmtMetricValue(k, v)}</div>
+          </div>
+        ))}
+      </div>
+    </div>
   );
 }
 

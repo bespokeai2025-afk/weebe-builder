@@ -1,0 +1,117 @@
+# TARGETED WEBEE FIX — WBAH HIVEMIND LIVE ACTIVITY ONLY
+
+Before changing anything, create a Git checkpoint containing all current work and report the commit reference.
+
+Do not modify:
+
+- People → Calls
+- Sidebar Calls page
+- Retell ingestion or synchronisation
+- Existing task/execution upgrades
+- Other workspaces
+- Unrelated files or features
+
+Verified facts:
+
+- The existing WBAH Calls pages show the correct data.
+- Retell and WEBEE show approximately 702–703 calls for today.
+- Only HiveMind incorrectly reports zero calls.
+- HiveMind also fails to report correct bookings and general daily activity.
+
+Fix only HiveMind’s live-data retrieval, tool routing and response handling for the WeBuyAnyHouse workspace.
+
+## Diagnose
+
+Trace the real WBAH HiveMind request:
+
+“How many calls have we had today?”
+
+Identify:
+
+- HiveMind tool selected
+- service called
+- table or API queried
+- workspace ID
+- Retell workspace
+- date field
+- timezone
+- filters applied
+- cache used
+- whether the live tool is skipped
+- whether a query error is converted into zero
+
+Report the exact root cause.
+
+## Fix
+
+Make HiveMind use the same existing authoritative WBAH sources already providing the correct Calls and booking data.
+
+For today, use the confirmed workspace timezone, expected to be Europe/London.
+
+HiveMind must retrieve:
+
+- total calls today
+- completed calls
+- connected calls
+- voicemail outcomes
+- failed calls
+- qualified calls
+- positive calls
+- calls resulting in bookings
+- bookings created today
+- appointments scheduled for today
+- leads created or updated today
+
+The total must include all call outcomes.
+
+Qualified and positive calls are subsets and must not replace the total.
+
+Questions containing:
+
+- today
+- calls
+- business activity
+- what happened today
+- bookings
+- appointments
+- leads
+- qualified calls
+
+must force HiveMind to call live workspace data.
+
+HiveMind must not answer from memory, Business DNA, old summaries, standard-account tables or cached prose.
+
+A failed or stale query must return:
+
+“Current activity data is unavailable or delayed.”
+
+It must never silently return zero.
+
+## Verify
+
+Ask HiveMind:
+
+1. How many calls have we had today?
+2. What has happened in the business today?
+3. How many calls were qualified today?
+4. How many bookings were created today?
+5. How many appointments are scheduled for today?
+
+Compare the results with the existing correct WBAH sources.
+
+Report only:
+
+- checkpoint reference
+- root cause
+- previous source
+- corrected source
+- exact files changed
+- timezone and date boundaries
+- final HiveMind counts
+- authoritative counts
+- targeted tests passed
+- confirmation no unrelated files changed
+
+Do not perform a repository-wide audit.
+Do not run a broad refactor.
+Do not modify either Calls page.

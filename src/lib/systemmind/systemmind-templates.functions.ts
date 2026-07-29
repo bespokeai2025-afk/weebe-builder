@@ -24,7 +24,7 @@ export const listWorkflowsForTemplatesFn = createServerFn({ method: "POST" })
 
 export const classifyWorkflowFn = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth, requirePlatformAdmin])
-  .inputValidator(idInput)
+  .validator(idInput)
   .handler(async ({ context, data }) => {
     const { workspaceId } = context as any;
     if (!workspaceId) throw new Error("No workspace");
@@ -36,7 +36,7 @@ export const classifyWorkflowFn = createServerFn({ method: "POST" })
 
 export const classifyAllWorkflowsFn = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth, requirePlatformAdmin])
-  .inputValidator((input) => z.object({ force: z.boolean().optional() }).parse(input ?? {}))
+  .validator((input) => z.object({ force: z.boolean().optional() }).parse(input ?? {}))
   .handler(async ({ context, data }) => {
     const { workspaceId } = context as any;
     if (!workspaceId) throw new Error("No workspace");
@@ -46,7 +46,7 @@ export const classifyAllWorkflowsFn = createServerFn({ method: "POST" })
 
 export const setWorkflowClassificationFn = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth, requirePlatformAdmin])
-  .inputValidator((input) =>
+  .validator((input) =>
     z
       .object({
         id: z.string().uuid(),
@@ -66,7 +66,7 @@ export const setWorkflowClassificationFn = createServerFn({ method: "POST" })
 
 export const listTemplatesFn = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth, requirePlatformAdmin])
-  .inputValidator((input) =>
+  .validator((input) =>
     z
       .object({
         category: z.string().optional(),
@@ -86,7 +86,7 @@ export const listTemplatesFn = createServerFn({ method: "POST" })
 
 export const getTemplateDetailFn = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth, requirePlatformAdmin])
-  .inputValidator(idInput)
+  .validator(idInput)
   .handler(async ({ context, data }) => {
     const { workspaceId } = context as any;
     if (!workspaceId) throw new Error("No workspace");
@@ -98,7 +98,7 @@ export const getTemplateDetailFn = createServerFn({ method: "POST" })
 
 export const createTemplateFromWorkflowFn = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth, requirePlatformAdmin])
-  .inputValidator((input) => z.object({ workflowId: z.string().uuid() }).parse(input))
+  .validator((input) => z.object({ workflowId: z.string().uuid() }).parse(input))
   .handler(async ({ context, data }) => {
     const { workspaceId, userId } = context as any;
     if (!workspaceId) throw new Error("No workspace");
@@ -108,7 +108,7 @@ export const createTemplateFromWorkflowFn = createServerFn({ method: "POST" })
 
 export const updateTemplateFn = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth, requirePlatformAdmin])
-  .inputValidator((input) =>
+  .validator((input) =>
     z.object({ id: z.string().uuid(), patch: z.record(z.string(), z.any()) }).parse(input),
   )
   .handler(async ({ context, data }) => {
@@ -120,7 +120,7 @@ export const updateTemplateFn = createServerFn({ method: "POST" })
 
 export const cloneTemplateFn = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth, requirePlatformAdmin])
-  .inputValidator((input) =>
+  .validator((input) =>
     z.object({ id: z.string().uuid(), newName: z.string().max(300).optional() }).parse(input),
   )
   .handler(async ({ context, data }) => {
@@ -134,7 +134,7 @@ export const cloneTemplateFn = createServerFn({ method: "POST" })
 
 export const exportTemplateFn = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth, requirePlatformAdmin])
-  .inputValidator(idInput)
+  .validator(idInput)
   .handler(async ({ context, data }) => {
     const { workspaceId } = context as any;
     if (!workspaceId) throw new Error("No workspace");
@@ -144,7 +144,7 @@ export const exportTemplateFn = createServerFn({ method: "POST" })
 
 export const importTemplateFn = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth, requirePlatformAdmin])
-  .inputValidator((input) => z.object({ payload: z.any() }).parse(input))
+  .validator((input) => z.object({ payload: z.any() }).parse(input))
   .handler(async ({ context, data }) => {
     const { workspaceId, userId } = context as any;
     if (!workspaceId) throw new Error("No workspace");
@@ -156,7 +156,7 @@ export const importTemplateFn = createServerFn({ method: "POST" })
 
 export const submitTemplateFn = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth, requirePlatformAdmin])
-  .inputValidator(idInput)
+  .validator(idInput)
   .handler(async ({ context, data }) => {
     const { workspaceId } = context as any;
     if (!workspaceId) throw new Error("No workspace");
@@ -166,7 +166,7 @@ export const submitTemplateFn = createServerFn({ method: "POST" })
 
 export const approveTemplateFn = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth, requirePlatformAdmin])
-  .inputValidator(idInput)
+  .validator(idInput)
   .handler(async ({ context, data }) => {
     const { workspaceId, userId } = context as any;
     if (!workspaceId) throw new Error("No workspace");
@@ -176,7 +176,7 @@ export const approveTemplateFn = createServerFn({ method: "POST" })
 
 export const rejectTemplateFn = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth, requirePlatformAdmin])
-  .inputValidator(idInput)
+  .validator(idInput)
   .handler(async ({ context, data }) => {
     const { workspaceId } = context as any;
     if (!workspaceId) throw new Error("No workspace");
@@ -186,7 +186,7 @@ export const rejectTemplateFn = createServerFn({ method: "POST" })
 
 export const archiveTemplateFn = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth, requirePlatformAdmin])
-  .inputValidator(idInput)
+  .validator(idInput)
   .handler(async ({ context, data }) => {
     const { workspaceId } = context as any;
     if (!workspaceId) throw new Error("No workspace");
@@ -196,7 +196,7 @@ export const archiveTemplateFn = createServerFn({ method: "POST" })
 
 export const deleteTemplateFn = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth, requirePlatformAdmin])
-  .inputValidator(idInput)
+  .validator(idInput)
   .handler(async ({ context, data }) => {
     const { workspaceId } = context as any;
     if (!workspaceId) throw new Error("No workspace");

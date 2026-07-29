@@ -36,7 +36,7 @@ export const updateIntelligenceSettingsFn = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth, requirePlatformAdmin])
   // Whitelist: ONLY the confidence threshold is writable. autonomous_deployment_enabled
   // is intentionally absent — it has no write path anywhere.
-  .inputValidator((input) => z.object({ confidence_threshold: z.number().int().min(0).max(100) }).parse(input))
+  .validator((input) => z.object({ confidence_threshold: z.number().int().min(0).max(100) }).parse(input))
   .handler(async ({ context, data }) => {
     const { workspaceId, userId } = context as any;
     if (!workspaceId) throw new Error("No workspace");
@@ -69,7 +69,7 @@ export const listTemplateConfidenceFn = createServerFn({ method: "POST" })
 
 export const generateDeploymentPlanFn = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth, requirePlatformAdmin])
-  .inputValidator((input) =>
+  .validator((input) =>
     z.object({ requestText: z.string().min(4).max(2000) }).parse(input),
   )
   .handler(async ({ context, data }) => {
@@ -94,7 +94,7 @@ export const listDeploymentPlansFn = createServerFn({ method: "POST" })
 
 export const getDeploymentPlanFn = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth, requirePlatformAdmin])
-  .inputValidator(idInput)
+  .validator(idInput)
   .handler(async ({ context, data }) => {
     const { workspaceId } = context as any;
     if (!workspaceId) throw new Error("No workspace");
@@ -104,7 +104,7 @@ export const getDeploymentPlanFn = createServerFn({ method: "POST" })
 
 export const deleteDeploymentPlanFn = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth, requirePlatformAdmin])
-  .inputValidator(idInput)
+  .validator(idInput)
   .handler(async ({ context, data }) => {
     const { workspaceId } = context as any;
     if (!workspaceId) throw new Error("No workspace");

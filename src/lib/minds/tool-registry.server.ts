@@ -265,6 +265,18 @@ export async function executeMindTool(opts: ExecuteMindToolInput): Promise<Execu
       };
     }
 
+    // 3b. Reject unregistered action_kind values (checked on raw input before
+    //     schema stripping, so the guard fires even when the tool has no schema).
+    const rawActionKind = (opts.input as any)?.action_kind;
+    if (rawActionKind != null) {
+      const { validateActionKind } = await import("./capability-registry.shared");
+      try {
+        validateActionKind(rawActionKind);
+      } catch (e: any) {
+        return await blocked(e.message);
+      }
+    }
+
     // 4. Validate input.
     let parsedInput: unknown = opts.input;
     if (tool.inputSchema) {

@@ -425,7 +425,7 @@ export const getHiveMindPlatformData = createServerFn({ method: "GET" })
 // ── Briefing data ──────────────────────────────────────────────────────────────
 export const getHiveMindBriefing = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({
       since:     z.string().optional(),
       staleDays: z.coerce.number().optional(),
@@ -587,7 +587,7 @@ export const getHiveMindBriefing = createServerFn({ method: "GET" })
 // ── Save tasks ─────────────────────────────────────────────────────────────────
 export const saveHiveMindTasks = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: { tasks: HiveMindTask[] }) => input)
+  .validator((input: { tasks: HiveMindTask[] }) => input)
   .handler(async ({ context, data }) => {
     const sb = context.supabase as any;
     const workspaceId = context.workspaceId;
@@ -631,7 +631,7 @@ export const getHiveMindAgentId = createServerFn({ method: "GET" })
 
 export const saveHiveMindAgentId = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input) => z.object({ agentId: z.string().nullable() }).parse(input))
+  .validator((input) => z.object({ agentId: z.string().nullable() }).parse(input))
   .handler(async ({ context, data }) => {
     const sb = context.supabase as any;
     const workspaceId = context.workspaceId;

@@ -26,6 +26,10 @@ registerMindTool({
   idempotent: true,
   estimatedCost: "none",
   platforms: ["web", "mobile", "api", "system"],
+  featureFamily: "content_publishing",
+  capabilityState: "available",
+  mobileAvailable: true,
+  currentHealth: "healthy",
   inputSchema: z.object({ status: z.string().max(60).optional(), limit: z.number().int().min(1).max(200).default(50) }),
   run: async (ctx: MindToolContext, input: any): Promise<MindToolRunResult> => {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
@@ -53,6 +57,10 @@ registerMindTool({
   idempotent: true,
   estimatedCost: "none",
   platforms: ["web", "mobile", "api", "system"],
+  featureFamily: "content_publishing",
+  capabilityState: "available",
+  mobileAvailable: true,
+  currentHealth: "healthy",
   inputSchema: z.object({ itemId: z.string().min(8).max(80) }),
   run: async (ctx: MindToolContext, input: any): Promise<MindToolRunResult> => {
     const { computeReadiness } = await import("@/lib/growthmind/public-content.server");
@@ -72,6 +80,10 @@ registerMindTool({
   idempotent: true,
   estimatedCost: "none",
   platforms: ["web", "mobile", "api", "system"],
+  featureFamily: "content_publishing",
+  capabilityState: "available",
+  mobileAvailable: true,
+  currentHealth: "healthy",
   inputSchema: z.object({ itemId: z.string().min(8).max(80) }),
   run: async (ctx: MindToolContext, input: any): Promise<MindToolRunResult> => {
     const { listVersions } = await import("@/lib/growthmind/public-content.server");
@@ -93,6 +105,10 @@ registerMindTool({
   idempotent: false,
   estimatedCost: "none",
   platforms: ["web", "mobile", "api", "system"],
+  featureFamily: "content_publishing",
+  capabilityState: "available",
+  mobileAvailable: true,
+  currentHealth: "healthy",
   inputSchema: z.object({ itemId: z.string().min(8).max(80) }),
   run: async (ctx: MindToolContext, input: any): Promise<MindToolRunResult> => {
     const { createArticlePreview } = await import("@/lib/growthmind/public-content.server");
@@ -113,6 +129,10 @@ registerMindTool({
   idempotent: true,
   estimatedCost: "low",
   platforms: ["web", "mobile", "api", "system"],
+  featureFamily: "content_publishing",
+  capabilityState: "available",
+  mobileAvailable: true,
+  currentHealth: "healthy",
   inputSchema: z.object({ itemId: z.string().min(8).max(80) }),
   run: async (ctx: MindToolContext, input: any): Promise<MindToolRunResult> => {
     const { requestContentApproval } = await import("@/lib/growthmind/publication-engine.server");
@@ -133,6 +153,11 @@ registerMindTool({
   idempotent: false,
   estimatedCost: "low",
   platforms: ["web", "mobile", "api", "system"],
+  featureFamily: "content_publishing",
+  capabilityState: "approval_required",
+  providerLimitations: "Published state is 'api_published / awaiting Lovable frontend' until live verification on the canonical host succeeds.",
+  mobileAvailable: true,
+  currentHealth: "healthy",
   inputSchema: z.object({ itemId: z.string().min(8).max(80) }),
   run: async (ctx: MindToolContext, input: any): Promise<MindToolRunResult> => {
     const { publishNow } = await import("@/lib/growthmind/publication-engine.server");
@@ -153,6 +178,10 @@ registerMindTool({
   idempotent: false,
   estimatedCost: "low",
   platforms: ["web", "mobile", "api", "system"],
+  featureFamily: "content_publishing",
+  capabilityState: "approval_required",
+  mobileAvailable: true,
+  currentHealth: "healthy",
   inputSchema: z.object({
     itemId: z.string().min(8).max(80),
     scheduledFor: z.string().datetime(),
@@ -177,6 +206,10 @@ registerMindTool({
   idempotent: true,
   estimatedCost: "none",
   platforms: ["web", "mobile", "api", "system"],
+  featureFamily: "content_publishing",
+  capabilityState: "available",
+  mobileAvailable: true,
+  currentHealth: "healthy",
   inputSchema: z.object({ itemId: z.string().min(8).max(80) }),
   run: async (ctx: MindToolContext, input: any): Promise<MindToolRunResult> => {
     const { cancelScheduledPublication } = await import("@/lib/growthmind/publication-engine.server");
@@ -197,6 +230,10 @@ registerMindTool({
   idempotent: true,
   estimatedCost: "none",
   platforms: ["web", "mobile", "api", "system"],
+  featureFamily: "content_publishing",
+  capabilityState: "approval_required",
+  mobileAvailable: true,
+  currentHealth: "healthy",
   inputSchema: z.object({ itemId: z.string().min(8).max(80) }),
   run: async (ctx: MindToolContext, input: any): Promise<MindToolRunResult> => {
     const { withdrawArticle } = await import("@/lib/growthmind/publication-engine.server");
@@ -217,6 +254,11 @@ registerMindTool({
   idempotent: false,
   estimatedCost: "none",
   platforms: ["web", "mobile", "api", "system"],
+  featureFamily: "content_publishing",
+  capabilityState: "approval_required",
+  rollbackSupported: true,
+  mobileAvailable: true,
+  currentHealth: "healthy",
   inputSchema: z.object({ itemId: z.string().min(8).max(80), targetVersion: z.number().int().min(1) }),
   run: async (ctx: MindToolContext, input: any): Promise<MindToolRunResult> => {
     const { rollbackArticle } = await import("@/lib/growthmind/publication-engine.server");
@@ -239,6 +281,10 @@ registerMindTool({
   idempotent: true,
   estimatedCost: "none",
   platforms: ["web", "mobile", "api", "system"],
+  featureFamily: "finance",
+  capabilityState: "available",
+  mobileAvailable: true,
+  currentHealth: "healthy",
   run: async (ctx: MindToolContext): Promise<MindToolRunResult> => {
     const { getPublicContentCostSummary } = await import("@/lib/accountsmind/public-content-costs.server");
     const r = await getPublicContentCostSummary(ctx.workspaceId);

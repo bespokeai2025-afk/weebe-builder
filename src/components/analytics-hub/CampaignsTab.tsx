@@ -10,6 +10,7 @@ import {
   ChartCard, InsightCard, TabError, MetricTile, CompactDonut,
   CHART, SENTIMENT_COLORS, gbp, pct, fmtInt, fmtSecs,
 } from "./shared";
+import { CampaignUsageSection } from "./CampaignUsageSection";
 
 export function CampaignsTab({ filter }: { filter: AnalyticsFilterState }) {
   const fn = useServerFn(getCampaignAnalytics);
@@ -26,7 +27,7 @@ export function CampaignsTab({ filter }: { filter: AnalyticsFilterState }) {
   if (d.error === "not_available_for_wbah")
     return <div className="px-6 pt-6"><EmptyState icon={Megaphone} title="Not available" message="Campaign analytics is not applicable to this workspace." /></div>;
   if (d.error) return <TabError message={`Campaign error: ${d.error}`} />;
-  if (d.mode === "wbah_dialler") return <WbahDiallerView w={d.wbah ?? {}} />;
+  if (d.mode === "wbah_dialler") return <WbahDiallerView w={d.wbah ?? {}} filter={filter} />;
 
   const campaigns: any[] = d.campaigns ?? [];
   const failures: any[] = d.failures ?? [];
@@ -34,6 +35,8 @@ export function CampaignsTab({ filter }: { filter: AnalyticsFilterState }) {
 
   return (
     <div className="space-y-5 px-6 pt-5">
+      <CampaignUsageSection filter={filter} />
+
       <ChartCard title="Today's Schedule" icon={CalendarClock} color={CHART.primary}>
         {schedule.length === 0 ? (
           <EmptyState
@@ -129,7 +132,7 @@ export function CampaignsTab({ filter }: { filter: AnalyticsFilterState }) {
 }
 
 /** WBAH — WeeBespoke dialler activity report (WBAH has no WEBEE campaigns). */
-function WbahDiallerView({ w }: { w: any }) {
+function WbahDiallerView({ w, filter }: { w: any; filter: AnalyticsFilterState }) {
   const total = Number(w.total ?? 0);
   const sent = w.sentiment ?? {};
   const reasons: any[] = w.reasons ?? [];
@@ -158,6 +161,8 @@ function WbahDiallerView({ w }: { w: any }) {
         <MetricTile label="Booked" value={fmtInt(w.booked)} icon={CalendarCheck} color={CHART.accent} />
       </div>
 
+      <CampaignUsageSection filter={filter} />
+
       {w.truncated && (
         <InsightCard tone="warning" icon={AlertTriangle} title="Large date range">
           This range has more calls than can be analysed in one pass — numbers cover the most recent calls only. Narrow the date range for exact figures.
@@ -169,7 +174,7 @@ function WbahDiallerView({ w }: { w: any }) {
           <div className="max-h-80 overflow-auto">
             <table className="w-full text-sm">
               <TableHead>
-                <Th>Campaign</Th><Th>Runs at</Th><Th>Targets</Th><Th>Calls</Th><Th>Connected</Th><Th>Positive</Th><Th>Booked</Th><Th>Voicemail</Th>
+                <Th>Campaign</Th><Th>Runs at</Th><Th>Targets</Th><Th>Calls</Th><Th>Matched</Th><Th>Connected</Th><Th>Positive</Th><Th>Booked</Th><Th>Voicemail</Th>
               </TableHead>
               <tbody>
                 {campaigns.map((c: any) => (
@@ -178,6 +183,15 @@ function WbahDiallerView({ w }: { w: any }) {
                     <td className="px-3 py-2 tabular-nums text-muted-foreground">{c.scheduledTime ? `${c.scheduledTime} UK` : "—"}</td>
                     <td className="px-3 py-2 text-xs text-muted-foreground">{c.leadStatus ?? "—"}</td>
                     <td className="px-3 py-2 tabular-nums">{fmtInt(c.calls)}</td>
+                    <td className="px-3 py-2 text-xs text-muted-foreground">
+                      {c.id === "__unassigned__"
+                        ? "—"
+                        : Number(c.verified ?? 0) > 0 && Number(c.inferred ?? 0) === 0
+                          ? <span className="text-emerald-400">Confirmed</span>
+                          : Number(c.verified ?? 0) > 0
+                            ? <span><span className="text-emerald-400">{fmtInt(c.verified)} confirmed</span> · {fmtInt(c.inferred)} estimated</span>
+                            : <span className="text-amber-400">Estimated</span>}
+                    </td>
                     <td className="px-3 py-2 tabular-nums">{fmtInt(c.connected)} <span className="text-xs text-muted-foreground">({pct(c.connectionRate)})</span></td>
                     <td className="px-3 py-2 tabular-nums text-emerald-400">{fmtInt(c.positive)}</td>
                     <td className="px-3 py-2 tabular-nums">{fmtInt(c.booked)}</td>
@@ -187,7 +201,13 @@ function WbahDiallerView({ w }: { w: any }) {
               </tbody>
             </table>
           </div>
-          {Number(w.campaignsUnattributed ?? 0) > 0 && (
+          {w.attribution && (
+            <p className="mt-2 text-xs text-muted-foreground">
+              Campaign matching: {fmtInt(w.attribution.verified)} confirmed from campaign records, {fmtInt(w.attribution.inferred)} estimated
+              from agent &amp; call time{Number(w.attribution.unassigned ?? 0) > 0 ? <>, {fmtInt(w.attribution.unassigned)} not matched to any campaign</> : null}.
+            </p>
+          )}
+          {!w.attribution && Number(w.campaignsUnattributed ?? 0) > 0 && (
             <p className="mt-2 text-xs text-muted-foreground">
               {fmtInt(w.campaignsUnattributed)} call(s) could not be matched to a campaign (agent not linked to any scheduled campaign).
             </p>

@@ -18,3 +18,9 @@ id = "SjMZVKtiJo8gRmmO5gnsL"
 uri = "file://docs/LOVABLE_BLOG_INTEGRATION_CONTRACT.md"
 type = "text"
 title = "Lovable Blog Integration Contract"
+
+[[outputs]]
+id = "-_9y2Gy5Y45NENwk7sJHj"
+uri = "file://.local/audit/HIVEMIND_MARKETING_INTELLIGENCE_AUDIT.md"
+type = "text"
+title = "HiveMind Marketing Intelligence — Read-Only Audit"

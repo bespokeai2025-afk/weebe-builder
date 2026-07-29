@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/button";
 import { SystemMindShell } from "./SystemMindShell";
 import { getSystemMindData } from "@/lib/systemmind/systemmind.functions";
 import { getSystemMindBriefing, buildSystemMindSummary } from "@/lib/systemmind/systemmind.ai";
+import { ActiveWorkOrdersWidget } from "@/components/minds/ActiveWorkOrdersWidget";
 
 const SEVERITY_COLOR: Record<string, string> = {
   critical: "text-red-400 bg-red-500/10 border-red-500/20",
@@ -284,6 +285,13 @@ export function SystemMindOverview() {
                 </div>
               </div>
             )}
+
+            {/* Active Work Orders */}
+            <ActiveWorkOrdersWidget
+              minds={["systemmind"]}
+              title="SystemMind Work Orders"
+              viewAllHref="/hivemind/work-orders"
+            />
           </div>
         )}
       </div>

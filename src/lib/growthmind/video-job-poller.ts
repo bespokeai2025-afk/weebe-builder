@@ -17,6 +17,7 @@
 
 import { createClient } from "@supabase/supabase-js";
 import { VeoProvider, resolveVeoConfig } from "../video/providers/veo.provider";
+import { VIDEO_SECOND_COSTS } from "../ai/model-registry.shared";
 
 // ── Sentinel patterns ─────────────────────────────────────────────────────────
 
@@ -441,7 +442,204 @@ export async function runVideoJobPoller(): Promise<PollerResult> {
   // ── Poll growthmind_video_clips (multi-clip composite jobs) ──────────────────
   await pollVideoClips(sb, wsCredsMap);
 
+  // ── Poll growthmind_video_jobs (Veo 3.1 approval-gated pipeline) ─────────────
+  await pollPipelineJobs(sb, wsCredsMap);
+
   return result;
+}
+
+// ── Veo 3.1 pipeline job polling (growthmind_video_jobs) ─────────────────────
+//
+// Jobs here have already consumed a cost approval; the poller ONLY completes
+// or fails them — it never resubmits a render (no auto-retry of paid work).
+
+const PIPELINE_CLAIM_STALE_MS = 3 * 60 * 1000;      // reclaim jobs stuck in a claim after 3 min
+const PIPELINE_JOB_TIMEOUT_MS = 2 * 60 * 60 * 1000; // fail renders stuck for 2h
+
+/**
+ * Poll a single rendering pipeline job against Veo, archive the output and
+ * write the outcome + AI usage ledger rows. Returns the updated row (or null
+ * when nothing changed). Shared by the background poller and on-demand polls.
+ */
+export async function completeRenderingJob(sb: any, row: any): Promise<any | null> {
+  if (!row?.provider_operation_id) return null;
+
+  const { data: veoSettings } = await Promise.resolve(
+    sb.from("provider_settings")
+      .select("credentials")
+      .eq("workspace_id", row.workspace_id)
+      .eq("provider_category", "video")
+      .eq("provider_name", "google_veo")
+      .maybeSingle()
+  ).catch(() => ({ data: null }));
+
+  const veoCfg = resolveVeoConfig((veoSettings?.credentials ?? {}) as Record<string, string>);
+  const veo = new VeoProvider(veoCfg);
+  if (!veo.authMode) return null;
+
+  const status = await veo.getStatus(row.provider_operation_id);
+  const nowIso = new Date().toISOString();
+
+  if (status.status === "processing" || status.status === "pending") {
+    await Promise.resolve(
+      sb.from("growthmind_video_jobs")
+        .update({ poll_count: (row.poll_count ?? 0) + 1, updated_at: nowIso, claimed_at: null })
+        .eq("id", row.id)
+    ).catch(() => {});
+    return null;
+  }
+
+  const { recordAiUsage } = await import("../ai/usage-ledger.server");
+  const billedSeconds = (row.duration_seconds ?? 8) * Math.max(1, row.variations ?? 1);
+
+  if (status.status === "completed") {
+    // Archive all variations; first one becomes the primary output.
+    const urls = (status.videoUrls && status.videoUrls.length > 0) ? status.videoUrls : [status.videoUrl];
+    const archivedUrls: string[] = [];
+    for (let i = 0; i < urls.length; i++) {
+      const archived = await archiveVideoToStorage(
+        sb, urls[i], row.workspace_id, `${row.id}-v${i}`,
+        veoCfg.accessToken ?? "", veoCfg.geminiApiKey ?? "",
+      );
+      archivedUrls.push(archived);
+    }
+
+    // CAS terminal transition: only the caller that flips rendering/archiving →
+    // ready writes the ledger row (prevents duplicate ledger rows when the
+    // background poller and an on-demand poll race).
+    const { data: updatedRows } = await Promise.resolve(
+      sb.from("growthmind_video_jobs")
+        .update({
+          status:              "ready",
+          output_url:          urls[0],
+          output_storage_path: archivedUrls[0] ?? null,
+          plan:                { ...(row.plan ?? {}), outputVariations: archivedUrls },
+          actual_cost_usd:     Math.round(billedSeconds * (VIDEO_SECOND_COSTS[row.model] ?? 0.75) * 10000) / 10000,
+          completed_at:        nowIso,
+          updated_at:          nowIso,
+          claimed_at:          null,
+        })
+        .eq("id", row.id)
+        .in("status", ["rendering", "archiving"])
+        .select("*")
+    ).catch(() => ({ data: null }));
+    const updated = updatedRows?.[0] ?? null;
+    if (!updated) return null; // someone else already settled this job — no ledger
+
+    await recordAiUsage({
+      workspaceId: row.workspace_id, department: "growthmind", feature: "video_render",
+      provider: "gemini", requestedModel: row.model,
+      endpoint: ":predictLongRunning", requestId: row.provider_operation_id,
+      videoSeconds: billedSeconds, status: "success",
+    });
+    return updated;
+  }
+
+  // Failed render — record the failed charge separately; NEVER auto-retry.
+  const reason = (status.status === "failed" ? status.error : null) ?? "The video engine couldn't finish this render.";
+  const { data: failedRows } = await Promise.resolve(
+    sb.from("growthmind_video_jobs")
+      .update({
+        status:         "failed",
+        failure_reason: String(reason).slice(0, 500),
+        completed_at:   nowIso,
+        updated_at:     nowIso,
+        claimed_at:     null,
+      })
+      .eq("id", row.id)
+      .in("status", ["rendering", "archiving"])
+      .select("*")
+  ).catch(() => ({ data: null }));
+  const updated = failedRows?.[0] ?? null;
+  if (!updated) return null; // already settled elsewhere — no duplicate ledger
+
+  await recordAiUsage({
+    workspaceId: row.workspace_id, department: "growthmind", feature: "video_render",
+    provider: "gemini", requestedModel: row.model,
+    endpoint: ":predictLongRunning", requestId: row.provider_operation_id,
+    videoSeconds: billedSeconds, status: "failed",
+    errorMessage: String(reason).slice(0, 500),
+  });
+  return updated;
+}
+
+async function pollPipelineJobs(
+  sb:         any,
+  _wsCredsMap: Record<string, { veoCreds: Record<string, string>; runwayKey: string }>,
+): Promise<void> {
+  const { data: jobs, error } = await Promise.resolve(
+    sb.from("growthmind_video_jobs")
+      .select("*")
+      .in("status", ["rendering", "archiving"])
+      .limit(25)
+  ).catch(() => ({ data: null, error: null }));
+
+  if (error) {
+    const isMissing =
+      (error as any).code === "PGRST205" ||
+      ((error as any).message?.includes("relation") && (error as any).message?.includes("does not exist"));
+    if (!isMissing) console.warn("[video-poller] Pipeline job query error:", (error as any).message);
+    return;
+  }
+  if (!jobs || jobs.length === 0) return;
+
+  const now = Date.now();
+
+  for (const job of jobs as any[]) {
+    // Timeout guard — a paid render stuck 2h+ is marked failed (no auto-retry).
+    const submittedAge = job.submitted_at ? now - new Date(job.submitted_at).getTime() : 0;
+    if (submittedAge > PIPELINE_JOB_TIMEOUT_MS) {
+      const { data: timedOut } = await Promise.resolve(
+        sb.from("growthmind_video_jobs")
+          .update({
+            status: "failed",
+            failure_reason: "The render took too long and was stopped. You can create a new render — this one won't be charged again automatically.",
+            updated_at: new Date().toISOString(),
+            claimed_at: null,
+          })
+          .eq("id", job.id)
+          .in("status", ["rendering", "archiving"])
+          .select("id")
+      ).catch(() => ({ data: null }));
+      if (timedOut && timedOut.length > 0) {
+        // Ledger the timed-out paid render (CAS won → exactly one row).
+        try {
+          const { recordAiUsage } = await import("../ai/usage-ledger.server");
+          await recordAiUsage({
+            workspaceId: job.workspace_id, department: "growthmind", feature: "video_render",
+            provider: "gemini", requestedModel: job.model,
+            endpoint: ":predictLongRunning", requestId: job.provider_operation_id ?? job.id,
+            videoSeconds: (job.duration_seconds ?? 8) * Math.max(1, job.variations ?? 1),
+            status: "failed", errorMessage: "Render timed out after 2 hours.",
+          });
+        } catch { /* ledger is best-effort on timeout */ }
+      }
+      continue;
+    }
+
+    // CAS claim so overlapping poller ticks don't double-process a job.
+    const claimCutoff = new Date(now - PIPELINE_CLAIM_STALE_MS).toISOString();
+    const { data: claimed } = await Promise.resolve(
+      sb.from("growthmind_video_jobs")
+        .update({ claimed_at: new Date().toISOString() })
+        .eq("id", job.id)
+        .in("status", ["rendering", "archiving"])
+        .or(`claimed_at.is.null,claimed_at.lt.${claimCutoff}`)
+        .select("*")
+    ).catch(() => ({ data: null }));
+    if (!claimed || claimed.length === 0) continue;
+
+    try {
+      await completeRenderingJob(sb, claimed[0]);
+    } catch (e: any) {
+      console.warn(`[video-poller] pipeline job ${job.id} poll error:`, e?.message ?? e);
+      await Promise.resolve(
+        sb.from("growthmind_video_jobs")
+          .update({ claimed_at: null, updated_at: new Date().toISOString() })
+          .eq("id", job.id)
+      ).catch(() => {});
+    }
+  }
 }
 
 // ── Clip polling — polls per-scene Veo jobs for composite videos ──────────────

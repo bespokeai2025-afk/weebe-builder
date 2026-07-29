@@ -158,7 +158,7 @@ export const adminListWorkspacesWithModules = createServerFn({ method: "GET" })
 
 export const adminSetWorkspaceModules = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((d: { workspaceId: string; modules: string[]; planTier: string }) => d)
+  .validator((d: { workspaceId: string; modules: string[]; planTier: string }) => d)
   .handler(async ({ context, data }) => {
     await assertAdmin(context.userId);
     const { error } = await supabaseAdmin
@@ -177,7 +177,7 @@ export const adminSetWorkspaceModules = createServerFn({ method: "POST" })
 
 export const requestModuleUpgrade = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((d: { moduleId: string; moduleName: string; notes?: string }) => d)
+  .validator((d: { moduleId: string; moduleName: string; notes?: string }) => d)
   .handler(async ({ context, data }) => {
     const { supabase, userId } = context;
     const { data: profile } = await supabase
@@ -234,7 +234,7 @@ export const adminListModuleRequests = createServerFn({ method: "GET" })
 
 export const adminDecideModuleRequest = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((d: { requestId: string; approve: boolean }) => d)
+  .validator((d: { requestId: string; approve: boolean }) => d)
   .handler(async ({ context, data }) => {
     await assertAdmin(context.userId);
 

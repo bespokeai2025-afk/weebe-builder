@@ -246,7 +246,7 @@ function rowToPost(r: any): BlogPost {
 
 export const generateBlogPost = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({
       topic:     z.string().min(3).max(500),
       keyword:   z.string().max(200).default(""),
@@ -335,7 +335,7 @@ export const getBlogPosts = createServerFn({ method: "GET" })
 
 export const saveBlogPost = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({
       id:            z.string().uuid().optional(),
       title:         z.string().min(1).max(500),
@@ -395,7 +395,7 @@ export const saveBlogPost = createServerFn({ method: "POST" })
 
 export const deleteBlogPost = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => z.object({ id: z.string().uuid() }).parse(input))
+  .validator((input: unknown) => z.object({ id: z.string().uuid() }).parse(input))
   .handler(async ({ context, data }) => {
     const sb          = context.supabase as any;
     const workspaceId = context.workspaceId;
@@ -438,7 +438,7 @@ export const getBlogPublishSettings = createServerFn({ method: "GET" })
 
 export const saveBlogPublishSettings = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({
       wordpressUrl:         z.string().max(500).default(""),
       wordpressUsername:    z.string().max(200).default(""),
@@ -482,7 +482,7 @@ export const saveBlogPublishSettings = createServerFn({ method: "POST" })
 
 export const publishToWordPress = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({
       postId:    z.string().uuid(),
       scheduleDate: z.string().nullable().optional(),
@@ -639,7 +639,7 @@ export const publishToWordPress = createServerFn({ method: "POST" })
 
 export const publishToWebflow = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({
       postId:       z.string().uuid(),
       scheduleDate: z.string().nullable().optional(),
@@ -856,6 +856,9 @@ export const autoQueueBlogDrafts = createServerFn({ method: "POST" })
     // Create hivemind approval action (skipped in observe mode)
     const { isProposalAllowed } = await import("@/lib/hivemind/mode-gate.server");
     if (insertedId && (await isProposalAllowed(sb, workspaceId))) {
+      // JUSTIFIED-EXCEPTION (Task #500): writes to hivemind_actions (approval queue),
+      // not hivemind_tasks. The intelligence packet gate fires in hivemind.actions.ts::executeAction
+      // when the action is approved and a hivemind_tasks row is created.
       await sb.from("hivemind_actions").insert({
         workspace_id: workspaceId,
         action_type:  "blog_draft",

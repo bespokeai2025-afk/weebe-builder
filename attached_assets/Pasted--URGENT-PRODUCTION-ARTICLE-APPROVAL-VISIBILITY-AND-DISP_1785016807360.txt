@@ -1,0 +1,291 @@
+# URGENT PRODUCTION ARTICLE APPROVAL VISIBILITY AND DISPATCH FIX
+
+The production application has been republished, but the required content approval is not visible in HiveMind → Actions → Pending Actions.
+
+The article is:
+
+Title:
+Recover Missed Calls After Hours with AI Receptionists
+
+Slug:
+missed-calls-ai-receptionist-uk-businesses
+
+The Action Approval Centre currently shows:
+
+- No pending actions
+- Executed: 2
+- Rejected: 2
+- All Actions: 4
+
+There is also an autonomy inconsistency:
+
+- The sidebar says Operator is active
+- The Action Centre says “Enable Operator or Executive Operator mode”
+- The empty state says “Switch to Operator mode”
+
+Do not create a parallel approval system.
+
+Do not bypass either required approval.
+
+Diagnose and repair this against the live production workspace.
+
+## 1. Verify the production build
+
+Test:
+
+https://webeereceptionist.com/api/public/v1/sites/webespokeai/posts
+
+Confirm whether it returns the new JSON API response rather than SPA HTML.
+
+Report:
+
+- Production deployment version
+- Deployed commit
+- Response status
+- Content-Type
+- Whether the new public-content and approval code is live
+
+If production is still running the old build, fix the deployment before doing anything else.
+
+## 2. Locate the real article and connected records
+
+Find the production records for:
+
+- Article
+- Current article version
+- Content Studio project
+- SEO campaign
+- Deployment package
+- Work order
+- Task
+- Execution
+- Safety Gate result
+- Content approval
+- Publication approval
+
+Report safe identifiers internally and show the user-facing relationship.
+
+Confirm:
+
+- workspace_id
+- article status
+- current version
+- Safety Gate status
+- content approval status
+- publication approval status
+- related action status
+- related task status
+- related execution status
+
+Do not expose secrets or private payloads.
+
+## 3. Search every action state
+
+Search for actions linked by:
+
+- article ID
+- content project ID
+- work order ID
+- execution ID
+- campaign ID
+- slug
+- article title
+
+Check whether the expected action is:
+
+- Pending
+- Approved
+- Consumed
+- Executed
+- Rejected
+- Cancelled
+- Expired
+- Orphaned
+- Linked to another workspace
+- Missing entirely
+
+Do not assume it was never created merely because the Pending Actions page is empty.
+
+Explain the exact state found.
+
+## 4. Verify workspace and permission filtering
+
+Confirm the authenticated production user is viewing the same workspace that owns the article.
+
+Inspect the Action Approval Centre query for:
+
+- Correct workspace filter
+- Correct user permission
+- Correct package entitlement
+- Correct action type
+- Correct pending-status mapping
+- Correct article-version relationship
+- Correct sensitive-action classification
+- No stale cache
+- No hidden pagination
+- No filter excluding SEO or content approvals
+
+The Action Centre must never show another workspace’s actions.
+
+It must show every legitimate pending approval for the active workspace.
+
+## 5. Fix the autonomy-mode inconsistency
+
+Use the one authoritative effective-autonomy resolver already created.
+
+The following must all display the same effective mode:
+
+- HiveMind sidebar
+- Action Approval Centre
+- Cross-Mind Orchestration
+- Empty-state message
+- Approval-generation service
+- Approval-execution service
+
+If Operator is active, do not show:
+
+“Enable Operator mode”
+
+or:
+
+“Switch to Operator mode”
+
+unless a separate permission, entitlement or mandatory setting genuinely blocks the function.
+
+When another restriction applies, show the exact restriction instead.
+
+## 6. Restore the legitimate content approval
+
+If a valid pending content approval exists but is hidden:
+
+- Repair the query or relationship.
+- Display the same approval record.
+- Do not create a duplicate.
+
+If the approval record is genuinely missing:
+
+1. Confirm the article version has not changed.
+2. Revalidate the SEO Safety Gate.
+3. Revalidate permissions and entitlements.
+4. Create one idempotent sensitive action:
+
+   Approve Article Content
+
+5. Link it to:
+   - Article
+   - Current version
+   - Content Studio project
+   - Campaign
+   - Work order
+   - Task
+   - Execution
+
+6. Display it in:
+   - Action Approval Centre
+   - Parent task
+   - Content Studio
+   - GrowthMind
+   - HiveMind conversation
+
+Do not approve it automatically.
+
+Do not create the Publication Approval before Content Approval succeeds.
+
+## 7. After content approval
+
+When the user approves Article Content:
+
+1. Consume and revalidate the approval.
+2. Mark only that exact article version content-approved.
+3. Resume the same execution.
+4. Create the separate sensitive action:
+
+   Approve Article Publication
+
+5. Display it in the same connected interfaces.
+6. Do not publish until this second approval is explicitly approved.
+
+## 8. After publication approval
+
+When Publication Approval is approved:
+
+1. Revalidate the article version.
+2. Revalidate the Safety Gate.
+3. Revalidate content approval.
+4. Revalidate publication approval.
+5. Publish the article to the existing public-content API.
+6. Verify it appears in:
+   - /posts
+   - /posts/missed-calls-ai-receptionist-uk-businesses
+   - /sitemap-data
+   - /feed
+7. Keep the article status:
+
+   API Published — Awaiting Lovable Frontend
+
+Do not mark it Live until the Lovable production page is actually verified.
+
+## 9. UI requirements
+
+Pending Actions must show a structured card containing:
+
+- Article title
+- Current version
+- Parent SEO campaign
+- Approval type
+- Summary
+- Safety Gate result
+- Restricted claims result
+- Duplicate/cannibalisation result
+- Exact approval scope
+- What happens after approval
+- Current blocker
+
+Use:
+
+Approve Article Content
+
+not one vague Approve button.
+
+Do not show raw JSON as the normal interface.
+
+## 10. Required production tests
+
+Test:
+
+- Correct workspace action visible
+- Wrong workspace action invisible
+- Pending SEO approval visible
+- Operator mode consistent everywhere
+- Content approval cannot publish
+- Publication approval appears only after content approval
+- Duplicate approval prevented
+- Changed article version invalidates old approval
+- Rejected action can be legitimately resubmitted
+- Expired action can be regenerated safely
+- Approval resumes the connected execution
+- Public API publication occurs only after both approvals
+- No false Live status
+
+Run the full existing automated test suite and production build.
+
+## Required checkpoint
+
+Report:
+
+1. Whether the production build is live
+2. Article record found
+3. Current article version
+4. Safety Gate state
+5. Approval record found or missing
+6. Exact action state
+7. Workspace filtering result
+8. Autonomy-mode inconsistency root cause
+9. Fix made
+10. Content approval now visible
+11. Tests passed
+12. Exact next action for the user
+
+Do not continue into unrelated work.
+
+Stop once the correct Content Approval is visibly available to the user.

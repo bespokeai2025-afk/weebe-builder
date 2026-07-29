@@ -22,12 +22,89 @@ async function getAdmin(): Promise<Sb> {
 
 const nowIso = () => new Date().toISOString();
 
+// ── Capability spec lookup tables ─────────────────────────────────────────────
+// featureFamily and requiredIntegrations for every tool in this file.
+// registerRead / registerWrite pull from these maps so individual registration
+// objects stay concise. Override by setting the field on the def directly.
+
+const TOOL_FEATURE_FAMILIES: Record<string, string> = {
+  // Read tools
+  get_growthmind_status:                    "monitoring",
+  get_growthmind_health:                    "monitoring",
+  get_content_command_centre:               "content_publishing",
+  get_trend_opportunities:                  "trend_intelligence",
+  get_trend_details:                        "trend_intelligence",
+  get_business_dna:                         "brand_intelligence",
+  get_content_performance:                  "analytics",
+  get_growthmind_costs:                     "finance",
+  get_publishing_failures:                  "monitoring",
+  get_growthmind_objectives:                "strategy",
+  get_content_studio_project_status:        "content_publishing",
+  get_work_order_status:                    "task_management",
+  classify_legacy_tasks:                    "task_management",
+  // Write tools
+  analyse_trend:                            "trend_intelligence",
+  prioritise_trend:                         "trend_intelligence",
+  reject_trend:                             "trend_intelligence",
+  block_trend_source:                       "trend_intelligence",
+  approve_trend_for_adaptation:             "content_production",
+  add_monitored_source:                     "trend_intelligence",
+  set_monitored_source_status:              "trend_intelligence",
+  create_content_studio_project:            "content_production",
+  request_content_changes:                  "content_production",
+  approve_content:                          "content_publishing",
+  schedule_content:                         "content_publishing",
+  cancel_scheduled_content:                 "content_publishing",
+  retry_failed_publication:                 "content_publishing",
+  pause_publishing:                         "monitoring",
+  resume_publishing:                        "monitoring",
+  pause_growthmind_jobs:                    "monitoring",
+  resume_growthmind_jobs:                   "monitoring",
+  update_growthmind_cost_limits:            "finance",
+  resolve_dna_proposal:                     "brand_intelligence",
+  update_growthmind_objectives:             "strategy",
+  set_growthmind_objective_status:          "strategy",
+  create_growthmind_task:                   "task_management",
+  create_gads_analysis_work_order:          "ads_management",
+  create_sales_pipeline_work_order:         "pipeline_management",
+  create_followup_sequence_work_order:      "campaign_management",
+  create_whatsapp_campaign_work_order:      "campaign_management",
+  create_email_campaign_work_order:         "email_campaign",
+  create_call_campaign_work_order:          "call_campaign",
+  create_meta_campaign_work_order:          "social_publishing",
+  create_tiktok_work_order:                 "social_publishing",
+  create_linkedin_work_order:               "social_publishing",
+  create_content_deployment_work_order:     "content_publishing",
+  create_gads_packet_work_order:            "ads_management",
+  create_seo_packet_work_order:             "seo",
+  create_agent_crm_integration_work_order:  "integration_management",
+  create_workflow_depth_work_order:         "workflow_management",
+  create_financial_audit_work_order:        "finance",
+  migrate_legacy_tasks:                     "task_management",
+  create_cross_channel_objective_work_order: "orchestration",
+};
+
+const TOOL_REQUIRED_INTEGRATIONS: Record<string, string[]> = {
+  create_gads_analysis_work_order:     ["google_ads"],
+  create_gads_packet_work_order:       ["google_ads"],
+  create_seo_packet_work_order:        ["google_search_console"],
+  create_whatsapp_campaign_work_order: ["whatsapp"],
+  create_meta_campaign_work_order:     ["meta_social"],
+};
+
 interface ReadToolDef {
   name: string;
   title: string;
   description: string;
   inputSchema?: z.ZodTypeAny;
   cost?: MindToolCost;
+  featureFamily?: string;
+  capabilityState?: import("@/lib/minds/tool-registry.shared").CapabilityState;
+  requiredIntegrations?: string[];
+  rollbackSupported?: boolean;
+  providerLimitations?: string;
+  mobileAvailable?: boolean;
+  currentHealth?: "healthy" | "degraded" | "unavailable";
   run: (ctx: MindToolContext, input: any) => Promise<MindToolRunResult>;
 }
 
@@ -43,6 +120,13 @@ function registerRead(def: ReadToolDef): void {
     idempotent: true,
     estimatedCost: def.cost ?? "none",
     platforms: ["web", "mobile", "api", "system"],
+    featureFamily: def.featureFamily ?? TOOL_FEATURE_FAMILIES[def.name],
+    capabilityState: def.capabilityState ?? "available",
+    requiredIntegrations: def.requiredIntegrations ?? TOOL_REQUIRED_INTEGRATIONS[def.name],
+    rollbackSupported: def.rollbackSupported ?? false,
+    providerLimitations: def.providerLimitations,
+    mobileAvailable: def.mobileAvailable ?? true,
+    currentHealth: def.currentHealth ?? "healthy",
     inputSchema: def.inputSchema,
     run: def.run,
   });
@@ -55,6 +139,7 @@ interface WriteToolDef extends ReadToolDef {
 }
 
 function registerWrite(def: WriteToolDef): void {
+  const isSensitive = def.sensitive === true;
   registerMindTool({
     name: `hivemind.${def.name}`,
     mind: "hivemind",
@@ -62,12 +147,19 @@ function registerWrite(def: WriteToolDef): void {
     description: def.description,
     access: "write",
     surface: "registry",
-    sensitive: def.sensitive === true,
+    sensitive: isSensitive,
     requiredActionKey: def.requiredActionKey,
     modeGateActionType: def.name,
     idempotent: def.idempotent === true,
     estimatedCost: def.cost ?? "low",
     platforms: ["web", "mobile", "api", "system"],
+    featureFamily: def.featureFamily ?? TOOL_FEATURE_FAMILIES[def.name],
+    capabilityState: def.capabilityState ?? (isSensitive ? "approval_required" : "available"),
+    requiredIntegrations: def.requiredIntegrations ?? TOOL_REQUIRED_INTEGRATIONS[def.name],
+    rollbackSupported: def.rollbackSupported ?? false,
+    providerLimitations: def.providerLimitations,
+    mobileAvailable: def.mobileAvailable ?? true,
+    currentHealth: def.currentHealth ?? "healthy",
     inputSchema: def.inputSchema,
     run: def.run,
   });
@@ -699,20 +791,39 @@ registerWrite({
   }),
   run: async (ctx, i: { title: string; description?: string; priority?: string; dueDate?: string }) => {
     const admin = await getAdmin();
+    // Universal quality gate: a title+description directive is NOT a complete
+    // proposal. It lands as a non-approvable investigation-state task — the
+    // marketing Mind must resolve targets and gather evidence before anything
+    // becomes approvable (no fake executable tasks from shallow directives).
+    const { buildInvestigationPacket, prepareMindTaskInsert } =
+      await import("@/lib/minds/intelligence-packet.server");
+    const packet = buildInvestigationPacket({
+      mind: "growthmind",
+      objective: `${i.title}${i.description ? ` — ${i.description}` : ""}`.slice(0, 500),
+      intentSource: "chat_tool:create_growthmind_task",
+      instruction: i.title,
+      missing: [
+        "target resolution (which campaign/audience/asset this applies to)",
+        "evidence retrieval",
+        "diagnosis",
+        "execution plan and approval scope",
+      ],
+    });
+    const row = prepareMindTaskInsert({
+      workspace_id: ctx.workspaceId,
+      title: i.title,
+      description: i.description ?? null,
+      priority: i.priority ?? "medium",
+      status: "suggested",
+      assigned_to: "growthmind",
+      due_date: i.dueDate ?? null,
+      source: "hivemind_tool",
+      trigger_type: "growthmind_directive",
+      entity_type: "growthmind",
+      metadata: { created_via: "hivemind.create_growthmind_task", created_by_user: ctx.userId },
+    }, packet);
     const { data, error } = await admin.from("hivemind_tasks")
-      .insert({
-        workspace_id: ctx.workspaceId,
-        title: i.title,
-        description: i.description ?? null,
-        priority: i.priority ?? "medium",
-        status: "suggested",
-        assigned_to: "growthmind",
-        due_date: i.dueDate ?? null,
-        source: "hivemind_tool",
-        trigger_type: "growthmind_directive",
-        entity_type: "growthmind",
-        metadata: { created_via: "hivemind.create_growthmind_task", created_by_user: ctx.userId },
-      })
+      .insert(row)
       .select("id").single();
     if (error) throw new Error(error.message);
     return { result: { taskId: data.id }, affectedRecordType: "hivemind_tasks", affectedRecordId: data.id };
@@ -804,6 +915,9 @@ registerWrite({
         focusCampaign: focus,
         days: (task.input_spec?.days as number) ?? 30,
         executionState: task.execution_status,
+        readinessState: task.readiness_state ?? null,
+        objective: (task.intelligence_packet?.objective as string) ?? workOrder.objective ?? null,
+        approvalScopeSummary: (task.intelligence_packet?.approval_scope?.summary as string) ?? null,
         scope: {
           steps: [
             "Resolve connected Google Ads account",
@@ -874,5 +988,720 @@ registerRead({
       });
     }
     return { result: { workOrderTasks: out } };
+  },
+});
+
+// ── Channel work orders (Task #488: sales/CRM & comms depth) ─────────────────
+// Each tool creates a work order with SPLIT approval-stage tasks through the
+// intelligence-packet quality gate. Proposals only — nothing sends/launches
+// until every stage (including the blocked Send/Launch stage) is approved.
+
+const audienceFilterSchema = z.object({
+  pipelineStage: z.string().max(100).optional(),
+  status: z.string().max(100).optional(),
+  qualificationStatus: z.string().max(100).optional(),
+  maxLeads: z.number().int().min(1).max(5000).optional(),
+}).optional();
+
+registerWrite({
+  name: "create_sales_pipeline_work_order",
+  title: "Create sales pipeline review work order",
+  description:
+    "Analyse the REAL sales pipeline (stage counts, stalled leads, never-contacted, duplicates, missing contact info) and create an evidence-backed review work order with record-tied proposed actions. " +
+    "Use when the user asks to review/improve/clean the pipeline or sales process. PROPOSAL ONLY — no stage moves, no contacting. " +
+    "On success, summarise the real findings (stalled counts, defects) and tell the user the review awaits their approval on the HiveMind Tasks page.",
+  idempotent: false,
+  inputSchema: z.object({
+    objective: z.string().max(2000).optional(),
+    stalledAfterDays: z.number().int().min(3).max(90).optional(),
+  }),
+  run: async (ctx, i: { objective?: string; stalledAfterDays?: number }) => {
+    const { createSalesPipelineWorkOrderCore } = await import("@/lib/hivemind/channel-work-orders.server");
+    const { workOrder, tasks, analysis } = await createSalesPipelineWorkOrderCore(
+      ctx.sb, ctx.workspaceId, ctx.userId,
+      { objective: i.objective, stalledAfterDays: i.stalledAfterDays, source: "hivemind_tool" },
+    );
+    const t = tasks[0];
+    return {
+      result: {
+        status: "created",
+        workOrderId: workOrder.id,
+        taskId: t.id,
+        taskTitle: t.title,
+        readinessState: t.readiness_state ?? null,
+        objective: workOrder.objective ?? null,
+        approvalScopeSummary: (t.intelligence_packet?.approval_scope?.summary as string) ?? null,
+        findings: {
+          totalLeads: analysis.totalLeads,
+          stalled: analysis.stalled.length,
+          neverContacted: analysis.neverContacted,
+          duplicatePhones: analysis.duplicatePhones,
+          missingContactInfo: analysis.missingContactInfo,
+          conversionPct: analysis.conversionPct,
+        },
+        next_step: "Review awaits approval on the HiveMind Tasks page. Nothing changes and no lead is contacted by this approval.",
+      },
+      affectedRecordType: "work_orders",
+      affectedRecordId: workOrder.id,
+    };
+  },
+});
+
+registerWrite({
+  name: "create_followup_sequence_work_order",
+  title: "Create follow-up sequence work order",
+  description:
+    "Propose a multi-touch follow-up sequence (call/email/whatsapp/sms) for a lead segment with consent, opt-out, suppression and duplicate filtering applied to the REAL audience. " +
+    "Creates split approval tasks: Audience, Sequence, Schedule, and a BLOCKED Send stage. Use when the user asks to follow up with / chase / re-engage leads. " +
+    "PROPOSAL ONLY — no lead is contacted until every stage is approved. Report the real eligible-audience numbers and exclusions.",
+  idempotent: false,
+  inputSchema: z.object({
+    channels: z.array(z.enum(["call", "email", "whatsapp", "sms"])).min(1).max(4).optional(),
+    touches: z.number().int().min(1).max(8).optional(),
+    audience: audienceFilterSchema,
+    objective: z.string().max(2000).optional(),
+  }),
+  run: async (ctx, i: any) => {
+    const { createFollowUpSequenceWorkOrderCore } = await import("@/lib/hivemind/channel-work-orders.server");
+    const { workOrder, tasks, audienceSummary } = await createFollowUpSequenceWorkOrderCore(
+      ctx.sb, ctx.workspaceId, ctx.userId,
+      { channels: i.channels, touches: i.touches, audience: i.audience, objective: i.objective, source: "hivemind_tool" },
+    );
+    const first = tasks[0];
+    return {
+      result: {
+        status: "created",
+        workOrderId: workOrder.id,
+        taskId: first.id,
+        taskTitle: first.title,
+        readinessState: first.readiness_state ?? null,
+        objective: workOrder.objective ?? null,
+        approvalScopeSummary: (first.intelligence_packet?.approval_scope?.summary as string) ?? null,
+        audienceSummary,
+        stages: tasks.map((t: any) => ({
+          taskId: t.id, title: t.title,
+          stage: t.metadata?.approval_stage_label ?? null,
+          readinessState: t.readiness_state ?? null,
+        })),
+        next_step: "Each stage needs its own approval; the Send stage stays blocked until Audience, Sequence and Schedule are approved.",
+      },
+      affectedRecordType: "work_orders",
+      affectedRecordId: workOrder.id,
+    };
+  },
+});
+
+registerWrite({
+  name: "create_whatsapp_campaign_work_order",
+  title: "Create WhatsApp campaign work order",
+  description:
+    "Propose a WhatsApp template campaign: resolves the REAL opted-in audience, connected provider (WATI) and synced approved templates, then creates split approval tasks (Audience, Template, Schedule, blocked Send). " +
+    "Use when the user asks to message leads on WhatsApp. Only explicitly opted-in leads are ever included. " +
+    "If the provider is not connected, the work order is created in Integration Required state — say so honestly. PROPOSAL ONLY.",
+  idempotent: false,
+  inputSchema: z.object({
+    templateName: z.string().max(200).optional(),
+    audience: audienceFilterSchema,
+    objective: z.string().max(2000).optional(),
+  }),
+  run: async (ctx, i: any) => {
+    const { createWhatsAppCampaignWorkOrderCore } = await import("@/lib/hivemind/channel-work-orders.server");
+    const { workOrder, tasks, providerConnected, audienceSummary } = await createWhatsAppCampaignWorkOrderCore(
+      ctx.sb, ctx.workspaceId, ctx.userId,
+      { templateName: i.templateName, audience: i.audience, objective: i.objective, source: "hivemind_tool" },
+    );
+    const first = tasks[0];
+    return {
+      result: {
+        status: "created",
+        workOrderId: workOrder.id,
+        taskId: first.id,
+        taskTitle: first.title,
+        readinessState: first.readiness_state ?? null,
+        objective: workOrder.objective ?? null,
+        approvalScopeSummary: (first.intelligence_packet?.approval_scope?.summary as string) ?? null,
+        providerConnected,
+        audienceSummary,
+        stages: tasks.map((t: any) => ({
+          taskId: t.id, title: t.title,
+          stage: t.metadata?.approval_stage_label ?? null,
+          readinessState: t.readiness_state ?? null,
+        })),
+        next_step: providerConnected
+          ? "Each stage needs its own approval; the Send stage stays blocked until the earlier stages are approved."
+          : "BLOCKED: connect a WhatsApp provider (WATI) first — every stage is in Integration Required state.",
+      },
+      affectedRecordType: "work_orders",
+      affectedRecordId: workOrder.id,
+    };
+  },
+});
+
+registerWrite({
+  name: "create_email_campaign_work_order",
+  title: "Create email campaign work order",
+  description:
+    "Propose an email campaign: resolves the REAL eligible audience (suppression list enforced), sender-domain deliverability health and existing HexMail sequences, then creates split approval tasks (Audience, Copy, Sequence, Schedule, blocked Send). " +
+    "Use when the user asks to email leads / run an email campaign. If no verified sender domain exists, the work order is created in Integration Required state — say so honestly. PROPOSAL ONLY.",
+  idempotent: false,
+  inputSchema: z.object({
+    audience: audienceFilterSchema,
+    objective: z.string().max(2000).optional(),
+  }),
+  run: async (ctx, i: any) => {
+    const { createEmailCampaignWorkOrderCore } = await import("@/lib/hivemind/channel-work-orders.server");
+    const { workOrder, tasks, deliverability, audienceSummary } = await createEmailCampaignWorkOrderCore(
+      ctx.sb, ctx.workspaceId, ctx.userId,
+      { audience: i.audience, objective: i.objective, source: "hivemind_tool" },
+    );
+    const first = tasks[0];
+    return {
+      result: {
+        status: "created",
+        workOrderId: workOrder.id,
+        taskId: first.id,
+        taskTitle: first.title,
+        readinessState: first.readiness_state ?? null,
+        objective: workOrder.objective ?? null,
+        approvalScopeSummary: (first.intelligence_packet?.approval_scope?.summary as string) ?? null,
+        deliverability,
+        audienceSummary,
+        stages: tasks.map((t: any) => ({
+          taskId: t.id, title: t.title,
+          stage: t.metadata?.approval_stage_label ?? null,
+          readinessState: t.readiness_state ?? null,
+        })),
+        next_step: deliverability
+          ? "Each stage needs its own approval; the Send stage stays blocked until the earlier stages are approved and the send gate passes."
+          : "BLOCKED: add a verified sender domain in HexMail → Deliverability first — every stage is in Integration Required state.",
+      },
+      affectedRecordType: "work_orders",
+      affectedRecordId: workOrder.id,
+    };
+  },
+});
+
+registerWrite({
+  name: "create_call_campaign_work_order",
+  title: "Create AI call campaign work order",
+  description:
+    "Propose an AI call campaign: resolves the REAL callable audience (Do-Not-Call excluded), the named agent against workspace agents, and creates split approval tasks (Audience, Agent & Script, Schedule, Volume, blocked Launch). " +
+    "Pass agentName when the user names an agent; if the result is status 'ambiguous' or 'not_found', list the candidate agent names and ask the user to pick one. PROPOSAL ONLY — no calls until every stage is approved.",
+  idempotent: false,
+  inputSchema: z.object({
+    agentName: z.string().max(200).optional(),
+    audience: audienceFilterSchema,
+    dailyVolume: z.number().int().min(1).max(500).optional(),
+    objective: z.string().max(2000).optional(),
+  }),
+  run: async (ctx, i: any) => {
+    const { createCallCampaignWorkOrderCore } = await import("@/lib/hivemind/channel-work-orders.server");
+    const r = await createCallCampaignWorkOrderCore(
+      ctx.sb, ctx.workspaceId, ctx.userId,
+      { agentName: i.agentName, audience: i.audience, dailyVolume: i.dailyVolume, objective: i.objective, source: "hivemind_tool" },
+    );
+    if (r.agentStatus === "ambiguous" || r.agentStatus === "not_found") {
+      return {
+        result: {
+          status: r.agentStatus,
+          candidates: r.agentCandidates.map((a) => ({ id: a.id, name: a.name, deployed: a.deployed })),
+        },
+      };
+    }
+    const first = r.tasks[0];
+    return {
+      result: {
+        status: "created",
+        workOrderId: r.workOrder.id,
+        taskId: first.id,
+        taskTitle: first.title,
+        readinessState: first.readiness_state ?? null,
+        objective: r.workOrder.objective ?? null,
+        approvalScopeSummary: (first.intelligence_packet?.approval_scope?.summary as string) ?? null,
+        agent: r.agent,
+        audienceSummary: r.audienceSummary,
+        stages: r.tasks.map((t: any) => ({
+          taskId: t.id, title: t.title,
+          stage: t.metadata?.approval_stage_label ?? null,
+          readinessState: t.readiness_state ?? null,
+        })),
+        next_step: "Each stage needs its own approval; the Launch stage stays blocked until the earlier stages are approved and the agent is deployed.",
+      },
+      affectedRecordType: "work_orders",
+      affectedRecordId: r.workOrder.id,
+    };
+  },
+});
+
+// ── Social, content & ads work orders (Task #489) ────────────────────────────
+// Meta / TikTok / LinkedIn / Content-Studio-variants / Google-Ads / SEO chat
+// instructions produce evidence-backed intelligence packets with split scoped
+// approvals. PROPOSALS ONLY — nothing publishes, launches or spends from these
+// tools; final stages are created blocked and hard blockers (missing budget,
+// unverified audio rights, missing creative/destination) can never be approved
+// away.
+
+const budgetSchema = z.object({
+  amount: z.number().positive().nullable().optional(),
+  currency: z.string().max(8).optional(),
+  period: z.enum(["daily", "lifetime"]).optional(),
+}).optional();
+
+const stagesOut = (tasks: any[]) => tasks.map((t: any) => ({
+  taskId: t.id, title: t.title,
+  stage: t.metadata?.approval_stage_label ?? null,
+  readinessState: t.readiness_state ?? null,
+}));
+
+registerWrite({
+  name: "create_meta_campaign_work_order",
+  title: "Create Meta (Facebook/Instagram) campaign work order",
+  description:
+    "Propose a Meta campaign with REAL evidence (connected pages/IG accounts, ad accounts, recent verified posts) and split approval stages: Accounts & Assets, Audience & Placement, Creative & Destination, Budget & Schedule, and a blocked Launch stage. " +
+    "The Launch approval is split into 'Approve and Create as Paused' vs 'Approve and Launch'. Missing budget, creative or destination HARD-BLOCK the Launch stage — report those blockers honestly. " +
+    "If Meta is not connected the work order is created in Integration Required state. PROPOSAL ONLY — nothing is created in Ads Manager by this tool.",
+  idempotent: false,
+  inputSchema: z.object({
+    objective: z.string().max(2000).optional(),
+    campaignObjective: z.string().max(200).optional(),
+    audienceDescription: z.string().max(2000).optional(),
+    placements: z.array(z.string().max(60)).max(10).optional(),
+    creativeCaption: z.string().max(3000).optional(),
+    creativeMediaUrl: z.string().max(2000).optional(),
+    destinationUrl: z.string().max(2000).optional(),
+    conversionEvent: z.string().max(200).optional(),
+    budget: budgetSchema,
+    scheduleStartAt: z.string().max(40).optional(),
+    scheduleEndAt: z.string().max(40).optional(),
+  }),
+  run: async (ctx, i: any) => {
+    const { createMetaCampaignWorkOrderCore } = await import("@/lib/hivemind/social-work-orders.server");
+    const { workOrder, tasks, connected, launchBlockers } = await createMetaCampaignWorkOrderCore(
+      ctx.sb, ctx.workspaceId, ctx.userId,
+      {
+        objective: i.objective,
+        source: "hivemind_tool",
+        spec: {
+          objective: i.campaignObjective ?? null,
+          audienceDescription: i.audienceDescription ?? null,
+          placements: i.placements ?? null,
+          creative: (i.creativeCaption || i.creativeMediaUrl)
+            ? { caption: i.creativeCaption ?? null, mediaUrl: i.creativeMediaUrl ?? null }
+            : null,
+          destinationUrl: i.destinationUrl ?? null,
+          conversionEvent: i.conversionEvent ?? null,
+          budget: i.budget ?? null,
+          schedule: (i.scheduleStartAt || i.scheduleEndAt)
+            ? { startAt: i.scheduleStartAt ?? null, endAt: i.scheduleEndAt ?? null }
+            : null,
+        },
+      },
+    );
+    return {
+      result: {
+        status: "created",
+        workOrderId: workOrder.id,
+        connected,
+        launchBlockers,
+        stages: stagesOut(tasks),
+        next_step: !connected
+          ? "BLOCKED: connect Meta (Facebook/Instagram) first — every stage is in Integration Required state."
+          : launchBlockers.length
+            ? `Launch is HARD-BLOCKED until resolved: ${launchBlockers.join(" ")}`
+            : "Each stage needs its own approval; Launch stays blocked until every earlier stage is approved, then choose 'Create as Paused' or 'Launch'.",
+      },
+      affectedRecordType: "work_orders",
+      affectedRecordId: workOrder.id,
+    };
+  },
+});
+
+registerWrite({
+  name: "create_tiktok_work_order",
+  title: "Create TikTok content/ad work order",
+  description:
+    "Propose TikTok organic content or a TikTok ad with a full production spec (concept, hook, script, shot list, caption, CTA, duration, safe zones) and split approval stages including a mandatory Audio Rights stage. " +
+    "Copyrighted or unverified audio HARD-BLOCKS publication — never suggest bypassing it. WEBEE has no TikTok publish API: the final stage authorises MANUAL publication and nothing is claimed live without a real TikTok post reference. PROPOSAL ONLY.",
+  providerLimitations: "No TikTok publish API — publication is always manual; nothing is claimed live without a real TikTok post reference.",
+  idempotent: false,
+  inputSchema: z.object({
+    isAd: z.boolean().optional(),
+    concept: z.string().max(1000).optional(),
+    hook: z.string().max(500).optional(),
+    script: z.string().max(5000).optional(),
+    shotList: z.array(z.string().max(300)).max(30).optional(),
+    caption: z.string().max(2200).optional(),
+    cta: z.string().max(300).optional(),
+    durationSeconds: z.number().int().min(1).max(600).optional(),
+    safeZonesChecked: z.boolean().optional(),
+    audioTitle: z.string().max(300).optional(),
+    audioRightsStatus: z.enum(["verified_rights", "original_audio", "unverified", "copyrighted_no_rights"]).optional(),
+    audienceDescription: z.string().max(2000).optional(),
+    optimisationGoal: z.string().max(200).optional(),
+    trackingSetup: z.string().max(500).optional(),
+    budget: budgetSchema,
+    objective: z.string().max(2000).optional(),
+  }),
+  run: async (ctx, i: any) => {
+    const { createTikTokWorkOrderCore } = await import("@/lib/hivemind/social-work-orders.server");
+    const { workOrder, tasks, audioBlocked, adsConnected } = await createTikTokWorkOrderCore(
+      ctx.sb, ctx.workspaceId, ctx.userId,
+      { objective: i.objective, source: "hivemind_tool", proposal: { ...i } },
+    );
+    return {
+      result: {
+        status: "created",
+        workOrderId: workOrder.id,
+        audioBlocked,
+        adsConnected: i.isAd ? adsConnected : null,
+        stages: stagesOut(tasks),
+        next_step: audioBlocked
+          ? "BLOCKED: audio rights are not verified — verify rights or switch to original audio before the Publish stage can ever be approved."
+          : "Each stage needs its own approval; publication is manual and only recorded live with a real TikTok post reference.",
+      },
+      affectedRecordType: "work_orders",
+      affectedRecordId: workOrder.id,
+    };
+  },
+});
+
+registerWrite({
+  name: "create_linkedin_work_order",
+  title: "Create LinkedIn content/ad work order",
+  description:
+    "Propose LinkedIn content or a LinkedIn ad campaign with split approval stages (Entity Resolution first — organisation page vs personal profile — then creative, and for ads: audience facets, lead-gen form, budget). " +
+    "WEBEE has no LinkedIn publish API: the deliverable is a deployment package in 'Awaiting LinkedIn Manual Publication' state — say so honestly. PROPOSAL ONLY.",
+  providerLimitations: "No LinkedIn publish API — the deliverable is always a deployment package in 'Awaiting LinkedIn Manual Publication' state.",
+  idempotent: false,
+  inputSchema: z.object({
+    isAd: z.boolean().optional(),
+    entityType: z.enum(["organization", "profile"]).optional(),
+    entityName: z.string().max(300).optional(),
+    headline: z.string().max(400).optional(),
+    body: z.string().max(3000).optional(),
+    mediaUrl: z.string().max(2000).optional(),
+    audienceFacets: z.array(z.string().max(120)).max(20).optional(),
+    leadGenFormName: z.string().max(200).optional(),
+    leadGenFormFields: z.array(z.string().max(80)).max(15).optional(),
+    campaignManagerAccount: z.string().max(200).optional(),
+    budget: budgetSchema,
+    objective: z.string().max(2000).optional(),
+  }),
+  run: async (ctx, i: any) => {
+    const { createLinkedInWorkOrderCore } = await import("@/lib/hivemind/social-work-orders.server");
+    const { workOrder, tasks, adsConnected } = await createLinkedInWorkOrderCore(
+      ctx.sb, ctx.workspaceId, ctx.userId,
+      {
+        objective: i.objective,
+        source: "hivemind_tool",
+        proposal: {
+          isAd: i.isAd,
+          entityType: i.entityType ?? null,
+          entityName: i.entityName ?? null,
+          creative: { headline: i.headline ?? null, body: i.body ?? null, mediaUrl: i.mediaUrl ?? null },
+          audienceFacets: i.audienceFacets ?? null,
+          campaignManagerAccount: i.campaignManagerAccount ?? null,
+          leadGenForm: i.leadGenFormName ? { name: i.leadGenFormName, fields: i.leadGenFormFields ?? null } : null,
+          budget: i.budget ?? null,
+        },
+      },
+    );
+    return {
+      result: {
+        status: "created",
+        workOrderId: workOrder.id,
+        adsConnected: i.isAd ? adsConnected : null,
+        stages: stagesOut(tasks),
+        next_step: "Publication is MANUAL — the final deliverable is a deployment package in 'Awaiting LinkedIn Manual Publication' state until a real LinkedIn reference is recorded.",
+      },
+      affectedRecordType: "work_orders",
+      affectedRecordId: workOrder.id,
+    };
+  },
+});
+
+registerWrite({
+  name: "create_content_deployment_work_order",
+  title: "Deploy a content project across channels (adapted variants)",
+  description:
+    "Fan a Content Studio project out into per-channel ADAPTED variants (blog, meta_ad, fb_post, ig_post, ig_story, ig_reel, tiktok, linkedin_post, linkedin_ad, whatsapp, email, sms, landing), each with its own independent approval. " +
+    "Variant copy must be genuinely adapted — identical copy is blocked by the adaptation gate. Only Meta-family channels have an API publish path; all others become 'awaiting manual publication'. Nothing is claimed live without a verified provider record or live URL. PROPOSAL ONLY.",
+  idempotent: false,
+  inputSchema: z.object({
+    projectId: z.string().uuid(),
+    variants: z.array(z.object({
+      channel: z.enum(["blog", "meta_ad", "fb_post", "ig_post", "ig_story", "ig_reel", "tiktok", "linkedin_post", "linkedin_ad", "whatsapp", "email", "sms", "landing"]),
+      headline: z.string().max(500).optional(),
+      bodyCopy: z.string().max(20000).optional(),
+      caption: z.string().max(3000).optional(),
+      cta: z.string().max(300).optional(),
+      hook: z.string().max(500).optional(),
+      script: z.string().max(10000).optional(),
+    })).min(1).max(13),
+    objective: z.string().max(2000).optional(),
+  }),
+  run: async (ctx, i: any) => {
+    const { createContentDeploymentWorkOrderCore } = await import("@/lib/hivemind/social-work-orders.server");
+    const { workOrder, tasks, variants } = await createContentDeploymentWorkOrderCore(
+      ctx.sb, ctx.workspaceId, ctx.userId,
+      { projectId: i.projectId, variants: i.variants, objective: i.objective, source: "hivemind_tool" },
+    );
+    return {
+      result: {
+        status: "created",
+        workOrderId: workOrder.id,
+        variants: variants.map((v: any) => ({
+          channel: v.channel, state: v.deploymentState, path: v.deploymentPath,
+          adaptationOk: v.adaptationOk, problems: v.problems,
+        })),
+        stages: stagesOut(tasks),
+        next_step: "Each channel variant needs its own approval; variants failing the adaptation gate stay in draft until genuinely adapted copy is provided.",
+      },
+      affectedRecordType: "work_orders",
+      affectedRecordId: workOrder.id,
+    };
+  },
+});
+
+registerWrite({
+  name: "create_gads_packet_work_order",
+  title: "Create Google Ads performance review work order",
+  description:
+    "Evidence-backed Google Ads review from REAL synced 30-day campaign data (spend, clicks, conversions, pending recommendations). All proposed optimisations route through the EXISTING change-request approvals — nothing executes from this work order. " +
+    "If Google Ads is not connected the work order is created in Integration Required state. PROPOSAL ONLY.",
+  idempotent: false,
+  inputSchema: z.object({ objective: z.string().max(2000).optional() }),
+  run: async (ctx, i: any) => {
+    const { createGadsPacketWorkOrderCore } = await import("@/lib/hivemind/social-work-orders.server");
+    const { workOrder, tasks, connected } = await createGadsPacketWorkOrderCore(
+      ctx.sb, ctx.workspaceId, ctx.userId, { objective: i.objective, source: "hivemind_tool" },
+    );
+    return {
+      result: {
+        status: "created",
+        workOrderId: workOrder.id,
+        connected,
+        stages: stagesOut(tasks),
+        next_step: connected
+          ? "Approve the analysis; every optimisation then becomes an individual change request with its own approval."
+          : "BLOCKED: connect Google Ads first — the work order is in Integration Required state.",
+      },
+      affectedRecordType: "work_orders",
+      affectedRecordId: workOrder.id,
+    };
+  },
+});
+
+registerWrite({
+  name: "create_seo_packet_work_order",
+  title: "Create SEO review work order",
+  description:
+    "Evidence-backed SEO review from REAL GSC sites and existing SEO campaigns. Any new blog campaign keeps the existing multi-stage approvals (strategy, brief, content, deployment) — this packet wraps them, never bypasses them. " +
+    "If GSC is not connected the work order is created in Integration Required state. PROPOSAL ONLY.",
+  idempotent: false,
+  inputSchema: z.object({ objective: z.string().max(2000).optional() }),
+  run: async (ctx, i: any) => {
+    const { createSeoPacketWorkOrderCore } = await import("@/lib/hivemind/social-work-orders.server");
+    const { workOrder, tasks, gscConnected } = await createSeoPacketWorkOrderCore(
+      ctx.sb, ctx.workspaceId, ctx.userId, { objective: i.objective, source: "hivemind_tool" },
+    );
+    return {
+      result: {
+        status: "created",
+        workOrderId: workOrder.id,
+        gscConnected,
+        stages: stagesOut(tasks),
+        next_step: gscConnected
+          ? "Approve the strategy review; campaign stages keep their own existing approvals through to manual deployment."
+          : "BLOCKED: connect Google Search Console first — the work order is in Integration Required state.",
+      },
+      affectedRecordType: "work_orders",
+      affectedRecordId: workOrder.id,
+    };
+  },
+});
+
+// ═══════════ Task #490 — depth, audits, migration & orchestration ═══════════
+
+registerWrite({
+  name: "create_agent_crm_integration_work_order",
+  title: "Create agent ↔ CRM integration work order",
+  description:
+    "Produce a COMPLETE agent↔CRM integration work order from REAL workspace data: current architecture, registered dynamic variables, verified CRM field map, triggers & webhooks, pre/post-call data flow, test plan and rollback — never a shallow \"Connect CRM\" task. " +
+    "If no CRM is connected the work order is created in Integration Required state. The final Apply stage stays blocked behind the earlier approvals. PROPOSAL ONLY.",
+  idempotent: false,
+  inputSchema: z.object({
+    agentId: z.string().uuid().optional(),
+    agentName: z.string().max(200).optional(),
+    crmConnectionId: z.string().uuid().optional(),
+    objective: z.string().max(2000).optional(),
+  }),
+  run: async (ctx, i: any) => {
+    const { createAgentCrmIntegrationWorkOrderCore } = await import("@/lib/systemmind/systemmind-depth-work-orders.server");
+    const { workOrder, tasks, connected, agentResolved, fieldMap } = await createAgentCrmIntegrationWorkOrderCore(
+      ctx.sb, ctx.workspaceId, ctx.userId,
+      { agentId: i.agentId, agentName: i.agentName, crmConnectionId: i.crmConnectionId, objective: i.objective, source: "hivemind_tool" },
+    );
+    return {
+      result: {
+        status: "created",
+        workOrderId: workOrder.id,
+        crmConnected: connected,
+        agentResolved,
+        fieldMappings: fieldMap.length,
+        unmappedFields: fieldMap.filter((m: any) => !m.mapped).length,
+        stages: stagesOut(tasks),
+        next_step: !connected
+          ? "BLOCKED: connect a CRM in SystemMind → CRM Connections first — the work order is in Integration Required state."
+          : !agentResolved
+            ? "The target agent could not be uniquely resolved — specify which agent before the stages can proceed."
+            : "Approve each stage in order; the Apply stage stays blocked until Architecture, Field Mapping, Triggers & Webhooks and Test Plan are approved.",
+      },
+      affectedRecordType: "work_orders",
+      affectedRecordId: workOrder.id,
+    };
+  },
+});
+
+registerWrite({
+  name: "create_workflow_depth_work_order",
+  title: "Create workflow depth review work order",
+  description:
+    "Evidence-backed review of a REAL workspace workflow (flow definition, recent run outcomes, failures) producing a node-by-node change plan with test plan and rollback. " +
+    "The final Apply stage stays blocked behind the earlier approvals. PROPOSAL ONLY — the workflow is never modified by this tool.",
+  rollbackSupported: true,
+  idempotent: false,
+  inputSchema: z.object({
+    workflowId: z.string().uuid().optional(),
+    workflowName: z.string().max(200).optional(),
+    objective: z.string().max(2000).optional(),
+  }),
+  run: async (ctx, i: any) => {
+    const { createWorkflowDepthWorkOrderCore } = await import("@/lib/systemmind/systemmind-depth-work-orders.server");
+    const { workOrder, tasks, workflowResolved } = await createWorkflowDepthWorkOrderCore(
+      ctx.sb, ctx.workspaceId, ctx.userId,
+      { workflowId: i.workflowId, workflowName: i.workflowName, objective: i.objective, source: "hivemind_tool" },
+    );
+    return {
+      result: {
+        status: "created",
+        workOrderId: workOrder.id,
+        workflowResolved,
+        stages: stagesOut(tasks),
+        next_step: workflowResolved
+          ? "Approve each stage in order; the Apply stage stays blocked until Review, Change Plan and Test Plan are approved."
+          : "The target workflow could not be uniquely resolved — specify which workflow before the stages can proceed.",
+      },
+      affectedRecordType: "work_orders",
+      affectedRecordId: workOrder.id,
+    };
+  },
+});
+
+registerWrite({
+  name: "create_financial_audit_work_order",
+  title: "Create financial audit work order",
+  description:
+    "Run a typed financial audit over REAL AccountsMind records (invoices, recurring schedules, per-client balances): records inspected, exceptions with exact amounts/due dates/commercial impact, and the exact proposed action per record — never a shallow \"Review invoices\" task. " +
+    "The Execute stage is billing-sensitive and stays blocked behind Findings and Proposed Actions approvals. PROPOSAL ONLY — nothing financial changes from this tool.",
+  sensitive: false,
+  requiredActionKey: "billing",
+  idempotent: false,
+  inputSchema: z.object({
+    kind: z.enum(["invoice_audit", "renewals_audit", "client_costing_audit", "outgoings_audit"]),
+    objective: z.string().max(2000).optional(),
+  }),
+  run: async (ctx, i: any) => {
+    const { createFinancialAuditWorkOrderCore } = await import("@/lib/accountsmind/financial-audit-work-orders.server");
+    const { workOrder, tasks, audit } = await createFinancialAuditWorkOrderCore(
+      ctx.sb, ctx.workspaceId, ctx.userId, i.kind, { objective: i.objective, source: "hivemind_tool" },
+    );
+    return {
+      result: {
+        status: "created",
+        workOrderId: workOrder.id,
+        recordsInspected: audit.records_inspected,
+        exceptions: audit.exceptions.length,
+        totals: audit.totals,
+        currency: audit.currency,
+        topExceptions: audit.exceptions.slice(0, 5).map((e) => ({
+          record: e.reference ?? e.record_id, client: e.client, amountCents: e.amount_cents, issue: e.issue,
+        })),
+        stages: stagesOut(tasks),
+        next_step: audit.exceptions.length
+          ? "Review the findings; the Execute stage stays blocked until Findings and Proposed Actions are approved, and every action runs through the billing-gated functions."
+          : "No exceptions found — approve the Findings stage to record the clean audit.",
+      },
+      affectedRecordType: "work_orders",
+      affectedRecordId: workOrder.id,
+    };
+  },
+});
+
+registerRead({
+  name: "classify_legacy_tasks",
+  title: "Classify legacy shallow tasks",
+  description:
+    "Scan pre-standard shallow task rows (no intelligence packet) and classify each as Convertible, Missing Context, Duplicate, Superseded, Obsolete, Human Task or Invalid with a per-row reason. Read-only — changes nothing.",
+  inputSchema: z.object({ limit: z.number().int().min(1).max(500).optional() }),
+  run: async (ctx, i: any) => {
+    const { classifyLegacyTasks } = await import("@/lib/minds/legacy-task-migration.server");
+    const { classifications, counts } = await classifyLegacyTasks(ctx.sb, ctx.workspaceId, { limit: i?.limit });
+    return { result: { counts, total: classifications.length, sample: classifications.slice(0, 25) } };
+  },
+});
+
+registerWrite({
+  name: "migrate_legacy_tasks",
+  title: "Migrate legacy shallow tasks",
+  description:
+    "Upgrade pre-standard shallow task rows: Convertible rows get an honest intelligence packet built ONLY from their own recorded fields (NEVER made executable, never auto-executed); Missing-Context rows are labelled; Duplicate/Superseded/Obsolete/Invalid rows are dismissed with their classification label preserved. Batch-safe and idempotent. Sensitive: bulk-mutates task rows, so it always requires explicit approval and never auto-executes.",
+  sensitive: true,
+  idempotent: true,
+  inputSchema: z.object({ limit: z.number().int().min(1).max(500).optional() }),
+  run: async (ctx, i: any) => {
+    const { migrateLegacyTasks } = await import("@/lib/minds/legacy-task-migration.server");
+    const r = await migrateLegacyTasks(ctx.sb, ctx.workspaceId, { limit: i?.limit });
+    return {
+      result: {
+        scanned: r.scanned, converted: r.converted, labelled: r.labelled, disabled: r.disabled, counts: r.counts,
+        next_step: "Converted tasks are review-only (never executable); check the HiveMind Tasks page for the migrated rows.",
+      },
+    };
+  },
+});
+
+registerWrite({
+  name: "create_cross_channel_objective_work_order",
+  title: "Create cross-channel objective work order",
+  description:
+    "Take ONE cross-channel objective (e.g. \"Generate more UK leads\") and create ONE parent work order with the channel strategy, shared success criteria and reporting plan, plus dependency-linked child tasks ONLY for channels justified by REAL evidence (contactable audience, connected providers, deployed agents). " +
+    "Unjustified channels are skipped with reasons — never ten disconnected generic tasks. Every channel keeps its own blocked launch approval. PROPOSAL ONLY.",
+  idempotent: false,
+  inputSchema: z.object({
+    objective: z.string().min(10).max(2000),
+    channels: z.array(z.enum(["email", "whatsapp", "calls", "social", "seo"])).min(1).max(5).optional(),
+  }),
+  run: async (ctx, i: any) => {
+    const { createCrossChannelObjectiveWorkOrderCore } = await import("@/lib/hivemind/cross-channel-work-orders.server");
+    const { workOrder, strategyTask, channelTasks, justified, skipped } = await createCrossChannelObjectiveWorkOrderCore(
+      ctx.sb, ctx.workspaceId, ctx.userId,
+      { objective: i.objective, channels: i.channels, source: "hivemind_tool" },
+    );
+    return {
+      result: {
+        status: "created",
+        workOrderId: workOrder.id,
+        strategyTaskId: strategyTask.id,
+        justifiedChannels: justified.map((j) => ({ channel: j.channel, reason: j.reason })),
+        skippedChannels: skipped.map((s) => ({ channel: s.channel, reason: s.reason })),
+        channelTasks: channelTasks.map((t: any) => ({ taskId: t.id, channel: t.metadata?.channel ?? null, title: t.title })),
+        next_step: justified.length
+          ? "Approve the channel strategy first; each channel task then needs its own approvals, and every launch/send stays blocked until its own final approval."
+          : "BLOCKED: no channel is currently evidence-justified — connect a provider or build an audience first.",
+      },
+      affectedRecordType: "work_orders",
+      affectedRecordId: workOrder.id,
+    };
   },
 });

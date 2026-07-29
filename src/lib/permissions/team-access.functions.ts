@@ -91,7 +91,7 @@ export const listTeamMembers = createServerFn({ method: "GET" })
 /** Change a member's extended role. Never self; never the workspace owner. */
 export const setMemberRole = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: { targetUserId: string; roleKey: string }) => input)
+  .validator((input: { targetUserId: string; roleKey: string }) => input)
   .handler(async ({ context, data }) => {
     const { workspaceId, userId } = context;
     if (!workspaceId) throw new Error("No active workspace");
@@ -176,7 +176,7 @@ export const setMemberRole = createServerFn({ method: "POST" })
 /** Remove a member from the workspace. Never self; never the owner. */
 export const removeMember = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: { targetUserId: string }) => input)
+  .validator((input: { targetUserId: string }) => input)
   .handler(async ({ context, data }) => {
     const { workspaceId, userId } = context;
     if (!workspaceId) throw new Error("No active workspace");
@@ -255,7 +255,7 @@ export const listRolePermissions = createServerFn({ method: "GET" })
 /** Create/update a per-role permission override for this workspace. */
 export const upsertRolePermissions = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator(
+  .validator(
     (input: {
       roleKey: string;
       displayName?: string | null;
@@ -329,7 +329,7 @@ export const upsertRolePermissions = createServerFn({ method: "POST" })
 /** Reset a role back to code defaults (delete the override). */
 export const resetRolePermissions = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: { roleKey: string }) => input)
+  .validator((input: { roleKey: string }) => input)
   .handler(async ({ context, data }) => {
     const { workspaceId, userId } = context;
     if (!workspaceId) throw new Error("No active workspace");
@@ -394,7 +394,7 @@ export const getApprovalSettings = createServerFn({ method: "GET" })
 
 export const updateApprovalSettings = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: { settings: Record<string, { approverRoleKeys: string[] }> }) => input)
+  .validator((input: { settings: Record<string, { approverRoleKeys: string[] }> }) => input)
   .handler(async ({ context, data }) => {
     const { workspaceId, userId } = context;
     if (!workspaceId) throw new Error("No active workspace");
@@ -442,7 +442,7 @@ export const updateApprovalSettings = createServerFn({ method: "POST" })
 /** Read the access/notifications audit log (team_access viewers). */
 export const listAccessAuditLog = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input?: { limit?: number }) => input ?? {})
+  .validator((input?: { limit?: number }) => input ?? {})
   .handler(async ({ context, data }) => {
     const { workspaceId, userId } = context;
     if (!workspaceId) throw new Error("No active workspace");

@@ -11,14 +11,59 @@ async function gpt4o(
   apiKey: string,
   messages: Array<{ role: string; content: string }>,
   maxTokens = 2000,
+  workspaceId?: string,
 ): Promise<string> {
+  // ── Default path: GPT-5.6 via Responses API with routing + fallback chain ──
+  // Briefings are executive output → routed to the advanced reasoning model.
+  const { useLegacyAiPath, classifyAiTask, routingLedgerMeta } = await import("@/lib/ai/task-router.server");
+  if (!useLegacyAiPath()) {
+    const { openaiResponsesCall, toResponsesInput } = await import("@/lib/ai/openai-responses.server");
+    const routing = classifyAiTask({
+      query: "comprehensive executive business briefing analysis",
+      department: "hivemind",
+      feature: "briefing",
+    });
+    const instructions = messages.find((m) => m.role === "system")?.content;
+    const r = await openaiResponsesCall({
+      apiKey,
+      model: routing.model,
+      input: toResponsesInput(messages.filter((m) => m.role !== "system")),
+      instructions,
+      maxOutputTokens: maxTokens,
+      reasoningEffort: routing.reasoningEffort,
+      usage: { workspaceId, department: "hivemind", feature: "briefing" },
+      routing: routingLedgerMeta(routing),
+    });
+    return r.text;
+  }
+
+  const started = Date.now();
+  const { recordAiUsage } = await import("@/lib/ai/usage-ledger.server");
   const res = await fetch("https://api.openai.com/v1/chat/completions", {
     method: "POST",
     headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
     body: JSON.stringify({ model: "gpt-4o", messages, max_tokens: maxTokens, temperature: 0.45 }),
   });
-  if (!res.ok) throw new Error(`OpenAI ${res.status}: ${(await res.text().catch(() => "")).slice(0, 120)}`);
+  if (!res.ok) {
+    const errText = (await res.text().catch(() => "")).slice(0, 120);
+    await recordAiUsage({
+      workspaceId, department: "hivemind", feature: "briefing", provider: "openai",
+      requestedModel: "gpt-4o", endpoint: "/v1/chat/completions",
+      requestId: res.headers.get("x-request-id"), latencyMs: Date.now() - started,
+      status: "failed", errorMessage: `OpenAI ${res.status}: ${errText}`,
+    });
+    throw new Error(`OpenAI ${res.status}: ${errText}`);
+  }
   const j = (await res.json()) as any;
+  await recordAiUsage({
+    workspaceId, department: "hivemind", feature: "briefing", provider: "openai",
+    requestedModel: "gpt-4o", returnedModel: j.model ?? "gpt-4o",
+    endpoint: "/v1/chat/completions", requestId: j.id ?? res.headers.get("x-request-id"),
+    inputTokens: j.usage?.prompt_tokens ?? 0,
+    cachedInputTokens: j.usage?.prompt_tokens_details?.cached_tokens ?? 0,
+    outputTokens: j.usage?.completion_tokens ?? 0,
+    latencyMs: Date.now() - started, status: "success",
+  });
   return (j.choices?.[0]?.message?.content as string) ?? "";
 }
 
@@ -113,10 +158,36 @@ export async function generateBriefing(
   const dayRange = type === "daily" ? 1 : type === "weekly" ? 7 : 30;
   const snap = await pullSnapshot(workspaceId, dayRange);
 
+  // ── Validated pipeline: verified KPIs, warnings and provenance are computed
+  // deterministically BEFORE the LLM sees anything, and stored for audit. The
+  // model is instructed to use these figures verbatim and never invent rates.
+  let vb: import("@/lib/hivemind/validated-briefing.shared").ValidatedBusinessBriefing | null = null;
+  try {
+    const { buildValidatedBusinessBriefing } = await import("@/lib/hivemind/validated-briefing.server");
+    vb = await buildValidatedBusinessBriefing(sb, workspaceId);
+  } catch (e) {
+    console.error("[Briefing] validated pipeline failed (continuing with raw snapshot):", (e as Error)?.message);
+  }
+
   const period = type === "daily" ? "today" : type === "weekly" ? "this week" : "this month";
   const prevPeriod = type === "daily" ? "yesterday" : type === "weekly" ? "last week" : "last month";
 
+  const verifiedBlock = vb ? `
+VERIFIED METRICS (already validated — use these figures VERBATIM, never recalculate, round or invent percentages; every rate below shows its numerator, denominator and formula):
+${vb.verifiedMetrics.map((m) => `- ${m.label}: ${m.unit === "percent" ? `${m.value}%` : m.value}${m.numerator !== undefined ? ` (${m.numerator} ÷ ${m.denominator})` : ""} [${m.formula}; source: ${m.source}; range: ${m.timeRange}]`).join("\n")}
+
+NOT CONFIRMED (unavailable data — NEVER report these as 0 or £0; say they could not be confirmed from the currently connected data):
+${vb.unverifiedMetrics.map((u) => `- ${u.label}: ${u.reason}`).join("\n") || "- none"}
+
+DATA-QUALITY WARNINGS (mention the important ones honestly):
+${vb.dataWarnings.map((w) => `- [${w.severity}] ${w.message}`).join("\n") || "- none"}
+
+VALIDATED RECOMMENDED ACTIONS (specific and executable — base your next_actions on these):
+${vb.recommendedActions.map((a) => `- ${a.title}: ${a.action} (expected: ${a.expectedOutcome}; dept: ${a.department}; approval ${a.approvalRequired ? "required" : "not required"})`).join("\n") || "- none"}
+` : "";
+
   const prompt = `You are an AI Chief Executive Officer providing a ${type} executive briefing to a business owner.
+${verifiedBlock}
 
 BUSINESS CONTEXT:
 Company: ${snap.dna.company_name ?? "This workspace"}
@@ -171,7 +242,8 @@ Generate a ${type} executive briefing. Return ONLY valid JSON:
   }
 }
 
-Be direct, honest, and data-driven. Avoid vague platitudes. Reference specific numbers.`;
+Be direct, honest, and data-driven. Avoid vague platitudes. Reference specific numbers.
+STRICT RULES: Use the VERIFIED METRICS verbatim when present — never invent, recompute or round percentages. Never report unconfirmed financial data as 0 or £0; say it could not be confirmed. Flag the data-quality warnings honestly instead of hiding them. Keep today's activity clearly separate from all-time totals.`;
 
   const raw = await gpt4o(
     apiKey,
@@ -180,6 +252,7 @@ Be direct, honest, and data-driven. Avoid vague platitudes. Reference specific n
       { role: "user", content: prompt },
     ],
     2500,
+    workspaceId,
   );
 
   const parsed = parseJson(raw, {
@@ -189,6 +262,27 @@ Be direct, honest, and data-driven. Avoid vague platitudes. Reference specific n
     meta: {},
   });
 
+  // Attach the deterministic voice summary + validated audit trail so the
+  // stored briefing is fully traceable (metrics, formulas, warnings, sources)
+  // and the UI/voice layer reads from the SAME validated object.
+  const sections = { ...(parsed.sections ?? {}) } as any;
+  const meta = { ...(parsed.meta ?? {}) } as any;
+  meta.validated_status = vb ? "ok" : "failed";
+  if (vb) {
+    sections.voice_summary = vb.voiceSummary;
+    sections.screen_summary = vb.screenSummary;
+    meta.validated = {
+      reportingPeriod: vb.reportingPeriod,
+      dataSources: vb.dataSources,
+      sourceFreshness: vb.sourceFreshness,
+      verifiedMetrics: vb.verifiedMetrics,
+      unverifiedMetrics: vb.unverifiedMetrics,
+      dataWarnings: vb.dataWarnings,
+      recommendedActions: vb.recommendedActions,
+      generatedAt: vb.generatedAt,
+    };
+  }
+
   const { data: row, error } = await sb
     .from("hivemind_briefings")
     .insert({
@@ -196,8 +290,8 @@ Be direct, honest, and data-driven. Avoid vague platitudes. Reference specific n
       type,
       title:        parsed.title,
       summary:      parsed.summary,
-      sections:     parsed.sections ?? {},
-      meta:         parsed.meta ?? {},
+      sections,
+      meta,
       is_read:      false,
       generated_by: generatedBy,
     })

@@ -397,6 +397,12 @@ export async function runGscSyncForWorkspace(
         console.warn("[gsc-sync] first-data event failed:", e?.message ?? e);
       }
       try {
+        // JUSTIFIED-EXCEPTION (Task #500): this module is ALIAS-FREE (no "@/"
+        // imports) because it is loaded from the campaign-scheduler Vite plugin
+        // chain at config time. Dynamic import("@/lib/minds/intelligence-packet.server")
+        // is not available here. This is a one-time informational task raised on
+        // first GSC data arrival — not autonomous AI Mind output. The shallow
+        // insert is intentional given the alias-free constraint.
         await admin.from("hivemind_tasks").insert({
           workspace_id: workspaceId,
           title: "Review first Search Console data",

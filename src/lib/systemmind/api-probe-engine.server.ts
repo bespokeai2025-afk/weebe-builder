@@ -176,7 +176,7 @@ function suggestModuleForPath(endpointPath: string, responseKeys: string[]): str
 
 export const testApiConnection = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth, requirePlatformAdmin])
-  .inputValidator((i: { connectionId: string }) =>
+  .validator((i: { connectionId: string }) =>
     z.object({ connectionId: z.string() }).parse(i),
   )
   .handler(async ({ data }) => {
@@ -214,7 +214,7 @@ export const testApiConnection = createServerFn({ method: "POST" })
 
 export const probeEndpoint = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth, requirePlatformAdmin])
-  .inputValidator((i: {
+  .validator((i: {
     connectionId:  string;
     endpointPath:  string;
     method:        string;
@@ -295,7 +295,7 @@ export const probeEndpoint = createServerFn({ method: "POST" })
 
 export const detectPagination = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth, requirePlatformAdmin])
-  .inputValidator((i: {
+  .validator((i: {
     connectionId: string;
     endpointPath: string;
     method:       string;
@@ -438,7 +438,7 @@ export const detectPagination = createServerFn({ method: "POST" })
 
 export const requestApiOtp = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth, requirePlatformAdmin])
-  .inputValidator((i: {
+  .validator((i: {
     connectionId: string;
     otpEndpoint:  string;
     emailField:   string;
@@ -468,7 +468,7 @@ export const requestApiOtp = createServerFn({ method: "POST" })
 
 export const verifyApiOtp = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth, requirePlatformAdmin])
-  .inputValidator((i: {
+  .validator((i: {
     connectionId:   string;
     verifyEndpoint: string;
     emailField:     string;
@@ -524,7 +524,7 @@ export const verifyApiOtp = createServerFn({ method: "POST" })
 
 export const suggestModuleMapping = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth, requirePlatformAdmin])
-  .inputValidator((i: { endpointPath: string; responseKeys?: string[] }) =>
+  .validator((i: { endpointPath: string; responseKeys?: string[] }) =>
     z.object({ endpointPath: z.string(), responseKeys: z.array(z.string()).optional() }).parse(i),
   )
   .handler(async ({ data }) => {

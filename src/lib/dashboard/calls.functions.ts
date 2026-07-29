@@ -9,7 +9,7 @@ const TEST_CALLS_TTL = 5 * 60;  // 5 minutes
 
 export const listCalls = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input) =>
+  .validator((input) =>
     z
       .object({
         status: z.string().optional(),
@@ -72,7 +72,7 @@ export const listCalls = createServerFn({ method: "POST" })
 
 export const listTestCalls = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input) =>
+  .validator((input) =>
     z
       .object({ limit: z.number().int().min(1).max(10000).default(5000) })
       .parse(input ?? {}),
@@ -114,7 +114,7 @@ export const listTestCalls = createServerFn({ method: "POST" })
 
 export const deleteTestCalls = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input) =>
+  .validator((input) =>
     z
       .object({ ids: z.array(z.string().uuid()).min(1).max(500) })
       .parse(input),

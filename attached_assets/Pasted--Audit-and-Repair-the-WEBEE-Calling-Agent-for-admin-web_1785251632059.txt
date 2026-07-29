@@ -1,0 +1,594 @@
+# Audit and Repair the WEBEE Calling Agent for [admin@webespokeai.com](mailto:admin@webespokeai.com)
+
+Perform a complete production audit of the WEBEE voice-calling agent configured inside the workspace associated with:
+
+```text
+admin@webespokeai.com
+```
+
+This is an implementation and verification task. Do not only inspect the user interface or provide general recommendations.
+
+Identify the correct workspace from the authenticated account record, then locate every voice agent associated with that workspace. Determine which agent is currently active, deployed, connected to telephony or used by active campaigns.
+
+Do not rely only on the email address stored in frontend state. Resolve the authoritative workspace ID server-side.
+
+## Primary Objective
+
+Confirm whether the calling agent is genuinely capable of:
+
+* Receiving inbound calls
+* Starting outbound calls
+* Connecting successfully
+* Playing the correct ElevenLabs voice
+* Using the intended OpenAI GPT-4.1 Fast-equivalent model
+* Accessing its prompt and knowledge base
+* Using dynamic variables
+* Running tools and functions
+* Checking live calendar availability
+* Creating bookings during the call
+* Transferring calls where configured
+* Recording calls
+* Producing transcripts
+* Extracting post-call data
+* Creating or updating leads
+* Updating WEBEE analytics
+* Attributing calls to the correct campaign
+* Sending webhook data successfully
+* Remaining fully isolated to the correct workspace
+
+Do not mark the agent as working merely because its record exists in the database or because the WEBEE interface shows “Deployed.”
+
+## Safety Rules
+
+Do not:
+
+* Delete or recreate the working agent without evidence
+* Replace existing prompts
+* change the phone number
+* change production credentials
+* break existing n8n workflows
+* break existing webhook integrations
+* trigger calls to real leads during testing
+* modify CRM records using test data
+* expose API keys or credentials
+* move the agent into another workspace
+* create duplicate agents, numbers or webhooks
+
+Use a clearly marked test record and an authorised test phone number for any live test.
+
+## Phase 1 — Resolve the Correct Workspace
+
+Locate the user account for:
+
+```text
+admin@webespokeai.com
+```
+
+Resolve:
+
+* User ID
+* Workspace ID
+* Workspace name
+* Membership role
+* Workspace status
+* Subscription status
+* Feature permissions
+* Voice-agent permissions
+* Provider credentials associated with the workspace
+
+Confirm the workspace is active and the user has access to the calling-agent features.
+
+Check that all backend requests are using the resolved workspace ID and are not accidentally falling back to:
+
+* A default workspace
+* The WBAH workspace
+* An admin workspace
+* A previously selected workspace
+* A frontend-cached workspace ID
+
+## Phase 2 — Identify the Active Agent
+
+Locate all voice agents associated with the workspace.
+
+For each agent, inspect:
+
+* WEBEE agent ID
+* Provider agent ID
+* Agent name
+* Deployment status
+* Active or archived status
+* Inbound or outbound purpose
+* Assigned phone numbers
+* Connected campaigns
+* Retell or ElevenLabs provider
+* Model configuration
+* Voice configuration
+* Prompt version
+* Last updated time
+* Last successful call
+* Last failed call
+
+Clearly identify which agent is currently intended to be used.
+
+If several agents exist, do not assume the most recently created agent is the correct one. Use current campaign mappings, phone-number mappings and deployment records.
+
+## Phase 3 — Provider Verification
+
+Confirm the provider-side agent genuinely exists and is accessible using the credentials stored for this workspace.
+
+Verify:
+
+* Provider API authentication succeeds
+* Agent ID exists
+* Agent is deployed or active
+* Agent configuration can be retrieved
+* Voice ID exists
+* Model is available
+* The intended prompt is present
+* Knowledge bases are attached
+* Functions are attached
+* Webhook URL is correct
+* Recording is enabled
+* Transcript events are enabled
+* Post-call events are enabled
+
+If the WEBEE record references a provider agent that no longer exists, show a clear error and repair the mapping without creating unnecessary duplicate agents.
+
+## Phase 4 — Model and Voice Check
+
+Confirm the agent is using the intended stack:
+
+* ElevenLabs voice
+* OpenAI GPT-4.1 Fast or the exact currently supported equivalent
+* Correct latency or fast-tier configuration
+* Correct speech-to-text provider
+* Correct interruption and responsiveness settings
+* Correct language and accent
+* Correct voice ID
+* Correct voice speed, stability and similarity settings
+
+Do not silently substitute a cheaper model or voice.
+
+Show the user a clear summary:
+
+```text
+Voice: ElevenLabs — [voice name]
+Language model: [model name]
+Calling provider: [provider]
+Recording: Enabled
+Transcription: Enabled
+```
+
+Do not display raw provider JSON.
+
+## Phase 5 — Phone Number and Telephony Verification
+
+Inspect every phone number connected to the active agent.
+
+Verify:
+
+* The number exists with the provider
+* It belongs to the correct WEBEE workspace
+* It is assigned to the correct agent
+* Inbound routing is correct
+* Outbound caller ID is permitted
+* Geographic permissions are enabled
+* Twilio credentials are valid where applicable
+* SIP configuration is valid where applicable
+* Number capabilities include voice
+* The number is not accidentally assigned to another agent
+* The number is not disconnected or suspended
+
+Perform a non-destructive provider validation before placing a call.
+
+## Phase 6 — Prompt and Conversation Flow Check
+
+Inspect the actual deployed prompt and conversation flow.
+
+Confirm:
+
+* The opening message is correct
+* The agent identifies the correct company
+* The agent understands WEBEE products and services
+* The agent does not use outdated company information
+* The agent does not mention another client
+* The agent does not reference WBAH unless specifically intended
+* Transitions are valid
+* No nodes are disconnected
+* No infinite loops exist
+* No unreachable functions exist
+* Required variables have fallback behaviour
+* The agent handles silence
+* The agent handles interruptions
+* The agent handles voicemail
+* The agent handles objections
+* The agent can end calls cleanly
+* The agent does not promise unsupported actions
+
+Validate that the deployed provider version matches the latest approved WEBEE version.
+
+## Phase 7 — Dynamic Variables
+
+Inspect every variable used by the prompt or conversation flow.
+
+Verify each variable has:
+
+* A documented purpose
+* A valid source
+* The correct data type
+* A fallback value
+* Correct workspace scoping
+* Correct pre-call mapping
+* Correct provider variable name
+
+Check likely variables including:
+
+```text
+first_name
+last_name
+full_name
+email
+phone_number
+company_name
+campaign_name
+lead_source
+budget
+preferred_contact
+booking_slot
+timezone
+workspace_name
+agent_name
+```
+
+Identify variables referenced by the prompt that are not being supplied.
+
+Do not allow unresolved values such as:
+
+```text
+{{first_name}}
+{{company_name}}
+undefined
+null
+```
+
+to be spoken during a real call.
+
+## Phase 8 — Functions and Tools
+
+Test every attached function individually without placing a real customer call.
+
+For each function, verify:
+
+* Function schema is valid
+* Required parameters are defined
+* Parameter descriptions are clear
+* Authentication is valid
+* Endpoint responds
+* Workspace context is enforced
+* Success response is correctly interpreted
+* Failure response is handled naturally
+* Timeout behaviour is safe
+* Retry behaviour does not create duplicates
+
+Check functions such as:
+
+* Calendar availability lookup
+* Booking creation
+* Booking cancellation
+* Booking rescheduling
+* Call transfer
+* Lead lookup
+* Lead update
+* CRM lookup
+* CRM update
+* Document checking
+* Follow-up scheduling
+* SMS or email sending
+
+A function must not be marked working solely because it is attached to the agent.
+
+## Phase 9 — Calendar and Booking Test
+
+Verify the calendar integration connected to this workspace.
+
+Confirm:
+
+* Credentials are valid
+* The correct calendar or event type is selected
+* Availability is checked live during the call
+* Timezone conversion is correct
+* Already-booked slots are excluded
+* The selected slot is held or booked immediately
+* Booking confirmation is returned to the agent
+* The agent only confirms after successful booking
+* Duplicate bookings are prevented
+* Failed bookings are explained correctly
+* Booking records appear in WEBEE
+
+Do not use post-call extraction as the primary booking mechanism.
+
+The appointment should be created during the live call.
+
+## Phase 10 — Webhooks
+
+Inspect the active webhook configuration.
+
+Verify:
+
+* Correct production URL
+* Correct secret
+* Correct request method
+* Correct headers
+* Correct event types
+* Correct response status
+* No redirect errors
+* No authentication failures
+* No repeated timeout failures
+* No duplicate event processing
+
+Check events including:
+
+* Call started
+* Call connected
+* Transcript updated
+* Call ended
+* Call analysed
+* Recording ready
+* Post-call data available
+
+Confirm webhooks are not still pointing exclusively to an old n8n endpoint when WEBEE also requires the events.
+
+Preserve existing n8n workflows. Where both destinations are required, use safe fan-out or existing supported routing rather than replacing one integration.
+
+## Phase 11 — Call Recording and Transcription
+
+Verify:
+
+* Recording is enabled on the provider
+* Consent messaging complies with configured requirements
+* Recording URL is received
+* Recording is stored against the correct call
+* Recording belongs to the correct workspace
+* Recording playback works in WEBEE
+* Transcript events are received
+* Live transcript works during the call where supported
+* Final transcript is saved
+* Recording and transcript are not duplicated
+* Access is restricted by workspace
+
+Do not expose recording URLs publicly.
+
+## Phase 12 — Post-Call Data Extraction
+
+Inspect the post-call extraction configuration.
+
+Verify fields such as:
+
+```text
+name
+email
+phone_number
+budget
+qualification_status
+sentiment
+call_outcome
+booking_slot
+booking_status
+follow_up_required
+callback_date
+callback_time
+notes
+summary
+```
+
+Confirm:
+
+* The extraction schema matches WEBEE fields
+* Types are correct
+* Required values are not silently dropped
+* Extracted values are associated with the provider call ID
+* Existing lead records are updated rather than duplicated
+* New leads are only created under the correct conditions
+* Bookings are not inferred when booking failed
+* Campaign attribution is retained
+
+## Phase 13 — Campaign Attribution
+
+Confirm every test and production call contains:
+
+* Workspace ID
+* Campaign ID
+* Campaign run ID where applicable
+* Lead ID where applicable
+* Provider call ID
+* Agent ID
+
+Do not attribute calls using only the agent ID because one agent may be shared across several campaigns.
+
+Verify calls from this workspace appear under the correct campaign and do not appear under WBAH or another client.
+
+## Phase 14 — Analytics Verification
+
+After a controlled test call, verify that WEBEE records:
+
+* One unique call
+* Correct call direction
+* Correct call status
+* Correct duration
+* Correct minutes used
+* Correct connection status
+* Correct sentiment
+* Correct qualification status
+* Correct booking result
+* Correct campaign
+* Correct workspace
+* Recording
+* Transcript
+* Call summary
+* Post-call extraction
+
+Ensure the test call is counted exactly once.
+
+Check that the same call appears consistently in:
+
+* Calls page
+* Campaign analytics
+* Agent analytics
+* Reports
+* HiveMind
+* Recordings
+* Lead history
+
+## Phase 15 — Controlled End-to-End Test
+
+Run one controlled test for the active agent using a safe test contact.
+
+Test this sequence:
+
+1. Start the call from WEBEE.
+2. Confirm the provider accepts it.
+3. Confirm the phone rings.
+4. Confirm audio works in both directions.
+5. Confirm the ElevenLabs voice loads.
+6. Confirm the correct opening message.
+7. Confirm the agent receives dynamic variables.
+8. Ask a knowledge-base question.
+9. Trigger at least one safe tool.
+10. Check calendar availability.
+11. Create a test booking where authorised.
+12. End the call normally.
+13. Confirm recording creation.
+14. Confirm transcript storage.
+15. Confirm post-call extraction.
+16. Confirm lead or test-record update.
+17. Confirm campaign attribution.
+18. Confirm analytics update.
+19. Confirm the call is counted once.
+20. Remove or clearly label any test booking and test lead.
+
+Never place the test call to a real lead.
+
+## Phase 16 — Error and Log Review
+
+Review production logs for this workspace and agent.
+
+Search for:
+
+* Authentication failures
+* Missing provider credentials
+* Agent-not-found responses
+* Number assignment errors
+* Twilio errors
+* Provider rate limits
+* Webhook 401, 403, 404, 429 or 500 responses
+* Function timeouts
+* Calendar errors
+* Invalid dynamic variables
+* Failed post-call extraction
+* Duplicate call creation
+* Missing recording URLs
+* Missing transcripts
+* Workspace mismatch
+* Campaign mismatch
+* Database RLS failures
+
+Separate historic resolved errors from current active failures.
+
+## End-User Health Check
+
+Add or update a clear **Agent Health** section in WEBEE for the workspace.
+
+Normal users should see:
+
+```text
+Agent Status
+Operational
+
+Phone Number
+Connected
+
+Voice
+ElevenLabs — Connected
+
+Language Model
+GPT-4.1 Fast — Connected
+
+Inbound Calling
+Working
+
+Outbound Calling
+Working
+
+Recording
+Enabled
+
+Live Transcription
+Working
+
+Calendar Booking
+Working
+
+CRM Integration
+Working
+
+Webhooks
+Healthy
+
+Last Successful Test
+[date and time]
+```
+
+Use status badges:
+
+* Operational
+* Warning
+* Failed
+* Not configured
+* Test required
+
+Do not display raw JSON or API responses.
+
+## Repair Rules
+
+Where a fault is confirmed:
+
+* Repair the smallest affected component
+* Preserve existing agent IDs where possible
+* Preserve phone numbers
+* Preserve prompts
+* Preserve integrations
+* Preserve credentials
+* Preserve historical calls
+* Preserve campaign mappings
+* Document the change
+* Re-run the affected test
+* Re-run the complete controlled call test
+
+Do not claim an issue is fixed until the end-to-end test passes.
+
+## Completion Report
+
+Provide a clear report containing:
+
+1. Workspace identified
+2. Active agent identified
+3. Provider agent status
+4. Phone number status
+5. Voice and model status
+6. Prompt and flow status
+7. Dynamic-variable status
+8. Function status
+9. Calendar status
+10. Webhook status
+11. Recording status
+12. Transcription status
+13. Post-call extraction status
+14. Campaign attribution status
+15. Analytics status
+16. Errors found
+17. Repairs implemented
+18. Controlled test-call result
+19. Any remaining warnings
+20. Confirmation that other agents and workspaces were not affected
+
+Do not mark the task complete unless a controlled end-to-end test confirms that the agent can place or receive a call, converse correctly, execute its configured tools, save the recording and transcript, extract post-call data and update the correct WEBEE workspace and campaign.

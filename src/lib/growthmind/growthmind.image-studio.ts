@@ -166,7 +166,7 @@ export const getImageStudioStatus = createServerFn({ method: "POST" })
 
 export const generateImageAsset = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((d: {
+  .validator((d: {
     data: {
       prompt: string;
       assetType: AssetType;
@@ -249,7 +249,7 @@ export const generateImageAsset = createServerFn({ method: "POST" })
 
 export const editImageAsset = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((d: { data: { assetId: string; editInstruction: string } }) => d)
+  .validator((d: { data: { assetId: string; editInstruction: string } }) => d)
   .handler(async ({ data, context }): Promise<ImageAsset> => {
     const { workspaceId } = context;
     const { assetId, editInstruction } = data.data;
@@ -306,7 +306,7 @@ export const editImageAsset = createServerFn({ method: "POST" })
 
 export const createImageVariation = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((d: { data: { assetId: string; variationHint?: string } }) => d)
+  .validator((d: { data: { assetId: string; variationHint?: string } }) => d)
   .handler(async ({ data, context }): Promise<ImageAsset> => {
     const { workspaceId } = context;
     const { assetId, variationHint } = data.data;
@@ -363,7 +363,7 @@ export const createImageVariation = createServerFn({ method: "POST" })
 
 export const listImageAssets = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((d: {
+  .validator((d: {
     data: {
       campaignId?: string;
       contentAssetId?: string;
@@ -400,7 +400,7 @@ export const listImageAssets = createServerFn({ method: "POST" })
 
 export const attachImageToCampaign = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((d: { data: { assetId: string; campaignDraftId: string } }) => d)
+  .validator((d: { data: { assetId: string; campaignDraftId: string } }) => d)
   .handler(async ({ data, context }): Promise<{ ok: boolean }> => {
     const { workspaceId } = context;
     const { assetId, campaignDraftId } = data.data;
@@ -434,7 +434,7 @@ export const attachImageToCampaign = createServerFn({ method: "POST" })
 
 export const attachImageToContent = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((d: { data: { assetId: string; contentCalendarId: string } }) => d)
+  .validator((d: { data: { assetId: string; contentCalendarId: string } }) => d)
   .handler(async ({ data, context }): Promise<{ ok: boolean }> => {
     const { workspaceId } = context;
     const { assetId, contentCalendarId } = data.data;
@@ -457,7 +457,7 @@ export const attachImageToContent = createServerFn({ method: "POST" })
 
 export const deleteImageAsset = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((d: { data: { assetId: string } }) => d)
+  .validator((d: { data: { assetId: string } }) => d)
   .handler(async ({ data, context }): Promise<{ ok: boolean }> => {
     const { workspaceId } = context;
     const sb = supabaseAdmin as any;

@@ -25,6 +25,12 @@ registerMindTool({
   idempotent: true,
   estimatedCost: "none",
   platforms: ["web", "mobile", "api", "system"],
+  featureFamily: "seo",
+  capabilityState: "available",
+  requiredIntegrations: ["google_search_console"],
+  mobileAvailable: true,
+  currentHealth: "healthy",
+  providerLimitations: "Requires Google Search Console property to be connected and have indexed data.",
   inputSchema: z.object({
     dimension: z.enum(["query", "page", "country", "device", "search_appearance"]).default("query"),
     days: z.number().int().min(7).max(480).default(90),
@@ -48,6 +54,11 @@ registerMindTool({
   idempotent: true,
   estimatedCost: "none",
   platforms: ["web", "mobile", "api", "system"],
+  featureFamily: "seo",
+  capabilityState: "available",
+  requiredIntegrations: ["google_search_console"],
+  mobileAvailable: true,
+  currentHealth: "healthy",
   inputSchema: z.object({ kinds: z.array(z.string()).default([]) }),
   run: async (ctx: MindToolContext, input: any): Promise<MindToolRunResult> => {
     const { detectOpportunities } = await import("@/lib/growthmind/seo-intelligence.server");
@@ -67,6 +78,11 @@ registerMindTool({
   idempotent: true,
   estimatedCost: "none",
   platforms: ["web", "mobile", "api", "system"],
+  featureFamily: "seo",
+  capabilityState: "available",
+  requiredIntegrations: ["google_search_console"],
+  mobileAvailable: true,
+  currentHealth: "healthy",
   run: async (ctx: MindToolContext): Promise<MindToolRunResult> => {
     const { auditSitemaps } = await import("@/lib/growthmind/seo-intelligence.server");
     const env = await auditSitemaps(ctx.workspaceId);
@@ -85,6 +101,11 @@ registerMindTool({
   idempotent: true,
   estimatedCost: "none",
   platforms: ["web", "mobile", "api", "system"],
+  featureFamily: "seo",
+  capabilityState: "available",
+  requiredIntegrations: ["google_search_console"],
+  mobileAvailable: true,
+  currentHealth: "healthy",
   run: async (ctx: MindToolContext): Promise<MindToolRunResult> => {
     const { getSyncStateForWorkspace } = await import("@/lib/growthmind/seo-intelligence.server");
     const r = await getSyncStateForWorkspace(ctx.workspaceId);
@@ -103,6 +124,10 @@ registerMindTool({
   idempotent: true,
   estimatedCost: "none",
   platforms: ["web", "mobile", "api", "system"],
+  featureFamily: "seo",
+  capabilityState: "available",
+  mobileAvailable: true,
+  currentHealth: "healthy",
   run: async (ctx: MindToolContext): Promise<MindToolRunResult> => {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { data, error } = await (supabaseAdmin as any)
@@ -129,6 +154,11 @@ registerMindTool({
   idempotent: true,
   estimatedCost: "low",
   platforms: ["web", "mobile", "api", "system"],
+  featureFamily: "seo",
+  capabilityState: "available",
+  requiredIntegrations: ["google_search_console"],
+  mobileAvailable: true,
+  currentHealth: "healthy",
   run: async (ctx: MindToolContext): Promise<MindToolRunResult> => {
     const { runGscSyncForWorkspace } = await import("@/lib/growthmind/gsc-sync-core");
     const r = await runGscSyncForWorkspace(ctx.workspaceId);
@@ -147,6 +177,12 @@ registerMindTool({
   idempotent: true,
   estimatedCost: "low",
   platforms: ["web", "mobile", "api", "system"],
+  featureFamily: "seo",
+  capabilityState: "available",
+  requiredIntegrations: ["google_search_console"],
+  mobileAvailable: true,
+  currentHealth: "healthy",
+  providerLimitations: "Google URL Inspection API quota-limited — use selectively, not in bulk.",
   inputSchema: z.object({ url: z.string().url().max(2000) }),
   run: async (ctx: MindToolContext, input: any): Promise<MindToolRunResult> => {
     const { inspectAndStoreUrl } = await import("@/lib/growthmind/gsc-sync-core");
@@ -166,6 +202,10 @@ registerMindTool({
   idempotent: false,
   estimatedCost: "low",
   platforms: ["web", "mobile", "api", "system"],
+  featureFamily: "seo",
+  capabilityState: "approval_required",
+  mobileAvailable: true,
+  currentHealth: "healthy",
   inputSchema: z.object({
     name: z.string().min(3).max(200),
     campaignType: z.enum(["strategy","general","product","service","industry","country","local","existing_page_improvement","content_refresh","internal_link","metadata","technical","blog"]).default("blog"),
@@ -196,6 +236,12 @@ registerMindTool({
   idempotent: true,
   estimatedCost: "low",
   platforms: ["web", "mobile", "api", "system"],
+  featureFamily: "seo",
+  capabilityState: "approval_required",
+  requiredIntegrations: ["google_search_console"],
+  mobileAvailable: true,
+  currentHealth: "healthy",
+  providerLimitations: "Requires Google Search Console property to be connected and verified.",
   inputSchema: z.object({ sitemapUrl: z.string().url().max(2000) }),
   run: async (ctx: MindToolContext, input: any): Promise<MindToolRunResult> => {
     const { getValidGscToken, submitSitemapToGsc, fetchSitemapList } = await import("@/lib/growthmind/gsc-sync-core");
@@ -223,6 +269,10 @@ registerMindTool({
   idempotent: true,
   estimatedCost: "none",
   platforms: ["web", "mobile", "api", "system"],
+  featureFamily: "monitoring",
+  capabilityState: "available",
+  mobileAvailable: true,
+  currentHealth: "healthy",
   run: async (ctx: MindToolContext): Promise<MindToolRunResult> => {
     const { runSeoTechAudit } = await import("@/lib/systemmind/seo-tech-audit.server");
     const r = await runSeoTechAudit(ctx.workspaceId);
@@ -243,6 +293,10 @@ registerMindTool({
   idempotent: true,
   estimatedCost: "none",
   platforms: ["web", "mobile", "api", "system"],
+  featureFamily: "finance",
+  capabilityState: "available",
+  mobileAvailable: true,
+  currentHealth: "healthy",
   inputSchema: z.object({ days: z.number().int().min(7).max(365).default(90) }),
   run: async (ctx: MindToolContext, input: any): Promise<MindToolRunResult> => {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
@@ -298,6 +352,10 @@ registerMindTool({
   idempotent: true,
   estimatedCost: "none",
   platforms: ["web", "mobile", "api", "system"],
+  featureFamily: "seo",
+  capabilityState: "available",
+  mobileAvailable: true,
+  currentHealth: "healthy",
   run: async (ctx: MindToolContext): Promise<MindToolRunResult> => {
     const { detectOpportunities } = await import("@/lib/growthmind/seo-intelligence.server");
     const env = await detectOpportunities(ctx.workspaceId, []);
@@ -316,6 +374,10 @@ registerMindTool({
   idempotent: true,
   estimatedCost: "none",
   platforms: ["web", "mobile", "api", "system"],
+  featureFamily: "seo",
+  capabilityState: "available",
+  mobileAvailable: true,
+  currentHealth: "healthy",
   inputSchema: z.object({
     dimension: z.enum(["query", "page", "country", "device", "search_appearance"]).default("query"),
     days: z.number().int().min(7).max(480).default(90),
@@ -338,6 +400,10 @@ registerMindTool({
   idempotent: true,
   estimatedCost: "none",
   platforms: ["web", "mobile", "api", "system"],
+  featureFamily: "seo",
+  capabilityState: "available",
+  mobileAvailable: true,
+  currentHealth: "healthy",
   run: async (ctx: MindToolContext): Promise<MindToolRunResult> => {
     const [{ getSyncStateForWorkspace, auditSitemaps, listStoredInspections }] = await Promise.all([
       import("@/lib/growthmind/seo-intelligence.server"),
@@ -362,6 +428,10 @@ registerMindTool({
   idempotent: true,
   estimatedCost: "none",
   platforms: ["web", "mobile", "api", "system"],
+  featureFamily: "seo",
+  capabilityState: "available",
+  mobileAvailable: true,
+  currentHealth: "healthy",
   run: async (ctx: MindToolContext): Promise<MindToolRunResult> => {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { data, error } = await (supabaseAdmin as any)
@@ -386,6 +456,10 @@ registerMindTool({
   idempotent: false,
   estimatedCost: "low",
   platforms: ["web", "mobile", "api", "system"],
+  featureFamily: "seo",
+  capabilityState: "approval_required",
+  mobileAvailable: true,
+  currentHealth: "healthy",
   inputSchema: z.object({
     name: z.string().min(3).max(200),
     campaignType: z.enum(["blog","product","service","industry","country","existing_page_improvement","content_refresh","metadata","strategy","general"]).default("blog"),
@@ -414,6 +488,12 @@ registerMindTool({
   idempotent: true,
   estimatedCost: "low",
   platforms: ["web", "mobile", "api", "system"],
+  featureFamily: "seo",
+  capabilityState: "available",
+  requiredIntegrations: ["google_search_console"],
+  mobileAvailable: true,
+  currentHealth: "healthy",
+  providerLimitations: "Google URL Inspection API quota-limited — use selectively, not in bulk.",
   inputSchema: z.object({ url: z.string().url().max(2000) }),
   run: async (ctx: MindToolContext, input: any): Promise<MindToolRunResult> => {
     const { inspectAndStoreUrl } = await import("@/lib/growthmind/gsc-sync-core");
@@ -433,6 +513,10 @@ registerMindTool({
   idempotent: false,
   estimatedCost: "none",
   platforms: ["web", "mobile", "api", "system"],
+  featureFamily: "seo",
+  capabilityState: "available",
+  mobileAvailable: true,
+  currentHealth: "healthy",
   inputSchema: z.object({
     teachingType: z.enum(["priority_product","priority_service","target_industry","target_country","target_language","customer_problem","customer_question","sales_objection","search_topic","topic_to_avoid","competitor","restricted_claim","preferred_cta","publishing_limit","approval_requirement","commercial_objective","temporary_instruction","experiment"]),
     content: z.string().min(2).max(4000),

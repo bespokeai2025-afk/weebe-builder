@@ -138,7 +138,9 @@ function HiveMindSettings() {
   const { data: modeData, refetch: refetchMode } = useQuery({
     queryKey: ["hivemind-mode"],
     queryFn:  () => modeFn(),
-    staleTime: Infinity,
+    staleTime: 30_000,
+    retry: 2,
+    refetchOnWindowFocus: true,
     throwOnError: false,
   });
   const mode: HiveMindMode = modeData?.mode ?? "assistant";

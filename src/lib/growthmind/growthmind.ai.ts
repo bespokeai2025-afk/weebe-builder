@@ -301,7 +301,7 @@ function buildGrowthMindRetrievalQuery(pd: any): string {
 // ── AI Response ────────────────────────────────────────────────────────────────
 export const getGrowthMindAIResponse = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({
       messages:    z.array(z.object({ role: z.enum(["user","assistant"]), content: z.string() })),
       platformData: z.any().optional(),
@@ -377,32 +377,83 @@ Rules:
     ];
     const actionsTaken: Array<{ tool: string; ok: boolean; error?: string }> = [];
 
+    // ── GPT-5.6 routing (default path); legacy gpt-4o behind flag ────────────
+    const { classifyAiTask, routingLedgerMeta, useLegacyAiPath } = await import("@/lib/ai/task-router.server");
+    const legacyPath = useLegacyAiPath();
+    const routing = classifyAiTask({
+      query: lastUser,
+      toolsAvailable: !!workspaceId,
+      department: "growthmind",
+      feature: "chat",
+    });
+
     // Function-calling loop (max 5 rounds, then force a plain answer).
     for (let round = 0; round < 6; round++) {
       const isLast = round === 5;
-      const body: any = {
-        model: "gpt-4o",
-        messages: convo,
-        max_tokens: 800,
-        temperature: 0.7,
-      };
+      let tools: any[] | undefined;
       if (workspaceId && !isLast) {
         const { CHAT_TOOL_SCHEMAS } = await import("@/lib/growthmind/growthmind-chat-tools.server");
-        body.tools = CHAT_TOOL_SCHEMAS;
+        tools = CHAT_TOOL_SCHEMAS;
       }
 
-      const res = await fetch("https://api.openai.com/v1/chat/completions", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
-        body: JSON.stringify(body),
-      });
-      if (!res.ok) {
-        const err = await res.text().catch(() => res.statusText);
-        throw new Error(`OpenAI error: ${err.slice(0, 200)}`);
+      let msg: any;
+      let toolCalls: any[] | undefined;
+
+      if (!legacyPath) {
+        const { openaiResponsesCall, toResponsesInput } = await import("@/lib/ai/openai-responses.server");
+        const r = await openaiResponsesCall({
+          apiKey,
+          model: routing.model,
+          input: toResponsesInput(convo.filter((m) => m.role !== "system")),
+          instructions: systemPrompt,
+          maxOutputTokens: 800,
+          reasoningEffort: routing.reasoningEffort,
+          tools,
+          usage: { workspaceId, department: "growthmind", feature: "chat" },
+          routing: routingLedgerMeta(routing),
+        });
+        toolCalls = r.toolCalls.length
+          ? r.toolCalls.map((tc) => ({ id: tc.id, type: "function", function: { name: tc.name, arguments: tc.arguments } }))
+          : undefined;
+        msg = { role: "assistant", content: r.text || null, ...(toolCalls ? { tool_calls: toolCalls } : {}) };
+      } else {
+        const body: any = {
+          model: "gpt-4o",
+          messages: convo,
+          max_tokens: 800,
+          temperature: 0.7,
+          ...(tools ? { tools } : {}),
+        };
+        const started = Date.now();
+        const { recordAiUsage } = await import("@/lib/ai/usage-ledger.server");
+        const res = await fetch("https://api.openai.com/v1/chat/completions", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
+          body: JSON.stringify(body),
+        });
+        if (!res.ok) {
+          const err = await res.text().catch(() => res.statusText);
+          await recordAiUsage({
+            workspaceId, department: "growthmind", feature: "chat", provider: "openai",
+            requestedModel: "gpt-4o", endpoint: "/v1/chat/completions",
+            requestId: res.headers.get("x-request-id"), latencyMs: Date.now() - started,
+            status: "failed", errorMessage: `OpenAI ${res.status}: ${err.slice(0, 200)}`,
+          });
+          throw new Error(`OpenAI error: ${err.slice(0, 200)}`);
+        }
+        const json = await res.json() as any;
+        await recordAiUsage({
+          workspaceId, department: "growthmind", feature: "chat", provider: "openai",
+          requestedModel: "gpt-4o", returnedModel: json.model ?? "gpt-4o",
+          endpoint: "/v1/chat/completions", requestId: json.id ?? res.headers.get("x-request-id"),
+          inputTokens: json.usage?.prompt_tokens ?? 0,
+          cachedInputTokens: json.usage?.prompt_tokens_details?.cached_tokens ?? 0,
+          outputTokens: json.usage?.completion_tokens ?? 0,
+          latencyMs: Date.now() - started, status: "success",
+        });
+        msg = json.choices?.[0]?.message;
+        toolCalls = msg?.tool_calls as any[] | undefined;
       }
-      const json = await res.json() as any;
-      const msg = json.choices?.[0]?.message;
-      const toolCalls = msg?.tool_calls as any[] | undefined;
 
       if (!toolCalls?.length) {
         return { reply: (msg?.content as string) ?? "", actionsTaken };
@@ -429,7 +480,7 @@ Rules:
 // ── Morning Growth Briefing ────────────────────────────────────────────────────
 export const getGrowthMindBriefing = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({ platformData: z.any().optional() }).parse(input)
   )
   .handler(async ({ context, data }) => {
@@ -465,6 +516,30 @@ export const getGrowthMindBriefing = createServerFn({ method: "POST" })
 
 Be specific with numbers. Start with "Good ${getTimeOfDay()}!" Keep it under 100 words.`;
 
+    // ── GPT-5.6 routing (default path); legacy gpt-4o behind flag ────────────
+    const { useLegacyAiPath, classifyAiTask, routingLedgerMeta } = await import("@/lib/ai/task-router.server");
+    if (!useLegacyAiPath()) {
+      const { openaiResponsesCall } = await import("@/lib/ai/openai-responses.server");
+      const routing = classifyAiTask({ query: prompt, department: "growthmind", feature: "briefing" });
+      try {
+        const r = await openaiResponsesCall({
+          apiKey,
+          model: routing.model,
+          input: [{ role: "user", content: prompt }],
+          instructions: systemPrompt,
+          maxOutputTokens: 300,
+          reasoningEffort: routing.reasoningEffort,
+          usage: { workspaceId, department: "growthmind", feature: "briefing" },
+          routing: routingLedgerMeta(routing),
+        });
+        return { briefing: r.text || `Good ${getTimeOfDay()}! Platform data loaded. Ask me anything about your marketing performance.` };
+      } catch {
+        return { briefing: `Good ${getTimeOfDay()}! Platform data loaded. Ask me anything about your marketing performance.` };
+      }
+    }
+
+    const started = Date.now();
+    const { recordAiUsage } = await import("@/lib/ai/usage-ledger.server");
     const res = await fetch("https://api.openai.com/v1/chat/completions", {
       method: "POST",
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
@@ -479,16 +554,31 @@ Be specific with numbers. Start with "Good ${getTimeOfDay()}!" Keep it under 100
       }),
     });
     if (!res.ok) {
+      await recordAiUsage({
+        workspaceId, department: "growthmind", feature: "briefing", provider: "openai",
+        requestedModel: "gpt-4o", endpoint: "/v1/chat/completions",
+        requestId: res.headers.get("x-request-id"), latencyMs: Date.now() - started,
+        status: "failed", errorMessage: `OpenAI ${res.status}`,
+      });
       return { briefing: `Good ${getTimeOfDay()}! Platform data loaded. Ask me anything about your marketing performance.` };
     }
     const json = await res.json() as any;
+    await recordAiUsage({
+      workspaceId, department: "growthmind", feature: "briefing", provider: "openai",
+      requestedModel: "gpt-4o", returnedModel: json.model ?? "gpt-4o",
+      endpoint: "/v1/chat/completions", requestId: json.id ?? res.headers.get("x-request-id"),
+      inputTokens: json.usage?.prompt_tokens ?? 0,
+      cachedInputTokens: json.usage?.prompt_tokens_details?.cached_tokens ?? 0,
+      outputTokens: json.usage?.completion_tokens ?? 0,
+      latencyMs: Date.now() - started, status: "success",
+    });
     return { briefing: (json.choices?.[0]?.message?.content as string) ?? "" };
   });
 
 // ── TTS ───────────────────────────────────────────────────────────────────────
 export const getGrowthMindTTS = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({
       text:    z.string().max(3000),
       voiceId: z.string().default("21m00Tcm4TlvDq8ikWAM"),
@@ -547,7 +637,7 @@ function getTimeOfDay() {
 // ── System context (for external use) ─────────────────────────────────────────
 export const getGrowthMindSystemContext = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({ platformData: z.any().optional() }).parse(input)
   )
   .handler(async ({ context, data }) => {

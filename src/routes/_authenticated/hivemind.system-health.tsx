@@ -40,7 +40,7 @@ const INTEGRATIONS: Integration[] = [
     detail: () => "Custom voice synthesis",
   },
   {
-    key: "openai", label: "OpenAI", desc: "GPT-4o inference (VoxStream)",
+    key: "openai", label: "OpenAI", desc: "AI inference (VoxStream)",
     icon: Brain, setupHref: "/settings/integrations", category: "Voice",
     detail: () => "Realtime AI conversations",
   },

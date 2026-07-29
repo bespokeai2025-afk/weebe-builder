@@ -83,7 +83,7 @@ export const listWorkflowTemplateCategories = createServerFn({ method: "GET" })
 
 export const saveWorkflowTemplate = createServerFn({ method: "POST" })
   .middleware([requirePlatformAdmin])
-  .inputValidator((input) =>
+  .validator((input) =>
     z.object({
       id:              z.string().optional(),
       category_id:     z.string().nullable().optional(),
@@ -127,7 +127,7 @@ export const saveWorkflowTemplate = createServerFn({ method: "POST" })
 
 export const deleteWorkflowTemplate = createServerFn({ method: "POST" })
   .middleware([requirePlatformAdmin])
-  .inputValidator((input) => z.object({ id: z.string().uuid() }).parse(input))
+  .validator((input) => z.object({ id: z.string().uuid() }).parse(input))
   .handler(async ({ context, data }) => {
     const sb = context.supabase as any;
     const { error } = await sb.from("workflow_templates").delete().eq("id", data.id);
@@ -172,7 +172,7 @@ export const listWorkspaceWorkflows = createServerFn({ method: "GET" })
 
 export const createWorkspaceWorkflow = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input) =>
+  .validator((input) =>
     z.object({
       template_id:     z.string().uuid().optional(),
       name:            z.string().min(1),
@@ -221,7 +221,7 @@ export const createWorkspaceWorkflow = createServerFn({ method: "POST" })
 
 export const updateWorkspaceWorkflow = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input) =>
+  .validator((input) =>
     z.object({
       id:              z.string().uuid(),
       name:            z.string().min(1).optional(),
@@ -253,7 +253,7 @@ export const updateWorkspaceWorkflow = createServerFn({ method: "POST" })
 
 export const deleteWorkspaceWorkflow = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input) => z.object({ id: z.string().uuid() }).parse(input))
+  .validator((input) => z.object({ id: z.string().uuid() }).parse(input))
   .handler(async ({ context, data }) => {
     const sb = context.supabase as any;
     const workspaceId = context.workspaceId;
@@ -286,7 +286,7 @@ export const listWorkflowRuns = createServerFn({ method: "GET" })
 
 export const manualTriggerWorkflow = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input) => z.object({ workflow_id: z.string().uuid() }).parse(input))
+  .validator((input) => z.object({ workflow_id: z.string().uuid() }).parse(input))
   .handler(async ({ context, data }) => {
     const sb = context.supabase as any;
     const workspaceId = context.workspaceId;

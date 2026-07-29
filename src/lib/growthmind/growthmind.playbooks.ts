@@ -409,7 +409,7 @@ export const getActivePlaybook = createServerFn({ method: "GET" })
 
 export const activatePlaybook = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => z.object({ industry: z.string().min(1) }).parse(input))
+  .validator((input: unknown) => z.object({ industry: z.string().min(1) }).parse(input))
   .handler(async ({ context, data }) => {
     const sb          = context.supabase as any;
     const workspaceId = context.workspaceId;

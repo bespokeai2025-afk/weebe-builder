@@ -29,7 +29,7 @@ export interface HexmailTemplate {
 
 export const listHexmailTemplates = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input) =>
+  .validator((input) =>
     z
       .object({ type: z.string().optional(), includeArchived: z.boolean().optional() })
       .parse(input),
@@ -52,7 +52,7 @@ export const listHexmailTemplates = createServerFn({ method: "POST" })
 
 export const upsertHexmailTemplate = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input) =>
+  .validator((input) =>
     z
       .object({
         id: z.string().optional(),
@@ -68,6 +68,28 @@ export const upsertHexmailTemplate = createServerFn({ method: "POST" })
     if (!workspaceId) throw new Error("No active workspace");
     const sb = supabase as any;
     const now = new Date().toISOString();
+
+    // ── Universal content safety gate (email templates only) ─────────────────
+    // Run the gate on the email body before persisting, so violations surface to
+    // the caller. The gate result is returned alongside the template id so the
+    // UI can warn the user or block progression to Copy approval.
+    let safetyPassed = true;
+    let safetyViolations: string[] = [];
+    let safetyWarnings: string[] = [];
+    if (data.type === "email" && data.content.trim().length > 0) {
+      try {
+        const safetyMod = await import("@/lib/content-safety/universal-content-safety.server");
+        const safetyResult = await safetyMod.runContentSafetyCheck(data.content, "email_campaign", workspaceId);
+        safetyPassed      = safetyResult.passed;
+        safetyViolations  = safetyResult.violations;
+        safetyWarnings    = safetyResult.warnings;
+      } catch (safetyErr: any) {
+        console.error("[hexmail-template] Safety gate error:", safetyErr?.message ?? safetyErr);
+        safetyPassed     = false;
+        safetyViolations = ["gate_error: Content safety gate failed to run — resolve the error before this template can be used in campaigns."];
+      }
+    }
+
     if (data.id) {
       const { error } = await sb
         .from("hexmail_templates")
@@ -81,7 +103,7 @@ export const upsertHexmailTemplate = createServerFn({ method: "POST" })
         .eq("id", data.id)
         .eq("workspace_id", workspaceId);
       if (error) throw new Error(error.message);
-      return { id: data.id };
+      return { id: data.id, safetyPassed, safetyViolations, safetyWarnings };
     } else {
       const { data: row, error } = await sb
         .from("hexmail_templates")
@@ -97,13 +119,13 @@ export const upsertHexmailTemplate = createServerFn({ method: "POST" })
         .select("id")
         .single();
       if (error) throw new Error(error.message);
-      return { id: row.id as string };
+      return { id: row.id as string, safetyPassed, safetyViolations, safetyWarnings };
     }
   });
 
 export const cloneHexmailTemplate = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input) => z.object({ id: z.string() }).parse(input))
+  .validator((input) => z.object({ id: z.string() }).parse(input))
   .handler(async ({ context, data }) => {
     const { supabase, workspaceId } = context;
     if (!workspaceId) throw new Error("No active workspace");
@@ -134,7 +156,7 @@ export const cloneHexmailTemplate = createServerFn({ method: "POST" })
 
 export const archiveHexmailTemplate = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input) =>
+  .validator((input) =>
     z.object({ id: z.string(), archive: z.boolean() }).parse(input),
   )
   .handler(async ({ context, data }) => {
@@ -152,7 +174,7 @@ export const archiveHexmailTemplate = createServerFn({ method: "POST" })
 
 export const incrementTemplateUsage = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input) => z.object({ id: z.string() }).parse(input))
+  .validator((input) => z.object({ id: z.string() }).parse(input))
   .handler(async ({ context, data }) => {
     const { supabase, workspaceId } = context;
     if (!workspaceId) throw new Error("No active workspace");

@@ -45,7 +45,7 @@ export const listRetellSyncAgents = createServerFn({ method: "POST" })
 
 export const getRetellSyncStatus = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: { agentRowId: string }) => input)
+  .validator((input: { agentRowId: string }) => input)
   .handler(async ({ data, context }) => {
     const wsId = requireWorkspace(context);
     const { getRetellSyncStatusServer } = await import(
@@ -56,7 +56,7 @@ export const getRetellSyncStatus = createServerFn({ method: "POST" })
 
 export const compareRetellConfig = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: { agentRowId: string }) => input)
+  .validator((input: { agentRowId: string }) => input)
   .handler(async ({ data, context }) => {
     const wsId = requireWorkspace(context);
     const { compareRetellConfigServer } = await import(
@@ -68,7 +68,7 @@ export const compareRetellConfig = createServerFn({ method: "POST" })
 /** Mark the live Retell config as imported (clears retell_not_imported). */
 export const acknowledgeRetellImport = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: { agentRowId: string }) => input)
+  .validator((input: { agentRowId: string }) => input)
   .handler(async ({ data, context }) => {
     const wsId = requireWorkspace(context);
     await requireAction(wsId, context.userId, "go_live");
@@ -84,7 +84,7 @@ export const acknowledgeRetellImport = createServerFn({ method: "POST" })
 /** Preview the extraction schema that WOULD be deployed (no Retell write). */
 export const previewExtractionSchema = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: { agentRowId: string }) => input)
+  .validator((input: { agentRowId: string }) => input)
   .handler(async ({ data, context }) => {
     const wsId = requireWorkspace(context);
     const [{ buildExtractionSchema }, { supabaseAdmin }] = await Promise.all([
@@ -103,7 +103,7 @@ export const previewExtractionSchema = createServerFn({ method: "POST" })
 /** Deploy the extraction schema to Retell with read-back verification. */
 export const deployExtractionSchema = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: { agentRowId: string }) => input)
+  .validator((input: { agentRowId: string }) => input)
   .handler(async ({ data, context }) => {
     const wsId = requireWorkspace(context);
     await requireAction(wsId, context.userId, "go_live");
@@ -127,7 +127,7 @@ export const getWebhookHealth = createServerFn({ method: "POST" })
 
 export const retryFailedWebhooks = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: { ledgerId?: string }) => input ?? {})
+  .validator((input: { ledgerId?: string }) => input ?? {})
   .handler(async ({ data, context }) => {
     const wsId = requireWorkspace(context);
     await requireAction(wsId, context.userId, "go_live");
@@ -143,7 +143,7 @@ export const retryFailedWebhooks = createServerFn({ method: "POST" })
 
 export const sendTestWebhook = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: { retellAgentId: string }) => input)
+  .validator((input: { retellAgentId: string }) => input)
   .handler(async ({ data, context }) => {
     const wsId = requireWorkspace(context);
     await requireAction(wsId, context.userId, "go_live");

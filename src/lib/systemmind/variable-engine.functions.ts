@@ -34,7 +34,7 @@ export const listAgentsForVariableEngineFn = createServerFn({ method: "POST" })
 
 export const scanAgentVariablesFn = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((i: { agentId: string; crmProvider?: string | null; useAi?: boolean }) =>
+  .validator((i: { agentId: string; crmProvider?: string | null; useAi?: boolean }) =>
     z.object({
       agentId: z.string().uuid(),
       crmProvider: z.string().max(60).nullish(),
@@ -55,7 +55,7 @@ export const scanAgentVariablesFn = createServerFn({ method: "POST" })
 
 export const listDynamicVariablesFn = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((i: { agentId: string }) => z.object({ agentId: z.string().uuid() }).parse(i))
+  .validator((i: { agentId: string }) => z.object({ agentId: z.string().uuid() }).parse(i))
   .handler(async ({ context, data }: any) => {
     await gate(context, "view");
     const { listDynamicVariablesServer, getLatestScanServer } = await import("@/lib/systemmind/variable-engine.server");
@@ -68,7 +68,7 @@ export const listDynamicVariablesFn = createServerFn({ method: "POST" })
 
 export const reviewDynamicVariableFn = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((i: { variableId: string; action: string; edits?: Record<string, unknown> }) =>
+  .validator((i: { variableId: string; action: string; edits?: Record<string, unknown> }) =>
     z.object({
       variableId: z.string().uuid(),
       action: z.enum(["approve", "reject", "edit", "reopen"]),
@@ -97,7 +97,7 @@ export const listTransformationRulesFn = createServerFn({ method: "POST" })
 
 export const saveTransformationRuleFn = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((i: {
+  .validator((i: {
     id?: string | null; name: string; description?: string;
     ruleType: string; config: Record<string, unknown>; isActive?: boolean;
   }) =>
@@ -122,7 +122,7 @@ export const saveTransformationRuleFn = createServerFn({ method: "POST" })
 
 export const deleteTransformationRuleFn = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((i: { id: string }) => z.object({ id: z.string().uuid() }).parse(i))
+  .validator((i: { id: string }) => z.object({ id: z.string().uuid() }).parse(i))
   .handler(async ({ context, data }: any) => {
     await gate(context, "edit");
     const { deleteTransformationRuleServer } = await import("@/lib/systemmind/variable-engine.server");
@@ -132,7 +132,7 @@ export const deleteTransformationRuleFn = createServerFn({ method: "POST" })
 
 export const listVariableMappingsFn = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((i: { agentId: string }) => z.object({ agentId: z.string().uuid() }).parse(i))
+  .validator((i: { agentId: string }) => z.object({ agentId: z.string().uuid() }).parse(i))
   .handler(async ({ context, data }: any) => {
     await gate(context, "view");
     const { listVariableMappingsServer } = await import("@/lib/systemmind/variable-engine.server");
@@ -141,7 +141,7 @@ export const listVariableMappingsFn = createServerFn({ method: "POST" })
 
 export const saveVariableMappingFn = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((i: {
+  .validator((i: {
     id?: string | null; variableId: string; direction: string;
     sourceSystem?: string; sourceObject?: string; sourceField?: string;
     destinationSystem?: string; destinationObject?: string; destinationField?: string;
@@ -175,7 +175,7 @@ export const saveVariableMappingFn = createServerFn({ method: "POST" })
 
 export const deleteVariableMappingFn = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((i: { id: string }) => z.object({ id: z.string().uuid() }).parse(i))
+  .validator((i: { id: string }) => z.object({ id: z.string().uuid() }).parse(i))
   .handler(async ({ context, data }: any) => {
     await gate(context, "edit");
     const { deleteVariableMappingServer } = await import("@/lib/systemmind/variable-engine.server");
@@ -185,7 +185,7 @@ export const deleteVariableMappingFn = createServerFn({ method: "POST" })
 
 export const testTransformationFn = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((i: {
+  .validator((i: {
     ruleId?: string | null; ruleType?: string; config?: Record<string, unknown>;
     sampleValue: unknown; dataType?: string; fallbackValue?: unknown;
   }) =>

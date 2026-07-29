@@ -46,7 +46,7 @@ export function normalizeCalcomStatus(s: string | null | undefined): string {
 
 export const listBookings = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input) =>
+  .validator((input) =>
     z
       .object({
         status: z.string().optional(),
@@ -95,7 +95,7 @@ export const listBookings = createServerFn({ method: "POST" })
 
 export const upsertBooking = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input) =>
+  .validator((input) =>
     z
       .object({
         id: z.string().uuid().optional(),
@@ -344,7 +344,7 @@ export const listCalendarBookings = createServerFn({ method: "GET" })
 
 export const getBookingDetail = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input) =>
+  .validator((input) =>
     z
       .object({
         db_id: z.string().uuid().optional(),
@@ -414,7 +414,7 @@ export const getBookingDetail = createServerFn({ method: "POST" })
 
 export const updateBookingNotes = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input) =>
+  .validator((input) =>
     z
       .object({
         db_id: z.string().uuid().optional(),
@@ -481,7 +481,7 @@ export const updateBookingNotes = createServerFn({ method: "POST" })
 
 export const cancelBookingFn = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input) =>
+  .validator((input) =>
     z
       .object({
         db_id: z.string().uuid().optional(),

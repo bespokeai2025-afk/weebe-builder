@@ -10,7 +10,7 @@ import {
 import { cn } from "@/lib/utils";
 import { HiveMindShell } from "@/components/hivemind/HiveMindShell";
 import {
-  listBriefingsFn, getBriefingFn, generateBriefingFn,
+  listBriefingsFn, getBriefingFn, generateBriefingFn, createBriefingTaskFn,
 } from "@/lib/hivemind/business-dna.functions";
 import { Button } from "@/components/ui/button";
 import { RelativeTime } from "@/components/ui/relative-time";
@@ -117,6 +117,85 @@ function MetricsRow({ metrics }: { metrics: Record<string, number> }) {
   );
 }
 
+// ── Validated-briefing extras (verified KPIs, warnings, actionable recs) ──────
+function VerifiedKpiGrid({ metrics }: { metrics: any[] }) {
+  if (!metrics?.length) return null;
+  return (
+    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+      {metrics.map((m: any) => (
+        <div key={m.key} className="rounded-lg bg-white/[0.03] border border-white/[0.06] p-2.5">
+          <div className="flex items-baseline gap-2">
+            <p className="text-base font-bold">
+              {m.unit === "percent" ? `${m.value}%` : m.unit === "gbp" ? `£${Number(m.value).toLocaleString()}` : m.unit === "usd" ? `$${Number(m.value).toLocaleString()}` : Number(m.value).toLocaleString()}
+            </p>
+            <p className="text-[11px] font-medium text-foreground/80">{m.label}</p>
+          </div>
+          <p className="text-[10px] text-muted-foreground/60 mt-0.5" title={`${m.formula} — ${m.source}`}>
+            {m.formula}{m.numerator !== undefined ? ` (${m.numerator} ÷ ${m.denominator})` : ""} · {m.source} · {m.timeRange}
+          </p>
+          {m.note && <p className="text-[10px] text-muted-foreground/50 mt-0.5">{m.note}</p>}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function DataWarningsList({ warnings, unverified }: { warnings: any[]; unverified: any[] }) {
+  if (!warnings?.length && !unverified?.length) return null;
+  return (
+    <div className="space-y-1.5">
+      {(warnings ?? []).map((w: any, i: number) => (
+        <p key={`w${i}`} className="text-xs text-amber-300/90 flex items-start gap-1.5">
+          <AlertTriangle className="h-3 w-3 shrink-0 mt-0.5" /> <span>{w.message}</span>
+        </p>
+      ))}
+      {(unverified ?? []).map((u: any, i: number) => (
+        <p key={`u${i}`} className="text-xs text-muted-foreground flex items-start gap-1.5">
+          <Minus className="h-3 w-3 shrink-0 mt-0.5" /> <span><span className="font-medium text-foreground/70">{u.label}:</span> {u.reason}</span>
+        </p>
+      ))}
+    </div>
+  );
+}
+
+function ValidatedRecommendations({ briefingId, recs }: { briefingId: string; recs: any[] }) {
+  const createTaskFn = useServerFn(createBriefingTaskFn);
+  const [created, setCreated] = useState<Record<string, boolean>>({});
+  const mut = useMutation({
+    mutationFn: (recommendationId: string) => createTaskFn({ data: { briefingId, recommendationId } }),
+    onSuccess: (_r, recommendationId) => setCreated((p) => ({ ...p, [recommendationId]: true })),
+  });
+  if (!recs?.length) return null;
+  return (
+    <div className="space-y-2">
+      {recs.map((r: any) => (
+        <div key={r.id} className="rounded-lg border border-white/[0.06] bg-white/[0.02] p-3">
+          <div className="flex items-start gap-2">
+            <div className="flex-1">
+              <p className="text-xs font-semibold">{r.title}</p>
+              <p className="text-[11px] text-muted-foreground mt-1">{r.action}</p>
+              <p className="text-[10px] text-muted-foreground/60 mt-1">
+                Expected: {r.expectedOutcome} · {r.department}{r.approvalRequired ? " · needs approval" : ""} · Success check: {r.successCheck}
+              </p>
+            </div>
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={mut.isPending || created[r.id]}
+              onClick={() => mut.mutate(r.id)}
+              className="h-7 text-[11px] px-2.5 gap-1 border-white/[0.08] hover:bg-white/[0.05] shrink-0"
+            >
+              {created[r.id] ? <CheckCircle2 className="h-3 w-3 text-emerald-400" /> : mut.isPending && mut.variables === r.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <Zap className="h-3 w-3" />}
+              {created[r.id] ? "Task created" : "Create task"}
+            </Button>
+          </div>
+        </div>
+      ))}
+      {mut.isError && <p className="text-[11px] text-red-400">{(mut.error as Error)?.message}</p>}
+    </div>
+  );
+}
+
 // ── Full briefing detail view ──────────────────────────────────────────────────
 function BriefingDetail({ id, onBack }: { id: string; onBack: () => void }) {
   const getFn = useServerFn(getBriefingFn);
@@ -155,6 +234,37 @@ function BriefingDetail({ id, onBack }: { id: string; onBack: () => void }) {
       <p className="text-sm text-muted-foreground leading-relaxed">{briefing.summary}</p>
 
       <div className="space-y-3">
+        {briefing.meta?.validated_status === "failed" && (
+          <div className="flex items-start gap-2 rounded-xl border border-amber-500/25 bg-amber-500/10 px-4 py-3">
+            <AlertTriangle className="h-4 w-4 text-amber-400 shrink-0 mt-0.5" />
+            <p className="text-xs text-amber-300/90">
+              Validated metrics were unavailable when this briefing was generated — figures below have not passed verification.
+            </p>
+          </div>
+        )}
+        {secs.screen_summary && (
+          <SectionCard title="Validated Business Summary" icon={BarChart3} color="text-emerald-400">
+            <TextBlock text={secs.screen_summary} />
+          </SectionCard>
+        )}
+        {secs.voice_summary && (
+          <SectionCard title="Spoken Briefing" icon={Brain} color="text-violet-400">
+            <TextBlock text={secs.voice_summary} />
+          </SectionCard>
+        )}
+        {(briefing.meta?.validated?.verifiedMetrics?.length ?? 0) > 0 && (
+          <SectionCard title="Verified KPIs" icon={BarChart3} color="text-emerald-400">
+            <VerifiedKpiGrid metrics={briefing.meta.validated.verifiedMetrics} />
+          </SectionCard>
+        )}
+        {((briefing.meta?.validated?.dataWarnings?.length ?? 0) > 0 || (briefing.meta?.validated?.unverifiedMetrics?.length ?? 0) > 0) && (
+          <SectionCard title="Data Quality" icon={AlertTriangle} color="text-amber-400">
+            <DataWarningsList
+              warnings={briefing.meta?.validated?.dataWarnings ?? []}
+              unverified={briefing.meta?.validated?.unverifiedMetrics ?? []}
+            />
+          </SectionCard>
+        )}
         {secs.key_metrics && (
           <SectionCard title="Key Metrics" icon={BarChart3} color="text-violet-400">
             <MetricsRow metrics={secs.key_metrics} />
@@ -183,6 +293,11 @@ function BriefingDetail({ id, onBack }: { id: string; onBack: () => void }) {
         {secs.what_failed && (
           <SectionCard title="What Failed" icon={AlertTriangle} color="text-red-400">
             <TextBlock text={secs.what_failed} />
+          </SectionCard>
+        )}
+        {(briefing.meta?.validated?.recommendedActions?.length ?? 0) > 0 && (
+          <SectionCard title="Recommended Actions (validated)" icon={Zap} color="text-emerald-400">
+            <ValidatedRecommendations briefingId={briefing.id} recs={briefing.meta.validated.recommendedActions} />
           </SectionCard>
         )}
         {secs.next_actions && (

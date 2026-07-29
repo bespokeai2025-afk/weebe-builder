@@ -1,0 +1,718 @@
+# WEBEE Campaign Analytics — Full Data Accuracy Audit and Fix
+
+The campaign data currently displayed in WEBEE is incorrect. Totals do not reliably match the real calls, durations, outcomes or campaign usage.
+
+Audit and fix the complete campaign analytics pipeline for:
+
+* WBAH
+* Every existing WEBEE client
+* Standard client workspaces
+* Future client workspaces
+* Inbound campaigns
+* Outbound campaigns
+* Retell-based campaigns
+* CRM-connected campaigns
+
+This is an implementation task. Do not only analyse the problem or provide recommendations. Inspect the production architecture, identify the causes, implement the fixes, backfill the correct data and prove that the resulting totals reconcile with the authoritative source records.
+
+## Non-Negotiable Accuracy Rule
+
+Campaign analytics must only display totals calculated from verified production call records.
+
+Do not use:
+
+* Mock data
+* Placeholder data
+* Estimated totals
+* Frontend-calculated totals
+* Sample data
+* Hardcoded values
+* Incomplete cached totals
+* Lead counts as a substitute for call counts
+* Agent-level totals incorrectly treated as campaign totals
+
+If the underlying provider data is incomplete or unavailable, show an explicit data-integrity warning. Never silently invent or estimate missing figures.
+
+## Preserve Existing Functionality
+
+Do not break:
+
+* Existing Retell integrations
+* WBAH call ingestion
+* Standard client call ingestion
+* Existing CRM integrations
+* n8n workflows
+* Live calls
+* Call queues
+* Webhooks
+* Lead creation
+* Qualification logic
+* Calendar bookings
+* Existing analytics filters
+* Existing reports
+* HiveMind access
+* Workspace security
+* Mobile or web analytics pages
+
+Extend and repair the existing system safely rather than replacing working functionality without evidence.
+
+# Phase 1 — Audit the Current Production Data Flow
+
+Before changing code, trace the complete analytics data flow:
+
+```text
+Call provider
+→ webhook or scheduled sync
+→ raw call record
+→ workspace attribution
+→ campaign attribution
+→ analytics aggregation
+→ reports API
+→ frontend display
+→ CSV/PDF/email reports
+→ HiveMind
+```
+
+Inspect the real schema and implementation rather than assuming table or field names.
+
+Review all likely call sources, including where applicable:
+
+* Retell call records
+* Retell analytics sync
+* Local `calls` records
+* `wbah_calls`
+* `data_records`
+* Lead records
+* Campaign tables
+* Batch-call records
+* Webhook event records
+* CRM-synced call records
+* Historical imports
+* Existing reporting summary tables
+* Materialized views
+* Cached analytics responses
+
+Document which source currently powers each displayed metric.
+
+## Identify the Root Causes
+
+Specifically test for:
+
+* Duplicate calls
+* Missing calls
+* Calls assigned to the wrong campaign
+* Calls assigned using agent ID instead of campaign ID
+* One agent being used across several campaigns
+* Retell batch IDs not being stored
+* Campaign IDs being lost during sync
+* Campaign names changing after calls occurred
+* Archived campaigns being excluded incorrectly
+* Incorrect workspace scoping
+* WBAH records being mixed with standard account logic
+* Seconds being displayed as minutes
+* Milliseconds being interpreted as seconds
+* Duration being rounded before aggregation
+* Only connected calls being counted
+* Voicemail calls being excluded
+* Failed calls with valid duration being excluded
+* Zero-duration attempts being treated as billable minutes
+* Test calls being included
+* Deleted calls remaining in summaries
+* Date filters using the wrong timestamp
+* UTC and local timezone boundaries
+* Reports using different logic from the Analytics Centre
+* Stale cached values
+* Failed or partial Retell syncs
+* Pagination stopping before all provider records are retrieved
+* API rate limits causing incomplete imports
+* Repeated webhook events creating duplicates
+* Historical records never being backfilled
+* Frontend filtering changing totals after aggregation
+* Incorrect joins multiplying call rows
+* Multiple lead records causing one call to be counted repeatedly
+
+Do not proceed with a superficial UI-only fix.
+
+# Phase 2 — Establish the Authoritative Source of Truth
+
+For provider-generated calls, use the provider’s unique call record as the authoritative source.
+
+For Retell calls, use the Retell call ID as the primary deduplication key unless the real production architecture contains a stronger verified provider identifier.
+
+Each call should have one canonical analytics record containing, where available:
+
+```text
+provider_call_id
+workspace_id
+campaign_id
+campaign_name_snapshot
+agent_id
+batch_id
+call_direction
+call_status
+started_at
+ended_at
+duration_seconds
+connected_duration_seconds
+disposition
+sentiment
+qualified_status
+booking_status
+lead_id
+is_test
+is_deleted
+source_provider
+source_updated_at
+analytics_updated_at
+```
+
+Do not rely on campaign names as unique identifiers.
+
+Store the campaign name as a historical snapshot for reporting, but use the immutable campaign ID for attribution.
+
+## Source Priority
+
+When the same call appears in multiple sources, apply a documented source-priority rule.
+
+Recommended priority:
+
+1. Authoritative provider call record
+2. Verified local canonical call record
+3. Provider webhook event
+4. WBAH-specific call record
+5. CRM call record
+6. Lead or data-record reference
+
+Lower-priority records may enrich a call but must not create an additional call count.
+
+# Phase 3 — Fix Campaign Attribution
+
+Campaign totals must be based on the campaign that actually generated or received the call.
+
+Use the strongest verified identifier available:
+
+1. Internal WEBEE campaign ID stored when the call was triggered
+2. Provider batch or campaign ID mapped to a WEBEE campaign
+3. Campaign ID included in provider metadata or dynamic variables
+4. Campaign reference stored on the canonical call
+5. CRM campaign ID mapped to a WEBEE campaign
+6. Agent-to-campaign mapping that was valid at the time of the call
+
+Do not attribute calls solely by current agent ownership when the same agent can serve multiple campaigns.
+
+When an outbound call is started, ensure the system sends and stores:
+
+```json
+{
+  "workspace_id": "verified-workspace-id",
+  "campaign_id": "verified-campaign-id",
+  "campaign_run_id": "verified-run-id",
+  "lead_id": "verified-lead-id"
+}
+```
+
+Store these identifiers immediately, before the call completes.
+
+For inbound calls, use the phone number, routing configuration, agent assignment and campaign routing rules that were valid at the time of the call.
+
+Calls that cannot be confidently attributed must appear under:
+
+```text
+Unassigned Campaign
+```
+
+Do not hide these calls or silently assign them to a convenient campaign.
+
+Add an admin-only reconciliation view showing why each unassigned call could not be mapped.
+
+# Phase 4 — Create One Canonical Analytics Calculation Service
+
+Create or repair one server-side analytics service that powers:
+
+* Campaign Analytics
+* Workspace Analytics
+* Reports
+* Automated reports
+* PDF exports
+* CSV exports
+* Spreadsheet exports
+* HiveMind
+* Mobile analytics
+* Web analytics
+
+Do not maintain separate conflicting calculation logic across each surface.
+
+All analytics queries must be scoped server-side by the authenticated `workspace_id`.
+
+## Calculation Rules
+
+### Total Calls
+
+```text
+Count of unique valid provider_call_id values
+```
+
+### Total Duration
+
+```text
+Sum of authoritative duration_seconds
+```
+
+### Total Minutes Used
+
+```text
+Sum of authoritative duration_seconds ÷ 60
+```
+
+Sum seconds first and divide afterwards.
+
+Do not round each call individually before summing.
+
+### Average Call Duration
+
+```text
+Total valid duration seconds ÷ number of calls with valid duration
+```
+
+### Connected Calls
+
+Use a verified provider or system connection status.
+
+Do not assume every completed call connected to a person.
+
+### Connected Minutes
+
+Use connected or billed duration where the provider supplies it.
+
+If only total call duration exists, label the metric accurately as total duration rather than connected duration.
+
+### Qualification Rate
+
+```text
+Unique qualified calls ÷ unique eligible completed calls
+```
+
+Do not divide lead records by calls.
+
+### Booking Rate
+
+```text
+Unique calls producing a confirmed booking ÷ unique eligible connected calls
+```
+
+A booking must have a real booking ID or confirmed calendar response.
+
+### Conversion Metrics
+
+Ensure every conversion is attached to a unique call ID so repeated lead updates do not create repeated conversions.
+
+# Phase 5 — Correct Date and Timezone Handling
+
+Store timestamps in UTC.
+
+Apply the workspace timezone only when calculating reporting boundaries and presenting dates.
+
+For WBAH, verify the configured reporting timezone rather than assuming it.
+
+The following filters must return exact, consistent results:
+
+* Today
+* Yesterday
+* This week
+* Last week
+* This month
+* Last month
+* Last 7 days
+* Last 30 days
+* Custom date range
+
+Define whether the selected end date is inclusive and apply the same rule everywhere.
+
+Recommended server query pattern:
+
+```text
+started_at >= range_start_utc
+AND started_at < range_end_utc
+```
+
+Do not mix `created_at`, `updated_at`, `ended_at` and `started_at` between reports unless the metric explicitly requires it.
+
+Use the call start timestamp as the default reporting timestamp unless the existing product specification says otherwise.
+
+# Phase 6 — Fix Pagination and Sync Completeness
+
+Audit the Retell and other provider sync processes.
+
+Ensure the system:
+
+* Retrieves every page of results
+* Does not stop at the first page
+* Handles provider cursors correctly
+* Handles rate limits
+* Retries transient failures
+* Uses exponential backoff
+* Records the last successful cursor
+* Resumes failed syncs safely
+* Updates existing calls when provider data changes
+* Does not recreate existing calls
+* Logs rejected records
+* Records sync completeness
+* Detects gaps in historical periods
+
+A sync must not be marked successful when only some pages were imported.
+
+Record:
+
+```text
+sync_started_at
+sync_completed_at
+records_requested
+records_received
+records_inserted
+records_updated
+records_rejected
+pages_processed
+next_cursor
+error_count
+sync_status
+```
+
+# Phase 7 — Deduplicate Existing Data
+
+Create an idempotent deduplication process.
+
+For duplicate provider call IDs:
+
+* Keep one canonical record
+* Merge valid enrichment data
+* Preserve the most authoritative duration
+* Preserve the correct workspace
+* Preserve the verified campaign
+* Remove duplicate aggregate contributions
+* Do not delete audit history without logging it
+
+Check for duplicated rows caused by joins to:
+
+* Leads
+* Call outcomes
+* Campaign members
+* Bookings
+* CRM activities
+* Post-call extraction records
+* Sentiment records
+
+Use `COUNT(DISTINCT provider_call_id)` where appropriate, but fix the underlying joins rather than relying only on distinct counts to hide data errors.
+
+Add a database uniqueness constraint where safe:
+
+```text
+workspace_id + source_provider + provider_call_id
+```
+
+Do not add the constraint until existing duplicates have been safely resolved.
+
+# Phase 8 — Rebuild Aggregations
+
+Do not trust existing summary records until they have been reconciled.
+
+Rebuild campaign analytics from canonical call records.
+
+Use production-safe aggregation such as:
+
+* Indexed server-side queries
+* Daily campaign usage summaries
+* Incremental aggregation
+* Materialized views
+* Background aggregation jobs
+* Cache invalidation after call updates
+
+Suggested daily summary key:
+
+```text
+workspace_id
+campaign_id
+reporting_date
+timezone
+```
+
+Suggested summary metrics:
+
+```text
+unique_calls
+connected_calls
+voicemail_calls
+failed_calls
+total_duration_seconds
+connected_duration_seconds
+qualified_calls
+booked_calls
+positive_calls
+neutral_calls
+negative_calls
+inbound_calls
+outbound_calls
+```
+
+Summary tables must be reproducible from canonical call records.
+
+They must never become the only copy of analytics truth.
+
+# Phase 9 — Historical Backfill
+
+Backfill all existing calls for:
+
+* WBAH
+* Every standard workspace
+* Active campaigns
+* Paused campaigns
+* Completed campaigns
+* Archived campaigns
+* Unassigned calls
+
+The backfill must be:
+
+* Idempotent
+* Batched
+* Resumable
+* Rate-limit aware
+* Logged
+* Workspace scoped
+* Safe for production
+* Non-blocking for live calls
+* Capable of recalculating specific dates, campaigns or workspaces
+
+Do not mark the implementation complete after only fixing new calls.
+
+# Phase 10 — Add Data Integrity Monitoring
+
+Add an admin-only **Analytics Data Integrity** view.
+
+For every workspace and reporting period, display:
+
+```text
+Provider Calls
+Canonical Calls
+Assigned Campaign Calls
+Unassigned Calls
+Duplicate Records Found
+Missing Duration Records
+Provider Total Duration
+WEBEE Total Duration
+Difference
+Last Successful Sync
+Sync Status
+Reconciliation Status
+```
+
+Use clear statuses:
+
+```text
+Reconciled
+Reconciled with warnings
+Sync incomplete
+Attribution incomplete
+Mismatch detected
+Provider unavailable
+```
+
+Do not show a green successful state if unresolved differences remain.
+
+## Reconciliation Formula
+
+For each workspace and date range:
+
+```text
+Unique provider calls
+=
+Assigned campaign calls
++ Unassigned calls
++ Explicitly excluded calls
+```
+
+For duration:
+
+```text
+Provider duration seconds
+=
+Assigned campaign duration seconds
++ Unassigned duration seconds
++ Explicitly excluded duration seconds
+```
+
+Every excluded call must include a documented exclusion reason.
+
+For campaign totals:
+
+```text
+Sum of all campaign calls
++ Unassigned calls
+=
+Workspace total calls
+```
+
+```text
+Sum of all campaign duration
++ Unassigned duration
+=
+Workspace total duration
+```
+
+# Phase 11 — Repair the Analytics Interface
+
+Update the campaign table to show:
+
+| Campaign | Total Calls | Connected Calls | Minutes Used | Average Duration | Qualified | Bookings | Data Status |
+| -------- | ----------: | --------------: | -----------: | ---------------: | --------: | -------: | ----------- |
+
+Each total must come from the canonical analytics API.
+
+Add tooltips explaining:
+
+* What is counted
+* Which date range is applied
+* Which timezone is applied
+* When data was last synced
+* Whether unassigned calls exist
+* Whether the totals are reconciled
+
+When data is stale, show:
+
+```text
+Data last successfully synced at [date and time].
+```
+
+When totals do not reconcile, show:
+
+```text
+Analytics mismatch detected. Some results may be incomplete.
+```
+
+Never display stale or incomplete totals as fully verified.
+
+# Phase 12 — Reports and HiveMind
+
+Ensure the same corrected data powers:
+
+* Campaign reports
+* Daily reports
+* Weekly reports
+* Monthly reports
+* Custom reports
+* Automated email reports
+* CSV exports
+* PDF exports
+* HiveMind responses
+
+HiveMind must not calculate campaign totals from lead lists or unrelated tables.
+
+HiveMind should query the canonical analytics service and be able to answer:
+
+* How many calls did each campaign make?
+* How many minutes did each campaign use?
+* Which campaign generated the most qualified leads?
+* Which campaign has the highest booking rate?
+* Which campaigns have unassigned or unreconciled calls?
+* Do the campaign totals match the provider totals?
+* When was the data last successfully synced?
+
+Include the reconciliation status and last-sync time in HiveMind’s internal response payload.
+
+# Phase 13 — Testing
+
+Create automated tests covering:
+
+* One workspace with one campaign
+* One workspace with several campaigns
+* One agent used by several campaigns
+* Two workspaces using the same Retell agent ID
+* WBAH-specific call records
+* Standard client call records
+* Inbound calls
+* Outbound calls
+* Voicemail calls
+* Failed calls
+* Zero-duration calls
+* Missing-duration calls
+* Duplicate webhook events
+* Duplicate provider call records
+* Multiple leads linked to one call
+* Multiple bookings linked to one call
+* Archived campaigns
+* Renamed campaigns
+* Deleted campaigns with historical calls
+* Unassigned calls
+* Pagination across several provider pages
+* Failed sync followed by retry
+* Date range boundaries
+* Daylight-saving changes
+* UTC-to-workspace-timezone conversion
+* CSV totals
+* PDF totals
+* HiveMind totals
+* Workspace isolation
+* Admin cross-workspace analytics
+
+Add regression tests proving the same filter returns identical totals from:
+
+* Analytics Centre
+* Reports API
+* CSV export
+* PDF export
+* HiveMind
+
+# Mandatory Verification
+
+Select representative production periods for WBAH and at least two standard client workspaces.
+
+For each period:
+
+1. Retrieve the authoritative provider call records.
+2. Count the unique call IDs.
+3. Sum the provider duration seconds.
+4. Compare those results with WEBEE.
+5. Compare campaign totals with workspace totals.
+6. Identify every excluded or unassigned call.
+7. Produce a reconciliation report.
+8. Fix every explainable mismatch.
+9. Re-run the reconciliation.
+10. Save the final verified result.
+
+Do not manually edit totals to make them match.
+
+# Completion Criteria
+
+Do not mark this task complete until:
+
+* The root causes of the incorrect totals are identified.
+* Duplicate calls are resolved.
+* Missing calls are backfilled.
+* Campaign attribution is corrected.
+* Retell pagination is confirmed complete.
+* Duration units are confirmed.
+* Timezone handling is corrected.
+* WBAH totals reconcile.
+* Standard client totals reconcile.
+* Analytics and reports use the same service.
+* HiveMind uses the same service.
+* Historical campaign totals are rebuilt.
+* Unassigned calls are visible.
+* Sync status is visible.
+* Data integrity warnings are visible.
+* Tenant-isolation tests pass.
+* Existing live-call and CRM workflows remain operational.
+* Automated reconciliation tests pass.
+
+At completion, provide:
+
+1. Root causes found.
+2. Files and services changed.
+3. Database changes made.
+4. Deduplication results.
+5. Historical backfill results.
+6. WBAH reconciliation results.
+7. Standard client reconciliation results.
+8. Any remaining unassigned calls and their reasons.
+9. Automated test results.
+10. Confirmation that existing workflows remain operational.
+
+The objective is not to make the dashboard appear correct. The objective is to make every displayed campaign figure traceable to a unique, authoritative production call record and to clearly expose any data that cannot be verified.

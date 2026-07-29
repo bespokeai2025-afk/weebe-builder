@@ -111,7 +111,7 @@ export function computeFunnelStages(data: FunnelLiveData): FunnelStage[] {
 
 export const saveFunnelSnapshot = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({
       name:   z.string().min(1).max(100).default("Funnel Snapshot"),
       stages: z.array(z.object({
@@ -173,7 +173,7 @@ export const getFunnelSnapshots = createServerFn({ method: "GET" })
 
 export const deleteFunnelSnapshot = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => z.object({ id: z.string().uuid() }).parse(input))
+  .validator((input: unknown) => z.object({ id: z.string().uuid() }).parse(input))
   .handler(async ({ context, data }) => {
     const sb          = context.supabase as any;
     const workspaceId = context.workspaceId;

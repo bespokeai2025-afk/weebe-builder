@@ -293,7 +293,7 @@ const LlmInput = z.object({
 
 export const saveLlmCost = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth, requirePlatformAdmin])
-  .inputValidator((i: z.infer<typeof LlmInput>) => LlmInput.parse(i))
+  .validator((i: z.infer<typeof LlmInput>) => LlmInput.parse(i))
   .handler(async ({ data }) => {
     if (data.id) {
       const { error } = await supabaseAdmin.from("cost_engine_llm").update({
@@ -319,7 +319,7 @@ export const saveLlmCost = createServerFn({ method: "POST" })
 
 export const deleteLlmCost = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth, requirePlatformAdmin])
-  .inputValidator((i: { id: string }) => i)
+  .validator((i: { id: string }) => i)
   .handler(async ({ data }) => {
     const { error } = await supabaseAdmin.from("cost_engine_llm").update({ is_current: false }).eq("id", data.id);
     if (error) throw new Error(error.message);
@@ -341,7 +341,7 @@ const VoiceInput = z.object({
 
 export const saveVoiceCost = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth, requirePlatformAdmin])
-  .inputValidator((i: z.infer<typeof VoiceInput>) => VoiceInput.parse(i))
+  .validator((i: z.infer<typeof VoiceInput>) => VoiceInput.parse(i))
   .handler(async ({ data }) => {
     if (data.id) {
       const { error } = await supabaseAdmin.from("cost_engine_voice").update({
@@ -364,7 +364,7 @@ export const saveVoiceCost = createServerFn({ method: "POST" })
 
 export const deleteVoiceCost = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth, requirePlatformAdmin])
-  .inputValidator((i: { id: string }) => i)
+  .validator((i: { id: string }) => i)
   .handler(async ({ data }) => {
     const { error } = await supabaseAdmin.from("cost_engine_voice").update({ is_current: false }).eq("id", data.id);
     if (error) throw new Error(error.message);
@@ -386,7 +386,7 @@ const TelInput = z.object({
 
 export const saveTelephonyCost = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth, requirePlatformAdmin])
-  .inputValidator((i: z.infer<typeof TelInput>) => TelInput.parse(i))
+  .validator((i: z.infer<typeof TelInput>) => TelInput.parse(i))
   .handler(async ({ data }) => {
     if (data.id) {
       const { error } = await supabaseAdmin.from("cost_engine_telephony").update({
@@ -410,7 +410,7 @@ export const saveTelephonyCost = createServerFn({ method: "POST" })
 
 export const deleteTelephonyCost = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth, requirePlatformAdmin])
-  .inputValidator((i: { id: string }) => i)
+  .validator((i: { id: string }) => i)
   .handler(async ({ data }) => {
     const { error } = await supabaseAdmin.from("cost_engine_telephony").update({ is_current: false }).eq("id", data.id);
     if (error) throw new Error(error.message);
@@ -435,7 +435,7 @@ const KnowledgeInput = z.object({
 
 export const saveKnowledgeCost = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth, requirePlatformAdmin])
-  .inputValidator((i: z.infer<typeof KnowledgeInput>) => KnowledgeInput.parse(i))
+  .validator((i: z.infer<typeof KnowledgeInput>) => KnowledgeInput.parse(i))
   .handler(async ({ data }) => {
     await upsertSingleton("cost_engine_knowledge", data);
     return { ok: true };
@@ -451,7 +451,7 @@ const ToolsInput = z.object({
 
 export const saveToolsCost = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth, requirePlatformAdmin])
-  .inputValidator((i: z.infer<typeof ToolsInput>) => ToolsInput.parse(i))
+  .validator((i: z.infer<typeof ToolsInput>) => ToolsInput.parse(i))
   .handler(async ({ data }) => {
     await upsertSingleton("cost_engine_tools", data);
     return { ok: true };
@@ -469,7 +469,7 @@ const InfraInput = z.object({
 
 export const saveInfrastructureCost = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth, requirePlatformAdmin])
-  .inputValidator((i: z.infer<typeof InfraInput>) => InfraInput.parse(i))
+  .validator((i: z.infer<typeof InfraInput>) => InfraInput.parse(i))
   .handler(async ({ data }) => {
     await upsertSingleton("cost_engine_infrastructure", data);
     return { ok: true };
@@ -486,7 +486,7 @@ const RetellInput = z.object({
 
 export const saveRetellCost = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth, requirePlatformAdmin])
-  .inputValidator((i: z.infer<typeof RetellInput>) => RetellInput.parse(i))
+  .validator((i: z.infer<typeof RetellInput>) => RetellInput.parse(i))
   .handler(async ({ data }) => {
     await upsertSingleton("cost_engine_retell", data);
     return { ok: true };
@@ -503,7 +503,7 @@ const MarkupInput = z.object({
 
 export const saveMarkup = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth, requirePlatformAdmin])
-  .inputValidator((i: z.infer<typeof MarkupInput>) => MarkupInput.parse(i))
+  .validator((i: z.infer<typeof MarkupInput>) => MarkupInput.parse(i))
   .handler(async ({ data }) => {
     await supabaseAdmin.from("cost_engine_markup").update({ is_active: false }).eq("is_active", true);
     const { error } = await supabaseAdmin.from("cost_engine_markup").insert({
@@ -531,7 +531,7 @@ const PlanInput = z.object({
 
 export const savePlan = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth, requirePlatformAdmin])
-  .inputValidator((i: z.infer<typeof PlanInput>) => PlanInput.parse(i))
+  .validator((i: z.infer<typeof PlanInput>) => PlanInput.parse(i))
   .handler(async ({ data }) => {
     if (data.id) {
       const { error } = await supabaseAdmin.from("cost_engine_customer_plans").update({
@@ -557,7 +557,7 @@ const DeleteInput = z.object({ id: z.string().uuid() });
 
 export const deletePlan = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth, requirePlatformAdmin])
-  .inputValidator((i: z.infer<typeof DeleteInput>) => DeleteInput.parse(i))
+  .validator((i: z.infer<typeof DeleteInput>) => DeleteInput.parse(i))
   .handler(async ({ data }) => {
     const { error } = await supabaseAdmin.from("cost_engine_customer_plans").update({ is_active: false }).eq("id", data.id);
     if (error) throw new Error(error.message);
@@ -577,7 +577,7 @@ const DevRoleInput = z.object({
 
 export const saveDevRole = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth, requirePlatformAdmin])
-  .inputValidator((i: z.infer<typeof DevRoleInput>) => DevRoleInput.parse(i))
+  .validator((i: z.infer<typeof DevRoleInput>) => DevRoleInput.parse(i))
   .handler(async ({ data }) => {
     if (data.id) {
       const { error } = await supabaseAdmin.from("cost_engine_dev_roles").update({
@@ -601,7 +601,7 @@ const DeleteRoleInput = z.object({ id: z.string().uuid() });
 
 export const deleteDevRole = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth, requirePlatformAdmin])
-  .inputValidator((i: z.infer<typeof DeleteRoleInput>) => DeleteRoleInput.parse(i))
+  .validator((i: z.infer<typeof DeleteRoleInput>) => DeleteRoleInput.parse(i))
   .handler(async ({ data }) => {
     const { error } = await supabaseAdmin.from("cost_engine_dev_roles").delete().eq("id", data.id);
     if (error) throw new Error(error.message);
@@ -644,7 +644,7 @@ const EstimateInput = z.object({
 
 export const saveClientEstimate = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth, requirePlatformAdmin])
-  .inputValidator((i: z.infer<typeof EstimateInput>) => EstimateInput.parse(i))
+  .validator((i: z.infer<typeof EstimateInput>) => EstimateInput.parse(i))
   .handler(async ({ data }) => {
     const payload = {
       client_name: data.client_name,
@@ -670,7 +670,7 @@ const DeleteEstimateInput = z.object({ id: z.string().uuid() });
 
 export const deleteClientEstimate = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth, requirePlatformAdmin])
-  .inputValidator((i: z.infer<typeof DeleteEstimateInput>) => DeleteEstimateInput.parse(i))
+  .validator((i: z.infer<typeof DeleteEstimateInput>) => DeleteEstimateInput.parse(i))
   .handler(async ({ data }) => {
     const { error } = await supabaseAdmin.from("cost_engine_client_estimates").delete().eq("id", data.id);
     if (error) throw new Error(error.message);
@@ -893,7 +893,7 @@ async function requireCostRateAdmin(context: any): Promise<void> {
  */
 export const saveProviderCostRate = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((i: z.infer<typeof ProviderCostRateInput>) => ProviderCostRateInput.parse(i))
+  .validator((i: z.infer<typeof ProviderCostRateInput>) => ProviderCostRateInput.parse(i))
   .handler(async ({ data, context }) => {
     const workspaceId: string = (context as any).workspaceId;
     if (!workspaceId) throw new Error("Workspace not found");
@@ -953,7 +953,7 @@ export const getActivePlatformClients = createServerFn({ method: "GET" })
 
 export const deleteProviderCostRate = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((i: { id: string }) => i)
+  .validator((i: { id: string }) => i)
   .handler(async ({ data, context }) => {
     const workspaceId: string = (context as any).workspaceId;
     if (!workspaceId) throw new Error("Workspace not found");

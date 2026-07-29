@@ -773,7 +773,7 @@ export const getPromptTemplates = createServerFn({ method: "GET" })
 
 export const getPromptTemplate = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({ id: z.string().uuid() }).parse(input ?? {})
   )
   .handler(async ({ context, data }) => {
@@ -834,7 +834,7 @@ const saveTemplateSchema = z.object({
 
 export const savePromptTemplate = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => saveTemplateSchema.parse(input))
+  .validator((input: unknown) => saveTemplateSchema.parse(input))
   .handler(async ({ context, data }) => {
     const sb          = context.supabase as any;
     const workspaceId = context.workspaceId;
@@ -922,7 +922,7 @@ export const savePromptTemplate = createServerFn({ method: "POST" })
 
 export const deletePromptTemplate = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({ id: z.string().uuid() }).parse(input)
   )
   .handler(async ({ context, data }) => {
@@ -944,7 +944,7 @@ export const deletePromptTemplate = createServerFn({ method: "POST" })
 
 export const togglePromptFavorite = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({ id: z.string().uuid(), isFavorite: z.boolean() }).parse(input)
   )
   .handler(async ({ context, data }) => {
@@ -965,7 +965,7 @@ export const togglePromptFavorite = createServerFn({ method: "POST" })
 
 export const restorePromptVersion = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({ versionId: z.string().uuid(), templateId: z.string().uuid() }).parse(input)
   )
   .handler(async ({ context, data }) => {
@@ -1021,7 +1021,7 @@ const testSchema = z.object({
 
 export const testPromptTemplate = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => testSchema.parse(input))
+  .validator((input: unknown) => testSchema.parse(input))
   .handler(async ({ context, data }) => {
     const sb          = context.supabase as any;
     const workspaceId = context.workspaceId;
@@ -1231,7 +1231,7 @@ Return this JSON (integers 1-10 only):
 
 export const setPromptWinner = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({
       templateId:   z.string().uuid(),
       systemPrompt: z.string(),
@@ -1340,7 +1340,7 @@ export const seedLibraryPacks = createServerFn({ method: "POST" })
 
 export const recordPromptTemplateUsage = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({
       templateId:     z.string().uuid(),
       inputVariables: z.record(z.string()).default({}),
@@ -1434,7 +1434,7 @@ function extractSection(text: string, sectionName: string): string {
 
 export const runPromptChain = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({
       chainSteps: z.array(z.object({
         order:               z.number(),

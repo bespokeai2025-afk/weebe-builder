@@ -24,7 +24,7 @@ export const scanAgentWorkflows = createServerFn({ method: "POST" })
 // ── List workflow library ─────────────────────────────────────────────────────
 export const getWorkflowLibrary = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input) =>
+  .validator((input) =>
     z.object({ category: z.string().optional() }).parse(input ?? {}),
   )
   .handler(async ({ context, data }) => {
@@ -51,7 +51,7 @@ export const getWorkflowLibrary = createServerFn({ method: "POST" })
 // ── Extract workflow patterns (AI) ────────────────────────────────────────────
 export const extractWorkflowPatterns = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input) =>
+  .validator((input) =>
     z.object({ category: z.string().optional() }).parse(input ?? {}),
   )
   .handler(async ({ context, data }) => {
@@ -75,7 +75,7 @@ export const extractWorkflowPatterns = createServerFn({ method: "POST" })
 // ── List workflow patterns ─────────────────────────────────────────────────────
 export const getWorkflowPatterns = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input) =>
+  .validator((input) =>
     z.object({ category: z.string().optional() }).parse(input ?? {}),
   )
   .handler(async ({ context, data }) => {
@@ -102,7 +102,7 @@ export const getWorkflowPatterns = createServerFn({ method: "POST" })
 // ── Create AI workflow draft ───────────────────────────────────────────────────
 export const createWorkflowDraft = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input) =>
+  .validator((input) =>
     z
       .object({
         description: z.string().min(5).max(500),
@@ -157,7 +157,7 @@ export const getWorkflowDrafts = createServerFn({ method: "POST" })
 // ── Delete a draft ─────────────────────────────────────────────────────────────
 export const deleteWorkflowDraft = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input) => z.object({ id: z.string().uuid() }).parse(input))
+  .validator((input) => z.object({ id: z.string().uuid() }).parse(input))
   .handler(async ({ context, data }) => {
     {
       const { requireSystemMindEdit } = await import(
@@ -180,7 +180,7 @@ export const deleteWorkflowDraft = createServerFn({ method: "POST" })
 // ── Inspect workflow for issues ────────────────────────────────────────────────
 export const inspectWorkflowRepair = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input) => z.object({ agentId: z.string().uuid() }).parse(input))
+  .validator((input) => z.object({ agentId: z.string().uuid() }).parse(input))
   .handler(async ({ context, data }) => {
     {
       const { requireSystemMindView } = await import(
@@ -235,7 +235,7 @@ export const seedSystemMindPlaybooks = createServerFn({ method: "POST" })
 // ── Seed Architecture KB + Workflow KB starter documents ──────────────────────
 export const seedSystemMindKbs = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input) =>
+  .validator((input) =>
     z.object({ limit: z.number().int().min(1).max(10).optional() }).parse(input ?? {}),
   )
   .handler(async ({ context, data }) => {
@@ -256,7 +256,7 @@ export const seedSystemMindKbs = createServerFn({ method: "POST" })
 // ── List/search repair playbooks ──────────────────────────────────────────────
 export const getRepairPlaybooks = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input) =>
+  .validator((input) =>
     z
       .object({
         category: z.string().optional(),
@@ -332,7 +332,7 @@ export const getWorkflowIntelligence = createServerFn({ method: "POST" })
 // ── Clone workflow to draft ────────────────────────────────────────────────────
 export const cloneWorkflowToDraft = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input) =>
+  .validator((input) =>
     z.object({ agentId: z.string().uuid(), newTitle: z.string().optional() }).parse(input),
   )
   .handler(async ({ context, data }) => {
@@ -353,7 +353,7 @@ export const cloneWorkflowToDraft = createServerFn({ method: "POST" })
 // ── Compare two workflows (AI) ─────────────────────────────────────────────────
 export const compareWorkflows = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input) =>
+  .validator((input) =>
     z.object({ agentIdA: z.string().uuid(), agentIdB: z.string().uuid() }).parse(input),
   )
   .handler(async ({ context, data }) => {
@@ -377,7 +377,7 @@ export const compareWorkflows = createServerFn({ method: "POST" })
 // ── Generate from example template ────────────────────────────────────────────
 export const generateFromExample = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input) =>
+  .validator((input) =>
     z
       .object({
         exampleKey: z.string().min(1),
@@ -424,7 +424,7 @@ export const getWorkflowSuccessRates = createServerFn({ method: "POST" })
 // ── Preview or apply a safe auto-fix to flow_data ─────────────────────────────
 export const previewAndApplyWorkflowFix = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input) =>
+  .validator((input) =>
     z
       .object({
         agentId: z.string().uuid(),
@@ -461,7 +461,7 @@ export const previewAndApplyWorkflowFix = createServerFn({ method: "POST" })
 // ── Submit repair plan to HiveMind event log ──────────────────────────────────
 export const submitRepairPlanToHiveMind = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input) =>
+  .validator((input) =>
     z
       .object({
         agentName: z.string(),

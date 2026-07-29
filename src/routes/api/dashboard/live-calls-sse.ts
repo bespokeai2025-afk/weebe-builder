@@ -303,13 +303,12 @@ async function fetchRecentCompletedCalls(
 async function fetchLiveCalls(apiKey: string): Promise<any[]> {
   let stubs: any[] = [];
   try {
-    const res = await retellFetch<any>(
-      "/v2/list-calls",
+    const { listRetellCallsPage } = await import("@/lib/providers/retell/list.server");
+    const res = await listRetellCallsPage(
       { filter_criteria: { call_status: ["ongoing"] }, limit: 20, sort_order: "descending" },
-      "POST",
       apiKey,
     );
-    stubs = Array.isArray(res) ? res : (res?.calls ?? []);
+    stubs = res.items;
   } catch {
     return [];
   }
@@ -335,7 +334,8 @@ async function fetchLiveCalls(apiKey: string): Promise<any[]> {
 async function resolveAgentNames(apiKey: string): Promise<Record<string, string>> {
   const names: Record<string, string> = {};
   try {
-    const agents = await retellFetch<any[]>("/list-agents", null, "GET", apiKey);
+    const { listRetellAgents } = await import("@/lib/providers/retell/list.server");
+    const agents = await listRetellAgents(apiKey);
     for (const a of agents ?? []) {
       if (a.agent_id) names[a.agent_id] = a.agent_name ?? a.agent_id;
     }

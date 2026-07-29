@@ -37,7 +37,7 @@ export const listN8nWorkflowsFn = createServerFn({ method: "POST" })
 // ── Workflow detail (full row incl. metadata + understanding) ─────────────────
 export const getN8nWorkflowDetailFn = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth, requirePlatformAdmin])
-  .inputValidator((input) => z.object({ id: z.string().uuid() }).parse(input))
+  .validator((input) => z.object({ id: z.string().uuid() }).parse(input))
   .handler(async ({ context, data }) => {
     const { workspaceId } = context as any;
     if (!workspaceId) throw new Error("No workspace");
@@ -62,7 +62,7 @@ export const scanN8nWorkflowsFn = createServerFn({ method: "POST" })
 // ── Generate / regenerate AI understanding for one workflow ────────────────────
 export const understandN8nWorkflowFn = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth, requirePlatformAdmin])
-  .inputValidator((input) => z.object({ id: z.string().uuid() }).parse(input))
+  .validator((input) => z.object({ id: z.string().uuid() }).parse(input))
   .handler(async ({ context, data }) => {
     const { workspaceId } = context as any;
     if (!workspaceId) throw new Error("No workspace");

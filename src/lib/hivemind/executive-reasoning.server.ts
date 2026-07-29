@@ -315,7 +315,6 @@ async function aiPhraseDraft(sb: Sb, workspaceId: string, draft: ExecRecDraft): 
   const hasKey = !!(process.env.OPENAI_API_KEY || process.env.GEMINI_API_KEY || process.env.ANTHROPIC_API_KEY);
   if (!hasKey) return draft;
   try {
-    const { routeGenerate } = await import("@/lib/growthmind/model-router.server");
     const system =
       "You are an executive analyst. Rewrite the recommendation fields for clarity and business impact. " +
       "STRICT RULES: cite ONLY the numbers given in the evidence metrics — never invent figures. " +
@@ -329,10 +328,36 @@ async function aiPhraseDraft(sb: Sb, workspaceId: string, draft: ExecRecDraft): 
       risk_of_inaction: draft.risk_of_inaction,
       evidence_metrics: draft.evidence.metrics,
     });
-    const res = await routeGenerate({
-      system, user, contentType: "analysis", maxTokens: 700,
-      mode: "smart", settings: {}, workspaceId, sb,
-    });
+    // Lightweight background phrasing job → gpt-5.6-luna via the task router.
+    // Legacy path (flag) keeps the previous GrowthMind smart-router behavior.
+    const { useLegacyAiPath, classifyAiTask, routingLedgerMeta } = await import("@/lib/ai/task-router.server");
+    let res: { text: string };
+    if (!useLegacyAiPath() && process.env.OPENAI_API_KEY) {
+      const { openaiResponsesCall } = await import("@/lib/ai/openai-responses.server");
+      const routing = classifyAiTask({
+        query: "rephrase executive recommendation draft",
+        backgroundJob: true,
+        department: "hivemind",
+        feature: "exec_reasoning_phrasing",
+      });
+      const r = await openaiResponsesCall({
+        apiKey: process.env.OPENAI_API_KEY,
+        model: routing.model,
+        input: [{ role: "user", content: user }],
+        instructions: system,
+        maxOutputTokens: 700,
+        reasoningEffort: routing.reasoningEffort,
+        usage: { workspaceId, department: "hivemind", feature: "exec_reasoning_phrasing" },
+        routing: routingLedgerMeta(routing),
+      });
+      res = { text: r.text };
+    } else {
+      const { routeGenerate } = await import("@/lib/growthmind/model-router.server");
+      res = await routeGenerate({
+        system, user, contentType: "analysis", maxTokens: 700,
+        mode: "smart", settings: {}, workspaceId, sb,
+      });
+    }
     const jsonText = res.text.trim().replace(/^```(?:json)?/i, "").replace(/```$/, "").trim();
     const parsed = JSON.parse(jsonText);
     const candidate: ExecRecDraft = {
@@ -562,14 +587,38 @@ export async function runExecutiveReasoning(
     }
 
     // Task candidates → accountability-shaped hivemind_tasks (deduped).
+    // MIGRATED (Task #500): each row now goes through prepareMindTaskInsert so
+    // it carries a full intelligence packet and readiness_state.
     const taskEvents = events.filter((e) => e.classification === "task_candidate");
+    const { buildIntelligencePacket, prepareMindTaskInsert, evidenceItem } =
+      await import("@/lib/minds/intelligence-packet.server");
     const newTasks: any[] = [];
     for (const ev of taskEvents) {
       const dup = openTasks.some(
         (t) => t.trigger_type === ev.event_type && t.entity_id === String(ev.entity_id ?? ""),
       );
       if (dup) { out.dedupedTasks++; continue; }
-      newTasks.push({
+      const evSummary = ev.summary ? String(ev.summary).slice(0, 2000) : String(ev.title).slice(0, 500);
+      const packet = buildIntelligencePacket({
+        mind: "hivemind",
+        objective: String(ev.title).slice(0, 500),
+        intentSource: `executive_reasoning:${ev.event_type}`,
+        targets: [{
+          domain: "general",
+          entity_type: String(ev.entity_type ?? ""),
+          entity_id: String(ev.entity_id ?? ""),
+          entity_name: null,
+          resolved: true,
+          resolution_note: `Executive event "${ev.event_type}" from ${ev.source_system} on ${String(ev.occurred_at).slice(0, 10)}`,
+        }],
+        evidence: [evidenceItem(
+          `executive_event:${ev.event_type}`,
+          evSummary,
+          ev.evidence && typeof ev.evidence === "object" ? ev.evidence as Record<string, unknown> : null,
+        )],
+        diagnosis: evSummary,
+      });
+      newTasks.push(prepareMindTaskInsert({
         workspace_id: workspaceId,
         title: String(ev.title).slice(0, 300),
         description: ev.summary ? String(ev.summary).slice(0, 2000) : null,
@@ -585,7 +634,7 @@ export async function runExecutiveReasoning(
         evidence: ev.evidence ?? {},
         reassess_at: new Date(Date.now() + REASSESS_DAYS * DAY).toISOString(),
         metadata: { source_event_id: ev.id },
-      });
+      }, packet));
       openTasks.push({ trigger_type: ev.event_type, entity_id: String(ev.entity_id ?? "") });
     }
     // Row-by-row insert so the partial unique index

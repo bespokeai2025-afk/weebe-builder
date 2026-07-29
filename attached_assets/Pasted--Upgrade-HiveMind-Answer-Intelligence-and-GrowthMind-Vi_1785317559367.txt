@@ -1,0 +1,722 @@
+# Upgrade HiveMind Answer Intelligence and GrowthMind Video Generation
+
+Upgrade the production AI architecture for HiveMind and GrowthMind across the WEBEE platform.
+
+This is an implementation, migration and verification task. Do not merely change model labels in the interface.
+
+The completed system must:
+
+1. Upgrade HiveMind’s actual answer-generation models from GPT-4o.
+2. Route executive-level requests to an appropriate GPT-5.6 model.
+3. Preserve fast and affordable processing for lightweight background work.
+4. Implement genuine Veo 3.1 video generation in GrowthMind’s Content Studio.
+5. Confirm which API account and project are being billed.
+6. Record the exact provider, model, tokens, generation cost and request status for every AI operation.
+7. Remove silent fallbacks, fake provider labels and unverified model claims.
+
+## Part 1 — Audit the Current Production AI Path
+
+Trace HiveMind’s complete production request path:
+
+```text
+HiveMind interface
+→ frontend request
+→ server API or server function
+→ prompt assembly
+→ model provider
+→ model request
+→ response
+→ database conversation record
+→ usage and cost record
+→ frontend answer
+```
+
+Search the entire production codebase for:
+
+```text
+gpt-4o
+gpt-4o-mini
+chatgpt-4o-latest
+openai.chat.completions
+openai.responses
+OPENAI_API_KEY
+OPENAI_ORG_ID
+OPENAI_PROJECT_ID
+OpenRouter
+Replit AI
+AI SDK
+fallbackModel
+mockResponse
+cachedResponse
+generateText
+streamText
+```
+
+Inspect:
+
+* Web application
+* Mobile application
+* Server functions
+* Supabase Edge Functions
+* Background jobs
+* Scheduled jobs
+* HiveMind chat
+* HiveMind briefings
+* HiveMind recommendations
+* HiveMind reports
+* Business DNA processing
+* GrowthMind chat
+* GrowthMind Content Studio
+* Environment variables
+* Deployment secrets
+* Provider wrappers
+* Model routers
+
+Do not trust model names displayed in the interface. Verify the actual outbound API request.
+
+## Part 2 — Verify OpenAI Billing and Credentials
+
+Determine which OpenAI credential is used in production.
+
+Safely verify:
+
+* Key fingerprint, showing only the final four characters
+* OpenAI organisation or project associated with the request
+* Environment in which the key is configured
+* Whether development and production use different keys
+* Whether the key is overridden at workspace level
+* Whether requests pass through another AI provider
+* Whether an OpenAI-compatible proxy URL is configured
+* Whether requests are being cached
+* Whether failed OpenAI requests silently fall back
+
+Never display or log complete API keys.
+
+Add a secure production diagnostic that performs one controlled request and records:
+
+```text
+Provider
+Model requested
+Model returned
+OpenAI request ID
+API endpoint
+Project identifier where available
+Input tokens
+Cached input tokens
+Output tokens
+Reasoning tokens
+Request duration
+Estimated cost
+Success or failure
+Fallback used
+Timestamp
+```
+
+Confirm that the controlled request appears in the correct OpenAI project usage dashboard.
+
+Do not claim HiveMind uses OpenAI until a genuine OpenAI request ID and token-usage response have been recorded.
+
+If the current production key belongs to a different project, document that clearly and correct the secret only where authorised.
+
+## Part 3 — Introduce a Central Model Registry
+
+Create one central, typed model registry.
+
+Do not hardcode model IDs across separate pages and functions.
+
+Configure:
+
+```text
+HIVEMIND_CHAT_MODEL=gpt-5.6-terra
+HIVEMIND_EXECUTIVE_MODEL=gpt-5.6-sol
+HIVEMIND_BACKGROUND_MODEL=gpt-5.6-luna
+HIVEMIND_FALLBACK_MODEL=gpt-5.5
+
+GROWTHMIND_CHAT_MODEL=gpt-5.6-terra
+GROWTHMIND_VIDEO_PLANNING_MODEL=gemini-3.1-pro-preview
+GROWTHMIND_VIDEO_RENDER_MODEL=veo-3.1-generate-001
+GROWTHMIND_VIDEO_DRAFT_MODEL=veo-3.1-fast-generate-001
+```
+
+Before activating a model, perform an availability check using the configured provider credentials.
+
+Where GPT-5.6 access is unavailable for the current OpenAI project, fall back explicitly in this order:
+
+```text
+gpt-5.6-terra
+→ gpt-5.5
+→ gpt-5.4
+```
+
+Do not silently fall back to GPT-4o.
+
+Record every fallback event and display it in authorised diagnostics.
+
+## Part 4 — Upgrade HiveMind Answers
+
+Migrate HiveMind from GPT-4o to the OpenAI Responses API.
+
+Use:
+
+### Normal HiveMind conversation
+
+```text
+Model: gpt-5.6-terra
+Reasoning effort: low
+```
+
+Use this for:
+
+* Normal questions
+* Business summaries
+* Operational updates
+* Explanations
+* Analytics interpretation
+* Tasks and recommendations
+* General platform assistance
+
+### Executive and complex work
+
+```text
+Model: gpt-5.6-sol
+Reasoning effort: medium
+```
+
+Use this for:
+
+* Strategic decisions
+* Cross-department analysis
+* Complex campaign diagnosis
+* Financial implications
+* Business-risk assessment
+* Multi-step plans
+* Root-cause analysis
+* Decisions involving several WEBEE departments
+* High-value recommendations
+* Requests explicitly asking for a deep analysis
+
+Allow `high` reasoning only for genuinely difficult requests.
+
+Do not use maximum reasoning by default because it increases latency and expense.
+
+### Lightweight background work
+
+```text
+Model: gpt-5.6-luna
+Reasoning effort: none or low
+```
+
+Use this for:
+
+* Classification
+* Sentiment labelling
+* Lead categorisation
+* Simple extraction
+* Business DNA tagging
+* Intent recognition
+* Notification summaries
+* Routing decisions
+
+Do not use the lightweight model for important executive answers.
+
+## Part 5 — Intelligent Request Routing
+
+Create an explicit router that classifies the task before choosing a model.
+
+Possible routing classes:
+
+```text
+lightweight
+standard
+executive
+high_risk
+tool_execution
+data_analysis
+```
+
+Routing must consider:
+
+* User request
+* Required tools
+* Business impact
+* Number of systems involved
+* Whether financial or legal implications exist
+* Whether the user requested a deep analysis
+* Whether the answer requires verified live data
+* Whether HiveMind will execute an action
+
+Do not route solely by message length.
+
+Allow authorised administrators to inspect:
+
+```text
+Routing decision
+Selected model
+Reasoning level
+Reason for selection
+Fallback status
+```
+
+Normal client users should see only a simple label such as:
+
+```text
+HiveMind
+Advanced reasoning
+```
+
+Do not expose internal model IDs unless the user has technical permissions.
+
+## Part 6 — Preserve HiveMind Context and Tools
+
+Confirm the new model receives:
+
+* Business DNA
+* Workspace identity
+* Current client context
+* Leads
+* Campaign analytics
+* Calendar information
+* Follow-up information
+* GrowthMind data
+* SystemMind status
+* AccountsMind data
+* User role
+* Relevant conversation history
+* Approved knowledge-base material
+* Available tools and permissions
+
+Do not send the entire database or all knowledge-base content on every request.
+
+Use retrieval to select only relevant context.
+
+Ensure workspace isolation is enforced before context is added.
+
+Test function calling for:
+
+* Analytics queries
+* Calendar queries
+* Lead retrieval
+* Campaign actions
+* Report creation
+* System health
+* GrowthMind
+* SystemMind
+* AccountsMind
+
+The upgrade must not reduce HiveMind’s ability to call tools.
+
+## Part 7 — Upgrade GrowthMind Video Planning
+
+GrowthMind’s video workflow must contain separate planning and rendering stages.
+
+### Planning stage
+
+Use:
+
+```text
+gemini-3.1-pro-preview
+```
+
+for:
+
+* Creative concept
+* Audience analysis
+* Video script
+* Hook
+* Scene plan
+* Shot list
+* Voiceover copy
+* On-screen text
+* Brand instructions
+* Camera direction
+* Audio direction
+* Final Veo prompt
+
+The planning model produces instructions and structured creative assets.
+
+It does not produce the final video file.
+
+### Rendering stage
+
+Use the stable Vertex AI model:
+
+```text
+veo-3.1-generate-001
+```
+
+for premium video generation.
+
+Use:
+
+```text
+veo-3.1-fast-generate-001
+```
+
+for drafts, previews and lower-cost iterations.
+
+Do not label Gemini text generation as Veo video generation.
+
+## Part 8 — Content Studio Video Workflow
+
+Implement this end-to-end workflow:
+
+```text
+Campaign brief
+→ brand and Business DNA retrieval
+→ competitor and audience context
+→ concept generation
+→ script and storyboard
+→ user review
+→ video settings
+→ Veo prompt creation
+→ Veo generation job
+→ polling
+→ generated video
+→ quality check
+→ preview
+→ approval
+→ export or scheduled publishing
+```
+
+The user must be able to choose:
+
+* Premium quality
+* Fast draft
+* 16:9 landscape
+* 9:16 portrait
+* Square social output
+* 720p
+* 1080p
+* 4K where supported
+* Text-to-video
+* Image-to-video
+* First-frame guidance
+* First-and-last-frame guidance
+* Native audio
+* Voiceover
+* Music
+* Sound effects
+* Subtitles
+* Brand logo
+* Call-to-action
+* Number of variations
+
+For unsupported combinations, explain the limitation before generation.
+
+## Part 9 — Use Business DNA
+
+Every generated video must consider:
+
+* Company name
+* Products
+* Services
+* Target customers
+* Value proposition
+* Brand colours
+* Brand style
+* Tone of voice
+* Approved claims
+* Prohibited claims
+* Logo
+* Current campaign objective
+* Desired call to action
+* Target platform
+* Competitor context
+* Previous successful content
+
+Do not generate generic videos that ignore the connected workspace.
+
+Display the retrieved brand context for review before a paid premium generation.
+
+## Part 10 — Video Job Management
+
+Veo generation is asynchronous.
+
+Implement a durable generation-job record containing:
+
+```text
+Workspace
+User
+Campaign
+Provider
+Model
+Prompt version
+Generation type
+Aspect ratio
+Resolution
+Duration
+Audio setting
+Status
+Provider operation ID
+Requested time
+Started time
+Completed time
+Failure reason
+Output location
+Estimated cost
+Actual cost where available
+```
+
+Use clear user-facing statuses:
+
+```text
+Preparing
+Generating concept
+Creating storyboard
+Waiting for approval
+Rendering video
+Processing audio
+Performing quality check
+Ready
+Failed
+```
+
+Do not expose raw provider JSON.
+
+Do not lose the generation job when the user closes the page.
+
+## Part 11 — Video Cost Approval
+
+Before calling Veo, calculate and display an estimated generation cost.
+
+Require approval for paid video generation.
+
+Show:
+
+```text
+Video model
+Duration
+Resolution
+Number of versions
+Estimated generation cost
+```
+
+Do not charge the workspace merely for creating a script or preview prompt.
+
+Track failed and successful video-generation charges separately.
+
+## Part 12 — AI Usage and Cost Ledger
+
+Create one central AI usage ledger across WEBEE.
+
+Record every AI request from:
+
+* HiveMind
+* GrowthMind
+* SystemMind
+* AccountsMind
+* Content Studio
+* Business DNA
+* Reporting
+* Background jobs
+
+Record internally:
+
+```text
+Workspace
+Department
+Feature
+Provider
+Requested model
+Returned model
+Input tokens
+Cached tokens
+Output tokens
+Reasoning tokens
+Video seconds
+Resolution
+Images generated
+Request ID
+Provider operation ID
+Latency
+Status
+Fallback
+Estimated cost
+Actual cost where available
+Timestamp
+```
+
+Do not expose raw internal fields to normal users.
+
+Add an authorised usage dashboard showing:
+
+* Spend today
+* Spend this month
+* Spend by workspace
+* Spend by department
+* Spend by model
+* Spend by provider
+* HiveMind cost per conversation
+* GrowthMind cost per asset
+* Video-generation cost
+* Failed-request cost
+* Cache savings
+* Fallback frequency
+
+## Part 13 — Remove Misleading UI Labels
+
+The interface must never claim:
+
+```text
+Powered by GPT-4o
+Using Veo 3.1
+GPT-5.6 active
+```
+
+unless the actual completed provider request confirms it.
+
+Generate the visible provider/model status from the server-side usage record.
+
+Normal users should see friendly descriptions:
+
+```text
+HiveMind intelligence: Advanced
+Video quality: Veo 3.1 Premium
+```
+
+Authorised administrators may inspect the exact model ID.
+
+## Part 14 — Failure Handling
+
+If the selected model fails:
+
+* Record the original failure
+* Apply only an approved fallback
+* Record the fallback model
+* Preserve the conversation
+* Do not return a fake success
+* Do not mislabel the answer
+* Do not expose credentials
+* Prevent duplicate tool actions
+* Prevent duplicate video jobs
+
+For video generation failures, allow the user to:
+
+* Retry
+* Adjust the prompt
+* Select Fast mode
+* Reduce resolution
+* Return to the storyboard
+
+Do not automatically create repeated paid generations without approval.
+
+## Part 15 — Testing
+
+Test:
+
+* Standard HiveMind question
+* Complex executive question
+* Background classification
+* Tool-calling request
+* Streaming response
+* Long conversation
+* Business DNA retrieval
+* Workspace isolation
+* OpenAI key and project identity
+* Usage appearing in OpenAI billing
+* Token capture
+* Model fallback
+* Provider failure
+* GrowthMind video concept
+* Script generation
+* Storyboard generation
+* Premium Veo render
+* Fast Veo render
+* Portrait video
+* Landscape video
+* Image-to-video
+* First-and-last-frame video
+* Native audio
+* Failed generation
+* Cost approval
+* Job resumption
+* Output storage
+* Usage ledger
+* Admin cost dashboard
+
+## Mandatory Live Verification
+
+Perform one controlled HiveMind request in production.
+
+Confirm:
+
+1. The request reaches OpenAI.
+2. The requested model is recorded.
+3. The returned model is recorded.
+4. An OpenAI request ID is captured.
+5. Token usage is captured.
+6. The correct OpenAI project is billed.
+7. The answer appears in HiveMind.
+8. No silent fallback is used.
+9. The usage appears in WEBEE’s AI ledger.
+10. The request appears in the OpenAI usage dashboard.
+
+Perform one authorised GrowthMind test:
+
+1. Generate a video concept.
+2. Generate a script and storyboard.
+3. Create a Veo-ready prompt.
+4. Obtain explicit paid-generation approval.
+5. Submit the request to `veo-3.1-generate-001`.
+6. Record the provider operation ID.
+7. Poll until complete.
+8. Store and display the final video.
+9. Confirm native audio where selected.
+10. Record duration and generation cost.
+11. Confirm it appears in the AI usage ledger.
+
+## Preserve Existing Functionality
+
+Do not break:
+
+* HiveMind conversations
+* HiveMind memory
+* Business DNA
+* Tool execution
+* GrowthMind chat
+* Existing content generation
+* Existing image generation
+* Campaigns
+* Analytics
+* Reports
+* Mobile application
+* Workspace security
+* Provider credentials
+
+Use feature flags and a staged migration.
+
+Keep the existing model path available only as a temporary rollback during verification.
+
+## Completion Criteria
+
+Do not mark this task complete until:
+
+* HiveMind no longer uses GPT-4o in production.
+* Normal answers use the configured GPT-5.6 production model.
+* Complex requests can escalate to the executive model.
+* Lightweight jobs use the efficient model.
+* OpenAI billing identity is verified.
+* A controlled request appears in the correct OpenAI usage dashboard.
+* Every AI request records model and usage information.
+* GrowthMind creates actual videos through Veo 3.1.
+* Premium and Fast generation modes work.
+* Content Studio presents polished previews rather than raw JSON.
+* Video generation requires cost approval.
+* Workspace isolation tests pass.
+* Existing tools and workflows still operate.
+* No silent provider fallback remains.
+
+At completion, provide:
+
+1. Previous model paths found.
+2. Why the OpenAI balance was not changing.
+3. OpenAI project actually being billed.
+4. New model registry.
+5. HiveMind routing rules.
+6. Files and services changed.
+7. GrowthMind video workflow implemented.
+8. Veo models used.
+9. Usage and cost tracking added.
+10. Controlled HiveMind test results.
+11. Controlled Veo test results.
+12. Confirmation that existing functionality remains operational.

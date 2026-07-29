@@ -4,6 +4,7 @@ import { useServerFn } from "@tanstack/react-start";
 import {
   Clapperboard, Loader2, Play, Trash2, CalendarDays, X,
   Sparkles, CheckCircle2, Circle, DollarSign, Volume2,
+
   Film, Zap, Star, Clock, ChevronDown, ChevronUp,
   BarChart3, AlertCircle, Music2, Tv2, Radio, RefreshCw,
   ExternalLink, Mic, PenLine, LayoutTemplate, ShieldCheck,
@@ -11,6 +12,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { GrowthMindShell } from "./GrowthMindShell";
+import { VideoPipelinePanel } from "./VideoPipelinePanel";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -937,7 +939,7 @@ function ScheduleModal({ asset, onClose, onScheduled }: {
 
 // ── Main component ─────────────────────────────────────────────────────────────
 
-type InputMode = "guided" | "freeform";
+type InputMode = "guided" | "freeform" | "pipeline";
 
 const PLATFORM_OPTIONS = [
   { value: "meta",      label: "Meta (Facebook/Instagram)" },
@@ -1596,7 +1598,24 @@ export function GrowthMindVideoStudio() {
                 <PenLine className="h-3.5 w-3.5" />
                 Free-Form Prompt
               </button>
+              <button
+                onClick={() => setInputMode("pipeline")}
+                className={cn(
+                  "flex-1 flex items-center justify-center gap-1.5 rounded-lg py-2 text-xs font-semibold transition-all",
+                  inputMode === "pipeline"
+                    ? "bg-amber-500/20 text-amber-300 border border-amber-500/25"
+                    : "text-muted-foreground/60 hover:text-foreground",
+                )}
+              >
+                <Sparkles className="h-3.5 w-3.5" />
+                AI Pipeline (Veo 3.1)
+              </button>
             </div>
+
+            {/* ── AI PIPELINE (Veo 3.1, plan → approve → render) ─────────────── */}
+            {inputMode === "pipeline" && (
+              <VideoPipelinePanel campaignId={campaignId} />
+            )}
 
             {/* ── GUIDED BUILDER ─────────────────────────────────────────────── */}
             {inputMode === "guided" && (<>

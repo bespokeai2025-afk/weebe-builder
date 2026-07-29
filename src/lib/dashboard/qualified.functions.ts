@@ -5,7 +5,7 @@ import { resolvePermissions } from "@/lib/permissions/permissions.server";
 
 export const listQualifiedLeads = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input) =>
+  .validator((input) =>
     z
       .object({
         search: z.string().optional(),

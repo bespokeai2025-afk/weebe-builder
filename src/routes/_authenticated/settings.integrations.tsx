@@ -348,7 +348,7 @@ function IntegrationsPage() {
             </div>
             <CardDescription>
               Add your workspace OpenAI API key so VoxStream (ElevenLabs) agents use your account
-              for GPT-4o inference and post-call analysis.{" "}
+              for AI inference and post-call analysis.{" "}
               <a
                 href="https://platform.openai.com/api-keys"
                 target="_blank"

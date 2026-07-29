@@ -69,7 +69,7 @@ export const listWhatsappThreads = createServerFn({ method: "GET" })
 
 export const sendWhatsappMessage = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input) =>
+  .validator((input) =>
     z.object({ to: z.string(), body: z.string().min(1), contactName: z.string().optional() }).parse(input),
   )
   .handler(async ({ context, data }) => {
@@ -131,7 +131,7 @@ export const listWAContacts = createServerFn({ method: "GET" })
 
 export const createWAContact = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input) =>
+  .validator((input) =>
     z.object({
       name: z.string().optional(),
       phone: z.string().min(1),
@@ -159,7 +159,7 @@ export const createWAContact = createServerFn({ method: "POST" })
 
 export const updateWAContact = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input) =>
+  .validator((input) =>
     z.object({
       id: z.string(),
       name: z.string().optional(),
@@ -187,7 +187,7 @@ export const updateWAContact = createServerFn({ method: "POST" })
 
 export const deleteWAContact = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input) => z.object({ id: z.string() }).parse(input))
+  .validator((input) => z.object({ id: z.string() }).parse(input))
   .handler(async ({ context, data }) => {
     const { supabase, workspaceId } = context;
     if (!workspaceId) throw new Error("No workspace");
@@ -220,7 +220,7 @@ export const listWATemplates = createServerFn({ method: "GET" })
 
 export const createWATemplate = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input) =>
+  .validator((input) =>
     z.object({
       name: z.string().min(1),
       body: z.string().min(1),
@@ -243,7 +243,7 @@ export const createWATemplate = createServerFn({ method: "POST" })
 
 export const updateWATemplate = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input) =>
+  .validator((input) =>
     z.object({
       id: z.string(),
       name: z.string().optional(),
@@ -268,7 +268,7 @@ export const updateWATemplate = createServerFn({ method: "POST" })
 
 export const deleteWATemplate = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input) => z.object({ id: z.string() }).parse(input))
+  .validator((input) => z.object({ id: z.string() }).parse(input))
   .handler(async ({ context, data }) => {
     const { supabase, workspaceId } = context;
     if (!workspaceId) throw new Error("No workspace");
@@ -324,7 +324,7 @@ const audienceFilterSchema = z
 
 export const createWACampaign = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input) =>
+  .validator((input) =>
     z
       .object({
         name: z.string().min(1),
@@ -374,7 +374,7 @@ export const createWACampaign = createServerFn({ method: "POST" })
 
 export const deleteWACampaign = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input) => z.object({ id: z.string() }).parse(input))
+  .validator((input) => z.object({ id: z.string() }).parse(input))
   .handler(async ({ context, data }) => {
     const { supabase, workspaceId } = context;
     if (!workspaceId) throw new Error("No workspace");
@@ -591,7 +591,7 @@ export const getWASettings = createServerFn({ method: "GET" })
 
 export const saveMetaSettings = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input) =>
+  .validator((input) =>
     z.object({
       data: z.object({
         meta_phone_number_id: z.string().min(1),
@@ -628,7 +628,7 @@ export const saveMetaSettings = createServerFn({ method: "POST" })
 
 export const saveWASettings = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input) =>
+  .validator((input) =>
     z.object({
       data: z.object({
         twilio_account_sid: z.string().optional(),
@@ -908,7 +908,7 @@ async function launchWatiCampaignFromWebee(
 
 export const launchWACampaign = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input) => z.object({ id: z.string() }).parse(input))
+  .validator((input) => z.object({ id: z.string() }).parse(input))
   .handler(async ({ context, data }) => {
     const { supabase, workspaceId } = context;
     if (!workspaceId) throw new Error("No workspace");
@@ -1048,7 +1048,7 @@ const csvLeadRowSchema = z.object({
 
 export const importWatiCampaignLeadsCsv = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input) =>
+  .validator((input) =>
     z.object({ rows: z.array(csvLeadRowSchema).min(1).max(5000) }).parse(input),
   )
   .handler(async ({ context, data }) => {
@@ -1145,7 +1145,7 @@ export const importWatiCampaignLeadsCsv = createServerFn({ method: "POST" })
 
 export const listLeadWhatsappMessages = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input) => z.object({ leadId: z.string() }).parse(input))
+  .validator((input) => z.object({ leadId: z.string() }).parse(input))
   .handler(async ({ context, data }) => {
     const { supabase, workspaceId } = context;
     if (!workspaceId) throw new Error("No workspace");
@@ -1165,7 +1165,7 @@ export const listLeadWhatsappMessages = createServerFn({ method: "POST" })
 
 export const sendLeadWhatsappTemplate = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input) =>
+  .validator((input) =>
     z
       .object({
         leadId: z.string(),
@@ -1257,7 +1257,7 @@ export const sendLeadWhatsappTemplate = createServerFn({ method: "POST" })
  */
 export const searchTwilioNumbers = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input) =>
+  .validator((input) =>
     z.object({
       accountSid:  z.string().min(1),
       authToken:   z.string().min(1),
@@ -1296,7 +1296,7 @@ export const searchTwilioNumbers = createServerFn({ method: "POST" })
  */
 export const purchaseTwilioNumber = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input) =>
+  .validator((input) =>
     z.object({
       accountSid:  z.string().min(1),
       authToken:   z.string().min(1),

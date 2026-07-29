@@ -51,7 +51,7 @@ export const getCompetitors = createServerFn({ method: "GET" })
 
 export const saveCompetitor = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({
       id:           z.string().uuid().optional(),
       name:         z.string().min(1).max(200),
@@ -97,7 +97,7 @@ export const saveCompetitor = createServerFn({ method: "POST" })
 
 export const analyseCompetitors = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({
       platformData: z.any().optional(),
       personality:  z.string().default("professional"),
@@ -159,7 +159,7 @@ export const analyseCompetitors = createServerFn({ method: "POST" })
 
 export const deleteCompetitor = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => z.object({ id: z.string().uuid() }).parse(input))
+  .validator((input: unknown) => z.object({ id: z.string().uuid() }).parse(input))
   .handler(async ({ context, data }) => {
     const sb          = context.supabase as any;
     const workspaceId = context.workspaceId;

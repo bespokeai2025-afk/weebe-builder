@@ -2,6 +2,14 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { type GrowthMindExecutiveSummary, type SystemMindExecutiveSummary } from "@/lib/executives/executive-council";
+import { buildWbahCallsContextLines } from "@/lib/hivemind/wbah-call-metrics.shared";
+import {
+  HIVEMIND_TONE,
+  DEPTH_CONFIG,
+  classifyResponseDepth,
+  buildHiveMindFailureMessage,
+  type ResponseDepth,
+} from "@/lib/hivemind/hivemind-style.shared";
 
 // ── WBAH lead derivation ──────────────────────────────────────────────────────
 // WBAH's `leads` table is dup-inflated (~400k rows), so even a COUNT over it exceeds
@@ -75,6 +83,21 @@ export async function fetchFullPlatformData(sb: any, workspaceId: string) {
   const wbahLeadsPromise: Promise<any[] | null> = isWbah
     ? deriveWbahLeadsFromCalls(workspaceId)
     : Promise.resolve(null);
+  // WBAH call metrics: the standard `calls` table holds only a few legacy WBAH rows
+  // (0 today) — real WBAH calls live in `wbah_calls`. Source the calls block from
+  // there, over the Europe/London day window. Dynamic import (string literal) keeps
+  // the service-role module out of the client bundle. On failure the block carries
+  // an explicit "unavailable" warning — never a silent zero.
+  const wbahCallsPromise: Promise<any | null> = isWbah
+    ? import("@/lib/hivemind/wbah-call-metrics.server")
+        .then((m) => m.fetchWbahCallMetrics(workspaceId))
+        .catch((e: any) => {
+          console.error("[HiveMind] WBAH call metrics import error:", e?.message ?? e);
+          return import("@/lib/hivemind/wbah-call-metrics.shared").then((s) =>
+            s.wbahCallMetricsError(s.londonDayWindowUtc()),
+          );
+        })
+    : Promise.resolve(null);
 
   const [ag, ca, le, bo, cp, wa, se, usage, hexCamps, hexEnroll, docs, tasks, actions, kbs, gmRecs, gmGenLogsRes, videoAssetsRes, videoScheduledRes, adAccountsRes, adCampsRes, adAlertsRes, seoSiteRes] = await Promise.all([
     sb.from("agents").select("id,name,retell_agent_id,inbound_phone_number,settings").eq("workspace_id", workspaceId),
@@ -122,6 +145,7 @@ export async function fetchFullPlatformData(sb: any, workspaceId: string) {
   const agents   = ag.data    ?? [];
   const calls    = ca.data    ?? [];
   const wbahLeadRows = await wbahLeadsPromise;
+  const wbahCalls    = await wbahCallsPromise;
   let leads      = le.data    ?? [];
   // Exact lead total even when the row sample is capped at PostgREST's 1000-row limit
   // (large workspaces). Falls back to the sample size if no count was returned.
@@ -386,7 +410,10 @@ export async function fetchFullPlatformData(sb: any, workspaceId: string) {
     today: {
       leads:    leadsToday.length,
       bookings: bksTodayCount,
-      calls:    callsToday.length,
+      // WBAH: calls come from wbah_calls (Europe/London day). Only override with a
+      // number on a successful query — on error keep 0 here; the context builder
+      // replaces the calls block with an explicit "unavailable" warning.
+      calls:    wbahCalls ? (wbahCalls.status === "ok" ? wbahCalls.totalToday : 0) : callsToday.length,
       messages: msgs.filter((m: any) => m.created_at >= todayStr).length,
     },
     week:  { leads: leadsWeek.length, bookings: bksWeekCount },
@@ -398,8 +425,11 @@ export async function fetchFullPlatformData(sb: any, workspaceId: string) {
       avgDuration: avgDur,
       inbound:  calls.filter((c: any) => c.call_type === "inbound").length,
       outbound: calls.filter((c: any) => c.call_type !== "inbound").length,
-      thisMonth: callsMonth.length,
+      thisMonth: isWbah && wbahCalls?.status === "ok" ? wbahCalls.monthTotal : callsMonth.length,
     },
+    // Full WBAH call metrics block (null for all other workspaces) — the context
+    // builder renders this INSTEAD of the standard `calls`-table line for WBAH.
+    wbahCalls,
     leads: {
       isWbah,
       total: leadsTotal, active: activeLeads.length, idle: idleLeads.length,
@@ -787,7 +817,10 @@ export function buildPlatformContext(d: any): string {
   lines.push(`[${new Date().toLocaleString()} | HiveMind Mode: ${(d.mode ?? "recommend").toUpperCase()}]\n`);
 
   // TODAY
-  lines.push(`TODAY: ${d.today.leads} new leads | ${d.today.bookings} bookings | ${d.today.calls} calls | ${d.today.messages} WhatsApp msgs`);
+  const todayCallsStr = d.wbahCalls && d.wbahCalls.status !== "ok"
+    ? "calls UNAVAILABLE"
+    : `${d.today.calls} calls`;
+  lines.push(`TODAY: ${d.today.leads} new leads | ${d.today.bookings} bookings | ${todayCallsStr} | ${d.today.messages} WhatsApp msgs`);
   lines.push(`THIS WEEK: ${d.week.leads} leads | ${d.week.bookings} bookings`);
   lines.push(`THIS MONTH: ${d.month.leads} leads (vs ${d.prevMonth.leads} last month) | ${d.month.bookings} bookings | ${d.month.sales} sales`);
 
@@ -844,7 +877,13 @@ export function buildPlatformContext(d: any): string {
   }
 
   // CALLS
-  lines.push(`\nCALLS (30d): ${d.calls.total} total | ${d.calls.successRate}% success | avg ${d.calls.avgDuration}s | ${d.calls.inbound} inbound | ${d.calls.outbound} outbound | ${d.calls.thisMonth} this month`);
+  // WBAH: the standard `calls` table holds only legacy rows — render the wbah_calls
+  // block instead (Europe/London day, all outcomes, sentiment subsets, freshness).
+  if (d.wbahCalls) {
+    lines.push(...buildWbahCallsContextLines(d.wbahCalls));
+  } else {
+    lines.push(`\nCALLS (30d): ${d.calls.total} total | ${d.calls.successRate}% success | avg ${d.calls.avgDuration}s | ${d.calls.inbound} inbound | ${d.calls.outbound} outbound | ${d.calls.thisMonth} this month`);
+  }
 
   // BOOKINGS
   lines.push(`\nBOOKINGS: ${d.bookings.total} total | ${d.bookings.thisMonth} this month | ${d.bookings.thisWeek} this week | ${d.bookings.today} today`);
@@ -1267,25 +1306,26 @@ function buildSystemCouncilContext(sm: SystemMindExecutiveSummary | null): strin
   return lines.join("\n");
 }
 
-export function buildSystemPrompt(context: string, personality = "friendly", userName?: string): string {
+export function buildSystemPrompt(context: string, personality = "friendly", userName?: string, depth?: ResponseDepth): string {
   const nameClause = userName?.trim()
     ? `The user's name is ${userName.trim()}. Use their name occasionally — once or twice per conversation feels natural, not every message.`
     : "";
 
   const styles: Record<string, string> = {
-    professional: "Keep answers precise and structured. Use bullet points for lists. Lead with the most important number or insight.",
+    professional: "Lean slightly more precise and structured than usual — but stay conversational, not report-like.",
     friendly:     "Be warm, conversational and natural — like a smart colleague, not a corporate report. Use plain language.",
     concise:      "Maximum 3 sentences. Lead with the key number or fact. Cut everything else.",
   };
   const style = styles[personality] ?? styles.friendly;
+  const depthClause = depth ? `\n\n${DEPTH_CONFIG[depth].instruction}` : "";
 
   return `You are HiveMind — ${userName?.trim() ? `${userName.trim()}'s` : "the user's"} personal AI operations assistant, built into their Webee voice AI platform. You have full real-time visibility into everything happening in their business: agents, leads, calls, bookings, campaigns, email follow-ups, WhatsApp, costs, documents, knowledge bases, pending actions, and system health.
 
-Sound human. Talk like a trusted, smart assistant who knows the business inside out — not like a chatbot or a corporate dashboard. Avoid robotic openers like "Certainly!", "Absolutely!", "Great question!", or "As an AI...". Don't pad your answers. Just get to the point naturally.
+${HIVEMIND_TONE}
 
 ${nameClause}
 
-${style}
+${style}${depthClause}
 
 How to handle things:
 - Always draw from the real platform data below — cite specific names, numbers, and statuses
@@ -1389,10 +1429,327 @@ async function getElevenLabsKey(sb: any, workspaceId: string): Promise<string> {
   return key;
 }
 
+// ── Shared chat preparation (Task #523) ──────────────────────────────────────
+// One prep path used by BOTH the non-streaming server fn and the streaming
+// /api/hivemind/chat-stream endpoint, so tone/depth/context can never drift
+// between surfaces. Everything independent runs in ONE parallel block —
+// previously knowledge retrieval, the GrowthMind command block and the tool
+// schemas loaded sequentially after platform data, adding 1.5–10s.
+export async function prepareHiveMindChat(
+  sb: any,
+  workspaceId: string,
+  opts: { query: string; personality?: string; userName?: string; history?: Array<{ role: "user" | "assistant"; content: string }> },
+): Promise<{
+  systemPrompt: string;
+  messages: any[];
+  tools: any[];
+  apiKey: string;
+  depth: ResponseDepth;
+  maxTokens: number;
+}> {
+  const depth = classifyResponseDepth(opts.query);
+
+  const [platformData, apiKey, marketingCouncil, systemCouncil, knowledgeBlock, growthMindCommandBlock, tools] =
+    await Promise.all([
+      fetchFullPlatformData(sb, workspaceId),
+      getOpenAIKey(sb, workspaceId),
+      buildMarketingCouncilSummarySafe(sb, workspaceId),
+      buildSystemCouncilSummarySafe(sb, workspaceId),
+      (async () => {
+        try {
+          const { getRetrievedKnowledgeBlock } = await import("@/lib/executives/executive-knowledge.server");
+          return await getRetrievedKnowledgeBlock({ sb, workspaceId, mindType: "hivemind", query: opts.query, topK: 5 });
+        } catch { return ""; }
+      })(),
+      (async () => {
+        try {
+          const { buildGrowthMindCommandContext } = await import("@/lib/hivemind/growthmind-control/executive-view.server");
+          return await buildGrowthMindCommandContext(workspaceId);
+        } catch { return ""; }
+      })(),
+      (async () => {
+        try {
+          const { getHiveMindChatToolSchemas } = await import("@/lib/hivemind/growthmind-control/chat-tools.server");
+          return await getHiveMindChatToolSchemas();
+        } catch { return [] as any[]; }
+      })(),
+    ]);
+
+  const ctx = buildPlatformContext(platformData)
+    + buildMarketingCouncilContext(marketingCouncil)
+    + buildSystemCouncilContext(systemCouncil);
+  const systemPrompt = buildSystemPrompt(ctx, opts.personality ?? "friendly", opts.userName, depth)
+    + (knowledgeBlock ? `\n\n${knowledgeBlock}` : "")
+    + (growthMindCommandBlock ? `\n\n${growthMindCommandBlock}` : "")
+    + `\n\nEXECUTIVE TOOLS: You have real tools to inspect and direct the marketing department (GrowthMind). Use read tools before answering questions about marketing state. Write tools take REAL actions — always tell the user what you did, including the record affected. If a tool returns ok:false, report the error honestly and NEVER claim the action succeeded. Sensitive actions only file an approval request — say so explicitly.`;
+
+  // Bounded conversation history — recent turns carry the running topic/context
+  // for follow-ups ("Why?", "Do it.") without resending the whole conversation.
+  const messages: any[] = [
+    { role: "system", content: systemPrompt },
+    ...(opts.history ?? []).slice(-6),
+    { role: "user", content: opts.query },
+  ];
+
+  return { systemPrompt, messages, tools, apiKey, depth, maxTokens: DEPTH_CONFIG[depth].maxTokens };
+}
+
+export interface HiveMindToolLoopResult {
+  response: string;
+  actionsTaken: Array<{ tool: string; ok: boolean; status?: string }>;
+  workOrderProposals: Array<{
+    workOrderId: string; taskId: string; taskTitle: string;
+    focusCampaign: { campaignId: string; campaignName: string } | null;
+    days: number;
+    readinessState: string | null;
+    objective: string | null;
+    approvalScopeSummary: string | null;
+  }>;
+}
+
+const WORK_ORDER_TOOLS = new Set([
+  "create_gads_analysis_work_order",
+  "create_sales_pipeline_work_order",
+  "create_followup_sequence_work_order",
+  "create_whatsapp_campaign_work_order",
+  "create_email_campaign_work_order",
+  "create_call_campaign_work_order",
+]);
+
+/**
+ * Bounded function-calling loop shared by the streaming and non-streaming
+ * paths. When `onToken` is provided, assistant text is streamed from OpenAI
+ * and forwarded token-by-token; tool calls are still executed through the
+ * guarded Mind tool registry exactly as before (audited, approval-aware).
+ */
+export async function runHiveMindToolLoop(args: {
+  sb: any;
+  workspaceId: string;
+  userId: string | null;
+  messages: any[];
+  tools: any[];
+  apiKey: string;
+  maxTokens: number;
+  onToken?: (text: string) => void;
+  signal?: AbortSignal;
+}): Promise<HiveMindToolLoopResult> {
+  const { sb, workspaceId, userId, messages, tools, apiKey, maxTokens, onToken, signal } = args;
+  const { executeHiveMindChatTool } = await import("@/lib/hivemind/growthmind-control/chat-tools.server");
+
+  const actionsTaken: HiveMindToolLoopResult["actionsTaken"] = [];
+  const workOrderProposals: HiveMindToolLoopResult["workOrderProposals"] = [];
+  const MAX_ROUNDS = 4;
+  let response = "";
+
+  // ── GPT-5.6 routing (default path) ─────────────────────────────────────────
+  // Classify ONCE per conversation turn from the latest user request, then use
+  // the routed model for every round of the loop. Legacy gpt-4o path retained
+  // behind AI_LEGACY_CHAT_COMPLETIONS=1 as temporary rollback only.
+  const { classifyAiTask, routingLedgerMeta, useLegacyAiPath } = await import("@/lib/ai/task-router.server");
+  const legacyPath = useLegacyAiPath();
+  const lastUserQuery = [...messages].reverse().find((m: any) => m.role === "user")?.content ?? "";
+  const routing = classifyAiTask({
+    query: String(lastUserQuery),
+    toolsAvailable: tools.length > 0,
+    department: "hivemind",
+    feature: "chat",
+  });
+
+  // Responses API round (streaming + non-streaming, tools, fallback chain).
+  const responsesRound = async (allowTools: boolean): Promise<{ content: string; toolCalls: any[] }> => {
+    const { openaiResponsesCall, toResponsesInput } = await import("@/lib/ai/openai-responses.server");
+    const instructions = messages.find((m: any) => m.role === "system")?.content as string | undefined;
+    const input = toResponsesInput(messages.filter((m: any) => m.role !== "system"));
+    const r = await openaiResponsesCall({
+      apiKey,
+      model: routing.model,
+      input,
+      instructions,
+      maxOutputTokens: maxTokens,
+      reasoningEffort: routing.reasoningEffort,
+      tools: allowTools && tools.length ? tools : undefined,
+      usage: { workspaceId, department: "hivemind", feature: "chat" },
+      routing: routingLedgerMeta(routing),
+      onToken,
+      signal,
+    });
+    return {
+      content: r.text,
+      toolCalls: r.toolCalls.map((tc) => ({
+        id: tc.id, type: "function", function: { name: tc.name, arguments: tc.arguments },
+      })),
+    };
+  };
+
+  const callParams = (allowTools: boolean) => ({
+    model: "gpt-4o-mini",
+    messages,
+    max_tokens: maxTokens,
+    temperature: 0.4,
+    ...(allowTools && tools.length ? { tools, tool_choice: "auto" as const } : {}),
+  });
+
+  // Streamed round: forwards content deltas, accumulates tool-call deltas.
+  const streamRound = async (allowTools: boolean): Promise<{ content: string; toolCalls: any[] }> => {
+    const started = Date.now();
+    const res = await fetch("https://api.openai.com/v1/chat/completions", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
+      body: JSON.stringify({ ...callParams(allowTools), stream: true, stream_options: { include_usage: true } }),
+      signal,
+    });
+    if (!res.ok || !res.body) {
+      const err = await res.text().catch(() => "");
+      const { recordAiUsage } = await import("@/lib/ai/usage-ledger.server");
+      await recordAiUsage({
+        workspaceId, department: "hivemind", feature: "chat", provider: "openai",
+        requestedModel: "gpt-4o-mini", endpoint: "/v1/chat/completions",
+        requestId: res.headers.get("x-request-id"), latencyMs: Date.now() - started,
+        status: "failed", errorMessage: `OpenAI ${res.status}: ${err.slice(0, 200)}`,
+      });
+      throw new Error(`OpenAI error: ${err.slice(0, 200)}`);
+    }
+    let streamUsage: any = null;
+    const reader = res.body.getReader();
+    const dec = new TextDecoder();
+    let buf = "";
+    let content = "";
+    const toolAcc: Record<number, { id: string; name: string; arguments: string }> = {};
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buf += dec.decode(value, { stream: true });
+      const lines = buf.split("\n");
+      buf = lines.pop() ?? "";
+      for (const line of lines) {
+        if (!line.startsWith("data: ")) continue;
+        const payload = line.slice(6).trim();
+        if (payload === "[DONE]") continue;
+        try {
+          const j = JSON.parse(payload);
+          if (j.usage) streamUsage = j.usage;
+          const delta = j.choices?.[0]?.delta;
+          if (delta?.content) {
+            content += delta.content;
+            onToken?.(delta.content);
+          }
+          for (const tc of delta?.tool_calls ?? []) {
+            const idx = tc.index ?? 0;
+            toolAcc[idx] ??= { id: "", name: "", arguments: "" };
+            if (tc.id) toolAcc[idx].id = tc.id;
+            if (tc.function?.name) toolAcc[idx].name += tc.function.name;
+            if (tc.function?.arguments) toolAcc[idx].arguments += tc.function.arguments;
+          }
+        } catch { /* partial frame */ }
+      }
+    }
+    const toolCalls = Object.keys(toolAcc).sort((a, b) => Number(a) - Number(b)).map((k) => {
+      const t = toolAcc[Number(k)];
+      return { id: t.id, type: "function", function: { name: t.name, arguments: t.arguments } };
+    });
+    {
+      const { recordAiUsage } = await import("@/lib/ai/usage-ledger.server");
+      await recordAiUsage({
+        workspaceId, department: "hivemind", feature: "chat", provider: "openai",
+        requestedModel: "gpt-4o-mini", returnedModel: "gpt-4o-mini",
+        endpoint: "/v1/chat/completions",
+        inputTokens: streamUsage?.prompt_tokens ?? 0,
+        cachedInputTokens: streamUsage?.prompt_tokens_details?.cached_tokens ?? 0,
+        outputTokens: streamUsage?.completion_tokens ?? 0,
+        latencyMs: Date.now() - started, status: "success",
+      });
+    }
+    return { content, toolCalls };
+  };
+
+  const jsonRound = async (allowTools: boolean): Promise<{ content: string; toolCalls: any[] }> => {
+    const started = Date.now();
+    const { recordAiUsage } = await import("@/lib/ai/usage-ledger.server");
+    const res = await fetch("https://api.openai.com/v1/chat/completions", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
+      body: JSON.stringify(callParams(allowTools)),
+      signal,
+    });
+    if (!res.ok) {
+      const err = await res.text();
+      await recordAiUsage({
+        workspaceId, department: "hivemind", feature: "chat", provider: "openai",
+        requestedModel: "gpt-4o-mini", endpoint: "/v1/chat/completions",
+        requestId: res.headers.get("x-request-id"), latencyMs: Date.now() - started,
+        status: "failed", errorMessage: `OpenAI ${res.status}: ${err.slice(0, 200)}`,
+      });
+      throw new Error(`OpenAI error: ${err.slice(0, 200)}`);
+    }
+    const json = (await res.json()) as any;
+    await recordAiUsage({
+      workspaceId, department: "hivemind", feature: "chat", provider: "openai",
+      requestedModel: "gpt-4o-mini", returnedModel: json.model ?? "gpt-4o-mini",
+      endpoint: "/v1/chat/completions", requestId: json.id ?? res.headers.get("x-request-id"),
+      inputTokens: json.usage?.prompt_tokens ?? 0,
+      cachedInputTokens: json.usage?.prompt_tokens_details?.cached_tokens ?? 0,
+      outputTokens: json.usage?.completion_tokens ?? 0,
+      latencyMs: Date.now() - started, status: "success",
+    });
+    const msg = json.choices?.[0]?.message;
+    return { content: msg?.content ?? "", toolCalls: (msg?.tool_calls as any[]) ?? [] };
+  };
+
+  for (let round = 0; round <= MAX_ROUNDS; round++) {
+    const allowTools = round < MAX_ROUNDS;
+    const { content, toolCalls } = legacyPath
+      ? (onToken ? await streamRound(allowTools) : await jsonRound(allowTools))
+      : await responsesRound(allowTools);
+
+    if (!toolCalls.length) {
+      response = content || response;
+      break;
+    }
+
+    messages.push({ role: "assistant", content: content || null, tool_calls: toolCalls });
+    for (const call of toolCalls) {
+      let outcome: Record<string, unknown>;
+      try {
+        const parsed = call.function?.arguments ? JSON.parse(call.function.arguments) : {};
+        outcome = await executeHiveMindChatTool({ sb, workspaceId, userId, name: call.function.name, args: parsed });
+      } catch (e: any) {
+        outcome = { ok: false, error: String(e?.message ?? e).slice(0, 500) };
+      }
+      actionsTaken.push({ tool: call.function?.name, ok: outcome.ok === true, status: outcome.status as string | undefined });
+      if (
+        WORK_ORDER_TOOLS.has(call.function?.name) &&
+        outcome.ok === true && outcome.status === "created" &&
+        typeof outcome.taskId === "string" && typeof outcome.workOrderId === "string"
+      ) {
+        workOrderProposals.push({
+          workOrderId: outcome.workOrderId as string,
+          taskId: outcome.taskId as string,
+          taskTitle: (outcome.taskTitle as string) ?? "Google Ads analysis",
+          focusCampaign: (outcome.focusCampaign as any) ?? null,
+          days: Number(outcome.days) || 30,
+          readinessState: (outcome.readinessState as string) ?? null,
+          objective: (outcome.objective as string) ?? null,
+          approvalScopeSummary: (outcome.approvalScopeSummary as string) ?? null,
+        });
+      }
+      messages.push({ role: "tool", tool_call_id: call.id, content: JSON.stringify(outcome).slice(0, 8000) });
+    }
+  }
+
+  if (!response) {
+    response = buildHiveMindFailureMessage({
+      what: "finish generating that answer",
+      staleNote: "so I'd rather not guess",
+      nextStep: "Ask me again — your data and settings are all intact.",
+    });
+  }
+  return { response, actionsTaken, workOrderProposals };
+}
+
 // ── getHiveMindAIResponse ─────────────────────────────────────────────────────
 export const getHiveMindAIResponse = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({
       query:       z.string().min(1).max(2000),
       history:     z.array(z.object({ role: z.enum(["user", "assistant"]), content: z.string() })).optional(),
@@ -1405,115 +1762,38 @@ export const getHiveMindAIResponse = createServerFn({ method: "POST" })
     const workspaceId = context.workspaceId;
     if (!workspaceId) throw new Error("No workspace");
 
-    const [platformData, apiKey, marketingCouncil, systemCouncil] = await Promise.all([
-      fetchFullPlatformData(sb, workspaceId),
-      getOpenAIKey(sb, workspaceId),
-      buildMarketingCouncilSummarySafe(sb, workspaceId),
-      buildSystemCouncilSummarySafe(sb, workspaceId),
-    ]);
-
-    const { getRetrievedKnowledgeBlock } = await import("@/lib/executives/executive-knowledge.server");
-    const knowledgeBlock = await getRetrievedKnowledgeBlock({ sb, workspaceId, mindType: "hivemind", query: data.query, topK: 5 });
-
-    // GrowthMind executive command context (best-effort — chat must not break
-    // if the marketing view fails to build).
-    let growthMindCommandBlock = "";
     try {
-      const { buildGrowthMindCommandContext } = await import("@/lib/hivemind/growthmind-control/executive-view.server");
-      growthMindCommandBlock = await buildGrowthMindCommandContext(workspaceId);
-    } catch { /* non-fatal */ }
-
-    const ctx          = buildPlatformContext(platformData)
-      + buildMarketingCouncilContext(marketingCouncil)
-      + buildSystemCouncilContext(systemCouncil);
-    const systemPrompt = buildSystemPrompt(ctx, data.personality ?? "friendly", data.userName)
-      + (knowledgeBlock ? `\n\n${knowledgeBlock}` : "")
-      + (growthMindCommandBlock ? `\n\n${growthMindCommandBlock}` : "")
-      + `\n\nEXECUTIVE TOOLS: You have real tools to inspect and direct the marketing department (GrowthMind). Use read tools before answering questions about marketing state. Write tools take REAL actions — always tell the user what you did, including the record affected. If a tool returns ok:false, report the error honestly and NEVER claim the action succeeded. Sensitive actions only file an approval request — say so explicitly.`;
-
-    const messages: any[] = [
-      { role: "system", content: systemPrompt },
-      ...(data.history ?? []).slice(-6),
-      { role: "user", content: data.query },
-    ];
-
-    const { getHiveMindChatToolSchemas, executeHiveMindChatTool } = await import("@/lib/hivemind/growthmind-control/chat-tools.server");
-    let tools: any[] = [];
-    try { tools = await getHiveMindChatToolSchemas(); } catch { /* chat still works without tools */ }
-
-    const callOpenAI = async (msgs: any[], allowTools: boolean) => {
-      const res = await fetch("https://api.openai.com/v1/chat/completions", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
-        body: JSON.stringify({
-          model: "gpt-4o-mini",
-          messages: msgs,
-          max_tokens: 700,
-          temperature: 0.4,
-          ...(allowTools && tools.length ? { tools, tool_choice: "auto" } : {}),
-        }),
+      const prep = await prepareHiveMindChat(sb, workspaceId, {
+        query: data.query,
+        personality: data.personality,
+        userName: data.userName,
+        history: data.history,
       });
-      if (!res.ok) {
-        const err = await res.text();
-        throw new Error(`OpenAI error: ${err.slice(0, 200)}`);
-      }
-      return (await res.json()) as any;
-    };
-
-    // Function-calling loop — bounded rounds; every tool call is executed
-    // through the guarded Mind tool registry (audited, approval-aware).
-    const actionsTaken: Array<{ tool: string; ok: boolean; status?: string }> = [];
-    // Work-order proposals created during THIS chat turn — returned so the UI
-    // can render a real Approve & Run affordance inline in the conversation.
-    const workOrderProposals: Array<{
-      workOrderId: string; taskId: string; taskTitle: string;
-      focusCampaign: { campaignId: string; campaignName: string } | null;
-      days: number;
-    }> = [];
-    const MAX_ROUNDS = 4;
-    let response = "I couldn't generate a response. Please try again.";
-    for (let round = 0; round <= MAX_ROUNDS; round++) {
-      const json = await callOpenAI(messages, round < MAX_ROUNDS);
-      const msg  = json.choices?.[0]?.message;
-      const toolCalls = msg?.tool_calls as any[] | undefined;
-      if (!toolCalls?.length) {
-        response = msg?.content ?? response;
-        break;
-      }
-      messages.push(msg);
-      for (const call of toolCalls) {
-        let outcome: Record<string, unknown>;
-        try {
-          const args = call.function?.arguments ? JSON.parse(call.function.arguments) : {};
-          outcome = await executeHiveMindChatTool({
-            sb, workspaceId, userId: context.userId ?? null,
-            name: call.function.name, args,
-          });
-        } catch (e: any) {
-          outcome = { ok: false, error: String(e?.message ?? e).slice(0, 500) };
-        }
-        actionsTaken.push({ tool: call.function?.name, ok: outcome.ok === true, status: outcome.status as string | undefined });
-        if (
-          call.function?.name === "create_gads_analysis_work_order" &&
-          outcome.ok === true && outcome.status === "created" &&
-          typeof outcome.taskId === "string" && typeof outcome.workOrderId === "string"
-        ) {
-          workOrderProposals.push({
-            workOrderId: outcome.workOrderId as string,
-            taskId: outcome.taskId as string,
-            taskTitle: (outcome.taskTitle as string) ?? "Google Ads analysis",
-            focusCampaign: (outcome.focusCampaign as any) ?? null,
-            days: Number(outcome.days) || 30,
-          });
-        }
-        messages.push({
-          role: "tool",
-          tool_call_id: call.id,
-          content: JSON.stringify(outcome).slice(0, 8000),
-        });
-      }
+      return await runHiveMindToolLoop({
+        sb,
+        workspaceId,
+        userId: context.userId ?? null,
+        messages: prep.messages,
+        tools: prep.tools,
+        apiKey: prep.apiKey,
+        maxTokens: prep.maxTokens,
+      });
+    } catch (e: any) {
+      const raw = String(e?.message ?? "");
+      // Missing-key config errors should surface as-is (actionable), but
+      // transient upstream failures become an honest, human answer instead of
+      // a stack-trace-flavoured error bubble.
+      if (/OpenAI API key/i.test(raw)) throw e;
+      console.error("[HiveMind] chat failed:", raw);
+      return {
+        response: buildHiveMindFailureMessage({
+          what: raw.includes("OpenAI") ? "reach the AI service" : "load your live platform data",
+          staleNote: "so I can't give you a reliable answer right now",
+        }),
+        actionsTaken: [],
+        workOrderProposals: [],
+      } satisfies HiveMindToolLoopResult;
     }
-    return { response, actionsTaken, workOrderProposals };
   });
 
 // ── getHiveMindMorningBriefing ────────────────────────────────────────────────
@@ -1544,7 +1824,44 @@ export const getHiveMindMorningBriefing = createServerFn({ method: "GET" })
       console.error("[HiveMind] briefing RAG failed:", (e as Error)?.message);
     }
 
-    const briefing = buildMorningBriefing(d, gm, sm, knowledgeNote);
+    // ── Validated briefing pipeline (spec: validate → verify → rank → output) ──
+    // ONE ValidatedBusinessBriefing object feeds BOTH the screen markdown and
+    // the natural spoken voice summary, so the two can never disagree. Falls
+    // back to the legacy deterministic builder only if the pipeline throws.
+    let briefing: string;
+    let voiceBriefing: string | null = null;
+    let validatedMeta: { dataWarnings: any[]; verifiedMetrics: any[]; unverifiedMetrics: any[]; recommendedActions: any[] } | null = null;
+    try {
+      const { buildValidatedBusinessBriefing } = await import("@/lib/hivemind/validated-briefing.server");
+      const vb = await buildValidatedBusinessBriefing(sb, workspaceId, d);
+      const hour = new Date().getHours();
+      const greeting = hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
+      const extra: string[] = [];
+      if (gm) {
+        extra.push(`\n**Marketing (CMO advisory)** — readiness ${gm.marketingReadinessScore}/100 (${gm.label})`);
+        const topOpp = gm.topOpportunities?.[0];
+        if (topOpp) extra.push(`• Top opportunity: ${topOpp.label} — ${topOpp.detail}`);
+      }
+      if (sm) {
+        extra.push(`\n**Systems (CTO advisory)** — reliability ${sm.reliabilityScore}/100 (${sm.label}), ${sm.integrations.connected}/${sm.integrations.total} integrations connected`);
+      }
+      if (knowledgeNote) extra.push(`\n**Playbook insight** — ${knowledgeNote}`);
+      const { buildScreenSummary } = await import("@/lib/hivemind/validated-briefing.shared");
+      briefing = buildScreenSummary(vb, { greeting }) + (extra.length ? `\n${extra.join("\n")}` : "");
+      voiceBriefing = vb.voiceSummary;
+      validatedMeta = {
+        dataWarnings: vb.dataWarnings,
+        verifiedMetrics: vb.verifiedMetrics,
+        unverifiedMetrics: vb.unverifiedMetrics,
+        recommendedActions: vb.recommendedActions,
+      };
+    } catch (e) {
+      console.error("[HiveMind] validated briefing pipeline failed — falling back:", (e as Error)?.message);
+      // Explicit degraded state — never let a non-validated briefing pass as validated.
+      briefing =
+        "⚠️ Validated metrics are unavailable for this briefing — the figures below come from the raw snapshot and have not passed verification.\n\n" +
+        buildMorningBriefing(d, gm, sm, knowledgeNote);
+    }
 
     // Record the briefing as a shared executive event (deduped within 6h).
     try {
@@ -1559,14 +1876,14 @@ export const getHiveMindMorningBriefing = createServerFn({ method: "GET" })
       console.error("[HiveMind] record briefing event failed:", (e as Error)?.message);
     }
 
-    return { briefing };
+    return { briefing, voiceBriefing, validated: validatedMeta };
   });
 
 // ── getHiveMindSystemContext (voice relay) ────────────────────────────────────
 // Called once when a voice session starts — injects full live data into the prompt
 export const getHiveMindSystemContext = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({
       personality: z.string().optional(),
       voiceId:     z.string().optional(),
@@ -1598,8 +1915,9 @@ export const getHiveMindSystemContext = createServerFn({ method: "GET" })
     const marketingTasksDueToday = dueTasksRes?.count ?? 0;
     const marketingTasksOverdue = overdueTasksRes?.count ?? 0;
 
-    // Fetch the single most urgent due task: walk priorities highest-first so the
-    // selection is correct regardless of how many tasks are due today.
+    // Fetch the single most urgent due task: query all priorities in PARALLEL
+    // (previously a sequential walk of up to 6 round-trips) and pick the
+    // highest-priority hit, so the selection is correct with no added latency.
     let topDueTaskTitle = "";
     if (marketingTasksDueToday > 0) {
       const fetchTopDueTask = (priority?: string) => {
@@ -1612,16 +1930,13 @@ export const getHiveMindSystemContext = createServerFn({ method: "GET" })
         return q.order("created_at", { ascending: true }).limit(1).maybeSingle();
       };
       // Matches the GrowthMind TaskPriority enum ("urgent" is the top level);
-      // "critical" kept for any legacy rows.
-      const KNOWN_PRIORITIES = ["urgent", "critical", "high", "medium", "low"];
-      for (const p of KNOWN_PRIORITIES) {
-        const { data: row } = await fetchTopDueTask(p);
-        if (row?.title?.trim()) { topDueTaskTitle = row.title.trim(); break; }
-      }
-      if (!topDueTaskTitle) {
-        // Fallback for unexpected priority values: earliest-created due task.
-        const { data: row } = await fetchTopDueTask();
-        if (row?.title?.trim()) topDueTaskTitle = row.title.trim();
+      // "critical" kept for any legacy rows. Last entry (undefined) is the
+      // any-priority fallback for unexpected priority values.
+      const KNOWN_PRIORITIES: (string | undefined)[] = ["urgent", "critical", "high", "medium", "low", undefined];
+      const results = await Promise.all(KNOWN_PRIORITIES.map((p) => fetchTopDueTask(p)));
+      for (const r of results) {
+        const title = (r as any)?.data?.title?.trim();
+        if (title) { topDueTaskTitle = title; break; }
       }
     }
 
@@ -1638,7 +1953,11 @@ export const getHiveMindSystemContext = createServerFn({ method: "GET" })
     const ctx          = buildPlatformContext(platformData)
       + buildMarketingCouncilContext(marketingCouncil)
       + buildSystemCouncilContext(systemCouncil);
+    // Voice sessions share the SAME central tone as chat (via buildSystemPrompt)
+    // plus speech-specific rules — one config, two surfaces, no drift.
+    const { HIVEMIND_VOICE_TONE } = await import("@/lib/hivemind/hivemind-style.shared");
     const systemPrompt = buildSystemPrompt(ctx, data.personality ?? "friendly", data.userName)
+      + `\n\n${HIVEMIND_VOICE_TONE}`
       + (knowledgeBlock ? `\n\n${knowledgeBlock}` : "");
 
     const hour     = new Date().getHours();
@@ -1670,7 +1989,7 @@ export const getHiveMindSystemContext = createServerFn({ method: "GET" })
 // ── getHiveMindTTS ────────────────────────────────────────────────────────────
 export const getHiveMindTTS = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({
       text:    z.string().min(1).max(5000),
       voiceId: z.string().default("21m00Tcm4TlvDq8ikWAM"),

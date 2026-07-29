@@ -576,6 +576,9 @@ export async function runWorkspaceHealthCheckServer(
     const proposedActionIds: string[] = [];
     for (const f of proposalsAllowed ? findings.filter((x) => x.recommended) : []) {
       if (pendingKeys.has(f.check_key)) continue;
+      // JUSTIFIED-EXCEPTION (Task #500): writes to hivemind_actions (approval queue),
+      // not hivemind_tasks. This is a setup-health-check proposal record; the intelligence
+      // packet gate fires in hivemind.actions.ts::executeAction when the action is approved.
       const { data: action, error: actErr } = await sb.from("hivemind_actions").insert({
         workspace_id:   workspaceId,
         title:          `Health check: ${f.label}`,

@@ -461,7 +461,7 @@ export type LeadDetail = {
 
 export const getLeadDetail = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input) =>
+  .validator((input) =>
     z
       .object({
         leadId: z.string(),
@@ -536,7 +536,7 @@ export const getLeadDetail = createServerFn({ method: "GET" })
 
 export const setSaleDoneAmount = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input) =>
+  .validator((input) =>
     z.object({ leadId: z.string(), amount: z.number().nonnegative() }).parse(input),
   )
   .handler(async ({ context, data }) => {
@@ -573,7 +573,7 @@ export const setSaleDoneAmount = createServerFn({ method: "POST" })
 
 export const setLeadPipelineStage = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input) =>
+  .validator((input) =>
     z.object({ leadId: z.string(), stage: z.string() }).parse(input),
   )
   .handler(async ({ context, data }) => {

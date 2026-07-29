@@ -107,7 +107,7 @@ export const getInvoiceBusinessProfile = createServerFn({ method: "GET" })
 
 export const saveInvoiceBusinessProfile = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth, requirePlatformAdmin])
-  .inputValidator((input) => businessProfileSchema.parse(input))
+  .validator((input) => businessProfileSchema.parse(input))
   .handler(async ({ data, context }) => {
     const sb = supabaseAdmin as any;
     const { error } = await sb
@@ -143,7 +143,7 @@ export const listPaymentProfiles = createServerFn({ method: "GET" })
 
 export const revealPaymentProfile = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth, requirePlatformAdmin])
-  .inputValidator((input) => z.object({ id: z.string().uuid() }).parse(input))
+  .validator((input) => z.object({ id: z.string().uuid() }).parse(input))
   .handler(async ({ data, context }) => {
     const sb = supabaseAdmin as any;
     const { data: row, error } = await sb
@@ -175,7 +175,7 @@ const paymentProfileSchema = z.object({
 
 export const savePaymentProfile = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth, requirePlatformAdmin])
-  .inputValidator((input) => paymentProfileSchema.parse(input))
+  .validator((input) => paymentProfileSchema.parse(input))
   .handler(async ({ data, context }) => {
     const sb = supabaseAdmin as any;
     const userId = (context as any).userId ?? null;
@@ -207,7 +207,7 @@ export const savePaymentProfile = createServerFn({ method: "POST" })
 
 export const archivePaymentProfile = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth, requirePlatformAdmin])
-  .inputValidator((input) => z.object({ id: z.string().uuid(), archived: z.boolean() }).parse(input))
+  .validator((input) => z.object({ id: z.string().uuid(), archived: z.boolean() }).parse(input))
   .handler(async ({ data, context }) => {
     const sb = supabaseAdmin as any;
     const { error } = await sb
@@ -240,7 +240,7 @@ const serviceSchema = z.object({
 
 export const listInvoiceServices = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth, requirePlatformAdmin])
-  .inputValidator((input) => z.object({ includeArchived: z.boolean().nullish() }).nullish().parse(input ?? {}))
+  .validator((input) => z.object({ includeArchived: z.boolean().nullish() }).nullish().parse(input ?? {}))
   .handler(async ({ data }) => {
     const sb = supabaseAdmin as any;
     let q = sb.from("accountsmind_services").select("*").order("name", { ascending: true }).limit(500);
@@ -252,7 +252,7 @@ export const listInvoiceServices = createServerFn({ method: "GET" })
 
 export const saveInvoiceService = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth, requirePlatformAdmin])
-  .inputValidator((input) => serviceSchema.parse(input))
+  .validator((input) => serviceSchema.parse(input))
   .handler(async ({ data, context }) => {
     const sb = supabaseAdmin as any;
     const userId = (context as any).userId ?? null;
@@ -276,7 +276,7 @@ export const saveInvoiceService = createServerFn({ method: "POST" })
 
 export const archiveInvoiceService = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth, requirePlatformAdmin])
-  .inputValidator((input) => z.object({ id: z.string().uuid(), archived: z.boolean() }).parse(input))
+  .validator((input) => z.object({ id: z.string().uuid(), archived: z.boolean() }).parse(input))
   .handler(async ({ data }) => {
     const { error } = await (supabaseAdmin as any)
       .from("accountsmind_services")
@@ -288,7 +288,7 @@ export const archiveInvoiceService = createServerFn({ method: "POST" })
 
 export const duplicateInvoiceService = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth, requirePlatformAdmin])
-  .inputValidator((input) => z.object({ id: z.string().uuid() }).parse(input))
+  .validator((input) => z.object({ id: z.string().uuid() }).parse(input))
   .handler(async ({ data, context }) => {
     const sb = supabaseAdmin as any;
     const { data: src, error } = await sb.from("accountsmind_services").select("*").eq("id", data.id).maybeSingle();
@@ -307,7 +307,7 @@ export const duplicateInvoiceService = createServerFn({ method: "POST" })
 
 export const listClientServicePrices = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth, requirePlatformAdmin])
-  .inputValidator((input) => z.object({ serviceId: z.string().uuid().nullish(), workspaceId: z.string().uuid().nullish() }).nullish().parse(input ?? {}))
+  .validator((input) => z.object({ serviceId: z.string().uuid().nullish(), workspaceId: z.string().uuid().nullish() }).nullish().parse(input ?? {}))
   .handler(async ({ data }) => {
     const sb = supabaseAdmin as any;
     let q = sb.from("accountsmind_client_service_prices").select("*").limit(500);
@@ -320,7 +320,7 @@ export const listClientServicePrices = createServerFn({ method: "GET" })
 
 export const saveClientServicePrice = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth, requirePlatformAdmin])
-  .inputValidator((input) =>
+  .validator((input) =>
     z
       .object({
         serviceId: z.string().uuid(),
@@ -349,7 +349,7 @@ export const saveClientServicePrice = createServerFn({ method: "POST" })
 
 export const deleteClientServicePrice = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth, requirePlatformAdmin])
-  .inputValidator((input) => z.object({ id: z.string().uuid() }).parse(input))
+  .validator((input) => z.object({ id: z.string().uuid() }).parse(input))
   .handler(async ({ data }) => {
     const { error } = await (supabaseAdmin as any).from("accountsmind_client_service_prices").delete().eq("id", data.id);
     if (error) return { ok: false as const, error: error.message };
@@ -413,7 +413,7 @@ async function nextInvoiceNumberFromSettings(sb: any): Promise<string> {
 
 export const saveInvoiceDraft = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth, requirePlatformAdmin])
-  .inputValidator((input) => draftSchema.parse(input))
+  .validator((input) => draftSchema.parse(input))
   .handler(async ({ data, context }) => {
     const sb = supabaseAdmin as any;
     const userId = (context as any).userId ?? null;
@@ -512,7 +512,7 @@ export const saveInvoiceDraft = createServerFn({ method: "POST" })
 
 export const deleteDraftInvoice = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth, requirePlatformAdmin])
-  .inputValidator((input) => z.object({ id: z.string().uuid() }).parse(input))
+  .validator((input) => z.object({ id: z.string().uuid() }).parse(input))
   .handler(async ({ data, context }) => {
     const sb = supabaseAdmin as any;
     const { data: row } = await sb.from("accountsmind_invoices").select("id,status,storage_path").eq("id", data.id).maybeSingle();
@@ -533,7 +533,7 @@ export const deleteDraftInvoice = createServerFn({ method: "POST" })
 
 export const generateInvoiceDocument = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth, requirePlatformAdmin])
-  .inputValidator((input) =>
+  .validator((input) =>
     z.object({ id: z.string().uuid(), format: z.enum(["docx", "pdf"]) }).parse(input),
   )
   .handler(async ({ data, context }) => {
@@ -756,7 +756,7 @@ export const generateInvoiceDocument = createServerFn({ method: "POST" })
 
 export const recordInvoicePayment = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth, requirePlatformAdmin])
-  .inputValidator((input) =>
+  .validator((input) =>
     z
       .object({
         invoiceId: z.string().uuid(),
@@ -856,7 +856,7 @@ async function recordPaymentInner(sb: any, data: any, inv: any, userId: string |
 
 export const listInvoicePayments = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth, requirePlatformAdmin])
-  .inputValidator((input) => z.object({ invoiceId: z.string().uuid() }).parse(input))
+  .validator((input) => z.object({ invoiceId: z.string().uuid() }).parse(input))
   .handler(async ({ data }) => {
     const { data: rows, error } = await (supabaseAdmin as any)
       .from("accountsmind_invoice_payments")
@@ -871,7 +871,7 @@ export const listInvoicePayments = createServerFn({ method: "GET" })
 
 export const transitionInvoiceStatus = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth, requirePlatformAdmin])
-  .inputValidator((input) =>
+  .validator((input) =>
     z
       .object({
         id: z.string().uuid(),
@@ -939,7 +939,7 @@ export const transitionInvoiceStatus = createServerFn({ method: "POST" })
 
 export const duplicateInvoice = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth, requirePlatformAdmin])
-  .inputValidator((input) => z.object({ id: z.string().uuid() }).parse(input))
+  .validator((input) => z.object({ id: z.string().uuid() }).parse(input))
   .handler(async ({ data, context }) => {
     const sb = supabaseAdmin as any;
     const userId = (context as any).userId ?? null;
@@ -994,7 +994,7 @@ export const duplicateInvoice = createServerFn({ method: "POST" })
 
 export const listInvoicesV2 = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth, requirePlatformAdmin])
-  .inputValidator((input) =>
+  .validator((input) =>
     z
       .object({
         status: z.string().max(30).nullish(),
@@ -1075,7 +1075,7 @@ export const listInvoicesV2 = createServerFn({ method: "GET" })
 
 export const getInvoiceDetail = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth, requirePlatformAdmin])
-  .inputValidator((input) => z.object({ id: z.string().uuid() }).parse(input))
+  .validator((input) => z.object({ id: z.string().uuid() }).parse(input))
   .handler(async ({ data }) => {
     const sb = supabaseAdmin as any;
     const [{ data: inv }, { data: pays }, { data: audit }] = await Promise.all([

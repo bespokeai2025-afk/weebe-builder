@@ -1,0 +1,234 @@
+# GOOGLE DATA MANAGER API — OFFLINE CONVERSION UPLOADER
+
+Upgrade WEBEE’s conversion uploader from the legacy Google Ads
+`uploadClickConversions` pathway to the Google Data Manager API.
+
+Do not modify:
+
+- campaigns
+- budgets
+- bids
+- keywords
+- ads
+- Google Ads conversion settings
+- the conversion_events ledger schema unless strictly required
+- existing deduplication
+- GrowthMind analysis logic
+- unrelated integrations
+
+## Confirmed configuration
+
+Google Ads account:
+
+3550820264
+
+Conversion action:
+
+WEBEE Qualified Lead
+
+Conversion action ID:
+
+7699121648
+
+Resource name:
+
+customers/3550820264/conversionActions/7699121648
+
+Type:
+
+UPLOAD_CLICKS
+
+Workspace:
+
+c13db1d5-22e4-44ad-b678-6f296c31a947
+
+The conversion is enabled, Secondary, enhanced-conversions-for-leads terms are accepted, and auto-tagging is enabled.
+
+## Why this migration is required
+
+The current WEBEE uploader uses the legacy Google Ads API:
+
+`customers/{customerId}:uploadClickConversions`
+
+Google moved current offline-conversion and enhanced-conversion-for-leads ingestion to the Data Manager API from 15 June 2026.
+
+Do not rely on an unverified legacy allowlist.
+
+Implement the Data Manager API as the primary production transport.
+
+## OAuth
+
+Add the required Google OAuth scope:
+
+`https://www.googleapis.com/auth/datamanager`
+
+Preserve all current Google Ads scopes.
+
+Requirements:
+
+- Existing users lacking the new scope must be marked `reauthorisation_required`.
+- Do not silently claim Data Manager access from an old token.
+- Provide a clear reconnect control.
+- Store new tokens using the existing encrypted workspace-specific credential system.
+- Never expose tokens in logs or browser code.
+- Preserve Search Console and Google Ads connection behaviour.
+
+## Data Manager destination
+
+Use:
+
+- operating account type: Google Ads
+- operating account ID: `3550820264`
+- login account: the Google Ads account or manager account actually authorised by the connected user
+- product destination ID: `7699121648`
+
+The product destination must remain workspace-specific.
+
+Do not hardcode it globally.
+
+## Event mapping
+
+Map existing `conversion_events` records to Data Manager events.
+
+Support real attribution identifiers when available:
+
+- gclid
+- gbraid
+- wbraid
+
+Also support properly normalised and SHA-256-hashed first-party identifiers where consent and data availability allow:
+
+- email
+- phone number
+
+Do not require both click ID and user identifiers when one valid attribution route is sufficient.
+
+Include:
+
+- conversion timestamp
+- event source
+- event name/type
+- transaction or order reference where appropriate
+- currency/value only when genuinely configured
+- consent state
+- workspace event ID as idempotency reference
+
+Use the approved conversion action ID as `productDestinationId`.
+
+## Preserve existing honest states
+
+Retain or extend states including:
+
+- no_attribution
+- pending_configuration
+- queued
+- upload_attempted
+- provider_accepted
+- provider_rejected
+- verification_pending
+- reported
+- duplicate_blocked
+
+Do not treat an accepted ingestion request as proof the conversion is already visible in Google Ads.
+
+## Provider response handling
+
+The Data Manager API can return an asynchronous request identifier.
+
+Store:
+
+- provider request ID
+- initial response
+- submission timestamp
+- status-check timestamp
+- final provider state
+- row-level errors
+- retry eligibility
+
+Implement status retrieval where required.
+
+Do not mark the event completed until the provider request reaches an accepted final state.
+
+## Validation mode
+
+Add a read-only/validate-only mode where supported.
+
+Use it to verify:
+
+- OAuth scope
+- operating account
+- login account
+- conversion action
+- payload shape
+- consent fields
+
+Do not send fabricated attribution as a production conversion.
+
+## Retry and idempotency
+
+Ensure:
+
+- one ledger event cannot upload twice
+- browser refresh cannot resend
+- scheduled retries cannot duplicate
+- retryable and permanent errors are separated
+- provider request IDs are reused for status checks
+- legacy uploader cannot run alongside Data Manager for the same event
+
+Keep the legacy adapter disabled by default.
+
+It may remain available only behind an explicit documented fallback flag for proven allowlisted accounts.
+
+## Diagnostics panel
+
+Update Conversion Tracking diagnostics to display:
+
+- transport: Data Manager API
+- OAuth scope status
+- reauthorisation required
+- events queued
+- requests submitted
+- requests accepted
+- requests rejected
+- verification pending
+- duplicate blocked
+- most recent provider error
+- last successful upload
+- tracking health
+
+## Targeted verification
+
+First run validate-only using the real account and action, but without recording a production conversion.
+
+Prove:
+
+1. OAuth contains the Data Manager scope.
+2. Connected user has account access.
+3. Destination account is correct.
+4. Product destination is conversion action `7699121648`.
+5. Payload validation succeeds.
+6. No production conversion is recorded by validation.
+
+After validation succeeds, leave the system ready for the first genuine attributed lead.
+
+## Final report
+
+Return only:
+
+1. Checkpoint reference
+2. Existing ledger and uploader components reused
+3. Exact files changed
+4. OAuth scope result
+5. Reauthorisation requirement
+6. Destination configuration
+7. Event-field mapping
+8. Consent handling
+9. Idempotency result
+10. Validate-only result
+11. Legacy uploader state
+12. Diagnostics-panel result
+13. Targeted tests passed
+14. Production-build result
+15. Confirmation no fabricated conversion was uploaded
+16. Confirmation no advertising settings changed
+17. Confirmation no unrelated systems changed

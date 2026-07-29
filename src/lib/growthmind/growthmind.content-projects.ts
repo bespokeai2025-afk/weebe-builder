@@ -118,7 +118,7 @@ const RulesInput = z.object({
 
 export const setContentApprovalRules = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((i: z.infer<typeof RulesInput>) => RulesInput.parse(i))
+  .validator((i: z.infer<typeof RulesInput>) => RulesInput.parse(i))
   .handler(async ({ data, context }) => {
     const workspaceId = context.workspaceId!;
     const userId = (context as any).userId as string;
@@ -267,7 +267,7 @@ export async function createProjectFromRecommendationCore(
 
 export const createProjectFromRecommendation = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((i: z.infer<typeof CreateInput>) => CreateInput.parse(i))
+  .validator((i: z.infer<typeof CreateInput>) => CreateInput.parse(i))
   .handler(async ({ data, context }) => {
     const workspaceId = context.workspaceId!;
     const userId = (context as any).userId as string;
@@ -296,7 +296,7 @@ const GetInput = z.object({ projectId: z.string().uuid() });
 
 export const getContentProject = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((i: z.infer<typeof GetInput>) => GetInput.parse(i))
+  .validator((i: z.infer<typeof GetInput>) => GetInput.parse(i))
   .handler(async ({ data, context }) => {
     const workspaceId = context.workspaceId!;
     const admin = await getAdmin();
@@ -348,7 +348,7 @@ const UpdateInput = z.object({
 
 export const updateContentProject = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((i: z.infer<typeof UpdateInput>) => UpdateInput.parse(i))
+  .validator((i: z.infer<typeof UpdateInput>) => UpdateInput.parse(i))
   .handler(async ({ data, context }) => {
     const workspaceId = context.workspaceId!;
     const userId = (context as any).userId as string;
@@ -410,7 +410,7 @@ const MediaInput = z.object({
 
 export const setProjectMedia = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((i: z.infer<typeof MediaInput>) => MediaInput.parse(i))
+  .validator((i: z.infer<typeof MediaInput>) => MediaInput.parse(i))
   .handler(async ({ data, context }) => {
     const workspaceId = context.workspaceId!;
     const userId = (context as any).userId as string;
@@ -450,7 +450,7 @@ const ThumbnailInput = z.object({
  */
 export const generateProjectThumbnail = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((i: z.infer<typeof ThumbnailInput>) => ThumbnailInput.parse(i))
+  .validator((i: z.infer<typeof ThumbnailInput>) => ThumbnailInput.parse(i))
   .handler(async ({ data, context }) => {
     const workspaceId = context.workspaceId!;
     const userId = (context as any).userId as string;
@@ -538,7 +538,7 @@ const VoiceoverInput = z.object({
 
 export const generateProjectVoiceover = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((i: z.infer<typeof VoiceoverInput>) => VoiceoverInput.parse(i))
+  .validator((i: z.infer<typeof VoiceoverInput>) => VoiceoverInput.parse(i))
   .handler(async ({ data, context }) => {
     const workspaceId = context.workspaceId!;
     const admin = await getAdmin();
@@ -585,7 +585,7 @@ const SubmitInput = z.object({
 
 export const submitProjectForApproval = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((i: z.infer<typeof SubmitInput>) => SubmitInput.parse(i))
+  .validator((i: z.infer<typeof SubmitInput>) => SubmitInput.parse(i))
   .handler(async ({ data, context }) => {
     const workspaceId = context.workspaceId!;
     const userId = (context as any).userId as string;
@@ -716,7 +716,7 @@ const DecisionInput = z.object({
 /** Reject / request changes from the project page — mirrors the HiveMind reject. */
 export const requestProjectChanges = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((i: z.infer<typeof DecisionInput>) => DecisionInput.parse(i))
+  .validator((i: z.infer<typeof DecisionInput>) => DecisionInput.parse(i))
   .handler(async ({ data, context }) => {
     const workspaceId = context.workspaceId!;
     const userId = (context as any).userId as string;
@@ -739,7 +739,7 @@ export const requestProjectChanges = createServerFn({ method: "POST" })
 /** Bring a failed project back to production so content/media can be fixed and re-submitted. */
 export const returnProjectToProduction = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((i: z.infer<typeof GetInput>) => GetInput.parse(i))
+  .validator((i: z.infer<typeof GetInput>) => GetInput.parse(i))
   .handler(async ({ data, context }) => {
     const workspaceId = context.workspaceId!;
     const userId = (context as any).userId as string;
@@ -759,7 +759,7 @@ export const returnProjectToProduction = createServerFn({ method: "POST" })
 
 export const archiveContentProject = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((i: z.infer<typeof GetInput>) => GetInput.parse(i))
+  .validator((i: z.infer<typeof GetInput>) => GetInput.parse(i))
   .handler(async ({ data, context }) => {
     const workspaceId = context.workspaceId!;
     const userId = (context as any).userId as string;
@@ -782,7 +782,7 @@ const RetryInput = z.object({ jobId: z.string().uuid() });
 /** Retry a failed publishing job immediately (resets backoff, keeps idempotency key). */
 export const retryProjectPublishJob = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((i: z.infer<typeof RetryInput>) => RetryInput.parse(i))
+  .validator((i: z.infer<typeof RetryInput>) => RetryInput.parse(i))
   .handler(async ({ data, context }) => {
     const workspaceId = context.workspaceId!;
     const admin = await getAdmin();

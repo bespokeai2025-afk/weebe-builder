@@ -94,7 +94,7 @@ export const getFilterFieldCatalog = createServerFn({ method: "GET" })
 
 export const createWorkspacePeopleView = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input) =>
+  .validator((input) =>
     z.object({
       name: z.string().min(1).max(120),
       description: z.string().max(2000).nullish(),
@@ -123,7 +123,7 @@ export const createWorkspacePeopleView = createServerFn({ method: "POST" })
 
 export const updateWorkspacePeopleView = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input) =>
+  .validator((input) =>
     z.object({
       id: z.string().uuid(),
       patch: z.object({
@@ -144,7 +144,7 @@ export const updateWorkspacePeopleView = createServerFn({ method: "POST" })
 
 export const duplicateWorkspacePeopleView = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input) => z.object({ id: z.string().uuid() }).parse(input))
+  .validator((input) => z.object({ id: z.string().uuid() }).parse(input))
   .handler(async ({ context, data }) => {
     const { workspaceId, userId, role } = await ctxEntitled(context, "edit");
     return { view: await duplicatePeopleView({ workspaceId, userId, role, id: data.id }) };
@@ -152,7 +152,7 @@ export const duplicateWorkspacePeopleView = createServerFn({ method: "POST" })
 
 export const createWorkspaceCampaignFilter = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input) =>
+  .validator((input) =>
     z.object({
       name: z.string().min(1).max(120),
       description: z.string().max(2000).nullish(),
@@ -185,7 +185,7 @@ export const createWorkspaceCampaignFilter = createServerFn({ method: "POST" })
 
 export const updateWorkspaceCampaignFilter = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input) =>
+  .validator((input) =>
     z.object({
       id: z.string().uuid(),
       patch: z.object({
@@ -211,7 +211,7 @@ export const updateWorkspaceCampaignFilter = createServerFn({ method: "POST" })
 
 export const convertPeopleViewToCampaignFilter = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input) => z.object({ viewId: z.string().uuid() }).parse(input))
+  .validator((input) => z.object({ viewId: z.string().uuid() }).parse(input))
   .handler(async ({ context, data }) => {
     const { workspaceId, userId, role } = await ctxEntitled(context, "edit");
     return { filter: await convertViewToCampaignFilter({ workspaceId, userId, role, viewId: data.viewId }) };
@@ -219,7 +219,7 @@ export const convertPeopleViewToCampaignFilter = createServerFn({ method: "POST"
 
 export const dryRunWorkspaceFilter = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input) =>
+  .validator((input) =>
     z.object({
       objectType: z.enum(["people_view", "campaign_filter"]),
       id: z.string().uuid().nullish(),
@@ -243,7 +243,7 @@ export const dryRunWorkspaceFilter = createServerFn({ method: "POST" })
 
 export const listWorkspaceViewVersions = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input) =>
+  .validator((input) =>
     z.object({
       objectType: z.enum(["people_view", "campaign_filter"]),
       id: z.string().uuid(),
@@ -256,7 +256,7 @@ export const listWorkspaceViewVersions = createServerFn({ method: "POST" })
 
 export const rollbackWorkspaceViewVersion = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input) =>
+  .validator((input) =>
     z.object({
       objectType: z.enum(["people_view", "campaign_filter"]),
       id: z.string().uuid(),
@@ -277,7 +277,7 @@ export const rollbackWorkspaceViewVersion = createServerFn({ method: "POST" })
 
 export const runWorkspacePeopleView = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input) => z.object({ viewId: z.string().uuid(), limit: z.number().int().min(1).max(500).optional() }).parse(input))
+  .validator((input) => z.object({ viewId: z.string().uuid(), limit: z.number().int().min(1).max(500).optional() }).parse(input))
   .handler(async ({ context, data }) => {
     const { workspaceId, userId, role } = await ctxEntitled(context, "view");
     // Assigned-records-only visibility must honour per-user overrides too —
@@ -292,7 +292,7 @@ export const runWorkspacePeopleView = createServerFn({ method: "POST" })
 
 export const listWorkspaceViewAuditLogs = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input) =>
+  .validator((input) =>
     z.object({ objectId: z.string().uuid().nullish(), limit: z.number().int().min(1).max(200).optional() }).parse(input ?? {}),
   )
   .handler(async ({ context, data }) => {

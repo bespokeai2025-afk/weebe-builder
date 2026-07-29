@@ -308,7 +308,7 @@ const ResolveInput = z.object({
 
 export const resolveLearnedPattern = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((i: z.infer<typeof ResolveInput>) => ResolveInput.parse(i))
+  .validator((i: z.infer<typeof ResolveInput>) => ResolveInput.parse(i))
   .handler(async ({ data, context }) => {
     const workspaceId = context.workspaceId!;
     const userId = (context as any).userId as string;

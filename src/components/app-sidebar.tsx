@@ -33,6 +33,7 @@ import {
   Server,
   BookOpen,
   Calculator,
+  Cpu,
   Flame,
   Code2,
   Globe,
@@ -1086,6 +1087,12 @@ export function AppSidebar() {
               <DropdownMenuItem onClick={() => navigate({ to: "/admin/cost-engine" })}>
                 <Calculator className="mr-2 h-4 w-4" />
                 Costing Studio
+              </DropdownMenuItem>
+            )}
+            {isAdmin && (
+              <DropdownMenuItem onClick={() => navigate({ to: "/admin/ai-usage" })}>
+                <Cpu className="mr-2 h-4 w-4" />
+                AI Usage &amp; Billing
               </DropdownMenuItem>
             )}
             <DropdownMenuItem

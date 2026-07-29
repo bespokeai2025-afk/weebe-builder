@@ -103,7 +103,7 @@ export const adminGetPackageMatrix = createServerFn({ method: "GET" })
 
 export const adminUpsertPackageDefinition = createServerFn({ method: "POST" })
   .middleware([...adminMw])
-  .inputValidator(
+  .validator(
     (d: {
       packageKey: string;
       packageName?: string;
@@ -233,7 +233,7 @@ export const adminUpsertPackageDefinition = createServerFn({ method: "POST" })
 /** Remove the DB override — the package reverts to the code catalog default. */
 export const adminResetPackageDefinition = createServerFn({ method: "POST" })
   .middleware([...adminMw])
-  .inputValidator((d: { packageKey: string }) => d)
+  .validator((d: { packageKey: string }) => d)
   .handler(async ({ context, data }) => {
     const { data: before } = await sb
       .from("package_definitions").select("*").eq("package_key", data.packageKey).maybeSingle();
@@ -423,7 +423,7 @@ export const adminListChildWorkspaces = createServerFn({ method: "GET" })
 /** Grant/revoke reseller access via an admin_override feature entitlement. */
 export const adminSetResellerAccess = createServerFn({ method: "POST" })
   .middleware([...adminMw])
-  .inputValidator((d: { workspaceId: string; enabled: boolean | null }) => d)
+  .validator((d: { workspaceId: string; enabled: boolean | null }) => d)
   .handler(async ({ context, data }) => {
     return setFeatureOverride(context.userId, data.workspaceId, "reseller_client_accounts", data.enabled);
   });
@@ -431,7 +431,7 @@ export const adminSetResellerAccess = createServerFn({ method: "POST" })
 /** Grant/remove/clear an admin feature override. enabled=null clears the row. */
 export const adminSetFeatureOverride = createServerFn({ method: "POST" })
   .middleware([...adminMw])
-  .inputValidator((d: { workspaceId: string; featureKey: string; enabled: boolean | null }) => d)
+  .validator((d: { workspaceId: string; featureKey: string; enabled: boolean | null }) => d)
   .handler(async ({ context, data }) => {
     if (!(FEATURE_KEYS as readonly string[]).includes(data.featureKey)) {
       throw new Error("Unknown feature key");
@@ -492,7 +492,7 @@ async function setFeatureOverride(
 /** Force-set a workspace's package (unlike provisioning, this UPDATES). */
 export const adminSetWorkspacePackage = createServerFn({ method: "POST" })
   .middleware([...adminMw])
-  .inputValidator((d: { workspaceId: string; packageKey: string; status?: string }) => d)
+  .validator((d: { workspaceId: string; packageKey: string; status?: string }) => d)
   .handler(async ({ context, data }) => {
     const catalog = await getEffectivePackageCatalog();
     if (!catalog.has(data.packageKey)) throw new Error("Unknown package key");
@@ -532,7 +532,7 @@ export const adminSetWorkspacePackage = createServerFn({ method: "POST" })
 /** Suspend / reactivate a workspace (entitlements degrade automatically). */
 export const adminSetWorkspaceSuspended = createServerFn({ method: "POST" })
   .middleware([...adminMw])
-  .inputValidator((d: { workspaceId: string; suspended: boolean }) => d)
+  .validator((d: { workspaceId: string; suspended: boolean }) => d)
   .handler(async ({ context, data }) => {
     if (isWbahWorkspaceId(data.workspaceId)) {
       throw new Error("The WBAH workspace cannot be suspended from here.");
@@ -569,7 +569,7 @@ export const adminSetWorkspaceSuspended = createServerFn({ method: "POST" })
 /** Feature overrides + audit trail for one workspace (drill-in). */
 export const adminGetWorkspaceOversight = createServerFn({ method: "GET" })
   .middleware([...adminMw])
-  .inputValidator((d: { workspaceId: string }) => d)
+  .validator((d: { workspaceId: string }) => d)
   .handler(async ({ data }) => {
     const [{ data: ws }, { data: sub }, { data: overrides }, { data: audit }] = await Promise.all([
       sb.from("workspaces").select("id, name, slug, owner_id, created_at").eq("id", data.workspaceId).maybeSingle(),
@@ -598,7 +598,7 @@ export const adminGetWorkspaceOversight = createServerFn({ method: "GET" })
  */
 export const adminRunPackageMigrationReport = createServerFn({ method: "POST" })
   .middleware([...adminMw])
-  .inputValidator((d: { apply?: boolean }) => d ?? {})
+  .validator((d: { apply?: boolean }) => d ?? {})
   .handler(async ({ context, data }) => {
     const apply = data.apply === true;
     const [{ data: wss, error: wErr }, { data: subs }, { data: rels }, { data: wl }, { data: members }] =
@@ -695,7 +695,7 @@ export const adminRunPackageMigrationReport = createServerFn({ method: "POST" })
  */
 export const adminGetPlatformAnalytics = createServerFn({ method: "GET" })
   .middleware([...adminMw])
-  .inputValidator(
+  .validator(
     (d?: {
       search?: string | null;
       windowDays?: number | null;

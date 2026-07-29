@@ -1,0 +1,154 @@
+# WBAH HIVEMIND VERIFICATION-FIRST REPAIR
+# CHECK THE LIVE RESULT, THEN FIX ONLY THE FAILED PATH
+
+Do not assume the previous HiveMind fix worked.
+
+Before changing code:
+
+1. Create a Git checkpoint containing the current application state.
+2. Report the checkpoint reference.
+3. Do not modify either Calls page, Retell ingestion, CRM data, task execution work, approvals, content safety, or unrelated features.
+4. Do not run a repository-wide audit or broad refactor.
+
+The existing WeBuyAnyHouse Calls pages are correct.
+
+The only concern is whether HiveMind now reads the correct live WBAH calls, bookings, leads, and daily activity.
+
+## Phase 1 — Test the current implementation without changing code
+
+Use the real production/UAT WeBuyAnyHouse workspace and run these HiveMind questions:
+
+1. “How many calls have we had today?”
+2. “What has happened in the business today?”
+3. “How many bookings were created today?”
+4. “How many appointments are scheduled for today?”
+5. “How many calls were qualified today?”
+6. “How many positive leads have we had today?”
+
+For every question capture:
+
+- HiveMind answer
+- tool selected
+- tool input
+- workspace ID
+- source service
+- source table/API
+- timezone
+- UTC date boundaries
+- filters
+- cache key
+- raw tool result
+- final LLM response
+
+Compare HiveMind against the existing correct WBAH sources used by the Calls, People, calendar, bookings and leads interfaces.
+
+Do not use hardcoded expected values. Read the current authoritative values.
+
+## Phase 2 — Determine whether it is genuinely fixed
+
+The test passes only when:
+
+- HiveMind uses the active WBAH workspace.
+- “Today” uses the configured WBAH timezone, expected to be Europe/London.
+- Total calls include every call outcome.
+- Qualified and positive calls are separate subsets.
+- Bookings created today are separate from appointments scheduled for today.
+- General business activity includes real calls, bookings, leads and relevant pipeline activity.
+- HiveMind does not answer from memory or cached prose.
+- Failed data retrieval returns unavailable or delayed, not zero.
+- HiveMind totals match the existing correct source within any clearly explained live sync delay.
+
+If every test passes, make no code changes.
+
+Report the evidence proving it is fixed.
+
+## Phase 3 — Repair only if a test fails
+
+If any result is wrong, identify the first failing layer:
+
+1. HiveMind intent routing
+2. Tool selection
+3. Workspace resolution
+4. Activity service
+5. Provider/table query
+6. Timezone conversion
+7. Filtering
+8. Cache
+9. Tool result formatting
+10. Final LLM response
+
+Apply the smallest safe correction only to that failed layer.
+
+Likely checks include:
+
+- HiveMind still using standard WEBEE tables instead of the WBAH source
+- HiveMind skipping the live activity tool
+- wrong workspace ID
+- UTC or UAE timezone used instead of Europe/London
+- qualified-only filter replacing the total
+- completed-only filter
+- wrong timestamp column
+- stale cache
+- empty or failed tool response converted into zero
+- tool returns correct data but the final response ignores it
+
+Do not create a new competing activity service if the correct service already exists.
+
+Make HiveMind use the existing correct source.
+
+## Required live routing rule
+
+Questions about:
+
+- today
+- calls
+- bookings
+- appointments
+- leads
+- pipeline activity
+- business activity
+- what happened today
+- how busy were we
+
+must force a live workspace-data lookup.
+
+HiveMind must not answer those questions using:
+
+- Business DNA
+- old conversation memory
+- previous summaries
+- static prompt context
+- another workspace
+- qualified-only data
+- cached natural-language text
+
+## Failure behaviour
+
+When the source fails, HiveMind must say:
+
+“Current WBAH activity data is unavailable or delayed.”
+
+It must never report zero unless the underlying successful query genuinely returned zero.
+
+## Final verification
+
+After any repair, repeat all six questions and compare them again with the correct source.
+
+Report only:
+
+1. Checkpoint reference
+2. Whether the previous fix had actually worked
+3. Authoritative source counts
+4. HiveMind counts before repair
+5. Exact root cause, if any
+6. Exact files changed
+7. Exact correction made
+8. HiveMind counts after repair
+9. Tool traces proving live-data usage
+10. Timezone and date boundaries
+11. Targeted tests passed
+12. Confirmation that neither Calls page nor unrelated systems changed
+
+Do not report completion based only on tests or code inspection.
+
+Prove it by showing the real HiveMind answers and the matching authoritative source results.

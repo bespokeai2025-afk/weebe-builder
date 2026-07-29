@@ -69,7 +69,7 @@ export const listAllProfiles = createServerFn({ method: "GET" })
  */
 export const addUserCredits = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: { profileId: string; dollars: number }) => input)
+  .validator((input: { profileId: string; dollars: number }) => input)
   .handler(async ({ context, data }) => {
     const { userId } = context;
     await assertPlatformAdmin(supabaseAdmin, userId);
@@ -97,7 +97,7 @@ export const addUserCredits = createServerFn({ method: "POST" })
  */
 export const resetUserSpend = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: { profileId: string }) => input)
+  .validator((input: { profileId: string }) => input)
   .handler(async ({ context, data }) => {
     const { userId } = context;
     await assertPlatformAdmin(supabaseAdmin, userId);
@@ -148,7 +148,7 @@ const DEFAULT_CENTS_PER_SECOND = 0.36 / 60 * 100; // ≈ 0.6 ¢/s (OmniVoice)
  */
 export const recordTestCallCost = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: { seconds: number; deploymentMode?: string | null }) => input)
+  .validator((input: { seconds: number; deploymentMode?: string | null }) => input)
   .handler(async ({ context, data }) => {
     const { userId } = context;
     const seconds = Math.max(0, Math.floor(data.seconds));

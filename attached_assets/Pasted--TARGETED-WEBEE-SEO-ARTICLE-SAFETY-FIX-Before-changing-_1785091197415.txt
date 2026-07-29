@@ -1,0 +1,123 @@
+# TARGETED WEBEE SEO ARTICLE SAFETY FIX
+
+Before changing anything, preserve the current Git checkpoint and do not modify unrelated WEBEE systems.
+
+Fix only the unsafe article and the content-safety pathway that allowed it to publish.
+
+Article:
+
+Slug:
+missed-calls-ai-receptionist-uk-businesses
+
+Title:
+Recover Missed Calls After Hours with AI Receptionists
+
+The published version contains:
+
+- unsupported 70% statistic
+- invented 40% and 30% case-study results
+- fabricated testimonials
+- invented people and businesses
+- internal links that may not exist
+- unsupported factual claims
+
+## Immediate action
+
+Withdraw or block the current unsafe version from:
+
+- public posts list
+- article endpoint
+- RSS feed
+- sitemap data
+
+Preserve:
+
+- article history
+- versions
+- work order
+- approvals
+- publication logs
+- audit trail
+
+Set an honest state such as:
+
+Blocked — Unsafe Published Version Withdrawn
+
+Invalidate the publication approval for that version.
+
+Do not delete it permanently.
+Do not republish automatically.
+
+## Fix the safety gate
+
+Block publication when content contains:
+
+- unsupported statistics
+- fake testimonials
+- fabricated case studies
+- invented identities
+- unsupported performance claims
+- unverified customer claims
+- broken internal links
+- inaccurate product claims
+
+Every factual or numerical claim must have one of:
+
+- verified internal evidence
+- verified external source
+- approved customer evidence
+- clearly labelled estimate
+- clearly labelled hypothesis
+- clearly labelled hypothetical example
+
+Testimonials require a real customer record, consent and approved wording.
+
+Case studies require real source data and approval.
+
+Validate internal links against real live or approved routes.
+
+## Corrected article
+
+Create a new draft version that:
+
+- removes all unsupported percentages
+- removes fake case studies
+- removes fabricated testimonials
+- uses only verified WEBEE capabilities
+- uses consistent “Webespoke AI” and “WEBEE” naming
+- contains only verified internal links
+- uses useful practical guidance rather than invented evidence
+- has accurate metadata and structured data
+- places the CTA naturally
+- includes a suitable image and alt text only where a real approved asset exists
+
+Do not overwrite the withdrawn version.
+
+## Approvals
+
+After the corrected version passes the repaired safety gate:
+
+1. Create `Approve Article Content`.
+2. Require human approval.
+3. Only then create `Approve Article Publication`.
+4. Do not republish until both approvals are completed.
+
+## Verify
+
+Report only:
+
+- checkpoint reference
+- unsafe article state
+- public endpoints checked
+- safety-gate root cause
+- exact files changed
+- unsupported claims blocked
+- internal-link validation result
+- corrected draft status
+- content approval status
+- publication approval status
+- targeted tests passed
+- confirmation no unrelated files changed
+
+Do not run a repository-wide content audit.
+Do not publish the corrected article automatically.

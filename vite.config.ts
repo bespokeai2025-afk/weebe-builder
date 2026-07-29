@@ -70,6 +70,7 @@ export default defineConfig({
     // files. Marking them external prevents Rollup from trying to bundle the
     // browser-stub versions (which don't export the named symbols used).
     build: {
+      sourcemap: false,
       rollupOptions: {
         external: [
           // Catch any `node:`-prefixed built-in (e.g. `node:crypto`), which is a

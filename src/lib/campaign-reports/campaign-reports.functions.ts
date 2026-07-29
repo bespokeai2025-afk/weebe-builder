@@ -21,7 +21,7 @@ async function ctxWs(context: any): Promise<{ workspaceId: string; role: string 
 
 export const listWorkspaceCampaignReports = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input) =>
+  .validator((input) =>
     z
       .object({
         campaignId: z.string().uuid().nullish(),
@@ -42,7 +42,7 @@ export const listWorkspaceCampaignReports = createServerFn({ method: "GET" })
 
 export const getWorkspaceCampaignReport = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input) => z.object({ id: z.string().uuid() }).parse(input))
+  .validator((input) => z.object({ id: z.string().uuid() }).parse(input))
   .handler(async ({ data, context }) => {
     const { workspaceId } = await ctxWs(context);
     return getCampaignReport(workspaceId, data.id);

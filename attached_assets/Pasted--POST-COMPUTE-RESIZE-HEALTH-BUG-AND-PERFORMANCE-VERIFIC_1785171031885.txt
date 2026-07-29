@@ -1,0 +1,394 @@
+# POST-COMPUTE-RESIZE HEALTH, BUG AND PERFORMANCE VERIFICATION
+
+The Replit compute size for this WEBEE project has just been resized.
+
+Perform a controlled production-readiness and performance check to confirm the application is healthy, fast, and free from regressions after the resize.
+
+Do not perform a repository-wide refactor.
+Do not redesign the application.
+Do not change product behaviour unless a verified defect requires the smallest safe fix.
+Do not modify live advertising campaigns, CRM data, leads, calls, bookings, integrations, approvals, or customer records.
+
+## 1. Create a checkpoint first
+
+Before changing anything:
+
+- Create a Git checkpoint
+- Report the checkpoint reference
+- Record the current compute size, CPU, RAM and storage available
+- Record current running processes and memory usage
+- Preserve all current uncommitted work
+
+If there are unrelated uncommitted changes, do not overwrite or discard them.
+
+## 2. Confirm the resized environment is being used
+
+Verify:
+
+- current CPU allocation
+- current RAM allocation
+- available disk space
+- Node heap limit
+- running Replit workflows
+- dev server process
+- worker/scheduler processes
+- duplicate server processes
+- orphaned Node processes
+- port usage
+- active database connections
+- current environment variables loaded
+
+Check specifically for:
+
+- old processes surviving the resize
+- multiple app servers using memory
+- duplicate schedulers
+- stale Vite processes
+- port conflicts
+- processes restarting repeatedly
+- memory limits still configured for the previous compute size
+
+Do not expose secret values.
+
+## 3. Establish a performance baseline before changes
+
+Measure the real application before making any fix.
+
+Capture:
+
+- app startup time
+- time to first HTTP 200
+- homepage response time
+- authenticated dashboard response time
+- API response times
+- server memory at idle
+- server memory under normal use
+- CPU at idle
+- CPU during page navigation
+- database query latency
+- slowest server functions
+- slowest API routes
+- frontend bundle load time
+- browser console errors
+- server log errors
+- failed network requests
+- repeated or duplicate requests
+
+Test at minimum:
+
+- login
+- dashboard
+- HiveMind
+- GrowthMind
+- Work Orders
+- Work Order Details
+- Google Ads analytics
+- Conversion Uploads status
+- Analytics Centre
+- Leads
+- Calls
+- Calendar/bookings
+- SystemMind
+- AccountsMind
+- public contact endpoint
+
+Use the real active workspace, but do not modify live business data.
+
+## 4. Check application logs
+
+Inspect recent logs since the compute resize for:
+
+- uncaught exceptions
+- unhandled promise rejections
+- HTTP 500 errors
+- HTTP 401 loops
+- HTTP 429 errors
+- database timeouts
+- connection-pool exhaustion
+- Supabase errors
+- Vite chunk-load failures
+- SSR errors
+- duplicate route errors
+- hydration errors
+- API retries
+- stuck background jobs
+- failed schedulers
+- OAuth token refresh failures
+- Google Ads sync failures
+- Data Manager permission failures
+- Retell sync failures
+- memory warnings
+- out-of-memory kills
+- process restarts
+- port conflicts
+
+Separate:
+
+- active defects
+- historical/pre-resize logs
+- expected warnings
+- harmless development-only warnings
+
+Do not report old logs as current failures.
+
+## 5. Verify critical systems
+
+Run targeted checks for the following.
+
+### Authentication and workspace isolation
+
+Verify:
+
+- login works
+- session refresh works
+- active workspace resolves correctly
+- no cross-workspace data appears
+- WBAH remains isolated
+- standard workspaces remain isolated
+- expired sessions fail cleanly
+
+### WBAH HiveMind
+
+Verify the existing fixed path still works:
+
+- WBAH call totals come from `wbah_calls`
+- Europe/London day boundaries remain correct
+- HiveMind call totals match the authoritative source
+- unavailable data is not silently returned as zero
+
+Do not modify the correct Calls pages.
+
+### Google Ads and GrowthMind
+
+Verify:
+
+- connected account remains `3550820264`
+- campaign analytics load
+- `Search for US and Reception` remains visible
+- Google Ads sync is healthy
+- Work Order Details opens the stored report
+- conversion action `7699121648` remains configured
+- Conversion Uploads card loads
+- missing Data Manager permission does not break analytics
+- no duplicate Google Ads provider rows exist
+- no live campaign changes occur
+
+### Conversion tracking
+
+Verify:
+
+- attribution fields remain supported
+- `conversion_events` ledger is accessible
+- duplicate protection works
+- no-attribution events remain honest
+- test/synthetic events cannot upload
+- forms still create leads
+- the Talk to Us form still resolves the admin workspace through `profiles`
+
+### Work orders and execution
+
+Verify:
+
+- Details buttons open the correct work order
+- approvals load
+- executions do not remain falsely stuck
+- progress comes from persisted stages
+- completed tasks contain evidence
+- failed tasks expose the failure stage
+
+### Calls and leads
+
+Verify:
+
+- WBAH Calls pages remain correct
+- standard Calls pages remain correct
+- leads load under the correct workspace
+- no duplicate fetch loops occur
+- filters do not cause repeated server requests
+
+## 6. Check for performance regressions
+
+Use profiling and logs to identify:
+
+- N+1 database queries
+- duplicated API requests
+- repeated React Query invalidations
+- polling intervals firing too frequently
+- unnecessary full-page data reloads
+- oversized server responses
+- large JSON payloads
+- slow joins
+- missing database indexes
+- sequential provider calls that can safely run in parallel
+- blocking work inside request handlers
+- expensive calculations repeated per render
+- excessive SSR work
+- memory leaks
+- unbounded caches
+- background jobs running in the web process
+- duplicate event listeners
+- duplicate websocket connections
+
+Do not optimise speculative issues.
+
+Only change something when the profiler, logs or measurements prove it is materially slow.
+
+## 7. Database and Supabase checks
+
+Inspect read-only health information for:
+
+- slow queries
+- connection counts
+- connection pool saturation
+- long-running queries
+- locked queries
+- table scans on high-volume tables
+- missing indexes on workspace and timestamp filters
+- excessive row counts returned
+- RLS failures
+- repeated permission retries
+
+Pay particular attention to:
+
+- `wbah_calls`
+- `calls`
+- `leads`
+- work orders
+- task executions
+- Google Ads analytics tables
+- conversion events
+- provider settings
+
+Do not add an index unless query evidence proves it is needed.
+
+Do not weaken RLS.
+
+## 8. Frontend checks
+
+Test desktop and mobile-width layouts for:
+
+- broken navigation
+- blank pages
+- missing data
+- stuck loading states
+- Details buttons
+- modals and drawers
+- route transitions
+- chunk loading
+- browser back/forward
+- refresh on nested routes
+- console errors
+- hydration mismatches
+
+Check that the app does not repeatedly fetch the same data after navigation.
+
+## 9. Apply only proven fixes
+
+For each verified defect:
+
+1. Record the evidence.
+2. Identify the smallest failing layer.
+3. Apply the smallest safe correction.
+4. Add or update a targeted regression test.
+5. Re-measure the affected route or service.
+6. Confirm no unrelated behaviour changed.
+
+Do not perform mass dependency updates.
+Do not change frameworks.
+Do not rewrite working services.
+Do not increase polling as a workaround.
+Do not hide errors with empty states or zero values.
+
+## 10. Production build verification
+
+Because the previous build issue was caused by memory pressure:
+
+1. Stop or pause the dev server before the production build.
+2. Ensure no duplicate Node processes remain.
+3. Run one clean production build.
+4. Use an appropriate Node heap limit for the new compute size.
+5. Record memory and CPU usage.
+6. Require exit code 0.
+7. Confirm `dist/client` and `dist/server` artifacts exist.
+8. Restart the dev server once after the build.
+9. Confirm HTTP 200 and application health.
+
+Do not repeatedly rerun a failing build.
+
+If it fails, report the exact phase and cause.
+
+## 11. Target performance expectations
+
+Report measured results for:
+
+- cold app startup
+- warm API requests
+- dashboard load
+- HiveMind response preparation
+- Google Ads analytics load
+- Work Order Details load
+- Calls page load
+- memory at idle
+- memory after navigation
+- CPU at idle
+- production build duration
+
+Highlight any route taking:
+
+- over 1 second for a normal API request
+- over 3 seconds for an authenticated page data load
+- over 5 seconds for a provider-dependent analysis page
+
+Provider-dependent requests may take longer, but the UI must show an honest loading state and must not freeze.
+
+## 12. Final smoke test
+
+After any fixes and restart, verify:
+
+1. Login succeeds.
+2. Dashboard opens.
+3. HiveMind opens.
+4. WBAH call response remains correct.
+5. Google Ads analytics load.
+6. Conversion Uploads card loads.
+7. Work Order Details opens.
+8. Leads load.
+9. Calls load.
+10. Calendar loads.
+11. SystemMind loads.
+12. AccountsMind loads.
+13. Public contact endpoint responds correctly.
+14. No new console errors appear.
+15. No repeated process restarts occur.
+16. Memory remains stable after repeated navigation.
+
+## Final report
+
+Return only:
+
+1. Checkpoint reference
+2. Compute resources detected
+3. Processes found before cleanup
+4. Performance baseline before changes
+5. Active errors found
+6. Historical/non-active warnings found
+7. Root causes
+8. Exact files changed
+9. Database changes, if any
+10. Processes removed or restarted
+11. Performance before and after
+12. Memory before and after
+13. API routes measured
+14. Critical systems verified
+15. Tests passed
+16. Production build duration
+17. Production build exit code
+18. Deployment artifacts confirmed
+19. Remaining issues
+20. Confirmation no unrelated business logic changed
+
+Do not report “everything is faster” without measurements.
+
+Do not report success based only on tests.
+
+Prove the resized project is healthy using real runtime measurements, logs, route checks and a completed production build.

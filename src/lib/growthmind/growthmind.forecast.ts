@@ -245,7 +245,7 @@ export const getForecastData = createServerFn({ method: "GET" })
 
 export const saveForecast = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({
       scenario:    z.enum(["conservative", "base", "optimistic"]),
       periodWeeks: z.number().default(12),
@@ -306,7 +306,7 @@ export const getForecasts = createServerFn({ method: "GET" })
 
 export const saveForecastSettings = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({
       dealValue: z.number().min(0),
       currency:  z.string().max(10),

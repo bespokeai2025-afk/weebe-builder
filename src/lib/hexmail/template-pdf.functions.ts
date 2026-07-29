@@ -33,7 +33,7 @@ function storagePathFromPublicUrl(fileUrl: string): string | null {
  */
 export const renderHexmailTemplatePdf = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input) =>
+  .validator((input) =>
     z
       .object({
         templateId: z.string().uuid(),

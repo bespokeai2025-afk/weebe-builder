@@ -26,6 +26,9 @@ import { generateDnaProposalsFn } from "@/lib/hivemind/business-dna.functions";
 import { runOrchestrationPlaybookFn, listOrchestrationRunsFn } from "@/lib/hivemind/orchestration.functions";
 import { Button } from "@/components/ui/button";
 import { RelativeTime } from "@/components/ui/relative-time";
+import type { UniversalMindIntelligencePacket } from "@/lib/minds/intelligence-packet.shared";
+import { actionApprovalMeta } from "@/lib/minds/intelligence-packet-ui.shared";
+import { IntelligencePacketPanel, ApprovalDialog } from "@/components/minds/IntelligencePacketPanel";
 
 export const Route = createFileRoute("/_authenticated/hivemind/actions")({
   head: () => ({ meta: [{ title: "Action Centre — HiveMind" }] }),
@@ -316,8 +319,12 @@ function ActionCard({
   isMutating: boolean;
 }) {
   const [open, setOpen] = useState(false);
+  const [showApprove, setShowApprove] = useState(false);
   const style = getActionStyle(action.action_type);
   const Icon  = style.icon;
+  const approvalMeta = actionApprovalMeta(action);
+  const packet = ((action.action_payload as Record<string, unknown> | null)?.intelligence_packet ?? null) as
+    UniversalMindIntelligencePacket | null;
 
   return (
     <div className={cn(
@@ -373,12 +380,12 @@ function ActionCard({
           {action.status === "pending" && (
             <>
               <button
-                onClick={() => onApprove(action.id)}
+                onClick={() => setShowApprove(true)}
                 disabled={isMutating}
                 className="flex items-center gap-1 rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-3 py-1.5 text-[11px] font-semibold text-emerald-400 hover:bg-emerald-500/20 transition-all disabled:opacity-40"
               >
                 <CheckCircle2 className="h-3.5 w-3.5" />
-                Approve
+                {approvalMeta.approveLabel}
               </button>
               <button
                 onClick={() => onReject(action.id)}
@@ -420,6 +427,9 @@ function ActionCard({
               </p>
             </div>
           )}
+
+          {/* Intelligence packet (when the proposing Mind attached one) */}
+          {packet && <IntelligencePacketPanel packet={packet} />}
 
           {/* Outcome (learning loop) */}
           <OutcomeSection action={action} />
@@ -463,6 +473,17 @@ function ActionCard({
             </button>
           </div>
         </div>
+      )}
+
+      {/* Rich scoped approval dialog */}
+      {showApprove && (
+        <ApprovalDialog
+          meta={approvalMeta}
+          packet={packet}
+          busy={isMutating}
+          onCancel={() => setShowApprove(false)}
+          onConfirm={() => { setShowApprove(false); onApprove(action.id); }}
+        />
       )}
     </div>
   );

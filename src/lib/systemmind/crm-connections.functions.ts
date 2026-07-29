@@ -31,7 +31,7 @@ export const listCrmConnectionsFn = createServerFn({ method: "POST" })
 
 export const saveCrmConnectionFn = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((i: { id?: string | null; provider: string; label?: string; credentials: Record<string, string> }) =>
+  .validator((i: { id?: string | null; provider: string; label?: string; credentials: Record<string, string> }) =>
     z.object({
       id: z.string().uuid().nullish(),
       provider: z.string().min(1).max(40),
@@ -54,7 +54,7 @@ export const saveCrmConnectionFn = createServerFn({ method: "POST" })
 
 export const deleteCrmConnectionFn = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((i: { id: string }) => z.object({ id: z.string().uuid() }).parse(i))
+  .validator((i: { id: string }) => z.object({ id: z.string().uuid() }).parse(i))
   .handler(async ({ context, data }: any) => {
     await gate(context, "edit");
     const { deleteCrmConnectionServer } = await import("@/lib/systemmind/crm-connections.server");
@@ -63,7 +63,7 @@ export const deleteCrmConnectionFn = createServerFn({ method: "POST" })
 
 export const testCrmConnectionFn = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((i: { id: string }) => z.object({ id: z.string().uuid() }).parse(i))
+  .validator((i: { id: string }) => z.object({ id: z.string().uuid() }).parse(i))
   .handler(async ({ context, data }: any) => {
     await gate(context, "edit");
     const { testCrmConnectionServer } = await import("@/lib/systemmind/crm-connections.server");
@@ -72,7 +72,7 @@ export const testCrmConnectionFn = createServerFn({ method: "POST" })
 
 export const refreshCrmCredentialsFn = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((i: { id: string }) => z.object({ id: z.string().uuid() }).parse(i))
+  .validator((i: { id: string }) => z.object({ id: z.string().uuid() }).parse(i))
   .handler(async ({ context, data }: any) => {
     await gate(context, "edit");
     const { refreshCrmCredentialsServer } = await import("@/lib/systemmind/crm-connections.server");
@@ -81,7 +81,7 @@ export const refreshCrmCredentialsFn = createServerFn({ method: "POST" })
 
 export const runCrmDiscoveryFn = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((i: { id: string }) => z.object({ id: z.string().uuid() }).parse(i))
+  .validator((i: { id: string }) => z.object({ id: z.string().uuid() }).parse(i))
   .handler(async ({ context, data }: any) => {
     await gate(context, "edit");
     const { runCrmDiscoveryServer } = await import("@/lib/systemmind/crm-connections.server");
@@ -90,7 +90,7 @@ export const runCrmDiscoveryFn = createServerFn({ method: "POST" })
 
 export const getCrmDiscoveryFn = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((i: { connectionId: string }) => z.object({ connectionId: z.string().uuid() }).parse(i))
+  .validator((i: { connectionId: string }) => z.object({ connectionId: z.string().uuid() }).parse(i))
   .handler(async ({ context, data }: any) => {
     await gate(context, "view");
     const { getCrmDiscoveryServer } = await import("@/lib/systemmind/crm-connections.server");

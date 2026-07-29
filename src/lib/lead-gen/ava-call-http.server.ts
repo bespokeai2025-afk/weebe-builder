@@ -74,6 +74,17 @@ export async function handleAvaCallRequestPost(request: Request): Promise<Respon
     // The marketing site sends `businessWebsite`; our own modal sends `website`.
     website: (fields.website ?? fields.businessWebsite) as string | undefined,
     consent: fields.consent,
+    // Ad attribution (click IDs, landing URL, UTM) — sanitised downstream.
+    attribution: {
+      gclid: fields.gclid,
+      gbraid: fields.gbraid,
+      wbraid: fields.wbraid,
+      landing_url: fields.landing_url ?? fields.landing_page,
+      referrer: fields.referrer,
+      utm_source: fields.utm_source,
+      utm_medium: fields.utm_medium,
+      utm_campaign: fields.utm_campaign,
+    },
     ip,
     userAgent: request.headers.get("user-agent"),
   });
