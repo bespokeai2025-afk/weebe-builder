@@ -37,6 +37,24 @@ export interface CampaignUsageFilters extends AnalyticsFilters {
   granularity?: UsageGranularity | null;
 }
 
+/** Independent provider-side (Retell) totals for the same period — WBAH only. */
+export interface ProviderReconciliation {
+  /** Provider-reported minutes (Σ duration_ms / 60000, 2dp). */
+  minutes: number;
+  calls: number;
+  /** Provider-recorded cost in USD cents (Σ call_cost.combined_cost); null when none available. */
+  costUsdCents: number | null;
+  /** Calls with no recorded provider cost. */
+  costUnavailableCalls: number;
+  fetchedAt: string;
+  /** Plain-English status computed against the WEBEE workspace totals. */
+  status: "verified" | "provider_mismatch" | "unavailable";
+  /** WEBEE minutes − provider minutes (2dp, signed). Never hidden. */
+  differenceMinutes: number;
+  /** Allowed rounding tolerance in minutes (per-call second rounding). */
+  toleranceMinutes: number;
+}
+
 export interface CampaignUsageData extends CampaignUsageResult {
   workspaceId: string;
   range: ResolvedRange;
@@ -48,6 +66,12 @@ export interface CampaignUsageData extends CampaignUsageResult {
   crossSourceDuplicatesExcluded: number;
   /** WBAH only: most recent sync timestamp among counted rows. */
   lastSyncedAt: string | null;
+  /**
+   * WBAH only: independent Retell-side totals for the same window. null =
+   * not checked (non-WBAH, filtered view, or range too large); status
+   * "unavailable" = provider fetch failed (never silently zero).
+   */
+  provider: ProviderReconciliation | null;
   error: string | null;
 }
 
@@ -58,7 +82,7 @@ const inflight = new Map<string, Promise<CampaignUsageData>>();
 
 function cacheKey(workspaceId: string, f: CampaignUsageFilters): string {
   return [
-    "cu3", workspaceId, f.dateFilter ?? "30d", f.customStart ?? "", f.customEnd ?? "",
+    "cu4", workspaceId, f.dateFilter ?? "30d", f.customStart ?? "", f.customEnd ?? "",
     f.campaignId ?? "", f.agentId ?? "", f.direction ?? "", f.callStatus ?? "",
     f.sentiment ?? "", f.qualifiedOnly ? "q" : "", f.granularity ?? "day",
   ].join("|");
@@ -219,7 +243,11 @@ async function fetchWbahUsage(
       sentiment: (["positive", "neutral", "negative"].includes(s) ? s : null) as any,
       qualified: s === "positive", // WBAH: qualified = positive sentiment
       booked: Boolean(c.booking_status || c.appointment_date),
-      costCents: null, // no per-call cost data for WBAH — never invent
+      // Actual provider-recorded cost only (Retell combined_cost, USD cents,
+      // stored by the sync). Missing → null; never invent or default to 0.
+      costCents: Number.isFinite(Number((c.meta as any)?.cost_usd_cents))
+        ? Number((c.meta as any).cost_usd_cents)
+        : null,
     };
   });
   const campaigns = snapshot.map((s: any) => ({
@@ -235,6 +263,94 @@ async function fetchWbahUsage(
     crossSourceDuplicatesExcluded,
     lastSyncedAt,
   };
+}
+
+// ── Independent provider reconciliation (WBAH) ────────────────────────────────
+// Fetches the SAME window straight from WBAH's own Retell workspace so the UI
+// can prove (or disprove) that WEBEE's stored totals match the provider.
+const PROVIDER_CACHE_TTL_MS = 5 * 60_000;
+const providerCache = new Map<string, { at: number; data: ProviderReconciliation }>();
+const PROVIDER_MAX_RANGE_DAYS = 35;
+
+async function fetchProviderReconciliation(
+  sb: Sb,
+  workspaceId: string,
+  range: ResolvedRange,
+  webee: { minutes: number; calls: number },
+): Promise<ProviderReconciliation | null> {
+  if (range.days > PROVIDER_MAX_RANGE_DAYS) return null;
+  const key = `${workspaceId}|${range.startIso}|${range.endIso}`;
+  const hit = providerCache.get(key);
+  if (hit && Date.now() - hit.at < PROVIDER_CACHE_TTL_MS) {
+    // Recompute the diff/status against the CURRENT webee totals.
+    return finalizeProviderRecon(hit.data, webee);
+  }
+  try {
+    const { data: settings } = await sb
+      .from("workspace_settings").select("retell_workspace_id")
+      .eq("workspace_id", workspaceId).maybeSingle();
+    const apiKey = (settings?.retell_workspace_id as string | undefined)?.trim();
+    if (!apiKey || !apiKey.startsWith("key_")) throw new Error("no workspace Retell key");
+    const { listRetellCalls } = await import("@/lib/providers/retell/list.server");
+    const items: any[] = await listRetellCalls(
+      {
+        limit: 1000,
+        sort_order: "descending",
+        filter_criteria: {
+          start_timestamp: {
+            type: "range", op: "bt",
+            value: [Date.parse(range.startIso), Date.parse(range.endIso) - 1],
+          },
+        },
+      },
+      apiKey,
+    );
+    let ms = 0;
+    let costUsdCents: number | null = null;
+    let costUnavailableCalls = 0;
+    for (const c of items) {
+      ms += Number(c?.duration_ms ?? 0) || 0;
+      const cc = c?.call_cost?.combined_cost;
+      if (typeof cc === "number" && Number.isFinite(cc)) costUsdCents = (costUsdCents ?? 0) + cc;
+      else costUnavailableCalls += 1;
+    }
+    const base: ProviderReconciliation = {
+      minutes: Math.round((ms / 60_000) * 100) / 100,
+      calls: items.length,
+      costUsdCents: costUsdCents != null ? Math.round(costUsdCents) : null,
+      costUnavailableCalls,
+      fetchedAt: new Date().toISOString(),
+      status: "verified",
+      differenceMinutes: 0,
+      toleranceMinutes: 0,
+    };
+    providerCache.set(key, { at: Date.now(), data: base });
+    return finalizeProviderRecon(base, webee);
+  } catch (err: any) {
+    console.warn("[campaign-usage] provider reconciliation unavailable:", err?.message);
+    return {
+      minutes: 0, calls: 0, costUsdCents: null, costUnavailableCalls: 0,
+      fetchedAt: new Date().toISOString(), status: "unavailable",
+      differenceMinutes: 0, toleranceMinutes: 0,
+    };
+  }
+}
+
+function finalizeProviderRecon(
+  base: ProviderReconciliation,
+  webee: { minutes: number; calls: number },
+): ProviderReconciliation {
+  // Stored durations are per-call second-rounded (±0.5s/call) — that is the
+  // documented tolerance between provider ms totals and WEBEE totals.
+  const toleranceMinutes = Math.max(0.05, Math.round(((base.calls * 0.5) / 60) * 100) / 100);
+  const differenceMinutes = Math.round((webee.minutes - base.minutes) * 100) / 100;
+  const status: ProviderReconciliation["status"] =
+    base.status === "unavailable"
+      ? "unavailable"
+      : Math.abs(differenceMinutes) <= toleranceMinutes && webee.calls === base.calls
+        ? "verified"
+        : "provider_mismatch";
+  return { ...base, toleranceMinutes, differenceMinutes, status };
 }
 
 // ── Public API ────────────────────────────────────────────────────────────────
@@ -262,7 +378,10 @@ export async function getCampaignUsageData(
 /** Invalidate the in-process usage cache for a workspace (call after syncs/corrections). */
 export function invalidateCampaignUsageCache(workspaceId: string): void {
   for (const k of cache.keys()) {
-    if (k.startsWith(`cu3|${workspaceId}|`)) cache.delete(k);
+    if (k.startsWith(`cu4|${workspaceId}|`)) cache.delete(k);
+  }
+  for (const k of providerCache.keys()) {
+    if (k.startsWith(`${workspaceId}|`)) providerCache.delete(k);
   }
 }
 
@@ -285,7 +404,7 @@ async function computeCampaignUsage(
     },
     unassignedReasons: { noAgent: 0, agentNotInAnyCampaign: 0, ambiguousAgent: 0 },
     series: [], granularity, truncated: false,
-    crossSourceDuplicatesExcluded: 0, lastSyncedAt: null, error: null,
+    crossSourceDuplicatesExcluded: 0, lastSyncedAt: null, provider: null, error: null,
   };
   try {
     if (isWbah) {
@@ -307,6 +426,15 @@ async function computeCampaignUsage(
           lastSyncedAt,
         };
       }
+      // Independent provider-side check (unfiltered views only — a filtered
+      // subset can never legitimately reconcile against provider totals).
+      const hasSubsetFilters = Boolean(f.sentiment || f.qualifiedOnly);
+      const provider = hasSubsetFilters
+        ? null
+        : await fetchProviderReconciliation(sb, workspaceId, range, {
+            minutes: agg.workspace.minutesUsed,
+            calls: agg.workspace.totalCalls,
+          });
       return {
         ...empty,
         ...agg,
@@ -314,6 +442,7 @@ async function computeCampaignUsage(
         truncated,
         crossSourceDuplicatesExcluded,
         lastSyncedAt,
+        provider,
       };
     }
 

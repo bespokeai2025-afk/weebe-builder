@@ -12,6 +12,7 @@ import {
   attributeCall,
   isValidUsageCall,
   roundMinutes,
+  formatDurationHuman,
   UNASSIGNED_CAMPAIGN,
   type UsageCallInput,
 } from "@/lib/analytics-hub/campaign-usage.shared";
@@ -235,5 +236,36 @@ describe("buildUsageSeries", () => {
     const calls = [call({ startedAt: "2026-07-27T10:30:00Z", durationSeconds: 60 })];
     expect(buildUsageSeries(calls, "hour")[0].bucket).toBe("2026-07-27T10:00");
     expect(buildUsageSeries(calls, "month")[0].bucket).toBe("2026-07");
+  });
+});
+
+describe("avg per call + human duration (spec repair)", () => {
+  it("avgSecondsPerCall = total duration / ALL calls (incl. voicemail/failed)", () => {
+    const rows = [
+      call({ id: "a", durationSeconds: 120, classification: "connected" }),
+      call({ id: "b", durationSeconds: 30, classification: "voicemail" }),
+      call({ id: "c", durationSeconds: 0, classification: "failed" }),
+    ];
+    const agg = aggregateCampaignUsage({ calls: rows, campaigns: [] });
+    expect(agg.workspace.avgSecondsPerCall).toBe(50); // 150s / 3 calls
+  });
+
+  it("formatDurationHuman renders seconds/minutes/hours", () => {
+    expect(formatDurationHuman(45)).toBe("45s");
+    expect(formatDurationHuman(90)).toBe("1m 30s");
+    expect(formatDurationHuman(3600)).toBe("1h");
+    expect(formatDurationHuman(3720)).toBe("1h 2m");
+    expect(formatDurationHuman(null)).toBe("—");
+    expect(formatDurationHuman(-1)).toBe("—");
+  });
+
+  it("costCents sums only real recorded costs, null when none", () => {
+    const none = aggregateCampaignUsage({ calls: [call({ id: "x", costCents: null })], campaigns: [] });
+    expect(none.workspace.totalCostCents).toBe(null);
+    const some = aggregateCampaignUsage({
+      calls: [call({ id: "a", costCents: 100 }), call({ id: "b", costCents: null })],
+      campaigns: [],
+    });
+    expect(some.workspace.totalCostCents).toBe(100);
   });
 });

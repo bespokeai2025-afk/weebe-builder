@@ -154,3 +154,4 @@
 - [GAds deep-analysis reports](gads-deep-analysis-arch.md) — read-only GAQL deep fetch + deterministic classification + advisory-only AI sections persisted to growthmind_gads_analysis_reports; viewer on work-order page.
 - [Retell list-API v2/v3 migration](retell-list-api-v3-migration.md) — deprecated list endpoints gone; use list.server.ts helpers; predicate filter grammar; cursor-recycle paging quirk.
 - [AI model registry + usage ledger](ai-model-registry-ledger.md) — resolve models via registry (never hardcode), ledger every AI call via recordAiUsage, fallback chain never gpt-4o.
+- [WBAH provider reconciliation](wbah-provider-reconciliation.md) — "missing minutes" = hidden deleted campaigns; combined_cost is USD cents; live Retell recon with calls×0.5s tolerance; backfill in ≤7d chunks.

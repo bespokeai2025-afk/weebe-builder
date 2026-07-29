@@ -4,14 +4,14 @@ import { useServerFn } from "@tanstack/react-start";
 import {
   ResponsiveContainer, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip,
 } from "recharts";
-import { Timer, AlertTriangle, ArrowUpDown, PhoneCall, Voicemail, CalendarDays, PoundSterling } from "lucide-react";
-import { BILLING_RATE_GBP_PER_MINUTE } from "@/lib/analytics-hub/campaign-usage.shared";
+import { Timer, AlertTriangle, ArrowUpDown, PhoneCall, Voicemail, CalendarDays, PoundSterling, CheckCircle2 } from "lucide-react";
+import { BILLING_RATE_GBP_PER_MINUTE, formatDurationHuman } from "@/lib/analytics-hub/campaign-usage.shared";
 import { getCampaignUsage } from "@/lib/analytics-hub/analytics-hub.functions";
 import { LoadingProgress } from "@/components/dashboard/LoadingProgress";
 import { EmptyState, TableHead, Th } from "@/components/dashboard/PageShell";
 import {
   type AnalyticsFilterState, filterPayload, filterKey,
-  ChartCard, MetricTile, ChartTooltip, InsightCard, CHART, gbp, fmtInt,
+  ChartCard, MetricTile, ChartTooltip, InsightCard, CHART, fmtInt,
 } from "./shared";
 
 function fmtMin(n: number | null | undefined): string {
@@ -23,6 +23,24 @@ function fmtGbp(n: number | null | undefined): string {
   if (n == null || !Number.isFinite(n)) return "—";
   return n.toLocaleString("en-GB", { style: "currency", currency: "GBP" });
 }
+
+/** Actual provider cost is recorded in USD cents — never shown as GBP. */
+function fmtUsdCents(cents: number | null | undefined): string {
+  if (cents == null || !Number.isFinite(cents)) return "Provider cost unavailable";
+  return (Number(cents) / 100).toLocaleString("en-US", { style: "currency", currency: "USD" });
+}
+
+function fmtDateTime(iso: string | null | undefined): string {
+  if (!iso) return "—";
+  const d = new Date(iso);
+  return isNaN(d.getTime()) ? "—" : d.toLocaleString("en-GB", { timeZone: "Europe/London" });
+}
+
+const PROVIDER_STATUS_LABEL: Record<string, string> = {
+  verified: "Verified",
+  provider_mismatch: "Provider mismatch detected",
+  unavailable: "Provider unavailable",
+};
 
 type SortKey = "minutesUsed" | "totalCalls" | "connectedMinutes" | "minutesThisMonth" | "percentageOfWorkspaceMinutes" | "rateCostGbp";
 
@@ -43,19 +61,29 @@ export function CampaignUsageSection({ filter }: { filter: AnalyticsFilterState 
   const [desc, setDesc] = useState(true);
 
   const d: any = q.data ?? {};
-  const { rows, hiddenDeletedCount, hiddenDeletedMinutes } = useMemo(() => {
+  const { rows, hiddenDeletedCount } = useMemo(() => {
     const campaigns: any[] = d.campaigns ?? [];
-    const visible = campaigns.filter((c) => !c.isDeleted);
-    const hidden = campaigns.filter((c) => c.isDeleted);
-    const all = [...visible];
+    // Deleted campaigns stay VISIBLE whenever they carry usage in the range —
+    // every displayed row + Unassigned must sum to the workspace total.
+    // Zero-usage deleted campaigns are pure clutter and are omitted.
+    const shown = campaigns.filter((c) => !c.isDeleted || (c.totalCalls ?? 0) > 0);
+    const hiddenZero = campaigns.length - shown.length;
+    const all = [...shown];
     if (d.unassigned && (d.unassigned.totalCalls ?? 0) > 0) all.push(d.unassigned);
     const sorted = all.sort((a, b) => (Number(b[sortKey] ?? 0) - Number(a[sortKey] ?? 0)) * (desc ? 1 : -1));
-    return {
-      rows: sorted,
-      hiddenDeletedCount: hidden.length,
-      hiddenDeletedMinutes: hidden.reduce((a, c) => a + Number(c.minutesUsed ?? 0), 0),
-    };
+    return { rows: sorted, hiddenDeletedCount: hiddenZero };
   }, [d.campaigns, d.unassigned, sortKey, desc]);
+
+  // "This month" only makes sense when the selected range actually covers the
+  // current calendar month from its start — otherwise it just repeats
+  // "Minutes used" for a narrower window, which is misleading.
+  const monthCovered = useMemo(() => {
+    if (!d.range?.startIso) return false;
+    const now = new Date();
+    const monthStart = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1);
+    const s = Date.parse(d.range.startIso);
+    return Number.isFinite(s) && s <= monthStart;
+  }, [d.range?.startIso]);
 
   if (q.isLoading) return <LoadingProgress label="Loading minutes used" estimatedMs={6000} />;
   if (q.error || d.error) {
@@ -84,18 +112,56 @@ export function CampaignUsageSection({ filter }: { filter: AnalyticsFilterState 
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4 xl:grid-cols-7">
         <MetricTile label="Minutes used" value={fmtMin(ws.minutesUsed)} sub={`${fmtInt(ws.totalCalls)} calls`} icon={Timer} color={CHART.primary} />
         <MetricTile
-          label="Cost"
+          label="Client Usage Charge"
           value={fmtGbp(ws.rateCostGbp)}
           sub={`@ £${BILLING_RATE_GBP_PER_MINUTE.toFixed(2)}/min`}
           icon={PoundSterling}
           color={CHART.warning}
         />
+        <MetricTile
+          label="Actual Provider Cost"
+          value={ws.totalCostCents != null ? fmtUsdCents(ws.totalCostCents) : "Unavailable"}
+          sub="Retell-recorded (USD)"
+          icon={PoundSterling}
+          color={CHART.accent}
+        />
         <MetricTile label="Connected minutes" value={fmtMin(ws.connectedMinutes)} icon={PhoneCall} color={CHART.success} />
         <MetricTile label="Voicemail minutes" value={fmtMin(ws.voicemailMinutes)} icon={Voicemail} color={CHART.warning} />
         <MetricTile label="Today" value={fmtMin(ws.minutesToday)} icon={CalendarDays} color={CHART.accent} />
-        <MetricTile label="This week" value={fmtMin(ws.minutesThisWeek)} icon={CalendarDays} color={CHART.accent} />
-        <MetricTile label="This month" value={fmtMin(ws.minutesThisMonth)} icon={CalendarDays} color={CHART.accent} />
+        {monthCovered && (
+          <MetricTile label="This month" value={fmtMin(ws.minutesThisMonth)} icon={CalendarDays} color={CHART.accent} />
+        )}
       </div>
+
+      {d.range?.startIso && (
+        <div className="text-[11px] text-muted-foreground">
+          Reporting period: {fmtDateTime(d.range.startIso)} → {fmtDateTime(d.range.endIso)} (Europe/London)
+        </div>
+      )}
+
+      {d.provider && (
+        <InsightCard
+          tone={d.provider.status === "verified" ? "success" : "warning"}
+          icon={d.provider.status === "verified" ? CheckCircle2 : AlertTriangle}
+          title={`Provider reconciliation — ${PROVIDER_STATUS_LABEL[d.provider.status] ?? d.provider.status}`}
+        >
+          {d.provider.status === "unavailable" ? (
+            <>Retell could not be reached to independently verify this period. Figures shown are WEBEE&apos;s stored data; no provider comparison is available right now.</>
+          ) : (
+            <span className="block space-y-0.5">
+              <span className="block">Retell provider minutes: {fmtMin(d.provider.minutes)} across {fmtInt(d.provider.calls)} calls · WEBEE recorded: {fmtMin(ws.minutesUsed)} across {fmtInt(ws.totalCalls)} calls.</span>
+              <span className="block">
+                Provider reconciliation difference: {fmtMin(d.provider.differenceMinutes)} (tolerance ±{fmtMin(d.provider.toleranceMinutes)} from per-call second rounding).
+                {" "}Actual provider cost for this period: {fmtUsdCents(d.provider.costUsdCents)}{(d.provider.costUnavailableCalls ?? 0) > 0 ? ` (${fmtInt(d.provider.costUnavailableCalls)} calls without recorded cost)` : ""}.
+              </span>
+              {d.lastSyncedAt && <span className="block">Last successful sync: {fmtDateTime(d.lastSyncedAt)}.</span>}
+              {d.provider.status === "provider_mismatch" && (
+                <span className="block">The difference above is outside tolerance — some provider calls may not be synced yet. It is shown, never hidden.</span>
+              )}
+            </span>
+          )}
+        </InsightCard>
+      )}
 
       {d.truncated && (
         <InsightCard tone="warning" icon={AlertTriangle} title="Large date range">
@@ -124,7 +190,7 @@ export function CampaignUsageSection({ filter }: { filter: AnalyticsFilterState 
         )}
         {d.reconciliation?.reconciled && <span>Totals reconciled ✓</span>}
         {hiddenDeletedCount > 0 && (
-          <span>{fmtInt(hiddenDeletedCount)} deleted campaign{hiddenDeletedCount === 1 ? "" : "s"} hidden ({fmtMin(hiddenDeletedMinutes)} still counted in totals)</span>
+          <span>{fmtInt(hiddenDeletedCount)} deleted campaign{hiddenDeletedCount === 1 ? "" : "s"} with no usage in this range omitted</span>
         )}
         {d.lastSyncedAt && (
           <span>Last synced {new Date(d.lastSyncedAt).toLocaleString("en-GB")}</span>
@@ -171,13 +237,19 @@ export function CampaignUsageSection({ filter }: { filter: AnalyticsFilterState 
                 <Th>Campaign</Th>
                 <Th>{sortBtn("minutesUsed", "Minutes used")}</Th>
                 <Th>{sortBtn("totalCalls", "Calls")}</Th>
-                <Th>Avg / call</Th>
+                <Th>
+                  <span title="Total talk time ÷ all calls in range (including voicemail and failed calls)">Avg / call</span>
+                </Th>
                 <Th>{sortBtn("connectedMinutes", "Connected min")}</Th>
                 <Th>Voicemail min</Th>
-                <Th>{sortBtn("minutesThisMonth", "This month")}</Th>
+                {monthCovered && <Th>{sortBtn("minutesThisMonth", "This month")}</Th>}
                 <Th>{sortBtn("percentageOfWorkspaceMinutes", "% of workspace")}</Th>
-                <Th>{sortBtn("rateCostGbp", `Cost @ £${BILLING_RATE_GBP_PER_MINUTE.toFixed(2)}/min`)}</Th>
-                <Th>Recorded cost</Th>
+                <Th>
+                  <span title={`What the client is charged at £${BILLING_RATE_GBP_PER_MINUTE.toFixed(2)} per minute`}>{sortBtn("rateCostGbp", "Client Usage Charge")}</span>
+                </Th>
+                <Th>
+                  <span title="Provider-recorded cost from Retell, in USD">Actual Provider Cost</span>
+                </Th>
               </TableHead>
               <tbody>
                 {rows.map((c: any) => (
@@ -190,13 +262,15 @@ export function CampaignUsageSection({ filter }: { filter: AnalyticsFilterState 
                     </td>
                     <td className="px-3 py-2 tabular-nums">{fmtMin(c.minutesUsed)}</td>
                     <td className="px-3 py-2 tabular-nums">{fmtInt(c.totalCalls)}</td>
-                    <td className="px-3 py-2 tabular-nums text-muted-foreground">{c.averageDurationSeconds ? `${Math.round(c.averageDurationSeconds / 6) / 10} min` : "—"}</td>
+                    <td className="px-3 py-2 tabular-nums text-muted-foreground" title="Total talk time ÷ all calls in range">
+                      {c.avgSecondsPerCall != null && c.totalCalls > 0 ? formatDurationHuman(c.avgSecondsPerCall) : "—"}
+                    </td>
                     <td className="px-3 py-2 tabular-nums">{fmtMin(c.connectedMinutes)}</td>
                     <td className="px-3 py-2 tabular-nums text-muted-foreground">{fmtMin(c.voicemailMinutes)}</td>
-                    <td className="px-3 py-2 tabular-nums">{fmtMin(c.minutesThisMonth)}</td>
+                    {monthCovered && <td className="px-3 py-2 tabular-nums">{fmtMin(c.minutesThisMonth)}</td>}
                     <td className="px-3 py-2 tabular-nums">{Number(c.percentageOfWorkspaceMinutes ?? 0)}%</td>
                     <td className="px-3 py-2 tabular-nums font-medium">{fmtGbp(c.rateCostGbp)}</td>
-                    <td className="px-3 py-2 tabular-nums text-muted-foreground">{c.totalCostCents != null ? gbp(c.totalCostCents) : "—"}</td>
+                    <td className="px-3 py-2 tabular-nums text-muted-foreground">{fmtUsdCents(c.totalCostCents)}</td>
                   </tr>
                 ))}
               </tbody>
