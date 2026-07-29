@@ -274,6 +274,8 @@ export async function getWbahDiallerAnalytics(sb: Sb, workspaceId: string, range
   // the aggregates.
   let snapshotCampaigns: any[] = [];
   let attributeCampaign: ((agentId: any, startedAt: any) => any) | null = null;
+  let isTestCampaign: (c: any) => boolean = () => false;
+  const testExcluded = { calls: 0, seconds: 0, campaignIds: new Set<string>() };
   try {
     const mod = await import(
       "@/lib/integrations/webespokeEnterprise/wbah-campaign-reporting.server"
@@ -286,8 +288,12 @@ export async function getWbahDiallerAnalytics(sb: Sb, workspaceId: string, range
       attributeCampaign = (agentId, startedAt) =>
         mod.attributeWbahCampaign(snapshotCampaigns, agentId, startedAt);
     }
-  } catch {
-    /* snapshot unavailable — skip per-campaign breakdown */
+    isTestCampaign = mod.isWbahTestCampaign;
+  } catch (e: any) {
+    // Snapshot unavailable — per-campaign breakdown is skipped AND test-campaign
+    // exclusion is disabled (everything lands in Unassigned). Log loudly so the
+    // degraded mode is observable rather than silently over-counting.
+    console.warn("[analytics-hub] WBAH campaign snapshot unavailable — test exclusion disabled:", e?.message ?? e);
   }
   const byCampaign: Record<string, {
     id: string; name: string; leadStatus: string | null; scheduledTime: string | null;
@@ -306,6 +312,28 @@ export async function getWbahDiallerAnalytics(sb: Sb, workspaceId: string, range
   const negatives: any[] = [];
 
   for (const c of rows) {
+    // Attribution precedence:
+    //   1. Verified — the call row carries a stored campaign_id (stamped by
+    //      the campaign-run tracker or the sync itself).
+    //   2. Inferred — matched by dialling agent + nearest scheduled UK slot.
+    //   3. Unassigned — no reliable link to any campaign.
+    const storedId = c.campaign_id != null ? String(c.campaign_id) : null;
+    const storedCamp = storedId ? campaignById.get(storedId) : null;
+    const inferredCamp = !storedCamp && attributeCampaign
+      ? attributeCampaign((c.meta as any)?.agent_id ?? null, c.started_at)
+      : null;
+    const camp = storedCamp ?? inferredCamp;
+
+    // Calls made by deleted TEST campaigns (system testing) are excluded from
+    // this entire report — counted separately in testExcluded and explained in
+    // the UI footnote so the total still reconciles with the Calls page.
+    if (camp && isTestCampaign(camp)) {
+      testExcluded.calls++;
+      testExcluded.seconds += Number(c.duration_seconds ?? 0) || 0;
+      testExcluded.campaignIds.add(String(camp.id));
+      continue;
+    }
+
     const vm = isVoicemail(c);
     const st = String(c.call_status ?? "").toLowerCase();
     const conn = !vm && (st === "completed" || st === "answered" || st === "connected");
@@ -321,17 +349,6 @@ export async function getWbahDiallerAnalytics(sb: Sb, workspaceId: string, range
     if (c.booking_status || c.appointment_date) booked++;
     byReason[reason] = (byReason[reason] ?? 0) + 1;
     {
-      // Attribution precedence:
-      //   1. Verified — the call row carries a stored campaign_id (stamped by
-      //      the campaign-run tracker or the sync itself).
-      //   2. Inferred — matched by dialling agent + nearest scheduled UK slot.
-      //   3. Unassigned — no reliable link to any campaign.
-      const storedId = c.campaign_id != null ? String(c.campaign_id) : null;
-      const storedCamp = storedId ? campaignById.get(storedId) : null;
-      const inferredCamp = !storedCamp && attributeCampaign
-        ? attributeCampaign((c.meta as any)?.agent_id ?? null, c.started_at)
-        : null;
-      const camp = storedCamp ?? inferredCamp;
       if (camp) {
         if (storedCamp) attributionVerified++; else attributionInferred++;
         const entry = (byCampaign[camp.id] ??= {
@@ -382,10 +399,14 @@ export async function getWbahDiallerAnalytics(sb: Sb, workspaceId: string, range
       byDay[day] = d;
     }
     if (s === "positive" && converted.length < 100) {
+      // Booking date + time: prefer the agent's structured callback_datetime
+      // (London wall clock); appointment_date alone is date-only.
+      const rawDt = (c.meta as any)?.custom_analysis?.callback_datetime;
       converted.push({
         id: c.id, name: c.customer_name ?? "Unknown", phone: c.phone ?? null,
         booked: Boolean(c.booking_status || c.appointment_date),
         appointmentDate: c.appointment_date ?? null,
+        appointmentDateTime: typeof rawDt === "string" && rawDt.length >= 16 ? rawDt : null,
         durationSeconds: c.duration_seconds ?? 0, at: c.started_at,
       });
     }
@@ -397,7 +418,9 @@ export async function getWbahDiallerAnalytics(sb: Sb, workspaceId: string, range
     }
   }
 
-  const total = rows.length;
+  // Test-campaign calls are excluded from every figure in this report; the
+  // footnote reports them so the range still reconciles with the Calls page.
+  const total = rows.length - testExcluded.calls;
   const reasons = Object.entries(byReason)
     .map(([reason, count]) => ({ reason, count, pct: rate(count, total) }))
     .sort((a, b) => b.count - a.count);
@@ -419,6 +442,11 @@ export async function getWbahDiallerAnalytics(sb: Sb, workspaceId: string, range
     reasons, trend, converted, negatives,
     campaigns,
     campaignsUnattributed: unattributed,
+    testExcluded: {
+      calls: testExcluded.calls,
+      minutes: Math.round((testExcluded.seconds / 60) * 100) / 100,
+      campaigns: testExcluded.campaignIds.size,
+    },
     attribution: {
       verified: attributionVerified,
       inferred: attributionInferred,

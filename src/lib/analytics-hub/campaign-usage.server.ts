@@ -215,13 +215,19 @@ async function fetchWbahUsage(
   // campaign or Unassigned.
   let snapshot: any[] = [];
   let attribute: ((agentId: any, startedAt: any) => any) | null = null;
+  let isWbahTestCampaign: (c: any) => boolean = () => false;
   try {
     const mod = await import("@/lib/integrations/webespokeEnterprise/wbah-campaign-reporting.server");
     snapshot = await mod.loadWbahCampaignSnapshot(sb, { includeDeleted: true });
     if (snapshot.length > 0) {
       attribute = (agentId, startedAt) => mod.attributeWbahCampaign(snapshot, agentId, startedAt);
     }
-  } catch { /* snapshot unavailable — everything lands in Unassigned */ }
+    isWbahTestCampaign = mod.isWbahTestCampaign;
+  } catch (e: any) {
+    // Snapshot unavailable — everything lands in Unassigned and test-campaign
+    // exclusion is disabled. Log loudly so the degraded mode is observable.
+    console.warn("[campaign-usage] WBAH campaign snapshot unavailable — test exclusion disabled:", e?.message ?? e);
+  }
 
   const knownIds = new Set(snapshot.map((s: any) => String(s.id)));
   const calls: UsageCallInput[] = dedupedRows.map((c) => {
@@ -254,6 +260,9 @@ async function fetchWbahUsage(
     id: String(s.id),
     name: `${String(s.name ?? "Campaign")}${s.is_deleted ? " (deleted)" : ""}`,
     isDeleted: Boolean(s.is_deleted),
+    // Deleted system-test campaigns — hidden from the client-facing table
+    // (their minutes stay in workspace totals; the UI footnotes them).
+    isTest: isWbahTestCampaign(s),
   }));
   const filtered = f.qualifiedOnly ? calls.filter((c) => c.qualified) : calls;
   return {

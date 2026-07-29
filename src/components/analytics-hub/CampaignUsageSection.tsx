@@ -61,17 +61,29 @@ export function CampaignUsageSection({ filter }: { filter: AnalyticsFilterState 
   const [desc, setDesc] = useState(true);
 
   const d: any = q.data ?? {};
-  const { rows, hiddenDeletedCount } = useMemo(() => {
+  const { rows, hiddenDeletedCount, testExcluded } = useMemo(() => {
     const campaigns: any[] = d.campaigns ?? [];
-    // Deleted campaigns stay VISIBLE whenever they carry usage in the range —
-    // every displayed row + Unassigned must sum to the workspace total.
-    // Zero-usage deleted campaigns are pure clutter and are omitted.
-    const shown = campaigns.filter((c) => !c.isDeleted || (c.totalCalls ?? 0) > 0);
-    const hiddenZero = campaigns.length - shown.length;
+    // Deleted SYSTEM-TEST campaigns are removed from the table entirely and
+    // summarised in a footnote — their dials were setup testing, not client
+    // campaign activity.
+    const testRows = campaigns.filter((c) => c.isTest && (c.totalCalls ?? 0) > 0);
+    const nonTest = campaigns.filter((c) => !c.isTest);
+    // Deleted REAL campaigns stay VISIBLE whenever they carry usage in the
+    // range — every displayed row + Unassigned must sum to the workspace
+    // total. Zero-usage deleted campaigns are pure clutter and are omitted.
+    const shown = nonTest.filter((c) => !c.isDeleted || (c.totalCalls ?? 0) > 0);
+    const hiddenZero = nonTest.length - shown.length;
     const all = [...shown];
     if (d.unassigned && (d.unassigned.totalCalls ?? 0) > 0) all.push(d.unassigned);
     const sorted = all.sort((a, b) => (Number(b[sortKey] ?? 0) - Number(a[sortKey] ?? 0)) * (desc ? 1 : -1));
-    return { rows: sorted, hiddenDeletedCount: hiddenZero };
+    const te = testRows.length > 0
+      ? {
+          campaigns: testRows.length,
+          calls: testRows.reduce((n, c) => n + Number(c.totalCalls ?? 0), 0),
+          minutes: Math.round(testRows.reduce((n, c) => n + Number(c.minutesUsed ?? 0), 0) * 100) / 100,
+        }
+      : null;
+    return { rows: sorted, hiddenDeletedCount: hiddenZero, testExcluded: te };
   }, [d.campaigns, d.unassigned, sortKey, desc]);
 
   // "This month" only makes sense when the selected range actually covers the
@@ -267,6 +279,12 @@ export function CampaignUsageSection({ filter }: { filter: AnalyticsFilterState 
               </tbody>
             </table>
           </div>
+        )}
+        {testExcluded && (
+          <p className="mt-2 text-xs text-muted-foreground">
+            {fmtInt(testExcluded.calls)} call(s) / {testExcluded.minutes} min from {fmtInt(testExcluded.campaigns)} deleted
+            test campaign(s) (system setup testing) are excluded from this table but remain in the workspace totals above.
+          </p>
         )}
       </ChartCard>
     </div>

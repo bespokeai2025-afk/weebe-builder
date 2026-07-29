@@ -129,6 +129,31 @@ export function CampaignsTab({ filter }: { filter: AnalyticsFilterState }) {
   );
 }
 
+/**
+ * Booking date + time for the Converted Leads table. Prefer the agent's
+ * structured appointment datetime (London wall clock, e.g. "2026-07-23T15:00:00")
+ * over the date-only appointment_date column.
+ */
+export function formatAppointment(c: any): string | null {
+  const dt = typeof c.appointmentDateTime === "string" ? c.appointmentDateTime : null;
+  if (dt) {
+    const m = dt.match(/^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2})/);
+    if (m) {
+      const d = new Date(Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3])));
+      const day = d.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric", timeZone: "UTC" });
+      return `${day}, ${m[4]}:${m[5]} UK`;
+    }
+  }
+  if (c.appointmentDate) {
+    const d = new Date(`${c.appointmentDate}T00:00:00Z`);
+    if (!Number.isNaN(d.getTime())) {
+      return d.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric", timeZone: "UTC" });
+    }
+    return String(c.appointmentDate);
+  }
+  return null;
+}
+
 /** WBAH — WeeBespoke dialler activity report (WBAH has no WEBEE campaigns). */
 function WbahDiallerView({ w, filter }: { w: any; filter: AnalyticsFilterState }) {
   const total = Number(w.total ?? 0);
@@ -210,6 +235,12 @@ function WbahDiallerView({ w, filter }: { w: any; filter: AnalyticsFilterState }
               {fmtInt(w.campaignsUnattributed)} call(s) could not be matched to a campaign (agent not linked to any scheduled campaign).
             </p>
           )}
+          {Number(w.testExcluded?.calls ?? 0) > 0 && (
+            <p className="mt-1 text-xs text-muted-foreground">
+              {fmtInt(w.testExcluded.calls)} call(s) / {w.testExcluded.minutes} min from {fmtInt(w.testExcluded.campaigns)} deleted
+              test campaign(s) (system setup testing) are excluded from this report.
+            </p>
+          )}
         </ChartCard>
       )}
 
@@ -259,7 +290,7 @@ function WbahDiallerView({ w, filter }: { w: any; filter: AnalyticsFilterState }
                     <td className="px-3 py-2 tabular-nums text-muted-foreground">{c.phone ?? "—"}</td>
                     <td className="px-3 py-2">
                       {c.booked
-                        ? <span className="inline-flex items-center gap-1 text-xs text-emerald-400"><CalendarCheck className="h-3.5 w-3.5" /> Booked{c.appointmentDate ? ` · ${c.appointmentDate}` : ""}</span>
+                        ? <span className="inline-flex items-center gap-1 text-xs text-emerald-400"><CalendarCheck className="h-3.5 w-3.5" /> Booked{formatAppointment(c) ? ` · ${formatAppointment(c)}` : ""}</span>
                         : <span className="text-xs text-muted-foreground">Not booked</span>}
                     </td>
                     <td className="px-3 py-2 tabular-nums">{fmtSecs(c.durationSeconds)}</td>

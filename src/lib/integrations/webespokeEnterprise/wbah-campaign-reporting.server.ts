@@ -15,6 +15,7 @@
  *     WBAH's OWN Retell API — no WeeBespoke session involved).
  */
 import { WBAH_WORKSPACE_ID } from "@/lib/wbah-exclusion.shared";
+import { rateCostGbpFor } from "@/lib/analytics-hub/campaign-usage.shared";
 
 type Sb = any;
 
@@ -32,6 +33,25 @@ export interface WbahCampaignSnapshotRow {
   interval_days: number | null;
   is_active: boolean;
   is_deleted: boolean;
+}
+
+/**
+ * Deleted test campaigns created while WeeBespoke campaign dialling was being
+ * set up ("Test", "testing", "Rebook Test" targeting "Test Lead"). Their calls
+ * were real system-test dials, so workspace minute/call totals keep them, but
+ * client-facing per-campaign tables exclude these rows as noise.
+ * Deliberately narrow: only DELETED campaigns whose name or target status is
+ * explicitly test-flavoured — deleted REAL campaigns are never treated as test.
+ */
+export function isWbahTestCampaign(c: {
+  name?: string | null;
+  lead_status?: string | null;
+  is_deleted?: boolean | null;
+}): boolean {
+  if (!c?.is_deleted) return false;
+  const status = String(c.lead_status ?? "").trim().toLowerCase();
+  if (status === "test lead") return true;
+  return /(^|\s)test(ing)?(\s|$)/i.test(String(c.name ?? ""));
 }
 
 const QUIET_MS = 20 * 60 * 1000;   // no new calls for 20 min → run finished
@@ -139,12 +159,30 @@ function isConnectedCall(c: any): boolean {
   return st === "completed" || st === "answered" || st === "connected";
 }
 
+/**
+ * Best booking timestamp we hold for a call: the agent's structured
+ * callback_datetime (date + time, London wall clock) when present, otherwise
+ * the date-only appointment_date column.
+ */
+export function wbahBookingWhen(c: any): { date: string | null; dateTime: string | null } {
+  const date = c?.appointment_date ? String(c.appointment_date) : null;
+  const dt = (c?.meta as any)?.custom_analysis?.callback_datetime;
+  const dateTime = typeof dt === "string" && dt.length >= 16 ? dt : null;
+  return { date, dateTime };
+}
+
 export function computeWbahRunKpis(calls: any[]): Record<string, unknown> {
   let connected = 0, voicemail = 0, positive = 0, neutral = 0, negative = 0, booked = 0;
-  const positiveLeads: Array<{ name: string; phone: string | null; booked: boolean }> = [];
+  let totalSeconds = 0;
+  const positiveLeads: Array<{
+    name: string; phone: string | null; booked: boolean;
+    appointment_date: string | null; appointment_datetime: string | null;
+  }> = [];
   for (const c of calls) {
     if (isVoicemailCall(c)) voicemail++;
     if (isConnectedCall(c)) connected++;
+    const d = Number(c.duration_seconds ?? 0);
+    if (Number.isFinite(d) && d > 0) totalSeconds += d;
     const s = String(c.sentiment ?? "").toLowerCase();
     if (s === "positive") positive++;
     else if (s === "negative") negative++;
@@ -152,10 +190,13 @@ export function computeWbahRunKpis(calls: any[]): Record<string, unknown> {
     const isBooked = Boolean(c.booking_status || c.appointment_date);
     if (isBooked) booked++;
     if (s === "positive" && positiveLeads.length < 25) {
+      const when = wbahBookingWhen(c);
       positiveLeads.push({
         name: c.customer_name ?? "Unknown",
         phone: c.phone ?? null,
         booked: isBooked,
+        appointment_date: when.date,
+        appointment_datetime: when.dateTime,
       });
     }
   }
@@ -171,6 +212,8 @@ export function computeWbahRunKpis(calls: any[]): Record<string, unknown> {
     sentiment_positive: positive,
     sentiment_neutral: neutral,
     sentiment_negative: negative,
+    minutes_used: Math.round((totalSeconds / 60) * 100) / 100,
+    client_usage_charge_gbp: rateCostGbpFor(totalSeconds),
     positive_leads: positiveLeads,
   };
 }

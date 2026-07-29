@@ -598,6 +598,7 @@ const METRIC_LABELS: Record<string, string> = {
   negative_sentiment: "Negative sentiment", neutral_sentiment: "Neutral sentiment",
   connection_rate: "Connection rate", voicemail_rate: "Voicemail rate",
   date_range_start: "Window start", date_range_end: "Window end",
+  minutes_used: "Minutes used", client_usage_charge_gbp: "Client usage charge",
 };
 // total_cost_cents is a legacy provider-cost field (Retell USD) — WEBEE-internal,
 // hidden from all client-facing report views even on old stored reports.
@@ -605,6 +606,7 @@ const METRIC_HIDDEN = new Set(["campaign_id", "campaign_agent_id", "total_cost_c
 
 function fmtMetricValue(key: string, v: any): string {
   if (v == null || v === "") return "—";
+  if (/_gbp$/.test(key)) return `£${Number(v).toFixed(2)}`;
   if (/_rate$/.test(key)) return `${Number(v).toFixed(1)}%`;
   if (/^date_range_|_at$/.test(key) || /^\d{4}-\d{2}-\d{2}T/.test(String(v))) {
     const d = new Date(String(v));

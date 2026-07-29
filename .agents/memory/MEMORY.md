@@ -147,6 +147,7 @@
 - [GPT-5.6 routing upgrade](gpt56-routing-upgrade.md) — Mind AI calls classify via task router → terra/sol/luna Responses API; routing JSONB mandatory; fallback never gpt-4o; legacy behind AI_LEGACY_CHAT_COMPLETIONS=1.
 - [Veo 3.1 cost-approval pipeline](veo31-cost-approval-pipeline.md) — atomic approval consume, never auto-retry paid work, terminal-CAS-before-ledger rule; Google Veo access 403-blocked since June 16.
 - [Duplicate retellFetch helper trap](retell-fetch-duplicate-helper-trap.md) — file-local 3-arg retellFetch + shared 4-arg call form sent "POST" as the API key → 401; always import the shared client.
+- [WBAH test-campaign exclusion](wbah-test-campaign-exclusion.md) — isWbahTestCampaign is the sole classifier (deleted + test-lead/test-name); deleted REAL campaigns keep attributing; campaign_id backfilled via one-slot-window rule.
 - [Prod build OOM heap cap](prodbuild-oom-heap.md) — max-old-space-size must stay well under machine RAM or vite SSR build is OOM-killed silently (FAILED, no error, dist/server empty); stop the dev server workflow before building.
 - [HiveMind validated briefing pipeline](hivemind-validated-briefing.md) — one ValidatedBusinessBriefing drives voice+screen; unverified financials never £0; validation failure = explicit degraded state, never silent fallback.
 - [HiveMind streaming pipeline](hivemind-streaming-conversational.md) — all chat surfaces share prepareHiveMindChat+runHiveMindToolLoop; SSE route uses anon-key RLS client (never admin); depth/tone in hivemind-style.shared.ts.
