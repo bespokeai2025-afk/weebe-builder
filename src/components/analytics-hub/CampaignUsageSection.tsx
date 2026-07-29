@@ -43,12 +43,18 @@ export function CampaignUsageSection({ filter }: { filter: AnalyticsFilterState 
   const [desc, setDesc] = useState(true);
 
   const d: any = q.data ?? {};
-  const rows = useMemo(() => {
+  const { rows, hiddenDeletedCount, hiddenDeletedMinutes } = useMemo(() => {
     const campaigns: any[] = d.campaigns ?? [];
-    const all = [...campaigns];
+    const visible = campaigns.filter((c) => !c.isDeleted);
+    const hidden = campaigns.filter((c) => c.isDeleted);
+    const all = [...visible];
     if (d.unassigned && (d.unassigned.totalCalls ?? 0) > 0) all.push(d.unassigned);
     const sorted = all.sort((a, b) => (Number(b[sortKey] ?? 0) - Number(a[sortKey] ?? 0)) * (desc ? 1 : -1));
-    return sorted;
+    return {
+      rows: sorted,
+      hiddenDeletedCount: hidden.length,
+      hiddenDeletedMinutes: hidden.reduce((a, c) => a + Number(c.minutesUsed ?? 0), 0),
+    };
   }, [d.campaigns, d.unassigned, sortKey, desc]);
 
   if (q.isLoading) return <LoadingProgress label="Loading minutes used" estimatedMs={6000} />;
@@ -117,6 +123,9 @@ export function CampaignUsageSection({ filter }: { filter: AnalyticsFilterState 
           <span>{fmtInt(d.excludedInvalidCount)} records excluded (invalid duration)</span>
         )}
         {d.reconciliation?.reconciled && <span>Totals reconciled ✓</span>}
+        {hiddenDeletedCount > 0 && (
+          <span>{fmtInt(hiddenDeletedCount)} deleted campaign{hiddenDeletedCount === 1 ? "" : "s"} hidden ({fmtMin(hiddenDeletedMinutes)} still counted in totals)</span>
+        )}
         {d.lastSyncedAt && (
           <span>Last synced {new Date(d.lastSyncedAt).toLocaleString("en-GB")}</span>
         )}

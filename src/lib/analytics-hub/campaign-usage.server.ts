@@ -131,7 +131,7 @@ async function fetchWbahUsage(
   sb: Sb, workspaceId: string, range: ResolvedRange, f: CampaignUsageFilters,
 ): Promise<{
   calls: UsageCallInput[];
-  campaigns: { id: string; name: string; agentId?: string | null }[];
+  campaigns: { id: string; name: string; agentId?: string | null; isDeleted?: boolean }[];
   truncated: boolean;
   crossSourceDuplicatesExcluded: number;
   lastSyncedAt: string | null;
@@ -225,6 +225,7 @@ async function fetchWbahUsage(
   const campaigns = snapshot.map((s: any) => ({
     id: String(s.id),
     name: `${String(s.name ?? "Campaign")}${s.is_deleted ? " (deleted)" : ""}`,
+    isDeleted: Boolean(s.is_deleted),
   }));
   const filtered = f.qualifiedOnly ? calls.filter((c) => c.qualified) : calls;
   return {

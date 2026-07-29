@@ -61,6 +61,8 @@ export interface UsageBucket {
 export interface CampaignUsageRow extends UsageBucket {
   campaignId: string | null; // null = Unassigned Campaign
   campaignName: string;
+  /** Deleted campaigns keep their attributed minutes but are hidden from the table UI. */
+  isDeleted?: boolean;
   percentageOfWorkspaceMinutes: number;
   minutesToday: number;
   minutesThisWeek: number;
@@ -277,6 +279,7 @@ export function aggregateCampaignUsage(input: AggregateInput): CampaignUsageResu
   }
 
   const nameById = new Map(input.campaigns.map((c) => [c.id, c.name]));
+  const deletedById = new Map(input.campaigns.map((c) => [c.id, Boolean((c as any).isDeleted)]));
   const buckets = new Map<string | null, ReturnType<typeof emptyBucket>>();
   const windows = windowStarts(now);
   const windowSecs = new Map<string | null, { today: number; week: number; month: number }>();
@@ -319,6 +322,7 @@ export function aggregateCampaignUsage(input: AggregateInput): CampaignUsageResu
       ...fin,
       campaignId: cid,
       campaignName: cid ? (nameById.get(cid) ?? "Campaign") : UNASSIGNED_CAMPAIGN,
+      isDeleted: cid ? (deletedById.get(cid) ?? false) : false,
       percentageOfWorkspaceMinutes: wsSeconds > 0
         ? Math.round((fin.totalDurationSeconds / wsSeconds) * 1000) / 10
         : 0,
