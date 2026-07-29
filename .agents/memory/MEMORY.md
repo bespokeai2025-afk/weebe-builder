@@ -156,3 +156,4 @@
 - [HiveMind streaming pipeline](hivemind-streaming-conversational.md) — all chat surfaces share prepareHiveMindChat+runHiveMindToolLoop; SSE route uses anon-key RLS client (never admin); depth/tone in hivemind-style.shared.ts.
 - [Conversion tracking & Ads attribution](conversion-tracking-arch.md) — server-side conversion_events ledger, gated offline upload, honest statuses; contact form's users-embed lookup silently skipped lead creation for months.
 - [GAds deep-analysis reports](gads-deep-analysis-arch.md) — read-only GAQL deep fetch + deterministic classification + advisory-only AI sections persisted to growthmind_gads_analysis_reports; viewer on work-order page.
+- [Retell list-API v2/v3 migration](retell-list-api-v3-migration.md) — deprecated list endpoints gone; use list.server.ts helpers; predicate filter grammar; cursor-recycle paging quirk.

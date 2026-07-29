@@ -58,9 +58,10 @@ export class RetellVoiceAdapter implements VoiceProvider {
   async healthCheck(): Promise<boolean> {
     if (!this.apiKey) return false;
     try {
-      const resp = await fetch(`${RETELL_BASE}/list-agents`, {
-        method: "GET",
-        headers: { Authorization: `Bearer ${this.apiKey}` },
+      const resp = await fetch(`${RETELL_BASE}/v2/list-agents`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${this.apiKey}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ limit: 1 }),
       });
       return resp.ok;
     } catch {

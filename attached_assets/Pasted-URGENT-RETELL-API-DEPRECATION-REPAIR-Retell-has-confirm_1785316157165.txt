@@ -1,0 +1,85 @@
+URGENT RETELL API DEPRECATION REPAIR
+
+Retell has confirmed active deprecated API usage across the following
+provider workspaces:
+
+- org_xUPBzcvKTtY2KE78
+- org_olpZ9qSmRWkhR0gt
+- org_0JxkSJFWqET7TU2w
+
+First determine which Retell workspace is connected to the WEBEE workspace
+owned by admin@webespokeai.com. Do not assume based on an agent name.
+Compare the stored API credential, provider workspace identity, agent IDs
+and phone-number ownership.
+
+Search the entire production codebase, server functions, scheduled jobs,
+mobile backend, old deployments and n8n workflows for:
+
+- GET /list-agents
+- GET /list-chat-agents
+- POST /v2/list-calls
+- GET /list-phone-numbers
+- listAgents
+- listCalls
+- listPhoneNumbers
+- older Retell SDK versions
+
+Implement these migrations:
+
+- GET /list-agents → POST /v2/list-agents
+- GET /list-chat-agents → POST /v2/list-agents
+- POST /v2/list-calls → POST /v3/list-calls
+- GET /list-phone-numbers → GET /v2/list-phone-numbers
+
+For POST /v2/list-agents:
+
+- Filter channel to voice when loading calling agents.
+- Read results from response.items.
+- Continue requesting pages using pagination_key while has_more is true.
+- Do not use pagination_key_version.
+
+For POST /v3/list-calls and GET /v2/list-phone-numbers:
+
+- Read records from response.items.
+- Continue pagination until has_more is false.
+- Store the pagination cursor safely.
+- Do not mark a sync successful if any page fails.
+- Retry rate-limited and transient failures safely.
+- Deduplicate calls using the unique Retell call ID.
+
+Update every consumer, including:
+
+- Agent Builder
+- Workspace agent selector
+- Campaign agent selector
+- Calling workflow
+- Analytics sync
+- Campaign reporting
+- Minutes-used calculations
+- Phone Numbers page
+- Telephony settings
+- HiveMind
+- Mobile application
+- Scheduled background jobs
+- n8n workflows where applicable
+
+Do not leave a fallback silently calling the deprecated endpoints.
+
+After migration:
+
+1. Run a provider identity check for admin@webespokeai.com.
+2. Confirm its Retell workspace ID.
+3. Retrieve all voice agents using POST /v2/list-agents.
+4. Confirm the expected calling agent appears.
+5. Retrieve all assigned phone numbers using GET /v2/list-phone-numbers.
+6. Retrieve all calls for a controlled period using POST /v3/list-calls.
+7. Traverse every page.
+8. Compare unique Retell call IDs with WEBEE.
+9. Recalculate call totals and minutes from authoritative durations.
+10. Perform one authorised end-to-end test call.
+11. Confirm the call, recording, transcript, campaign and minutes appear once.
+12. Confirm no deprecated endpoint is used in production logs after deployment.
+
+Do not mark this complete merely because the new endpoint returns HTTP 200.
+Prove that pagination, response parsing, agent filtering, workspace mapping,
+phone-number mapping and analytics reconciliation all work correctly.

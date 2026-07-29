@@ -301,17 +301,30 @@ export async function listRetellPhoneNumbersService(args: {
     outboundAgentId: string | null;
   }>
 > {
-  let resp: Record<string, unknown>;
+  // POST-DEPRECATION: GET /v2/list-phone-numbers with items[] + pagination_key
+  // paging (the old GET /list-phone-numbers returned a bare array).
+  const collected: unknown[] = [];
   try {
-    resp = await retellFetchForAgent(
-      `/list-phone-numbers`,
-      undefined,
-      "GET",
-      args.userId,
-      args.agentRowId,
-      args.productionApiKey,
-      args.workspaceId,
-    );
+    let cursor: string | undefined;
+    for (let page = 0; page < 100; page++) {
+      const path = cursor
+        ? `/v2/list-phone-numbers?pagination_key=${encodeURIComponent(cursor)}`
+        : `/v2/list-phone-numbers`;
+      const resp = (await retellFetchForAgent(
+        path,
+        undefined,
+        "GET",
+        args.userId,
+        args.agentRowId,
+        args.productionApiKey,
+        args.workspaceId,
+      )) as any;
+      const items: unknown[] = Array.isArray(resp) ? resp : Array.isArray(resp?.items) ? resp.items : [];
+      collected.push(...items);
+      cursor = typeof resp?.pagination_key === "string" && resp.pagination_key ? resp.pagination_key : undefined;
+      const hasMore = typeof resp?.has_more === "boolean" ? resp.has_more && !!cursor : false;
+      if (!hasMore || items.length === 0) break;
+    }
   } catch (error) {
     if (isRetellAuthError(error)) {
       console.warn("[retell] list-phone-numbers auth failed", {
@@ -325,7 +338,7 @@ export async function listRetellPhoneNumbersService(args: {
     }
     throw error;
   }
-  const arr = Array.isArray(resp) ? resp : [];
+  const arr = collected;
   const firstAgentId = (v: unknown): string | null => {
     if (Array.isArray(v) && v.length > 0) {
       const id = (v[0] as Record<string, unknown>)?.agent_id;

@@ -2,7 +2,6 @@ import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import type { Database } from "@/integrations/supabase/types";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
-import { retellFetch } from "@/lib/providers/retell/client.server";
 import { createVoiceProviderWithFallback } from "@/lib/providers/voice/factory";
 import { goLiveAgentService, saveAgentPhoneNumberService } from "@/lib/agents/agent-golive.server";
 
@@ -197,9 +196,12 @@ export const getDashboardLiveAgents = createServerFn({ method: "GET" })
     const phoneMap: Record<string, string> = {}; // agent_id -> phone number
 
     try {
+      const { listRetellAgents, listRetellPhoneNumbers } = await import(
+        "@/lib/providers/retell/list.server"
+      );
       const [agentsResp, phonesResp] = await Promise.allSettled([
-        retellFetch<unknown>("/list-agents", undefined, "GET", wsKey),
-        retellFetch<unknown>("/list-phone-numbers", undefined, "GET", wsKey),
+        listRetellAgents(wsKey),
+        listRetellPhoneNumbers(wsKey),
       ]);
 
       if (agentsResp.status === "fulfilled" && Array.isArray(agentsResp.value)) {

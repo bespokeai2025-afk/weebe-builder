@@ -1032,8 +1032,8 @@ export const listWorkspaceRetellAgents = createServerFn({ method: "GET" })
       };
     }
     try {
-      const resp = await retellFetch(`/list-agents`, undefined, "GET", key);
-      const rows = Array.isArray(resp) ? (resp as Array<Record<string, unknown>>) : [];
+      const { listRetellAgents } = await import("@/lib/providers/retell/list.server");
+      const rows = (await listRetellAgents(key)) as Array<Record<string, unknown>>;
       // Retell returns one row per published version — keep the newest per agent_id.
       const byId = new Map<string, Record<string, unknown>>();
       for (const a of rows) {

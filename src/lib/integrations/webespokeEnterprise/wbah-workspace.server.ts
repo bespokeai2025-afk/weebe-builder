@@ -2531,20 +2531,20 @@ export const getWbahRetellCalls = createServerFn({ method: "POST" })
       .parse(i ?? {}),
   )
   .handler(async ({ context, data }) => {
-    const { retellFetch } = await import("@/lib/providers/retell/client.server");
+    const { listRetellAgents, listRetellCallsPage } = await import(
+      "@/lib/providers/retell/list.server"
+    );
     const apiKey = await requireWbahRetellKey(context.userId);
 
     // Fetch agents + calls in parallel
     const [agentList, callRes] = await Promise.all([
-      retellFetch<any[]>("/list-agents", null, "GET", apiKey).catch(() => []),
-      retellFetch<any>(
-        "/v2/list-calls",
+      listRetellAgents(apiKey).catch(() => []),
+      listRetellCallsPage(
         {
           limit: 50,
           sort_order: "descending",
           ...(data.paginationKey ? { pagination_key: data.paginationKey } : {}),
         },
-        "POST",
         apiKey,
       ),
     ]);
@@ -2554,8 +2554,8 @@ export const getWbahRetellCalls = createServerFn({ method: "POST" })
       if (a.agent_id) agentNames[a.agent_id] = a.agent_name ?? a.agent_id;
     }
 
-    const calls: any[] = Array.isArray(callRes) ? callRes : (callRes?.calls ?? []);
-    const nextPaginationKey: string | null = callRes?.pagination_key ?? null;
+    const calls: any[] = callRes.items;
+    const nextPaginationKey: string | null = callRes.hasMore ? (callRes.paginationKey ?? null) : null;
 
     const records = calls.map((c: any) => ({
       id: String(c.call_id ?? Math.random()),
@@ -2590,21 +2590,21 @@ export const getWbahRetellCalls = createServerFn({ method: "POST" })
 export const getWbahRetellAgents = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
-    const { retellFetch } = await import("@/lib/providers/retell/client.server");
+    const { listRetellAgents, listRetellCallsPage } = await import(
+      "@/lib/providers/retell/list.server"
+    );
     const apiKey = await requireWbahRetellKey(context.userId);
 
     const [agentList, liveRes] = await Promise.all([
-      retellFetch<any[]>("/list-agents", null, "GET", apiKey).catch(() => []),
-      retellFetch<any>(
-        "/v2/list-calls",
+      listRetellAgents(apiKey).catch(() => []),
+      listRetellCallsPage(
         { filter_criteria: { call_status: ["ongoing"] }, limit: 20 },
-        "POST",
         apiKey,
       ).catch(() => null),
     ]);
 
     const liveCallAgentIds = new Set<string>(
-      (Array.isArray(liveRes) ? liveRes : (liveRes?.calls ?? []))
+      (liveRes?.items ?? [])
         .map((c: any) => c.agent_id)
         .filter(Boolean),
     );
@@ -2639,13 +2639,13 @@ export const reconcileWbahRetellAgents = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator(z.object({ apply: z.coerce.boolean().default(false) }))
   .handler(async ({ context, data }) => {
-    const { retellFetch } = await import("@/lib/providers/retell/client.server");
+    const { listRetellAgents } = await import("@/lib/providers/retell/list.server");
     const apiKey = await requireWbahRetellKey(context.userId);
     const isAdmin = await isPlatformAdmin(context.userId);
     if (data.apply && !isAdmin) throw new Error("Admin access required to apply changes");
 
     // Live Retell agents (dedupe versions by agent_id).
-    const agentList = await retellFetch<any[]>("/list-agents", null, "GET", apiKey).catch(() => []);
+    const agentList = await listRetellAgents(apiKey).catch(() => []);
     const retellById = new Map<string, string>();
     for (const a of agentList ?? []) {
       if (a?.agent_id && !retellById.has(a.agent_id))
@@ -3520,8 +3520,10 @@ async function buildWbahAgentPhoneMap(
   apiKey: string,
   neededDigits: Set<string>,
 ): Promise<Record<string, string>> {
-  const { retellFetch } = await import("@/lib/providers/retell/client.server");
-  const agentList = await retellFetch<any[]>("/list-agents", null, "GET", apiKey).catch(() => []);
+  const { listRetellAgents, listRetellCallsPage } = await import(
+    "@/lib/providers/retell/list.server"
+  );
+  const agentList = await listRetellAgents(apiKey).catch(() => []);
   const agentNames: Record<string, string> = {};
   for (const a of agentList ?? []) {
     if (a.agent_id) agentNames[a.agent_id] = a.agent_name ?? a.agent_id;
@@ -3530,19 +3532,17 @@ async function buildWbahAgentPhoneMap(
   const map: Record<string, string> = {};
   const remaining = new Set(neededDigits);
   const MAX_PAGES = 20;
-  let paginationKey: string | null = null;
+  let paginationKey: string | undefined;
   for (let page = 0; page < MAX_PAGES && remaining.size > 0; page++) {
-    const callRes: any = await retellFetch<any>(
-      "/v2/list-calls",
+    const callRes = await listRetellCallsPage(
       {
         limit: 50,
         sort_order: "descending",
         ...(paginationKey ? { pagination_key: paginationKey } : {}),
       },
-      "POST",
       apiKey,
     );
-    const calls: any[] = Array.isArray(callRes) ? callRes : (callRes?.calls ?? []);
+    const calls: any[] = callRes.items;
     if (calls.length === 0) break;
     for (const c of calls) {
       const d = String(c.to_number ?? "").replace(/\D/g, "");
@@ -3553,7 +3553,7 @@ async function buildWbahAgentPhoneMap(
         remaining.delete(d);
       }
     }
-    paginationKey = callRes?.pagination_key ?? null;
+    paginationKey = callRes.hasMore ? callRes.paginationKey : undefined;
     if (!paginationKey) break;
   }
   return map;

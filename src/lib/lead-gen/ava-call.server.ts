@@ -135,11 +135,8 @@ async function resolveFromNumber(retellKey: string): Promise<string | null> {
   const fromEnv = process.env.AVA_CALL_FROM_NUMBER?.trim();
   if (fromEnv) return fromEnv;
   try {
-    const res = await fetch("https://api.retellai.com/list-phone-numbers", {
-      headers: { Authorization: `Bearer ${retellKey}` },
-    });
-    if (!res.ok) return null;
-    const numbers = (await res.json()) as Array<{ phone_number?: string; nickname?: string }>;
+    const { listRetellPhoneNumbers } = await import("@/lib/providers/retell/list.server");
+    const numbers = (await listRetellPhoneNumbers(retellKey)) as Array<{ phone_number?: string; nickname?: string }>;
     const byNickname = (needle: string) =>
       numbers.find((n) => (n.nickname ?? "").toLowerCase().includes(needle))?.phone_number ?? null;
     return (

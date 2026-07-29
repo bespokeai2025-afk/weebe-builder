@@ -346,7 +346,8 @@ export const getAgentHealth = createServerFn({ method: "GET" })
     let phones: RetellPhone[] | null = null;
     if (retellKey) {
       try {
-        phones = await retellFetch<RetellPhone[]>("/list-phone-numbers", undefined, "GET", retellKey);
+        const { listRetellPhoneNumbers } = await import("@/lib/providers/retell/list.server");
+        phones = (await listRetellPhoneNumbers(retellKey)) as RetellPhone[];
       } catch {
         phones = null;
       }
