@@ -36,6 +36,15 @@ export type AiUsageRecord = {
   routing?: Record<string, unknown> | null; // routing decision metadata (admin-visible)
 };
 
+// Caller-supplied context passed down into low-level provider wrappers so they
+// can ledger every attempt (success/failure/fallback) with proper attribution.
+export type AiUsageMeta = {
+  workspaceId?: string | null;
+  department: AiUsageRecord["department"];
+  feature: string;
+  fallbackFrom?: string | null; // set when this attempt is a fallback call
+};
+
 export async function recordAiUsage(rec: AiUsageRecord): Promise<void> {
   try {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");

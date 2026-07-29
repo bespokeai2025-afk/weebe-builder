@@ -13,6 +13,7 @@ export class ClaudeLLMAdapter implements LLMProvider {
       model: "claude-sonnet-4-5",
       maxTokens: params.maxTokens ?? 2048,
       apiKey: this.apiKey,
+      usage: params.usage,
     });
     const costUsd = (result.inputTokens / 1_000_000) * 3.0 + (result.outputTokens / 1_000_000) * 15.0;
     return { ...result, costUsd, model: "claude-sonnet-4-5" };

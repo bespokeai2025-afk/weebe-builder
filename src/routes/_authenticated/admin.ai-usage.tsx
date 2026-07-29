@@ -87,8 +87,15 @@ function AiUsagePage() {
           <CardContent className="text-2xl font-bold">{d ? fmtInt(d.totals.requests) : "—"}</CardContent>
         </Card>
         <Card>
-          <CardHeader className="pb-2"><CardTitle className="text-sm flex items-center gap-2"><DollarSign className="h-4 w-4" /> Est. cost</CardTitle></CardHeader>
-          <CardContent className="text-2xl font-bold">{d ? fmtUsd(d.totals.costUsd) : "—"}</CardContent>
+          <CardHeader className="pb-2"><CardTitle className="text-sm flex items-center gap-2"><DollarSign className="h-4 w-4" /> Est. cost (window)</CardTitle></CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{d ? fmtUsd(d.totals.costUsd) : "—"}</div>
+            {d && (
+              <div className="text-xs text-muted-foreground mt-1">
+                Today: {fmtUsd(d.spendTodayUsd)} · This month: {fmtUsd(d.spendThisMonthUsd)}
+              </div>
+            )}
+          </CardContent>
         </Card>
         <Card>
           <CardHeader className="pb-2"><CardTitle className="text-sm">Tokens in / out</CardTitle></CardHeader>
@@ -171,6 +178,15 @@ function AiUsagePage() {
               <div>Key: {diag.keyFingerprint}</div>
               <div>Requested: {diag.requestedModel} → Returned: {diag.returnedModel ?? "(failed)"}</div>
               <div>Request ID: {diag.requestId ?? "—"} · {diag.latencyMs}ms</div>
+              {diag.ok && (
+                <>
+                  <div>
+                    Tokens: {diag.inputTokens} in ({diag.cachedInputTokens} cached) / {diag.outputTokens} out
+                    {" "}({diag.reasoningTokens} reasoning)
+                  </div>
+                  <div>Estimated cost: ${diag.estimatedCostUsd.toFixed(6)}</div>
+                </>
+              )}
               {diag.error && <div className="text-destructive">{diag.error}</div>}
             </div>
           )}

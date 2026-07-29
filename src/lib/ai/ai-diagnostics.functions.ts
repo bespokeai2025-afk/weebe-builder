@@ -106,9 +106,35 @@ export const getAiUsageDashboard = createServerFn({ method: "POST" })
       videoSeconds: Math.round(rows.reduce((s, r) => s + num(r.video_seconds), 0) * 100) / 100,
     };
 
+    // First-class "spend today" / "spend this month" — computed with dedicated
+    // paged reads so they are correct regardless of the selected window.
+    const sumCostSince = async (sinceIso: string) => {
+      let total = 0;
+      for (let page = 0; page < 60; page++) {
+        const { data: chunk, error } = await sb
+          .from("ai_usage_ledger")
+          .select("estimated_cost_usd")
+          .gte("created_at", sinceIso)
+          .range(page * 1000, page * 1000 + 999);
+        if (error) throw new Error(`ai_usage_ledger spend read failed: ${error.message}`);
+        for (const r of chunk ?? []) total += num(r.estimated_cost_usd);
+        if ((chunk ?? []).length < 1000) break;
+      }
+      return Math.round(total * 10000) / 10000;
+    };
+    const now = new Date();
+    const todayStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate())).toISOString();
+    const monthStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1)).toISOString();
+    const [spendTodayUsd, spendThisMonthUsd] = await Promise.all([
+      sumCostSince(todayStart),
+      sumCostSince(monthStart),
+    ]);
+
     return {
       days: data.days,
       totals,
+      spendTodayUsd,
+      spendThisMonthUsd,
       byModel: agg((r) => r.returned_model || r.requested_model),
       byDepartment: agg((r) => r.department),
       byWorkspace: agg((r) => r.workspace_id ?? "(platform)").slice(0, 25),
@@ -135,6 +161,7 @@ export const runAiBillingDiagnostic = createServerFn({ method: "POST" })
 
     const { resolveModelForRole } = await import("@/lib/ai/model-registry.server");
     const { recordAiUsage } = await import("@/lib/ai/usage-ledger.server");
+    const { estimateAiCostUsd } = await import("@/lib/ai/model-registry.shared");
     const assignment = resolveModelForRole("hivemind_background");
 
     const started = Date.now();
@@ -189,7 +216,16 @@ export const runAiBillingDiagnostic = createServerFn({ method: "POST" })
       requestId: (json.id as string) ?? requestIdHeader,
       latencyMs,
       inputTokens: usage.input_tokens ?? 0,
+      cachedInputTokens: usage.input_tokens_details?.cached_tokens ?? 0,
       outputTokens: usage.output_tokens ?? 0,
+      reasoningTokens: usage.output_tokens_details?.reasoning_tokens ?? 0,
+      estimatedCostUsd: estimateAiCostUsd({
+        model: returnedModel,
+        inputTokens: usage.input_tokens ?? 0,
+        cachedInputTokens: usage.input_tokens_details?.cached_tokens ?? 0,
+        outputTokens: usage.output_tokens ?? 0,
+        reasoningTokens: usage.output_tokens_details?.reasoning_tokens ?? 0,
+      }),
       error: null,
     };
   });

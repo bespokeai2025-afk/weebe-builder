@@ -8,7 +8,7 @@ import {
   type Provider,
   type ModelId,
 } from "./model-router.shared";
-import { recordAiUsage } from "@/lib/ai/usage-ledger.server";
+import type { AiUsageMeta } from "@/lib/ai/usage-ledger.server";
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -46,23 +46,24 @@ async function callProvider(
   user:     string,
   maxTokens: number,
   settings: Record<string, string>,
+  usage?:   AiUsageMeta,
 ): Promise<{ text: string; inputTokens: number; outputTokens: number }> {
   if (provider === "openai") {
     const apiKey = process.env.OPENAI_API_KEY ?? settings.openai_api_key;
     if (!apiKey) throw new Error("OpenAI API key not configured.");
-    return openaiGenerate({ system, user, model, maxTokens, apiKey });
+    return openaiGenerate({ system, user, model, maxTokens, apiKey, usage });
   }
 
   if (provider === "gemini") {
     const apiKey = process.env.GEMINI_API_KEY ?? settings.gemini_api_key;
     if (!apiKey) throw new Error("Gemini API key not configured. Add GEMINI_API_KEY in Settings → Environment.");
-    return geminiGenerate({ system, user, model, maxTokens, apiKey });
+    return geminiGenerate({ system, user, model, maxTokens, apiKey, usage });
   }
 
   if (provider === "claude") {
     const apiKey = process.env.ANTHROPIC_API_KEY ?? settings.anthropic_api_key;
     if (!apiKey) throw new Error("Anthropic API key not configured. Add ANTHROPIC_API_KEY in Settings → Environment.");
-    return claudeGenerate({ system, user, model, maxTokens, apiKey });
+    return claudeGenerate({ system, user, model, maxTokens, apiKey, usage });
   }
 
   throw new Error(`Unknown provider: ${provider}`);
@@ -93,10 +94,17 @@ export async function routeGenerate(params: RouteGenerateParams): Promise<RouteG
   let fallbackFrom: string | null = null;
   let finalProvider = targetProvider;
   let finalModel    = targetModel;
-  const startedAt   = Date.now();
+
+  // Attribution passed into the provider wrappers — each attempt (primary,
+  // retry, fallback) is ledgered inside the wrapper itself.
+  const usageMeta: AiUsageMeta = {
+    workspaceId,
+    department: "growthmind",
+    feature:    `content:${contentType}`,
+  };
 
   // Try primary, then retry once, then fallback
-  const tryCall = () => callProvider(targetProvider, targetModel, system, user, maxTokens, settings);
+  const tryCall = () => callProvider(targetProvider, targetModel, system, user, maxTokens, settings, usageMeta);
 
   let primaryErr: Error | null = null;
 
@@ -118,7 +126,10 @@ export async function routeGenerate(params: RouteGenerateParams): Promise<RouteG
       const fb = FALLBACK[targetModel];
       if (!fb) throw primaryErr;
       try {
-        const r  = await callProvider(fb.provider, fb.model, system, user, maxTokens, settings);
+        const r  = await callProvider(fb.provider, fb.model, system, user, maxTokens, settings, {
+          ...usageMeta,
+          fallbackFrom: `${targetProvider}/${targetModel}`,
+        });
         text          = r.text;
         inputTokens   = r.inputTokens;
         outputTokens  = r.outputTokens;
@@ -127,13 +138,7 @@ export async function routeGenerate(params: RouteGenerateParams): Promise<RouteG
         finalProvider = fb.provider;
         finalModel    = fb.model;
       } catch {
-        // Record the fully-failed request (primary + retry + fallback all failed)
-        await recordAiUsage({
-          workspaceId, department: "growthmind", feature: `content:${contentType}`,
-          provider: targetProvider, requestedModel: targetModel,
-          latencyMs: Date.now() - startedAt, status: "failed",
-          errorMessage: primaryErr?.message,
-        });
+        // Every failed attempt has already been ledgered inside the wrapper.
         throw primaryErr;
       }
     }
@@ -156,22 +161,8 @@ export async function routeGenerate(params: RouteGenerateParams): Promise<RouteG
     created_at:         new Date().toISOString(),
   }).then(() => {}).catch(() => {});
 
-  // Platform-wide AI usage ledger (never throws)
-  await recordAiUsage({
-    workspaceId,
-    department:     "growthmind",
-    feature:        `content:${contentType}`,
-    provider:       finalProvider,
-    requestedModel: targetModel,
-    returnedModel:  finalModel,
-    inputTokens,
-    outputTokens,
-    latencyMs:      Date.now() - startedAt,
-    status:         usedFallback ? "fallback" : "success",
-    fallbackUsed:   usedFallback,
-    fallbackFrom,
-    estimatedCostUsd: costUsd,
-  });
+  // Note: the platform-wide ai_usage_ledger row for every attempt (success,
+  // retry failure, fallback) is written inside the provider wrappers.
 
   return {
     text,

@@ -13,6 +13,7 @@ export class OpenAILLMAdapter implements LLMProvider {
       model: "gpt-4.1",
       maxTokens: params.maxTokens ?? 2048,
       apiKey: this.apiKey,
+      usage: params.usage,
     });
     const costUsd = (result.inputTokens / 1_000_000) * 2.0 + (result.outputTokens / 1_000_000) * 8.0;
     return { ...result, costUsd, model: "gpt-4.1" };

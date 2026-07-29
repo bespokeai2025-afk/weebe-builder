@@ -13,6 +13,7 @@ export class GeminiLLMAdapter implements LLMProvider {
       model: "gemini-2.5-flash",
       maxTokens: params.maxTokens ?? 2048,
       apiKey: this.apiKey,
+      usage: params.usage,
     });
     const costUsd = (result.inputTokens / 1_000_000) * 0.075 + (result.outputTokens / 1_000_000) * 0.30;
     return { ...result, costUsd, model: "gemini-2.5-flash" };
