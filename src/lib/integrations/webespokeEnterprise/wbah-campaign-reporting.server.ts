@@ -252,28 +252,56 @@ async function fetchRunCalls(
   windowEndIso: string,
 ): Promise<any[]> {
   const PAGE = 1000;
-  const MAX_PAGES = 20; // 20k rows ≫ any single sweep window
+  const MAX_PAGES = 200; // safety valve only — loop is exhaustive, never silently truncates
   const rows: any[] = [];
   for (let p = 0; p < MAX_PAGES; p++) {
     const { data, error } = await sb
       .from("wbah_calls")
-      .select("id, customer_name, phone, sentiment, call_status, disconnection_reason, end_reason, booking_status, appointment_date, duration_seconds, started_at, meta")
+      .select("id, customer_name, phone, sentiment, call_status, disconnection_reason, end_reason, booking_status, appointment_date, duration_seconds, started_at, campaign_id, meta")
       .eq("workspace_id", WBAH_WORKSPACE_ID)
       .gte("started_at", windowStartIso)
       .lte("started_at", windowEndIso)
       .order("started_at", { ascending: false })
+      .order("id", { ascending: false })
       .range(p * PAGE, p * PAGE + PAGE - 1);
     if (error) throw new Error(error.message);
     const batch = (data ?? []) as any[];
     rows.push(...batch);
-    if (batch.length < PAGE) break;
+    if (batch.length < PAGE) return filterRunCalls(rows, campaigns, campaign);
   }
-  if (rows.length >= PAGE * MAX_PAGES)
-    console.warn("[wbah-campaign-run] fetchRunCalls hit page cap — KPI window may be truncated");
+  throw new Error(`[wbah-campaign-run] fetchRunCalls exceeded ${PAGE * MAX_PAGES} rows — refusing to truncate`);
+}
+
+function filterRunCalls(rows: any[], campaigns: WbahCampaignSnapshotRow[], campaign: WbahCampaignSnapshotRow): any[] {
   return rows.filter((c) => {
+    // Stored campaign_id (verified) wins; otherwise infer by agent + slot.
+    if (c.campaign_id != null) return String(c.campaign_id) === String(campaign.id);
     const agentId = (c.meta as any)?.agent_id ?? null;
     return attributeWbahCampaign(campaigns, agentId, c.started_at)?.id === campaign.id;
   });
+}
+
+/**
+ * Stamp verified attribution onto the calls that belong to a campaign run.
+ * Only fills campaign_id where it is still NULL — never overwrites an
+ * existing verified link. Best-effort: failures are logged, never thrown.
+ */
+async function stampRunCallAttribution(sb: Sb, calls: any[], campaignId: string, runId: string): Promise<void> {
+  const ids = calls.filter((c) => c.campaign_id == null).map((c) => String(c.id));
+  const CHUNK = 200;
+  for (let i = 0; i < ids.length; i += CHUNK) {
+    const chunk = ids.slice(i, i + CHUNK);
+    const { error } = await sb
+      .from("wbah_calls")
+      .update({ campaign_id: String(campaignId), campaign_run_id: String(runId) })
+      .eq("workspace_id", WBAH_WORKSPACE_ID)
+      .is("campaign_id", null)
+      .in("id", chunk);
+    if (error) {
+      console.warn("[wbah-campaign-run] attribution stamp failed:", error.message);
+      return;
+    }
+  }
 }
 
 /**
@@ -421,6 +449,11 @@ export async function runWbahCampaignRunTick(): Promise<WbahCampaignRunTickResul
         const calls = campaign
           ? await fetchRunCalls(sb, campaigns, campaign, run.window_start, new Date(hardEndMs).toISOString())
           : [];
+        // Persist verified attribution on every sweep (not just at finish) so
+        // reports/analytics see stored campaign links as early as possible.
+        if (campaign && calls.length > 0) {
+          await stampRunCallAttribution(sb, calls, campaign.id, String(run.id));
+        }
         const newestMs = calls.reduce((max, c) => {
           const t = new Date(c.started_at ?? 0).getTime();
           return Number.isFinite(t) && t > max ? t : max;

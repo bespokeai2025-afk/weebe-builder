@@ -98,6 +98,11 @@ function buildRetellCallRow(c: any, workspaceId: string) {
     booking_status:       null,
     calendly_booking_url: null,
     call_count:           1,
+    // Verified attribution columns — provider call id is authoritative here;
+    // campaign_id is stamped separately by the campaign-run tracker (never
+    // overwritten by this upsert since it isn't in the supplied columns).
+    provider_call_id:     String(callId),
+    lead_id:              dv.lead_id != null ? String(dv.lead_id) : null,
     meta: {
       source:          "retell",
       call_successful: c.call_analysis?.call_successful ?? null,
@@ -129,6 +134,7 @@ async function upsertRows(sb: Sb, rows: any[]): Promise<void> {
   const { data: existing } = await (sb as any)
     .from("wbah_calls")
     .select("id, appointment_date, appointment_time, booking_status, calendly_booking_url")
+    .eq("workspace_id", rows[0].workspace_id)
     .in("id", ids);
   const byId = new Map<string, any>(((existing ?? []) as any[]).map((e) => [String(e.id), e]));
 

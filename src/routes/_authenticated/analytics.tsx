@@ -75,6 +75,39 @@ function startOfUtcDayMs(ms: number): number {
   return d.getTime();
 }
 
+/**
+ * Start of the calendar day containing `ms` in an IANA timezone (DST-safe).
+ * Used so WBAH day boundaries follow UK time, matching the server's
+ * timezone-aware range resolution.
+ */
+function tzOffsetMsAt(ms: number, tz: string): number {
+  const dtf = new Intl.DateTimeFormat("en-GB", {
+    timeZone: tz, year: "numeric", month: "2-digit", day: "2-digit",
+    hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false,
+  });
+  const p = Object.fromEntries(dtf.formatToParts(new Date(ms)).map((x) => [x.type, x.value]));
+  const asUtcMs = Date.UTC(
+    Number(p.year), Number(p.month) - 1, Number(p.day),
+    Number(p.hour === "24" ? "0" : p.hour), Number(p.minute), Number(p.second),
+  );
+  return asUtcMs - Math.floor(ms / 1000) * 1000;
+}
+
+function startOfDayMsInTz(ms: number, tz: string): number {
+  // Find the local calendar date at `ms`, then compute the UTC instant of that
+  // date's local midnight using the offset *at the candidate midnight itself*
+  // (re-derived once) so DST-transition days resolve correctly.
+  const dtf = new Intl.DateTimeFormat("en-GB", {
+    timeZone: tz, year: "numeric", month: "2-digit", day: "2-digit",
+  });
+  const p = Object.fromEntries(dtf.formatToParts(new Date(ms)).map((x) => [x.type, x.value]));
+  const dayStartAsUtc = Date.UTC(Number(p.year), Number(p.month) - 1, Number(p.day));
+  let candidate = dayStartAsUtc - tzOffsetMsAt(ms, tz);
+  const offsetAtCandidate = tzOffsetMsAt(candidate, tz);
+  candidate = dayStartAsUtc - offsetAtCandidate;
+  return candidate;
+}
+
 function toDatetimeLocalValue(d: Date): string {
   const pad = (n: number) => String(n).padStart(2, "0");
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
@@ -569,6 +602,12 @@ function AnalyticsPage() {
   const activeRange = RANGES.find((r) => r.key === rangeKey) ?? RANGES[2];
   const days = activeRange.days;
 
+  // WBAH day boundaries follow UK time (Europe/London), matching the server's
+  // timezone-aware range resolution; other workspaces keep UTC-day windows.
+  const { isWbah: isWbahResolved, resolved: wbahResolved } = useIsWbahWorkspace();
+  const dayTz = wbahResolved && isWbahResolved ? "Europe/London" : null;
+  const dayStartMs = (ms: number) => (dayTz ? startOfDayMsInTz(ms, dayTz) : startOfUtcDayMs(ms));
+
   const { rangeStartMs, rangeEndMs, queryParams, customRangeInvalid } = useMemo(() => {
     const now = Date.now();
     if (rangeKey === "custom") {
@@ -589,12 +628,13 @@ function AnalyticsPage() {
       };
     }
     if (rangeKey === "today") {
-      const start = startOfUtcDayMs(now);
+      const start = dayStartMs(now);
       return { rangeStartMs: start, rangeEndMs: now, queryParams: { days: 1 }, customRangeInvalid: false };
     }
-    const start = startOfUtcDayMs(now) - (days - 1) * 24 * 60 * 60 * 1000;
+    const start = dayStartMs(now - (days - 1) * 24 * 60 * 60 * 1000);
     return { rangeStartMs: start, rangeEndMs: now, queryParams: { days }, customRangeInvalid: false };
-  }, [rangeKey, customStart, customEnd, days]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rangeKey, customStart, customEnd, days, dayTz]);
 
   const hourlyTrends = rangeStartMs != null && rangeEndMs != null && (rangeEndMs - rangeStartMs) <= HOURLY_TREND_MAX_MS;
   const [selectedAgentId, setSelectedAgentId] = useState<string | null>(null);
@@ -625,7 +665,6 @@ function AnalyticsPage() {
   // otherwise a slow or failed call-data load silently hides the Credits tab
   // and the other WBAH-specific UI. Fall back to the payload slug so the page
   // still behaves if the resolver hasn't answered yet but data has.
-  const { isWbah: isWbahResolved, resolved: wbahResolved } = useIsWbahWorkspace();
   const isWbah = wbahResolved ? isWbahResolved : (result as any)?.workspaceSlug === "webuyanyhouse";
   // Voicemail inclusion: default to ON for WBAH (every dial is a real billed call)
   // and OFF elsewhere; the toggle lets the user override either way.

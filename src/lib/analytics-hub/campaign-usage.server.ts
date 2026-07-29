@@ -15,7 +15,8 @@ import { isWbahWorkspaceId } from "@/lib/wbah-exclusion.shared";
 import {
   type AnalyticsFilters,
   type ResolvedRange,
-  resolveDateRange,
+  resolveDateRangeFor,
+  fetchAllPages,
 } from "./analytics-hub.server";
 import {
   type UsageCallInput,
@@ -27,8 +28,6 @@ import {
 
 type Sb = any;
 
-const PAGE = 1000;
-const MAX_PAGES = 25;
 
 export interface CampaignUsageFilters extends AnalyticsFilters {
   direction?: "inbound" | "outbound" | null;
@@ -59,7 +58,7 @@ const inflight = new Map<string, Promise<CampaignUsageData>>();
 
 function cacheKey(workspaceId: string, f: CampaignUsageFilters): string {
   return [
-    "cu2", workspaceId, f.dateFilter ?? "30d", f.customStart ?? "", f.customEnd ?? "",
+    "cu3", workspaceId, f.dateFilter ?? "30d", f.customStart ?? "", f.customEnd ?? "",
     f.campaignId ?? "", f.agentId ?? "", f.direction ?? "", f.callStatus ?? "",
     f.sentiment ?? "", f.qualifiedOnly ? "q" : "", f.granularity ?? "day",
   ].join("|");
@@ -87,8 +86,7 @@ function classifyWbah(c: any): UsageCallInput["classification"] {
 async function fetchStandardUsageCalls(
   sb: Sb, workspaceId: string, range: ResolvedRange, f: CampaignUsageFilters,
 ): Promise<{ calls: UsageCallInput[]; truncated: boolean }> {
-  const rows: any[] = [];
-  for (let p = 0; p < MAX_PAGES; p++) {
+  const rows: any[] = await fetchAllPages((from, to) => {
     let q = sb
       .from("calls")
       .select("id, retell_call_id, campaign_id, agent_id, call_type, call_status, call_successful, sentiment, is_voicemail, in_voicemail, duration_seconds, cost_cents, created_at, started_at")
@@ -96,22 +94,20 @@ async function fetchStandardUsageCalls(
       // Canonical reporting timestamp is started_at (call time), matching the
       // WBAH branch; rows that never started (no started_at) fall back to
       // created_at so pending/failed attempts still appear in their window.
+      // Range end is EXCLUSIVE (.lt semantics).
       .or(
-        `and(started_at.gte.${range.startIso},started_at.lte.${range.endIso}),` +
-        `and(started_at.is.null,created_at.gte.${range.startIso},created_at.lte.${range.endIso})`,
+        `and(started_at.gte.${range.startIso},started_at.lt.${range.endIso}),` +
+        `and(started_at.is.null,created_at.gte.${range.startIso},created_at.lt.${range.endIso})`,
       )
       .order("created_at", { ascending: false })
-      .range(p * PAGE, p * PAGE + PAGE - 1);
+      .order("id", { ascending: false })
+      .range(from, to);
     if (f.agentId) q = q.eq("agent_id", f.agentId);
     if (f.direction) q = q.eq("call_type", f.direction);
     if (f.callStatus) q = q.eq("call_status", f.callStatus);
     if (f.sentiment) q = q.eq("sentiment", f.sentiment);
-    const { data, error } = await q;
-    if (error) throw new Error(error.message);
-    const batch = (data ?? []) as any[];
-    rows.push(...batch);
-    if (batch.length < PAGE) break;
-  }
+    return q;
+  }, "campaign usage calls fetch");
   const calls: UsageCallInput[] = rows.map((c) => ({
     id: String(c.id),
     providerCallId: c.retell_call_id ?? null,
@@ -127,7 +123,7 @@ async function fetchStandardUsageCalls(
     costCents: c.cost_cents ?? null,
   }));
   const filtered = f.qualifiedOnly ? calls.filter((c) => c.qualified) : calls;
-  return { calls: filtered, truncated: rows.length >= PAGE * MAX_PAGES };
+  return { calls: filtered, truncated: false };
 }
 
 // ── WBAH ──────────────────────────────────────────────────────────────────────
@@ -140,23 +136,19 @@ async function fetchWbahUsage(
   crossSourceDuplicatesExcluded: number;
   lastSyncedAt: string | null;
 }> {
-  const rows: any[] = [];
-  for (let p = 0; p < MAX_PAGES; p++) {
+  const rows: any[] = await fetchAllPages((from, to) => {
     let q = sb
       .from("wbah_calls")
-      .select("id, phone, sentiment, call_status, disconnection_reason, end_reason, booking_status, appointment_date, duration_seconds, started_at, synced_at, meta")
+      .select("id, phone, sentiment, call_status, disconnection_reason, end_reason, booking_status, appointment_date, duration_seconds, started_at, synced_at, campaign_id, meta")
       .eq("workspace_id", workspaceId)
       .gte("started_at", range.startIso)
-      .lte("started_at", range.endIso)
+      .lt("started_at", range.endIso)
       .order("started_at", { ascending: false })
-      .range(p * PAGE, p * PAGE + PAGE - 1);
+      .order("id", { ascending: false })
+      .range(from, to);
     if (f.sentiment) q = q.eq("sentiment", f.sentiment);
-    const { data, error } = await q;
-    if (error) throw new Error(error.message);
-    const batch = (data ?? []) as any[];
-    rows.push(...batch);
-    if (batch.length < PAGE) break;
-  }
+    return q;
+  }, "wbah usage fetch");
 
   // ── Cross-source dedup ────────────────────────────────────────────────────
   // Older syncs created weak-id rows (id not "call_…") for calls that ALSO
@@ -207,13 +199,18 @@ async function fetchWbahUsage(
     }
   } catch { /* snapshot unavailable — everything lands in Unassigned */ }
 
+  const knownIds = new Set(snapshot.map((s: any) => String(s.id)));
   const calls: UsageCallInput[] = dedupedRows.map((c) => {
-    const camp = attribute ? attribute((c.meta as any)?.agent_id ?? null, c.started_at) : null;
+    // Prefer the stored (verified) campaign_id stamped on the call row;
+    // fall back to agent + scheduled-slot inference.
+    const storedId = c.campaign_id != null && knownIds.has(String(c.campaign_id))
+      ? String(c.campaign_id) : null;
+    const camp = storedId ? null : (attribute ? attribute((c.meta as any)?.agent_id ?? null, c.started_at) : null);
     const s = String(c.sentiment ?? "").toLowerCase();
     return {
       id: String(c.id),
       providerCallId: String(c.id), // wbah_calls id IS the provider call id
-      campaignId: camp ? String(camp.id) : null,
+      campaignId: storedId ?? (camp ? String(camp.id) : null),
       agentId: (c.meta as any)?.agent_id ?? null,
       startedAt: c.started_at ?? null,
       durationSeconds: c.duration_seconds,
@@ -233,7 +230,7 @@ async function fetchWbahUsage(
   return {
     calls: filtered,
     campaigns,
-    truncated: rows.length >= PAGE * MAX_PAGES,
+    truncated: false,
     crossSourceDuplicatesExcluded,
     lastSyncedAt,
   };
@@ -264,7 +261,7 @@ export async function getCampaignUsageData(
 /** Invalidate the in-process usage cache for a workspace (call after syncs/corrections). */
 export function invalidateCampaignUsageCache(workspaceId: string): void {
   for (const k of cache.keys()) {
-    if (k.startsWith(`cu2|${workspaceId}|`)) cache.delete(k);
+    if (k.startsWith(`cu3|${workspaceId}|`)) cache.delete(k);
   }
 }
 
@@ -273,7 +270,7 @@ async function computeCampaignUsage(
   f: CampaignUsageFilters,
 ): Promise<CampaignUsageData> {
   const sb = supabaseAdmin as any;
-  const range = resolveDateRange(f);
+  const range = await resolveDateRangeFor(workspaceId, f);
   const granularity: UsageGranularity =
     f.granularity ?? (range.days <= 2 ? "hour" : range.days <= 62 ? "day" : range.days <= 200 ? "week" : "month");
   const isWbah = isWbahWorkspaceId(workspaceId);

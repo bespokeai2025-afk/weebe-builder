@@ -174,7 +174,7 @@ function WbahDiallerView({ w, filter }: { w: any; filter: AnalyticsFilterState }
           <div className="max-h-80 overflow-auto">
             <table className="w-full text-sm">
               <TableHead>
-                <Th>Campaign</Th><Th>Runs at</Th><Th>Targets</Th><Th>Calls</Th><Th>Connected</Th><Th>Positive</Th><Th>Booked</Th><Th>Voicemail</Th>
+                <Th>Campaign</Th><Th>Runs at</Th><Th>Targets</Th><Th>Calls</Th><Th>Matched</Th><Th>Connected</Th><Th>Positive</Th><Th>Booked</Th><Th>Voicemail</Th>
               </TableHead>
               <tbody>
                 {campaigns.map((c: any) => (
@@ -183,6 +183,15 @@ function WbahDiallerView({ w, filter }: { w: any; filter: AnalyticsFilterState }
                     <td className="px-3 py-2 tabular-nums text-muted-foreground">{c.scheduledTime ? `${c.scheduledTime} UK` : "—"}</td>
                     <td className="px-3 py-2 text-xs text-muted-foreground">{c.leadStatus ?? "—"}</td>
                     <td className="px-3 py-2 tabular-nums">{fmtInt(c.calls)}</td>
+                    <td className="px-3 py-2 text-xs text-muted-foreground">
+                      {c.id === "__unassigned__"
+                        ? "—"
+                        : Number(c.verified ?? 0) > 0 && Number(c.inferred ?? 0) === 0
+                          ? <span className="text-emerald-400">Confirmed</span>
+                          : Number(c.verified ?? 0) > 0
+                            ? <span><span className="text-emerald-400">{fmtInt(c.verified)} confirmed</span> · {fmtInt(c.inferred)} estimated</span>
+                            : <span className="text-amber-400">Estimated</span>}
+                    </td>
                     <td className="px-3 py-2 tabular-nums">{fmtInt(c.connected)} <span className="text-xs text-muted-foreground">({pct(c.connectionRate)})</span></td>
                     <td className="px-3 py-2 tabular-nums text-emerald-400">{fmtInt(c.positive)}</td>
                     <td className="px-3 py-2 tabular-nums">{fmtInt(c.booked)}</td>
@@ -192,7 +201,13 @@ function WbahDiallerView({ w, filter }: { w: any; filter: AnalyticsFilterState }
               </tbody>
             </table>
           </div>
-          {Number(w.campaignsUnattributed ?? 0) > 0 && (
+          {w.attribution && (
+            <p className="mt-2 text-xs text-muted-foreground">
+              Campaign matching: {fmtInt(w.attribution.verified)} confirmed from campaign records, {fmtInt(w.attribution.inferred)} estimated
+              from agent &amp; call time{Number(w.attribution.unassigned ?? 0) > 0 ? <>, {fmtInt(w.attribution.unassigned)} not matched to any campaign</> : null}.
+            </p>
+          )}
+          {!w.attribution && Number(w.campaignsUnattributed ?? 0) > 0 && (
             <p className="mt-2 text-xs text-muted-foreground">
               {fmtInt(w.campaignsUnattributed)} call(s) could not be matched to a campaign (agent not linked to any scheduled campaign).
             </p>

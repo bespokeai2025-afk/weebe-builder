@@ -431,6 +431,13 @@ function buildCallRow(raw: any, workspaceId: string) {
     booking_status:       raw.call_booking_status ?? raw.bookingStatus ?? raw.booking_status ?? null,
     calendly_booking_url: raw.call_calendly_booking_url ?? raw.calendlyBookingUrl ?? raw.calendly_booking_url ?? null,
     call_count:           raw.callCount ?? raw.call_count ?? 1,
+    // Verified attribution columns. provider_call_id only when the source
+    // record carries a REAL Retell call id (weak/synthetic ids excluded).
+    // campaign_id is stamped separately by the campaign-run tracker and is
+    // never overwritten here (column not supplied in the upsert).
+    provider_call_id:     raw.call_id ? String(raw.call_id) : null,
+    lead_id:              (raw.lead_id ?? raw.leadId ?? null) != null
+      ? String(raw.lead_id ?? raw.leadId) : null,
     meta:                 {},
     synced_at:            new Date().toISOString(),
   };

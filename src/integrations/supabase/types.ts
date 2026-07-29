@@ -15525,13 +15525,17 @@ export type Database = {
           call_status: string | null
           call_summary: string | null
           call_type: string | null
+          campaign_id: string | null
+          campaign_run_id: string | null
           customer_name: string | null
           disconnection_reason: string | null
           duration_seconds: number | null
           end_reason: string | null
           id: string
+          lead_id: string | null
           meta: Json | null
           phone: string | null
+          provider_call_id: string | null
           recording_url: string | null
           sentiment: string | null
           started_at: string | null
@@ -15549,13 +15553,17 @@ export type Database = {
           call_status?: string | null
           call_summary?: string | null
           call_type?: string | null
+          campaign_id?: string | null
+          campaign_run_id?: string | null
           customer_name?: string | null
           disconnection_reason?: string | null
           duration_seconds?: number | null
           end_reason?: string | null
           id: string
+          lead_id?: string | null
           meta?: Json | null
           phone?: string | null
+          provider_call_id?: string | null
           recording_url?: string | null
           sentiment?: string | null
           started_at?: string | null
@@ -15573,13 +15581,17 @@ export type Database = {
           call_status?: string | null
           call_summary?: string | null
           call_type?: string | null
+          campaign_id?: string | null
+          campaign_run_id?: string | null
           customer_name?: string | null
           disconnection_reason?: string | null
           duration_seconds?: number | null
           end_reason?: string | null
           id?: string
+          lead_id?: string | null
           meta?: Json | null
           phone?: string | null
+          provider_call_id?: string | null
           recording_url?: string | null
           sentiment?: string | null
           started_at?: string | null
