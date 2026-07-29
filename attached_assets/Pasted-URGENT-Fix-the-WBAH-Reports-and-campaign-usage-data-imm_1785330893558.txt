@@ -1,0 +1,173 @@
+URGENT: Fix the WBAH Reports and campaign usage data immediately. This is an implementation task, not an audit or recommendation.
+
+1. Remove provider costs from the client-facing system
+
+Completely remove the following from all normal client views:
+
+- “Actual Provider Cost” cards
+- Provider-cost columns
+- Retell cost figures
+- Dollar amounts
+- “Provider cost unavailable”
+- Provider reconciliation banners
+- Provider call/minute comparisons
+
+Provider costs may remain available only in a restricted WEBEE admin diagnostics area. WBAH and other clients must never see WEBEE’s underlying provider costs.
+
+2. Show only the client usage charge
+
+The only financial metric visible to the client must be:
+
+Client Usage Charge = Minutes Used × £0.36 per minute
+
+Display all charges in GBP.
+
+Calculation rules:
+
+- Sum the exact duration seconds first.
+- Divide the total seconds by 60.
+- Multiply the unrounded minute total by £0.36.
+- Round only the final displayed charge to two decimal places.
+- Do not round each individual call before calculating the total.
+
+3. Fix the changing and mismatched totals
+
+The same reporting period currently changes between:
+
+- 467 calls and 511 calls
+- 134.15 minutes and 135.42 minutes
+
+This is unacceptable.
+
+For WBAH, make `wbah_calls` the single authoritative source for all client-facing call totals, minutes and campaign reporting.
+
+All cards, charts, campaign tables, performance tables, reports and exports must use one server-side analytics response for the selected period. Do not allow separate page components to independently fetch or calculate conflicting totals.
+
+Investigate and fix:
+
+- Duplicate call rows
+- Unstable fallback deduplication keys
+- Race conditions between queries
+- Stale React Query or server cache data
+- Multiple refreshes merging old and new results
+- Inconsistent date boundaries
+- Joins multiplying calls
+- Separate components using different call-status filters
+- Sync updates changing rows during the same report request
+- Calls being counted once in totals and again during campaign attribution
+
+Deduplicate primarily by the authoritative provider call ID. Where it is missing, use one stable documented fallback key that cannot change between refreshes.
+
+4. Make campaign totals reconcile exactly
+
+For every selected period:
+
+Total workspace calls
+=
+Sum of all campaign calls
++
+Unassigned calls
+
+Total workspace minutes
+=
+Sum of all campaign minutes
++
+Unassigned minutes
+
+Client Usage Charge
+=
+Total workspace minutes × £0.36
+
+Deleted campaigns must retain their historical calls under their own “(deleted)” row.
+
+Calls that cannot be reliably assigned must appear under “Unassigned” and must never be dropped or assigned to another campaign just because it uses the same agent.
+
+Calls with no recorded duration may count as calls but must contribute exactly 0 minutes.
+
+5. Fix all day filters
+
+Repair and verify:
+
+- Today
+- Yesterday
+- Individual calendar-day selection
+- This week
+- Last 7 days
+- Last 30 days
+- Custom date range
+
+For WBAH, use `Europe/London`.
+
+Calculate each selected day using:
+
+- Inclusive start
+- Exclusive end
+- Correct UTC conversion
+- Correct British Summer Time handling
+
+The selected reporting period shown on screen must exactly match the range used by the backend query.
+
+6. Ensure every screen matches
+
+For the same date range, the following must return identical call counts, minutes and usage charges:
+
+- Summary cards
+- Minutes-used chart
+- Minutes Used by Campaign table
+- Performance by Dialler Campaign table
+- Calls page
+- Reports
+- Report modal
+- CSV exports
+- PDF exports
+- HiveMind reporting
+
+Remove any separate or duplicated analytics calculation logic.
+
+7. Prevent totals changing on refresh
+
+Create a regression test that requests the exact same reporting period repeatedly and confirms that the following remain identical unless `wbah_calls` has genuinely changed:
+
+- Total calls
+- Total minutes
+- Campaign totals
+- Unassigned totals
+- Client usage charge
+
+Also test simultaneous component requests to ensure they all receive the same analytics snapshot.
+
+8. Client-facing presentation
+
+The WBAH page should show only clear end-user information such as:
+
+- Minutes Used
+- Client Usage Charge
+- Connected Minutes
+- Voicemail Minutes
+- Total Calls
+- Campaign Performance
+- Last Updated
+
+Do not expose raw JSON, internal database fields, Retell terminology, provider costs or technical reconciliation messages.
+
+9. Completion requirements
+
+Do not mark this task complete until:
+
+- Provider costs are removed from every client-facing screen and export.
+- Only the £0.36-per-minute client charge is shown.
+- Repeated refreshes return identical totals.
+- Campaign totals plus Unassigned reconcile exactly with workspace totals.
+- Today, Yesterday and single-day filters work correctly.
+- Calls, Reports, charts and exports all match.
+- The live site is republished and verified.
+
+At completion, report:
+
+- The exact root cause of the 467-versus-511 mismatch
+- Duplicate or unstable records found
+- Cache or query issues fixed
+- Correct final totals for 29 July 2026
+- Files and services changed
+- Test results
+- Confirmation that other workspaces and calling workflows were not affected

@@ -353,6 +353,36 @@ function finalizeProviderRecon(
   return { ...base, toleranceMinutes, differenceMinutes, status };
 }
 
+// ── Client-facing response scrubbing ─────────────────────────────────────────
+// Provider costs (Retell USD figures) are WEBEE-internal. Client-facing
+// responses must NEVER include them — only the GBP Client Usage Charge.
+// Platform admins keep the full diagnostics (provider reconciliation block +
+// recorded provider cost fields).
+export function stripProviderCostData(data: CampaignUsageData): CampaignUsageData {
+  const scrubRow = <T extends { totalCostCents: number | null; costPerMinuteCents: number | null }>(r: T | null): T | null =>
+    r ? { ...r, totalCostCents: null, costPerMinuteCents: null } : r;
+  return {
+    ...data,
+    provider: null,
+    workspace: scrubRow(data.workspace) as any,
+    unassigned: scrubRow(data.unassigned) as any,
+    campaigns: data.campaigns.map((c) => scrubRow(c)!),
+  };
+}
+
+/** True when the caller is a WEBEE platform admin (profiles.user_type or user_roles). */
+export async function isPlatformAdminUser(sb: Sb, userId: string): Promise<boolean> {
+  try {
+    const [profileRes, roleRes] = await Promise.all([
+      sb.from("profiles").select("user_type").eq("user_id", userId).maybeSingle(),
+      sb.from("user_roles").select("role").eq("user_id", userId).eq("role", "admin").maybeSingle(),
+    ]);
+    return profileRes.data?.user_type === "admin" || !!roleRes.data;
+  } catch {
+    return false; // fail closed — clients never see provider costs
+  }
+}
+
 // ── Public API ────────────────────────────────────────────────────────────────
 export async function getCampaignUsageData(
   workspaceId: string,

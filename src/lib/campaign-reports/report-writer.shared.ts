@@ -110,7 +110,8 @@ export async function computeCampaignKpis(
     kpis.avg_duration_seconds = durations.length > 0
       ? Math.round(durations.reduce((a, b) => a + b, 0) / durations.length)
       : 0;
-    kpis.total_cost_cents = rows.reduce((a, r) => a + (r.cost_cents ?? 0), 0);
+    // Provider costs (Retell USD) are WEBEE-internal and NEVER included in
+    // client-facing report KPIs — clients only see the GBP usage charge.
   } catch {
     kpis.kpi_error = "KPI computation unavailable";
   }

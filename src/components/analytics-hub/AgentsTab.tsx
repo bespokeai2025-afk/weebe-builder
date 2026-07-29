@@ -6,7 +6,7 @@ import { LoadingProgress } from "@/components/dashboard/LoadingProgress";
 import { EmptyState, TableHead, Th } from "@/components/dashboard/PageShell";
 import {
   type AnalyticsFilterState, filterPayload, filterKey,
-  ChartCard, TabError, CHART, gbp, pct, fmtInt, fmtSecs,
+  ChartCard, TabError, CHART, pct, fmtInt, fmtSecs,
 } from "./shared";
 
 export function AgentsTab({ filter }: { filter: AnalyticsFilterState }) {
@@ -34,7 +34,7 @@ export function AgentsTab({ filter }: { filter: AnalyticsFilterState }) {
             <table className="w-full text-sm">
               <TableHead>
                 <Th>Agent</Th><Th>Calls</Th><Th>Connected</Th><Th>Conn. rate</Th>
-                <Th>Positive</Th><Th>Bookings</Th><Th>Avg dur.</Th><Th>Cost / conn.</Th>
+                <Th>Positive</Th><Th>Bookings</Th><Th>Avg dur.</Th>
               </TableHead>
               <tbody>
                 {agents.map((a) => (
@@ -46,7 +46,6 @@ export function AgentsTab({ filter }: { filter: AnalyticsFilterState }) {
                     <td className="px-3 py-2.5 tabular-nums">{pct(a.positiveRate)}</td>
                     <td className="px-3 py-2.5 tabular-nums">{fmtInt(a.bookings)}</td>
                     <td className="px-3 py-2.5 tabular-nums">{fmtSecs(a.avgDurationSeconds)}</td>
-                    <td className="px-3 py-2.5 tabular-nums">{gbp(a.costPerConnectedCents)}</td>
                   </tr>
                 ))}
               </tbody>

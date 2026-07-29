@@ -176,15 +176,22 @@ export const getCampaignUsage = createServerFn({ method: "POST" })
   }) => input)
   .handler(async ({ data, context }) => {
     const ws = await guard(context, data, "analytics_advanced");
-    const { getCampaignUsageData } = await import("./campaign-usage.server");
-    return getCampaignUsageData(ws, {
-      ...filtersOf(data),
-      direction: data.direction ?? null,
-      callStatus: data.callStatus ?? null,
-      sentiment: data.sentiment ?? null,
-      qualifiedOnly: data.qualifiedOnly ?? null,
-      granularity: data.granularity ?? null,
-    });
+    const { getCampaignUsageData, stripProviderCostData, isPlatformAdminUser } =
+      await import("./campaign-usage.server");
+    const [usage, isAdmin] = await Promise.all([
+      getCampaignUsageData(ws, {
+        ...filtersOf(data),
+        direction: data.direction ?? null,
+        callStatus: data.callStatus ?? null,
+        sentiment: data.sentiment ?? null,
+        qualifiedOnly: data.qualifiedOnly ?? null,
+        granularity: data.granularity ?? null,
+      }),
+      isPlatformAdminUser((context as any).supabase, (context as any).userId),
+    ]);
+    // Provider costs are WEBEE-internal: clients only ever see the GBP
+    // Client Usage Charge. Admin diagnostics keep the provider block.
+    return isAdmin ? usage : stripProviderCostData(usage);
   });
 
 export const getAnalyticsFilterOptions = createServerFn({ method: "POST" })

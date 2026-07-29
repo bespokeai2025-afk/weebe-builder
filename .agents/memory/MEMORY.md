@@ -147,7 +147,7 @@
 - [GPT-5.6 routing upgrade](gpt56-routing-upgrade.md) — Mind AI calls classify via task router → terra/sol/luna Responses API; routing JSONB mandatory; fallback never gpt-4o; legacy behind AI_LEGACY_CHAT_COMPLETIONS=1.
 - [Veo 3.1 cost-approval pipeline](veo31-cost-approval-pipeline.md) — atomic approval consume, never auto-retry paid work, terminal-CAS-before-ledger rule; Google Veo access 403-blocked since June 16.
 - [Duplicate retellFetch helper trap](retell-fetch-duplicate-helper-trap.md) — file-local 3-arg retellFetch + shared 4-arg call form sent "POST" as the API key → 401; always import the shared client.
-- [Prod build OOM heap cap](prodbuild-oom-heap.md) — max-old-space-size must stay well under machine RAM or vite SSR build is OOM-killed silently (FAILED, no error, dist/server empty); killing tsserver (~1.7GB) frees enough to build.
+- [Prod build OOM heap cap](prodbuild-oom-heap.md) — max-old-space-size must stay well under machine RAM or vite SSR build is OOM-killed silently (FAILED, no error, dist/server empty); stop the dev server workflow before building.
 - [HiveMind validated briefing pipeline](hivemind-validated-briefing.md) — one ValidatedBusinessBriefing drives voice+screen; unverified financials never £0; validation failure = explicit degraded state, never silent fallback.
 - [HiveMind streaming pipeline](hivemind-streaming-conversational.md) — all chat surfaces share prepareHiveMindChat+runHiveMindToolLoop; SSE route uses anon-key RLS client (never admin); depth/tone in hivemind-style.shared.ts.
 - [Conversion tracking & Ads attribution](conversion-tracking-arch.md) — server-side conversion_events ledger, gated offline upload, honest statuses; contact form's users-embed lookup silently skipped lead creation for months.
@@ -155,3 +155,4 @@
 - [Retell list-API v2/v3 migration](retell-list-api-v3-migration.md) — deprecated list endpoints gone; use list.server.ts helpers; predicate filter grammar; cursor-recycle paging quirk.
 - [AI model registry + usage ledger](ai-model-registry-ledger.md) — resolve models via registry (never hardcode), ledger every AI call via recordAiUsage, fallback chain never gpt-4o.
 - [WBAH provider reconciliation](wbah-provider-reconciliation.md) — "missing minutes" = hidden deleted campaigns; combined_cost is USD cents; live Retell recon with calls×0.5s tolerance; backfill in ≤7d chunks.
+- [Provider cost client scrub](provider-cost-client-scrub.md) — Retell USD cost fields never reach client surfaces; strip server-side (fail-closed admin check); clients only see £0.36/min usage charge.

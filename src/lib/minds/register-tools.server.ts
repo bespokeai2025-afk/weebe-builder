@@ -214,11 +214,12 @@ registerMindTool({
   }).optional(),
   run: async (ctx: MindToolContext, input?: { dateFilter?: string; campaignId?: string }): Promise<MindToolRunResult> => {
     // String-literal dynamic import (prod Rollup requirement).
-    const { getCampaignUsageData } = await import("@/lib/analytics-hub/campaign-usage.server");
-    const d = await getCampaignUsageData(ctx.workspaceId, {
+    const { getCampaignUsageData, stripProviderCostData } = await import("@/lib/analytics-hub/campaign-usage.server");
+    // Provider costs are WEBEE-internal — Mind responses are client-facing.
+    const d = stripProviderCostData(await getCampaignUsageData(ctx.workspaceId, {
       dateFilter: (input?.dateFilter ?? "30d") as any,
       campaignId: input?.campaignId ?? null,
-    });
+    }));
     return {
       result: {
         mode: d.mode,

@@ -677,7 +677,7 @@ export async function getCampaignAnalyticsData(
       const k = (latestKpiByCampaign[c.id] ?? (c.stats ?? {})) as any;
       const callsTotal = Number(k.calls_total ?? 0);
       const answered = Number(k.calls_answered ?? 0);
-      const costCents = Number(k.total_cost_cents ?? 0);
+      // Provider costs (Retell USD) are WEBEE-internal — never sent to clients.
       return {
         id: c.id, name: c.name, status: c.status, agentId: c.agent_id,
         launchedAt: c.created_at, completedAt: c.status === "completed" ? c.updated_at : null,
@@ -685,10 +685,7 @@ export async function getCampaignAnalyticsData(
         callsVoicemail: Number(k.calls_voicemail ?? 0), callsFailed: Number(k.calls_failed ?? 0),
         positiveSentiment: Number(k.positive_sentiment ?? 0),
         avgDurationSeconds: Number(k.avg_duration_seconds ?? 0),
-        totalCostCents: costCents,
         connectionRate: rate(answered, callsTotal),
-        costPerCallCents: callsTotal > 0 ? Math.round(costCents / callsTotal) : 0,
-        costPerConnectedCents: answered > 0 ? Math.round(costCents / answered) : 0,
       };
     });
 
@@ -800,8 +797,8 @@ export async function getAgentAnalyticsData(workspaceId: string, filters?: Analy
       a.durationSum += Number(c.duration_seconds ?? 0);
       map[aid] = a;
     }
+    // Provider costs (Retell USD) are WEBEE-internal — never sent to clients.
     const agents = Object.values(map).map((a: any) => {
-      const costCents = costByAgent[a.agentId] ?? 0;
       return {
         agentId: a.agentId, name: a.name, total: a.total,
         connected: a.connected, missed: a.missed, voicemail: a.voicemail, failed: a.failed,
@@ -809,8 +806,6 @@ export async function getAgentAnalyticsData(workspaceId: string, filters?: Analy
         positiveRate: rate(a.positive, a.total), neutralRate: rate(a.neutral, a.total), negativeRate: rate(a.negative, a.total),
         bookings: a.bookings, bookingRate: rate(a.bookings, a.total),
         avgDurationSeconds: a.total > 0 ? Math.round(a.durationSum / a.total) : 0,
-        totalCostCents: costCents,
-        costPerConnectedCents: a.connected > 0 ? Math.round(costCents / a.connected) : 0,
       };
     }).sort((x, y) => y.total - x.total);
     return { ...base, agents };

@@ -8,7 +8,7 @@ import { EmptyState, TableHead, Th } from "@/components/dashboard/PageShell";
 import {
   type AnalyticsFilterState, filterPayload, filterKey,
   ChartCard, InsightCard, TabError, MetricTile, CompactDonut,
-  CHART, SENTIMENT_COLORS, gbp, pct, fmtInt, fmtSecs,
+  CHART, SENTIMENT_COLORS, pct, fmtInt, fmtSecs,
 } from "./shared";
 import { CampaignUsageSection } from "./CampaignUsageSection";
 
@@ -84,7 +84,7 @@ export function CampaignsTab({ filter }: { filter: AnalyticsFilterState }) {
             <table className="w-full text-sm">
               <TableHead>
                 <Th>Campaign</Th><Th>Status</Th><Th>Calls</Th><Th>Connected</Th>
-                <Th>Conn. rate</Th><Th>Positive</Th><Th>Cost</Th><Th>Cost / conn.</Th>
+                <Th>Conn. rate</Th><Th>Positive</Th>
               </TableHead>
               <tbody>
                 {campaigns.map((c) => (
@@ -95,8 +95,6 @@ export function CampaignsTab({ filter }: { filter: AnalyticsFilterState }) {
                     <td className="px-3 py-2.5 tabular-nums">{fmtInt(c.callsConnected)}</td>
                     <td className="px-3 py-2.5 tabular-nums">{pct(c.connectionRate)}</td>
                     <td className="px-3 py-2.5 tabular-nums">{fmtInt(c.positiveSentiment)}</td>
-                    <td className="px-3 py-2.5 tabular-nums">{gbp(c.totalCostCents)}</td>
-                    <td className="px-3 py-2.5 tabular-nums">{gbp(c.costPerConnectedCents)}</td>
                   </tr>
                 ))}
               </tbody>

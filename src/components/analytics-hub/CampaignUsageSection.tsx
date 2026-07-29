@@ -118,13 +118,6 @@ export function CampaignUsageSection({ filter }: { filter: AnalyticsFilterState 
           icon={PoundSterling}
           color={CHART.warning}
         />
-        <MetricTile
-          label="Actual Provider Cost"
-          value={ws.totalCostCents != null ? fmtUsdCents(ws.totalCostCents) : "Unavailable"}
-          sub="Retell-recorded (USD)"
-          icon={PoundSterling}
-          color={CHART.accent}
-        />
         <MetricTile label="Connected minutes" value={fmtMin(ws.connectedMinutes)} icon={PhoneCall} color={CHART.success} />
         <MetricTile label="Voicemail minutes" value={fmtMin(ws.voicemailMinutes)} icon={Voicemail} color={CHART.warning} />
         <MetricTile label="Today" value={fmtMin(ws.minutesToday)} icon={CalendarDays} color={CHART.accent} />
@@ -139,11 +132,13 @@ export function CampaignUsageSection({ filter }: { filter: AnalyticsFilterState 
         </div>
       )}
 
+      {/* Provider reconciliation is WEBEE-internal diagnostics: the server only
+          includes `provider` for platform admins — clients never receive it. */}
       {d.provider && (
         <InsightCard
           tone={d.provider.status === "verified" ? "success" : "warning"}
           icon={d.provider.status === "verified" ? CheckCircle2 : AlertTriangle}
-          title={`Provider reconciliation — ${PROVIDER_STATUS_LABEL[d.provider.status] ?? d.provider.status}`}
+          title={`Admin diagnostics · Provider reconciliation — ${PROVIDER_STATUS_LABEL[d.provider.status] ?? d.provider.status}`}
         >
           {d.provider.status === "unavailable" ? (
             <>Retell could not be reached to independently verify this period. Figures shown are WEBEE&apos;s stored data; no provider comparison is available right now.</>
@@ -247,9 +242,6 @@ export function CampaignUsageSection({ filter }: { filter: AnalyticsFilterState 
                 <Th>
                   <span title={`What the client is charged at £${BILLING_RATE_GBP_PER_MINUTE.toFixed(2)} per minute`}>{sortBtn("rateCostGbp", "Client Usage Charge")}</span>
                 </Th>
-                <Th>
-                  <span title="Provider-recorded cost from Retell, in USD">Actual Provider Cost</span>
-                </Th>
               </TableHead>
               <tbody>
                 {rows.map((c: any) => (
@@ -270,7 +262,6 @@ export function CampaignUsageSection({ filter }: { filter: AnalyticsFilterState 
                     {monthCovered && <td className="px-3 py-2 tabular-nums">{fmtMin(c.minutesThisMonth)}</td>}
                     <td className="px-3 py-2 tabular-nums">{Number(c.percentageOfWorkspaceMinutes ?? 0)}%</td>
                     <td className="px-3 py-2 tabular-nums font-medium">{fmtGbp(c.rateCostGbp)}</td>
-                    <td className="px-3 py-2 tabular-nums text-muted-foreground">{fmtUsdCents(c.totalCostCents)}</td>
                   </tr>
                 ))}
               </tbody>
