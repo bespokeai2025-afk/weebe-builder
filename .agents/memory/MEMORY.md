@@ -19,7 +19,6 @@
 - [GrowthMind DNA + Opportunity Engine](growthmind-dna-opportunity-arch.md) — 6-table schema; DNA trigger auto-seeds; `.inputValidator()` not `.validator()`; no-input fns call as `fn()`; bridge + content studio extended.
 - [Video Studio + Veo](video-studio-freeform-upgrade.md) — dual-auth VeoProvider (Gemini key preferred); see also veo-audio-fix.md and veo-gemini-endpoint.md.
 - [TanStack Start stale server-fn IDs](tanstack-stale-serverfn-ids.md) — after server restart, browser must hard-refresh or server fns fail with "Invalid server function ID" returning HTML error pages.
-- [WBAH date-filter pattern](wbah-date-filter.md) — filterToDates() maps filter strings → ISO dateFrom/dateTo; call inside queryFn (not render) to avoid SSR hydration warnings; query key includes filter string.
 - [Prompt Studio architecture](prompt-studio-arch.md) — 5-table schema (manual migration); 12 library packs seeded per workspace; scoring via GPT-4o-mini (5 dims); getPromptPerformanceSummary is plain async (not server fn) for HiveMind use.
 - [GrowthMind Strategy Centre](strategy-centre-arch.md) — prompt engine routing, 4 DB tables, 13 strategy types, HiveMind approval via hivemind_actions.
 - [Webform Lead Capture System](webform-lead-capture.md) — public POST /webforms/:token + /contact; 2 new tables; leads extended; TalkToUsForm + useTalkToUs hook; entity_notes (not notes).
@@ -33,8 +32,6 @@
 - [Build — Node.js externals](build-node-externals.md) — Node built-ins must be in vite build.rollupOptions.external or client bundle fails; @vite-ignore alone is NOT enough; stale dynamic import paths only surface in SSR build.
 - [WeeBespoke API quirks](webespoke-api-envelope.md) — list arrays live at res.data.data; totalPages wrong (compute from totalItems, webespokeapi-totalpages-bug.md); single-session short-lived token, refresh-on-401 (wbah-token-single-session.md).
 - [WBAH People & leads windows](wbah-people-page-fields.md) — non-booked = one Disqualified list, on-demand reads only (wbah-disqualified-derivation.md); /leads window derives from wbah_calls not leads (wbah-leads-window-source.md).
-- [WBAH call classification & voicemail](wbah-aftercall-classification.md) — callStatus always "ended", derive from endReason; voicemail = end_reason voicemail_reached, no is_voicemail col (wbah-voicemail-signal.md).
-- [WBAH leads table bloat & perf](wbah-leads-inflation-perf.md) — ~190k+ rows, needs (ws,updated_at) index, cap fetches at 1000; dup explosion from 1000-cap dedup — use true upsert (wbah-leads-dedup-explosion.md).
 - [WBAH auth before engine routing](wbah-auth-before-routing.md) — membership gate BEFORE DataSourceRouter getXData() or engine rows leak to non-members (IDOR); use requireWbahView (not the login-churning requireWbahCbs) for the pre-router gate.
 - [Vite envPrefix secret exposure](vite-envprefix-secret-exposure.md) — envPrefix is a prefix match; list the exact non-secret var, never a family prefix, or secrets bake into the client bundle; grep dist/client after build.
 - [WBAH endpoint mapping](wbah-endpoint-mapping.md) — which WeeBespoke endpoint feeds each page; get-all-calldata = CRM contacts, NOT the call log.
@@ -44,8 +41,8 @@
 - [WEBEE secrets & prod deploy](weebee-secrets-and-prod-deploy.md) — Secret + same-name shared env var collide; VITE_ vars bake at build (republish after secret change); /api/monitoring/health diagnoses prod↔Supabase login failures.
 - [Multi-tenant React Query cache isolation](multitenant-query-cache-isolation.md) — non-workspace-keyed query keys + persistent QueryClient leak prior tenant data; logout MUST qc.clear().
 - [Analytics platform-key isolation](analytics-platform-key-isolation.md) — getRetellAnalytics deployedAgentIds must fail CLOSED (empty Set) on the shared platform key; null = cross-workspace leak; bump cache key on any count change.
-- [WBAH analytics source split](wbah-analytics-retell-doublecount.md) — analytics page uses WBAH's own Retell API; all other WBAH pages read wbah_calls; never read both (double-counts); see wbah-analytics-dual-table.md.
-- [Prefetch staleTime + WBAH voicemails](rq-prefetch-wbah-voicemails.md) — prefetch needs page-side staleTime + args matching page query keys (also qualified-definition-and-prefetch-keys.md: WBAH qualified=sentiment positive, standard=status).
+- [WBAH analytics source split](wbah-analytics-retell-doublecount.md) — analytics uses WBAH Retell API, all other pages read wbah_calls, never both; call/voicemail classification in wbah-aftercall-classification.md.
+- [Prefetch staleTime + WBAH voicemails](rq-prefetch-wbah-voicemails.md) — prefetch args must match page query keys (also qualified-definition-and-prefetch-keys.md); date-filter/query-key pattern in wbah-date-filter.md.
 - [Client Supabase env trap](supabase-client-env-trap.md) — client code must import { supabase } from "@/integrations/supabase/client"; hand-rolled createClient uses wrong env name → route crash.
 - [Service-role KB-context IDOR](service-role-kb-context-idor.md) — supabaseAdmin bypasses RLS; client-supplied "specific KB" context reads in Image/Video Studio must `.eq(workspace_id)` or a foreign KB id leaks another tenant's docs.
 - [Prod login outage](prod-login-supabase-outage.md) — PGRST002/503 or CF 522 = Supabase project down (not code); restart via Mgmt API POST /projects/{ref}/restart; Live Calls "reconnecting…" is same outage signal.
@@ -68,7 +65,7 @@
 - [Teaching SystemMind about shipped work](systemmind-platform-knowledge-teaching.md) — after real feature/behavior changes, write a note into platform_systemmind KB via recordSystemMindPlatformKnowledge() or the seed script, not just agent memory.
 - [Intelligence packet contract for hivemind_tasks](intelligence-packet-contract.md) — all Mind task inserts go through prepareMindTaskInsert; exceptions need inline JUSTIFIED-EXCEPTION comment.
 - [leads enum columns](lead-enum-columns.md) — leads.source/status are Postgres enums; entry status is need_to_call (no "new"); use toLeadSourceEnum(); supabase builders lack .catch and never throw — check {error}.
-- [WBAH aggregate cache & Leads perf](wbah-aggregate-cache-perf.md) — Redis 5MB SET cap silently skipped the ~8MB aggregate (cacheWrap = no-op); in-process cache + single-flight; invalidate ONLY via invalidateWbahAggregate.
+- [WBAH aggregate cache & Leads perf](wbah-aggregate-cache-perf.md) — in-process cache + single-flight (Redis 5MB cap trap), invalidate ONLY via invalidateWbahAggregate; leads bloat/index/upsert rules in wbah-leads-inflation-perf.md.
 - [Full-height page layout trap](fullheight-page-layout-trap.md) — `h-full` page roots collapse inside the min-h-screen sidebar chain; bound the page root with a dvh calc instead.
 - [Cursor repo sync procedure](cursor-repo-snapshot-sync.md) — user pushes from Cursor to weebe-builder repo; diff trees first, sync only deltas, never hard reset; repo lockfile can be stale.
 - [Prod has no IPv6 ingress](prod-no-ipv6-ingress.md) — webeereceptionist.com/webespokeai.com are AAAA-less; backend sees clients' IPv4 in x-forwarded-for even for IPv6 users; allowlist the real IPv4, not a guessed /64.
@@ -157,3 +154,4 @@
 - [Conversion tracking & Ads attribution](conversion-tracking-arch.md) — server-side conversion_events ledger, gated offline upload, honest statuses; contact form's users-embed lookup silently skipped lead creation for months.
 - [GAds deep-analysis reports](gads-deep-analysis-arch.md) — read-only GAQL deep fetch + deterministic classification + advisory-only AI sections persisted to growthmind_gads_analysis_reports; viewer on work-order page.
 - [Retell list-API v2/v3 migration](retell-list-api-v3-migration.md) — deprecated list endpoints gone; use list.server.ts helpers; predicate filter grammar; cursor-recycle paging quirk.
+- [AI model registry + usage ledger](ai-model-registry-ledger.md) — resolve models via registry (never hardcode), ledger every AI call via recordAiUsage, fallback chain never gpt-4o.
