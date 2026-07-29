@@ -243,21 +243,24 @@ async function getReportRecipients(
   }
 }
 
-/** Fetch calls attributed to one campaign inside a window (paged, capped). */
+/** Fetch calls attributed to one campaign inside a bounded window (paged). */
 async function fetchRunCalls(
   sb: Sb,
   campaigns: WbahCampaignSnapshotRow[],
   campaign: WbahCampaignSnapshotRow,
   windowStartIso: string,
+  windowEndIso: string,
 ): Promise<any[]> {
   const PAGE = 1000;
+  const MAX_PAGES = 20; // 20k rows ≫ any single sweep window
   const rows: any[] = [];
-  for (let p = 0; p < 5; p++) {
+  for (let p = 0; p < MAX_PAGES; p++) {
     const { data, error } = await sb
       .from("wbah_calls")
       .select("id, customer_name, phone, sentiment, call_status, disconnection_reason, end_reason, booking_status, appointment_date, duration_seconds, started_at, meta")
       .eq("workspace_id", WBAH_WORKSPACE_ID)
       .gte("started_at", windowStartIso)
+      .lte("started_at", windowEndIso)
       .order("started_at", { ascending: false })
       .range(p * PAGE, p * PAGE + PAGE - 1);
     if (error) throw new Error(error.message);
@@ -265,6 +268,8 @@ async function fetchRunCalls(
     rows.push(...batch);
     if (batch.length < PAGE) break;
   }
+  if (rows.length >= PAGE * MAX_PAGES)
+    console.warn("[wbah-campaign-run] fetchRunCalls hit page cap — KPI window may be truncated");
   return rows.filter((c) => {
     const agentId = (c.meta as any)?.agent_id ?? null;
     return attributeWbahCampaign(campaigns, agentId, c.started_at)?.id === campaign.id;
@@ -409,8 +414,12 @@ export async function runWbahCampaignRunTick(): Promise<WbahCampaignRunTickResul
         const age = now.getTime() - windowStart.getTime();
         if (age < GRACE_MS) { result.watching++; continue; }
 
+        // Upper-bound the KPI window: never pull calls beyond the run's hard
+        // cap (window_start + MAX_RUN) or beyond "now" — attribution alone
+        // could otherwise drag much later calls into this run's KPIs.
+        const hardEndMs = Math.min(now.getTime(), windowStart.getTime() + MAX_RUN_MS);
         const calls = campaign
-          ? await fetchRunCalls(sb, campaigns, campaign, run.window_start)
+          ? await fetchRunCalls(sb, campaigns, campaign, run.window_start, new Date(hardEndMs).toISOString())
           : [];
         const newestMs = calls.reduce((max, c) => {
           const t = new Date(c.started_at ?? 0).getTime();

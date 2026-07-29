@@ -105,7 +105,7 @@
 - [SystemMind Build Console](systemmind-build-console.md) — one tabbed console at /systemmind/build replaced 5 Improve pages; console owns `tab`, wf sub-tab is `wfTab`; setup-success learning hook on activation.
 - [Access enforcement (pkg∩role∩override)](access-enforcement-arch.md) — every sensitive server fn needs an entitlement guard (auth middleware ≠ enforcement); 30s cache needs invalidate on changes; UI lock layer fails open by design.
 - [Master Admin oversight & package matrix](master-admin-oversight.md) — package_definitions DB rows override code catalog; use packageByKeyServer + invalidate both caches after writes.
-- [WBAH campaign run reporting](wbah-campaign-run-reporting.md) — snapshot refreshed only on user page reads (never poll WeeBespoke); attribution = agent + latest London slot; extend WBAH_ONLY_REPORT_TYPES for new WBAH-only kinds.
+- [WBAH campaign run reporting](wbah-campaign-run-reporting.md) — snapshot refresh only on page reads; attribution = agent + latest London slot; analytics must load snapshot includeDeleted + bound run-KPI fetches by window end or counts drift/inflate.
 - [AccountsMind invoice generator](accountsmind-invoice-generator.md) — docxtemplater; number reserve = insert-first + 23505 retry; status rules in accountsmind-invoice-status.md (paid=sales); ledger/CN rules in accountsmind-invoice-suite.md.
 - [Analytics row cap + stale chunk reload](analytics-hub-row-cap.md) — analytics totals must page past PostgREST's 1000-row cap; root-level vite:preloadError reload guard fixes post-republish dead routes.
 - [AccountsMind industry presets](accountsmind-industry-presets.md) — workspace_settings.industry + code-owned non-sensitive presets; apply replaces via versionedInsertConfigRow chain, owner/admin gate via resolvePermissions.
@@ -123,8 +123,7 @@
 - [Shared PDF overlay engine](shared-pdf-overlay-engine.md) — one renderer+designer in src/lib(components)/documents serves invoices AND Hexmail docs; never fetch stored URLs server-side, download via storage path.
 - [SystemMind Build Setup Console](systemmind-setup-console.md) — per-session setup state gates Apply only when a row exists; secrets never in setup table; extend computeRequiredInputs for new checks.
 - [HiveMind open-task atomic dedup](hivemind-open-task-dedup.md) — partial unique index on open (ws,trigger,entity); insert row-by-row, 23505 = deduped; reopen conflict → stay completed; WBAH rechecks never touch leads.
-- [GrowthMind Google Ads live engine](gads-live-arch.md) — single sync path via alias-free gads-live-core (tick is vite-config-loaded); approval = change-request row only, NO executor; honest 4-stage state.
-- [Google Ads Connect-with-Google OAuth](google-ads-oauth-connect.md) — signed-state callback flow; returnTo must be single-slash relative + origin allowlisted; customer brings own OAuth client/dev token.
+- [GrowthMind Google Ads live engine](gads-live-arch.md) — single sync path via alias-free gads-live-core (vite-config-loaded tick); approval = change-request row only, NO executor; OAuth connect flow in google-ads-oauth-connect.md.
 - [Supabase DB health watchdog](db-health-watchdog.md) — 5-min tick probes Mgmt-API health; 2-strike alerting, in-process admin-email cache, direct-Resend sends (never DB-dependent paths mid-outage).
 - [Shared Mind tool registry](mind-tool-registry.md) — all consequential Mind capabilities register in src/lib/minds; executeMindTool guard order; entitlement fires before approval check (e2e needs subscription fixture).
 - [Content Studio projects + Meta publishing](content-projects-publish-arch.md) — check-existing-first handoff; approval must honor persisted per-row sensitive flags; validate before "approved" transition; idempotent publish jobs.
@@ -143,8 +142,7 @@
 - [Mind execution backbone](mind-execution-backbone.md) — executable tasks engine-driven only; CAS claims + orphan reclaim; resume failure → blocked, never stranded; honest advisory-only states.
 - [HiveMind chat-initiated work orders](hivemind-chat-work-orders.md) — chat tools create proposal-only work orders; normalise conversational names; poll bounded window after approve.
 - [HiveMind executive control over GrowthMind](growthmind-executive-control.md) — ~30 registry tools reuse GrowthMind cores; chat function-calling loop with honest statuses; pause flags + objectives + hourly health→task sweep.
-- [SEO Department (GSC + blog campaigns)](seo-department-arch.md) — stage approvals via hivemind_actions (action_payload NOT metadata); new action types need kind+case+sensitive+union; manual-only Lovable deploy; SSRF guard on audit fetches.
-- [GSC OAuth canonical callback](gsc-oauth-canonical-callback.md) — server route /api/oauth/gsc-callback + HMAC state {origin,returnTo}; never use page URLs as redirect URIs; register per-origin in Google console.
+- [SEO Department (GSC + blog campaigns)](seo-department-arch.md) — stage approvals via hivemind_actions (action_payload NOT metadata); manual-only Lovable deploy; SSRF guard on audit fetches; OAuth callback rules in gsc-oauth-canonical-callback.md.
 - [Website architecture audit](website-architecture-audit.md) — DoH-based read-only fingerprinting (Lovable=185.158.133.1, Replit=34.111.x); no deploy integration → change packages marked Awaiting Website Deployment.
 - [HiveMind WBAH calls source](hivemind-wbah-calls-source.md) — WBAH call metrics from wbah_calls (London day window); provider id IS row id; fail loud "unavailable", never silent zeros.
 - [Public Content Publishing backbone](public-content-publishing-arch.md) — Lovable blog API: dual approvals, api_published honesty, snapshot overlay for updating items, SSRF-guarded verify, column-name drift trap.

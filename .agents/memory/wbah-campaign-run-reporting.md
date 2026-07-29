@@ -22,6 +22,14 @@ description: Per-campaign attribution + automatic start/finish emailed reports f
 - Dev tick loads the module via `server.ssrLoadModule(...)` in campaign-scheduler.plugin —
   plain imports from vite-config context can't resolve `@/` aliases.
 - Verified live 2026-07-16: 9 AM + 11 AM runs auto-detected, finished, and emailed.
+- **Analytics correctness rules (2026-07-29):** the range-based dialler analytics
+  (`getWbahDiallerAnalytics`) must load the snapshot with `includeDeleted: true` — a call
+  made by a since-deleted campaign otherwise drifts onto a surviving same-agent campaign
+  and inflates it. Unattributed calls go into a visible "Unassigned" row so the campaign
+  table always sums to the range total (matching the Calls page). Run-KPI fetches
+  (`fetchRunCalls`) must be upper-bounded by min(now, window_start + MAX_RUN) or the
+  open-ended `>= window_start` query drags later calls into an earlier run's KPIs.
+  Page caps must comfortably exceed real volume (~7.7k calls/week; 25 pages truncated 30d).
 
 **Report setup area (client email preferences):** start/finish email prefs live as
 analytics_report_schedules rows of type wbah_campaign_start / wbah_campaign_end — preference-only,

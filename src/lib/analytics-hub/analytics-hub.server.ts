@@ -178,7 +178,7 @@ async function fetchWbahCalls(sb: Sb, workspaceId: string, range: ResolvedRange)
  */
 export async function getWbahDiallerAnalytics(sb: Sb, workspaceId: string, range: ResolvedRange) {
   const PAGE = 1000;
-  const MAX_PAGES = 25;
+  const MAX_PAGES = 60;
   const rows: any[] = [];
   for (let p = 0; p < MAX_PAGES; p++) {
     const { data, error } = await sb
@@ -210,7 +210,10 @@ export async function getWbahDiallerAnalytics(sb: Sb, workspaceId: string, range
     const mod = await import(
       "@/lib/integrations/webespokeEnterprise/wbah-campaign-reporting.server"
     );
-    snapshotCampaigns = await mod.loadWbahCampaignSnapshot(sb);
+    // includeDeleted — calls made by since-deleted campaigns must still
+    // attribute to the campaign that made them, not drift onto a surviving
+    // same-agent campaign (which silently inflates its numbers).
+    snapshotCampaigns = await mod.loadWbahCampaignSnapshot(sb, { includeDeleted: true });
     if (snapshotCampaigns.length > 0) {
       attributeCampaign = (agentId, startedAt) =>
         mod.attributeWbahCampaign(snapshotCampaigns, agentId, startedAt);
@@ -251,7 +254,7 @@ export async function getWbahDiallerAnalytics(sb: Sb, workspaceId: string, range
       if (camp) {
         const entry = (byCampaign[camp.id] ??= {
           id: camp.id,
-          name: camp.name,
+          name: camp.is_deleted ? `${camp.name} (deleted)` : camp.name,
           leadStatus: camp.lead_status ?? null,
           scheduledTime: camp.call_hour != null
             ? `${String(camp.call_hour).padStart(2, "0")}:${String(camp.call_minute ?? 0).padStart(2, "0")}`
@@ -268,6 +271,23 @@ export async function getWbahDiallerAnalytics(sb: Sb, workspaceId: string, range
         else if (s === "neutral") entry.neutral++;
       } else {
         unattributed++;
+        // Count unmatched calls in a visible bucket so the per-campaign table
+        // always sums to the range total (matches the Calls page exactly).
+        const entry = (byCampaign["__unassigned__"] ??= {
+          id: "__unassigned__",
+          name: "Unassigned (agent not linked to a campaign)",
+          leadStatus: null,
+          scheduledTime: null,
+          calls: 0, connected: 0, voicemail: 0, booked: 0,
+          positive: 0, neutral: 0, negative: 0,
+        });
+        entry.calls++;
+        if (conn) entry.connected++;
+        if (vm) entry.voicemail++;
+        if (c.booking_status || c.appointment_date) entry.booked++;
+        if (s === "positive") entry.positive++;
+        else if (s === "negative") entry.negative++;
+        else if (s === "neutral") entry.neutral++;
       }
     }
     if (day) {

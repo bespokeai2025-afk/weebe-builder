@@ -500,8 +500,6 @@ function computeAnalytics(allCalls: any[], includeVoicemails = false) {
  */
 const MAIN_TABS = [
   { key: "overview",    label: "Overview",       icon: LayoutDashboard, feature: "analytics",           filtered: true },
-  // Visible for WBAH too — there it reports the WeeBespoke dialler activity.
-  { key: "campaigns",   label: "Campaigns",      icon: Megaphone,       feature: "analytics_advanced",  filtered: true },
   { key: "agents",      label: "Agents",         icon: Users,           feature: "analytics_advanced",  filtered: true },
   { key: "leadsources", label: "Lead Sources",   icon: Filter,          feature: "analytics_advanced",  filtered: true, campaignStyle: true },
   { key: "calls",       label: "Calls",          icon: PhoneCall,       feature: "analytics" },
@@ -529,7 +527,7 @@ const TAB_GROUPS = [
 type TabGroupKey = typeof TAB_GROUPS[number]["key"];
 
 const GROUP_OF: Record<MainTabKey, TabGroupKey> = {
-  overview: "analytics", campaigns: "analytics", agents: "analytics",
+  overview: "analytics", agents: "analytics",
   leadsources: "analytics", calls: "analytics", sentiment: "analytics",
   workflows: "analytics", followups: "analytics", reports: "analytics",
   aiinsights: "analytics", credits: "analytics",
@@ -541,7 +539,6 @@ const GROUP_OF: Record<MainTabKey, TabGroupKey> = {
  *  selects render, so users never see a filter that silently does nothing. */
 const TAB_FILTER_SUPPORTS: Partial<Record<MainTabKey, { agent?: boolean; campaign?: boolean; source?: boolean }>> = {
   overview:    { agent: true,  campaign: false, source: false },
-  campaigns:   { agent: true,  campaign: true,  source: false },
   agents:      { agent: true,  campaign: false, source: false },
   leadsources: { agent: false, campaign: false, source: false },
   leads:       { agent: false, campaign: false, source: true },
@@ -550,7 +547,8 @@ const TAB_FILTER_SUPPORTS: Partial<Record<MainTabKey, { agent?: boolean; campaig
   workflows:   { agent: false, campaign: false, source: false },
   followups:   { agent: false, campaign: false, source: false },
   financial:   { agent: true,  campaign: false, source: false },
-  reports:     { agent: false, campaign: false, source: false },
+  // Reports now embeds the campaign performance view, which honors these.
+  reports:     { agent: true,  campaign: true,  source: false },
   aiinsights:  { agent: false, campaign: false, source: false },
 };
 
@@ -841,7 +839,6 @@ function AnalyticsPage() {
 
       {/* ── Analytics Centre hub tabs ── */}
       {!activeLocked && mainTab === "overview"    && <OverviewTab    filter={filter} />}
-      {!activeLocked && mainTab === "campaigns"   && <CampaignsTab   filter={filter} />}
       {!activeLocked && mainTab === "agents"      && <AgentsTab      filter={filter} />}
       {!activeLocked && mainTab === "leadsources" && <LeadSourcesTab filter={filter} />}
       {!activeLocked && mainTab === "leads"       && <LeadsTab       filter={filter} />}
@@ -852,13 +849,17 @@ function AnalyticsPage() {
       {!activeLocked && mainTab === "financial"   && <FinancialTab   filter={filter} />}
       {!activeLocked && mainTab === "aiinsights"  && <AiInsightsTab  filter={filter} />}
       {!activeLocked && mainTab === "reports"     && (
-        <ReportsTab
-          filter={filter}
-          canGenerate={has("analytics_campaign_reports")}
-          canSchedule={has("analytics_scheduled_reports")}
-          canEmail={has("automated_report_emails")}
-          isWbah={isWbah}
-        />
+        <>
+          {/* Campaign performance lives inside Reports now (no separate tab). */}
+          <CampaignsTab filter={filter} />
+          <ReportsTab
+            filter={filter}
+            canGenerate={has("analytics_campaign_reports")}
+            canSchedule={has("analytics_scheduled_reports")}
+            canEmail={has("automated_report_emails")}
+            isWbah={isWbah}
+          />
+        </>
       )}
 
       {/* ── CALL ANALYTICS TAB ── */}
