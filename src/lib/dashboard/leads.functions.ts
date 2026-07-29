@@ -2,6 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
+import { retellFetch } from "@/lib/providers/retell/client.server";
 import { cacheWrap, invalidateDashboardCache } from "@/lib/cache/redis.server";
 import { LEAD_STATUS_CATEGORY_MAP } from "@/lib/dashboard/lead-status-categories";
 
@@ -11,27 +12,6 @@ function overviewStatsKey(workspaceId: string, daysSince?: number) {
   return daysSince
     ? `webee:dashboard:${workspaceId}:overview:d${daysSince}`
     : `webee:dashboard:${workspaceId}:overview`;
-}
-
-async function retellFetch<T>(
-  path: string,
-  body: Record<string, unknown>,
-  apiKey?: string,
-): Promise<T> {
-  const key = apiKey ?? process.env.RETELL_API_KEY ?? "";
-  const res = await fetch(`https://api.retellai.com${path}`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${key}`,
-    },
-    body: JSON.stringify(body),
-  });
-  if (!res.ok) {
-    const txt = await res.text().catch(() => "");
-    throw new Error(`Retell ${path} → ${res.status}: ${txt}`);
-  }
-  return res.json() as Promise<T>;
 }
 
 /**
