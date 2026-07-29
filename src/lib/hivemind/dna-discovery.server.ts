@@ -17,14 +17,35 @@ async function gptMini(
   apiKey: string,
   messages: Array<{ role: string; content: string }>,
   maxTokens = 1200,
+  workspaceId?: string,
 ): Promise<string> {
+  const started = Date.now();
+  const { recordAiUsage } = await import("@/lib/ai/usage-ledger.server");
   const res = await fetch("https://api.openai.com/v1/chat/completions", {
     method: "POST",
     headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
     body: JSON.stringify({ model: "gpt-4o-mini", messages, max_tokens: maxTokens, temperature: 0.3 }),
   });
-  if (!res.ok) throw new Error(`OpenAI ${res.status}: ${(await res.text().catch(() => "")).slice(0, 120)}`);
+  if (!res.ok) {
+    const errText = (await res.text().catch(() => "")).slice(0, 120);
+    await recordAiUsage({
+      workspaceId, department: "hivemind", feature: "dna_discovery", provider: "openai",
+      requestedModel: "gpt-4o-mini", endpoint: "/v1/chat/completions",
+      requestId: res.headers.get("x-request-id"), latencyMs: Date.now() - started,
+      status: "failed", errorMessage: `OpenAI ${res.status}: ${errText}`,
+    });
+    throw new Error(`OpenAI ${res.status}: ${errText}`);
+  }
   const j = (await res.json()) as any;
+  await recordAiUsage({
+    workspaceId, department: "hivemind", feature: "dna_discovery", provider: "openai",
+    requestedModel: "gpt-4o-mini", returnedModel: j.model ?? "gpt-4o-mini",
+    endpoint: "/v1/chat/completions", requestId: j.id ?? res.headers.get("x-request-id"),
+    inputTokens: j.usage?.prompt_tokens ?? 0,
+    cachedInputTokens: j.usage?.prompt_tokens_details?.cached_tokens ?? 0,
+    outputTokens: j.usage?.completion_tokens ?? 0,
+    latencyMs: Date.now() - started, status: "success",
+  });
   return (j.choices?.[0]?.message?.content as string) ?? "";
 }
 
@@ -185,6 +206,7 @@ Only include fields with confidence ≥ 20. Empty string for unknown.`;
       { role: "user", content: prompt },
     ],
     2000,
+    workspaceId,
   );
 
   const parsed = parseJson(raw, {});

@@ -8,6 +8,7 @@ import {
   type Provider,
   type ModelId,
 } from "./model-router.shared";
+import { recordAiUsage } from "@/lib/ai/usage-ledger.server";
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -92,6 +93,7 @@ export async function routeGenerate(params: RouteGenerateParams): Promise<RouteG
   let fallbackFrom: string | null = null;
   let finalProvider = targetProvider;
   let finalModel    = targetModel;
+  const startedAt   = Date.now();
 
   // Try primary, then retry once, then fallback
   const tryCall = () => callProvider(targetProvider, targetModel, system, user, maxTokens, settings);
@@ -125,6 +127,13 @@ export async function routeGenerate(params: RouteGenerateParams): Promise<RouteG
         finalProvider = fb.provider;
         finalModel    = fb.model;
       } catch {
+        // Record the fully-failed request (primary + retry + fallback all failed)
+        await recordAiUsage({
+          workspaceId, department: "growthmind", feature: `content:${contentType}`,
+          provider: targetProvider, requestedModel: targetModel,
+          latencyMs: Date.now() - startedAt, status: "failed",
+          errorMessage: primaryErr?.message,
+        });
         throw primaryErr;
       }
     }
@@ -146,6 +155,23 @@ export async function routeGenerate(params: RouteGenerateParams): Promise<RouteG
     fallback_from:      fallbackFrom,
     created_at:         new Date().toISOString(),
   }).then(() => {}).catch(() => {});
+
+  // Platform-wide AI usage ledger (never throws)
+  await recordAiUsage({
+    workspaceId,
+    department:     "growthmind",
+    feature:        `content:${contentType}`,
+    provider:       finalProvider,
+    requestedModel: targetModel,
+    returnedModel:  finalModel,
+    inputTokens,
+    outputTokens,
+    latencyMs:      Date.now() - startedAt,
+    status:         usedFallback ? "fallback" : "success",
+    fallbackUsed:   usedFallback,
+    fallbackFrom,
+    estimatedCostUsd: costUsd,
+  });
 
   return {
     text,

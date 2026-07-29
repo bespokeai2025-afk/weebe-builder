@@ -1187,6 +1187,81 @@ export type Database = {
           },
         ]
       }
+      ai_usage_ledger: {
+        Row: {
+          cached_input_tokens: number
+          created_at: string
+          department: string
+          endpoint: string | null
+          error_message: string | null
+          estimated_cost_usd: number
+          fallback_from: string | null
+          fallback_used: boolean
+          feature: string
+          id: string
+          input_tokens: number
+          latency_ms: number | null
+          output_tokens: number
+          provider: string
+          reasoning_tokens: number
+          request_id: string | null
+          requested_model: string
+          returned_model: string | null
+          routing: Json | null
+          status: string
+          video_seconds: number
+          workspace_id: string | null
+        }
+        Insert: {
+          cached_input_tokens?: number
+          created_at?: string
+          department: string
+          endpoint?: string | null
+          error_message?: string | null
+          estimated_cost_usd?: number
+          fallback_from?: string | null
+          fallback_used?: boolean
+          feature: string
+          id?: string
+          input_tokens?: number
+          latency_ms?: number | null
+          output_tokens?: number
+          provider: string
+          reasoning_tokens?: number
+          request_id?: string | null
+          requested_model: string
+          returned_model?: string | null
+          routing?: Json | null
+          status: string
+          video_seconds?: number
+          workspace_id?: string | null
+        }
+        Update: {
+          cached_input_tokens?: number
+          created_at?: string
+          department?: string
+          endpoint?: string | null
+          error_message?: string | null
+          estimated_cost_usd?: number
+          fallback_from?: string | null
+          fallback_used?: boolean
+          feature?: string
+          id?: string
+          input_tokens?: number
+          latency_ms?: number | null
+          output_tokens?: number
+          provider?: string
+          reasoning_tokens?: number
+          request_id?: string | null
+          requested_model?: string
+          returned_model?: string | null
+          routing?: Json | null
+          status?: string
+          video_seconds?: number
+          workspace_id?: string | null
+        }
+        Relationships: []
+      }
       analytics_report_schedules: {
         Row: {
           created_at: string

@@ -1551,16 +1551,25 @@ export async function runHiveMindToolLoop(args: {
 
   // Streamed round: forwards content deltas, accumulates tool-call deltas.
   const streamRound = async (allowTools: boolean): Promise<{ content: string; toolCalls: any[] }> => {
+    const started = Date.now();
     const res = await fetch("https://api.openai.com/v1/chat/completions", {
       method: "POST",
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
-      body: JSON.stringify({ ...callParams(allowTools), stream: true }),
+      body: JSON.stringify({ ...callParams(allowTools), stream: true, stream_options: { include_usage: true } }),
       signal,
     });
     if (!res.ok || !res.body) {
       const err = await res.text().catch(() => "");
+      const { recordAiUsage } = await import("@/lib/ai/usage-ledger.server");
+      await recordAiUsage({
+        workspaceId, department: "hivemind", feature: "chat", provider: "openai",
+        requestedModel: "gpt-4o-mini", endpoint: "/v1/chat/completions",
+        requestId: res.headers.get("x-request-id"), latencyMs: Date.now() - started,
+        status: "failed", errorMessage: `OpenAI ${res.status}: ${err.slice(0, 200)}`,
+      });
       throw new Error(`OpenAI error: ${err.slice(0, 200)}`);
     }
+    let streamUsage: any = null;
     const reader = res.body.getReader();
     const dec = new TextDecoder();
     let buf = "";
@@ -1578,6 +1587,7 @@ export async function runHiveMindToolLoop(args: {
         if (payload === "[DONE]") continue;
         try {
           const j = JSON.parse(payload);
+          if (j.usage) streamUsage = j.usage;
           const delta = j.choices?.[0]?.delta;
           if (delta?.content) {
             content += delta.content;
@@ -1597,10 +1607,24 @@ export async function runHiveMindToolLoop(args: {
       const t = toolAcc[Number(k)];
       return { id: t.id, type: "function", function: { name: t.name, arguments: t.arguments } };
     });
+    {
+      const { recordAiUsage } = await import("@/lib/ai/usage-ledger.server");
+      await recordAiUsage({
+        workspaceId, department: "hivemind", feature: "chat", provider: "openai",
+        requestedModel: "gpt-4o-mini", returnedModel: "gpt-4o-mini",
+        endpoint: "/v1/chat/completions",
+        inputTokens: streamUsage?.prompt_tokens ?? 0,
+        cachedInputTokens: streamUsage?.prompt_tokens_details?.cached_tokens ?? 0,
+        outputTokens: streamUsage?.completion_tokens ?? 0,
+        latencyMs: Date.now() - started, status: "success",
+      });
+    }
     return { content, toolCalls };
   };
 
   const jsonRound = async (allowTools: boolean): Promise<{ content: string; toolCalls: any[] }> => {
+    const started = Date.now();
+    const { recordAiUsage } = await import("@/lib/ai/usage-ledger.server");
     const res = await fetch("https://api.openai.com/v1/chat/completions", {
       method: "POST",
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
@@ -1609,9 +1633,24 @@ export async function runHiveMindToolLoop(args: {
     });
     if (!res.ok) {
       const err = await res.text();
+      await recordAiUsage({
+        workspaceId, department: "hivemind", feature: "chat", provider: "openai",
+        requestedModel: "gpt-4o-mini", endpoint: "/v1/chat/completions",
+        requestId: res.headers.get("x-request-id"), latencyMs: Date.now() - started,
+        status: "failed", errorMessage: `OpenAI ${res.status}: ${err.slice(0, 200)}`,
+      });
       throw new Error(`OpenAI error: ${err.slice(0, 200)}`);
     }
     const json = (await res.json()) as any;
+    await recordAiUsage({
+      workspaceId, department: "hivemind", feature: "chat", provider: "openai",
+      requestedModel: "gpt-4o-mini", returnedModel: json.model ?? "gpt-4o-mini",
+      endpoint: "/v1/chat/completions", requestId: json.id ?? res.headers.get("x-request-id"),
+      inputTokens: json.usage?.prompt_tokens ?? 0,
+      cachedInputTokens: json.usage?.prompt_tokens_details?.cached_tokens ?? 0,
+      outputTokens: json.usage?.completion_tokens ?? 0,
+      latencyMs: Date.now() - started, status: "success",
+    });
     const msg = json.choices?.[0]?.message;
     return { content: msg?.content ?? "", toolCalls: (msg?.tool_calls as any[]) ?? [] };
   };

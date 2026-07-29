@@ -391,6 +391,8 @@ Rules:
         body.tools = CHAT_TOOL_SCHEMAS;
       }
 
+      const started = Date.now();
+      const { recordAiUsage } = await import("@/lib/ai/usage-ledger.server");
       const res = await fetch("https://api.openai.com/v1/chat/completions", {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
@@ -398,9 +400,24 @@ Rules:
       });
       if (!res.ok) {
         const err = await res.text().catch(() => res.statusText);
+        await recordAiUsage({
+          workspaceId, department: "growthmind", feature: "chat", provider: "openai",
+          requestedModel: "gpt-4o", endpoint: "/v1/chat/completions",
+          requestId: res.headers.get("x-request-id"), latencyMs: Date.now() - started,
+          status: "failed", errorMessage: `OpenAI ${res.status}: ${err.slice(0, 200)}`,
+        });
         throw new Error(`OpenAI error: ${err.slice(0, 200)}`);
       }
       const json = await res.json() as any;
+      await recordAiUsage({
+        workspaceId, department: "growthmind", feature: "chat", provider: "openai",
+        requestedModel: "gpt-4o", returnedModel: json.model ?? "gpt-4o",
+        endpoint: "/v1/chat/completions", requestId: json.id ?? res.headers.get("x-request-id"),
+        inputTokens: json.usage?.prompt_tokens ?? 0,
+        cachedInputTokens: json.usage?.prompt_tokens_details?.cached_tokens ?? 0,
+        outputTokens: json.usage?.completion_tokens ?? 0,
+        latencyMs: Date.now() - started, status: "success",
+      });
       const msg = json.choices?.[0]?.message;
       const toolCalls = msg?.tool_calls as any[] | undefined;
 
@@ -465,6 +482,8 @@ export const getGrowthMindBriefing = createServerFn({ method: "POST" })
 
 Be specific with numbers. Start with "Good ${getTimeOfDay()}!" Keep it under 100 words.`;
 
+    const started = Date.now();
+    const { recordAiUsage } = await import("@/lib/ai/usage-ledger.server");
     const res = await fetch("https://api.openai.com/v1/chat/completions", {
       method: "POST",
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
@@ -479,9 +498,24 @@ Be specific with numbers. Start with "Good ${getTimeOfDay()}!" Keep it under 100
       }),
     });
     if (!res.ok) {
+      await recordAiUsage({
+        workspaceId, department: "growthmind", feature: "briefing", provider: "openai",
+        requestedModel: "gpt-4o", endpoint: "/v1/chat/completions",
+        requestId: res.headers.get("x-request-id"), latencyMs: Date.now() - started,
+        status: "failed", errorMessage: `OpenAI ${res.status}`,
+      });
       return { briefing: `Good ${getTimeOfDay()}! Platform data loaded. Ask me anything about your marketing performance.` };
     }
     const json = await res.json() as any;
+    await recordAiUsage({
+      workspaceId, department: "growthmind", feature: "briefing", provider: "openai",
+      requestedModel: "gpt-4o", returnedModel: json.model ?? "gpt-4o",
+      endpoint: "/v1/chat/completions", requestId: json.id ?? res.headers.get("x-request-id"),
+      inputTokens: json.usage?.prompt_tokens ?? 0,
+      cachedInputTokens: json.usage?.prompt_tokens_details?.cached_tokens ?? 0,
+      outputTokens: json.usage?.completion_tokens ?? 0,
+      latencyMs: Date.now() - started, status: "success",
+    });
     return { briefing: (json.choices?.[0]?.message?.content as string) ?? "" };
   });
 
