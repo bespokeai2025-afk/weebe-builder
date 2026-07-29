@@ -1541,6 +1541,46 @@ export async function runHiveMindToolLoop(args: {
   const MAX_ROUNDS = 4;
   let response = "";
 
+  // ── GPT-5.6 routing (default path) ─────────────────────────────────────────
+  // Classify ONCE per conversation turn from the latest user request, then use
+  // the routed model for every round of the loop. Legacy gpt-4o path retained
+  // behind AI_LEGACY_CHAT_COMPLETIONS=1 as temporary rollback only.
+  const { classifyAiTask, routingLedgerMeta, useLegacyAiPath } = await import("@/lib/ai/task-router.server");
+  const legacyPath = useLegacyAiPath();
+  const lastUserQuery = [...messages].reverse().find((m: any) => m.role === "user")?.content ?? "";
+  const routing = classifyAiTask({
+    query: String(lastUserQuery),
+    toolsAvailable: tools.length > 0,
+    department: "hivemind",
+    feature: "chat",
+  });
+
+  // Responses API round (streaming + non-streaming, tools, fallback chain).
+  const responsesRound = async (allowTools: boolean): Promise<{ content: string; toolCalls: any[] }> => {
+    const { openaiResponsesCall, toResponsesInput } = await import("@/lib/ai/openai-responses.server");
+    const instructions = messages.find((m: any) => m.role === "system")?.content as string | undefined;
+    const input = toResponsesInput(messages.filter((m: any) => m.role !== "system"));
+    const r = await openaiResponsesCall({
+      apiKey,
+      model: routing.model,
+      input,
+      instructions,
+      maxOutputTokens: maxTokens,
+      reasoningEffort: routing.reasoningEffort,
+      tools: allowTools && tools.length ? tools : undefined,
+      usage: { workspaceId, department: "hivemind", feature: "chat" },
+      routing: routingLedgerMeta(routing),
+      onToken,
+      signal,
+    });
+    return {
+      content: r.text,
+      toolCalls: r.toolCalls.map((tc) => ({
+        id: tc.id, type: "function", function: { name: tc.name, arguments: tc.arguments },
+      })),
+    };
+  };
+
   const callParams = (allowTools: boolean) => ({
     model: "gpt-4o-mini",
     messages,
@@ -1657,7 +1697,9 @@ export async function runHiveMindToolLoop(args: {
 
   for (let round = 0; round <= MAX_ROUNDS; round++) {
     const allowTools = round < MAX_ROUNDS;
-    const { content, toolCalls } = onToken ? await streamRound(allowTools) : await jsonRound(allowTools);
+    const { content, toolCalls } = legacyPath
+      ? (onToken ? await streamRound(allowTools) : await jsonRound(allowTools))
+      : await responsesRound(allowTools);
 
     if (!toolCalls.length) {
       response = content || response;

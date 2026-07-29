@@ -315,7 +315,6 @@ async function aiPhraseDraft(sb: Sb, workspaceId: string, draft: ExecRecDraft): 
   const hasKey = !!(process.env.OPENAI_API_KEY || process.env.GEMINI_API_KEY || process.env.ANTHROPIC_API_KEY);
   if (!hasKey) return draft;
   try {
-    const { routeGenerate } = await import("@/lib/growthmind/model-router.server");
     const system =
       "You are an executive analyst. Rewrite the recommendation fields for clarity and business impact. " +
       "STRICT RULES: cite ONLY the numbers given in the evidence metrics — never invent figures. " +
@@ -329,10 +328,36 @@ async function aiPhraseDraft(sb: Sb, workspaceId: string, draft: ExecRecDraft): 
       risk_of_inaction: draft.risk_of_inaction,
       evidence_metrics: draft.evidence.metrics,
     });
-    const res = await routeGenerate({
-      system, user, contentType: "analysis", maxTokens: 700,
-      mode: "smart", settings: {}, workspaceId, sb,
-    });
+    // Lightweight background phrasing job → gpt-5.6-luna via the task router.
+    // Legacy path (flag) keeps the previous GrowthMind smart-router behavior.
+    const { useLegacyAiPath, classifyAiTask, routingLedgerMeta } = await import("@/lib/ai/task-router.server");
+    let res: { text: string };
+    if (!useLegacyAiPath() && process.env.OPENAI_API_KEY) {
+      const { openaiResponsesCall } = await import("@/lib/ai/openai-responses.server");
+      const routing = classifyAiTask({
+        query: "rephrase executive recommendation draft",
+        backgroundJob: true,
+        department: "hivemind",
+        feature: "exec_reasoning_phrasing",
+      });
+      const r = await openaiResponsesCall({
+        apiKey: process.env.OPENAI_API_KEY,
+        model: routing.model,
+        input: [{ role: "user", content: user }],
+        instructions: system,
+        maxOutputTokens: 700,
+        reasoningEffort: routing.reasoningEffort,
+        usage: { workspaceId, department: "hivemind", feature: "exec_reasoning_phrasing" },
+        routing: routingLedgerMeta(routing),
+      });
+      res = { text: r.text };
+    } else {
+      const { routeGenerate } = await import("@/lib/growthmind/model-router.server");
+      res = await routeGenerate({
+        system, user, contentType: "analysis", maxTokens: 700,
+        mode: "smart", settings: {}, workspaceId, sb,
+      });
+    }
     const jsonText = res.text.trim().replace(/^```(?:json)?/i, "").replace(/```$/, "").trim();
     const parsed = JSON.parse(jsonText);
     const candidate: ExecRecDraft = {

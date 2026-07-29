@@ -148,6 +148,7 @@
 - [Data Manager conversion transport](datamanager-conversion-transport.md) — conversions upload via Data Manager API (scope reauth trap, accepted≠verified, legacy only behind flag).
 - [Campaign minutes attribution](campaign-minutes-attribution.md) — calls.agent_id = provider id vs campaigns.agent_id = local uuid; DB-verify webhook metadata.campaign_id; deterministic dedup keys only.
 - [Retell phone-number agent binding](retell-phone-agent-binding.md) — legacy inbound/outbound_agent_id fields 400 since 2026-03; use inbound_agents/outbound_agents arrays; read both shapes.
+- [GPT-5.6 routing upgrade](gpt56-routing-upgrade.md) — Mind AI calls classify via task router → terra/sol/luna Responses API; routing JSONB mandatory; fallback never gpt-4o; legacy behind AI_LEGACY_CHAT_COMPLETIONS=1.
 - [Prod build OOM heap cap](prodbuild-oom-heap.md) — max-old-space-size must stay well under machine RAM or vite SSR build is OOM-killed silently (FAILED, no error, dist/server empty); killing tsserver (~1.7GB) frees enough to build.
 - [HiveMind validated briefing pipeline](hivemind-validated-briefing.md) — one ValidatedBusinessBriefing drives voice+screen; unverified financials never £0; validation failure = explicit degraded state, never silent fallback.
 - [HiveMind streaming pipeline](hivemind-streaming-conversational.md) — all chat surfaces share prepareHiveMindChat+runHiveMindToolLoop; SSE route uses anon-key RLS client (never admin); depth/tone in hivemind-style.shared.ts.

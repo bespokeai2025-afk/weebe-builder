@@ -13,6 +13,30 @@ async function gpt4o(
   maxTokens = 2000,
   workspaceId?: string,
 ): Promise<string> {
+  // ── Default path: GPT-5.6 via Responses API with routing + fallback chain ──
+  // Briefings are executive output → routed to the advanced reasoning model.
+  const { useLegacyAiPath, classifyAiTask, routingLedgerMeta } = await import("@/lib/ai/task-router.server");
+  if (!useLegacyAiPath()) {
+    const { openaiResponsesCall, toResponsesInput } = await import("@/lib/ai/openai-responses.server");
+    const routing = classifyAiTask({
+      query: "comprehensive executive business briefing analysis",
+      department: "hivemind",
+      feature: "briefing",
+    });
+    const instructions = messages.find((m) => m.role === "system")?.content;
+    const r = await openaiResponsesCall({
+      apiKey,
+      model: routing.model,
+      input: toResponsesInput(messages.filter((m) => m.role !== "system")),
+      instructions,
+      maxOutputTokens: maxTokens,
+      reasoningEffort: routing.reasoningEffort,
+      usage: { workspaceId, department: "hivemind", feature: "briefing" },
+      routing: routingLedgerMeta(routing),
+    });
+    return r.text;
+  }
+
   const started = Date.now();
   const { recordAiUsage } = await import("@/lib/ai/usage-ledger.server");
   const res = await fetch("https://api.openai.com/v1/chat/completions", {

@@ -58,7 +58,7 @@ export const getAiUsageDashboard = createServerFn({ method: "POST" })
     for (let page = 0; page < 30; page++) {
       const { data: chunk, error } = await sb
         .from("ai_usage_ledger")
-        .select("created_at, workspace_id, department, feature, provider, requested_model, returned_model, input_tokens, cached_input_tokens, output_tokens, reasoning_tokens, video_seconds, latency_ms, status, fallback_used, fallback_from, error_message, estimated_cost_usd")
+        .select("created_at, workspace_id, department, feature, provider, requested_model, returned_model, input_tokens, cached_input_tokens, output_tokens, reasoning_tokens, video_seconds, latency_ms, status, fallback_used, fallback_from, error_message, estimated_cost_usd, routing")
         .gte("created_at", since)
         .order("created_at", { ascending: false })
         .range(page * 1000, page * 1000 + 999);
@@ -101,6 +101,7 @@ export const getAiUsageDashboard = createServerFn({ method: "POST" })
       failures: rows.filter((r) => r.status === "failed").length,
       fallbacks: rows.filter((r) => r.fallback_used).length,
       costUsd: Math.round(rows.reduce((s, r) => s + num(r.estimated_cost_usd), 0) * 10000) / 10000,
+      failedCostUsd: Math.round(rows.filter((r) => r.status === "failed").reduce((s, r) => s + num(r.estimated_cost_usd), 0) * 10000) / 10000,
       inputTokens: rows.reduce((s, r) => s + num(r.input_tokens), 0),
       outputTokens: rows.reduce((s, r) => s + num(r.output_tokens) + num(r.reasoning_tokens), 0),
       videoSeconds: Math.round(rows.reduce((s, r) => s + num(r.video_seconds), 0) * 100) / 100,
@@ -140,12 +141,27 @@ export const getAiUsageDashboard = createServerFn({ method: "POST" })
       byWorkspace: agg((r) => r.workspace_id ?? "(platform)").slice(0, 25),
       byFeature: agg((r) => `${r.department}/${r.feature}`).slice(0, 25),
       daily,
+      // Routing-class breakdown (GPT-5.6 task router decisions).
+      byTaskClass: agg((r) => (r.routing as any)?.taskClass ?? "(unrouted)"),
       recentFailures: rows
         .filter((r) => r.status === "failed")
         .slice(0, 20)
         .map((r) => ({
           createdAt: r.created_at, department: r.department, feature: r.feature,
           model: r.requested_model, error: r.error_message,
+          routing: (r.routing as any) ?? null,
+        })),
+      // Most recent routed requests — admin inspection of decision/model/reason.
+      recentRouted: rows
+        .filter((r) => r.routing && (r.routing as any).taskClass)
+        .slice(0, 20)
+        .map((r) => ({
+          createdAt: r.created_at, department: r.department, feature: r.feature,
+          requestedModel: r.requested_model, returnedModel: r.returned_model,
+          status: r.status, fallbackUsed: !!r.fallback_used,
+          taskClass: (r.routing as any).taskClass,
+          reasoningEffort: (r.routing as any).reasoningEffort ?? null,
+          reason: (r.routing as any).reason ?? null,
         })),
     };
   });

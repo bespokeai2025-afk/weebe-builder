@@ -31,7 +31,17 @@ export function resolveOpenAiFallbackChain(primaryModel: string): string[] {
   const chain: string[] = [primaryModel];
   const idx = OPENAI_FALLBACK_CHAIN.indexOf(primaryModel);
   const rest = idx >= 0 ? OPENAI_FALLBACK_CHAIN.slice(idx + 1) : OPENAI_FALLBACK_CHAIN.slice(1);
-  if (envFallback && !chain.includes(envFallback)) chain.push(envFallback);
+  // The env override is only honoured if it is a member of the approved
+  // chain — anything else (especially gpt-4o) is rejected loudly.
+  if (envFallback && !chain.includes(envFallback)) {
+    if (OPENAI_FALLBACK_CHAIN.includes(envFallback)) {
+      chain.push(envFallback);
+    } else {
+      console.error(
+        `[model-registry] HIVEMIND_FALLBACK_MODEL="${envFallback}" is not in the approved fallback chain (${OPENAI_FALLBACK_CHAIN.join(" → ")}) — ignored.`,
+      );
+    }
+  }
   for (const m of rest) if (!chain.includes(m)) chain.push(m);
   return chain;
 }

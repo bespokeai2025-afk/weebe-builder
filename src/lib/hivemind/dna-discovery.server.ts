@@ -19,6 +19,30 @@ async function gptMini(
   maxTokens = 1200,
   workspaceId?: string,
 ): Promise<string> {
+  // ── Default path: gpt-5.6-luna (lightweight background) via Responses API ──
+  const { useLegacyAiPath, classifyAiTask, routingLedgerMeta } = await import("@/lib/ai/task-router.server");
+  if (!useLegacyAiPath()) {
+    const { openaiResponsesCall, toResponsesInput } = await import("@/lib/ai/openai-responses.server");
+    const routing = classifyAiTask({
+      query: "business DNA extraction and tagging",
+      backgroundJob: true,
+      department: "hivemind",
+      feature: "dna_discovery",
+    });
+    const instructions = messages.find((m) => m.role === "system")?.content;
+    const r = await openaiResponsesCall({
+      apiKey,
+      model: routing.model,
+      input: toResponsesInput(messages.filter((m) => m.role !== "system")),
+      instructions,
+      maxOutputTokens: maxTokens,
+      reasoningEffort: routing.reasoningEffort,
+      usage: { workspaceId, department: "hivemind", feature: "dna_discovery" },
+      routing: routingLedgerMeta(routing),
+    });
+    return r.text;
+  }
+
   const started = Date.now();
   const { recordAiUsage } = await import("@/lib/ai/usage-ledger.server");
   const res = await fetch("https://api.openai.com/v1/chat/completions", {

@@ -107,6 +107,11 @@ function AiUsagePage() {
           <CardHeader className="pb-2"><CardTitle className="text-sm flex items-center gap-2"><AlertTriangle className="h-4 w-4" /> Failures / Fallbacks</CardTitle></CardHeader>
           <CardContent className="text-lg font-semibold">
             {d ? `${fmtInt(d.totals.failures)} / ${fmtInt(d.totals.fallbacks)}` : "—"}
+            {d && (d.totals as any).failedCostUsd > 0 && (
+              <div className="text-xs font-normal text-muted-foreground mt-1">
+                ${Number((d.totals as any).failedCostUsd).toFixed(4)} spent on failed requests
+              </div>
+            )}
           </CardContent>
         </Card>
       </div>
@@ -199,7 +204,31 @@ function AiUsagePage() {
         <UsageTable title="By department" rows={d?.byDepartment ?? []} loading={usageQ.isLoading} />
         <UsageTable title="By feature" rows={d?.byFeature ?? []} loading={usageQ.isLoading} />
         <UsageTable title="By workspace" rows={d?.byWorkspace ?? []} loading={usageQ.isLoading} />
+        <UsageTable title="By routing class" rows={(d as any)?.byTaskClass ?? []} loading={usageQ.isLoading} />
       </div>
+
+      {/* Recent routed requests */}
+      <Card>
+        <CardHeader><CardTitle className="text-base">Recent routed requests</CardTitle></CardHeader>
+        <CardContent>
+          {!(d as any)?.recentRouted?.length && <p className="text-sm text-muted-foreground">No routed AI requests in the selected window yet.</p>}
+          {!!(d as any)?.recentRouted?.length && (
+            <div className="space-y-2">
+              {(d as any).recentRouted.map((r: any, i: number) => (
+                <div key={i} className="text-xs border rounded p-2">
+                  <span className="font-mono">{new Date(r.createdAt).toLocaleString()}</span>{" · "}
+                  <span className="font-medium">{r.department}/{r.feature}</span>{" · "}
+                  <Badge variant="outline">{r.taskClass}</Badge>{" "}
+                  {r.reasoningEffort && <Badge variant="outline">reasoning: {r.reasoningEffort}</Badge>}{" "}
+                  {r.fallbackUsed && <Badge variant="destructive">fallback</Badge>}
+                  <div className="font-mono mt-1">{r.requestedModel} → {r.returnedModel ?? "(failed)"} · {r.status}</div>
+                  {r.reason && <div className="text-muted-foreground mt-1">{r.reason}</div>}
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       {/* Recent failures */}
       <Card>
