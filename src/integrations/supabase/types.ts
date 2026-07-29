@@ -9743,6 +9743,126 @@ export type Database = {
           },
         ]
       }
+      growthmind_video_jobs: {
+        Row: {
+          actual_cost_usd: number | null
+          approval_consumed_at: string | null
+          approval_required: boolean
+          approved_at: string | null
+          approved_by: string | null
+          aspect_ratio: string
+          asset_id: string | null
+          brand_context: Json | null
+          campaign_id: string | null
+          claimed_at: string | null
+          completed_at: string | null
+          created_at: string
+          duration_seconds: number
+          estimated_cost_usd: number
+          failure_reason: string | null
+          generate_audio: boolean
+          generation_type: string
+          id: string
+          last_frame_image_url: string | null
+          model: string
+          output_storage_path: string | null
+          output_url: string | null
+          plan: Json | null
+          poll_count: number
+          prompt: string
+          prompt_version: number
+          provider: string
+          provider_operation_id: string | null
+          quality_tier: string
+          reference_image_url: string | null
+          resolution: string
+          status: string
+          submitted_at: string | null
+          updated_at: string
+          user_id: string | null
+          variations: number
+          workspace_id: string
+        }
+        Insert: {
+          actual_cost_usd?: number | null
+          approval_consumed_at?: string | null
+          approval_required?: boolean
+          approved_at?: string | null
+          approved_by?: string | null
+          aspect_ratio?: string
+          asset_id?: string | null
+          brand_context?: Json | null
+          campaign_id?: string | null
+          claimed_at?: string | null
+          completed_at?: string | null
+          created_at?: string
+          duration_seconds?: number
+          estimated_cost_usd?: number
+          failure_reason?: string | null
+          generate_audio?: boolean
+          generation_type?: string
+          id?: string
+          last_frame_image_url?: string | null
+          model?: string
+          output_storage_path?: string | null
+          output_url?: string | null
+          plan?: Json | null
+          poll_count?: number
+          prompt?: string
+          prompt_version?: number
+          provider?: string
+          provider_operation_id?: string | null
+          quality_tier?: string
+          reference_image_url?: string | null
+          resolution?: string
+          status?: string
+          submitted_at?: string | null
+          updated_at?: string
+          user_id?: string | null
+          variations?: number
+          workspace_id: string
+        }
+        Update: {
+          actual_cost_usd?: number | null
+          approval_consumed_at?: string | null
+          approval_required?: boolean
+          approved_at?: string | null
+          approved_by?: string | null
+          aspect_ratio?: string
+          asset_id?: string | null
+          brand_context?: Json | null
+          campaign_id?: string | null
+          claimed_at?: string | null
+          completed_at?: string | null
+          created_at?: string
+          duration_seconds?: number
+          estimated_cost_usd?: number
+          failure_reason?: string | null
+          generate_audio?: boolean
+          generation_type?: string
+          id?: string
+          last_frame_image_url?: string | null
+          model?: string
+          output_storage_path?: string | null
+          output_url?: string | null
+          plan?: Json | null
+          poll_count?: number
+          prompt?: string
+          prompt_version?: number
+          provider?: string
+          provider_operation_id?: string | null
+          quality_tier?: string
+          reference_image_url?: string | null
+          resolution?: string
+          status?: string
+          submitted_at?: string | null
+          updated_at?: string
+          user_id?: string | null
+          variations?: number
+          workspace_id?: string
+        }
+        Relationships: []
+      }
       growthmind_video_performance: {
         Row: {
           appointments: number
