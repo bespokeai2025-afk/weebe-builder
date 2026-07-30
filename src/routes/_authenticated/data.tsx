@@ -1804,13 +1804,13 @@ function DataPage() {
       name,
       summary: inlineSummary,
       transcript: r.transcript ?? null,
-      loading: !r.transcript && !!callId,
+      loading: !(r.transcript && String(r.transcript).trim()) && (!!callId || !!r.hasTranscript),
       callId: callId || undefined,
       callRow: { ...r, ...wbahCallDetailFromRow(r) },
       polling: false,
     });
 
-    if (r.transcript || !callId) return;
+    if (!callId || (r.transcript && String(r.transcript).trim())) return;
 
     try {
       const d = (await getWbahCallDetailFn({ data: { id: callId } })) as Record<string, unknown>;
@@ -2974,7 +2974,10 @@ function DataPage() {
                               )}
                             </td>
                             <td className="px-2 py-0.5">
-                              {r.transcript || r.hasTranscript || r.callSummary ? (
+                              {r.transcript ||
+                              r.hasTranscript ||
+                              r.callSummary ||
+                              (isCalls && String(r.id ?? "").startsWith("call_")) ? (
                                 <button
                                   onClick={() => openWbahCallDetail(r)}
                                   className="inline-flex items-center gap-1 rounded-md bg-muted/60 px-2 py-1 text-[10px] font-medium text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
