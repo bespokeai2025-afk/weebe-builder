@@ -2065,7 +2065,9 @@ async function readWbahCallsRows(supabase: any, workspaceId: string, opts?: { li
     // In lite mode the transcript text is dropped from the payload; the client
     // fetches it on demand. `hasTranscript` still drives the "View" button.
     transcript: lite ? null : r.transcript,
-    hasTranscript: !!(r.transcript && String(r.transcript).trim()),
+    hasTranscript:
+      !!(r.transcript && String(r.transcript).trim()) ||
+      (String(r.id).startsWith("call_") && r.call_status !== "ongoing"),
     call_summary: lite
       ? r.call_summary && String(r.call_summary).trim()
         ? String(r.call_summary).trim()
@@ -2119,7 +2121,7 @@ export const listWbahCallsLive = createServerFn({ method: "GET" })
     } catch (e: any) {
       console.warn("[listWbahCallsLive] appointment backfill:", e?.message ?? e);
     }
-    return cacheWrap(`webee:wbah-calls-live-lite:v3:${workspaceId}`, 120, async () => {
+    return cacheWrap(`webee:wbah-calls-live-lite:v4:${workspaceId}`, 120, async () => {
       const rows = await readWbahCallsRows(supabase, workspaceId, { lite: true });
       logWbahResponse("listWbahCallsLive", workspaceId, rows.length, rows);
       return rows;

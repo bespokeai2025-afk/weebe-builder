@@ -81,6 +81,15 @@ function fmtWbahSentiment(c: Record<string, unknown>): string {
   return s.charAt(0).toUpperCase() + s.slice(1);
 }
 
+/** Retell call rows load transcript on demand — show button even when list omits text. */
+function wbahTranscriptLoadable(c: Record<string, unknown>): boolean {
+  const text = c.transcript ? String(c.transcript).trim() : "";
+  if (text && !/^n\/a$/i.test(text)) return true;
+  if (c.hasTranscript) return true;
+  const id = String(c.id ?? "");
+  return id.startsWith("call_") && c.call_status !== "ongoing";
+}
+
 function sentimentClass(v?: string | null) {
   if (v === "positive") return "bg-emerald-500/15 text-emerald-400";
   if (v === "negative") return "bg-destructive/15 text-destructive";
@@ -498,8 +507,12 @@ function CallsPage() {
       (c?.call_summary && String(c.call_summary).trim()) ||
       (c?.callSummary && String(c.callSummary).trim()) ||
       null;
-    if (c?.transcript) {
-      setWbahTranscript({ text: c.transcript, name, summary: inlineSummary });
+    const inlineTranscript =
+      c?.transcript && String(c.transcript).trim() && !/^n\/a$/i.test(String(c.transcript).trim())
+        ? String(c.transcript).trim()
+        : null;
+    if (inlineTranscript) {
+      setWbahTranscript({ text: inlineTranscript, name, summary: inlineSummary });
       return;
     }
     if (!c?.id) return;
@@ -974,9 +987,9 @@ function CallsPage() {
                             <SummaryTooltip text={c.call_summary} lines={2} />
                           </td>
                           <td className="px-2 py-0.5" onClick={(e) => e.stopPropagation()}>
-                            {(c.transcript || c.hasTranscript)
+                            {wbahTranscriptLoadable(c)
                               ? <button onClick={() => openWbahTranscript(c, name)} className="inline-flex items-center gap-1 text-[11px] rounded bg-primary/20 text-primary px-2 py-0.5 hover:bg-primary/30 whitespace-nowrap font-medium">Transcript</button>
-                              : <span className="text-[11px] text-muted-foreground">N/A</span>}
+                              : <span className="text-[11px] text-muted-foreground">—</span>}
                           </td>
                           <td className="px-2 py-0.5" onClick={(e) => e.stopPropagation()}>
                             <button onClick={() => openPanel(c)} className="inline-flex items-center gap-1 text-[11px] rounded border border-white/20 px-2 py-0.5 text-muted-foreground hover:text-foreground hover:border-white/40 whitespace-nowrap transition-colors">View</button>
@@ -1067,7 +1080,7 @@ function CallsPage() {
                                 : <span className="text-[11px] text-muted-foreground">—</span>}
                             </td>
                             <td className="px-2 py-0.5" onClick={(e) => e.stopPropagation()}>
-                              {(c.transcript || c.hasTranscript)
+                              {wbahTranscriptLoadable(c)
                                 ? <button onClick={() => openWbahTranscript(c, contact)} className="inline-flex items-center gap-1 text-[11px] rounded bg-primary/20 text-primary px-2 py-0.5 hover:bg-primary/30 whitespace-nowrap font-medium">Transcript</button>
                                 : <span className="text-[11px] text-muted-foreground">—</span>}
                             </td>
