@@ -519,12 +519,12 @@ function SummaryPrefTile({
 function ModalShell({ title, onClose, children }: { title: string; onClose: () => void; children: React.ReactNode }) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={onClose}>
-      <div className="w-full max-w-lg rounded-2xl border border-white/[0.1] bg-popover p-5 shadow-2xl" onClick={(e) => e.stopPropagation()}>
-        <div className="mb-4 flex items-center justify-between">
+      <div className="flex max-h-[85dvh] w-full max-w-lg flex-col rounded-2xl border border-white/[0.1] bg-popover p-5 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+        <div className="mb-4 flex shrink-0 items-center justify-between">
           <h3 className="text-base font-semibold">{title}</h3>
           <button onClick={onClose} className="text-muted-foreground hover:text-foreground"><X className="h-4 w-4" /></button>
         </div>
-        {children}
+        <div className="min-h-0 flex-1 overflow-y-auto pr-1">{children}</div>
       </div>
     </div>
   );
