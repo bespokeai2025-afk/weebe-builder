@@ -47,8 +47,7 @@
 - [Service-role KB-context IDOR](service-role-kb-context-idor.md) — supabaseAdmin bypasses RLS; client-supplied "specific KB" context reads in Image/Video Studio must `.eq(workspace_id)` or a foreign KB id leaks another tenant's docs.
 - [Prod login outage](prod-login-supabase-outage.md) — PGRST002/503 or CF 522 = Supabase project down (not code); restart via Mgmt API POST /projects/{ref}/restart; Live Calls "reconnecting…" is same outage signal.
 - [WBAH pipeline derivation](wbah-pipeline-derivation.md) — WBAH cards derive from wbah_calls (positive=qualified); stage-move writeback is a no-op (card id is wbah_calls.id, mutation writes leads).
-- [data_records list perf & bloat](data-records-list-perf.md) — Records tab hung at "Loading 99%" for WBAH (~750k rows): missing (workspace_id,is_deleted,updated_at) index → sort timeout; bloat from 1000-cap dedup in import/sync.
-- [Data Records tab = CSV-only](data-records-csv-only.md) — Records tab shows only source='csv'; csvOnly param Records-tab-only; needs (ws,is_deleted,source,updated_at) index + csvOnly in prefetch filter key.
+- [data_records list perf, bloat & CSV-only tab](data-records-list-perf.md) — WBAH sort timeout needs (ws,is_deleted,source,updated_at) index; Records tab shows only source='csv' (data-records-csv-only.md).
 - [Live in-call transcript source](live-call-transcript-source.md) — managed agents stream transcript only via transcript_updated webhook; snapshot table; guard ended-session resurrection.
 - [External-agent live ingest](external-agent-live-ingest.md) — live-transcript chain = Retell webhook + n8n forward + in-code allow-map; prod must REPUBLISH to add agents.
 - [SystemMind Deployment Planner & Intelligence](systemmind-deployment-planner.md) — plan-only; planner MUST consult knowledge graph; AI template IDs whitelisted; graph in systemmind-knowledge-graph.md.
@@ -69,8 +68,7 @@
 - [Cursor repo sync procedure](cursor-repo-snapshot-sync.md) — user pushes from Cursor to weebe-builder repo; diff trees first, sync only deltas, never hard reset; repo lockfile can be stale.
 - [Prod has no IPv6 ingress](prod-no-ipv6-ingress.md) — webeereceptionist.com/webespokeai.com are AAAA-less; backend sees clients' IPv4 in x-forwarded-for even for IPv6 users; allowlist the real IPv4, not a guessed /64.
 - [Live "AI energy" plasma orb technique](ava-live-orb-plasma.md) — no anim libs installed; use SVG feTurbulence+feDisplacement; CSS can't stop SMIL — conditionally render <animate>.
-- [Retell /list-agents duplicate agent_ids](retell-list-agents-duplicate-ids.md) — one row per published version; dedupe by agent_id AND collapse per local row id (prefer deployed match).
-- [Retell CF dangling edges & DB resync](retell-cf-dangling-edges-and-db-resync.md) — edit live CF via REST PATCH+GET; dangling edges silently stall calls; importAgentJson resyncs DB from live truth.
+- [Retell agent list & CF resync quirks](retell-list-agents-duplicate-ids.md) — dedupe agent_id per published version; dangling CF edges silently stall calls, importAgentJson resyncs DB (retell-cf-dangling-edges-and-db-resync.md).
 - [Lead auto-call automation + bulk remove](lead-auto-call-and-bulk-remove.md) — one call-recipe shared by auto/manual/scheduled; 3/day cap is a rate limit not a dedupe lock; v1 API SUPABASE_URL needs VITE_ fallback.
 - [Business DNA KB upload wiring](business-dna-kb-upload.md) — KB uploads on Business DNA pages target executive's own KB slug (e.g. growthmind); reuse pattern for any future "upload docs to inform X" feature.
 - [Lead email automation](lead-email-automation.md) — shared send-to-lead path (Resend-only, no separate Outlook adapter); preferred_contact fallback-key convention; auto-send once-per-lead unique index.
@@ -89,8 +87,7 @@
 - [Supabase types regeneration](supabase-typegen-refresh.md) — Mgmt API /types/typescript endpoint; repo never typechecks clean, so diff errors vs a baseline instead of expecting zero.
 - [Build Workspace test-call gate](build-workspace-testcall-gate.md) — PASSED real test call required before Go Live (systemmind_test_calls only); apply protection/snapshots + real-FK fixture trap in build-workspace-apply-protection.md.
 - [SystemMind Legacy Logic Converter](legacy-conversion-arch.md) — legacy sources → Build Workspace DRAFTS; never-overwrite, cred-scrub, WBAH blocked; workspace_workflows has status not is_active.
-- [SystemMind Deployment Orchestrator](deployment-orchestrator-arch.md) — live-recomputed 14-item checklist; atomic single-use approvals w/ post-consume re-validation; reuses manual deploy services.
-- [SystemMind Requirements assistant](systemmind-requirements-assistant.md) — gap-driven interview; deterministic generator, AI only on re-prompt; drafts-until-approval, paused campaigns, WBAH blocked on all entry points.
+- [SystemMind Deploy Orchestrator & Requirements](deployment-orchestrator-arch.md) — live 14-item checklist, atomic single-use approvals; gap-driven interview, drafts-until-approval, WBAH blocked (systemmind-requirements-assistant.md).
 - [SystemMind Build embedded launcher](smbw-embedded-launcher.md) — Builder dock→drawer handoff: reset launcher state on agent switch, gate create on sessions-list load, prompt latch resets on null.
 - [Page Saved Filters + Campaign Auto-Reports](page-filters-campaign-reports.md) — one registry-driven filter engine for 9 pages; report kinds + closed campaign_fix schedule-only whitelist; WBAH excluded everywhere.
 - [People Views filter engine](people-views-filter-engine.md) — registry keys not columns; quotePgrstListValue for not_in_list; leads HAS a workspaces FK (e2e needs fixture); vite-config-loaded modules can't use @/ imports.
@@ -99,9 +96,8 @@
 - [Package access & staff seats](package-access-entitlements.md) — role ∩ package cap ∩ override; catalog = code + package_definitions overlays; requireAction is package-aware (access-enforcement-arch.md).
 - [SystemMind Build Console](systemmind-build-console.md) — one tabbed console at /systemmind/build replaced 5 Improve pages; console owns `tab`, wf sub-tab is `wfTab`; setup-success learning hook on activation.
 - [WBAH campaign run reporting](wbah-campaign-run-reporting.md) — snapshot refresh only on page reads; attribution = agent + latest London slot; load snapshot includeDeleted + bound run-KPI fetches by window end.
-- [AccountsMind invoice generator](accountsmind-invoice-generator.md) — docxtemplater; number reserve = insert-first + 23505 retry; status rules in accountsmind-invoice-status.md; ledger in accountsmind-invoice-suite.md.
+- [AccountsMind invoices & presets](accountsmind-invoice-generator.md) — insert-first number reserve; status/ledger in accountsmind-invoice-status.md/-suite.md; presets via versionedInsertConfigRow (accountsmind-industry-presets.md).
 - [Analytics row cap + stale chunk reload](analytics-hub-row-cap.md) — analytics totals must page past PostgREST's 1000-row cap; root-level vite:preloadError reload guard fixes post-republish dead routes.
-- [AccountsMind industry presets](accountsmind-industry-presets.md) — workspace_settings.industry + code-owned non-sensitive presets; apply replaces via versionedInsertConfigRow chain, owner/admin gate via resolvePermissions.
 - [Reseller & white-label hierarchy](reseller-whitelabel-hierarchy.md) — parent/child workspaces; capacity = maxChildAccounts + addon (fail closed); children never inherit reseller powers; legacy_full excludes new keys.
 - [Workspace email provider dispatch](workspace-email-provider-dispatch.md) — all workspace email via sendWorkspaceEmail (own custom → reseller parent → platform); never-throw, fallback, alert at 3 fails.
 - [Notification prefs & package caps](notification-prefs-packages.md) — new event keys need BOTH shared catalog + DB check-constraint migration; caps fail closed; defaults seed insert-only.
@@ -148,13 +144,12 @@
 - [Veo 3.1 cost-approval pipeline](veo31-cost-approval-pipeline.md) — atomic approval consume, never auto-retry paid work, terminal-CAS-before-ledger rule; Google Veo access 403-blocked since June 16.
 - [Duplicate retellFetch helper trap](retell-fetch-duplicate-helper-trap.md) — file-local 3-arg retellFetch + shared 4-arg call form sent "POST" as the API key → 401; always import the shared client.
 - [WBAH test-campaign exclusion](wbah-test-campaign-exclusion.md) — isWbahTestCampaign is the sole classifier (deleted + test-lead/test-name); deleted REAL campaigns keep attributing; campaign_id backfilled via one-slot-window rule.
-- [Retell v3 list omits transcripts](retell-v3-list-no-transcripts.md) — v3/list-calls has NO transcript fields; syncs need per-call get-call enrichment + preserve transcript on upsert; ~30% missing is normal baseline.
+- [Retell v3 list API migration & transcripts](retell-list-api-v3-migration.md) — use list.server.ts helpers; v3 list has NO transcript fields → per-call enrichment + preserve-on-upsert (retell-v3-list-no-transcripts.md).
 - [Prod build OOM heap cap](prodbuild-oom-heap.md) — max-old-space-size must stay well under machine RAM or vite SSR build is OOM-killed silently (FAILED, no error, dist/server empty); stop the dev server workflow before building.
 - [HiveMind validated briefing pipeline](hivemind-validated-briefing.md) — one ValidatedBusinessBriefing drives voice+screen; unverified financials never £0; validation failure = explicit degraded state, never silent fallback.
 - [HiveMind streaming pipeline](hivemind-streaming-conversational.md) — all chat surfaces share prepareHiveMindChat+runHiveMindToolLoop; SSE route uses anon-key RLS client (never admin); depth/tone in hivemind-style.shared.ts.
 - [Conversion tracking & Ads attribution](conversion-tracking-arch.md) — server-side conversion_events ledger, gated offline upload, honest statuses; contact form's users-embed lookup silently skipped lead creation for months.
 - [GAds deep-analysis reports](gads-deep-analysis-arch.md) — read-only GAQL deep fetch + deterministic classification + advisory-only AI sections persisted to growthmind_gads_analysis_reports; viewer on work-order page.
-- [Retell list-API v2/v3 migration](retell-list-api-v3-migration.md) — deprecated list endpoints gone; use list.server.ts helpers; predicate filter grammar; cursor-recycle paging quirk.
 - [AI model registry + usage ledger](ai-model-registry-ledger.md) — resolve models via registry (never hardcode), ledger every AI call via recordAiUsage, fallback chain never gpt-4o.
 - [WBAH provider reconciliation](wbah-provider-reconciliation.md) — "missing minutes" = hidden deleted campaigns; combined_cost is USD cents; live Retell recon with calls×0.5s tolerance; backfill in ≤7d chunks.
 - [Provider cost client scrub](provider-cost-client-scrub.md) — Retell USD cost fields never reach client surfaces; strip server-side (fail-closed admin check); clients only see £0.36/min usage charge.
