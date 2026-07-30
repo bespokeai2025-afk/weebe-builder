@@ -2285,7 +2285,9 @@ export const listWbahCallsPaged = createServerFn({ method: "POST" })
           r.call_summary && String(r.call_summary).trim()
             ? String(r.call_summary).trim()
             : null,
-        hasTranscript: !!(r.transcript && String(r.transcript).trim()),
+        hasTranscript:
+          !!(r.transcript && String(r.transcript).trim()) ||
+          (String(r.id).startsWith("call_") && r.call_status !== "ongoing"),
       }));
 
       const enriched = await enrichWbahCallRowsWithBookings(supabaseAdmin, workspaceId, mapped);
@@ -2373,6 +2375,7 @@ export const getWbahCallDetail = createServerFn({ method: "POST" })
     if (error) throw new Error(error.message);
 
     let postCall: Record<string, unknown> = {};
+    let transcript = row?.transcript ? String(row.transcript).trim() : null;
     const meta = (row?.meta ?? {}) as Record<string, unknown>;
     if (meta.custom_analysis && typeof meta.custom_analysis === "object") {
       postCall = { ...postCall, ...(meta.custom_analysis as Record<string, unknown>) };
@@ -2380,16 +2383,39 @@ export const getWbahCallDetail = createServerFn({ method: "POST" })
     if (meta.dynamic_variables && typeof meta.dynamic_variables === "object") {
       postCall = { ...postCall, ...(meta.dynamic_variables as Record<string, unknown>) };
     }
-    if (!Object.keys(postCall).length && String(data.id).startsWith("call_")) {
+
+    const callIdForRetell = String(row?.id ?? data.id);
+    if (
+      callIdForRetell.startsWith("call_") &&
+      (!transcript || !Object.keys(postCall).length)
+    ) {
       try {
         const { retellFetch } = await import("@/lib/providers/retell/client.server");
         const apiKey = await requireWbahRetellKey(context.userId);
         const retellCall = await retellFetch<Record<string, unknown>>(
-          `/v2/get-call/${data.id}`,
+          `/v2/get-call/${callIdForRetell}`,
           null,
           "GET",
           apiKey,
         );
+        if (!transcript) {
+          const fromText =
+            typeof retellCall?.transcript === "string" ? retellCall.transcript.trim() : "";
+          const fromObj = Array.isArray(retellCall?.transcript_object)
+            ? (retellCall.transcript_object as Array<{ role?: string; content?: string }>)
+                .filter((t) => (t.role === "agent" || t.role === "user") && t.content)
+                .map((t) => `${t.role}: ${t.content}`)
+                .join("\n")
+            : "";
+          transcript = fromText || fromObj || transcript;
+          if (transcript) {
+            void sb
+              .from("wbah_calls")
+              .update({ transcript, synced_at: new Date().toISOString() })
+              .eq("workspace_id", workspaceId)
+              .eq("id", callIdForRetell);
+          }
+        }
         const custom = (retellCall?.call_analysis as Record<string, unknown> | undefined)
           ?.custom_analysis_data;
         const dv =
@@ -2402,8 +2428,11 @@ export const getWbahCallDetail = createServerFn({ method: "POST" })
         if (dv && typeof dv === "object") {
           postCall = { ...postCall, ...(dv as Record<string, unknown>) };
         }
-      } catch {
-        /* Retell optional — DB/meta may already have post-call fields after next sync */
+      } catch (err) {
+        console.warn(
+          "[getWbahCallDetail] Retell transcript fallback failed:",
+          (err as Error).message ?? err,
+        );
       }
     }
 
@@ -2415,7 +2444,7 @@ export const getWbahCallDetail = createServerFn({ method: "POST" })
 
     return {
       id: data.id,
-      transcript: row?.transcript ?? null,
+      transcript: transcript?.trim() ? transcript : null,
       callSummary: row?.call_summary ?? null,
       recordingUrl: row?.recording_url ?? null,
       sentiment: row?.sentiment ?? null,
