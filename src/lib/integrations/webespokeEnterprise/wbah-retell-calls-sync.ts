@@ -113,14 +113,17 @@ async function getWbahRetellKey(sb: Sb): Promise<{ workspaceId: string; apiKey: 
   return { workspaceId: ws.id as string, apiKey };
 }
 
-const BOOKING_PRESERVE = ["appointment_date", "appointment_time", "booking_status", "calendly_booking_url"] as const;
+// transcript is preserved too: Retell's v3/list-calls (July 2026) no longer
+// returns transcript/transcript_object, so re-upserts would otherwise wipe
+// transcripts previously fetched via GET /v2/get-call.
+const BOOKING_PRESERVE = ["appointment_date", "appointment_time", "booking_status", "calendly_booking_url", "transcript"] as const;
 
 async function upsertRows(sb: Sb, rows: any[]): Promise<void> {
   if (rows.length === 0) return;
   const ids = rows.map((r) => r.id);
   const { data: existing } = await (sb as any)
     .from("wbah_calls")
-    .select("id, appointment_date, appointment_time, booking_status, calendly_booking_url")
+    .select("id, appointment_date, appointment_time, booking_status, calendly_booking_url, transcript")
     .eq("workspace_id", rows[0].workspace_id)
     .in("id", ids);
   const byId = new Map<string, any>(((existing ?? []) as any[]).map((e) => [String(e.id), e]));
@@ -143,6 +146,83 @@ async function upsertRows(sb: Sb, rows: any[]): Promise<void> {
     const { error } = await (sb as any).from("wbah_calls").upsert(merged.slice(i, i + 200), { onConflict: "id" });
     if (error) console.error("[wbah-retell-calls] upsert error:", error.message);
   }
+}
+
+/**
+ * Retell's v3/list-calls stopped returning transcript/transcript_object
+ * (July 2026 list-API migration) — transcripts are only available per-call via
+ * GET /v2/get-call. Enrich stored rows that are missing transcripts.
+ * Bounded (maxCalls) and gently paced so incremental syncs stay fast.
+ */
+async function enrichMissingTranscripts(
+  sb: Sb,
+  apiKey: string,
+  workspaceId: string,
+  candidateIds: string[],
+  maxCalls: number,
+): Promise<number> {
+  if (candidateIds.length === 0 || maxCalls <= 0) return 0;
+  const uniqueIds = [...new Set(candidateIds)];
+
+  // Only fetch for rows still missing a transcript (batched .in() reads).
+  const missing: string[] = [];
+  for (let i = 0; i < uniqueIds.length && missing.length < maxCalls; i += 200) {
+    const batch = uniqueIds.slice(i, i + 200);
+    const { data } = await (sb as any)
+      .from("wbah_calls")
+      .select("id, transcript")
+      .eq("workspace_id", workspaceId)
+      .in("id", batch);
+    for (const r of (data ?? []) as any[]) {
+      if (r.transcript == null || String(r.transcript).trim() === "") missing.push(String(r.id));
+      if (missing.length >= maxCalls) break;
+    }
+  }
+  if (missing.length === 0) return 0;
+
+  let enriched = 0;
+  const failures: Record<string, number> = {};
+  const bumpFail = (k: string) => { failures[k] = (failures[k] ?? 0) + 1; };
+  const CONCURRENCY = 4;
+  for (let i = 0; i < missing.length; i += CONCURRENCY) {
+    const batch = missing.slice(i, i + CONCURRENCY);
+    await Promise.all(batch.map(async (callId) => {
+      try {
+        let res = await fetch(`https://api.retellai.com/v2/get-call/${callId}`, {
+          headers: { Authorization: `Bearer ${apiKey}` },
+        });
+        if (res.status === 429 || res.status >= 500) {
+          await new Promise((r) => setTimeout(r, 2000));
+          res = await fetch(`https://api.retellai.com/v2/get-call/${callId}`, {
+            headers: { Authorization: `Bearer ${apiKey}` },
+          });
+        }
+        if (!res.ok) { bumpFail(res.status === 429 ? "429" : res.status >= 500 ? "5xx" : "4xx"); return; }
+        const c: any = await res.json();
+        const transcript =
+          typeof c.transcript === "string" && c.transcript.trim()
+            ? c.transcript
+            : Array.isArray(c.transcript_object)
+              ? c.transcript_object.map((t: any) => `${t.role}: ${t.content}`).join("\n")
+              : null;
+        if (!transcript) return;
+        const { error } = await (sb as any)
+          .from("wbah_calls")
+          .update({ transcript })
+          .eq("workspace_id", workspaceId)
+          .eq("id", callId);
+        if (error) bumpFail("db"); else enriched++;
+      } catch (e: any) {
+        bumpFail("exception");
+        console.warn(`[wbah-retell-calls] transcript enrich failed for ${callId}: ${e?.message}`);
+      }
+    }));
+    if (i + CONCURRENCY < missing.length) await new Promise((r) => setTimeout(r, 150));
+  }
+  if (Object.keys(failures).length > 0) {
+    console.warn(`[wbah-retell-calls] transcript enrich failures: ${JSON.stringify(failures)} (attempted=${missing.length}, enriched=${enriched})`);
+  }
+  return enriched;
 }
 
 /**
@@ -181,6 +261,7 @@ export async function refreshWbahCallsFromRetell(opts?: { full?: boolean; maxPag
     let synced = 0;
     let pages = 0;
     let caughtUp = false;
+    const enrichCandidates: string[] = [];
     let paginationKey: string | undefined;
     const PAGE = 1000;
 
@@ -212,6 +293,12 @@ export async function refreshWbahCallsFromRetell(opts?: { full?: boolean; maxPag
         })
         .filter(Boolean) as any[];
 
+      // v3/list-calls no longer includes transcripts; queue ended calls for
+      // per-call transcript enrichment after the paging loop.
+      for (const r of rows) {
+        if (r.call_status !== "ongoing") enrichCandidates.push(String(r.id));
+      }
+
       // Incremental: stop once every id on this page is already stored.
       if (!full && rows.length > 0) {
         const ids = rows.map((r) => r.id);
@@ -232,7 +319,15 @@ export async function refreshWbahCallsFromRetell(opts?: { full?: boolean; maxPag
     }
 
     _lastRunAt = Date.now();
-    console.log(`[wbah-retell-calls] synced=${synced} pages=${pages} caughtUp=${caughtUp} full=${full}`);
+
+    let enriched = 0;
+    try {
+      enriched = await enrichMissingTranscripts(sb, apiKey, workspaceId, enrichCandidates, full ? 2000 : 300);
+    } catch (e: any) {
+      console.warn(`[wbah-retell-calls] transcript enrichment pass failed: ${e?.message}`);
+    }
+
+    console.log(`[wbah-retell-calls] synced=${synced} pages=${pages} caughtUp=${caughtUp} full=${full} transcriptsEnriched=${enriched}`);
     return { synced, pages, caughtUp };
   })();
 
