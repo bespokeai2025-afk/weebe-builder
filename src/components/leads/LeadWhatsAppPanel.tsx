@@ -3,6 +3,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Loader2, MessageCircle, Send } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { RelativeTime } from "@/components/ui/relative-time";
 import {
@@ -18,19 +19,14 @@ import { checkWebuyanyhouseWorkspace } from "@/lib/integrations/webespokeEnterpr
 import {
   defaultWatiTemplateParamMapping,
   extractWatiTemplateParamSlots,
+  WATI_TEMPLATE_PARAM_FIELD_OPTIONS,
+  encodeLiteralTemplateField,
+  isLiteralTemplateField,
+  literalTemplateFieldText,
 } from "@/lib/whatsapp/wati-template-params.shared";
 import { toast } from "sonner";
 
-const LEAD_PARAM_FIELDS: Array<{ value: string; label: string }> = [
-  { value: "full_name", label: "Full Name" },
-  { value: "phone", label: "Phone" },
-  { value: "email", label: "Email" },
-  { value: "company_name", label: "Company" },
-  { value: "call_summary", label: "Call Summary" },
-  { value: "next_action", label: "Next Action" },
-  { value: "source", label: "Source" },
-  { value: "notes", label: "Notes" },
-];
+const LEAD_PARAM_FIELDS = WATI_TEMPLATE_PARAM_FIELD_OPTIONS;
 
 function watiTemplateParamSlots(template: Record<string, unknown> | null | undefined): string[] {
   return extractWatiTemplateParamSlots(template ?? undefined);
@@ -177,26 +173,52 @@ export function LeadWhatsAppPanel({ leadId, phone }: LeadWhatsAppPanelProps) {
           </SelectContent>
         </Select>
 
-        {paramSlots.map((slot) => (
-          <div key={slot} className="flex items-center gap-2">
-            <span className="text-[10px] text-muted-foreground w-8 shrink-0">{`{{${slot}}}`}</span>
-            <Select
-              value={paramMapping[slot] ?? ""}
-              onValueChange={(v) => setParamMapping({ ...paramMapping, [slot]: v })}
-            >
-              <SelectTrigger className="h-7 text-xs flex-1">
-                <SelectValue placeholder="Map to lead field…" />
-              </SelectTrigger>
-              <SelectContent>
-                {LEAD_PARAM_FIELDS.map((f) => (
-                  <SelectItem key={f.value} value={f.value}>
-                    {f.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+        {paramSlots.map((slot) => {
+          const mapped = paramMapping[slot] ?? "";
+          const isFixed = isLiteralTemplateField(mapped);
+          const selectValue = isFixed ? "__fixed__" : mapped;
+          return (
+          <div key={slot} className="space-y-1.5">
+            <div className="flex items-center gap-2">
+              <span className="text-[10px] text-muted-foreground w-8 shrink-0">{`{{${slot}}}`}</span>
+              <Select
+                value={selectValue || undefined}
+                onValueChange={(v) =>
+                  setParamMapping({
+                    ...paramMapping,
+                    [slot]: v === "__fixed__" ? encodeLiteralTemplateField("") : v,
+                  })
+                }
+              >
+                <SelectTrigger className="h-7 text-xs flex-1">
+                  <SelectValue placeholder="Map to field…" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__fixed__">Fixed text</SelectItem>
+                  {LEAD_PARAM_FIELDS.map((f) => (
+                    <SelectItem key={f.value} value={f.value}>
+                      {f.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            {isFixed && (
+              <Input
+                className="h-7 text-xs ml-10"
+                placeholder="Fixed value"
+                value={literalTemplateFieldText(mapped)}
+                onChange={(e) =>
+                  setParamMapping({
+                    ...paramMapping,
+                    [slot]: encodeLiteralTemplateField(e.target.value),
+                  })
+                }
+              />
+            )}
           </div>
-        ))}
+          );
+        })}
 
         <Button
           size="sm"

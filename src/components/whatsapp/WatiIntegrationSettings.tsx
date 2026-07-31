@@ -24,6 +24,7 @@ import {
   registerWatiWebhookFn,
   confirmWatiWebhookManual,
 } from "@/lib/whatsapp/wati.functions";
+import { WhatsAppWarmupPanel } from "./WhatsAppWarmupPanel";
 
 
 export function WatiIntegrationSettings() {
@@ -246,6 +247,8 @@ export function WatiIntegrationSettings() {
       <CardContent className="space-y-4">
         {isConnected && (
           <>
+            <WhatsAppWarmupPanel />
+
             {/* Status row */}
             <div className="rounded-lg bg-green-500/5 border border-green-500/20 p-3 space-y-2">
               <div className="flex items-center justify-between text-xs">

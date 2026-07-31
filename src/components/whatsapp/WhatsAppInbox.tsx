@@ -105,7 +105,9 @@ export function WhatsAppInbox() {
                         <Phone className="h-2.5 w-2.5" />{t.phone}
                       </p>
                     )}
-                    <p className="mt-0.5 truncate text-[10px] text-muted-foreground">{t.lastMessage ?? "—"}</p>
+                    <p className="mt-0.5 text-[10px] text-muted-foreground line-clamp-2 whitespace-pre-wrap">
+                      {t.lastMessage ?? "—"}
+                    </p>
                   </div>
                   <div className="flex flex-col items-end gap-1 shrink-0">
                     <span className="text-[9px] text-muted-foreground flex items-center gap-0.5">
@@ -150,7 +152,7 @@ export function WhatsAppInbox() {
                     : "bg-background border border-border text-foreground",
                 )}
               >
-                <p>{m.body ?? "(media)"}</p>
+                <p className="whitespace-pre-wrap">{m.body ?? "(media)"}</p>
                 <p className={cn("mt-0.5 text-[9px]", m.direction === "outbound" ? "text-primary-foreground/70" : "text-muted-foreground")}>
                   {new Date(m.sent_at).toLocaleString()} · {m.status ?? ""}
                 </p>

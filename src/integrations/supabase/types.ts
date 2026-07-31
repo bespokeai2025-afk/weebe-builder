@@ -16421,6 +16421,7 @@ export type Database = {
           archived: boolean | null
           created_at: string | null
           id: string
+          import_meta: Json
           lead_status: string | null
           name: string | null
           notes: string | null
@@ -16434,6 +16435,7 @@ export type Database = {
           archived?: boolean | null
           created_at?: string | null
           id?: string
+          import_meta?: Json
           lead_status?: string | null
           name?: string | null
           notes?: string | null
@@ -16447,6 +16449,7 @@ export type Database = {
           archived?: boolean | null
           created_at?: string | null
           id?: string
+          import_meta?: Json
           lead_status?: string | null
           name?: string | null
           notes?: string | null

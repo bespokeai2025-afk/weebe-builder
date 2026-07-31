@@ -45,7 +45,7 @@ function watiTemplateLanguage(raw) {
 function watiTemplateRowFromApi(workspaceId, t) {
   const modifiedAt = t.lastModified ?? t.last_modified ?? null;
   const now = new Date().toISOString();
-  const body = t.body ?? t.bodyOriginal ?? null;
+  const body = t.bodyOriginal ?? t.body ?? null;
   return {
     workspace_id: workspaceId,
     wati_template_id: String(t.id ?? t.elementName ?? t.name),

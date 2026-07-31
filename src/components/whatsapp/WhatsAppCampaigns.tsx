@@ -14,6 +14,7 @@ import {
   Upload,
   FileSpreadsheet,
   X,
+  Users,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { RelativeTime } from "@/components/ui/relative-time";
@@ -52,18 +53,27 @@ import {
   listWATemplates,
   launchWACampaign,
   importWatiCampaignLeadsCsv,
+  prepareCampaignAudienceFromContacts,
+  listWAContacts,
 } from "@/lib/dashboard/whatsapp.functions";
-import { getWatiConnection, listWatiTemplates } from "@/lib/whatsapp/wati.functions";
+import { getWatiConnection, listWatiTemplates, getWatiWarmupDashboard } from "@/lib/whatsapp/wati.functions";
 import {
   autoDetectCsvColumnMapping,
   mapCsvRowsToLeads,
   parseCsvText,
+  sliceCsvTextForParse,
   type CsvColumnMapping,
 } from "@/lib/whatsapp/csv-leads.shared";
 import {
   defaultWatiTemplateParamMapping,
   extractWatiTemplateParamSlots,
+  getTemplateSlotHint,
   validateWatiTemplateParamMapping,
+  WATI_TEMPLATE_PARAM_FIELD_OPTIONS,
+  encodeLiteralTemplateField,
+  isLiteralTemplateField,
+  literalTemplateFieldText,
+  watiTemplateBodyOriginalText,
 } from "@/lib/whatsapp/wati-template-params.shared";
 import { toast } from "sonner";
 
@@ -82,18 +92,13 @@ const STATUS_CONFIG: Record<string, { label: string; color: string; icon: typeof
   failed: { label: "Failed", color: "destructive", icon: AlertCircle },
 };
 
-const LEAD_PARAM_FIELDS: Array<{ value: string; label: string }> = [
-  { value: "full_name", label: "Full Name" },
-  { value: "phone", label: "Phone" },
-  { value: "email", label: "Email" },
-  { value: "company_name", label: "Company" },
-  { value: "call_summary", label: "Call Summary" },
-  { value: "next_action", label: "Next Action" },
-  { value: "source", label: "Source" },
-  { value: "notes", label: "Notes" },
-];
+const LEAD_PARAM_FIELDS = WATI_TEMPLATE_PARAM_FIELD_OPTIONS;
 
-type AudienceMode = "filters" | "csv";
+function watiTemplateBodyPreview(template: Record<string, unknown> | null | undefined): string {
+  return watiTemplateBodyOriginalText(template) ?? "";
+}
+
+type AudienceMode = "filters" | "csv" | "contacts";
 
 type CampaignForm = {
   name: string;
@@ -136,12 +141,9 @@ function watiTemplateParamSlots(template: Record<string, unknown> | null | undef
 }
 
 function buildAudienceFilter(form: CampaignForm, csvLeadIds: string[]) {
-  if (form.audienceMode === "csv") {
+  if (form.audienceMode === "csv" || form.audienceMode === "contacts") {
     if (csvLeadIds.length === 0) return undefined;
-    return {
-      lead_ids: csvLeadIds,
-      whatsapp_opt_in_only: form.audience.whatsapp_opt_in_only,
-    };
+    return { lead_ids: csvLeadIds };
   }
   const f = form.audience;
   const filter: Record<string, unknown> = {};
@@ -161,7 +163,10 @@ export function WhatsAppCampaigns() {
   const launchFn = useServerFn(launchWACampaign);
   const watiConnFn = useServerFn(getWatiConnection);
   const watiListFn = useServerFn(listWatiTemplates);
+  const warmupDashFn = useServerFn(getWatiWarmupDashboard);
   const importCsvFn = useServerFn(importWatiCampaignLeadsCsv);
+  const loadContactsAudienceFn = useServerFn(prepareCampaignAudienceFromContacts);
+  const listContactsFn = useServerFn(listWAContacts);
   const csvInputRef = useRef<HTMLInputElement>(null);
 
   const { data: campaigns = [], isLoading } = useQuery({
@@ -189,6 +194,13 @@ export function WhatsAppCampaigns() {
     throwOnError: false,
   });
 
+  const { data: warmupDash } = useQuery({
+    queryKey: ["wati-warmup"],
+    queryFn: () => warmupDashFn(),
+    enabled: watiConnected,
+    throwOnError: false,
+  });
+
   const [open, setOpen] = useState(false);
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [launchId, setLaunchId] = useState<string | null>(null);
@@ -206,7 +218,18 @@ export function WhatsAppCampaigns() {
   const [csvMapping, setCsvMapping] = useState<CsvColumnMapping | null>(null);
   const [csvNeedsMapping, setCsvNeedsMapping] = useState(false);
   const [csvImporting, setCsvImporting] = useState(false);
+  const [csvParsing, setCsvParsing] = useState(false);
+  const [csvImportLimit, setCsvImportLimit] = useState(20);
+  const [csvBuyersOnly, setCsvBuyersOnly] = useState(true);
   const [csvFileName, setCsvFileName] = useState<string | null>(null);
+  const [loadingContactsAudience, setLoadingContactsAudience] = useState(false);
+
+  const { data: waContacts = [] } = useQuery({
+    queryKey: ["wa-contacts"],
+    queryFn: () => listContactsFn(),
+    enabled: open && watiConnected,
+    throwOnError: false,
+  });
 
   function resetCsvState() {
     setCsvLeadIds([]);
@@ -274,15 +297,28 @@ export function WhatsAppCampaigns() {
 
   const launch = useMutation({
     mutationFn: () => launchFn({ data: { id: launchId! } }),
-    onSuccess: (res: { sent?: number; failed?: number }) => {
+    onSuccess: (res: {
+      sent?: number;
+      failed?: number;
+      errors?: string[];
+      warmup?: { truncated?: boolean; deferred?: number; warnings?: string[] };
+    }) => {
       qc.invalidateQueries({ queryKey: ["wa-campaigns"] });
+      qc.invalidateQueries({ queryKey: ["wati-warmup"] });
       setLaunchId(null);
       setLaunchCampaign(null);
       const errHint =
-        res.failed > 0 && res.sent === 0 && Array.isArray(res.errors) && res.errors[0]
+        (res.failed ?? 0) > 0 && res.sent === 0 && Array.isArray(res.errors) && res.errors[0]
           ? ` — ${res.errors[0]}`
           : "";
-      toast.success(`Campaign launched — ${res.sent ?? 0} sent, ${res.failed ?? 0} failed${errHint}`);
+      let msg = `Campaign launched — ${res.sent ?? 0} sent, ${res.failed ?? 0} failed${errHint}`;
+      if (res.warmup?.truncated && res.warmup.deferred) {
+        msg += `. Warm-up: ${res.warmup.deferred} contacts deferred to tomorrow.`;
+      }
+      toast.success(msg);
+      if (res.warmup?.warnings?.length) {
+        toast.warning(res.warmup.warnings[0]);
+      }
     },
     onError: (e: Error) => {
       setLaunchId(null);
@@ -299,42 +335,88 @@ export function WhatsAppCampaigns() {
         !paramMappingError
       : true);
 
+  const audienceReady = csvLeadIds.length > 0;
+
+  async function loadExistingContactsAudience() {
+    setLoadingContactsAudience(true);
+    try {
+      const limit = Math.max(1, Math.min(csvImportLimit, 5000));
+      const result = await loadContactsAudienceFn({ data: { limit } });
+      setCsvLeadIds(result.leadIds ?? []);
+      setCsvStats({
+        inserted: result.inserted ?? 0,
+        updated: result.updated ?? 0,
+        skipped: 0,
+        total: result.total ?? 0,
+      });
+      toast.success(`${result.total} contact(s) ready for this campaign`, {
+        description: `${result.inserted} new leads · ${result.updated} updated`,
+      });
+    } catch (err) {
+      toast.error("Could not load contacts", { description: (err as Error).message });
+    } finally {
+      setLoadingContactsAudience(false);
+    }
+  }
+
   async function handleCsvFile(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
+    setCsvParsing(true);
+    const limit = Math.max(1, Math.min(csvImportLimit, 5000));
     try {
-      const text = await file.text();
-      const { headers, rows } = parseCsvText(text);
+      const rawText = await file.text();
+      // Large property CSVs (50k+ rows) freeze the browser — scan enough rows to find N valid phones.
+      const scanRows = Math.max(limit * 100, 2000);
+      const text = sliceCsvTextForParse(rawText, scanRows);
+      const { headers, rows, truncated } = parseCsvText(text);
       const mapping = autoDetectCsvColumnMapping(headers);
       setCsvHeaders(headers);
       setCsvRows(rows);
-      setCsvMapping(mapping ?? { phone: headers[0] ?? "" });
+      setCsvMapping(mapping ?? { phone: headers.find((h) => h.toLowerCase().includes("mobile")) ?? headers[0] ?? "" });
       setCsvNeedsMapping(!mapping);
       setCsvFileName(file.name);
       setCsvLeadIds([]);
       setCsvStats(null);
+      if (truncated) {
+        toast.message(`Large file — scanned first ${scanRows.toLocaleString()} rows`, {
+          description: `Importing up to ${limit} contacts with valid phone numbers.`,
+        });
+      }
       if (mapping) {
-        await runCsvImport(rows, mapping);
+        await runCsvImport(rows, mapping, limit);
       } else {
         toast.message("Choose which column is the phone number", {
-          description: `${rows.length} rows parsed from ${file.name}`,
+          description: `${rows.length.toLocaleString()} rows parsed · Mobile column recommended`,
         });
       }
     } catch (err) {
       toast.error("Could not parse CSV", { description: (err as Error).message });
       resetCsvState();
+    } finally {
+      setCsvParsing(false);
     }
     if (csvInputRef.current) csvInputRef.current.value = "";
   }
 
-  async function runCsvImport(rows: Record<string, string>[], mapping: CsvColumnMapping) {
+  async function runCsvImport(
+    rows: Record<string, string>[],
+    mapping: CsvColumnMapping,
+    limit = csvImportLimit,
+  ) {
     if (!mapping.phone) {
       toast.error("Select a phone column");
       return;
     }
-    const leads = mapCsvRowsToLeads(rows, mapping);
+    const maxLeads = Math.max(1, Math.min(limit, 5000));
+    const leads = mapCsvRowsToLeads(rows, mapping, {
+      maxLeads,
+      buyersOnly: csvBuyersOnly,
+    });
     if (leads.length === 0) {
-      toast.error("No valid phone numbers found in CSV");
+      toast.error("No valid phone numbers found in CSV", {
+        description: `Map the Mobile column — many rows in this file are sellers without phones.`,
+      });
       return;
     }
     setCsvImporting(true);
@@ -350,6 +432,7 @@ export function WhatsAppCampaigns() {
       toast.success(`Imported ${result.total} leads for this campaign`, {
         description: `${result.inserted} new · ${result.updated} updated · ${result.skipped} skipped`,
       });
+      qc.invalidateQueries({ queryKey: ["wa-contacts"] });
     } catch (err) {
       toast.error("CSV import failed", { description: (err as Error).message });
     } finally {
@@ -359,7 +442,7 @@ export function WhatsAppCampaigns() {
 
   async function applyCsvMapping() {
     if (!csvMapping?.phone || csvRows.length === 0) return;
-    await runCsvImport(csvRows, csvMapping);
+    await runCsvImport(csvRows, csvMapping, csvImportLimit);
   }
 
   function openLaunchDialog(c: any) {
@@ -542,7 +625,7 @@ export function WhatsAppCampaigns() {
                       setForm({
                         ...form,
                         wati_template_name: v,
-                        template_params: defaultWatiTemplateParamMapping(slots),
+                        template_params: defaultWatiTemplateParamMapping(slots, tpl),
                       });
                     }}
                   >
@@ -561,65 +644,212 @@ export function WhatsAppCampaigns() {
                   </Select>
                 </div>
 
+                {selectedWatiTemplate && watiTemplateBodyPreview(selectedWatiTemplate) && (
+                  <div className="rounded-md border border-border/50 bg-muted/30 px-3 py-2 text-[11px] text-muted-foreground whitespace-pre-wrap">
+                    {watiTemplateBodyPreview(selectedWatiTemplate)}
+                  </div>
+                )}
+
                 {paramSlots.length > 0 && (
                   <div className="space-y-2 rounded-md border border-border/60 p-3">
                     <Label className="text-xs">Template variable mapping</Label>
-                    {paramSlots.map((slot) => (
-                      <div key={slot} className="flex items-center gap-2">
-                        <span className="text-[10px] text-muted-foreground w-8">{`{{${slot}}}`}</span>
-                        <Select
-                          value={form.template_params[slot] ?? ""}
-                          onValueChange={(v) =>
-                            setForm({
-                              ...form,
-                              template_params: { ...form.template_params, [slot]: v },
-                            })
-                          }
-                        >
-                          <SelectTrigger className="h-8 text-xs flex-1">
-                            <SelectValue placeholder="Lead field…" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {LEAD_PARAM_FIELDS.map((f) => (
-                              <SelectItem key={f.value} value={f.value}>
-                                {f.label}
+                    <p className="text-[10px] text-muted-foreground">
+                      Map each {"{{variable}}"} to a contact/CSV field. Property fields come from your
+                      JVC import (Building, Unit, Location, etc.).
+                    </p>
+                    {paramSlots.map((slot) => {
+                      const mapped = form.template_params[slot] ?? "";
+                      const isFixed = isLiteralTemplateField(mapped);
+                      const selectValue = isFixed ? "__fixed__" : mapped;
+                      const slotHint = getTemplateSlotHint(selectedWatiTemplate, slot);
+                      return (
+                      <div key={slot} className="space-y-1.5">
+                        <div className="flex items-center gap-2">
+                          <span className="text-[10px] text-muted-foreground w-20 shrink-0">{`{{${slot}}}`}</span>
+                          <Select
+                            value={selectValue || undefined}
+                            onValueChange={(v) =>
+                              setForm({
+                                ...form,
+                                template_params: {
+                                  ...form.template_params,
+                                  [slot]: v === "__fixed__" ? encodeLiteralTemplateField("") : v,
+                                },
+                              })
+                            }
+                          >
+                            <SelectTrigger className="h-8 text-xs flex-1">
+                              <SelectValue placeholder="Lead / property field…" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="__fixed__">Fixed text (same for everyone)</SelectItem>
+                              <SelectItem value="__group_lead__" disabled>
+                                — Lead fields —
                               </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
+                              {LEAD_PARAM_FIELDS.filter((f) => f.group === "lead").map((f) => (
+                                <SelectItem key={f.value} value={f.value}>
+                                  {f.label}
+                                </SelectItem>
+                              ))}
+                              <SelectItem value="__group_property__" disabled>
+                                — Property / CSV fields —
+                              </SelectItem>
+                              {LEAD_PARAM_FIELDS.filter((f) => f.group === "property").map((f) => (
+                                <SelectItem key={f.value} value={f.value}>
+                                  {f.label}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        {slotHint && (
+                          <p className="text-[10px] text-muted-foreground ml-[5.5rem]">{slotHint}</p>
+                        )}
+                        {isFixed && (
+                          <Input
+                            className="h-8 text-xs ml-[5.5rem]"
+                            placeholder={
+                              slotHint?.includes("agent")
+                                ? "Your agent name, e.g. Khisha"
+                                : "Same text on every message"
+                            }
+                            value={literalTemplateFieldText(mapped)}
+                            onChange={(e) =>
+                              setForm({
+                                ...form,
+                                template_params: {
+                                  ...form.template_params,
+                                  [slot]: encodeLiteralTemplateField(e.target.value),
+                                },
+                              })
+                            }
+                          />
+                        )}
                       </div>
-                    ))}
+                      );
+                    })}
                     {paramMappingError && (
                       <p className="text-[11px] text-destructive">{paramMappingError}</p>
+                    )}
+                    {paramSlots.length > 0 && (
+                      <p className="text-[10px] text-muted-foreground">
+                        Map each variable using the hints above. WATI sends using the registered template
+                        order shown in the preview — slot numbers may not match a edited display body.
+                      </p>
                     )}
                   </div>
                 )}
 
                 <div className="space-y-2 rounded-md border border-border/60 p-3">
                   <Label className="text-xs">Audience</Label>
-                  <div className="flex gap-2">
+                  <div className="grid grid-cols-3 gap-2">
                     <Button
                       type="button"
                       size="sm"
                       variant={form.audienceMode === "csv" ? "default" : "outline"}
-                      className="h-7 text-xs flex-1"
+                      className="h-7 text-xs"
                       onClick={() => setForm({ ...form, audienceMode: "csv" })}
                     >
-                      <Upload className="h-3 w-3 mr-1" /> CSV upload
+                      <Upload className="h-3 w-3 mr-1" /> New CSV
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant={form.audienceMode === "contacts" ? "default" : "outline"}
+                      className="h-7 text-xs"
+                      onClick={() => setForm({ ...form, audienceMode: "contacts" })}
+                    >
+                      <Users className="h-3 w-3 mr-1" /> Contacts
                     </Button>
                     <Button
                       type="button"
                       size="sm"
                       variant={form.audienceMode === "filters" ? "default" : "outline"}
-                      className="h-7 text-xs flex-1"
+                      className="h-7 text-xs"
                       onClick={() => setForm({ ...form, audienceMode: "filters" })}
                     >
-                      Filter leads
+                      Filter
                     </Button>
                   </div>
 
-                  {form.audienceMode === "csv" ? (
+                  {audienceReady && (
+                    <div className="rounded-md bg-green-500/10 border border-green-500/20 px-2.5 py-2 text-xs text-green-700 dark:text-green-400">
+                      <strong>{csvStats?.total ?? csvLeadIds.length}</strong> recipients ready for
+                      this campaign
+                      {csvStats && (
+                        <span className="text-muted-foreground ml-1">
+                          ({csvStats.inserted} new, {csvStats.updated} matched)
+                        </span>
+                      )}
+                    </div>
+                  )}
+
+                  {form.audienceMode === "contacts" ? (
                     <div className="space-y-2 pt-1">
+                      <p className="text-[10px] text-muted-foreground">
+                        Use contacts already imported under Buzzchat → Contacts ({waContacts.length}{" "}
+                        in workspace).
+                      </p>
+                      <div>
+                        <Label className="text-xs">Max contacts</Label>
+                        <Input
+                          type="number"
+                          min={1}
+                          max={5000}
+                          value={csvImportLimit}
+                          onChange={(e) =>
+                            setCsvImportLimit(Math.max(1, parseInt(e.target.value, 10) || 20))
+                          }
+                          className="mt-1 h-8 text-xs"
+                        />
+                      </div>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="h-8 text-xs w-full gap-1.5"
+                        disabled={loadingContactsAudience || waContacts.length === 0}
+                        onClick={loadExistingContactsAudience}
+                      >
+                        {loadingContactsAudience ? (
+                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                        ) : (
+                          <Users className="h-3.5 w-3.5" />
+                        )}
+                        Load up to {csvImportLimit} contacts
+                      </Button>
+                      {waContacts.length === 0 && (
+                        <p className="text-[10px] text-amber-400">
+                          No contacts yet — switch to New CSV or import under Contacts first.
+                        </p>
+                      )}
+                    </div>
+                  ) : form.audienceMode === "csv" ? (
+                    <div className="space-y-2 pt-1">
+                      <div>
+                        <Label className="text-xs">Max contacts to import</Label>
+                        <Input
+                          type="number"
+                          min={1}
+                          max={5000}
+                          value={csvImportLimit}
+                          onChange={(e) =>
+                            setCsvImportLimit(Math.max(1, parseInt(e.target.value, 10) || 20))
+                          }
+                          className="mt-1 h-8 text-xs"
+                        />
+                        <p className="mt-1 text-[10px] text-muted-foreground">
+                          For warm-up, start with 20. Large CSVs are scanned in chunks — only Buyer
+                          rows with a valid Mobile number are imported.
+                        </p>
+                        <label className="mt-2 flex items-center gap-2 text-xs">
+                          <Checkbox
+                            checked={csvBuyersOnly}
+                            onCheckedChange={(v) => setCsvBuyersOnly(v === true)}
+                          />
+                          Buyers only (skip Seller rows without phones)
+                        </label>
+                      </div>
                       <input
                         ref={csvInputRef}
                         type="file"
@@ -633,15 +863,21 @@ export function WhatsAppCampaigns() {
                           variant="outline"
                           size="sm"
                           className="h-8 text-xs gap-1.5 flex-1"
-                          disabled={csvImporting}
+                          disabled={csvImporting || csvParsing}
                           onClick={() => csvInputRef.current?.click()}
                         >
-                          {csvImporting ? (
+                          {csvImporting || csvParsing ? (
                             <Loader2 className="h-3.5 w-3.5 animate-spin" />
                           ) : (
                             <FileSpreadsheet className="h-3.5 w-3.5" />
                           )}
-                          {csvFileName ? "Replace CSV" : "Upload CSV"}
+                          {csvParsing
+                            ? "Parsing CSV…"
+                            : csvImporting
+                              ? "Importing…"
+                              : csvFileName
+                                ? "Replace CSV"
+                                : "Upload CSV"}
                         </Button>
                         {csvFileName && (
                           <Button
@@ -701,24 +937,16 @@ export function WhatsAppCampaigns() {
                             type="button"
                             size="sm"
                             className="h-7 text-xs w-full"
-                            disabled={csvImporting || !csvMapping.phone}
+                            disabled={csvImporting || csvParsing || !csvMapping.phone}
                             onClick={() => applyCsvMapping()}
                           >
-                            Import {csvRows.length} rows
+                            Import up to {csvImportLimit} contacts
                           </Button>
                         </div>
                       )}
-                      {csvStats && (
-                        <div className="rounded-md bg-green-500/10 border border-green-500/20 px-2.5 py-2 text-xs text-green-700 dark:text-green-400">
-                          <strong>{csvStats.total}</strong> leads ready
-                          <span className="text-muted-foreground ml-1">
-                            ({csvStats.inserted} new, {csvStats.updated} matched)
-                          </span>
-                        </div>
-                      )}
                       <p className="text-[10px] text-muted-foreground leading-relaxed">
-                        CSV needs a phone column. Optional: name, email, company, notes. Duplicates
-                        are merged by phone.
+                        JVC files: use Mobile + NameEn, keep Buyers only on. Wait for the green
+                        “recipients ready” banner before Create.
                       </p>
                     </div>
                   ) : (
@@ -806,13 +1034,25 @@ export function WhatsAppCampaigns() {
               </div>
             )}
           </div>
-          <DialogFooter>
+          <DialogFooter className="flex-col items-stretch gap-2 sm:flex-col sm:space-x-0">
+            {!canCreate &&
+              watiConnected &&
+              form.audienceMode !== "filters" &&
+              !audienceReady && (
+                <p className="text-xs text-amber-400 text-center">
+                  {form.audienceMode === "csv"
+                    ? "Upload your CSV and wait for “Imported N leads” before creating."
+                    : "Click “Load contacts” to attach an audience before creating."}
+                </p>
+              )}
+            <div className="flex justify-end gap-2">
             <Button variant="outline" onClick={() => setOpen(false)}>
               Cancel
             </Button>
             <Button onClick={() => create.mutate()} disabled={!canCreate || create.isPending}>
               {create.isPending ? "Creating…" : "Create Campaign"}
             </Button>
+            </div>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -849,12 +1089,24 @@ export function WhatsAppCampaigns() {
             <AlertDialogTitle className="flex items-center gap-2">
               <Rocket className="h-4 w-4 text-green-500" /> Launch campaign?
             </AlertDialogTitle>
-            <AlertDialogDescription>
-              {launchCampaign?.audience_filter?.lead_ids?.length
-                ? `This sends "${launchCampaign?.wati_template_name ?? "template"}" to ${launchCampaign.audience_filter.lead_ids.length} CSV-imported leads.`
-                : launchCampaign?.provider === "wati" || launchCampaign?.wati_template_name
-                  ? `This sends the WATI template "${launchCampaign?.wati_template_name ?? "template"}" to all matching leads with phone numbers.`
-                  : "This sends the campaign template to opted-in WhatsApp contacts via Twilio."}
+            <AlertDialogDescription asChild>
+              <div className="space-y-2 text-sm text-muted-foreground">
+                <p>
+                  {launchCampaign?.audience_filter?.lead_ids?.length
+                    ? `This sends "${launchCampaign?.wati_template_name ?? "template"}" to ${launchCampaign.audience_filter.lead_ids.length} CSV-imported leads.`
+                    : launchCampaign?.provider === "wati" || launchCampaign?.wati_template_name
+                      ? `This sends the WATI template "${launchCampaign?.wati_template_name ?? "template"}" to all matching leads with phone numbers.`
+                      : "This sends the campaign template to opted-in WhatsApp contacts via Twilio."}
+                </p>
+                {warmupDash?.config?.enabled && !warmupDash.config.paused && (
+                  <p className="rounded-md border border-amber-500/30 bg-amber-500/10 px-2.5 py-2 text-xs text-amber-200/90">
+                    Warm-up day {warmupDash.warmupDay}: max{" "}
+                    <strong>{warmupDash.dailyCap}</strong> sends today (
+                    <strong>{warmupDash.remaining}</strong> remaining). Audiences larger than
+                    the daily cap are sent in batches.
+                  </p>
+                )}
+              </div>
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

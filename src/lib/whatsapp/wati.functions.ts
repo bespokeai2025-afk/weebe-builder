@@ -582,3 +582,90 @@ export const listWatiContacts = createServerFn({ method: "GET" })
       .order("name");
     return (data ?? []) as any[];
   });
+
+// ── WhatsApp warm-up (daily send caps) ─────────────────────────────────────
+
+export const getWatiWarmupDashboard = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const { workspaceId } = context;
+    if (!workspaceId) throw new Error("No workspace");
+    const { getWatiWarmupDashboard: load } = await import("./wati-warmup.server");
+    return load(workspaceId);
+  });
+
+export const updateWatiWarmupConfig = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .validator((input) =>
+    z
+      .object({
+        enabled: z.boolean().optional(),
+        paused: z.boolean().optional(),
+        startingDaily: z.number().int().min(1).max(500).optional(),
+        dailyIncrement: z.number().int().min(1).max(500).optional(),
+        targetDaily: z.number().int().min(10).max(10_000).optional(),
+        channelPhone: z.string().nullable().optional(),
+        activeChannels: z.array(z.string()).optional(),
+        resetStartDate: z.boolean().optional(),
+      })
+      .parse(input),
+  )
+  .handler(async ({ context, data }) => {
+    const { workspaceId } = context;
+    if (!workspaceId) throw new Error("No workspace");
+    const { saveWatiWarmupConfig, loadWatiWarmupConfig, utcDayStart } = await import(
+      "./wati-warmup.server"
+    );
+    const patch: Record<string, unknown> = { ...data };
+    delete patch.resetStartDate;
+    if (data.resetStartDate) {
+      const today = utcDayStart().toISOString();
+      patch.startedAt = today;
+      const current = await loadWatiWarmupConfig(workspaceId);
+      const phones =
+        current.activeChannels.length > 0
+          ? current.activeChannels
+          : current.channelPhone
+            ? [current.channelPhone]
+            : [];
+      const channels: Record<string, { startedAt: string }> = { ...current.channels };
+      for (const p of phones) {
+        channels[p] = { startedAt: today };
+      }
+      patch.channels = channels;
+    }
+    await saveWatiWarmupConfig(workspaceId, patch as any);
+    return loadWatiWarmupConfig(workspaceId);
+  });
+
+export const checkWatiWarmupSendGateFn = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .validator((input) => z.object({ recipientCount: z.number().int().min(0) }).parse(input))
+  .handler(async ({ context, data }) => {
+    const { workspaceId } = context;
+    if (!workspaceId) throw new Error("No workspace");
+    const { checkWatiWarmupSendGate } = await import("./wati-warmup.server");
+    return checkWatiWarmupSendGate(workspaceId, data.recipientCount, { autoStart: false });
+  });
+
+export const listWatiChannelPhonesFn = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const { workspaceId } = context;
+    if (!workspaceId) throw new Error("No workspace");
+    const sb = adminClient() as any;
+    const { data: conn } = await sb
+      .from("wati_connections")
+      .select("tenant_id, api_key, api_host")
+      .eq("workspace_id", workspaceId)
+      .eq("status", "connected")
+      .maybeSingle();
+    if (!conn?.api_key) return { phones: [] as string[] };
+    const { fetchWatiChannelPhones } = await import("./wati-webhook.server");
+    const phones = await fetchWatiChannelPhones({
+      tenantId: conn.tenant_id,
+      apiKey: conn.api_key,
+      apiHost: conn.api_host,
+    });
+    return { phones };
+  });

@@ -1,0 +1,19 @@
+{
+  "event": "call_analyzed",
+  "call": {
+    "call_id": "test_cutover_001",
+    "agent_id": "agent_a03162ee94d003c298817e727c",
+    "call_type": "phone_call",
+    "retell_llm_dynamic_variables": {
+      "lead_id": "17ce3e04-7486-f111-ab0f-7c1e5236cd73"
+    },
+    "call_analysis": {
+      "user_sentiment": "Positive",
+      "call_summary": "Test cutover call",
+      "custom_analysis_data": {
+        "email_address": "arjavvirani123@gmail.com",
+        "calendly_slot": "{\"preferred_slot\":{\"date\":\"2026-08-01\",\"time\":\"14:30\"}}"
+      }
+    }
+  }
+}

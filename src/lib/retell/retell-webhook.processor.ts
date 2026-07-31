@@ -509,6 +509,29 @@ export async function processRetellWebhook(
   const incomingAgentId = call.agent_id ? stripPrefix(call.agent_id) : "";
   console.log("[RETELL WEBHOOK] Received event", { event, callId, agentId: incomingAgentId });
 
+  // ── WBAH external agents: native post-call pipeline (n8n migration) ───────
+  // Production WBAH dialers are not in the `agents` table; they route here instead
+  // of the generic lead-gen / CRM paths. Live transcript + dashboard + Dynamics.
+  try {
+    const { processWbahRetellWebhook } = await import("@/lib/wbah/post-call/wbah-post-call.server");
+    const wbahResult = await processWbahRetellWebhook({
+      event,
+      call,
+      payload,
+      incomingAgentId,
+    });
+    if (wbahResult) {
+      console.log("[RETELL WEBHOOK] WBAH pipeline handled", {
+        event,
+        callId,
+        message: wbahResult.message,
+      });
+      return wbahResult;
+    }
+  } catch (wbahErr) {
+    console.error("[RETELL WEBHOOK] WBAH pipeline error (non-fatal)", wbahErr);
+  }
+
   // ── LIVE TRANSCRIPT: transcript_updated ────────────────────────────────────
   // This is the ONLY live in-progress transcript source for managed agents. It
   // fires MANY times per call carrying the full cumulative transcript, so it is
