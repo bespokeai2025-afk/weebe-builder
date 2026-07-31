@@ -153,3 +153,4 @@
 - [AI model registry + usage ledger](ai-model-registry-ledger.md) — resolve models via registry (never hardcode), ledger every AI call via recordAiUsage, fallback chain never gpt-4o.
 - [WBAH provider reconciliation](wbah-provider-reconciliation.md) — "missing minutes" = hidden deleted campaigns; combined_cost is USD cents; live Retell recon with calls×0.5s tolerance; backfill in ≤7d chunks.
 - [Provider cost client scrub](provider-cost-client-scrub.md) — Retell USD cost fields never reach client surfaces; strip server-side (fail-closed admin check); clients only see £0.36/min usage charge.
+- [Website Ava web-call lead capture](ava-web-call-arch.md) — signed-webhook-only 401s, event:call_id dedup, admin-key-set authz (keys shared across ws), tool-result-only booking truth, version-pinned sessions.

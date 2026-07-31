@@ -101,9 +101,33 @@ function isAllowedCountry(phone: string): boolean {
   return ALLOWED_PREFIXES.some((p) => phone.startsWith(p));
 }
 
+// Cache the env-var workspace validation for the process lifetime — the row
+// existing is a stable fact; re-checking on every webhook is wasted latency.
+let validatedEnvWorkspaceId: string | null | undefined;
+
 export async function resolveAdminWorkspaceId(): Promise<string | null> {
-  const fromEnv = process.env.WEBEE_ADMIN_WORKSPACE_ID?.trim();
-  if (fromEnv) return fromEnv;
+  // Preferred: the verified WEBEE workspace pinned via server env. Validate it
+  // against the real workspaces table before trusting it (typo protection).
+  const pinned = (process.env.WEBEE_WORKSPACE_ID ?? process.env.WEBEE_ADMIN_WORKSPACE_ID)?.trim();
+  if (pinned) {
+    if (validatedEnvWorkspaceId !== undefined) return validatedEnvWorkspaceId;
+    try {
+      const { data } = await supabaseAdmin
+        .from("workspaces")
+        .select("id")
+        .eq("id", pinned)
+        .maybeSingle();
+      if (data?.id) {
+        validatedEnvWorkspaceId = pinned;
+        return pinned;
+      }
+      console.error("[AVA] WEBEE_WORKSPACE_ID does not match any workspace — falling back to lookup");
+      validatedEnvWorkspaceId = null;
+    } catch {
+      // Transient DB error — do NOT cache; fall through to lookup this time.
+      return pinned;
+    }
+  }
   try {
     // NOTE: workspace_members has no PostgREST relationship to a users table,
     // so resolve the admin user via the Auth admin API, then their membership.

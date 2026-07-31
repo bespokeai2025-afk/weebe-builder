@@ -100,6 +100,13 @@ export const Route = createFileRoute("/api/public/retell-webhook")({
 
         try {
           const result = await processRetellWebhook(rawBody, request.headers);
+          // SECURITY: unsigned or badly-signed requests are hard-rejected —
+          // nothing was processed for them. Genuine Retell deliveries always
+          // carry a valid signature, so this never triggers retry storms.
+          if (result.signatureValid === false) {
+            await logAndStore("POST", request.headers, parsedBody, 401);
+            return retellJson({ success: false, error: "invalid_webhook_signature" }, 401);
+          }
           await logAndStore("POST", request.headers, parsedBody, 200);
           if ([400, 401, 403].includes(result.status)) return retellJson({ success: true }, 200);
           return result.ok

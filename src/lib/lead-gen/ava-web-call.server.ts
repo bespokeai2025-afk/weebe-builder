@@ -90,13 +90,21 @@ export async function createAvaWebCallSession(input: {
   // Drop nulls to keep the payload lean.
   for (const k of Object.keys(metadata)) if (metadata[k] == null) delete metadata[k];
 
+  // Pin the tested published agent version so future draft edits never leak
+  // into live website calls. Set AVA_AGENT_VERSION after publishing.
+  const pinnedVersion = Number.parseInt(process.env.AVA_AGENT_VERSION ?? "", 10);
   const res = await fetch("https://api.retellai.com/v2/create-web-call", {
     method: "POST",
     headers: { "Content-Type": "application/json", Authorization: `Bearer ${retellKey}` },
     body: JSON.stringify({
       agent_id: AVA_LIVE_AGENT_ID,
+      ...(Number.isFinite(pinnedVersion) ? { agent_version: pinnedVersion } : {}),
       metadata,
       retell_llm_dynamic_variables: {
+        // Server-forced identity — browser-supplied values are never used here.
+        workspace_id: workspaceId,
+        source: "website_ava",
+        channel: "web_call",
         lead_source: "website_ava",
         enquiry_type: "ava_live_demo",
         cta_source: "website_web_call",
@@ -125,16 +133,172 @@ export async function createAvaWebCallSession(input: {
 type AvaWebCall = {
   call_id?: string;
   agent_id?: string;
+  agent_version?: number;
+  call_type?: string;
+  call_status?: string;
+  start_timestamp?: number;
+  end_timestamp?: number;
+  duration_ms?: number;
   transcript?: string;
+  transcript_with_tool_calls?: Array<Record<string, unknown>>;
   recording_url?: string;
   disconnection_reason?: string;
   metadata?: Record<string, unknown>;
+  retell_llm_dynamic_variables?: Record<string, unknown>;
   call_analysis?: {
     call_summary?: string;
     user_sentiment?: string;
+    call_successful?: boolean;
     custom_analysis_data?: Record<string, unknown>;
   };
 };
+
+// ── Booking verification (source of truth: the real Cal.com tool result) ─────
+
+export type VerifiedBooking = {
+  confirmed: boolean;
+  uid: string | null;
+  startTime: string | null;
+  timezone: string | null;
+  attendeeName: string | null;
+  attendeeEmail: string | null;
+  attendeePhone: string | null;
+  eventTypeId: number | null;
+};
+
+/**
+ * Inspect transcript_with_tool_calls for a genuine successful
+ * book_appointment_cal invocation. Ava CLAIMING a booking succeeded, or a
+ * post-call extracted booking_status, is NOT proof — only the actual tool
+ * result is trusted.
+ */
+export function verifyCalBookingFromToolCalls(call: AvaWebCall): VerifiedBooking {
+  const none: VerifiedBooking = {
+    confirmed: false, uid: null, startTime: null, timezone: null,
+    attendeeName: null, attendeeEmail: null, attendeePhone: null, eventTypeId: null,
+  };
+  const utterances = Array.isArray(call.transcript_with_tool_calls)
+    ? call.transcript_with_tool_calls
+    : [];
+  // Collect tool invocations + results in order. Retell emits utterances with
+  // role "tool_call_invocation" / "tool_call_result" (linked by tool_call_id).
+  const invocations = new Map<string, { name: string }>();
+  for (const u of utterances) {
+    const role = String((u as Record<string, unknown>).role ?? "");
+    const toolCallId = String((u as Record<string, unknown>).tool_call_id ?? "");
+    if (role === "tool_call_invocation" && toolCallId) {
+      invocations.set(toolCallId, { name: String((u as Record<string, unknown>).name ?? "") });
+    }
+  }
+  for (const u of utterances) {
+    const rec = u as Record<string, unknown>;
+    if (String(rec.role ?? "") !== "tool_call_result") continue;
+    const inv = invocations.get(String(rec.tool_call_id ?? ""));
+    const name = (inv?.name ?? String(rec.name ?? "")).toLowerCase();
+    if (!name.includes("book_appointment")) continue;
+    const content = rec.content;
+    let parsed: Record<string, unknown> | null = null;
+    if (typeof content === "string") {
+      try { parsed = JSON.parse(content) as Record<string, unknown>; } catch { parsed = null; }
+      if (!parsed && /error|fail|unavailable|no longer available/i.test(content)) continue;
+    } else if (content && typeof content === "object") {
+      parsed = content as Record<string, unknown>;
+    }
+    if (!parsed) continue;
+    // Cal.com v2 booking responses: { status:"success", data:{ uid, start, ... } }
+    // or a bare booking object with uid/id.
+    const dataObj = (parsed.data && typeof parsed.data === "object" ? parsed.data : parsed) as Record<string, unknown>;
+    const statusStr = String(parsed.status ?? "").toLowerCase();
+    const failed = statusStr === "error" || parsed.error != null || dataObj.error != null;
+    const uid = str(dataObj.uid, 120) ?? str(dataObj.booking_uid, 120) ?? (dataObj.id != null ? String(dataObj.id) : null);
+    if (failed || !uid) continue;
+    const attendee = (Array.isArray(dataObj.attendees) ? dataObj.attendees[0] : dataObj.responses ?? {}) as Record<string, unknown>;
+    return {
+      confirmed: true,
+      uid,
+      startTime: str(dataObj.start, 60) ?? str(dataObj.startTime, 60) ?? str(dataObj.start_time, 60),
+      timezone: str((attendee as Record<string, unknown>).timeZone, 60) ?? str(dataObj.timeZone, 60) ?? null,
+      attendeeName: str((attendee as Record<string, unknown>).name, 120),
+      attendeeEmail: str((attendee as Record<string, unknown>).email, 200)?.toLowerCase() ?? null,
+      attendeePhone: str((attendee as Record<string, unknown>).phone ?? (attendee as Record<string, unknown>).phoneNumber, 40),
+      eventTypeId: typeof dataObj.eventTypeId === "number" ? dataObj.eventTypeId : null,
+    };
+  }
+  return none;
+}
+
+// ── Call record upsert (one WEBEE call row per Retell web call) ──────────────
+
+/**
+ * Upsert the WEBEE call record for a website Ava web call, keyed on
+ * retell_call_id. Never overwrites previously stored valid values with
+ * missing values from later/earlier events (null/empty fields are dropped
+ * before write, matching the phone-call path).
+ */
+export async function upsertAvaWebCallRecord(
+  call: AvaWebCall,
+  workspaceId: string,
+  event: string,
+): Promise<void> {
+  const callId = call.call_id ?? "";
+  if (!callId) return;
+  const tsToIso = (ms?: number) => (typeof ms === "number" && ms > 0 ? new Date(ms).toISOString() : null);
+  const startedAt = tsToIso(call.start_timestamp);
+  const endedAt = tsToIso(call.end_timestamp);
+  const durationSeconds =
+    call.duration_ms != null
+      ? Math.round(call.duration_ms / 1000)
+      : startedAt && endedAt
+        ? Math.round((Date.parse(endedAt) - Date.parse(startedAt)) / 1000)
+        : null;
+  const row: Record<string, unknown> = {
+    workspace_id: workspaceId,
+    retell_call_id: callId,
+    agent_id: String(call.agent_id ?? "").replace(/^retell:/, "") || AVA_LIVE_AGENT_ID,
+    agent_name: "AVA WEBEE BOOKING AGENT",
+    call_type: "inbound", // website visitor initiated
+    channel_type: "web_call",
+    provider: "retell",
+    call_status:
+      event === "call_analyzed" || event === "call_ended" ? "completed" : "in_progress",
+    started_at: startedAt,
+    ended_at: endedAt,
+    duration_seconds: durationSeconds,
+    disconnection_reason: call.disconnection_reason ?? null,
+    transcript: call.transcript ?? null,
+    recording_url: call.recording_url ?? null,
+    call_summary: call.call_analysis?.call_summary ?? null,
+    sentiment: mapSentiment(call.call_analysis?.user_sentiment),
+    call_successful: call.call_analysis?.call_successful ?? null,
+    to_number: "web_call",
+    from_number: "web_call",
+    updated_at: new Date().toISOString(),
+  };
+  const cleaned: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(row)) {
+    if (value !== null && value !== undefined && value !== "") cleaned[key] = value;
+  }
+  try {
+    const { data: existing } = await supabaseAdmin
+      .from("calls")
+      .select("id")
+      .eq("retell_call_id", callId)
+      .maybeSingle();
+    if (existing?.id) {
+      const { error } = await supabaseAdmin.from("calls").update(cleaned as never).eq("id", existing.id as string);
+      if (error) console.error("[AVA-WEB-CALL] Call record update failed", error.message, { callId });
+    } else {
+      const { error } = await supabaseAdmin.from("calls").insert(cleaned as never);
+      if (error && /duplicate|unique/i.test(error.message)) {
+        await supabaseAdmin.from("calls").update(cleaned as never).eq("retell_call_id", callId);
+      } else if (error) {
+        console.error("[AVA-WEB-CALL] Call record insert failed", error.message, { callId });
+      }
+    }
+  } catch (e) {
+    console.error("[AVA-WEB-CALL] Call record upsert threw", e);
+  }
+}
 
 /** True when a web_call webhook belongs to the website Ava live chat. */
 export function isWebsiteAvaWebCall(call: { agent_id?: string; metadata?: Record<string, unknown> }): boolean {
@@ -206,11 +370,33 @@ export async function processAvaWebCallAnalyzed(call: AvaWebCall): Promise<void>
 
   const custom = (call.call_analysis?.custom_analysis_data ?? {}) as Record<string, unknown>;
   const sentiment = mapSentiment(call.call_analysis?.user_sentiment);
-  const bookingStatus = str(custom.booking_status);
-  const bookingSlot = str(custom.booking_slot);
-  const bookingUid =
+  const bookingSlot = str(custom.booking_slot) ?? str(custom.booking_start_time);
+
+  // Booking source of truth: the REAL Cal.com tool result. Post-call extracted
+  // fields are only a fallback signal for lead qualification, never "confirmed".
+  const verified = verifyCalBookingFromToolCalls(call);
+  const extractedUid =
     str(custom.booking_uid) ?? str(custom.cal_booking_uid) ?? str(custom.booking_id) ?? null;
-  const booked = bookingStatus === "booked" || truthy(custom.appointment_booked) || !!bookingUid;
+  const extractedStatus = str(custom.booking_status);
+  const extractedBooked =
+    extractedStatus === "booked" || extractedStatus === "confirmed" || truthy(custom.appointment_booked) || !!extractedUid;
+  if (extractedUid && verified.uid && extractedUid !== verified.uid) {
+    console.warn("[AVA-WEB-CALL] booking_uid discrepancy — trusting tool result", {
+      callId, extractedUid, verifiedUid: verified.uid,
+    });
+  }
+  if (extractedBooked && !verified.confirmed) {
+    console.warn("[AVA-WEB-CALL] post-call claims booking but no successful tool result — NOT confirmed", { callId });
+  }
+  const bookingConfirmed = verified.confirmed;
+  const bookingUid = verified.uid ?? extractedUid;
+  const bookingStatus = bookingConfirmed
+    ? "confirmed"
+    : extractedBooked
+      ? "unconfirmed"
+      : (extractedStatus ?? null);
+  // A booking (confirmed or claimed) still qualifies the caller as a lead.
+  const booked = bookingConfirmed || extractedBooked;
   const explicitRequest =
     truthy(custom.requested_follow_up) ||
     truthy(custom.follow_up_requested) ||
@@ -220,11 +406,15 @@ export async function processAvaWebCallAnalyzed(call: AvaWebCall): Promise<void>
     truthy(custom.requested_trial) ||
     truthy(custom.requested_human) ||
     truthy(custom.callback_requested);
+  const qualificationResult =
+    str(custom.qualification_result)?.toLowerCase() ??
+    str(custom.qualification_status)?.toLowerCase() ??
+    str(custom.qualification)?.toLowerCase() ??
+    null;
   const qualifiedFlag =
     truthy(custom.qualified) ||
     truthy(custom.lead_qualified) ||
-    str(custom.qualification_status)?.toLowerCase() === "qualified" ||
-    str(custom.qualification)?.toLowerCase() === "qualified";
+    qualificationResult === "qualified";
 
   const shouldCreateLead =
     (booked || sentiment === "positive" || explicitRequest || qualifiedFlag) &&
@@ -236,10 +426,12 @@ export async function processAvaWebCallAnalyzed(call: AvaWebCall): Promise<void>
 
   // ── Contact details: post-call analysis first, session metadata fallback ──
   const email =
-    (str(custom.email, 200) ?? str(meta.email, 200))?.toLowerCase() ?? null;
-  const rawPhone = str(custom.phone_number, 40) ?? str(custom.phone, 40) ?? str(meta.phone_number, 40);
+    (str(custom.email, 200) ?? verified.attendeeEmail ?? str(meta.email, 200))?.toLowerCase() ?? null;
+  const rawPhone =
+    str(custom.phone_number, 40) ?? str(custom.phone, 40) ?? verified.attendeePhone ?? str(meta.phone_number, 40);
   const phone = rawPhone ? normalizePhoneE164(rawPhone) ?? rawPhone : null;
-  const fullName = str(custom.customer_name, 120) ?? str(custom.name, 120) ?? null;
+  const fullName =
+    str(custom.caller_name, 120) ?? str(custom.customer_name, 120) ?? str(custom.name, 120) ?? verified.attendeeName ?? null;
 
   if (!email && !phone) {
     console.warn("[AVA-WEB-CALL] Qualified call but no contact details — recording for review", { callId });
@@ -266,8 +458,16 @@ export async function processAvaWebCallAnalyzed(call: AvaWebCall): Promise<void>
     enquiry_type: "ava_live_demo",
     appointment_booked: booked,
     booking_status: bookingStatus,
+    booking_confirmed: bookingConfirmed,
     booking_slot: bookingSlot,
+    booking_start_time: verified.startTime ?? str(custom.booking_start_time, 60),
+    booking_timezone: verified.timezone ?? "Europe/London",
     cal_booking_uid: bookingUid,
+    cal_event_type_id: verified.eventTypeId,
+    qualification_result: qualificationResult,
+    original_phone_number: rawPhone !== phone ? rawPhone : null,
+    retell_agent_id: String(call.agent_id ?? "").replace(/^retell:/, "") || AVA_LIVE_AGENT_ID,
+    retell_agent_version: call.agent_version ?? null,
     recording_url: call.recording_url ?? null,
     visitor_session_id: str(meta.visitor_session_id, 120),
     landing_page: str(meta.landing_page, 500),
@@ -313,6 +513,8 @@ export async function processAvaWebCallAnalyzed(call: AvaWebCall): Promise<void>
       source_detail: "web_call",
       sentiment,
       call_summary: call.call_analysis?.call_summary ?? null,
+      qualification_status:
+        qualificationResult ?? (booked || explicitRequest || qualifiedFlag ? "qualified" : "unqualified"),
       last_contacted_at: now,
       updated_at: now,
       meta: { ...(existing.meta ?? {}), ...metaPatch },
@@ -344,7 +546,11 @@ export async function processAvaWebCallAnalyzed(call: AvaWebCall): Promise<void>
         source_detail: "web_call",
         sentiment,
         call_summary: call.call_analysis?.call_summary ?? null,
-        qualification_status: "qualified",
+        // Sentiment and qualification stay SEPARATE: politeness alone never
+        // marks someone qualified — only a real qualification result, booking
+        // or explicit commercial request does.
+        qualification_status:
+          qualificationResult ?? (booked || explicitRequest || qualifiedFlag ? "qualified" : "unqualified"),
         last_contacted_at: now,
         created_at: now,
         updated_at: now,

@@ -63,6 +63,13 @@ export const Route = createFileRoute("/api/public/voice-webhook")({
 
         try {
           const result = await processRetellWebhook(rawBody, request.headers);
+          // SECURITY: unsigned or badly-signed requests are hard-rejected —
+          // nothing was processed for them, so 401 is safe (no Retell retry
+          // storm for genuine deliveries, which always carry a valid signature).
+          if (result.signatureValid === false) {
+            await logAndStore("POST", request.headers, parsedBody, 401);
+            return retellJson({ success: false, error: "invalid_webhook_signature" }, 401);
+          }
           await logAndStore("POST", request.headers, parsedBody, 200);
           if ([400, 401, 403].includes(result.status)) return retellJson({ success: true }, 200);
           return result.ok

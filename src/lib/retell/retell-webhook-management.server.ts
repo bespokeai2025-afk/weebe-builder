@@ -22,13 +22,15 @@ export const WEBHOOK_MAX_ATTEMPTS = 5;
 // ── Pure helpers (exported for tests) ─────────────────────────────────────────
 
 /**
- * Deterministic dedup key for one Retell webhook delivery. Retell retries send
- * the SAME payload — event + call + payload hash uniquely identify a delivery
- * while allowing legitimately distinct events on the same call.
+ * Deterministic idempotency key for one Retell webhook delivery.
  */
 export function computeWebhookDedupKey(eventType: string, callId: string | null, rawBody: string): string {
+  // Canonical idempotency key is event_type + call_id: Retell retries (even
+  // with slightly different payload bytes/timestamps) must not re-process the
+  // same lifecycle event. Body hash is only used when there is no call id.
+  if (callId) return `${eventType}:${callId}`;
   const bodyHash = createHash("sha256").update(rawBody).digest("hex").slice(0, 32);
-  return `${eventType}:${callId ?? "nocall"}:${bodyHash}`;
+  return `${eventType}:nocall:${bodyHash}`;
 }
 
 /** Replay protection: reject events whose call end/start timestamp is older than the window. */

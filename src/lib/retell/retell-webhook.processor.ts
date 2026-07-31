@@ -444,6 +444,10 @@ export async function processRetellWebhook(
 
   const platformKey = process.env.RETELL_API_KEY;
   let signatureValid: boolean | null = null;
+  // Workspaces whose Retell key validated the signature (empty = platform key
+  // or verification skipped). Several workspaces can share one Retell account
+  // key, so this is a SET — authorization checks membership, not first match.
+  const signedByWorkspaceIds = new Set<string>();
   if (!options.skipSignature && !RETELL_SIGNATURE_VERIFICATION_DISABLED) {
     const sigHeader = headers.get("x-retell-signature");
 
@@ -455,18 +459,20 @@ export async function processRetellWebhook(
       : { valid: false, reason: "RETELL_API_KEY not configured", mode: "none" };
 
     if (!sigResult.valid) {
-      // Fetch all per-workspace keys and try each one.
+      // Fetch all per-workspace keys and try each one. Record WHICH workspace's
+      // key validated so downstream routing can bind authorization to it.
       try {
         const { data: wsRows } = await supabaseAdmin
           .from("workspace_settings")
-          .select("retell_workspace_id");
+          .select("workspace_id, retell_workspace_id");
         for (const ws of wsRows ?? []) {
           const wsKey = (ws as any)?.retell_workspace_id?.trim();
           if (!wsKey) continue;
           const wsResult = verifyRetellSignature(rawBody, sigHeader, wsKey);
           if (wsResult.valid) {
             sigResult = wsResult;
-            break;
+            const wsId = String((ws as any).workspace_id ?? "");
+            if (wsId) signedByWorkspaceIds.add(wsId);
           }
         }
       } catch (e) {
@@ -563,31 +569,55 @@ export async function processRetellWebhook(
         "@/lib/lead-gen/ava-web-call.server"
       );
       if (isWebsiteAvaWebCall(call as { agent_id?: string; metadata?: Record<string, unknown> })) {
+        // AUTHZ: website Ava web calls may only be processed when the webhook
+        // was signed by the platform key or the WEBEE admin workspace's own
+        // key. A validly-signed webhook from ANOTHER workspace's Retell
+        // account presenting the Ava agent id must never write admin data.
+        const { resolveAdminWorkspaceId } = await import("@/lib/lead-gen/ava-call.server");
+        const adminWs = await resolveAdminWorkspaceId();
+        if (!adminWs) {
+          console.error("[AVA-WEB-CALL] Admin workspace unresolved — skipping web call processing");
+          await updateWebhookEvent(eventLogId, "ignored", "website_ava admin workspace unresolved");
+          return { ok: true, status: 200, message: "ignored", event, callId, signatureValid: !!signatureValid };
+        }
+        if (signedByWorkspaceIds.size > 0 && !signedByWorkspaceIds.has(adminWs)) {
+          console.warn("[AVA-WEB-CALL] Web call signed by foreign workspace key — ignored", {
+            callId,
+            signedByWorkspaceIds: [...signedByWorkspaceIds],
+          });
+          await updateWebhookEvent(eventLogId, "ignored", "website_ava signed by foreign workspace key");
+          return { ok: true, status: 200, message: "ignored", event, callId, signatureValid: !!signatureValid };
+        }
         // Atomic duplicate-delivery claim (same ledger as phone calls) — Retell
         // retries with identical payloads must not double-process. FAIL-OPEN.
         if (!options.skipDedup && callId) {
           try {
-            const { resolveAdminWorkspaceId } = await import("@/lib/lead-gen/ava-call.server");
-            const adminWs = await resolveAdminWorkspaceId();
-            if (adminWs) {
-              const { claimWebhookDelivery } = await import(
-                "@/lib/retell/retell-webhook-management.server"
-              );
-              const claim = await claimWebhookDelivery({
-                workspaceId: adminWs,
-                eventType: event,
-                callId,
-                rawBody,
-                payload,
-              });
-              if (claim.action === "duplicate" || claim.action === "replay") {
-                await updateWebhookEvent(eventLogId, "duplicate", "website_ava web call duplicate delivery");
-                return { ok: true, status: 200, message: "duplicate", event, callId };
-              }
+            const { claimWebhookDelivery } = await import(
+              "@/lib/retell/retell-webhook-management.server"
+            );
+            const claim = await claimWebhookDelivery({
+              workspaceId: adminWs,
+              eventType: event,
+              callId,
+              rawBody,
+              payload,
+            });
+            if (claim.action === "duplicate" || claim.action === "replay") {
+              await updateWebhookEvent(eventLogId, "duplicate", "website_ava web call duplicate delivery");
+              return { ok: true, status: 200, message: "duplicate", event, callId };
             }
           } catch (dedupErr) {
             console.warn("[AVA-WEB-CALL] Dedup claim failed (fail-open)", dedupErr);
           }
+        }
+        // Upsert the WEBEE call record on every verified event for this call
+        // (call_started / call_ended / call_analyzed). Later events never
+        // overwrite stored values with nulls.
+        try {
+          const { upsertAvaWebCallRecord } = await import("@/lib/lead-gen/ava-web-call.server");
+          await upsertAvaWebCallRecord(call as never, adminWs, event);
+        } catch (recErr) {
+          console.warn("[AVA-WEB-CALL] Call record upsert failed (non-fatal)", recErr);
         }
         if (event === "call_analyzed") {
           await processAvaWebCallAnalyzed(call as never);
