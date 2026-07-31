@@ -1,0 +1,128 @@
+Audit and complete the website Ava Retell web-call integration.
+
+Do not assume that bookings, post-call analysis or WEBEE lead creation work merely because the browser conversation connects successfully.
+
+Verify and implement the following:
+
+1. CORRECT RETELL AGENT
+
+Confirm that the website web call uses the exact deployed Ava agent_id that contains:
+
+- Cal.com check-availability tool
+- Cal.com booking tool
+- Required post-call analysis fields
+- Correct WEBEE webhook URL
+- Existing approved Ava voice and prompt
+
+Do not create a duplicate agent.
+
+2. CAL.COM LIVE BOOKING
+
+Confirm that Ava can:
+
+- Check genuine Cal.com availability during the web call
+- Offer only currently available slots
+- Collect name, email, timezone and selected slot
+- Create the booking live through the configured Cal.com integration
+- Receive and validate the booking response
+- Confirm the appointment verbally only after Cal.com returns success
+- Handle unavailable slots and booking failures safely
+
+Do not treat a post-call extracted booking_slot as proof that a booking exists.
+
+Store the confirmed Cal.com booking UID against the Retell call and WEBEE lead.
+
+3. RETELL WEB-CALL METADATA
+
+When the secure backend creates the Retell web-call session, attach:
+
+- workspace_id
+- source: website_ava
+- channel: web_call
+- visitor_session_id
+- landing_page
+- referring_url
+- gclid
+- gbraid
+- wbraid
+- utm_source
+- utm_medium
+- utm_campaign
+- utm_term
+- utm_content
+- email when available
+- phone_number when available
+
+Never expose the Retell API key or Cal.com API credentials in frontend code.
+
+4. POST-CALL WEBHOOK
+
+Confirm that the correct WEBEE endpoint receives Retell:
+
+- call_started
+- call_ended
+- call_analyzed
+
+Verify the x-retell-signature before processing the webhook.
+
+Return a successful 2xx response after valid processing and implement idempotency using call_id plus event type.
+
+5. LEAD CREATION
+
+After call_analyzed, create or update a WEBEE lead when any of these conditions are true:
+
+- user_sentiment is Positive
+- a Cal.com booking was successfully created
+- the caller explicitly requested a demo, quote, trial or human follow-up
+- the call was otherwise classified as qualified
+
+Do not rely exclusively on positive sentiment because qualified callers may receive neutral sentiment.
+
+The created lead must include:
+
+- Retell call_id
+- workspace_id
+- caller name
+- email
+- phone number when available
+- sentiment
+- qualification result
+- call summary
+- transcript reference
+- source: Website Ava
+- channel: Web Call
+- Cal.com booking UID
+- booking date and time
+- UTM and Google Ads attribution
+- created timestamp
+
+Upsert by Retell call_id so webhook retries cannot create duplicate leads.
+
+6. WORKSPACE ROUTING
+
+Do not route the call using the visitor’s browser alone.
+
+Use trusted server-side workspace mapping and ensure website Ava leads appear in the correct WEBEE workspace Leads section.
+
+If no workspace can be resolved, record the event in an integration error table rather than silently dropping it.
+
+7. TEST THE COMPLETE FLOW
+
+Run a real end-to-end web call:
+
+- Open Ava from the public homepage
+- Grant microphone access
+- Ask for available appointment times
+- Select a genuine available time
+- Complete a booking
+- Verify the event exists in Cal.com
+- End the call after expressing positive interest
+- Verify Retell produces call_analyzed
+- Verify WEBEE receives the signed webhook
+- Verify one lead appears in the correct workspace
+- Verify sentiment, summary, booking UID and attribution are stored
+- Replay the webhook and confirm no duplicate lead is created
+
+Report the actual call_id, booking UID, webhook response and created lead ID.
+
+Do not report this as complete until the real end-to-end test passes.

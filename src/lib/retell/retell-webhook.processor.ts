@@ -554,9 +554,54 @@ export async function processRetellWebhook(
     return { ok: true, status: 200, message: "ignored", event, callId };
   }
 
-  // Ignore test/builder calls (web_call type). These are calls initiated from
-  // the builder preview — they should never appear in the client dashboard.
+  // Web calls (browser WebRTC): website "Talk to Ava" live-chat calls are the
+  // ONLY web calls we process — on call_analyzed they can create a WEBEE lead.
+  // Every other web call is a builder/test preview and stays ignored.
   if (call.call_type === "web_call" || call.call_type === "webcall") {
+    try {
+      const { isWebsiteAvaWebCall, processAvaWebCallAnalyzed } = await import(
+        "@/lib/lead-gen/ava-web-call.server"
+      );
+      if (isWebsiteAvaWebCall(call as { agent_id?: string; metadata?: Record<string, unknown> })) {
+        // Atomic duplicate-delivery claim (same ledger as phone calls) — Retell
+        // retries with identical payloads must not double-process. FAIL-OPEN.
+        if (!options.skipDedup && callId) {
+          try {
+            const { resolveAdminWorkspaceId } = await import("@/lib/lead-gen/ava-call.server");
+            const adminWs = await resolveAdminWorkspaceId();
+            if (adminWs) {
+              const { claimWebhookDelivery } = await import(
+                "@/lib/retell/retell-webhook-management.server"
+              );
+              const claim = await claimWebhookDelivery({
+                workspaceId: adminWs,
+                eventType: event,
+                callId,
+                rawBody,
+                payload,
+              });
+              if (claim.action === "duplicate" || claim.action === "replay") {
+                await updateWebhookEvent(eventLogId, "duplicate", "website_ava web call duplicate delivery");
+                return { ok: true, status: 200, message: "duplicate", event, callId };
+              }
+            }
+          } catch (dedupErr) {
+            console.warn("[AVA-WEB-CALL] Dedup claim failed (fail-open)", dedupErr);
+          }
+        }
+        if (event === "call_analyzed") {
+          await processAvaWebCallAnalyzed(call as never);
+          await updateWebhookEvent(eventLogId, "processed", "website_ava web call analyzed");
+          return { ok: true, status: 200, message: "website ava web call processed", event, callId };
+        }
+        await updateWebhookEvent(eventLogId, "processed", `website_ava web call ${event} (ack)`);
+        return { ok: true, status: 200, message: "website ava web call ack", event, callId };
+      }
+    } catch (e) {
+      console.error("[RETELL WEBHOOK] website_ava web call processing failed", e);
+      await updateWebhookEvent(eventLogId, "error", `website_ava web call failed: ${(e as Error)?.message}`);
+      return { ok: true, status: 200, message: "website ava web call error", event, callId };
+    }
     console.log("[RETELL WEBHOOK] Ignoring web/test call (not a live call)", { event, callId });
     await updateWebhookEvent(eventLogId, "ignored", "web_call type — builder test call");
     return { ok: true, status: 200, message: "ignored: test call", event, callId };

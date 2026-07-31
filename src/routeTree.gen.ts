@@ -98,6 +98,7 @@ import { Route as ApiPublicMetaAdsWebhookRouteImport } from './routes/api/public
 import { Route as ApiPublicElevenlabsWebhookRouteImport } from './routes/api/public/elevenlabs-webhook'
 import { Route as ApiPublicContactRouteImport } from './routes/api/public/contact'
 import { Route as ApiPublicCampaignExecutorRouteImport } from './routes/api/public/campaign-executor'
+import { Route as ApiPublicAvaWebCallRouteImport } from './routes/api/public/ava-web-call'
 import { Route as ApiPublicApproveUserRouteImport } from './routes/api/public/approve-user'
 import { Route as ApiPublicAdsSyncRouteImport } from './routes/api/public/ads-sync'
 import { Route as ApiOauthMetaCallbackRouteImport } from './routes/api/oauth/meta-callback'
@@ -783,6 +784,11 @@ const ApiPublicCampaignExecutorRoute =
     path: '/api/public/campaign-executor',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiPublicAvaWebCallRoute = ApiPublicAvaWebCallRouteImport.update({
+  id: '/api/public/ava-web-call',
+  path: '/api/public/ava-web-call',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiPublicApproveUserRoute = ApiPublicApproveUserRouteImport.update({
   id: '/api/public/approve-user',
   path: '/api/public/approve-user',
@@ -2246,6 +2252,7 @@ export interface FileRoutesByFullPath {
   '/api/oauth/meta-callback': typeof ApiOauthMetaCallbackRoute
   '/api/public/ads-sync': typeof ApiPublicAdsSyncRoute
   '/api/public/approve-user': typeof ApiPublicApproveUserRoute
+  '/api/public/ava-web-call': typeof ApiPublicAvaWebCallRoute
   '/api/public/campaign-executor': typeof ApiPublicCampaignExecutorRoute
   '/api/public/contact': typeof ApiPublicContactRoute
   '/api/public/elevenlabs-webhook': typeof ApiPublicElevenlabsWebhookRouteWithChildren
@@ -2547,6 +2554,7 @@ export interface FileRoutesByTo {
   '/api/oauth/meta-callback': typeof ApiOauthMetaCallbackRoute
   '/api/public/ads-sync': typeof ApiPublicAdsSyncRoute
   '/api/public/approve-user': typeof ApiPublicApproveUserRoute
+  '/api/public/ava-web-call': typeof ApiPublicAvaWebCallRoute
   '/api/public/campaign-executor': typeof ApiPublicCampaignExecutorRoute
   '/api/public/contact': typeof ApiPublicContactRoute
   '/api/public/elevenlabs-webhook': typeof ApiPublicElevenlabsWebhookRouteWithChildren
@@ -2858,6 +2866,7 @@ export interface FileRoutesById {
   '/api/oauth/meta-callback': typeof ApiOauthMetaCallbackRoute
   '/api/public/ads-sync': typeof ApiPublicAdsSyncRoute
   '/api/public/approve-user': typeof ApiPublicApproveUserRoute
+  '/api/public/ava-web-call': typeof ApiPublicAvaWebCallRoute
   '/api/public/campaign-executor': typeof ApiPublicCampaignExecutorRoute
   '/api/public/contact': typeof ApiPublicContactRoute
   '/api/public/elevenlabs-webhook': typeof ApiPublicElevenlabsWebhookRouteWithChildren
@@ -3170,6 +3179,7 @@ export interface FileRouteTypes {
     | '/api/oauth/meta-callback'
     | '/api/public/ads-sync'
     | '/api/public/approve-user'
+    | '/api/public/ava-web-call'
     | '/api/public/campaign-executor'
     | '/api/public/contact'
     | '/api/public/elevenlabs-webhook'
@@ -3471,6 +3481,7 @@ export interface FileRouteTypes {
     | '/api/oauth/meta-callback'
     | '/api/public/ads-sync'
     | '/api/public/approve-user'
+    | '/api/public/ava-web-call'
     | '/api/public/campaign-executor'
     | '/api/public/contact'
     | '/api/public/elevenlabs-webhook'
@@ -3781,6 +3792,7 @@ export interface FileRouteTypes {
     | '/api/oauth/meta-callback'
     | '/api/public/ads-sync'
     | '/api/public/approve-user'
+    | '/api/public/ava-web-call'
     | '/api/public/campaign-executor'
     | '/api/public/contact'
     | '/api/public/elevenlabs-webhook'
@@ -3948,6 +3960,7 @@ export interface RootRouteChildren {
   ApiOauthMetaCallbackRoute: typeof ApiOauthMetaCallbackRoute
   ApiPublicAdsSyncRoute: typeof ApiPublicAdsSyncRoute
   ApiPublicApproveUserRoute: typeof ApiPublicApproveUserRoute
+  ApiPublicAvaWebCallRoute: typeof ApiPublicAvaWebCallRoute
   ApiPublicCampaignExecutorRoute: typeof ApiPublicCampaignExecutorRoute
   ApiPublicContactRoute: typeof ApiPublicContactRoute
   ApiPublicElevenlabsWebhookRoute: typeof ApiPublicElevenlabsWebhookRouteWithChildren
@@ -4652,6 +4665,13 @@ declare module '@tanstack/react-router' {
       path: '/api/public/campaign-executor'
       fullPath: '/api/public/campaign-executor'
       preLoaderRoute: typeof ApiPublicCampaignExecutorRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/ava-web-call': {
+      id: '/api/public/ava-web-call'
+      path: '/api/public/ava-web-call'
+      fullPath: '/api/public/ava-web-call'
+      preLoaderRoute: typeof ApiPublicAvaWebCallRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/public/approve-user': {
@@ -7058,6 +7078,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiOauthMetaCallbackRoute: ApiOauthMetaCallbackRoute,
   ApiPublicAdsSyncRoute: ApiPublicAdsSyncRoute,
   ApiPublicApproveUserRoute: ApiPublicApproveUserRoute,
+  ApiPublicAvaWebCallRoute: ApiPublicAvaWebCallRoute,
   ApiPublicCampaignExecutorRoute: ApiPublicCampaignExecutorRoute,
   ApiPublicContactRoute: ApiPublicContactRoute,
   ApiPublicElevenlabsWebhookRoute: ApiPublicElevenlabsWebhookRouteWithChildren,

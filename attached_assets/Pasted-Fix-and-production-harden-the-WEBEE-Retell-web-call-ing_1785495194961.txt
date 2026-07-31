@@ -1,0 +1,232 @@
+Fix and production-harden the WEBEE Retell web-call ingestion.
+
+This work must be completed in the WEBEE application at:
+
+https://webeebuilder.com/api/public/voice-webhook
+
+Do not modify the Lovable frontend except where necessary to send calls to the published Retell agent version.
+
+1. SECURE THE RETELL WEBHOOK
+
+The current endpoint accepts unsigned requests and returns 200. This is a security vulnerability.
+
+Implement Retell webhook signature verification using the x-retell-signature header and the official Retell SDK verification method.
+
+Requirements:
+
+- Use the correct request body representation required by Retell verification.
+- Read the x-retell-signature header.
+- Reject a missing signature with HTTP 401.
+- Reject an invalid signature with HTTP 401.
+- Do not process, store or enqueue unverified payloads.
+- Do not create a lead from an unverified payload.
+- Log rejected attempts without logging secrets or sensitive transcript content.
+- Keep the Retell API key server-side only.
+
+Test that this unsigned payload is rejected:
+
+{
+  "event": "ping"
+}
+
+Expected result:
+
+HTTP 401
+{
+  "success": false,
+  "error": "invalid_webhook_signature"
+}
+
+2. VALIDATE EVENT TYPES
+
+Only process recognised Retell webhook events:
+
+- call_started
+- call_ended
+- call_analyzed
+
+Unknown events should return a safe response without creating or updating leads.
+
+3. ADD IDEMPOTENCY
+
+Create an idempotency record using:
+
+retell_call_id + event_type
+
+Use a database unique constraint, not only an in-memory check.
+
+Webhook retries must not:
+
+- create duplicate calls
+- create duplicate leads
+- create duplicate bookings
+- overwrite valid information with null values
+
+4. RESOLVE THE WORKSPACE SECURELY
+
+The public website Ava calls must route to the correct WEBEE workspace.
+
+Read workspace_id from trusted Retell metadata, but validate it server-side against the WEBEE workspaces table.
+
+For website Ava calls, source and workspace mapping must originate from trusted server-generated metadata.
+
+Never accept a browser-supplied workspace ID without validation.
+
+If workspace_id is missing, invalid or inactive:
+
+- do not silently assign another customer’s workspace
+- log an integration routing error
+- store the call in a quarantined/unassigned integration record
+- do not discard the webhook
+
+5. CREATE OR UPDATE THE WEBEE CALL RECORD
+
+For every verified call, upsert the WEBEE call record using Retell call_id.
+
+Store:
+
+- call_id
+- agent_id
+- agent_version
+- workspace_id
+- call_type
+- source
+- channel
+- call status
+- start timestamp
+- end timestamp
+- duration
+- transcript reference
+- recording reference where permitted
+- metadata
+- Google Ads attribution
+- processing status
+
+6. LEAD CREATION RULES
+
+After a verified call_analyzed event, create or update a lead when any of these are true:
+
+- user_sentiment is Positive
+- qualification_result is qualified
+- a Cal.com appointment was genuinely booked
+- the caller explicitly requested a quote
+- the caller explicitly requested a demo
+- the caller explicitly requested a free trial
+- the caller requested human follow-up
+
+Do not require positive sentiment when a genuine appointment was booked.
+
+Do not create a qualified lead solely because the caller was polite.
+
+7. LEAD FIELD MAPPING
+
+Map and store:
+
+- caller_name
+- email
+- phone_number
+- industry
+- interest
+- budget
+- qualification_result
+- sentiment
+- call summary
+- Retell call_id
+- workspace_id
+- source = Website Ava
+- channel = Web Call
+- booking_status
+- booking_uid
+- booking_start_time
+- landing_page
+- referring_url
+- gclid
+- gbraid
+- wbraid
+- utm_source
+- utm_medium
+- utm_campaign
+- utm_term
+- utm_content
+
+Normalise phone numbers where possible, but preserve the original supplied value as well.
+
+8. VERIFY THE REAL CAL.COM BOOKING RESULT
+
+Do not treat booking_slot or a caller’s spoken confirmation as proof of a booking.
+
+Inspect the Retell call object and transcript_with_tool_calls for the actual book_appointment_cal invocation and result.
+
+Set:
+
+booking_status = confirmed
+
+only when the booking tool returned a genuine successful result.
+
+Extract and store the real Cal.com booking UID or booking ID from that result.
+
+If post-call booking_uid conflicts with the actual tool result, use the tool result as the source of truth and log the mismatch.
+
+9. PUBLISH AND PIN THE RETELL AGENT
+
+The website currently uses:
+
+agent_a7d436bf944aeae0c72a12d5d2
+
+Do not create a duplicate agent.
+
+Publish the tested Ava configuration and pin website web calls to the tested published agent version or production environment tag.
+
+Do not use an unpinned latest draft for live PPC traffic.
+
+Store the selected agent version on each WEBEE call record.
+
+10. ROTATED CAL.COM KEY
+
+Assume the old Cal.com key is compromised and must not continue being used.
+
+After the owner supplies the replacement key:
+
+- update the existing Retell availability tool
+- update the existing Retell booking tool
+- remove the old key
+- confirm the old key no longer works
+- run a new availability check
+
+Never expose the replacement key in frontend code, logs or diagnostic endpoints.
+
+11. END-TO-END ACCEPTANCE TEST
+
+After the workspace ID, new Cal.com key and published agent version are configured, perform one real browser call.
+
+The user will speak into the microphone.
+
+Verify:
+
+- the call uses the correct published Ava version
+- workspace_id is present
+- Ava collects name, email and phone number
+- Ava checks live Cal.com availability
+- Ava successfully creates a booking
+- the booking exists in Cal.com
+- the real booking UID is captured
+- call_analyzed reaches WEBEE
+- the webhook signature is accepted
+- exactly one call record is created
+- exactly one lead is created in the correct workspace
+- sentiment and qualification are stored separately
+- attribution is retained
+- replaying the same webhook creates no duplicate
+
+Provide:
+
+- Retell call_id
+- Retell agent version
+- Cal.com booking UID
+- WEBEE call record ID
+- WEBEE lead ID
+- webhook HTTP result
+- workspace ID used
+- idempotency replay result
+
+Do not claim completion until this real end-to-end test passes.
