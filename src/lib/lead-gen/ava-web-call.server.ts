@@ -227,6 +227,108 @@ export function verifyCalBookingFromToolCalls(call: AvaWebCall): VerifiedBooking
   return none;
 }
 
+// ── Failed booking detection ─────────────────────────────────────────────────
+
+export type FailedBookingSignal = {
+  /** A book_appointment tool call was actually attempted during the call. */
+  attempted: boolean;
+  /** Booking was attempted (or summary indicates a booking) but did NOT succeed. */
+  failed: boolean;
+  /** Best-effort human-readable error detail from the tool result / summary. */
+  errorDetail: string | null;
+  /** Contact details recovered from the booking tool INVOCATION arguments. */
+  attendeeName: string | null;
+  attendeeEmail: string | null;
+  attendeePhone: string | null;
+};
+
+/**
+ * Detect a booking attempt that FAILED (e.g. Cal.com email_validation_error).
+ * Sources, in order of trust:
+ *   1. tool_call_invocation for book_appointment* with no successful result
+ *      (verifyCalBookingFromToolCalls already establishes success).
+ *   2. An error-shaped tool_call_result content for book_appointment*.
+ *   3. call_summary mentioning a booking/calendar error (fallback only).
+ * Contact details are recovered from the invocation arguments so the caller
+ * can still become a lead even when post-call analysis captured nothing.
+ */
+export function detectFailedCalBooking(call: AvaWebCall, bookingConfirmed: boolean): FailedBookingSignal {
+  const out: FailedBookingSignal = {
+    attempted: false, failed: false, errorDetail: null,
+    attendeeName: null, attendeeEmail: null, attendeePhone: null,
+  };
+  const utterances = Array.isArray(call.transcript_with_tool_calls)
+    ? call.transcript_with_tool_calls
+    : [];
+  const bookingToolCallIds = new Set<string>();
+  for (const u of utterances) {
+    const rec = u as Record<string, unknown>;
+    if (String(rec.role ?? "") !== "tool_call_invocation") continue;
+    const name = String(rec.name ?? "").toLowerCase();
+    if (!name.includes("book_appointment")) continue;
+    out.attempted = true;
+    const id = String(rec.tool_call_id ?? "");
+    if (id) bookingToolCallIds.add(id);
+    // Recover contact details from the invocation arguments.
+    const rawArgs = rec.arguments;
+    let args: Record<string, unknown> | null = null;
+    if (typeof rawArgs === "string") {
+      try { args = JSON.parse(rawArgs) as Record<string, unknown>; } catch { args = null; }
+    } else if (rawArgs && typeof rawArgs === "object") {
+      args = rawArgs as Record<string, unknown>;
+    }
+    if (args) {
+      const attendee = (args.attendee && typeof args.attendee === "object" ? args.attendee : args) as Record<string, unknown>;
+      out.attendeeName ??= str(attendee.name, 120) ?? str(args.name, 120);
+      out.attendeeEmail ??= str(attendee.email, 200)?.toLowerCase() ?? str(args.email, 200)?.toLowerCase() ?? null;
+      out.attendeePhone ??= str(attendee.phone ?? attendee.phoneNumber, 40) ?? str(args.phone ?? args.phone_number, 40);
+    }
+  }
+  // Error detail from the matching tool result (string errors are skipped by
+  // the success verifier, so inspect them here).
+  for (const u of utterances) {
+    const rec = u as Record<string, unknown>;
+    if (String(rec.role ?? "") !== "tool_call_result") continue;
+    const id = String(rec.tool_call_id ?? "");
+    if (bookingToolCallIds.size > 0 && !bookingToolCallIds.has(id)) continue;
+    if (bookingToolCallIds.size === 0 && !String(rec.name ?? "").toLowerCase().includes("book_appointment")) continue;
+    const content = rec.content;
+    if (typeof content === "string") {
+      if (/error|fail|invalid|unavailable|not available|no longer available/i.test(content)) {
+        out.errorDetail ??= content.slice(0, 500);
+      } else {
+        try {
+          const parsed = JSON.parse(content) as Record<string, unknown>;
+          const statusStr = String(parsed.status ?? "").toLowerCase();
+          const err = parsed.error ?? (parsed.data as Record<string, unknown> | undefined)?.error;
+          if (statusStr === "error" || err != null) {
+            out.errorDetail ??= (typeof err === "string" ? err : JSON.stringify(err ?? parsed)).slice(0, 500);
+          }
+        } catch { /* non-JSON success payloads handled by the verifier */ }
+      }
+    } else if (content && typeof content === "object") {
+      const parsed = content as Record<string, unknown>;
+      const statusStr = String(parsed.status ?? "").toLowerCase();
+      const err = parsed.error ?? (parsed.data as Record<string, unknown> | undefined)?.error;
+      if (statusStr === "error" || err != null) {
+        out.errorDetail ??= (typeof err === "string" ? err : JSON.stringify(err ?? parsed)).slice(0, 500);
+      }
+    }
+  }
+  // Summary fallback: Ava's post-call summary mentions a booking/calendar error.
+  const summary = call.call_analysis?.call_summary ?? "";
+  const summaryIndicatesFailure =
+    /(booking|calendar|appointment|schedul\w*)[^.]{0,120}(error|fail\w*|couldn'?t|could not|unable|didn'?t (?:go through|work)|issue|problem)/i.test(summary) ||
+    /(error|fail\w*|couldn'?t|could not|unable)[^.]{0,120}(booking|book (?:the|an|a)|calendar|appointment)/i.test(summary);
+  out.failed = !bookingConfirmed && (out.attempted || summaryIndicatesFailure);
+  if (out.failed && !out.errorDetail && summaryIndicatesFailure) {
+    out.errorDetail = "Call summary indicates a booking/calendar error";
+  }
+  // attempted-but-no-result with no error signal at all: still treat as failed
+  // (no confirmed booking exists), which is exactly the silent-failure case.
+  return out;
+}
+
 // ── Call record upsert (one WEBEE call row per Retell web call) ──────────────
 
 /**
@@ -389,12 +491,21 @@ export async function processAvaWebCallAnalyzed(call: AvaWebCall): Promise<void>
     console.warn("[AVA-WEB-CALL] post-call claims booking but no successful tool result — NOT confirmed", { callId });
   }
   const bookingConfirmed = verified.confirmed;
+  const failedBooking = detectFailedCalBooking(call, bookingConfirmed);
+  const bookingFailed = failedBooking.failed;
+  if (bookingFailed) {
+    console.warn("[AVA-WEB-CALL] booking attempted but FAILED — flagging for follow-up", {
+      callId, errorDetail: failedBooking.errorDetail,
+    });
+  }
   const bookingUid = verified.uid ?? extractedUid;
   const bookingStatus = bookingConfirmed
     ? "confirmed"
-    : extractedBooked
-      ? "unconfirmed"
-      : (extractedStatus ?? null);
+    : bookingFailed
+      ? "failed"
+      : extractedBooked
+        ? "unconfirmed"
+        : (extractedStatus ?? null);
   // A booking (confirmed or claimed) still qualifies the caller as a lead.
   const booked = bookingConfirmed || extractedBooked;
   const explicitRequest =
@@ -416,9 +527,13 @@ export async function processAvaWebCallAnalyzed(call: AvaWebCall): Promise<void>
     truthy(custom.lead_qualified) ||
     qualificationResult === "qualified";
 
+  // A FAILED booking attempt is a strong buying signal — the caller wanted to
+  // book. It always qualifies the caller, even overriding negative sentiment
+  // (frustration at a broken booking must not lose the lead).
   const shouldCreateLead =
-    (booked || sentiment === "positive" || explicitRequest || qualifiedFlag) &&
-    sentiment !== "negative";
+    bookingFailed ||
+    ((booked || sentiment === "positive" || explicitRequest || qualifiedFlag) &&
+      sentiment !== "negative");
   if (!shouldCreateLead) {
     console.log("[AVA-WEB-CALL] call not qualified — no lead", { callId, sentiment, booked });
     return;
@@ -426,12 +541,12 @@ export async function processAvaWebCallAnalyzed(call: AvaWebCall): Promise<void>
 
   // ── Contact details: post-call analysis first, session metadata fallback ──
   const email =
-    (str(custom.email, 200) ?? verified.attendeeEmail ?? str(meta.email, 200))?.toLowerCase() ?? null;
+    (str(custom.email, 200) ?? verified.attendeeEmail ?? failedBooking.attendeeEmail ?? str(meta.email, 200))?.toLowerCase() ?? null;
   const rawPhone =
-    str(custom.phone_number, 40) ?? str(custom.phone, 40) ?? verified.attendeePhone ?? str(meta.phone_number, 40);
+    str(custom.phone_number, 40) ?? str(custom.phone, 40) ?? verified.attendeePhone ?? failedBooking.attendeePhone ?? str(meta.phone_number, 40);
   const phone = rawPhone ? normalizePhoneE164(rawPhone) ?? rawPhone : null;
   const fullName =
-    str(custom.caller_name, 120) ?? str(custom.customer_name, 120) ?? str(custom.name, 120) ?? verified.attendeeName ?? null;
+    str(custom.caller_name, 120) ?? str(custom.customer_name, 120) ?? str(custom.name, 120) ?? verified.attendeeName ?? failedBooking.attendeeName ?? null;
 
   if (!email && !phone) {
     console.warn("[AVA-WEB-CALL] Qualified call but no contact details — recording for review", { callId });
@@ -442,10 +557,21 @@ export async function processAvaWebCallAnalyzed(call: AvaWebCall): Promise<void>
         workspace_id: workspaceId,
         processing_status: "error",
         error_message: "website_ava web call qualified but no email/phone captured — no lead created",
-        payload: { source: "website_ava", call_id: callId, sentiment, booked },
+        payload: { source: "website_ava", call_id: callId, sentiment, booked, booking_failed: bookingFailed },
         processed_at: new Date().toISOString(),
       } as never);
     } catch { /* best-effort */ }
+    // A failed booking must NEVER slip away silently — alert admins even when
+    // no lead could be created, so the team can chase the transcript.
+    if (bookingFailed) {
+      await notifyFailedAvaBooking({
+        workspaceId, callId, leadId: null,
+        name: null, email: null, phone: null,
+        errorDetail: failedBooking.errorDetail,
+        summary: call.call_analysis?.call_summary ?? null,
+        noContact: true,
+      });
+    }
     return;
   }
 
@@ -459,6 +585,9 @@ export async function processAvaWebCallAnalyzed(call: AvaWebCall): Promise<void>
     appointment_booked: booked,
     booking_status: bookingStatus,
     booking_confirmed: bookingConfirmed,
+    booking_failed: bookingFailed,
+    booking_error: bookingFailed ? failedBooking.errorDetail : null,
+    follow_up_required: bookingFailed || null,
     booking_slot: bookingSlot,
     booking_start_time: verified.startTime ?? str(custom.booking_start_time, 60),
     booking_timezone: verified.timezone ?? "Europe/London",
@@ -594,22 +723,92 @@ export async function processAvaWebCallAnalyzed(call: AvaWebCall): Promise<void>
       workspace_id: workspaceId,
       entity_type: "lead",
       entity_id: leadId,
-      body: `Spoke to Ava live on the website (web call).${booked ? " Booked an appointment." : ""}${bookingSlot ? ` Slot: ${bookingSlot}.` : ""}${bookingUid ? ` Booking ref: ${bookingUid}.` : ""}`,
+      body: `Spoke to Ava live on the website (web call).${booked ? " Booked an appointment." : ""}${bookingFailed ? ` BOOKING FAILED — follow up manually.${failedBooking.errorDetail ? ` Error: ${failedBooking.errorDetail}` : ""}` : ""}${bookingSlot ? ` Slot: ${bookingSlot}.` : ""}${bookingUid ? ` Booking ref: ${bookingUid}.` : ""}`,
       created_at: now,
     } as never);
   } catch { /* best-effort */ }
   try {
     await sendResendEmail({
       to: WEBEE_ADMIN_EMAIL,
-      subject: `Website Ava lead: ${fullName ?? email ?? phone}`,
+      subject: bookingFailed
+        ? `⚠️ Ava booking FAILED — follow up: ${fullName ?? email ?? phone}`
+        : `Website Ava lead: ${fullName ?? email ?? phone}`,
       html: renderBasicEmail({
-        heading: booked ? "Ava booked an appointment on the website" : "New lead from the website Ava live chat",
+        heading: bookingFailed
+          ? "Ava booking FAILED on the website — manual follow-up needed"
+          : booked
+            ? "Ava booked an appointment on the website"
+            : "New lead from the website Ava live chat",
         bodyHtml: `
-          <p style="font-size:14px;color:#c8c8d8">${escapeHtml(fullName ?? "A visitor")} spoke to Ava live on the website.</p>
-          <p style="font-size:13px;color:#c8c8d8">${email ? `Email: ${escapeHtml(email)}<br/>` : ""}${phone ? `Phone: ${escapeHtml(phone)}<br/>` : ""}${bookingSlot ? `Slot: ${escapeHtml(bookingSlot)}<br/>` : ""}Sentiment: ${escapeHtml(sentiment ?? "unknown")}</p>`,
+          <p style="font-size:14px;color:#c8c8d8">${escapeHtml(fullName ?? "A visitor")} spoke to Ava live on the website.${bookingFailed ? " They tried to book an appointment but the booking FAILED — please follow up manually." : ""}</p>
+          <p style="font-size:13px;color:#c8c8d8">${email ? `Email: ${escapeHtml(email)}<br/>` : ""}${phone ? `Phone: ${escapeHtml(phone)}<br/>` : ""}${bookingSlot ? `Slot: ${escapeHtml(bookingSlot)}<br/>` : ""}${bookingFailed && failedBooking.errorDetail ? `Booking error: ${escapeHtml(failedBooking.errorDetail)}<br/>` : ""}Sentiment: ${escapeHtml(sentiment ?? "unknown")}</p>`,
       }),
     });
   } catch { /* best-effort */ }
 
-  console.log("[AVA-WEB-CALL] Lead recorded", { callId, leadId, booked, sentiment });
+  // In-app notification for workspace admins when the booking failed.
+  if (bookingFailed) {
+    await notifyFailedAvaBooking({
+      workspaceId, callId, leadId,
+      name: fullName, email, phone,
+      errorDetail: failedBooking.errorDetail,
+      summary: call.call_analysis?.call_summary ?? null,
+      noContact: false,
+    });
+  }
+
+  console.log("[AVA-WEB-CALL] Lead recorded", { callId, leadId, booked, bookingFailed, sentiment });
+}
+
+// ── Failed-booking admin alert (in-app notification + email fallback) ────────
+
+async function notifyFailedAvaBooking(input: {
+  workspaceId: string;
+  callId: string;
+  leadId: string | null;
+  name: string | null;
+  email: string | null;
+  phone: string | null;
+  errorDetail: string | null;
+  summary: string | null;
+  /** True when no contact details were captured (no lead row exists). */
+  noContact: boolean;
+}): Promise<void> {
+  const who = input.name?.trim() || input.email?.trim() || input.phone?.trim() || "Unknown caller";
+  // In-app workspace notification (owner + admins by default) — reuses the
+  // existing needs_admin_attention event key (warning severity, no migration).
+  try {
+    const { emitCampaignNotification } = await import("@/lib/notifications/notification-engine.shared");
+    await emitCampaignNotification(supabaseAdmin as any, {
+      workspaceId: input.workspaceId,
+      eventKey: "needs_admin_attention",
+      campaignName: `Ava booking failed — ${who}`,
+      summary: [
+        "Website Ava caller tried to book but the booking failed — follow up manually.",
+        input.email ? `Email: ${input.email}` : null,
+        input.phone ? `Phone: ${input.phone}` : null,
+        input.errorDetail ? `Error: ${input.errorDetail}` : null,
+        input.noContact ? "No contact details captured — check the call transcript." : null,
+      ].filter(Boolean).join(" · "),
+      severity: "warning",
+    });
+  } catch (e) {
+    console.warn("[AVA-WEB-CALL] failed-booking notification emit failed (non-fatal)", e);
+  }
+  // Direct admin email for the no-contact case (the lead path already sends
+  // its own admin email with the failure callout).
+  if (input.noContact) {
+    try {
+      await sendResendEmail({
+        to: WEBEE_ADMIN_EMAIL,
+        subject: "⚠️ Ava booking FAILED on the website — no contact captured",
+        html: renderBasicEmail({
+          heading: "Ava booking FAILED — manual follow-up needed",
+          bodyHtml: `
+            <p style="font-size:14px;color:#c8c8d8">A website visitor tried to book via Ava but the booking failed, and no email/phone was captured. Check the call transcript to recover their details.</p>
+            <p style="font-size:13px;color:#c8c8d8">Call ID: ${escapeHtml(input.callId)}<br/>${input.errorDetail ? `Booking error: ${escapeHtml(input.errorDetail)}<br/>` : ""}${input.summary ? `Summary: ${escapeHtml(input.summary.slice(0, 600))}` : ""}</p>`,
+        }),
+      });
+    } catch { /* best-effort */ }
+  }
 }
