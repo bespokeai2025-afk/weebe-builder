@@ -61,6 +61,18 @@ export async function triggerAutoCallForNewLead(
       return { placed: false, reason: "no_phone" };
     }
 
+    // Leads who already spoke to Ava live on the website (web call) — and
+    // especially those who already booked — must NOT get an automatic
+    // callback. They just talked to us; only the email alert and in-app
+    // notification apply.
+    const leadMeta = (lead.meta ?? {}) as Record<string, unknown>;
+    const spokeToAvaWebCall =
+      leadMeta.channel === "web_call" || leadMeta.cta_source === "website_ava";
+    const alreadyBooked = leadMeta.booking_status === "confirmed";
+    if (spokeToAvaWebCall || alreadyBooked) {
+      return { placed: false, reason: spokeToAvaWebCall ? "web_call_origin" : "already_booked" };
+    }
+
     const { data: agent } = await sb
       .from("agents")
       .select("id, retell_agent_id, name, settings")
