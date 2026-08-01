@@ -61,6 +61,8 @@ export const Route = createFileRoute("/api/public/ava-web-call")({
             utm_campaign: fields.utm_campaign ?? fields.utmCampaign,
             utm_term: fields.utm_term ?? fields.utmTerm,
             utm_content: fields.utm_content ?? fields.utmContent,
+            ad_user_data_consent:
+              fields.ad_user_data_consent ?? fields.adUserDataConsent ?? fields.consent,
           },
           ip,
           userAgent: request.headers.get("user-agent"),

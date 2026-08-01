@@ -13,6 +13,7 @@
  * instead of pretending Google acknowledged it.
  */
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
+import { resolveConversionActionId } from "@/lib/tracking/datamanager-upload.server";
 
 interface ConversionEventRow {
   id: string;
@@ -32,7 +33,10 @@ export interface UploadTarget {
 }
 
 /** Resolve the workspace's Google Ads upload target (account + action). */
-export async function resolveGadsUploadTarget(workspaceId: string): Promise<UploadTarget | null> {
+export async function resolveGadsUploadTarget(
+  workspaceId: string,
+  conversionName?: string | null,
+): Promise<UploadTarget | null> {
   const { data: acc } = await supabaseAdmin
     .from("growthmind_ads_accounts")
     .select("customer_id, login_customer_id")
@@ -52,8 +56,7 @@ export async function resolveGadsUploadTarget(workspaceId: string): Promise<Uplo
     .eq("provider_name", "google_ads")
     .maybeSingle();
   const creds = ((ps as { credentials?: Record<string, string> } | null)?.credentials ?? {});
-  const rawAction = String(creds.uploadConversionActionId ?? "").trim();
-  const conversionActionId = /^\d{3,20}$/.test(rawAction) ? rawAction : null;
+  const conversionActionId = resolveConversionActionId(creds, conversionName ?? null);
 
   return {
     customerId,
@@ -79,10 +82,10 @@ export async function maybeUploadClickConversion(eventId: string): Promise<void>
   try {
     const { data } = await supabaseAdmin
       .from("conversion_events")
-      .select("id, workspace_id, conversion_name, gclid, gbraid, wbraid, created_at, delivery_status")
+      .select("id, workspace_id, conversion_name, gclid, gbraid, wbraid, created_at, delivery_status, record_ref")
       .eq("id", eventId)
       .maybeSingle();
-    const ev = data as ConversionEventRow | null;
+    const ev = data as (ConversionEventRow & { record_ref?: Record<string, unknown> | null }) | null;
     if (!ev) return;
     if (!(ev.gclid || ev.gbraid || ev.wbraid)) return; // never upload without real attribution
     // LEGACY adapter — disabled by default. Runs only behind the explicit
@@ -134,7 +137,7 @@ export async function maybeUploadClickConversion(eventId: string): Promise<void>
         .eq("id", ev.id);
     };
 
-    const target = await resolveGadsUploadTarget(ev.workspace_id);
+    const target = await resolveGadsUploadTarget(ev.workspace_id, ev.conversion_name);
     if (!target || !target.conversionActionId) {
       await setStatus("pending_config", {
         last_error: !target
@@ -156,6 +159,10 @@ export async function maybeUploadClickConversion(eventId: string): Promise<void>
     const conversion: Record<string, unknown> = {
       conversionAction: `customers/${target.customerId}/conversionActions/${target.conversionActionId}`,
       conversionDateTime: toGadsDateTime(ev.created_at),
+      // Provider-side dedup: the order/booking reference wins when present.
+      ...(typeof ev.record_ref?.order_id === "string" && ev.record_ref.order_id
+        ? { orderId: ev.record_ref.order_id }
+        : {}),
     };
     if (ev.gclid) conversion.gclid = ev.gclid;
     else if (ev.gbraid) conversion.gbraid = ev.gbraid;

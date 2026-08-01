@@ -26,6 +26,7 @@
 import { createHash } from "crypto";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { grantedScopesIncludeDataManager } from "@/lib/providers/advertising/google-ads-oauth.functions";
+import { OBSERVATION_ONLY_CONVERSIONS } from "@/lib/tracking/conversion-events.server";
 
 export const DATA_MANAGER_BASE = "https://datamanager.googleapis.com/v1";
 
@@ -105,7 +106,49 @@ export interface DataManagerTarget {
   legacyFallbackEnabled: boolean;
 }
 
-export async function resolveDataManagerTarget(workspaceId: string): Promise<
+/**
+ * Resolve the conversion action ID for a specific conversion name.
+ * Precedence (pure, exported for tests):
+ *  1. env override GOOGLE_ADS_AVA_BOOKING_CONVERSION_ACTION_ID for
+ *     "ava_appointment_booked" (primary booking conversion);
+ *  2. explicit per-name entry in creds.conversionActionMap (JSON object,
+ *     stored as a string or object in provider settings);
+ *  3. workspace default uploadConversionActionId — EXCEPT for
+ *     observation-only names (e.g. ava_call_started), which must never fall
+ *     back onto the primary action: no explicit mapping → no upload.
+ */
+export function resolveConversionActionId(
+  creds: Record<string, string>,
+  conversionName: string | null | undefined,
+  env: Record<string, string | undefined> = process.env,
+): string | null {
+  const valid = (v: unknown): string | null => {
+    const s = String(v ?? "").trim();
+    return /^\d{3,20}$/.test(s) ? s : null;
+  };
+  if (conversionName === "ava_appointment_booked") {
+    const override = valid(env.GOOGLE_ADS_AVA_BOOKING_CONVERSION_ACTION_ID);
+    if (override) return override;
+  }
+  if (conversionName) {
+    let map: Record<string, unknown> = {};
+    const raw = (creds as Record<string, unknown>).conversionActionMap;
+    if (typeof raw === "string" && raw.trim()) {
+      try { map = JSON.parse(raw) as Record<string, unknown>; } catch { map = {}; }
+    } else if (raw && typeof raw === "object") {
+      map = raw as Record<string, unknown>;
+    }
+    const mapped = valid(map[conversionName]);
+    if (mapped) return mapped;
+    if (OBSERVATION_ONLY_CONVERSIONS.has(conversionName)) return null;
+  }
+  return valid(creds.uploadConversionActionId);
+}
+
+export async function resolveDataManagerTarget(
+  workspaceId: string,
+  conversionName?: string | null,
+): Promise<
   { ok: true; target: DataManagerTarget } | { ok: false; reason: string }
 > {
   const { data: ps } = await supabaseAdmin
@@ -117,9 +160,14 @@ export async function resolveDataManagerTarget(workspaceId: string): Promise<
     .maybeSingle();
   const creds = ((ps as { credentials?: Record<string, string> } | null)?.credentials ?? {});
 
-  const rawAction = String(creds.uploadConversionActionId ?? "").trim();
-  if (!/^\d{3,20}$/.test(rawAction)) {
-    return { ok: false, reason: "uploadConversionActionId not configured in google_ads provider settings" };
+  const rawAction = resolveConversionActionId(creds, conversionName ?? null);
+  if (!rawAction) {
+    return {
+      ok: false,
+      reason: conversionName && OBSERVATION_ONLY_CONVERSIONS.has(conversionName)
+        ? `no conversion action mapped for observation-only "${conversionName}" (conversionActionMap)`
+        : "uploadConversionActionId not configured in google_ads provider settings",
+    };
   }
 
   const { data: acc } = await supabaseAdmin
@@ -168,6 +216,10 @@ export interface DmEventInput {
   wbraid: string | null;
   hashedEmail?: string | null;
   hashedPhone?: string | null;
+  /** Provider-side dedup/order reference (e.g. Cal.com booking UID). */
+  orderId?: string | null;
+  /** Genuinely captured visitor consent ("granted" | "denied" | null=unknown). */
+  adUserDataConsent?: string | null;
 }
 
 /**
@@ -198,14 +250,20 @@ export function buildIngestEventsBody(
   if (ev.hashedEmail) userIdentifiers.push({ emailAddress: ev.hashedEmail });
   if (ev.hashedPhone) userIdentifiers.push({ phoneNumber: ev.hashedPhone });
 
+  // Consent honesty: an explicitly captured "denied" never reaches this point
+  // (the ledger blocks it as consent_blocked); explicit "granted" is passed
+  // through; unknown falls back to the first-party-submission default (these
+  // events originate from WEBEE's own forms / qualified calls where the user
+  // actively submitted their details).
+  const consentValue = ev.adUserDataConsent === "denied" ? "CONSENT_DENIED" : "CONSENT_GRANTED";
   const event: Record<string, unknown> = {
-    transactionId: ev.eventId,
+    // The order/booking reference is the transaction id when present so
+    // provider-side dedup holds even if a retry creates a new ledger row.
+    transactionId: ev.orderId?.trim() || ev.eventId,
     eventTimestamp: toRfc3339(ev.createdAt),
     eventSource: "WEB",
     eventName: ev.conversionName,
-    // First-party consent: these events originate from WEBEE's own forms /
-    // qualified calls where the user actively submitted their details.
-    consent: { adUserData: "CONSENT_GRANTED", adPersonalization: "CONSENT_GRANTED" },
+    consent: { adUserData: consentValue, adPersonalization: consentValue },
   };
   if (Object.keys(adIdentifiers).length > 0) event.adIdentifiers = adIdentifiers;
   if (userIdentifiers.length > 0) event.userData = { userIdentifiers };
@@ -255,10 +313,10 @@ export async function maybeUploadViaDataManager(eventId: string): Promise<void> 
   try {
     const { data } = await supabaseAdmin
       .from("conversion_events")
-      .select("id, workspace_id, conversion_name, source, lead_id, gclid, gbraid, wbraid, created_at, delivery_status, provider_response")
+      .select("id, workspace_id, conversion_name, source, lead_id, gclid, gbraid, wbraid, created_at, delivery_status, provider_response, record_ref")
       .eq("id", eventId)
       .maybeSingle();
-    const ev = data as EventRow | null;
+    const ev = data as (EventRow & { record_ref?: Record<string, unknown> | null }) | null;
     if (!ev) return;
     if (!UPLOADABLE_STATUSES.includes(ev.delivery_status as never)) return;
 
@@ -283,8 +341,11 @@ export async function maybeUploadViaDataManager(eventId: string): Promise<void> 
       return;
     }
 
-    const resolved = await resolveDataManagerTarget(ev.workspace_id);
+    const resolved = await resolveDataManagerTarget(ev.workspace_id, ev.conversion_name);
     if (!resolved.ok) {
+      // Observation-only events without a mapped action are deliberately not
+      // uploaded — that's expected, not a config problem.
+      if (OBSERVATION_ONLY_CONVERSIONS.has(ev.conversion_name)) return;
       await setEventStatus(ev.id, "pending_config", { last_error: resolved.reason });
       return;
     }
@@ -325,6 +386,9 @@ export async function maybeUploadViaDataManager(eventId: string): Promise<void> 
       wbraid: ev.wbraid,
       hashedEmail: hashed.hashedEmail,
       hashedPhone: hashed.hashedPhone,
+      orderId: typeof ev.record_ref?.order_id === "string" ? ev.record_ref.order_id : null,
+      adUserDataConsent:
+        typeof ev.record_ref?.ad_user_data_consent === "string" ? ev.record_ref.ad_user_data_consent : null,
     }, false);
 
     const submittedAt = new Date().toISOString();

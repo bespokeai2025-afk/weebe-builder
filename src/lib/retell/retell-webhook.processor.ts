@@ -619,6 +619,16 @@ export async function processRetellWebhook(
         } catch (recErr) {
           console.warn("[AVA-WEB-CALL] Call record upsert failed (non-fatal)", recErr);
         }
+        if (event === "call_started") {
+          // Observation-only conversion event: mic click connected. Never a
+          // booking/lead conversion; never blocks the acknowledgement.
+          try {
+            const { recordAvaWebCallStarted } = await import("@/lib/lead-gen/ava-web-call.server");
+            await recordAvaWebCallStarted(call as never);
+          } catch (e) {
+            console.warn("[AVA-WEB-CALL] call_started event hook failed (non-fatal)", e);
+          }
+        }
         if (event === "call_analyzed") {
           await processAvaWebCallAnalyzed(call as never);
           await updateWebhookEvent(eventLogId, "processed", "website_ava web call analyzed");

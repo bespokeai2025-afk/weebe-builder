@@ -127,8 +127,37 @@ export const getConversionDiagnostics = createServerFn({ method: "GET" })
       pendingConfig: rows.filter((r) => r.delivery_status === "pending_config").length,
     };
 
+    // Funnel view (30-day window): web-form vs Ava voice funnels, and Google
+    // Ads-attributed vs organic Ava bookings. "Attributed" = a real click ID
+    // was genuinely captured — never inferred.
+    const countBy = (name: string) => rows.filter((r) => r.conversion_name === name);
+    const attributed = (rs: typeof rows) => rs.filter((r) => r.gclid || r.gbraid || r.wbraid).length;
+    const callsStarted = countBy("ava_call_started");
+    const avaLeads = rows.filter(
+      (r) => r.conversion_name === "ava_qualified_lead" && r.source === "ava_web_call",
+    );
+    const avaBookings = countBy("ava_appointment_booked");
+    const webFormLeads = rows.filter(
+      (r) => r.conversion_name === "webform_lead" || r.conversion_name === "contact_form_submission",
+    );
+    const pct = (num: number, den: number) => (den > 0 ? Math.round((num / den) * 1000) / 10 : null);
+    const funnel = {
+      windowDays: 30,
+      callsStarted: callsStarted.length,
+      avaLeads: avaLeads.length,
+      avaQualifiedLeads: avaLeads.length,
+      avaBookings: avaBookings.length,
+      adsAttributedBookings: attributed(avaBookings),
+      organicBookings: avaBookings.length - attributed(avaBookings),
+      webFormLeads: webFormLeads.length,
+      adsAttributedWebFormLeads: attributed(webFormLeads),
+      callToLeadRatePct: pct(avaLeads.length, callsStarted.length),
+      callToBookingRatePct: pct(avaBookings.length, callsStarted.length),
+    };
+
     return {
       health,
+      funnel,
       uploadConfig: {
         transport: dmTarget?.legacyFallbackEnabled ? "legacy_click_conversions" : "data_manager",
         hasGadsAccount: Boolean(dmTarget?.operatingAccountId),

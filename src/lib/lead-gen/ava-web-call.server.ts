@@ -83,6 +83,13 @@ export async function createAvaWebCallSession(input: {
     utm_campaign: str(attr.utm_campaign, 120),
     utm_term: str(attr.utm_term, 120),
     utm_content: str(attr.utm_content, 120),
+    // Visitor ad-consent state as captured by the site's consent banner
+    // ("granted" | "denied"); absent = unknown. Travels with the call so the
+    // post-call conversion upload can honour it.
+    ad_user_data_consent: (() => {
+      const c = str(attr.ad_user_data_consent ?? attr.consent, 20)?.toLowerCase();
+      return c === "granted" || c === "denied" ? c : null;
+    })(),
     email,
     phone_number: phone,
     ip: input.ip,
@@ -209,8 +216,13 @@ export function verifyCalBookingFromToolCalls(call: AvaWebCall): VerifiedBooking
     // or a bare booking object with uid/id.
     const dataObj = (parsed.data && typeof parsed.data === "object" ? parsed.data : parsed) as Record<string, unknown>;
     const statusStr = String(parsed.status ?? "").toLowerCase();
-    const failed = statusStr === "error" || parsed.error != null || dataObj.error != null;
-    const uid = str(dataObj.uid, 120) ?? str(dataObj.booking_uid, 120) ?? (dataObj.id != null ? String(dataObj.id) : null);
+    // Strict success gate: when the result carries a status field it MUST be
+    // "success" (pending/accepted/anything else never confirms); error-shaped
+    // payloads never confirm; and the booking UID must be an explicit
+    // uid/booking_uid — never a generic `id`, which appears on non-booking
+    // objects too.
+    const failed = (statusStr !== "" && statusStr !== "success") || parsed.error != null || dataObj.error != null;
+    const uid = str(dataObj.uid, 120) ?? str(dataObj.booking_uid, 120);
     if (failed || !uid) continue;
     const attendee = (Array.isArray(dataObj.attendees) ? dataObj.attendees[0] : dataObj.responses ?? {}) as Record<string, unknown>;
     return {
@@ -577,10 +589,16 @@ export async function processAvaWebCallAnalyzed(call: AvaWebCall): Promise<void>
 
   const now = new Date().toISOString();
   const clickIds = extractClickIds(meta);
+  const adConsent = (() => {
+    const c = str(meta.ad_user_data_consent, 20)?.toLowerCase();
+    return c === "granted" || c === "denied" ? c : null;
+  })();
   const metaPatch: Record<string, unknown> = {
     retell_call_id: callId,
     cta_source: "website_ava",
     channel: "web_call",
+    attribution_source: "ava_web_call",
+    ad_user_data_consent: adConsent,
     enquiry_type: "ava_live_demo",
     appointment_booked: booked,
     booking_status: bookingStatus,
@@ -705,7 +723,8 @@ export async function processAvaWebCallAnalyzed(call: AvaWebCall): Promise<void>
     } catch { /* best-effort */ }
   }
 
-  // Conversion event + note + admin email — best-effort only.
+  // Conversion events + note + admin email — best-effort only.
+  const landingUrl = sanitizeLandingUrl(meta.landing_page);
   try {
     await recordConversionEvent({
       workspaceId,
@@ -714,9 +733,81 @@ export async function processAvaWebCallAnalyzed(call: AvaWebCall): Promise<void>
       leadId,
       recordRef: { retell_call_id: callId, booking_slot: bookingSlot, cal_booking_uid: bookingUid },
       clickIds,
-      landingUrl: sanitizeLandingUrl(meta.landing_page),
+      landingUrl,
+      adUserDataConsent: adConsent,
       dedupKey: `ava_web_call:${callId}`,
     });
+  } catch { /* best-effort */ }
+
+  // Primary booking conversion — fires ONLY on a genuine Cal.com tool-result
+  // booking with a real UID (never from sentiment, transcript claims,
+  // extracted booking_status/slot or call completion). Dedup: the booking UID
+  // is the dedup key AND the provider-side order id, so webhook retries and
+  // upload retries can never double-count one appointment.
+  let bookingConversion: { status?: string; deduped?: boolean } | null = null;
+  if (bookingConfirmed && verified.uid) {
+    try {
+      bookingConversion = await recordConversionEvent({
+        workspaceId,
+        conversionName: "ava_appointment_booked",
+        source: "ava_web_call",
+        leadId,
+        recordRef: {
+          retell_call_id: callId,
+          cal_booking_uid: verified.uid,
+          booking_start_time: verified.startTime,
+          attribution_source: "ava_web_call",
+        },
+        clickIds,
+        landingUrl,
+        orderId: verified.uid,
+        adUserDataConsent: adConsent,
+        dedupKey: `ava_appointment_booked:${verified.uid}`,
+      });
+    } catch { /* best-effort */ }
+    // Mirror the conversion linkage onto the lead for admin visibility.
+    // Merge-safe: re-read the CURRENT meta immediately before patching so a
+    // deduped existing lead's unrelated fields are never clobbered.
+    try {
+      const { data: cur } = await supabaseAdmin
+        .from("leads")
+        .select("meta")
+        .eq("id", leadId!)
+        .maybeSingle();
+      const currentMeta = ((cur as { meta?: Record<string, unknown> } | null)?.meta ?? {}) as Record<string, unknown>;
+      await supabaseAdmin
+        .from("leads")
+        .update({
+          meta: {
+            ...currentMeta,
+            google_ads_conversion_status: bookingConversion?.deduped
+              ? "duplicate_suppressed"
+              : bookingConversion?.status ?? "not_recorded",
+            conversion_action: "ava_appointment_booked",
+            conversion_order_id: verified.uid,
+            conversion_recorded_at: now,
+          },
+          updated_at: new Date().toISOString(),
+        } as never)
+        .eq("id", leadId!);
+    } catch { /* best-effort */ }
+  }
+
+  // GA4 analytics events (reporting only — the server-side Google Ads upload
+  // above stays the conversion source of truth; no client-side Ads tag).
+  try {
+    const { sendGa4Event } = await import("@/lib/tracking/ga4-events.server");
+    const clientRef = str(meta.visitor_session_id, 120);
+    const base = {
+      clientRef,
+      fallbackRef: callId,
+      params: { source: "ava_web_call", utm_source: str(meta.utm_source, 120) ?? undefined },
+    };
+    await sendGa4Event({ ...base, name: "generate_lead" });
+    await sendGa4Event({ ...base, name: "ava_qualified_lead" });
+    if (bookingConfirmed && verified.uid) {
+      await sendGa4Event({ ...base, name: "ava_appointment_booked", transactionId: verified.uid });
+    }
   } catch { /* best-effort */ }
   try {
     await supabaseAdmin.from("entity_notes").insert({
@@ -758,6 +849,53 @@ export async function processAvaWebCallAnalyzed(call: AvaWebCall): Promise<void>
   }
 
   console.log("[AVA-WEB-CALL] Lead recorded", { callId, leadId, booked, bookingFailed, sentiment });
+}
+
+// ── Call-started observation event (mic click → live call connected) ────────
+
+/**
+ * Records the "WEBEE – Ava Call Started" observation event when a website
+ * Ava web call connects. Observation-only: it never uploads against the
+ * primary booking/lead conversion action (uploads only if an action is
+ * explicitly mapped for ava_call_started). Idempotent per call id.
+ * Never throws.
+ */
+export async function recordAvaWebCallStarted(call: AvaWebCall): Promise<void> {
+  try {
+    const callId = call.call_id ?? "";
+    if (!callId) return;
+    const workspaceId = await resolveAdminWorkspaceId();
+    if (!workspaceId) return;
+    const meta = (call.metadata ?? {}) as Record<string, unknown>;
+    const clickIds = extractClickIds(meta);
+    const adConsent = (() => {
+      const c = str(meta.ad_user_data_consent, 20)?.toLowerCase();
+      return c === "granted" || c === "denied" ? c : null;
+    })();
+    await recordConversionEvent({
+      workspaceId,
+      conversionName: "ava_call_started",
+      source: "ava_web_call",
+      recordRef: {
+        retell_call_id: callId,
+        visitor_session_id: str(meta.visitor_session_id, 120),
+        attribution_source: "ava_web_call",
+      },
+      clickIds,
+      landingUrl: sanitizeLandingUrl(meta.landing_page),
+      adUserDataConsent: adConsent,
+      dedupKey: `ava_call_started:${callId}`,
+    });
+    const { sendGa4Event } = await import("@/lib/tracking/ga4-events.server");
+    await sendGa4Event({
+      name: "ava_call_started",
+      clientRef: str(meta.visitor_session_id, 120),
+      fallbackRef: callId,
+      params: { source: "ava_web_call", utm_source: str(meta.utm_source, 120) ?? undefined },
+    });
+  } catch (err) {
+    console.warn("[AVA-WEB-CALL] call-started event failed (non-fatal):", (err as Error)?.message);
+  }
 }
 
 // ── Failed-booking admin alert (in-app notification + email fallback) ────────

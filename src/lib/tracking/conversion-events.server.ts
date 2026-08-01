@@ -52,6 +52,14 @@ export function sanitizeLandingUrl(v: unknown): string | null {
 
 // ── Event recording ───────────────────────────────────────────────────────────
 
+/**
+ * Observation-only conversion names never fall back to the workspace's
+ * default upload conversion action — they upload ONLY when an action is
+ * explicitly mapped for them (conversionActionMap). A microphone click must
+ * never count against the primary booking/lead conversion action.
+ */
+export const OBSERVATION_ONLY_CONVERSIONS = new Set(["ava_call_started"]);
+
 export interface RecordConversionEventInput {
   workspaceId: string;
   /** Logical conversion name, e.g. "contact_form_submission". */
@@ -64,10 +72,31 @@ export interface RecordConversionEventInput {
   clickIds?: ClickIds | null;
   landingUrl?: string | null;
   /**
+   * Provider-side order/dedup reference (e.g. Cal.com booking UID). Sent as
+   * the transaction id on upload so provider-side dedup holds across retries.
+   */
+  orderId?: string | null;
+  /**
+   * Visitor ad-consent state as genuinely captured ("granted" | "denied" |
+   * null=unknown). "denied" records the event but blocks any upload.
+   */
+  adUserDataConsent?: string | null;
+  /**
    * Uniqueness key for this exact event (e.g. `webform:<submissionId>`).
    * A second insert with the same key is silently deduplicated.
    */
   dedupKey: string;
+}
+
+/** Pure initial-status decision (exported for tests). */
+export function decideInitialStatus(input: {
+  duplicateOfLead: boolean;
+  hasClickId: boolean;
+  consentDenied: boolean;
+}): string {
+  if (input.duplicateOfLead) return "duplicate_suppressed";
+  if (input.consentDenied) return "consent_blocked";
+  return input.hasClickId ? "recorded" : "no_attribution";
 }
 
 export interface RecordConversionEventResult {
@@ -105,11 +134,17 @@ export async function recordConversionEvent(
       duplicateOfLead = (count ?? 0) > 0;
     }
 
-    const initialStatus = duplicateOfLead
-      ? "duplicate_suppressed"
-      : hasClickId(clickIds)
-        ? "recorded"
-        : "no_attribution";
+    const initialStatus = decideInitialStatus({
+      duplicateOfLead,
+      hasClickId: hasClickId(clickIds),
+      consentDenied: input.adUserDataConsent === "denied",
+    });
+
+    // order_id + consent travel inside record_ref (no schema change needed):
+    // the uploaders read them for provider-side dedup + consent signalling.
+    const recordRef: Record<string, unknown> = { ...(input.recordRef ?? {}) };
+    if (input.orderId) recordRef.order_id = String(input.orderId).slice(0, 128);
+    if (input.adUserDataConsent) recordRef.ad_user_data_consent = input.adUserDataConsent;
 
     const { data, error } = await supabaseAdmin
       .from("conversion_events")
@@ -118,7 +153,7 @@ export async function recordConversionEvent(
         conversion_name: input.conversionName,
         source:          input.source,
         lead_id:         input.leadId ?? null,
-        record_ref:      input.recordRef ?? {},
+        record_ref:      recordRef,
         gclid:           clickIds.gclid,
         gbraid:          clickIds.gbraid,
         wbraid:          clickIds.wbraid,
