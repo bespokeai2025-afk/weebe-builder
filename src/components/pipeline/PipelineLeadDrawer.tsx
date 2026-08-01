@@ -51,6 +51,7 @@ import {
   Pencil,
   Check,
   FolderOpen,
+  AlertTriangle,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { listContactDocsByPhone } from "@/lib/dashboard/documents.functions";
@@ -349,6 +350,21 @@ export function PipelineLeadDrawer({ lead, open, onOpenChange, onSaleAmountSaved
               <SheetTitle className="text-base font-semibold leading-tight line-clamp-1">
                 {lead.full_name ?? "Unknown Lead"}
               </SheetTitle>
+
+              {lead.bookingFailed && (
+                <div
+                  className="mt-1.5 inline-flex items-center gap-1.5 rounded-full bg-red-500/15 px-2 py-0.5 text-[11px] font-medium text-red-400 ring-1 ring-red-500/30"
+                  title={lead.bookingError ? `Booking error: ${lead.bookingError}` : "Booking failed — follow up"}
+                >
+                  <AlertTriangle className="h-3 w-3 shrink-0" />
+                  Booking failed — follow up
+                </div>
+              )}
+              {lead.bookingFailed && lead.bookingError && (
+                <p className="mt-1 text-[11px] leading-snug text-red-400/80 break-words">
+                  {lead.bookingError}
+                </p>
+              )}
 
               {lead.company_name && (
                 <p className="text-xs text-muted-foreground mt-0.5 flex items-center gap-1 truncate">

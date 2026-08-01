@@ -27,6 +27,7 @@ import {
   MessageCircle,
   MessageSquareText,
   Contact,
+  AlertTriangle,
 } from "lucide-react";
 import { useState, useMemo, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
@@ -289,6 +290,24 @@ function PreferredContactBadge({ lead, onEmailClick }: { lead: any; onEmailClick
       className={cn("inline-flex shrink-0 items-center justify-center rounded p-0.5", tone)}
     >
       <Icon className="h-2.5 w-2.5" />
+    </span>
+  );
+}
+
+// ── Booking failed — follow up (Ava web-call bookings that errored) ────────
+// Flag written by ava-web-call.server.ts: meta.booking_failed / booking_error.
+function BookingFailedBadge({ lead, detailed = false }: { lead: any; detailed?: boolean }) {
+  if (!lead?.meta?.booking_failed) return null;
+  const err = typeof lead?.meta?.booking_error === "string" && lead.meta.booking_error.trim()
+    ? lead.meta.booking_error.trim()
+    : null;
+  return (
+    <span
+      title={err ? `Booking failed — follow up. Error: ${err}` : "Booking failed — follow up"}
+      className="inline-flex shrink-0 items-center gap-1 rounded-full bg-red-500/15 px-1.5 py-0.5 text-[10px] font-medium text-red-400 ring-1 ring-red-500/30 whitespace-nowrap"
+    >
+      <AlertTriangle className="h-2.5 w-2.5" />
+      {detailed ? "Booking failed — follow up" : "Booking failed"}
     </span>
   );
 }
@@ -1175,6 +1194,7 @@ function LeadsPage() {
                             <div className="flex items-center gap-1 min-w-0">
                               <span className="truncate text-[11px] font-medium min-w-0">{lead.full_name ?? "—"}</span>
                               <LeadSourceBadge lead={lead} />
+                              <BookingFailedBadge lead={lead} />
                               {isWbah && (
                                 <WbahCallCountBadge
                                   count={lead.meta?.call_count ?? 1}

@@ -86,6 +86,10 @@ export type PipelineLead = {
   created_at: string | null;
   source: string | null;
   state_name: string | null;
+  // Ava web-call booking attempt that FAILED (meta.booking_failed) — surfaced
+  // so follow-up-required leads stand out on pipeline/detail surfaces.
+  bookingFailed: boolean;
+  bookingError: string | null;
   // indicator flags
   hasBooking: boolean;
   hasNotes: boolean;
@@ -132,6 +136,11 @@ function mapLead(
     created_at: (lead.created_at as string | null) ?? null,
     source: (lead.source as string | null) ?? null,
     state_name: (lead.state_name as string | null) ?? null,
+    bookingFailed: Boolean((lead.meta as any)?.booking_failed),
+    bookingError:
+      typeof (lead.meta as any)?.booking_error === "string" && (lead.meta as any).booking_error.trim()
+        ? ((lead.meta as any).booking_error as string).trim()
+        : null,
     hasBooking: bookedIds.has(id),
     hasNotes: notedIds.has(id),
     hasDocuments: normPhone ? docsPhones.has(normPhone) : false,
@@ -245,6 +254,8 @@ async function getWbahPipelineLeads(workspaceId: string): Promise<PipelineLead[]
         created_at: startedIso,
         source: "wbah",
         state_name: null,
+        bookingFailed: false,
+        bookingError: null,
         hasBooking: booked,
         hasNotes: notedIds.has(c.id),
         hasDocuments: false,
@@ -275,6 +286,8 @@ async function getWbahPipelineLeads(workspaceId: string): Promise<PipelineLead[]
         created_at: null,
         source: "wbah",
         state_name: null,
+        bookingFailed: false,
+        bookingError: null,
         hasBooking: true,
         hasNotes: notedIds.has(b.id),
         hasDocuments: false,
