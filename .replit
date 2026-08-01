@@ -123,7 +123,7 @@ N8N_API_BASE_URL = "https://bespoke.app.n8n.cloud/api/v1"
 RESEND_FROM = "Webespoke AI <notifications@admin.webespokeai.com>"
 SYSTEMMIND_CLAUDE_ENABLED = "true"
 WEBEE_WORKSPACE_ID = "c13db1d5-22e4-44ad-b678-6f296c31a947"
-AVA_AGENT_VERSION = "12"
+AVA_AGENT_VERSION = "13"
 
 [userenv.production]
 PUBLIC_BASE_URL = "https://webeebuilder.com"
