@@ -35,3 +35,7 @@ queue depends on `LOVABLE_SEND_URL`/`LOVABLE_API_KEY` infra that isn't theirs.
   only fixes the Replit dev instance — the fix must also be added to the EC2 host's
   `/var/www/html/webespoke/.env` and the `webespoke` systemd service restarted for
   it to reach real customer traffic.
+
+## Suppression list trap (Aug 2026)
+A hard bounce puts the recipient on Resend's suppression list; every later send silently shows status "suppressed" (API accepts it, nothing delivered, no error logged app-side). `admin@webespokeai.com` bounced 9 July and blocked all lead alerts for weeks.
+**How to diagnose:** `GET https://api.resend.com/emails?limit=10` shows last_event per email (`suppressed`/`bounced`/`delivered`). `GET /suppressions?email=...` lists entries; `DELETE /suppressions/{id}` clears one — but if the mailbox itself still bounces (mail host rejects), it re-suppresses. As of Aug 2026 admin@webespokeai.com mailbox does not accept mail (Proofpoint MX rejects); user declined changing the alert address.
