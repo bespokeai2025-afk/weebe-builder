@@ -55,13 +55,19 @@ import {
   importWatiCampaignLeadsCsv,
   prepareCampaignAudienceFromContacts,
   listWAContacts,
+  getBuzzchatOpsDashboard,
+  checkCampaignAudienceOverlapFn,
+  backfillWhatsappContactedStatus,
 } from "@/lib/dashboard/whatsapp.functions";
 import { getWatiConnection, listWatiTemplates, getWatiWarmupDashboard } from "@/lib/whatsapp/wati.functions";
 import {
   autoDetectCsvColumnMapping,
+  csvScanRowCount,
+  loadCsvSkipForFile,
   mapCsvRowsToLeads,
   parseCsvText,
-  sliceCsvTextForParse,
+  readCsvFileHead,
+  saveCsvSkipForFile,
   type CsvColumnMapping,
 } from "@/lib/whatsapp/csv-leads.shared";
 import {
@@ -164,6 +170,9 @@ export function WhatsAppCampaigns() {
   const watiConnFn = useServerFn(getWatiConnection);
   const watiListFn = useServerFn(listWatiTemplates);
   const warmupDashFn = useServerFn(getWatiWarmupDashboard);
+  const buzzchatOpsFn = useServerFn(getBuzzchatOpsDashboard);
+  const overlapFn = useServerFn(checkCampaignAudienceOverlapFn);
+  const backfillFn = useServerFn(backfillWhatsappContactedStatus);
   const importCsvFn = useServerFn(importWatiCampaignLeadsCsv);
   const loadContactsAudienceFn = useServerFn(prepareCampaignAudienceFromContacts);
   const listContactsFn = useServerFn(listWAContacts);
@@ -201,10 +210,18 @@ export function WhatsAppCampaigns() {
     throwOnError: false,
   });
 
+  const { data: buzzchatOps, refetch: refetchBuzzchatOps } = useQuery({
+    queryKey: ["buzzchat-ops"],
+    queryFn: () => buzzchatOpsFn(),
+    enabled: watiConnected,
+    throwOnError: false,
+  });
+
   const [open, setOpen] = useState(false);
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [launchId, setLaunchId] = useState<string | null>(null);
   const [launchCampaign, setLaunchCampaign] = useState<any>(null);
+  const [launchAllowOverlap, setLaunchAllowOverlap] = useState(false);
   const [form, setForm] = useState(emptyForm());
   const [csvLeadIds, setCsvLeadIds] = useState<string[]>([]);
   const [csvStats, setCsvStats] = useState<{
@@ -219,15 +236,25 @@ export function WhatsAppCampaigns() {
   const [csvNeedsMapping, setCsvNeedsMapping] = useState(false);
   const [csvImporting, setCsvImporting] = useState(false);
   const [csvParsing, setCsvParsing] = useState(false);
-  const [csvImportLimit, setCsvImportLimit] = useState(20);
+  const [csvImportLimit, setCsvImportLimit] = useState(50);
+  const [csvSkipCount, setCsvSkipCount] = useState(0);
   const [csvBuyersOnly, setCsvBuyersOnly] = useState(true);
   const [csvFileName, setCsvFileName] = useState<string | null>(null);
   const [loadingContactsAudience, setLoadingContactsAudience] = useState(false);
 
-  const { data: waContacts = [] } = useQuery({
+  const { data: waContactsPayload } = useQuery({
     queryKey: ["wa-contacts"],
     queryFn: () => listContactsFn(),
-    enabled: open && watiConnected,
+    enabled: watiConnected,
+    throwOnError: false,
+  });
+  const waContacts = waContactsPayload?.contacts ?? [];
+  const contactsSummary = waContactsPayload?.summary;
+
+  const { data: launchOverlap } = useQuery({
+    queryKey: ["campaign-overlap", launchId],
+    queryFn: () => overlapFn({ data: { campaignId: launchId! } }),
+    enabled: !!launchId && watiConnected,
     throwOnError: false,
   });
 
@@ -239,6 +266,7 @@ export function WhatsAppCampaigns() {
     setCsvMapping(null);
     setCsvNeedsMapping(false);
     setCsvFileName(null);
+    setCsvSkipCount(0);
     if (csvInputRef.current) csvInputRef.current.value = "";
   }
 
@@ -296,21 +324,43 @@ export function WhatsAppCampaigns() {
   });
 
   const launch = useMutation({
-    mutationFn: () => launchFn({ data: { id: launchId! } }),
+    mutationFn: () =>
+      launchFn({ data: { id: launchId!, allowOverlap: launchAllowOverlap } }),
     onSuccess: (res: {
       sent?: number;
       failed?: number;
       errors?: string[];
+      overlap?: { skipped_dnc?: number; skipped_already_messaged?: number };
       warmup?: { truncated?: boolean; deferred?: number; warnings?: string[] };
     }) => {
       qc.invalidateQueries({ queryKey: ["wa-campaigns"] });
       qc.invalidateQueries({ queryKey: ["wati-warmup"] });
+      qc.invalidateQueries({ queryKey: ["buzzchat-ops"] });
+      qc.invalidateQueries({ queryKey: ["wa-contacts"] });
+      qc.invalidateQueries({ queryKey: ["wa-threads"] });
       setLaunchId(null);
       setLaunchCampaign(null);
+      setLaunchAllowOverlap(false);
       const errHint =
         (res.failed ?? 0) > 0 && res.sent === 0 && Array.isArray(res.errors) && res.errors[0]
           ? ` — ${res.errors[0]}`
           : "";
+      const creditFailure =
+        (res.sent ?? 0) === 0 &&
+        Array.isArray(res.errors) &&
+        res.errors.some((e) =>
+          /insufficient\s+credit|not\s+enough\s+credit|credit.*deplet|wallet.*balance|low\s+balance/i.test(
+            String(e),
+          ),
+        );
+      if (creditFailure) {
+        toast.error("WATI wallet has insufficient credits", {
+          description:
+            "Log in to live.wati.io → Wallet → Buy Credits. You need enough balance for your batch size (min ~$10 / ₹500 plus per-message fees).",
+          duration: 12000,
+        });
+        return;
+      }
       let msg = `Campaign launched — ${res.sent ?? 0} sent, ${res.failed ?? 0} failed${errHint}`;
       if (res.warmup?.truncated && res.warmup.deferred) {
         msg += `. Warm-up: ${res.warmup.deferred} contacts deferred to tomorrow.`;
@@ -319,10 +369,19 @@ export function WhatsAppCampaigns() {
       if (res.warmup?.warnings?.length) {
         toast.warning(res.warmup.warnings[0]);
       }
+      if (res.overlap?.skipped_dnc || res.overlap?.skipped_already_messaged) {
+        const parts: string[] = [];
+        if (res.overlap.skipped_dnc) parts.push(`${res.overlap.skipped_dnc} DNC`);
+        if (res.overlap.skipped_already_messaged) {
+          parts.push(`${res.overlap.skipped_already_messaged} already messaged`);
+        }
+        toast.message(`Filtered before send: ${parts.join(", ")}`);
+      }
     },
     onError: (e: Error) => {
       setLaunchId(null);
       setLaunchCampaign(null);
+      setLaunchAllowOverlap(false);
       toast.error(e.message);
     },
   });
@@ -341,7 +400,8 @@ export function WhatsAppCampaigns() {
     setLoadingContactsAudience(true);
     try {
       const limit = Math.max(1, Math.min(csvImportLimit, 5000));
-      const result = await loadContactsAudienceFn({ data: { limit } });
+      const offset = Math.max(0, csvSkipCount);
+      const result = await loadContactsAudienceFn({ data: { limit, offset } });
       setCsvLeadIds(result.leadIds ?? []);
       setCsvStats({
         inserted: result.inserted ?? 0,
@@ -352,6 +412,8 @@ export function WhatsAppCampaigns() {
       toast.success(`${result.total} contact(s) ready for this campaign`, {
         description: `${result.inserted} new leads · ${result.updated} updated`,
       });
+      const nextSkip = offset + (result.total ?? 0);
+      setCsvSkipCount(nextSkip);
     } catch (err) {
       toast.error("Could not load contacts", { description: (err as Error).message });
     } finally {
@@ -364,27 +426,29 @@ export function WhatsAppCampaigns() {
     if (!file) return;
     setCsvParsing(true);
     const limit = Math.max(1, Math.min(csvImportLimit, 5000));
+    const skip = Math.max(0, csvSkipCount);
     try {
-      const rawText = await file.text();
-      // Large property CSVs (50k+ rows) freeze the browser — scan enough rows to find N valid phones.
-      const scanRows = Math.max(limit * 100, 2000);
-      const text = sliceCsvTextForParse(rawText, scanRows);
-      const { headers, rows, truncated } = parseCsvText(text);
+      const scanRows = csvScanRowCount(limit, skip);
+      const { text, truncated } = await readCsvFileHead(file, scanRows);
+      const { headers, rows } = parseCsvText(text);
       const mapping = autoDetectCsvColumnMapping(headers);
       setCsvHeaders(headers);
       setCsvRows(rows);
       setCsvMapping(mapping ?? { phone: headers.find((h) => h.toLowerCase().includes("mobile")) ?? headers[0] ?? "" });
       setCsvNeedsMapping(!mapping);
       setCsvFileName(file.name);
+      const savedSkip = loadCsvSkipForFile(file.name);
+      const effectiveSkip = skip > 0 ? skip : savedSkip;
+      if (effectiveSkip > 0 && skip === 0) setCsvSkipCount(effectiveSkip);
       setCsvLeadIds([]);
       setCsvStats(null);
       if (truncated) {
         toast.message(`Large file — scanned first ${scanRows.toLocaleString()} rows`, {
-          description: `Importing up to ${limit} contacts with valid phone numbers.`,
+          description: `Importing up to ${limit} contacts after skipping ${effectiveSkip}.`,
         });
       }
       if (mapping) {
-        await runCsvImport(rows, mapping, limit);
+        await runCsvImport(rows, mapping, limit, effectiveSkip);
       } else {
         toast.message("Choose which column is the phone number", {
           description: `${rows.length.toLocaleString()} rows parsed · Mobile column recommended`,
@@ -403,19 +467,24 @@ export function WhatsAppCampaigns() {
     rows: Record<string, string>[],
     mapping: CsvColumnMapping,
     limit = csvImportLimit,
+    skip = csvSkipCount,
   ) {
     if (!mapping.phone) {
       toast.error("Select a phone column");
       return;
     }
     const maxLeads = Math.max(1, Math.min(limit, 5000));
+    const skipLeads = Math.max(0, skip);
     const leads = mapCsvRowsToLeads(rows, mapping, {
       maxLeads,
+      skipLeads,
       buyersOnly: csvBuyersOnly,
     });
     if (leads.length === 0) {
       toast.error("No valid phone numbers found in CSV", {
-        description: `Map the Mobile column — many rows in this file are sellers without phones.`,
+        description: skipLeads
+          ? `Skipped first ${skipLeads} — try a lower skip or scan more rows.`
+          : "Map the Mobile column — many rows in this file are sellers without phones.",
       });
       return;
     }
@@ -429,8 +498,11 @@ export function WhatsAppCampaigns() {
         skipped: result.skipped ?? 0,
         total: result.total ?? 0,
       });
+      const nextSkip = skipLeads + (result.total ?? 0);
+      setCsvSkipCount(nextSkip);
+      if (csvFileName) saveCsvSkipForFile(csvFileName, nextSkip);
       toast.success(`Imported ${result.total} leads for this campaign`, {
-        description: `${result.inserted} new · ${result.updated} updated · ${result.skipped} skipped`,
+        description: `${result.inserted} new · ${result.updated} updated · next batch: skip ${nextSkip}`,
       });
       qc.invalidateQueries({ queryKey: ["wa-contacts"] });
     } catch (err) {
@@ -445,7 +517,28 @@ export function WhatsAppCampaigns() {
     await runCsvImport(csvRows, csvMapping, csvImportLimit);
   }
 
+  const backfillContacted = useMutation({
+    mutationFn: () => backfillFn(),
+    onSuccess: (res: { updated?: number }) => {
+      qc.invalidateQueries({ queryKey: ["wa-contacts"] });
+      toast.success(`Backfilled contacted status for ${res.updated ?? 0} phone(s)`);
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  function openContinueWarmup() {
+    const skip = contactsSummary?.messaged ?? 0;
+    const batch = warmupDash?.dailyCap ?? csvImportLimit;
+    resetCsvState();
+    setForm({ ...emptyForm(), audienceMode: "contacts" });
+    setCsvImportLimit(Math.min(batch, 5000));
+    setCsvSkipCount(skip);
+    setOpen(true);
+    toast.message(`Continue warm-up: skip ${skip}, batch ${Math.min(batch, 5000)}`);
+  }
+
   function openLaunchDialog(c: any) {
+    setLaunchAllowOverlap(false);
     setLaunchId(c.id);
     setLaunchCampaign(c);
   }
@@ -471,10 +564,77 @@ export function WhatsAppCampaigns() {
             </p>
           )}
         </div>
-        <Button size="sm" onClick={openCreateDialog} className="gap-1.5 shrink-0">
-          <Plus className="h-3.5 w-3.5" /> New Campaign
-        </Button>
+        <div className="flex items-center gap-2 shrink-0">
+          {watiConnected && (contactsSummary?.messaged ?? 0) > 0 && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-1.5"
+              onClick={openContinueWarmup}
+            >
+              <PlayCircle className="h-3.5 w-3.5" />
+              Continue warm-up
+            </Button>
+          )}
+          <Button size="sm" onClick={openCreateDialog} className="gap-1.5 shrink-0">
+            <Plus className="h-3.5 w-3.5" /> New Campaign
+          </Button>
+        </div>
       </div>
+
+      {watiConnected && buzzchatOps && (
+        <div className="rounded-lg border border-border bg-muted/20 px-3 py-2.5 space-y-2">
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs">
+            <span className="font-medium text-foreground">Today</span>
+            <span>
+              <strong>{buzzchatOps.today.sent}</strong> sent
+            </span>
+            <span className="text-emerald-400">{buzzchatOps.today.delivered} delivered</span>
+            <span className="text-blue-400">{buzzchatOps.today.read} read</span>
+            <span className="text-destructive">{buzzchatOps.today.failed} failed</span>
+            <span className="text-muted-foreground">{buzzchatOps.today.inbound} replies</span>
+            {buzzchatOps.warmup?.config?.enabled && !buzzchatOps.warmup.config.paused && (
+              <>
+                <span className="text-muted-foreground">·</span>
+                <span className="text-amber-400">
+                  Warm-up day {buzzchatOps.warmup.warmupDay}: {buzzchatOps.warmup.sentToday}/
+                  {buzzchatOps.warmup.dailyCap} ({buzzchatOps.warmup.remaining} left)
+                </span>
+              </>
+            )}
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-6 text-[10px] ml-auto"
+              onClick={() => refetchBuzzchatOps()}
+            >
+              Refresh
+            </Button>
+          </div>
+          <details className="text-[11px] text-muted-foreground">
+            <summary className="cursor-pointer font-medium text-foreground/80 select-none">
+              Batch warm-up playbook
+            </summary>
+            <ol className="mt-2 ml-4 list-decimal space-y-1">
+              <li>Import property CSV under Contacts (or use campaign CSV upload).</li>
+              <li>Create campaign → audience Contacts or CSV → batch size = daily warm-up cap (e.g. 50).</li>
+              <li>Skip first = number already messaged (auto-advances after each import).</li>
+              <li>Launch → check Contacts tab for ✓ / delivery status / last campaign.</li>
+              <li>Next day: Continue warm-up or set skip to messaged count for contacts 51–100.</li>
+              <li>STOP replies auto-mark DNC — excluded from future sends.</li>
+            </ol>
+            <Button
+              type="button"
+              variant="link"
+              className="h-auto p-0 text-[11px] mt-1"
+              disabled={backfillContacted.isPending}
+              onClick={() => backfillContacted.mutate()}
+            >
+              {backfillContacted.isPending ? "Backfilling…" : "Backfill contacted status from message history"}
+            </Button>
+          </details>
+        </div>
+      )}
 
       {isLoading ? (
         <div className="py-16 text-center text-sm text-muted-foreground">Loading…</div>
@@ -790,18 +950,33 @@ export function WhatsAppCampaigns() {
                         Use contacts already imported under Buzzchat → Contacts ({waContacts.length}{" "}
                         in workspace).
                       </p>
-                      <div>
-                        <Label className="text-xs">Max contacts</Label>
-                        <Input
-                          type="number"
-                          min={1}
-                          max={5000}
-                          value={csvImportLimit}
-                          onChange={(e) =>
-                            setCsvImportLimit(Math.max(1, parseInt(e.target.value, 10) || 20))
-                          }
-                          className="mt-1 h-8 text-xs"
-                        />
+                      <div className="grid grid-cols-2 gap-2">
+                        <div>
+                          <Label className="text-xs">Batch size</Label>
+                          <Input
+                            type="number"
+                            min={1}
+                            max={5000}
+                            value={csvImportLimit}
+                            onChange={(e) =>
+                              setCsvImportLimit(Math.max(1, parseInt(e.target.value, 10) || 50))
+                            }
+                            className="mt-1 h-8 text-xs"
+                          />
+                        </div>
+                        <div>
+                          <Label className="text-xs">Skip first (already sent)</Label>
+                          <Input
+                            type="number"
+                            min={0}
+                            max={500000}
+                            value={csvSkipCount}
+                            onChange={(e) =>
+                              setCsvSkipCount(Math.max(0, parseInt(e.target.value, 10) || 0))
+                            }
+                            className="mt-1 h-8 text-xs"
+                          />
+                        </div>
                       </div>
                       <Button
                         type="button"
@@ -826,30 +1001,46 @@ export function WhatsAppCampaigns() {
                     </div>
                   ) : form.audienceMode === "csv" ? (
                     <div className="space-y-2 pt-1">
-                      <div>
-                        <Label className="text-xs">Max contacts to import</Label>
-                        <Input
-                          type="number"
-                          min={1}
-                          max={5000}
-                          value={csvImportLimit}
-                          onChange={(e) =>
-                            setCsvImportLimit(Math.max(1, parseInt(e.target.value, 10) || 20))
-                          }
-                          className="mt-1 h-8 text-xs"
-                        />
-                        <p className="mt-1 text-[10px] text-muted-foreground">
-                          For warm-up, start with 20. Large CSVs are scanned in chunks — only Buyer
-                          rows with a valid Mobile number are imported.
-                        </p>
-                        <label className="mt-2 flex items-center gap-2 text-xs">
-                          <Checkbox
-                            checked={csvBuyersOnly}
-                            onCheckedChange={(v) => setCsvBuyersOnly(v === true)}
+                      <div className="grid grid-cols-2 gap-2">
+                        <div>
+                          <Label className="text-xs">Batch size</Label>
+                          <Input
+                            type="number"
+                            min={1}
+                            max={5000}
+                            value={csvImportLimit}
+                            onChange={(e) =>
+                              setCsvImportLimit(Math.max(1, parseInt(e.target.value, 10) || 50))
+                            }
+                            className="mt-1 h-8 text-xs"
                           />
-                          Buyers only (skip Seller rows without phones)
-                        </label>
+                        </div>
+                        <div>
+                          <Label className="text-xs">Skip first (already sent)</Label>
+                          <Input
+                            type="number"
+                            min={0}
+                            max={500000}
+                            value={csvSkipCount}
+                            onChange={(e) =>
+                              setCsvSkipCount(Math.max(0, parseInt(e.target.value, 10) || 0))
+                            }
+                            className="mt-1 h-8 text-xs"
+                          />
+                        </div>
                       </div>
+                      <p className="text-[10px] text-muted-foreground">
+                        Warm-up batches: size <strong>50</strong>, skip <strong>0</strong> → contacts
+                        1–50. Next campaign: skip <strong>50</strong> → contacts 51–100. Skip auto-advances
+                        after each import (saved per CSV filename).
+                      </p>
+                      <label className="mt-2 flex items-center gap-2 text-xs">
+                        <Checkbox
+                          checked={csvBuyersOnly}
+                          onCheckedChange={(v) => setCsvBuyersOnly(v === true)}
+                        />
+                        Buyers only (skip Seller rows without phones)
+                      </label>
                       <input
                         ref={csvInputRef}
                         type="file"
@@ -1081,6 +1272,7 @@ export function WhatsAppCampaigns() {
           if (!o) {
             setLaunchId(null);
             setLaunchCampaign(null);
+            setLaunchAllowOverlap(false);
           }
         }}
       >
@@ -1098,6 +1290,30 @@ export function WhatsAppCampaigns() {
                       ? `This sends the WATI template "${launchCampaign?.wati_template_name ?? "template"}" to all matching leads with phone numbers.`
                       : "This sends the campaign template to opted-in WhatsApp contacts via Twilio."}
                 </p>
+                {launchOverlap && launchOverlap.total > 0 && (
+                  <p className="rounded-md border border-amber-500/30 bg-amber-500/10 px-2.5 py-2 text-xs text-amber-200/90">
+                    Audience check: {launchOverlap.total} recipients —{" "}
+                    <strong>{launchOverlap.alreadyMessaged}</strong> already messaged,{" "}
+                    <strong>{launchOverlap.dnc}</strong> on DNC list. By default these are skipped.
+                  </p>
+                )}
+                {launchOverlap &&
+                  launchOverlap.alreadyMessaged > 0 &&
+                  launchOverlap.alreadyMessaged === launchOverlap.total && (
+                    <p className="text-xs text-destructive">
+                      Everyone in this audience was already messaged. Enable resend below or load the
+                      next batch with a higher skip.
+                    </p>
+                  )}
+                {launchOverlap && launchOverlap.alreadyMessaged > 0 && (
+                  <label className="flex items-center gap-2 text-xs cursor-pointer">
+                    <Checkbox
+                      checked={launchAllowOverlap}
+                      onCheckedChange={(v) => setLaunchAllowOverlap(v === true)}
+                    />
+                    Include already messaged (allow overlap / resend)
+                  </label>
+                )}
                 {warmupDash?.config?.enabled && !warmupDash.config.paused && (
                   <p className="rounded-md border border-amber-500/30 bg-amber-500/10 px-2.5 py-2 text-xs text-amber-200/90">
                     Warm-up day {warmupDash.warmupDay}: max{" "}
@@ -1113,7 +1329,13 @@ export function WhatsAppCampaigns() {
             <AlertDialogCancel disabled={launch.isPending}>Cancel</AlertDialogCancel>
             <AlertDialogAction
               onClick={() => launch.mutate()}
-              disabled={launch.isPending}
+              disabled={
+                launch.isPending ||
+                (!!launchOverlap &&
+                  launchOverlap.total > 0 &&
+                  launchOverlap.alreadyMessaged >= launchOverlap.total &&
+                  !launchAllowOverlap)
+              }
               className="bg-green-600 text-white hover:bg-green-700"
             >
               {launch.isPending ? (

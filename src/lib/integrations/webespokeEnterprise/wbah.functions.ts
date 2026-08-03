@@ -72,10 +72,12 @@ function makeTokenCallbacks() {
 
 // ── Auto-relogin — always get a fresh token before bulk sync operations ───────
 async function ensureFreshToken(): Promise<void> {
-  const email    = process.env.WEBESPOKE_ADMIN_EMAIL;
-  const password = process.env.WEBESPOKE_ADMIN_PASSWORD;
+  const { getWebespokeAdminCreds } = await import("./webespoke-env.server");
+  const creds = getWebespokeAdminCreds();
+  const email = creds?.email;
+  const password = creds?.password;
   if (!email || !password) {
-    throw new Error("Set WEBESPOKE_ADMIN_EMAIL + WEBESPOKE_ADMIN_PASSWORD in Replit Secrets.");
+    throw new Error("Set WEBESPOKE_ADMIN_EMAIL + WEBESPOKE_ADMIN_PASSWORD in .env.");
   }
   const res = await loginWithPassword(email, password);
   if (!res.ok || !res.data) {

@@ -149,11 +149,17 @@ async function requireWbahCbs(userId: string) {
   if (password && email) {
     const fresh = await reloginFn();
     if (!fresh?.accessToken) {
-      throw new Error(
-        lastReloginError
-          ? `UAT login failed for ${email}: ${lastReloginError}. Set WEBESPOKE_ADMIN_EMAIL and WEBESPOKE_ADMIN_PASSWORD in .env to the same credentials you use in WeWeb UAT, then restart the dev server.`
-          : "UAT login failed. Set WEBESPOKE_ADMIN_EMAIL and WEBESPOKE_ADMIN_PASSWORD in .env, then restart the dev server.",
-      );
+      if (currentAccessToken) {
+        console.warn(
+          `[wbah-auth] UAT relogin failed (${lastReloginError ?? "unknown"}); using stored integration token`,
+        );
+      } else {
+        throw new Error(
+          lastReloginError
+            ? `UAT login failed for ${email}: ${lastReloginError}. Set WEBESPOKE_ADMIN_EMAIL and WEBESPOKE_ADMIN_PASSWORD in .env to the same credentials you use in WeWeb UAT, then restart the dev server.`
+            : "UAT login failed. Set WEBESPOKE_ADMIN_EMAIL and WEBESPOKE_ADMIN_PASSWORD in .env, then restart the dev server.",
+        );
+      }
     }
   }
 

@@ -294,12 +294,14 @@ export function csvHasPartyTypeColumn(mapping: CsvColumnMapping): boolean {
 export function mapCsvRowsToLeads(
   rows: Record<string, string>[],
   mapping: CsvColumnMapping,
-  opts?: { maxLeads?: number; buyersOnly?: boolean },
+  opts?: { maxLeads?: number; skipLeads?: number; buyersOnly?: boolean },
 ): CsvLeadRow[] {
   const out: CsvLeadRow[] = [];
   const seen = new Set<string>();
   const maxLeads = opts?.maxLeads;
+  const skipLeads = Math.max(0, opts?.skipLeads ?? 0);
   const buyersOnly = opts?.buyersOnly !== false && !!mapping.party_type;
+  let skippedValid = 0;
 
   for (const row of rows) {
     if (maxLeads != null && out.length >= maxLeads) break;
@@ -313,6 +315,11 @@ export function mapCsvRowsToLeads(
     if (!phone) continue;
     if (seen.has(phone)) continue;
     seen.add(phone);
+
+    if (skippedValid < skipLeads) {
+      skippedValid++;
+      continue;
+    }
 
     const import_meta: Record<string, string> = {};
     const noteParts: string[] = [];
@@ -362,6 +369,26 @@ export function mapCsvRowsToLeads(
   }
 
   return out;
+}
+
+/** How many raw CSV rows to read so skip + batch size can find enough valid phones. */
+export function csvScanRowCount(batchSize: number, skipValid = 0): number {
+  const need = Math.max(0, skipValid) + Math.max(1, batchSize);
+  return Math.max(need * 100, 2000);
+}
+
+const CSV_SKIP_STORAGE_PREFIX = "webee:wa-csv-skip:";
+
+export function loadCsvSkipForFile(fileName: string): number {
+  if (typeof localStorage === "undefined" || !fileName) return 0;
+  const raw = localStorage.getItem(`${CSV_SKIP_STORAGE_PREFIX}${fileName}`);
+  const n = parseInt(raw ?? "", 10);
+  return Number.isFinite(n) && n >= 0 ? n : 0;
+}
+
+export function saveCsvSkipForFile(fileName: string, skip: number): void {
+  if (typeof localStorage === "undefined" || !fileName) return;
+  localStorage.setItem(`${CSV_SKIP_STORAGE_PREFIX}${fileName}`, String(Math.max(0, skip)));
 }
 
 /** Parse legacy `notes` string (`Key: value · Key: value`) into a field map. */
@@ -553,4 +580,32 @@ export function sliceCsvTextForParse(text: string, maxDataRows: number): string 
   const lines = text.split(/\r?\n/);
   if (lines.length <= maxDataRows + 1) return text;
   return lines.slice(0, maxDataRows + 1).join("\n");
+}
+
+/**
+ * Read only the first N data rows from a CSV File (does not load multi-MB files into memory).
+ */
+export async function readCsvFileHead(file: File, maxDataRows: number): Promise<{ text: string; truncated: boolean }> {
+  if (file.size <= 512 * 1024) {
+    const full = await file.text();
+    const sliced = sliceCsvTextForParse(full, maxDataRows);
+    return { text: sliced, truncated: sliced.length < full.length };
+  }
+
+  const chunkSize = 256 * 1024;
+  let offset = 0;
+  let buffer = "";
+  let newlineCount = 0;
+
+  while (offset < file.size && newlineCount <= maxDataRows) {
+    const slice = file.slice(offset, Math.min(offset + chunkSize, file.size));
+    buffer += await slice.text();
+    newlineCount = (buffer.match(/\n/g) ?? []).length;
+    offset += chunkSize;
+  }
+
+  const lines = buffer.split(/\r?\n/);
+  const truncated = offset < file.size || lines.length > maxDataRows + 1;
+  const text = lines.slice(0, maxDataRows + 1).join("\n");
+  return { text, truncated };
 }

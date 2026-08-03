@@ -85,8 +85,11 @@ export type WbahCallOutputCreateBody = {
   calendly_booking_url?: string | null;
   call_summary?: string | null;
   sentiment_analysis?: string | null;
+  call_successful?: boolean | null;
   callback_datetime?: string | null;
+  callback_datetime_raw?: string | null;
   callback_type?: string | null;
+  is_callback_request?: boolean | null;
   retell_call_id?: string | null;
 };
 

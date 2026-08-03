@@ -26,8 +26,14 @@ export type WbahN8nIntegrationStatus = {
   migration: {
     webeeWebhookUrl: string;
     executionEnabled: boolean;
+    queueEnabled: boolean;
     dynamicsConfigured: boolean;
     calendlyConfigured: boolean;
+    automationEngineEnabled: boolean;
+    automationEnginePhase: number;
+    wbahPluginNodeCount: number;
+    pipelineMode: "legacy" | "automation_engine";
+    pipelineLabel: string;
     readyForCutover: boolean;
   };
 };
@@ -218,7 +224,11 @@ export async function getWbahN8nIntegrationStatusServer(
     .maybeSingle();
 
   const { getWbahPostCallReadiness } = await import("@/lib/wbah/post-call/wbah-post-call.server");
+  const { getWbahPostCallEngineReadiness } = await import(
+    "@/lib/wbah/post-call/wbah-post-call-engine-readiness.server"
+  );
   const readiness = getWbahPostCallReadiness();
+  const engine = getWbahPostCallEngineReadiness();
 
   return {
     workspaceId,
@@ -232,8 +242,14 @@ export async function getWbahN8nIntegrationStatusServer(
     migration: {
       webeeWebhookUrl: WBAH_WEBEE_RETELL_WEBHOOK_URL,
       executionEnabled: readiness.executionEnabled,
+      queueEnabled: engine.queueEnabled,
       dynamicsConfigured: readiness.dynamics,
       calendlyConfigured: readiness.calendly,
+      automationEngineEnabled: engine.automationEngineEnabled,
+      automationEnginePhase: engine.automationEnginePhase,
+      wbahPluginNodeCount: engine.wbahPluginNodeCount,
+      pipelineMode: engine.pipelineMode,
+      pipelineLabel: engine.pipelineLabel,
       readyForCutover:
         readiness.executionEnabled && readiness.dynamics && readiness.calendly,
     },
@@ -294,17 +310,17 @@ export async function createWbahNewLeadsBuildSessionServer(args: {
   return createBuildSessionFromConfigServer({
     workspaceId,
     userId,
-    title: "WBAH New Leads Agent + n8n Post-Call",
-    sourcePage: "systemmind",
+    title: "WBAH New Leads — Native Post-Call Workflow",
+    sourcePage: "wbah_workflow_wizard",
     config,
     assistantSummary:
-      "Pre-built SystemMind config for the WBAH New Leads dialer agent and its n8n post-call pipeline " +
-      `(workflow ${WBAH_N8N_WORKFLOW_ID}). The call script comes from the Real estate Client Qualification ` +
-      "global template. Post-call CRM, Calendly, and dashboard writes remain in n8n — use this session to " +
-      "iterate the call script, extraction fields, and outcome rules before changing Retell or n8n.",
+      "Pre-built SystemMind config for the WBAH New Leads dialer agent and native WEBEE post-call pipeline " +
+      `(replaces n8n workflow ${WBAH_N8N_WORKFLOW_ID}). The call script comes from the Real estate Client Qualification ` +
+      "global template. Post-call dashboard, Calendly, Dynamics, and Calls tab writes run in WEBEE — use this session to " +
+      "iterate the call script, extraction fields, workflow branches, and outcome rules.",
     systemNote:
-      "Linked n8n workflow: yR3vAIdZNLovD8jx. Retell webhook must stay on n8n unless you are migrating. " +
-      "Dialer agents: agent_a031 (WBAH New Leads Agent), agent_698b (WBAH New leads).",
+      `Native executor: src/lib/wbah/post-call. Retell webhook: ${WBAH_WEBEE_RETELL_WEBHOOK_URL}. ` +
+      "Use the Workflow Builder wizard or toggle branches in the Workflow tab. Test call required before Apply + activate.",
   });
 }
 

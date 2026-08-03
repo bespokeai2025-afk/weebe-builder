@@ -13,6 +13,8 @@ export type AvailableSlotsShape = {
 export type WbahFormatDataInput = {
   dynVars: Record<string, unknown>;
   custom: Record<string, unknown>;
+  /** Retell top-level call_analysis — fallback for sentiment/summary not duplicated in custom. */
+  callAnalysis?: Record<string, unknown> | null;
 };
 
 export type WbahFormattedCallData = {
@@ -21,15 +23,20 @@ export type WbahFormattedCallData = {
   email: string | null;
   userSentiment: string | null;
   callSummary: string | null;
+  callSuccessful: boolean | null;
   callbackDatetime: string | null;
+  callbackDatetimeUtc: string | null;
   callbackType: string | null;
+  isCallbackRequest: boolean;
   appointmentDate: string | null;
   appointmentTimeUk: string | null;
   requestedStartUtc: string | null;
   requestedEndUtc: string | null;
   updatedCalendlySlot: CalendlySlotShape | null;
   structuredJsonOutput: Record<string, unknown> | null;
+  verifiedDetails: Record<string, unknown> | null;
   hasBookingSlot: boolean;
+  appointmentConfirmed: boolean;
 };
 
 function pickStr(obj: Record<string, unknown>, ...keys: string[]): string | null {
@@ -53,13 +60,34 @@ function parseJsonField<T>(value: unknown): T | null {
 function resolveName(dyn: Record<string, unknown>, custom: Record<string, unknown>): string | null {
   return (
     pickStr(custom, "customer_name", "full_name") ||
-    pickStr(dyn, "full_name", "Full_name") ||
+    pickStr(dyn, "full_name", "Full_name", "name") ||
     [pickStr(dyn, "First_name", "first_name"), pickStr(dyn, "Last_name", "last_name")]
       .filter(Boolean)
       .join(" ")
       .trim() ||
     null
   );
+}
+
+export function resolveWbahCalendlySlot(
+  calendlySlot: CalendlySlotShape | null,
+  availableSlots: AvailableSlotsShape | null,
+): { date: string; time: string } | null {
+  return resolveSlot(calendlySlot, availableSlots);
+}
+
+/** n8n "Calendly Slot Not Empty" — calendly_slot or available_slots has a bookable slot. */
+export function wbahWebhookHasCalendlySlot(webhookItem: Record<string, unknown>): boolean {
+  const body = (webhookItem.body ?? webhookItem) as Record<string, unknown>;
+  const call = (body.call ?? {}) as Record<string, unknown>;
+  const custom = ((call.call_analysis as Record<string, unknown> | undefined)?.custom_analysis_data ??
+    {}) as Record<string, unknown>;
+  const dyn = (call.retell_llm_dynamic_variables ?? {}) as Record<string, unknown>;
+  const calendlySlot = parseJsonField<CalendlySlotShape>(custom.calendly_slot);
+  const availableSlots = parseJsonField<AvailableSlotsShape>(
+    dyn.available_slots ?? custom.available_slots,
+  );
+  return resolveSlot(calendlySlot, availableSlots) != null;
 }
 
 function resolveSlot(
@@ -86,10 +114,38 @@ function resolveSlot(
   return null;
 }
 
+/** Normalize callback_datetime (naive UK local) → UTC ISO — mirrors n8n POST dashboard body. */
+export function normalizeCallbackDatetimeUtc(raw: string | null | undefined): string | null {
+  const cb = String(raw ?? "").trim();
+  if (!cb || cb === "NA") return null;
+
+  try {
+    if (/Z|[+-]\d{2}:?\d{2}$/.test(cb)) {
+      return new Date(cb).toISOString();
+    }
+    const [datePart, timePart = "00:00:00"] = cb.split("T");
+    const [y, m, day] = datePart.split("-").map(Number);
+    const [hh, mm, ss = 0] = timePart.split(":").map(Number);
+    const tmpUTC = new Date(Date.UTC(y, m - 1, day, hh, mm, ss));
+    const ukFmt = new Intl.DateTimeFormat("en-GB", {
+      timeZone: "Europe/London",
+      timeZoneName: "shortOffset",
+    });
+    const parts = ukFmt.formatToParts(tmpUTC);
+    const offPart = parts.find((p) => p.type === "timeZoneName")?.value || "GMT";
+    const off = offPart.match(/GMT([+-]\d+)?/);
+    const offHrs = off && off[1] ? Number(off[1]) : 0;
+    return new Date(Date.UTC(y, m - 1, day, hh - offHrs, mm, ss)).toISOString();
+  } catch {
+    return cb.endsWith("Z") ? cb : `${cb}Z`;
+  }
+}
+
 /** Port of n8n "Format Data" — UK slot → UTC ISO for Calendly + dashboard. */
 export function formatWbahRetellCallData(input: WbahFormatDataInput): WbahFormattedCallData {
   const dyn = input.dynVars ?? {};
   const custom = input.custom ?? {};
+  const analysis = input.callAnalysis ?? {};
 
   const leadId = pickStr(dyn, "lead_id", "leadId", "Lead_id");
   const calendlySlot = parseJsonField<CalendlySlotShape>(custom.calendly_slot);
@@ -109,14 +165,34 @@ export function formatWbahRetellCallData(input: WbahFormatDataInput): WbahFormat
       ? (structured.verified_details as Record<string, unknown>)
       : structured;
 
+  const callbackRaw = pickStr(custom, "callback_datetime", "callback_date_time");
+  const callbackUtc = normalizeCallbackDatetimeUtc(callbackRaw);
+  const hasCallback = Boolean(callbackRaw && callbackRaw !== "NA");
+
+  const callSuccessfulRaw = analysis.call_successful ?? custom.call_successful;
+  const callSuccessful =
+    callSuccessfulRaw === true || callSuccessfulRaw === false
+      ? callSuccessfulRaw
+      : callSuccessfulRaw != null
+        ? String(callSuccessfulRaw).toLowerCase() === "true"
+        : null;
+
+  const appointmentConfirmed =
+    custom.appointment_confirmed === true ||
+    custom.appointment_confirmed === "true" ||
+    Boolean(slot?.date && timeUk);
+
   return {
     leadId,
     customerName: resolveName(dyn, custom),
     email: pickStr(custom, "email_address", "email") || pickStr(dyn, "email", "Email"),
-    userSentiment: pickStr(custom, "user_sentiment") || null,
-    callSummary: pickStr(custom, "call_summary") || null,
-    callbackDatetime: pickStr(custom, "callback_datetime", "callback_date_time") || null,
+    userSentiment: pickStr(custom, "user_sentiment") || pickStr(analysis, "user_sentiment") || null,
+    callSummary: pickStr(custom, "call_summary") || pickStr(analysis, "call_summary") || null,
+    callSuccessful,
+    callbackDatetime: callbackRaw,
+    callbackDatetimeUtc: callbackUtc,
     callbackType: pickStr(custom, "callback_type") || null,
+    isCallbackRequest: hasCallback,
     appointmentDate: slot?.date ?? null,
     appointmentTimeUk: timeUk,
     requestedStartUtc,
@@ -125,17 +201,26 @@ export function formatWbahRetellCallData(input: WbahFormatDataInput): WbahFormat
       ? { preferred_slot: { date: slot.date, time: timeUk ?? slot.time } }
       : calendlySlot,
     structuredJsonOutput: verified,
+    verifiedDetails: verified,
     hasBookingSlot: Boolean(requestedStartUtc),
+    appointmentConfirmed,
   };
 }
 
-/** Strip heavy nested objects before POSTing raw_data to WeeBespoke. */
+/** Strip heavy nested objects before POSTing raw_data to WeeBespoke (n8n parity). */
 export function cleanWbahRawData(payload: Record<string, unknown>): Record<string, unknown> {
   const out = JSON.parse(JSON.stringify(payload)) as Record<string, unknown>;
+  delete out.available_slots;
+
   const call = out.call as Record<string, unknown> | undefined;
   if (call && typeof call === "object") {
     delete call.transcript_object;
     delete call.transcript_with_tool_calls;
+    delete call.latency;
+    const dyn = call.retell_llm_dynamic_variables as Record<string, unknown> | undefined;
+    if (dyn && typeof dyn === "object") {
+      delete dyn.available_slots;
+    }
   }
   return out;
 }

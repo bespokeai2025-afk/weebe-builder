@@ -4,6 +4,10 @@
  */
 
 import { wbahWebeeRetellWebhookUrl } from "@/lib/wbah/post-call/wbah-retell-agents.shared";
+import {
+  defaultWbahPostCallWorkflowConfig,
+  wbahStepsToFlowDefinition,
+} from "@/lib/wbah/workflow/wbah-workflow-steps.shared";
 
 export const WBAH_N8N_WORKFLOW_ID = "yR3vAIdZNLovD8jx";
 export const WBAH_N8N_WEBHOOK_URL =
@@ -33,6 +37,11 @@ export const WBAH_N8N_RETELL_AGENTS: WbahRetellAgentRef[] = [
   {
     retellAgentId: "agent_698b8e07acac970aefaf0a52b6",
     label: "WBAH New leads",
+    role: "new_leads_dialer",
+  },
+  {
+    retellAgentId: "agent_d6a2d73962c52f673b98f56218",
+    label: "WBAH New Leads Agent (SystemMind test)",
     role: "new_leads_dialer",
   },
   {
@@ -147,9 +156,14 @@ export function buildWbahNewLeadsCallScriptConfig() {
   };
 }
 
-/** SystemMind Build Workspace v1 config for WBAH New Leads + n8n orchestration. */
+/** SystemMind Build Workspace v1 config for WBAH New Leads + native post-call. */
 export function buildWbahNewLeadsSystemMindConfig() {
   const script = buildWbahNewLeadsCallScriptConfig();
+  const wbahPipeline = defaultWbahPostCallWorkflowConfig({
+    retell_agents: WBAH_NEW_LEADS_AGENTS.map((a) => a.retellAgentId),
+  });
+  const flow = wbahStepsToFlowDefinition(wbahPipeline);
+
   return {
     agent_prompt: [
       "You are the WBAH (We Buy Any House) outbound New Leads qualification agent.",
@@ -174,78 +188,9 @@ export function buildWbahNewLeadsSystemMindConfig() {
         legacy_n8n_workflow_id: WBAH_N8N_WORKFLOW_ID,
         retell_agents: WBAH_NEW_LEADS_AGENTS.map((a) => a.retellAgentId),
         required_dynamic_variable: "lead_id",
+        wbah_post_call: wbahPipeline,
       },
-      steps: [
-        { id: "step-0-trigger", type: "trigger", next: "step-1-branch" },
-        {
-          id: "step-1-branch",
-          type: "branch",
-          next: "step-stop",
-          conditions: [
-            {
-              field: "callback_datetime",
-              op: "not_equals",
-              value: "",
-              next: "step-callback",
-            },
-            {
-              field: "user_sentiment",
-              op: "equals",
-              value: "negative",
-              next: "step-disqualify",
-            },
-            {
-              field: "user_sentiment",
-              op: "equals",
-              value: "positive",
-              next: "step-positive",
-            },
-          ],
-        },
-        {
-          id: "step-callback",
-          type: "update_lead_status",
-          status: "call_back_request",
-          next: "step-crm",
-        },
-        {
-          id: "step-disqualify",
-          type: "update_lead_status",
-          status: "disqualified",
-          next: "step-crm",
-        },
-        {
-          id: "step-positive",
-          type: "branch",
-          next: "step-tried",
-          conditions: [
-            {
-              field: "calendly_booking_url",
-              op: "not_equals",
-              value: "",
-              next: "step-logged",
-            },
-          ],
-        },
-        {
-          id: "step-logged",
-          type: "update_lead_status",
-          status: "logged",
-          next: "step-crm",
-        },
-        {
-          id: "step-tried",
-          type: "update_lead_status",
-          status: "tried_to_contact",
-          next: "step-crm",
-        },
-        {
-          id: "step-crm",
-          type: "push_to_crm",
-          next: "step-stop",
-        },
-        { id: "step-stop", type: "stop_workflow" },
-      ],
+      steps: flow.steps as any[],
     },
     variables: script.required_variables.map((v) => ({
       name: v.name,
@@ -267,6 +212,7 @@ export function buildWbahNewLeadsSystemMindConfig() {
         call_script_template_id: WBAH_CALL_SCRIPT_TEMPLATE_ID,
         call_script_template_name: WBAH_CALL_SCRIPT_TEMPLATE_NAME,
       },
+      wbah_post_call: wbahPipeline,
       n8n: {
         workflow_id: WBAH_N8N_WORKFLOW_ID,
         webhook_url: WBAH_N8N_WEBHOOK_URL,

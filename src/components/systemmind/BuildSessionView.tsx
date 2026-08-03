@@ -28,6 +28,10 @@ import { cn } from "@/lib/utils";
 import { DeploymentChecklistPanel } from "./DeploymentChecklistPanel";
 import { TestCallPanel } from "./TestCallPanel";
 import { RequirementsPanel } from "./RequirementsPanel";
+import {
+  WbahWorkflowEditorPanel,
+  hasWbahPostCallConfig,
+} from "@/components/wbah/WbahWorkflowBuilderPanel";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
@@ -2118,6 +2122,13 @@ export function BuildSessionView({
             {tab === "config" && (
               config
                 ? <div className="space-y-3">
+                    {hasWbahPostCallConfig(config) && (
+                      <WbahWorkflowEditorPanel
+                        sessionId={sessionId}
+                        config={config}
+                        onSaved={() => qc.invalidateQueries({ queryKey: ["smbw-session", sessionId] })}
+                      />
+                    )}
                     {currentDiff && currentVersion && (
                       <ChangeSummary diff={currentDiff} versionNumber={currentVersion.version_number} />
                     )}

@@ -27,6 +27,7 @@ import {
   getWbahN8nIntegrationStatusFn,
   seedWbahN8nSystemMindFn,
 } from "@/lib/systemmind/wbah-n8n-integration.functions";
+import { WbahWorkflowBuilderPanel } from "@/components/wbah/WbahWorkflowBuilderPanel";
 
 function StatusRow({
   ok,
@@ -91,7 +92,10 @@ export function WbahN8nSystemMindPanel() {
   }
 
   return (
-    <div className="bg-gray-900 border border-gray-800 rounded-xl p-4 space-y-4">
+    <div className="space-y-4">
+      <WbahWorkflowBuilderPanel />
+
+      <div className="bg-gray-900 border border-gray-800 rounded-xl p-4 space-y-4">
       <div className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-2">
           <Workflow className="h-4 w-4 text-violet-400" />
@@ -139,6 +143,24 @@ export function WbahN8nSystemMindPanel() {
               status.migration?.executionEnabled
                 ? "Side effects active"
                 : "Live transcript only — set env to true for cutover"
+            }
+          />
+          <StatusRow
+            ok={status.migration?.queueEnabled ?? false}
+            label="WBAH_POST_CALL_QUEUE (async job processing)"
+            detail={
+              status.migration?.queueEnabled
+                ? "Webhooks enqueue post-call jobs"
+                : "Synchronous pipeline only"
+            }
+          />
+          <StatusRow
+            ok={status.migration?.automationEngineEnabled ?? false}
+            label="WBAH_USE_AUTOMATION_ENGINE (graph executor)"
+            detail={
+              status.migration?.automationEngineEnabled
+                ? `${status.migration.pipelineLabel ?? "Automation engine"} · Phase ${status.migration.automationEnginePhase ?? 4} · ${status.migration.wbahPluginNodeCount ?? 0} WBAH plugin nodes`
+                : "Legacy imperative pipeline — set env to true to use canvas graph executor"
             }
           />
           <StatusRow
@@ -235,6 +257,7 @@ export function WbahN8nSystemMindPanel() {
         <Button size="sm" variant="ghost" className="h-8 text-xs" asChild>
           <Link to="/systemmind/template-library">Template library</Link>
         </Button>
+      </div>
       </div>
     </div>
   );

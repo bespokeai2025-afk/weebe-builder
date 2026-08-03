@@ -116,18 +116,83 @@ export function buildWatiTemplateParams(
     });
 }
 
+const WATI_CREDIT_HINT =
+  "Top up your WATI wallet (Wallet → Buy Credits in live.wati.io). Campaigns need sufficient balance — typically at least $10 USD or ₹500 INR, plus per-message charges by country.";
+
 export function formatWatiSendError(raw: string | undefined): string {
   if (!raw) return "Send failed";
   const trimmed = raw.trim();
+  let message = trimmed;
   if (trimmed.startsWith("{")) {
     try {
       const data = JSON.parse(trimmed) as { info?: string; message?: string; error?: string };
-      return data.info ?? data.message ?? data.error ?? trimmed;
+      message = data.info ?? data.message ?? data.error ?? trimmed;
     } catch {
       /* keep raw */
     }
   }
-  return trimmed.slice(0, 300);
+  const base = message.slice(0, 300);
+  if (/insufficient\s+credit|not\s+enough\s+credit|credit.*deplet|wallet.*balance|low\s+balance/i.test(base)) {
+    return `${base} — ${WATI_CREDIT_HINT}`;
+  }
+  return base;
+}
+
+export function isWatiCreditError(raw: string | undefined): boolean {
+  if (!raw) return false;
+  return /insufficient\s+credit|not\s+enough\s+credit|credit.*deplet|wallet.*balance|low\s+balance/i.test(raw);
+}
+
+/** Free-text reply within WATI's 24-hour customer care window (after inbound or template). */
+export async function sendWatiSessionMessage(opts: {
+  tenantId: string;
+  apiKey: string;
+  apiHost: string | null;
+  toPhone: string;
+  messageText: string;
+}): Promise<{ ok: boolean; messageId?: string; error?: string }> {
+  const phone = normalizeWhatsAppPhone(opts.toPhone);
+  if (!phone || phone.length < 7) {
+    return { ok: false, error: "Invalid phone number" };
+  }
+  const base = watiApiRoot(opts.tenantId, opts.apiHost);
+  const url = `${base}/api/v1/sendSessionMessage/${encodeURIComponent(phone)}?messageText=${encodeURIComponent(opts.messageText)}`;
+  try {
+    const res = await fetch(url, {
+      method: "POST",
+      headers: watiAuthHeaders(opts.apiKey),
+    });
+    const text = await res.text();
+    let data: Record<string, unknown> = {};
+    try {
+      data = JSON.parse(text) as Record<string, unknown>;
+    } catch {
+      /* non-json */
+    }
+    if (!res.ok) {
+      const raw = formatWatiSendError(text);
+      const hint =
+        /24\s*hour|session|window|template/i.test(raw)
+          ? `${raw} — use a template campaign if the 24-hour reply window has expired.`
+          : raw;
+      return { ok: false, error: hint };
+    }
+    const messageId =
+      (data.id as string | undefined) ??
+      (data.messageId as string | undefined) ??
+      (data.localMessageId as string | undefined);
+    if (data.result === false) {
+      return {
+        ok: false,
+        error: formatWatiSendError(
+          String(data.info ?? data.message ?? data.error ?? "WATI rejected session message"),
+        ),
+      };
+    }
+    return { ok: true, messageId: messageId ?? `wati_session_${Date.now()}` };
+  } catch (e) {
+    return { ok: false, error: (e as Error).message };
+  }
 }
 
 export async function getWatiConnectionForWorkspace(
@@ -551,13 +616,15 @@ export async function resolveCampaignAudienceLeads(
 
   // Fallback: campaign with no lead filter — use Buzzchat contacts imported from CSV/WATI
   if (rows.length === 0 && !f.lead_ids?.length && !f.status && !f.pipeline_stage && !f.qualification_status) {
-    const { data: contacts } = await sb
+    let contactQ = sb
       .from("whatsapp_contacts")
-      .select("phone, name, notes")
+      .select("phone, name, notes, do_not_contact")
       .eq("workspace_id", workspaceId)
       .not("phone", "is", null)
       .neq("phone", "")
       .limit(5000);
+    contactQ = contactQ.or("do_not_contact.is.null,do_not_contact.eq.false");
+    const { data: contacts } = await contactQ;
     rows = (contacts ?? []).map(
       (c: { phone: string; name?: string | null; notes?: string | null }) => ({
         id: null,
@@ -568,6 +635,30 @@ export async function resolveCampaignAudienceLeads(
         whatsapp_opt_in: true,
       }),
     );
+  }
+
+  if (rows.length > 0) {
+    const dncSet = new Set<string>();
+    const { data: dncRows, error: dncErr } = await sb
+      .from("whatsapp_contacts")
+      .select("phone")
+      .eq("workspace_id", workspaceId)
+      .eq("do_not_contact", true)
+      .limit(10000);
+    if (!dncErr) {
+      for (const row of (dncRows ?? []) as Array<{ phone: string }>) {
+        const p = normalizeWhatsAppPhone(row.phone);
+        if (p) dncSet.add(p);
+      }
+    }
+    rows = rows.filter((lead) => {
+      const phone = normalizeWhatsAppPhone(String(lead.phone ?? ""));
+      if (!phone) return false;
+      if (dncSet.has(phone)) return false;
+      if (String(lead.status ?? "") === "do_not_call") return false;
+      if (lead.whatsapp_opt_in === false && !f.lead_ids?.length) return false;
+      return true;
+    });
   }
 
   return rows;

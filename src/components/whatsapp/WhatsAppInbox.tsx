@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import { listWhatsappThreads, sendWhatsappMessage } from "@/lib/dashboard/whatsapp.functions";
+import { getWatiConnection } from "@/lib/whatsapp/wati.functions";
 import { toast } from "sonner";
 
 
@@ -24,6 +25,14 @@ export function WhatsAppInbox() {
     refetchInterval: 30_000,
     throwOnError: false,
   });
+
+  const watiFn = useServerFn(getWatiConnection);
+  const { data: watiConn } = useQuery({
+    queryKey: ["wati-connection"],
+    queryFn: () => watiFn(),
+    throwOnError: false,
+  });
+  const watiConnected = watiConn?.status === "connected";
 
   const [search, setSearch] = useState("");
   const [activePhone, setActivePhone] = useState<string | null>(null);
@@ -161,7 +170,14 @@ export function WhatsAppInbox() {
             <div ref={bottomRef} />
           </div>
 
-          <div className="flex items-end gap-2 px-4 py-3 border-t border-border bg-background">
+          <div className="border-t border-border bg-background px-4 py-3 space-y-2">
+            {watiConnected && (
+              <p className="text-[10px] text-muted-foreground">
+                WATI: free-text replies work within 24 hours of their last message. For cold
+                outreach, use Campaigns with an approved template.
+              </p>
+            )}
+            <div className="flex items-end gap-2">
             <Textarea
               placeholder="Type a message…"
               value={reply}
@@ -181,6 +197,7 @@ export function WhatsAppInbox() {
             >
               <Send className="h-4 w-4" />
             </Button>
+            </div>
           </div>
         </div>
       ) : (

@@ -1493,6 +1493,198 @@ export type Database = {
         }
         Relationships: []
       }
+      automation_execution_queue: {
+        Row: {
+          attempt_count: number
+          created_at: string
+          execution_id: string | null
+          id: string
+          last_error: string | null
+          max_attempts: number
+          mode: string
+          next_run_at: string
+          priority: number
+          status: string
+          trigger_masked: Json
+          updated_at: string
+          workflow_document: Json
+          workflow_id: string | null
+          workspace_id: string
+        }
+        Insert: {
+          attempt_count?: number
+          created_at?: string
+          execution_id?: string | null
+          id?: string
+          last_error?: string | null
+          max_attempts?: number
+          mode?: string
+          next_run_at?: string
+          priority?: number
+          status?: string
+          trigger_masked?: Json
+          updated_at?: string
+          workflow_document: Json
+          workflow_id?: string | null
+          workspace_id: string
+        }
+        Update: {
+          attempt_count?: number
+          created_at?: string
+          execution_id?: string | null
+          id?: string
+          last_error?: string | null
+          max_attempts?: number
+          mode?: string
+          next_run_at?: string
+          priority?: number
+          status?: string
+          trigger_masked?: Json
+          updated_at?: string
+          workflow_document?: Json
+          workflow_id?: string | null
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "automation_execution_queue_execution_id_fkey"
+            columns: ["execution_id"]
+            isOneToOne: false
+            referencedRelation: "automation_workflow_executions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      automation_execution_steps: {
+        Row: {
+          branch: string | null
+          completed_at: string | null
+          created_at: string
+          duration_ms: number | null
+          error: string | null
+          execution_id: string
+          id: string
+          input_masked: Json
+          logs: Json
+          node_id: string
+          node_name: string
+          node_type: string
+          output_masked: Json
+          sequence_num: number
+          started_at: string
+          status: string
+          workspace_id: string
+        }
+        Insert: {
+          branch?: string | null
+          completed_at?: string | null
+          created_at?: string
+          duration_ms?: number | null
+          error?: string | null
+          execution_id: string
+          id?: string
+          input_masked?: Json
+          logs?: Json
+          node_id: string
+          node_name?: string
+          node_type?: string
+          output_masked?: Json
+          sequence_num?: number
+          started_at?: string
+          status?: string
+          workspace_id: string
+        }
+        Update: {
+          branch?: string | null
+          completed_at?: string | null
+          created_at?: string
+          duration_ms?: number | null
+          error?: string | null
+          execution_id?: string
+          id?: string
+          input_masked?: Json
+          logs?: Json
+          node_id?: string
+          node_name?: string
+          node_type?: string
+          output_masked?: Json
+          sequence_num?: number
+          started_at?: string
+          status?: string
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "automation_execution_steps_execution_id_fkey"
+            columns: ["execution_id"]
+            isOneToOne: false
+            referencedRelation: "automation_workflow_executions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      automation_workflow_executions: {
+        Row: {
+          completed_at: string | null
+          created_at: string
+          id: string
+          last_error: string | null
+          mode: string
+          snapshot: Json | null
+          source: string
+          started_at: string
+          status: string
+          summary: Json
+          trigger_masked: Json
+          wbah_job_id: string | null
+          workflow_id: string | null
+          workflow_name: string
+          workspace_id: string
+        }
+        Insert: {
+          completed_at?: string | null
+          created_at?: string
+          id?: string
+          last_error?: string | null
+          mode?: string
+          snapshot?: Json | null
+          source?: string
+          started_at?: string
+          status?: string
+          summary?: Json
+          trigger_masked?: Json
+          wbah_job_id?: string | null
+          workflow_id?: string | null
+          workflow_name?: string
+          workspace_id: string
+        }
+        Update: {
+          completed_at?: string | null
+          created_at?: string
+          id?: string
+          last_error?: string | null
+          mode?: string
+          snapshot?: Json | null
+          source?: string
+          started_at?: string
+          status?: string
+          summary?: Json
+          trigger_masked?: Json
+          wbah_job_id?: string | null
+          workflow_id?: string | null
+          workflow_name?: string
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "automation_workflow_executions_wbah_job_id_fkey"
+            columns: ["wbah_job_id"]
+            isOneToOne: false
+            referencedRelation: "wbah_post_call_jobs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       ava_call_requests: {
         Row: {
           attribution: Json | null
@@ -16093,6 +16285,74 @@ export type Database = {
         }
         Relationships: []
       }
+      wbah_post_call_jobs: {
+        Row: {
+          agent_id: string | null
+          attempt_count: number
+          automation_execution_id: string | null
+          branches: Json
+          created_at: string
+          errors: Json
+          event: string
+          id: string
+          last_error: string | null
+          lead_id: string | null
+          max_attempts: number
+          next_retry_at: string
+          payload: Json
+          retell_call_id: string | null
+          status: string
+          updated_at: string
+          workspace_id: string
+        }
+        Insert: {
+          agent_id?: string | null
+          attempt_count?: number
+          automation_execution_id?: string | null
+          branches?: Json
+          created_at?: string
+          errors?: Json
+          event: string
+          id?: string
+          last_error?: string | null
+          lead_id?: string | null
+          max_attempts?: number
+          next_retry_at?: string
+          payload?: Json
+          retell_call_id?: string | null
+          status?: string
+          updated_at?: string
+          workspace_id: string
+        }
+        Update: {
+          agent_id?: string | null
+          attempt_count?: number
+          automation_execution_id?: string | null
+          branches?: Json
+          created_at?: string
+          errors?: Json
+          event?: string
+          id?: string
+          last_error?: string | null
+          lead_id?: string | null
+          max_attempts?: number
+          next_retry_at?: string
+          payload?: Json
+          retell_call_id?: string | null
+          status?: string
+          updated_at?: string
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wbah_post_call_jobs_automation_execution_id_fkey"
+            columns: ["automation_execution_id"]
+            isOneToOne: false
+            referencedRelation: "automation_workflow_executions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       webespoke_enterprise_cache: {
         Row: {
           client_name: string
@@ -16421,7 +16681,6 @@ export type Database = {
           archived: boolean | null
           created_at: string | null
           id: string
-          import_meta: Json
           lead_status: string | null
           name: string | null
           notes: string | null
@@ -16435,7 +16694,6 @@ export type Database = {
           archived?: boolean | null
           created_at?: string | null
           id?: string
-          import_meta?: Json
           lead_status?: string | null
           name?: string | null
           notes?: string | null
@@ -16449,7 +16707,6 @@ export type Database = {
           archived?: boolean | null
           created_at?: string | null
           id?: string
-          import_meta?: Json
           lead_status?: string | null
           name?: string | null
           notes?: string | null

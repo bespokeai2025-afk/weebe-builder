@@ -46,6 +46,29 @@ import {
 // Mirrors the automation layer's module-private whitelist.
 const BW_ALLOWED_TRIGGER_TYPES = ["lead_added", "lead_status_changed", "call_completed", "manual", "scheduled"] as const;
 
+/** Values accepted by the current DB CHECK on systemmind_build_sessions.source_page */
+const BUILD_SESSION_SOURCE_PAGES_LEGACY_DB = [
+  "agent_builder",
+  "whatsapp_builder",
+  "follow_up_centre",
+  "workflows",
+  "systemmind",
+  "hivemind",
+] as const;
+
+/** New app source pages → legacy DB value until 20260801100000 migration is applied. */
+const BUILD_SESSION_SOURCE_PAGE_ALIASES: Record<string, string> = {
+  wbah_workflow_wizard:    "systemmind",
+  deployment_orchestrator: "systemmind",
+};
+
+function sourcePageForDb(sourcePage?: string, fallback = "agent_builder"): string {
+  const raw = (sourcePage ?? "").trim();
+  if (BUILD_SESSION_SOURCE_PAGE_ALIASES[raw]) return BUILD_SESSION_SOURCE_PAGE_ALIASES[raw]!;
+  if ((BUILD_SESSION_SOURCE_PAGES_LEGACY_DB as readonly string[]).includes(raw)) return raw;
+  return fallback;
+}
+
 // ── Generated build config schema (strict validation of model output) ─────────
 const BuildWorkflowSchema = z.object({
   name:           z.string().min(1).max(200),
@@ -91,20 +114,40 @@ const ModelResponseSchema = z.object({
 });
 
 // ── Validation helpers ─────────────────────────────────────────────────────────
+function formatBuildConfigZodError(err: z.ZodError, label: string): string {
+  const issue = err.issues[0];
+  if (!issue) return `${label}: invalid configuration`;
+  const path = issue.path.join(".");
+  if (issue.code === "invalid_enum_value") {
+    const received = String((issue as { received?: unknown }).received ?? "?");
+    const stepsIdx = issue.path.indexOf("steps");
+    if (stepsIdx >= 0 && typeof issue.path[stepsIdx + 1] === "number") {
+      const stepNum = (issue.path[stepsIdx + 1] as number) + 1;
+      return `${label}: step ${stepNum} has unsupported type "${received}"`;
+    }
+    return `${label}: invalid value "${received}" at ${path || "config"}`;
+  }
+  return `${label}: ${issue.message}${path ? ` (${path})` : ""}`;
+}
+
 export function validateConfigOrThrow(raw: unknown, label: string): BuildConfig {
-  const parsed = BuildConfigSchema.parse(raw);
-  parsed.workflow.steps = sanitizeGeneratedSteps(parsed.workflow.steps as GeneratedDraft["steps"]);
-  if (parsed.workflow.steps.length === 0) {
+  const parsed = BuildConfigSchema.safeParse(raw);
+  if (!parsed.success) {
+    throw new Error(formatBuildConfigZodError(parsed.error, label));
+  }
+  const config = parsed.data;
+  config.workflow.steps = sanitizeGeneratedSteps(config.workflow.steps as GeneratedDraft["steps"]);
+  if (config.workflow.steps.length === 0) {
     throw new Error(`${label}: workflow had no valid steps after safety filtering.`);
   }
-  if (parsed.workflow.steps[0].type !== "trigger") {
-    parsed.workflow.steps.unshift({ id: "step-0-trigger", type: "trigger", next: parsed.workflow.steps[0].id });
+  if (config.workflow.steps[0].type !== "trigger") {
+    config.workflow.steps.unshift({ id: "step-0-trigger", type: "trigger", next: config.workflow.steps[0].id });
   }
-  if (!(BW_ALLOWED_TRIGGER_TYPES as readonly string[]).includes(parsed.workflow.trigger_type)) {
-    parsed.workflow.trigger_type = "manual";
+  if (!(BW_ALLOWED_TRIGGER_TYPES as readonly string[]).includes(config.workflow.trigger_type)) {
+    config.workflow.trigger_type = "manual";
   }
-  assertNoCredentialValues(parsed, label);
-  return parsed;
+  assertNoCredentialValues(config, label);
+  return config;
 }
 
 export function classifyConfigRisk(config: BuildConfig): { riskLevel: "low" | "medium" | "high"; riskReasons: string[] } {
@@ -449,8 +492,7 @@ export async function createBuildSessionServer(args: {
         ? `Build: ${String(targetAgent.name ?? "agent")}`
         : "Untitled build")
   ).slice(0, 200);
-  const sourcePage = ["agent_builder","whatsapp_builder","follow_up_centre","workflows","systemmind","hivemind"]
-    .includes(args.sourcePage ?? "") ? String(args.sourcePage) : "agent_builder";
+  const sourcePage = sourcePageForDb(args.sourcePage, "agent_builder");
 
   const { data: session, error } = await sb.from("systemmind_build_sessions").insert({
     workspace_id:       workspaceId,
@@ -546,8 +588,7 @@ export async function createBuildSessionFromConfigServer(args: {
   // the converter already did — never trust a config across module boundaries.
   const config = validateConfigOrThrow(args.config, "Converted build config");
 
-  const sourcePage = ["agent_builder","whatsapp_builder","follow_up_centre","workflows","systemmind","hivemind"]
-    .includes(args.sourcePage ?? "") ? String(args.sourcePage) : "systemmind";
+  const sourcePage = sourcePageForDb(args.sourcePage, "systemmind");
 
   const { data: session, error } = await sb.from("systemmind_build_sessions").insert({
     workspace_id:       workspaceId,
@@ -1344,7 +1385,20 @@ async function performBuildApply(args: {
     description:     config.workflow.purpose.slice(0, 500) || `Built in SystemMind Build Workspace (v${version.version_number}).`,
     trigger_type:    config.workflow.trigger_type,
     trigger_config:  config.workflow.trigger_config ?? {},
-    flow_definition: { steps: config.workflow.steps, custom_prompt: config.agent_prompt ?? "", source: "systemmind_build" },
+    flow_definition: {
+      steps: config.workflow.steps,
+      custom_prompt: config.agent_prompt ?? "",
+      source: "systemmind_build",
+      ...(() => {
+        const tc = (config.workflow.trigger_config ?? {}) as Record<string, unknown>;
+        const wbah = tc.wbah_post_call as { automation?: Record<string, unknown>; automation_validation?: unknown } | undefined;
+        if (!wbah?.automation) return {};
+        return {
+          automation: wbah.automation,
+          automation_validation: wbah.automation_validation,
+        };
+      })(),
+    },
     source:          "systemmind_build",
     source_build_session_id: session.id,
     source_build_version:    version.version_number,

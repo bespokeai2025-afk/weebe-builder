@@ -4,11 +4,12 @@ import {
   AlertTriangle, PlugZap, ClipboardList, Lightbulb, Wrench,
   CheckSquare, FileText, Layers, MessageSquare, Settings2, Wand2, Database,
   Users, Activity, Network, Boxes, Share2, BrainCircuit, Rocket, Gauge, GraduationCap, Zap,
-  Hammer,
+  Hammer, Workflow,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { useIsWbahWorkspace } from "@/hooks/useIsWbahWorkspace";
 
 type NavItem = { label: string; href: string; icon: React.ElementType };
 
@@ -107,6 +108,7 @@ export function SystemMindShell({ children }: { children: React.ReactNode }) {
   const router = useRouterState();
   const path   = router.location.pathname;
   const [isAdmin, setIsAdmin] = useState(false);
+  const { isWbah } = useIsWbahWorkspace();
 
   useEffect(() => {
     let active = true;
@@ -124,13 +126,33 @@ export function SystemMindShell({ children }: { children: React.ReactNode }) {
     return () => { active = false; };
   }, []);
 
-  const visibleGroups = BASE_NAV_GROUPS.filter((g) => !g.adminOnly || isAdmin);
+  const visibleGroups = useMemo(() => {
+    const groups = BASE_NAV_GROUPS.filter((g) => !g.adminOnly || isAdmin);
+    if (!isWbah) return groups;
+    return groups.map((g) => {
+      if (g.title !== "Improve") return g;
+      return {
+        ...g,
+        items: [
+          ...g.items.slice(0, 1),
+          { label: "Post-Call Workflows", href: "/systemmind/wbah-post-call", icon: Workflow },
+          ...g.items.slice(1),
+        ],
+      };
+    });
+  }, [isAdmin, isWbah]);
+
   const allItems      = visibleGroups.flatMap((g) => g.items);
 
   function isActive(href: string) {
     // Exact match for root, prefix match for others (but not /clients for /clients/setup etc)
     if (href === "/systemmind") return path === "/systemmind";
     if (href === "/systemmind/clients") return path === "/systemmind/clients";
+    if (href === "/systemmind/wbah-post-call") {
+      const tab = (router.location.search as { tab?: string }).tab;
+      return path.startsWith("/systemmind/wbah-post-call")
+        || (path.startsWith("/systemmind/build") && tab === "wbah-post-call");
+    }
     return path.startsWith(href);
   }
 

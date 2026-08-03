@@ -17,6 +17,8 @@ import {
   isWatiStatusEvent,
   parseWatiInboundMessage,
 } from "@/lib/whatsapp/wati-campaign.server";
+import { markWhatsappContactDoNotContact } from "@/lib/whatsapp/wa-contact-message-stats.server";
+import { isWhatsappOptOutMessage } from "@/lib/whatsapp/wa-opt-out.shared";
 import {
   applyWatiMessageStatusToRow,
   extractWatiWebhookPhone,
@@ -150,9 +152,23 @@ async function storeInboundMessage(
           { onConflict: "workspace_id,external_id" },
         );
       if (retryErr) throw retryErr;
-      return;
+    } else {
+      throw error;
     }
-    throw error;
+  }
+
+  if (isWhatsappOptOutMessage(message.body)) {
+    try {
+      await markWhatsappContactDoNotContact(
+        sb as any,
+        workspaceId,
+        message.contact_phone,
+        message.contact_name,
+      );
+      console.log("[WATI WEBHOOK] Opt-out recorded for", message.contact_phone);
+    } catch (e) {
+      console.error("[WATI WEBHOOK] Opt-out mark failed", e);
+    }
   }
 }
 

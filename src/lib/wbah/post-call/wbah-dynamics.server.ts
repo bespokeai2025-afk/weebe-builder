@@ -50,12 +50,16 @@ function apiBase(cfg: DynamicsAdapterConfig): string {
 
 export async function getWbahLeadCurrentStatus(
   leadId: string,
-): Promise<{ new_currentstatus: number | null; raw: Record<string, unknown> } | null> {
+): Promise<{
+  new_currentstatus: number | null;
+  statecode: number | null;
+  raw: Record<string, unknown>;
+} | null> {
   const cfg = getWbahDynamicsConfig();
   if (!cfg) throw new Error("Dynamics credentials not configured");
 
   const headers = await dynamicsHeaders(cfg);
-  const url = `${apiBase(cfg)}/leads(${leadId})?$select=leadid,new_currentstatus`;
+  const url = `${apiBase(cfg)}/leads(${leadId})?$select=leadid,new_currentstatus,statecode,statuscode`;
   const res = await fetch(url, { headers });
   if (!res.ok) {
     const body = await res.text().catch(() => "");
@@ -63,8 +67,10 @@ export async function getWbahLeadCurrentStatus(
   }
   const json = (await res.json()) as Record<string, unknown>;
   const status = json.new_currentstatus;
+  const statecode = json.statecode;
   return {
     new_currentstatus: typeof status === "number" ? status : status != null ? Number(status) : null,
+    statecode: typeof statecode === "number" ? statecode : statecode != null ? Number(statecode) : null,
     raw: json,
   };
 }

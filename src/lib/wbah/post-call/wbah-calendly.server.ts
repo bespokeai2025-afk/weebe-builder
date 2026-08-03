@@ -52,17 +52,29 @@ export async function createWbahCalendlyBookingLink(): Promise<string | null> {
   return json.resource?.booking_url?.trim() ?? null;
 }
 
-/** Optional: create invitee when email + slot are known (best-effort). */
+function randomDelayMs(): number {
+  return (Math.floor(Math.random() * 20) + 5) * 1000;
+}
+
+export function wbahCalendlyRandomDelayMs(): number {
+  return randomDelayMs();
+}
+
+/** n8n node 37 — POST /invitees with Q&A (batch 1 / 2s in n8n). */
 export async function createWbahCalendlyInvitee(input: {
-  eventUri: string;
   email: string;
   name: string;
   startTimeUtc: string;
+  phone?: string | null;
+  propertyAddress?: string | null;
+  salesforceUuid?: string | null;
 }): Promise<void> {
   const token = calendlyToken();
   if (!token) return;
 
-  const res = await fetch("https://api.calendly.com/scheduled_events", {
+  await new Promise((r) => setTimeout(r, randomDelayMs()));
+
+  const res = await fetch("https://api.calendly.com/invitees", {
     method: "POST",
     headers: {
       Authorization: `Bearer ${token}`,
@@ -72,12 +84,43 @@ export async function createWbahCalendlyInvitee(input: {
     body: JSON.stringify({
       event_type: `https://api.calendly.com/event_types/${WBAH_CALENDLY_EVENT_TYPE_ID}`,
       start_time: input.startTimeUtc,
-      invitees: [{ email: input.email, name: input.name }],
+      invitee: {
+        name: input.name || "Customer",
+        email: input.email || "no-reply@example.com",
+        timezone: "Europe/London",
+      },
+      event_guests: ["enquiries@webuyanyhouse.co.uk"],
+      questions_and_answers: [
+        {
+          position: 0,
+          question: "Phone Number",
+          answer: input.phone || "+444 444 4444",
+        },
+        {
+          position: 1,
+          question: "Property Address",
+          answer: input.propertyAddress || "Address not provided",
+        },
+        {
+          position: 2,
+          question: "Name",
+          answer: input.name || "Customer",
+        },
+      ],
+      tracking: {
+        utm_source: "api",
+        utm_medium: "automation",
+        utm_campaign: "default_campaign",
+        utm_content: "default_content",
+        utm_term: "default_term",
+        salesforce_uuid: input.salesforceUuid || "N/A",
+      },
     }),
   });
 
   if (!res.ok) {
     const body = await res.text().catch(() => "");
-    console.warn("[WBAH CALENDLY] invitee create failed (non-fatal)", res.status, body.slice(0, 200));
+    console.warn("[WBAH CALENDLY] invitees create failed (non-fatal)", res.status, body.slice(0, 300));
+    throw new Error(`Calendly invitees failed (${res.status}): ${body.slice(0, 200)}`);
   }
 }

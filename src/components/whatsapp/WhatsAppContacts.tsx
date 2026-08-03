@@ -1,7 +1,7 @@
 import { useRef, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Plus, Pencil, Trash2, Download, Upload, Search, Users, RefreshCw, Loader2, FolderOpen, FileSpreadsheet, Eye } from "lucide-react";
+import { Plus, Pencil, Trash2, Download, Upload, Search, Users, RefreshCw, Loader2, FolderOpen, FileSpreadsheet, Eye, CheckCircle2, MessageCircle, Circle, Ban } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { RelativeTime } from "@/components/ui/relative-time";
 import { Input } from "@/components/ui/input";
@@ -26,12 +26,14 @@ import {
   deleteWAContact,
   deleteAllWAContacts,
   importWAContactsCsv,
+  exportBuzzchatContactsCsv,
+  backfillWhatsappContactedStatus,
 } from "@/lib/dashboard/whatsapp.functions";
 import {
   autoDetectCsvColumnMapping,
   mapCsvRowsToLeads,
   parseCsvText,
-  sliceCsvTextForParse,
+  readCsvFileHead,
   getContactField,
   getContactFieldsMap,
   getContactPhones,
@@ -45,6 +47,41 @@ import { toast } from "sonner";
 
 const STATUSES = ["new", "contacted", "qualified", "closed", "lost"];
 const SOURCES  = ["manual", "import", "webhook", "campaign", "referral", "wati"];
+type MessagedFilter = "all" | "messaged" | "not_messaged" | "replied" | "dnc";
+
+type WaContactRow = {
+  id: string;
+  name?: string | null;
+  phone: string;
+  tags?: string[];
+  source?: string | null;
+  lead_status?: string | null;
+  notes?: string | null;
+  created_at?: string;
+  do_not_contact?: boolean;
+  wa_stats?: {
+    outbound_count: number;
+    inbound_count: number;
+    total_count: number;
+    last_outbound_at: string | null;
+    last_inbound_at: string | null;
+    last_message_at: string | null;
+    messaged: boolean;
+    last_outbound_status?: string | null;
+    last_campaign_name?: string | null;
+    delivered_count?: number;
+    read_count?: number;
+    failed_count?: number;
+  };
+};
+
+function outboundStatusBadgeClass(status: string | null | undefined): string {
+  const s = String(status ?? "").toLowerCase();
+  if (s.includes("read")) return "text-blue-400 border-blue-500/30";
+  if (s.includes("deliver")) return "text-emerald-400 border-emerald-500/30";
+  if (s.includes("fail")) return "text-destructive border-destructive/30";
+  return "text-muted-foreground border-border";
+}
 
 function contactSearchHaystack(c: any): string {
   const parts = [
@@ -119,15 +156,25 @@ export function WhatsAppContacts() {
   const deleteFn      = useServerFn(deleteWAContact);
   const deleteAllFn   = useServerFn(deleteAllWAContacts);
   const importCsvFn   = useServerFn(importWAContactsCsv);
+  const exportBuzzchatFn = useServerFn(exportBuzzchatContactsCsv);
+  const backfillFn    = useServerFn(backfillWhatsappContactedStatus);
   const csvInputRef   = useRef<HTMLInputElement>(null);
   const watiConnFn    = useServerFn(getWatiConnection);
   const watiSyncFn    = useServerFn(syncWatiContacts);
 
-  const { data: contacts = [], isLoading } = useQuery({
+  const { data: contactsPayload, isLoading } = useQuery({
     queryKey: ["wa-contacts"],
     queryFn: () => listFn(),
     throwOnError: false,
   });
+  const contacts = (contactsPayload?.contacts ?? []) as WaContactRow[];
+  const summary = contactsPayload?.summary ?? {
+    total: contacts.length,
+    messaged: 0,
+    replied: 0,
+    not_messaged: contacts.length,
+    dnc: 0,
+  };
 
   const { data: watiConn } = useQuery({
     queryKey: ["wati-connection"],
@@ -146,6 +193,7 @@ export function WhatsAppContacts() {
   });
 
   const [search, setSearch]     = useState("");
+  const [messagedFilter, setMessagedFilter] = useState<MessagedFilter>("all");
   const [open, setOpen]         = useState(false);
   const [editRow, setEditRow]   = useState<any>(null);
   const [deleteId, setDeleteId] = useState<string | null>(null);
@@ -164,9 +212,15 @@ export function WhatsAppContacts() {
   const [csvMapping, setCsvMapping] = useState<CsvColumnMapping | null>(null);
   const [csvNeedsMapping, setCsvNeedsMapping] = useState(false);
 
-  const filtered = (contacts as any[]).filter((c) =>
-    contactSearchHaystack(c).includes(search.toLowerCase()),
-  );
+  const filtered = contacts.filter((c) => {
+    if (!contactSearchHaystack(c).includes(search.toLowerCase())) return false;
+    const stats = c.wa_stats;
+    if (messagedFilter === "messaged") return !!stats?.messaged;
+    if (messagedFilter === "not_messaged") return !stats?.messaged;
+    if (messagedFilter === "replied") return (stats?.inbound_count ?? 0) > 0;
+    if (messagedFilter === "dnc") return !!c.do_not_contact;
+    return true;
+  });
 
   function openCreate() {
     setEditRow(null);
@@ -227,10 +281,33 @@ export function WhatsAppContacts() {
     onError: (e: Error) => toast.error(e.message),
   });
 
+  async function exportBuzzchat(filter: "all" | "messaged" | "not_messaged" | "replied" | "dnc") {
+    try {
+      const result = await exportBuzzchatFn({ data: { filter } });
+      const blob = new Blob([result.csv], { type: "text/csv" });
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = `buzzchat-contacts-${filter}.csv`;
+      a.click();
+      toast.success(`Exported ${result.count} contact(s)`);
+    } catch (err) {
+      toast.error("Export failed", { description: (err as Error).message });
+    }
+  }
+
+  const backfillContacted = useMutation({
+    mutationFn: () => backfillFn(),
+    onSuccess: (res: { updated?: number }) => {
+      qc.invalidateQueries({ queryKey: ["wa-contacts"] });
+      toast.success(`Backfilled ${res.updated ?? 0} contacted status(es)`);
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
   function exportCsv() {
     const header =
       "name,phone,mobile_1,mobile_2,phone_1,phone_2,master_project,building,property_type,unit,location,date,amount,beds,size,tags,source,lead_status";
-    const rows = (contacts as any[]).map((c) => {
+    const rows = contacts.map((c) => {
       const phones = getContactPhones(c);
       const byLabel = Object.fromEntries(phones.map((p) => [p.label, p.phone]));
       const values = [
@@ -309,10 +386,9 @@ export function WhatsAppContacts() {
     setCsvParsing(true);
     const limit = Math.max(1, Math.min(csvImportLimit, 5000));
     try {
-      const rawText = await file.text();
       const scanRows = Math.max(limit * 100, 2000);
-      const text = sliceCsvTextForParse(rawText, scanRows);
-      const { headers, rows, truncated } = parseCsvText(text);
+      const { text, truncated } = await readCsvFileHead(file, scanRows);
+      const { headers, rows } = parseCsvText(text);
       const mapping = autoDetectCsvColumnMapping(headers);
       setCsvHeaders(headers);
       setCsvRows(rows);
@@ -370,10 +446,16 @@ export function WhatsAppContacts() {
               Import from WATI
             </Button>
           )}
-          <Button variant="outline" size="sm" onClick={exportCsv} className="gap-1.5">
-            <Download className="h-3.5 w-3.5" /> Export CSV
+          <Button variant="outline" size="sm" onClick={() => exportBuzzchat("messaged")} className="gap-1.5">
+            <Download className="h-3.5 w-3.5" /> Export messaged
           </Button>
-          {(contacts as any[]).length > 0 && (
+          <Button variant="outline" size="sm" onClick={() => exportBuzzchat("not_messaged")} className="gap-1.5">
+            <Download className="h-3.5 w-3.5" /> Export not sent
+          </Button>
+          <Button variant="outline" size="sm" onClick={exportCsv} className="gap-1.5">
+            <Download className="h-3.5 w-3.5" /> Property CSV
+          </Button>
+          {(contacts.length) > 0 && (
             <Button
               variant="outline"
               size="sm"
@@ -400,6 +482,47 @@ export function WhatsAppContacts() {
         </div>
       </div>
 
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="flex items-center gap-3 rounded-lg border border-border bg-muted/20 px-3 py-2 text-xs">
+          <span>
+            <strong className="text-foreground">{summary.messaged}</strong>
+            <span className="text-muted-foreground"> / {summary.total} messaged</span>
+          </span>
+          <span className="text-muted-foreground">·</span>
+          <span className="text-muted-foreground">{summary.not_messaged} not yet sent</span>
+          <span className="text-muted-foreground">·</span>
+          <span className="text-emerald-400">{summary.replied} replied</span>
+          {(summary.dnc ?? 0) > 0 && (
+            <>
+              <span className="text-muted-foreground">·</span>
+              <span className="text-destructive">{summary.dnc} DNC</span>
+            </>
+          )}
+        </div>
+        <div className="flex flex-wrap gap-1">
+          {(
+            [
+              ["all", "All"],
+              ["messaged", "Messaged ✓"],
+              ["not_messaged", "Not sent"],
+              ["replied", "Replied"],
+              ["dnc", "DNC"],
+            ] as const
+          ).map(([id, label]) => (
+            <Button
+              key={id}
+              type="button"
+              size="sm"
+              variant={messagedFilter === id ? "default" : "outline"}
+              className="h-7 text-[11px]"
+              onClick={() => setMessagedFilter(id)}
+            >
+              {label}
+            </Button>
+          ))}
+        </div>
+      </div>
+
       {isLoading ? (
         <div className="py-16 text-center text-sm text-muted-foreground">Loading…</div>
       ) : filtered.length === 0 ? (
@@ -410,10 +533,11 @@ export function WhatsAppContacts() {
         </div>
       ) : (
         <div className="rounded-lg border border-border overflow-x-auto">
-          <table className="w-full text-sm min-w-[1400px]">
+          <table className="w-full text-sm min-w-[1560px]">
             <thead className="bg-muted/50 border-b border-border">
               <tr>
                 {[
+                  "WhatsApp",
                   "Name",
                   "Phones",
                   "Master Project",
@@ -428,6 +552,9 @@ export function WhatsAppContacts() {
                   "Tags",
                   "Source",
                   "Status",
+                  "Delivery",
+                  "Last campaign",
+                  "Last messaged",
                   "Created",
                   "",
                 ].map((h) => (
@@ -436,7 +563,8 @@ export function WhatsAppContacts() {
               </tr>
             </thead>
             <tbody className="divide-y divide-border/60">
-              {filtered.map((c: any) => {
+              {filtered.map((c) => {
+                const stats = c.wa_stats;
                 const phones = getContactPhones(c);
                 const project = getContactField(c, "Master Project", "Project");
                 const building = getContactField(c, "Building", "BuildingName 2", "Building 1");
@@ -451,6 +579,31 @@ export function WhatsAppContacts() {
 
                 return (
                 <tr key={c.id} className="hover:bg-muted/20 transition-colors">
+                  <td className="px-3 py-2.5 whitespace-nowrap">
+                    <div className="flex items-center gap-2">
+                      {stats?.messaged ? (
+                        <span title="Template or inbox message sent">
+                          <CheckCircle2 className="h-4 w-4 text-emerald-500 shrink-0" />
+                        </span>
+                      ) : (
+                        <span title="Not messaged yet">
+                          <Circle className="h-4 w-4 text-muted-foreground/40 shrink-0" />
+                        </span>
+                      )}
+                      <Badge
+                        variant={stats?.messaged ? "secondary" : "outline"}
+                        className="text-[10px] font-mono tabular-nums px-1.5"
+                        title="Outbound messages logged"
+                      >
+                        {stats?.outbound_count ?? 0}
+                      </Badge>
+                      {(stats?.inbound_count ?? 0) > 0 && (
+                        <Badge variant="outline" className="text-[10px] text-emerald-400 border-emerald-500/30 px-1.5">
+                          ↩ {stats?.inbound_count}
+                        </Badge>
+                      )}
+                    </div>
+                  </td>
                   <td className="px-3 py-2.5 font-medium max-w-[140px] truncate">{c.name ?? <span className="text-muted-foreground">—</span>}</td>
                   <td className="px-3 py-2.5 text-muted-foreground max-w-[130px]">
                     <div className="flex flex-col gap-0.5">
@@ -481,9 +634,51 @@ export function WhatsAppContacts() {
                   </td>
                   <td className="px-3 py-2.5 text-xs text-muted-foreground">{c.source ?? "—"}</td>
                   <td className="px-3 py-2.5">
-                    {c.lead_status ? (
-                      <Badge variant="outline" className="text-[10px]">{c.lead_status}</Badge>
-                    ) : "—"}
+                    <div className="flex items-center gap-1">
+                      {c.do_not_contact && (
+                        <Badge variant="destructive" className="text-[10px] gap-0.5">
+                          <Ban className="h-2.5 w-2.5" /> DNC
+                        </Badge>
+                      )}
+                      {c.lead_status ? (
+                        <Badge variant="outline" className="text-[10px]">{c.lead_status}</Badge>
+                      ) : !c.do_not_contact ? "—" : null}
+                    </div>
+                  </td>
+                  <td className="px-3 py-2.5 whitespace-nowrap">
+                    {stats?.messaged ? (
+                      <div className="flex flex-col gap-0.5">
+                        {stats.last_outbound_status && (
+                          <Badge
+                            variant="outline"
+                            className={`text-[10px] w-fit ${outboundStatusBadgeClass(stats.last_outbound_status)}`}
+                          >
+                            {stats.last_outbound_status}
+                          </Badge>
+                        )}
+                        <span className="text-[10px] text-muted-foreground tabular-nums">
+                          {(stats.delivered_count ?? 0) > 0 && `${stats.delivered_count}✓ `}
+                          {(stats.read_count ?? 0) > 0 && `${stats.read_count} read `}
+                          {(stats.failed_count ?? 0) > 0 && (
+                            <span className="text-destructive">{stats.failed_count} fail</span>
+                          )}
+                        </span>
+                      </div>
+                    ) : (
+                      <span className="text-muted-foreground/50">—</span>
+                    )}
+                  </td>
+                  <td className="px-3 py-2.5 text-[11px] text-muted-foreground max-w-[120px] truncate" title={stats?.last_campaign_name ?? undefined}>
+                    {stats?.last_campaign_name ?? "—"}
+                  </td>
+                  <td className="px-3 py-2.5 text-[11px] text-muted-foreground whitespace-nowrap">
+                    {stats?.last_outbound_at ? (
+                      <span title={new Date(stats.last_outbound_at).toLocaleString()}>
+                        <RelativeTime date={stats.last_outbound_at} />
+                      </span>
+                    ) : (
+                      <span className="text-muted-foreground/50">—</span>
+                    )}
                   </td>
                   <td className="px-3 py-2.5 text-[11px] text-muted-foreground whitespace-nowrap">
                     <RelativeTime date={c.created_at} />
@@ -579,7 +774,46 @@ export function WhatsAppContacts() {
             </DialogTitle>
           </DialogHeader>
           {detailContact && (
-            <div className="grid grid-cols-[minmax(0,34%)_1fr] gap-x-4 gap-y-1.5 text-sm py-1 border rounded-md p-3 bg-muted/20">
+            <div className="space-y-3">
+              {detailContact.wa_stats && (
+                <div className="rounded-md border border-border/60 bg-muted/10 p-3 space-y-1.5">
+                  <p className="text-xs font-medium flex items-center gap-1.5">
+                    <MessageCircle className="h-3.5 w-3.5" />
+                    WhatsApp activity
+                  </p>
+                  <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-[11px]">
+                    <span className="text-muted-foreground">Messaged</span>
+                    <span>{detailContact.wa_stats.messaged ? "Yes ✓" : "No"}</span>
+                    <span className="text-muted-foreground">Sent count</span>
+                    <span>{detailContact.wa_stats.outbound_count}</span>
+                    <span className="text-muted-foreground">Replies</span>
+                    <span>{detailContact.wa_stats.inbound_count}</span>
+                    <span className="text-muted-foreground">Last status</span>
+                    <span>{detailContact.wa_stats.last_outbound_status ?? "—"}</span>
+                    <span className="text-muted-foreground">Last campaign</span>
+                    <span>{detailContact.wa_stats.last_campaign_name ?? "—"}</span>
+                    {detailContact.do_not_contact && (
+                      <>
+                        <span className="text-muted-foreground">DNC</span>
+                        <span className="text-destructive">Do not contact</span>
+                      </>
+                    )}
+                    <span className="text-muted-foreground">Last sent</span>
+                    <span>
+                      {detailContact.wa_stats.last_outbound_at
+                        ? new Date(detailContact.wa_stats.last_outbound_at).toLocaleString()
+                        : "—"}
+                    </span>
+                    <span className="text-muted-foreground">Last reply</span>
+                    <span>
+                      {detailContact.wa_stats.last_inbound_at
+                        ? new Date(detailContact.wa_stats.last_inbound_at).toLocaleString()
+                        : "—"}
+                    </span>
+                  </div>
+                </div>
+              )}
+            <div className="grid grid-cols-[minmax(0,34%)_1fr] gap-x-4 gap-y-1.5 text-sm border rounded-md p-3 bg-muted/20">
               {getContactDetailFields(detailContact).map(({ label, value }) => (
                 <div key={`${label}-${value}`} className="contents">
                   <div className="text-xs font-medium text-muted-foreground py-1">{label}</div>
@@ -591,6 +825,7 @@ export function WhatsAppContacts() {
                   No extra fields stored. Re-import your CSV to capture all property columns.
                 </p>
               )}
+            </div>
             </div>
           )}
           <DialogFooter>
@@ -625,7 +860,7 @@ export function WhatsAppContacts() {
           <AlertDialogHeader>
             <AlertDialogTitle>Remove all contacts?</AlertDialogTitle>
             <AlertDialogDescription>
-              This permanently deletes all {(contacts as any[]).length} Buzzchat contacts in this
+              This permanently deletes all {contacts.length} Buzzchat contacts in this
               workspace. This cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
