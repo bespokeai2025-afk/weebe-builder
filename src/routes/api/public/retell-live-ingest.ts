@@ -20,6 +20,10 @@ import {
   mergeWebhookTranscript,
   upsertLiveCallSession,
 } from "@/lib/retell/live-call-sessions.server";
+import {
+  WBAH_RETELL_AGENT_MAP,
+  stripRetellAgentPrefix,
+} from "@/lib/wbah/post-call/wbah-retell-agents.shared";
 
 /** Header n8n must send, carrying the shared WEBEE_LIVE_INGEST_SECRET value. */
 const SECRET_HEADER = "x-webee-live-ingest-secret";
@@ -30,44 +34,13 @@ const SECRET_HEADER = "x-webee-live-ingest-secret";
  * other agent_id is ignored. Live-monitoring / display use only — this mapping
  * never influences the calls table, analytics, leads, CRM, or the WBAH sync.
  */
-const LIVE_INGEST_AGENTS: Record<string, { workspaceId: string; agentName: string }> = {
-  // Platform-account (RETELL_API_KEY) copy of the outbound qualification agent.
-  agent_0440750bb59597eef7352901bf: {
-    workspaceId: "5cb750b6-fabf-4e84-9b92-740df1cd8d53",
-    agentName: "WBAH Client qualification agent outbound",
-  },
-  // WBAH workspace-account copy (same call runs here when the workspace Retell
-  // key is used). Same n8n webhook forwards its events; mapping it ensures a
-  // live transcript is stored regardless of which account dialled the call.
-  // Display-only: never touches calls/leads/CRM/analytics or the WBAH sync.
-  agent_50598858538a69272a4bf04bf8: {
-    workspaceId: "5cb750b6-fabf-4e84-9b92-740df1cd8d53",
-    agentName: "WBAH Client qualification agent",
-  },
-  // Remaining WBAH workspace-account agents that dial via the same n8n webhook.
-  // All subscribed to transcript_updated on 2026-07-25; mapping them keeps the
-  // dashboard Live Calls transcript working whichever WBAH agent is dialling.
-  agent_ca1d79998c01bb510e60a4dd39: {
-    workspaceId: "5cb750b6-fabf-4e84-9b92-740df1cd8d53",
-    agentName: "WBAH Tried to contact agent",
-  },
-  agent_a03162ee94d003c298817e727c: {
-    workspaceId: "5cb750b6-fabf-4e84-9b92-740df1cd8d53",
-    agentName: "WBAH New Leads Agent",
-  },
-  agent_698b8e07acac970aefaf0a52b6: {
-    workspaceId: "5cb750b6-fabf-4e84-9b92-740df1cd8d53",
-    agentName: "WBAH New leads",
-  },
-  agent_1e1b13bd9564da4556370fe0be: {
-    workspaceId: "5cb750b6-fabf-4e84-9b92-740df1cd8d53",
-    agentName: "Rebooking consultation agent",
-  },
-  agent_0e07f26bebd25acbd82993e3a3: {
-    workspaceId: "5cb750b6-fabf-4e84-9b92-740df1cd8d53",
-    agentName: "Rebooking agent: WBAH client qualification agent",
-  },
-};
+const LIVE_INGEST_AGENTS: Record<string, { workspaceId: string; agentName: string }> =
+  Object.fromEntries(
+    Object.entries(WBAH_RETELL_AGENT_MAP).map(([id, m]) => [
+      id,
+      { workspaceId: m.workspaceId, agentName: m.agentName },
+    ]),
+  );
 
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
@@ -99,7 +72,7 @@ function json(body: unknown, status: number): Response {
 }
 
 function stripAgentPrefix(value: string): string {
-  return value.replace(/^agents\//, "").trim();
+  return stripRetellAgentPrefix(value);
 }
 
 /** Length-aware, non-short-circuiting secret comparison. */

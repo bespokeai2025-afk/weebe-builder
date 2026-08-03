@@ -16,6 +16,7 @@
 import { z } from "zod";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { routeGenerate } from "@/lib/growthmind/model-router.server";
+import { WBAH_POST_CALL_STEP_TYPES } from "@/lib/wbah/workflow/wbah-workflow-steps.shared";
 
 // ── Step whitelist (MUST mirror workflow-executor.server.ts switch) ────────────
 export const ALLOWED_STEP_TYPES = [
@@ -31,6 +32,8 @@ export const ALLOWED_STEP_TYPES = [
   "call_lead",
   "branch",
   "stop_workflow",
+  // WBAH native post-call (executed by wbah/post-call, not generic workflow engine)
+  ...WBAH_POST_CALL_STEP_TYPES,
 ] as const;
 
 const ALLOWED_TRIGGER_TYPES = ["lead_added", "lead_status_changed", "call_completed", "manual", "scheduled"] as const;
@@ -52,6 +55,7 @@ export const StepSchema = z.object({
   conditions:    z.array(ConditionSchema).max(10).optional(),
   status:        z.string().max(60).optional(),
   title:         z.string().max(300).optional(),
+  enabled:       z.boolean().optional(),
   delay_hours:   z.number().min(0).max(720).optional(),
   delay_minutes: z.number().min(0).max(59).optional(),
   template:      z.string().max(120).optional(),

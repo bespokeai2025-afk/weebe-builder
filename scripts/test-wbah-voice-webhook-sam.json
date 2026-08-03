@@ -1,0 +1,26 @@
+{
+  "event": "call_analyzed",
+  "call": {
+    "call_id": "call_77b8389ca390da95fca6ee41af2",
+    "call_type": "web_call",
+    "agent_id": "agent_0440750bb59597eef7352901bf",
+    "call_status": "ended",
+    "retell_llm_dynamic_variables": {
+      "lead_id": "5e2c7b3e-e2df-f011-8543-7ced8d4a8921",
+      "name": "Sam Martin",
+      "client_name": "Sam Martin",
+      "email": "arjavvirani123@gmail.com",
+      "mobile": "+919096760308",
+      "bedrooms": "2"
+    },
+    "call_analysis": {
+      "call_summary": "Agent collected Sam Martin's contact and property details, confirmed a consultation booking for 2025-12-30 at 09:10.",
+      "user_sentiment": "Positive",
+      "call_successful": true,
+      "custom_analysis_data": {
+        "email_address": "arjavvirani123@gmail.com",
+        "calendly_slot": "{\"preferred_slot\": { \"date\": \"2025-12-30\", \"time\": \"09:10\" }}"
+      }
+    }
+  }
+}

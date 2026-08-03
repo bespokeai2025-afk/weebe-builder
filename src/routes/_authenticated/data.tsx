@@ -1108,17 +1108,21 @@ function DataPage() {
   );
 
   const wbahCatFiltered = useMemo(
-    () =>
-      wbahActiveCatRows.filter((r) =>
+    () => {
+      // Test Lead rows are CRM cohort records — call-status dropdown is for Calls tab.
+      const statusF =
+        wbahPeopleSubTab === TEST_LEAD_STATUS ? "all" : wbahStatusFilter;
+      return wbahActiveCatRows.filter((r) =>
         wbahRowPasses(
           r,
           wbahPeopleSearch,
-          wbahStatusFilter,
+          statusF,
           wbahSentimentFilter,
           wbahDateCut,
           wbahAgentFilter,
         ),
-      ),
+      );
+    },
     [
       wbahActiveCatRows,
       wbahPeopleSearch,
@@ -1126,6 +1130,7 @@ function DataPage() {
       wbahSentimentFilter,
       wbahDateCut,
       wbahAgentFilter,
+      wbahPeopleSubTab,
     ],
   );
 
@@ -2751,12 +2756,22 @@ function DataPage() {
                       <Users className="h-8 w-8 text-muted-foreground" />
                       <p className="text-sm font-medium">No test leads in CRM yet</p>
                       <p className="max-w-md text-xs text-muted-foreground">
-                        Sync from Dynamics in the Campaigns tab after enabling Test Lead on UAT.
-                        Test leads appear here with a <strong>TEST</strong> badge.
+                        Run <strong>Data → Campaigns → Sync from Dynamics</strong> after UAT has{" "}
+                        <code className="rounded bg-muted px-1">ENABLE_TEST_LEAD_CATEGORY_SYNC=true</code>.
+                        Preview should show <strong>test_lead</strong> with dynamicsFetched &gt; 0.
                       </p>
-                      <Button variant="outline" size="sm" className="mt-2" onClick={onLoad}>
-                        <RefreshCw className="mr-1.5 h-3.5 w-3.5" /> Refresh Test Lead
-                      </Button>
+                      <div className="mt-2 flex flex-wrap items-center justify-center gap-2">
+                        <Button variant="outline" size="sm" onClick={onLoad}>
+                          <RefreshCw className="mr-1.5 h-3.5 w-3.5" /> Refresh Test Lead
+                        </Button>
+                        <Button
+                          variant="secondary"
+                          size="sm"
+                          onClick={() => setDataTab("campaigns")}
+                        >
+                          Open Campaigns sync
+                        </Button>
+                      </div>
                     </div>
                   );
                 }

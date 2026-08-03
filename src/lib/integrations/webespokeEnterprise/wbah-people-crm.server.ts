@@ -226,6 +226,13 @@ function buildCrmQuery(
   params.set("pageSize", String(pageSize));
   if (cat.callbackOnly) {
     params.set("isCallbackPending", "true");
+  } else if (cat.slug === "test_lead") {
+    // Backend maps leadStatus=Test Lead → sync_category_slug=test_lead (opt-in flag).
+    if (cat.leadStatus) {
+      params.set("leadStatus", cat.leadStatus);
+    } else {
+      params.set("sync_category_slug", cat.slug);
+    }
   } else {
     params.set("sync_category_slug", cat.slug);
     // Some UAT builds also filter test cohort by leadStatus display name.

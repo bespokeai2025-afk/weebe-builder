@@ -87,6 +87,7 @@ import { Route as ApiV1BookingsRouteImport } from './routes/api/v1/bookings'
 import { Route as ApiV1BillingRouteImport } from './routes/api/v1/billing'
 import { Route as ApiV1AnalyticsRouteImport } from './routes/api/v1/analytics'
 import { Route as ApiV1AgentsRouteImport } from './routes/api/v1/agents'
+import { Route as ApiPublicWbahPostCallQueueRouteImport } from './routes/api/public/wbah-post-call-queue'
 import { Route as ApiPublicVoiceWebhookRouteImport } from './routes/api/public/voice-webhook'
 import { Route as ApiPublicVideoJobPollerRouteImport } from './routes/api/public/video-job-poller'
 import { Route as ApiPublicTiktokAdsWebhookRouteImport } from './routes/api/public/tiktok-ads-webhook'
@@ -99,6 +100,7 @@ import { Route as ApiPublicElevenlabsWebhookRouteImport } from './routes/api/pub
 import { Route as ApiPublicContactRouteImport } from './routes/api/public/contact'
 import { Route as ApiPublicCampaignExecutorRouteImport } from './routes/api/public/campaign-executor'
 import { Route as ApiPublicAvaWebCallRouteImport } from './routes/api/public/ava-web-call'
+import { Route as ApiPublicAutomationQueueRouteImport } from './routes/api/public/automation-queue'
 import { Route as ApiPublicApproveUserRouteImport } from './routes/api/public/approve-user'
 import { Route as ApiPublicAdsSyncRouteImport } from './routes/api/public/ads-sync'
 import { Route as ApiOauthMetaCallbackRouteImport } from './routes/api/oauth/meta-callback'
@@ -116,6 +118,7 @@ import { Route as AuthenticatedSystemmindWorkflowsRouteImport } from './routes/_
 import { Route as AuthenticatedSystemmindWorkflowIntelligenceRouteImport } from './routes/_authenticated/systemmind.workflow-intelligence'
 import { Route as AuthenticatedSystemmindWorkflowGeneratorRouteImport } from './routes/_authenticated/systemmind.workflow-generator'
 import { Route as AuthenticatedSystemmindWorkflowDraftsRouteImport } from './routes/_authenticated/systemmind.workflow-drafts'
+import { Route as AuthenticatedSystemmindWbahPostCallRouteImport } from './routes/_authenticated/systemmind.wbah-post-call'
 import { Route as AuthenticatedSystemmindVariablesRouteImport } from './routes/_authenticated/systemmind.variables'
 import { Route as AuthenticatedSystemmindTemplateLibraryRouteImport } from './routes/_authenticated/systemmind.template-library'
 import { Route as AuthenticatedSystemmindTasksRouteImport } from './routes/_authenticated/systemmind.tasks'
@@ -283,6 +286,7 @@ import { Route as ApiPublicAvaCallVerifyAndCallRouteImport } from './routes/api/
 import { Route as ApiPublicAvaCallVerifyRouteImport } from './routes/api/public/ava-call/verify'
 import { Route as ApiPublicAvaCallRequestOtpRouteImport } from './routes/api/public/ava-call/request-otp'
 import { Route as ApiPublicAvaCallRequestRouteImport } from './routes/api/public/ava-call/request'
+import { Route as ApiPublicAutomationResumeTokenRouteImport } from './routes/api/public/automation-resume.$token'
 import { Route as ApiPublicAgentsRegisterRouteImport } from './routes/api/public/agents/register'
 import { Route as ApiInternalAgentToolsIdRouteImport } from './routes/api/internal/agent-tools.$id'
 import { Route as AuthenticatedSystemmindClientsSetupRouteImport } from './routes/_authenticated/systemmind.clients.setup'
@@ -308,6 +312,7 @@ import { Route as ApiRuntimeAgentIdExportRouteImport } from './routes/api/runtim
 import { Route as ApiPublicTelephonyStatusHealthRouteImport } from './routes/api/public/telephony/status.health'
 import { Route as ApiPublicTelephonyInboundHealthRouteImport } from './routes/api/public/telephony/inbound.health'
 import { Route as ApiPublicPaymentsWebhookHealthRouteImport } from './routes/api/public/payments/webhook.health'
+import { Route as ApiAutomationExecutionsExecutionIdEventsRouteImport } from './routes/api/automation/executions/$executionId.events'
 import { Route as AuthenticatedAdminAccountsWorkspaceIdRouteImport } from './routes/_authenticated/admin.accounts.workspace.$id'
 import { Route as AuthenticatedAdminAccountsClientsWebuyanyhouseRouteImport } from './routes/_authenticated/admin.accounts.clients.webuyanyhouse'
 import { Route as ApiV1MindsConversationsIdMessagesRouteImport } from './routes/api/v1/minds.conversations.$id.messages'
@@ -724,6 +729,12 @@ const ApiV1AgentsRoute = ApiV1AgentsRouteImport.update({
   path: '/api/v1/agents',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPublicWbahPostCallQueueRoute =
+  ApiPublicWbahPostCallQueueRouteImport.update({
+    id: '/api/public/wbah-post-call-queue',
+    path: '/api/public/wbah-post-call-queue',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiPublicVoiceWebhookRoute = ApiPublicVoiceWebhookRouteImport.update({
   id: '/api/public/voice-webhook',
   path: '/api/public/voice-webhook',
@@ -789,6 +800,12 @@ const ApiPublicAvaWebCallRoute = ApiPublicAvaWebCallRouteImport.update({
   path: '/api/public/ava-web-call',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPublicAutomationQueueRoute =
+  ApiPublicAutomationQueueRouteImport.update({
+    id: '/api/public/automation-queue',
+    path: '/api/public/automation-queue',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiPublicApproveUserRoute = ApiPublicApproveUserRouteImport.update({
   id: '/api/public/approve-user',
   path: '/api/public/approve-user',
@@ -881,6 +898,12 @@ const AuthenticatedSystemmindWorkflowDraftsRoute =
   AuthenticatedSystemmindWorkflowDraftsRouteImport.update({
     id: '/workflow-drafts',
     path: '/workflow-drafts',
+    getParentRoute: () => AuthenticatedSystemmindRoute,
+  } as any)
+const AuthenticatedSystemmindWbahPostCallRoute =
+  AuthenticatedSystemmindWbahPostCallRouteImport.update({
+    id: '/wbah-post-call',
+    path: '/wbah-post-call',
     getParentRoute: () => AuthenticatedSystemmindRoute,
   } as any)
 const AuthenticatedSystemmindVariablesRoute =
@@ -1860,6 +1883,12 @@ const ApiPublicAvaCallRequestRoute = ApiPublicAvaCallRequestRouteImport.update({
   path: '/api/public/ava-call/request',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPublicAutomationResumeTokenRoute =
+  ApiPublicAutomationResumeTokenRouteImport.update({
+    id: '/api/public/automation-resume/$token',
+    path: '/api/public/automation-resume/$token',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiPublicAgentsRegisterRoute = ApiPublicAgentsRegisterRouteImport.update({
   id: '/api/public/agents/register',
   path: '/api/public/agents/register',
@@ -2004,6 +2033,12 @@ const ApiPublicPaymentsWebhookHealthRoute =
     id: '/health',
     path: '/health',
     getParentRoute: () => ApiPublicPaymentsWebhookRoute,
+  } as any)
+const ApiAutomationExecutionsExecutionIdEventsRoute =
+  ApiAutomationExecutionsExecutionIdEventsRouteImport.update({
+    id: '/api/automation/executions/$executionId/events',
+    path: '/api/automation/executions/$executionId/events',
+    getParentRoute: () => rootRouteImport,
   } as any)
 const AuthenticatedAdminAccountsWorkspaceIdRoute =
   AuthenticatedAdminAccountsWorkspaceIdRouteImport.update({
@@ -2235,6 +2270,7 @@ export interface FileRoutesByFullPath {
   '/systemmind/tasks': typeof AuthenticatedSystemmindTasksRoute
   '/systemmind/template-library': typeof AuthenticatedSystemmindTemplateLibraryRoute
   '/systemmind/variables': typeof AuthenticatedSystemmindVariablesRoute
+  '/systemmind/wbah-post-call': typeof AuthenticatedSystemmindWbahPostCallRoute
   '/systemmind/workflow-drafts': typeof AuthenticatedSystemmindWorkflowDraftsRoute
   '/systemmind/workflow-generator': typeof AuthenticatedSystemmindWorkflowGeneratorRoute
   '/systemmind/workflow-intelligence': typeof AuthenticatedSystemmindWorkflowIntelligenceRoute
@@ -2252,6 +2288,7 @@ export interface FileRoutesByFullPath {
   '/api/oauth/meta-callback': typeof ApiOauthMetaCallbackRoute
   '/api/public/ads-sync': typeof ApiPublicAdsSyncRoute
   '/api/public/approve-user': typeof ApiPublicApproveUserRoute
+  '/api/public/automation-queue': typeof ApiPublicAutomationQueueRoute
   '/api/public/ava-web-call': typeof ApiPublicAvaWebCallRoute
   '/api/public/campaign-executor': typeof ApiPublicCampaignExecutorRoute
   '/api/public/contact': typeof ApiPublicContactRoute
@@ -2264,6 +2301,7 @@ export interface FileRoutesByFullPath {
   '/api/public/tiktok-ads-webhook': typeof ApiPublicTiktokAdsWebhookRoute
   '/api/public/video-job-poller': typeof ApiPublicVideoJobPollerRoute
   '/api/public/voice-webhook': typeof ApiPublicVoiceWebhookRouteWithChildren
+  '/api/public/wbah-post-call-queue': typeof ApiPublicWbahPostCallQueueRoute
   '/api/v1/agents': typeof ApiV1AgentsRouteWithChildren
   '/api/v1/analytics': typeof ApiV1AnalyticsRoute
   '/api/v1/billing': typeof ApiV1BillingRoute
@@ -2305,6 +2343,7 @@ export interface FileRoutesByFullPath {
   '/systemmind/clients/setup': typeof AuthenticatedSystemmindClientsSetupRoute
   '/api/internal/agent-tools/$id': typeof ApiInternalAgentToolsIdRoute
   '/api/public/agents/register': typeof ApiPublicAgentsRegisterRoute
+  '/api/public/automation-resume/$token': typeof ApiPublicAutomationResumeTokenRoute
   '/api/public/ava-call/request': typeof ApiPublicAvaCallRequestRoute
   '/api/public/ava-call/request-otp': typeof ApiPublicAvaCallRequestOtpRoute
   '/api/public/ava-call/verify': typeof ApiPublicAvaCallVerifyRoute
@@ -2365,6 +2404,7 @@ export interface FileRoutesByFullPath {
   '/systemmind/clients/': typeof AuthenticatedSystemmindClientsIndexRoute
   '/admin/accounts/clients/webuyanyhouse': typeof AuthenticatedAdminAccountsClientsWebuyanyhouseRoute
   '/admin/accounts/workspace/$id': typeof AuthenticatedAdminAccountsWorkspaceIdRoute
+  '/api/automation/executions/$executionId/events': typeof ApiAutomationExecutionsExecutionIdEventsRoute
   '/api/public/payments/webhook/health': typeof ApiPublicPaymentsWebhookHealthRoute
   '/api/public/telephony/inbound/health': typeof ApiPublicTelephonyInboundHealthRoute
   '/api/public/telephony/status/health': typeof ApiPublicTelephonyStatusHealthRoute
@@ -2537,6 +2577,7 @@ export interface FileRoutesByTo {
   '/systemmind/tasks': typeof AuthenticatedSystemmindTasksRoute
   '/systemmind/template-library': typeof AuthenticatedSystemmindTemplateLibraryRoute
   '/systemmind/variables': typeof AuthenticatedSystemmindVariablesRoute
+  '/systemmind/wbah-post-call': typeof AuthenticatedSystemmindWbahPostCallRoute
   '/systemmind/workflow-drafts': typeof AuthenticatedSystemmindWorkflowDraftsRoute
   '/systemmind/workflow-generator': typeof AuthenticatedSystemmindWorkflowGeneratorRoute
   '/systemmind/workflow-intelligence': typeof AuthenticatedSystemmindWorkflowIntelligenceRoute
@@ -2554,6 +2595,7 @@ export interface FileRoutesByTo {
   '/api/oauth/meta-callback': typeof ApiOauthMetaCallbackRoute
   '/api/public/ads-sync': typeof ApiPublicAdsSyncRoute
   '/api/public/approve-user': typeof ApiPublicApproveUserRoute
+  '/api/public/automation-queue': typeof ApiPublicAutomationQueueRoute
   '/api/public/ava-web-call': typeof ApiPublicAvaWebCallRoute
   '/api/public/campaign-executor': typeof ApiPublicCampaignExecutorRoute
   '/api/public/contact': typeof ApiPublicContactRoute
@@ -2566,6 +2608,7 @@ export interface FileRoutesByTo {
   '/api/public/tiktok-ads-webhook': typeof ApiPublicTiktokAdsWebhookRoute
   '/api/public/video-job-poller': typeof ApiPublicVideoJobPollerRoute
   '/api/public/voice-webhook': typeof ApiPublicVoiceWebhookRouteWithChildren
+  '/api/public/wbah-post-call-queue': typeof ApiPublicWbahPostCallQueueRoute
   '/api/v1/agents': typeof ApiV1AgentsRouteWithChildren
   '/api/v1/analytics': typeof ApiV1AnalyticsRoute
   '/api/v1/billing': typeof ApiV1BillingRoute
@@ -2606,6 +2649,7 @@ export interface FileRoutesByTo {
   '/systemmind/clients/setup': typeof AuthenticatedSystemmindClientsSetupRoute
   '/api/internal/agent-tools/$id': typeof ApiInternalAgentToolsIdRoute
   '/api/public/agents/register': typeof ApiPublicAgentsRegisterRoute
+  '/api/public/automation-resume/$token': typeof ApiPublicAutomationResumeTokenRoute
   '/api/public/ava-call/request': typeof ApiPublicAvaCallRequestRoute
   '/api/public/ava-call/request-otp': typeof ApiPublicAvaCallRequestOtpRoute
   '/api/public/ava-call/verify': typeof ApiPublicAvaCallVerifyRoute
@@ -2666,6 +2710,7 @@ export interface FileRoutesByTo {
   '/systemmind/clients': typeof AuthenticatedSystemmindClientsIndexRoute
   '/admin/accounts/clients/webuyanyhouse': typeof AuthenticatedAdminAccountsClientsWebuyanyhouseRoute
   '/admin/accounts/workspace/$id': typeof AuthenticatedAdminAccountsWorkspaceIdRoute
+  '/api/automation/executions/$executionId/events': typeof ApiAutomationExecutionsExecutionIdEventsRoute
   '/api/public/payments/webhook/health': typeof ApiPublicPaymentsWebhookHealthRoute
   '/api/public/telephony/inbound/health': typeof ApiPublicTelephonyInboundHealthRoute
   '/api/public/telephony/status/health': typeof ApiPublicTelephonyStatusHealthRoute
@@ -2849,6 +2894,7 @@ export interface FileRoutesById {
   '/_authenticated/systemmind/tasks': typeof AuthenticatedSystemmindTasksRoute
   '/_authenticated/systemmind/template-library': typeof AuthenticatedSystemmindTemplateLibraryRoute
   '/_authenticated/systemmind/variables': typeof AuthenticatedSystemmindVariablesRoute
+  '/_authenticated/systemmind/wbah-post-call': typeof AuthenticatedSystemmindWbahPostCallRoute
   '/_authenticated/systemmind/workflow-drafts': typeof AuthenticatedSystemmindWorkflowDraftsRoute
   '/_authenticated/systemmind/workflow-generator': typeof AuthenticatedSystemmindWorkflowGeneratorRoute
   '/_authenticated/systemmind/workflow-intelligence': typeof AuthenticatedSystemmindWorkflowIntelligenceRoute
@@ -2866,6 +2912,7 @@ export interface FileRoutesById {
   '/api/oauth/meta-callback': typeof ApiOauthMetaCallbackRoute
   '/api/public/ads-sync': typeof ApiPublicAdsSyncRoute
   '/api/public/approve-user': typeof ApiPublicApproveUserRoute
+  '/api/public/automation-queue': typeof ApiPublicAutomationQueueRoute
   '/api/public/ava-web-call': typeof ApiPublicAvaWebCallRoute
   '/api/public/campaign-executor': typeof ApiPublicCampaignExecutorRoute
   '/api/public/contact': typeof ApiPublicContactRoute
@@ -2878,6 +2925,7 @@ export interface FileRoutesById {
   '/api/public/tiktok-ads-webhook': typeof ApiPublicTiktokAdsWebhookRoute
   '/api/public/video-job-poller': typeof ApiPublicVideoJobPollerRoute
   '/api/public/voice-webhook': typeof ApiPublicVoiceWebhookRouteWithChildren
+  '/api/public/wbah-post-call-queue': typeof ApiPublicWbahPostCallQueueRoute
   '/api/v1/agents': typeof ApiV1AgentsRouteWithChildren
   '/api/v1/analytics': typeof ApiV1AnalyticsRoute
   '/api/v1/billing': typeof ApiV1BillingRoute
@@ -2919,6 +2967,7 @@ export interface FileRoutesById {
   '/_authenticated/systemmind/clients/setup': typeof AuthenticatedSystemmindClientsSetupRoute
   '/api/internal/agent-tools/$id': typeof ApiInternalAgentToolsIdRoute
   '/api/public/agents/register': typeof ApiPublicAgentsRegisterRoute
+  '/api/public/automation-resume/$token': typeof ApiPublicAutomationResumeTokenRoute
   '/api/public/ava-call/request': typeof ApiPublicAvaCallRequestRoute
   '/api/public/ava-call/request-otp': typeof ApiPublicAvaCallRequestOtpRoute
   '/api/public/ava-call/verify': typeof ApiPublicAvaCallVerifyRoute
@@ -2979,6 +3028,7 @@ export interface FileRoutesById {
   '/_authenticated/systemmind/clients/': typeof AuthenticatedSystemmindClientsIndexRoute
   '/_authenticated/admin/accounts/clients/webuyanyhouse': typeof AuthenticatedAdminAccountsClientsWebuyanyhouseRoute
   '/_authenticated/admin/accounts/workspace/$id': typeof AuthenticatedAdminAccountsWorkspaceIdRoute
+  '/api/automation/executions/$executionId/events': typeof ApiAutomationExecutionsExecutionIdEventsRoute
   '/api/public/payments/webhook/health': typeof ApiPublicPaymentsWebhookHealthRoute
   '/api/public/telephony/inbound/health': typeof ApiPublicTelephonyInboundHealthRoute
   '/api/public/telephony/status/health': typeof ApiPublicTelephonyStatusHealthRoute
@@ -3162,6 +3212,7 @@ export interface FileRouteTypes {
     | '/systemmind/tasks'
     | '/systemmind/template-library'
     | '/systemmind/variables'
+    | '/systemmind/wbah-post-call'
     | '/systemmind/workflow-drafts'
     | '/systemmind/workflow-generator'
     | '/systemmind/workflow-intelligence'
@@ -3179,6 +3230,7 @@ export interface FileRouteTypes {
     | '/api/oauth/meta-callback'
     | '/api/public/ads-sync'
     | '/api/public/approve-user'
+    | '/api/public/automation-queue'
     | '/api/public/ava-web-call'
     | '/api/public/campaign-executor'
     | '/api/public/contact'
@@ -3191,6 +3243,7 @@ export interface FileRouteTypes {
     | '/api/public/tiktok-ads-webhook'
     | '/api/public/video-job-poller'
     | '/api/public/voice-webhook'
+    | '/api/public/wbah-post-call-queue'
     | '/api/v1/agents'
     | '/api/v1/analytics'
     | '/api/v1/billing'
@@ -3232,6 +3285,7 @@ export interface FileRouteTypes {
     | '/systemmind/clients/setup'
     | '/api/internal/agent-tools/$id'
     | '/api/public/agents/register'
+    | '/api/public/automation-resume/$token'
     | '/api/public/ava-call/request'
     | '/api/public/ava-call/request-otp'
     | '/api/public/ava-call/verify'
@@ -3292,6 +3346,7 @@ export interface FileRouteTypes {
     | '/systemmind/clients/'
     | '/admin/accounts/clients/webuyanyhouse'
     | '/admin/accounts/workspace/$id'
+    | '/api/automation/executions/$executionId/events'
     | '/api/public/payments/webhook/health'
     | '/api/public/telephony/inbound/health'
     | '/api/public/telephony/status/health'
@@ -3464,6 +3519,7 @@ export interface FileRouteTypes {
     | '/systemmind/tasks'
     | '/systemmind/template-library'
     | '/systemmind/variables'
+    | '/systemmind/wbah-post-call'
     | '/systemmind/workflow-drafts'
     | '/systemmind/workflow-generator'
     | '/systemmind/workflow-intelligence'
@@ -3481,6 +3537,7 @@ export interface FileRouteTypes {
     | '/api/oauth/meta-callback'
     | '/api/public/ads-sync'
     | '/api/public/approve-user'
+    | '/api/public/automation-queue'
     | '/api/public/ava-web-call'
     | '/api/public/campaign-executor'
     | '/api/public/contact'
@@ -3493,6 +3550,7 @@ export interface FileRouteTypes {
     | '/api/public/tiktok-ads-webhook'
     | '/api/public/video-job-poller'
     | '/api/public/voice-webhook'
+    | '/api/public/wbah-post-call-queue'
     | '/api/v1/agents'
     | '/api/v1/analytics'
     | '/api/v1/billing'
@@ -3533,6 +3591,7 @@ export interface FileRouteTypes {
     | '/systemmind/clients/setup'
     | '/api/internal/agent-tools/$id'
     | '/api/public/agents/register'
+    | '/api/public/automation-resume/$token'
     | '/api/public/ava-call/request'
     | '/api/public/ava-call/request-otp'
     | '/api/public/ava-call/verify'
@@ -3593,6 +3652,7 @@ export interface FileRouteTypes {
     | '/systemmind/clients'
     | '/admin/accounts/clients/webuyanyhouse'
     | '/admin/accounts/workspace/$id'
+    | '/api/automation/executions/$executionId/events'
     | '/api/public/payments/webhook/health'
     | '/api/public/telephony/inbound/health'
     | '/api/public/telephony/status/health'
@@ -3775,6 +3835,7 @@ export interface FileRouteTypes {
     | '/_authenticated/systemmind/tasks'
     | '/_authenticated/systemmind/template-library'
     | '/_authenticated/systemmind/variables'
+    | '/_authenticated/systemmind/wbah-post-call'
     | '/_authenticated/systemmind/workflow-drafts'
     | '/_authenticated/systemmind/workflow-generator'
     | '/_authenticated/systemmind/workflow-intelligence'
@@ -3792,6 +3853,7 @@ export interface FileRouteTypes {
     | '/api/oauth/meta-callback'
     | '/api/public/ads-sync'
     | '/api/public/approve-user'
+    | '/api/public/automation-queue'
     | '/api/public/ava-web-call'
     | '/api/public/campaign-executor'
     | '/api/public/contact'
@@ -3804,6 +3866,7 @@ export interface FileRouteTypes {
     | '/api/public/tiktok-ads-webhook'
     | '/api/public/video-job-poller'
     | '/api/public/voice-webhook'
+    | '/api/public/wbah-post-call-queue'
     | '/api/v1/agents'
     | '/api/v1/analytics'
     | '/api/v1/billing'
@@ -3845,6 +3908,7 @@ export interface FileRouteTypes {
     | '/_authenticated/systemmind/clients/setup'
     | '/api/internal/agent-tools/$id'
     | '/api/public/agents/register'
+    | '/api/public/automation-resume/$token'
     | '/api/public/ava-call/request'
     | '/api/public/ava-call/request-otp'
     | '/api/public/ava-call/verify'
@@ -3905,6 +3969,7 @@ export interface FileRouteTypes {
     | '/_authenticated/systemmind/clients/'
     | '/_authenticated/admin/accounts/clients/webuyanyhouse'
     | '/_authenticated/admin/accounts/workspace/$id'
+    | '/api/automation/executions/$executionId/events'
     | '/api/public/payments/webhook/health'
     | '/api/public/telephony/inbound/health'
     | '/api/public/telephony/status/health'
@@ -3960,6 +4025,7 @@ export interface RootRouteChildren {
   ApiOauthMetaCallbackRoute: typeof ApiOauthMetaCallbackRoute
   ApiPublicAdsSyncRoute: typeof ApiPublicAdsSyncRoute
   ApiPublicApproveUserRoute: typeof ApiPublicApproveUserRoute
+  ApiPublicAutomationQueueRoute: typeof ApiPublicAutomationQueueRoute
   ApiPublicAvaWebCallRoute: typeof ApiPublicAvaWebCallRoute
   ApiPublicCampaignExecutorRoute: typeof ApiPublicCampaignExecutorRoute
   ApiPublicContactRoute: typeof ApiPublicContactRoute
@@ -3972,6 +4038,7 @@ export interface RootRouteChildren {
   ApiPublicTiktokAdsWebhookRoute: typeof ApiPublicTiktokAdsWebhookRoute
   ApiPublicVideoJobPollerRoute: typeof ApiPublicVideoJobPollerRoute
   ApiPublicVoiceWebhookRoute: typeof ApiPublicVoiceWebhookRouteWithChildren
+  ApiPublicWbahPostCallQueueRoute: typeof ApiPublicWbahPostCallQueueRoute
   ApiV1AgentsRoute: typeof ApiV1AgentsRouteWithChildren
   ApiV1AnalyticsRoute: typeof ApiV1AnalyticsRoute
   ApiV1BillingRoute: typeof ApiV1BillingRoute
@@ -3991,6 +4058,7 @@ export interface RootRouteChildren {
   LovableEmailSuppressionRoute: typeof LovableEmailSuppressionRoute
   ApiInternalAgentToolsIdRoute: typeof ApiInternalAgentToolsIdRoute
   ApiPublicAgentsRegisterRoute: typeof ApiPublicAgentsRegisterRoute
+  ApiPublicAutomationResumeTokenRoute: typeof ApiPublicAutomationResumeTokenRoute
   ApiPublicAvaCallRequestRoute: typeof ApiPublicAvaCallRequestRoute
   ApiPublicAvaCallRequestOtpRoute: typeof ApiPublicAvaCallRequestOtpRoute
   ApiPublicAvaCallVerifyRoute: typeof ApiPublicAvaCallVerifyRoute
@@ -4035,6 +4103,7 @@ export interface RootRouteChildren {
   LovableEmailQueueProcessRoute: typeof LovableEmailQueueProcessRoute
   LovableEmailTransactionalPreviewRoute: typeof LovableEmailTransactionalPreviewRoute
   LovableEmailTransactionalSendRoute: typeof LovableEmailTransactionalSendRoute
+  ApiAutomationExecutionsExecutionIdEventsRoute: typeof ApiAutomationExecutionsExecutionIdEventsRoute
   ApiPublicV1SitesSiteKeyCategoriesRoute: typeof ApiPublicV1SitesSiteKeyCategoriesRoute
   ApiPublicV1SitesSiteKeyFeedRoute: typeof ApiPublicV1SitesSiteKeyFeedRoute
   ApiPublicV1SitesSiteKeyPostsRoute: typeof ApiPublicV1SitesSiteKeyPostsRouteWithChildren
@@ -4590,6 +4659,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiV1AgentsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/wbah-post-call-queue': {
+      id: '/api/public/wbah-post-call-queue'
+      path: '/api/public/wbah-post-call-queue'
+      fullPath: '/api/public/wbah-post-call-queue'
+      preLoaderRoute: typeof ApiPublicWbahPostCallQueueRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/voice-webhook': {
       id: '/api/public/voice-webhook'
       path: '/api/public/voice-webhook'
@@ -4672,6 +4748,13 @@ declare module '@tanstack/react-router' {
       path: '/api/public/ava-web-call'
       fullPath: '/api/public/ava-web-call'
       preLoaderRoute: typeof ApiPublicAvaWebCallRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/automation-queue': {
+      id: '/api/public/automation-queue'
+      path: '/api/public/automation-queue'
+      fullPath: '/api/public/automation-queue'
+      preLoaderRoute: typeof ApiPublicAutomationQueueRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/public/approve-user': {
@@ -4791,6 +4874,13 @@ declare module '@tanstack/react-router' {
       path: '/workflow-drafts'
       fullPath: '/systemmind/workflow-drafts'
       preLoaderRoute: typeof AuthenticatedSystemmindWorkflowDraftsRouteImport
+      parentRoute: typeof AuthenticatedSystemmindRoute
+    }
+    '/_authenticated/systemmind/wbah-post-call': {
+      id: '/_authenticated/systemmind/wbah-post-call'
+      path: '/wbah-post-call'
+      fullPath: '/systemmind/wbah-post-call'
+      preLoaderRoute: typeof AuthenticatedSystemmindWbahPostCallRouteImport
       parentRoute: typeof AuthenticatedSystemmindRoute
     }
     '/_authenticated/systemmind/variables': {
@@ -5962,6 +6052,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicAvaCallRequestRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/automation-resume/$token': {
+      id: '/api/public/automation-resume/$token'
+      path: '/api/public/automation-resume/$token'
+      fullPath: '/api/public/automation-resume/$token'
+      preLoaderRoute: typeof ApiPublicAutomationResumeTokenRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/agents/register': {
       id: '/api/public/agents/register'
       path: '/api/public/agents/register'
@@ -6136,6 +6233,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/api/public/payments/webhook/health'
       preLoaderRoute: typeof ApiPublicPaymentsWebhookHealthRouteImport
       parentRoute: typeof ApiPublicPaymentsWebhookRoute
+    }
+    '/api/automation/executions/$executionId/events': {
+      id: '/api/automation/executions/$executionId/events'
+      path: '/api/automation/executions/$executionId/events'
+      fullPath: '/api/automation/executions/$executionId/events'
+      preLoaderRoute: typeof ApiAutomationExecutionsExecutionIdEventsRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/_authenticated/admin/accounts/workspace/$id': {
       id: '/_authenticated/admin/accounts/workspace/$id'
@@ -6616,6 +6720,7 @@ interface AuthenticatedSystemmindRouteChildren {
   AuthenticatedSystemmindTasksRoute: typeof AuthenticatedSystemmindTasksRoute
   AuthenticatedSystemmindTemplateLibraryRoute: typeof AuthenticatedSystemmindTemplateLibraryRoute
   AuthenticatedSystemmindVariablesRoute: typeof AuthenticatedSystemmindVariablesRoute
+  AuthenticatedSystemmindWbahPostCallRoute: typeof AuthenticatedSystemmindWbahPostCallRoute
   AuthenticatedSystemmindWorkflowDraftsRoute: typeof AuthenticatedSystemmindWorkflowDraftsRoute
   AuthenticatedSystemmindWorkflowGeneratorRoute: typeof AuthenticatedSystemmindWorkflowGeneratorRoute
   AuthenticatedSystemmindWorkflowIntelligenceRoute: typeof AuthenticatedSystemmindWorkflowIntelligenceRoute
@@ -6671,6 +6776,8 @@ const AuthenticatedSystemmindRouteChildren: AuthenticatedSystemmindRouteChildren
       AuthenticatedSystemmindTemplateLibraryRoute,
     AuthenticatedSystemmindVariablesRoute:
       AuthenticatedSystemmindVariablesRoute,
+    AuthenticatedSystemmindWbahPostCallRoute:
+      AuthenticatedSystemmindWbahPostCallRoute,
     AuthenticatedSystemmindWorkflowDraftsRoute:
       AuthenticatedSystemmindWorkflowDraftsRoute,
     AuthenticatedSystemmindWorkflowGeneratorRoute:
@@ -7078,6 +7185,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiOauthMetaCallbackRoute: ApiOauthMetaCallbackRoute,
   ApiPublicAdsSyncRoute: ApiPublicAdsSyncRoute,
   ApiPublicApproveUserRoute: ApiPublicApproveUserRoute,
+  ApiPublicAutomationQueueRoute: ApiPublicAutomationQueueRoute,
   ApiPublicAvaWebCallRoute: ApiPublicAvaWebCallRoute,
   ApiPublicCampaignExecutorRoute: ApiPublicCampaignExecutorRoute,
   ApiPublicContactRoute: ApiPublicContactRoute,
@@ -7090,6 +7198,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiPublicTiktokAdsWebhookRoute: ApiPublicTiktokAdsWebhookRoute,
   ApiPublicVideoJobPollerRoute: ApiPublicVideoJobPollerRoute,
   ApiPublicVoiceWebhookRoute: ApiPublicVoiceWebhookRouteWithChildren,
+  ApiPublicWbahPostCallQueueRoute: ApiPublicWbahPostCallQueueRoute,
   ApiV1AgentsRoute: ApiV1AgentsRouteWithChildren,
   ApiV1AnalyticsRoute: ApiV1AnalyticsRoute,
   ApiV1BillingRoute: ApiV1BillingRoute,
@@ -7109,6 +7218,7 @@ const rootRouteChildren: RootRouteChildren = {
   LovableEmailSuppressionRoute: LovableEmailSuppressionRoute,
   ApiInternalAgentToolsIdRoute: ApiInternalAgentToolsIdRoute,
   ApiPublicAgentsRegisterRoute: ApiPublicAgentsRegisterRoute,
+  ApiPublicAutomationResumeTokenRoute: ApiPublicAutomationResumeTokenRoute,
   ApiPublicAvaCallRequestRoute: ApiPublicAvaCallRequestRoute,
   ApiPublicAvaCallRequestOtpRoute: ApiPublicAvaCallRequestOtpRoute,
   ApiPublicAvaCallVerifyRoute: ApiPublicAvaCallVerifyRoute,
@@ -7157,6 +7267,8 @@ const rootRouteChildren: RootRouteChildren = {
   LovableEmailQueueProcessRoute: LovableEmailQueueProcessRoute,
   LovableEmailTransactionalPreviewRoute: LovableEmailTransactionalPreviewRoute,
   LovableEmailTransactionalSendRoute: LovableEmailTransactionalSendRoute,
+  ApiAutomationExecutionsExecutionIdEventsRoute:
+    ApiAutomationExecutionsExecutionIdEventsRoute,
   ApiPublicV1SitesSiteKeyCategoriesRoute:
     ApiPublicV1SitesSiteKeyCategoriesRoute,
   ApiPublicV1SitesSiteKeyFeedRoute: ApiPublicV1SitesSiteKeyFeedRoute,

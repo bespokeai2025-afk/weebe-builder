@@ -331,7 +331,14 @@ export function WbahCallSchedulingSection() {
       const result = await liveSyncFn({ data: { scheduleCampaign: scheduleOnSync } });
       setSyncResult(result);
       setSyncDialogOpen(false);
-      toast.success("Dynamics sync completed");
+      const testImported = (result.categories ?? []).some(
+        (c) => isTestLeadCategorySlug(c.slug) && (c.insertedCount > 0 || c.updatedCount > 0),
+      );
+      toast.success("Dynamics sync completed", {
+        description: testImported
+          ? "Open Data → People → Test Lead and refresh to see imported rows."
+          : undefined,
+      });
       qc.invalidateQueries({ queryKey: QK_CAMPAIGNS });
     } catch (e) {
       const msg = (e as Error).message;

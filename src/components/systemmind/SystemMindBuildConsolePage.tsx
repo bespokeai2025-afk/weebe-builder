@@ -1,25 +1,26 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useSearch } from "@tanstack/react-router";
-import { Hammer, GitBranch, Layers, Zap, Wrench } from "lucide-react";
+import { Hammer, GitBranch, Layers, Zap, Wrench, Workflow } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useIsWbahWorkspace } from "@/hooks/useIsWbahWorkspace";
 import { SystemMindShell } from "./SystemMindShell";
 import { SystemMindBuildWorkspacePage } from "./SystemMindBuildWorkspacePage";
 import { SystemMindWorkflowsPage } from "./SystemMindWorkflowsPage";
 import { WorkflowDraftsPage } from "./WorkflowDraftsPage";
 import { SystemMindAutomationPage } from "./SystemMindAutomationPage";
 import { SystemMindFixPlansPage } from "./SystemMindFixPlansPage";
+import { WbahPostCallWorkflowsPage } from "@/components/wbah/WbahPostCallWorkflowsPage";
 
-export type BuildConsoleTab = "build" | "workflows" | "drafts" | "automation" | "fix-plans";
+export type BuildConsoleTab = "build" | "workflows" | "drafts" | "automation" | "fix-plans" | "wbah-post-call";
 
-const CONSOLE_TABS: Array<{ value: BuildConsoleTab; label: string; icon: React.ElementType }> = [
+const BASE_CONSOLE_TABS: Array<{ value: BuildConsoleTab; label: string; icon: React.ElementType; wbahOnly?: boolean }> = [
   { value: "build",      label: "Build",      icon: Hammer    },
   { value: "workflows",  label: "Workflows",  icon: GitBranch },
+  { value: "wbah-post-call", label: "Post-Call", icon: Workflow, wbahOnly: true },
   { value: "drafts",     label: "Drafts",     icon: Layers    },
   { value: "automation", label: "Automation", icon: Zap       },
   { value: "fix-plans",  label: "Fix Plans",  icon: Wrench    },
 ];
-
-const TAB_VALUES = CONSOLE_TABS.map((t) => t.value) as readonly string[];
 
 // One console for all SystemMind build work: building agents/workflows,
 // reviewing drafts, approving automation, and running fix plans — replacing
@@ -29,23 +30,40 @@ export function SystemMindBuildConsolePage() {
   const search = useSearch({ strict: false }) as {
     tab?: string; session?: string; workflow?: string; agent?: string; convert?: string;
   };
+  const { isWbah, resolved: wbahResolved } = useIsWbahWorkspace();
+
+  const consoleTabs = BASE_CONSOLE_TABS.filter((t) => !t.wbahOnly || isWbah);
+  const tabValues = consoleTabs.map((t) => t.value) as readonly string[];
 
   // Deep-link params (session/agent/convert) always mean the Build tab.
   const hasBuildParams = Boolean(search.session || search.agent || search.convert);
   const urlTab: BuildConsoleTab = hasBuildParams
     ? "build"
-    : (TAB_VALUES.includes(search.tab ?? "") ? (search.tab as BuildConsoleTab) : "build");
+    : (tabValues.includes(search.tab ?? "") ? (search.tab as BuildConsoleTab) : "build");
 
   const [activeTab, setActiveTab] = useState<BuildConsoleTab>(urlTab);
 
   // Keep tab in sync when the URL changes (e.g. a draft "open in builder" link).
   useEffect(() => { setActiveTab(urlTab); }, [urlTab]);
 
+  // Non-WBAH workspace opened wbah tab — fall back to build.
+  useEffect(() => {
+    if (!wbahResolved) return;
+    if (!isWbah && activeTab === "wbah-post-call") {
+      setActiveTab("build");
+      navigate({
+        to: "/systemmind/build",
+        search: { tab: "build" } as any,
+        replace: true,
+      });
+    }
+  }, [wbahResolved, isWbah, activeTab, navigate]);
+
   function selectTab(tab: BuildConsoleTab) {
     setActiveTab(tab);
     navigate({
       to: "/systemmind/build",
-      search: (prev: Record<string, unknown>) => ({ ...prev, tab }),
+      search: { tab } as any,
       replace: true,
     });
   }
@@ -54,7 +72,7 @@ export function SystemMindBuildConsolePage() {
     <SystemMindShell>
       <div className="px-4 pt-4 md:px-6">
         <div className="flex items-center gap-1 border-b border-white/[0.06] overflow-x-auto no-scrollbar">
-          {CONSOLE_TABS.map(({ value, label, icon: Icon }) => (
+          {consoleTabs.map(({ value, label, icon: Icon }) => (
             <button
               key={value}
               onClick={() => selectTab(value)}
@@ -75,6 +93,7 @@ export function SystemMindBuildConsolePage() {
       <div className={activeTab === "build" ? "px-4 md:px-6" : undefined}>
         {activeTab === "build"      && <SystemMindBuildWorkspacePage embedded />}
         {activeTab === "workflows"  && <SystemMindWorkflowsPage />}
+        {activeTab === "wbah-post-call" && isWbah && <WbahPostCallWorkflowsPage embedded />}
         {activeTab === "drafts"     && <WorkflowDraftsPage embedded />}
         {activeTab === "automation" && <div className="p-6"><SystemMindAutomationPage embedded /></div>}
         {activeTab === "fix-plans"  && <SystemMindFixPlansPage embedded />}

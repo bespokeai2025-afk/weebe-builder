@@ -14,6 +14,8 @@ import {
   watiApiRoot,
   watiApiV3Base,
 } from "@/lib/whatsapp/wati-api-base.shared";
+import { defaultParamSample } from "@/lib/whatsapp/wati-template-create.shared";
+import { parseNotesToMeta } from "@/lib/whatsapp/csv-leads.shared";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 
 export type WatiConnectionRow = {
@@ -39,25 +41,158 @@ export function phoneTail(phone: string | null | undefined): string | null {
   return d.length >= 10 ? d.slice(-10) : null;
 }
 
+function metaValueFromLead(lead: Record<string, unknown>, metaKey: string): unknown {
+  const meta = lead.meta as Record<string, unknown> | null | undefined;
+  if (meta && typeof meta === "object") {
+    const direct = meta[metaKey];
+    if (direct != null && String(direct).trim() !== "") return direct;
+    const lower = metaKey.toLowerCase();
+    for (const [k, v] of Object.entries(meta)) {
+      if (k.toLowerCase() === lower && v != null && String(v).trim() !== "") return v;
+    }
+  }
+  const notes = lead.notes;
+  if (typeof notes === "string" && notes.trim()) {
+    const parsed = parseNotesToMeta(notes);
+    const direct = parsed[metaKey];
+    if (direct) return direct;
+    const lower = metaKey.toLowerCase();
+    for (const [k, v] of Object.entries(parsed)) {
+      if (k.toLowerCase() === lower && v) return v;
+    }
+  }
+  return null;
+}
+
+function leadFieldRaw(lead: Record<string, unknown>, fieldKey: string): unknown {
+  if (fieldKey.startsWith("literal:")) {
+    return fieldKey.slice("literal:".length);
+  }
+  if (fieldKey.startsWith("meta.")) {
+    return metaValueFromLead(lead, fieldKey.slice(5));
+  }
+  const direct = lead[fieldKey];
+  if (direct != null && String(direct).trim() !== "") return direct;
+  if (fieldKey === "full_name") {
+    return lead.name ?? lead.contact_name ?? null;
+  }
+  return direct;
+}
+
+/** WATI rejects templates when any variable is blank — always substitute a safe default. */
 export function buildWatiTemplateParams(
   lead: Record<string, unknown>,
   mapping: Record<string, string> | null | undefined,
+  slotOrder?: string[],
 ): Array<{ name: string; value: string }> {
   if (!mapping || typeof mapping !== "object") return [];
-  return Object.entries(mapping)
-    .sort(([a], [b]) => Number(a) - Number(b))
-    .map(([paramKey, fieldKey]) => {
-      const raw = fieldKey.startsWith("meta.")
-        ? (lead.meta as Record<string, unknown> | null)?.[fieldKey.slice(5)]
-        : lead[fieldKey];
-      const value =
+  const orderedEntries: Array<[string, string]> = slotOrder?.length
+    ? slotOrder
+        .filter((slot) => mapping[slot] != null)
+        .map((slot) => [slot, mapping[slot]!] as [string, string])
+    : Object.entries(mapping).sort(([a], [b]) => {
+        const na = Number(a);
+        const nb = Number(b);
+        if (!Number.isNaN(na) && !Number.isNaN(nb)) return na - nb;
+        return a.localeCompare(b);
+      });
+
+  return orderedEntries.map(([paramKey, fieldKey]) => {
+      const raw = leadFieldRaw(lead, fieldKey);
+      let value =
         raw == null || raw === ""
           ? ""
           : typeof raw === "string"
-            ? raw
-            : String(raw);
+            ? raw.trim()
+            : String(raw).trim();
+      if (!value) {
+        value = defaultParamSample(paramKey);
+      }
+      // Use first name when full name is very long (common in property CSVs)
+      if (fieldKey === "full_name" && !fieldKey.startsWith("literal:") && value.includes(" ")) {
+        value = value.split(/\s+/)[0] || value;
+      }
       return { name: paramKey, value };
     });
+}
+
+const WATI_CREDIT_HINT =
+  "Top up your WATI wallet (Wallet → Buy Credits in live.wati.io). Campaigns need sufficient balance — typically at least $10 USD or ₹500 INR, plus per-message charges by country.";
+
+export function formatWatiSendError(raw: string | undefined): string {
+  if (!raw) return "Send failed";
+  const trimmed = raw.trim();
+  let message = trimmed;
+  if (trimmed.startsWith("{")) {
+    try {
+      const data = JSON.parse(trimmed) as { info?: string; message?: string; error?: string };
+      message = data.info ?? data.message ?? data.error ?? trimmed;
+    } catch {
+      /* keep raw */
+    }
+  }
+  const base = message.slice(0, 300);
+  if (/insufficient\s+credit|not\s+enough\s+credit|credit.*deplet|wallet.*balance|low\s+balance/i.test(base)) {
+    return `${base} — ${WATI_CREDIT_HINT}`;
+  }
+  return base;
+}
+
+export function isWatiCreditError(raw: string | undefined): boolean {
+  if (!raw) return false;
+  return /insufficient\s+credit|not\s+enough\s+credit|credit.*deplet|wallet.*balance|low\s+balance/i.test(raw);
+}
+
+/** Free-text reply within WATI's 24-hour customer care window (after inbound or template). */
+export async function sendWatiSessionMessage(opts: {
+  tenantId: string;
+  apiKey: string;
+  apiHost: string | null;
+  toPhone: string;
+  messageText: string;
+}): Promise<{ ok: boolean; messageId?: string; error?: string }> {
+  const phone = normalizeWhatsAppPhone(opts.toPhone);
+  if (!phone || phone.length < 7) {
+    return { ok: false, error: "Invalid phone number" };
+  }
+  const base = watiApiRoot(opts.tenantId, opts.apiHost);
+  const url = `${base}/api/v1/sendSessionMessage/${encodeURIComponent(phone)}?messageText=${encodeURIComponent(opts.messageText)}`;
+  try {
+    const res = await fetch(url, {
+      method: "POST",
+      headers: watiAuthHeaders(opts.apiKey),
+    });
+    const text = await res.text();
+    let data: Record<string, unknown> = {};
+    try {
+      data = JSON.parse(text) as Record<string, unknown>;
+    } catch {
+      /* non-json */
+    }
+    if (!res.ok) {
+      const raw = formatWatiSendError(text);
+      const hint =
+        /24\s*hour|session|window|template/i.test(raw)
+          ? `${raw} — use a template campaign if the 24-hour reply window has expired.`
+          : raw;
+      return { ok: false, error: hint };
+    }
+    const messageId =
+      (data.id as string | undefined) ??
+      (data.messageId as string | undefined) ??
+      (data.localMessageId as string | undefined);
+    if (data.result === false) {
+      return {
+        ok: false,
+        error: formatWatiSendError(
+          String(data.info ?? data.message ?? data.error ?? "WATI rejected session message"),
+        ),
+      };
+    }
+    return { ok: true, messageId: messageId ?? `wati_session_${Date.now()}` };
+  } catch (e) {
+    return { ok: false, error: (e as Error).message };
+  }
 }
 
 export async function getWatiConnectionForWorkspace(
@@ -467,11 +602,66 @@ export async function resolveCampaignAudienceLeads(
   if (f.qualification_status) q = q.eq("qualification_status", f.qualification_status);
   if (f.pipeline_stage) q = q.eq("pipeline_stage", f.pipeline_stage);
   if (f.status) q = q.eq("status", f.status);
-  if (f.whatsapp_opt_in_only) q = q.eq("whatsapp_opt_in", true);
+  // Explicit CSV lead_ids are already opted-in by import — don't double-filter them out
+  if (f.whatsapp_opt_in_only && !f.lead_ids?.length) q = q.eq("whatsapp_opt_in", true);
 
   const { data, error } = await q.limit(5000);
   if (error) throw new Error(error.message);
-  return (data ?? []) as Array<Record<string, unknown>>;
+  let rows = (data ?? []) as Array<Record<string, unknown>>;
+
+  // CSV audience stored lead_ids but rows missing (deleted / wrong workspace) — helpful error upstream
+  if (rows.length === 0 && f.lead_ids?.length) {
+    return rows;
+  }
+
+  // Fallback: campaign with no lead filter — use Buzzchat contacts imported from CSV/WATI
+  if (rows.length === 0 && !f.lead_ids?.length && !f.status && !f.pipeline_stage && !f.qualification_status) {
+    let contactQ = sb
+      .from("whatsapp_contacts")
+      .select("phone, name, notes, do_not_contact")
+      .eq("workspace_id", workspaceId)
+      .not("phone", "is", null)
+      .neq("phone", "")
+      .limit(5000);
+    contactQ = contactQ.or("do_not_contact.is.null,do_not_contact.eq.false");
+    const { data: contacts } = await contactQ;
+    rows = (contacts ?? []).map(
+      (c: { phone: string; name?: string | null; notes?: string | null }) => ({
+        id: null,
+        phone: c.phone,
+        full_name: c.name ?? null,
+        notes: c.notes ?? null,
+        meta: parseNotesToMeta(c.notes),
+        whatsapp_opt_in: true,
+      }),
+    );
+  }
+
+  if (rows.length > 0) {
+    const dncSet = new Set<string>();
+    const { data: dncRows, error: dncErr } = await sb
+      .from("whatsapp_contacts")
+      .select("phone")
+      .eq("workspace_id", workspaceId)
+      .eq("do_not_contact", true)
+      .limit(10000);
+    if (!dncErr) {
+      for (const row of (dncRows ?? []) as Array<{ phone: string }>) {
+        const p = normalizeWhatsAppPhone(row.phone);
+        if (p) dncSet.add(p);
+      }
+    }
+    rows = rows.filter((lead) => {
+      const phone = normalizeWhatsAppPhone(String(lead.phone ?? ""));
+      if (!phone) return false;
+      if (dncSet.has(phone)) return false;
+      if (String(lead.status ?? "") === "do_not_call") return false;
+      if (lead.whatsapp_opt_in === false && !f.lead_ids?.length) return false;
+      return true;
+    });
+  }
+
+  return rows;
 }
 
 export async function attachLeadToInboundMessage(

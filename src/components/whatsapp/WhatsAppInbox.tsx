@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import { listWhatsappThreads, sendWhatsappMessage } from "@/lib/dashboard/whatsapp.functions";
+import { getWatiConnection } from "@/lib/whatsapp/wati.functions";
 import { toast } from "sonner";
 
 
@@ -24,6 +25,14 @@ export function WhatsAppInbox() {
     refetchInterval: 30_000,
     throwOnError: false,
   });
+
+  const watiFn = useServerFn(getWatiConnection);
+  const { data: watiConn } = useQuery({
+    queryKey: ["wati-connection"],
+    queryFn: () => watiFn(),
+    throwOnError: false,
+  });
+  const watiConnected = watiConn?.status === "connected";
 
   const [search, setSearch] = useState("");
   const [activePhone, setActivePhone] = useState<string | null>(null);
@@ -105,7 +114,9 @@ export function WhatsAppInbox() {
                         <Phone className="h-2.5 w-2.5" />{t.phone}
                       </p>
                     )}
-                    <p className="mt-0.5 truncate text-[10px] text-muted-foreground">{t.lastMessage ?? "—"}</p>
+                    <p className="mt-0.5 text-[10px] text-muted-foreground line-clamp-2 whitespace-pre-wrap">
+                      {t.lastMessage ?? "—"}
+                    </p>
                   </div>
                   <div className="flex flex-col items-end gap-1 shrink-0">
                     <span className="text-[9px] text-muted-foreground flex items-center gap-0.5">
@@ -150,7 +161,7 @@ export function WhatsAppInbox() {
                     : "bg-background border border-border text-foreground",
                 )}
               >
-                <p>{m.body ?? "(media)"}</p>
+                <p className="whitespace-pre-wrap">{m.body ?? "(media)"}</p>
                 <p className={cn("mt-0.5 text-[9px]", m.direction === "outbound" ? "text-primary-foreground/70" : "text-muted-foreground")}>
                   {new Date(m.sent_at).toLocaleString()} · {m.status ?? ""}
                 </p>
@@ -159,7 +170,14 @@ export function WhatsAppInbox() {
             <div ref={bottomRef} />
           </div>
 
-          <div className="flex items-end gap-2 px-4 py-3 border-t border-border bg-background">
+          <div className="border-t border-border bg-background px-4 py-3 space-y-2">
+            {watiConnected && (
+              <p className="text-[10px] text-muted-foreground">
+                WATI: free-text replies work within 24 hours of their last message. For cold
+                outreach, use Campaigns with an approved template.
+              </p>
+            )}
+            <div className="flex items-end gap-2">
             <Textarea
               placeholder="Type a message…"
               value={reply}
@@ -179,6 +197,7 @@ export function WhatsAppInbox() {
             >
               <Send className="h-4 w-4" />
             </Button>
+            </div>
           </div>
         </div>
       ) : (

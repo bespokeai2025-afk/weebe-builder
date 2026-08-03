@@ -126,10 +126,15 @@ export function watiTemplateQualityLabel(raw: unknown): string | null {
 }
 
 export function watiTemplateBodyPreview(t: Record<string, unknown>): string | null {
-  const body = t.body ?? t.bodyOriginal;
-  if (typeof body === "string" && body.trim()) return body.trim();
   const comps = t.components as Record<string, unknown> | null | undefined;
-  const fromComps = comps?.body ?? comps?.bodyOriginal;
+  // WhatsApp renders bodyOriginal (registered placeholder order), not always body.
+  const bodyOriginal = comps?.bodyOriginal ?? t.bodyOriginal;
+  if (typeof bodyOriginal === "string" && bodyOriginal.trim()) return bodyOriginal.trim();
+  const stored = t.body_preview;
+  if (typeof stored === "string" && stored.trim()) return stored.trim();
+  const body = t.body;
+  if (typeof body === "string" && body.trim()) return body.trim();
+  const fromComps = comps?.body;
   if (typeof fromComps === "string" && fromComps.trim()) return fromComps.trim();
   return null;
 }

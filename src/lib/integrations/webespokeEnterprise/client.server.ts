@@ -14,11 +14,10 @@ export type { CallHistoryRow };
 
 const DEFAULT_API_BASE = "https://uat-api.webespokeai.com";
 
+/** UAT base URL — from process.env only (Vite envPrefix exposes WEBESPOKE_API_BASE_URL to SSR). */
 export function getWebespokeApiBaseUrl(): string {
-  const raw =
-    process.env.WEBESPOKE_API_BASE_URL?.trim() ||
-    (import.meta.env.WEBESPOKE_API_BASE_URL as string | undefined)?.trim();
-  return (raw || DEFAULT_API_BASE).replace(/\/$/, "");
+  const raw = process.env.WEBESPOKE_API_BASE_URL?.trim();
+  return (raw || DEFAULT_API_BASE).replace(/\/+$/, "");
 }
 
 // ── Types ─────────────────────────────────────────────────────────────────────

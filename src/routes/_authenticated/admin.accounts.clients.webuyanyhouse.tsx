@@ -20,6 +20,7 @@ import {
 } from "@/lib/integrations/webespokeEnterprise/wbah.functions";
 import { wbahProbeApi, wbahProbeCrmPeople } from "@/lib/integrations/webespokeEnterprise/wbah-workspace.server";
 import { getSyncState } from "@/lib/sync-state/sync-state.server";
+import { WbahN8nSystemMindPanel } from "@/components/wbah/WbahN8nSystemMindPanel";
 
 export const Route = createFileRoute(
   "/_authenticated/admin/accounts/clients/webuyanyhouse",
@@ -449,6 +450,9 @@ function WebuyanyhouseAdminPanel() {
                 )}
               </Section>
             )}
+
+            {/* 5 — SystemMind × n8n New Leads agent bundle */}
+            <WbahN8nSystemMindPanel />
 
             {/* Info */}
             <div className="rounded-lg bg-gray-900 border border-gray-800 px-4 py-3 text-xs text-gray-500 space-y-1">

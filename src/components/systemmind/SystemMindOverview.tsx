@@ -5,7 +5,7 @@ import { Link } from "@tanstack/react-router";
 import {
   Server, Loader2, RefreshCw, ShieldCheck, ShieldAlert, AlertTriangle,
   CheckCircle2, XCircle, DollarSign, Activity, Sparkles, ArrowRight,
-  GitBranch, Wrench, ShieldCheck as HealthIcon,
+  GitBranch, Wrench, ShieldCheck as HealthIcon, Workflow,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -13,6 +13,7 @@ import { SystemMindShell } from "./SystemMindShell";
 import { getSystemMindData } from "@/lib/systemmind/systemmind.functions";
 import { getSystemMindBriefing, buildSystemMindSummary } from "@/lib/systemmind/systemmind.ai";
 import { ActiveWorkOrdersWidget } from "@/components/minds/ActiveWorkOrdersWidget";
+import { useIsWbahWorkspace } from "@/hooks/useIsWbahWorkspace";
 
 const SEVERITY_COLOR: Record<string, string> = {
   critical: "text-red-400 bg-red-500/10 border-red-500/20",
@@ -78,6 +79,7 @@ export function SystemMindOverview() {
   const briefingFn = useServerFn(getSystemMindBriefing);
   const [briefing, setBriefing] = useState<string>("");
   const [briefingLoading, setBriefingLoading] = useState(false);
+  const { isWbah } = useIsWbahWorkspace();
 
   const { data, isLoading, refetch, isRefetching } = useQuery({
     queryKey: ["systemmind-data"],
@@ -119,6 +121,22 @@ export function SystemMindOverview() {
             Refresh
           </Button>
         </div>
+
+        {isWbah && (
+          <Link
+            to="/systemmind/wbah-post-call"
+            className="mt-4 flex items-center gap-3 rounded-xl border border-violet-500/25 bg-violet-500/[0.06] px-4 py-3 transition-colors hover:bg-violet-500/10"
+          >
+            <Workflow className="h-5 w-5 text-violet-400 shrink-0" />
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-semibold text-violet-100">Post-Call Workflows</p>
+              <p className="text-[11px] text-muted-foreground">
+                Build Retell post-call automation — dashboard, Calendly, Dynamics — with guided setup (n8n-style).
+              </p>
+            </div>
+            <ArrowRight className="h-4 w-4 text-violet-400 shrink-0" />
+          </Link>
+        )}
 
         {isLoading ? (
           <div className="flex items-center justify-center py-24 text-muted-foreground">

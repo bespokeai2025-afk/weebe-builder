@@ -1,7 +1,7 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Plus, Pencil, Trash2, Download, Upload, Search, Users, RefreshCw, Loader2, FolderOpen } from "lucide-react";
+import { Plus, Pencil, Trash2, Download, Upload, Search, Users, RefreshCw, Loader2, FolderOpen, FileSpreadsheet, Eye, CheckCircle2, MessageCircle, Circle, Ban } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { RelativeTime } from "@/components/ui/relative-time";
 import { Input } from "@/components/ui/input";
@@ -15,10 +15,31 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
-import { listWAContacts, createWAContact, updateWAContact, deleteWAContact } from "@/lib/dashboard/whatsapp.functions";
+import {
+  listWAContacts,
+  createWAContact,
+  updateWAContact,
+  deleteWAContact,
+  deleteAllWAContacts,
+  importWAContactsCsv,
+  exportBuzzchatContactsCsv,
+  backfillWhatsappContactedStatus,
+} from "@/lib/dashboard/whatsapp.functions";
+import {
+  autoDetectCsvColumnMapping,
+  mapCsvRowsToLeads,
+  parseCsvText,
+  readCsvFileHead,
+  getContactField,
+  getContactFieldsMap,
+  getContactPhones,
+  getContactDetailFields,
+  type CsvColumnMapping,
+} from "@/lib/whatsapp/csv-leads.shared";
 import { listContactDocsByPhone } from "@/lib/dashboard/documents.functions";
 import { ContactDocumentsPanel } from "@/components/contacts/ContactDocumentsPanel";
 import { getWatiConnection, syncWatiContacts } from "@/lib/whatsapp/wati.functions";
@@ -26,6 +47,54 @@ import { toast } from "sonner";
 
 const STATUSES = ["new", "contacted", "qualified", "closed", "lost"];
 const SOURCES  = ["manual", "import", "webhook", "campaign", "referral", "wati"];
+type MessagedFilter = "all" | "messaged" | "not_messaged" | "replied" | "dnc";
+
+type WaContactRow = {
+  id: string;
+  name?: string | null;
+  phone: string;
+  tags?: string[];
+  source?: string | null;
+  lead_status?: string | null;
+  notes?: string | null;
+  created_at?: string;
+  do_not_contact?: boolean;
+  wa_stats?: {
+    outbound_count: number;
+    inbound_count: number;
+    total_count: number;
+    last_outbound_at: string | null;
+    last_inbound_at: string | null;
+    last_message_at: string | null;
+    messaged: boolean;
+    last_outbound_status?: string | null;
+    last_campaign_name?: string | null;
+    delivered_count?: number;
+    read_count?: number;
+    failed_count?: number;
+  };
+};
+
+function outboundStatusBadgeClass(status: string | null | undefined): string {
+  const s = String(status ?? "").toLowerCase();
+  if (s.includes("read")) return "text-blue-400 border-blue-500/30";
+  if (s.includes("deliver")) return "text-emerald-400 border-emerald-500/30";
+  if (s.includes("fail")) return "text-destructive border-destructive/30";
+  return "text-muted-foreground border-border";
+}
+
+function contactSearchHaystack(c: any): string {
+  const parts = [
+    c.name,
+    c.phone,
+    c.notes,
+    ...(c.tags ?? []),
+    c.source,
+    c.lead_status,
+    ...Object.values(getContactFieldsMap(c)),
+  ];
+  return parts.filter(Boolean).join(" ").toLowerCase();
+}
 
 function emptyForm() {
   return { name: "", phone: "", tags: "", source: "", lead_status: "", notes: "" };
@@ -85,14 +154,27 @@ export function WhatsAppContacts() {
   const createFn      = useServerFn(createWAContact);
   const updateFn      = useServerFn(updateWAContact);
   const deleteFn      = useServerFn(deleteWAContact);
+  const deleteAllFn   = useServerFn(deleteAllWAContacts);
+  const importCsvFn   = useServerFn(importWAContactsCsv);
+  const exportBuzzchatFn = useServerFn(exportBuzzchatContactsCsv);
+  const backfillFn    = useServerFn(backfillWhatsappContactedStatus);
+  const csvInputRef   = useRef<HTMLInputElement>(null);
   const watiConnFn    = useServerFn(getWatiConnection);
   const watiSyncFn    = useServerFn(syncWatiContacts);
 
-  const { data: contacts = [], isLoading } = useQuery({
+  const { data: contactsPayload, isLoading } = useQuery({
     queryKey: ["wa-contacts"],
     queryFn: () => listFn(),
     throwOnError: false,
   });
+  const contacts = (contactsPayload?.contacts ?? []) as WaContactRow[];
+  const summary = contactsPayload?.summary ?? {
+    total: contacts.length,
+    messaged: 0,
+    replied: 0,
+    not_messaged: contacts.length,
+    dnc: 0,
+  };
 
   const { data: watiConn } = useQuery({
     queryKey: ["wati-connection"],
@@ -111,16 +193,34 @@ export function WhatsAppContacts() {
   });
 
   const [search, setSearch]     = useState("");
+  const [messagedFilter, setMessagedFilter] = useState<MessagedFilter>("all");
   const [open, setOpen]         = useState(false);
   const [editRow, setEditRow]   = useState<any>(null);
   const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [clearAllOpen, setClearAllOpen] = useState(false);
   const [form, setForm]         = useState(emptyForm());
   const [docsContact, setDocsContact] = useState<any>(null);
+  const [detailContact, setDetailContact] = useState<any>(null);
+  const [importOpen, setImportOpen] = useState(false);
+  const [csvParsing, setCsvParsing] = useState(false);
+  const [csvImporting, setCsvImporting] = useState(false);
+  const [csvImportLimit, setCsvImportLimit] = useState(20);
+  const [csvBuyersOnly, setCsvBuyersOnly] = useState(true);
+  const [csvFileName, setCsvFileName] = useState<string | null>(null);
+  const [csvHeaders, setCsvHeaders] = useState<string[]>([]);
+  const [csvRows, setCsvRows] = useState<Record<string, string>[]>([]);
+  const [csvMapping, setCsvMapping] = useState<CsvColumnMapping | null>(null);
+  const [csvNeedsMapping, setCsvNeedsMapping] = useState(false);
 
-  const filtered = (contacts as any[]).filter((c) =>
-    (c.name ?? c.phone).toLowerCase().includes(search.toLowerCase()) ||
-    c.phone.includes(search),
-  );
+  const filtered = contacts.filter((c) => {
+    if (!contactSearchHaystack(c).includes(search.toLowerCase())) return false;
+    const stats = c.wa_stats;
+    if (messagedFilter === "messaged") return !!stats?.messaged;
+    if (messagedFilter === "not_messaged") return !stats?.messaged;
+    if (messagedFilter === "replied") return (stats?.inbound_count ?? 0) > 0;
+    if (messagedFilter === "dnc") return !!c.do_not_contact;
+    return true;
+  });
 
   function openCreate() {
     setEditRow(null);
@@ -171,13 +271,69 @@ export function WhatsAppContacts() {
     onError: (e: any) => toast.error(e.message),
   });
 
+  const clearAll = useMutation({
+    mutationFn: () => deleteAllFn(),
+    onSuccess: (res: { deleted?: number }) => {
+      qc.invalidateQueries({ queryKey: ["wa-contacts"] });
+      setClearAllOpen(false);
+      toast.success(`Removed ${res.deleted ?? 0} contact(s)`);
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  async function exportBuzzchat(filter: "all" | "messaged" | "not_messaged" | "replied" | "dnc") {
+    try {
+      const result = await exportBuzzchatFn({ data: { filter } });
+      const blob = new Blob([result.csv], { type: "text/csv" });
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = `buzzchat-contacts-${filter}.csv`;
+      a.click();
+      toast.success(`Exported ${result.count} contact(s)`);
+    } catch (err) {
+      toast.error("Export failed", { description: (err as Error).message });
+    }
+  }
+
+  const backfillContacted = useMutation({
+    mutationFn: () => backfillFn(),
+    onSuccess: (res: { updated?: number }) => {
+      qc.invalidateQueries({ queryKey: ["wa-contacts"] });
+      toast.success(`Backfilled ${res.updated ?? 0} contacted status(es)`);
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
   function exportCsv() {
-    const header = "name,phone,tags,source,lead_status,notes";
-    const rows = (contacts as any[]).map((c) =>
-      [c.name, c.phone, (c.tags ?? []).join("|"), c.source, c.lead_status, c.notes]
+    const header =
+      "name,phone,mobile_1,mobile_2,phone_1,phone_2,master_project,building,property_type,unit,location,date,amount,beds,size,tags,source,lead_status";
+    const rows = contacts.map((c) => {
+      const phones = getContactPhones(c);
+      const byLabel = Object.fromEntries(phones.map((p) => [p.label, p.phone]));
+      const values = [
+        c.name,
+        c.phone,
+        byLabel["Mobile 1"] ?? "",
+        byLabel["Mobile 2"] ?? "",
+        byLabel["Phone 1"] ?? "",
+        byLabel["Phone 2"] ?? "",
+        getContactField(c, "Master Project", "Project"),
+        getContactField(c, "Building", "BuildingName 2", "Building 1"),
+        getContactField(c, "Property Type", "Sub Type"),
+        getContactField(c, "UnitNumber", "property_number"),
+        getContactField(c, "Master Location"),
+        getContactField(c, "Date"),
+        getContactField(c, "Transaction Amount"),
+        getContactField(c, "beds"),
+        getContactField(c, "Size"),
+        (c.tags ?? []).join("|"),
+        c.source,
+        c.lead_status,
+      ];
+      return values
         .map((v) => `"${(v ?? "").replace(/"/g, '""')}"`)
-        .join(","),
-    );
+        .join(",");
+    });
     const blob = new Blob([[header, ...rows].join("\n")], { type: "text/csv" });
     const a = document.createElement("a");
     a.href = URL.createObjectURL(blob);
@@ -185,24 +341,82 @@ export function WhatsAppContacts() {
     a.click();
   }
 
-  async function importCsv(e: React.ChangeEvent<HTMLInputElement>) {
+  async function runContactsCsvImport(
+    rows: Record<string, string>[],
+    mapping: CsvColumnMapping,
+  ) {
+    const leads = mapCsvRowsToLeads(rows, mapping, {
+      maxLeads: Math.max(1, Math.min(csvImportLimit, 5000)),
+      buyersOnly: csvBuyersOnly,
+    });
+    if (leads.length === 0) {
+      toast.error("No valid phone numbers found", {
+        description: "Use Mobile column · enable Buyers only for JVC property files",
+      });
+      return;
+    }
+    setCsvImporting(true);
+    try {
+      const result = await importCsvFn({ data: { rows: leads } });
+      qc.invalidateQueries({ queryKey: ["wa-contacts"] });
+      toast.success(`Imported ${result.total} contact(s)`, {
+        description: `${result.inserted} new · ${result.updated} updated`,
+      });
+      setImportOpen(false);
+      resetCsvImportState();
+    } catch (err) {
+      toast.error("Import failed", { description: (err as Error).message });
+    } finally {
+      setCsvImporting(false);
+    }
+  }
+
+  function resetCsvImportState() {
+    setCsvFileName(null);
+    setCsvHeaders([]);
+    setCsvRows([]);
+    setCsvMapping(null);
+    setCsvNeedsMapping(false);
+    if (csvInputRef.current) csvInputRef.current.value = "";
+  }
+
+  async function handleCsvFile(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
-    const text = await file.text();
-    const lines = text.split("\n").slice(1).filter(Boolean);
-    let created = 0;
-    for (const line of lines) {
-      const cols = line.split(",").map((c) => c.replace(/^"|"$/g, "").trim());
-      const [name, phone] = cols;
-      if (!phone) continue;
-      try {
-        await createFn({ data: { name: name || undefined, phone } });
-        created++;
-      } catch {}
+    setCsvParsing(true);
+    const limit = Math.max(1, Math.min(csvImportLimit, 5000));
+    try {
+      const scanRows = Math.max(limit * 100, 2000);
+      const { text, truncated } = await readCsvFileHead(file, scanRows);
+      const { headers, rows } = parseCsvText(text);
+      const mapping = autoDetectCsvColumnMapping(headers);
+      setCsvHeaders(headers);
+      setCsvRows(rows);
+      setCsvMapping(
+        mapping ?? {
+          phone: headers.find((h) => h.toLowerCase().includes("mobile")) ?? headers[0] ?? "",
+        },
+      );
+      setCsvNeedsMapping(!mapping);
+      setCsvFileName(file.name);
+      if (truncated) {
+        toast.message(`Large file — scanned first ${scanRows.toLocaleString()} rows`);
+      }
+      if (mapping) {
+        await runContactsCsvImport(rows, mapping);
+      }
+    } catch (err) {
+      toast.error("Could not parse CSV", { description: (err as Error).message });
+      resetCsvImportState();
+    } finally {
+      setCsvParsing(false);
     }
-    qc.invalidateQueries({ queryKey: ["wa-contacts"] });
-    toast.success(`Imported ${created} contacts`);
-    e.target.value = "";
+    if (csvInputRef.current) csvInputRef.current.value = "";
+  }
+
+  async function applyCsvMapping() {
+    if (!csvMapping?.phone || csvRows.length === 0) return;
+    await runContactsCsvImport(csvRows, csvMapping);
   }
 
   return (
@@ -232,18 +446,80 @@ export function WhatsAppContacts() {
               Import from WATI
             </Button>
           )}
-          <Button variant="outline" size="sm" onClick={exportCsv} className="gap-1.5">
-            <Download className="h-3.5 w-3.5" /> Export CSV
+          <Button variant="outline" size="sm" onClick={() => exportBuzzchat("messaged")} className="gap-1.5">
+            <Download className="h-3.5 w-3.5" /> Export messaged
           </Button>
-          <label>
-            <input type="file" accept=".csv" className="hidden" onChange={importCsv} />
-            <Button variant="outline" size="sm" className="gap-1.5 cursor-pointer" asChild>
-              <span><Upload className="h-3.5 w-3.5" /> Import CSV</span>
+          <Button variant="outline" size="sm" onClick={() => exportBuzzchat("not_messaged")} className="gap-1.5">
+            <Download className="h-3.5 w-3.5" /> Export not sent
+          </Button>
+          <Button variant="outline" size="sm" onClick={exportCsv} className="gap-1.5">
+            <Download className="h-3.5 w-3.5" /> Property CSV
+          </Button>
+          {(contacts.length) > 0 && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-1.5 text-destructive hover:text-destructive"
+              onClick={() => setClearAllOpen(true)}
+            >
+              <Trash2 className="h-3.5 w-3.5" /> Clear all
             </Button>
-          </label>
+          )}
+          <Button
+            variant="outline"
+            size="sm"
+            className="gap-1.5"
+            onClick={() => {
+              resetCsvImportState();
+              setImportOpen(true);
+            }}
+          >
+            <Upload className="h-3.5 w-3.5" /> Import CSV
+          </Button>
           <Button size="sm" onClick={openCreate} className="gap-1.5">
             <Plus className="h-3.5 w-3.5" /> Add Contact
           </Button>
+        </div>
+      </div>
+
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="flex items-center gap-3 rounded-lg border border-border bg-muted/20 px-3 py-2 text-xs">
+          <span>
+            <strong className="text-foreground">{summary.messaged}</strong>
+            <span className="text-muted-foreground"> / {summary.total} messaged</span>
+          </span>
+          <span className="text-muted-foreground">·</span>
+          <span className="text-muted-foreground">{summary.not_messaged} not yet sent</span>
+          <span className="text-muted-foreground">·</span>
+          <span className="text-emerald-400">{summary.replied} replied</span>
+          {(summary.dnc ?? 0) > 0 && (
+            <>
+              <span className="text-muted-foreground">·</span>
+              <span className="text-destructive">{summary.dnc} DNC</span>
+            </>
+          )}
+        </div>
+        <div className="flex flex-wrap gap-1">
+          {(
+            [
+              ["all", "All"],
+              ["messaged", "Messaged ✓"],
+              ["not_messaged", "Not sent"],
+              ["replied", "Replied"],
+              ["dnc", "DNC"],
+            ] as const
+          ).map(([id, label]) => (
+            <Button
+              key={id}
+              type="button"
+              size="sm"
+              variant={messagedFilter === id ? "default" : "outline"}
+              className="h-7 text-[11px]"
+              onClick={() => setMessagedFilter(id)}
+            >
+              {label}
+            </Button>
+          ))}
         </div>
       </div>
 
@@ -256,38 +532,162 @@ export function WhatsAppContacts() {
           <p className="text-xs">Add contacts manually or import a CSV file.</p>
         </div>
       ) : (
-        <div className="rounded-lg border border-border overflow-hidden">
-          <table className="w-full text-sm">
+        <div className="rounded-lg border border-border overflow-x-auto">
+          <table className="w-full text-sm min-w-[1560px]">
             <thead className="bg-muted/50 border-b border-border">
               <tr>
-                {["Name", "Phone", "Tags", "Source", "Status", "Created", ""].map((h) => (
-                  <th key={h} className="px-4 py-2.5 text-left text-xs font-medium text-muted-foreground">{h}</th>
+                {[
+                  "WhatsApp",
+                  "Name",
+                  "Phones",
+                  "Master Project",
+                  "Building",
+                  "Property",
+                  "Unit",
+                  "Location",
+                  "Date",
+                  "Amount",
+                  "Beds",
+                  "Size",
+                  "Tags",
+                  "Source",
+                  "Status",
+                  "Delivery",
+                  "Last campaign",
+                  "Last messaged",
+                  "Created",
+                  "",
+                ].map((h) => (
+                  <th key={h} className="px-3 py-2.5 text-left text-xs font-medium text-muted-foreground whitespace-nowrap">{h}</th>
                 ))}
               </tr>
             </thead>
             <tbody className="divide-y divide-border/60">
-              {filtered.map((c: any) => (
+              {filtered.map((c) => {
+                const stats = c.wa_stats;
+                const phones = getContactPhones(c);
+                const project = getContactField(c, "Master Project", "Project");
+                const building = getContactField(c, "Building", "BuildingName 2", "Building 1");
+                const property = getContactField(c, "Property Type", "Sub Type", "Usage");
+                const unit = getContactField(c, "UnitNumber", "property_number");
+                const location = getContactField(c, "Master Location");
+                const date = getContactField(c, "Date");
+                const amount = getContactField(c, "Transaction Amount");
+                const beds = getContactField(c, "beds");
+                const size = getContactField(c, "Size");
+                const extraCount = getContactDetailFields(c).length;
+
+                return (
                 <tr key={c.id} className="hover:bg-muted/20 transition-colors">
-                  <td className="px-4 py-2.5 font-medium">{c.name ?? <span className="text-muted-foreground">—</span>}</td>
-                  <td className="px-4 py-2.5 text-muted-foreground text-xs font-mono">{c.phone}</td>
-                  <td className="px-4 py-2.5">
+                  <td className="px-3 py-2.5 whitespace-nowrap">
+                    <div className="flex items-center gap-2">
+                      {stats?.messaged ? (
+                        <span title="Template or inbox message sent">
+                          <CheckCircle2 className="h-4 w-4 text-emerald-500 shrink-0" />
+                        </span>
+                      ) : (
+                        <span title="Not messaged yet">
+                          <Circle className="h-4 w-4 text-muted-foreground/40 shrink-0" />
+                        </span>
+                      )}
+                      <Badge
+                        variant={stats?.messaged ? "secondary" : "outline"}
+                        className="text-[10px] font-mono tabular-nums px-1.5"
+                        title="Outbound messages logged"
+                      >
+                        {stats?.outbound_count ?? 0}
+                      </Badge>
+                      {(stats?.inbound_count ?? 0) > 0 && (
+                        <Badge variant="outline" className="text-[10px] text-emerald-400 border-emerald-500/30 px-1.5">
+                          ↩ {stats?.inbound_count}
+                        </Badge>
+                      )}
+                    </div>
+                  </td>
+                  <td className="px-3 py-2.5 font-medium max-w-[140px] truncate">{c.name ?? <span className="text-muted-foreground">—</span>}</td>
+                  <td className="px-3 py-2.5 text-muted-foreground max-w-[130px]">
+                    <div className="flex flex-col gap-0.5">
+                      {phones.length > 0 ? phones.map(({ label, phone }) => (
+                        <div key={`${label}-${phone}`} className="text-[11px] font-mono leading-tight" title={`${label}: ${phone}`}>
+                          <span className="text-muted-foreground/70">{label}: </span>{phone}
+                        </div>
+                      )) : (
+                        <span className="text-xs font-mono">{c.phone ?? "—"}</span>
+                      )}
+                    </div>
+                  </td>
+                  <td className="px-3 py-2.5 text-xs max-w-[120px] truncate" title={project ?? undefined}>{project ?? "—"}</td>
+                  <td className="px-3 py-2.5 text-xs max-w-[140px] truncate" title={building ?? undefined}>{building ?? "—"}</td>
+                  <td className="px-3 py-2.5 text-xs max-w-[100px] truncate" title={property ?? undefined}>{property ?? "—"}</td>
+                  <td className="px-3 py-2.5 text-xs max-w-[80px] truncate" title={unit ?? undefined}>{unit ?? "—"}</td>
+                  <td className="px-3 py-2.5 text-xs max-w-[120px] truncate" title={location ?? undefined}>{location ?? "—"}</td>
+                  <td className="px-3 py-2.5 text-xs whitespace-nowrap">{date ?? "—"}</td>
+                  <td className="px-3 py-2.5 text-xs whitespace-nowrap">{amount ?? "—"}</td>
+                  <td className="px-3 py-2.5 text-xs whitespace-nowrap">{beds ?? "—"}</td>
+                  <td className="px-3 py-2.5 text-xs whitespace-nowrap">{size ?? "—"}</td>
+                  <td className="px-3 py-2.5">
                     <div className="flex flex-wrap gap-1">
                       {(c.tags ?? []).map((tag: string) => (
                         <Badge key={tag} variant="secondary" className="text-[10px] px-1.5 py-0">{tag}</Badge>
                       ))}
                     </div>
                   </td>
-                  <td className="px-4 py-2.5 text-xs text-muted-foreground">{c.source ?? "—"}</td>
-                  <td className="px-4 py-2.5">
-                    {c.lead_status ? (
-                      <Badge variant="outline" className="text-[10px]">{c.lead_status}</Badge>
-                    ) : "—"}
+                  <td className="px-3 py-2.5 text-xs text-muted-foreground">{c.source ?? "—"}</td>
+                  <td className="px-3 py-2.5">
+                    <div className="flex items-center gap-1">
+                      {c.do_not_contact && (
+                        <Badge variant="destructive" className="text-[10px] gap-0.5">
+                          <Ban className="h-2.5 w-2.5" /> DNC
+                        </Badge>
+                      )}
+                      {c.lead_status ? (
+                        <Badge variant="outline" className="text-[10px]">{c.lead_status}</Badge>
+                      ) : !c.do_not_contact ? "—" : null}
+                    </div>
                   </td>
-                  <td className="px-4 py-2.5 text-[11px] text-muted-foreground">
+                  <td className="px-3 py-2.5 whitespace-nowrap">
+                    {stats?.messaged ? (
+                      <div className="flex flex-col gap-0.5">
+                        {stats.last_outbound_status && (
+                          <Badge
+                            variant="outline"
+                            className={`text-[10px] w-fit ${outboundStatusBadgeClass(stats.last_outbound_status)}`}
+                          >
+                            {stats.last_outbound_status}
+                          </Badge>
+                        )}
+                        <span className="text-[10px] text-muted-foreground tabular-nums">
+                          {(stats.delivered_count ?? 0) > 0 && `${stats.delivered_count}✓ `}
+                          {(stats.read_count ?? 0) > 0 && `${stats.read_count} read `}
+                          {(stats.failed_count ?? 0) > 0 && (
+                            <span className="text-destructive">{stats.failed_count} fail</span>
+                          )}
+                        </span>
+                      </div>
+                    ) : (
+                      <span className="text-muted-foreground/50">—</span>
+                    )}
+                  </td>
+                  <td className="px-3 py-2.5 text-[11px] text-muted-foreground max-w-[120px] truncate" title={stats?.last_campaign_name ?? undefined}>
+                    {stats?.last_campaign_name ?? "—"}
+                  </td>
+                  <td className="px-3 py-2.5 text-[11px] text-muted-foreground whitespace-nowrap">
+                    {stats?.last_outbound_at ? (
+                      <span title={new Date(stats.last_outbound_at).toLocaleString()}>
+                        <RelativeTime date={stats.last_outbound_at} />
+                      </span>
+                    ) : (
+                      <span className="text-muted-foreground/50">—</span>
+                    )}
+                  </td>
+                  <td className="px-3 py-2.5 text-[11px] text-muted-foreground whitespace-nowrap">
                     <RelativeTime date={c.created_at} />
                   </td>
-                  <td className="px-4 py-2.5">
+                  <td className="px-3 py-2.5">
                     <div className="flex items-center gap-1 justify-end">
+                      <Button variant="ghost" size="icon" className="h-7 w-7" title={`View all ${extraCount} fields`} onClick={() => setDetailContact(c)}>
+                        <Eye className="h-3.5 w-3.5" />
+                      </Button>
                       <Button variant="ghost" size="icon" className="h-7 w-7" title="Documents" onClick={() => setDocsContact(c)}>
                         <FolderOpen className="h-3.5 w-3.5" />
                       </Button>
@@ -300,7 +700,8 @@ export function WhatsAppContacts() {
                     </div>
                   </td>
                 </tr>
-              ))}
+                );
+              })}
             </tbody>
           </table>
         </div>
@@ -364,6 +765,80 @@ export function WhatsAppContacts() {
       {/* Documents dialog — looks up data_records by phone */}
       <WADocsDialog contact={docsContact} onClose={() => setDocsContact(null)} />
 
+      <Dialog open={!!detailContact} onOpenChange={(o) => !o && setDetailContact(null)}>
+        <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Eye className="h-4 w-4 text-muted-foreground" />
+              {detailContact?.name ?? detailContact?.phone ?? "Contact details"}
+            </DialogTitle>
+          </DialogHeader>
+          {detailContact && (
+            <div className="space-y-3">
+              {detailContact.wa_stats && (
+                <div className="rounded-md border border-border/60 bg-muted/10 p-3 space-y-1.5">
+                  <p className="text-xs font-medium flex items-center gap-1.5">
+                    <MessageCircle className="h-3.5 w-3.5" />
+                    WhatsApp activity
+                  </p>
+                  <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-[11px]">
+                    <span className="text-muted-foreground">Messaged</span>
+                    <span>{detailContact.wa_stats.messaged ? "Yes ✓" : "No"}</span>
+                    <span className="text-muted-foreground">Sent count</span>
+                    <span>{detailContact.wa_stats.outbound_count}</span>
+                    <span className="text-muted-foreground">Replies</span>
+                    <span>{detailContact.wa_stats.inbound_count}</span>
+                    <span className="text-muted-foreground">Last status</span>
+                    <span>{detailContact.wa_stats.last_outbound_status ?? "—"}</span>
+                    <span className="text-muted-foreground">Last campaign</span>
+                    <span>{detailContact.wa_stats.last_campaign_name ?? "—"}</span>
+                    {detailContact.do_not_contact && (
+                      <>
+                        <span className="text-muted-foreground">DNC</span>
+                        <span className="text-destructive">Do not contact</span>
+                      </>
+                    )}
+                    <span className="text-muted-foreground">Last sent</span>
+                    <span>
+                      {detailContact.wa_stats.last_outbound_at
+                        ? new Date(detailContact.wa_stats.last_outbound_at).toLocaleString()
+                        : "—"}
+                    </span>
+                    <span className="text-muted-foreground">Last reply</span>
+                    <span>
+                      {detailContact.wa_stats.last_inbound_at
+                        ? new Date(detailContact.wa_stats.last_inbound_at).toLocaleString()
+                        : "—"}
+                    </span>
+                  </div>
+                </div>
+              )}
+            <div className="grid grid-cols-[minmax(0,34%)_1fr] gap-x-4 gap-y-1.5 text-sm border rounded-md p-3 bg-muted/20">
+              {getContactDetailFields(detailContact).map(({ label, value }) => (
+                <div key={`${label}-${value}`} className="contents">
+                  <div className="text-xs font-medium text-muted-foreground py-1">{label}</div>
+                  <div className="text-xs py-1 wrap-break-word">{value}</div>
+                </div>
+              ))}
+              {getContactDetailFields(detailContact).length === 0 && (
+                <p className="col-span-2 text-xs text-muted-foreground py-2">
+                  No extra fields stored. Re-import your CSV to capture all property columns.
+                </p>
+              )}
+            </div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDetailContact(null)}>Close</Button>
+            {detailContact && (
+              <Button onClick={() => { openEdit(detailContact); setDetailContact(null); }}>
+                Edit contact
+              </Button>
+            )}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {/* Delete confirmation */}
       <AlertDialog open={!!deleteId} onOpenChange={(o) => !o && setDeleteId(null)}>
         <AlertDialogContent>
@@ -379,6 +854,127 @@ export function WhatsAppContacts() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <AlertDialog open={clearAllOpen} onOpenChange={setClearAllOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Remove all contacts?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This permanently deletes all {contacts.length} Buzzchat contacts in this
+              workspace. This cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={clearAll.isPending}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => {
+                e.preventDefault();
+                clearAll.mutate();
+              }}
+              disabled={clearAll.isPending}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {clearAll.isPending ? "Removing…" : "Remove all"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <Dialog
+        open={importOpen}
+        onOpenChange={(o) => {
+          setImportOpen(o);
+          if (!o) resetCsvImportState();
+        }}
+      >
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Import contacts from CSV</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 py-1">
+            <p className="text-xs text-muted-foreground">
+              Supports property files (JVC): maps <strong>Owner Name</strong> → name, saves{" "}
+              <strong>Mobile 1, Mobile 2, Phone 1, Phone 2</strong> and all other columns.
+              Turn off Buyers only for JVC owner registry files. Re-import to refresh phone numbers.
+            </p>
+            <div>
+              <Label className="text-xs">Max contacts</Label>
+              <Input
+                type="number"
+                min={1}
+                max={5000}
+                value={csvImportLimit}
+                onChange={(e) =>
+                  setCsvImportLimit(Math.max(1, parseInt(e.target.value, 10) || 20))
+                }
+                className="mt-1 h-8 text-xs"
+              />
+            </div>
+            <label className="flex items-center gap-2 text-xs">
+              <Checkbox
+                checked={csvBuyersOnly}
+                onCheckedChange={(v) => setCsvBuyersOnly(v === true)}
+              />
+              Buyers only (recommended for JVC transaction files)
+            </label>
+            <input
+              ref={csvInputRef}
+              type="file"
+              accept=".csv,text/csv"
+              className="hidden"
+              onChange={handleCsvFile}
+            />
+            <Button
+              type="button"
+              variant="outline"
+              className="w-full gap-1.5"
+              disabled={csvParsing || csvImporting}
+              onClick={() => csvInputRef.current?.click()}
+            >
+              {csvParsing || csvImporting ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <FileSpreadsheet className="h-3.5 w-3.5" />
+              )}
+              {csvParsing
+                ? "Parsing…"
+                : csvImporting
+                  ? "Importing…"
+                  : csvFileName
+                    ? csvFileName
+                    : "Choose CSV file"}
+            </Button>
+            {csvNeedsMapping && csvMapping && csvRows.length > 0 && (
+              <div className="space-y-2 rounded border border-border/40 p-2">
+                <Label className="text-xs">Phone column</Label>
+                <Select
+                  value={csvMapping.phone}
+                  onValueChange={(v) => setCsvMapping({ ...csvMapping, phone: v })}
+                >
+                  <SelectTrigger className="h-8 text-xs">
+                    <SelectValue placeholder="Mobile" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {csvHeaders.map((h) => (
+                      <SelectItem key={h} value={h}>
+                        {h}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Button
+                  size="sm"
+                  className="w-full h-8 text-xs"
+                  disabled={csvImporting || !csvMapping.phone}
+                  onClick={applyCsvMapping}
+                >
+                  Import up to {csvImportLimit} contacts
+                </Button>
+              </div>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

@@ -1,0 +1,23 @@
+{
+  "event": "call_analyzed",
+  "call": {
+    "call_id": "test_dynamics_replay_001",
+    "agent_id": "agent_d6a2d73962c52f673b98f56218",
+    "call_type": "phone_call",
+    "retell_llm_dynamic_variables": {
+      "lead_id": "d4ffa937-998d-f111-ab10-7ced8d460595",
+      "first_name": "Arjav",
+      "last_name": "Virani",
+      "mobile": "+919964919000"
+    },
+    "call_analysis": {
+      "user_sentiment": "Positive",
+      "call_summary": "Lead qualified; consultation booked for 2026-08-01 13:45.",
+      "custom_analysis_data": {
+        "email_address": "arjovirani123@directgmail.com",
+        "calendly_slot": "{\"preferred_slot\":{\"date\":\"2026-08-01\",\"time\":\"13:45\"}}",
+        "structured_json_output": "{\"verified_details\":{\"property_type\":\"100000000\",\"vacant_or_tenanted\":\"181510000\",\"tenure\":\"279640000\",\"floor\":\"\",\"on_market\":\"181510000\",\"timeframe\":\"100000000\",\"is_need_to_call_again_for_booking\":\"\",\"new_propinfo_numberofbedrooms\":\"100000003\",\"cos_propertyempty\":\"181510001\",\"cos_propertyrented\":\"181510000\",\"cos_sharedownership\":\"181510000\",\"cos_sellrentback\":\"181510000\",\"cos_parkhome\":\"181510000\",\"cos_commercial\":\"181510000\",\"cos_tenure\":\"279640000\",\"new_propinfo_howquickly\":\"100000000\",\"cos_sourcetype\":\"\",\"new_contact_title\":\"100000000\",\"decision_maker\":\"true\",\"cos_groundrent\":\"\",\"cos_servicecharge\":\"\",\"cos_numberofyearsonlease\":\"\",\"new_propinfo_street2\":\"10 Upping Street\",\"new_propinfo_street3\":\"London\",\"new_propinfo_city\":\"London\",\"address1_line1\":\"\",\"address1_line2\":\"\",\"address1_city\":\"\",\"new_propinfo_stateorprovince\":\"\",\"address1_stateorprovince\":\"\",\"address1_postalcode\":\"\",\"new_propinfo_postalcode\":\"SW1A2AA\",\"firstname\":\"Arjo\",\"lastname\":\"Virani\",\"emailaddress1\":\"arjovirani123@directgmail.com\",\"new_othervendor_hometelephone\":\"\",\"mobilephone\":\"919964919000\",\"cos_call_summary\":\"Vacant four-bedroom house at 10 Upping Street, London SW1A2AA; freehold; consultation booked.\",\"new_propinfo_typeofproperty\":\"100000000\",\"new_propinfo_whichfloor\":\"\"}}"
+      }
+    }
+  }
+}

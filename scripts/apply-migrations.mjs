@@ -95,6 +95,10 @@ const steps = [
   { name: "content_calendar [2 idx only]",   sql: CONTENT_CAL },
   // E) Prod cron (inert until app_config set)
   { name: "provider_health_sweep_cron",      sql: readWhole("20260801000000_provider_health_sweep_cron.sql") },
+  // F) WBAH post-call queue + automation engine executions
+  { name: "wbah_post_call_jobs",             sql: readWhole("20260801110000_wbah_post_call_jobs.sql") },
+  { name: "automation_workflow_executions",  sql: readWhole("20260802120000_automation_workflow_executions.sql") },
+  { name: "automation_engine_phase5",        sql: readWhole("20260802140000_automation_engine_phase5.sql") },
 ];
 
 const results = [];
