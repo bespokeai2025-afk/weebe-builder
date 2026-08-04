@@ -18,6 +18,7 @@ import {
   recordConversionEvent,
 } from "@/lib/tracking/conversion-events.server";
 import { AVA_LIVE_AGENT_ID, resolveAdminWorkspaceId, normalizePhoneE164 } from "@/lib/lead-gen/ava-call.server";
+import { normalizeSpokenEmail, normalizeSpokenPhone } from "@/lib/lead-gen/spoken-contact-normalize.shared";
 
 const str = (v: unknown, max = 300): string | null => {
   const s = typeof v === "string" && v.trim() && v.trim().toLowerCase() !== "null" ? v.trim() : "";
@@ -557,11 +558,16 @@ export async function processAvaWebCallAnalyzed(call: AvaWebCall): Promise<void>
   }
 
   // ── Contact details: post-call analysis first, session metadata fallback ──
-  const email =
+  const rawEmail =
     (str(custom.email, 200) ?? verified.attendeeEmail ?? failedBooking.attendeeEmail ?? str(meta.email, 200))?.toLowerCase() ?? null;
+  // Voice transcription writes spoken numbers as words ("jomwaeightyseven@…")
+  // — normalize number-word suffixes back to digits before saving the lead.
+  const emailNorm = normalizeSpokenEmail(rawEmail);
+  const email = emailNorm.email;
   const rawPhone =
     str(custom.phone_number, 40) ?? str(custom.phone, 40) ?? verified.attendeePhone ?? failedBooking.attendeePhone ?? str(meta.phone_number, 40);
-  const phone = rawPhone ? normalizePhoneE164(rawPhone) ?? rawPhone : null;
+  const phoneNorm = normalizeSpokenPhone(rawPhone);
+  const phone = phoneNorm.phone ? normalizePhoneE164(phoneNorm.phone) ?? phoneNorm.phone : null;
   const fullName =
     str(custom.caller_name, 120) ?? str(custom.customer_name, 120) ?? str(custom.name, 120) ?? verified.attendeeName ?? failedBooking.attendeeName ?? null;
 
@@ -618,6 +624,7 @@ export async function processAvaWebCallAnalyzed(call: AvaWebCall): Promise<void>
     cal_event_type_id: verified.eventTypeId,
     qualification_result: qualificationResult,
     original_phone_number: rawPhone !== phone ? rawPhone : null,
+    original_email: emailNorm.changed ? rawEmail : null,
     retell_agent_id: String(call.agent_id ?? "").replace(/^retell:/, "") || AVA_LIVE_AGENT_ID,
     retell_agent_version: call.agent_version ?? null,
     recording_url: call.recording_url ?? null,

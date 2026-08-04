@@ -11,6 +11,7 @@ import { createHash, randomInt } from "crypto";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { sendResendEmail, escapeHtml, renderBasicEmail } from "@/lib/email/resend.server";
 import { toLeadSourceEnum, WEBEE_ADMIN_EMAIL } from "@/lib/lead-gen/webforms.server";
+import { normalizeSpokenEmail, normalizeSpokenPhone } from "@/lib/lead-gen/spoken-contact-normalize.shared";
 import {
   extractClickIds,
   sanitizeLandingUrl,
@@ -585,8 +586,15 @@ export async function processAvaCallAnalyzed(call: AvaAnalyzedCall, isNoAnswerCa
   // ── Booked + positive/neutral → create or promote the lead ────────────────
   const workspaceId = request.workspace_id;
   const now = new Date().toISOString();
-  const email = (str(custom.email) ?? request.email).toLowerCase();
-  const phone = str(custom.phone_number) ?? request.phone;
+  // Normalize transcribed number-words ("eightyseven" → 87) before saving.
+  const email =
+    normalizeSpokenEmail((str(custom.email) ?? request.email).toLowerCase()).email ??
+    request.email.toLowerCase();
+  // Canonicalize to E.164 so dedupe matches the OTP-verified request phone
+  // ("0044…" vs "+44…"); if the transcription can't be canonicalized, fall
+  // back to the verified request phone rather than saving a mangled value.
+  const spokenPhone = normalizeSpokenPhone(str(custom.phone_number)).phone;
+  const phone = (spokenPhone ? normalizePhoneE164(spokenPhone) : null) ?? request.phone;
   const digits = (s: string) => s.replace(/\D/g, "");
 
   type ExistingLead = { id: string; full_name: string | null; status: string; meta: Record<string, unknown> | null; email: string | null; phone: string | null };
