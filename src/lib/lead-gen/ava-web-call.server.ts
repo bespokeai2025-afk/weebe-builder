@@ -221,7 +221,12 @@ export function verifyCalBookingFromToolCalls(call: AvaWebCall): VerifiedBooking
     // payloads never confirm; and the booking UID must be an explicit
     // uid/booking_uid — never a generic `id`, which appears on non-booking
     // objects too.
-    const failed = (statusStr !== "" && statusStr !== "success") || parsed.error != null || dataObj.error != null;
+    // Some booking tools return a human-readable status (e.g. "Successfully
+    // booked an appointment.") rather than the bare "success" literal — any
+    // status STARTING with "success" counts; pending/error/anything else never
+    // confirms.
+    const statusOk = statusStr === "" || statusStr.startsWith("success");
+    const failed = !statusOk || parsed.error != null || dataObj.error != null;
     const uid = str(dataObj.uid, 120) ?? str(dataObj.booking_uid, 120);
     if (failed || !uid) continue;
     const attendee = (Array.isArray(dataObj.attendees) ? dataObj.attendees[0] : dataObj.responses ?? {}) as Record<string, unknown>;

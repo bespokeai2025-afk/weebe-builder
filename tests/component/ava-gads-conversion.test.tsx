@@ -162,6 +162,18 @@ describe("verifyCalBookingFromToolCalls — booking conversion trigger rules", (
     expect(v.confirmed).toBe(false);
   });
 
+  it("human-readable success status confirms (real Aug 2026 payload shape)", () => {
+    const v = verifyCalBookingFromToolCalls(
+      toolCall({
+        status: "Successfully booked an appointment.",
+        booking_id: 23349197,
+        booking_uid: "sFhyhEZY1VDQP8h2Gp9f7C",
+      }) as never,
+    );
+    expect(v.confirmed).toBe(true);
+    expect(v.uid).toBe("sFhyhEZY1VDQP8h2Gp9f7C");
+  });
+
   it("pending / non-success statuses never confirm", () => {
     const v = verifyCalBookingFromToolCalls(
       toolCall({ status: "pending", data: { uid: "abc123uid" } }) as never,
