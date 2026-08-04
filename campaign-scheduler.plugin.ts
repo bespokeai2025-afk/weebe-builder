@@ -88,6 +88,23 @@ export function campaignSchedulerPlugin(): Plugin {
           console.warn("[gsc-sync] dev tick failed:", e?.message ?? e);
         }
 
+        // Auto SEO blog campaign creation (mirrors the prod campaign-executor
+        // endpoint). Loaded via ssrLoadModule because the module uses "@/"
+        // aliases. Best-effort — approval-first by construction.
+        try {
+          const { runSeoCampaignTick } = (await server.ssrLoadModule(
+            "/src/lib/growthmind/seo-campaign-tick.ts",
+          )) as typeof import("./src/lib/growthmind/seo-campaign-tick");
+          const seoTick = await runSeoCampaignTick();
+          if (seoTick.created.length || seoTick.failed.length) {
+            console.log(
+              `[seo-campaign-tick] created=${seoTick.created.length} skipped=${seoTick.skipped.length} failed=${seoTick.failed.length}`,
+            );
+          }
+        } catch (e: any) {
+          console.warn("[seo-campaign-tick] dev tick failed:", e?.message ?? e);
+        }
+
         // WBAH dialler campaign start/finish reports (mirrors the prod
         // campaign-executor endpoint). Loaded via ssrLoadModule because the
         // module (and its report-generator imports) use "@/" aliases that

@@ -18606,6 +18606,8 @@ export type Database = {
           retell_workspace_id: string | null
           salesforce_access_token: string | null
           salesforce_instance_url: string | null
+          seo_auto_campaigns_per_week: number
+          seo_auto_last_created_at: string | null
           systemmind_cto_settings: Json | null
           timezone: string
           twilio_account_sid: string | null
@@ -18692,6 +18694,8 @@ export type Database = {
           retell_workspace_id?: string | null
           salesforce_access_token?: string | null
           salesforce_instance_url?: string | null
+          seo_auto_campaigns_per_week?: number
+          seo_auto_last_created_at?: string | null
           systemmind_cto_settings?: Json | null
           timezone?: string
           twilio_account_sid?: string | null
@@ -18778,6 +18782,8 @@ export type Database = {
           retell_workspace_id?: string | null
           salesforce_access_token?: string | null
           salesforce_instance_url?: string | null
+          seo_auto_campaigns_per_week?: number
+          seo_auto_last_created_at?: string | null
           systemmind_cto_settings?: Json | null
           timezone?: string
           twilio_account_sid?: string | null

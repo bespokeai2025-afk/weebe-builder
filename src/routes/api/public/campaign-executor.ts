@@ -197,6 +197,23 @@ export const Route = createFileRoute("/api/public/campaign-executor")({
             console.warn("[content-publish] tick failed:", pubErr?.message ?? pubErr);
           }
 
+          // Auto SEO blog campaign creation (opt-in via
+          // workspace_settings.seo_auto_campaigns_per_week; approval-first).
+          // Best-effort — never blocks the tick.
+          try {
+            const { runSeoCampaignTick } = await import(
+              "@/lib/growthmind/seo-campaign-tick"
+            );
+            const seoTick = await runSeoCampaignTick();
+            if (seoTick.created.length || seoTick.failed.length) {
+              console.log(
+                `[seo-campaign-tick] created=${seoTick.created.length} skipped=${seoTick.skipped.length} failed=${seoTick.failed.length}`,
+              );
+            }
+          } catch (seoErr: any) {
+            console.warn("[seo-campaign-tick] failed:", seoErr?.message ?? seoErr);
+          }
+
           // Public content scheduled publications (due scheduled_publish executions). Best-effort.
           try {
             const { runPublicationTick } = await import(
