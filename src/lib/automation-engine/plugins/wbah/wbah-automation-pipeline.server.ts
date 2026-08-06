@@ -16,6 +16,17 @@ export function isWbahAutomationEngineEnabled(): boolean {
 export async function runWbahPostCallViaAutomationEngine(
   input: WbahPostCallProcessInput & { skipLiveTranscript?: boolean; wbahJobId?: string },
 ): Promise<WbahPostCallProcessResult> {
+  if (input.agent.role === "rebooking") {
+    const { runWbahPostCallPipelineCore } = await import("@/lib/wbah/post-call/wbah-post-call.server");
+    return runWbahPostCallPipelineCore({
+      event: input.event,
+      call: input.call,
+      payload: input.payload,
+      agent: input.agent,
+      skipLiveTranscript: input.skipLiveTranscript,
+    });
+  }
+
   ensureAutomationEngineBootstrapped();
 
   const cfg = await resolveWbahPostCallWorkflowConfig({

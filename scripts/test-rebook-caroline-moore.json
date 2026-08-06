@@ -1,0 +1,28 @@
+{
+  "event": "call_analyzed",
+  "call": {
+    "call_id": "test_rebook_caroline_moore_002",
+    "agent_id": "agent_1e1b13bd9564da4556370fe0be",
+    "call_type": "phone_call",
+    "retell_llm_dynamic_variables": {
+      "crm_type": "opportunity",
+      "opportunity_id": "eab335f7-d48c-f111-ab10-000d3ab825d0",
+      "first_name": "Caroline",
+      "last_name": "Moore",
+      "user_mobile": "+447712461000",
+      "property_address_line2": "10 Sandy Lane West"
+    },
+    "call_analysis": {
+      "user_sentiment": "Positive",
+      "call_summary": "Rebook consultation for Caroline Moore at 10 Sandy Lane West — consultation rebooked.",
+      "call_successful": true,
+      "custom_analysis_data": {
+        "call_outcome": "Rebooked",
+        "email_address": "",
+        "calendly_slot": "{\"preferred_slot\":{\"date\":\"2026-08-06\",\"time\":\"16:50\"}}",
+        "appointment_confirmed": true,
+        "structured_json_output": "{\"verified_details\":{\"firstname\":\"Caroline\",\"lastname\":\"Moore\",\"mobilephone\":\"447712461000\",\"on_market\":\"181510000\",\"decision_maker\":\"true\",\"timeframe\":\"100000000\",\"new_propinfo_street2\":\"10 Sandy Lane West\"}}"
+      }
+    }
+  }
+}

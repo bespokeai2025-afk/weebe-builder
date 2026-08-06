@@ -8,6 +8,9 @@ import {
   defaultWbahPostCallWorkflowConfig,
   wbahStepsToFlowDefinition,
 } from "@/lib/wbah/workflow/wbah-workflow-steps.shared";
+import {
+  defaultRebookPostCallWorkflowConfig,
+} from "@/lib/wbah/workflow/wbah-rebook-workflow.shared";
 
 export const WBAH_N8N_WORKFLOW_ID = "yR3vAIdZNLovD8jx";
 export const WBAH_N8N_WEBHOOK_URL =
@@ -59,6 +62,44 @@ export const WBAH_N8N_RETELL_AGENTS: WbahRetellAgentRef[] = [
 export const WBAH_NEW_LEADS_AGENTS = WBAH_N8N_RETELL_AGENTS.filter(
   (a) => a.role === "new_leads_dialer",
 );
+
+export const WBAH_REBOOK_AGENTS: WbahRetellAgentRef[] = [
+  {
+    retellAgentId: "agent_1e1b13bd9564da4556370fe0be",
+    label: "Rebooking consultation agent",
+    role: "rebooking",
+  },
+  {
+    retellAgentId: "agent_0e07f26bebd25acbd82993e3a3",
+    label: "Rebooking agent: WBAH client qualification agent",
+    role: "rebooking",
+  },
+];
+
+/** Documented Rebook post-call branches (Opportunity-only — no Calendly, no Lead PATCH). */
+export const WBAH_REBOOK_N8N_BRANCHES = [
+  {
+    id: "rebook_dynamics",
+    label: "call_analyzed → Dynamics Opportunity PATCH + note",
+    summary:
+      "Format rebook fields → D365 token → PATCH /opportunities({id}) → timeline note on Opportunity.",
+  },
+  {
+    id: "rebook_dashboard",
+    label: "call_analyzed → Dashboard (no Calendly)",
+    summary: "POST call-output-data/create with call result; booking handled in Retell.",
+  },
+  {
+    id: "lifecycle_raw",
+    label: "call_started / call_ended → raw dashboard POST",
+    summary: "Lifecycle events for Rebook opportunity rows.",
+  },
+  {
+    id: "webee_live",
+    label: "Live transcript ingest",
+    summary: "WEBEE live panel on every event.",
+  },
+];
 
 /** Documented n8n branches (for SystemMind template library + build console). */
 export const WBAH_N8N_BRANCHES = [
@@ -241,6 +282,67 @@ export function buildWbahNewLeadsSystemMindConfig() {
       "Verify call-output-data/create row appears in WeeBespoke UAT.",
       "Confirm Dynamics lead status matches sentiment + booking outcome.",
       "Confirm live transcript appears in WEBEE via retell-live-ingest.",
+    ],
+  };
+}
+
+/** SystemMind template for WBAH Rebook — separate webhook workflow (Opportunity-only). */
+export function buildWbahRebookSystemMindConfig() {
+  const wbahPipeline = defaultRebookPostCallWorkflowConfig({
+    retell_agents: WBAH_REBOOK_AGENTS.map((a) => a.retellAgentId),
+  });
+  const flow = wbahStepsToFlowDefinition(wbahPipeline);
+
+  return {
+    agent_prompt: [
+      "You are the WBAH Rebook Initial Consultation agent.",
+      "The CRM record is a Dynamics Opportunity — not a Lead.",
+      "Retell dynamic variables MUST include:",
+      "  crm_type=opportunity",
+      "  opportunity_id={{opportunityid}}",
+      "  optional originating_lead_id for reference only (never PATCH Lead after call).",
+      "Booking is handled in-call via Retell — no post-call Calendly automation.",
+    ].join("\n"),
+    workflow: {
+      name: "WBAH Rebook Post-Call (Opportunity)",
+      purpose:
+        "Native WEBEE post-call for Rebook agents. PATCH Dynamics Opportunity + timeline note only.",
+      trigger_type: "call_completed",
+      trigger_config: {
+        external_orchestrator: "webee",
+        webee_webhook_url: WBAH_WEBEE_RETELL_WEBHOOK_URL,
+        retell_agents: WBAH_REBOOK_AGENTS.map((a) => a.retellAgentId),
+        required_dynamic_variables: ["crm_type", "opportunity_id"],
+        wbah_post_call: wbahPipeline,
+      },
+      steps: flow.steps as any[],
+    },
+    variables: [
+      { name: "crm_type", description: "Must be opportunity", source: "Retell dynamic vars" },
+      { name: "opportunity_id", description: "Dynamics opportunityid", source: "Retell dynamic vars" },
+      { name: "originating_lead_id", description: "Reference only", source: "Retell dynamic vars" },
+    ],
+    channel_setup: {
+      retell: {
+        webhook_mode: "webee_native",
+        webhook_url: WBAH_WEBEE_RETELL_WEBHOOK_URL,
+        dialer_agents: WBAH_REBOOK_AGENTS,
+      },
+      wbah_post_call: wbahPipeline,
+      n8n: {
+        deprecated: true,
+        note: "Use WEBEE native Rebook workflow — do not share New Leads n8n webhook",
+      },
+    },
+    risks: [
+      "Do not point Rebook agents at the New Leads n8n webhook — it PATCHes Leads.",
+      "lead_id in legacy rows may hold opportunityid — always set crm_type=opportunity.",
+    ],
+    test_plan: [
+      "Rebook test call with crm_type=opportunity and opportunity_id set.",
+      "Confirm [DynamicsOpportunity] Synced log and Opportunity fields updated in D365.",
+      "Confirm originating Lead is unchanged.",
+      "Confirm no Calendly nodes run.",
     ],
   };
 }

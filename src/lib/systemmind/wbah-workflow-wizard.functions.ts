@@ -13,7 +13,7 @@ export const startWbahWorkflowWizardFn = createServerFn({ method: "POST" })
   .inputValidator(
     z
       .object({
-        mode: z.enum(["blank", "template"]).optional(),
+        mode: z.enum(["blank", "template", "template_rebook"]).optional(),
       })
       .optional(),
   )

@@ -13,8 +13,11 @@ import {
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import {
   DYNAMICS_CATEGORY_LABELS,
+  NEW_LEAD_STATUS,
   TEST_LEAD_STATUS,
+  isNewLeadSyncSubSlug,
   isTestLeadSyncDisabledError,
+  resolveWbahCrmPersonName,
   type DynamicsCategorySlug,
 } from "./wbah-campaign-sync.types";
 import { parseWbahCrmData, type WbahCrmData } from "./wbah-crm-data.types";
@@ -79,6 +82,11 @@ export const WBAH_PEOPLE_CRM_CATEGORIES: WbahPeopleCrmCategory[] = [
     leadStatus: "Rebook Initial Consultation",
   },
   {
+    slug: "new",
+    label: DYNAMICS_CATEGORY_LABELS.new,
+    leadStatus: NEW_LEAD_STATUS,
+  },
+  {
     slug: "test_lead",
     label: DYNAMICS_CATEGORY_LABELS.test_lead,
     leadStatus: TEST_LEAD_STATUS,
@@ -97,6 +105,7 @@ function wbahCatSlug(s: string): string {
 export function normalizeWbahPeopleCategorySlug(category: string): string {
   const slug = wbahCatSlug(category);
   if (slug === "rebooking" || slug === "rebook") return "rebook_initial_consultation";
+  if (slug === "new" || slug === "new_lead" || slug === "new_leads") return "new";
   if (slug === "test_lead" || slug === "testlead" || slug === "test") return "test_lead";
   if (slug === "call_back_request") return "callback_request";
   const byLabel = WBAH_PEOPLE_CRM_CATEGORIES.find((c) => wbahCatSlug(c.label) === slug);
@@ -199,6 +208,12 @@ function recordMatchesCategory(raw: Record<string, unknown>, cat: WbahPeopleCrmC
     return raw.is_callback_pending === true && raw.callback_completed !== true;
   }
   const slug = pickStr(raw, "sync_category_slug", "syncCategorySlug", "category_slug");
+  if (cat.slug === "new") {
+    const ls = pickStr(raw, "lead_status", "leadStatus");
+    if (ls != null && ls.toLowerCase() === NEW_LEAD_STATUS.toLowerCase()) return true;
+    if (slug && (slug === cat.slug || isNewLeadSyncSubSlug(slug))) return true;
+    return false;
+  }
   if (slug) {
     if (slug !== cat.slug) return false;
     const expiresRaw = raw.category_expires_at ?? raw.categoryExpiresAt;
@@ -226,8 +241,12 @@ function buildCrmQuery(
   params.set("pageSize", String(pageSize));
   if (cat.callbackOnly) {
     params.set("isCallbackPending", "true");
+  } else if (cat.slug === "new") {
+    // WeeBespoke: GET /crm-data/get-crm-data?leadStatus=New (product docs may say GET /crm).
+    // Returns call-now + delayed new leads together — not sync_category_slug.
+    params.set("leadStatus", cat.leadStatus ?? NEW_LEAD_STATUS);
   } else if (cat.slug === "test_lead") {
-    // Backend maps leadStatus=Test Lead → sync_category_slug=test_lead (opt-in flag).
+    // UAT Test Lead — legacy CRM_data path + leadStatus filter.
     if (cat.leadStatus) {
       params.set("leadStatus", cat.leadStatus);
     } else {
@@ -240,6 +259,16 @@ function buildCrmQuery(
     params.set("search", search.trim());
   }
   return `/crm-data/get-crm-data?${params}`;
+}
+
+/** Resolves the WeeBespoke CRM list path for a People category (used by tests). */
+export function wbahPeopleCrmQueryPath(
+  category: string,
+  page: number,
+  pageSize: number,
+  search?: string,
+): string {
+  return buildCrmQuery(resolveCategory(category), page, pageSize, search);
 }
 
 function mapCrmRow(raw: Record<string, unknown>, categoryLabel: string): WbahPeopleCategoryRow {
@@ -284,6 +313,9 @@ function mapCrmRow(raw: Record<string, unknown>, categoryLabel: string): WbahPeo
     transcript: raw.transcript ?? null,
     is_callback_pending: raw.is_callback_pending ?? raw.isCallbackPending ?? null,
     category_slug: raw.category_slug ?? raw.categorySlug ?? null,
+    sync_category_slug:
+      crm?.sync_category_slug ??
+      pickStr(raw, "sync_category_slug", "syncCategorySlug", "category_slug"),
     need_to_call: crm?.need_to_call ?? raw.need_to_call ?? raw.needToCall ?? null,
     lead_status: leadStatus,
   };
@@ -294,7 +326,7 @@ function mapCrmRow(raw: Record<string, unknown>, categoryLabel: string): WbahPeo
     external_status_code: leadStatus,
     external_status_label: categoryLabel,
     webee_category: categoryLabel,
-    full_name: pickStr(raw, "name", "fullName", "full_name") ?? "Unknown",
+    full_name: resolveWbahCrmPersonName(raw),
     first_name: pickStr(raw, "first_name", "firstName", "firstname"),
     last_name: pickStr(raw, "last_name", "lastName", "lastname"),
     phone,

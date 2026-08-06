@@ -275,7 +275,7 @@ export const wbahGetAllCallOutput = (gt: GetTokens, st: SaveToken) =>
 export const wbahGetCrmData = (gt: GetTokens, st: SaveToken) =>
   aGet("/crm-data/get-crm-data", gt, st);
 
-/** Paginated / filtered CRM_data read (lead_status, isCallbackPending, currentPage, pageSize). */
+/** Paginated / filtered CRM read — `/crm` or `/crm-data/get-crm-data` + query params. */
 export const wbahGetCrmDataPath = (path: string, gt: GetTokens, st: SaveToken, rl?: Relogin) =>
   aGet(path, gt, st, rl);
 
@@ -356,6 +356,16 @@ export const wbahSyncDynamicsCategories = (
   rl?: Relogin,
 ) =>
   aPost("/campaigns/sync-dynamics-categories", { scheduleCampaign }, gt, st, rl);
+
+export const wbahGetNewLeadSyncToggle = (gt: GetTokens, st: SaveToken, rl?: Relogin) =>
+  aGet("/campaigns/new-lead-sync/toggle", gt, st, rl);
+
+export const wbahPatchNewLeadSyncToggle = (
+  enabled: boolean,
+  gt: GetTokens,
+  st: SaveToken,
+  rl?: Relogin,
+) => aPatch("/campaigns/new-lead-sync/toggle", { enabled }, gt, st, rl);
 
 // ── Agents ────────────────────────────────────────────────────────────────────
 

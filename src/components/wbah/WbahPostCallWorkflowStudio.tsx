@@ -41,6 +41,7 @@ import {
   emptyWbahPostCallWorkflowConfig,
   type WbahPostCallWorkflowConfig,
 } from "@/lib/wbah/workflow/wbah-workflow-steps.shared";
+import { WBAH_REBOOK_STEP_CATALOG } from "@/lib/wbah/workflow/wbah-rebook-workflow.shared";
 import {
   addN8nNodeToGraph,
   addStepToConfig,
@@ -91,6 +92,11 @@ export function WbahPostCallWorkflowStudio({
   const [studioTab, setStudioTab] = useState<"chat" | "flow">("flow");
   const [flowFullscreen, setFlowFullscreen] = useState(false);
   const chatEndRef = useRef<HTMLDivElement>(null);
+
+  const stepCatalog =
+    pipeline.workflow_kind === "wbah_rebook_post_call"
+      ? WBAH_REBOOK_STEP_CATALOG
+      : WBAH_POST_CALL_STEP_CATALOG;
 
   const start = useMutation({
     mutationFn: () => startFn(),
@@ -389,7 +395,7 @@ export function WbahPostCallWorkflowStudio({
             </CollapsibleTrigger>
             <CollapsibleContent className="pt-2 space-y-2">
               <div className="flex flex-wrap gap-1">
-                {WBAH_POST_CALL_STEP_CATALOG.map((s) => (
+                {stepCatalog.map((s) => (
                   <Button
                     key={s.id}
                     size="sm"

@@ -67,7 +67,7 @@ export function WbahPostCallHub() {
   });
 
   const start = useMutation({
-    mutationFn: (mode: "blank" | "template" = "blank") =>
+    mutationFn: (mode: "blank" | "template" | "template_rebook" = "blank") =>
       startFn({ data: { mode } } as any),
     onSuccess: (res, mode) => {
       setSessionId(res.sessionId);
@@ -75,7 +75,11 @@ export function WbahPostCallHub() {
       setMainTab("editor");
       qc.invalidateQueries({ queryKey: ["wbah-post-call-drafts"] });
       toast.success(
-        mode === "template" ? "WBAH template workflow created" : "Blank workflow created",
+        mode === "template"
+          ? "WBAH New Leads template created"
+          : mode === "template_rebook"
+            ? "WBAH Rebook template created"
+            : "Blank workflow created",
       );
     },
     onError: (e) => toast.error(formatUserFacingError(e)),
@@ -157,10 +161,20 @@ export function WbahPostCallHub() {
             onClick={() => start.mutate("template")}
           >
             <Layers className="h-3.5 w-3.5 mr-1" />
-            WBAH base template
+            New Leads template
+          </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            className="w-full h-8 text-xs border-emerald-800/60 text-emerald-200/90 hover:bg-emerald-950/40"
+            disabled={start.isPending}
+            onClick={() => start.mutate("template_rebook")}
+          >
+            <Layers className="h-3.5 w-3.5 mr-1" />
+            Rebook template
           </Button>
           <p className="text-[9px] text-gray-600 px-1 leading-relaxed">
-            Template includes the full n8n production graph (~40 nodes) and all post-call steps.
+            New Leads: full graph (~40 nodes) with Calendly + Lead PATCH. Rebook: Opportunity-only (~13 nodes), no Calendly.
           </p>
         </div>
 

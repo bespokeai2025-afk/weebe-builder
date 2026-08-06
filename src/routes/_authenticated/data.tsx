@@ -24,6 +24,8 @@ import {
 } from "lucide-react";
 import { WbahCallSchedulingSection } from "@/components/dashboard/WbahCallSchedulingSection";
 import { WbahTestLeadBadge } from "@/components/dashboard/WbahTestLeadBadge";
+import { WbahNewLeadSubBadge } from "@/components/dashboard/WbahNewLeadSubBadge";
+import { WbahNewLeadSyncToggle } from "@/components/dashboard/WbahNewLeadSyncToggle";
 import { WbahCallbacksPanel } from "@/components/dashboard/WbahCallbacksPanel";
 import { StartCallsDialog } from "@/components/dashboard/StartCallsDialog";
 import { DashboardPage, KpiCard, stickyCell, stickyHead } from "@/components/dashboard/PageShell";
@@ -105,7 +107,13 @@ import {
   wbahBookingStatusCell,
 } from "@/lib/dashboard/wbah-call-booking-display";
 import { sanitizeWbahBookingFields } from "@/lib/dashboard/wbah-booking-meta";
-import { isTestLeadStatus, isTestLeadSyncDisabledError, TEST_LEAD_STATUS } from "@/lib/integrations/webespokeEnterprise/wbah-campaign-sync.types";
+import {
+  isTestLeadStatus,
+  isTestLeadSyncDisabledError,
+  NEW_LEAD_STATUS,
+  resolveWbahCrmPersonName,
+  TEST_LEAD_STATUS,
+} from "@/lib/integrations/webespokeEnterprise/wbah-campaign-sync.types";
 
 export const Route = createFileRoute("/_authenticated/data")({
   head: () => ({ meta: [{ title: "Data Records — Webee" }] }),
@@ -608,6 +616,12 @@ const WBAH_CAT_STYLES: Record<string, WbahCatStyle> = {
     icon: "text-violet-400",
     banner: "bg-violet-500/5 border-violet-500/10 text-violet-400",
   },
+  new: {
+    active: "border-emerald-400 text-emerald-300",
+    badge: "bg-emerald-500/20 text-emerald-400",
+    icon: "text-emerald-400",
+    banner: "bg-emerald-500/5 border-emerald-500/10 text-emerald-400",
+  },
   rebooking: {
     active: "border-violet-400 text-violet-300",
     badge: "bg-violet-500/20 text-violet-400",
@@ -657,6 +671,7 @@ const WBAH_PEOPLE_TABS: { name: string; count: number }[] = [
   { name: "Disqualified", count: 0 },
   { name: "Tried To Contact", count: 0 },
   { name: "Rebook Initial Consultation", count: 0 },
+  { name: NEW_LEAD_STATUS, count: 0 },
   { name: "Test Lead", count: 0 },
   { name: "Callback Request", count: 0 },
 ];
@@ -966,6 +981,7 @@ function DataPage() {
   } | null>(null);
   const [wbahLeadDetail, setWbahLeadDetail] = useState<WbahLeadDetailView | null>(null);
   const [wbahImporting, setWbahImporting] = useState(false);
+  const [wbahNewLeadSyncOn, setWbahNewLeadSyncOn] = useState<boolean | null>(null);
 
   const [showManualEntry, setShowManualEntry] = useState(false);
   const [csvHeaders, setCsvHeaders] = useState<string[]>([]);
@@ -1111,11 +1127,18 @@ function DataPage() {
     () => {
       // Test Lead rows are CRM cohort records — call-status dropdown is for Calls tab.
       const statusF =
-        wbahPeopleSubTab === TEST_LEAD_STATUS ? "all" : wbahStatusFilter;
+        wbahPeopleSubTab === TEST_LEAD_STATUS || wbahPeopleSubTab === NEW_LEAD_STATUS
+          ? "all"
+          : wbahStatusFilter;
+      // Search is server-side for category tabs (passed to get-crm-data?search=).
+      const searchF =
+        wbahPeopleSubTab === "calls" || wbahPeopleSubTab === WBAH_CALLBACK_TAB
+          ? wbahPeopleSearch
+          : "";
       return wbahActiveCatRows.filter((r) =>
         wbahRowPasses(
           r,
-          wbahPeopleSearch,
+          searchF,
           statusF,
           wbahSentimentFilter,
           wbahDateCut,
@@ -1510,15 +1533,30 @@ function DataPage() {
         null,
     });
     const leadStatusVal = crm?.lead_status ?? r.meta?.lead_status ?? raw.lead_status ?? null;
+    const syncCategorySlug =
+      crm?.sync_category_slug ??
+      raw.sync_category_slug ??
+      (typeof rawCrm.sync_category_slug === "string" ? rawCrm.sync_category_slug : null) ??
+      (typeof rawCrm.syncCategorySlug === "string" ? rawCrm.syncCategorySlug : null) ??
+      null;
+    const displayName = resolveWbahCrmPersonName({
+      ...(rawCrm ?? {}),
+      ...raw,
+      name: r.full_name,
+      full_name: r.full_name,
+      first_name: r.first_name ?? raw.first_name,
+      last_name: r.last_name ?? raw.last_name,
+    });
     return {
       id: r.id,
       srNo: idx + 1,
-      name: r.full_name,
+      name: displayName,
       contact: r.phone,
       email: r.email ?? raw.email ?? raw.emailAddress ?? null,
       callType: r.external_status_label ?? "Lead",
       callStatus: raw.callStatus ?? null,
       leadStatus: leadStatusVal,
+      syncCategorySlug,
       isTestLead:
         isTestLeadStatus(leadStatusVal) ||
         isTestLeadStatus(r.external_status_label) ||
@@ -1671,13 +1709,23 @@ function DataPage() {
     });
   };
 
-  async function handleFetchWbahCategory(cat: string, page = 1, pageSize = wbahCatPageSize) {
+  async function handleFetchWbahCategory(
+    cat: string,
+    page = 1,
+    pageSize = wbahCatPageSize,
+    search = wbahPeopleSearch,
+  ) {
     if (!cat || cat === "calls" || cat === WBAH_CALLBACK_TAB) return;
     setWbahCatLoadingMap((m) => ({ ...m, [cat]: true }));
     setWbahCatErrorMap((m) => ({ ...m, [cat]: null }));
     try {
       const res = await listWbahCategorizedLeadsFn({
-        data: { category: cat, page, limit: pageSize },
+        data: {
+          category: cat,
+          page,
+          limit: pageSize,
+          search: search.trim() || undefined,
+        },
       });
       const rows = ((res as any)?.rows ?? []) as any[];
       const total = (res as any)?.total;
@@ -1903,7 +1951,7 @@ function DataPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dataTab, isWbah]);
 
-  // Load the active category sub-tab's rows when it changes (Calls handled below).
+  // Load / refresh the active category sub-tab (server-side search + pagination).
   useEffect(() => {
     if (
       !isWbah ||
@@ -1915,12 +1963,21 @@ function DataPage() {
       return;
     setWbahSelected(new Set());
     setWbahQualAgentId("");
-    setWbahCatPage(1);
-    if (!wbahCatData[wbahPeopleSubTab] && !wbahCatLoadingMap[wbahPeopleSubTab]) {
+    const t = setTimeout(() => {
+      setWbahCatPage(1);
       handleFetchWbahCategory(wbahPeopleSubTab, 1);
-    }
+    }, 300);
+    return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [dataTab, isWbah, wbahPeopleSubTab]);
+  }, [
+    dataTab,
+    isWbah,
+    wbahPeopleSubTab,
+    wbahPeopleSearch,
+    wbahSentimentFilter,
+    wbahDateFilter,
+    wbahAgentFilter,
+  ]);
 
   // Calls tab: server-side paginated. Refetch page 1 (debounced) when the tab is
   // opened or when search/status/sentiment/date filters change. A live refresh
@@ -2474,6 +2531,15 @@ function DataPage() {
               )}
             </div>
 
+            {wbahPeopleSubTab === NEW_LEAD_STATUS && (
+              <div className="border-b border-white/[0.06] px-2.5 py-1.5 sm:px-3">
+                <WbahNewLeadSyncToggle
+                  active={dataTab === "people" && wbahPeopleSubTab === NEW_LEAD_STATUS}
+                  onStateChange={(s) => setWbahNewLeadSyncOn(s.enabled)}
+                />
+              </div>
+            )}
+
             <div className="flex flex-col gap-1.5 border-b border-white/[0.06] px-2.5 py-1.5 sm:px-3 lg:flex-row lg:items-center lg:justify-between">
               <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2 sm:gap-3">
                 <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
@@ -2697,6 +2763,7 @@ function DataPage() {
               const isLeads = false;
               const isCalls = wbahPeopleSubTab === "calls";
               const isCat = !isCalls && !!wbahPeopleSubTab;
+              const isNewTab = wbahPeopleSubTab === NEW_LEAD_STATUS;
               const isDisqualifiedTab = wbahPeopleSubTab === "Disqualified";
 
               const loading = isCalls ? wbahCallsLoading : !!wbahCatLoadingMap[wbahPeopleSubTab];
@@ -2791,6 +2858,29 @@ function DataPage() {
 
               return (
                 <div className="min-w-0 overflow-x-auto">
+                  {isNewTab && (
+                    <div
+                      className={cn(
+                        "mx-3 mt-3 rounded-lg border px-3 py-2 text-[11px]",
+                        wbahCatStyle(NEW_LEAD_STATUS).banner,
+                      )}
+                    >
+                      {wbahNewLeadSyncOn === false ? (
+                        <>
+                          Auto-dial is <strong>off</strong> — existing New rows stay visible; no new
+                          imports or dials until you turn it on.
+                        </>
+                      ) : (
+                        <>
+                          Inbound <strong>New</strong> leads auto-dial via cron (WBAH New Leads Agent,
+                          +441616968308). After a call: <strong>Logged</strong> if booked (positive +
+                          appointment), <strong>Disqualified</strong> if negative sentiment,{" "}
+                          <strong>Tried To Contact</strong> if positive without booking, or no status
+                          change for neutral/no-answer.
+                        </>
+                      )}
+                    </div>
+                  )}
                   <table className="w-full text-[11px]">
                     <thead>
                       <tr className="border-b border-white/[0.06] bg-card/30">
@@ -2817,9 +2907,10 @@ function DataPage() {
                           [
                             "SR NO",
                             "NAME",
+                            ...(isNewTab ? ["CALL ON"] : []),
                             "CONTACT",
                             ...(isCat ? ["LOADED"] : []),
-                            "TYPE",
+                            ...(isNewTab ? ["LEAD STATUS"] : ["TYPE"]),
                             "LAST CALLED AT",
                             "CALL STATUS",
                             ...(isDisqualifiedTab ? ["DQ REASON", "DISQUALIFIED AT"] : []),
@@ -2917,6 +3008,11 @@ function DataPage() {
                                 </button>
                               </div>
                             </td>
+                            {isNewTab && (
+                              <td className="px-2 py-0.5 whitespace-nowrap">
+                                <WbahNewLeadSubBadge slug={r.syncCategorySlug} />
+                              </td>
+                            )}
                             <td
                               className={cn(
                                 "max-w-[7rem] truncate px-2 py-0.5 font-mono text-[10px] text-muted-foreground",
@@ -2944,7 +3040,9 @@ function DataPage() {
                               </td>
                             )}
                             <td className="px-2 py-0.5 text-[10px] text-muted-foreground whitespace-nowrap capitalize">
-                              {(r.callType || "—").replace(/_/g, " ")}
+                              {isNewTab
+                                ? (r.leadStatus || "—")
+                                : (r.callType || "—").replace(/_/g, " ")}
                             </td>
                             <td className="px-2 py-0.5 text-[10px] text-muted-foreground whitespace-nowrap">
                               {fmtTs(r.startTimestamp, true)}

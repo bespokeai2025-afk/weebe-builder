@@ -131,6 +131,7 @@ export function PrefetchOnLogin({ authed }: Props) {
           await wbahCatFn({ data: { category: "disqualified", page: 1, limit: 1 } });
           await wbahCatFn({ data: { category: "tried_to_contact", page: 1, limit: 1 } });
           await wbahCatFn({ data: { category: "rebook_initial_consultation", page: 1, limit: 1 } });
+          await wbahCatFn({ data: { category: "new", page: 1, limit: 1 } });
           await wbahCallbackSummaryFn();
         } catch {
           /* warming is best-effort; ignore failures */

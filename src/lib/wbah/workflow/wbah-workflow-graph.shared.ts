@@ -12,6 +12,13 @@ import {
   type WbahN8nWorkflowGraph,
 } from "./wbah-n8n-node-catalog.shared";
 import {
+  WBAH_REBOOK_N8N_NODE_CATALOG,
+  mergeRebookN8nGraphWithCatalog,
+} from "./wbah-rebook-n8n-node-catalog.shared";
+import {
+  WBAH_REBOOK_STEP_CATALOG,
+} from "./wbah-rebook-workflow.shared";
+import {
   automationTypeToCanvasKind,
   enrichCanvasNodeConfig,
 } from "./wbah-node-display.shared";
@@ -37,7 +44,26 @@ const EXECUTOR_BY_NODE = Object.fromEntries(
   WBAH_N8N_NODE_CATALOG.filter((n) => n.executorStepId).map((n) => [n.id, n.executorStepId!]),
 );
 
+export function isWbahWorkflowTriggerNodeId(nodeId: string): boolean {
+  return nodeId === "webhook" || nodeId === "rebook-webhook";
+}
+
+function n8nCatalogForConfig(cfg: WbahPostCallWorkflowConfig) {
+  return cfg.workflow_kind === "wbah_rebook_post_call"
+    ? WBAH_REBOOK_N8N_NODE_CATALOG
+    : WBAH_N8N_NODE_CATALOG;
+}
+
+function stepCatalogForConfig(cfg: WbahPostCallWorkflowConfig) {
+  return cfg.workflow_kind === "wbah_rebook_post_call"
+    ? WBAH_REBOOK_STEP_CATALOG
+    : WBAH_POST_CALL_STEP_CATALOG;
+}
+
 export function resolveN8nGraph(cfg: WbahPostCallWorkflowConfig): WbahN8nWorkflowGraph {
+  if (cfg.workflow_kind === "wbah_rebook_post_call") {
+    return mergeRebookN8nGraphWithCatalog(cfg.n8n_graph);
+  }
   return mergeN8nGraphWithCatalog(cfg.n8n_graph);
 }
 
@@ -46,16 +72,21 @@ export function n8nGraphToReactFlow(
   graph?: WbahN8nWorkflowGraph | null,
 ) {
   const g = graph ?? resolveN8nGraph(cfg);
+  const catalog = n8nCatalogForConfig(cfg);
+  const catalogById = Object.fromEntries(catalog.map((c) => [c.id, c]));
+  const executorByNode = Object.fromEntries(
+    catalog.filter((n) => n.executorStepId).map((n) => [n.id, n.executorStepId!]),
+  );
   const stepEnabled = (stepId: string) =>
     cfg.steps.find((s) => s.id === stepId)?.enabled !== false;
 
   const nodes = g.nodes.map((n) => {
-    const cat = CATALOG_BY_ID[n.id];
+    const cat = catalogById[n.id];
     const automationType = String((n.config as Record<string, unknown>)?.automationType ?? "");
     const kind =
       cat?.kind ??
       (automationType ? automationTypeToCanvasKind(automationType) : getN8nNodeKind(n.id));
-    const executorStepId = cat?.executorStepId ?? EXECUTOR_BY_NODE[n.id];
+    const executorStepId = cat?.executorStepId ?? executorByNode[n.id];
     const branch = cat?.branch ?? getN8nNodeBranch(n.id);
     const stepActive = executorStepId ? stepEnabled(executorStepId) : true;
     const nodeEnabled = n.enabled !== false && stepActive;
@@ -72,7 +103,7 @@ export function n8nGraphToReactFlow(
       id: n.id,
       type: kind === "trigger" ? "wbahTrigger" : "wbahN8nNode",
       position: n.position,
-      deletable: n.id !== "webhook",
+      deletable: !isWbahWorkflowTriggerNodeId(n.id),
       data: {
         label,
         kind,
@@ -210,8 +241,14 @@ export function wbahConfigToFlowDefinition(cfg: WbahPostCallWorkflowConfig, meta
   };
 }
 
-const CATALOG_STEP_BY_ID = Object.fromEntries(WBAH_POST_CALL_STEP_CATALOG.map((c) => [c.id, c]));
-const CATALOG_STEP_BY_TYPE = Object.fromEntries(WBAH_POST_CALL_STEP_CATALOG.map((c) => [c.type, c]));
+const MERGED_STEP_CATALOG = [
+  ...WBAH_POST_CALL_STEP_CATALOG,
+  ...WBAH_REBOOK_STEP_CATALOG.filter(
+    (s) => !WBAH_POST_CALL_STEP_CATALOG.some((x) => x.id === s.id),
+  ),
+];
+const CATALOG_STEP_BY_ID = Object.fromEntries(MERGED_STEP_CATALOG.map((c) => [c.id, c]));
+const CATALOG_STEP_BY_TYPE = Object.fromEntries(MERGED_STEP_CATALOG.map((c) => [c.type, c]));
 
 export function stepAppliesToEvent(stepId: string, event: string): boolean {
   const cat = CATALOG_STEP_BY_ID[stepId];
@@ -261,7 +298,14 @@ export function addStepToConfig(
   cfg: WbahPostCallWorkflowConfig,
   catalogId: string,
 ): WbahPostCallWorkflowConfig {
-  const cat = CATALOG_STEP_BY_ID[catalogId] ?? CATALOG_STEP_BY_TYPE[catalogId as WbahPostCallStepType];
+  const stepCatalog = stepCatalogForConfig(cfg);
+  const stepCatalogById = Object.fromEntries(stepCatalog.map((c) => [c.id, c]));
+  const stepCatalogByType = Object.fromEntries(stepCatalog.map((c) => [c.type, c]));
+  const cat =
+    stepCatalogById[catalogId] ??
+    stepCatalogByType[catalogId as WbahPostCallStepType] ??
+    CATALOG_STEP_BY_ID[catalogId] ??
+    CATALOG_STEP_BY_TYPE[catalogId as WbahPostCallStepType];
   if (!cat) return cfg;
   if (cfg.steps.some((s) => s.id === cat.id)) {
     return {
@@ -324,7 +368,7 @@ export function removeN8nNodeFromGraph(
   cfg: WbahPostCallWorkflowConfig,
   nodeId: string,
 ): WbahPostCallWorkflowConfig {
-  if (nodeId === "webhook") return cfg;
+  if (isWbahWorkflowTriggerNodeId(nodeId)) return cfg;
   const graph = cfg.n8n_graph?.nodes?.length
     ? { nodes: [...cfg.n8n_graph.nodes], edges: [...(cfg.n8n_graph.edges ?? [])] }
     : emptyWbahN8nGraph();

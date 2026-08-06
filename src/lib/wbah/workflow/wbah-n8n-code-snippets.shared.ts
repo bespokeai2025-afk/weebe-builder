@@ -354,10 +354,46 @@ return items.map(({ json }) => {
   "wbah-calls-upsert": `// Upsert WEBEE Calls tab row for reporting
 await upsertWbahCallRow($json.body?.call ?? $json);
 return $input.all();`,
+  "rebook-format-data": `// Rebook — map Retell analysis → Dynamics Opportunity fields (never Lead)
+const call = $json.body?.call ?? $json.call ?? {};
+const dyn = { ...(call.retell_llm_dynamic_variables ?? {}), ...($json.dynVars ?? {}) };
+const custom = call.call_analysis?.custom_analysis_data ?? {};
+const crmType = String(dyn.crm_type ?? "").toLowerCase();
+const opportunityId = String(dyn.opportunity_id ?? dyn.opportunityid ?? "").trim()
+  || (crmType === "opportunity" ? String(dyn.lead_id ?? "").trim() : "");
+if (!opportunityId || crmType !== "opportunity") {
+  return [{ json: { ...$json, _rebookSkip: true, reason: "missing crm_type=opportunity or opportunity_id" } }];
+}
+const structured = custom.structured_json_output ?? custom;
+const patch = {};
+const map = {
+  first_name: "new_firstname", last_name: "new_lastname", user_mobile: "new_mobile",
+  on_market: "cos_onthemarket", ews1: "cos_ews1", decision_maker: "decisionmaker",
+  timeframe: "cos_timeframe", call_outcome: "cos_statusreason1",
+  consultation_date: "new_consultationdate",
+};
+for (const [src, dest] of Object.entries(map)) {
+  const v = structured[src] ?? dyn[src] ?? custom[src];
+  if (v != null && v !== "") patch[dest] = v;
+}
+if (call.call_analysis?.user_sentiment) patch.cos_user_sentiment = call.call_analysis.user_sentiment;
+if (call.call_analysis?.call_summary) patch.cos_call_summary = call.call_analysis.call_summary;
+return [{ json: { ...$json, opportunityId, crmType: "opportunity", oppPatch: patch, dynVars: dyn } }];`,
+  "rebook-merge-token": `// Merge D365 OAuth token with Opportunity PATCH body
+const token = $json.access_token ?? $json.token ?? $json.dynamicsToken;
+const dynamicsBase = $env.DYNAMICS_API_BASE ?? "https://yourorg.crm.dynamics.com/api/data/v9.2";
+return [{ json: {
+  ...$json,
+  dynamicsToken: token,
+  dynamicsBase,
+  patchUrl: \`\${dynamicsBase}/opportunities(\${$json.opportunityId})\`,
+} }];`,
 };
 
 const SNIPPETS_BY_FN: Record<string, string> = {
   formatWbahRetellCallData: SNIPPETS_BY_NODE["format-data"]!,
+  formatWbahRebookCallData: SNIPPETS_BY_NODE["rebook-format-data"]!,
+  mergeRebookTokenPayload: SNIPPETS_BY_NODE["rebook-merge-token"]!,
   buildWbahCalendlySlotUrl: SNIPPETS_BY_NODE["build-slot-url"]!,
   applyAllensLogicV5: SNIPPETS_BY_NODE["apply-allens-logic"]!,
   buildWbahAllensCrmPayload: SNIPPETS_BY_NODE["build-crm-payload"]!,

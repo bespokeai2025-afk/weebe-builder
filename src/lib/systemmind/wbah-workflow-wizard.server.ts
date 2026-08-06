@@ -7,6 +7,7 @@ import {
   buildWbahNewLeadsCallScriptConfig,
   buildWbahNewLeadsSystemMindConfig,
   WBAH_NEW_LEADS_AGENTS,
+  WBAH_REBOOK_AGENTS,
   WBAH_WEBEE_RETELL_WEBHOOK_URL,
 } from "@/lib/systemmind/wbah-n8n-integration.shared";
 import {
@@ -16,6 +17,9 @@ import {
   type BuildConfig,
 } from "@/lib/systemmind/build-workspace.server";
 import { buildConfigFromPipeline } from "@/lib/systemmind/wbah-workflow-copilot.server";
+import {
+  defaultRebookPostCallWorkflowConfig,
+} from "@/lib/wbah/workflow/wbah-rebook-workflow.shared";
 import {
   defaultWbahPostCallWorkflowConfig,
   emptyWbahPostCallWorkflowConfig,
@@ -244,7 +248,21 @@ export function buildTemplateWbahPostCallBuildConfig(): BuildConfig {
   });
 }
 
-export type WbahWorkflowStartMode = "blank" | "template";
+/** Full Rebook template — Opportunity-only Dynamics, no Calendly. */
+export function buildTemplateWbahRebookPostCallBuildConfig(): BuildConfig {
+  const wbahPipeline = defaultRebookPostCallWorkflowConfig({
+    name: "WBAH Rebook Post-Call",
+    purpose: "Rebook Initial Consultation — Dynamics Opportunity updates only.",
+    retell_agents: WBAH_REBOOK_AGENTS.map((a) => a.retellAgentId),
+  });
+  const graph = wbahPipeline.n8n_graph!;
+  return buildConfigFromPipeline(wbahPipeline, {
+    nodes: graph.nodes.map((n) => ({ id: n.id, position: n.position })),
+    edges: graph.edges,
+  });
+}
+
+export type WbahWorkflowStartMode = "blank" | "template" | "template_rebook";
 
 export async function startWbahWorkflowWizardServer(args: {
   workspaceId: string;
@@ -276,28 +294,52 @@ export async function startWbahWorkflowWizardServer(args: {
     };
   }
 
-  const questions = buildWbahWorkflowWizardQuestions();
-  const defaults = Object.fromEntries(
-    questions.map((q) => [q.id, q.default ?? (q.type === "boolean" ? false : "")]),
-  );
+  if (mode === "template") {
+    const questions = buildWbahWorkflowWizardQuestions();
+    const defaults = Object.fromEntries(
+      questions.map((q) => [q.id, q.default ?? (q.type === "boolean" ? false : "")]),
+    );
 
-  const { sessionId } = await createBuildSessionFromConfigServer({
-    workspaceId: args.workspaceId,
-    userId: args.userId,
-    title: "Post-Call — WBAH New Leads",
-    sourcePage: "wbah_workflow_wizard",
-    config: buildTemplateWbahPostCallBuildConfig(),
-    assistantSummary:
-      "Production WBAH post-call template — full n8n graph (~40 nodes) and all executor steps enabled.",
-    systemNote: `Webhook: ${WBAH_WEBEE_RETELL_WEBHOOK_URL}. Edit, save, test, then Apply + activate.`,
-  });
+    const { sessionId } = await createBuildSessionFromConfigServer({
+      workspaceId: args.workspaceId,
+      userId: args.userId,
+      title: "Post-Call — WBAH New Leads",
+      sourcePage: "wbah_workflow_wizard",
+      config: buildTemplateWbahPostCallBuildConfig(),
+      assistantSummary:
+        "Production WBAH post-call template — full n8n graph (~40 nodes) and all executor steps enabled.",
+      systemNote: `Webhook: ${WBAH_WEBEE_RETELL_WEBHOOK_URL}. Edit, save, test, then Apply + activate.`,
+    });
 
-  return {
-    sessionId,
-    questions,
-    answers: defaults,
-    complete: false,
-  };
+    return {
+      sessionId,
+      questions,
+      answers: defaults,
+      complete: false,
+    };
+  }
+
+  if (mode === "template_rebook") {
+    const { sessionId } = await createBuildSessionFromConfigServer({
+      workspaceId: args.workspaceId,
+      userId: args.userId,
+      title: "Post-Call — WBAH Rebook",
+      sourcePage: "wbah_workflow_wizard",
+      config: buildTemplateWbahRebookPostCallBuildConfig(),
+      assistantSummary:
+        "Rebook post-call workflow — PATCH Dynamics Opportunity only. No Calendly, no Lead PATCH.",
+      systemNote: `Webhook: ${WBAH_WEBEE_RETELL_WEBHOOK_URL}. Retell vars: crm_type=opportunity, opportunity_id. Agents: ${WBAH_REBOOK_AGENTS.map((a) => a.retellAgentId).join(", ")}.`,
+    });
+
+    return {
+      sessionId,
+      questions: buildWbahWorkflowWizardQuestions(),
+      answers: {},
+      complete: false,
+    };
+  }
+
+  throw new Error(`Unknown WBAH workflow start mode: ${mode}`);
 }
 
 export async function saveWbahWorkflowFromAnswersServer(args: {

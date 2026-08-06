@@ -38,8 +38,10 @@ import {
   campaignSyncCategorySlugForLeadStatus,
   normalizeCampaignLeadStatus,
   parseCampaignLeadStatusOptionsFromApi,
+  parseWbahNewLeadSyncToggle,
   resolveCampaignScheduleOptions,
   TEST_LEAD_STATUS,
+  type WbahNewLeadSyncToggleState,
 } from "@/lib/integrations/webespokeEnterprise/wbah-campaign-sync.types";
 
 // ── Internal: require webuyanyhouse membership + get API token callbacks ───────
@@ -700,6 +702,42 @@ export const getWbahCampaignDynamicsSyncAccess = createServerFn({ method: "GET" 
   .handler(async ({ context }) => {
     await requireWbahCbs(context.userId);
     return { canPreview: true, canSync: true };
+  });
+
+export const getWbahNewLeadSyncToggle = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    requireActiveWbahWorkspace(context.workspaceId);
+    const cbs = await requireWbahCbs(context.userId);
+    const res = await api.wbahGetNewLeadSyncToggle(
+      cbs.getTokens,
+      cbs.saveNewAccessToken,
+      cbs.reloginFn,
+    );
+    if (!res.ok) throwWbahCampaignApiError(res, "Failed to load New Lead sync toggle");
+    const parsed = parseWbahNewLeadSyncToggle(res.data);
+    if (!parsed) throw new Error("Invalid New Lead sync toggle response");
+    return parsed satisfies WbahNewLeadSyncToggleState;
+  });
+
+export const setWbahNewLeadSyncToggle = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .validator((i) => z.object({ enabled: z.boolean() }).parse(i ?? {}))
+  .handler(async ({ context, data }) => {
+    requireActiveWbahWorkspace(context.workspaceId);
+    const cbs = await requireWbahCbs(context.userId);
+    const res = await api.wbahPatchNewLeadSyncToggle(
+      data.enabled,
+      cbs.getTokens,
+      cbs.saveNewAccessToken,
+      cbs.reloginFn,
+    );
+    if (!res.ok) throwWbahCampaignApiError(res, "Failed to update New Lead sync toggle");
+    const parsed = parseWbahNewLeadSyncToggle(res.data);
+    if (!parsed) {
+      return { enabled: data.enabled, source: "redis" as const, envDefault: false };
+    }
+    return parsed satisfies WbahNewLeadSyncToggleState;
   });
 
 export const previewWbahDynamicsCategorySync = createServerFn({ method: "GET" })

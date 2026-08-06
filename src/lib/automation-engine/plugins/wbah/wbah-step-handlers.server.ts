@@ -172,6 +172,12 @@ export async function wbahStepDynamicsAllens(
     callbackDatetimeUtc: formatted.callbackDatetimeUtc,
     callbackType: formatted.callbackType,
     calendlyBookingUrl,
+    appointmentBooked: isWbahAppointmentConfirmed({
+      appointmentConfirmed: formatted.appointmentConfirmed,
+      appointmentDate: formatted.appointmentDate,
+      appointmentTime: formatted.appointmentTimeUk,
+      requestedStartUtc: formatted.requestedStartUtc,
+    }),
     existingCurrentStatus: leadStatus?.new_currentstatus ?? null,
     existingStateCode: leadStatus?.statecode ?? null,
   });

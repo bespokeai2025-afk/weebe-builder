@@ -8,6 +8,8 @@ export const WBAH_N8N_BRANCH_LABELS: Record<string, string> = {
   dynamics_agentic: "structured_json_output → normalize → Dynamics property PATCH.",
   lifecycle_raw: "POST raw call payload on call_started / call_ended.",
   webee_live: "Live transcript panel ingest.",
+  rebook_dynamics: "Format rebook fields → PATCH /opportunities({id}) → timeline note.",
+  rebook_dashboard: "POST call result to dashboard — no Calendly.",
 };
 
 export const WBAH_POST_CALL_STEP_TYPES = [
@@ -19,6 +21,8 @@ export const WBAH_POST_CALL_STEP_TYPES = [
   "wbah_calls_upsert",
   "wbah_dynamics_allens",
   "wbah_dynamics_agentic",
+  "wbah_dynamics_rebook_opportunity",
+  "wbah_dynamics_rebook_note",
 ] as const;
 
 export type WbahPostCallStepType = (typeof WBAH_POST_CALL_STEP_TYPES)[number];
@@ -146,8 +150,8 @@ export type WbahPostCallWorkflowConfig = {
       status: string;
     }>;
   };
-  /** general = copilot-built from scratch; wbah_post_call = legacy executor steps */
-  workflow_kind?: "general" | "wbah_post_call";
+  /** general = copilot-built from scratch; wbah_post_call = New Leads; wbah_rebook_post_call = Rebook Opportunity */
+  workflow_kind?: "general" | "wbah_post_call" | "wbah_rebook_post_call";
   /** Requirements surfaced by copilot (env var names, links — never secrets) */
   copilot_requirements?: {
     env_vars?: Array<{ name: string; description: string; example?: string }>;

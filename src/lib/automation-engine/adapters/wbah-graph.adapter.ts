@@ -3,6 +3,7 @@
  */
 import type { WbahN8nWorkflowGraph } from "@/lib/wbah/workflow/wbah-n8n-node-catalog.shared";
 import { WBAH_N8N_NODE_CATALOG } from "@/lib/wbah/workflow/wbah-n8n-node-catalog.shared";
+import { WBAH_REBOOK_N8N_NODE_CATALOG } from "@/lib/wbah/workflow/wbah-rebook-n8n-node-catalog.shared";
 import {
   WBAH_CODE_HINT_TO_NODE_TYPE,
   WBAH_EXECUTOR_STEP_TO_NODE_TYPE,
@@ -21,9 +22,15 @@ const KIND_TO_TYPE: Record<string, string> = {
   stop: "core.end",
 };
 
-const CATALOG_KIND = Object.fromEntries(WBAH_N8N_NODE_CATALOG.map((n) => [n.id, n.kind]));
+const MERGED_N8N_CATALOG = [...WBAH_N8N_NODE_CATALOG, ...WBAH_REBOOK_N8N_NODE_CATALOG];
+const CATALOG_BY_ID = Object.fromEntries(MERGED_N8N_CATALOG.map((n) => [n.id, n]));
+const CATALOG_KIND = Object.fromEntries(MERGED_N8N_CATALOG.map((n) => [n.id, n.kind]));
 
-function mapNodeType(nodeId: string, cat?: (typeof WBAH_N8N_NODE_CATALOG)[number]): string {
+function isWebhookTriggerNodeId(nodeId: string): boolean {
+  return nodeId === "webhook" || nodeId === "rebook-webhook" || nodeId.endsWith("-webhook");
+}
+
+function mapNodeType(nodeId: string, cat?: (typeof MERGED_N8N_CATALOG)[number]): string {
   const kind = cat?.kind ?? (nodeId.startsWith("custom-") ? nodeId.split("-")[1] : undefined);
   if (kind === "filter" || kind === "if" || kind === "merge") {
     return KIND_TO_TYPE[kind]!;
@@ -36,7 +43,7 @@ function mapNodeType(nodeId: string, cat?: (typeof WBAH_N8N_NODE_CATALOG)[number
     return WBAH_CODE_HINT_TO_NODE_TYPE[codeHint]!;
   }
   if (kind && KIND_TO_TYPE[kind]) return KIND_TO_TYPE[kind];
-  if (nodeId === "webhook") return "core.webhook";
+  if (isWebhookTriggerNodeId(nodeId)) return "core.webhook";
   if (nodeId.startsWith("custom-")) {
     const customKind = nodeId.split("-")[1];
     if (customKind && KIND_TO_TYPE[customKind]) return KIND_TO_TYPE[customKind];
@@ -57,8 +64,12 @@ function graphToConnections(graph: WbahN8nWorkflowGraph): WorkflowConnection[] {
 
 function graphToNodes(graph: WbahN8nWorkflowGraph): WorkflowNode[] {
   return graph.nodes.map((n) => {
-    const cat = WBAH_N8N_NODE_CATALOG.find((c) => c.id === n.id);
-    const kind = cat?.kind ?? (n.id.startsWith("custom-") ? n.id.split("-")[1] : "code");
+    const cat = CATALOG_BY_ID[n.id];
+    const wbahKind = (n.config as Record<string, unknown> | undefined)?.wbahKind;
+    const kind =
+      cat?.kind ??
+      (typeof wbahKind === "string" ? wbahKind : undefined) ??
+      (n.id.startsWith("custom-") ? n.id.split("-")[1] : isWebhookTriggerNodeId(n.id) ? "trigger" : "code");
     return {
       id: n.id,
       type: mapNodeType(n.id, cat),
@@ -124,7 +135,12 @@ export function wbahGraphToAutomationDocument(input: {
   let nodes = graphToNodes(input.graph);
   let connections = graphToConnections(input.graph);
 
-  if (!nodes.some((n) => n.id === "webhook" || n.type === "core.webhook" || n.type === "core.start")) {
+  if (
+    !nodes.some(
+      (n) =>
+        isWebhookTriggerNodeId(n.id) || n.type === "core.webhook" || n.type === "core.start",
+    )
+  ) {
     nodes.unshift({
       id: "webhook",
       type: "core.webhook",

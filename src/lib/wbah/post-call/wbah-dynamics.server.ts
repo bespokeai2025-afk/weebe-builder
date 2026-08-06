@@ -97,6 +97,62 @@ export async function patchWbahLead(
   }
 }
 
+export async function patchWbahOpportunity(
+  opportunityId: string,
+  fields: Record<string, string | number | boolean | null>,
+): Promise<void> {
+  if (!Object.keys(fields).length) return;
+
+  const cfg = getWbahDynamicsConfig();
+  if (!cfg) throw new Error("Dynamics credentials not configured");
+
+  const headers = await dynamicsHeaders(cfg);
+  const url = `${apiBase(cfg)}/opportunities(${opportunityId})`;
+  const res = await fetch(url, {
+    method: "PATCH",
+    headers,
+    body: JSON.stringify(fields),
+  });
+  if (!res.ok) {
+    const body = await res.text().catch(() => "");
+    throw new Error(`Dynamics PATCH opportunity failed (${res.status}): ${body.slice(0, 400)}`);
+  }
+  console.log("[DynamicsOpportunity] Synced opportunity", {
+    opportunityId,
+    fields: Object.keys(fields),
+  });
+}
+
+/** Post timeline note bound to Opportunity (objectid_opportunity). */
+export async function postWbahOpportunityTimelineNote(input: {
+  opportunityId: string;
+  subject: string;
+  noteText: string;
+}): Promise<void> {
+  const cfg = getWbahDynamicsConfig();
+  if (!cfg) throw new Error("Dynamics credentials not configured");
+
+  const headers = await dynamicsHeaders(cfg);
+  const url = `${apiBase(cfg)}/annotations`;
+  const body = {
+    subject: input.subject.slice(0, 200),
+    notetext: input.noteText.slice(0, 100_000),
+    "objectid_opportunity@odata.bind": `/opportunities(${input.opportunityId})`,
+  };
+  const res = await fetch(url, {
+    method: "POST",
+    headers,
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(`Dynamics opportunity note failed (${res.status}): ${text.slice(0, 400)}`);
+  }
+  console.log("[DynamicsNote] Posted call summary for opportunity", {
+    opportunityId: input.opportunityId,
+  });
+}
+
 export function isWbahDynamicsConfigured(): boolean {
   return getWbahDynamicsConfig() != null;
 }
