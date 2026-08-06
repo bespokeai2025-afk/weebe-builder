@@ -178,6 +178,12 @@ async function runDynamicsAllensPath(input: {
     callbackDatetimeUtc: input.formatted.callbackDatetimeUtc,
     callbackType: input.formatted.callbackType,
     calendlyBookingUrl: input.calendlyBookingUrl,
+    appointmentBooked: isWbahAppointmentConfirmed({
+      appointmentConfirmed: input.formatted.appointmentConfirmed,
+      appointmentDate: input.formatted.appointmentDate,
+      appointmentTime: input.formatted.appointmentTimeUk,
+      requestedStartUtc: input.formatted.requestedStartUtc,
+    }),
     existingCurrentStatus: leadStatus?.new_currentstatus ?? null,
     existingStateCode: leadStatus?.statecode ?? null,
   });
@@ -299,6 +305,28 @@ export async function runWbahPostCallPipelineCore(
     workspaceId: agent.workspaceId,
     agentId: String(call.agent_id ?? ""),
   });
+
+  if (
+    agent.role === "rebooking" ||
+    wfConfig.workflow_kind === "wbah_rebook_post_call"
+  ) {
+    const { runWbahRebookPostCallPipeline } = await import("./wbah-rebook-post-call.server");
+    const { defaultRebookPostCallWorkflowConfig } = await import(
+      "@/lib/wbah/workflow/wbah-rebook-workflow.shared"
+    );
+    const rebookConfig =
+      wfConfig.workflow_kind === "wbah_rebook_post_call"
+        ? wfConfig
+        : defaultRebookPostCallWorkflowConfig({ retell_agents: wfConfig.retell_agents });
+    return runWbahRebookPostCallPipeline({
+      event,
+      call,
+      payload,
+      agent,
+      wfConfig: rebookConfig,
+      skipLiveTranscript,
+    });
+  }
 
   const stepOn = (id: string) => isStepEnabledInOrder(wfConfig, id, event);
 

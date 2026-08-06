@@ -91,6 +91,8 @@ export type WbahCallOutputCreateBody = {
   callback_type?: string | null;
   is_callback_request?: boolean | null;
   retell_call_id?: string | null;
+  crm_type?: string | null;
+  opportunity_id?: string | null;
 };
 
 export async function postWbahCallOutputCreate(body: WbahCallOutputCreateBody): Promise<void> {

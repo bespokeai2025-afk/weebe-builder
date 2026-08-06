@@ -61,6 +61,7 @@ import {
 } from "@/lib/wbah/workflow/wbah-n8n-node-catalog.shared";
 import type { WbahPostCallWorkflowConfig } from "@/lib/wbah/workflow/wbah-workflow-steps.shared";
 import {
+  isWbahWorkflowTriggerNodeId,
   n8nGraphToReactFlow,
   reactFlowToN8nGraph,
   removeEdgeFromN8nGraph,
@@ -292,8 +293,8 @@ function FlowCanvasBody({
     const decorated = (g.nodes as Node[]).map((n) => {
       const branch = String((n.data as { branch?: string }).branch ?? "");
       const label = String((n.data as { label?: string }).label ?? "").toLowerCase();
-      const dimBranch = branchFilter !== "all" && branch !== branchFilter && n.id !== "webhook";
-      const dimSearch = q.length > 0 && !label.includes(q) && !n.id.includes(q) && n.id !== "webhook";
+      const dimBranch = branchFilter !== "all" && branch !== branchFilter && !isWbahWorkflowTriggerNodeId(n.id);
+      const dimSearch = q.length > 0 && !label.includes(q) && !n.id.includes(q) && !isWbahWorkflowTriggerNodeId(n.id);
       return {
         ...n,
         data: { ...n.data, nodeId: n.id, dimmed: dimBranch || dimSearch },
@@ -352,14 +353,14 @@ function FlowCanvasBody({
         }
         const removed = changes.filter((c): c is NodeChange & { type: "remove"; id: string } => c.type === "remove");
         if (removed.length) {
-          const removeIds = new Set(removed.map((c) => c.id).filter((id) => id !== "webhook"));
+          const removeIds = new Set(removed.map((c) => c.id).filter((id) => !isWbahWorkflowTriggerNodeId(id)));
           if (removeIds.size) {
             setEdges((eds) => {
               const nextEdges = eds.filter(
                 (e) => !removeIds.has(e.source) && !removeIds.has(e.target),
               );
               emitChange(
-                next.filter((n) => n.id === "webhook" || !removeIds.has(n.id)),
+                next.filter((n) => isWbahWorkflowTriggerNodeId(n.id) || !removeIds.has(n.id)),
                 nextEdges,
               );
               return nextEdges;
@@ -375,7 +376,7 @@ function FlowCanvasBody({
 
   const onNodesDelete = useCallback(
     (deleted: Node[]) => {
-      const removeIds = new Set(deleted.map((n) => n.id).filter((id) => id !== "webhook"));
+      const removeIds = new Set(deleted.map((n) => n.id).filter((id) => !isWbahWorkflowTriggerNodeId(id)));
       if (!removeIds.size) return;
       setNodes((nds) => {
         const next = nds.filter((n) => !removeIds.has(n.id));
@@ -537,7 +538,7 @@ function FlowCanvasBody({
         />
         <Panel position="bottom-left" className="!m-3">
           <p className="text-[9px] text-gray-600 bg-gray-950/90 border border-gray-800 rounded px-2 py-1">
-            Click a node or wire · Delete/Backspace removes · webhook cannot be deleted
+            Click a node or wire · Delete/Backspace removes · trigger webhook cannot be deleted
           </p>
         </Panel>
       </ReactFlow>

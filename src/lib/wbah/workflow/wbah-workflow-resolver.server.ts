@@ -20,6 +20,15 @@ export async function resolveWbahPostCallWorkflowConfig(input: {
   const agentKey = stripRetellAgentPrefix(input.agentId);
   const sb = supabaseAdmin as any;
 
+  const { resolveWbahRetellAgent } = await import("@/lib/wbah/post-call/wbah-retell-agents.shared");
+  const agentMapping = resolveWbahRetellAgent(agentKey);
+  if (agentMapping?.role === "rebooking") {
+    const { defaultRebookPostCallWorkflowConfig } = await import(
+      "@/lib/wbah/workflow/wbah-rebook-workflow.shared"
+    );
+    return defaultRebookPostCallWorkflowConfig();
+  }
+
   const { data: rows } = await sb
     .from("workspace_workflows")
     .select("id, name, flow_definition, trigger_config, status, updated_at")

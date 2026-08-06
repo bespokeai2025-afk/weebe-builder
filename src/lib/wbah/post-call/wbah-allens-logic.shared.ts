@@ -14,6 +14,8 @@ export type AllensLogicInput = {
   callbackDatetimeUtc?: string | null;
   callbackType?: string | null;
   calendlyBookingUrl: string | null | undefined;
+  /** True when Retell booked a slot (calendly_slot) even if WEBEE has no Calendly URL. */
+  appointmentBooked?: boolean | null;
   existingCurrentStatus?: number | null;
   existingStateCode?: number | null;
 };
@@ -100,7 +102,8 @@ export function applyAllensLogicV5(input: AllensLogicInput): AllensLogicResult {
   }
 
   if (sentiment.includes("positive")) {
-    if (hasValidCalendly(bookingUrl)) {
+    const hasBooking = hasValidCalendly(bookingUrl) || input.appointmentBooked === true;
+    if (hasBooking) {
       return {
         ...base,
         newCurrentStatus: WBAH_DYNAMICS_STATUS.LOGGED,
@@ -109,7 +112,9 @@ export function applyAllensLogicV5(input: AllensLogicInput): AllensLogicResult {
         skipStatecodeUpdate: false,
         skipAppointmentUpdate: false,
         rule: "logged",
-        allenLogicResult: `RULE 2: POSITIVE + Calendly → Logged (${WBAH_DYNAMICS_STATUS.LOGGED}) + Open`,
+        allenLogicResult: hasValidCalendly(bookingUrl)
+          ? `RULE 2: POSITIVE + Calendly URL → Logged (${WBAH_DYNAMICS_STATUS.LOGGED}) + Open`
+          : `RULE 2: POSITIVE + appointment booked → Logged (${WBAH_DYNAMICS_STATUS.LOGGED}) + Open`,
       };
     }
     return {

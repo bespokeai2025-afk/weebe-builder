@@ -2,6 +2,7 @@ export type DynamicsCategorySlug =
   | "disqualified"
   | "tried_to_contact"
   | "rebook_initial_consultation"
+  | "new"
   | "test_lead"
   | "callback_request";
 
@@ -33,11 +34,20 @@ export interface DynamicsCategorySyncResult {
 
 export const TEST_LEAD_STATUS = "Test Lead";
 export const TEST_LEAD_SLUG = "test_lead";
+export const NEW_LEAD_STATUS = "New";
+export const NEW_LEAD_SLUG = "new";
+
+/** Sub-cohort within inbound New leads — set server-side on CRM_data rows. */
+export const NEW_LEAD_SYNC_SUB_SLUGS = {
+  call_now: "new_lead_call_now",
+  delayed: "new_lead_delayed",
+} as const;
 
 export const DYNAMICS_CATEGORY_LABELS: Record<DynamicsCategorySlug, string> = {
   disqualified: "Disqualified",
   tried_to_contact: "Tried To Contact",
   rebook_initial_consultation: "Rebook Initial Consultation",
+  new: NEW_LEAD_STATUS,
   test_lead: TEST_LEAD_STATUS,
   callback_request: "Callback Request",
 };
@@ -72,8 +82,89 @@ const LEAD_STATUS_SYNC_SLUG: Record<string, DynamicsCategorySlug> = {
   [DYNAMICS_CATEGORY_LABELS.disqualified]: "disqualified",
   [DYNAMICS_CATEGORY_LABELS.tried_to_contact]: "tried_to_contact",
   [DYNAMICS_CATEGORY_LABELS.rebook_initial_consultation]: "rebook_initial_consultation",
+  [NEW_LEAD_STATUS]: "new",
   [TEST_LEAD_STATUS]: "test_lead",
 };
+
+export function isNewLeadStatus(value: string | null | undefined): boolean {
+  return String(value ?? "")
+    .trim()
+    .toLowerCase() === "new";
+}
+
+export function isNewLeadSyncSubSlug(slug: string | null | undefined): boolean {
+  const s = String(slug ?? "")
+    .trim()
+    .toLowerCase();
+  return (
+    s === NEW_LEAD_SYNC_SUB_SLUGS.call_now || s === NEW_LEAD_SYNC_SUB_SLUGS.delayed
+  );
+}
+
+export function newLeadSubBadgeLabel(slug: string | null | undefined): string | null {
+  const s = String(slug ?? "")
+    .trim()
+    .toLowerCase();
+  if (s === NEW_LEAD_SYNC_SUB_SLUGS.call_now) return "Call now";
+  if (s === NEW_LEAD_SYNC_SUB_SLUGS.delayed) return "Delayed";
+  return null;
+}
+
+export function hasNewLeadSyncEnabled(
+  options: WbahCampaignLeadStatusOption[] | null | undefined,
+): boolean {
+  return (options ?? []).some((o) => isNewLeadStatus(o.value));
+}
+
+/** GET/PATCH /campaigns/new-lead-sync/toggle */
+export type WbahNewLeadSyncToggleSource = "redis" | "env";
+
+export type WbahNewLeadSyncToggleState = {
+  enabled: boolean;
+  source: WbahNewLeadSyncToggleSource;
+  envDefault: boolean;
+};
+
+export function parseWbahNewLeadSyncToggle(raw: unknown): WbahNewLeadSyncToggleState | null {
+  if (!raw || typeof raw !== "object") return null;
+  const o = raw as Record<string, unknown>;
+  const inner =
+    o.data && typeof o.data === "object" && !Array.isArray(o.data)
+      ? (o.data as Record<string, unknown>)
+      : o;
+  if (typeof inner.enabled !== "boolean") return null;
+  const sourceRaw = String(inner.source ?? "redis").toLowerCase();
+  const source: WbahNewLeadSyncToggleSource = sourceRaw === "env" ? "env" : "redis";
+  return {
+    enabled: inner.enabled,
+    source,
+    envDefault: Boolean(inner.envDefault),
+  };
+}
+
+const NEW_LEAD_SUB_SLUG_LABELS = new Set(["call now", "delayed"]);
+
+/** True when a CRM `name` value is actually a new-lead sub-cohort label, not a person name. */
+export function isNewLeadSubSlugDisplayLabel(value: string | null | undefined): boolean {
+  const v = String(value ?? "")
+    .trim()
+    .toLowerCase();
+  if (!v) return false;
+  return NEW_LEAD_SUB_SLUG_LABELS.has(v) || isNewLeadSyncSubSlug(v);
+}
+
+/** Prefer first/last name when the API `name` field carries a sub-cohort label. */
+export function resolveWbahCrmPersonName(raw: Record<string, unknown>): string {
+  const first = String(raw.first_name ?? raw.firstName ?? raw.firstname ?? "").trim();
+  const last = String(raw.last_name ?? raw.lastName ?? raw.lastname ?? "").trim();
+  const composed = [first, last].filter(Boolean).join(" ").trim();
+  const direct = String(raw.name ?? raw.fullName ?? raw.full_name ?? "").trim();
+
+  if (direct && !isNewLeadSubSlugDisplayLabel(direct)) return direct;
+  if (composed) return composed;
+  if (direct) return direct;
+  return "Unknown";
+}
 
 /** CRM cohort slug used by Dynamics sync — backend may match on this instead of lead_status alone. */
 export function campaignSyncCategorySlugForLeadStatus(

@@ -136,6 +136,8 @@ export const WBAH_EXECUTOR_STEP_TO_NODE_TYPE: Record<string, string> = {
   wbah_calls_upsert: "wbah.calls_upsert",
   dynamics_allens: "wbah.dynamics_allens",
   dynamics_agentic: "wbah.dynamics_agentic",
+  dynamics_rebook_opportunity: "wbah.step",
+  dynamics_rebook_note: "wbah.step",
 };
 
 export const WBAH_CODE_HINT_TO_NODE_TYPE: Record<string, string> = {

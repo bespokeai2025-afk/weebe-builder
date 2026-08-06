@@ -65,7 +65,9 @@ import {
   formatCampaignScheduleSummary,
   hasTestLeadInSyncPreview,
   hasTestLeadSyncEnabled,
+  hasNewLeadSyncEnabled,
   isCampaignScheduleExpired,
+  isNewLeadStatus,
   isPicklistTestLeadOption,
   isTestLeadCategorySlug,
   isTestLeadSource,
@@ -78,6 +80,7 @@ import {
   isLikelyProductionFrontend,
   WbahTestLeadBadge,
 } from "@/components/dashboard/WbahTestLeadBadge";
+import { WbahNewLeadAutoDialBadge } from "@/components/dashboard/WbahNewLeadSubBadge";
 
 const TIMEZONES = [
   { value: "Europe/London", label: "London (GMT/BST)" },
@@ -239,6 +242,8 @@ export function WbahCallSchedulingSection() {
         ? leadStatusOptionsQ.data!.options
         : CAMPAIGN_LEAD_STATUS_OPTIONS.map((o) => ({ ...o, source: "dynamics" as const }));
   const testLeadSyncEnabled = hasTestLeadSyncEnabled(leadStatusOptions);
+  const newLeadSyncEnabled = hasNewLeadSyncEnabled(leadStatusOptions);
+  const campaignTargetStatusOptions = leadStatusOptions.filter((o) => !isNewLeadStatus(o.value));
   const testLeadInLastPreview = hasTestLeadInSyncPreview(syncResult);
   const scheduleResolved = resolveCampaignScheduleOptions(scheduleOptionsQ.data ?? null);
   const scheduleWeekdays = scheduleResolved.weekdays;
@@ -267,11 +272,11 @@ export function WbahCallSchedulingSection() {
   function openEdit(c: WbahCampaign) {
     setEditTarget(c);
     const status = normalizeCampaignLeadStatus(c.lead_status ?? "");
-    const allowed = leadStatusOptions.some((o) => o.value === status)
+    const allowed = leadStatusOptions.some((o) => o.value === status && !isNewLeadStatus(o.value))
       ? status
       : leadStatusOptions.some((o) => o.value === TEST_LEAD_STATUS) && isTestLeadStatus(status)
         ? TEST_LEAD_STATUS
-        : leadStatusOptions[0]?.value ?? DYNAMICS_CATEGORY_LABELS.disqualified;
+        : campaignTargetStatusOptions[0]?.value ?? DYNAMICS_CATEGORY_LABELS.disqualified;
     setForm({
       campaign_name:    campaignName(c),
       agent_id:         c.agent_id ?? "",
@@ -457,9 +462,13 @@ export function WbahCallSchedulingSection() {
     if (!form.campaign_name.trim()) { toast.error("Campaign name is required"); return; }
     if (
       !form.lead_status ||
-      !leadStatusOptions.some((o) => o.value === form.lead_status)
+      !campaignTargetStatusOptions.some((o) => o.value === form.lead_status)
     ) {
       toast.error("Select a target lead status for this campaign");
+      return;
+    }
+    if (isNewLeadStatus(form.lead_status)) {
+      toast.error("New leads are auto-dialed by cron — use Test Lead for manual QA campaigns");
       return;
     }
     if (dateRangeInvalid) {
@@ -569,6 +578,7 @@ export function WbahCallSchedulingSection() {
             </div>
             <p className="mt-1 text-[11px] text-muted-foreground max-w-xl">
               Import Disqualified, Tried To Contact, Rebook Initial Consultation
+              {newLeadSyncEnabled ? ", and New (auto-dial cohort)" : ""}
               {testLeadSyncEnabled ? ", and Test Lead (UAT)" : ""} from Dynamics into CRM_data for
               campaign dialing.
             </p>
@@ -907,6 +917,25 @@ export function WbahCallSchedulingSection() {
               </div>
               <div>
                 <Label className="text-xs">Target Lead Status</Label>
+                {leadStatusFromApi && (newLeadSyncEnabled || testLeadSyncEnabled) && (
+                  <div className="mt-1.5 flex flex-wrap gap-1.5">
+                    {leadStatusOptions.map((s) => {
+                      const isTest = isTestLeadSource(s.source) || isTestLeadStatus(s.value);
+                      const isNew = isNewLeadStatus(s.value);
+                      if (!isTest && !isNew) return null;
+                      return (
+                        <span
+                          key={`filter-chip:${s.value}:${s.source ?? "dynamics"}`}
+                          className="inline-flex items-center gap-1 rounded-md border border-white/[0.08] bg-white/[0.03] px-2 py-0.5 text-[10px] text-muted-foreground"
+                        >
+                          {s.label}
+                          {isTest && <WbahTestLeadBadge label="UAT" />}
+                          {isNew && <WbahNewLeadAutoDialBadge />}
+                        </span>
+                      );
+                    })}
+                  </div>
+                )}
                 {leadStatusOptionsQ.isLoading ? (
                   <div className="mt-1 flex h-8 items-center gap-2 rounded-md border border-white/[0.06] px-3 text-xs text-muted-foreground">
                     <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -921,7 +950,7 @@ export function WbahCallSchedulingSection() {
                       <SelectValue placeholder="Select lead category" />
                     </SelectTrigger>
                     <SelectContent>
-                      {leadStatusOptions.map((s) => (
+                      {campaignTargetStatusOptions.map((s) => (
                         <SelectItem
                           key={`${s.value}:${s.source ?? "dynamics"}`}
                           value={s.value}
@@ -975,6 +1004,13 @@ export function WbahCallSchedulingSection() {
                   <p className="mt-1.5 text-[10px] text-muted-foreground">
                     Leads auto-moved from Tried To Contact (negative sentiment) remain callable under
                     Disqualified campaigns.
+                  </p>
+                )}
+                {leadStatusFromApi && newLeadSyncEnabled && (
+                  <p className="mt-1.5 text-[10px] text-emerald-300/90">
+                    <strong>New</strong> leads are auto-dialed by cron (WBAH New Leads Agent) — not
+                    for manual campaigns. Use <strong>Test Lead</strong> + New Leads Agent for QA
+                    only.
                   </p>
                 )}
                 {leadStatusFromApi && !testLeadSyncEnabled && (
@@ -1184,6 +1220,7 @@ export function WbahCallSchedulingSection() {
           <p className="text-xs text-muted-foreground">
             Import leads from Dynamics into CRM_data? This updates Disqualified, Tried To Contact,
             Rebook Initial Consultation
+            {newLeadSyncEnabled ? ", and New (auto-dial cohort)" : ""}
             {testLeadSyncEnabled ? ", and Test Lead (UAT)" : ""} cohorts (30-day retention).
           </p>
           <label className="flex items-start gap-2 mt-3 cursor-pointer">
