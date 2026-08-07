@@ -1,6 +1,12 @@
 /**
  * Retell structured_json_output.verified_details → Dynamics Lead attributes.
  * Single source of truth for New Leads post-call field mapping.
+ *
+ * Retell extraction contract (contact / home address):
+ * - address1_* is populated ONLY when the caller gives a different address from property.
+ * - When same as property OR not given → all address1_* = "".
+ * - WEBEE cannot infer "same" from empty address1_* alone; Retell must set
+ *   contact_same_as_property: "true" when the caller confirms contact = property.
  */
 
 /** Retell extraction keys that alias to a Dynamics attribute (extraction name → CRM name). */
@@ -28,7 +34,39 @@ export const WBAH_VERIFIED_DETAILS_ALIASES: Record<string, string> = {
   property_empty: "cos_propertyempty",
   property_rented: "cos_propertyrented",
   decision_maker: "decisionmaker",
+  contact_address: "address1_line1",
+  postcode_contact: "address1_postalcode",
 };
+
+/** Property → contact address pairs when caller confirms contact = property. */
+const WBAH_PROPERTY_TO_CONTACT_ADDRESS: ReadonlyArray<[string, string]> = [
+  ["new_propinfo_street2", "address1_line1"],
+  ["new_propinfo_street3", "address1_line2"],
+  ["new_propinfo_city", "address1_city"],
+  ["new_propinfo_postalcode", "address1_postalcode"],
+  ["new_propinfo_stateorprovince", "address1_stateorprovince"],
+];
+
+const SAME_AS_PROPERTY_PATTERN =
+  /\b(?:same\s*(as)?\s*(the\s*)?(property|prop(?:erty)?(?:\s*address)?|address)|yes[\s,]*same)\b/i;
+
+function confirmsContactSameAsProperty(source: Record<string, unknown>): boolean {
+  const explicitFlag = boolVal(
+    source.contact_same_as_property ??
+      source.contact_address_same_as_property ??
+      source.same_as_property_address,
+  );
+  if (explicitFlag === true) return true;
+
+  return indicatesSameAsPropertyAddress(
+    source.address1_line1,
+    source.address1_line2,
+    source.address1_city,
+    source.address1_postalcode,
+    source.contact_address,
+    source.postcode_contact,
+  );
+}
 
 /** Extraction-only keys — never PATCH under the raw name (use alias or derivation). */
 export const WBAH_VERIFIED_DETAILS_EXCLUDED_KEYS = new Set([
@@ -47,6 +85,11 @@ export const WBAH_VERIFIED_DETAILS_EXCLUDED_KEYS = new Set([
   "email_address",
   "user_mobile",
   "title",
+  "contact_address",
+  "postcode_contact",
+  "contact_same_as_property",
+  "contact_address_same_as_property",
+  "same_as_property_address",
 ]);
 
 /** Dynamics Lead attributes writable from WBAH verified_details (production set). */
@@ -127,6 +170,37 @@ function cleanNumber(v: unknown): number | undefined {
  * vacant_or_tenanted: 181510000 Vacant, 181510001 Rented
  * cos_propertyempty / cos_propertyrented: 181510001 Yes, 181510000 No
  */
+function indicatesSameAsPropertyAddress(...values: unknown[]): boolean {
+  for (const value of values) {
+    if (isEmptyValue(value)) continue;
+    if (SAME_AS_PROPERTY_PATTERN.test(String(value).trim())) return true;
+  }
+  return false;
+}
+
+/**
+ * When the caller confirms contact address is the same as property address,
+ * copy property fields into contact fields. Only runs on explicit confirmation —
+ * empty contact fields alone are not enough.
+ */
+export function applyContactAddressSameAsProperty(
+  target: Record<string, unknown>,
+  source: Record<string, unknown>,
+): void {
+  if (!confirmsContactSameAsProperty({ ...source, ...target })) return;
+
+  for (const [propertyKey, contactKey] of WBAH_PROPERTY_TO_CONTACT_ADDRESS) {
+    const propertyValue = val(source[propertyKey], target[propertyKey]);
+    if (isEmptyValue(propertyValue)) continue;
+    if (
+      isEmptyValue(target[contactKey]) ||
+      indicatesSameAsPropertyAddress(target[contactKey])
+    ) {
+      target[contactKey] = propertyValue;
+    }
+  }
+}
+
 export function applyVacantOrTenantedToPayload(
   target: Record<string, unknown>,
   vacantOrTenanted: unknown,
@@ -186,6 +260,15 @@ export function mapWbahVerifiedDetailsToDynamicsFields(input: {
     const v = val(vd[key]);
     if (v) payload[key] = v;
   }
+
+  const contactLine1 = val(vd.contact_address);
+  if (contactLine1 && !payload.address1_line1) payload.address1_line1 = contactLine1;
+  const contactPostcode = val(vd.postcode_contact);
+  if (contactPostcode && !payload.address1_postalcode) {
+    payload.address1_postalcode = contactPostcode;
+  }
+
+  applyContactAddressSameAsProperty(payload, { ...vd, ...payload });
 
   const propType = intVal(vd.new_propinfo_typeofproperty, vd.property_type);
   if (propType !== undefined) payload.new_propinfo_typeofproperty = propType;

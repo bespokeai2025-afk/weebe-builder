@@ -4,6 +4,7 @@
  */
 
 import {
+  applyContactAddressSameAsProperty,
   applyVacantOrTenantedToPayload,
   WBAH_VERIFIED_DETAILS_ALIASES,
   WBAH_VERIFIED_DETAILS_DYNAMICS_FIELDS,
@@ -73,6 +74,7 @@ export function normalizeWbahAgenticCrmFields(
 
   applyVacantOrTenantedToPayload(working, working.vacant_or_tenanted);
   extractLeaseholdFromSummaries(custom, working);
+  applyContactAddressSameAsProperty(working, working);
 
   for (const [alias, canonical] of Object.entries(AGENTIC_EXTRACTION_ALIASES)) {
     const aliasVal = working[alias];
