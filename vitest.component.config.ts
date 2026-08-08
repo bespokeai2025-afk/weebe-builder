@@ -10,7 +10,7 @@ export default defineConfig({
     },
   },
   test: {
-    include: ["tests/component/**/*.test.tsx"],
+    include: ["tests/component/**/*.test.{ts,tsx}"],
     environment: "jsdom",
     globals: false,
     testTimeout: 30_000,
