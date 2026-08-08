@@ -1,6 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import twilio from "twilio";
 import {
   buildWatiTemplateParams,
@@ -31,7 +32,7 @@ import {
 import {
   extractWatiTemplateParamSlots,
   validateWatiTemplateParamMapping,
-  renderWatiTemplateBodyPreview,
+  resolveWatiTemplateMessageBody,
   parseTemplateFallbackBody,
   rehydrateTemplateFallbackBody,
   watiTemplateBodyOriginalText,
@@ -43,6 +44,7 @@ import {
   maybeAutoSyncWatiCampaigns,
 } from "@/lib/whatsapp/wati-sync.server";
 import { reconcileWatiOutboundMessageStatuses } from "@/lib/whatsapp/wati-message-status.server";
+import { enrichInboxBodiesFromWatiApi } from "@/lib/whatsapp/wati-inbox-enrich.server";
 
 // ── Inbox ─────────────────────────────────────────────────────────────────────
 
@@ -51,20 +53,17 @@ function isTemplateShorthandBody(body: unknown): body is string {
 }
 
 async function enrichInboxMessageBodies(
-  sb: { from: (t: string) => any },
   workspaceId: string,
   messages: Array<Record<string, unknown>>,
 ): Promise<void> {
   const shorthand = messages.filter((m) => isTemplateShorthandBody(m.body));
   if (shorthand.length === 0) return;
 
-  const templateNames = new Set<string>();
+  const admin = supabaseAdmin as any;
   const campaignIds = new Set<string>();
   const leadIds = new Set<string>();
 
   for (const m of shorthand) {
-    const parsed = parseTemplateFallbackBody(String(m.body));
-    if (parsed?.templateName) templateNames.add(parsed.templateName);
     if (m.campaign_id) campaignIds.add(String(m.campaign_id));
     if (m.lead_id) leadIds.add(String(m.lead_id));
   }
@@ -74,32 +73,30 @@ async function enrichInboxMessageBodies(
     { wati_template_name: string | null; template_params: Record<string, string> | null }
   >();
   if (campaignIds.size > 0) {
-    const { data: campaigns } = await sb
+    const { data: campaigns } = await admin
       .from("whatsapp_campaigns")
       .select("id, wati_template_name, template_params")
       .eq("workspace_id", workspaceId)
       .in("id", Array.from(campaignIds));
     for (const c of campaigns ?? []) {
       campaignsById.set(String(c.id), c);
-      if (c.wati_template_name) templateNames.add(String(c.wati_template_name));
     }
   }
 
   const templatesByName = new Map<string, Record<string, unknown>>();
-  if (templateNames.size > 0) {
-    const { data: templates } = await sb
+  {
+    const { data: templates } = await admin
       .from("wati_templates")
       .select("name, components, body_preview")
-      .eq("workspace_id", workspaceId)
-      .in("name", Array.from(templateNames));
+      .eq("workspace_id", workspaceId);
     for (const t of templates ?? []) {
-      templatesByName.set(String(t.name), t as Record<string, unknown>);
+      templatesByName.set(String(t.name).toLowerCase(), t as Record<string, unknown>);
     }
   }
 
   const leadsById = new Map<string, Record<string, unknown>>();
   if (leadIds.size > 0) {
-    const { data: leads } = await sb
+    const { data: leads } = await admin
       .from("leads")
       .select("*")
       .eq("workspace_id", workspaceId)
@@ -115,7 +112,9 @@ async function enrichInboxMessageBodies(
       campaign?.wati_template_name ??
       parseTemplateFallbackBody(String(m.body))?.templateName ??
       "";
-    const template = templateName ? templatesByName.get(templateName) : undefined;
+    const template = templateName
+      ? templatesByName.get(templateName.toLowerCase())
+      : undefined;
     const lead = m.lead_id ? leadsById.get(String(m.lead_id)) : undefined;
     const mapping = (campaign?.template_params ?? null) as Record<string, string> | null;
 
@@ -126,11 +125,7 @@ async function enrichInboxMessageBodies(
       const paramSlots = extractWatiTemplateParamSlots(template);
       if (bodyText && paramSlots.length > 0) {
         const parameters = buildWatiTemplateParams(lead, mapping, paramSlots);
-        const rendered = renderWatiTemplateBodyPreview(
-          bodyText,
-          templateName,
-          parameters,
-        );
+        const rendered = resolveWatiTemplateMessageBody(bodyText, templateName, parameters);
         if (!rendered.startsWith("[Template:")) resolved = rendered;
       }
     }
@@ -141,6 +136,8 @@ async function enrichInboxMessageBodies(
 
     if (resolved) m.body = resolved;
   }
+
+  await enrichInboxBodiesFromWatiApi(admin, workspaceId, messages, isTemplateShorthandBody);
 }
 
 export const listWhatsappThreads = createServerFn({ method: "GET" })
@@ -159,7 +156,7 @@ export const listWhatsappThreads = createServerFn({ method: "GET" })
     if (error) throw new Error(error.message);
 
     const rows = (data ?? []) as Array<Record<string, unknown>>;
-    await enrichInboxMessageBodies(sb, workspaceId, rows);
+    await enrichInboxMessageBodies(workspaceId, rows);
 
     const threads = new Map<string, {
       phone: string; name: string | null; lastMessage: string | null;
@@ -1078,7 +1075,8 @@ async function launchWatiCampaignFromWebee(
   const broadcastName = String(campaign.wati_broadcast_name ?? campaign.name ?? "webee_campaign");
   const campaignId = String(campaign.id);
 
-  const { data: tplRow } = await sb
+  const admin = supabaseAdmin as any;
+  const { data: tplRow } = await admin
     .from("wati_templates")
     .select("components, name, body_preview")
     .eq("workspace_id", workspaceId)
@@ -1107,7 +1105,7 @@ async function launchWatiCampaignFromWebee(
       const phone = normalizeWhatsAppPhone(String(lead.phone ?? ""));
       if (!phone) return null;
       const parameters = buildWatiTemplateParams(lead, mapping, paramSlots);
-      const bodyPreview = renderWatiTemplateBodyPreview(
+      const bodyPreview = resolveWatiTemplateMessageBody(
         templateBodyText,
         templateName,
         parameters,
@@ -1184,7 +1182,14 @@ async function launchWatiCampaignFromWebee(
         lead_id: result.leadId ?? item?.leadId ?? null,
         campaign_id: campaignId,
         direction: "outbound",
-        body: item?.bodyPreview ?? `[Template: ${templateName}]`,
+        body:
+          item?.bodyPreview && !isTemplateShorthandBody(item.bodyPreview)
+            ? item.bodyPreview
+            : resolveWatiTemplateMessageBody(
+                templateBodyText,
+                templateName,
+                item?.parameters ?? [],
+              ),
         status: "sent",
         provider: "wati",
         sender_channel: result.senderChannel ?? null,
@@ -1520,7 +1525,7 @@ export const sendLeadWhatsappTemplate = createServerFn({ method: "POST" })
     const mapping = data.templateParams ?? {};
     const templateName = data.templateName.trim();
 
-    const { data: tplRow } = await sb
+    const { data: tplRow } = await (supabaseAdmin as any)
       .from("wati_templates")
       .select("components, name, body_preview")
       .eq("workspace_id", workspaceId)
@@ -1548,7 +1553,7 @@ export const sendLeadWhatsappTemplate = createServerFn({ method: "POST" })
     });
     if (!result.ok) throw new Error(result.error ?? "WATI send failed");
 
-    const bodyPreview = renderWatiTemplateBodyPreview(
+    const bodyPreview = resolveWatiTemplateMessageBody(
       templateBodyText,
       templateName,
       parameters,

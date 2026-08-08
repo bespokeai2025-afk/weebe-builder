@@ -336,43 +336,142 @@ export function parseTemplateFallbackBody(body: string | null | undefined): {
   return { templateName: m[1].trim(), values };
 }
 
-/** Expand [Template: name] a · b · c shorthand using template body + slot order guesses. */
+function hasNumericTemplatePlaceholders(body: string): boolean {
+  return /\{\{\s*\d+\s*\}\}/.test(body);
+}
+
+/** Map ordered parameter values onto {{1}}, {{2}}, … placeholders (WATI bodyOriginal). */
+export function renderWatiTemplateBodyPositional(
+  templateBody: string | null | undefined,
+  values: string[],
+): string | null {
+  if (!templateBody?.trim() || values.length === 0) return null;
+  if (!hasNumericTemplatePlaceholders(templateBody)) return null;
+
+  const rendered = templateBody
+    .replace(/\{\{\s*(\d+)\s*\}\}/g, (_match, key: string) => {
+      const idx = parseInt(key, 10) - 1;
+      return values[idx] ?? "";
+    })
+    .replace(/[ \t]+\n/g, "\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+
+  return rendered || null;
+}
+
+/** Sort WATI numeric slots (1, 2, 10) for legacy shorthand value order. */
+export function sortNumericParamSlots(slots: string[]): string[] {
+  return [...slots].sort((a, b) => {
+    const na = Number(a);
+    const nb = Number(b);
+    if (!Number.isNaN(na) && !Number.isNaN(nb)) return na - nb;
+    return a.localeCompare(b);
+  });
+}
+
+/** Inbox shorthand label — values in numeric slot order for stable rehydrate. */
+export function buildTemplateShorthandLabel(
+  templateName: string,
+  parameters: Array<{ name: string; value: string }>,
+): string {
+  const byName = Object.fromEntries(parameters.map((p) => [p.name, p.value]));
+  const slotNames = sortNumericParamSlots(parameters.map((p) => p.name));
+  const values = slotNames.map((name) => byName[name] ?? "").filter(Boolean);
+  return `[Template: ${templateName}] ${values.join(" · ")}`.trim();
+}
+
+/** Map middle-dot shorthand values onto param slots (customParams order, then numeric legacy). */
+export function parametersFromShorthandValues(
+  paramSlots: string[],
+  values: string[],
+): Array<Array<{ name: string; value: string }>> {
+  if (paramSlots.length === 0 || values.length === 0) return [];
+
+  const attempts: Array<Array<{ name: string; value: string }>> = [];
+  attempts.push(paramSlots.map((name, i) => ({ name, value: values[i] ?? "" })));
+
+  const numericSlots = sortNumericParamSlots(paramSlots);
+  if (numericSlots.join("|") !== paramSlots.join("|")) {
+    attempts.push(numericSlots.map((name, i) => ({ name, value: values[i] ?? "" })));
+  }
+
+  return attempts;
+}
+
+function normalizeRenderedTemplateText(text: string): string {
+  return text.replace(/[ \t]+\n/g, "\n").replace(/\n{3,}/g, "\n\n").trim();
+}
+
+function scoreRenderedTemplateMatch(
+  bodyText: string,
+  parameters: Array<{ name: string; value: string }>,
+  rendered: string,
+): number {
+  const roles = inferTemplateSlotRoles(bodyText);
+  let score = 0;
+
+  for (const p of parameters) {
+    const value = p.value.trim();
+    if (!value) continue;
+    if (!rendered.includes(value)) {
+      score -= 10;
+      continue;
+    }
+
+    const role = roles[p.name];
+    if (role === "agent") {
+      if (
+        value.length > 40 ||
+        /village|circle|jvc|residence|tower|views|block|apartment|district|marina/i.test(value)
+      ) {
+        score -= 8;
+      } else {
+        score += 3;
+      }
+    } else if (role === "name" && value.length <= 40) {
+      score += 2;
+    } else if (role === "property_primary" || role === "property_secondary") {
+      if (
+        /village|circle|jvc|residence|tower|views|block|district|marina|dubai|heights|park/i.test(
+          value,
+        )
+      ) {
+        score += 2;
+      }
+    }
+  }
+
+  return score;
+}
+
+/** Expand [Template: name] a · b · c shorthand using template body + param slot names. */
 export function rehydrateTemplateFallbackBody(
   fallbackBody: string,
   template: Record<string, unknown> | null | undefined,
 ): string | null {
   const parsed = parseTemplateFallbackBody(fallbackBody);
   if (!parsed) return null;
-  const bodyText = watiTemplateBodyOriginalText(template ?? null);
+  const bodyText =
+    watiTemplateBodyOriginalText(template ?? null) ??
+    (typeof template?.body_preview === "string" ? template.body_preview.trim() : null);
   if (!bodyText) return null;
 
   const paramSlots = extractWatiTemplateParamSlots(template ?? undefined);
-  const slotOrders: string[][] = [];
+  let best: { rendered: string; score: number } | null = null;
 
-  const allNumeric =
-    paramSlots.length > 0 && paramSlots.every((s) => !Number.isNaN(Number(s)));
-  if (allNumeric) {
-    slotOrders.push(
-      [...paramSlots].sort((a, b) => Number(a) - Number(b)),
-    );
-  }
-  if (paramSlots.length > 0) slotOrders.push(paramSlots);
-  if (parsed.values.length > 0) {
-    slotOrders.push(parsed.values.map((_, i) => String(i + 1)));
-  }
-
-  const seen = new Set<string>();
-  for (const order of slotOrders) {
-    const key = order.join(",");
-    if (seen.has(key) || order.length === 0) continue;
-    seen.add(key);
-    const parameters = order.map((name, i) => ({
-      name,
-      value: parsed.values[i] ?? "",
-    }));
+  for (const parameters of parametersFromShorthandValues(paramSlots, parsed.values)) {
     const rendered = renderWatiTemplateBodyPreview(bodyText, parsed.templateName, parameters);
-    if (!rendered.startsWith("[Template:")) return rendered;
+    if (rendered.startsWith("[Template:")) continue;
+    const score = scoreRenderedTemplateMatch(bodyText, parameters, rendered);
+    if (!best || score > best.score) best = { rendered, score };
   }
+
+  if (best && best.score > -5) return best.rendered;
+
+  const positional = renderWatiTemplateBodyPositional(bodyText, parsed.values);
+  if (positional) return positional;
+
   return null;
 }
 
@@ -381,19 +480,29 @@ export function renderWatiTemplateBodyPreview(
   templateName: string,
   parameters: Array<{ name: string; value: string }>,
 ): string {
-  const fallback = `[Template: ${templateName}] ${parameters
-    .map((p) => p.value)
-    .filter(Boolean)
-    .join(" · ")}`.trim();
+  const fallback = buildTemplateShorthandLabel(templateName, parameters);
 
   if (!templateBody?.trim()) return fallback;
 
   const byName = Object.fromEntries(parameters.map((p) => [p.name, p.value]));
-  const rendered = templateBody.replace(/\{\{\s*([^}]+?)\s*\}\}/g, (_match, key: string) => {
-    const k = key.trim();
-    return byName[k] ?? "";
+  const nameRendered = templateBody.replace(/\{\{\s*([^}]+?)\s*\}\}/g, (_match, key: string) => {
+    return byName[key.trim()] ?? "";
   });
+  const nameText = normalizeRenderedTemplateText(nameRendered);
+  if (nameText) return nameText;
 
-  const text = rendered.trim();
-  return text || fallback;
+  const orderedValues = parameters.map((p) => p.value);
+  const positional = renderWatiTemplateBodyPositional(templateBody, orderedValues);
+  if (positional) return positional;
+
+  return fallback;
+}
+
+/** Full rendered template body for inbox storage/display (never shorthand when template text exists). */
+export function resolveWatiTemplateMessageBody(
+  templateBody: string | null | undefined,
+  templateName: string,
+  parameters: Array<{ name: string; value: string }>,
+): string {
+  return renderWatiTemplateBodyPreview(templateBody, templateName, parameters);
 }
