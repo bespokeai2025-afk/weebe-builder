@@ -9,7 +9,7 @@ import {
   getWatiConnectionForWorkspace,
   normalizeWhatsAppPhone,
 } from "@/lib/whatsapp/wati-campaign.server";
-import { extractWatiConversationMessageText } from "@/lib/whatsapp/wati-inbox-enrich.server";
+import { extractWatiConversationMessageText, fetchWatiConversationMessages } from "@/lib/whatsapp/wati-inbox-enrich.server";
 import { mapWatiStatusString } from "@/lib/whatsapp/wati-message-status.server";
 
 type WatiConn = {
@@ -149,6 +149,20 @@ export async function fetchWatiV1MessagesForPhone(
   return collected;
 }
 
+/** V1 getMessages first; V3 conversation API as fallback (EU tenants / campaign threads). */
+export async function fetchWatiMessagesForPhone(
+  conn: WatiConn,
+  phone: string,
+  opts?: { pageSize?: number; maxPages?: number },
+): Promise<Array<Record<string, unknown>>> {
+  const v1 = await fetchWatiV1MessagesForPhone(conn, phone, opts);
+  if (v1.length > 0) return v1;
+  return fetchWatiConversationMessages(conn, phone, {
+    pageSize: opts?.pageSize ?? 50,
+    maxPages: opts?.maxPages ?? 5,
+  });
+}
+
 function parseSentAtMs(value: unknown): number | null {
   if (value == null) return null;
   const ms = Date.parse(String(value));
@@ -207,7 +221,7 @@ export async function syncWatiInboxForPhones(
   let inserted = 0;
 
   for (const phone of uniquePhones) {
-    const watiMessages = await fetchWatiV1MessagesForPhone(conn, phone, {
+    const watiMessages = await fetchWatiMessagesForPhone(conn, phone, {
       maxPages: opts?.maxPages ?? 3,
     });
     if (watiMessages.length === 0) continue;
@@ -323,6 +337,23 @@ async function collectInboxSyncPhones(workspaceId: string): Promise<string[]> {
     if (p) phones.add(p);
   }
 
+  const since = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000).toISOString();
+  const { data: campaignOutbound } = await admin
+    .from("whatsapp_messages")
+    .select("contact_phone")
+    .eq("workspace_id", workspaceId)
+    .eq("direction", "outbound")
+    .eq("provider", "wati")
+    .not("campaign_id", "is", null)
+    .gte("sent_at", since)
+    .order("sent_at", { ascending: false })
+    .limit(200);
+
+  for (const row of campaignOutbound ?? []) {
+    const p = normalizeWhatsAppPhone(String(row.contact_phone ?? ""));
+    if (p) phones.add(p);
+  }
+
   const { data: contacts } = await admin
     .from("whatsapp_contacts")
     .select("phone")
@@ -335,7 +366,7 @@ async function collectInboxSyncPhones(workspaceId: string): Promise<string[]> {
     if (p) phones.add(p);
   }
 
-  return [...phones].slice(0, 30);
+  return [...phones].slice(0, 50);
 }
 
 /** Pull WATI history for explicit phones (no throttle) — use when a thread is open locally. */

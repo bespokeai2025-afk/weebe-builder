@@ -13,12 +13,16 @@ import { createFileRoute } from "@tanstack/react-router";
 import { createClient } from "@supabase/supabase-js";
 import {
   attachLeadToInboundMessage,
+  getWatiConnectionForWorkspace,
   isWatiInboundMessageEvent,
   isWatiOutboundMessageEvent,
+  isWatiReplyEvent,
   isWatiStatusEvent,
   parseWatiChatMessage,
   parseWatiInboundMessage,
+  parseWatiReplyWebhookMessage,
 } from "@/lib/whatsapp/wati-campaign.server";
+import { resolveWatiReplyContactPhone } from "@/lib/whatsapp/wati-inbox-enrich.server";
 import { markWhatsappContactDoNotContact } from "@/lib/whatsapp/wa-contact-message-stats.server";
 import { isWhatsappOptOutMessage } from "@/lib/whatsapp/wa-opt-out.shared";
 import {
@@ -329,6 +333,34 @@ export const Route = createFileRoute("/api/webhook/wati-inbound")({
               } catch (e) {
                 console.error("[WATI WEBHOOK] templateMessageSent link error", e);
               }
+            }
+            return json({ ok: true });
+          }
+
+          // Campaign / template reply (sentMessageREPLIED_v2) — often the only event for campaign replies
+          if (isWatiReplyEvent(payload)) {
+            try {
+              let phone = extractWatiWebhookPhone(payload);
+              if (!phone) {
+                const conn = await getWatiConnectionForWorkspace(sb as any, workspaceId);
+                if (conn) {
+                  phone = await resolveWatiReplyContactPhone(conn, payload);
+                }
+              }
+              if (phone) {
+                const message = parseWatiReplyWebhookMessage(payload, phone);
+                if (message) {
+                  await storeInboundMessage(sb, workspaceId, message);
+                }
+              } else {
+                console.warn("[WATI WEBHOOK] Reply event — could not resolve contact phone", {
+                  conversationId: payload.conversationId,
+                  ticketId: payload.ticketId,
+                  localMessageId: payload.localMessageId,
+                });
+              }
+            } catch (e) {
+              console.error("[WATI WEBHOOK] Reply insert error", e);
             }
             return json({ ok: true });
           }

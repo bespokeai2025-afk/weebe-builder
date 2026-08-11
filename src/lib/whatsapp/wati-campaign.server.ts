@@ -691,9 +691,16 @@ export function isWatiStatusEvent(payload: Record<string, unknown>): boolean {
   );
 }
 
+/** Campaign / template reply — WATI fires this when a customer replies to an outbound message. */
+export function isWatiReplyEvent(payload: Record<string, unknown>): boolean {
+  const t = String(payload.eventType ?? payload.type ?? payload.event ?? "").toLowerCase();
+  return t.includes("sentmessagereplied");
+}
+
 /** Inbound chat events — customer messages only (owner === false). */
 export function isWatiInboundMessageEvent(payload: Record<string, unknown>): boolean {
   const t = String(payload.eventType ?? payload.type ?? payload.event ?? "").toLowerCase();
+  if (isWatiReplyEvent(payload)) return false;
   if (t === "message" || t === "message_bsuid") {
     return payload.owner === false;
   }
@@ -701,6 +708,39 @@ export function isWatiInboundMessageEvent(payload: Record<string, unknown>): boo
     return true;
   }
   return false;
+}
+
+/** Text body from WATI inbound / reply webhooks (incl. button & list replies). */
+export function extractWatiInboundMessageText(payload: Record<string, unknown>): string | null {
+  if (typeof payload.text === "string" && payload.text.trim()) {
+    return payload.text.trim();
+  }
+
+  const nested =
+    (payload.text as Record<string, unknown> | undefined)?.body ??
+    (payload.message as Record<string, unknown> | undefined)?.text ??
+    payload.caption;
+  if (typeof nested === "string" && nested.trim()) return nested.trim();
+
+  const buttonReply = payload.buttonReply as Record<string, unknown> | null | undefined;
+  if (typeof buttonReply?.text === "string" && buttonReply.text.trim()) {
+    return buttonReply.text.trim();
+  }
+
+  const listReply = payload.listReply as Record<string, unknown> | null | undefined;
+  if (typeof listReply?.title === "string" && listReply.title.trim()) {
+    return listReply.title.trim();
+  }
+  if (typeof listReply?.description === "string" && listReply.description.trim()) {
+    return listReply.description.trim();
+  }
+
+  const interactive = payload.interactiveButtonReply as Record<string, unknown> | null | undefined;
+  if (typeof interactive?.title === "string" && interactive.title.trim()) {
+    return interactive.title.trim();
+  }
+
+  return null;
 }
 
 /** Outbound chat from WATI bots / agents (owner === true). */
@@ -734,8 +774,22 @@ export function parseWatiChatMessage(
   return { ...parsed, sender_channel: senderChannel };
 }
 
+function parseWatiInboundMessageSentAt(payload: Record<string, unknown>): string {
+  if (payload.created) return String(payload.created);
+  if (payload.timestamp) {
+    const raw = Number(payload.timestamp);
+    if (!Number.isNaN(raw)) {
+      return new Date(raw > 1e12 ? raw : raw * 1000).toISOString();
+    }
+  }
+  return new Date().toISOString();
+}
+
 /** Parse WATI inbound webhook payload into a row for whatsapp_messages. */
-export function parseWatiInboundMessage(payload: Record<string, unknown>): {
+export function parseWatiInboundMessage(
+  payload: Record<string, unknown>,
+  opts?: { contactPhone?: string },
+): {
   contact_phone: string;
   contact_name: string | null;
   body: string;
@@ -744,6 +798,7 @@ export function parseWatiInboundMessage(payload: Record<string, unknown>): {
   sent_at: string;
 } | null {
   const phoneRaw =
+    opts?.contactPhone ??
     payload.waId ??
     payload.phone ??
     payload.from ??
@@ -754,13 +809,7 @@ export function parseWatiInboundMessage(payload: Record<string, unknown>): {
   const contact_phone = normalizeWhatsAppPhone(String(phoneRaw));
   if (!contact_phone) return null;
 
-  const text =
-    typeof payload.text === "string"
-      ? payload.text
-      : (payload.text as Record<string, unknown> | undefined)?.body ??
-        (payload.message as Record<string, unknown> | undefined)?.text ??
-        payload.caption ??
-        null;
+  const text = extractWatiInboundMessageText(payload);
 
   const eventType = String(payload.eventType ?? "").toLowerCase();
   // newContactMessageReceived is a notification only — the "message" event carries text.
@@ -768,7 +817,7 @@ export function parseWatiInboundMessage(payload: Record<string, unknown>): {
     return null;
   }
 
-  const body = text && String(text).trim() ? String(text) : "[Non-text message]";
+  const body = text ?? "[Non-text message]";
 
   const whatsapp_message_id =
     payload.whatsappMessageId != null ? String(payload.whatsappMessageId) : null;
@@ -777,14 +826,12 @@ export function parseWatiInboundMessage(payload: Record<string, unknown>): {
     whatsapp_message_id ??
       payload.id ??
       payload.messageId ??
+      payload.localMessageId ??
+      payload.local_message_id ??
       `wati_in_${contact_phone}_${payload.timestamp ?? payload.created ?? Date.now()}`,
   );
 
-  const sent_at = payload.created
-    ? String(payload.created)
-    : payload.timestamp
-      ? new Date(Number(payload.timestamp) * 1000).toISOString()
-      : new Date().toISOString();
+  const sent_at = parseWatiInboundMessageSentAt(payload);
 
   const contact_name =
     payload.senderName != null
@@ -794,4 +841,12 @@ export function parseWatiInboundMessage(payload: Record<string, unknown>): {
         : null;
 
   return { contact_phone, contact_name, body, external_id, whatsapp_message_id, sent_at };
+}
+
+/** Parse sentMessageREPLIED_v2 (campaign reply) once contact phone is known. */
+export function parseWatiReplyWebhookMessage(
+  payload: Record<string, unknown>,
+  contactPhone: string,
+): ReturnType<typeof parseWatiInboundMessage> {
+  return parseWatiInboundMessage(payload, { contactPhone });
 }
