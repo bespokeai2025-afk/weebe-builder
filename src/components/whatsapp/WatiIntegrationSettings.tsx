@@ -291,9 +291,10 @@ export function WatiIntegrationSettings() {
               ) : (
                 <div className="space-y-2">
                   <p className="text-xs text-muted-foreground">
-                    Add this URL in WATI → Connectors → Webhooks. Enable: Message received, Template
-                    Message Sent, <strong>Sent Message is Delivered</strong>, and{" "}
-                    <strong>Sent Message is Read</strong>.
+                    Add this URL in WATI → Connectors → Webhooks. Enable:{" "}
+                    <strong>Message received</strong>,{" "}
+                    <strong>Sent Message is REPLIED</strong>, Template Message Sent, Sent Message
+                    is Delivered, and Sent Message is Read.
                   </p>
                   <p className="text-[10px] font-mono text-muted-foreground break-all bg-muted/40 rounded p-2">
                     {(conn as { webhookUrl?: string }).webhookUrl}
