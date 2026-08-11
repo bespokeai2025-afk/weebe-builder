@@ -185,6 +185,7 @@ const DEFAULT_NAV_ITEMS: NavItem[] = [
   { title: "Pipeline",  url: "/pipeline",  icon: Kanban },
   { title: "Qualified", url: "/qualified", icon: Check,          moduleId: "qualification" },
   { title: "Calls",     url: "/calls",     icon: PhoneCall },
+  { title: "Receptionist", url: "/receptionist", icon: PhoneIncoming },
   { title: "Calendar",  url: "/calendar",  icon: CalendarDays },
   { title: "Template Studio", url: "/template-studio", icon: FileText },
   { title: "HexMail",        url: "/hexmail",               icon: Mail },

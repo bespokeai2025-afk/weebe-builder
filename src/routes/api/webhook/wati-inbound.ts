@@ -14,7 +14,9 @@ import { createClient } from "@supabase/supabase-js";
 import {
   attachLeadToInboundMessage,
   isWatiInboundMessageEvent,
+  isWatiOutboundMessageEvent,
   isWatiStatusEvent,
+  parseWatiChatMessage,
   parseWatiInboundMessage,
 } from "@/lib/whatsapp/wati-campaign.server";
 import { markWhatsappContactDoNotContact } from "@/lib/whatsapp/wa-contact-message-stats.server";
@@ -138,24 +140,7 @@ async function storeInboundMessage(
     whatsapp_message_id: message.whatsapp_message_id,
   };
 
-  const { error } = await (sb as any)
-    .from("whatsapp_messages")
-    .upsert(row, { onConflict: "workspace_id,external_id" });
-
-  if (error) {
-    // Column may not exist until migration — retry without whatsapp_message_id
-    if (String(error.message).includes("whatsapp_message_id")) {
-      const { error: retryErr } = await (sb as any)
-        .from("whatsapp_messages")
-        .upsert(
-          { ...row, whatsapp_message_id: undefined },
-          { onConflict: "workspace_id,external_id" },
-        );
-      if (retryErr) throw retryErr;
-    } else {
-      throw error;
-    }
-  }
+  await upsertWhatsappMessage(sb, row);
 
   if (isWhatsappOptOutMessage(message.body)) {
     try {
@@ -168,6 +153,62 @@ async function storeInboundMessage(
       console.log("[WATI WEBHOOK] Opt-out recorded for", message.contact_phone);
     } catch (e) {
       console.error("[WATI WEBHOOK] Opt-out mark failed", e);
+    }
+  }
+}
+
+async function storeOutboundMessage(
+  sb: ReturnType<typeof adminClient>,
+  workspaceId: string,
+  message: NonNullable<ReturnType<typeof parseWatiChatMessage>>,
+): Promise<void> {
+  const row = {
+    workspace_id: workspaceId,
+    external_id: message.external_id,
+    contact_phone: message.contact_phone,
+    contact_name: message.contact_name,
+    body: message.body,
+    direction: "outbound" as const,
+    provider: "wati",
+    status: "sent",
+    sent_at: message.sent_at,
+    whatsapp_message_id: message.whatsapp_message_id,
+    sender_channel: message.sender_channel,
+  };
+  await upsertWhatsappMessage(sb, row);
+}
+
+async function upsertWhatsappMessage(
+  sb: ReturnType<typeof adminClient>,
+  row: Record<string, unknown>,
+): Promise<void> {
+  const { error } = await (sb as any)
+    .from("whatsapp_messages")
+    .upsert(row, { onConflict: "workspace_id,external_id" });
+
+  if (error) {
+    if (String(error.message).includes("whatsapp_message_id")) {
+      const { whatsapp_message_id: _w, ...withoutWamid } = row;
+      const { error: retryErr } = await (sb as any)
+        .from("whatsapp_messages")
+        .upsert(withoutWamid, { onConflict: "workspace_id,external_id" });
+      if (retryErr && String(retryErr.message).includes("sender_channel")) {
+        const { sender_channel: _s, ...minimal } = withoutWamid;
+        const { error: retry2 } = await (sb as any)
+          .from("whatsapp_messages")
+          .upsert(minimal, { onConflict: "workspace_id,external_id" });
+        if (retry2) throw retry2;
+      } else if (retryErr) {
+        throw retryErr;
+      }
+    } else if (String(error.message).includes("sender_channel")) {
+      const { sender_channel: _s, ...withoutChannel } = row;
+      const { error: retryErr } = await (sb as any)
+        .from("whatsapp_messages")
+        .upsert(withoutChannel, { onConflict: "workspace_id,external_id" });
+      if (retryErr) throw retryErr;
+    } else {
+      throw error;
     }
   }
 }
@@ -319,6 +360,19 @@ export const Route = createFileRoute("/api/webhook/wati-inbound")({
                 await storeInboundMessage(sb, workspaceId, message);
               } catch (e) {
                 console.error("[WATI WEBHOOK] Inbound insert error", e);
+              }
+            }
+            return json({ ok: true });
+          }
+
+          // Bot / agent replies sent inside WATI (owner === true)
+          if (isWatiOutboundMessageEvent(payload)) {
+            const message = parseWatiChatMessage(payload, "outbound");
+            if (message) {
+              try {
+                await storeOutboundMessage(sb, workspaceId, message);
+              } catch (e) {
+                console.error("[WATI WEBHOOK] Outbound insert error", e);
               }
             }
             return json({ ok: true });

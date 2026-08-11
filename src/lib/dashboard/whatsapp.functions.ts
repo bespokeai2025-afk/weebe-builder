@@ -44,6 +44,14 @@ import {
   maybeAutoSyncWatiCampaigns,
 } from "@/lib/whatsapp/wati-sync.server";
 import { reconcileWatiOutboundMessageStatuses } from "@/lib/whatsapp/wati-message-status.server";
+import {
+  buildWhatsappThreadFromMessages,
+  sortWhatsappInboxThreads,
+} from "@/lib/whatsapp/wa-inbox-threads.shared";
+import {
+  maybeSyncWatiInboxFromApi,
+  syncWatiInboxFromWatiApi,
+} from "@/lib/whatsapp/wati-inbox-sync.server";
 import { enrichInboxBodiesFromWatiApi } from "@/lib/whatsapp/wati-inbox-enrich.server";
 
 // ── Inbox ─────────────────────────────────────────────────────────────────────
@@ -147,6 +155,12 @@ export const listWhatsappThreads = createServerFn({ method: "GET" })
     if (!workspaceId) throw new Error("No active workspace");
     const sb = supabase as any;
 
+    try {
+      await maybeSyncWatiInboxFromApi(workspaceId);
+    } catch (syncErr) {
+      console.error("[wa-inbox] WATI background sync failed:", syncErr);
+    }
+
     const { data, error } = await sb
       .from("whatsapp_messages")
       .select("*")
@@ -158,29 +172,46 @@ export const listWhatsappThreads = createServerFn({ method: "GET" })
     const rows = (data ?? []) as Array<Record<string, unknown>>;
     await enrichInboxMessageBodies(workspaceId, rows);
 
-    const threads = new Map<string, {
-      phone: string; name: string | null; lastMessage: string | null;
-      lastAt: string; unread: number; messages: any[];
-    }>();
+    const threadMap = new Map<string, Array<Record<string, unknown>>>();
     for (const m of rows as any[]) {
-      const ex = threads.get(m.contact_phone);
-      if (!ex) {
-        threads.set(m.contact_phone, {
-          phone: m.contact_phone, name: m.contact_name,
-          lastMessage: m.body, lastAt: m.sent_at, unread: 0, messages: [m],
-        });
-      } else {
-        ex.messages.push(m);
-        if (new Date(m.sent_at) > new Date(ex.lastAt)) {
-          ex.lastAt = m.sent_at;
-          ex.lastMessage = m.body;
-          if (m.direction === "inbound") ex.unread++;
-        }
-      }
+      const phone = m.contact_phone as string;
+      const bucket = threadMap.get(phone) ?? [];
+      bucket.push(m);
+      threadMap.set(phone, bucket);
     }
-    return Array.from(threads.values()).sort(
-      (a, b) => new Date(b.lastAt).getTime() - new Date(a.lastAt).getTime(),
-    );
+
+    const threads = [...threadMap.entries()]
+      .map(([phone, msgs]) => buildWhatsappThreadFromMessages(phone, msgs as any))
+      .filter((t): t is NonNullable<typeof t> => t != null);
+
+    return sortWhatsappInboxThreads(threads);
+  });
+
+/** Pull latest WATI messages for one contact (local dev + open thread polling). */
+export const syncWhatsappThread = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .validator((input) => z.object({ phone: z.string().min(5) }).parse(input))
+  .handler(async ({ context, data }) => {
+    const { workspaceId } = context;
+    if (!workspaceId) throw new Error("No active workspace");
+
+    const phone = normalizeWhatsAppPhone(data.phone);
+    if (!phone) throw new Error("Invalid phone number");
+
+    const conn = await getWatiConnectionForWorkspace(supabaseAdmin as any, workspaceId);
+    if (!conn) {
+      return { ok: false as const, synced: 0, reason: "WATI not connected" };
+    }
+
+    try {
+      const synced = await syncWatiInboxFromWatiApi(workspaceId, [phone], { maxPages: 5 });
+      return { ok: true as const, synced };
+    } catch (err) {
+      console.error("[wa-inbox] WATI thread sync failed:", err);
+      throw new Error(
+        err instanceof Error ? err.message : "Could not sync conversation from WATI",
+      );
+    }
   });
 
 export const sendWhatsappMessage = createServerFn({ method: "POST" })

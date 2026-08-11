@@ -13,6 +13,7 @@ import { dynamicsDefinition } from "./dynamics";
 import { zohoDefinition } from "./zoho";
 import { genericRestDefinition } from "./generic-rest";
 import { webhookDefinition } from "./webhook";
+import { pabauDefinition } from "./pabau";
 
 const SEED: readonly CrmAdapterDefinition[] = Object.freeze([
   hubspotDefinition,
@@ -21,6 +22,7 @@ const SEED: readonly CrmAdapterDefinition[] = Object.freeze([
   gohighlevelDefinition,
   dynamicsDefinition,
   zohoDefinition,
+  pabauDefinition,
   genericRestDefinition,
   webhookDefinition,
 ]);

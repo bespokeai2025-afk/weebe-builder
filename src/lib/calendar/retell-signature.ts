@@ -1,11 +1,49 @@
 import { createHmac, timingSafeEqual } from "crypto";
 
+function safeCompareHex(aHex: string, bHex: string): boolean {
+  if (!/^[a-f0-9]+$/i.test(aHex) || !/^[a-f0-9]+$/i.test(bHex)) return false;
+  const a = Buffer.from(aHex, "hex");
+  const b = Buffer.from(bHex, "hex");
+  if (a.length !== b.length) return false;
+  try {
+    return timingSafeEqual(a, b);
+  } catch {
+    return false;
+  }
+}
+
+function verifyRetellSignatureWithKey(
+  rawBody: string,
+  signature: string,
+  apiKey: string,
+): boolean {
+  const parsed = Object.fromEntries(
+    signature.split(",").map((part) => {
+      const [key, ...rest] = part.trim().split("=");
+      return [key, rest.join("=")];
+    }),
+  );
+  const timestamp = parsed.v;
+  const digest = parsed.d;
+
+  if (timestamp && digest) {
+    const ts = Number(timestamp);
+    if (!Number.isFinite(ts)) return false;
+    const ageMs = Math.abs(Date.now() - ts);
+    if (ageMs > 5 * 60 * 1000) return false;
+    const expected = createHmac("sha256", apiKey).update(`${rawBody}${timestamp}`).digest("hex");
+    return safeCompareHex(digest, expected);
+  }
+
+  const expectedLegacy = createHmac("sha256", apiKey).update(rawBody).digest("hex");
+  return safeCompareHex(signature.trim(), expectedLegacy);
+}
+
 /**
  * Verify the HMAC signature on an incoming Retell webhook body.
  *
  * Retell signs custom tool-call webhooks using the workspace Retell API key.
- * We check RETELL_WEBHOOK_SECRET first (set this to match the key Retell uses),
- * then fall back to RETELL_API_KEY. If neither is set, requests are rejected.
+ * Supports both `v=<ts>,d=<digest>` and legacy raw-hex formats.
  */
 export function verifyRetellSignature(rawBody: string, signature: string | null): boolean {
   const secret = process.env.RETELL_WEBHOOK_SECRET || process.env.RETELL_API_KEY;
@@ -14,43 +52,32 @@ export function verifyRetellSignature(rawBody: string, signature: string | null)
     return false;
   }
   if (!signature) return false;
-  const expected = createHmac("sha256", secret).update(rawBody).digest("hex");
-  try {
-    return timingSafeEqual(Buffer.from(signature), Buffer.from(expected));
-  } catch {
-    return false;
-  }
+  return verifyRetellSignatureWithKey(rawBody, signature, secret);
 }
 
 /**
  * Multi-key variant: try the platform key AND any additional candidate keys
  * (e.g. the workspace-specific Retell API key). Returns true if ANY key matches.
- *
- * Retell signs custom tool-call payloads with the Retell workspace API key that
- * owns the agent. For per-workspace agents that use workspace_settings.retell_workspace_id
- * as their key, the platform RETELL_API_KEY will not match. This function lets
- * each endpoint supply the workspace key as a fallback so verification succeeds.
  */
 export function verifyRetellSignatureMultiKey(
   rawBody: string,
   signature: string | null,
   candidateKeys: string[],
+  options?: { prependKeys?: string[]; skipPlatformKey?: boolean },
 ): boolean {
   if (!signature) return false;
-  const platformSecret = process.env.RETELL_WEBHOOK_SECRET || process.env.RETELL_API_KEY || "";
-  const allKeys = [platformSecret, ...candidateKeys].filter(Boolean);
+  const platformSecret = options?.skipPlatformKey
+    ? ""
+    : process.env.RETELL_WEBHOOK_SECRET || process.env.RETELL_API_KEY || "";
+  const allKeys = [
+    ...new Set([...(options?.prependKeys ?? []), platformSecret, ...candidateKeys].filter(Boolean)),
+  ];
   if (!allKeys.length) {
     console.error("[retell] No Retell secrets available — rejecting request");
     return false;
   }
   for (const secret of allKeys) {
-    const expected = createHmac("sha256", secret).update(rawBody).digest("hex");
-    try {
-      if (timingSafeEqual(Buffer.from(signature), Buffer.from(expected))) return true;
-    } catch {
-      // Buffer.from(signature) and Buffer.from(expected) have different byte
-      // lengths if the hex strings differ in length — not equal, try next key.
-    }
+    if (verifyRetellSignatureWithKey(rawBody, signature, secret)) return true;
   }
   return false;
 }

@@ -1,0 +1,34 @@
+{
+  "agent_url": "https://dashboard.retellai.com/agents/agent_b2afcd65c127f79126ea57deb2",
+  "steps": [
+    {
+      "where": "Agent → Settings → Begin message",
+      "value": "Thank you for calling the Dr Nyla Medispa Group, how may I assist you today?"
+    },
+    {
+      "where": "Agent → Settings → Webhook URL",
+      "value": "https://regress-stimuli-stick.ngrok-free.dev/api/public/voice-webhook"
+    },
+    {
+      "where": "Conversation Flow → Global prompt",
+      "file": "scripts/output/dnr-retell-global-prompt.txt",
+      "note": "Copy entire file contents"
+    },
+    {
+      "where": "Conversation Flow → Tools (4 custom functions)",
+      "file": "scripts/output/dnr-retell-dashboard-config.json",
+      "path": "conversation_flow.tools",
+      "note": "Update find_or_create_client params if tool already exists"
+    },
+    {
+      "where": "Conversation Flow → Global node → Transfer Call",
+      "file": "scripts/output/dnr-retell-dashboard-config.json",
+      "path": "conversation_flow.transfer_call_node",
+      "number": "+44 808 189 2587"
+    },
+    {
+      "where": "Publish",
+      "action": "Publish agent after all changes"
+    }
+  ]
+}

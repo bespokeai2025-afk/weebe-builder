@@ -116,6 +116,18 @@ export const CRM_CONNECTOR_REGISTRY: ConnectorRegistryEntry[] = [
     ],
   },
   {
+    provider: "pabau", label: "Pabau", definitionName: "pabau",
+    description: "Medical practice CRM — API key from Setup → API Keys. Requests use https://api.oauth.pabau.com/{api_key}/…",
+    supportsDiscovery: true, supportsOAuthRefresh: false,
+    fields: [
+      { key: "apiKey", label: "API Key", type: "secret", required: true,
+        help: "Pabau → Setup → Settings → API Keys. Enable Appointments, Leads, and Services. Do not add Bearer — key goes in the URL automatically." },
+      { key: "baseUrl", label: "API Base URL (optional)", type: "url", required: false,
+        help: "Leave blank for default https://api.oauth.pabau.com/{api_key}. Only override if Pabau support gives a custom host.",
+        placeholder: "https://api.oauth.pabau.com/{api_key}" },
+    ],
+  },
+  {
     provider: "webee", label: "WEBEE CRM (built-in)", definitionName: null,
     description: "Your workspace's built-in WEBEE CRM — no external credentials needed.",
     supportsDiscovery: true, supportsOAuthRefresh: false,
@@ -195,6 +207,8 @@ export async function buildConnector(
       return (await import("./connectors/dynamics.connector")).buildDynamicsConnector(creds);
     case "zoho":
       return (await import("./connectors/zoho.connector")).buildZohoConnector(creds);
+    case "pabau":
+      return (await import("./connectors/pabau.connector")).buildPabauConnector(creds);
     case "webee":
       return (await import("./connectors/webee.connector")).buildWebeeConnector(creds, ctx);
     case "generic_rest":

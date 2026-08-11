@@ -691,7 +691,7 @@ export function isWatiStatusEvent(payload: Record<string, unknown>): boolean {
   );
 }
 
-/** Inbound chat events — not delivery/read status updates. */
+/** Inbound chat events — customer messages only (owner === false). */
 export function isWatiInboundMessageEvent(payload: Record<string, unknown>): boolean {
   const t = String(payload.eventType ?? payload.type ?? payload.event ?? "").toLowerCase();
   if (t === "message" || t === "message_bsuid") {
@@ -701,6 +701,37 @@ export function isWatiInboundMessageEvent(payload: Record<string, unknown>): boo
     return true;
   }
   return false;
+}
+
+/** Outbound chat from WATI bots / agents (owner === true). */
+export function isWatiOutboundMessageEvent(payload: Record<string, unknown>): boolean {
+  const t = String(payload.eventType ?? payload.type ?? payload.event ?? "").toLowerCase();
+  return (t === "message" || t === "message_bsuid") && payload.owner === true;
+}
+
+/** Parse WATI webhook chat payload (inbound or outbound). */
+export function parseWatiChatMessage(
+  payload: Record<string, unknown>,
+  direction: "inbound" | "outbound",
+): {
+  contact_phone: string;
+  contact_name: string | null;
+  body: string;
+  external_id: string;
+  whatsapp_message_id: string | null;
+  sent_at: string;
+  sender_channel: string | null;
+} | null {
+  const parsed = parseWatiInboundMessage(payload);
+  if (!parsed) return null;
+
+  let senderChannel: string | null = null;
+  if (direction === "outbound") {
+    const operator = String(payload.operatorName ?? payload.agentName ?? "").toLowerCase();
+    senderChannel = operator.includes("bot") ? "bot" : "wati";
+  }
+
+  return { ...parsed, sender_channel: senderChannel };
 }
 
 /** Parse WATI inbound webhook payload into a row for whatsapp_messages. */

@@ -1,0 +1,61 @@
+{
+  "discoveredAt": "2026-08-10T05:28:30.654Z",
+  "endpoints": {
+    "/locations": {
+      "status": 200,
+      "ok": true
+    },
+    "/categories/services": {
+      "status": 200,
+      "ok": true
+    },
+    "/services": {
+      "status": 200,
+      "ok": true
+    },
+    "/staff": {
+      "status": 403,
+      "ok": false
+    },
+    "/users": {
+      "status": 200,
+      "ok": true
+    },
+    "/practitioners": {
+      "status": 403,
+      "ok": false
+    },
+    "/team": {
+      "status": 403,
+      "ok": false
+    },
+    "/appointments": {
+      "status": 200,
+      "ok": true
+    }
+  },
+  "castlerockCandidates": [],
+  "consultServiceCandidates": [
+    {
+      "source": "/categories/services",
+      "id": 89166,
+      "name": "Consultations"
+    }
+  ],
+  "practitionersFromAppointments": {
+    "53116": "Ask Medispa",
+    "130469": "Therapist Sandra",
+    "142159": "Nurse Antonia",
+    "150735": "Lee Garrett",
+    "151801": "Therapist Anna",
+    "151940": "Therapist Kayleigh"
+  },
+  "stillNeedFromClinic": [
+    "Which weekday is consult day at Castlerock House?",
+    "Which practitioner / booking column should the AI fill?",
+    "Exact consult service_id and slot duration (minutes)?",
+    "Human escalation phone number during Mon–Sat 10:00–20:00?",
+    "How to search existing patients by phone (Pabau UI method)?",
+    "Confirm API key has Clients + Appointments WRITE enabled."
+  ]
+}
