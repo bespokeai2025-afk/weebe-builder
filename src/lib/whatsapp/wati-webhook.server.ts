@@ -11,15 +11,26 @@ type WatiConn = {
   apiHost?: string | null;
 };
 
-const WATI_WEBHOOK_EVENT_TYPES = [
+/** Events for WATI Connectors UI / v2 registration (no _v2 suffix on some tenants). */
+const WATI_WEBHOOK_REGISTER_EVENT_TYPES = [
   "message",
   "newContactMessageReceived",
-  "sentMessageDELIVERED_v2",
-  "sentMessageREAD_v2",
-  "sentMessageREPLIED_v2",
-  "templateMessageSent_v2",
+  "sentMessageDELIVERED",
+  "sentMessageREAD",
+  "sentMessageREPLIED",
+  "templateMessageSent",
   "templateReviewed",
   "templateQualityUpdated",
+];
+
+/** Minimal set when full registration returns HTTP 400. */
+const WATI_WEBHOOK_MINIMAL_EVENT_TYPES = [
+  "message",
+  "newContactMessageReceived",
+  "sentMessageREPLIED",
+  "templateMessageSent",
+  "sentMessageDELIVERED",
+  "sentMessageREAD",
 ];
 
 function authHeaders(apiKey: string): Record<string, string> {
@@ -44,7 +55,10 @@ export async function fetchWatiChannelPhones(conn: WatiConn): Promise<string[]> 
   const phones = new Set<string>();
 
   const addPhone = (raw: unknown) => {
-    const digits = String(raw ?? "").replace(/\D/g, "");
+    const s = String(raw ?? "").trim();
+    if (!s) return;
+    phones.add(s);
+    const digits = s.replace(/\D/g, "");
     if (digits.length >= 8) phones.add(digits);
   };
 
@@ -92,27 +106,57 @@ export async function fetchWatiChannelPhones(conn: WatiConn): Promise<string[]> 
   return [...phones];
 }
 
-async function registerViaV2WebhookEndpoints(
+async function postV2WebhookEndpoints(
   conn: WatiConn,
-  webhookUrl: string,
-): Promise<{ ok: boolean; status: number }> {
-  const phones = await fetchWatiChannelPhones(conn);
-  const payload =
-    phones.length > 0
-      ? phones.map((phoneNumber) => ({
-          phoneNumber,
-          status: 1,
-          url: webhookUrl,
-          eventTypes: WATI_WEBHOOK_EVENT_TYPES,
-        }))
-      : [{ phoneNumber: "", status: 1, url: webhookUrl, eventTypes: WATI_WEBHOOK_EVENT_TYPES }];
-
+  payload: Array<Record<string, unknown>>,
+): Promise<{ ok: boolean; status: number; body?: Record<string, unknown> }> {
   const res = await fetch(`${watiApiV2Base(conn.tenantId, conn.apiHost)}/webhookEndpoints`, {
     method: "POST",
     headers: authHeaders(conn.apiKey),
     body: JSON.stringify(payload),
   });
-  return { ok: res.ok, status: res.status };
+  const body = await parseJson(res);
+  return { ok: res.ok, status: res.status, body };
+}
+
+async function registerViaV2WebhookEndpoints(
+  conn: WatiConn,
+  webhookUrl: string,
+  eventTypes: string[],
+): Promise<{ ok: boolean; status: number }> {
+  const phones = await fetchWatiChannelPhones(conn);
+  const attempts: Array<Array<Record<string, unknown>>> = [];
+
+  if (phones.length > 0) {
+    attempts.push(
+      phones.map((phoneNumber) => ({
+        phoneNumber,
+        status: 1,
+        url: webhookUrl,
+        eventTypes,
+      })),
+    );
+  }
+
+  // Some tenants reject multi-phone batch — try first channel only.
+  if (phones.length > 1) {
+    attempts.push([
+      {
+        phoneNumber: phones[0],
+        status: 1,
+        url: webhookUrl,
+        eventTypes,
+      },
+    ]);
+  }
+
+  for (const payload of attempts) {
+    const res = await postV2WebhookEndpoints(conn, payload);
+    if (res.ok) return { ok: true, status: res.status };
+    if (res.status !== 400) return { ok: false, status: res.status };
+  }
+
+  return { ok: false, status: 400 };
 }
 
 async function registerViaV1UpdateWebhook(
@@ -152,13 +196,17 @@ export async function registerWatiInboundWebhook(
   }
 
   try {
-    const v2 = await registerViaV2WebhookEndpoints(conn, webhookUrl);
-    if (v2.ok) {
-      return {
-        webhookRegistered: true,
-        webhookManual: false,
-        webhookNote: "Webhook registered automatically in WATI via API.",
-      };
+    const eventSets = [WATI_WEBHOOK_REGISTER_EVENT_TYPES, WATI_WEBHOOK_MINIMAL_EVENT_TYPES];
+    for (const eventTypes of eventSets) {
+      const v2 = await registerViaV2WebhookEndpoints(conn, webhookUrl, eventTypes);
+      if (v2.ok) {
+        return {
+          webhookRegistered: true,
+          webhookManual: false,
+          webhookNote: "Webhook registered automatically in WATI via API.",
+        };
+      }
+      if (v2.status !== 400) break;
     }
 
     const v1 = await registerViaV1UpdateWebhook(conn, webhookUrl);
@@ -170,16 +218,16 @@ export async function registerWatiInboundWebhook(
       };
     }
 
-    const code = v2.status === 404 ? v1.status : v2.status;
-    console.warn("[wati-webhook] auto-register failed:", { v2: v2.status, v1: v1.status, host: conn.apiHost });
+    const code = v1.status || 400;
+    console.warn("[wati-webhook] auto-register failed:", { v1: v1.status, host: conn.apiHost });
 
     return {
       webhookRegistered: false,
       webhookManual: false,
       webhookNote:
         code === 404
-          ? "Auto-registration API is not available on this WATI account (404). If you already added the webhook URL in WATI Connectors → Webhooks, click “Confirm manual setup” below — your connection is fine."
-          : `Auto-registration failed (HTTP ${code}). Add the webhook URL in WATI Connectors → Webhooks, then click “Confirm manual setup”.`,
+          ? "Auto-registration API is not available on this WATI account (404). Add the webhook URL in WATI Connectors → Webhooks, then click “Confirm manual setup”."
+          : `Auto-registration failed (HTTP ${code}) — common on EU WATI accounts. Paste the URL below in WATI Connectors → Webhooks (enable Message received + Sent Message is REPLIED), then click “Confirm manual setup”.`,
     };
   } catch (e) {
     console.error("[wati-webhook] register error", e);
