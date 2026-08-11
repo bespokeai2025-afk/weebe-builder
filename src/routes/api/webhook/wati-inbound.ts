@@ -37,6 +37,7 @@ import {
   isWatiTemplateLifecycleEvent,
   watiTemplatePatchFromWebhook,
 } from "@/lib/whatsapp/wati-template-status.shared";
+import { emitCampaignNotification } from "@/lib/notifications/notification-engine.shared";
 
 function json(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
@@ -144,7 +145,22 @@ async function storeInboundMessage(
     whatsapp_message_id: message.whatsapp_message_id,
   };
 
-  await upsertWhatsappMessage(sb, row);
+  // insertOnly=true → ON CONFLICT DO NOTHING + RETURNING, so exactly one of any
+  // concurrent duplicate webhook deliveries observes isNewMessage=true (atomic
+  // in the DB — a read-then-write pre-check would race under retries).
+  const isNewMessage = await upsertWhatsappMessage(sb, row, { insertOnly: true });
+
+  if (isNewMessage) {
+    // Best-effort — never let notification failures break webhook processing.
+    const who = message.contact_name?.trim() || message.contact_phone || "Unknown contact";
+    const preview = (message.body ?? "").trim().slice(0, 160);
+    await emitCampaignNotification(sb as any, {
+      workspaceId,
+      eventKey: "whatsapp_reply_received",
+      summary: preview ? `${who}: "${preview}"` : `${who} sent a WhatsApp message.`,
+      severity: "info",
+    });
+  }
 
   if (isWhatsappOptOutMessage(message.body)) {
     try {
@@ -182,39 +198,51 @@ async function storeOutboundMessage(
   await upsertWhatsappMessage(sb, row);
 }
 
+/**
+ * Upserts a message row keyed on (workspace_id, external_id).
+ * With `insertOnly` the upsert becomes INSERT ... ON CONFLICT DO NOTHING
+ * RETURNING id and the return value reports whether a NEW row was inserted
+ * (atomic — safe under concurrent duplicate webhook deliveries). Without it,
+ * conflicts update the existing row and the return value is always false.
+ */
 async function upsertWhatsappMessage(
   sb: ReturnType<typeof adminClient>,
   row: Record<string, unknown>,
-): Promise<void> {
-  const { error } = await (sb as any)
-    .from("whatsapp_messages")
-    .upsert(row, { onConflict: "workspace_id,external_id" });
+  opts?: { insertOnly?: boolean },
+): Promise<boolean> {
+  const doUpsert = async (r: Record<string, unknown>) => {
+    let q = (sb as any)
+      .from("whatsapp_messages")
+      .upsert(r, {
+        onConflict: "workspace_id,external_id",
+        ignoreDuplicates: opts?.insertOnly === true,
+      });
+    if (opts?.insertOnly) q = q.select("id");
+    const { data, error } = await q;
+    return { inserted: Array.isArray(data) && data.length > 0, error };
+  };
 
-  if (error) {
-    if (String(error.message).includes("whatsapp_message_id")) {
+  let res = await doUpsert(row);
+  if (res.error) {
+    if (String(res.error.message).includes("whatsapp_message_id")) {
       const { whatsapp_message_id: _w, ...withoutWamid } = row;
-      const { error: retryErr } = await (sb as any)
-        .from("whatsapp_messages")
-        .upsert(withoutWamid, { onConflict: "workspace_id,external_id" });
-      if (retryErr && String(retryErr.message).includes("sender_channel")) {
+      res = await doUpsert(withoutWamid);
+      if (res.error && String(res.error.message).includes("sender_channel")) {
         const { sender_channel: _s, ...minimal } = withoutWamid;
-        const { error: retry2 } = await (sb as any)
-          .from("whatsapp_messages")
-          .upsert(minimal, { onConflict: "workspace_id,external_id" });
-        if (retry2) throw retry2;
-      } else if (retryErr) {
-        throw retryErr;
+        res = await doUpsert(minimal);
+        if (res.error) throw res.error;
+      } else if (res.error) {
+        throw res.error;
       }
-    } else if (String(error.message).includes("sender_channel")) {
+    } else if (String(res.error.message).includes("sender_channel")) {
       const { sender_channel: _s, ...withoutChannel } = row;
-      const { error: retryErr } = await (sb as any)
-        .from("whatsapp_messages")
-        .upsert(withoutChannel, { onConflict: "workspace_id,external_id" });
-      if (retryErr) throw retryErr;
+      res = await doUpsert(withoutChannel);
+      if (res.error) throw res.error;
     } else {
-      throw error;
+      throw res.error;
     }
   }
+  return res.inserted;
 }
 
 async function resolveWorkspaceId(
