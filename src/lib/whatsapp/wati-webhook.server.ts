@@ -240,12 +240,13 @@ export async function registerWatiInboundWebhook(
   }
 }
 
+/** Public URL WATI should POST inbound events to (never a ephemeral Replit dev host). */
 export function buildWatiInboundWebhookUrl(workspaceId: string, origin?: string): string {
   const base = (
     origin?.trim() ||
+    process.env.WATI_WEBHOOK_BASE_URL?.trim() ||
     process.env.PUBLIC_APP_URL?.trim() ||
     process.env.VITE_PUBLIC_APP_URL?.trim() ||
-    (process.env.REPLIT_DEV_DOMAIN ? `https://${process.env.REPLIT_DEV_DOMAIN}` : "") ||
     "https://webeereceptionist.com"
   ).replace(/\/$/, "");
   return `${base}/api/webhook/wati-inbound?workspace=${workspaceId}`;
