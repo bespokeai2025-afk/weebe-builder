@@ -111,8 +111,8 @@ export const getWatiConnection = createServerFn({ method: "GET" })
       if (!lastSync[l.sync_type]) lastSync[l.sync_type] = l.created_at;
     }
 
-    const webhookUrl =
-      (data.inbound_webhook_url as string | null) || buildWatiInboundWebhookUrl(workspaceId);
+    const canonicalWebhookUrl = buildWatiInboundWebhookUrl(workspaceId);
+    const storedWebhookUrl = data.inbound_webhook_url as string | null;
 
     return {
       tenantId: data.tenant_id,
@@ -122,7 +122,12 @@ export const getWatiConnection = createServerFn({ method: "GET" })
       errorMessage: data.error_message as string | null,
       updatedAt: data.updated_at as string,
       lastSync,
-      webhookUrl,
+      /** URL to paste in WATI Connectors → Webhooks (always current app origin). */
+      webhookUrl: canonicalWebhookUrl,
+      webhookUrlStored:
+        storedWebhookUrl && storedWebhookUrl !== canonicalWebhookUrl
+          ? storedWebhookUrl
+          : null,
       webhookManual: !!data.webhook_manual,
       webhookRegistered: !!data.webhook_manual,
     };

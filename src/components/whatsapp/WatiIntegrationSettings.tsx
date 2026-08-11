@@ -266,6 +266,31 @@ export function WatiIntegrationSettings() {
             {/* Webhook registration status */}
             <div className="space-y-2">
               <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Inbound Webhook</p>
+              <div className="rounded-md border border-border bg-muted/20 p-3 space-y-2 text-xs text-muted-foreground">
+                <p className="font-medium text-foreground">WATI setup (do this once)</p>
+                <ol className="list-decimal pl-4 space-y-1">
+                  <li>
+                    In WATI → <strong>Connectors → Webhooks</strong>, keep{" "}
+                    <strong>only one</strong> webhook (delete extra entries like webee2).
+                  </li>
+                  <li>Paste the URL below — production uses webeereceptionist.com.</li>
+                  <li>
+                    Enable: Message received, Sent Message is REPLIED, Template Message Sent,
+                    Delivered, Read.
+                  </li>
+                  <li>Status = Enabled → Save → Trigger sample callback (expect HTTP 200).</li>
+                  <li>Click <strong>Confirm manual setup</strong> here in WEBEE.</li>
+                </ol>
+              </div>
+              {(conn as { webhookUrlStored?: string | null }).webhookUrlStored && (
+                <p className="text-[10px] text-amber-600 dark:text-amber-400">
+                  Note: an old dev URL was saved previously — ignore it. Use the production URL
+                  below in WATI.
+                </p>
+              )}
+              <p className="text-[10px] font-mono text-muted-foreground break-all bg-muted/40 rounded p-2">
+                {(conn as { webhookUrl?: string }).webhookUrl}
+              </p>
               {webhookStatus ? (
                 <div
                   className={`flex items-start gap-2 rounded-md border p-2.5 ${

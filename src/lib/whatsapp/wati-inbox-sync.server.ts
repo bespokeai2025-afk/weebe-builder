@@ -1,6 +1,5 @@
 /**
- * Sync WEBEE Buzzchat inbox from WATI V1 getMessages (per-contact history).
- * V3 /conversations/{phone}/messages returns 404 on some EU tenants — V1 works.
+ * Keep WEBEE inbox aligned with WATI by merging V1 + V3 conversation history on every inbox load.
  */
 
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
@@ -9,7 +8,10 @@ import {
   getWatiConnectionForWorkspace,
   normalizeWhatsAppPhone,
 } from "@/lib/whatsapp/wati-campaign.server";
-import { extractWatiConversationMessageText, fetchWatiConversationMessages } from "@/lib/whatsapp/wati-inbox-enrich.server";
+import {
+  extractWatiConversationMessageText,
+  fetchWatiConversationMessages,
+} from "@/lib/whatsapp/wati-inbox-enrich.server";
 import { mapWatiStatusString } from "@/lib/whatsapp/wati-message-status.server";
 
 type WatiConn = {
@@ -32,8 +34,58 @@ export type ParsedWatiInboxMessage = {
 const syncThrottleMs =
   process.env.NODE_ENV === "development" || process.env.WATI_INBOX_SYNC_FAST === "1"
     ? 8_000
-    : 60_000;
+    : 12_000;
 const lastSyncByWorkspace = new Map<string, number>();
+const SYNC_PHONE_LIMIT = 35;
+const SYNC_CONCURRENCY = 5;
+
+function watiMessageDedupeKey(msg: Record<string, unknown>): string {
+  const id = String(
+    msg.id ??
+      msg.localMessageId ??
+      msg.local_message_id ??
+      msg.whatsappMessageId ??
+      msg.whatsapp_message_id ??
+      "",
+  ).trim();
+  if (id) return id;
+  const text = extractWatiConversationMessageText(msg) ?? "";
+  const ts = parseWatiMessageSentAt(msg);
+  const owner = msg.owner === false ? "in" : "out";
+  return `${owner}:${ts}:${text.slice(0, 80)}`;
+}
+
+/** Merge V1 + V3 rows — V1 alone often has outbound only; replies live in V3 on EU tenants. */
+export function mergeWatiMessageLists(
+  ...lists: Array<Array<Record<string, unknown>>>
+): Array<Record<string, unknown>> {
+  const merged = new Map<string, Record<string, unknown>>();
+  for (const list of lists) {
+    for (const msg of list) {
+      merged.set(watiMessageDedupeKey(msg), msg);
+    }
+  }
+  return [...merged.values()];
+}
+
+export function parseWatiMessageSentAt(msg: Record<string, unknown>): string {
+  if (msg.created != null) {
+    const created = String(msg.created);
+    if (created && !Number.isNaN(Date.parse(created))) return created;
+  }
+  if (msg.timestamp != null) {
+    const raw = msg.timestamp;
+    if (typeof raw === "string" && raw.includes("T")) {
+      const ms = Date.parse(raw);
+      if (!Number.isNaN(ms)) return new Date(ms).toISOString();
+    }
+    const n = Number(raw);
+    if (!Number.isNaN(n)) {
+      return new Date(n > 1e12 ? n : n * 1000).toISOString();
+    }
+  }
+  return new Date().toISOString();
+}
 
 function watiAuthHeaders(apiKey: string): Record<string, string> {
   return {
@@ -90,12 +142,7 @@ export function parseWatiV1InboxMessage(
         ? String(msg.whatsapp_message_id)
         : null;
 
-  const sentAt =
-    msg.created != null
-      ? String(msg.created)
-      : msg.timestamp != null
-        ? new Date(Number(msg.timestamp) * 1000).toISOString()
-        : new Date().toISOString();
+  const sentAt = parseWatiMessageSentAt(msg);
 
   const status = mapWatiStatusString(msg.statusString ?? msg.status) ?? "sent";
 
@@ -149,18 +196,19 @@ export async function fetchWatiV1MessagesForPhone(
   return collected;
 }
 
-/** V1 getMessages first; V3 conversation API as fallback (EU tenants / campaign threads). */
+/** Always merge V1 + V3 — campaign replies often appear only in V3 on eu-api.wati.io. */
 export async function fetchWatiMessagesForPhone(
   conn: WatiConn,
   phone: string,
   opts?: { pageSize?: number; maxPages?: number },
 ): Promise<Array<Record<string, unknown>>> {
-  const v1 = await fetchWatiV1MessagesForPhone(conn, phone, opts);
-  if (v1.length > 0) return v1;
-  return fetchWatiConversationMessages(conn, phone, {
-    pageSize: opts?.pageSize ?? 50,
-    maxPages: opts?.maxPages ?? 5,
-  });
+  const pageSize = opts?.pageSize ?? 50;
+  const maxPages = opts?.maxPages ?? 5;
+  const [v1, v3] = await Promise.all([
+    fetchWatiV1MessagesForPhone(conn, phone, { pageSize, maxPages }),
+    fetchWatiConversationMessages(conn, phone, { pageSize, maxPages }),
+  ]);
+  return mergeWatiMessageLists(v1, v3);
 }
 
 function parseSentAtMs(value: unknown): number | null {
@@ -220,11 +268,11 @@ export async function syncWatiInboxForPhones(
 
   let inserted = 0;
 
-  for (const phone of uniquePhones) {
+  async function syncOnePhone(phone: string): Promise<number> {
     const watiMessages = await fetchWatiMessagesForPhone(conn, phone, {
-      maxPages: opts?.maxPages ?? 3,
+      maxPages: opts?.maxPages ?? 5,
     });
-    if (watiMessages.length === 0) continue;
+    if (watiMessages.length === 0) return 0;
 
     const { data: existingRows } = await admin
       .from("whatsapp_messages")
@@ -246,6 +294,7 @@ export async function syncWatiInboxForPhones(
 
     const toInsert: Record<string, unknown>[] = [];
     const toPatch: Array<{ id: string; patch: Record<string, unknown> }> = [];
+    let phoneInserted = 0;
 
     for (const raw of watiMessages) {
       const parsed = parseWatiV1InboxMessage(raw, phone);
@@ -296,26 +345,32 @@ export async function syncWatiInboxForPhones(
 
     for (const { id, patch } of toPatch) {
       const { error } = await admin.from("whatsapp_messages").update(patch).eq("id", id);
-      if (!error) inserted++;
+      if (!error) phoneInserted++;
     }
-
-    if (toInsert.length === 0) continue;
 
     for (const row of toInsert) {
       const { error } = await admin.from("whatsapp_messages").upsert(row, {
         onConflict: "workspace_id,external_id",
         ignoreDuplicates: true,
       });
-      if (!error) inserted++;
+      if (!error) phoneInserted++;
       else if (!String(error.message).includes("duplicate")) {
         const { sender_channel: _s, whatsapp_message_id: _w, ...fallback } = row;
         const { error: retryErr } = await admin.from("whatsapp_messages").upsert(fallback, {
           onConflict: "workspace_id,external_id",
           ignoreDuplicates: true,
         });
-        if (!retryErr) inserted++;
+        if (!retryErr) phoneInserted++;
       }
     }
+
+    return phoneInserted;
+  }
+
+  for (let i = 0; i < uniquePhones.length; i += SYNC_CONCURRENCY) {
+    const batch = uniquePhones.slice(i, i + SYNC_CONCURRENCY);
+    const counts = await Promise.all(batch.map((phone) => syncOnePhone(phone)));
+    inserted += counts.reduce((sum, n) => sum + n, 0);
   }
 
   return inserted;
@@ -323,19 +378,16 @@ export async function syncWatiInboxForPhones(
 
 async function collectInboxSyncPhones(workspaceId: string): Promise<string[]> {
   const admin = supabaseAdmin as any;
+  const ordered: string[] = [];
+  const seen = new Set<string>();
 
-  const { data: recentMsgs } = await admin
-    .from("whatsapp_messages")
-    .select("contact_phone")
-    .eq("workspace_id", workspaceId)
-    .order("sent_at", { ascending: false })
-    .limit(500);
-
-  const phones = new Set<string>();
-  for (const row of recentMsgs ?? []) {
-    const p = normalizeWhatsAppPhone(String(row.contact_phone ?? ""));
-    if (p) phones.add(p);
-  }
+  const addPhone = (raw: unknown) => {
+    const p = normalizeWhatsAppPhone(String(raw ?? ""));
+    if (p && !seen.has(p)) {
+      seen.add(p);
+      ordered.push(p);
+    }
+  };
 
   const since = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000).toISOString();
   const { data: campaignOutbound } = await admin
@@ -347,12 +399,18 @@ async function collectInboxSyncPhones(workspaceId: string): Promise<string[]> {
     .not("campaign_id", "is", null)
     .gte("sent_at", since)
     .order("sent_at", { ascending: false })
-    .limit(200);
+    .limit(500);
 
-  for (const row of campaignOutbound ?? []) {
-    const p = normalizeWhatsAppPhone(String(row.contact_phone ?? ""));
-    if (p) phones.add(p);
-  }
+  for (const row of campaignOutbound ?? []) addPhone(row.contact_phone);
+
+  const { data: recentMsgs } = await admin
+    .from("whatsapp_messages")
+    .select("contact_phone")
+    .eq("workspace_id", workspaceId)
+    .order("sent_at", { ascending: false })
+    .limit(500);
+
+  for (const row of recentMsgs ?? []) addPhone(row.contact_phone);
 
   const { data: contacts } = await admin
     .from("whatsapp_contacts")
@@ -361,12 +419,9 @@ async function collectInboxSyncPhones(workspaceId: string): Promise<string[]> {
     .order("updated_at", { ascending: false })
     .limit(100);
 
-  for (const c of contacts ?? []) {
-    const p = normalizeWhatsAppPhone(String(c.phone ?? ""));
-    if (p) phones.add(p);
-  }
+  for (const c of contacts ?? []) addPhone(c.phone);
 
-  return [...phones].slice(0, 50);
+  return ordered.slice(0, SYNC_PHONE_LIMIT);
 }
 
 /** Pull WATI history for explicit phones (no throttle) — use when a thread is open locally. */
@@ -380,7 +435,7 @@ export async function syncWatiInboxFromWatiApi(
   return syncWatiInboxForPhones(workspaceId, unique, { maxPages: opts?.maxPages ?? 5 });
 }
 
-/** Throttled background sync — pulls recent WATI history including bot auto-replies. */
+/** Throttled background sync — merges WATI V1+V3 history including campaign replies. */
 export async function maybeSyncWatiInboxFromApi(
   workspaceId: string,
   opts?: { force?: boolean },
@@ -389,8 +444,8 @@ export async function maybeSyncWatiInboxFromApi(
     const now = Date.now();
     const last = lastSyncByWorkspace.get(workspaceId) ?? 0;
     if (now - last < syncThrottleMs) return 0;
-    lastSyncByWorkspace.set(workspaceId, now);
   }
+  lastSyncByWorkspace.set(workspaceId, Date.now());
 
   const phoneList = await collectInboxSyncPhones(workspaceId);
   return syncWatiInboxForPhones(workspaceId, phoneList);

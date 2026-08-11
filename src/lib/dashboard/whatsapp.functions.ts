@@ -63,6 +63,7 @@ function isTemplateShorthandBody(body: unknown): body is string {
 async function enrichInboxMessageBodies(
   workspaceId: string,
   messages: Array<Record<string, unknown>>,
+  opts?: { skipWatiApi?: boolean },
 ): Promise<void> {
   const shorthand = messages.filter((m) => isTemplateShorthandBody(m.body));
   if (shorthand.length === 0) return;
@@ -145,7 +146,9 @@ async function enrichInboxMessageBodies(
     if (resolved) m.body = resolved;
   }
 
-  await enrichInboxBodiesFromWatiApi(admin, workspaceId, messages, isTemplateShorthandBody);
+  if (!opts?.skipWatiApi) {
+    await enrichInboxBodiesFromWatiApi(admin, workspaceId, messages, isTemplateShorthandBody);
+  }
 }
 
 export const listWhatsappThreads = createServerFn({ method: "GET" })
@@ -154,12 +157,6 @@ export const listWhatsappThreads = createServerFn({ method: "GET" })
     const { supabase, workspaceId } = context;
     if (!workspaceId) throw new Error("No active workspace");
     const sb = supabase as any;
-
-    try {
-      await maybeSyncWatiInboxFromApi(workspaceId);
-    } catch (syncErr) {
-      console.error("[wa-inbox] WATI background sync failed:", syncErr);
-    }
 
     const { data, error } = await sb
       .from("whatsapp_messages")
@@ -170,7 +167,7 @@ export const listWhatsappThreads = createServerFn({ method: "GET" })
     if (error) throw new Error(error.message);
 
     const rows = (data ?? []) as Array<Record<string, unknown>>;
-    await enrichInboxMessageBodies(workspaceId, rows);
+    await enrichInboxMessageBodies(workspaceId, rows, { skipWatiApi: true });
 
     const threadMap = new Map<string, Array<Record<string, unknown>>>();
     for (const m of rows as any[]) {
@@ -185,6 +182,16 @@ export const listWhatsappThreads = createServerFn({ method: "GET" })
       .filter((t): t is NonNullable<typeof t> => t != null);
 
     return sortWhatsappInboxThreads(threads);
+  });
+
+/** Background WATI pull — call separately so inbox list stays fast. */
+export const refreshWatiInboxFromWati = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const { workspaceId } = context;
+    if (!workspaceId) throw new Error("No active workspace");
+    const inserted = await maybeSyncWatiInboxFromApi(workspaceId);
+    return { inserted };
   });
 
 /** Pull latest WATI messages for one contact (local dev + open thread polling). */
