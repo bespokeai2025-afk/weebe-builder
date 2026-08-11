@@ -23,11 +23,24 @@ export async function resolveRetellCandidateKeysByAgent(
   if (agentId && agentId !== "test_agent") {
     const { data: agentLookup } = await supabaseAdmin
       .from("agents")
-      .select("workspace_id")
+      .select("id, workspace_id")
       .or(
         `retell_agent_id.eq.${agentId},settings->>deployedRetellAgentId.eq.${agentId}`,
       )
       .maybeSingle();
+
+    const keys: string[] = [];
+
+    if (agentLookup?.id) {
+      const { data: secretRows } = await supabaseAdmin
+        .from("agent_retell_secrets")
+        .select("production_api_key")
+        .eq("agent_id", agentLookup.id as string)
+        .limit(1);
+      const prod = (secretRows?.[0] as { production_api_key?: string } | undefined)
+        ?.production_api_key?.trim();
+      if (prod) keys.push(prod);
+    }
 
     if (agentLookup?.workspace_id) {
       const { data: wsLookup } = await supabaseAdmin
@@ -36,8 +49,10 @@ export async function resolveRetellCandidateKeysByAgent(
         .eq("workspace_id", agentLookup.workspace_id)
         .maybeSingle();
       const wk = wsLookup?.retell_workspace_id?.trim();
-      if (wk?.startsWith("key_")) return [wk];
+      if (wk?.startsWith("key_")) keys.push(wk);
     }
+
+    if (keys.length) return [...new Set(keys)];
   }
 
   return resolveAllWorkspaceRetellKeys();

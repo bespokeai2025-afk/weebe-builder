@@ -12200,6 +12200,47 @@ export type Database = {
           },
         ]
       }
+      receptionist_tool_events: {
+        Row: {
+          created_at: string
+          id: string
+          ok: boolean
+          request_summary: Json
+          response_summary: Json
+          retell_call_id: string | null
+          tool_name: string
+          workspace_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          ok?: boolean
+          request_summary?: Json
+          response_summary?: Json
+          retell_call_id?: string | null
+          tool_name: string
+          workspace_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          ok?: boolean
+          request_summary?: Json
+          response_summary?: Json
+          retell_call_id?: string | null
+          tool_name?: string
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "receptionist_tool_events_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       reseller_client_accounts: {
         Row: {
           billing_mode: string

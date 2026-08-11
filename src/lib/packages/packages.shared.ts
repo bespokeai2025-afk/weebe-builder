@@ -555,6 +555,7 @@ export const ROUTE_FEATURE_MAP: Record<string, FeatureKey> = {
   "/pipeline": "crm",
   "/qualified": "qualified",
   "/calls": "calls",
+  "/receptionist": "receptionist",
   "/calendar": "receptionist",
   "/template-studio": "template_studio",
   "/hexmail": "hexmail",
@@ -588,7 +589,8 @@ export const ROUTE_PAGE_MAP: Record<string, PageKey> = {
   "/leads/webforms": "leads",
   "/pipeline": "pipeline",
   "/calls": "calls",
-  "/workflow-engine": "workflows",
+  "/receptionist": "calls",
+  "/calendar": "dashboard",
   "/billing": "billing",
 };
 

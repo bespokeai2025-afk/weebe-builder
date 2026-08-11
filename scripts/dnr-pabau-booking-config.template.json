@@ -1,0 +1,69 @@
+{
+  "brand": "Dr Nyla Medispa Group",
+  "greeting": "Thank you for calling the Dr Nyla Medispa Group, how may we assist?",
+  "transferPhone": "+448081892587",
+  "transferPhoneNotes": "FOH transfer when human needed — not the Retell AI inbound number",
+  "timezone": "Europe/London",
+  "location": {
+    "name": "Medispa Cheshire (Castlerock House)",
+    "address": "Castle Rock, Wilmslow Road, Alderley Edge, SK9 7QL",
+    "pabauLocationId": 3526,
+    "phone": "01625 523 307",
+    "notes": "ONLY this site — Liverpool (3532) and London (3535) must be excluded"
+  },
+  "hours": {
+    "days": ["mon", "tue", "wed", "thu", "fri", "sat"],
+    "open": "10:00",
+    "close": "20:00",
+    "saturdayClose": "19:00"
+  },
+  "consultDay": {
+    "weekday": null,
+    "notes": "ASK EMMA: which weekday is consult day at Cheshire?"
+  },
+  "bookingColumn": {
+    "practitionerId": null,
+    "practitionerName": null,
+    "candidatesFromAppointments": {
+      "53116": "Ask Medispa",
+      "130469": "Therapist Sandra",
+      "142159": "Nurse Antonia",
+      "150735": "Lee Garrett",
+      "151801": "Therapist Anna",
+      "151940": "Therapist Kayleigh"
+    },
+    "notes": "ASK EMMA: which practitioner column for consult bookings?"
+  },
+  "service": {
+    "consultCategoryId": 89166,
+    "consultCategoryName": "Consultations",
+    "pabauServiceId": null,
+    "name": null,
+    "durationMinutes": null,
+    "notes": "ASK EMMA: exact consult service name in Pabau (category Consultations)"
+  },
+  "escalation": {
+    "contactName": "Emma Louise",
+    "email": "emma.r@doctornyla.com",
+    "transferPhone": null,
+    "website": "https://www.doctornyla.com"
+  },
+  "policies": {
+    "noMedicalAdvice": true,
+    "escalateEmergencies": true,
+    "escalateWhenUnsure": true
+  },
+  "script": {
+    "sourceFile": "src/lib/dnr/dr-nyla-receptionist.prompt.ts",
+    "beginMessage": "Thank you for calling the Dr Nyla Medispa Group, how may I assist you today?",
+    "exportJson": "scripts/output/dnr-dr-nyla-retell-agent.json"
+  },
+  "_discovery": {
+    "discoveredAt": "2026-08-10",
+    "allLocations": [
+      { "id": 3532, "name": "Liverpool" },
+      { "id": 3535, "name": "London" },
+      { "id": 3526, "name": "Medispa Cheshire" }
+    ]
+  }
+}

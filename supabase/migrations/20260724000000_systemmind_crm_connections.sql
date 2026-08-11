@@ -23,7 +23,7 @@ CREATE TABLE IF NOT EXISTS systemmind_crm_connections (
   CONSTRAINT systemmind_crm_connections_status_check
     CHECK (status IN ('unverified','connected','failed')),
   CONSTRAINT systemmind_crm_connections_provider_check
-    CHECK (provider IN ('hubspot','salesforce','pipedrive','gohighlevel','dynamics','zoho','webee','generic_rest','webhook'))
+    CHECK (provider IN ('hubspot','salesforce','pipedrive','gohighlevel','dynamics','zoho','pabau','webee','generic_rest','webhook'))
 );
 
 CREATE UNIQUE INDEX IF NOT EXISTS systemmind_crm_connections_ws_provider_label_uniq

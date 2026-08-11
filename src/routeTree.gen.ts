@@ -39,6 +39,7 @@ import { Route as AuthenticatedTelephonySettingsRouteImport } from './routes/_au
 import { Route as AuthenticatedTelephonyCallsRouteImport } from './routes/_authenticated/telephony-calls'
 import { Route as AuthenticatedSystemmindRouteImport } from './routes/_authenticated/systemmind'
 import { Route as AuthenticatedResellerRouteImport } from './routes/_authenticated/reseller'
+import { Route as AuthenticatedReceptionistRouteImport } from './routes/_authenticated/receptionist'
 import { Route as AuthenticatedQualifiedRouteImport } from './routes/_authenticated/qualified'
 import { Route as AuthenticatedPipelineRouteImport } from './routes/_authenticated/pipeline'
 import { Route as AuthenticatedPhoneNumbersRouteImport } from './routes/_authenticated/phone-numbers'
@@ -311,6 +312,10 @@ import { Route as ApiV1MindsConversationsIdRouteImport } from './routes/api/v1/m
 import { Route as ApiRuntimeAgentIdExportRouteImport } from './routes/api/runtime/agent.$id.export'
 import { Route as ApiPublicTelephonyStatusHealthRouteImport } from './routes/api/public/telephony/status.health'
 import { Route as ApiPublicTelephonyInboundHealthRouteImport } from './routes/api/public/telephony/inbound.health'
+import { Route as ApiPublicRetellPabauListServicesRouteImport } from './routes/api/public/retell/pabau/list-services'
+import { Route as ApiPublicRetellPabauFindOrCreateClientRouteImport } from './routes/api/public/retell/pabau/find-or-create-client'
+import { Route as ApiPublicRetellPabauCheckAvailabilityRouteImport } from './routes/api/public/retell/pabau/check-availability'
+import { Route as ApiPublicRetellPabauBookAppointmentRouteImport } from './routes/api/public/retell/pabau/book-appointment'
 import { Route as ApiPublicPaymentsWebhookHealthRouteImport } from './routes/api/public/payments/webhook.health'
 import { Route as ApiAutomationExecutionsExecutionIdEventsRouteImport } from './routes/api/automation/executions/$executionId.events'
 import { Route as AuthenticatedAdminAccountsWorkspaceIdRouteImport } from './routes/_authenticated/admin.accounts.workspace.$id'
@@ -478,6 +483,12 @@ const AuthenticatedResellerRoute = AuthenticatedResellerRouteImport.update({
   path: '/reseller',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
+const AuthenticatedReceptionistRoute =
+  AuthenticatedReceptionistRouteImport.update({
+    id: '/receptionist',
+    path: '/receptionist',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
 const AuthenticatedQualifiedRoute = AuthenticatedQualifiedRouteImport.update({
   id: '/qualified',
   path: '/qualified',
@@ -2028,6 +2039,30 @@ const ApiPublicTelephonyInboundHealthRoute =
     path: '/health',
     getParentRoute: () => ApiPublicTelephonyInboundRoute,
   } as any)
+const ApiPublicRetellPabauListServicesRoute =
+  ApiPublicRetellPabauListServicesRouteImport.update({
+    id: '/api/public/retell/pabau/list-services',
+    path: '/api/public/retell/pabau/list-services',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiPublicRetellPabauFindOrCreateClientRoute =
+  ApiPublicRetellPabauFindOrCreateClientRouteImport.update({
+    id: '/api/public/retell/pabau/find-or-create-client',
+    path: '/api/public/retell/pabau/find-or-create-client',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiPublicRetellPabauCheckAvailabilityRoute =
+  ApiPublicRetellPabauCheckAvailabilityRouteImport.update({
+    id: '/api/public/retell/pabau/check-availability',
+    path: '/api/public/retell/pabau/check-availability',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiPublicRetellPabauBookAppointmentRoute =
+  ApiPublicRetellPabauBookAppointmentRouteImport.update({
+    id: '/api/public/retell/pabau/book-appointment',
+    path: '/api/public/retell/pabau/book-appointment',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiPublicPaymentsWebhookHealthRoute =
   ApiPublicPaymentsWebhookHealthRouteImport.update({
     id: '/health',
@@ -2147,6 +2182,7 @@ export interface FileRoutesByFullPath {
   '/phone-numbers': typeof AuthenticatedPhoneNumbersRoute
   '/pipeline': typeof AuthenticatedPipelineRoute
   '/qualified': typeof AuthenticatedQualifiedRoute
+  '/receptionist': typeof AuthenticatedReceptionistRoute
   '/reseller': typeof AuthenticatedResellerRoute
   '/systemmind': typeof AuthenticatedSystemmindRouteWithChildren
   '/telephony-calls': typeof AuthenticatedTelephonyCallsRoute
@@ -2406,6 +2442,10 @@ export interface FileRoutesByFullPath {
   '/admin/accounts/workspace/$id': typeof AuthenticatedAdminAccountsWorkspaceIdRoute
   '/api/automation/executions/$executionId/events': typeof ApiAutomationExecutionsExecutionIdEventsRoute
   '/api/public/payments/webhook/health': typeof ApiPublicPaymentsWebhookHealthRoute
+  '/api/public/retell/pabau/book-appointment': typeof ApiPublicRetellPabauBookAppointmentRoute
+  '/api/public/retell/pabau/check-availability': typeof ApiPublicRetellPabauCheckAvailabilityRoute
+  '/api/public/retell/pabau/find-or-create-client': typeof ApiPublicRetellPabauFindOrCreateClientRoute
+  '/api/public/retell/pabau/list-services': typeof ApiPublicRetellPabauListServicesRoute
   '/api/public/telephony/inbound/health': typeof ApiPublicTelephonyInboundHealthRoute
   '/api/public/telephony/status/health': typeof ApiPublicTelephonyStatusHealthRoute
   '/api/runtime/agent/$id/export': typeof ApiRuntimeAgentIdExportRoute
@@ -2457,6 +2497,7 @@ export interface FileRoutesByTo {
   '/phone-numbers': typeof AuthenticatedPhoneNumbersRoute
   '/pipeline': typeof AuthenticatedPipelineRoute
   '/qualified': typeof AuthenticatedQualifiedRoute
+  '/receptionist': typeof AuthenticatedReceptionistRoute
   '/reseller': typeof AuthenticatedResellerRoute
   '/telephony-calls': typeof AuthenticatedTelephonyCallsRoute
   '/telephony-settings': typeof AuthenticatedTelephonySettingsRoute
@@ -2712,6 +2753,10 @@ export interface FileRoutesByTo {
   '/admin/accounts/workspace/$id': typeof AuthenticatedAdminAccountsWorkspaceIdRoute
   '/api/automation/executions/$executionId/events': typeof ApiAutomationExecutionsExecutionIdEventsRoute
   '/api/public/payments/webhook/health': typeof ApiPublicPaymentsWebhookHealthRoute
+  '/api/public/retell/pabau/book-appointment': typeof ApiPublicRetellPabauBookAppointmentRoute
+  '/api/public/retell/pabau/check-availability': typeof ApiPublicRetellPabauCheckAvailabilityRoute
+  '/api/public/retell/pabau/find-or-create-client': typeof ApiPublicRetellPabauFindOrCreateClientRoute
+  '/api/public/retell/pabau/list-services': typeof ApiPublicRetellPabauListServicesRoute
   '/api/public/telephony/inbound/health': typeof ApiPublicTelephonyInboundHealthRoute
   '/api/public/telephony/status/health': typeof ApiPublicTelephonyStatusHealthRoute
   '/api/runtime/agent/$id/export': typeof ApiRuntimeAgentIdExportRoute
@@ -2771,6 +2816,7 @@ export interface FileRoutesById {
   '/_authenticated/phone-numbers': typeof AuthenticatedPhoneNumbersRoute
   '/_authenticated/pipeline': typeof AuthenticatedPipelineRoute
   '/_authenticated/qualified': typeof AuthenticatedQualifiedRoute
+  '/_authenticated/receptionist': typeof AuthenticatedReceptionistRoute
   '/_authenticated/reseller': typeof AuthenticatedResellerRoute
   '/_authenticated/systemmind': typeof AuthenticatedSystemmindRouteWithChildren
   '/_authenticated/telephony-calls': typeof AuthenticatedTelephonyCallsRoute
@@ -3030,6 +3076,10 @@ export interface FileRoutesById {
   '/_authenticated/admin/accounts/workspace/$id': typeof AuthenticatedAdminAccountsWorkspaceIdRoute
   '/api/automation/executions/$executionId/events': typeof ApiAutomationExecutionsExecutionIdEventsRoute
   '/api/public/payments/webhook/health': typeof ApiPublicPaymentsWebhookHealthRoute
+  '/api/public/retell/pabau/book-appointment': typeof ApiPublicRetellPabauBookAppointmentRoute
+  '/api/public/retell/pabau/check-availability': typeof ApiPublicRetellPabauCheckAvailabilityRoute
+  '/api/public/retell/pabau/find-or-create-client': typeof ApiPublicRetellPabauFindOrCreateClientRoute
+  '/api/public/retell/pabau/list-services': typeof ApiPublicRetellPabauListServicesRoute
   '/api/public/telephony/inbound/health': typeof ApiPublicTelephonyInboundHealthRoute
   '/api/public/telephony/status/health': typeof ApiPublicTelephonyStatusHealthRoute
   '/api/runtime/agent/$id/export': typeof ApiRuntimeAgentIdExportRoute
@@ -3089,6 +3139,7 @@ export interface FileRouteTypes {
     | '/phone-numbers'
     | '/pipeline'
     | '/qualified'
+    | '/receptionist'
     | '/reseller'
     | '/systemmind'
     | '/telephony-calls'
@@ -3348,6 +3399,10 @@ export interface FileRouteTypes {
     | '/admin/accounts/workspace/$id'
     | '/api/automation/executions/$executionId/events'
     | '/api/public/payments/webhook/health'
+    | '/api/public/retell/pabau/book-appointment'
+    | '/api/public/retell/pabau/check-availability'
+    | '/api/public/retell/pabau/find-or-create-client'
+    | '/api/public/retell/pabau/list-services'
     | '/api/public/telephony/inbound/health'
     | '/api/public/telephony/status/health'
     | '/api/runtime/agent/$id/export'
@@ -3399,6 +3454,7 @@ export interface FileRouteTypes {
     | '/phone-numbers'
     | '/pipeline'
     | '/qualified'
+    | '/receptionist'
     | '/reseller'
     | '/telephony-calls'
     | '/telephony-settings'
@@ -3654,6 +3710,10 @@ export interface FileRouteTypes {
     | '/admin/accounts/workspace/$id'
     | '/api/automation/executions/$executionId/events'
     | '/api/public/payments/webhook/health'
+    | '/api/public/retell/pabau/book-appointment'
+    | '/api/public/retell/pabau/check-availability'
+    | '/api/public/retell/pabau/find-or-create-client'
+    | '/api/public/retell/pabau/list-services'
     | '/api/public/telephony/inbound/health'
     | '/api/public/telephony/status/health'
     | '/api/runtime/agent/$id/export'
@@ -3712,6 +3772,7 @@ export interface FileRouteTypes {
     | '/_authenticated/phone-numbers'
     | '/_authenticated/pipeline'
     | '/_authenticated/qualified'
+    | '/_authenticated/receptionist'
     | '/_authenticated/reseller'
     | '/_authenticated/systemmind'
     | '/_authenticated/telephony-calls'
@@ -3971,6 +4032,10 @@ export interface FileRouteTypes {
     | '/_authenticated/admin/accounts/workspace/$id'
     | '/api/automation/executions/$executionId/events'
     | '/api/public/payments/webhook/health'
+    | '/api/public/retell/pabau/book-appointment'
+    | '/api/public/retell/pabau/check-availability'
+    | '/api/public/retell/pabau/find-or-create-client'
+    | '/api/public/retell/pabau/list-services'
     | '/api/public/telephony/inbound/health'
     | '/api/public/telephony/status/health'
     | '/api/runtime/agent/$id/export'
@@ -4104,6 +4169,10 @@ export interface RootRouteChildren {
   LovableEmailTransactionalPreviewRoute: typeof LovableEmailTransactionalPreviewRoute
   LovableEmailTransactionalSendRoute: typeof LovableEmailTransactionalSendRoute
   ApiAutomationExecutionsExecutionIdEventsRoute: typeof ApiAutomationExecutionsExecutionIdEventsRoute
+  ApiPublicRetellPabauBookAppointmentRoute: typeof ApiPublicRetellPabauBookAppointmentRoute
+  ApiPublicRetellPabauCheckAvailabilityRoute: typeof ApiPublicRetellPabauCheckAvailabilityRoute
+  ApiPublicRetellPabauFindOrCreateClientRoute: typeof ApiPublicRetellPabauFindOrCreateClientRoute
+  ApiPublicRetellPabauListServicesRoute: typeof ApiPublicRetellPabauListServicesRoute
   ApiPublicV1SitesSiteKeyCategoriesRoute: typeof ApiPublicV1SitesSiteKeyCategoriesRoute
   ApiPublicV1SitesSiteKeyFeedRoute: typeof ApiPublicV1SitesSiteKeyFeedRoute
   ApiPublicV1SitesSiteKeyPostsRoute: typeof ApiPublicV1SitesSiteKeyPostsRouteWithChildren
@@ -4321,6 +4390,13 @@ declare module '@tanstack/react-router' {
       path: '/reseller'
       fullPath: '/reseller'
       preLoaderRoute: typeof AuthenticatedResellerRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/receptionist': {
+      id: '/_authenticated/receptionist'
+      path: '/receptionist'
+      fullPath: '/receptionist'
+      preLoaderRoute: typeof AuthenticatedReceptionistRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
     '/_authenticated/qualified': {
@@ -6227,6 +6303,34 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicTelephonyInboundHealthRouteImport
       parentRoute: typeof ApiPublicTelephonyInboundRoute
     }
+    '/api/public/retell/pabau/list-services': {
+      id: '/api/public/retell/pabau/list-services'
+      path: '/api/public/retell/pabau/list-services'
+      fullPath: '/api/public/retell/pabau/list-services'
+      preLoaderRoute: typeof ApiPublicRetellPabauListServicesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/retell/pabau/find-or-create-client': {
+      id: '/api/public/retell/pabau/find-or-create-client'
+      path: '/api/public/retell/pabau/find-or-create-client'
+      fullPath: '/api/public/retell/pabau/find-or-create-client'
+      preLoaderRoute: typeof ApiPublicRetellPabauFindOrCreateClientRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/retell/pabau/check-availability': {
+      id: '/api/public/retell/pabau/check-availability'
+      path: '/api/public/retell/pabau/check-availability'
+      fullPath: '/api/public/retell/pabau/check-availability'
+      preLoaderRoute: typeof ApiPublicRetellPabauCheckAvailabilityRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/retell/pabau/book-appointment': {
+      id: '/api/public/retell/pabau/book-appointment'
+      path: '/api/public/retell/pabau/book-appointment'
+      fullPath: '/api/public/retell/pabau/book-appointment'
+      preLoaderRoute: typeof ApiPublicRetellPabauBookAppointmentRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/payments/webhook/health': {
       id: '/api/public/payments/webhook/health'
       path: '/health'
@@ -6834,6 +6938,7 @@ interface AuthenticatedRouteChildren {
   AuthenticatedPhoneNumbersRoute: typeof AuthenticatedPhoneNumbersRoute
   AuthenticatedPipelineRoute: typeof AuthenticatedPipelineRoute
   AuthenticatedQualifiedRoute: typeof AuthenticatedQualifiedRoute
+  AuthenticatedReceptionistRoute: typeof AuthenticatedReceptionistRoute
   AuthenticatedResellerRoute: typeof AuthenticatedResellerRoute
   AuthenticatedSystemmindRoute: typeof AuthenticatedSystemmindRouteWithChildren
   AuthenticatedTelephonyCallsRoute: typeof AuthenticatedTelephonyCallsRoute
@@ -6879,6 +6984,7 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedPhoneNumbersRoute: AuthenticatedPhoneNumbersRoute,
   AuthenticatedPipelineRoute: AuthenticatedPipelineRoute,
   AuthenticatedQualifiedRoute: AuthenticatedQualifiedRoute,
+  AuthenticatedReceptionistRoute: AuthenticatedReceptionistRoute,
   AuthenticatedResellerRoute: AuthenticatedResellerRoute,
   AuthenticatedSystemmindRoute: AuthenticatedSystemmindRouteWithChildren,
   AuthenticatedTelephonyCallsRoute: AuthenticatedTelephonyCallsRoute,
@@ -7269,6 +7375,13 @@ const rootRouteChildren: RootRouteChildren = {
   LovableEmailTransactionalSendRoute: LovableEmailTransactionalSendRoute,
   ApiAutomationExecutionsExecutionIdEventsRoute:
     ApiAutomationExecutionsExecutionIdEventsRoute,
+  ApiPublicRetellPabauBookAppointmentRoute:
+    ApiPublicRetellPabauBookAppointmentRoute,
+  ApiPublicRetellPabauCheckAvailabilityRoute:
+    ApiPublicRetellPabauCheckAvailabilityRoute,
+  ApiPublicRetellPabauFindOrCreateClientRoute:
+    ApiPublicRetellPabauFindOrCreateClientRoute,
+  ApiPublicRetellPabauListServicesRoute: ApiPublicRetellPabauListServicesRoute,
   ApiPublicV1SitesSiteKeyCategoriesRoute:
     ApiPublicV1SitesSiteKeyCategoriesRoute,
   ApiPublicV1SitesSiteKeyFeedRoute: ApiPublicV1SitesSiteKeyFeedRoute,

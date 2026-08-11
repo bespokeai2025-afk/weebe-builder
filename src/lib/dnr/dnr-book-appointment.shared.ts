@@ -1,0 +1,109 @@
+import { z } from "zod";
+import { normalizeDateOfBirth } from "@/lib/dnr/dnr-new-client-intake.shared";
+
+const bookSchema = z.object({
+  contact_id: z.union([z.string().min(1), z.number()]),
+  service_name: z.string().min(1),
+  start_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "start_date must be YYYY-MM-DD"),
+  start_time: z.string().regex(/^\d{2}:\d{2}$/, "start_time must be HH:MM"),
+  notes: z.string().max(500).optional(),
+});
+
+export type DnrBookAppointmentInput = z.infer<typeof bookSchema>;
+
+function pickString(o: Record<string, unknown>, ...keys: string[]): string | undefined {
+  for (const k of keys) {
+    const v = o[k];
+    if (typeof v === "string" && v.trim()) return v.trim();
+  }
+  return undefined;
+}
+
+function normalizeTime(input: string): string | null {
+  const s = input.trim();
+  const hm = s.match(/^(\d{1,2})[:.](\d{2})(?::\d{2})?$/);
+  if (hm) {
+    const h = Number(hm[1]);
+    const m = Number(hm[2]);
+    if (h >= 0 && h <= 23 && m >= 0 && m <= 59) {
+      return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
+    }
+  }
+  return null;
+}
+
+function normalizeDate(input: string): string | null {
+  if (/^\d{4}-\d{2}-\d{2}$/.test(input.trim())) return input.trim();
+  return normalizeDateOfBirth(input);
+}
+
+/** Normalize messy Retell / voice booking args. */
+export function normalizeDnrBookAppointmentArgs(raw: unknown): Record<string, unknown> {
+  if (!raw || typeof raw !== "object") return {};
+  const o = { ...(raw as Record<string, unknown>) };
+
+  const slot = o.slot ?? o.selected_slot ?? o.appointment_slot;
+  if (slot && typeof slot === "object") {
+    const s = slot as Record<string, unknown>;
+    if (!o.start_date && s.start_date) o.start_date = s.start_date;
+    if (!o.start_time && s.start_time) o.start_time = s.start_time;
+  }
+
+  const contactId = o.contact_id ?? o.contactId ?? o.client_id ?? o.clientId ?? o.customer_id;
+  if (contactId != null && contactId !== "") o.contact_id = contactId;
+
+  const service = pickString(o, "service_name", "service", "treatment", "treatment_name");
+  if (service) o.service_name = service;
+
+  const dateRaw = pickString(o, "appointment_date", "date", "booking_date");
+  if (dateRaw && !o.start_date) {
+    const d = normalizeDate(dateRaw);
+    if (d) o.start_date = d;
+  } else if (typeof o.start_date === "string") {
+    const d = normalizeDate(o.start_date);
+    if (d) o.start_date = d;
+  }
+
+  const timeRaw = pickString(o, "appointment_time", "time", "booking_time");
+  if (timeRaw && !o.start_time) {
+    const t = normalizeTime(timeRaw);
+    if (t) o.start_time = t;
+  } else if (typeof o.start_time === "string") {
+    const t = normalizeTime(o.start_time);
+    if (t) o.start_time = t;
+  }
+
+  if (typeof o.notes === "string") o.notes = o.notes.trim().slice(0, 500);
+
+  return o;
+}
+
+export function parseDnrBookAppointment(
+  args: unknown,
+):
+  | { ok: true; data: DnrBookAppointmentInput }
+  | { ok: false; error: string; hint: string; missing?: string[] } {
+  const normalized = normalizeDnrBookAppointmentArgs(args);
+  const parsed = bookSchema.safeParse(normalized);
+  if (!parsed.success) {
+    const missing: string[] = [];
+    if (normalized.contact_id == null || normalized.contact_id === "") missing.push("contact_id");
+    if (!normalized.service_name) missing.push("service_name");
+    if (!normalized.start_date) missing.push("start_date");
+    if (!normalized.start_time) missing.push("start_time");
+
+    return {
+      ok: false,
+      error: "contact_id, service_name, start_date, start_time required",
+      hint:
+        "Call find_or_create_client first and use its contact_id. Use exact service_name from list_services. " +
+        "Pass start_date as YYYY-MM-DD and start_time as HH:MM from check_availability slots.",
+      missing,
+    };
+  }
+  return { ok: true, data: parsed.data };
+}
+
+export function dnrBookAppointmentHint(): string {
+  return "Required: contact_id (from find_or_create_client), service_name (exact Pabau name), start_date (YYYY-MM-DD), start_time (HH:MM from availability slot).";
+}

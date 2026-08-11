@@ -20,6 +20,7 @@ import {
   processAvaCallAnalyzed,
   markAvaCallFailed,
 } from "@/lib/lead-gen/ava-call.server";
+import { DNR_RETELL_AGENT_ID, getDnrRetellApiKey } from "@/lib/dnr/dnr-voice.config";
 
 const SUPPORTED_RETELL_EVENTS = new Set([
   "call_started",
@@ -455,6 +456,14 @@ export async function processRetellWebhook(
       : { valid: false, reason: "RETELL_API_KEY not configured", mode: "none" };
 
     if (!sigResult.valid) {
+      const dnrKey = getDnrRetellApiKey();
+      if (dnrKey) {
+        const dnrResult = verifyRetellSignature(rawBody, sigHeader, dnrKey);
+        if (dnrResult.valid) sigResult = dnrResult;
+      }
+    }
+
+    if (!sigResult.valid) {
       // Fetch all per-workspace keys and try each one.
       try {
         const { data: wsRows } = await supabaseAdmin
@@ -577,12 +586,25 @@ export async function processRetellWebhook(
     return { ok: true, status: 200, message: "ignored", event, callId };
   }
 
-  // Ignore test/builder calls (web_call type). These are calls initiated from
-  // the builder preview — they should never appear in the client dashboard.
-  if (call.call_type === "web_call" || call.call_type === "webcall") {
+  // Ignore test/builder calls (web_call type) except DNR receptionist — those are
+  // stored so the /receptionist dashboard shows Retell web-test activity.
+  const isWebCall = call.call_type === "web_call" || call.call_type === "webcall";
+  const persistWebCall =
+    incomingAgentId === DNR_RETELL_AGENT_ID ||
+    process.env.RETELL_STORE_WEB_CALLS === "true";
+
+  if (isWebCall && !persistWebCall) {
     console.log("[RETELL WEBHOOK] Ignoring web/test call (not a live call)", { event, callId });
     await updateWebhookEvent(eventLogId, "ignored", "web_call type — builder test call");
     return { ok: true, status: 200, message: "ignored: test call", event, callId };
+  }
+
+  if (isWebCall && persistWebCall) {
+    console.log("[RETELL WEBHOOK] Storing web test call for dashboard", {
+      event,
+      callId,
+      agentId: incomingAgentId,
+    });
   }
 
   if (!callId || !incomingAgentId) {
@@ -793,8 +815,8 @@ export async function processRetellWebhook(
     agent_name: agentRow.name as string,
     call_type: callType,
     call_status: mapStatus(event, call.call_status),
-    from_number: call.from_number ?? null,
-    to_number: call.to_number ?? "unknown",
+    from_number: isWebCall ? (call.from_number ?? "Web test") : (call.from_number ?? null),
+    to_number: isWebCall ? (call.to_number ?? "web:test") : (call.to_number ?? "unknown"),
     started_at: startedAt,
     ended_at: endedAt,
     duration_seconds: durationSeconds,
