@@ -16,6 +16,7 @@ const WATI_WEBHOOK_EVENT_TYPES = [
   "newContactMessageReceived",
   "sentMessageDELIVERED_v2",
   "sentMessageREAD_v2",
+  "sentMessageREPLIED_v2",
   "templateMessageSent_v2",
   "templateReviewed",
   "templateQualityUpdated",

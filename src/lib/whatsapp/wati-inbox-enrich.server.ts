@@ -102,9 +102,9 @@ function watiAuthHeaders(apiKey: string): Record<string, string> {
   };
 }
 
-export async function fetchWatiConversationMessages(
+export async function fetchWatiConversationMessagesForTarget(
   conn: WatiConn,
-  phone: string,
+  target: string,
   opts?: { pageSize?: number; maxPages?: number },
 ): Promise<Array<Record<string, unknown>>> {
   const pageSize = opts?.pageSize ?? 100;
@@ -112,30 +112,95 @@ export async function fetchWatiConversationMessages(
   const headers = watiAuthHeaders(conn.api_key);
   const collected: Array<Record<string, unknown>> = [];
 
-  for (const variant of buildWatiConversationPhoneVariants(phone)) {
-    for (let page = 1; page <= maxPages; page++) {
-      const url = `${watiApiV3Base(conn.tenant_id, conn.api_host)}/conversations/${encodeURIComponent(variant)}/messages?page_number=${page}&page_size=${pageSize}`;
-      try {
-        const res = await fetch(url, { headers });
-        if (!res.ok) break;
+  for (let page = 1; page <= maxPages; page++) {
+    const url = `${watiApiV3Base(conn.tenant_id, conn.api_host)}/conversations/${encodeURIComponent(target)}/messages?page_number=${page}&page_size=${pageSize}`;
+    try {
+      const res = await fetch(url, { headers });
+      if (!res.ok) break;
 
-        const json = (await res.json()) as Record<string, unknown>;
-        const list = (json.message_list ?? json.messages ?? json.data ?? []) as Array<
-          Record<string, unknown>
-        >;
-        if (list.length === 0) break;
+      const json = (await res.json()) as Record<string, unknown>;
+      const list = (json.message_list ?? json.messages ?? json.data ?? []) as Array<
+        Record<string, unknown>
+      >;
+      if (list.length === 0) break;
 
-        collected.push(...list);
-        if (list.length < pageSize) break;
-      } catch {
-        break;
-      }
+      collected.push(...list);
+      if (list.length < pageSize) break;
+    } catch {
+      break;
     }
-
-    if (collected.length > 0) break;
   }
 
   return collected;
+}
+
+export async function fetchWatiConversationMessages(
+  conn: WatiConn,
+  phone: string,
+  opts?: { pageSize?: number; maxPages?: number },
+): Promise<Array<Record<string, unknown>>> {
+  const collected: Array<Record<string, unknown>> = [];
+
+  for (const variant of buildWatiConversationPhoneVariants(phone)) {
+    const list = await fetchWatiConversationMessagesForTarget(conn, variant, opts);
+    if (list.length > 0) {
+      collected.push(...list);
+      break;
+    }
+  }
+
+  return collected;
+}
+
+/** Resolve contact phone for sentMessageREPLIED_v2 (often missing waId). */
+export async function resolveWatiReplyContactPhone(
+  conn: WatiConn,
+  payload: Record<string, unknown>,
+): Promise<string | null> {
+  const direct =
+    payload.waId ??
+    payload.phone ??
+    payload.from ??
+    (payload.contact as Record<string, unknown> | undefined)?.phone;
+  if (direct) {
+    const phone = normalizeWhatsAppPhone(String(direct));
+    if (phone) return phone;
+  }
+
+  const conversationId =
+    payload.conversationId != null ? String(payload.conversationId).trim() : "";
+  if (conversationId) {
+    const messages = await fetchWatiConversationMessagesForTarget(conn, conversationId, {
+      maxPages: 2,
+      pageSize: 50,
+    });
+    for (const m of messages) {
+      const waId = m.waId ?? m.wa_id;
+      if (waId) {
+        const phone = normalizeWhatsAppPhone(String(waId));
+        if (phone) return phone;
+      }
+    }
+  }
+
+  const ticketId = payload.ticketId != null ? String(payload.ticketId).trim() : "";
+  if (ticketId) {
+    try {
+      const url = `${watiApiV3Base(conn.tenant_id, conn.api_host)}/contacts/${encodeURIComponent(ticketId)}`;
+      const res = await fetch(url, { headers: watiAuthHeaders(conn.api_key) });
+      if (res.ok) {
+        const json = (await res.json()) as Record<string, unknown>;
+        const phone = normalizeWhatsAppPhone(
+          String(json.phone ?? json.wa_id ?? json.waId ?? ""),
+        );
+        if (phone) return phone;
+      }
+    } catch {
+      /* optional lookup */
+    }
+  }
+
+  return null;
 }
 
 function parseSentAtMs(value: unknown): number | null {

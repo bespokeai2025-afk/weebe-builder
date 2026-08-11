@@ -31,7 +31,22 @@ const samples = [
     },
   },
   {
-    label: "inbound message",
+    label: "campaign reply (sentMessageREPLIED_v2)",
+    body: {
+      eventType: "sentMessageREPLIED_v2",
+      statusString: "Replied",
+      localMessageId: "probe-reply-local",
+      id: "probe-reply-evt",
+      whatsappMessageId: "wamid.probe.reply",
+      conversationId: "probe-conversation",
+      ticketId: "probe-ticket",
+      text: "webhook probe campaign reply",
+      type: "text",
+      timestamp: String(Math.floor(Date.now() / 1000)),
+      waId: "447700000001",
+    },
+  },
+  {
     body: {
       eventType: "message",
       owner: false,

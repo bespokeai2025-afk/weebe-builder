@@ -17,6 +17,7 @@ const STATUS_ORDER: Record<string, number> = {
 export function mapWatiStatusString(raw: unknown): string | null {
   const s = String(raw ?? "").toLowerCase();
   if (!s) return null;
+  if (s.includes("replied")) return "replied";
   if (s.includes("read")) return "read";
   if (s.includes("deliver")) return "delivered";
   if (s.includes("fail")) return "failed";
