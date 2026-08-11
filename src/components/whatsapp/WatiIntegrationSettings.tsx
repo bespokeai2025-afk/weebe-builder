@@ -306,9 +306,9 @@ export function WatiIntegrationSettings() {
                   )}
                   <div className="space-y-1 min-w-0">
                     <p className="text-xs text-muted-foreground leading-relaxed">{webhookStatus.note}</p>
-                    {(webhookStatus.url || (conn as { webhookUrl?: string }).webhookUrl) && (
+                    {(conn as { webhookUrl?: string }).webhookUrl && (
                       <p className="text-[10px] font-mono text-muted-foreground break-all">
-                        {webhookStatus.url || (conn as { webhookUrl?: string }).webhookUrl}
+                        {(conn as { webhookUrl?: string }).webhookUrl}
                       </p>
                     )}
                   </div>
