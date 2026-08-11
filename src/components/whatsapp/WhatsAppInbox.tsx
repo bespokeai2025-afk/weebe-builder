@@ -10,6 +10,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import {
   listWhatsappThreads,
+  refreshWatiInboxFromWati,
   sendWhatsappMessage,
   syncWhatsappThread,
 } from "@/lib/dashboard/whatsapp.functions";
@@ -31,15 +32,9 @@ type InboxThread = {
 export function WhatsAppInbox() {
   const qc = useQueryClient();
   const listFn = useServerFn(listWhatsappThreads);
+  const refreshInboxFn = useServerFn(refreshWatiInboxFromWati);
   const sendFn = useServerFn(sendWhatsappMessage);
   const syncThreadFn = useServerFn(syncWhatsappThread);
-
-  const { data: threads = [], isLoading } = useQuery({
-    queryKey: ["wa-threads"],
-    queryFn: () => listFn(),
-    refetchInterval: 10_000,
-    throwOnError: false,
-  });
 
   const watiFn = useServerFn(getWatiConnection);
   const { data: watiConn } = useQuery({
@@ -48,6 +43,25 @@ export function WhatsAppInbox() {
     throwOnError: false,
   });
   const watiConnected = watiConn?.status === "connected";
+
+  const { data: threads = [], isLoading } = useQuery({
+    queryKey: ["wa-threads"],
+    queryFn: () => listFn(),
+    refetchInterval: 10_000,
+    throwOnError: false,
+  });
+
+  useQuery({
+    queryKey: ["wa-inbox-wati-sync"],
+    queryFn: async () => {
+      const result = await refreshInboxFn();
+      await qc.invalidateQueries({ queryKey: ["wa-threads"] });
+      return result;
+    },
+    enabled: watiConnected,
+    refetchInterval: 15_000,
+    throwOnError: false,
+  });
 
   const [search, setSearch] = useState("");
   const [activePhone, setActivePhone] = useState<string | null>(null);
@@ -153,6 +167,11 @@ export function WhatsAppInbox() {
             <p className="flex items-center gap-1.5 text-[10px] font-medium text-emerald-700 dark:text-emerald-400">
               <MessageSquareReply className="h-3 w-3 shrink-0" />
               {replyWaitingCount} waiting for your reply — shown at top
+            </p>
+          )}
+          {watiConnected && (
+            <p className="text-[10px] text-muted-foreground">
+              Replies sync from WATI in the background every ~15s while this tab is open.
             </p>
           )}
         </div>

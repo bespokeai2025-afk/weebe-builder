@@ -1,5 +1,43 @@
 import { describe, expect, it } from "vitest";
-import { parseWatiV1InboxMessage } from "@/lib/whatsapp/wati-inbox-sync.server";
+import {
+  mergeWatiMessageLists,
+  parseWatiMessageSentAt,
+  parseWatiV1InboxMessage,
+} from "@/lib/whatsapp/wati-inbox-sync.server";
+
+describe("mergeWatiMessageLists", () => {
+  it("keeps V3 inbound when V1 only has outbound", () => {
+    const merged = mergeWatiMessageLists(
+      [
+        {
+          id: "out-1",
+          owner: true,
+          type: "text",
+          text: "Hello from campaign",
+          created: "2026-08-11T10:00:00.000Z",
+        },
+      ],
+      [
+        {
+          id: "in-1",
+          owner: false,
+          type: "text",
+          text: "Yes tell me more",
+          timestamp: "2026-08-11T11:00:00.000Z",
+        },
+      ],
+    );
+    expect(merged).toHaveLength(2);
+  });
+});
+
+describe("parseWatiMessageSentAt", () => {
+  it("parses ISO V3 timestamps", () => {
+    expect(
+      parseWatiMessageSentAt({ timestamp: "2026-08-11T15:04:13.5980185Z" }),
+    ).toContain("2026-08-11");
+  });
+});
 
 describe("parseWatiV1InboxMessage", () => {
   it("maps customer inbound text messages", () => {
@@ -62,6 +100,21 @@ describe("parseWatiV1InboxMessage", () => {
         "919964919000",
       ),
     ).toBeNull();
+  });
+
+  it("maps V3-style inbound replies (owner false, type text)", () => {
+    const parsed = parseWatiV1InboxMessage(
+      {
+        type: "text",
+        owner: false,
+        text: "Interested in selling",
+        id: "v3-in-1",
+        timestamp: "2026-08-11T15:04:13.5980185Z",
+      },
+      "971586666612",
+    );
+    expect(parsed?.direction).toBe("inbound");
+    expect(parsed?.body).toBe("Interested in selling");
   });
 
   it("maps WATI agent outbound messages", () => {
