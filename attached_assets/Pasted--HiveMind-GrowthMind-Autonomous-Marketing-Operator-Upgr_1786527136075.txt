@@ -1,0 +1,535 @@
+# HiveMind × GrowthMind Autonomous Marketing Operator
+
+Upgrade HiveMind and GrowthMind from advisory AI systems into a **real autonomous marketing operating system**.
+
+This is an EXECUTION upgrade, not a chatbot/UI exercise.
+
+## CORE ARCHITECTURE
+
+HiveMind = executive decision-maker and orchestrator.
+
+GrowthMind = specialist marketing execution engine.
+
+HiveMind must continuously understand the company's:
+
+* Business DNA
+* products/services
+* pricing
+* target customers / ICPs
+* geographic markets
+* competitors
+* CRM/leads
+* sales pipeline
+* conversions
+* call outcomes
+* bookings
+* revenue where available
+* website analytics
+* Microsoft Clarity behaviour data
+* Google Ads
+* SEO/Search Console
+* landing-page performance
+* historical marketing changes and outcomes
+
+HiveMind must be able to issue structured jobs to GrowthMind.
+
+Example:
+
+HiveMind identifies:
+
+> Google Ads traffic is increasing but qualified bookings are falling. Search-term data shows irrelevant informational traffic.
+
+HiveMind creates an objective:
+
+**Increase qualified demo bookings while maintaining or reducing CPA.**
+
+GrowthMind then investigates and executes the necessary marketing work.
+
+---
+
+# 1. BUILD A REAL MARKETING ACTION ENGINE
+
+Do NOT fake execution with AI responses saying changes were made.
+
+Every GrowthMind action must map to a real API action, internal WEBEE action, or explicitly supported publishing mechanism.
+
+Create a universal MarketingAction object containing:
+
+* action_id
+* workspace_id
+* source
+* requested_by
+* objective
+* platform
+* action_type
+* target
+* existing_value
+* proposed_value
+* expected_impact
+* confidence
+* risk_level
+* approval_required
+* status
+* execution_attempts
+* external_resource_id
+* API response
+* verification_status
+* rollback_payload
+* created_at
+* executed_at
+* verified_at
+* measured_at
+
+Statuses:
+
+DISCOVERED
+RECOMMENDED
+AWAITING_APPROVAL
+APPROVED
+EXECUTING
+EXECUTED
+VERIFIED
+MEASURING
+SUCCESS
+FAILED
+ROLLED_BACK
+
+Never mark an action EXECUTED until the external platform confirms success.
+
+Never mark VERIFIED until the new state has been read back from the source platform.
+
+---
+
+# 2. GOOGLE ADS AUTONOMOUS MANAGEMENT
+
+Give GrowthMind real read/write capability for Google Ads.
+
+It must continuously analyse:
+
+* campaigns
+* ad groups
+* ads
+* keywords
+* search terms
+* negative keywords
+* match types
+* impressions
+* clicks
+* CTR
+* CPC
+* spend
+* conversions
+* conversion rate
+* CPA
+* impression share
+* search lost IS
+* device
+* location
+* time/day performance
+* landing pages
+* conversion actions
+
+GrowthMind must be capable of:
+
+* adding keywords
+* pausing poor keywords
+* changing match types
+* adding negative keywords
+* adjusting bids where supported
+* changing budgets
+* pausing campaigns
+* enabling campaigns
+* creating campaigns
+* creating ad groups
+* creating ads
+* testing new ad copy
+* reallocating budget
+* modifying targeting
+* improving location targeting
+* modifying schedules
+* detecting wasted spend
+
+CRITICAL:
+
+Search-term negatives must NOT be blindly automated.
+
+GrowthMind should classify search terms as:
+
+RELEVANT
+IRRELEVANT
+UNCERTAIN
+HIGH-VALUE DISCOVERY
+
+Irrelevant terms can be recommended as negatives.
+
+Potentially valuable or ambiguous terms must never automatically be excluded.
+
+Maintain a permanent Negative Keyword Decision Log.
+
+---
+
+# 3. CONVERSION FEEDBACK LOOP
+
+Google Ads optimisation must not rely only on clicks or form submissions.
+
+Feed actual WEBEE outcomes back into GrowthMind:
+
+Google click / campaign
+→ website visitor
+→ Ava conversation/form
+→ lead
+→ qualification
+→ appointment
+→ sales outcome
+
+Where identifiers and consent allow attribution, GrowthMind should determine which:
+
+* campaigns
+* keywords
+* search terms
+* ads
+* landing pages
+* devices
+* locations
+
+produce **real qualified opportunities**, not merely cheap clicks.
+
+Optimisation objectives should prioritise:
+
+1. Qualified opportunities
+2. Booked demos
+3. Sales/revenue when available
+4. Cost per qualified opportunity
+5. Cost per booking
+6. Conversion rate
+
+---
+
+# 4. SEO AUTOPILOT
+
+GrowthMind must operate SEO as an ongoing system rather than simply generating articles.
+
+Connect and analyse Search Console and available website analytics.
+
+Continuously identify:
+
+* ranking keywords
+* impressions
+* clicks
+* CTR
+* average position
+* ranking changes
+* pages losing traffic
+* pages gaining traffic
+* high-impression/low-CTR opportunities
+* keyword cannibalisation
+* missing content
+* internal-link opportunities
+* title/meta problems
+* indexing problems
+* sitemap issues
+* schema opportunities
+* broken links
+* thin pages
+* outdated pages
+
+GrowthMind should create an SEO Opportunity Queue ranked by:
+
+**Expected business value × ranking opportunity × confidence ÷ effort**
+
+It should then be capable of executing approved actions such as:
+
+* title changes
+* meta-description changes
+* headings
+* internal links
+* schema
+* page improvements
+* FAQ sections
+* new landing pages
+* new articles
+* content refreshes
+* sitemap/indexing improvements where supported
+
+Do not create spammy AI SEO pages.
+
+Content must be useful, original, relevant to the Business DNA and written for actual prospective customers.
+
+---
+
+# 5. MICROSOFT CLARITY
+
+Integrate Microsoft Clarity data into GrowthMind.
+
+Use available Clarity analytics to identify behavioural problems such as:
+
+* rage clicks
+* dead clicks
+* excessive scrolling
+* rapid backs
+* weak CTA interaction
+* abandonment
+* poor mobile behaviour
+* sections users ignore
+
+Combine this with conversion data.
+
+Example:
+
+Clarity detects visitors repeatedly clicking a non-clickable pricing element.
+
+GrowthMind creates:
+
+**UX Opportunity — Pricing element receiving dead clicks.**
+
+HiveMind should be able to ask:
+
+"Why are visitors not converting?"
+
+and receive an evidence-backed answer combining Ads + SEO + Clarity + WEBEE conversion data.
+
+---
+
+# 6. WEBSITE OPTIMISATION
+
+Create a controlled Website Change Queue.
+
+GrowthMind may recommend:
+
+* headlines
+* CTA copy
+* CTA position
+* section order
+* social proof
+* pricing presentation
+* forms
+* Ava positioning
+* landing-page content
+* SEO copy
+* FAQs
+
+Changes must contain:
+
+CURRENT STATE
+PROPOSED STATE
+WHY
+DATA SUPPORTING CHANGE
+EXPECTED IMPACT
+RISK
+ROLLBACK
+
+Where WEBEE has permission/API access to modify the website, approved changes should be executable directly.
+
+---
+
+# 7. AUTONOMY LEVELS
+
+Every workspace must have a Marketing Autonomy setting.
+
+### OBSERVE
+
+GrowthMind only analyses.
+
+### RECOMMEND
+
+GrowthMind produces recommendations.
+
+### APPROVAL MODE
+
+GrowthMind prepares the exact action.
+
+User presses:
+
+**Approve & Execute**
+
+GrowthMind performs it.
+
+### AUTOPILOT
+
+GrowthMind can automatically execute low-risk actions within predefined limits.
+
+High-risk actions ALWAYS require approval.
+
+Examples of high-risk actions:
+
+* major budget increases
+* deleting campaigns
+* deleting large keyword groups
+* large targeting changes
+* domain-wide SEO changes
+* mass page generation
+* removing conversion tracking
+* changing attribution configuration
+
+Allow configurable guardrails such as:
+
+Maximum daily Google Ads spend
+Maximum automatic budget increase %
+Maximum automatic decrease %
+Maximum number of automated actions/day
+Protected campaigns
+Protected keywords
+Protected pages
+
+---
+
+# 8. HIVE MIND COMMAND CAPABILITY
+
+HiveMind must be able to understand commands such as:
+
+"Improve my Google Ads."
+
+"Reduce wasted advertising spend."
+
+"Get me more receptionist demo bookings."
+
+"Improve our SEO."
+
+"Find out why website conversions dropped."
+
+"Make marketing more profitable."
+
+HiveMind converts the request into measurable objectives and delegates the necessary analysis/execution to GrowthMind.
+
+HiveMind must then show:
+
+OBJECTIVE
+
+CURRENT PERFORMANCE
+
+DIAGNOSIS
+
+ACTIONS TAKEN
+
+ACTIONS WAITING FOR APPROVAL
+
+RESULTS
+
+NEXT ACTIONS
+
+Do not return generic marketing advice.
+
+---
+
+# 9. CONTINUOUS OPTIMISATION LOOP
+
+Build a persistent optimisation cycle:
+
+OBSERVE
+→ DIAGNOSE
+→ PRIORITISE
+→ PLAN
+→ APPROVE IF REQUIRED
+→ EXECUTE
+→ VERIFY
+→ MEASURE
+→ LEARN
+→ REPEAT
+
+Every executed change must have a measurement window.
+
+GrowthMind should compare performance before and after the change while accounting for obvious confounding factors where possible.
+
+Store the result in GrowthMind memory.
+
+The system must learn:
+
+**What marketing actions actually work for this specific business?**
+
+---
+
+# 10. DAILY MARKETING OPERATOR
+
+Run scheduled background marketing checks.
+
+GrowthMind should automatically inspect important connected marketing sources and generate actionable findings.
+
+Do not make changes simply because a metric moved for one day.
+
+Use adequate data thresholds and confidence scoring.
+
+HiveMind should surface only meaningful items.
+
+Example:
+
+**Marketing — 3 actions completed**
+
+✓ £18/day estimated wasted spend removed
+✓ Weak SEO title improved
+✓ Landing-page tracking problem fixed
+
+**1 approval required**
+
+"Add 14 negative keywords?"
+
+[Review] [Approve & Execute]
+
+---
+
+# 11. AUDIT + ROLLBACK
+
+Every autonomous action must be auditable.
+
+Show:
+
+WHO initiated it
+WHY it happened
+DATA used
+OLD VALUE
+NEW VALUE
+API response
+WHEN executed
+RESULT
+ROLLBACK availability
+
+Provide:
+
+**Undo Change**
+
+where technically possible.
+
+---
+
+# 12. DO NOT FAKE INTEGRATIONS
+
+Audit the existing codebase before building anything.
+
+Reuse working:
+
+* GrowthMind integrations
+* Google authentication
+* Google Ads integration
+* Search Console integration
+* Business DNA
+* competitor intelligence
+* analytics
+* leads
+* booking data
+* HiveMind
+* website integrations
+
+Do not create duplicate services.
+
+Identify which existing integrations are READ ONLY and upgrade them to READ/WRITE only where the underlying API genuinely supports the required action.
+
+If credentials/scopes are missing, display exactly what permission is required.
+
+Never return:
+
+"Successfully updated Google Ads"
+
+unless the Google Ads API confirms the mutation and WEBEE subsequently reads the changed state back.
+
+---
+
+# DEFINITION OF DONE
+
+This project is NOT complete when HiveMind can recommend marketing changes.
+
+It is complete when I can tell HiveMind:
+
+**"Improve my marketing."**
+
+HiveMind can inspect the entire marketing funnel, identify the highest-value opportunities, delegate them to GrowthMind, execute permitted actions across connected systems, request approval for risky actions, verify every change, measure the business result, learn from it and continue optimising automatically.
+
+The final product should feel like having an elite CMO and marketing operations team operating inside WEBEE 24/7 — not another AI analytics chatbot.
