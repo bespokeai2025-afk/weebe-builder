@@ -105,6 +105,24 @@ export function campaignSchedulerPlugin(): Plugin {
           console.warn("[clarity-sync] dev tick failed:", e?.message ?? e);
         }
 
+        // Daily Marketing Operator (mirrors the prod campaign-executor
+        // endpoint). Loaded via ssrLoadModule because the module uses "@/"
+        // aliases. CAS-claimed per workspace (~20h), approval-first.
+        try {
+          const { runMarketingOperatorTick } = (await server.ssrLoadModule(
+            "/src/lib/hivemind/marketing-operator-tick.ts",
+          )) as typeof import("./src/lib/hivemind/marketing-operator-tick");
+          const opTick = await runMarketingOperatorTick();
+          if (opTick.ran.length || opTick.failed.length) {
+            console.log(
+              `[marketing-operator] ran=${opTick.ran.length} skipped=${opTick.skipped} failed=${opTick.failed.length}` +
+              (opTick.failed.length ? ` — errors: ${opTick.failed.map((f) => `${f.workspaceId}: ${f.error}`).join("; ")}` : ""),
+            );
+          }
+        } catch (e: any) {
+          console.warn("[marketing-operator] dev tick failed:", e?.message ?? e);
+        }
+
         // Auto SEO blog campaign creation (mirrors the prod campaign-executor
         // endpoint). Loaded via ssrLoadModule because the module uses "@/"
         // aliases. Best-effort — approval-first by construction.

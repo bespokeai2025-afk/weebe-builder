@@ -165,6 +165,7 @@ import { Route as AuthenticatedHivemindSystemHealthRouteImport } from './routes/
 import { Route as AuthenticatedHivemindSettingsRouteImport } from './routes/_authenticated/hivemind.settings'
 import { Route as AuthenticatedHivemindReportsRouteImport } from './routes/_authenticated/hivemind.reports'
 import { Route as AuthenticatedHivemindRecommendationsRouteImport } from './routes/_authenticated/hivemind.recommendations'
+import { Route as AuthenticatedHivemindMarketingOperatorRouteImport } from './routes/_authenticated/hivemind.marketing-operator'
 import { Route as AuthenticatedHivemindChatRouteImport } from './routes/_authenticated/hivemind.chat'
 import { Route as AuthenticatedHivemindBusinessDnaRouteImport } from './routes/_authenticated/hivemind.business-dna'
 import { Route as AuthenticatedHivemindBriefingsRouteImport } from './routes/_authenticated/hivemind.briefings'
@@ -1187,6 +1188,12 @@ const AuthenticatedHivemindRecommendationsRoute =
   AuthenticatedHivemindRecommendationsRouteImport.update({
     id: '/recommendations',
     path: '/recommendations',
+    getParentRoute: () => AuthenticatedHivemindRoute,
+  } as any)
+const AuthenticatedHivemindMarketingOperatorRoute =
+  AuthenticatedHivemindMarketingOperatorRouteImport.update({
+    id: '/marketing-operator',
+    path: '/marketing-operator',
     getParentRoute: () => AuthenticatedHivemindRoute,
   } as any)
 const AuthenticatedHivemindChatRoute =
@@ -2277,6 +2284,7 @@ export interface FileRoutesByFullPath {
   '/hivemind/briefings': typeof AuthenticatedHivemindBriefingsRoute
   '/hivemind/business-dna': typeof AuthenticatedHivemindBusinessDnaRoute
   '/hivemind/chat': typeof AuthenticatedHivemindChatRoute
+  '/hivemind/marketing-operator': typeof AuthenticatedHivemindMarketingOperatorRoute
   '/hivemind/recommendations': typeof AuthenticatedHivemindRecommendationsRoute
   '/hivemind/reports': typeof AuthenticatedHivemindReportsRoute
   '/hivemind/settings': typeof AuthenticatedHivemindSettingsRoute
@@ -2592,6 +2600,7 @@ export interface FileRoutesByTo {
   '/hivemind/briefings': typeof AuthenticatedHivemindBriefingsRoute
   '/hivemind/business-dna': typeof AuthenticatedHivemindBusinessDnaRoute
   '/hivemind/chat': typeof AuthenticatedHivemindChatRoute
+  '/hivemind/marketing-operator': typeof AuthenticatedHivemindMarketingOperatorRoute
   '/hivemind/recommendations': typeof AuthenticatedHivemindRecommendationsRoute
   '/hivemind/reports': typeof AuthenticatedHivemindReportsRoute
   '/hivemind/settings': typeof AuthenticatedHivemindSettingsRoute
@@ -2915,6 +2924,7 @@ export interface FileRoutesById {
   '/_authenticated/hivemind/briefings': typeof AuthenticatedHivemindBriefingsRoute
   '/_authenticated/hivemind/business-dna': typeof AuthenticatedHivemindBusinessDnaRoute
   '/_authenticated/hivemind/chat': typeof AuthenticatedHivemindChatRoute
+  '/_authenticated/hivemind/marketing-operator': typeof AuthenticatedHivemindMarketingOperatorRoute
   '/_authenticated/hivemind/recommendations': typeof AuthenticatedHivemindRecommendationsRoute
   '/_authenticated/hivemind/reports': typeof AuthenticatedHivemindReportsRoute
   '/_authenticated/hivemind/settings': typeof AuthenticatedHivemindSettingsRoute
@@ -3240,6 +3250,7 @@ export interface FileRouteTypes {
     | '/hivemind/briefings'
     | '/hivemind/business-dna'
     | '/hivemind/chat'
+    | '/hivemind/marketing-operator'
     | '/hivemind/recommendations'
     | '/hivemind/reports'
     | '/hivemind/settings'
@@ -3555,6 +3566,7 @@ export interface FileRouteTypes {
     | '/hivemind/briefings'
     | '/hivemind/business-dna'
     | '/hivemind/chat'
+    | '/hivemind/marketing-operator'
     | '/hivemind/recommendations'
     | '/hivemind/reports'
     | '/hivemind/settings'
@@ -3877,6 +3889,7 @@ export interface FileRouteTypes {
     | '/_authenticated/hivemind/briefings'
     | '/_authenticated/hivemind/business-dna'
     | '/_authenticated/hivemind/chat'
+    | '/_authenticated/hivemind/marketing-operator'
     | '/_authenticated/hivemind/recommendations'
     | '/_authenticated/hivemind/reports'
     | '/_authenticated/hivemind/settings'
@@ -5298,6 +5311,13 @@ declare module '@tanstack/react-router' {
       path: '/recommendations'
       fullPath: '/hivemind/recommendations'
       preLoaderRoute: typeof AuthenticatedHivemindRecommendationsRouteImport
+      parentRoute: typeof AuthenticatedHivemindRoute
+    }
+    '/_authenticated/hivemind/marketing-operator': {
+      id: '/_authenticated/hivemind/marketing-operator'
+      path: '/marketing-operator'
+      fullPath: '/hivemind/marketing-operator'
+      preLoaderRoute: typeof AuthenticatedHivemindMarketingOperatorRouteImport
       parentRoute: typeof AuthenticatedHivemindRoute
     }
     '/_authenticated/hivemind/chat': {
@@ -6752,6 +6772,7 @@ interface AuthenticatedHivemindRouteChildren {
   AuthenticatedHivemindBriefingsRoute: typeof AuthenticatedHivemindBriefingsRoute
   AuthenticatedHivemindBusinessDnaRoute: typeof AuthenticatedHivemindBusinessDnaRoute
   AuthenticatedHivemindChatRoute: typeof AuthenticatedHivemindChatRoute
+  AuthenticatedHivemindMarketingOperatorRoute: typeof AuthenticatedHivemindMarketingOperatorRoute
   AuthenticatedHivemindRecommendationsRoute: typeof AuthenticatedHivemindRecommendationsRoute
   AuthenticatedHivemindReportsRoute: typeof AuthenticatedHivemindReportsRoute
   AuthenticatedHivemindSettingsRoute: typeof AuthenticatedHivemindSettingsRoute
@@ -6769,6 +6790,8 @@ const AuthenticatedHivemindRouteChildren: AuthenticatedHivemindRouteChildren = {
   AuthenticatedHivemindBriefingsRoute: AuthenticatedHivemindBriefingsRoute,
   AuthenticatedHivemindBusinessDnaRoute: AuthenticatedHivemindBusinessDnaRoute,
   AuthenticatedHivemindChatRoute: AuthenticatedHivemindChatRoute,
+  AuthenticatedHivemindMarketingOperatorRoute:
+    AuthenticatedHivemindMarketingOperatorRoute,
   AuthenticatedHivemindRecommendationsRoute:
     AuthenticatedHivemindRecommendationsRoute,
   AuthenticatedHivemindReportsRoute: AuthenticatedHivemindReportsRoute,

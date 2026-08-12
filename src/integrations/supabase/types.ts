@@ -11496,6 +11496,7 @@ export type Database = {
           approval_action_id: string | null
           approval_required: boolean
           auto_claimed_at: string | null
+          baseline: Json | null
           confidence: number | null
           created_at: string
           error_message: string | null
@@ -11508,8 +11509,12 @@ export type Database = {
           id: string
           measured_at: string | null
           objective: string | null
+          objective_id: string | null
+          outcome: Json | null
+          outcome_classification: string | null
           platform: string
           proposed_value: Json | null
+          reassess_at: string | null
           requested_by: string | null
           risk_level: string
           rollback_of: string | null
@@ -11530,6 +11535,7 @@ export type Database = {
           approval_action_id?: string | null
           approval_required?: boolean
           auto_claimed_at?: string | null
+          baseline?: Json | null
           confidence?: number | null
           created_at?: string
           error_message?: string | null
@@ -11542,8 +11548,12 @@ export type Database = {
           id?: string
           measured_at?: string | null
           objective?: string | null
+          objective_id?: string | null
+          outcome?: Json | null
+          outcome_classification?: string | null
           platform: string
           proposed_value?: Json | null
+          reassess_at?: string | null
           requested_by?: string | null
           risk_level?: string
           rollback_of?: string | null
@@ -11564,6 +11574,7 @@ export type Database = {
           approval_action_id?: string | null
           approval_required?: boolean
           auto_claimed_at?: string | null
+          baseline?: Json | null
           confidence?: number | null
           created_at?: string
           error_message?: string | null
@@ -11576,8 +11587,12 @@ export type Database = {
           id?: string
           measured_at?: string | null
           objective?: string | null
+          objective_id?: string | null
+          outcome?: Json | null
+          outcome_classification?: string | null
           platform?: string
           proposed_value?: Json | null
+          reassess_at?: string | null
           requested_by?: string | null
           risk_level?: string
           rollback_of?: string | null
@@ -11602,6 +11617,133 @@ export type Database = {
           },
           {
             foreignKeyName: "marketing_actions_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      marketing_objectives: {
+        Row: {
+          baseline: Json
+          command_text: string | null
+          constraints: Json
+          created_at: string
+          created_by_user_id: string | null
+          id: string
+          last_review: Json | null
+          last_reviewed_at: string | null
+          metric: string
+          metric_source: string
+          priority: number
+          status: string
+          target: Json
+          title: string
+          updated_at: string
+          work_order_ids: Json
+          workspace_id: string
+        }
+        Insert: {
+          baseline?: Json
+          command_text?: string | null
+          constraints?: Json
+          created_at?: string
+          created_by_user_id?: string | null
+          id?: string
+          last_review?: Json | null
+          last_reviewed_at?: string | null
+          metric: string
+          metric_source?: string
+          priority?: number
+          status?: string
+          target?: Json
+          title: string
+          updated_at?: string
+          work_order_ids?: Json
+          workspace_id: string
+        }
+        Update: {
+          baseline?: Json
+          command_text?: string | null
+          constraints?: Json
+          created_at?: string
+          created_by_user_id?: string | null
+          id?: string
+          last_review?: Json | null
+          last_reviewed_at?: string | null
+          metric?: string
+          metric_source?: string
+          priority?: number
+          status?: string
+          target?: Json
+          title?: string
+          updated_at?: string
+          work_order_ids?: Json
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "marketing_objectives_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      marketing_operator_findings: {
+        Row: {
+          created_at: string
+          data: Json
+          dedupe_key: string
+          detail: string | null
+          finding_kind: string
+          id: string
+          marketing_action_id: string | null
+          objective_id: string | null
+          run_date: string
+          severity: string
+          status: string
+          title: string
+          updated_at: string
+          workspace_id: string
+        }
+        Insert: {
+          created_at?: string
+          data?: Json
+          dedupe_key: string
+          detail?: string | null
+          finding_kind: string
+          id?: string
+          marketing_action_id?: string | null
+          objective_id?: string | null
+          run_date: string
+          severity?: string
+          status?: string
+          title: string
+          updated_at?: string
+          workspace_id: string
+        }
+        Update: {
+          created_at?: string
+          data?: Json
+          dedupe_key?: string
+          detail?: string | null
+          finding_kind?: string
+          id?: string
+          marketing_action_id?: string | null
+          objective_id?: string | null
+          run_date?: string
+          severity?: string
+          status?: string
+          title?: string
+          updated_at?: string
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "marketing_operator_findings_workspace_id_fkey"
             columns: ["workspace_id"]
             isOneToOne: false
             referencedRelation: "workspaces"
@@ -19024,6 +19166,8 @@ export type Database = {
           marketing_autonomy_set_at: string | null
           marketing_autonomy_set_by: string | null
           marketing_guardrails: Json
+          marketing_operator_enabled: boolean
+          marketing_operator_last_run_at: string | null
           meta_access_token: string | null
           meta_ads_access_token: string | null
           meta_ads_account_id: string | null
@@ -19116,6 +19260,8 @@ export type Database = {
           marketing_autonomy_set_at?: string | null
           marketing_autonomy_set_by?: string | null
           marketing_guardrails?: Json
+          marketing_operator_enabled?: boolean
+          marketing_operator_last_run_at?: string | null
           meta_access_token?: string | null
           meta_ads_access_token?: string | null
           meta_ads_account_id?: string | null
@@ -19208,6 +19354,8 @@ export type Database = {
           marketing_autonomy_set_at?: string | null
           marketing_autonomy_set_by?: string | null
           marketing_guardrails?: Json
+          marketing_operator_enabled?: boolean
+          marketing_operator_last_run_at?: string | null
           meta_access_token?: string | null
           meta_ads_access_token?: string | null
           meta_ads_account_id?: string | null

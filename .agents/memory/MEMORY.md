@@ -153,6 +153,7 @@
 - [Provider cost client scrub](provider-cost-client-scrub.md) — Retell USD cost fields never reach client surfaces; strip server-side (fail-closed admin check); clients only see £0.36/min usage charge.
 - [Auto SEO campaign tick](seo-auto-campaign-tick.md) — opt-in per-week cadence creates approval-first SEO campaigns; CAS claim on workspace_settings, fail-closed reads.
 - [Webhook side-effect dedup](webhook-side-effect-dedup.md) — once-only webhook notifications need atomic insert-detect (ignoreDuplicates upsert + select), never read-then-write pre-checks.
+- [Marketing Operator](marketing-operator-arch.md) — objectives + daily CAS tick + measurement/learning; fail-closed measurement, ANY same-platform overlap = inconclusive; findings insert row-by-row (23505=dedup).
 - [Marketing Action Engine](marketing-action-engine.md) — all external marketing writes via the engine; executor allowlists, stale-approval refusal, approval-row binding, one live undo per action.
 - [Google Ads write executor](gads-write-executor.md) — v21 sunset (default now v23), only IRRELEVANT terms excludable, permanent negative decision log, syncLinkedChangeRequests keeps change requests honest.
 - [SEO Opportunity Queue](seo-opportunity-queue.md) — alias-free core off GSC sync; CAS claim before action create; query-keyed items → campaigns, only URL-keyed → packages; package verify = delivery only.

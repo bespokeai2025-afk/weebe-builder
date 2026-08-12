@@ -41,6 +41,7 @@ export const NOTIFICATION_EVENT_KEYS = [
   "email_provider_failing",
   "lead_created",
   "whatsapp_reply_received",
+  "marketing_operator_digest",
 ] as const;
 export type NotificationEventKey = (typeof NOTIFICATION_EVENT_KEYS)[number];
 
@@ -69,6 +70,7 @@ export const NOTIFICATION_EVENT_LABELS: Record<NotificationEventKey, string> = {
   email_provider_failing: "Email provider failing",
   lead_created: "New lead captured",
   whatsapp_reply_received: "WhatsApp reply received",
+  marketing_operator_digest: "Daily marketing operator digest",
 };
 
 const CRITICAL_EVENTS: ReadonlySet<string> = new Set([

@@ -157,6 +157,19 @@ async function upsertConfidenceAdjustment(
   } catch { /* best-effort */ }
 }
 
+/**
+ * Public wrapper so OTHER outcome loops (e.g. the marketing measurement
+ * sweep) feed the SAME bounded confidence store with the same deltas/clamp.
+ */
+export async function applyOutcomeToConfidence(
+  sb: Sb,
+  workspaceId: string,
+  adjustmentKey: string,
+  classification: OutcomeClassification,
+): Promise<void> {
+  await upsertConfidenceAdjustment(sb, workspaceId, adjustmentKey, classification);
+}
+
 /** Read the confidence adjustment for a key (0 when absent). Server-only. */
 export async function getConfidenceAdjustment(sb: Sb, workspaceId: string, adjustmentKey: string): Promise<number> {
   try {

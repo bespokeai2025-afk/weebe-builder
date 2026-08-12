@@ -29,8 +29,8 @@ const SETTINGS_HREF = "/hivemind/settings";
 const MODE_VISIBILITY: Record<HiveMindMode, string[]> = {
   observe:   ["/hivemind", "/hivemind/business-dna", "/hivemind/briefings", "/hivemind/briefing", "/hivemind/system-health", "/hivemind/workflow-intelligence", SETTINGS_HREF],
   recommend: ["/hivemind", "/hivemind/business-dna", "/hivemind/briefings", "/hivemind/briefing", "/hivemind/recommendations", "/hivemind/reports", "/hivemind/system-health", "/hivemind/workflow-intelligence", SETTINGS_HREF],
-  assistant: ["/hivemind", "/hivemind/business-dna", "/hivemind/briefings", "/hivemind/briefing", "/hivemind/chat", "/hivemind/tasks", "/hivemind/work-orders", "/hivemind/recommendations", "/hivemind/reports", "/hivemind/system-health", "/hivemind/workflow-intelligence", SETTINGS_HREF],
-  operator:  ["/hivemind", "/hivemind/business-dna", "/hivemind/briefings", "/hivemind/briefing", "/hivemind/chat", "/hivemind/tasks", "/hivemind/work-orders", "/hivemind/actions", "/hivemind/recommendations", "/hivemind/reports", "/hivemind/system-health", "/hivemind/workflow-intelligence", SETTINGS_HREF],
+  assistant: ["/hivemind", "/hivemind/business-dna", "/hivemind/briefings", "/hivemind/briefing", "/hivemind/chat", "/hivemind/tasks", "/hivemind/work-orders", "/hivemind/marketing-operator", "/hivemind/recommendations", "/hivemind/reports", "/hivemind/system-health", "/hivemind/workflow-intelligence", SETTINGS_HREF],
+  operator:  ["/hivemind", "/hivemind/business-dna", "/hivemind/briefings", "/hivemind/briefing", "/hivemind/chat", "/hivemind/tasks", "/hivemind/work-orders", "/hivemind/actions", "/hivemind/marketing-operator", "/hivemind/recommendations", "/hivemind/reports", "/hivemind/system-health", "/hivemind/workflow-intelligence", SETTINGS_HREF],
 };
 
 const ALL_NAV = [
@@ -42,6 +42,7 @@ const ALL_NAV = [
   { label: "Tasks",           href: "/hivemind/tasks",            icon: CheckCircle2,       tasks: true },
   { label: "Work Orders",     href: "/hivemind/work-orders",      icon: GitBranch },
   { label: "Actions",         href: "/hivemind/actions",          icon: Zap,                actions: true },
+  { label: "Marketing Operator", href: "/hivemind/marketing-operator", icon: BarChart3 },
   { label: "Recommendations", href: "/hivemind/recommendations",  icon: Lightbulb },
   { label: "Reports",         href: "/hivemind/reports",          icon: FileText },
   { label: "System Health",         href: "/hivemind/system-health",          icon: Activity },

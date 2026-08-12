@@ -129,6 +129,24 @@ export const Route = createFileRoute("/api/public/campaign-executor")({
             console.warn("[clarity-sync] tick failed:", e?.message ?? e);
           }
 
+          // Daily Marketing Operator: findings with adequate-data thresholds,
+          // autopilot submission of low-risk actions (engine-gated),
+          // measurement sweep + learning, digest notification. CAS-claimed
+          // per workspace (~20h). Best-effort.
+          try {
+            const { runMarketingOperatorTick } = await import(
+              "@/lib/hivemind/marketing-operator-tick"
+            );
+            const opTick = await runMarketingOperatorTick();
+            if (opTick.ran.length || opTick.failed.length) {
+              console.log(
+                `[marketing-operator] ran=${opTick.ran.length} skipped=${opTick.skipped} failed=${opTick.failed.length}`,
+              );
+            }
+          } catch (e: any) {
+            console.warn("[marketing-operator] tick failed:", e?.message ?? e);
+          }
+
           // Daily AccountsMind metric snapshots (once per workspace per UTC
           // day — powers trend/progress widget history). Best-effort.
           try {

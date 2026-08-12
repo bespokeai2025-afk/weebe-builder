@@ -29,6 +29,7 @@ import "@/lib/minds/register-seo-tools.server";
 import "@/lib/minds/register-content-tools.server";
 // Website UX / conversion-diagnosis tools (registers on import).
 import "@/lib/minds/register-website-tools.server";
+import "@/lib/hivemind/growthmind-control/marketing-objective-tools.server";
 
 // ── HiveMind action kinds (executed via approve flow → registry) ────────────
 interface HiveMindKind {
