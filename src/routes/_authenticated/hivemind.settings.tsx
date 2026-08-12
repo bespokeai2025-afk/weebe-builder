@@ -13,6 +13,7 @@ import { HiveMindShell } from "@/components/hivemind/HiveMindShell";
 import { listHiveMindVoices, getHiveMindTTS } from "@/lib/hivemind/hivemind.ai";
 import { getHiveMindMode, setHiveMindMode, type HiveMindMode } from "@/lib/hivemind/hivemind.actions";
 import { OPERATOR_CATEGORIES, type OperatorCategory } from "@/lib/hivemind/action-safety.shared";
+import { MarketingAutonomyCard } from "@/components/marketing/MarketingAutonomyCard";
 
 export const Route = createFileRoute("/_authenticated/hivemind/settings")({
   head: () => ({ meta: [{ title: "HiveMind Settings — Webee" }] }),
@@ -367,6 +368,11 @@ function HiveMindSettings() {
               </div>
             )}
           </div>
+        </Section>
+
+        {/* ── MARKETING AUTONOMY ── */}
+        <Section icon={Megaphone} title="Marketing Autonomy" desc="How much the AI marketing operator may do on its own. High-risk changes always require your approval.">
+          <MarketingAutonomyCard />
         </Section>
 
         {/* ── VOICE & STYLE ── */}

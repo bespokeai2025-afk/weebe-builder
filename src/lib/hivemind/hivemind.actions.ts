@@ -20,7 +20,8 @@ export type ActionType     =
   | "activate_lead_intake_workflow"
   | "activate_systemmind_automation"
   | "seo_campaign_approval"
-  | "content_publication_approval";
+  | "content_publication_approval"
+  | "marketing_action_execute";
 
 export interface HiveMindAction {
   id:             string;
@@ -551,6 +552,13 @@ export async function executeAction(sb: any, workspaceId: string, action: HiveMi
         : await engine.approvePublication(workspaceId, itemId, action.id, approvedBy);
       if (!result.ok) throw new Error(result.error ?? "Content approval failed");
       return { itemId, stage, state: result.state ?? null };
+    }
+
+    case "marketing_action_execute": {
+      // Marketing Action Engine — approval bridge. The engine re-validates
+      // status, runs guardrail checks and confirm-then-verify execution.
+      const { executeApprovedMarketingAction } = await import("@/lib/marketing/action-engine.server");
+      return await executeApprovedMarketingAction(workspaceId, p ?? {}, action.id ?? null);
     }
 
     default:

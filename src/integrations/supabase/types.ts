@@ -11300,6 +11300,126 @@ export type Database = {
         }
         Relationships: []
       }
+      marketing_actions: {
+        Row: {
+          action_type: string
+          api_response: Json | null
+          approval_action_id: string | null
+          approval_required: boolean
+          auto_claimed_at: string | null
+          confidence: number | null
+          created_at: string
+          error_message: string | null
+          evidence: Json
+          executed_at: string | null
+          execution_attempts: number
+          existing_value: Json | null
+          expected_impact: string | null
+          external_resource_id: string | null
+          id: string
+          measured_at: string | null
+          objective: string | null
+          platform: string
+          proposed_value: Json | null
+          requested_by: string | null
+          risk_level: string
+          rollback_of: string | null
+          rollback_payload: Json | null
+          source: string
+          status: string
+          status_history: Json
+          target: Json
+          updated_at: string
+          verification_evidence: Json | null
+          verification_status: string | null
+          verified_at: string | null
+          workspace_id: string
+        }
+        Insert: {
+          action_type: string
+          api_response?: Json | null
+          approval_action_id?: string | null
+          approval_required?: boolean
+          auto_claimed_at?: string | null
+          confidence?: number | null
+          created_at?: string
+          error_message?: string | null
+          evidence?: Json
+          executed_at?: string | null
+          execution_attempts?: number
+          existing_value?: Json | null
+          expected_impact?: string | null
+          external_resource_id?: string | null
+          id?: string
+          measured_at?: string | null
+          objective?: string | null
+          platform: string
+          proposed_value?: Json | null
+          requested_by?: string | null
+          risk_level?: string
+          rollback_of?: string | null
+          rollback_payload?: Json | null
+          source: string
+          status?: string
+          status_history?: Json
+          target?: Json
+          updated_at?: string
+          verification_evidence?: Json | null
+          verification_status?: string | null
+          verified_at?: string | null
+          workspace_id: string
+        }
+        Update: {
+          action_type?: string
+          api_response?: Json | null
+          approval_action_id?: string | null
+          approval_required?: boolean
+          auto_claimed_at?: string | null
+          confidence?: number | null
+          created_at?: string
+          error_message?: string | null
+          evidence?: Json
+          executed_at?: string | null
+          execution_attempts?: number
+          existing_value?: Json | null
+          expected_impact?: string | null
+          external_resource_id?: string | null
+          id?: string
+          measured_at?: string | null
+          objective?: string | null
+          platform?: string
+          proposed_value?: Json | null
+          requested_by?: string | null
+          risk_level?: string
+          rollback_of?: string | null
+          rollback_payload?: Json | null
+          source?: string
+          status?: string
+          status_history?: Json
+          target?: Json
+          updated_at?: string
+          verification_evidence?: Json | null
+          verification_status?: string | null
+          verified_at?: string | null
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "marketing_actions_rollback_of_fkey"
+            columns: ["rollback_of"]
+            isOneToOne: false
+            referencedRelation: "marketing_actions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "marketing_actions_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       mind_conversation_messages: {
         Row: {
           client_msg_id: string | null
@@ -18630,6 +18750,10 @@ export type Database = {
           lead_auto_call_enabled: boolean
           lead_auto_email_enabled: boolean | null
           lead_auto_email_template_id: string | null
+          marketing_autonomy_level: string
+          marketing_autonomy_set_at: string | null
+          marketing_autonomy_set_by: string | null
+          marketing_guardrails: Json
           meta_access_token: string | null
           meta_ads_access_token: string | null
           meta_ads_account_id: string | null
@@ -18718,6 +18842,10 @@ export type Database = {
           lead_auto_call_enabled?: boolean
           lead_auto_email_enabled?: boolean | null
           lead_auto_email_template_id?: string | null
+          marketing_autonomy_level?: string
+          marketing_autonomy_set_at?: string | null
+          marketing_autonomy_set_by?: string | null
+          marketing_guardrails?: Json
           meta_access_token?: string | null
           meta_ads_access_token?: string | null
           meta_ads_account_id?: string | null
@@ -18806,6 +18934,10 @@ export type Database = {
           lead_auto_call_enabled?: boolean
           lead_auto_email_enabled?: boolean | null
           lead_auto_email_template_id?: string | null
+          marketing_autonomy_level?: string
+          marketing_autonomy_set_at?: string | null
+          marketing_autonomy_set_by?: string | null
+          marketing_guardrails?: Json
           meta_access_token?: string | null
           meta_ads_access_token?: string | null
           meta_ads_account_id?: string | null

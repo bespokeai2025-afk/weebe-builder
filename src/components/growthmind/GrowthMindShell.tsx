@@ -7,7 +7,7 @@ import {
   BarChart2, Filter, BookOpen, Search, Swords, LineChart, Flag, Wand2,
   CalendarDays, Rocket, Clapperboard, Dna, Database, Zap, Newspaper, Mail, Sparkles,
   ImageIcon, GalleryHorizontal, Share2, Settings2, Radar, Eye,
-  LayoutDashboard, FlaskConical, AudioLines,
+  LayoutDashboard, FlaskConical, AudioLines, History,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { getAllProposals } from "@/lib/executives/executive-bridge";
@@ -20,6 +20,7 @@ const CORE_NAV = [
   { label: "Business DNA",       href: "/growthmind/business-dna",         icon: Dna,         highlight: true },
   { label: "Opportunities",      href: "/growthmind/lead-opportunities",   icon: Zap },
   { label: "Recommendations",    href: "/growthmind/recommendations",      icon: Lightbulb },
+  { label: "Marketing Actions",  href: "/growthmind/marketing-actions",    icon: History },
   { label: "Goals",              href: "/growthmind/goals",                icon: Flag },
   { label: "Reports",            href: "/growthmind/reports",              icon: FileText },
   { label: "Proposals",          href: "/growthmind/proposals",            icon: Filter },

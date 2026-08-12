@@ -111,6 +111,11 @@ const HIVEMIND_ACTION_KINDS: HiveMindKind[] = [
     title: "Approve SEO campaign stage", description: "Approve one stage of an SEO blog campaign (strategy, brief, content or deployment). Moves the campaign exactly one stage forward; deployment stays a manual Lovable handoff.", cost: "low",
   },
   {
+    type: "marketing_action_execute", mind: "hivemind", featureFamily: "marketing_automation",
+    title: "Execute marketing action", description: "Execute an approved Marketing Action Engine change (confirm-then-verify against the real platform API; guardrails re-checked at execution time).", cost: "low",
+    affected: (r) => (r?.marketing_action_id ? { type: "marketing_action", id: String(r.marketing_action_id) } : null),
+  },
+  {
     type: "content_publication_approval", mind: "hivemind", featureFamily: "content_publishing",
     title: "Approve public article content/publication", description: "Approve article content or publication for the public content API. Content approval and publication approval are separate steps; publishing to the API never claims the article is live on the website.", cost: "low",
   },

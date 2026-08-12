@@ -30,6 +30,9 @@ export const SENSITIVE_ACTIONS: Record<string, SensitiveCategory> = {
   review_client_pricing:         "billing",
   seo_campaign_approval:         "campaign",
   content_publication_approval:  "campaign",
+  // Marketing Action Engine: every external marketing write approved through
+  // HiveMind takes the sensitive path (budget category ⇒ campaign_activation).
+  marketing_action_execute:      "budget",
 };
 
 export function isSensitiveActionType(actionType: string): boolean {
