@@ -9096,6 +9096,87 @@ export type Database = {
         }
         Relationships: []
       }
+      growthmind_seo_opportunities: {
+        Row: {
+          business_value: number
+          confidence: number
+          created_at: string
+          dedupe_key: string
+          dim_key: string
+          effort: number
+          evidence: Json
+          id: string
+          kind: string
+          last_detected_at: string
+          linked_campaign_id: string | null
+          linked_package_id: string | null
+          marketing_action_id: string | null
+          measurement: Json
+          property_url: string
+          ranking_opportunity: number
+          rationale: string
+          recommended_execution: string
+          score: number
+          status: string
+          status_changed_at: string | null
+          title: string
+          updated_at: string
+          workspace_id: string
+        }
+        Insert: {
+          business_value: number
+          confidence: number
+          created_at?: string
+          dedupe_key: string
+          dim_key: string
+          effort: number
+          evidence?: Json
+          id?: string
+          kind: string
+          last_detected_at?: string
+          linked_campaign_id?: string | null
+          linked_package_id?: string | null
+          marketing_action_id?: string | null
+          measurement?: Json
+          property_url: string
+          ranking_opportunity: number
+          rationale: string
+          recommended_execution: string
+          score: number
+          status?: string
+          status_changed_at?: string | null
+          title: string
+          updated_at?: string
+          workspace_id: string
+        }
+        Update: {
+          business_value?: number
+          confidence?: number
+          created_at?: string
+          dedupe_key?: string
+          dim_key?: string
+          effort?: number
+          evidence?: Json
+          id?: string
+          kind?: string
+          last_detected_at?: string
+          linked_campaign_id?: string | null
+          linked_package_id?: string | null
+          marketing_action_id?: string | null
+          measurement?: Json
+          property_url?: string
+          ranking_opportunity?: number
+          rationale?: string
+          recommended_execution?: string
+          score?: number
+          status?: string
+          status_changed_at?: string | null
+          title?: string
+          updated_at?: string
+          workspace_id?: string
+        }
+        Relationships: []
+      }
       growthmind_seo_sites: {
         Row: {
           ai_rec_at: string | null

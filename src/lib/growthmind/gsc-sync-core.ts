@@ -447,6 +447,17 @@ export async function runGscSyncForWorkspace(
       { onConflict: "workspace_id,property_url" },
     );
 
+    // Refresh the SEO Opportunity Queue from the fresh data (best-effort —
+    // a queue failure must never fail the sync). Relative import keeps the
+    // alias-free constraint of this module chain.
+    try {
+      const { refreshSeoOpportunityQueue } = await import("./seo-opportunity-core");
+      const q = await refreshSeoOpportunityQueue(workspaceId, admin);
+      if (!q.ok) console.warn("[gsc-sync] opportunity queue refresh failed:", q.error);
+    } catch (e: any) {
+      console.warn("[gsc-sync] opportunity queue refresh crashed:", e?.message ?? e);
+    }
+
     return {
       ok: true,
       workspaceId,

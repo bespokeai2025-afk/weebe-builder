@@ -1019,9 +1019,28 @@ export async function rejectHiveMindActionCore(
     .update({ status: "rejected", updated_at: new Date().toISOString() })
     .eq("id", data.id)
     .eq("workspace_id", workspaceId)
-    .select("source_recommendation_id");
+    .select("source_recommendation_id, action_type, action_payload");
   if (error) throw error;
-  const srcRec = (rejected ?? [])[0]?.source_recommendation_id ?? null;
+  const rejectedRow = (rejected ?? [])[0] ?? null;
+  // Rejecting a marketing-action approval must fail the bound marketing
+  // action too, or it (and any linked SEO queue item) hangs in
+  // awaiting_approval/executing forever. Best-effort; legal CAS transition.
+  const marketingActionId = rejectedRow?.action_type === "marketing_action_execute"
+    ? (rejectedRow?.action_payload as any)?.marketing_action_id ?? null : null;
+  if (marketingActionId) {
+    try {
+      const [{ transitionMarketingAction }, { supabaseAdmin }] = await Promise.all([
+        import("@/lib/marketing/action-engine.server"),
+        import("@/integrations/supabase/client.server"),
+      ]);
+      await transitionMarketingAction(supabaseAdmin as any, marketingActionId,
+        "awaiting_approval", "failed",
+        { error_message: "Approval rejected by user." }, "Approval rejected by user");
+    } catch (e) {
+      console.warn("[hivemind] failed to fail rejected marketing action", (e as Error)?.message);
+    }
+  }
+  const srcRec = rejectedRow?.source_recommendation_id ?? null;
   if (srcRec) {
     const { reflectActionOutcomeOnRecommendation } =
       await import("@/lib/hivemind/executive-followthrough.server");

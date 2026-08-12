@@ -155,4 +155,5 @@
 - [Webhook side-effect dedup](webhook-side-effect-dedup.md) — once-only webhook notifications need atomic insert-detect (ignoreDuplicates upsert + select), never read-then-write pre-checks.
 - [Marketing Action Engine](marketing-action-engine.md) — all external marketing writes via the engine; executor allowlists, stale-approval refusal, approval-row binding, one live undo per action.
 - [Google Ads write executor](gads-write-executor.md) — v21 sunset (default now v23), only IRRELEVANT terms excludable, permanent negative decision log, syncLinkedChangeRequests keeps change requests honest.
+- [SEO Opportunity Queue](seo-opportunity-queue.md) — alias-free core off GSC sync; CAS claim before action create; query-keyed items → campaigns, only URL-keyed → packages; package verify = delivery only.
 - [Website Ava web-call lead capture](ava-web-call-arch.md) — signed-webhook-only 401s, event:call_id dedup, admin-key-set authz (keys shared across ws), tool-result-only booking truth, version-pinned sessions.
