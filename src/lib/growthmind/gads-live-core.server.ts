@@ -28,7 +28,8 @@ function admin(): any {
 
 // Single source of truth for the Google Ads API version across the codebase.
 // v20 was sunset by Google (UNSUPPORTED_VERSION — requests blocked); v21+ works.
-export const GADS_API_VERSION = process.env.GOOGLE_ADS_API_VERSION?.trim() || "v21";
+// v21 was sunset (UNSUPPORTED_VERSION as of Aug 2026); v22/v23 verified live.
+export const GADS_API_VERSION = process.env.GOOGLE_ADS_API_VERSION?.trim() || "v23";
 export const GADS_BASE = `https://googleads.googleapis.com/${GADS_API_VERSION}`;
 
 // ── Credential loading ────────────────────────────────────────────────────────
@@ -927,18 +928,48 @@ export async function runGadsAnalysis(workspaceId: string, accountRowId: string)
       .order("cost_micros", { ascending: false })
       .limit(200);
     const wasted = (terms ?? []).filter((t: any) => Number(t.cost_micros) / 1e6 >= 10 && Number(t.conversions) === 0).slice(0, 3);
-    for (const t of wasted) {
-      const cost = Number(t.cost_micros) / 1e6;
-      const cName = camps.get(t.campaign_id)?.name ?? t.campaign_id;
-      recs.push({
-        section: "wasted_spend", priority: "high", confidence: 0.8,
-        title: `Search term "${t.label}" cost ${cur}${cost.toFixed(0)} with no conversions`,
-        campaign_id: t.campaign_id, campaign_name: cName,
-        evidence: { searchTerm: t.label, cost30d: +cost.toFixed(2), clicks30d: Number(t.clicks), conversions30d: 0 },
-        expected_benefit: `Save ~${cur}${cost.toFixed(0)}/month by excluding this term`,
-        recommended_action: `Add "${t.label}" as a negative keyword in "${cName}".`,
-        dedupe_key: `gads:${acc.customer_id}:${t.campaign_id}:negkw:${String(t.entity_key).slice(0, 80)}`,
-      });
+    if (wasted.length) {
+      // Four-way policy gate: only IRRELEVANT terms may be recommended as
+      // negatives; everything else is explicitly review-only. Every considered
+      // term gets a permanent decision-log row (deduped over 30 days so the
+      // 15-min sync tick doesn't spam the append-only log).
+      const { evaluateWastedTerm, recordNegativeDecisions } = await import("./gads-negative-policy.server");
+      const since = new Date(Date.now() - 30 * 24 * 3600 * 1000).toISOString();
+      const { data: logged } = await sb
+        .from("growthmind_gads_negative_decision_log")
+        .select("search_term, campaign_id, decision")
+        .eq("workspace_id", workspaceId)
+        .eq("customer_id", acc.customer_id)
+        .in("search_term", wasted.map((t: any) => String(t.label)))
+        .gte("created_at", since);
+      const alreadyLogged = new Set((logged ?? []).map((r: any) => `${r.search_term}|${r.campaign_id}|${r.decision}`));
+      const logEntries: any[] = [];
+      for (const t of wasted) {
+        const cost = Number(t.cost_micros) / 1e6;
+        const cName = camps.get(t.campaign_id)?.name ?? t.campaign_id;
+        const evald = evaluateWastedTerm(
+          { searchTerm: String(t.label), impressions: null, clicks: Number(t.clicks), cost, conversions: 0 }, String(cName));
+        recs.push({
+          section: "wasted_spend", priority: evald.excludable ? "high" : "medium", confidence: evald.excludable ? 0.8 : 0.6,
+          title: `Search term "${t.label}" cost ${cur}${cost.toFixed(0)} with no conversions`,
+          campaign_id: t.campaign_id, campaign_name: cName,
+          evidence: { searchTerm: t.label, cost30d: +cost.toFixed(2), clicks30d: Number(t.clicks), conversions30d: 0, fourWayClass: evald.classification },
+          expected_benefit: evald.excludable
+            ? `Save ~${cur}${cost.toFixed(0)}/month by excluding this term`
+            : `Up to ${cur}${cost.toFixed(0)}/month at stake — needs human review before any exclusion`,
+          recommended_action: evald.recommendedAction,
+          dedupe_key: `gads:${acc.customer_id}:${t.campaign_id}:negkw:${String(t.entity_key).slice(0, 80)}`,
+        });
+        if (!alreadyLogged.has(`${String(t.label)}|${String(t.campaign_id)}|${evald.decision}`)) {
+          logEntries.push({
+            workspace_id: workspaceId, account_row_id: accountRowId, customer_id: acc.customer_id,
+            campaign_id: t.campaign_id, campaign_name: typeof cName === "string" ? cName : null,
+            search_term: String(t.label), classification: evald.classification, decision: evald.decision,
+            reason: evald.reason, evidence: { source: "sync_recommendations", cost30d: +cost.toFixed(2), clicks30d: Number(t.clicks), conversions30d: 0 },
+          });
+        }
+      }
+      if (logEntries.length) await recordNegativeDecisions(sb, logEntries);
     }
   } catch { /* dimension stats may be empty */ }
 

@@ -6600,9 +6600,11 @@ export type Database = {
           customer_id: string | null
           executed_at: string | null
           id: string
+          marketing_action_id: string | null
           payload: Json | null
           recommendation_id: string | null
           status: string
+          status_detail: string | null
           workspace_id: string
         }
         Insert: {
@@ -6615,9 +6617,11 @@ export type Database = {
           customer_id?: string | null
           executed_at?: string | null
           id?: string
+          marketing_action_id?: string | null
           payload?: Json | null
           recommendation_id?: string | null
           status?: string
+          status_detail?: string | null
           workspace_id: string
         }
         Update: {
@@ -6630,9 +6634,11 @@ export type Database = {
           customer_id?: string | null
           executed_at?: string | null
           id?: string
+          marketing_action_id?: string | null
           payload?: Json | null
           recommendation_id?: string | null
           status?: string
+          status_detail?: string | null
           workspace_id?: string
         }
         Relationships: [
@@ -6704,6 +6710,63 @@ export type Database = {
           label?: string | null
           meta?: Json | null
           updated_at?: string
+          workspace_id?: string
+        }
+        Relationships: []
+      }
+      growthmind_gads_negative_decision_log: {
+        Row: {
+          account_row_id: string | null
+          campaign_id: string | null
+          campaign_name: string | null
+          classification: string
+          created_at: string
+          customer_id: string | null
+          decided_by: string | null
+          decision: string
+          evidence: Json
+          id: string
+          marketing_action_id: string | null
+          match_type: string | null
+          reason: string | null
+          recommendation_id: string | null
+          search_term: string
+          workspace_id: string
+        }
+        Insert: {
+          account_row_id?: string | null
+          campaign_id?: string | null
+          campaign_name?: string | null
+          classification: string
+          created_at?: string
+          customer_id?: string | null
+          decided_by?: string | null
+          decision: string
+          evidence?: Json
+          id?: string
+          marketing_action_id?: string | null
+          match_type?: string | null
+          reason?: string | null
+          recommendation_id?: string | null
+          search_term: string
+          workspace_id: string
+        }
+        Update: {
+          account_row_id?: string | null
+          campaign_id?: string | null
+          campaign_name?: string | null
+          classification?: string
+          created_at?: string
+          customer_id?: string | null
+          decided_by?: string | null
+          decision?: string
+          evidence?: Json
+          id?: string
+          marketing_action_id?: string | null
+          match_type?: string | null
+          reason?: string | null
+          recommendation_id?: string | null
+          search_term?: string
           workspace_id?: string
         }
         Relationships: []

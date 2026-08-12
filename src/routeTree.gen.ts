@@ -191,6 +191,7 @@ import { Route as AuthenticatedGrowthmindProposalsRouteImport } from './routes/_
 import { Route as AuthenticatedGrowthmindPromptStudioRouteImport } from './routes/_authenticated/growthmind.prompt-studio'
 import { Route as AuthenticatedGrowthmindPlaybooksRouteImport } from './routes/_authenticated/growthmind.playbooks'
 import { Route as AuthenticatedGrowthmindPerformanceLabRouteImport } from './routes/_authenticated/growthmind.performance-lab'
+import { Route as AuthenticatedGrowthmindNegativeKeywordsRouteImport } from './routes/_authenticated/growthmind.negative-keywords'
 import { Route as AuthenticatedGrowthmindMarketingActionsRouteImport } from './routes/_authenticated/growthmind.marketing-actions'
 import { Route as AuthenticatedGrowthmindLeadOpportunitiesRouteImport } from './routes/_authenticated/growthmind.lead-opportunities'
 import { Route as AuthenticatedGrowthmindImageStudioRouteImport } from './routes/_authenticated/growthmind.image-studio'
@@ -1344,6 +1345,12 @@ const AuthenticatedGrowthmindPerformanceLabRoute =
     path: '/performance-lab',
     getParentRoute: () => AuthenticatedGrowthmindRoute,
   } as any)
+const AuthenticatedGrowthmindNegativeKeywordsRoute =
+  AuthenticatedGrowthmindNegativeKeywordsRouteImport.update({
+    id: '/negative-keywords',
+    path: '/negative-keywords',
+    getParentRoute: () => AuthenticatedGrowthmindRoute,
+  } as any)
 const AuthenticatedGrowthmindMarketingActionsRoute =
   AuthenticatedGrowthmindMarketingActionsRouteImport.update({
     id: '/marketing-actions',
@@ -2243,6 +2250,7 @@ export interface FileRoutesByFullPath {
   '/growthmind/image-studio': typeof AuthenticatedGrowthmindImageStudioRoute
   '/growthmind/lead-opportunities': typeof AuthenticatedGrowthmindLeadOpportunitiesRoute
   '/growthmind/marketing-actions': typeof AuthenticatedGrowthmindMarketingActionsRoute
+  '/growthmind/negative-keywords': typeof AuthenticatedGrowthmindNegativeKeywordsRoute
   '/growthmind/performance-lab': typeof AuthenticatedGrowthmindPerformanceLabRoute
   '/growthmind/playbooks': typeof AuthenticatedGrowthmindPlaybooksRoute
   '/growthmind/prompt-studio': typeof AuthenticatedGrowthmindPromptStudioRoute
@@ -2557,6 +2565,7 @@ export interface FileRoutesByTo {
   '/growthmind/image-studio': typeof AuthenticatedGrowthmindImageStudioRoute
   '/growthmind/lead-opportunities': typeof AuthenticatedGrowthmindLeadOpportunitiesRoute
   '/growthmind/marketing-actions': typeof AuthenticatedGrowthmindMarketingActionsRoute
+  '/growthmind/negative-keywords': typeof AuthenticatedGrowthmindNegativeKeywordsRoute
   '/growthmind/performance-lab': typeof AuthenticatedGrowthmindPerformanceLabRoute
   '/growthmind/playbooks': typeof AuthenticatedGrowthmindPlaybooksRoute
   '/growthmind/prompt-studio': typeof AuthenticatedGrowthmindPromptStudioRoute
@@ -2879,6 +2888,7 @@ export interface FileRoutesById {
   '/_authenticated/growthmind/image-studio': typeof AuthenticatedGrowthmindImageStudioRoute
   '/_authenticated/growthmind/lead-opportunities': typeof AuthenticatedGrowthmindLeadOpportunitiesRoute
   '/_authenticated/growthmind/marketing-actions': typeof AuthenticatedGrowthmindMarketingActionsRoute
+  '/_authenticated/growthmind/negative-keywords': typeof AuthenticatedGrowthmindNegativeKeywordsRoute
   '/_authenticated/growthmind/performance-lab': typeof AuthenticatedGrowthmindPerformanceLabRoute
   '/_authenticated/growthmind/playbooks': typeof AuthenticatedGrowthmindPlaybooksRoute
   '/_authenticated/growthmind/prompt-studio': typeof AuthenticatedGrowthmindPromptStudioRoute
@@ -3203,6 +3213,7 @@ export interface FileRouteTypes {
     | '/growthmind/image-studio'
     | '/growthmind/lead-opportunities'
     | '/growthmind/marketing-actions'
+    | '/growthmind/negative-keywords'
     | '/growthmind/performance-lab'
     | '/growthmind/playbooks'
     | '/growthmind/prompt-studio'
@@ -3517,6 +3528,7 @@ export interface FileRouteTypes {
     | '/growthmind/image-studio'
     | '/growthmind/lead-opportunities'
     | '/growthmind/marketing-actions'
+    | '/growthmind/negative-keywords'
     | '/growthmind/performance-lab'
     | '/growthmind/playbooks'
     | '/growthmind/prompt-studio'
@@ -3838,6 +3850,7 @@ export interface FileRouteTypes {
     | '/_authenticated/growthmind/image-studio'
     | '/_authenticated/growthmind/lead-opportunities'
     | '/_authenticated/growthmind/marketing-actions'
+    | '/_authenticated/growthmind/negative-keywords'
     | '/_authenticated/growthmind/performance-lab'
     | '/_authenticated/growthmind/playbooks'
     | '/_authenticated/growthmind/prompt-studio'
@@ -5469,6 +5482,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedGrowthmindPerformanceLabRouteImport
       parentRoute: typeof AuthenticatedGrowthmindRoute
     }
+    '/_authenticated/growthmind/negative-keywords': {
+      id: '/_authenticated/growthmind/negative-keywords'
+      path: '/negative-keywords'
+      fullPath: '/growthmind/negative-keywords'
+      preLoaderRoute: typeof AuthenticatedGrowthmindNegativeKeywordsRouteImport
+      parentRoute: typeof AuthenticatedGrowthmindRoute
+    }
     '/_authenticated/growthmind/marketing-actions': {
       id: '/_authenticated/growthmind/marketing-actions'
       path: '/marketing-actions'
@@ -6595,6 +6615,7 @@ interface AuthenticatedGrowthmindRouteChildren {
   AuthenticatedGrowthmindImageStudioRoute: typeof AuthenticatedGrowthmindImageStudioRoute
   AuthenticatedGrowthmindLeadOpportunitiesRoute: typeof AuthenticatedGrowthmindLeadOpportunitiesRoute
   AuthenticatedGrowthmindMarketingActionsRoute: typeof AuthenticatedGrowthmindMarketingActionsRoute
+  AuthenticatedGrowthmindNegativeKeywordsRoute: typeof AuthenticatedGrowthmindNegativeKeywordsRoute
   AuthenticatedGrowthmindPerformanceLabRoute: typeof AuthenticatedGrowthmindPerformanceLabRoute
   AuthenticatedGrowthmindPlaybooksRoute: typeof AuthenticatedGrowthmindPlaybooksRoute
   AuthenticatedGrowthmindPromptStudioRoute: typeof AuthenticatedGrowthmindPromptStudioRoute
@@ -6659,6 +6680,8 @@ const AuthenticatedGrowthmindRouteChildren: AuthenticatedGrowthmindRouteChildren
       AuthenticatedGrowthmindLeadOpportunitiesRoute,
     AuthenticatedGrowthmindMarketingActionsRoute:
       AuthenticatedGrowthmindMarketingActionsRoute,
+    AuthenticatedGrowthmindNegativeKeywordsRoute:
+      AuthenticatedGrowthmindNegativeKeywordsRoute,
     AuthenticatedGrowthmindPerformanceLabRoute:
       AuthenticatedGrowthmindPerformanceLabRoute,
     AuthenticatedGrowthmindPlaybooksRoute:

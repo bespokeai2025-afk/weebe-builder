@@ -1,8 +1,7 @@
 - [Two-tier Retell deploy model](two-tier-retell-deploy.md) — builder uses platform RETELL_API_KEY; Go Live auto-uses per-client key stored in workspace_settings.retell_workspace_id.
 - [srvx static serving + AWS prod start](srvx-static-serving.md) — prod uses srvx; `--static` resolves relative to entry dir, so must be `--static=../client` or assets 404 silently.
 - [Resend transactional emails](resend-emails.md) — auto user-emails use direct Resend REST (not Lovable queue); escapeHtml user values; prod needs a verified domain + RESEND_FROM.
-- [HyperStream relay & audio](hyperstream-relay-pitfalls.md) — 4 relay bugs (model name, beta header, sync upgrade, binary frames); audio/turn-taking fixes in hyperstream-audio-turntaking.md.
-- [EL Voice relay idle WS timeout](el-voice-relay-idle-ws.md) — EL streams audio faster than real-time → 15s idle gap → proxy closes WS. Fix: browser ping every 5s; server responds pong.
+- [Voice relays (HyperStream + EL)](hyperstream-relay-pitfalls.md) — relay bugs + turn-taking in hyperstream-audio-turntaking.md; EL idle-WS keepalive fix in el-voice-relay-idle-ws.md.
 - [OpenAI Realtime flow prompt](openai-realtime-prompt-compile.md) — OpenAI takes one instruction string, not Retell's flow graph; must compile whole flow into a prompt for test + deploy.
 - [Telephony layer architecture](telephony-layer-arch.md) — provider-agnostic layer using separate DB tables; never touch Retell's calls table; audio bridge is a Vite plugin mirroring hyperstream-relay.
 - [WhatsApp provider architecture](wa-provider-architecture.md) — Twilio/WATI/Meta creds, webhook routing, agent gate, runtime send routing. Meta needs manual hub.challenge step.
@@ -17,7 +16,7 @@
 - [Executive bridge (HiveMind COO ↔ GrowthMind CMO)](executive-bridge-arch.md) — GrowthMind is advisory-only (never executes); .server builders only via dynamic import; whitelist HiveMind summary (no cfg); executive_events migration manual.
 - [SystemMind Workflow Library](systemmind-workflow-library.md) — manual 4-table migration; repair engine = deterministic checks + AI; knowledge context = KB RAG + playbooks + patterns.
 - [GrowthMind DNA + Opportunity Engine](growthmind-dna-opportunity-arch.md) — 6-table schema; DNA trigger auto-seeds; `.inputValidator()` not `.validator()`; no-input fns call as `fn()`; bridge + content studio extended.
-- [Video Studio + Veo](video-studio-freeform-upgrade.md) — dual-auth VeoProvider (Gemini key preferred); see also veo-audio-fix.md and veo-gemini-endpoint.md.
+- [Video Studio + Veo](video-studio-freeform-upgrade.md) — dual-auth VeoProvider (Gemini key preferred); see veo-audio-fix.md, veo-gemini-endpoint.md, veo31-cost-approval-pipeline.md.
 - [TanStack Start stale server-fn IDs](tanstack-stale-serverfn-ids.md) — after server restart, browser must hard-refresh or server fns fail with "Invalid server function ID" returning HTML error pages.
 - [Prompt Studio architecture](prompt-studio-arch.md) — 5-table schema (manual migration); 12 library packs seeded per workspace; scoring via GPT-4o-mini (5 dims); getPromptPerformanceSummary is plain async (not server fn) for HiveMind use.
 - [GrowthMind Strategy Centre](strategy-centre-arch.md) — prompt engine routing, 4 DB tables, 13 strategy types, HiveMind approval via hivemind_actions.
@@ -141,7 +140,6 @@
 - [Campaign minutes attribution](campaign-minutes-attribution.md) — calls.agent_id = provider id vs campaigns.agent_id = local uuid; DB-verify webhook metadata.campaign_id; deterministic dedup keys only.
 - [Retell phone-number agent binding](retell-phone-agent-binding.md) — legacy inbound/outbound_agent_id fields 400 since 2026-03; use inbound_agents/outbound_agents arrays; read both shapes.
 - [GPT-5.6 routing upgrade](gpt56-routing-upgrade.md) — Mind AI calls classify via task router → terra/sol/luna Responses API; routing JSONB mandatory; fallback never gpt-4o; legacy behind AI_LEGACY_CHAT_COMPLETIONS=1.
-- [Veo 3.1 cost-approval pipeline](veo31-cost-approval-pipeline.md) — atomic approval consume, never auto-retry paid work, terminal-CAS-before-ledger rule; Google Veo access 403-blocked since June 16.
 - [Duplicate retellFetch helper trap](retell-fetch-duplicate-helper-trap.md) — file-local 3-arg retellFetch + shared 4-arg call form sent "POST" as the API key → 401; always import the shared client.
 - [WBAH test-campaign exclusion](wbah-test-campaign-exclusion.md) — isWbahTestCampaign is the sole classifier (deleted + test-lead/test-name); deleted REAL campaigns keep attributing; campaign_id backfilled via one-slot-window rule.
 - [Retell v3 list API migration & transcripts](retell-list-api-v3-migration.md) — use list.server.ts helpers; v3 list has NO transcript fields → per-call enrichment + preserve-on-upsert (retell-v3-list-no-transcripts.md).
@@ -156,4 +154,5 @@
 - [Auto SEO campaign tick](seo-auto-campaign-tick.md) — opt-in per-week cadence creates approval-first SEO campaigns; CAS claim on workspace_settings, fail-closed reads.
 - [Webhook side-effect dedup](webhook-side-effect-dedup.md) — once-only webhook notifications need atomic insert-detect (ignoreDuplicates upsert + select), never read-then-write pre-checks.
 - [Marketing Action Engine](marketing-action-engine.md) — all external marketing writes via the engine; executor allowlists, stale-approval refusal, approval-row binding, one live undo per action.
+- [Google Ads write executor](gads-write-executor.md) — v21 sunset (default now v23), only IRRELEVANT terms excludable, permanent negative decision log, syncLinkedChangeRequests keeps change requests honest.
 - [Website Ava web-call lead capture](ava-web-call-arch.md) — signed-webhook-only 401s, event:call_id dedup, admin-key-set authz (keys shared across ws), tool-result-only booking truth, version-pinned sessions.

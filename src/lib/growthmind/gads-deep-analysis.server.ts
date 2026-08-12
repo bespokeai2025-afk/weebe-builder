@@ -396,13 +396,17 @@ export async function buildGadsDeepAnalysisReport(args: DeepAnalysisArgs): Promi
     prev.clicks += Number(t.clicks ?? 0); prev.conversions += Number(t.conversions ?? 0);
     termAgg.set(k, prev);
   }
+  const { toFourWay, FOUR_WAY_META } = await import("@/lib/growthmind/gads-negative-policy.server");
   const searchTermRows = Array.from(termAgg.values()).map((t: any) => {
     const cls = classifySearchTerm(t, businessTerms);
+    const fourWay = toFourWay(cls.classification);
     return {
       searchTerm: t.searchTerm, matchedKeyword: t.matchedKeyword, matchType: t.matchType,
       addedExcluded: t.status ?? null,
       spend: r2(t.cost), impressions: t.impressions, clicks: t.clicks, conversions: t.conversions,
       classification: cls.classification, classificationReason: cls.reason,
+      fourWayClass: fourWay, fourWayLabel: FOUR_WAY_META[fourWay].label,
+      excludable: FOUR_WAY_META[fourWay].excludable,
     };
   }).sort((a: any, b: any) => b.spend - a.spend || b.clicks - a.clicks || b.impressions - a.impressions);
   sections.search_terms = {
@@ -535,14 +539,43 @@ Rules: suggested keywords must derive from real search terms in the evidence, th
     volumeNote: DATA_UNAVAILABLE_KEYWORD_PLANNER,
     structureNotes: kwAi.json?.keyword_structure_notes ?? null,
   };
+  // POLICY: only IRRELEVANT terms may become recommended negatives.
+  // UNCERTAIN (incl. high-cost-no-conversion) and HIGH-VALUE terms are shown
+  // for review but never proposed for exclusion.
+  const consideredTerms = searchTermRows
+    .filter((t: any) => t.classification === "irrelevant" || t.classification === "high_cost_no_conversion" || t.classification === "converting")
+    .slice(0, 60);
   sections.negative_keywords = {
     error: kwAi.error,
-    deterministicCandidates: searchTermRows
-      .filter((t: any) => t.classification === "irrelevant" || t.classification === "high_cost_no_conversion")
-      .slice(0, 60)
-      .map((t: any) => ({ term: t.searchTerm, spend: t.spend, clicks: t.clicks, reason: t.classificationReason })),
+    policyNote: "Only terms classified IRRELEVANT can be recommended as negatives. UNCERTAIN terms need human review; HIGH-VALUE DISCOVERY terms are keyword-add candidates, never exclusions.",
+    deterministicCandidates: consideredTerms
+      .filter((t: any) => t.fourWayClass === "irrelevant")
+      .map((t: any) => ({ term: t.searchTerm, spend: t.spend, clicks: t.clicks, reason: t.classificationReason, fourWayClass: t.fourWayClass })),
+    reviewNeeded: consideredTerms
+      .filter((t: any) => t.fourWayClass === "uncertain")
+      .map((t: any) => ({ term: t.searchTerm, spend: t.spend, clicks: t.clicks, reason: t.classificationReason, fourWayClass: t.fourWayClass })),
+    highValueDiscoveries: consideredTerms
+      .filter((t: any) => t.fourWayClass === "high_value_discovery")
+      .map((t: any) => ({ term: t.searchTerm, spend: t.spend, clicks: t.clicks, conversions: t.conversions, reason: t.classificationReason, fourWayClass: t.fourWayClass })),
     groups: kwAi.json?.negative_keywords ?? [],
   };
+  // Permanent decision log: record every term considered, whatever the outcome.
+  try {
+    const { recordNegativeDecisions } = await import("@/lib/growthmind/gads-negative-policy.server");
+    const logRes = await recordNegativeDecisions(admin(), consideredTerms.map((t: any) => ({
+      workspace_id: args.workspaceId,
+      account_row_id: args.accountRowId,
+      customer_id: data.meta.customerId ?? null,
+      campaign_id: camp?.id != null ? String(camp.id) : null,
+      campaign_name: campaignName,
+      search_term: t.searchTerm,
+      classification: t.fourWayClass,
+      decision: t.fourWayClass === "irrelevant" ? "recommended_negative" as const : "not_recommended" as const,
+      reason: t.classificationReason,
+      evidence: { spend: t.spend, clicks: t.clicks, impressions: t.impressions, conversions: t.conversions, source: "deep_analysis" },
+    })));
+    if (!logRes.ok) sectionErrors.push(`negative decision log: ${logRes.error}`);
+  } catch (e: any) { sectionErrors.push(`negative decision log: ${e?.message}`); }
   await stage("generate_keyword_opportunities", kwAi.error ? "failed" : "done",
     kwAi.error ?? `${(kwAi.json?.suggested_keywords ?? []).length} suggested keyword themes, ${(kwAi.json?.negative_keywords ?? []).length} negative groups`);
 

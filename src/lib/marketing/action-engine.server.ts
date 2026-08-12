@@ -64,6 +64,20 @@ export interface MarketingExecutor {
 
 const EXECUTORS = new Map<string, MarketingExecutor>();
 
+// Lazily load executor modules (they self-register on import) so any engine
+// entry point finds them regardless of which module was loaded first.
+let executorsLoaded = false;
+export async function ensureMarketingExecutorsLoaded(): Promise<void> {
+  if (executorsLoaded) return;
+  executorsLoaded = true;
+  try {
+    await import("./executors/google-ads.executor.server");
+  } catch (e: any) {
+    executorsLoaded = false; // allow retry on next call
+    console.error("[marketing-engine] executor module load failed:", e?.message);
+  }
+}
+
 export function registerMarketingExecutor(executor: MarketingExecutor) {
   EXECUTORS.set(executor.platform, executor);
 }
@@ -281,6 +295,7 @@ export interface SubmitResult {
 export async function submitMarketingActionForExecution(
   sbAdmin: any, workspaceId: string, actionId: string,
 ): Promise<SubmitResult> {
+  await ensureMarketingExecutorsLoaded();
   const action = await loadAction(sbAdmin, workspaceId, actionId);
   if (action.status !== "recommended" && action.status !== "discovered") {
     return { outcome: "not_allowed", detail: `Action is ${action.status}, not submittable.` };
@@ -343,8 +358,9 @@ async function queueApproval(
   }).select("id").single();
   if (error) {
     // Honest terminal state instead of a stuck awaiting_approval row.
-    await transitionMarketingAction(sbAdmin, action.id, "awaiting_approval", "failed",
-      { error_message: `Could not create approval: ${error.message ?? "insert failed"}` });
+    const msg = `Could not create approval: ${error.message ?? "insert failed"}`;
+    await transitionMarketingAction(sbAdmin, action.id, "awaiting_approval", "failed", { error_message: msg });
+    await syncLinkedChangeRequests(sbAdmin, workspaceId, action.id, "failed", msg);
     throw error;
   }
   // Bind the approval row to the action — execution verifies this linkage.
@@ -362,6 +378,7 @@ async function queueApproval(
         .eq("id", data.id).eq("status", "pending");
     } catch { /* best-effort compensation */ }
     await transitionMarketingAction(sbAdmin, action.id, "awaiting_approval", "failed", { error_message: msg });
+    await syncLinkedChangeRequests(sbAdmin, workspaceId, action.id, "failed", msg);
     return { outcome: "failed", detail: msg };
   }
   return { outcome: "awaiting_approval", detail: reason ?? "Queued for approval.", approvalActionId: String(data.id) };
@@ -371,6 +388,7 @@ async function queueApproval(
 export async function runMarketingAction(
   sbAdmin: any, workspaceId: string, actionId: string,
 ): Promise<SubmitResult> {
+  await ensureMarketingExecutorsLoaded();
   const action = await loadAction(sbAdmin, workspaceId, actionId);
   if (action.status !== "approved") {
     return { outcome: "not_allowed", detail: `Action is ${action.status}, not approved.` };
@@ -380,31 +398,29 @@ export async function runMarketingAction(
   const cfg = await getMarketingAutonomyConfig(sbAdmin, workspaceId);
   // If execution has been disabled since approval, refuse — even for
   // human-approved actions. Stale approvals must not fire.
-  if (cfg.level === "observe" || cfg.level === "recommend") {
-    const msg = `Marketing autonomy is now "${cfg.level}" — execution disabled; approval is stale.`;
-    await transitionMarketingAction(sbAdmin, action.id, "approved", "failed", { error_message: msg });
+  // Every transition to "failed" must also sync linked change requests —
+  // an approved action that fails pre-execution must never leave its
+  // originating change request stuck at "submitted".
+  const failAndSync = async (fromStatus: string, msg: string): Promise<SubmitResult> => {
+    await transitionMarketingAction(sbAdmin, action.id, fromStatus, "failed", { error_message: msg });
+    await syncLinkedChangeRequests(sbAdmin, workspaceId, action.id, "failed", msg);
     return { outcome: "failed", detail: msg };
+  };
+  if (cfg.level === "observe" || cfg.level === "recommend") {
+    return await failAndSync("approved", `Marketing autonomy is now "${cfg.level}" — execution disabled; approval is stale.`);
   }
   // Protected targets always block, including explicitly approved actions —
   // tightening the protected lists must take effect immediately.
   const protectedBlock = protectedTargetBlockReason(action, cfg.guardrails);
-  if (protectedBlock) {
-    await transitionMarketingAction(sbAdmin, action.id, "approved", "failed", { error_message: protectedBlock });
-    return { outcome: "failed", detail: protectedBlock };
-  }
+  if (protectedBlock) return await failAndSync("approved", protectedBlock);
   if (action.approval_required === false) {
     // Automated runs re-check the FULL auto guardrails; explicitly approved
     // actions may exceed auto-only limits by design (human decision).
     if (cfg.level !== "autopilot") {
-      await transitionMarketingAction(sbAdmin, action.id, "approved", "failed",
-        { error_message: "Autonomy level changed before execution." });
-      return { outcome: "failed", detail: "Autonomy level changed before execution." };
+      return await failAndSync("approved", "Autonomy level changed before execution.");
     }
     const block = guardrailBlockReason(action, cfg.guardrails);
-    if (block) {
-      await transitionMarketingAction(sbAdmin, action.id, "approved", "failed", { error_message: block });
-      return { outcome: "failed", detail: block };
-    }
+    if (block) return await failAndSync("approved", block);
   }
 
   const claimed = await transitionMarketingAction(sbAdmin, action.id, "approved", "executing",
@@ -413,9 +429,7 @@ export async function runMarketingAction(
 
   const executor = getMarketingExecutor(action.platform);
   if (!executor) {
-    const msg = `No executor registered for platform "${action.platform}" — external write not performed.`;
-    await transitionMarketingAction(sbAdmin, action.id, "executing", "failed", { error_message: msg });
-    return { outcome: "failed", detail: msg };
+    return await failAndSync("executing", `No executor registered for platform "${action.platform}" — external write not performed.`);
   }
 
   // Execute — "executed" only on API-confirmed writes.
@@ -426,6 +440,7 @@ export async function runMarketingAction(
     const msg = exec.error || "Platform API did not confirm the change.";
     await transitionMarketingAction(sbAdmin, action.id, "executing", "failed",
       { error_message: msg, api_response: exec.apiResponse ?? null });
+    await syncLinkedChangeRequests(sbAdmin, workspaceId, action.id, "failed", msg);
     return { outcome: "failed", detail: msg };
   }
   await transitionMarketingAction(sbAdmin, action.id, "executing", "executed", {
@@ -455,6 +470,8 @@ export async function runMarketingAction(
       error_message: msg,
       updated_at: new Date().toISOString(),
     }).eq("id", action.id).eq("status", "executed").select("id");
+    // The external write DID happen — linked change requests must say so.
+    await syncLinkedChangeRequests(sbAdmin, workspaceId, action.id, "executed", msg);
     return { outcome: "executed_unverified", detail: msg };
   }
   await transitionMarketingAction(sbAdmin, action.id, "executed", "verified", {
@@ -474,13 +491,37 @@ export async function runMarketingAction(
     } catch { /* best-effort linkage; the undo itself succeeded */ }
   }
 
+  await syncLinkedChangeRequests(sbAdmin, workspaceId, action.id, "executed", "Change executed and verified.");
   return { outcome: "executed", detail: "Change executed and verified." };
+}
+
+/**
+ * Keep records that link to a marketing action (via marketing_action_id)
+ * in sync with the action's real terminal outcome, so an approved-then-run
+ * action never leaves its originating change request stale. Best-effort but
+ * logged loudly on failure. Exported for tests.
+ */
+export async function syncLinkedChangeRequests(
+  sbAdmin: any, workspaceId: string, marketingActionId: string,
+  status: "executed" | "failed", detail: string,
+): Promise<void> {
+  try {
+    const { error } = await sbAdmin.from("growthmind_gads_change_requests").update({
+      status,
+      status_detail: detail,
+      ...(status === "executed" ? { executed_at: new Date().toISOString() } : {}),
+    }).eq("workspace_id", workspaceId).eq("marketing_action_id", marketingActionId);
+    if (error) throw error;
+  } catch (e: any) {
+    console.error("[marketing-engine] linked change-request sync failed:", e?.message);
+  }
 }
 
 // ── Undo (compensating action) ───────────────────────────────────────────────
 export async function requestMarketingActionUndo(
   sbAdmin: any, workspaceId: string, actionId: string, requestedBy: string | null,
 ): Promise<SubmitResult & { undoActionId?: string }> {
+  await ensureMarketingExecutorsLoaded();
   const action = await loadAction(sbAdmin, workspaceId, actionId);
   if (!UNDOABLE_MARKETING_STATUSES.includes(action.status)) {
     return { outcome: "not_allowed", detail: `Only executed/verified/measuring/successful actions can be undone (this one is ${action.status}).` };
