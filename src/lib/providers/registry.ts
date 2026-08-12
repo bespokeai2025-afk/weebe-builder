@@ -170,8 +170,9 @@ const STATIC_PROVIDERS: RegistryEntry[] = [
 
   // Analytics
   { category: "analytics", name: "google_analytics", label: "Google Analytics", description: "Google Analytics 4 — web traffic & conversions", status: "coming_soon", isDefault: true, priority: 1 },
-  { category: "analytics", name: "posthog",           label: "PostHog",          description: "Product analytics & feature flags",              status: "coming_soon", priority: 2 },
-  { category: "analytics", name: "mixpanel",          label: "Mixpanel",         description: "Event-driven product analytics",                 status: "coming_soon", priority: 3 },
+  { category: "analytics", name: "microsoft_clarity", label: "Microsoft Clarity", description: "Behavioural analytics (rage/dead clicks, scroll, quick-backs) via Data Export API — aggregate counts for the last 1-3 days only, max 10 API requests/day", status: "disconnected", priority: 2 },
+  { category: "analytics", name: "posthog",           label: "PostHog",          description: "Product analytics & feature flags",              status: "coming_soon", priority: 3 },
+  { category: "analytics", name: "mixpanel",          label: "Mixpanel",         description: "Event-driven product analytics",                 status: "coming_soon", priority: 4 },
 
   // Advertising
   { category: "advertising", name: "google_ads",  label: "Google Ads",  description: "Google Ads campaign management",   status: "disconnected", isDefault: true, priority: 1 },

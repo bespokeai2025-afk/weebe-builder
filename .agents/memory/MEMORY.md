@@ -1,5 +1,5 @@
-- [Two-tier Retell deploy model](two-tier-retell-deploy.md) — builder uses platform RETELL_API_KEY; Go Live auto-uses per-client key stored in workspace_settings.retell_workspace_id.
-- [srvx static serving + AWS prod start](srvx-static-serving.md) — prod uses srvx; `--static` resolves relative to entry dir, so must be `--static=../client` or assets 404 silently.
+- [Two-tier Retell deploy model](two-tier-retell-deploy.md) — builder uses platform RETELL_API_KEY; Go Live uses per-client key.
+- [srvx static serving + AWS prod start](srvx-static-serving.md) — `--static` resolves relative to entry dir; must be `--static=../client`.
 - [Resend transactional emails](resend-emails.md) — auto user-emails use direct Resend REST (not Lovable queue); escapeHtml user values; prod needs a verified domain + RESEND_FROM.
 - [Voice relays (HyperStream + EL)](hyperstream-relay-pitfalls.md) — relay bugs + turn-taking in hyperstream-audio-turntaking.md; EL idle-WS keepalive fix in el-voice-relay-idle-ws.md.
 - [OpenAI Realtime flow prompt](openai-realtime-prompt-compile.md) — OpenAI takes one instruction string, not Retell's flow graph; must compile whole flow into a prompt for test + deploy.
@@ -8,8 +8,8 @@
 - [Campaign executor architecture](campaign-executor-arch.md) — dual dev/prod: Vite plugin ticks every 5 min in dev; prod uses POST /api/public/campaign-executor hit by pg_cron. lastRunDate stored inside __sched_v1__ JSON blob.
 - [HiveMind architecture](hivemind-arch.md) — observer-only layer, HiveMindShell sidebar; see also hivemind-phase2-ai.md, hivemind-phase3-tasks.md, hivemind-phase4-coo.md.
 - [GrowthMind Multi-LLM routing](growthmind-multi-llm.md) — model-router.shared.ts exports SMART_ROUTING/MODEL_META/FALLBACK (safe client-side); server side only in model-router.server.ts + providers/.
-- [TanStack Start useServerFn data wrapping](tanstack-serverfn-data-wrap.md) — calls MUST use `{ data: input }`; bare `fn(input)` sends undefined; no-input fns call as `fn()`; validator name flips by version.
-- [TanStack Router Suspense + throwOnError](tanstack-suspense-throwOnError.md) — RQ v5 in Suspense defaults throwOnError true; add `throwOnError: false` to every route useQuery; reload guards use timestamps.
+- [TanStack Start useServerFn data wrapping](tanstack-serverfn-data-wrap.md) — calls MUST use `{ data: input }`; validator name flips by version.
+- [TanStack Router Suspense + throwOnError](tanstack-suspense-throwOnError.md) — add `throwOnError: false` to every route useQuery.
 - [Universal Provider Framework registry isolation](provider-registry-isolation.md) — REGISTRY is global/immutable seed; buildScopedView() clones + overlays per request — never call mergeDbSettings or mutate entries directly.
 - [Provider healthCheck pattern](provider-health-check-pattern.md) — healthCheck() on adapter classes; dispatch by "cat:name"; derivedConnected must OR dbConnectedSet or env-var gaps override saved credentials.
 - [Executive Knowledge System](executive-knowledge-system.md) — private exec RAG (pgvector), service_role-only match RPC, idempotent seed_key; platform-wide layer in platform-kb-layer.md (scope col, NULL workspace_id).
@@ -156,4 +156,5 @@
 - [Marketing Action Engine](marketing-action-engine.md) — all external marketing writes via the engine; executor allowlists, stale-approval refusal, approval-row binding, one live undo per action.
 - [Google Ads write executor](gads-write-executor.md) — v21 sunset (default now v23), only IRRELEVANT terms excludable, permanent negative decision log, syncLinkedChangeRequests keeps change requests honest.
 - [SEO Opportunity Queue](seo-opportunity-queue.md) — alias-free core off GSC sync; CAS claim before action create; query-keyed items → campaigns, only URL-keyed → packages; package verify = delivery only.
+- [Clarity + Website Change Queue](clarity-website-change-queue.md) — 10 req/project/day API; all calls via one quota-lease choke point; website changes = handoff packages, never "live".
 - [Website Ava web-call lead capture](ava-web-call-arch.md) — signed-webhook-only 401s, event:call_id dedup, admin-key-set authz (keys shared across ws), tool-result-only booking truth, version-pinned sessions.

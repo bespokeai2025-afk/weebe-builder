@@ -114,6 +114,21 @@ export const Route = createFileRoute("/api/public/campaign-executor")({
             console.warn("[gsc-sync] tick failed:", e?.message ?? e);
           }
 
+          // Microsoft Clarity daily sync + Website Change Queue refresh
+          // (no-ops until a workspace's last sync is >20h old; 1 Clarity API
+          // request per workspace per day out of the 10/day quota).
+          try {
+            const { runClaritySyncTick } = await import("@/lib/growthmind/clarity-sync-core");
+            const clarity = await runClaritySyncTick();
+            if (clarity.ran.length || clarity.failed.length) {
+              console.log(
+                `[clarity-sync] ran=${clarity.ran.length} skipped=${clarity.skipped} failed=${clarity.failed.length}`,
+              );
+            }
+          } catch (e: any) {
+            console.warn("[clarity-sync] tick failed:", e?.message ?? e);
+          }
+
           // Daily AccountsMind metric snapshots (once per workspace per UTC
           // day — powers trend/progress widget history). Best-effort.
           try {

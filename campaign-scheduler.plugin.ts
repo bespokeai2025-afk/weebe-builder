@@ -13,6 +13,7 @@ import { runCampaignTick } from "./src/lib/campaign-scheduler/executor";
 import { runBlogDraftTick } from "./src/lib/growthmind/blog-draft-tick";
 import { runCMOAnalysisTick } from "./src/lib/growthmind/cmo-analysis-tick";
 import { runGscSyncTick } from "./src/lib/growthmind/gsc-sync-core";
+import { runClaritySyncTick } from "./src/lib/growthmind/clarity-sync-core";
 
 const TICK_INTERVAL_MS = 5 * 60 * 1000;
 const INITIAL_DELAY_MS = 45_000;
@@ -86,6 +87,22 @@ export function campaignSchedulerPlugin(): Plugin {
           }
         } catch (e: any) {
           console.warn("[gsc-sync] dev tick failed:", e?.message ?? e);
+        }
+
+        // Microsoft Clarity daily sync + Website Change Queue refresh.
+        // No-ops until a workspace's last_sync is >20h old (quota: max 10
+        // Clarity API requests/project/day — the tick spends 1). Best-effort.
+        try {
+          const clarity = await runClaritySyncTick();
+          if (clarity.ran.length || clarity.failed.length) {
+            console.log(
+              `[clarity-sync] ran=${clarity.ran.length} skipped=${clarity.skipped} failed=${clarity.failed.length}` +
+              (clarity.ran.length ? ` — ${clarity.ran.map((r) => `${r.workspaceId}: rows=${r.rows}`).join(", ")}` : "") +
+              (clarity.failed.length ? ` — errors: ${clarity.failed.map((f) => `${f.workspaceId}: ${f.error}`).join("; ")}` : ""),
+            );
+          }
+        } catch (e: any) {
+          console.warn("[clarity-sync] dev tick failed:", e?.message ?? e);
         }
 
         // Auto SEO blog campaign creation (mirrors the prod campaign-executor

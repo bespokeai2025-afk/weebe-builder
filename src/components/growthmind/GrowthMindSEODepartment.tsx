@@ -7,6 +7,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { GrowthMindShell } from "./GrowthMindShell";
+import { WebsiteUxQueue } from "./WebsiteUxQueue";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -32,7 +33,7 @@ import {
   dismissSeoOpportunity,
 } from "@/lib/growthmind/growthmind.seo-department";
 
-const TABS = ["Overview", "Queue", "Intelligence", "Campaigns", "Teachings"] as const;
+const TABS = ["Overview", "Queue", "Website UX", "Intelligence", "Campaigns", "Teachings"] as const;
 type Tab = (typeof TABS)[number];
 
 const STATUS_LABELS: Record<string, string> = {
@@ -691,6 +692,7 @@ export function GrowthMindSEODepartment() {
         </div>
         {tab === "Overview" && <OverviewTab />}
         {tab === "Queue" && <QueueTab />}
+        {tab === "Website UX" && <WebsiteUxQueue />}
         {tab === "Intelligence" && <IntelligenceTab />}
         {tab === "Campaigns" && <CampaignsTab />}
         {tab === "Teachings" && <TeachingsTab />}

@@ -2458,6 +2458,51 @@ export type Database = {
           },
         ]
       }
+      clarity_metrics_daily: {
+        Row: {
+          bot_sessions: number
+          created_at: string
+          device: string
+          distinct_users: number
+          id: string
+          metric_date: string
+          metrics: Json
+          raw: Json | null
+          sessions: number
+          updated_at: string
+          url: string
+          workspace_id: string
+        }
+        Insert: {
+          bot_sessions?: number
+          created_at?: string
+          device?: string
+          distinct_users?: number
+          id?: string
+          metric_date: string
+          metrics?: Json
+          raw?: Json | null
+          sessions?: number
+          updated_at?: string
+          url: string
+          workspace_id: string
+        }
+        Update: {
+          bot_sessions?: number
+          created_at?: string
+          device?: string
+          distinct_users?: number
+          id?: string
+          metric_date?: string
+          metrics?: Json
+          raw?: Json | null
+          sessions?: number
+          updated_at?: string
+          url?: string
+          workspace_id?: string
+        }
+        Relationships: []
+      }
       client_api_connections: {
         Row: {
           auth_type: string
@@ -16911,6 +16956,87 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      website_change_queue: {
+        Row: {
+          change_type: string
+          confidence: number
+          created_at: string
+          current_state: string
+          dedupe_key: string
+          expected_impact: string
+          first_detected_at: string
+          id: string
+          last_detected_at: string
+          marketing_action_id: string | null
+          measurement: Json | null
+          package_id: string | null
+          page_url: string
+          proposed_state: string
+          risk: string
+          rollback_plan: string
+          score: number
+          status: string
+          status_changed_at: string
+          supporting_data: Json
+          title: string
+          updated_at: string
+          why: string
+          workspace_id: string
+        }
+        Insert: {
+          change_type: string
+          confidence?: number
+          created_at?: string
+          current_state: string
+          dedupe_key: string
+          expected_impact: string
+          first_detected_at?: string
+          id?: string
+          last_detected_at?: string
+          marketing_action_id?: string | null
+          measurement?: Json | null
+          package_id?: string | null
+          page_url: string
+          proposed_state: string
+          risk: string
+          rollback_plan: string
+          score?: number
+          status?: string
+          status_changed_at?: string
+          supporting_data?: Json
+          title: string
+          updated_at?: string
+          why: string
+          workspace_id: string
+        }
+        Update: {
+          change_type?: string
+          confidence?: number
+          created_at?: string
+          current_state?: string
+          dedupe_key?: string
+          expected_impact?: string
+          first_detected_at?: string
+          id?: string
+          last_detected_at?: string
+          marketing_action_id?: string | null
+          measurement?: Json | null
+          package_id?: string | null
+          page_url?: string
+          proposed_state?: string
+          risk?: string
+          rollback_plan?: string
+          score?: number
+          status?: string
+          status_changed_at?: string
+          supporting_data?: Json
+          title?: string
+          updated_at?: string
+          why?: string
+          workspace_id?: string
+        }
+        Relationships: []
       }
       whatsapp_campaigns: {
         Row: {

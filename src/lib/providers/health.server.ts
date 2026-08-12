@@ -224,6 +224,32 @@ async function dispatchHealthCheck(
       }).healthCheck!();
     }
 
+    case "analytics:microsoft_clarity": {
+      // QUOTA-AWARE: Clarity allows only 10 API requests per project per DAY,
+      // and the health sweep runs every 15 minutes. Never live-probe on every
+      // sweep — a recent successful sync (last_sync) IS the health evidence.
+      const token = str(stored.apiToken);
+      if (!token) return false;
+      const sb = supabaseAdmin as any;
+      const { data: row } = await sb.from("provider_settings")
+        .select("last_sync")
+        .eq("workspace_id", workspaceId)
+        .eq("provider_category", "analytics")
+        .eq("provider_name", "microsoft_clarity")
+        .maybeSingle();
+      if (row?.last_sync && Date.now() - new Date(row.last_sync).getTime() < 26 * 3600_000) {
+        return true; // API contact within the last day — healthy
+      }
+      // No recent sync evidence: run the daily sync itself as the probe
+      // (single request; writes last_sync so subsequent sweeps stay passive).
+      const { runClaritySyncForWorkspace } = await import("@/lib/growthmind/clarity-sync-core");
+      const res = await runClaritySyncForWorkspace(workspaceId);
+      // quota exhausted / locally gated ≠ broken credentials — and the local
+      // attempt lease guarantees repeated sweeps stay passive after failures.
+      if (res.rateLimited || res.quotaGated) return true;
+      return res.ok;
+    }
+
     // ── Advertising ────────────────────────────────────────────────────────────
     case "advertising:google_ads": {
       return new GoogleAdsAdapter({

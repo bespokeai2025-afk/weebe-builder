@@ -73,6 +73,7 @@ export async function ensureMarketingExecutorsLoaded(): Promise<void> {
   try {
     await import("./executors/google-ads.executor.server");
     await import("./executors/seo.executor.server");
+    await import("./executors/website.executor.server");
   } catch (e: any) {
     executorsLoaded = false; // allow retry on next call
     console.error("[marketing-engine] executor module load failed:", e?.message);
