@@ -91,7 +91,7 @@ export const getWatiConnection = createServerFn({ method: "GET" })
     const { data } = await sb
       .from("wati_connections")
       .select(
-        "tenant_id, api_host, status, last_tested_at, error_message, updated_at, inbound_webhook_url, webhook_manual",
+        "tenant_id, api_host, status, last_tested_at, error_message, updated_at, inbound_webhook_url, webhook_manual, last_webhook_event_at, last_webhook_event_type",
       )
       .eq("workspace_id", workspaceId)
       .maybeSingle();
@@ -130,6 +130,12 @@ export const getWatiConnection = createServerFn({ method: "GET" })
           : null,
       webhookManual: !!data.webhook_manual,
       webhookRegistered: !!data.webhook_manual,
+      /**
+       * When WATI last actually delivered an event. webhookManual only records that someone
+       * confirmed the setup, so this is the only signal that inbound replies can reach us.
+       */
+      lastWebhookEventAt: (data.last_webhook_event_at ?? null) as string | null,
+      lastWebhookEventType: (data.last_webhook_event_type ?? null) as string | null,
     };
   });
 

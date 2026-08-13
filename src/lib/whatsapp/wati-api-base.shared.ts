@@ -36,7 +36,12 @@ export function watiApiV2Base(tenantId: string, apiHost?: string | null): string
   return `${watiApiRoot(tenantId, apiHost)}/api/v2`;
 }
 
-/** WATI API V3 (recommended) — https://docs.wati.io/reference/ */
-export function watiApiV3Base(tenantId: string, apiHost?: string | null): string {
-  return `${watiApiRoot(tenantId, apiHost)}/api/ext/v3`;
+/**
+ * WATI API V3 (recommended) — https://docs.wati.io/reference/introduction
+ *
+ * V3 resolves the tenant from the Bearer token, so the tenant id must NOT appear in the
+ * path. Prefixing it (as V1/V2 require) makes every V3 endpoint return 404.
+ */
+export function watiApiV3Base(apiHost?: string | null): string {
+  return `https://${normalizeWatiApiHost(apiHost)}/api/ext/v3`;
 }

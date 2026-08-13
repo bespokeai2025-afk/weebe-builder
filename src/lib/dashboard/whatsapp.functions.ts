@@ -53,6 +53,13 @@ import {
   syncWatiInboxFromWatiApi,
 } from "@/lib/whatsapp/wati-inbox-sync.server";
 import { enrichInboxBodiesFromWatiApi } from "@/lib/whatsapp/wati-inbox-enrich.server";
+import {
+  WHATSAPP_CHAT_STATUSES,
+  syncWhatsappConversation,
+  type WhatsappConversationRow,
+  WHATSAPP_CONVERSATION_COLUMNS,
+} from "@/lib/whatsapp/whatsapp-conversations.server";
+import { WATI_CHAT_STATUSES, resolveWatiChatStatus } from "@/lib/whatsapp/wati-chat-status.shared";
 
 // ── Inbox ─────────────────────────────────────────────────────────────────────
 
@@ -151,37 +158,457 @@ async function enrichInboxMessageBodies(
   }
 }
 
+const inboxFiltersSchema = z.object({
+  search: z.string().trim().max(120).optional(),
+  status: z.enum(WHATSAPP_CHAT_STATUSES).optional(),
+  assigneeId: z.string().uuid().optional(),
+  unassigned: z.boolean().optional(),
+  tag: z.string().trim().max(60).optional(),
+  unreadOnly: z.boolean().optional(),
+  /** WATI's chat status — "expired" means the 24h reply window has closed. */
+  chatStatus: z.enum(WATI_CHAT_STATUSES).optional(),
+  limit: z.number().int().min(1).max(200).optional(),
+});
+
+/** PostgREST treats these as filter syntax inside or()/ilike patterns. */
+function sanitizeSearchTerm(term: string): string {
+  return term.replace(/[%,()*\\]/g, "").trim();
+}
+
+async function groupThreadsFromMessages(
+  workspaceId: string,
+  rows: Array<Record<string, unknown>>,
+) {
+  await enrichInboxMessageBodies(workspaceId, rows, { skipWatiApi: true });
+
+  const threadMap = new Map<string, Array<Record<string, unknown>>>();
+  for (const m of rows) {
+    const phone = m.contact_phone as string;
+    if (!phone) continue;
+    const bucket = threadMap.get(phone) ?? [];
+    bucket.push(m);
+    threadMap.set(phone, bucket);
+  }
+
+  return [...threadMap.entries()]
+    .map(([phone, msgs]) => buildWhatsappThreadFromMessages(phone, msgs as any))
+    .filter((t): t is NonNullable<typeof t> => t != null);
+}
+
 export const listWhatsappThreads = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .validator((input) => inboxFiltersSchema.parse(input ?? {}))
+  .handler(async ({ context, data }) => {
+    const { supabase, workspaceId } = context;
+    if (!workspaceId) throw new Error("No active workspace");
+    const sb = supabase as any;
+
+    const limit = data.limit ?? 60;
+    const search = sanitizeSearchTerm(data.search ?? "");
+    const hasStructuralFilter = Boolean(
+      data.status ||
+        data.assigneeId ||
+        data.unassigned ||
+        data.tag ||
+        data.unreadOnly ||
+        data.chatStatus,
+    );
+
+    // Search matches a contact (name/phone) or anything they said, so collect candidate phones
+    // from both sides before applying the structural filters.
+    let searchPhones: string[] | null = null;
+    if (search) {
+      const [{ data: byContact }, { data: byBody }] = await Promise.all([
+        sb
+          .from("whatsapp_conversations")
+          .select("contact_phone")
+          .eq("workspace_id", workspaceId)
+          .or(`contact_name.ilike.%${search}%,contact_phone.ilike.%${search}%`)
+          .limit(300),
+        sb
+          .from("whatsapp_messages")
+          .select("contact_phone")
+          .eq("workspace_id", workspaceId)
+          .ilike("body", `%${search}%`)
+          .order("sent_at", { ascending: false })
+          .limit(300),
+      ]);
+
+      searchPhones = [
+        ...new Set(
+          [...(byContact ?? []), ...(byBody ?? [])]
+            .map((r: { contact_phone: string }) => r.contact_phone)
+            .filter(Boolean),
+        ),
+      ];
+      if (searchPhones.length === 0) return [];
+    }
+
+    let convQuery = sb
+      .from("whatsapp_conversations")
+      .select(WHATSAPP_CONVERSATION_COLUMNS)
+      .eq("workspace_id", workspaceId)
+      .order("last_message_at", { ascending: false, nullsFirst: false })
+      .limit(limit);
+
+    if (data.status) convQuery = convQuery.eq("status", data.status);
+    if (data.unassigned) convQuery = convQuery.is("assignee_id", null);
+    else if (data.assigneeId) convQuery = convQuery.eq("assignee_id", data.assigneeId);
+    if (data.tag) convQuery = convQuery.contains("tags", [data.tag]);
+    if (data.unreadOnly) convQuery = convQuery.gt("unread_count", 0);
+    if (searchPhones) convQuery = convQuery.in("contact_phone", searchPhones);
+
+    const { data: convRows, error: convErr } = await convQuery;
+    if (convErr) throw new Error(convErr.message);
+
+    const conversations = (convRows ?? []) as WhatsappConversationRow[];
+
+    // No conversation rows and nothing was filtered out — fall back to deriving threads straight
+    // from messages so the inbox still works before/while conversation state is backfilled.
+    if (conversations.length === 0) {
+      if (search || hasStructuralFilter) return [];
+
+      const { data: allRows, error } = await sb
+        .from("whatsapp_messages")
+        .select("*")
+        .eq("workspace_id", workspaceId)
+        .order("sent_at", { ascending: false })
+        .limit(1000);
+      if (error) throw new Error(error.message);
+
+      return sortWhatsappInboxThreads(
+        await groupThreadsFromMessages(workspaceId, (allRows ?? []) as Array<Record<string, unknown>>),
+      );
+    }
+
+    const phones = conversations.map((c) => c.contact_phone);
+    const { data: msgRows, error: msgErr } = await sb
+      .from("whatsapp_messages")
+      .select("*")
+      .eq("workspace_id", workspaceId)
+      .in("contact_phone", phones)
+      .order("sent_at", { ascending: false })
+      .limit(Math.min(3000, phones.length * 100));
+    if (msgErr) throw new Error(msgErr.message);
+
+    const threads = await groupThreadsFromMessages(
+      workspaceId,
+      (msgRows ?? []) as Array<Record<string, unknown>>,
+    );
+    const threadByPhone = new Map(threads.map((t) => [t.phone, t]));
+
+    const merged = conversations.map((conv) => {
+      const thread = threadByPhone.get(conv.contact_phone);
+      return {
+        ...(thread ?? {
+          phone: conv.contact_phone,
+          name: conv.contact_name,
+          lastMessage: null,
+          lastAt: conv.last_message_at ?? new Date(0).toISOString(),
+          lastDirection: conv.last_direction ?? undefined,
+          needsReply: conv.last_direction === "inbound",
+          unread: conv.unread_count,
+          messages: [],
+        }),
+        name: thread?.name ?? conv.contact_name,
+        conversationId: conv.id,
+        status: conv.status,
+        assigneeId: conv.assignee_id,
+        assignedTeamId: conv.assigned_team_id,
+        tags: conv.tags ?? [],
+        attributes: conv.attributes ?? {},
+        // Stored count is authoritative — it survives page reloads and is shared across agents.
+        unread: conv.unread_count,
+        lastReadAt: conv.last_read_at,
+        watiChatStatus: conv.wati_chat_status,
+        watiTopic: conv.wati_topic,
+        watiAgentName: conv.wati_agent_name,
+        lastInboundAt: conv.last_inbound_at,
+        lastMessageOrigin: conv.last_message_origin,
+      };
+    });
+
+    // Session expiry is a function of time, so it is resolved here rather than filtered in SQL
+    // against a stored status that may be one poll behind.
+    const filtered = data.chatStatus
+      ? merged.filter(
+          (t) =>
+            resolveWatiChatStatus({
+              watiChatStatus: t.watiChatStatus,
+              lastInboundAt: t.lastInboundAt,
+            }) === data.chatStatus,
+        )
+      : merged;
+
+    return sortWhatsappInboxThreads(filtered);
+  });
+
+/** Clear the unread badge once an agent opens the thread. */
+export const markWhatsappThreadRead = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .validator((input) => z.object({ phone: z.string().min(5) }).parse(input))
+  .handler(async ({ context, data }) => {
+    const { supabase, workspaceId } = context;
+    if (!workspaceId) throw new Error("No active workspace");
+
+    const phone = normalizeWhatsAppPhone(data.phone);
+    if (!phone) throw new Error("Invalid phone number");
+
+    const { error } = await (supabase as any)
+      .from("whatsapp_conversations")
+      .update({
+        unread_count: 0,
+        last_read_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      })
+      .eq("workspace_id", workspaceId)
+      .eq("contact_phone", phone);
+    if (error) throw new Error(error.message);
+
+    return { ok: true as const };
+  });
+
+/** Chat status, assignment, and tags for one thread. */
+export const updateWhatsappConversation = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .validator((input) =>
+    z
+      .object({
+        phone: z.string().min(5),
+        status: z.enum(WHATSAPP_CHAT_STATUSES).optional(),
+        assigneeId: z.string().uuid().nullable().optional(),
+        assignedTeamId: z.string().uuid().nullable().optional(),
+        tags: z.array(z.string().trim().min(1).max(60)).max(25).optional(),
+        attributes: z.record(z.string(), z.unknown()).optional(),
+      })
+      .parse(input),
+  )
+  .handler(async ({ context, data }) => {
+    const { supabase, workspaceId } = context;
+    if (!workspaceId) throw new Error("No active workspace");
+
+    const phone = normalizeWhatsAppPhone(data.phone);
+    if (!phone) throw new Error("Invalid phone number");
+
+    const patch: Record<string, unknown> = { updated_at: new Date().toISOString() };
+    if (data.status !== undefined) patch.status = data.status;
+    if (data.assigneeId !== undefined) patch.assignee_id = data.assigneeId;
+    if (data.assignedTeamId !== undefined) patch.assigned_team_id = data.assignedTeamId;
+    if (data.tags !== undefined) patch.tags = [...new Set(data.tags)];
+    if (data.attributes !== undefined) patch.attributes = data.attributes;
+
+    const { data: updated, error } = await (supabase as any)
+      .from("whatsapp_conversations")
+      .update(patch)
+      .eq("workspace_id", workspaceId)
+      .eq("contact_phone", phone)
+      .select("id")
+      .maybeSingle();
+    if (error) throw new Error(error.message);
+    if (!updated) throw new Error("Conversation not found");
+
+    return { ok: true as const };
+  });
+
+// ── Teams (WATI parity: route a conversation to a team rather than one person) ────────────────
+
+export const listWhatsappTeams = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
     const { supabase, workspaceId } = context;
     if (!workspaceId) throw new Error("No active workspace");
     const sb = supabase as any;
 
-    const { data, error } = await sb
-      .from("whatsapp_messages")
-      .select("*")
+    const { data: teams, error } = await sb
+      .from("whatsapp_teams")
+      .select("id, name, created_at")
       .eq("workspace_id", workspaceId)
-      .order("sent_at", { ascending: false })
-      .limit(1000);
+      .order("name");
     if (error) throw new Error(error.message);
 
-    const rows = (data ?? []) as Array<Record<string, unknown>>;
-    await enrichInboxMessageBodies(workspaceId, rows, { skipWatiApi: true });
+    const teamRows = (teams ?? []) as Array<{ id: string; name: string; created_at: string }>;
+    if (teamRows.length === 0) return [];
 
-    const threadMap = new Map<string, Array<Record<string, unknown>>>();
-    for (const m of rows as any[]) {
-      const phone = m.contact_phone as string;
-      const bucket = threadMap.get(phone) ?? [];
-      bucket.push(m);
-      threadMap.set(phone, bucket);
+    const { data: memberRows } = await sb
+      .from("whatsapp_team_members")
+      .select("team_id, user_id")
+      .in(
+        "team_id",
+        teamRows.map((t) => t.id),
+      );
+
+    const membersByTeam = new Map<string, string[]>();
+    for (const row of (memberRows ?? []) as Array<{ team_id: string; user_id: string }>) {
+      membersByTeam.set(row.team_id, [...(membersByTeam.get(row.team_id) ?? []), row.user_id]);
     }
 
-    const threads = [...threadMap.entries()]
-      .map(([phone, msgs]) => buildWhatsappThreadFromMessages(phone, msgs as any))
-      .filter((t): t is NonNullable<typeof t> => t != null);
+    return teamRows.map((t) => ({
+      id: t.id,
+      name: t.name,
+      createdAt: t.created_at,
+      memberIds: membersByTeam.get(t.id) ?? [],
+    }));
+  });
 
-    return sortWhatsappInboxThreads(threads);
+export const createWhatsappTeam = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .validator((input) => z.object({ name: z.string().trim().min(1).max(80) }).parse(input))
+  .handler(async ({ context, data }) => {
+    const { supabase, workspaceId } = context;
+    if (!workspaceId) throw new Error("No active workspace");
+
+    const { data: created, error } = await (supabase as any)
+      .from("whatsapp_teams")
+      .insert({ workspace_id: workspaceId, name: data.name })
+      .select("id")
+      .single();
+
+    if (error) {
+      if (error.code === "23505" || String(error.message).includes("duplicate")) {
+        throw new Error(`A team named "${data.name}" already exists`);
+      }
+      throw new Error(error.message);
+    }
+
+    return { id: created.id as string };
+  });
+
+export const deleteWhatsappTeam = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .validator((input) => z.object({ teamId: z.string().uuid() }).parse(input))
+  .handler(async ({ context, data }) => {
+    const { supabase, workspaceId } = context;
+    if (!workspaceId) throw new Error("No active workspace");
+
+    // whatsapp_conversations.assigned_team_id is ON DELETE SET NULL, so assigned chats simply
+    // become unassigned rather than disappearing.
+    const { error } = await (supabase as any)
+      .from("whatsapp_teams")
+      .delete()
+      .eq("workspace_id", workspaceId)
+      .eq("id", data.teamId);
+    if (error) throw new Error(error.message);
+
+    return { ok: true as const };
+  });
+
+export const setWhatsappTeamMembers = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .validator((input) =>
+    z
+      .object({
+        teamId: z.string().uuid(),
+        userIds: z.array(z.string().uuid()).max(200),
+      })
+      .parse(input),
+  )
+  .handler(async ({ context, data }) => {
+    const { supabase, workspaceId } = context;
+    if (!workspaceId) throw new Error("No active workspace");
+    const sb = supabase as any;
+
+    const { data: team } = await sb
+      .from("whatsapp_teams")
+      .select("id")
+      .eq("workspace_id", workspaceId)
+      .eq("id", data.teamId)
+      .maybeSingle();
+    if (!team) throw new Error("Team not found");
+
+    // Only workspace members can be on a team.
+    const { data: members } = await sb
+      .from("workspace_members")
+      .select("user_id")
+      .eq("workspace_id", workspaceId);
+    const allowed = new Set(
+      ((members ?? []) as Array<{ user_id: string }>).map((m) => m.user_id),
+    );
+    const userIds = [...new Set(data.userIds)].filter((id) => allowed.has(id));
+
+    const { error: delErr } = await sb
+      .from("whatsapp_team_members")
+      .delete()
+      .eq("team_id", data.teamId);
+    if (delErr) throw new Error(delErr.message);
+
+    if (userIds.length > 0) {
+      const { error: insErr } = await sb
+        .from("whatsapp_team_members")
+        .insert(userIds.map((user_id) => ({ team_id: data.teamId, user_id })));
+      if (insErr) throw new Error(insErr.message);
+    }
+
+    return { ok: true as const, memberCount: userIds.length };
+  });
+
+/** Assignable people, teams, and the tags already in use — for the inbox filter/assign controls. */
+export const getWhatsappInboxMeta = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const { supabase, workspaceId } = context;
+    if (!workspaceId) throw new Error("No active workspace");
+    const sb = supabase as any;
+
+    const [{ data: members }, { data: teams }, { data: tagRows }] = await Promise.all([
+      sb
+        .from("workspace_members")
+        .select("user_id, role")
+        .eq("workspace_id", workspaceId)
+        .limit(200),
+      sb
+        .from("whatsapp_teams")
+        .select("id, name")
+        .eq("workspace_id", workspaceId)
+        .order("name")
+        .limit(100),
+      sb
+        .from("whatsapp_conversations")
+        .select("tags")
+        .eq("workspace_id", workspaceId)
+        .limit(500),
+    ]);
+
+    const memberRows = (members ?? []) as Array<{ user_id: string; role: string | null }>;
+
+    // workspace_members.user_id points at auth.users, not profiles, so there is no FK for
+    // PostgREST to embed across — look the names up separately.
+    const namesByUserId = new Map<string, string>();
+    if (memberRows.length > 0) {
+      const { data: profiles } = await sb
+        .from("profiles")
+        .select("user_id, full_name, email")
+        .in(
+          "user_id",
+          memberRows.map((m) => m.user_id),
+        );
+      for (const p of (profiles ?? []) as Array<{
+        user_id: string;
+        full_name: string | null;
+        email: string | null;
+      }>) {
+        const label = p.full_name?.trim() || p.email?.trim();
+        if (label) namesByUserId.set(p.user_id, label);
+      }
+    }
+
+    const tags = [
+      ...new Set(
+        ((tagRows ?? []) as Array<{ tags: string[] | null }>).flatMap((r) => r.tags ?? []),
+      ),
+    ].sort();
+
+    return {
+      members: memberRows.map((m) => ({
+        userId: m.user_id,
+        role: m.role ?? null,
+        name: namesByUserId.get(m.user_id) ?? null,
+      })),
+      teams: ((teams ?? []) as Array<{ id: string; name: string }>).map((t) => ({
+        id: t.id,
+        name: t.name,
+      })),
+      tags,
+    };
   });
 
 /** Background WATI pull — call separately so inbox list stays fast. */
@@ -256,6 +683,7 @@ export const sendWhatsappMessage = createServerFn({ method: "POST" })
       });
 
       await markWhatsappContactsMessaged(sb, workspaceId, [contactPhone]);
+      await syncWhatsappConversation(workspaceId, contactPhone);
 
       return { ok: true, sid: result.messageId, provider: "wati" as const };
     }
@@ -295,6 +723,7 @@ export const sendWhatsappMessage = createServerFn({ method: "POST" })
     });
 
     await markWhatsappContactsMessaged(sb, workspaceId, [contactPhone]);
+    await syncWhatsappConversation(workspaceId, contactPhone);
 
     return { ok: true, sid: msg.sid, provider: "twilio" as const };
   });

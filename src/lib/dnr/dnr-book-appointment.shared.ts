@@ -19,6 +19,22 @@ function pickString(o: Record<string, unknown>, ...keys: string[]): string | und
   return undefined;
 }
 
+export function dnrSplitIsoDatetime(input: string): { date?: string; time?: string } {
+  const s = input.trim();
+  const m = s.match(/^(\d{4}-\d{2}-\d{2})[T ](\d{1,2}:\d{2})/);
+  if (!m) return {};
+  const time = dnrCoerceTime(m[2] ?? "");
+  return { date: m[1], time: time ?? undefined };
+}
+
+export function dnrCoerceTime(input: string): string | null {
+  return normalizeTime(input);
+}
+
+export function dnrCoerceDate(input: string): string | null {
+  return normalizeDate(input);
+}
+
 function normalizeTime(input: string): string | null {
   const s = input.trim();
   const hm = s.match(/^(\d{1,2})[:.](\d{2})(?::\d{2})?$/);
@@ -73,6 +89,16 @@ export function normalizeDnrBookAppointmentArgs(raw: unknown): Record<string, un
     if (t) o.start_time = t;
   }
 
+  if (!o.start_date || !o.start_time) {
+    for (const isoKey of ["start", "datetime", "appointment_start", "start_datetime"]) {
+      const iso = pickString(o, isoKey);
+      if (!iso) continue;
+      const split = dnrSplitIsoDatetime(iso);
+      if (split.date && !o.start_date) o.start_date = split.date;
+      if (split.time && !o.start_time) o.start_time = split.time;
+    }
+  }
+
   if (typeof o.notes === "string") o.notes = o.notes.trim().slice(0, 500);
 
   return o;
@@ -82,23 +108,27 @@ export function parseDnrBookAppointment(
   args: unknown,
 ):
   | { ok: true; data: DnrBookAppointmentInput }
-  | { ok: false; error: string; hint: string; missing?: string[] } {
+  | { ok: false; error: string; hint: string; missing?: string[]; invalid?: string[] } {
   const normalized = normalizeDnrBookAppointmentArgs(args);
   const parsed = bookSchema.safeParse(normalized);
   if (!parsed.success) {
     const missing: string[] = [];
+    const invalid: string[] = [];
     if (normalized.contact_id == null || normalized.contact_id === "") missing.push("contact_id");
     if (!normalized.service_name) missing.push("service_name");
     if (!normalized.start_date) missing.push("start_date");
+    else if (!/^\d{4}-\d{2}-\d{2}$/.test(String(normalized.start_date))) invalid.push("start_date");
     if (!normalized.start_time) missing.push("start_time");
+    else if (!/^\d{2}:\d{2}$/.test(String(normalized.start_time))) invalid.push("start_time");
 
     return {
       ok: false,
       error: "contact_id, service_name, start_date, start_time required",
       hint:
         "Call find_or_create_client first and use its contact_id. Use exact service_name from list_services. " +
-        "Pass start_date as YYYY-MM-DD and start_time as HH:MM from check_availability slots.",
+        "Call check_availability before book_appointment and pass start_date as YYYY-MM-DD and start_time as HH:MM from a returned slot.",
       missing,
+      invalid: invalid.length ? invalid : undefined,
     };
   }
   return { ok: true, data: parsed.data };

@@ -15745,6 +15745,8 @@ export type Database = {
           id: string
           inbound_webhook_url: string | null
           last_tested_at: string | null
+          last_webhook_event_at: string | null
+          last_webhook_event_type: string | null
           status: string
           tenant_id: string
           updated_at: string | null
@@ -15760,6 +15762,8 @@ export type Database = {
           id?: string
           inbound_webhook_url?: string | null
           last_tested_at?: string | null
+          last_webhook_event_at?: string | null
+          last_webhook_event_type?: string | null
           status?: string
           tenant_id: string
           updated_at?: string | null
@@ -15775,6 +15779,8 @@ export type Database = {
           id?: string
           inbound_webhook_url?: string | null
           last_tested_at?: string | null
+          last_webhook_event_at?: string | null
+          last_webhook_event_type?: string | null
           status?: string
           tenant_id?: string
           updated_at?: string | null
@@ -16726,21 +16732,179 @@ export type Database = {
           },
         ]
       }
+      whatsapp_conversations: {
+        Row: {
+          assigned_team_id: string | null
+          assignee_id: string | null
+          attributes: Json
+          contact_name: string | null
+          contact_phone: string
+          created_at: string
+          id: string
+          last_direction: string | null
+          last_inbound_at: string | null
+          last_message_at: string | null
+          last_message_origin: string | null
+          last_message_preview: string | null
+          last_read_at: string | null
+          status: string
+          tags: string[]
+          unread_count: number
+          updated_at: string
+          wati_agent_name: string | null
+          wati_chat_status: string | null
+          wati_chat_status_at: string | null
+          wati_conversation_id: string | null
+          wati_ticket_id: string | null
+          wati_topic: string | null
+          workspace_id: string
+        }
+        Insert: {
+          assigned_team_id?: string | null
+          assignee_id?: string | null
+          attributes?: Json
+          contact_name?: string | null
+          contact_phone: string
+          created_at?: string
+          id?: string
+          last_direction?: string | null
+          last_inbound_at?: string | null
+          last_message_at?: string | null
+          last_message_origin?: string | null
+          last_message_preview?: string | null
+          last_read_at?: string | null
+          status?: string
+          tags?: string[]
+          unread_count?: number
+          updated_at?: string
+          wati_agent_name?: string | null
+          wati_chat_status?: string | null
+          wati_chat_status_at?: string | null
+          wati_conversation_id?: string | null
+          wati_ticket_id?: string | null
+          wati_topic?: string | null
+          workspace_id: string
+        }
+        Update: {
+          assigned_team_id?: string | null
+          assignee_id?: string | null
+          attributes?: Json
+          contact_name?: string | null
+          contact_phone?: string
+          created_at?: string
+          id?: string
+          last_direction?: string | null
+          last_inbound_at?: string | null
+          last_message_at?: string | null
+          last_message_origin?: string | null
+          last_message_preview?: string | null
+          last_read_at?: string | null
+          status?: string
+          tags?: string[]
+          unread_count?: number
+          updated_at?: string
+          wati_agent_name?: string | null
+          wati_chat_status?: string | null
+          wati_chat_status_at?: string | null
+          wati_conversation_id?: string | null
+          wati_ticket_id?: string | null
+          wati_topic?: string | null
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "whatsapp_conversations_assigned_team_id_fkey"
+            columns: ["assigned_team_id"]
+            isOneToOne: false
+            referencedRelation: "whatsapp_teams"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "whatsapp_conversations_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      whatsapp_teams: {
+        Row: {
+          created_at: string
+          id: string
+          name: string
+          workspace_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          name: string
+          workspace_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          name?: string
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "whatsapp_teams_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      whatsapp_team_members: {
+        Row: {
+          created_at: string
+          team_id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          team_id: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          team_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "whatsapp_team_members_team_id_fkey"
+            columns: ["team_id"]
+            isOneToOne: false
+            referencedRelation: "whatsapp_teams"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       whatsapp_messages: {
         Row: {
           body: string | null
           campaign_id: string | null
           contact_name: string | null
           contact_phone: string
+          conversation_id: string | null
           created_at: string
           direction: Database["public"]["Enums"]["message_direction"]
           external_id: string | null
           id: string
           lead_id: string | null
+          media_filename: string | null
+          media_mime_type: string | null
           media_url: string | null
           provider: string | null
+          reply_context_id: string | null
+          sender_channel: string | null
           sent_at: string
           status: Database["public"]["Enums"]["message_status"]
+          ticket_id: string | null
+          wati_status: string | null
           whatsapp_message_id: string | null
           workspace_id: string
         }
@@ -16749,15 +16913,22 @@ export type Database = {
           campaign_id?: string | null
           contact_name?: string | null
           contact_phone: string
+          conversation_id?: string | null
           created_at?: string
           direction: Database["public"]["Enums"]["message_direction"]
           external_id?: string | null
           id?: string
           lead_id?: string | null
+          media_filename?: string | null
+          media_mime_type?: string | null
           media_url?: string | null
           provider?: string | null
+          reply_context_id?: string | null
+          sender_channel?: string | null
           sent_at?: string
           status?: Database["public"]["Enums"]["message_status"]
+          ticket_id?: string | null
+          wati_status?: string | null
           whatsapp_message_id?: string | null
           workspace_id: string
         }
@@ -16766,15 +16937,22 @@ export type Database = {
           campaign_id?: string | null
           contact_name?: string | null
           contact_phone?: string
+          conversation_id?: string | null
           created_at?: string
           direction?: Database["public"]["Enums"]["message_direction"]
           external_id?: string | null
           id?: string
           lead_id?: string | null
+          media_filename?: string | null
+          media_mime_type?: string | null
           media_url?: string | null
           provider?: string | null
+          reply_context_id?: string | null
+          sender_channel?: string | null
           sent_at?: string
           status?: Database["public"]["Enums"]["message_status"]
+          ticket_id?: string | null
+          wati_status?: string | null
           whatsapp_message_id?: string | null
           workspace_id?: string
         }

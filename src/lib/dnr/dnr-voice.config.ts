@@ -63,6 +63,8 @@ export const DNR_VOICE = {
   pabau: {
     provider: "pabau",
     locationId: 3526,
+    /** Default Pabau employee_id for API bookings when caller has no preference (Nurse Antonia). */
+    defaultEmployeeId: 142159,
   },
 
   /** Retell → WEBEE call events */
@@ -70,6 +72,7 @@ export const DNR_VOICE = {
 
   /** Retell custom function tools (POST, JSON body, x-retell-signature) */
   tools: {
+    listLocations: "/api/public/retell/pabau/list-locations",
     listServices: "/api/public/retell/pabau/list-services",
     checkAvailability: "/api/public/retell/pabau/check-availability",
     findOrCreateClient: "/api/public/retell/pabau/find-or-create-client",
@@ -112,7 +115,7 @@ ${DNR_VOICE.hours.weekdays.join(", ")} · ${DNR_VOICE.hours.open}–${DNR_VOICE.
      Do **not** ask for address, GP details, or next of kin on the phone — FOH completes those in Pabau if needed.
 3. Which **treatment/service** they want (use their words).
 4. **list_services** if you need the exact service name from Pabau — always confirm the exact name with the caller before booking.
-5. **check_availability** for their service and preferred dates. If they want the **earliest/latest** slot, pass **start_date** as today's date (${DNR_VOICE.timezone}) and **end_date** ~14 days ahead — never use past years or old dates.
+5. **check_availability** for their service and preferred dates at **Cheshire only** (location_id ${DNR_VOICE.pabau.locationId}). If they ask for a specific clinician, pass practitioner_name or practitioner_id from list_locations. If they want the **earliest/latest** slot, pass **start_date** as today's date (${DNR_VOICE.timezone}) and **end_date** ~14 days ahead — never use past years or old dates.
 6. **find_or_create_client** before booking (pass all new-client fields when is_new_client is true).
 7. **book_appointment** only after caller confirms date, time, and service — pass **contact_id** from find_or_create_client, **service_name** (exact from list_services), **start_date** (YYYY-MM-DD) and **start_time** (HH:MM) from the chosen check_availability slot.
 8. Summarise booking (service, date, time, address). Ask if anything else.
@@ -126,10 +129,11 @@ If transfer fails: "I'll ask the team to call you back — your name is [name] a
 Clinic direct line (information only, do not transfer here unless asked): ${DNR_VOICE.location.phone}.
 
 # Custom tools (always pass agent_id: "${DNR_RETELL_AGENT_ID}")
-- **list_services** → POST ${dnrPublicToolUrl(base, t.listServices)}
-- **check_availability** → POST ${dnrPublicToolUrl(base, t.checkAvailability)} — args: service_name, start_date (YYYY-MM-DD, today or later), end_date (YYYY-MM-DD, optional — defaults to +14 days)
+- **list_locations** → POST ${dnrPublicToolUrl(base, t.listLocations)} — Cheshire location_id and practitioners at Castlerock House
+- **list_services** → POST ${dnrPublicToolUrl(base, t.listServices)} — optional location_id (default Cheshire ${DNR_VOICE.pabau.locationId})
+- **check_availability** → POST ${dnrPublicToolUrl(base, t.checkAvailability)} — args: service_name, location_id (${DNR_VOICE.pabau.locationId} for Cheshire), start_date (YYYY-MM-DD), end_date (optional), practitioner_name or practitioner_id (optional)
 - **find_or_create_client** → POST ${dnrPublicToolUrl(base, t.findOrCreateClient)} — args: first_name, last_name, phone/mobile, email, gender (Male|Female|Other), date_of_birth (YYYY-MM-DD), preferred_language (default English), is_new_client (boolean), how_did_you_hear_about_us (optional)
-- **book_appointment** → POST ${dnrPublicToolUrl(base, t.bookAppointment)} — args: contact_id, service_name, start_date, start_time (HH:MM), notes (optional)
+- **book_appointment** → POST ${dnrPublicToolUrl(base, t.bookAppointment)} — args: contact_id, service_name, start_date, start_time (HH:MM), location_id (${DNR_VOICE.pabau.locationId}), practitioner_id (optional), notes (optional)
 
 # Booking notes
 - Services are **treatments** from the Pabau calendar (Ultherapy, Ultracel, Morpheus8, BTL, fillers, laser, etc.) — not a separate "consultation" product.

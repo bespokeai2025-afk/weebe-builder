@@ -69,6 +69,8 @@ export function pabauListItems(json: unknown): unknown[] {
     "appointments",
     "leads",
     "clients",
+    "locations",
+    "users",
     "service_categories",
     "services",
     "data",

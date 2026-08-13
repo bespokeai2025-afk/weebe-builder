@@ -6,6 +6,7 @@
 import { watiApiV3Base } from "@/lib/whatsapp/wati-api-base.shared";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import {
+  extractWatiInteractiveReplyText,
   getWatiConnectionForWorkspace,
   normalizeWhatsAppPhone,
 } from "@/lib/whatsapp/wati-campaign.server";
@@ -60,6 +61,9 @@ export function extractWatiConversationMessageText(
     msg.finalText,
     msg.messageText,
     msg.caption,
+    // Before eventDescription — a button tap carries its meaning in the reply title, while
+    // eventDescription is a generic system string.
+    extractWatiInteractiveReplyText(msg),
     msg.eventDescription,
     (msg.data as Record<string, unknown> | undefined)?.text,
     (msg.message as Record<string, unknown> | undefined)?.text,
@@ -113,10 +117,17 @@ export async function fetchWatiConversationMessagesForTarget(
   const collected: Array<Record<string, unknown>> = [];
 
   for (let page = 1; page <= maxPages; page++) {
-    const url = `${watiApiV3Base(conn.tenant_id, conn.api_host)}/conversations/${encodeURIComponent(target)}/messages?page_number=${page}&page_size=${pageSize}`;
+    const url = `${watiApiV3Base(conn.api_host)}/conversations/${encodeURIComponent(target)}/messages?page_number=${page}&page_size=${pageSize}`;
     try {
       const res = await fetch(url, { headers });
-      if (!res.ok) break;
+      if (!res.ok) {
+        console.warn("[wati-v3] conversation messages fetch failed", {
+          status: res.status,
+          target,
+          page,
+        });
+        break;
+      }
 
       const json = (await res.json()) as Record<string, unknown>;
       const list = (json.message_list ?? json.messages ?? json.data ?? []) as Array<
@@ -126,7 +137,12 @@ export async function fetchWatiConversationMessagesForTarget(
 
       collected.push(...list);
       if (list.length < pageSize) break;
-    } catch {
+    } catch (e) {
+      console.warn("[wati-v3] conversation messages fetch error", {
+        target,
+        page,
+        error: (e as Error).message,
+      });
       break;
     }
   }
@@ -186,7 +202,7 @@ export async function resolveWatiReplyContactPhone(
   const ticketId = payload.ticketId != null ? String(payload.ticketId).trim() : "";
   if (ticketId) {
     try {
-      const url = `${watiApiV3Base(conn.tenant_id, conn.api_host)}/contacts/${encodeURIComponent(ticketId)}`;
+      const url = `${watiApiV3Base(conn.api_host)}/contacts/${encodeURIComponent(ticketId)}`;
       const res = await fetch(url, { headers: watiAuthHeaders(conn.api_key) });
       if (res.ok) {
         const json = (await res.json()) as Record<string, unknown>;
@@ -194,9 +210,17 @@ export async function resolveWatiReplyContactPhone(
           String(json.phone ?? json.wa_id ?? json.waId ?? ""),
         );
         if (phone) return phone;
+      } else {
+        console.warn("[wati-v3] contact lookup for reply failed", {
+          status: res.status,
+          ticketId,
+        });
       }
-    } catch {
-      /* optional lookup */
+    } catch (e) {
+      console.warn("[wati-v3] contact lookup for reply error", {
+        ticketId,
+        error: (e as Error).message,
+      });
     }
   }
 

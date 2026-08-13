@@ -1,5 +1,5 @@
 {
-  "discoveredAt": "2026-08-10T05:28:30.654Z",
+  "discoveredAt": "2026-08-12T06:15:00.838Z",
   "endpoints": {
     "/locations": {
       "status": 200,
@@ -34,7 +34,13 @@
       "ok": true
     }
   },
-  "castlerockCandidates": [],
+  "castlerockCandidates": [
+    {
+      "source": "/locations",
+      "id": 3526,
+      "name": "Medispa Cheshire"
+    }
+  ],
   "consultServiceCandidates": [
     {
       "source": "/categories/services",

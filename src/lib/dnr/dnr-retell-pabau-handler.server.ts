@@ -9,6 +9,7 @@ import {
   resolveWorkspaceIdForRetellAgent,
 } from "@/lib/dnr/dnr-pabau-credentials.server";
 import { logReceptionistToolEvent } from "@/lib/dnr/dnr-receptionist-audit.server";
+import { normalizeRetellPayload } from "@/lib/calendar/retell-payload";
 import type { PabauClientConfig } from "@/lib/pabau/pabau-receptionist.server";
 
 export const DNR_PABAU_CORS = {
@@ -121,8 +122,13 @@ export async function authorizeDnrPabauTool(
   }
   let args: Record<string, unknown> = {};
   try {
-    const parsed = JSON.parse(rawBody) as Record<string, unknown>;
-    args = (parsed.args ?? parsed) as Record<string, unknown>;
+    const flat = normalizeRetellPayload(rawBody);
+    const { call, name, args: nestedArgs, ...rest } = flat;
+    void call;
+    void name;
+    void nestedArgs;
+    args = rest;
+    delete args.retell_call_id;
   } catch {
     return { ok: false, response: dnrPabauJson({ error: "invalid json" }, 400) };
   }
@@ -135,22 +141,35 @@ export async function handleDnrPabauPost(
   handler: (ctx: DnrPabauToolContext) => Promise<Response>,
 ) {
   const rawBody = await request.text();
-  const auth = await authorizeDnrPabauTool(rawBody, request);
-  if (!auth.ok) return auth.response;
-  const response = await handler(auth.ctx);
   try {
-    const clone = response.clone();
-    const responseBody = await clone.json().catch(() => ({}));
-    void logReceptionistToolEvent({
-      workspaceId: auth.ctx.workspaceId,
-      toolName,
-      rawBody,
-      requestArgs: auth.ctx.args,
-      responseStatus: response.status,
-      responseBody,
-    });
-  } catch {
-    /* non-fatal */
+    const auth = await authorizeDnrPabauTool(rawBody, request);
+    if (!auth.ok) return auth.response;
+    const response = await handler(auth.ctx);
+    try {
+      const clone = response.clone();
+      const responseBody = await clone.json().catch(() => ({}));
+      void logReceptionistToolEvent({
+        workspaceId: auth.ctx.workspaceId,
+        toolName,
+        rawBody,
+        requestArgs: auth.ctx.args,
+        responseStatus: response.status,
+        responseBody,
+      });
+    } catch {
+      /* non-fatal */
+    }
+    return response;
+  } catch (e) {
+    console.error(`[dnr-pabau] ${toolName} unhandled error`, e);
+    return dnrPabauJson(
+      {
+        error: "internal server error",
+        tool: toolName,
+        hint: "Check dev server logs for [dnr-pabau]. Retry after server restart.",
+        detail: e instanceof Error ? e.message : String(e),
+      },
+      500,
+    );
   }
-  return response;
 }

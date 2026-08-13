@@ -63,7 +63,7 @@ if (!apiKey) {
   process.exit(2);
 }
 
-const url = `https://${apiHost}/${tenantId}/api/ext/v3/messageTemplates/send`;
+const url = `https://${apiHost}/api/ext/v3/messageTemplates/send`;
 const body = {
   channel: null,
   template_name: templateName,

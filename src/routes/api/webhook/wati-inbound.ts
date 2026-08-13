@@ -22,6 +22,7 @@ import {
   parseWatiInboundMessage,
   parseWatiReplyWebhookMessage,
 } from "@/lib/whatsapp/wati-campaign.server";
+import { parseWatiTicketWebhook } from "@/lib/whatsapp/wati-chat-status.shared";
 import { resolveWatiReplyContactPhone } from "@/lib/whatsapp/wati-inbox-enrich.server";
 import { markWhatsappContactDoNotContact } from "@/lib/whatsapp/wa-contact-message-stats.server";
 import { isWhatsappOptOutMessage } from "@/lib/whatsapp/wa-opt-out.shared";
@@ -31,8 +32,12 @@ import {
   findOutboundMessageForWatiStatus,
   isWatiTemplateSentEvent,
   linkOutboundMessageToWatiLocalId,
-  mapWatiStatusString,
+  mapWatiStatusToDbStatus,
 } from "@/lib/whatsapp/wati-message-status.server";
+import {
+  syncWhatsappConversation,
+  updateWatiChatState,
+} from "@/lib/whatsapp/whatsapp-conversations.server";
 import {
   isWatiTemplateLifecycleEvent,
   watiTemplatePatchFromWebhook,
@@ -57,7 +62,7 @@ function adminClient() {
 }
 
 function mapWatiDeliveryStatus(payload: Record<string, unknown>): string | null {
-  return mapWatiStatusString(
+  return mapWatiStatusToDbStatus(
     payload.statusString ??
       payload.status ??
       payload.messageStatus ??
@@ -65,6 +70,28 @@ function mapWatiDeliveryStatus(payload: Record<string, unknown>): string | null 
       payload.eventType ??
       payload.type,
   );
+}
+
+/**
+ * Record that WATI actually delivered an event.
+ *
+ * wati_connections.webhook_manual only records that someone clicked "Confirm manual setup", so it
+ * cannot distinguish a configured webhook from a silently undelivered one. This timestamp can.
+ */
+async function stampWebhookReceipt(
+  sb: ReturnType<typeof adminClient>,
+  workspaceId: string,
+  eventType: unknown,
+): Promise<void> {
+  const { error } = await (sb as any)
+    .from("wati_connections")
+    .update({
+      last_webhook_event_at: new Date().toISOString(),
+      last_webhook_event_type: eventType == null ? null : String(eventType).slice(0, 120),
+    })
+    .eq("workspace_id", workspaceId);
+
+  if (error) console.warn("[WATI WEBHOOK] receipt stamp failed", error.message);
 }
 
 /** WATI status webhooks key off localMessageId — never use payload.id (that is the event id). */
@@ -118,10 +145,49 @@ async function applyMessageStatusUpdate(
   if (!applied) return;
 }
 
+/**
+ * Campaign that an inbound reply belongs to.
+ *
+ * sentMessageREPLIED_v2 carries the original message's localMessageId, which is exactly the
+ * external_id we stored on the outbound row — so campaign attribution is a direct lookup. Plain
+ * "message" events carry no such link, so fall back to the most recent campaign send to this
+ * number inside WhatsApp's 24h session window.
+ */
+async function resolveInboundCampaignId(
+  sb: ReturnType<typeof adminClient>,
+  workspaceId: string,
+  opts: { localMessageId?: string | null; whatsappMessageId?: string | null; phone: string },
+): Promise<string | null> {
+  if (opts.localMessageId || opts.whatsappMessageId) {
+    const source = await findOutboundMessageForWatiStatus(
+      workspaceId,
+      opts.localMessageId ?? null,
+      null,
+      opts.whatsappMessageId ?? null,
+    );
+    if (source?.campaign_id) return source.campaign_id;
+  }
+
+  const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+  const { data } = await (sb as any)
+    .from("whatsapp_messages")
+    .select("campaign_id")
+    .eq("workspace_id", workspaceId)
+    .eq("contact_phone", opts.phone)
+    .eq("direction", "outbound")
+    .not("campaign_id", "is", null)
+    .gte("sent_at", since)
+    .order("sent_at", { ascending: false })
+    .limit(1);
+
+  return (data?.[0]?.campaign_id as string | undefined) ?? null;
+}
+
 async function storeInboundMessage(
   sb: ReturnType<typeof adminClient>,
   workspaceId: string,
   message: NonNullable<ReturnType<typeof parseWatiInboundMessage>>,
+  opts?: { campaignId?: string | null },
 ): Promise<void> {
   const leadId = await attachLeadToInboundMessage(
     sb as any,
@@ -139,12 +205,21 @@ async function storeInboundMessage(
     direction: "inbound" as const,
     provider: "wati",
     lead_id: leadId,
+    campaign_id: opts?.campaignId ?? null,
     status: "delivered",
     sent_at: message.sent_at,
     whatsapp_message_id: message.whatsapp_message_id,
+    conversation_id: message.conversation_id,
+    ticket_id: message.ticket_id,
+    reply_context_id: message.reply_context_id,
+    media_url: message.media_url,
+    media_mime_type: message.media_mime_type,
+    media_filename: message.media_filename,
+    wati_status: message.wati_status,
   };
 
   await upsertWhatsappMessage(sb, row);
+  await syncWhatsappConversation(workspaceId, message.contact_phone);
 
   if (isWhatsappOptOutMessage(message.body)) {
     try {
@@ -178,43 +253,58 @@ async function storeOutboundMessage(
     sent_at: message.sent_at,
     whatsapp_message_id: message.whatsapp_message_id,
     sender_channel: message.sender_channel,
+    conversation_id: message.conversation_id,
+    ticket_id: message.ticket_id,
+    reply_context_id: message.reply_context_id,
+    media_url: message.media_url,
+    media_mime_type: message.media_mime_type,
+    media_filename: message.media_filename,
+    wati_status: message.wati_status,
   };
   await upsertWhatsappMessage(sb, row);
+  await syncWhatsappConversation(workspaceId, message.contact_phone);
 }
+
+/** Columns added by migrations after the original table — dropped if the schema rejects them. */
+const OPTIONAL_MESSAGE_COLUMNS = [
+  "whatsapp_message_id",
+  "sender_channel",
+  "conversation_id",
+  "ticket_id",
+  "reply_context_id",
+  "media_mime_type",
+  "media_filename",
+  "wati_status",
+] as const;
 
 async function upsertWhatsappMessage(
   sb: ReturnType<typeof adminClient>,
   row: Record<string, unknown>,
 ): Promise<void> {
-  const { error } = await (sb as any)
-    .from("whatsapp_messages")
-    .upsert(row, { onConflict: "workspace_id,external_id" });
+  const upsert = (payload: Record<string, unknown>) =>
+    (sb as any)
+      .from("whatsapp_messages")
+      .upsert(payload, { onConflict: "workspace_id,external_id" });
 
-  if (error) {
-    if (String(error.message).includes("whatsapp_message_id")) {
-      const { whatsapp_message_id: _w, ...withoutWamid } = row;
-      const { error: retryErr } = await (sb as any)
-        .from("whatsapp_messages")
-        .upsert(withoutWamid, { onConflict: "workspace_id,external_id" });
-      if (retryErr && String(retryErr.message).includes("sender_channel")) {
-        const { sender_channel: _s, ...minimal } = withoutWamid;
-        const { error: retry2 } = await (sb as any)
-          .from("whatsapp_messages")
-          .upsert(minimal, { onConflict: "workspace_id,external_id" });
-        if (retry2) throw retry2;
-      } else if (retryErr) {
-        throw retryErr;
-      }
-    } else if (String(error.message).includes("sender_channel")) {
-      const { sender_channel: _s, ...withoutChannel } = row;
-      const { error: retryErr } = await (sb as any)
-        .from("whatsapp_messages")
-        .upsert(withoutChannel, { onConflict: "workspace_id,external_id" });
-      if (retryErr) throw retryErr;
-    } else {
-      throw error;
-    }
-  }
+  const { error } = await upsert(row);
+  if (!error) return;
+
+  // An un-migrated environment rejects the newer columns by name. Retry without them rather than
+  // losing the message entirely.
+  const rejected = OPTIONAL_MESSAGE_COLUMNS.filter((column) =>
+    String(error.message).includes(column),
+  );
+  if (rejected.length === 0) throw error;
+
+  const fallback = { ...row };
+  for (const column of OPTIONAL_MESSAGE_COLUMNS) delete fallback[column];
+
+  const { error: retryErr } = await upsert(fallback);
+  if (retryErr) throw retryErr;
+
+  console.warn("[WATI WEBHOOK] stored message without optional columns", {
+    missing: rejected,
+  });
 }
 
 async function resolveWorkspaceId(
@@ -300,6 +390,8 @@ export const Route = createFileRoute("/api/webhook/wati-inbound")({
             return json({ ok: true });
           }
 
+          await stampWebhookReceipt(sb, workspaceId, payload.eventType ?? payload.type);
+
           // Template approval / quality lifecycle (create templates in WATI UI)
           if (isWatiTemplateLifecycleEvent(payload)) {
             try {
@@ -350,7 +442,13 @@ export const Route = createFileRoute("/api/webhook/wati-inbound")({
               if (phone) {
                 const message = parseWatiReplyWebhookMessage(payload, phone);
                 if (message) {
-                  await storeInboundMessage(sb, workspaceId, message);
+                  const campaignId = await resolveInboundCampaignId(sb, workspaceId, {
+                    localMessageId: extractStatusTrackingId(payload),
+                    whatsappMessageId:
+                      payload.whatsappMessageId != null ? String(payload.whatsappMessageId) : null,
+                    phone,
+                  });
+                  await storeInboundMessage(sb, workspaceId, message, { campaignId });
                 }
               } else {
                 console.warn("[WATI WEBHOOK] Reply event — could not resolve contact phone", {
@@ -389,7 +487,12 @@ export const Route = createFileRoute("/api/webhook/wati-inbound")({
             const message = parseWatiInboundMessage(payload);
             if (message) {
               try {
-                await storeInboundMessage(sb, workspaceId, message);
+                const campaignId = await resolveInboundCampaignId(sb, workspaceId, {
+                  localMessageId: null,
+                  whatsappMessageId: null,
+                  phone: message.contact_phone,
+                });
+                await storeInboundMessage(sb, workspaceId, message, { campaignId });
               } catch (e) {
                 console.error("[WATI WEBHOOK] Inbound insert error", e);
               }
@@ -405,6 +508,21 @@ export const Route = createFileRoute("/api/webhook/wati-inbound")({
                 await storeOutboundMessage(sb, workspaceId, message);
               } catch (e) {
                 console.error("[WATI WEBHOOK] Outbound insert error", e);
+              }
+            }
+            return json({ ok: true });
+          }
+
+          // Chat status changes (expired / open / solved). Last branch on purpose: it classifies on
+          // eventDescription, so it must never get a chance to intercept a message event.
+          const ticket = parseWatiTicketWebhook(payload);
+          if (ticket) {
+            const phone = extractWatiWebhookPhone(payload);
+            if (phone) {
+              try {
+                await updateWatiChatState(workspaceId, phone, ticket);
+              } catch (e) {
+                console.error("[WATI WEBHOOK] Chat status update error", e);
               }
             }
             return json({ ok: true });

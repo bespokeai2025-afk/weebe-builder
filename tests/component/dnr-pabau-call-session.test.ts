@@ -33,4 +33,27 @@ describe("dnr-pabau-call-session", () => {
     }
     expect(merged.filled_from_session).toContain("contact_id");
   });
+
+  it("matches slot by index and ISO start datetime", () => {
+    const ws = "workspace-1";
+    saveDnrAvailabilitySession({
+      workspaceId: ws,
+      service_name: "Ultherapy - Lower Face",
+      slots: [
+        { start_date: "2026-08-15", start_time: "10:00" },
+        { start_date: "2026-08-15", start_time: "10:30" },
+      ],
+    });
+
+    const session = getDnrPabauCallSession(ws)!;
+    const byIndex = applyDnrBookSession({ contact_id: 1, slot_index: 1 }, session);
+    expect(byIndex.args.start_time).toBe("10:30");
+
+    const byIso = applyDnrBookSession(
+      { contact_id: 1, service_name: "Ultherapy - Lower Face", start: "2026-08-15T10:00:00" },
+      session,
+    );
+    expect(byIso.args.start_date).toBe("2026-08-15");
+    expect(byIso.args.start_time).toBe("10:00");
+  });
 });

@@ -102,7 +102,7 @@ for (const msg of msgs ?? []) {
 
   let applied = false;
   for (const variant of variants) {
-    const url = `https://${host}/${conn.tenant_id}/api/ext/v3/conversations/${encodeURIComponent(variant)}/messages?page_number=1&page_size=20`;
+    const url = `https://${host}/api/ext/v3/conversations/${encodeURIComponent(variant)}/messages?page_number=1&page_size=20`;
     const res = await fetch(url, { headers });
     if (!res.ok) continue;
 
