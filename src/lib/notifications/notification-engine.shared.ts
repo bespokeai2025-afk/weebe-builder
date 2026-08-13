@@ -42,6 +42,21 @@ export const NOTIFICATION_EVENT_KEYS = [
   "lead_created",
   "whatsapp_reply_received",
   "marketing_operator_digest",
+  // ── Canonical catalogue extension (2026-08) ────────────────────────────────
+  "lead_positive",
+  "lead_assigned",
+  "campaign_stalled",
+  "report_failed",
+  "followup_reply_received",
+  "followup_failed",
+  "hivemind_alert",
+  "hivemind_task_created",
+  "hivemind_recommendation",
+  "systemmind_workflow_failed",
+  "systemmind_integration_error",
+  "systemmind_agent_setup_issue",
+  "accountsmind_billing_alert",
+  "accountsmind_cost_threshold",
 ] as const;
 export type NotificationEventKey = (typeof NOTIFICATION_EVENT_KEYS)[number];
 
@@ -71,15 +86,96 @@ export const NOTIFICATION_EVENT_LABELS: Record<NotificationEventKey, string> = {
   lead_created: "New lead captured",
   whatsapp_reply_received: "WhatsApp reply received",
   marketing_operator_digest: "Daily marketing operator digest",
+  lead_positive: "Positive-sentiment lead",
+  lead_assigned: "Lead assigned to you",
+  campaign_stalled: "Campaign stalled",
+  report_failed: "Report generation failed",
+  followup_reply_received: "Follow-up reply received",
+  followup_failed: "Follow-up send failed",
+  hivemind_alert: "HiveMind alert",
+  hivemind_task_created: "HiveMind task created",
+  hivemind_recommendation: "HiveMind recommendation",
+  systemmind_workflow_failed: "SystemMind workflow failed",
+  systemmind_integration_error: "SystemMind integration error",
+  systemmind_agent_setup_issue: "Agent setup issue detected",
+  accountsmind_billing_alert: "Billing alert",
+  accountsmind_cost_threshold: "Cost threshold reached",
 };
+
+// ── Per-event catalogue metadata ─────────────────────────────────────────────
+// category: Settings UI section. capability: which workspace capability must
+// be active for the event to be applicable ("core" = always applicable).
+// deepLink: in-app destination for the notification.
+export type NotificationCapabilityKey =
+  | "core" | "leads" | "campaigns" | "campaign_reports" | "follow_up"
+  | "whatsapp" | "hivemind" | "growthmind" | "systemmind" | "accountsmind"
+  | "reseller";
+
+export type NotificationEventDef = {
+  category: string;
+  capability: NotificationCapabilityKey;
+  deepLink: string;
+};
+
+export const NOTIFICATION_EVENT_DEFS: Record<NotificationEventKey, NotificationEventDef> = {
+  launched:                  { category: "Campaigns", capability: "campaigns", deepLink: "/campaigns" },
+  activated:                 { category: "Campaigns", capability: "campaigns", deepLink: "/campaigns" },
+  paused:                    { category: "Campaigns", capability: "campaigns", deepLink: "/campaigns" },
+  completed:                 { category: "Campaigns", capability: "campaigns", deepLink: "/campaigns" },
+  failed:                    { category: "Campaigns", capability: "campaigns", deepLink: "/campaigns" },
+  safety_blocked:            { category: "Campaigns", capability: "campaigns", deepLink: "/campaigns" },
+  no_eligible_leads:         { category: "Campaigns", capability: "campaigns", deepLink: "/campaigns" },
+  daily_cap_hit:             { category: "Campaigns", capability: "campaigns", deepLink: "/campaigns" },
+  safety_cap_hit:            { category: "Campaigns", capability: "campaigns", deepLink: "/campaigns" },
+  provider_error:            { category: "Campaigns", capability: "campaigns", deepLink: "/campaigns" },
+  workflow_error:            { category: "Campaigns", capability: "campaigns", deepLink: "/campaigns" },
+  campaign_stalled:          { category: "Campaigns", capability: "campaigns", deepLink: "/campaigns" },
+  high_negative_sentiment:   { category: "Campaigns", capability: "campaigns", deepLink: "/campaigns" },
+  high_positive_performance: { category: "Campaigns", capability: "campaigns", deepLink: "/campaigns" },
+  marketing_operator_digest: { category: "Campaigns", capability: "growthmind", deepLink: "/growthmind" },
+  kpi_report_ready:          { category: "Reports", capability: "campaign_reports", deepLink: "/campaigns" },
+  report_failed:             { category: "Reports", capability: "campaign_reports", deepLink: "/campaigns" },
+  lead_created:              { category: "Leads", capability: "leads", deepLink: "/leads" },
+  lead_positive:             { category: "Leads", capability: "leads", deepLink: "/leads" },
+  lead_assigned:             { category: "Leads", capability: "leads", deepLink: "/leads" },
+  qualified_leads_generated: { category: "Leads", capability: "leads", deepLink: "/qualified" },
+  appointments_booked:       { category: "Leads", capability: "leads", deepLink: "/leads" },
+  follow_up_tasks_created:   { category: "Follow-up", capability: "follow_up", deepLink: "/follow-up" },
+  followup_reply_received:   { category: "Follow-up", capability: "follow_up", deepLink: "/follow-up" },
+  followup_failed:           { category: "Follow-up", capability: "follow_up", deepLink: "/follow-up" },
+  whatsapp_reply_received:   { category: "WhatsApp", capability: "whatsapp", deepLink: "/whatsapp" },
+  hivemind_alert:            { category: "HiveMind", capability: "hivemind", deepLink: "/hivemind" },
+  hivemind_task_created:     { category: "HiveMind", capability: "hivemind", deepLink: "/hivemind" },
+  hivemind_recommendation:   { category: "HiveMind", capability: "hivemind", deepLink: "/hivemind" },
+  systemmind_fix_suggested:      { category: "SystemMind", capability: "systemmind", deepLink: "/systemmind" },
+  systemmind_workflow_failed:    { category: "SystemMind", capability: "systemmind", deepLink: "/systemmind" },
+  systemmind_integration_error:  { category: "SystemMind", capability: "systemmind", deepLink: "/systemmind" },
+  systemmind_agent_setup_issue:  { category: "SystemMind", capability: "systemmind", deepLink: "/systemmind" },
+  accountsmind_billing_alert:    { category: "AccountsMind", capability: "accountsmind", deepLink: "/accountsmind" },
+  accountsmind_cost_threshold:   { category: "AccountsMind", capability: "accountsmind", deepLink: "/accountsmind" },
+  staff_invite_accepted:     { category: "Workspace", capability: "core", deepLink: "/settings" },
+  needs_admin_attention:     { category: "Workspace", capability: "core", deepLink: "/settings" },
+  email_provider_failing:    { category: "Workspace", capability: "core", deepLink: "/settings" },
+  reseller_client_created:   { category: "Workspace", capability: "reseller", deepLink: "/reseller" },
+};
+
+/** Order of Settings UI sections. */
+export const NOTIFICATION_CATEGORY_ORDER = [
+  "Leads", "Campaigns", "Reports", "Follow-up", "WhatsApp",
+  "HiveMind", "SystemMind", "AccountsMind", "Workspace",
+] as const;
 
 const CRITICAL_EVENTS: ReadonlySet<string> = new Set([
   "failed", "provider_error", "workflow_error", "safety_cap_hit",
-  "email_provider_failing",
+  "email_provider_failing", "systemmind_workflow_failed",
+  "systemmind_integration_error", "report_failed",
 ]);
 const WARNING_EVENTS: ReadonlySet<string> = new Set([
   "paused", "safety_blocked", "no_eligible_leads", "daily_cap_hit",
   "high_negative_sentiment", "needs_admin_attention", "systemmind_fix_suggested",
+  "campaign_stalled", "followup_failed", "hivemind_alert",
+  "systemmind_agent_setup_issue", "accountsmind_billing_alert",
+  "accountsmind_cost_threshold",
 ]);
 
 export function severityForEvent(eventKey: string): "info" | "warning" | "critical" {
@@ -113,6 +209,24 @@ export const DEFAULT_EVENT_SETTINGS: NotificationSettings = {
   recipients: { owner: true, admins: true, userIds: [], roleKeys: [], customEmails: [], campaignOwner: false },
   frequency: "immediate",
 };
+
+/**
+ * High-volume events that default OFF when a workspace has no settings row.
+ * Only NEW catalogue keys may appear here — existing keys keep their historic
+ * default-on behaviour so no workspace's current notifications change.
+ */
+export const DEFAULT_OFF_EVENTS: ReadonlySet<string> = new Set([
+  "hivemind_task_created",
+  "hivemind_recommendation",
+  "followup_reply_received",
+]);
+
+/** Catalogue default settings for one event (default-off aware). */
+export function defaultSettingsForEvent(eventKey: string): NotificationSettings {
+  const base = structuredClone(DEFAULT_EVENT_SETTINGS);
+  if (DEFAULT_OFF_EVENTS.has(eventKey)) base.enabled = false;
+  return base;
+}
 
 /**
  * Package caps for a workspace, FAIL CLOSED: any lookup problem means no
@@ -177,7 +291,7 @@ export async function loadEventSettings(
       .eq("workspace_id", workspaceId)
       .eq("event_key", eventKey)
       .maybeSingle();
-    if (!data) return DEFAULT_EVENT_SETTINGS;
+    if (!data) return defaultSettingsForEvent(eventKey);
     return {
       enabled: data.enabled !== false,
       emailEnabled: data.email_enabled === true,
@@ -188,7 +302,7 @@ export async function loadEventSettings(
         : "immediate") as NotificationSettings["frequency"],
     };
   } catch {
-    return DEFAULT_EVENT_SETTINGS;
+    return defaultSettingsForEvent(eventKey);
   }
 }
 
@@ -276,6 +390,13 @@ export type CampaignNotificationInput = {
   failureReason?: string | null;
   recommendedAction?: string | null;
   severity?: "info" | "warning" | "critical";
+  /**
+   * Optional stable idempotency key. When set, the SAME (workspace, event,
+   * dedupeKey) emit is delivered at most once — losers of the atomic ledger
+   * insert skip everything (mirror, in-app rows, emails). Callers build it
+   * from stable source identifiers (e.g. `call:<id>`, `lead:<id>:assigned`).
+   */
+  dedupeKey?: string | null;
 };
 
 function kpiHighlights(kpis: Record<string, unknown> | null | undefined): string[] {
@@ -311,18 +432,16 @@ function buildEmailHtml(input: CampaignNotificationInput, workspaceName: string,
   }
   if (input.failureReason) parts.push(`<p><strong>Failure reason:</strong> ${escapeHtml(input.failureReason)}</p>`);
   if (input.recommendedAction) parts.push(`<p><strong>Recommended action:</strong> ${escapeHtml(input.recommendedAction)}</p>`);
-  const isLeadEvent = input.eventKey === "lead_created";
-  const isWhatsappEvent = input.eventKey === "whatsapp_reply_received";
-  const ctaUrl = isWhatsappEvent
-    ? `${appUrl}/whatsapp`
-    : isLeadEvent
-      ? `${appUrl}/leads`
-      : `${appUrl}/campaigns`;
-  const ctaLabel = isWhatsappEvent
-    ? "Open WhatsApp Inbox"
-    : isLeadEvent
-      ? "View Leads"
-      : "View Campaigns &amp; Reports";
+  const def = NOTIFICATION_EVENT_DEFS[input.eventKey as NotificationEventKey];
+  const ctaUrl = `${appUrl}${def?.deepLink ?? "/campaigns"}`;
+  const ctaLabel =
+    input.eventKey === "whatsapp_reply_received"
+      ? "Open WhatsApp Inbox"
+      : def?.category === "Leads"
+        ? "View Leads"
+        : def
+          ? `Open ${def.category}`
+          : "View Campaigns &amp; Reports";
   parts.push(
     `<p style="margin-top:20px;"><a href="${ctaUrl}" style="background:#6d5df6;color:#ffffff;padding:10px 18px;border-radius:8px;text-decoration:none;font-weight:600;">${ctaLabel}</a></p>`,
   );
@@ -426,6 +545,30 @@ async function mirrorToExecutiveStream(sb: Sb, input: CampaignNotificationInput)
 export async function emitCampaignNotification(sb: Sb, input: CampaignNotificationInput): Promise<void> {
   try {
     if (!input.workspaceId || !input.eventKey) return;
+
+    // Event-level dedup: atomic insert-detect on the ledger. The winner of
+    // the (workspace, event, dedupeKey) insert proceeds; losers skip
+    // EVERYTHING (mirror, in-app, email). Fail OPEN on ledger errors —
+    // a broken ledger must never silently drop notifications.
+    if (input.dedupeKey) {
+      try {
+        const { data: won, error: ledgerErr } = await sb
+          .from("notification_event_ledger")
+          .upsert(
+            {
+              workspace_id: input.workspaceId,
+              event_key: input.eventKey,
+              dedupe_key: String(input.dedupeKey).slice(0, 500),
+            },
+            { onConflict: "workspace_id,event_key,dedupe_key", ignoreDuplicates: true },
+          )
+          .select("id");
+        if (!ledgerErr && (won ?? []).length === 0) return; // duplicate — already delivered
+        if (ledgerErr) console.warn("[notify] dedup ledger error (failing open):", ledgerErr.message);
+      } catch (err: any) {
+        console.warn("[notify] dedup ledger failed (failing open):", err?.message ?? err);
+      }
+    }
 
     // Mirror significant events into the HiveMind executive event stream —
     // BEFORE notification settings checks, since the executive stream is

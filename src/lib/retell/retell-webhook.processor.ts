@@ -1050,6 +1050,8 @@ export async function processRetellWebhook(
                 workspaceId,
                 eventKey: "appointments_booked",
                 summary: `An appointment was booked during a call${attendeeName ? ` with ${attendeeName}` : ""} (starts ${new Date(startMs).toLocaleString("en-GB")}).`,
+                // Retell retries webhooks — one notification per provider call.
+                dedupeKey: call.call_id ? `appointments_booked:call:${call.call_id}` : undefined,
               });
             }
           } catch (nErr: any) {

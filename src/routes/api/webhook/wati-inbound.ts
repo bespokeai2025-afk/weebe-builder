@@ -234,6 +234,8 @@ async function storeInboundMessage(
       eventKey: "whatsapp_reply_received",
       summary: preview ? `${who}: "${preview}"` : `${who} sent a WhatsApp message.`,
       severity: "info",
+      // Belt-and-braces on top of isNewMessage — one notification per provider message.
+      dedupeKey: message.external_id ? `whatsapp_reply_received:msg:${message.external_id}` : undefined,
     });
   }
 

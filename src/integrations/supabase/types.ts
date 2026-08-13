@@ -12069,6 +12069,30 @@ export type Database = {
           },
         ]
       }
+      notification_event_ledger: {
+        Row: {
+          created_at: string
+          dedupe_key: string
+          event_key: string
+          id: string
+          workspace_id: string
+        }
+        Insert: {
+          created_at?: string
+          dedupe_key: string
+          event_key: string
+          id?: string
+          workspace_id: string
+        }
+        Update: {
+          created_at?: string
+          dedupe_key?: string
+          event_key?: string
+          id?: string
+          workspace_id?: string
+        }
+        Relationships: []
+      }
       oauth_state_nonces: {
         Row: {
           created_at: string
@@ -19385,6 +19409,7 @@ export type Database = {
           openai_realtime_inbound_url: string | null
           pipedrive_api_token: string | null
           plan_tier: string
+          push_tokens: Json
           retell_default_agent_id: string | null
           retell_workspace_id: string | null
           salesforce_access_token: string | null
@@ -19479,6 +19504,7 @@ export type Database = {
           openai_realtime_inbound_url?: string | null
           pipedrive_api_token?: string | null
           plan_tier?: string
+          push_tokens?: Json
           retell_default_agent_id?: string | null
           retell_workspace_id?: string | null
           salesforce_access_token?: string | null
@@ -19573,6 +19599,7 @@ export type Database = {
           openai_realtime_inbound_url?: string | null
           pipedrive_api_token?: string | null
           plan_tier?: string
+          push_tokens?: Json
           retell_default_agent_id?: string | null
           retell_workspace_id?: string | null
           salesforce_access_token?: string | null

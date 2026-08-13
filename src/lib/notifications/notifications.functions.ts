@@ -10,11 +10,18 @@ import { requireAction, resolvePermissions, writeAccessAudit } from "@/lib/permi
 import {
   NOTIFICATION_EVENT_KEYS,
   NOTIFICATION_EVENT_LABELS,
+  NOTIFICATION_EVENT_DEFS,
+  NOTIFICATION_CATEGORY_ORDER,
   DEFAULT_EVENT_SETTINGS,
+  defaultSettingsForEvent,
   loadNotificationCaps,
   type NotificationEventKey,
   type NotificationRecipientsConfig,
 } from "./notification-engine.shared";
+import {
+  getWorkspaceNotificationCapabilities,
+  applicableEventKeys,
+} from "./notification-capabilities.server";
 
 const sb = supabaseAdmin as any;
 
@@ -27,7 +34,7 @@ export const listNotificationSettings = createServerFn({ method: "GET" })
     const perms = await resolvePermissions(workspaceId, userId);
     if (!perms.isMember) throw new Error("Not a member of this workspace");
 
-    const [{ data, error }, caps, provider, lastEmailByEvent] = await Promise.all([
+    const [{ data, error }, caps, provider, lastEmailByEvent, wsCaps] = await Promise.all([
       sb
         .from("workspace_notification_settings")
         .select("event_key, enabled, email_enabled, in_app_enabled, recipients, frequency")
@@ -67,12 +74,28 @@ export const listNotificationSettings = createServerFn({ method: "GET" })
         }
         return map;
       })(),
+      getWorkspaceNotificationCapabilities(workspaceId),
     ]);
     if (error) throw new Error(error.message);
     const byEvent = new Map<string, any>((data ?? []).map((r: any) => [r.event_key, r]));
 
-    const rows = NOTIFICATION_EVENT_KEYS.map((eventKey) => {
+    // Only events applicable to this workspace's active capabilities are
+    // shown (capability resolution fails open to everything).
+    const applicable = applicableEventKeys(wsCaps);
+
+    // Lazy auto-provisioning: if any applicable event has no settings row yet,
+    // materialize catalogue defaults (insert-only, best-effort, non-blocking).
+    if (applicable.some((k) => !byEvent.has(k))) {
+      import("./notification-provisioning.server")
+        .then(({ provisionWorkspaceNotifications }) =>
+          provisionWorkspaceNotifications(workspaceId, "settings_opened"),
+        )
+        .catch(() => {});
+    }
+
+    const rows = applicable.map((eventKey) => {
       const row = byEvent.get(eventKey);
+      const defaults = defaultSettingsForEvent(eventKey);
       const base = row
         ? {
             eventKey,
@@ -83,10 +106,19 @@ export const listNotificationSettings = createServerFn({ method: "GET" })
             frequency: row.frequency ?? "immediate",
             isDefault: false,
           }
-        : { eventKey, ...structuredClone(DEFAULT_EVENT_SETTINGS), isDefault: true };
-      return { ...base, lastEmail: lastEmailByEvent.get(eventKey) ?? null };
+        : { eventKey, ...defaults, isDefault: true };
+      return {
+        ...base,
+        category: NOTIFICATION_EVENT_DEFS[eventKey].category,
+        lastEmail: lastEmailByEvent.get(eventKey) ?? null,
+      };
     });
-    return { rows, caps, providerSource: provider };
+    return {
+      rows,
+      caps,
+      providerSource: provider,
+      categoryOrder: [...NOTIFICATION_CATEGORY_ORDER],
+    };
   });
 
 export const updateNotificationSetting = createServerFn({ method: "POST" })

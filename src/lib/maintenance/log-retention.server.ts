@@ -60,6 +60,9 @@ interface RetentionRule {
 }
 
 const RETENTION_RULES: RetentionRule[] = [
+  // Notification event-level dedup ledger — dedupe keys are built from stable
+  // source ids, so old rows only matter while duplicate emits are plausible.
+  { table: "notification_event_ledger",    column: "created_at",  days: 90 },
   { table: "retell_webhook_events",        column: "received_at", days: 90 },
   // NOTE: live column is created_at (migration file says received_at — live
   // schema is ground truth here).

@@ -235,6 +235,19 @@ function NotificationsTab({ canManage }: { canManage: boolean }) {
   const providerSource: string | null = Array.isArray(payload) ? null : (payload.providerSource ?? null);
   const members = membersQ.data ?? [];
 
+  // Group rows into catalogue categories (server provides order + category).
+  const categoryOrder: string[] = Array.isArray(payload?.categoryOrder) ? payload.categoryOrder : [];
+  const grouped = new Map<string, any[]>();
+  for (const r of rows) {
+    const cat = r.category ?? "Other";
+    if (!grouped.has(cat)) grouped.set(cat, []);
+    grouped.get(cat)!.push(r);
+  }
+  const categories = [
+    ...categoryOrder.filter((c) => grouped.has(c)),
+    ...[...grouped.keys()].filter((c) => !categoryOrder.includes(c)),
+  ];
+
   return (
     <div className="space-y-4">
     <NotificationInboxCard />
@@ -259,8 +272,13 @@ function NotificationsTab({ canManage }: { canManage: boolean }) {
           )}
         </div>
       </CardHeader>
-      <CardContent className="space-y-3">
-        {rows.map((row: any) => (
+      <CardContent className="space-y-5">
+        {categories.map((cat) => (
+          <div key={cat} className="space-y-3">
+            <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              {cat}
+            </div>
+            {grouped.get(cat)!.map((row: any) => (
           <div
             key={row.eventKey}
             className="flex flex-wrap items-center gap-3 rounded-lg border p-3"
@@ -387,6 +405,8 @@ function NotificationsTab({ canManage }: { canManage: boolean }) {
                 })
               }
             />
+          </div>
+            ))}
           </div>
         ))}
       </CardContent>

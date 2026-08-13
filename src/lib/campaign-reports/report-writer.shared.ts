@@ -275,6 +275,10 @@ export async function writeCampaignReport(sb: Sb, input: CampaignReportInput): P
       kpis: input.kpis ?? null,
       failureReason: input.failureReason ?? input.errorMessage ?? null,
       recommendedAction: recommended[0]?.action ?? null,
+      // Call-scoped reports can be retried by webhook redelivery — dedupe per
+      // (event, provider call). Run/lifecycle reports have no stable source id
+      // and stay undeduplicated (each write IS a distinct event).
+      dedupeKey: input.callId ? `${eventKey}:call:${input.callId}` : undefined,
     });
   }
 

@@ -941,6 +941,8 @@ async function notifyFailedAvaBooking(input: {
         input.noContact ? "No contact details captured — check the call transcript." : null,
       ].filter(Boolean).join(" · "),
       severity: "warning",
+      // Webhook retries must not page admins twice for the same failed call.
+      dedupeKey: `ava_booking_failed:call:${input.callId}`,
     });
   } catch (e) {
     console.warn("[AVA-WEB-CALL] failed-booking notification emit failed (non-fatal)", e);
