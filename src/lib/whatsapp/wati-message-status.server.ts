@@ -26,6 +26,19 @@ export function mapWatiStatusString(raw: unknown): string | null {
   return null;
 }
 
+/**
+ * Same mapping, coerced to the message_status enum (queued|sent|delivered|read|failed).
+ *
+ * WATI reports "REPLIED" as a status, which has no enum member — writing it raw fails the insert
+ * and silently drops the row. A reply proves the message was read, so it lands on "read"; keep the
+ * raw WATI string in whatsapp_messages.wati_status when the distinction matters.
+ */
+export function mapWatiStatusToDbStatus(raw: unknown): string | null {
+  const mapped = mapWatiStatusString(raw);
+  if (!mapped) return null;
+  return mapped === "replied" ? "read" : mapped;
+}
+
 export function shouldApplyMessageStatus(current: string, next: string): boolean {
   if (next === "failed") return current !== "read" && current !== "delivered";
   const cur = STATUS_ORDER[current] ?? 0;
@@ -264,7 +277,7 @@ async function reconcileViaV3ConversationMessages(
   if (!phone.startsWith("44") && phone.length >= 10) phoneVariants.push(`44${phone}`);
 
   for (const variant of phoneVariants) {
-    const url = `${watiApiV3Base(conn.tenant_id, conn.api_host)}/conversations/${encodeURIComponent(variant)}/messages?page_number=1&page_size=20`;
+    const url = `${watiApiV3Base(conn.api_host)}/conversations/${encodeURIComponent(variant)}/messages?page_number=1&page_size=20`;
     try {
       const res = await fetch(url, { headers });
       if (!res.ok) continue;

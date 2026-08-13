@@ -1,0 +1,139 @@
+[
+  {
+    "name": "list_services",
+    "description": "List Pabau treatment services available to book at Cheshire.",
+    "url": "https://regress-stimuli-stick.ngrok-free.dev/api/public/retell/pabau/list-services",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "agent_id": {
+          "type": "string",
+          "description": "Always pass agent_b2afcd65c127f79126ea57deb2"
+        }
+      }
+    }
+  },
+  {
+    "name": "check_availability",
+    "description": "Check appointment slots for a treatment at Medispa Cheshire.",
+    "url": "https://regress-stimuli-stick.ngrok-free.dev/api/public/retell/pabau/check-availability",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "agent_id": {
+          "type": "string"
+        },
+        "service_name": {
+          "type": "string",
+          "description": "Exact Pabau service name e.g. Ultherapy - Lower Face"
+        },
+        "start_date": {
+          "type": "string",
+          "description": "YYYY-MM-DD"
+        },
+        "end_date": {
+          "type": "string",
+          "description": "YYYY-MM-DD"
+        }
+      },
+      "required": [
+        "service_name",
+        "start_date",
+        "end_date"
+      ]
+    }
+  },
+  {
+    "name": "find_or_create_client",
+    "description": "Find existing Pabau client by phone or create new client. New clients require email, gender, and date of birth.",
+    "url": "https://regress-stimuli-stick.ngrok-free.dev/api/public/retell/pabau/find-or-create-client",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "agent_id": {
+          "type": "string"
+        },
+        "first_name": {
+          "type": "string"
+        },
+        "last_name": {
+          "type": "string"
+        },
+        "phone": {
+          "type": "string",
+          "description": "Mobile with +44 where possible"
+        },
+        "is_new_client": {
+          "type": "boolean",
+          "description": "true = create new client with extra fields below"
+        },
+        "email": {
+          "type": "string",
+          "description": "Required when is_new_client is true"
+        },
+        "gender": {
+          "type": "string",
+          "enum": [
+            "Male",
+            "Female",
+            "Other"
+          ],
+          "description": "Required when is_new_client is true"
+        },
+        "date_of_birth": {
+          "type": "string",
+          "description": "YYYY-MM-DD — required when is_new_client is true"
+        },
+        "preferred_language": {
+          "type": "string",
+          "description": "Default English"
+        },
+        "how_did_you_hear_about_us": {
+          "type": "string",
+          "description": "Optional referral source"
+        }
+      },
+      "required": [
+        "first_name",
+        "last_name",
+        "phone"
+      ]
+    }
+  },
+  {
+    "name": "book_appointment",
+    "description": "Book a treatment appointment in Pabau at Cheshire.",
+    "url": "https://regress-stimuli-stick.ngrok-free.dev/api/public/retell/pabau/book-appointment",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "agent_id": {
+          "type": "string"
+        },
+        "contact_id": {
+          "type": "string"
+        },
+        "service_name": {
+          "type": "string"
+        },
+        "start_date": {
+          "type": "string",
+          "description": "YYYY-MM-DD"
+        },
+        "start_time": {
+          "type": "string",
+          "description": "HH:MM"
+        },
+        "notes": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "contact_id",
+        "service_name",
+        "start_date",
+        "start_time"
+      ]
+    }
+  }
+]

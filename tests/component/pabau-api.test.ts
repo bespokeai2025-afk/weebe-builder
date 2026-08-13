@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  pabauListItems,
   pabauRequestHeaders,
   pabauSampleRecord,
   resolvePabauApiBase,
@@ -34,5 +35,13 @@ describe("pabau-api.shared", () => {
       mobile: "0700",
       service: "Consultation",
     });
+  });
+
+  it("parses locations wrapper array", () => {
+    const items = pabauListItems({
+      locations: [{ id: 3526, location_name: "Medispa Cheshire" }],
+    });
+    expect(items).toHaveLength(1);
+    expect((items[0] as { id: number }).id).toBe(3526);
   });
 });

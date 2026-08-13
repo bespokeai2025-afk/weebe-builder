@@ -11,19 +11,24 @@ type WatiConn = {
   apiHost?: string | null;
 };
 
-/** Events for WATI Connectors UI / v2 registration (no _v2 suffix on some tenants). */
+/**
+ * Current event names per https://docs.wati.io/reference/webhooks — the message lifecycle events
+ * carry a _v2 suffix. "message" and "newContactMessageReceived" are unsuffixed.
+ */
 const WATI_WEBHOOK_REGISTER_EVENT_TYPES = [
   "message",
   "newContactMessageReceived",
-  "sentMessageDELIVERED",
-  "sentMessageREAD",
-  "sentMessageREPLIED",
-  "templateMessageSent",
+  "sentMessageDELIVERED_v2",
+  "sentMessageREAD_v2",
+  "sentMessageREPLIED_v2",
+  "sessionMessageSent_v2",
+  "templateMessageSent_v2",
+  "templateMessageFailed_v2",
   "templateReviewed",
   "templateQualityUpdated",
 ];
 
-/** Minimal set when full registration returns HTTP 400. */
+/** Legacy unsuffixed names — retried when a tenant rejects the _v2 set with HTTP 400. */
 const WATI_WEBHOOK_MINIMAL_EVENT_TYPES = [
   "message",
   "newContactMessageReceived",
@@ -78,7 +83,7 @@ export async function fetchWatiChannelPhones(conn: WatiConn): Promise<string[]> 
   }
 
   try {
-    const v3 = await fetch(`${watiApiV3Base(conn.tenantId, conn.apiHost)}/channels`, { headers });
+    const v3 = await fetch(`${watiApiV3Base(conn.apiHost)}/channels`, { headers });
     if (v3.ok) {
       const json = await parseJson(v3);
       const rows = (json.channels ?? json.result ?? []) as Array<Record<string, unknown>>;

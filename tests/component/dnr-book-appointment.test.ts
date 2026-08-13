@@ -48,4 +48,30 @@ describe("dnr-book-appointment", () => {
       expect(r.missing).toContain("start_date");
     }
   });
+
+  it("parses ISO start datetime", () => {
+    const r = parseDnrBookAppointment({
+      contact_id: 1,
+      service_name: "Ultherapy",
+      start: "2026-08-15T14:30:00+01:00",
+    });
+    expect(r.ok).toBe(true);
+    if (r.ok) {
+      expect(r.data.start_date).toBe("2026-08-15");
+      expect(r.data.start_time).toBe("14:30");
+    }
+  });
+
+  it("reports invalid date format separately from missing", () => {
+    const r = parseDnrBookAppointment({
+      contact_id: 1,
+      service_name: "Ultherapy",
+      start_date: "August 15th",
+      start_time: "10:30",
+    });
+    expect(r.ok).toBe(false);
+    if (!r.ok) {
+      expect(r.invalid).toContain("start_date");
+    }
+  });
 });

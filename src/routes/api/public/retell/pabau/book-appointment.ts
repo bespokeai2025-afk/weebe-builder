@@ -7,7 +7,8 @@ import {
 } from "@/lib/dnr/dnr-book-appointment.shared";
 import {
   applyDnrBookSession,
-  getDnrPabauCallSession,
+  describeDnrBookSession,
+  hydrateDnrPabauCallSession,
 } from "@/lib/dnr/dnr-pabau-call-session.server";
 import {
   matchPabauService,
@@ -21,7 +22,7 @@ export const Route = createFileRoute("/api/public/retell/pabau/book-appointment"
       OPTIONS: async () => new Response(null, { status: 204, headers: DNR_PABAU_CORS }),
       POST: ({ request }) =>
         handleDnrPabauPost(request, "book_appointment", async ({ pabau, args, workspaceId, retellCallId }) => {
-          const session = getDnrPabauCallSession(workspaceId, retellCallId);
+          const session = await hydrateDnrPabauCallSession(workspaceId, retellCallId);
           const merged = applyDnrBookSession(args, session);
           if (merged.filled_from_session.length) {
             console.log("[dnr-pabau] book_appointment filled from session", {
@@ -31,18 +32,29 @@ export const Route = createFileRoute("/api/public/retell/pabau/book-appointment"
           }
           const parsed = parseDnrBookAppointment(merged.args);
           if (!parsed.ok) {
+            const sessionState = describeDnrBookSession(session);
             return dnrPabauJson(
               {
                 error: parsed.error,
                 hint: parsed.hint ?? dnrBookAppointmentHint(),
                 missing_fields: parsed.missing ?? [],
-                session_available: Boolean(session?.contact_id),
+                invalid_fields: parsed.invalid ?? [],
+                session: sessionState,
+                session_available: sessionState.has_contact_id,
+                next_step:
+                  !sessionState.has_service_name || sessionState.slot_count === 0
+                    ? "Call check_availability with exact service_name and valid date range, then book_appointment again."
+                    : undefined,
               },
               400,
             );
           }
           const body = parsed.data;
-          const services = await pabauListServices(pabau);
+          const locationId =
+            merged.args.location_id != null ? Number(merged.args.location_id) : undefined;
+          const practitionerId =
+            merged.args.practitioner_id != null ? Number(merged.args.practitioner_id) : undefined;
+          const services = await pabauListServices(pabau, locationId);
           const matched = matchPabauService(services, body.service_name);
           if (!matched) {
             return dnrPabauJson({ error: `Unknown service: ${body.service_name}` }, 400);
@@ -54,6 +66,8 @@ export const Route = createFileRoute("/api/public/retell/pabau/book-appointment"
             startDate: body.start_date,
             startTime: body.start_time,
             notes: body.notes,
+            locationId,
+            practitionerId: practitionerId && !Number.isNaN(practitionerId) ? practitionerId : undefined,
           });
           if (result.ok) {
             const durationMatch = matched.duration.match(/(\d+)/);

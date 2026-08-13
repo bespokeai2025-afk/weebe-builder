@@ -8,8 +8,7 @@
 - [Campaign executor architecture](campaign-executor-arch.md) — dual dev/prod: Vite plugin ticks every 5 min in dev; prod uses POST /api/public/campaign-executor hit by pg_cron. lastRunDate stored inside __sched_v1__ JSON blob.
 - [HiveMind architecture](hivemind-arch.md) — observer-only layer, HiveMindShell sidebar; see also hivemind-phase2-ai.md, hivemind-phase3-tasks.md, hivemind-phase4-coo.md.
 - [GrowthMind Multi-LLM routing](growthmind-multi-llm.md) — model-router.shared.ts exports SMART_ROUTING/MODEL_META/FALLBACK (safe client-side); server side only in model-router.server.ts + providers/.
-- [TanStack Start useServerFn data wrapping](tanstack-serverfn-data-wrap.md) — calls MUST use `{ data: input }`; validator name flips by version.
-- [TanStack Router Suspense + throwOnError](tanstack-suspense-throwOnError.md) — add `throwOnError: false` to every route useQuery.
+- [TanStack quirks](tanstack-serverfn-data-wrap.md) — `{ data: input }` wrapping; `throwOnError:false` per route useQuery (tanstack-suspense-throwOnError.md); stale server-fn IDs after restart (tanstack-stale-serverfn-ids.md); dynamic imports must be string literals (tanstack-serverfn-dynamic-import-literal.md); dotted child routes need parent <Outlet/> (tanstack-route-nesting-outlet.md).
 - [Universal Provider Framework registry isolation](provider-registry-isolation.md) — REGISTRY is global/immutable seed; buildScopedView() clones + overlays per request — never call mergeDbSettings or mutate entries directly.
 - [Provider healthCheck pattern](provider-health-check-pattern.md) — healthCheck() on adapter classes; dispatch by "cat:name"; derivedConnected must OR dbConnectedSet or env-var gaps override saved credentials.
 - [Executive Knowledge System](executive-knowledge-system.md) — private exec RAG (pgvector), service_role-only match RPC, idempotent seed_key; platform-wide layer in platform-kb-layer.md (scope col, NULL workspace_id).
@@ -17,7 +16,6 @@
 - [SystemMind Workflow Library](systemmind-workflow-library.md) — manual 4-table migration; repair engine = deterministic checks + AI; knowledge context = KB RAG + playbooks + patterns.
 - [GrowthMind DNA + Opportunity Engine](growthmind-dna-opportunity-arch.md) — 6-table schema; DNA trigger auto-seeds; `.inputValidator()` not `.validator()`; no-input fns call as `fn()`; bridge + content studio extended.
 - [Video Studio + Veo](video-studio-freeform-upgrade.md) — dual-auth VeoProvider (Gemini key preferred); see veo-audio-fix.md, veo-gemini-endpoint.md, veo31-cost-approval-pipeline.md.
-- [TanStack Start stale server-fn IDs](tanstack-stale-serverfn-ids.md) — after server restart, browser must hard-refresh or server fns fail with "Invalid server function ID" returning HTML error pages.
 - [Prompt Studio architecture](prompt-studio-arch.md) — 5-table schema (manual migration); 12 library packs seeded per workspace; scoring via GPT-4o-mini (5 dims); getPromptPerformanceSummary is plain async (not server fn) for HiveMind use.
 - [GrowthMind Strategy Centre](strategy-centre-arch.md) — prompt engine routing, 4 DB tables, 13 strategy types, HiveMind approval via hivemind_actions.
 - [Webform Lead Capture System](webform-lead-capture.md) — public POST /webforms/:token + /contact; 2 new tables; leads extended; TalkToUsForm + useTalkToUs hook; entity_notes (not notes).
@@ -51,7 +49,6 @@
 - [External-agent live ingest](external-agent-live-ingest.md) — live-transcript chain = Retell webhook + n8n forward + in-code allow-map; prod must REPUBLISH to add agents.
 - [SystemMind Deployment Planner & Intelligence](systemmind-deployment-planner.md) — plan-only; planner MUST consult knowledge graph; AI template IDs whitelisted; graph in systemmind-knowledge-graph.md.
 - [SystemMind Template Library](systemmind-template-library.md) — curated template repo on top of template discovery; is_trusted only on approve; RLS SELECT-only + service_role writes; secrets masked; classification cols nullable.
-- [TanStack server fn dynamic import literal](tanstack-serverfn-dynamic-import-literal.md) — createServerFn dynamic imports MUST be string literals; variable specifiers break prod Rollup build.
 - [SystemMind n8n Discovery](systemmind-n8n-discovery.md) — n8n client is READ-ONLY (never add write verbs); preserve AI understanding when n8n_updated_at unchanged.
 - [SystemMind generators (WA/sequence/n8n)](systemmind-generators-arch.md) — hub-and-detail kinds dispatch by action_kind at activation; deterministic n8n mapping (unsafe nodes hard-blocked); credential-shape scrubber rejects drafts.
 - [Migration apply-state & audit](migration-apply-state.md) — migration history unreliable; audit real schema via Mgmt-API snapshot; apply additive/idempotent only, one file at a time.
@@ -67,7 +64,7 @@
 - [Cursor repo sync procedure](cursor-repo-snapshot-sync.md) — user pushes from Cursor to weebe-builder repo; diff trees first, sync only deltas, never hard reset; repo lockfile can be stale.
 - [Prod has no IPv6 ingress](prod-no-ipv6-ingress.md) — webeereceptionist.com/webespokeai.com are AAAA-less; backend sees clients' IPv4 in x-forwarded-for even for IPv6 users; allowlist the real IPv4, not a guessed /64.
 - [Live "AI energy" plasma orb technique](ava-live-orb-plasma.md) — no anim libs installed; use SVG feTurbulence+feDisplacement; CSS can't stop SMIL — conditionally render <animate>.
-- [Retell agent list & CF resync quirks](retell-list-agents-duplicate-ids.md) — dedupe agent_id per published version; dangling CF edges silently stall calls, importAgentJson resyncs DB (retell-cf-dangling-edges-and-db-resync.md).
+- [Retell API quirks](retell-list-agents-duplicate-ids.md) — dedupe agent_id per version; dangling CF edges stall calls (retell-cf-dangling-edges-and-db-resync.md); phone binding uses inbound_agents/outbound_agents arrays (retell-phone-agent-binding.md); always import shared retellFetch (retell-fetch-duplicate-helper-trap.md).
 - [Lead auto-call automation + bulk remove](lead-auto-call-and-bulk-remove.md) — one call-recipe shared by auto/manual/scheduled; 3/day cap is a rate limit not a dedupe lock; v1 API SUPABASE_URL needs VITE_ fallback.
 - [Business DNA KB upload wiring](business-dna-kb-upload.md) — KB uploads on Business DNA pages target executive's own KB slug (e.g. growthmind); reuse pattern for any future "upload docs to inform X" feature.
 - [Lead email automation](lead-email-automation.md) — shared send-to-lead path (Resend-only, no separate Outlook adapter); preferred_contact fallback-key convention; auto-send once-per-lead unique index.
@@ -135,12 +132,9 @@
 - [HiveMind WBAH calls source](hivemind-wbah-calls-source.md) — WBAH call metrics from wbah_calls (London day window); provider id IS row id; fail loud "unavailable", never silent zeros.
 - [Public Content Publishing backbone](public-content-publishing-arch.md) — Lovable blog API: dual approvals, api_published honesty, snapshot overlay for updating items, SSRF-guarded verify, column-name drift trap.
 - [Universal Mind Intelligence Packet gate](universal-intelligence-packet.md) — all Mind task inserts via prepareMindTaskInsert; only ready_for_* approvable; sanitize untrusted packets; never hand-build literals.
-- [TanStack route nesting needs Outlet](tanstack-route-nesting-outlet.md) — dotted child route renders nothing if parent lacks <Outlet/>; un-nest via `parent_.$id.tsx`, URL/Links unchanged.
 - [Data Manager conversion transport](datamanager-conversion-transport.md) — conversions upload via Data Manager API (scope reauth trap, accepted≠verified, legacy only behind flag).
 - [Campaign minutes attribution](campaign-minutes-attribution.md) — calls.agent_id = provider id vs campaigns.agent_id = local uuid; DB-verify webhook metadata.campaign_id; deterministic dedup keys only.
-- [Retell phone-number agent binding](retell-phone-agent-binding.md) — legacy inbound/outbound_agent_id fields 400 since 2026-03; use inbound_agents/outbound_agents arrays; read both shapes.
 - [GPT-5.6 routing upgrade](gpt56-routing-upgrade.md) — Mind AI calls classify via task router → terra/sol/luna Responses API; routing JSONB mandatory; fallback never gpt-4o; legacy behind AI_LEGACY_CHAT_COMPLETIONS=1.
-- [Duplicate retellFetch helper trap](retell-fetch-duplicate-helper-trap.md) — file-local 3-arg retellFetch + shared 4-arg call form sent "POST" as the API key → 401; always import the shared client.
 - [WBAH test-campaign exclusion](wbah-test-campaign-exclusion.md) — isWbahTestCampaign is the sole classifier (deleted + test-lead/test-name); deleted REAL campaigns keep attributing; campaign_id backfilled via one-slot-window rule.
 - [Retell v3 list API migration & transcripts](retell-list-api-v3-migration.md) — use list.server.ts helpers; v3 list has NO transcript fields → per-call enrichment + preserve-on-upsert (retell-v3-list-no-transcripts.md).
 - [Prod build OOM heap cap](prodbuild-oom-heap.md) — max-old-space-size must stay well under machine RAM or vite SSR build is OOM-killed silently (FAILED, no error, dist/server empty); stop the dev server workflow before building.

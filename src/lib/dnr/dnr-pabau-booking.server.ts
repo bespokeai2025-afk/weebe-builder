@@ -12,10 +12,22 @@ import { pabauCreateAppointment, pabauListAppointments } from "@/lib/pabau/pabau
 import { pabauFindClientByPhone } from "@/lib/pabau/pabau-client-lookup.shared";
 import {
   iterateYmdRange,
-  dayOfWeekLondon,
   normalizeAvailabilityRange,
   slotIsFutureInLondon,
 } from "@/lib/dnr/dnr-london-dates.shared";
+import {
+  isDnrBookableLocation,
+  pabauGetLocation,
+  resolveDnrLocationId,
+  resolveDnrPractitioner,
+} from "@/lib/dnr/dnr-pabau-locations.server";
+import {
+  locationHoursForDate,
+  minutesToHm,
+  parsePabauAppointment,
+  serviceDisabledAtLocation,
+  type PabauLocationRow,
+} from "@/lib/pabau/pabau-location.shared";
 import { DNR_VOICE } from "./dnr-voice.config";
 
 export interface PabauServiceRow {
@@ -24,6 +36,7 @@ export interface PabauServiceRow {
   duration: string;
   category_name?: string;
   price?: string;
+  disabled_locations?: string;
 }
 
 function cfg(config: PabauClientConfig) {
@@ -32,9 +45,13 @@ function cfg(config: PabauClientConfig) {
   return { base, headers: pabauRequestHeaders() };
 }
 
-export async function pabauListServices(config: PabauClientConfig): Promise<PabauServiceRow[]> {
+export async function pabauListServices(
+  config: PabauClientConfig,
+  locationId?: number,
+): Promise<PabauServiceRow[]> {
   const { base, headers } = cfg(config);
   const json = await pabauFetch(`${base}/services`, { headers }, "Pabau list services");
+  const locId = locationId ?? DNR_VOICE.pabau.locationId;
   const items = pabauListItems(json);
   return items
     .filter((r): r is Record<string, unknown> => !!r && typeof r === "object")
@@ -44,8 +61,14 @@ export async function pabauListServices(config: PabauClientConfig): Promise<Paba
       duration: String(r.duration ?? ""),
       category_name: r.category_name ? String(r.category_name) : undefined,
       price: r.price ? String(r.price) : undefined,
+      disabled_locations: r.disabled_locations ? String(r.disabled_locations) : undefined,
     }))
-    .filter((s) => s.id && s.service_name);
+    .filter(
+      (s) =>
+        s.id &&
+        s.service_name &&
+        !serviceDisabledAtLocation(s.disabled_locations, locId),
+    );
 }
 
 export function matchPabauService(
@@ -124,14 +147,57 @@ function parseDurationMinutes(duration: string): number {
   return 30;
 }
 
-function apptStartIso(appt: unknown): string | null {
-  if (!appt || typeof appt !== "object") return null;
-  const a = appt as Record<string, unknown>;
-  const dates = a.dates as Record<string, unknown> | undefined;
-  const sd = dates?.start_date ?? a.start_date;
-  const st = dates?.start_time ?? a.start_time;
-  if (!sd || !st) return null;
-  return `${String(sd).slice(0, 10)}T${String(st).slice(0, 8)}`;
+function buildBookedSlotSet(
+  appointments: unknown[],
+  locationId: number,
+  practitionerId?: number,
+): Set<string> {
+  const booked = new Set<string>();
+  for (const appt of appointments) {
+    const parsed = parsePabauAppointment(appt);
+    if (!parsed) continue;
+    if (parsed.location_id != null && parsed.location_id !== locationId) continue;
+    if (practitionerId != null && parsed.practitioner_id != null && parsed.practitioner_id !== practitionerId) {
+      continue;
+    }
+    booked.add(parsed.slot_key);
+  }
+  return booked;
+}
+
+function generateLocationSlots(input: {
+  location: PabauLocationRow;
+  range: { start: string; end: string };
+  durationMin: number;
+  booked: Set<string>;
+  maxSlots?: number;
+}): Array<{ start_date: string; start_time: string; display: string }> {
+  const slots: Array<{ start_date: string; start_time: string; display: string }> = [];
+  const max = input.maxSlots ?? 12;
+  const step = 30;
+
+  for (const sd of iterateYmdRange(input.range.start, input.range.end)) {
+    if (slots.length >= max) break;
+    const hours = locationHoursForDate(input.location, sd);
+    if (!hours || hours.closed) continue;
+
+    for (let minute = hours.openMin; minute + input.durationMin <= hours.closeMin; minute += step) {
+      const hour = Math.floor(minute / 60);
+      const min = minute % 60;
+      if (!slotIsFutureInLondon(sd, hour, min)) continue;
+      const st = minutesToHm(minute);
+      const key = `${sd}T${st}`;
+      if (input.booked.has(key)) continue;
+      slots.push({
+        start_date: sd,
+        start_time: st,
+        display: `${sd} at ${st}`,
+      });
+      if (slots.length >= max) break;
+    }
+  }
+
+  return slots;
 }
 
 export async function pabauCheckAvailability(args: {
@@ -139,17 +205,51 @@ export async function pabauCheckAvailability(args: {
   serviceName: string;
   startDate: string;
   endDate: string;
+  locationId?: number;
+  practitionerId?: number;
+  practitionerName?: string;
 }): Promise<{
-  slots: Array<{ start_date: string; start_time: string; display: string }>;
+  slots: Array<{ start_date: string; start_time: string; display: string; practitioner_id?: number }>;
   summary: string;
+  location: { id: number; name: string };
+  practitioner?: { id: number; name: string };
   date_range_used: { start_date: string; end_date: string; adjusted: boolean };
 }> {
-  const services = await pabauListServices(args.config);
+  const locationId = resolveDnrLocationId(args.locationId);
+  if (!isDnrBookableLocation(locationId)) {
+    return {
+      slots: [],
+      summary: `This line only books ${DNR_VOICE.location.name}. Liverpool and London must be handled by the team.`,
+      location: { id: locationId, name: "Unsupported location" },
+      date_range_used: { start_date: args.startDate, end_date: args.endDate, adjusted: false },
+    };
+  }
+
+  const [location, practitioner] = await Promise.all([
+    pabauGetLocation(args.config, locationId),
+    resolveDnrPractitioner(args.config, locationId, {
+      practitioner_id: args.practitionerId,
+      practitioner_name: args.practitionerName,
+    }),
+  ]);
+
+  if (!location) {
+    return {
+      slots: [],
+      summary: `Location ${locationId} not found in Pabau.`,
+      location: { id: locationId, name: "Unknown" },
+      date_range_used: { start_date: args.startDate, end_date: args.endDate, adjusted: false },
+    };
+  }
+
+  const services = await pabauListServices(args.config, locationId);
   const service = matchPabauService(services, args.serviceName);
   if (!service) {
     return {
       slots: [],
-      summary: `I couldn't find a service matching "${args.serviceName}". Please call list_services for exact names.`,
+      summary: `I couldn't find a service matching "${args.serviceName}" at ${location.location_name}. Call list_services for exact names.`,
+      location: { id: location.id, name: location.location_name },
+      practitioner: practitioner ? { id: practitioner.id, name: practitioner.full_name } : undefined,
       date_range_used: { start_date: args.startDate, end_date: args.endDate, adjusted: false },
     };
   }
@@ -157,48 +257,38 @@ export async function pabauCheckAvailability(args: {
   const range = normalizeAvailabilityRange(args.startDate, args.endDate);
   const durationMin = parseDurationMinutes(service.duration);
   const appointments = await pabauListAppointments(args.config);
-  const booked = new Set<string>();
-  for (const appt of appointments) {
-    const iso = apptStartIso(appt);
-    if (iso) booked.add(iso.slice(0, 16));
-  }
+  const booked = buildBookedSlotSet(
+    appointments,
+    locationId,
+    practitioner?.id,
+  );
 
-  const slots: Array<{ start_date: string; start_time: string; display: string }> = [];
+  const rawSlots = generateLocationSlots({
+    location,
+    range,
+    durationMin,
+    booked,
+  });
 
-  for (const sd of iterateYmdRange(range.start, range.end)) {
-    if (slots.length >= 12) break;
-    const day = dayOfWeekLondon(sd);
-    if (day === 0) continue;
-    const closeHour = day === 6 ? 19 : 20;
-    for (let hour = 10; hour < closeHour; hour++) {
-      for (const minute of [0, 30]) {
-        if (hour === closeHour - 1 && minute + durationMin > 60) continue;
-        if (!slotIsFutureInLondon(sd, hour, minute)) continue;
-        const st = `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
-        const key = `${sd}T${st}`;
-        if (booked.has(key)) continue;
-        slots.push({
-          start_date: sd,
-          start_time: st,
-          display: `${sd} at ${st}`,
-        });
-        if (slots.length >= 12) break;
-      }
-      if (slots.length >= 12) break;
-    }
-  }
+  const slots = rawSlots.map((s) => ({
+    ...s,
+    ...(practitioner ? { practitioner_id: practitioner.id } : {}),
+  }));
 
+  const practNote = practitioner ? ` with ${practitioner.full_name}` : "";
   const rangeNote = range.adjusted
-    ? ` (searched ${range.start} to ${range.end} — past dates were adjusted to upcoming availability)`
+    ? ` (searched ${range.start} to ${range.end} — past dates were adjusted)`
     : "";
   const summary =
     slots.length === 0
-      ? `No slots available between ${range.start} and ${range.end}. Try a wider range or transfer to front of house.${rangeNote}`
-      : `Found ${slots.length} upcoming slot(s) for ${service.service_name} at ${DNR_VOICE.location.name}.${rangeNote}`;
+      ? `No slots at ${location.location_name}${practNote} between ${range.start} and ${range.end}. Try another date or transfer to front of house.${rangeNote}`
+      : `Found ${slots.length} slot(s) for ${service.service_name} at ${location.location_name}${practNote}.${rangeNote}`;
 
   return {
     slots,
     summary,
+    location: { id: location.id, name: location.location_name },
+    practitioner: practitioner ? { id: practitioner.id, name: practitioner.full_name } : undefined,
     date_range_used: {
       start_date: range.start,
       end_date: range.end,
@@ -214,30 +304,43 @@ export async function pabauBookAppointment(args: {
   startDate: string;
   startTime: string;
   notes?: string;
+  locationId?: number;
+  practitionerId?: number;
 }): Promise<{ ok: boolean; message: string; raw: unknown }> {
-  const services = await pabauListServices(args.config);
+  const locationId = resolveDnrLocationId(args.locationId);
+  const services = await pabauListServices(args.config, locationId);
   const service = matchPabauService(services, args.serviceName);
   if (!service) {
     return { ok: false, message: `Unknown service: ${args.serviceName}`, raw: null };
   }
 
+  const location = await pabauGetLocation(args.config, locationId);
   const body: Record<string, unknown> = {
     contact_id: args.contactId,
+    customer_id: String(args.contactId),
     service_id: service.id,
     start_date: args.startDate,
     start_time: args.startTime.length === 5 ? `${args.startTime}:00` : args.startTime,
-    location_id: DNR_VOICE.pabau.locationId,
+    location_id: locationId,
     notes: args.notes ?? "Booked via WEBEE AI receptionist",
   };
+  const employeeId = args.practitionerId ?? DNR_VOICE.pabau.defaultEmployeeId;
+  if (employeeId != null) {
+    // Pabau create API uses employee_id (staff shift calendar), not user_id / practitioner_id.
+    body.employee_id = employeeId;
+  }
 
   const raw = await pabauCreateAppointment(args.config, body as never);
   const o = raw && typeof raw === "object" ? (raw as Record<string, unknown>) : {};
   const ok = o.success !== false;
+  const locName = location?.location_name ?? DNR_VOICE.location.name;
   return {
     ok,
     message: ok
-      ? `Booked ${service.service_name} on ${args.startDate} at ${args.startTime} at Cheshire.`
+      ? `Booked ${service.service_name} on ${args.startDate} at ${args.startTime} at ${locName}.`
       : String(o.message ?? "Booking failed"),
     raw,
   };
 }
+
+export { pabauListPractitionersAtLocation } from "@/lib/dnr/dnr-pabau-locations.server";

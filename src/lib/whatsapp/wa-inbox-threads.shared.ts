@@ -1,15 +1,39 @@
 /** Shared inbox thread shape + sort/highlight rules (WATI / Avenue Elite Properties). */
 
+export type WhatsappChatStatus = "open" | "pending" | "solved";
+
 export type WhatsappInboxThread = {
   phone: string;
   name: string | null;
   lastMessage: string | null;
   lastAt: string;
-  /** 1 when the contact replied last and needs a team response */
+  /**
+   * Unread inbound messages. Comes from whatsapp_conversations when a conversation row exists;
+   * otherwise falls back to 1 when the contact replied last and needs a team response.
+   */
   unread: number;
   lastDirection?: "inbound" | "outbound" | string;
   needsReply?: boolean;
   messages: any[];
+
+  /** Conversation state — absent only when derived purely from messages. */
+  conversationId?: string;
+  status?: WhatsappChatStatus | string;
+  assigneeId?: string | null;
+  assignedTeamId?: string | null;
+  tags?: string[];
+  /** Free-form contact attributes mirrored from WATI. `any` so it passes serialization checks. */
+  attributes?: Record<string, any>;
+  lastReadAt?: string | null;
+
+  /** WATI's own view of the chat, mirrored from its ticket events. */
+  watiChatStatus?: string | null;
+  watiTopic?: string | null;
+  watiAgentName?: string | null;
+  /** Last inbound message — the 24h reply window is measured from here. */
+  lastInboundAt?: string | null;
+  /** Where the newest outbound message came from: campaign / bot / template / wati. */
+  lastMessageOrigin?: string | null;
 };
 
 /** True when the contact's message is the latest in the thread. */

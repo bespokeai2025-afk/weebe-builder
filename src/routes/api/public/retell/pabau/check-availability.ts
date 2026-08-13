@@ -14,6 +14,9 @@ export const Route = createFileRoute("/api/public/retell/pabau/check-availabilit
             service_name: z.string().min(1),
             start_date: z.string().optional(),
             end_date: z.string().optional(),
+            location_id: z.union([z.string(), z.number()]).optional(),
+            practitioner_id: z.union([z.string(), z.number()]).optional(),
+            practitioner_name: z.string().optional(),
           }).safeParse(args);
           if (!body.success) {
             return dnrPabauJson({ error: "service_name required" }, 400);
@@ -23,18 +26,22 @@ export const Route = createFileRoute("/api/public/retell/pabau/check-availabilit
             serviceName: body.data.service_name,
             startDate: body.data.start_date ?? "",
             endDate: body.data.end_date ?? "",
+            locationId: body.data.location_id != null ? Number(body.data.location_id) : undefined,
+            practitionerId:
+              body.data.practitioner_id != null ? Number(body.data.practitioner_id) : undefined,
+            practitionerName: body.data.practitioner_name,
           });
-          if (result.slots.length) {
-            saveDnrAvailabilitySession({
-              workspaceId,
-              retellCallId,
-              service_name: body.data.service_name,
-              slots: result.slots.map((s) => ({
-                start_date: s.start_date,
-                start_time: s.start_time,
-              })),
-            });
-          }
+          saveDnrAvailabilitySession({
+            workspaceId,
+            retellCallId,
+            service_name: body.data.service_name,
+            location_id: result.location.id,
+            practitioner_id: result.practitioner?.id,
+            slots: result.slots.map((s) => ({
+              start_date: s.start_date,
+              start_time: s.start_time,
+            })),
+          });
           return dnrPabauJson(result);
         }),
     },

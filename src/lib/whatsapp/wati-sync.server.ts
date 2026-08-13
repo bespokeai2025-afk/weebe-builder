@@ -54,7 +54,7 @@ async function watiGetV1(conn: WatiConn, path: string): Promise<{ ok: boolean; s
 }
 
 async function watiGetV3(conn: WatiConn, path: string): Promise<{ ok: boolean; status: number; json: Record<string, unknown> }> {
-  const res = await fetch(`${watiApiV3Base(conn.tenant_id, conn.api_host)}${path}`, {
+  const res = await fetch(`${watiApiV3Base(conn.api_host)}${path}`, {
     headers: authHeaders(conn.api_key),
   });
   const text = await res.text();

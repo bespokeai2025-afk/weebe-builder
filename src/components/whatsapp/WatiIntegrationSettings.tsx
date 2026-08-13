@@ -25,6 +25,7 @@ import {
   confirmWatiWebhookManual,
 } from "@/lib/whatsapp/wati.functions";
 import { WhatsAppWarmupPanel } from "./WhatsAppWarmupPanel";
+import { WhatsAppTeamsPanel } from "./WhatsAppTeamsPanel";
 
 
 export function WatiIntegrationSettings() {
@@ -291,6 +292,60 @@ export function WatiIntegrationSettings() {
               <p className="text-[10px] font-mono text-muted-foreground break-all bg-muted/40 rounded p-2">
                 {(conn as { webhookUrl?: string }).webhookUrl}
               </p>
+
+              {/* Delivery health — "Confirm manual setup" only records intent, this records reality. */}
+              {(() => {
+                const lastAt = (conn as { lastWebhookEventAt?: string | null })
+                  .lastWebhookEventAt;
+                const lastType = (conn as { lastWebhookEventType?: string | null })
+                  .lastWebhookEventType;
+                const stale =
+                  !lastAt || Date.now() - new Date(lastAt).getTime() > 48 * 60 * 60 * 1000;
+
+                return (
+                  <div
+                    className={`flex items-start gap-2 rounded-md border p-2.5 ${
+                      stale
+                        ? "bg-amber-500/10 border-amber-500/20"
+                        : "bg-green-500/10 border-green-500/20"
+                    }`}
+                  >
+                    {stale ? (
+                      <AlertCircle className="h-3.5 w-3.5 text-amber-500 mt-0.5 shrink-0" />
+                    ) : (
+                      <CheckCircle2 className="h-3.5 w-3.5 text-green-500 mt-0.5 shrink-0" />
+                    )}
+                    <div className="space-y-0.5 min-w-0">
+                      {!lastAt ? (
+                        <>
+                          <p className="text-xs font-medium text-foreground">
+                            No webhook events received yet
+                          </p>
+                          <p className="text-[10px] text-muted-foreground leading-relaxed">
+                            Inbound replies cannot reach BuzzChat until WATI delivers to this URL.
+                            Save the webhook in WATI, set Status = Enabled, then use “Trigger sample
+                            callback”.
+                          </p>
+                        </>
+                      ) : (
+                        <>
+                          <p className="text-xs font-medium text-foreground">
+                            Last event <RelativeTime date={lastAt} />
+                            {lastType ? ` · ${lastType}` : ""}
+                          </p>
+                          {stale && (
+                            <p className="text-[10px] text-muted-foreground leading-relaxed">
+                              Nothing received in over 48 hours — check the webhook is still enabled
+                              in WATI.
+                            </p>
+                          )}
+                        </>
+                      )}
+                    </div>
+                  </div>
+                );
+              })()}
+
               {webhookStatus ? (
                 <div
                   className={`flex items-start gap-2 rounded-md border p-2.5 ${
@@ -389,6 +444,10 @@ export function WatiIntegrationSettings() {
                 </div>
               ))}
             </div>
+
+            <Separator />
+
+            <WhatsAppTeamsPanel />
 
             <Separator />
 

@@ -72,6 +72,7 @@ import { Route as AuthenticatedHexmailIndexRouteImport } from './routes/_authent
 import { Route as AuthenticatedGrowthmindIndexRouteImport } from './routes/_authenticated/growthmind.index'
 import { Route as AuthenticatedAdminIndexRouteImport } from './routes/_authenticated/admin.index'
 import { Route as LovableEmailSuppressionRouteImport } from './routes/lovable/email/suppression'
+import { Route as ApiWhatsappMediaRouteImport } from './routes/api/whatsapp/media'
 import { Route as ApiWebhookWatiInboundRouteImport } from './routes/api/webhook/wati-inbound'
 import { Route as ApiWebhookCustomTelemetryRouteImport } from './routes/api/webhook/custom-telemetry'
 import { Route as ApiV1WebhooksRouteImport } from './routes/api/v1/webhooks'
@@ -316,6 +317,7 @@ import { Route as ApiRuntimeAgentIdExportRouteImport } from './routes/api/runtim
 import { Route as ApiPublicTelephonyStatusHealthRouteImport } from './routes/api/public/telephony/status.health'
 import { Route as ApiPublicTelephonyInboundHealthRouteImport } from './routes/api/public/telephony/inbound.health'
 import { Route as ApiPublicRetellPabauListServicesRouteImport } from './routes/api/public/retell/pabau/list-services'
+import { Route as ApiPublicRetellPabauListLocationsRouteImport } from './routes/api/public/retell/pabau/list-locations'
 import { Route as ApiPublicRetellPabauFindOrCreateClientRouteImport } from './routes/api/public/retell/pabau/find-or-create-client'
 import { Route as ApiPublicRetellPabauCheckAvailabilityRouteImport } from './routes/api/public/retell/pabau/check-availability'
 import { Route as ApiPublicRetellPabauBookAppointmentRouteImport } from './routes/api/public/retell/pabau/book-appointment'
@@ -660,6 +662,11 @@ const AuthenticatedAdminIndexRoute = AuthenticatedAdminIndexRouteImport.update({
 const LovableEmailSuppressionRoute = LovableEmailSuppressionRouteImport.update({
   id: '/lovable/email/suppression',
   path: '/lovable/email/suppression',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiWhatsappMediaRoute = ApiWhatsappMediaRouteImport.update({
+  id: '/api/whatsapp/media',
+  path: '/api/whatsapp/media',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiWebhookWatiInboundRoute = ApiWebhookWatiInboundRouteImport.update({
@@ -2066,6 +2073,12 @@ const ApiPublicRetellPabauListServicesRoute =
     path: '/api/public/retell/pabau/list-services',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiPublicRetellPabauListLocationsRoute =
+  ApiPublicRetellPabauListLocationsRouteImport.update({
+    id: '/api/public/retell/pabau/list-locations',
+    path: '/api/public/retell/pabau/list-locations',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiPublicRetellPabauFindOrCreateClientRoute =
   ApiPublicRetellPabauFindOrCreateClientRouteImport.update({
     id: '/api/public/retell/pabau/find-or-create-client',
@@ -2378,6 +2391,7 @@ export interface FileRoutesByFullPath {
   '/api/v1/webhooks': typeof ApiV1WebhooksRoute
   '/api/webhook/custom-telemetry': typeof ApiWebhookCustomTelemetryRoute
   '/api/webhook/wati-inbound': typeof ApiWebhookWatiInboundRoute
+  '/api/whatsapp/media': typeof ApiWhatsappMediaRoute
   '/lovable/email/suppression': typeof LovableEmailSuppressionRoute
   '/admin/': typeof AuthenticatedAdminIndexRoute
   '/growthmind/': typeof AuthenticatedGrowthmindIndexRoute
@@ -2469,6 +2483,7 @@ export interface FileRoutesByFullPath {
   '/api/public/retell/pabau/book-appointment': typeof ApiPublicRetellPabauBookAppointmentRoute
   '/api/public/retell/pabau/check-availability': typeof ApiPublicRetellPabauCheckAvailabilityRoute
   '/api/public/retell/pabau/find-or-create-client': typeof ApiPublicRetellPabauFindOrCreateClientRoute
+  '/api/public/retell/pabau/list-locations': typeof ApiPublicRetellPabauListLocationsRoute
   '/api/public/retell/pabau/list-services': typeof ApiPublicRetellPabauListServicesRoute
   '/api/public/telephony/inbound/health': typeof ApiPublicTelephonyInboundHealthRoute
   '/api/public/telephony/status/health': typeof ApiPublicTelephonyStatusHealthRoute
@@ -2693,6 +2708,7 @@ export interface FileRoutesByTo {
   '/api/v1/webhooks': typeof ApiV1WebhooksRoute
   '/api/webhook/custom-telemetry': typeof ApiWebhookCustomTelemetryRoute
   '/api/webhook/wati-inbound': typeof ApiWebhookWatiInboundRoute
+  '/api/whatsapp/media': typeof ApiWhatsappMediaRoute
   '/lovable/email/suppression': typeof LovableEmailSuppressionRoute
   '/admin': typeof AuthenticatedAdminIndexRoute
   '/growthmind': typeof AuthenticatedGrowthmindIndexRoute
@@ -2783,6 +2799,7 @@ export interface FileRoutesByTo {
   '/api/public/retell/pabau/book-appointment': typeof ApiPublicRetellPabauBookAppointmentRoute
   '/api/public/retell/pabau/check-availability': typeof ApiPublicRetellPabauCheckAvailabilityRoute
   '/api/public/retell/pabau/find-or-create-client': typeof ApiPublicRetellPabauFindOrCreateClientRoute
+  '/api/public/retell/pabau/list-locations': typeof ApiPublicRetellPabauListLocationsRoute
   '/api/public/retell/pabau/list-services': typeof ApiPublicRetellPabauListServicesRoute
   '/api/public/telephony/inbound/health': typeof ApiPublicTelephonyInboundHealthRoute
   '/api/public/telephony/status/health': typeof ApiPublicTelephonyStatusHealthRoute
@@ -3018,6 +3035,7 @@ export interface FileRoutesById {
   '/api/v1/webhooks': typeof ApiV1WebhooksRoute
   '/api/webhook/custom-telemetry': typeof ApiWebhookCustomTelemetryRoute
   '/api/webhook/wati-inbound': typeof ApiWebhookWatiInboundRoute
+  '/api/whatsapp/media': typeof ApiWhatsappMediaRoute
   '/lovable/email/suppression': typeof LovableEmailSuppressionRoute
   '/_authenticated/admin/': typeof AuthenticatedAdminIndexRoute
   '/_authenticated/growthmind/': typeof AuthenticatedGrowthmindIndexRoute
@@ -3109,6 +3127,7 @@ export interface FileRoutesById {
   '/api/public/retell/pabau/book-appointment': typeof ApiPublicRetellPabauBookAppointmentRoute
   '/api/public/retell/pabau/check-availability': typeof ApiPublicRetellPabauCheckAvailabilityRoute
   '/api/public/retell/pabau/find-or-create-client': typeof ApiPublicRetellPabauFindOrCreateClientRoute
+  '/api/public/retell/pabau/list-locations': typeof ApiPublicRetellPabauListLocationsRoute
   '/api/public/retell/pabau/list-services': typeof ApiPublicRetellPabauListServicesRoute
   '/api/public/telephony/inbound/health': typeof ApiPublicTelephonyInboundHealthRoute
   '/api/public/telephony/status/health': typeof ApiPublicTelephonyStatusHealthRoute
@@ -3344,6 +3363,7 @@ export interface FileRouteTypes {
     | '/api/v1/webhooks'
     | '/api/webhook/custom-telemetry'
     | '/api/webhook/wati-inbound'
+    | '/api/whatsapp/media'
     | '/lovable/email/suppression'
     | '/admin/'
     | '/growthmind/'
@@ -3435,6 +3455,7 @@ export interface FileRouteTypes {
     | '/api/public/retell/pabau/book-appointment'
     | '/api/public/retell/pabau/check-availability'
     | '/api/public/retell/pabau/find-or-create-client'
+    | '/api/public/retell/pabau/list-locations'
     | '/api/public/retell/pabau/list-services'
     | '/api/public/telephony/inbound/health'
     | '/api/public/telephony/status/health'
@@ -3659,6 +3680,7 @@ export interface FileRouteTypes {
     | '/api/v1/webhooks'
     | '/api/webhook/custom-telemetry'
     | '/api/webhook/wati-inbound'
+    | '/api/whatsapp/media'
     | '/lovable/email/suppression'
     | '/admin'
     | '/growthmind'
@@ -3749,6 +3771,7 @@ export interface FileRouteTypes {
     | '/api/public/retell/pabau/book-appointment'
     | '/api/public/retell/pabau/check-availability'
     | '/api/public/retell/pabau/find-or-create-client'
+    | '/api/public/retell/pabau/list-locations'
     | '/api/public/retell/pabau/list-services'
     | '/api/public/telephony/inbound/health'
     | '/api/public/telephony/status/health'
@@ -3983,6 +4006,7 @@ export interface FileRouteTypes {
     | '/api/v1/webhooks'
     | '/api/webhook/custom-telemetry'
     | '/api/webhook/wati-inbound'
+    | '/api/whatsapp/media'
     | '/lovable/email/suppression'
     | '/_authenticated/admin/'
     | '/_authenticated/growthmind/'
@@ -4074,6 +4098,7 @@ export interface FileRouteTypes {
     | '/api/public/retell/pabau/book-appointment'
     | '/api/public/retell/pabau/check-availability'
     | '/api/public/retell/pabau/find-or-create-client'
+    | '/api/public/retell/pabau/list-locations'
     | '/api/public/retell/pabau/list-services'
     | '/api/public/telephony/inbound/health'
     | '/api/public/telephony/status/health'
@@ -4159,6 +4184,7 @@ export interface RootRouteChildren {
   ApiV1WebhooksRoute: typeof ApiV1WebhooksRoute
   ApiWebhookCustomTelemetryRoute: typeof ApiWebhookCustomTelemetryRoute
   ApiWebhookWatiInboundRoute: typeof ApiWebhookWatiInboundRoute
+  ApiWhatsappMediaRoute: typeof ApiWhatsappMediaRoute
   LovableEmailSuppressionRoute: typeof LovableEmailSuppressionRoute
   ApiInternalAgentToolsIdRoute: typeof ApiInternalAgentToolsIdRoute
   ApiPublicAgentsRegisterRoute: typeof ApiPublicAgentsRegisterRoute
@@ -4211,6 +4237,7 @@ export interface RootRouteChildren {
   ApiPublicRetellPabauBookAppointmentRoute: typeof ApiPublicRetellPabauBookAppointmentRoute
   ApiPublicRetellPabauCheckAvailabilityRoute: typeof ApiPublicRetellPabauCheckAvailabilityRoute
   ApiPublicRetellPabauFindOrCreateClientRoute: typeof ApiPublicRetellPabauFindOrCreateClientRoute
+  ApiPublicRetellPabauListLocationsRoute: typeof ApiPublicRetellPabauListLocationsRoute
   ApiPublicRetellPabauListServicesRoute: typeof ApiPublicRetellPabauListServicesRoute
   ApiPublicV1SitesSiteKeyCategoriesRoute: typeof ApiPublicV1SitesSiteKeyCategoriesRoute
   ApiPublicV1SitesSiteKeyFeedRoute: typeof ApiPublicV1SitesSiteKeyFeedRoute
@@ -4660,6 +4687,13 @@ declare module '@tanstack/react-router' {
       path: '/lovable/email/suppression'
       fullPath: '/lovable/email/suppression'
       preLoaderRoute: typeof LovableEmailSuppressionRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/whatsapp/media': {
+      id: '/api/whatsapp/media'
+      path: '/api/whatsapp/media'
+      fullPath: '/api/whatsapp/media'
+      preLoaderRoute: typeof ApiWhatsappMediaRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/webhook/wati-inbound': {
@@ -6370,6 +6404,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicRetellPabauListServicesRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/retell/pabau/list-locations': {
+      id: '/api/public/retell/pabau/list-locations'
+      path: '/api/public/retell/pabau/list-locations'
+      fullPath: '/api/public/retell/pabau/list-locations'
+      preLoaderRoute: typeof ApiPublicRetellPabauListLocationsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/retell/pabau/find-or-create-client': {
       id: '/api/public/retell/pabau/find-or-create-client'
       path: '/api/public/retell/pabau/find-or-create-client'
@@ -7390,6 +7431,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiV1WebhooksRoute: ApiV1WebhooksRoute,
   ApiWebhookCustomTelemetryRoute: ApiWebhookCustomTelemetryRoute,
   ApiWebhookWatiInboundRoute: ApiWebhookWatiInboundRoute,
+  ApiWhatsappMediaRoute: ApiWhatsappMediaRoute,
   LovableEmailSuppressionRoute: LovableEmailSuppressionRoute,
   ApiInternalAgentToolsIdRoute: ApiInternalAgentToolsIdRoute,
   ApiPublicAgentsRegisterRoute: ApiPublicAgentsRegisterRoute,
@@ -7450,6 +7492,8 @@ const rootRouteChildren: RootRouteChildren = {
     ApiPublicRetellPabauCheckAvailabilityRoute,
   ApiPublicRetellPabauFindOrCreateClientRoute:
     ApiPublicRetellPabauFindOrCreateClientRoute,
+  ApiPublicRetellPabauListLocationsRoute:
+    ApiPublicRetellPabauListLocationsRoute,
   ApiPublicRetellPabauListServicesRoute: ApiPublicRetellPabauListServicesRoute,
   ApiPublicV1SitesSiteKeyCategoriesRoute:
     ApiPublicV1SitesSiteKeyCategoriesRoute,

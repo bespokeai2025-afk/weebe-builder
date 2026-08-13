@@ -5,6 +5,7 @@
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { dispatchCrmPostCall } from "@/lib/crm/crm-dispatch.server";
 import { emitCampaignNotification } from "@/lib/notifications/notification-engine.shared";
+import { normalizeWhatsAppPhone } from "@/lib/whatsapp/wati-campaign.server";
 
 /** Best-effort workflow_error notification. Never throws. */
 export async function notifyWorkflowError(opts: {
@@ -303,15 +304,22 @@ async function executeStep(
           .eq("id", ctx.leadId)
           .maybeSingle();
         if (!lead?.phone) return skipped(step, "No phone number");
-        // Dispatch to whatsapp_messages queue — picked up by WhatsApp Centre
-        await sb.from("whatsapp_messages").insert({
-          workspace_id: ctx.workspaceId,
-          to_number:    lead.phone,
-          template:     step.template ?? "workflow_notification",
-          status:       "queued",
-          metadata:     { workflow_run_id: ctx.runId, lead_id: ctx.leadId },
-          created_at:   new Date().toISOString(),
-        }).catch(() => {}); // table may not exist in all deployments
+        // Queue an outbound row for the WhatsApp Centre to pick up. to_number/template/metadata
+        // are not columns on whatsapp_messages, so the previous insert always failed — and the
+        // swallowed rejection made every send_whatsapp step look successful.
+        const templateName = step.template ?? "workflow_notification";
+        const { error: waErr } = await sb.from("whatsapp_messages").insert({
+          workspace_id:  ctx.workspaceId,
+          contact_phone: normalizeWhatsAppPhone(lead.phone),
+          contact_name:  lead.full_name ?? null,
+          lead_id:       ctx.leadId,
+          direction:     "outbound",
+          provider:      "wati",
+          status:        "queued",
+          body:          `[Template: ${templateName}]`,
+          sent_at:       new Date().toISOString(),
+        });
+        if (waErr) return skipped(step, `WhatsApp queue failed: ${waErr.message}`);
         return ok(step, { whatsapp_queued: true, phone: lead.phone });
       }
 

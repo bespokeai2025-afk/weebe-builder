@@ -273,6 +273,18 @@ function parseV1SendResponse(
   return { ok: true, messageId };
 }
 
+/**
+ * V3 template send is opt-in via WATI_ENABLE_V3_SEND=1.
+ *
+ * watiApiV3Base used to prefix the tenant id, which made every V3 request 404 — and the send
+ * helpers treat 404 as "V3 unavailable" and fall back to V1. So the V3 batch path has never
+ * actually executed against WATI. Now that the base URL is fixed, keep campaign sending on the
+ * proven V1 path until a V3 send has been validated with a live message.
+ */
+function watiV3SendEnabled(): boolean {
+  return process.env.WATI_ENABLE_V3_SEND === "1";
+}
+
 /** V3 batch send — POST /api/ext/v3/messageTemplates/send (docs.wati.io) */
 async function postWatiTemplateSendV3(opts: {
   tenantId: string;
@@ -287,7 +299,7 @@ async function postWatiTemplateSendV3(opts: {
     localMessageId?: string;
   }>;
 }): Promise<{ ok: boolean; status: number; data: Record<string, unknown>; text: string }> {
-  const url = `${watiApiV3Base(opts.tenantId, opts.apiHost)}/messageTemplates/send`;
+  const url = `${watiApiV3Base(opts.apiHost)}/messageTemplates/send`;
   const body = JSON.stringify({
     channel: opts.channel ?? null,
     template_name: opts.templateName,
@@ -428,7 +440,7 @@ export async function sendWatiTemplateMessagesBatch(opts: {
   }
 
   const allResults: WatiTemplateSendResult[] = [];
-  let useV1 = false;
+  let useV1 = !watiV3SendEnabled();
 
   for (let i = 0; i < validItems.length; i += WATI_V3_SEND_CHUNK_SIZE) {
     if (useV1) break;
@@ -516,30 +528,33 @@ export async function sendWatiTemplateMessage(opts: {
 
   try {
     const localMessageId = newWatiLocalMessageId();
-    const localIdsByPhone = new Map<string, string>([[phone, localMessageId]]);
-    const v3 = await postWatiTemplateSendV3({
-      tenantId: opts.tenantId,
-      apiKey: opts.apiKey,
-      apiHost: opts.apiHost,
-      templateName: opts.templateName,
-      broadcastName: opts.broadcastName,
-      recipients: [{ phone, parameters: opts.parameters, localMessageId }],
-    });
 
-    if (v3.status !== 404 && v3.status !== 501) {
-      const [result] = parseV3BatchResults(
-        [{ phone, parameters: opts.parameters }],
-        v3.data,
-        v3.ok,
-        v3.text,
-        localIdsByPhone,
-      );
-      if (result) {
-        return {
-          messageId: result.messageId ?? "",
-          ok: result.ok,
-          error: result.error,
-        };
+    if (watiV3SendEnabled()) {
+      const localIdsByPhone = new Map<string, string>([[phone, localMessageId]]);
+      const v3 = await postWatiTemplateSendV3({
+        tenantId: opts.tenantId,
+        apiKey: opts.apiKey,
+        apiHost: opts.apiHost,
+        templateName: opts.templateName,
+        broadcastName: opts.broadcastName,
+        recipients: [{ phone, parameters: opts.parameters, localMessageId }],
+      });
+
+      if (v3.status !== 404 && v3.status !== 501) {
+        const [result] = parseV3BatchResults(
+          [{ phone, parameters: opts.parameters }],
+          v3.data,
+          v3.ok,
+          v3.text,
+          localIdsByPhone,
+        );
+        if (result) {
+          return {
+            messageId: result.messageId ?? "",
+            ok: result.ok,
+            error: result.error,
+          };
+        }
       }
     }
 
@@ -686,8 +701,7 @@ export function isWatiStatusEvent(payload: Record<string, unknown>): boolean {
   return (
     t.includes("sentmessagedelivered") ||
     t.includes("sentmessageread") ||
-    t.includes("templatemessagefailed") ||
-    t.includes("sessionmessagesent")
+    t.includes("templatemessagefailed")
   );
 }
 
@@ -710,6 +724,42 @@ export function isWatiInboundMessageEvent(payload: Record<string, unknown>): boo
   return false;
 }
 
+/**
+ * Text from a WATI interactive reply — a quick-reply button tap or list pick.
+ *
+ * Campaign replies are usually button taps, so missing these drops the most common reply of
+ * all. Accepts snake_case (API V3 message rows) and camelCase (V1 rows + webhook payloads).
+ */
+export function extractWatiInteractiveReplyText(
+  payload: Record<string, unknown>,
+): string | null {
+  const nested = (...keys: string[]): Record<string, unknown> | null => {
+    for (const key of keys) {
+      const value = payload[key];
+      if (value && typeof value === "object") return value as Record<string, unknown>;
+    }
+    return null;
+  };
+
+  const firstText = (
+    source: Record<string, unknown> | null,
+    ...keys: string[]
+  ): string | null => {
+    if (!source) return null;
+    for (const key of keys) {
+      const value = source[key];
+      if (typeof value === "string" && value.trim()) return value.trim();
+    }
+    return null;
+  };
+
+  return (
+    firstText(nested("buttonReply", "button_reply"), "text", "title") ??
+    firstText(nested("listReply", "list_reply"), "title", "description") ??
+    firstText(nested("interactiveButtonReply", "interactive_button_reply"), "title", "text")
+  );
+}
+
 /** Text body from WATI inbound / reply webhooks (incl. button & list replies). */
 export function extractWatiInboundMessageText(payload: Record<string, unknown>): string | null {
   if (typeof payload.text === "string" && payload.text.trim()) {
@@ -722,30 +772,18 @@ export function extractWatiInboundMessageText(payload: Record<string, unknown>):
     payload.caption;
   if (typeof nested === "string" && nested.trim()) return nested.trim();
 
-  const buttonReply = payload.buttonReply as Record<string, unknown> | null | undefined;
-  if (typeof buttonReply?.text === "string" && buttonReply.text.trim()) {
-    return buttonReply.text.trim();
-  }
-
-  const listReply = payload.listReply as Record<string, unknown> | null | undefined;
-  if (typeof listReply?.title === "string" && listReply.title.trim()) {
-    return listReply.title.trim();
-  }
-  if (typeof listReply?.description === "string" && listReply.description.trim()) {
-    return listReply.description.trim();
-  }
-
-  const interactive = payload.interactiveButtonReply as Record<string, unknown> | null | undefined;
-  if (typeof interactive?.title === "string" && interactive.title.trim()) {
-    return interactive.title.trim();
-  }
-
-  return null;
+  return extractWatiInteractiveReplyText(payload);
 }
 
-/** Outbound chat from WATI bots / agents (owner === true). */
+/**
+ * Outbound chat from WATI bots / agents (owner === true).
+ *
+ * sessionMessageSent_v2 is a real message, not a status change — treating it as a status update
+ * meant replies an agent sent from WATI's own Team Inbox never mirrored into BuzzChat.
+ */
 export function isWatiOutboundMessageEvent(payload: Record<string, unknown>): boolean {
   const t = String(payload.eventType ?? payload.type ?? payload.event ?? "").toLowerCase();
+  if (t.includes("sessionmessagesent")) return true;
   return (t === "message" || t === "message_bsuid") && payload.owner === true;
 }
 
@@ -753,15 +791,11 @@ export function isWatiOutboundMessageEvent(payload: Record<string, unknown>): bo
 export function parseWatiChatMessage(
   payload: Record<string, unknown>,
   direction: "inbound" | "outbound",
-): {
-  contact_phone: string;
-  contact_name: string | null;
-  body: string;
-  external_id: string;
-  whatsapp_message_id: string | null;
-  sent_at: string;
-  sender_channel: string | null;
-} | null {
+):
+  | (NonNullable<ReturnType<typeof parseWatiInboundMessage>> & {
+      sender_channel: string | null;
+    })
+  | null {
   const parsed = parseWatiInboundMessage(payload);
   if (!parsed) return null;
 
@@ -785,6 +819,44 @@ function parseWatiInboundMessageSentAt(payload: Record<string, unknown>): string
   return new Date().toISOString();
 }
 
+/** Human label for a media / non-text WATI message, e.g. "[image]". */
+function watiNonTextBodyLabel(payload: Record<string, unknown>): string {
+  const type = String(payload.type ?? "").trim().toLowerCase();
+  const known = [
+    "image",
+    "video",
+    "audio",
+    "voice",
+    "document",
+    "sticker",
+    "location",
+    "contacts",
+    "reaction",
+    "order",
+    "catalog",
+  ];
+  return known.includes(type) ? `[${type}]` : "[Non-text message]";
+}
+
+/** Media url / mime / filename from a WATI message payload, when it carries an attachment. */
+function parseWatiMediaFields(payload: Record<string, unknown>): {
+  media_url: string | null;
+  media_mime_type: string | null;
+  media_filename: string | null;
+} {
+  const data = (payload.data ?? null) as Record<string, unknown> | null;
+  const str = (value: unknown): string | null => {
+    const s = value == null ? "" : String(value).trim();
+    return s || null;
+  };
+
+  return {
+    media_url: str(payload.sourceUrl ?? payload.source_url ?? data?.url ?? data?.link),
+    media_mime_type: str(data?.mimeType ?? data?.mime_type ?? payload.mimeType),
+    media_filename: str(data?.fileName ?? data?.file_name ?? data?.filename),
+  };
+}
+
 /** Parse WATI inbound webhook payload into a row for whatsapp_messages. */
 export function parseWatiInboundMessage(
   payload: Record<string, unknown>,
@@ -796,6 +868,13 @@ export function parseWatiInboundMessage(
   external_id: string;
   whatsapp_message_id: string | null;
   sent_at: string;
+  conversation_id: string | null;
+  ticket_id: string | null;
+  reply_context_id: string | null;
+  media_url: string | null;
+  media_mime_type: string | null;
+  media_filename: string | null;
+  wati_status: string | null;
 } | null {
   const phoneRaw =
     opts?.contactPhone ??
@@ -817,7 +896,7 @@ export function parseWatiInboundMessage(
     return null;
   }
 
-  const body = text ?? "[Non-text message]";
+  const body = text ?? watiNonTextBodyLabel(payload);
 
   const whatsapp_message_id =
     payload.whatsappMessageId != null ? String(payload.whatsappMessageId) : null;
@@ -840,7 +919,24 @@ export function parseWatiInboundMessage(
         ? String((payload.contact as Record<string, unknown>).name)
         : null;
 
-  return { contact_phone, contact_name, body, external_id, whatsapp_message_id, sent_at };
+  const idOrNull = (value: unknown): string | null => {
+    const s = value == null ? "" : String(value).trim();
+    return s || null;
+  };
+
+  return {
+    contact_phone,
+    contact_name,
+    body,
+    external_id,
+    whatsapp_message_id,
+    sent_at,
+    conversation_id: idOrNull(payload.conversationId ?? payload.conversation_id),
+    ticket_id: idOrNull(payload.ticketId ?? payload.ticket_id),
+    reply_context_id: idOrNull(payload.replyContextId ?? payload.reply_context_id),
+    wati_status: idOrNull(payload.statusString ?? payload.status),
+    ...parseWatiMediaFields(payload),
+  };
 }
 
 /** Parse sentMessageREPLIED_v2 (campaign reply) once contact phone is known. */
