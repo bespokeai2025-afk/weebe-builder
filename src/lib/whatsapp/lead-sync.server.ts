@@ -119,6 +119,8 @@ export async function matchOrCreateLeadForWhatsApp(
       phone: normalizedPhone,
       full_name: contactName ?? null,
       source: "whatsapp",
+      lead_origin: "whatsapp",
+      origin_provider: "WATI",
       status: "need_to_call",
       has_buzzchat_reply: true,
       last_buzzchat_reply_at: replyAt,

@@ -1,4 +1,8 @@
+import { ensureValidSupabaseUrlEnv } from "./lib/supabase-url-guard";
 import "./lib/error-capture";
+
+// Must run before any Supabase client module reads process.env (see guard module).
+ensureValidSupabaseUrlEnv();
 
 import { consumeLastCapturedError } from "./lib/error-capture";
 import { renderErrorPage } from "./lib/error-page";

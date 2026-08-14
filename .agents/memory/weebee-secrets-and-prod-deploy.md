@@ -22,3 +22,16 @@ Login is browser→Supabase (`signInWithPassword`), but right after it navigates
 Note (2026-07-16): prod secret values can arrive malformed as `NAME="value"` pasted whole into the value — Upstash init logged UrlError and caching silently disabled (every heavy page recomputed, 10-35s server fns). redis.server.ts now sanitizes (strips NAME= prefix + quotes) via cleanEnvValue(); reuse that pattern for any env-configured client.
 
 Update 2: the TOKEN secret contained the ENTIRE pasted block (URL line + token line in one value) — a plain "strip NAME= prefix" cleaner is not enough. cleanEnvValue() now regex-extracts the value anchored to the requested name anywhere in the blob. Also: when Upstash rejects auth (WRONGPASS), every cache call is a failing HTTP round-trip; disableOnAuthError() kills the client for the process lifetime after the first auth error.
+
+## Corrupted VITE_SUPABASE_URL secret + env-guard pin (Aug 2026)
+The VITE_SUPABASE_URL and SUPABASE_URL secrets have repeatedly been saved with the
+service-role key pasted in place of the URL, and user edits via the Secrets pane did
+not stick. Defense now in code:
+- `env-guard.ts` (FIRST import of vite.config.ts — import order matters, plugins
+  capture process.env at import time) normalizes both vars to the canonical public URL.
+- vite.config `define` pins `import.meta.env.VITE_SUPABASE_URL` so the client bundle
+  can never bake a corrupted secret (grep dist/client for `service_role` after builds).
+- `scripts/prod-entry.mjs` mirrors the normalization for the prod server runtime.
+**Why:** a JWT in a VITE_ var would ship the service-role key in public JS.
+**How to apply:** never remove env-guard; if the Supabase project ref ever changes,
+update CANONICAL_SUPABASE_URL in both files.

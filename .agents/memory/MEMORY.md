@@ -156,3 +156,4 @@
 - [SEO Opportunity Queue](seo-opportunity-queue.md) — alias-free core off GSC sync; CAS claim before action create; query-keyed items → campaigns, only URL-keyed → packages; package verify = delivery only.
 - [Clarity + Website Change Queue](clarity-website-change-queue.md) — 10 req/project/day API; all calls via one quota-lease choke point; website changes = handoff packages, never "live".
 - [Website Ava web-call lead capture](ava-web-call-arch.md) — signed-webhook-only 401s, event:call_id dedup, admin-key-set authz (keys shared across ws), tool-result-only booking truth, version-pinned sessions.
+- [Canonical lead origin system](lead-origin-system.md) — lead_origin+origin_provider columns; deriveLeadOrigin() fallback; all creation paths stamped; web filter uses client-side derivation.

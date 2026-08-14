@@ -1,0 +1,420 @@
+URGENT — ADD CANONICAL LEAD ORIGIN / SOURCE ACROSS WEB + MOBILE
+
+We now need WEBEE to identify WHERE every lead came from and expose that consistently on both the WEB app and MOBILE app.
+
+Known examples:
+
+- Avenue Elite leads are coming from WhatsApp through WATI / BuzzChat.
+- WBAH leads are primarily leads that have entered the system through calling activity.
+
+Do NOT hardcode these two clients as the permanent solution.
+
+Build a canonical Lead Origin system that determines the source of every lead from the underlying records/integrations.
+
+==================================================
+1. CANONICAL LEAD ORIGIN
+==================================================
+
+Add a normalized field such as:
+
+lead_origin
+
+Supported origins should include where applicable:
+
+- whatsapp
+- voice_call
+- web_form
+- manual
+- csv_import
+- crm
+- email
+- sms
+- campaign
+- api
+- unknown
+
+And also preserve more specific provider metadata where available:
+
+origin_provider:
+- WATI
+- Meta WhatsApp
+- Twilio WhatsApp
+- Retell
+- WEBEE Voice
+- website
+- CRM name
+- CSV
+- API
+etc.
+
+Do not confuse:
+
+lead origin
+with
+campaign
+with
+lead status
+with
+sentiment.
+
+These are separate dimensions.
+
+==================================================
+2. DETERMINE ORIGIN FROM ACTUAL DATA
+==================================================
+
+Trace each lead back to its real creation/activity source.
+
+Examples:
+
+Avenue Elite:
+WATI inbound WhatsApp / BuzzChat
+→ lead_origin = whatsapp
+→ origin_provider = WATI
+
+WBAH:
+lead exists because it entered through calling workflow / call records
+→ lead_origin = voice_call
+→ provider = relevant voice/calling provider
+
+But VERIFY this from the actual records.
+
+Use strongest evidence first:
+
+1. explicit existing source/origin field
+2. linked BuzzChat/WhatsApp conversation
+3. linked inbound/outbound call creation relationship
+4. web form submission metadata
+5. CSV/import batch metadata
+6. CRM external source
+7. API ingestion metadata
+8. campaign creation source
+9. unknown
+
+Do not guess from workspace name.
+
+==================================================
+3. STORE / NORMALIZE WITHOUT BREAKING EXISTING DATA
+==================================================
+
+If an existing canonical source field already exists, extend/reuse it.
+
+Do not unnecessarily duplicate fields.
+
+If normalization is required, expose something equivalent to:
+
+{
+  leadOrigin: "whatsapp",
+  originProvider: "WATI",
+  originLabel: "WhatsApp",
+  originIcon: "message"
+}
+
+through the canonical lead API.
+
+Keep raw provider/source metadata available internally where useful.
+
+==================================================
+4. EXISTING HISTORICAL LEADS
+==================================================
+
+Backfill lead origin safely and idempotently.
+
+Do NOT change:
+
+- qualification
+- sentiment
+- booking
+- lead status
+- assignments
+
+Only determine origin.
+
+Produce a dry-run report first:
+
+- WhatsApp
+- Voice
+- Web form
+- CRM
+- CSV
+- Manual
+- API
+- Unknown
+
+Do not create duplicate leads.
+
+==================================================
+5. WEB LEADS UI
+==================================================
+
+On the WEB Lead Intelligence / Leads screen, add a small premium source indicator beside each lead.
+
+Examples:
+
+💬 WhatsApp
+☎ Voice
+🌐 Web
+📥 Import
+CRM icon + CRM
+✉ Email
+
+Use the existing icon library rather than emoji if available.
+
+Keep it subtle.
+
+Do NOT clutter the table.
+
+Recommended placement:
+
+NAME | SOURCE | PHONE | STATUS | SENTIMENT...
+
+or a compact icon/badge beside the lead name if that fits better.
+
+Hover/tooltip can show the provider:
+
+WhatsApp
+via WATI
+
+Voice
+via WEBEE / Retell
+
+==================================================
+6. WEB SOURCE FILTER
+==================================================
+
+Add:
+
+Source: All
+
+with dynamic options based on data actually present in the selected workspace.
+
+Examples:
+
+- WhatsApp
+- Voice Calls
+- Web Forms
+- CRM
+- CSV / Import
+- Email
+- API
+- Manual
+- Unknown
+
+Do not show irrelevant empty source types if possible.
+
+Allow provider-level filtering where useful, e.g.:
+
+WhatsApp → WATI / Meta / Twilio
+
+but keep the default UI simple.
+
+==================================================
+7. MOBILE LEADS UI
+==================================================
+
+Add the same origin indicator to mobile lead cards.
+
+Example:
+
+Aaron Campbell
+[Voice] [Not connected]
+
+or:
+
+Aaron Campbell        ☎
+Not connected
+
+For Avenue Elite:
+
+Lead Name
+[WhatsApp] [Qualified]
+
+Keep the existing premium mobile design.
+
+Do NOT make cards taller unnecessarily.
+
+==================================================
+8. MOBILE FILTER
+==================================================
+
+Add Lead Origin to the mobile Filters sheet.
+
+Do not add another long horizontal chip if it makes the screen cluttered.
+
+Filters:
+
+Origin
+- All
+- WhatsApp
+- Voice
+- Web
+- CRM
+- Import
+- Email
+- API
+- Manual
+
+Use canonical backend server-side filtering.
+
+Do NOT filter only currently loaded mobile rows.
+
+==================================================
+9. DASHBOARD / ANALYTICS
+==================================================
+
+Expose lead origin as a dimension for reporting.
+
+Allow WEBEE to answer:
+
+- How many leads came from WhatsApp?
+- How many came from voice campaigns?
+- Which origin produces the most qualified leads?
+- Which origin produces the most bookings?
+- Which source converts best?
+
+Do not redesign Analytics now.
+
+Just ensure the canonical field is available for future reporting and current filters.
+
+==================================================
+10. BUZZCHAT RELATIONSHIP
+==================================================
+
+For WhatsApp-origin leads:
+
+preserve lead ↔ BuzzChat conversation linkage.
+
+Clicking the WhatsApp source indicator or appropriate action should allow opening the related BuzzChat conversation where one exists.
+
+Do not classify every lead that later receives a WhatsApp message as WhatsApp-origin.
+
+IMPORTANT:
+
+ORIGIN means how the lead originally entered WEBEE.
+
+A WBAH voice-origin lead that later receives a WhatsApp reply should remain:
+
+Origin: Voice
+
+with separate communication state:
+
+WhatsApp replied: true
+
+==================================================
+11. CAMPAIGN VS ORIGIN
+==================================================
+
+Keep these distinct.
+
+Example:
+
+Origin:
+WhatsApp
+
+Provider:
+WATI
+
+Campaign:
+Avenue Elite Day 3
+
+or:
+
+Origin:
+Voice
+
+Provider:
+WEBEE/Retell
+
+Campaign:
+WBAH Rebooking Consultation
+
+==================================================
+12. CANONICAL API
+==================================================
+
+Update the canonical Leads service so both web and mobile receive:
+
+leadOrigin
+originProvider
+originLabel
+
+Support server-side:
+
+origin=whatsapp
+origin=voice_call
+origin=web_form
+etc.
+
+Both WEB and MOBILE must consume the same definitions.
+
+==================================================
+13. WORKSPACE-AWARE
+
+Do this for ALL workspaces.
+
+Do not assume:
+
+Avenue Elite = WhatsApp forever
+WBAH = Voice forever
+
+A workspace may eventually have leads from multiple origins.
+
+The origin belongs to the LEAD, not the workspace.
+
+==================================================
+14. ACCEPTANCE TESTS
+
+Avenue Elite:
+Select Source = WhatsApp
+→ WATI/BuzzChat-origin leads appear.
+
+WBAH:
+Select Source = Voice
+→ call-origin leads appear.
+
+If a WBAH voice lead later gets a WhatsApp reply:
+→ Origin remains Voice
+→ WhatsApp replied state remains independently visible.
+
+Test another standard workspace with mixed sources.
+
+WEB and MOBILE must return identical:
+
+- source label
+- provider
+- filtered count
+- lead IDs
+
+==================================================
+FINAL REPORT
+
+Return:
+
+Canonical origin field:
+...
+
+Origin detection rules:
+...
+
+Avenue Elite:
+detected origin + provider
+
+WBAH:
+detected origin + provider
+
+Historical backfill:
+counts by origin
+
+Unknown/unclassified:
+count
+
+Web source filter:
+PASS/FAIL
+
+Mobile source filter:
+PASS/FAIL
+
+Web/mobile source parity:
+PASS/FAIL
+
+Do not mark complete until lead origin is determined per lead from actual evidence and both web and mobile use the same canonical source field.

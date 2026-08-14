@@ -399,6 +399,8 @@ export async function processWebformSubmission(opts: {
         notes:          mapped.notes ?? null,
         status:         "need_to_call",
         source:         toLeadSourceEnum(sourceType),
+        lead_origin:    "web_form",
+        origin_provider: "Website",
         source_type:    sourceType,
         source_detail:  sourceDetail,
         source_page:    utm.source_page,

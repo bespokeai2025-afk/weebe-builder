@@ -385,6 +385,7 @@ export const listLeads = createServerFn({ method: "POST" })
         limit: z.number().int().min(1).max(5000).default(100),
         dateFrom: z.string().optional(),
         dateTo: z.string().optional(),
+        origin: z.string().optional(), // canonical lead_origin filter
       })
       .parse(input ?? {}),
   )
@@ -421,6 +422,7 @@ export const listLeads = createServerFn({ method: "POST" })
         q = q.or(`full_name.ilike.%${data.search}%,phone.ilike.%${data.search}%,email.ilike.%${data.search}%`);
       if (data.dateFrom) q = q.gte("created_at", data.dateFrom);
       if (data.dateTo) q = q.lte("created_at", data.dateTo);
+      if (data.origin) q = q.eq("lead_origin", data.origin);
 
       const { data: rows, error } = await q;
       if (error) throw new Error(error.message);

@@ -20,7 +20,18 @@
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { serveStatic } from "srvx/static";
-import server from "../dist/server/server.js";
+
+// SECURITY/RESILIENCE GUARD (mirrors vite.config.ts): the SUPABASE_URL /
+// VITE_SUPABASE_URL secrets have repeatedly been saved with the service-role
+// key pasted in place of the URL. Normalize before the server bundle loads so
+// every process.env read sees a valid URL.
+const CANONICAL_SUPABASE_URL = "https://ugrsdmmztnfgeajhwhzy.supabase.co";
+const isValidSupabaseUrl = (v) => typeof v === "string" && /^https:\/\/[a-z0-9-]+\.supabase\.co\/?$/.test(v);
+for (const key of ["VITE_SUPABASE_URL", "SUPABASE_URL"]) {
+  if (!isValidSupabaseUrl(process.env[key])) process.env[key] = CANONICAL_SUPABASE_URL;
+}
+
+const server = (await import("../dist/server/server.js")).default;
 
 const staticDir = resolve(
   dirname(fileURLToPath(import.meta.url)),

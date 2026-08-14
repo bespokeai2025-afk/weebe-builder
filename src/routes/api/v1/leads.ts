@@ -123,11 +123,15 @@ export const Route = createFileRoute("/api/v1/leads")({
         };
         // assigned_to_me resolved below (needs userId)
 
+        // origin= filter param (canonical lead_origin channel)
+        const originFilter = url.searchParams.get("origin");
+
         let q = sb().from("leads")
           .select(
             "id, full_name, phone, email, status, pipeline_stage, source, source_detail, created_at, updated_at, " +
             "assigned_to, assigned_at, assigned_by, " +
-            "has_buzzchat_reply, last_buzzchat_reply_at, buzzchat_conversation_id",
+            "has_buzzchat_reply, last_buzzchat_reply_at, buzzchat_conversation_id, " +
+            "lead_origin, origin_provider",
             { count: "exact" },
           )
           .eq("workspace_id", workspaceId)
@@ -148,6 +152,7 @@ export const Route = createFileRoute("/api/v1/leads")({
         }
 
         if (status) q = q.eq("status", status);
+        if (originFilter) q = q.eq("lead_origin", originFilter);
         if (fromIso) q = q.gte("created_at", fromIso);
         if (toIso) q = q.lte("created_at", toIso);
         if (filterConfig) {
@@ -159,9 +164,22 @@ export const Route = createFileRoute("/api/v1/leads")({
         const { data, error, count } = await q;
         if (error) return jsonErr(error.message, 500);
 
+        // Enrich each row with camelCase canonical origin fields for mobile consumers.
+        const ORIGIN_LABELS: Record<string, string> = {
+          whatsapp: "WhatsApp", voice_call: "Voice", web_form: "Web Form",
+          manual: "Manual", csv_import: "CSV / Import", crm: "CRM",
+          email: "Email", sms: "SMS", campaign: "Campaign", api: "API", unknown: "Unknown",
+        };
+        const enriched = (data ?? []).map((row: any) => ({
+          ...row,
+          leadOrigin:     row.lead_origin   ?? null,
+          originProvider: row.origin_provider ?? null,
+          originLabel:    ORIGIN_LABELS[row.lead_origin as string] ?? row.lead_origin ?? null,
+        }));
+
         return jsonOk({
           object: "list",
-          data: data ?? [],
+          data: enriched,
           total: count ?? null,
           limit,
           offset,
@@ -191,12 +209,14 @@ export const Route = createFileRoute("/api/v1/leads")({
           phone:           phone    ?? null,
           email:           email    ?? null,
           source:          source   ?? "api",
+          lead_origin:     "api",
+          origin_provider: "API",
           status:          status   ?? "new",
           pipeline_stage:  pipeline_stage ?? null,
           notes:           notes ?? null,
           created_at:      new Date().toISOString(),
           updated_at:      new Date().toISOString(),
-        }).select("id, full_name, phone, email, status, source, created_at").single();
+        }).select("id, full_name, phone, email, status, source, lead_origin, origin_provider, created_at").single();
 
         if (error) return jsonErr(error.message, 500);
 

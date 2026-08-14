@@ -172,6 +172,8 @@ function buildLeadRow(raw: any, workspaceId: string) {
     pipeline_stage:       classifyPipelineStage(status),
     qualification_status: classifyQualificationStatus(raw),
     source:               "import",
+    lead_origin:          "crm",
+    origin_provider:      "WeeBespoke",
     source_detail:        SOURCE_DETAIL,
     notes:                pickStr(raw, "notes", "description", "comments"),
     call_summary:
@@ -1155,6 +1157,8 @@ function buildBookedCallRow(call: any, workspaceId: string) {
     calendly_booking_url: call.calendly_booking_url ?? null,
     crm_loaded_at:        call.started_at ?? null,
     synced_at:            new Date().toISOString(),
+    lead_origin:          "voice_call",
+    origin_provider:      "WEBEE Voice",
     meta:                 { wbah_booked: true, wbah_source: "wbah_calls" },
   };
 }
