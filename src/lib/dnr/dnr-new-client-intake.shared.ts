@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { dnrStripNulls } from "@/lib/dnr/dnr-args.shared";
 
 const genderSchema = z.enum(["Male", "Female", "Other"]);
 
@@ -13,12 +14,16 @@ const baseSchema = z.object({
   is_new_client: z.boolean().optional(),
 });
 
+/**
+ * Phone intake is deliberately minimal: only what Pabau needs to create a
+ * usable record. Date of birth, preferred language and referral source are no
+ * longer asked on the call — front of house completes those in Pabau. A date of
+ * birth is still accepted if the caller volunteers it.
+ */
 const newClientFieldsSchema = z.object({
   email: z.string().email(),
   gender: genderSchema,
-  date_of_birth: dobSchema,
-  preferred_language: z.string().min(1).optional(),
-  how_did_you_hear_about_us: z.string().optional(),
+  date_of_birth: dobSchema.optional(),
 });
 
 export type DnrExistingClientInput = z.infer<typeof baseSchema> & { is_new_client?: false };
@@ -61,7 +66,9 @@ function pad2(n: number): string {
 /** Normalize spoken / messy Retell args before validation. */
 export function normalizeDnrFindOrCreateArgs(raw: unknown): Record<string, unknown> {
   if (!raw || typeof raw !== "object") return {};
-  const o = { ...(raw as Record<string, unknown>) };
+  // Under tool_call_strict_mode Retell sends `null` for arguments it has no
+  // value for, and `is_new_client: null` alone would fail the base schema.
+  const o = dnrStripNulls(raw as Record<string, unknown>);
 
   const phone = o.phone ?? o.mobile ?? o.phone_number;
   if (typeof phone === "string" && phone.trim()) o.phone = phone.trim();
@@ -172,7 +179,7 @@ export function parseDnrFindOrCreateClient(
   }
 
   if (base.data.is_new_client !== true) {
-    return { ok: true, data: base.data };
+    return { ok: true, data: { ...base.data, is_new_client: false } };
   }
 
   const extra = newClientFieldsSchema.safeParse(normalized);
@@ -180,10 +187,9 @@ export function parseDnrFindOrCreateClient(
     const missing: string[] = [];
     if (!normalized.email) missing.push("email");
     if (!normalized.gender) missing.push("gender");
-    if (!normalized.date_of_birth) missing.push("date_of_birth");
     return {
       ok: false,
-      error: "New client requires email, gender, and date_of_birth",
+      error: "New client requires email and gender",
       hint: `${dnrNewClientValidationHint()} Details: ${formatZodIssues(extra.error)}`,
       missing: missing.length ? missing : extra.error.issues.map((i) => i.path.join(".")),
     };
@@ -194,7 +200,6 @@ export function parseDnrFindOrCreateClient(
     data: {
       ...base.data,
       ...extra.data,
-      preferred_language: extra.data.preferred_language ?? "English",
       is_new_client: true,
     },
   };
@@ -205,7 +210,7 @@ export function isDnrNewClientInput(input: DnrFindOrCreateClientInput): input is
 }
 
 export function dnrNewClientValidationHint(): string {
-  return "New clients: first_name, last_name, phone, email, gender (Male|Female|Other), date_of_birth (YYYY-MM-DD), is_new_client: true. Optional: preferred_language (English), how_did_you_hear_about_us.";
+  return "New clients: first_name, last_name, phone, email, gender (Male|Female|Other), is_new_client: true. Nothing else is collected on the call.";
 }
 
 /** @deprecated use parseDnrFindOrCreateClient */

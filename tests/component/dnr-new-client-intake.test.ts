@@ -19,7 +19,7 @@ describe("dnr-new-client-intake", () => {
     if (r.ok) expect(isDnrNewClientInput(r.data)).toBe(false);
   });
 
-  it("requires email gender dob for new clients", () => {
+  it("requires email and gender for new clients", () => {
     const r = parseDnrFindOrCreateClient({
       first_name: "Jane",
       last_name: "Doe",
@@ -27,9 +27,27 @@ describe("dnr-new-client-intake", () => {
       is_new_client: true,
     });
     expect(r.ok).toBe(false);
+    if (!r.ok) {
+      expect(r.missing).toEqual(["email", "gender"]);
+    }
   });
 
-  it("accepts full new client payload", () => {
+  it("creates a new client without a date of birth", () => {
+    const r = parseDnrFindOrCreateClient({
+      first_name: "Jane",
+      last_name: "Doe",
+      phone: "+447700900123",
+      email: "jane@example.com",
+      gender: "Female",
+      is_new_client: true,
+    });
+    expect(r.ok).toBe(true);
+    if (r.ok && isDnrNewClientInput(r.data)) {
+      expect(r.data.date_of_birth).toBeUndefined();
+    }
+  });
+
+  it("keeps a volunteered date of birth", () => {
     const r = parseDnrFindOrCreateClient({
       first_name: "Jane",
       last_name: "Doe",
@@ -40,10 +58,22 @@ describe("dnr-new-client-intake", () => {
       is_new_client: true,
     });
     expect(r.ok).toBe(true);
-    if (r.ok) {
-      expect(isDnrNewClientInput(r.data)).toBe(true);
-      expect(r.data.preferred_language).toBe("English");
+    if (r.ok && isDnrNewClientInput(r.data)) {
+      expect(r.data.date_of_birth).toBe("1990-05-15");
     }
+  });
+
+  it("ignores nulls sent by Retell strict mode", () => {
+    const r = parseDnrFindOrCreateClient({
+      first_name: "Jane",
+      last_name: "Doe",
+      phone: "+447700900123",
+      is_new_client: null,
+      email: null,
+      gender: null,
+    });
+    expect(r.ok).toBe(true);
+    if (r.ok) expect(isDnrNewClientInput(r.data)).toBe(false);
   });
 
   it("normalizes mobile alias and spoken email/dob", () => {

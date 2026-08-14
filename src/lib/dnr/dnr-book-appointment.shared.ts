@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { dnrScalarToString, dnrStripNulls } from "@/lib/dnr/dnr-args.shared";
 import { normalizeDateOfBirth } from "@/lib/dnr/dnr-new-client-intake.shared";
 
 const bookSchema = z.object({
@@ -56,7 +57,11 @@ function normalizeDate(input: string): string | null {
 /** Normalize messy Retell / voice booking args. */
 export function normalizeDnrBookAppointmentArgs(raw: unknown): Record<string, unknown> {
   if (!raw || typeof raw !== "object") return {};
-  const o = { ...(raw as Record<string, unknown>) };
+  // Retell runs with tool_call_strict_mode, so the model emits every declared
+  // property and sends `null` for the ones it has no value for. Treat those as
+  // absent, otherwise `notes: null` fails an optional string field and the
+  // caller gets a "required fields missing" error with nothing actually missing.
+  const o = dnrStripNulls(raw as Record<string, unknown>);
 
   const slot = o.slot ?? o.selected_slot ?? o.appointment_slot;
   if (slot && typeof slot === "object") {
@@ -66,9 +71,15 @@ export function normalizeDnrBookAppointmentArgs(raw: unknown): Record<string, un
   }
 
   const contactId = o.contact_id ?? o.contactId ?? o.client_id ?? o.clientId ?? o.customer_id;
-  if (contactId != null && contactId !== "") o.contact_id = contactId;
+  if (typeof contactId === "number") o.contact_id = contactId;
+  else {
+    const asString = dnrScalarToString(contactId);
+    if (asString) o.contact_id = asString;
+  }
 
-  const service = pickString(o, "service_name", "service", "treatment", "treatment_name");
+  const service =
+    pickString(o, "service_name", "service", "treatment", "treatment_name") ??
+    dnrScalarToString(o.service_name);
   if (service) o.service_name = service;
 
   const dateRaw = pickString(o, "appointment_date", "date", "booking_date");
@@ -100,6 +111,7 @@ export function normalizeDnrBookAppointmentArgs(raw: unknown): Record<string, un
   }
 
   if (typeof o.notes === "string") o.notes = o.notes.trim().slice(0, 500);
+  else if ("notes" in o) delete o.notes;
 
   return o;
 }
@@ -108,7 +120,14 @@ export function parseDnrBookAppointment(
   args: unknown,
 ):
   | { ok: true; data: DnrBookAppointmentInput }
-  | { ok: false; error: string; hint: string; missing?: string[]; invalid?: string[] } {
+  | {
+      ok: false;
+      error: string;
+      hint: string;
+      missing?: string[];
+      invalid?: string[];
+      details?: string;
+    } {
   const normalized = normalizeDnrBookAppointmentArgs(args);
   const parsed = bookSchema.safeParse(normalized);
   if (!parsed.success) {
@@ -121,6 +140,15 @@ export function parseDnrBookAppointment(
     if (!normalized.start_time) missing.push("start_time");
     else if (!/^\d{2}:\d{2}$/.test(String(normalized.start_time))) invalid.push("start_time");
 
+    // Anything Zod rejected that the checks above did not classify — without this
+    // a schema failure on an unexpected field returns empty missing/invalid lists
+    // and the agent has no idea what to correct.
+    for (const issue of parsed.error.issues) {
+      const path = issue.path.join(".");
+      if (!path || missing.includes(path) || invalid.includes(path)) continue;
+      invalid.push(path);
+    }
+
     return {
       ok: false,
       error: "contact_id, service_name, start_date, start_time required",
@@ -129,6 +157,9 @@ export function parseDnrBookAppointment(
         "Call check_availability before book_appointment and pass start_date as YYYY-MM-DD and start_time as HH:MM from a returned slot.",
       missing,
       invalid: invalid.length ? invalid : undefined,
+      details: parsed.error.issues
+        .map((i) => `${i.path.join(".") || "field"}: ${i.message}`)
+        .join("; "),
     };
   }
   return { ok: true, data: parsed.data };

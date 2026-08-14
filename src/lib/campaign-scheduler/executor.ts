@@ -3,7 +3,8 @@
  *
  * Fetches all active __sched_v1__ campaigns across all workspaces,
  * checks whether each is due based on callTime + timezone, and triggers
- * Retell outbound calls for matching leads / data records.
+ * outbound calls for matching leads / data records — through Retell, or
+ * straight to Twilio for agents migrated to the native engine.
  *
  * Designed to be called both from the Vite dev-server plugin (every 5 min)
  * and from the /api/public/campaign-executor HTTP endpoint (hit by pg_cron).
@@ -20,6 +21,8 @@ import {
   type SafetyConfig,
 } from "../people-views/filter-engine.server";
 import { safeWriteCampaignReport } from "../campaign-reports/report-writer.shared";
+import { resolveDeploymentMode } from "../runtime/adapter";
+import { placeNativeOutboundCall } from "../telephony/native-outbound.server";
 
 const MARKER = "__sched_v1__";
 const MAX_RECORDS_PER_RUN = 200;
@@ -227,11 +230,16 @@ export async function runCampaignTick(opts?: {
       agent.inbound_phone_number ??
       null;
 
-    if (!retellAgentId) {
+    // A migrated agent has no Retell id and its number lives in `phone_numbers`,
+    // not in Retell's number pool, so none of the Retell preconditions apply and
+    // the dial goes straight to Twilio instead.
+    const dialNative = resolveDeploymentMode(settings as never) === "WEBEE_NATIVE";
+
+    if (!dialNative && !retellAgentId) {
       results.push({ ...base, skipped: true, skipReason: "agent has no Retell ID" });
       continue;
     }
-    if (!fromNumber) {
+    if (!dialNative && !fromNumber) {
       results.push({ ...base, skipped: true, skipReason: "agent has no phone number" });
       continue;
     }
@@ -246,7 +254,7 @@ export async function runCampaignTick(opts?: {
       ? (clientRetellKey || platformRetellKey)
       : platformRetellKey;
 
-    if (!effectiveKey) {
+    if (!dialNative && !effectiveKey) {
       results.push({ ...base, skipped: true, skipReason: "no Retell API key" });
       continue;
     }
@@ -404,32 +412,65 @@ export async function runCampaignTick(opts?: {
           }
         }
 
-        const payload = {
-          from_number: fromNumber,
-          to_number: record.phone,
-          override_agent_id: retellAgentId,
-          metadata: {
-            campaign_id: campaign.id,
-            workspace_id: campaign.workspace_id,
-          },
-        };
+        // Both engines end up in the same bookkeeping below; only the way the
+        // call is placed and the id it comes back with differ.
+        let ok = false;
+        let providerCallId: string | null = null;
+        let dialedFrom = fromNumber;
+        let failureDetail = "";
 
-        const res = await fetch("https://api.retellai.com/v2/create-phone-call", {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${effectiveKey}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify(payload),
-        });
+        if (dialNative) {
+          try {
+            const dial = await placeNativeOutboundCall({
+              sb,
+              workspaceId: campaign.workspace_id,
+              agentId: campaign.agent_id,
+              to: record.phone,
+              campaignId: campaign.id,
+            });
+            ok = true;
+            // The `telephony_calls` row id is what the native lifecycle reports
+            // as its call id, so storing it here keeps the two joinable.
+            providerCallId = dial.callId;
+            dialedFrom = dial.fromNumber;
+          } catch (e: any) {
+            failureDetail = e?.message ?? String(e);
+          }
+        } else {
+          const payload = {
+            from_number: fromNumber,
+            to_number: record.phone,
+            override_agent_id: retellAgentId,
+            metadata: {
+              campaign_id: campaign.id,
+              workspace_id: campaign.workspace_id,
+            },
+          };
 
-        if (res.ok) {
+          const res = await fetch("https://api.retellai.com/v2/create-phone-call", {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${effectiveKey}`,
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify(payload),
+          });
+
+          ok = res.ok;
+          if (ok) {
+            const call = await res.json().catch(() => null);
+            providerCallId = call?.call_id ?? null;
+          } else {
+            failureDetail = `${res.status} ${await res.text().catch(() => res.statusText)}`;
+          }
+        }
+
+        if (ok) {
           placed++;
           if (record.tableSource === "leads") {
             // Reflect the placed call on the lead (status changes accordingly)
             // and record it in `calls` so the shared daily cap + the webhook's
             // phone-match lifecycle both see this attempt.
-            const call = await res.json().catch(() => null);
             const now = new Date().toISOString();
             await sb
               .from("leads")
@@ -439,10 +480,10 @@ export async function runCampaignTick(opts?: {
             await sb.from("calls").insert({
               workspace_id: campaign.workspace_id,
               campaign_id: campaign.id,
-              retell_call_id: call?.call_id ?? null,
-              agent_id: retellAgentId,
+              retell_call_id: providerCallId,
+              agent_id: dialNative ? agent.id : retellAgentId,
               agent_name: agent.name ?? null,
-              from_number: fromNumber,
+              from_number: dialedFrom,
               to_number: record.phone,
               call_type: "outbound",
               call_status: "initiated",
@@ -460,9 +501,8 @@ export async function runCampaignTick(opts?: {
           }
         } else {
           failed++;
-          const errText = await res.text().catch(() => res.statusText);
           console.error(
-            `[campaign-scheduler] Call failed for ${record.phone}: ${res.status} ${errText}`,
+            `[campaign-scheduler] Call failed for ${record.phone}: ${failureDetail}`,
           );
           if (record.tableSource === "data_records") {
             await sb

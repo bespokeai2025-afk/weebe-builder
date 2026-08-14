@@ -84,8 +84,38 @@ const staticAndCacheHeaders = async (req, next) => {
   return appRes;
 };
 
+// Mount the voice WebSocket relays (HyperStream, cascade, Twilio, FreJun).
+//
+// These used to exist only as Vite dev-server plugins, so in production there
+// was no WebSocket endpoint at all: browser test calls and inbound phone calls
+// connected and died. srvx exposes the underlying Node HTTP server once ready,
+// which is all the gateway needs to attach its `upgrade` listener.
+//
+// A missing/stale bundle must never take the whole site down, so every failure
+// here is logged and swallowed — HTTP keeps serving without voice.
+const voiceGatewayPlugin = (srvxServer) => {
+  srvxServer
+    .ready()
+    .then(async (ready) => {
+      const httpServer = ready.node?.server;
+      if (!httpServer) {
+        console.error("[prod-entry] no Node HTTP server available — voice relays INACTIVE");
+        return;
+      }
+      const { mountVoiceGateways } = await import("../dist/voice-gateway.mjs");
+      mountVoiceGateways(httpServer);
+    })
+    .catch((err) => {
+      console.error(
+        "[prod-entry] failed to mount voice relays — voice calls will not connect:",
+        err?.message ?? err,
+      );
+    });
+};
+
 export default {
   ...server,
   fetch: server.fetch,
   middleware: [staticAndCacheHeaders, ...(server.middleware || [])],
+  plugins: [...(server.plugins || []), voiceGatewayPlugin],
 };

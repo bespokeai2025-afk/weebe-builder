@@ -30,9 +30,16 @@ export type SupportedRuntimeVersion = (typeof SUPPORTED_RUNTIME_VERSIONS)[number
 
 // ─── Provider enum ────────────────────────────────────────────────────────────
 
+/**
+ * Must stay a superset of `DeploymentMode` in ./types.ts. An agent whose mode is
+ * missing here fails export validation with a confusing enum error rather than
+ * anything that points at the real cause.
+ */
 export const DeploymentModeSchema = z.enum([
   "RETELL",
   "OPENAI_NATIVE",
+  "ELEVENLABS_NATIVE",
+  "WEBEE_NATIVE",
   "CLAUDE_NATIVE",
   "GEMINI_NATIVE",
 ]);

@@ -362,8 +362,12 @@ async function resolveAgent(incomingAgentId: string, forcedWorkspaceId?: string)
     .select("id, workspace_id, name, agent_type, retell_agent_id, settings");
   const matched = (agentMatches ?? []).find((agent) => {
     const s = (agent.settings ?? {}) as Record<string, unknown>;
-    // Match either the builder draft ID or the deployed clone ID stored in settings.
+    // Match either the builder draft ID or the deployed clone ID stored in
+    // settings. The third case is the native engine, which has no Retell agent
+    // and identifies itself with the agent's own UUID; Retell ids are always
+    // `agent_<hex>`, so the two namespaces cannot collide.
     return (
+      (agent.id as string) === incomingAgentId ||
       stripPrefix((agent.retell_agent_id as string) ?? "") === incomingAgentId ||
       (s.deployedRetellAgentId as string | undefined) === incomingAgentId
     );

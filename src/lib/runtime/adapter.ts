@@ -37,6 +37,7 @@ export function resolveDeploymentMode(
     explicit === "RETELL" ||
     explicit === "OPENAI_NATIVE" ||
     explicit === "ELEVENLABS_NATIVE" ||
+    explicit === "WEBEE_NATIVE" ||
     explicit === "CLAUDE_NATIVE" ||
     explicit === "GEMINI_NATIVE"
   ) {
@@ -72,6 +73,7 @@ export function resolveRuntimeConfig(
 export const isRetellMode = (mode: DeploymentMode) => mode === "RETELL";
 export const isOpenAINativeMode = (mode: DeploymentMode) => mode === "OPENAI_NATIVE";
 export const isElevenLabsNativeMode = (mode: DeploymentMode) => mode === "ELEVENLABS_NATIVE";
+export const isWebeeNativeMode = (mode: DeploymentMode) => mode === "WEBEE_NATIVE";
 export const isClaudeNativeMode = (mode: DeploymentMode) => mode === "CLAUDE_NATIVE";
 export const isGeminiNativeMode = (mode: DeploymentMode) => mode === "GEMINI_NATIVE";
 export const isNativeMode = (mode: DeploymentMode) => mode !== "RETELL";

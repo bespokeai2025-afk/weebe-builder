@@ -48,7 +48,7 @@ const retellCustomTools = [
   {
     name: "find_or_create_client",
     description:
-      "Find existing Pabau client by phone or create new client. New clients require email, gender, and date of birth.",
+      "Find existing Pabau client by phone or create new client. New clients require email and gender — do not ask for anything else.",
     url: `${base}${bundle.tools.findOrCreateClient}`,
     parameters: {
       type: "object",
@@ -57,19 +57,13 @@ const retellCustomTools = [
         first_name: { type: "string" },
         last_name: { type: "string" },
         phone: { type: "string", description: "Mobile with +44 where possible" },
-        is_new_client: { type: "boolean", description: "true = create new client with extra fields below" },
+        is_new_client: { type: "boolean", description: "true = create new client with email + gender below" },
         email: { type: "string", description: "Required when is_new_client is true" },
         gender: {
           type: "string",
           enum: ["Male", "Female", "Other"],
           description: "Required when is_new_client is true",
         },
-        date_of_birth: {
-          type: "string",
-          description: "YYYY-MM-DD — required when is_new_client is true",
-        },
-        preferred_language: { type: "string", description: "Default English" },
-        how_did_you_hear_about_us: { type: "string", description: "Optional referral source" },
       },
       required: ["first_name", "last_name", "phone"],
     },
@@ -159,7 +153,7 @@ const dashboardConfig = {
     description: "Tool-driven receptionist + transfer to FOH when needed.",
     steps: [
       { step: 1, action: "Agent speaks begin_message" },
-      { step: 2, action: "Ask new or existing. Existing: name + phone. New: name, gender, DOB, email, mobile (+44), language" },
+      { step: 2, action: "Ask new or existing. Existing: name + phone. New: name, gender, email, mobile (+44) — nothing else" },
       { step: 3, tool: "list_services", when: "Need exact Pabau service name" },
       { step: 4, tool: "check_availability", when: "Caller wants to book" },
       { step: 5, tool: "find_or_create_client", when: "Before booking" },

@@ -328,7 +328,14 @@ export interface BuilderSettings {
    * if the field is absent (adapter fallback logic handles this).
    * Set by the Builder when the user explicitly chooses a runtime.
    */
-  deploymentMode?: "RETELL" | "OPENAI_NATIVE" | "ELEVENLABS_NATIVE" | "CLAUDE_NATIVE" | "GEMINI_NATIVE";
+  deploymentMode?:
+    | "RETELL"
+    | "OPENAI_NATIVE"
+    | "ELEVENLABS_NATIVE"
+    /** In-house cascade: streaming STT -> conversation graph VM -> Fish Audio TTS. */
+    | "WEBEE_NATIVE"
+    | "CLAUDE_NATIVE"
+    | "GEMINI_NATIVE";
   /**
    * VoxStream (ElevenLabs) raw voice ID (only used when deploymentMode === "ELEVENLABS_NATIVE").
    * This is the raw ElevenLabs UUID, NOT the Retell "11labs-" prefixed format.
@@ -361,6 +368,14 @@ export interface BuilderSettings {
   voiceOutputId?: string;
   /** Human-readable display name for the selected EL voice (e.g. "Rachel"). */
   voiceOutputName?: string;
+  /**
+   * Fish Audio model id used as `reference_id` when deploymentMode ===
+   * "WEBEE_NATIVE". Kept apart from `voiceId` (an OmniVoice id like
+   * "11labs-Adrian") so switching engines does not overwrite either one.
+   */
+  webeeVoiceId?: string;
+  /** Display name of the selected Fish Audio voice. */
+  webeeVoiceName?: string;
   /**
    * OpenAI Realtime model ID (only used when deploymentMode === "OPENAI_NATIVE").
    * Defaults to "gpt-4o-realtime-preview" when unset.

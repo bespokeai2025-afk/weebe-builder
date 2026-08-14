@@ -327,6 +327,16 @@ export function getHyperStreamCostPerMinute(modelId?: string): number {
 //   → ~$0.05/min blended. Builder test calls are WebRTC (no telephony charge).
 export const ELEVENLABS_PER_MIN = 0.05;
 
+// ── WEBEE Native (Fish Audio cascade) per-minute estimate ───────────────────
+// Display-only figure for the builder meter. The authoritative rates live in
+// `cost_engine_webee_native` and are applied server-side per call; this constant
+// exists so a test call shows a number before those rows are configured.
+//   Fish TTS   ~$15/1M bytes at ~900 spoken chars/min ≈ $0.013/min
+//   STT        ~$0.006/min (Fish ASR or Deepgram equivalent)
+//   GPT-4.1    ~$0.015/min including per-turn edge routing
+//   → ~$0.03/min, roughly a third of HyperStream Realtime.
+export const WEBEE_NATIVE_PER_MIN = 0.03;
+
 // ── Exact per-token billing rates for HyperStream ──────────────────────────
 // Source: https://openai.com/api/pricing/
 // OpenAI Realtime API bills audio and text tokens at different rates.

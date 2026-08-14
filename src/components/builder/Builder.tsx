@@ -2,9 +2,10 @@ import { useEffect, useRef, useState } from "react";
 import { useReactFlow } from "@xyflow/react";
 import { toPng } from "html-to-image";
 import { useBuilderStore } from "@/lib/builder/store";
-import { resolveDeploymentMode, isRetellMode, isOpenAINativeMode, isElevenLabsNativeMode } from "@/lib/runtime/adapter";
+import { resolveDeploymentMode, isRetellMode, isOpenAINativeMode, isElevenLabsNativeMode, isWebeeNativeMode } from "@/lib/runtime/adapter";
 import type { DeploymentMode } from "@/lib/runtime/types";
 import { CustomVoiceUploadDialog } from "@/components/builder/CustomVoiceUploadDialog";
+import { WebeeMigrationDialog } from "@/components/builder/WebeeMigrationDialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -29,7 +30,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { ChevronDown, MoreHorizontal, FileJson, Upload, FileUp, Search, Check, ArrowLeftRight, Globe, Mic, MessageSquare as MsgSq, Settings2, Zap, Radio, Lock, Sparkles, Gem, Volume2, Play, Loader2, Download, Clock, Phone } from "lucide-react";
+import { ChevronDown, MoreHorizontal, FileJson, Upload, FileUp, Search, Check, ArrowLeftRight, Globe, Mic, MessageSquare as MsgSq, Settings2, Zap, Radio, Lock, Sparkles, Gem, Waves, Volume2, Play, Loader2, Download, Clock, Phone } from "lucide-react";
 import { KnowledgeBaseSection } from "@/components/builder/KnowledgeBaseSection";
 import { SpeechSettingsSection } from "@/components/builder/SpeechSettingsSection";
 import { HyperStreamSettingsSection } from "@/components/builder/HyperStreamSettingsSection";
@@ -93,6 +94,7 @@ import { cn } from "@/lib/utils";
 import { MODELS, HYPERSTREAM_MODELS } from "@/lib/builder/pricing";
 import { searchElevenLabsVoices, previewElevenLabsVoice, previewRetellVoice } from "@/lib/builder/retell.functions";
 import { listElevenLabsVoices, cloneElevenLabsVoice } from "@/lib/builder/elevenlabs-voices.functions";
+import { listFishVoices, type FishVoice } from "@/lib/voice/fish-voices.functions";
 import { extractPostCallVariables, type PostCallExtracted } from "@/lib/builder/post-call-extract.functions";
 import { saveHyperStreamTestCall, updateCallSentiment } from "@/lib/builder/save-hyperstream-call.functions";
 import { useServerFn } from "@tanstack/react-start";
@@ -400,6 +402,7 @@ export function Builder({
     channelType: settings.channelType,
   });
   const [pendingEngine, setPendingEngine] = useState<DeploymentMode | null>(null);
+  const [migrationOpen, setMigrationOpen] = useState(false);
   const undoToastIdRef = useRef<string | number | null>(null);
   const saveVersionRef = useRef(saveVersion);
 
@@ -420,6 +423,7 @@ export function Builder({
   const isRetell = isRetellMode(activeMode);
   const isOpenAI = isOpenAINativeMode(activeMode);
   const isElevenLabs = isElevenLabsNativeMode(activeMode);
+  const isWebeeNative = isWebeeNativeMode(activeMode);
   const preAutoLayoutPositions = useBuilderStore((s) => s.preAutoLayoutPositions);
   const [rf, setRf] = useState<ReturnType<typeof useReactFlow> | null>(null);
   const canvasRef = useRef<HTMLDivElement>(null);
@@ -467,6 +471,10 @@ export function Builder({
   const [elHsVoicesError, setElHsVoicesError] = useState<string | null>(null);
   const [elHsUploading, setElHsUploading] = useState(false);
   const elHsFileInputRef = useRef<HTMLInputElement | null>(null);
+  const [fishVoices, setFishVoices] = useState<FishVoice[]>([]);
+  const [fishVoicesLoading, setFishVoicesLoading] = useState(false);
+  const [fishVoicesError, setFishVoicesError] = useState<string | null>(null);
+  const [fishSearch, setFishSearch] = useState("");
   const hsVoiceProvider = settings.voiceOutputProvider ?? "openai";
 
   function fileToBase64(file: File): Promise<string> {
@@ -511,6 +519,23 @@ export function Builder({
       .catch((e: Error) => setElHsVoicesError(e.message))
       .finally(() => setElHsVoicesLoading(false));
   }, [hsVoiceProvider]);
+
+  // Fish Audio catalog for the native engine. An empty search lists the
+  // workspace's own cloned models; a term searches the public Voice Library, so
+  // a voice can be adopted without cloning it first.
+  useEffect(() => {
+    if (!isWebeeNative) return;
+    setFishVoicesLoading(true);
+    setFishVoicesError(null);
+    const term = fishSearch.trim();
+    const timer = setTimeout(() => {
+      listFishVoices({ data: term ? { search: term } : {} })
+        .then((voices) => setFishVoices(voices))
+        .catch((e: Error) => setFishVoicesError(e.message))
+        .finally(() => setFishVoicesLoading(false));
+    }, term ? 350 : 0);
+    return () => clearTimeout(timer);
+  }, [isWebeeNative, fishSearch]);
   const retAudioRef = useRef<HTMLAudioElement | null>(null);
 
   useEffect(() => {
@@ -894,6 +919,22 @@ export function Builder({
           <ImportPDFDialog open={importPdfOpen} onOpenChange={setImportPdfOpen} />
           <ExportJsonDialog open={exportOpen} onOpenChange={setExportOpen} hideTrigger />
           <ImportSystemMindDraftDialog open={importSMDraftOpen} onOpenChange={setImportSMDraftOpen} />
+
+          {currentAgentRowId && (
+            <WebeeMigrationDialog
+              agentId={currentAgentRowId}
+              agentName={settings.agentName || "this agent"}
+              currentMode={activeMode}
+              open={migrationOpen}
+              onOpenChange={setMigrationOpen}
+              // The switch is already persisted server-side; mirroring it into
+              // builder state keeps the panel honest without a reload, and keeps
+              // the legacy voiceProvider field from contradicting it on next save.
+              onModeChanged={(mode) =>
+                setSettings({ deploymentMode: mode, voiceProvider: "RETELL" })
+              }
+            />
+          )}
 
           {/* Engine-switch confirmation dialog */}
           <AlertDialog open={pendingEngine !== null} onOpenChange={(open) => { if (!open) setPendingEngine(null); }}>
@@ -1286,6 +1327,7 @@ export function Builder({
                   [
                     { mode: "RETELL"            as DeploymentMode, label: "OmniVoice",   sub: "Premium Catalog",  icon: Radio,    available: true  },
                     { mode: "OPENAI_NATIVE"     as DeploymentMode, label: "HyperStream", sub: "OpenAI Realtime",  icon: Zap,      available: true  },
+                    { mode: "WEBEE_NATIVE"      as DeploymentMode, label: "WEBEE Native", sub: "In-house cascade", icon: Waves, available: true  },
                     { mode: "ELEVENLABS_NATIVE" as DeploymentMode, label: "VoxStream",   sub: "Coming Soon",      icon: Mic,      available: false },
                     { mode: "CLAUDE_NATIVE"     as DeploymentMode, label: "Claude",      sub: "Coming Soon",      icon: Sparkles, available: false },
                     { mode: "GEMINI_NATIVE"     as DeploymentMode, label: "Gemini",      sub: "Coming Soon",      icon: Gem,      available: false },
@@ -1326,6 +1368,19 @@ export function Builder({
                   );
                 })}
               </div>
+
+              {/* Migration console — only meaningful once the agent is saved, since
+                  shadow replays need its stored flow and its past calls. */}
+              {(isRetell || isWebeeNative) && currentAgentRowId && (
+                <button
+                  type="button"
+                  onClick={() => setMigrationOpen(true)}
+                  className="flex w-full items-center gap-1.5 rounded-md border border-white/[0.08] bg-white/[0.02] px-2 py-1 text-[10px] text-muted-foreground transition-colors hover:border-white/[0.16] hover:bg-white/[0.04] hover:text-foreground"
+                >
+                  <ArrowLeftRight className="h-3 w-3 shrink-0" />
+                  {isWebeeNative ? "Migration console · rollback available" : "Shadow test & cut over to WEBEE Native"}
+                </button>
+              )}
               {isOpenAI && (
                 <div className="flex items-center gap-1.5 rounded-full border border-white/[0.08] bg-white/[0.03] px-2 py-0.5 w-fit">
                   <Lock className="h-2.5 w-2.5 shrink-0 text-muted-foreground" />
@@ -1336,6 +1391,67 @@ export function Builder({
                 <div className="flex items-center gap-1.5 rounded-full border border-white/[0.08] bg-white/[0.03] px-2 py-0.5 w-fit">
                   <Lock className="h-2.5 w-2.5 shrink-0 text-muted-foreground" />
                   <span className="text-[9px] text-muted-foreground">Routed via ElevenLabs Conversational AI</span>
+                </div>
+              )}
+
+              {/* WEBEE Native — Fish Audio voice, picked from the workspace's own
+                  models or the public library. Stored separately from voiceId so
+                  switching engines back to OmniVoice keeps that voice intact. */}
+              {isWebeeNative && (
+                <div className="pt-1 space-y-1.5">
+                  <div className="flex items-center gap-1.5 rounded-full border border-white/[0.08] bg-white/[0.03] px-2 py-0.5 w-fit">
+                    <Waves className="h-2.5 w-2.5 shrink-0 text-muted-foreground" />
+                    <span className="text-[9px] text-muted-foreground">
+                      Runs the flow graph in-house · WEBEE Native TTS
+                    </span>
+                  </div>
+                  <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium">WEBEE Native Voice</p>
+                  <Input
+                    value={fishSearch}
+                    onChange={(e) => setFishSearch(e.target.value)}
+                    placeholder="Search the voice library, or leave blank for your own"
+                    className="h-7 text-[10px]"
+                  />
+                  {fishVoicesLoading ? (
+                    <div className="flex items-center gap-1.5 py-1.5 text-[9px] text-muted-foreground">
+                      <Loader2 className="h-3 w-3 animate-spin" />Loading voices…
+                    </div>
+                  ) : fishVoicesError ? (
+                    <p className="text-[9px] text-destructive/80 leading-snug bg-destructive/5 border border-destructive/20 rounded px-2 py-1.5">{fishVoicesError}</p>
+                  ) : fishVoices.length > 0 ? (
+                    <Select
+                      value={settings.webeeVoiceId ?? ""}
+                      onValueChange={(v) => {
+                        const voice = fishVoices.find((x) => x.voiceId === v);
+                        setSettings({ webeeVoiceId: v, webeeVoiceName: voice?.title });
+                      }}
+                    >
+                      <SelectTrigger className="h-7 text-[10px]">
+                        <SelectValue placeholder="Select a voice…" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {fishVoices.map((v) => (
+                          <SelectItem key={v.voiceId} value={v.voiceId}>
+                            <span className="flex items-center justify-between gap-3 w-full">
+                              <span className="font-medium">{v.title}</span>
+                              <span className="text-muted-foreground text-[10px]">
+                                {v.owned ? "yours" : (v.languages[0] ?? "library")}
+                              </span>
+                            </span>
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  ) : (
+                    <p className="text-[9px] text-muted-foreground/70 leading-snug">
+                      No voices found. Clone a voice in your voice workspace, or search the public library above.
+                    </p>
+                  )}
+                  {settings.webeeVoiceName && (
+                    <p className="text-[8.5px] text-muted-foreground/50">
+                      Using “{settings.webeeVoiceName}” for both phone and browser calls.
+                    </p>
+                  )}
                 </div>
               )}
 

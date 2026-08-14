@@ -29,13 +29,38 @@ describe("mergeWatiMessageLists", () => {
     );
     expect(merged).toHaveLength(2);
   });
+
+  it("keeps fields only one API version reports for the same message", () => {
+    // A shared contact card only appears on V1's `contacts`; V3 omits the field entirely. Letting
+    // V3 replace the record wholesale dropped the card and the message was discarded as empty.
+    const contacts = [
+      { name: { formatted_name: "Jane Roe" }, phones: [{ phone: "+971 50 000 0000" }] },
+    ];
+    const merged = mergeWatiMessageLists(
+      [{ id: "msg-1", owner: false, type: "contacts", text: null, contacts }],
+      [{ id: "msg-1", owner: false, type: "contacts", text: null, statusString: "READ" }],
+    );
+
+    expect(merged).toHaveLength(1);
+    expect(merged[0]!.contacts).toEqual(contacts);
+    expect(merged[0]!.statusString).toBe("READ");
+  });
+
+  it("does not let a later null overwrite a populated value", () => {
+    const merged = mergeWatiMessageLists(
+      [{ id: "msg-1", type: "text", text: "the real body" }],
+      [{ id: "msg-1", type: "text", text: null }],
+    );
+
+    expect(merged[0]!.text).toBe("the real body");
+  });
 });
 
 describe("parseWatiMessageSentAt", () => {
   it("parses ISO V3 timestamps", () => {
-    expect(
-      parseWatiMessageSentAt({ timestamp: "2026-08-11T15:04:13.5980185Z" }),
-    ).toContain("2026-08-11");
+    expect(parseWatiMessageSentAt({ timestamp: "2026-08-11T15:04:13.5980185Z" })).toContain(
+      "2026-08-11",
+    );
   });
 });
 

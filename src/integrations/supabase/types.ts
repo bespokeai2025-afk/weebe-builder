@@ -3363,6 +3363,57 @@ export type Database = {
         }
         Relationships: []
       }
+      cost_engine_webee_native: {
+        Row: {
+          agent_talk_ratio: number
+          analysis_cost_per_call: number
+          concurrency_tier_monthly: number
+          created_at: string
+          estimated_monthly_minutes: number
+          id: string
+          is_current: boolean
+          llm_cost_per_min: number
+          notes: string | null
+          router_cost_per_min: number
+          stt_cost_per_min: number
+          tts_chars_per_min: number
+          tts_cost_per_1m_bytes: number
+          updated_at: string
+        }
+        Insert: {
+          agent_talk_ratio?: number
+          analysis_cost_per_call?: number
+          concurrency_tier_monthly?: number
+          created_at?: string
+          estimated_monthly_minutes?: number
+          id?: string
+          is_current?: boolean
+          llm_cost_per_min?: number
+          notes?: string | null
+          router_cost_per_min?: number
+          stt_cost_per_min?: number
+          tts_chars_per_min?: number
+          tts_cost_per_1m_bytes?: number
+          updated_at?: string
+        }
+        Update: {
+          agent_talk_ratio?: number
+          analysis_cost_per_call?: number
+          concurrency_tier_monthly?: number
+          created_at?: string
+          estimated_monthly_minutes?: number
+          id?: string
+          is_current?: boolean
+          llm_cost_per_min?: number
+          notes?: string | null
+          router_cost_per_min?: number
+          stt_cost_per_min?: number
+          tts_chars_per_min?: number
+          tts_cost_per_1m_bytes?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
       custom_agent_configs: {
         Row: {
           agent_id: string | null
@@ -16289,6 +16340,66 @@ export type Database = {
           id?: string
           role?: Database["public"]["Enums"]["app_role"]
           user_id?: string
+        }
+        Relationships: []
+      }
+      voice_shadow_runs: {
+        Row: {
+          agent_id: string
+          average_similarity: number
+          candidate_agent_turns: number
+          candidate_transcript: string | null
+          created_at: string
+          diff: Json
+          diverged_at_turn: number | null
+          error: string | null
+          id: string
+          node_path: Json
+          reference_agent_turns: number
+          reference_call_id: string | null
+          reference_engine: string
+          user_turn_count: number
+          verdict: string
+          warnings: Json
+          workspace_id: string
+        }
+        Insert: {
+          agent_id: string
+          average_similarity?: number
+          candidate_agent_turns?: number
+          candidate_transcript?: string | null
+          created_at?: string
+          diff?: Json
+          diverged_at_turn?: number | null
+          error?: string | null
+          id?: string
+          node_path?: Json
+          reference_agent_turns?: number
+          reference_call_id?: string | null
+          reference_engine?: string
+          user_turn_count?: number
+          verdict?: string
+          warnings?: Json
+          workspace_id: string
+        }
+        Update: {
+          agent_id?: string
+          average_similarity?: number
+          candidate_agent_turns?: number
+          candidate_transcript?: string | null
+          created_at?: string
+          diff?: Json
+          diverged_at_turn?: number | null
+          error?: string | null
+          id?: string
+          node_path?: Json
+          reference_agent_turns?: number
+          reference_call_id?: string | null
+          reference_engine?: string
+          user_turn_count?: number
+          verdict?: string
+          warnings?: Json
+          workspace_id?: string
         }
         Relationships: []
       }

@@ -43,7 +43,7 @@ import {
   markBuildVersionDeployed,
 } from "@/lib/systemmind/build-workspace.functions";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { getTotalCostPerMinute, getHyperStreamCostPerMinute, calcHyperStreamTurnCost, HYPERSTREAM_TELEPHONY_PER_MIN, ELEVENLABS_PER_MIN } from "@/lib/builder/pricing";
+import { getTotalCostPerMinute, getHyperStreamCostPerMinute, calcHyperStreamTurnCost, HYPERSTREAM_TELEPHONY_PER_MIN, ELEVENLABS_PER_MIN, WEBEE_NATIVE_PER_MIN } from "@/lib/builder/pricing";
 import { validateFlow } from "@/lib/builder/validate";
 import { cn } from "@/lib/utils";
 
@@ -256,10 +256,15 @@ export function RetellDeployDialog({
   const deploymentMode = resolveDeploymentMode(settings);
   const isOpenAI = deploymentMode === "OPENAI_NATIVE";
   const isElevenLabs = deploymentMode === "ELEVENLABS_NATIVE";
+  const isWebeeNative = deploymentMode === "WEBEE_NATIVE";
   // For VoxStream agents, agentId is set to the EL agent ID on deploy (no Retell ID).
+  // WEBEE Native agents are provisioned nowhere: the local row *is* the agent, so
+  // the saved row id is the only thing a call needs.
   const hasAgent = isElevenLabs
     ? Boolean(settings.deployedElevenLabsAgentId)
-    : Boolean(settings.agentId);
+    : isWebeeNative
+      ? Boolean(currentAgentRowId ?? settings.agentId)
+      : Boolean(settings.agentId);
 
   const flowIssues = useMemo(
     () => validateFlow(nodes, edges, variables),
@@ -435,6 +440,46 @@ export function RetellDeployDialog({
       return;
     }
     // ── End HyperStream guard ───────────────────────────────────────────────
+
+    // ── WEBEE Native guard ──────────────────────────────────────────────────
+    // Nothing is provisioned with a third party: the flow graph is executed by
+    // our own gateway straight from this row, so "deploy" is a save. The row id
+    // doubles as the agent id the webhook processor resolves calls against.
+    if (isWebeeNative) {
+      try {
+        const { nodes: n, edges: e, settings: s, variables: v } =
+          useBuilderStore.getState();
+        const { id: rowId } = await upsertAgent({
+          data: {
+            id: useBuilderStore.getState().currentAgentRowId ?? undefined,
+            retellAgentId: null,
+            name: s.agentName || "Untitled agent",
+            flowData: { nodes: n, edges: e } as never,
+            settings: { ...s, deployedAgentName: s.agentName } as never,
+            variables: v as never,
+          },
+        });
+        useBuilderStore.getState().setCurrentAgentRowId(rowId);
+        setSettings({ agentId: rowId, deployedAgentName: s.agentName });
+        bumpSaveVersion();
+        qc.invalidateQueries({ queryKey: ["my-agents"] });
+        toast.success(
+          effectiveKind === "update" ? "WEBEE Native agent updated" : "WEBEE Native agent saved",
+          {
+            description: s.webeeVoiceName
+              ? `Flow runs in-house · voice "${s.webeeVoiceName}"`
+              : "Flow runs in-house — pick a WEBEE Native voice to set the agent's voice.",
+          },
+        );
+        await notifyBuildDeployed("webee_native");
+      } catch (e) {
+        toast.error("Save failed", { description: (e as Error).message });
+      } finally {
+        setDeploying(null);
+      }
+      return;
+    }
+    // ── End WEBEE Native guard ──────────────────────────────────────────────
 
     // ── VoxStream Engine guard ───────────────────────────────────────────────
     // ElevenLabs Conversational AI agents deploy directly to EL — no Retell.
@@ -1934,11 +1979,22 @@ export function RetellDeployDialog({
    * Audio: 24 kHz PCM16 mono (matches OpenAI/ElevenLabs pcm_24000 format).
    */
   async function handleElVoiceTestCall() {
-    const voiceId = (settings.voiceOutputId as string | undefined)?.trim();
+    // Both cascade engines share this relay; only the voice catalog differs.
+    // Fish takes a model id as `reference_id`, ElevenLabs takes its own voice id.
+    const voiceId = (
+      isWebeeNative
+        ? (settings.webeeVoiceId as string | undefined)
+        : (settings.voiceOutputId as string | undefined)
+    )?.trim();
     if (!voiceId) {
-      toast.error("Select an ElevenLabs voice first", {
-        description: "Open the OpenAI Engine panel and choose a voice under Voice Output → ElevenLabs.",
-      });
+      toast.error(
+        isWebeeNative ? "Select a voice first" : "Select an ElevenLabs voice first",
+        {
+          description: isWebeeNative
+            ? "Choose a voice under Voice Infrastructure → WEBEE Native Voice."
+            : "Open the OpenAI Engine panel and choose a voice under Voice Output → ElevenLabs.",
+        },
+      );
       return;
     }
 
@@ -1999,7 +2055,24 @@ export function RetellDeployDialog({
       return;
     }
 
+    // Export the graph as it stands on screen so the relay's VM walks the flow
+    // node by node. Without this the relay only gets the flattened prompt, which
+    // is exactly the behaviour the graph VM exists to replace — the test call
+    // would skip steps that a deployed call honours. Export failures are not
+    // fatal: the relay falls back to the flat prompt.
+    let exportedFlow: unknown = undefined;
+    try {
+      const exported = exportAgentJson(nodes, edges, settings, variables) as Record<string, unknown>;
+      exportedFlow = exported.conversationFlow;
+    } catch (err) {
+      console.warn("[elv-relay] flow export failed, using flat prompt:", (err as Error).message);
+    }
+
     const textModel = settings.openaiRealtimeModel ?? settings.model ?? "gpt-4.1";
+    // Shared with the relay so the stored call row and this session are the same
+    // call, which is what lets a test call be inspected afterwards.
+    const relaySessionId =
+      typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID() : `web-${Date.now()}`;
 
     try {
       const wsProto = window.location.protocol === "https:" ? "wss:" : "ws:";
@@ -2027,11 +2100,29 @@ export function RetellDeployDialog({
       // Mute mic while AI audio is playing to prevent the speaker output from
       // echoing back through the mic as "user speech" (the cause of false
       // transcript entries the user never said).
+      // ── Playback state for EL Voice ───────────────────────────────────────
+      // The mic is no longer gated (see the capture handlers below): the relay
+      // needs to hear the caller during playback to detect an interruption. This
+      // only tracks when queued audio has drained so the relay can be told.
       let isElAISpeaking = false;
       let elDrainTimer: ReturnType<typeof setTimeout> | null = null;
-      const unmuteElMic = () => {
+      const reportPlaybackDone = () => {
         isElAISpeaking = false;
-        console.log("[elv-relay] mic unmuted");
+        if (ws.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify({ type: "playback.done" }));
+        }
+      };
+
+      /** Drop everything queued — the caller interrupted and the agent must stop. */
+      const clearQueuedAudio = () => {
+        for (const node of activeSourceNodesRef.current) {
+          try { node.stop(); } catch { /* already ended */ }
+        }
+        activeSourceNodesRef.current = [];
+        nextPlayTimeRef.current = 0;
+        elDeltaCount = 0;
+        if (elDrainTimer !== null) { clearTimeout(elDrainTimer); elDrainTimer = null; }
+        isElAISpeaking = false;
       };
 
       // ── Schedule incoming PCM16 audio chunk for playback ──────────────────
@@ -2079,6 +2170,9 @@ export function RetellDeployDialog({
           systemPrompt,
           beginMessage,
           model: textModel,
+          agentId: rowId,
+          flow: exportedFlow,
+          sessionId: relaySessionId,
         }));
         // Keep-alive: send a ping every 5 s so the reverse-proxy never sees an
         // idle connection and closes it (happens when EL streams audio quickly,
@@ -2157,7 +2251,10 @@ export function RetellDeployDialog({
                 workletRef.current = wn;
                 wn.port.onmessage = (e) => {
                   if (ws.readyState !== WebSocket.OPEN) return;
-                  if (isElAISpeaking) return; // mic gate — suppress echo while AI plays
+                  // Full duplex: audio keeps flowing while the agent speaks, which
+                  // is what lets the relay detect an interruption. Echo suppression
+                  // is left to the browser's AEC (echoCancellation above) plus the
+                  // relay's requirement for sustained speech before it cuts in.
                   const int16 = new Int16Array(e.data as ArrayBuffer);
                   const u8 = new Uint8Array(int16.buffer);
                   let bin = "";
@@ -2180,7 +2277,7 @@ export function RetellDeployDialog({
               processorRef.current = sp;
               sp.onaudioprocess = (e) => {
                 if (ws.readyState !== WebSocket.OPEN) return;
-                if (isElAISpeaking) return; // mic gate
+                // Full duplex — see the AudioWorklet path above.
                 const f32 = e.inputBuffer.getChannelData(0);
                 const int16 = new Int16Array(f32.length);
                 for (let i = 0; i < f32.length; i++) {
@@ -2234,28 +2331,48 @@ export function RetellDeployDialog({
           if (!text) return;
           if (role === "agent") elDeltaCount = 0;
           pushTranscript((prev) => [
-            ...prev,
+            // The confirmed line supersedes any interim text still on screen.
+            ...prev.filter((e) => !e.partial),
             { id: crypto.randomUUID(), role, text, partial: false },
           ]);
           return;
         }
 
+        // Interim recognition, shown so the caller sees they are being heard.
+        // Streaming STT only; batch Whisper never sends these.
+        if (msg.type === "transcript.partial") {
+          const text = String(msg.text ?? "");
+          if (!text) return;
+          pushTranscript((prev) => {
+            const withoutPartial = prev.filter((e) => !e.partial);
+            return [...withoutPartial, { id: "partial", role: "user", text, partial: true }];
+          });
+          return;
+        }
+
         if (msg.type === "audio.delta") {
-          // First chunk of AI audio → mute mic immediately.
-          // NOTE: the relay sends the agent transcript BEFORE TTS audio starts,
-          // so we cannot use the transcript event to know when TTS is done.
-          // We rely on response.done (sent after all TTS chunks) instead.
+          // NOTE: the relay sends the agent transcript BEFORE TTS audio starts, so
+          // the transcript event cannot tell us when playback is done. We rely on
+          // response.done (sent after all TTS chunks) instead.
           if (!isElAISpeaking) {
             if (elDrainTimer !== null) { clearTimeout(elDrainTimer); elDrainTimer = null; }
             isElAISpeaking = true;
-            console.log("[elv-relay] mic muted — AI audio started");
           }
           scheduleAudioChunk(String(msg.data ?? ""));
           return;
         }
 
-        // response.done fires after ALL TTS audio chunks have been sent.
-        // Schedule unmute after the queued audio drains + 300 ms echo tail.
+        // Barge-in: the relay detected the caller talking over the agent and has
+        // abandoned the turn. Anything already scheduled must be dropped, or the
+        // agent keeps talking for seconds after being interrupted.
+        if (msg.type === "audio.clear") {
+          clearQueuedAudio();
+          return;
+        }
+
+        // response.done fires after ALL TTS audio chunks have been sent. Tell the
+        // relay once the queued audio has actually finished playing, so it knows
+        // when the agent is no longer speaking.
         if (msg.type === "response.done") {
           const ctx = audioCtxRef.current;
           const remainingMs = ctx && nextPlayTimeRef.current > ctx.currentTime
@@ -2264,8 +2381,13 @@ export function RetellDeployDialog({
           if (elDrainTimer !== null) clearTimeout(elDrainTimer);
           elDrainTimer = setTimeout(() => {
             elDrainTimer = null;
-            unmuteElMic();
+            reportPlaybackDone();
           }, remainingMs + 300);
+          return;
+        }
+
+        if (msg.type === "call.ended") {
+          console.log(`[elv-relay] call ended by flow (${String(msg.reason ?? "")})`);
           return;
         }
 
@@ -2532,6 +2654,8 @@ export function RetellDeployDialog({
     ? getHyperStreamCostPerMinute(settings.openaiRealtimeModel)
     : isElevenLabs
     ? ELEVENLABS_PER_MIN
+    : isWebeeNative
+    ? WEBEE_NATIVE_PER_MIN
     : getTotalCostPerMinute(settings.model);
   const minutes = elapsedSec / 60;
   // HyperStream: use exact token cost once available; fall back to time estimate
@@ -2552,6 +2676,8 @@ export function RetellDeployDialog({
       ? "ELEVENLABS_NATIVE"
       : isOpenAI
       ? "OPENAI_REALTIME"
+      : isWebeeNative
+      ? "WEBEE_NATIVE"
       : undefined;
     recordCost({ data: { seconds, deploymentMode } })
       .then((res) => {
@@ -2744,7 +2870,7 @@ export function RetellDeployDialog({
             size="sm"
             variant="ghost"
             onClick={
-              isOpenAI && settings.voiceOutputProvider === "elevenlabs"
+              isWebeeNative || (isOpenAI && settings.voiceOutputProvider === "elevenlabs")
                 ? handleElVoiceTestCall
                 : isOpenAI
                   ? handleHyperStreamTestCall
@@ -2752,14 +2878,16 @@ export function RetellDeployDialog({
                     ? handleVoxStreamTestCall
                     : handleTestCall
             }
-            disabled={!hasAgent || (!isOpenAI && overLimit)}
+            disabled={!hasAgent || (!isOpenAI && !isWebeeNative && overLimit)}
             className="!h-8 !w-8 !p-0 text-muted-foreground/60 hover:bg-violet-500/10 hover:text-violet-300 disabled:opacity-40"
             title={
               !hasAgent
                 ? "Save the agent first"
-                : !isOpenAI && !isElevenLabs && overLimit
+                : !isOpenAI && !isElevenLabs && !isWebeeNative && overLimit
                   ? `Spend cap reached ($${(spendUsedCents / 100).toFixed(2)} / $${(spendLimitCents / 100).toFixed(2)}).`
-                  : isOpenAI && settings.voiceOutputProvider === "elevenlabs"
+                  : isWebeeNative
+                    ? "Test WEBEE Native agent (in-house graph VM + TTS)"
+                    : isOpenAI && settings.voiceOutputProvider === "elevenlabs"
                     ? "Test EL Voice agent (Whisper → GPT-4.1 → ElevenLabs TTS)"
                     : isOpenAI
                       ? "Test HyperStream agent (browser WebRTC)"
@@ -3003,6 +3131,8 @@ export function RetellDeployDialog({
               ? `OpenAI token cost only. Live calls add ~$${HYPERSTREAM_TELEPHONY_PER_MIN.toFixed(3)}/min Twilio telephony on top (not charged for builder test calls).`
               : isElevenLabs
               ? `VoxStream est. ~$${ELEVENLABS_PER_MIN.toFixed(3)}/min (ElevenLabs ConvAI — GPT-4o + Turbo v2.5 voice, blended)`
+              : isWebeeNative
+              ? `WEBEE Native est. ~$${WEBEE_NATIVE_PER_MIN.toFixed(3)}/min (in-house TTS + streaming STT + GPT-4.1). Live calls add carrier minutes.`
               : `Estimated spend @ $${costPerMinute.toFixed(3)}/min`
           }
         >

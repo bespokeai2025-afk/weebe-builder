@@ -65,11 +65,23 @@ const elevenLabsNativeHandler: NativeRuntimeHandler = {
   },
 };
 
+/**
+ * The cascade engine needs no session handshake: the browser opens the relay
+ * socket and sends `session.init` with the agent id, and the gateway loads the
+ * flow itself. So this returns the endpoint rather than a credential.
+ */
+const webeeNativeHandler: NativeRuntimeHandler = {
+  mode: "WEBEE_NATIVE",
+  status: "available",
+  createSession: async () => ({ wsUrl: "/api/el-voice-relay" }),
+};
+
 export const RUNTIME_REGISTRY: Record<Exclude<DeploymentMode, "RETELL">, NativeRuntimeHandler> = {
   OPENAI_NATIVE: openAINativeHandler,
   CLAUDE_NATIVE: claudeNativeHandler,
   GEMINI_NATIVE: geminiNativeHandler,
   ELEVENLABS_NATIVE: elevenLabsNativeHandler,
+  WEBEE_NATIVE: webeeNativeHandler,
 };
 
 export function getHandler(mode: DeploymentMode): NativeRuntimeHandler | null {

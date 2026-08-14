@@ -43,15 +43,27 @@ export function threadNeedsReply(thread: {
   return thread.lastDirection === "inbound";
 }
 
-/** Replies waiting first, then most recent activity. */
-export function sortWhatsappInboxThreads<T extends { lastAt: string; lastDirection?: string | null; needsReply?: boolean }>(
-  threads: T[],
-): T[] {
+export type InboxSortMode = "replies-first" | "recent";
+
+/**
+ * Order threads for the inbox list.
+ *
+ * "replies-first" pins anything awaiting a response above everything else, which is useful for
+ * working a queue but means an old reply outranks a send from minutes ago. "recent" is plain
+ * reverse-chronological, for checking what just went out.
+ */
+export function sortWhatsappInboxThreads<
+  T extends { lastAt: string; lastDirection?: string | null; needsReply?: boolean },
+>(threads: T[], mode: InboxSortMode = "replies-first"): T[] {
+  const byRecency = (a: T, b: T) => new Date(b.lastAt).getTime() - new Date(a.lastAt).getTime();
+
+  if (mode === "recent") return [...threads].sort(byRecency);
+
   return [...threads].sort((a, b) => {
-    const aReply = a.needsReply ?? threadNeedsReply(a) ? 1 : 0;
-    const bReply = b.needsReply ?? threadNeedsReply(b) ? 1 : 0;
+    const aReply = (a.needsReply ?? threadNeedsReply(a)) ? 1 : 0;
+    const bReply = (b.needsReply ?? threadNeedsReply(b)) ? 1 : 0;
     if (bReply !== aReply) return bReply - aReply;
-    return new Date(b.lastAt).getTime() - new Date(a.lastAt).getTime();
+    return byRecency(a, b);
   });
 }
 

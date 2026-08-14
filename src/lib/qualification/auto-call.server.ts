@@ -20,6 +20,8 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { retellFetch } from "@/lib/providers/retell/client.server";
+import { resolveDeploymentMode } from "@/lib/runtime/adapter";
+import { placeNativeOutboundCall } from "@/lib/telephony/native-outbound.server";
 
 export interface AutoCallResult {
   placed: boolean;
@@ -88,8 +90,11 @@ export async function triggerAutoCallForNewLead(
     const deployedRetellAgentId = (agentSettings.deployedRetellAgentId as string | undefined) ?? null;
     const retellAgentId = deployedRetellAgentId ?? agent.retell_agent_id ?? null;
     const fromNumber = (agentSettings.phoneNumber as string | undefined) ?? null;
+    // A migrated agent has neither a Retell id nor a Retell-side number, so the
+    // configuration test that applies to it is a different one.
+    const dialNative = resolveDeploymentMode(agentSettings as never) === "WEBEE_NATIVE";
 
-    if (!retellAgentId || !fromNumber) {
+    if (!dialNative && (!retellAgentId || !fromNumber)) {
       return { placed: false, reason: "agent_not_fully_configured" };
     }
 
@@ -121,31 +126,53 @@ export async function triggerAutoCallForNewLead(
       if (val != null && val !== "") dynamicVars[placeholder] = String(val);
     }
 
-    const callPayload = {
-      from_number: fromNumber,
-      to_number: lead.phone,
-      override_agent_id: retellAgentId,
-      metadata: { lead_id: lead.id, workspace_id: workspaceId, trigger: "auto_new_lead" },
-      retell_llm_dynamic_variables: dynamicVars,
-    };
+    let callId: string | null = null;
+    let dialedFrom = fromNumber;
 
-    const call = await retellFetch<any>("/v2/create-phone-call", callPayload, "POST", clientRetellKey);
+    if (dialNative) {
+      // Pre-call variables are seeded from the flow itself on the native engine,
+      // so there is no dynamic-variable payload to pass here; the lead fields the
+      // mappings point at are read by the graph when it needs them.
+      const dial = await placeNativeOutboundCall({
+        sb,
+        workspaceId,
+        agentId: agent.id,
+        to: lead.phone,
+      });
+      callId = dial.callId;
+      dialedFrom = dial.fromNumber;
+    } else {
+      const callPayload = {
+        from_number: fromNumber,
+        to_number: lead.phone,
+        override_agent_id: retellAgentId,
+        metadata: { lead_id: lead.id, workspace_id: workspaceId, trigger: "auto_new_lead" },
+        retell_llm_dynamic_variables: dynamicVars,
+      };
+      const call = await retellFetch<any>(
+        "/v2/create-phone-call",
+        callPayload,
+        "POST",
+        clientRetellKey,
+      );
+      callId = call?.call_id ?? null;
+    }
 
     const now = new Date().toISOString();
     await sb.from("leads").update({ status: "calling", updated_at: now }).eq("id", lead.id);
     await sb.from("calls").insert({
       workspace_id: workspaceId,
-      retell_call_id: call?.call_id ?? null,
-      agent_id: retellAgentId,
+      retell_call_id: callId,
+      agent_id: dialNative ? agent.id : retellAgentId,
       agent_name: agent.name ?? null,
-      from_number: fromNumber,
+      from_number: dialedFrom,
       to_number: lead.phone,
       call_type: "outbound",
       call_status: "initiated",
       lead_id: lead.id,
     });
 
-    return { placed: true, callId: call?.call_id };
+    return { placed: true, callId: callId ?? undefined };
   } catch (e) {
     console.error("[AUTO-CALL] trigger failed:", e instanceof Error ? e.message : e);
     return { placed: false, reason: "error" };

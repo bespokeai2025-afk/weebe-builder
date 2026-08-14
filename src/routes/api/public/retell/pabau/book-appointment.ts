@@ -33,12 +33,20 @@ export const Route = createFileRoute("/api/public/retell/pabau/book-appointment"
           const parsed = parseDnrBookAppointment(merged.args);
           if (!parsed.ok) {
             const sessionState = describeDnrBookSession(session);
+            console.warn("[dnr-pabau] book_appointment rejected", {
+              retellCallId,
+              missing: parsed.missing,
+              invalid: parsed.invalid,
+              details: parsed.details,
+              arg_keys: Object.keys(merged.args),
+            });
             return dnrPabauJson(
               {
                 error: parsed.error,
                 hint: parsed.hint ?? dnrBookAppointmentHint(),
                 missing_fields: parsed.missing ?? [],
                 invalid_fields: parsed.invalid ?? [],
+                details: parsed.details,
                 session: sessionState,
                 session_available: sessionState.has_contact_id,
                 next_step:

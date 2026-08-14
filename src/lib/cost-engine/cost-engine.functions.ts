@@ -3,6 +3,13 @@ import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { requirePlatformAdmin } from "@/lib/auth/require-platform-admin";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { z } from "zod";
+import {
+  calcWebeeNativeCostPerMin as calcNativeRates,
+  type WebeeNativeCost,
+  type WebeeNativeCostBreakdown,
+} from "./native-rates";
+
+export type { WebeeNativeCost, WebeeNativeCostBreakdown } from "./native-rates";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -154,6 +161,7 @@ export interface CostEngineData {
   tools: ToolsCost | null;
   infrastructure: InfrastructureCost | null;
   retell: RetellCost | null;
+  webee_native: WebeeNativeCost | null;
   markup: Markup | null;
   plans: CustomerPlan[];
   dev_roles: DevRole[];
@@ -189,11 +197,11 @@ export const getCostEngine = createServerFn({ method: "GET" })
         tablesReady: false,
         llm: [], voice: [], telephony: [],
         knowledge: null, tools: null, infrastructure: null,
-        retell: null, markup: null, plans: [], dev_roles: [],
+        retell: null, webee_native: null, markup: null, plans: [], dev_roles: [],
       };
     }
 
-    const [llmR, voiceR, telR, knR, toolR, infraR, retR, mkR, planR, roleR] =
+    const [llmR, voiceR, telR, knR, toolR, infraR, retR, nativeR, mkR, planR, roleR] =
       await Promise.all([
         supabaseAdmin.from("cost_engine_llm").select("*").eq("is_current", true).order("provider").order("model"),
         supabaseAdmin.from("cost_engine_voice").select("*").eq("is_current", true).order("provider").order("voice_name"),
@@ -202,6 +210,9 @@ export const getCostEngine = createServerFn({ method: "GET" })
         supabaseAdmin.from("cost_engine_tools").select("*").eq("is_current", true).order("created_at", { ascending: false }).limit(1).maybeSingle(),
         supabaseAdmin.from("cost_engine_infrastructure").select("*").eq("is_current", true).order("created_at", { ascending: false }).limit(1).maybeSingle(),
         supabaseAdmin.from("cost_engine_retell").select("*").eq("is_current", true).order("created_at", { ascending: false }).limit(1).maybeSingle(),
+        // Added later than the rest, so a database that has not run the migration
+        // yet must degrade to "no rates" instead of failing the whole dashboard.
+        supabaseAdmin.from("cost_engine_webee_native").select("*").eq("is_current", true).order("created_at", { ascending: false }).limit(1).maybeSingle(),
         supabaseAdmin.from("cost_engine_markup").select("*").eq("is_active", true).order("created_at", { ascending: false }).limit(1).maybeSingle(),
         supabaseAdmin.from("cost_engine_customer_plans").select("*").eq("is_active", true).order("sort_order"),
         supabaseAdmin.from("cost_engine_dev_roles").select("*").order("sort_order"),
@@ -216,6 +227,7 @@ export const getCostEngine = createServerFn({ method: "GET" })
       tools: toolR.data as ToolsCost | null,
       infrastructure: infraR.data as InfrastructureCost | null,
       retell: retR.data as RetellCost | null,
+      webee_native: (nativeR.data ?? null) as WebeeNativeCost | null,
       markup: mkR.data as Markup | null,
       plans: (planR.data ?? []) as CustomerPlan[],
       dev_roles: (roleR.data ?? []) as DevRole[],
@@ -492,6 +504,28 @@ export const saveRetellCost = createServerFn({ method: "POST" })
     return { ok: true };
   });
 
+const WebeeNativeInput = z.object({
+  tts_cost_per_1m_bytes: z.number().min(0),
+  tts_chars_per_min: z.number().min(1),
+  // A ratio outside 0-1 would silently produce nonsense per-minute costs.
+  agent_talk_ratio: z.number().min(0).max(1),
+  stt_cost_per_min: z.number().min(0),
+  llm_cost_per_min: z.number().min(0),
+  router_cost_per_min: z.number().min(0),
+  analysis_cost_per_call: z.number().min(0),
+  concurrency_tier_monthly: z.number().min(0),
+  estimated_monthly_minutes: z.number().min(1),
+  notes: z.string().optional(),
+});
+
+export const saveWebeeNativeCost = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth, requirePlatformAdmin])
+  .validator((i: z.infer<typeof WebeeNativeInput>) => WebeeNativeInput.parse(i))
+  .handler(async ({ data }) => {
+    await upsertSingleton("cost_engine_webee_native", data);
+    return { ok: true };
+  });
+
 // ── Markup ────────────────────────────────────────────────────────────────────
 
 const MarkupInput = z.object({
@@ -747,6 +781,33 @@ export function calcRetellFullCostPerMin(opts: {
   const subscription = n(opts.retell?.subscription_cost_monthly) / mins;
   const total = platform + llm + voice + telephony + number + subscription;
   return { platform, llm, voice, telephony, number, subscription, total };
+}
+
+/**
+ * Per-minute cost of a call on the native cascade, in USD.
+ *
+ * Adapts the cost-engine row shapes onto the pure rate maths in ./native-rates,
+ * which the voice gateway also uses to price calls as they end.
+ */
+export function calcWebeeNativeCostPerMin(opts: {
+  native: WebeeNativeCost | null;
+  telephony: TelephonyCost | null;
+  infrastructure: InfrastructureCost | null;
+  callDirection: "inbound" | "outbound";
+  avgCallMinutes?: number;
+  numberRentalMonthly?: number;
+}): WebeeNativeCostBreakdown {
+  return calcNativeRates({
+    native: opts.native,
+    telephonyPerMin: opts.telephony
+      ? opts.callDirection === "inbound"
+        ? n(opts.telephony.inbound_cost_per_min)
+        : n(opts.telephony.outbound_cost_per_min)
+      : 0,
+    numberRentalMonthly: opts.numberRentalMonthly ?? n(opts.telephony?.number_rental_monthly),
+    infraPerMin: calcInfraCostPerMin(opts.infrastructure),
+    avgCallMinutes: opts.avgCallMinutes,
+  });
 }
 
 export function applyMarkup(cost: number, markup: Markup | null): { selling: number; profit: number; margin: number } {

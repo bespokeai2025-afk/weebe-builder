@@ -72,7 +72,7 @@ const tools = [
   customTool(
     "tool-dnr-find-or-create-client",
     "find_or_create_client",
-    "Find existing Pabau client by phone or create new client. New clients require email, gender, and date of birth.",
+    "Find existing Pabau client by phone or create new client. New clients require email and gender — do not ask for anything else.",
     `${base}${DNR_VOICE.tools.findOrCreateClient}`,
     {
       ...agentIdParam,
@@ -82,9 +82,6 @@ const tools = [
       is_new_client: { type: "boolean", description: "true to create new client" },
       email: { type: "string", description: "Required when is_new_client is true" },
       gender: { type: "string", description: "Male, Female, or Other" },
-      date_of_birth: { type: "string", description: "YYYY-MM-DD" },
-      preferred_language: { type: "string", description: "Default English" },
-      how_did_you_hear_about_us: { type: "string", description: "Optional" },
     },
     ["agent_id", "first_name", "last_name", "phone"],
   ),

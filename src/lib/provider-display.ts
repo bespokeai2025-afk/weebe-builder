@@ -40,6 +40,12 @@ const PROVIDER_MAP: Record<string, ProviderDisplay> = {
     category:    "voice",
     icon:        "zap",
   },
+  fish: {
+    displayName: "WEBEE Native Voice",
+    adminName:   "Fish Audio",
+    category:    "voice",
+    icon:        "mic",
+  },
   // Telephony
   twilio: {
     displayName: "WEBEE Telephony",

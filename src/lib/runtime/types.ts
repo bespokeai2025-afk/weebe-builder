@@ -4,13 +4,19 @@
  * RETELL           — OmniVoice engine via Retell AI (default, all existing agents)
  * OPENAI_NATIVE    — HyperStream engine via OpenAI Realtime API
  * ELEVENLABS_NATIVE— VoxStream engine via ElevenLabs Conversational AI
+ * WEBEE_NATIVE     — In-house cascade: streaming STT -> graph VM -> Fish Audio TTS
  * CLAUDE_NATIVE    — Native Anthropic Claude voice runtime (future)
  * GEMINI_NATIVE    — Native Google Gemini voice runtime (future)
+ *
+ * WEBEE_NATIVE is the only mode that interprets the conversation graph locally.
+ * RETELL executes the graph on Retell's side; the others flatten it into a single
+ * prompt, which is why they skip steps a multi-node flow expects.
  */
 export type DeploymentMode =
   | "RETELL"
   | "OPENAI_NATIVE"
   | "ELEVENLABS_NATIVE"
+  | "WEBEE_NATIVE"
   | "CLAUDE_NATIVE"
   | "GEMINI_NATIVE";
 
@@ -22,7 +28,7 @@ export interface RuntimeDescriptor {
   /** True when the runtime is production-ready; false = coming soon. */
   available: boolean;
   /** Icon name (maps to a Lucide icon in the consumer component). */
-  icon: "radio" | "zap" | "mic" | "sparkles" | "gem";
+  icon: "radio" | "zap" | "mic" | "sparkles" | "gem" | "waves";
 }
 
 /** Resolved runtime context passed to execution handlers. */
@@ -55,6 +61,13 @@ export const ALL_DEPLOYMENT_MODES: RuntimeDescriptor[] = [
     sublabel: "ElevenLabs AI",
     available: true,
     icon: "mic",
+  },
+  {
+    mode: "WEBEE_NATIVE",
+    label: "WEBEE Native Engine",
+    sublabel: "In-house Cascade",
+    available: true,
+    icon: "waves",
   },
   {
     mode: "CLAUDE_NATIVE",

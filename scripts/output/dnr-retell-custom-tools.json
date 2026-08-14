@@ -45,7 +45,7 @@
   },
   {
     "name": "find_or_create_client",
-    "description": "Find existing Pabau client by phone or create new client. New clients require email, gender, and date of birth.",
+    "description": "Find existing Pabau client by phone or create new client. New clients require email and gender — do not ask for anything else.",
     "url": "https://regress-stimuli-stick.ngrok-free.dev/api/public/retell/pabau/find-or-create-client",
     "parameters": {
       "type": "object",
@@ -65,7 +65,7 @@
         },
         "is_new_client": {
           "type": "boolean",
-          "description": "true = create new client with extra fields below"
+          "description": "true = create new client with email + gender below"
         },
         "email": {
           "type": "string",
@@ -79,18 +79,6 @@
             "Other"
           ],
           "description": "Required when is_new_client is true"
-        },
-        "date_of_birth": {
-          "type": "string",
-          "description": "YYYY-MM-DD — required when is_new_client is true"
-        },
-        "preferred_language": {
-          "type": "string",
-          "description": "Default English"
-        },
-        "how_did_you_hear_about_us": {
-          "type": "string",
-          "description": "Optional referral source"
         }
       },
       "required": [
