@@ -15,6 +15,7 @@ import {
   BarChart3,
   PlayCircle,
   Loader2,
+  UserPlus,
 } from "lucide-react";
 import {
   Dialog,
@@ -43,6 +44,8 @@ import { toast } from "sonner";
 import { listQualifiedLeads, getQualificationStats } from "@/lib/dashboard/qualified.functions";
 import { setLeadStatus, startQualificationCallsForLeads, scheduleQualificationCalls } from "@/lib/dashboard/leads.functions";
 import { StartCallsDialog } from "@/components/dashboard/StartCallsDialog";
+import { AssignLeadsDialog } from "@/components/leads/AssignLeadsDialog";
+import { getMyPermissions } from "@/lib/permissions/team-access.functions";
 import { listWbahQualifiedLeads, getWbahContactCallHistory, getWbahCallDetail } from "@/lib/integrations/webespokeEnterprise/wbah-workspace.server";
 import { normalizeSentiment } from "@/lib/sentiment";
 import { getDashboardLiveAgents } from "@/lib/agents/agents.functions";
@@ -245,6 +248,15 @@ function QualifiedPage() {
   const [qualTab, setQualTab] = useState<"contacts" | "campaigns">("contacts");
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [callDialogOpen, setCallDialogOpen] = useState(false);
+  const [assignDialogOpen, setAssignDialogOpen] = useState(false);
+  const myPermsFn = useServerFn(getMyPermissions);
+  const myPermsQ = useQuery({
+    queryKey: ["my-permissions"],
+    queryFn: () => myPermsFn(),
+    staleTime: 5 * 60_000,
+    throwOnError: false,
+  });
+  const canAssign = (myPermsQ.data as any)?.actionAccess?.lead_assignment === true;
   const startCallsFn = useServerFn(startQualificationCallsForLeads);
   const scheduleCallsFn = useServerFn(scheduleQualificationCalls);
   const listAgentsFn = useServerFn(getDashboardLiveAgents);
@@ -536,6 +548,12 @@ function QualifiedPage() {
           </p>
         </div>
         <div className="flex items-center gap-2">
+          {qualTab === "contacts" && !isWbah && selectedIds.size > 0 && canAssign && (
+            <Button size="sm" variant="outline" className="border-emerald-500/30 text-emerald-400 hover:text-emerald-300" onClick={() => setAssignDialogOpen(true)}>
+              <UserPlus className="mr-1 h-4 w-4" />
+              Assign {selectedIds.size}
+            </Button>
+          )}
           {qualTab === "contacts" && !isWbah && selectedIds.size > 0 && (
             <Button size="sm" variant="outline" className="border-blue-500/30 text-blue-400 hover:text-blue-300" onClick={openCallDialog}>
               <ShieldCheck className="mr-1 h-4 w-4" />
@@ -1008,6 +1026,15 @@ function QualifiedPage() {
         onStart={handleStartCalls}
         onSchedule={handleScheduleCalls}
       />
+
+      {assignDialogOpen && (
+        <AssignLeadsDialog
+          open={assignDialogOpen}
+          onOpenChange={setAssignDialogOpen}
+          leadIds={Array.from(selectedIds)}
+          onAssigned={() => setSelectedIds(new Set())}
+        />
+      )}
     </DashboardPage>
   );
 }

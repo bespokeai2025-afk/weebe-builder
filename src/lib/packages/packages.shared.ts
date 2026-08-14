@@ -535,6 +535,7 @@ export const ACTION_FEATURE_MAP: Record<ActionKey, FeatureKey> = {
   user_management: "team_access",
   billing: "billing",
   notification_settings: "team_access",
+  lead_assignment: "leads",
 };
 
 /** Sidebar route → feature gate (routes not listed are ungated by package). */

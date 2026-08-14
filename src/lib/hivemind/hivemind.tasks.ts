@@ -771,7 +771,11 @@ export const runHiveMindScan = createServerFn({ method: "POST" })
   .handler(async ({ context }) => {
     const sb          = context.supabase as any;
     const workspaceId = context.workspaceId;
+    const userId      = (context as any).userId;
     if (!workspaceId) throw new Error("No workspace");
+
+    const { requirePageAccessEntitled } = await import("@/lib/packages/entitlements.server");
+    await requirePageAccessEntitled(workspaceId, userId, "hivemind", "view");
 
     // Observe mode: HiveMind watches only — scanner must not create tasks/events.
     const { isProposalAllowed } = await import("@/lib/hivemind/mode-gate.server");
@@ -928,7 +932,12 @@ export const getHiveMindTasksAndEvents = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
     const workspaceId = context.workspaceId;
+    const userId = (context as any).userId;
     if (!workspaceId) throw new Error("No workspace");
+
+    const { requirePageAccessEntitled } = await import("@/lib/packages/entitlements.server");
+    await requirePageAccessEntitled(workspaceId, userId, "hivemind", "view");
+
     // Cast: TanStack's serializable validator rejects Record<string, unknown>
     // metadata; the payload is plain JSON (same shape as before extraction).
     return (await getHiveMindTasksAndEventsCore({

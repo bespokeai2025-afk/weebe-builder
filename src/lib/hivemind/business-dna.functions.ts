@@ -10,7 +10,9 @@ export const getBusinessDnaFn = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((d: any) => d)
   .handler(async ({ context }: any) => {
-    const { supabase, workspaceId } = context as any;
+    const { supabase, workspaceId, userId } = context as any;
+    const { requirePageAccessEntitled } = await import("@/lib/packages/entitlements.server");
+    await requirePageAccessEntitled(workspaceId, userId, "hivemind", "view");
     const { data, error } = await supabase
       .from("growthmind_business_dna")
       .select("*")
@@ -56,7 +58,9 @@ export const runDnaDiscoveryFn = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((d: any) => d)
   .handler(async ({ context }: any) => {
-    const { supabase, workspaceId } = context as any;
+    const { supabase, workspaceId, userId } = context as any;
+    const { requirePageAccessEntitled } = await import("@/lib/packages/entitlements.server");
+    await requirePageAccessEntitled(workspaceId, userId, "hivemind", "view");
     const { data: ws } = await supabase
       .from("workspace_settings")
       .select("openai_api_key")
@@ -89,7 +93,10 @@ export const generateBriefingFn = createServerFn({ method: "POST" })
   .validator((d: any) => d)
   .handler(async ({ context, data }: any) => {
     const { type = "daily" } = (data ?? {}) as { type?: "daily" | "weekly" | "monthly" };
-    const { supabase, workspaceId } = context as any;
+    const { supabase, workspaceId, userId } = context as any;
+
+    const { requirePageAccessEntitled } = await import("@/lib/packages/entitlements.server");
+    await requirePageAccessEntitled(workspaceId, userId, "hivemind", "view");
 
     const { data: ws } = await supabase
       .from("workspace_settings")
@@ -109,7 +116,10 @@ export const listBriefingsFn = createServerFn({ method: "POST" })
   .validator((d: any) => d)
   .handler(async ({ context, data }: any) => {
     const { type, limit = 20 } = (data ?? {}) as { type?: string; limit?: number };
-    const { supabase, workspaceId } = context as any;
+    const { supabase, workspaceId, userId } = context as any;
+
+    const { requirePageAccessEntitled } = await import("@/lib/packages/entitlements.server");
+    await requirePageAccessEntitled(workspaceId, userId, "hivemind", "view");
 
     let query = supabase
       .from("hivemind_briefings")
@@ -131,7 +141,10 @@ export const getBriefingFn = createServerFn({ method: "POST" })
   .validator((d: any) => d)
   .handler(async ({ context, data }: any) => {
     const { id } = data as { id: string };
-    const { supabase, workspaceId } = context as any;
+    const { supabase, workspaceId, userId } = context as any;
+
+    const { requirePageAccessEntitled } = await import("@/lib/packages/entitlements.server");
+    await requirePageAccessEntitled(workspaceId, userId, "hivemind", "view");
 
     const { data: row, error } = await supabase
       .from("hivemind_briefings")
@@ -168,7 +181,9 @@ export const getUnreadBriefingCountFn = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((d: any) => d)
   .handler(async ({ context }: any) => {
-    const { supabase, workspaceId } = context as any;
+    const { supabase, workspaceId, userId } = context as any;
+    const { requirePageAccessEntitled } = await import("@/lib/packages/entitlements.server");
+    await requirePageAccessEntitled(workspaceId, userId, "hivemind", "view");
     const { count } = await supabase
       .from("hivemind_briefings")
       .select("*", { count: "exact", head: true })
@@ -182,7 +197,10 @@ export const generateDnaProposalsFn = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((d: any) => d)
   .handler(async ({ context }: any) => {
-    const { supabase, workspaceId } = context as any;
+    const { supabase, workspaceId, userId } = context as any;
+
+    const { requirePageAccessEntitled } = await import("@/lib/packages/entitlements.server");
+    await requirePageAccessEntitled(workspaceId, userId, "hivemind", "view");
 
     const { data: ws } = await supabase
       .from("workspace_settings")

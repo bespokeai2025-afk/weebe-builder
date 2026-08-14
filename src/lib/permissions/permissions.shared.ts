@@ -21,6 +21,7 @@ export const ROLE_KEYS = [
   "manager",
   "agent_builder",
   "campaign_manager",
+  "sales_agent",
   "reports_only",
   "viewer",
   "suspended",
@@ -33,6 +34,7 @@ export const ROLE_LABELS: Record<RoleKey, string> = {
   manager: "Manager",
   agent_builder: "Agent Builder",
   campaign_manager: "Campaign Manager",
+  sales_agent: "Sales Agent",
   reports_only: "Reports Only",
   viewer: "Viewer",
   suspended: "No Access / Suspended",
@@ -110,6 +112,7 @@ export const ACTION_KEYS = [
   "user_management",
   "billing",
   "notification_settings",
+  "lead_assignment",
 ] as const;
 export type ActionKey = (typeof ACTION_KEYS)[number];
 
@@ -123,6 +126,7 @@ export const ACTION_LABELS: Record<ActionKey, string> = {
   user_management: "Invite / remove users & change roles",
   billing: "Manage billing",
   notification_settings: "Change notification settings",
+  lead_assignment: "Assign leads to team members",
 };
 
 export type PageAccessMap = Partial<Record<PageKey, PageLevel>>;
@@ -205,6 +209,21 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<RoleKey, RolePermissions> = {
     actionAccess: allActions(false, { campaign_activation: true }),
     assignedRecordsOnly: false,
   },
+  sales_agent: {
+    roleKey: "sales_agent",
+    // Human sales agents work ONLY their assigned leads: restricted-read
+    // (assignedRecordsOnly) is enforced server-side in every lead-linked
+    // list function. No provider/settings/billing/team surfaces.
+    pageAccess: allPages("hidden", {
+      dashboard: "view",
+      leads: "edit",
+      pipeline: "edit",
+      calls: "view",
+      crm: "view",
+    }),
+    actionAccess: allActions(false),
+    assignedRecordsOnly: true,
+  },
   reports_only: {
     roleKey: "reports_only",
     pageAccess: allPages("hidden", { dashboard: "view", reports: "view", campaigns: "view" }),
@@ -233,6 +252,7 @@ export function legacyRoleToRoleKey(role: string | null | undefined): RoleKey {
   if (role === "owner") return "owner";
   if (role === "admin") return "admin";
   if (role === "member") return "manager";
+  if (role === "sales_agent") return "sales_agent";
   return "suspended"; // unknown → fail closed
 }
 

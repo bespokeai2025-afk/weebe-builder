@@ -52,9 +52,12 @@ import {
   Check,
   FolderOpen,
   AlertTriangle,
+  UserPlus,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { listContactDocsByPhone } from "@/lib/dashboard/documents.functions";
+import { AssignLeadsDialog, useAssignableMembers } from "@/components/leads/AssignLeadsDialog";
+import { getMyPermissions } from "@/lib/permissions/team-access.functions";
 import { ContactDocumentsPanel } from "@/components/contacts/ContactDocumentsPanel";
 import { CampaignPickerDialog } from "@/components/hexmail/CampaignPickerDialog";
 
@@ -138,6 +141,22 @@ export function PipelineLeadDrawer({ lead, open, onOpenChange, onSaleAmountSaved
   const bookFn      = useServerFn(createManualBooking);
   const moveFn      = useServerFn(setLeadPipelineStage);
   const saleAmtFn   = useServerFn(setSaleDoneAmount);
+
+  // ── assignment state ───────────────────────────────────────────────────────
+  const myPermsFn = useServerFn(getMyPermissions);
+  const myPermsQ = useQuery({
+    queryKey: ["my-permissions"],
+    queryFn: () => myPermsFn(),
+    staleTime: 5 * 60_000,
+    throwOnError: false,
+    enabled: open,
+  });
+  const canAssign = (myPermsQ.data as any)?.actionAccess?.lead_assignment === true;
+  const [assignOpen, setAssignOpen] = useState(false);
+  const membersQ = useAssignableMembers(open && canAssign);
+  const assigneeName = lead?.assigned_to
+    ? ((membersQ.data as any[]) ?? []).find((m) => m.userId === lead.assigned_to)?.name ?? null
+    : null;
 
   // ── notes state ────────────────────────────────────────────────────────────
   const [noteText,   setNoteText]   = useState("");
@@ -371,6 +390,26 @@ export function PipelineLeadDrawer({ lead, open, onOpenChange, onSaleAmountSaved
                   <Building2 className="h-3 w-3 shrink-0" />
                   {lead.company_name}
                 </p>
+              )}
+
+              {(canAssign || lead.assigned_to) && (
+                <div className="mt-1.5 flex items-center gap-2">
+                  {lead.assigned_to && (
+                    <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 px-2 py-0.5 text-[11px] font-medium text-emerald-400 ring-1 ring-emerald-500/25">
+                      <UserPlus className="h-3 w-3" />
+                      {assigneeName ?? "Assigned"}
+                    </span>
+                  )}
+                  {canAssign && (
+                    <button
+                      type="button"
+                      onClick={() => setAssignOpen(true)}
+                      className="text-[11px] text-muted-foreground hover:text-foreground underline underline-offset-2 transition-colors"
+                    >
+                      {lead.assigned_to ? "Reassign" : "Assign to team member"}
+                    </button>
+                  )}
+                </div>
               )}
 
               <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1.5">
@@ -946,6 +985,17 @@ export function PipelineLeadDrawer({ lead, open, onOpenChange, onSaleAmountSaved
       </SheetContent>
     </Sheet>
 
+    {lead && assignOpen && (
+      <AssignLeadsDialog
+        open={assignOpen}
+        onOpenChange={setAssignOpen}
+        leadIds={[lead.id]}
+        currentAssignee={lead.assigned_to}
+        onAssigned={() => {
+          qc.invalidateQueries({ queryKey: ["pipeline-lead-detail", lead.id] });
+        }}
+      />
+    )}
     {lead && (
       <CampaignPickerDialog
         open={campaignPickerOpen}

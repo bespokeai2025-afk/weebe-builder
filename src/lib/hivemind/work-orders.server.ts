@@ -167,6 +167,11 @@ export const getWorkOrderDetail = createServerFn({ method: "GET" })
   .handler(async ({ context, data }) => {
     const sb = context.supabase as any;
     const workspaceId = context.workspaceId!;
+    const userId = (context as any).userId;
+
+    const { requirePageAccessEntitled } = await import("@/lib/packages/entitlements.server");
+    await requirePageAccessEntitled(workspaceId, userId, "hivemind", "view");
+
     const [{ data: wo, error: we }, { data: tasks }, { data: executions }, { data: actions }] =
       await Promise.all([
         sb.from("work_orders").select("*").eq("id", data.id).eq("workspace_id", workspaceId).single(),

@@ -589,6 +589,13 @@ export const getHiveMindMode = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
     const sb = context.supabase as any;
+    const workspaceId = context.workspaceId;
+    const userId = (context as any).userId;
+    if (!workspaceId) throw new Error("No workspace");
+
+    const { requirePageAccessEntitled } = await import("@/lib/packages/entitlements.server");
+    await requirePageAccessEntitled(workspaceId, userId, "hivemind", "view");
+
     const fallback = {
       mode: "recommend" as HiveMindMode,
       operatorEnabled: false,
@@ -695,6 +702,13 @@ export const getHiveMindActionsAndCounts = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
     const sb = context.supabase as any;
+    const workspaceId = context.workspaceId;
+    const userId = (context as any).userId;
+    if (!workspaceId) throw new Error("No workspace");
+
+    const { requirePageAccessEntitled } = await import("@/lib/packages/entitlements.server");
+    await requirePageAccessEntitled(workspaceId, userId, "hivemind", "view");
+
     const { data, error } = await sb.from("hivemind_actions")
       .select("*")
       .eq("workspace_id", context.workspaceId)
@@ -732,6 +746,11 @@ export const getHiveMindLearningSummary = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
     const workspaceId = context.workspaceId!;
+    const userId = (context as any).userId;
+
+    const { requirePageAccessEntitled } = await import("@/lib/packages/entitlements.server");
+    await requirePageAccessEntitled(workspaceId, userId, "hivemind", "view");
+
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { data, error } = await (supabaseAdmin as any)
       .from("hivemind_confidence_adjustments")
@@ -1084,7 +1103,11 @@ export const generateOperatorActions = createServerFn({ method: "POST" })
   .handler(async ({ context }) => {
     const sb          = context.supabase as any;
     const workspaceId = context.workspaceId;
+    const userId      = (context as any).userId;
     if (!workspaceId) throw new Error("No workspace");
+
+    const { requirePageAccessEntitled } = await import("@/lib/packages/entitlements.server");
+    await requirePageAccessEntitled(workspaceId, userId, "hivemind", "view");
 
     // Observe mode: engine must not create actions.
     const { isProposalAllowed } = await import("@/lib/hivemind/mode-gate.server");

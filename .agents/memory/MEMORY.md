@@ -97,6 +97,7 @@
 - [Reseller & white-label hierarchy](reseller-whitelabel-hierarchy.md) — parent/child workspaces; capacity = maxChildAccounts + addon (fail closed); children never inherit reseller powers; legacy_full excludes new keys.
 - [Workspace email provider dispatch](workspace-email-provider-dispatch.md) — all workspace email via sendWorkspaceEmail (own custom → reseller parent → platform); never-throw, fallback, alert at 3 fails.
 - [Notification prefs & package caps](notification-prefs-packages.md) — new event keys need BOTH shared catalog + DB check-constraint migration; caps fail closed; defaults seed insert-only.
+- [Sales agent role & lead assignment](sales-agent-lead-assignment.md) — assignedRecordsOnly guards EVERY lead mutation fn (not just lists); audit-first writes; targetUserIds notification override.
 - [Notification catalogue & dedup](notification-catalogue-dedup.md) — event defs/labels/constraint lockstep; capability filter fails OPEN (all-false entitlements = indeterminate); dedupeKey ledger atomic, fail-open.
 - [Analytics Hub architecture](analytics-hub-arch.md) — 12-tab BI hub + 15-type report engine; schedule tick MUST claim via CAS on last_run_at before sending or ticks re-send every 5 min.
 - [Cross-instance cache signals](cross-instance-cache-signals.md) — platform_cache_signals version row + throttled check makes package/entitlement caches multi-instance safe; reuse for new server caches.

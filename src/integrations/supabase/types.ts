@@ -11197,6 +11197,44 @@ export type Database = {
         }
         Relationships: []
       }
+      lead_assignment_audit: {
+        Row: {
+          assigned_by: string
+          assigned_to: string | null
+          created_at: string
+          id: string
+          lead_id: string
+          previous_assigned_to: string | null
+          workspace_id: string
+        }
+        Insert: {
+          assigned_by: string
+          assigned_to?: string | null
+          created_at?: string
+          id?: string
+          lead_id: string
+          previous_assigned_to?: string | null
+          workspace_id: string
+        }
+        Update: {
+          assigned_by?: string
+          assigned_to?: string | null
+          created_at?: string
+          id?: string
+          lead_id?: string
+          previous_assigned_to?: string | null
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lead_assignment_audit_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       lead_email_log: {
         Row: {
           created_at: string
@@ -11262,6 +11300,9 @@ export type Database = {
       }
       leads: {
         Row: {
+          assigned_at: string | null
+          assigned_by: string | null
+          assigned_to: string | null
           attempt_count: number
           bank_statements_status: string | null
           bank_statements_uploaded: boolean
@@ -11323,6 +11364,9 @@ export type Database = {
           workspace_id: string
         }
         Insert: {
+          assigned_at?: string | null
+          assigned_by?: string | null
+          assigned_to?: string | null
           attempt_count?: number
           bank_statements_status?: string | null
           bank_statements_uploaded?: boolean
@@ -11384,6 +11428,9 @@ export type Database = {
           workspace_id: string
         }
         Update: {
+          assigned_at?: string | null
+          assigned_by?: string | null
+          assigned_to?: string | null
           attempt_count?: number
           bank_statements_status?: string | null
           bank_statements_uploaded?: boolean
@@ -20217,7 +20264,7 @@ export type Database = {
       message_status: "queued" | "sent" | "delivered" | "read" | "failed"
       sentiment_kind: "positive" | "neutral" | "negative"
       user_type: "admin" | "user"
-      workspace_role: "owner" | "admin" | "member"
+      workspace_role: "owner" | "admin" | "member" | "sales_agent"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -20406,7 +20453,7 @@ export const Constants = {
       message_status: ["queued", "sent", "delivered", "read", "failed"],
       sentiment_kind: ["positive", "neutral", "negative"],
       user_type: ["admin", "user"],
-      workspace_role: ["owner", "admin", "member"],
+      workspace_role: ["owner", "admin", "member", "sales_agent"],
     },
   },
 } as const

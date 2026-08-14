@@ -79,12 +79,18 @@ export async function listExecutiveRecommendationsCore(
 
 export const listExecutiveRecommendations = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
-  .handler(async ({ context }) =>
-    listExecutiveRecommendationsCore({
+  .handler(async ({ context }) => {
+    const workspaceId = context.workspaceId!;
+    const userId = (context as any).userId;
+
+    const { requirePageAccessEntitled } = await import("@/lib/packages/entitlements.server");
+    await requirePageAccessEntitled(workspaceId, userId, "hivemind", "view");
+
+    return listExecutiveRecommendationsCore({
       sb: context.supabase as any,
-      workspaceId: context.workspaceId!,
-    })
-  );
+      workspaceId,
+    });
+  });
 
 // ── updateExecutiveRecommendationStatus (lifecycle, no side-effects) ─────────
 const USER_TRANSITIONS: Record<string, string[]> = {

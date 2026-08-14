@@ -22,9 +22,14 @@ function overviewStatsKey(workspaceId: string, daysSince?: number) {
 export const getLeadCustomFields = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
-    const { supabase, workspaceId } = context;
+    const { supabase, workspaceId, userId } = context;
     if (!workspaceId) return { standardFields: [], metaFields: [] };
     const sb = supabase as any;
+
+    // Assigned-records-only roles must not discover meta keys from other
+    // agents' leads.
+    const { resolvePermissions } = await import("@/lib/permissions/permissions.server");
+    const perms = await resolvePermissions(workspaceId, userId);
 
     const STANDARD: Array<{ value: string; label: string }> = [
       { value: "full_name", label: "Full Name" },
@@ -42,12 +47,14 @@ export const getLeadCustomFields = createServerFn({ method: "GET" })
     ];
 
     // Aggregate distinct meta keys from existing leads
-    const { data: leads } = await sb
+    let mq = sb
       .from("leads")
       .select("meta")
       .eq("workspace_id", workspaceId)
       .not("meta", "eq", "{}")
       .limit(200);
+    if (perms.assignedRecordsOnly) mq = mq.eq("assigned_to", userId);
+    const { data: leads } = await mq;
 
     const metaKeys = new Set<string>();
     for (const lead of leads ?? []) {
@@ -72,15 +79,25 @@ export const getOverviewStats = createServerFn({ method: "POST" })
     z.object({ daysSince: z.number().int().min(1).optional() }).parse(input ?? {}),
   )
   .handler(async ({ context, data }) => {
-    const { supabase, workspaceId } = context;
+    const { supabase, workspaceId, userId } = context;
     if (!workspaceId) throw new Error("No active workspace");
     const { daysSince } = data;
+
+    // Assigned-records-only roles (sales agents) must never see workspace-wide
+    // lead names/counts — scope every leads query and use a per-user cache key
+    // so the shared workspace cache can't leak across restriction boundaries.
+    const { resolvePermissions } = await import("@/lib/permissions/permissions.server");
+    const perms = await resolvePermissions(workspaceId, userId);
+    const assignedOnly = perms.assignedRecordsOnly === true;
+    const scopeLeads = (q: any) => (assignedOnly ? q.eq("assigned_to", userId) : q);
 
     const url = (context as any).request?.url ?? "";
     const bust = process.env.NODE_ENV !== "production" && new URL(url, "http://x").searchParams.has("bust");
 
     return cacheWrap(
-      overviewStatsKey(workspaceId, daysSince),
+      assignedOnly
+        ? `${overviewStatsKey(workspaceId, daysSince)}:u:${userId}`
+        : overviewStatsKey(workspaceId, daysSince),
       OVERVIEW_STATS_TTL,
       async () => {
     // Detect WBAH workspace — it uses sentiment-based KPIs, not status-based
@@ -94,12 +111,39 @@ export const getOverviewStats = createServerFn({ method: "POST" })
       ? new Date(Date.now() - daysSince * 24 * 60 * 60 * 1000).toISOString()
       : null;
 
+    // For restricted roles, every aggregate (calls, bookings, durations) must
+    // also be assignment-scoped — otherwise a sales agent could infer other
+    // agents' activity from workspace-wide counts. Derive the caller's
+    // assigned lead ids + phones once and filter everything through them.
+    // WBAH aggregates cannot be assignment-scoped (wbah_calls carries no
+    // assignment) — they fail closed to empty for restricted users.
+    let assignedLeadIds: string[] = [];
+    let assignedPhones: string[] = [];
+    if (assignedOnly) {
+      const { data: mine } = await (supabase as any)
+        .from("leads" as never)
+        .select("id, phone")
+        .eq("workspace_id", workspaceId)
+        .eq("assigned_to", userId)
+        .limit(1000);
+      assignedLeadIds = (mine ?? []).map((l: any) => l.id);
+      assignedPhones = (mine ?? []).map((l: any) => l.phone).filter(Boolean);
+    }
+    // Sentinels guarantee fail-closed empty results when nothing is assigned.
+    const NO_UUID = "00000000-0000-0000-0000-000000000000";
+    const scopeCalls = (q: any) =>
+      assignedOnly ? q.in("to_number", assignedPhones.length ? assignedPhones : ["__none__"]) : q;
+    const scopeBookings = (q: any) =>
+      assignedOnly ? q.in("lead_id", assignedLeadIds.length ? assignedLeadIds : [NO_UUID]) : q;
+    const emptyRows = Promise.resolve({ data: [], count: 0, error: null });
+    const wbahBlocked = isWbah && assignedOnly;
+
     const [leadsRes, callsRes, bookingsRes, qualifiedRes, closedLeadsRes, completedCallsRes, recentLeadsRes, callsTotalRes, callsCompletedRes, callsFailedRes, voicemailsRes] = await Promise.all([
       (() => {
-        let q = (supabase as any)
+        let q = scopeLeads((supabase as any)
           .from("leads" as never)
           .select("id, status, created_at", { count: "exact", head: false })
-          .eq("workspace_id", workspaceId);
+          .eq("workspace_id", workspaceId));
         if (isWbah) {
           q = q.neq("status", "not_interested");
           if (cutoffISO) q = q.gte("created_at", cutoffISO);
@@ -110,103 +154,111 @@ export const getOverviewStats = createServerFn({ method: "POST" })
       // For WBAH: skip the calls table query (data lives in wbah_calls, queried below)
       isWbah
         ? Promise.resolve({ data: [], error: null })
-        : (supabase as any)
+        : scopeCalls((supabase as any)
             .from("calls" as never)
             .select("id, call_status, duration_seconds, started_at")
             .eq("workspace_id", workspaceId)
-            .eq("is_voicemail", false),
-      (supabase as any)
+            .eq("is_voicemail", false)),
+      scopeBookings((supabase as any)
         .from("calendar_bookings" as never)
         .select("id, status, start_at")
-        .eq("workspace_id", workspaceId),
+        .eq("workspace_id", workspaceId)),
       // For WBAH: "qualified" = positive sentiment (all-time) — matches the
       // Qualified page (listQualifiedLeads + its frontend positive filter) so the
       // dashboard KPI and the page it links to always show the same count.
       (() => {
         if (isWbah) {
-          return (supabase as any)
+          return scopeLeads((supabase as any)
             .from("leads" as never)
             .select("id", { count: "exact", head: true })
             .eq("workspace_id", workspaceId)
-            .eq("sentiment", "positive");
+            .eq("sentiment", "positive"));
         }
-        return (supabase as any)
+        return scopeLeads((supabase as any)
           .from("leads" as never)
           .select("id", { count: "exact", head: true })
           .eq("workspace_id", workspaceId)
-          .in("status", ["interested", "qualified"]);
+          .in("status", ["interested", "qualified"]));
       })(),
       // Closed leads = status "not_interested" (displayed as "Closed" in the UI)
-      (supabase as any)
+      scopeLeads((supabase as any)
         .from("leads" as never)
         .select("id, phone")
         .eq("workspace_id", workspaceId)
-        .eq("status", "not_interested"),
+        .eq("status", "not_interested")),
       // Completed outbound calls — used to measure which closed leads were reached
       // For WBAH: query wbah_calls; for others: calls table (exclude voicemails)
       isWbah
-        ? (supabase as any)
-            .from("wbah_calls" as never)
-            .select("phone")
-            .eq("workspace_id", workspaceId)
-            .eq("call_status", "completed")
-        : (supabase as any)
+        ? (wbahBlocked
+            ? emptyRows
+            : (supabase as any)
+                .from("wbah_calls" as never)
+                .select("phone")
+                .eq("workspace_id", workspaceId)
+                .eq("call_status", "completed"))
+        : scopeCalls((supabase as any)
             .from("calls" as never)
             .select("to_number")
             .eq("workspace_id", workspaceId)
             .eq("call_status", "completed")
-            .eq("is_voicemail", false),
+            .eq("is_voicemail", false)),
       // 5 most recent leads with display fields
-      (supabase as any)
+      scopeLeads((supabase as any)
         .from("leads" as never)
         .select("id, full_name, phone, status, sentiment, created_at")
         .eq("workspace_id", workspaceId)
         .order("created_at", { ascending: false })
-        .limit(5),
+        .limit(5)),
       // Accurate call counts via count-only queries
       // For WBAH: query wbah_calls (no is_voicemail field); for others: calls table
       isWbah
-        ? (supabase as any)
-            .from("wbah_calls" as never)
-            .select("id", { count: "exact", head: true })
-            .eq("workspace_id", workspaceId)
-        : (supabase as any)
+        ? (wbahBlocked
+            ? emptyRows
+            : (supabase as any)
+                .from("wbah_calls" as never)
+                .select("id", { count: "exact", head: true })
+                .eq("workspace_id", workspaceId))
+        : scopeCalls((supabase as any)
             .from("calls" as never)
             .select("id", { count: "exact", head: true })
             .eq("workspace_id", workspaceId)
-            .eq("is_voicemail", false),
+            .eq("is_voicemail", false)),
       isWbah
-        ? (supabase as any)
-            .from("wbah_calls" as never)
+        ? (wbahBlocked
+            ? emptyRows
+            : (supabase as any)
+                .from("wbah_calls" as never)
+                .select("id", { count: "exact", head: true })
+                .eq("workspace_id", workspaceId)
+                .eq("call_status", "completed"))
+        : scopeCalls((supabase as any)
+            .from("calls" as never)
             .select("id", { count: "exact", head: true })
             .eq("workspace_id", workspaceId)
             .eq("call_status", "completed")
-        : (supabase as any)
-            .from("calls" as never)
-            .select("id", { count: "exact", head: true })
-            .eq("workspace_id", workspaceId)
-            .eq("call_status", "completed")
-            .eq("is_voicemail", false),
+            .eq("is_voicemail", false)),
       isWbah
-        ? (supabase as any)
-            .from("wbah_calls" as never)
-            .select("id", { count: "exact", head: true })
-            .eq("workspace_id", workspaceId)
-            .in("call_status", ["failed", "no_answer", "busy"])
-        : (supabase as any)
+        ? (wbahBlocked
+            ? emptyRows
+            : (supabase as any)
+                .from("wbah_calls" as never)
+                .select("id", { count: "exact", head: true })
+                .eq("workspace_id", workspaceId)
+                .in("call_status", ["failed", "no_answer", "busy"]))
+        : scopeCalls((supabase as any)
             .from("calls" as never)
             .select("id", { count: "exact", head: true })
             .eq("workspace_id", workspaceId)
             .in("call_status", ["failed", "no_answer", "busy"])
-            .eq("is_voicemail", false),
+            .eq("is_voicemail", false)),
       // Voicemail count — only meaningful for non-WBAH (wbah_calls has no voicemail flag)
       isWbah
         ? Promise.resolve({ count: 0, data: null, error: null })
-        : (supabase as any)
+        : scopeCalls((supabase as any)
             .from("calls" as never)
             .select("id", { count: "exact", head: true })
             .eq("workspace_id", workspaceId)
-            .eq("is_voicemail", true),
+            .eq("is_voicemail", true)),
     ]);
 
     if (leadsRes.error) throw new Error(leadsRes.error.message);
@@ -215,7 +267,7 @@ export const getOverviewStats = createServerFn({ method: "POST" })
 
     // For WBAH: fetch total duration from wbah_calls (lightweight — duration_seconds only)
     let wbahTotalCallSeconds = 0;
-    if (isWbah) {
+    if (isWbah && !wbahBlocked) {
       const PAGE = 1000;
       let offset = 0;
       while (true) {
@@ -413,8 +465,10 @@ export const upsertLead = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ context, data }) => {
-    const { supabase, workspaceId } = context;
+    const { supabase, workspaceId, userId } = context;
     if (!workspaceId) throw new Error("No active workspace");
+    const { resolvePermissions } = await import("@/lib/permissions/permissions.server");
+    const perms = await resolvePermissions(workspaceId, userId);
     const payload: any = {
       workspace_id: workspaceId,
       full_name: data.full_name ?? null,
@@ -427,10 +481,15 @@ export const upsertLead = createServerFn({ method: "POST" })
       ...(data.source ? { source: data.source } : {}),
     };
     if (data.id) {
-      const { error } = await (supabase as any)
+      // Workspace scoping is mandatory; assigned-records-only roles may only
+      // update leads assigned to them.
+      let uq = (supabase as any)
         .from("leads" as never)
         .update(payload)
-        .eq("id", data.id);
+        .eq("id", data.id)
+        .eq("workspace_id", workspaceId);
+      if (perms.assignedRecordsOnly) uq = uq.eq("assigned_to", userId);
+      const { error } = await uq;
       if (error) throw new Error(error.message);
       invalidateDashboardCache(workspaceId);
       return { id: data.id };
@@ -476,13 +535,18 @@ export const setLeadStatus = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ context, data }) => {
-    const { supabase, workspaceId } = context;
+    const { supabase, workspaceId, userId } = context;
     if (!workspaceId) throw new Error("No active workspace");
-    const { error } = await (supabase as any)
+    // Assigned-records-only roles may only mutate leads assigned to them.
+    const { resolvePermissions } = await import("@/lib/permissions/permissions.server");
+    const perms = await resolvePermissions(workspaceId, userId);
+    let q = (supabase as any)
       .from("leads" as never)
       .update({ status: data.status, updated_at: new Date().toISOString() })
       .eq("id", data.id)
       .eq("workspace_id", workspaceId);
+    if (perms.assignedRecordsOnly) q = q.eq("assigned_to", userId);
+    const { error } = await q;
     if (error) throw new Error(error.message);
     invalidateDashboardCache(workspaceId);
     return { ok: true };
@@ -492,11 +556,17 @@ export const deleteLead = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input) => z.object({ id: z.string().uuid() }).parse(input))
   .handler(async ({ context, data }) => {
-    const { supabase, workspaceId } = context;
-    const { error } = await (supabase as any)
+    const { supabase, workspaceId, userId } = context;
+    if (!workspaceId) throw new Error("No active workspace");
+    const { resolvePermissions } = await import("@/lib/permissions/permissions.server");
+    const perms = await resolvePermissions(workspaceId, userId);
+    let dq = (supabase as any)
       .from("leads" as never)
       .delete()
-      .eq("id", data.id);
+      .eq("id", data.id)
+      .eq("workspace_id", workspaceId);
+    if (perms.assignedRecordsOnly) dq = dq.eq("assigned_to", userId);
+    const { error } = await dq;
     if (error) throw new Error(error.message);
     if (workspaceId) invalidateDashboardCache(workspaceId);
     return { ok: true };
@@ -508,16 +578,20 @@ export const removeLeads = createServerFn({ method: "POST" })
     z.object({ leadIds: z.array(z.string().uuid()).min(1).max(500) }).parse(input),
   )
   .handler(async ({ context, data }) => {
-    const { supabase, workspaceId } = context;
+    const { supabase, workspaceId, userId } = context;
     if (!workspaceId) throw new Error("No active workspace");
-    const { error, count } = await (supabase as any)
+    const { resolvePermissions } = await import("@/lib/permissions/permissions.server");
+    const perms = await resolvePermissions(workspaceId, userId);
+    let dq = (supabase as any)
       .from("leads" as never)
       .delete({ count: "exact" })
       .in("id", data.leadIds)
       .eq("workspace_id", workspaceId);
+    if (perms.assignedRecordsOnly) dq = dq.eq("assigned_to", userId);
+    const { error, count } = await dq;
     if (error) throw new Error(error.message);
     invalidateDashboardCache(workspaceId);
-    return { removed: count ?? data.leadIds.length };
+    return { removed: count ?? 0 };
   });
 
 export const startQualificationCallsForLeads = createServerFn({ method: "POST" })
@@ -536,12 +610,18 @@ export const startQualificationCallsForLeads = createServerFn({ method: "POST" }
     if (!workspaceId) throw new Error("No active workspace");
     const sb = supabase as any;
 
+    // Assigned-records-only roles may only place calls for their own leads.
+    const { resolvePermissions } = await import("@/lib/permissions/permissions.server");
+    const perms = await resolvePermissions(workspaceId, userId);
+
     // Load the selected leads — select all fields that could be used in pre-call mapping
-    const { data: leads, error: leadsErr } = await sb
+    let leadsSel = sb
       .from("leads")
       .select("id, phone, full_name, email, company_name, call_summary, next_action, interest_level, notes, source, meta")
       .eq("workspace_id", workspaceId)
       .in("id", data.leadIds);
+    if (perms.assignedRecordsOnly) leadsSel = leadsSel.eq("assigned_to", userId);
+    const { data: leads, error: leadsErr } = await leadsSel;
     if (leadsErr) throw new Error(leadsErr.message);
 
     // Load the qualification agent
@@ -690,12 +770,16 @@ export const scheduleQualificationCalls = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ context, data }) => {
-    const { supabase, workspaceId } = context as any;
+    const { supabase, workspaceId, userId } = context as any;
     if (!workspaceId) throw new Error("No active workspace");
     const sb = supabase as any;
     const now = new Date().toISOString();
 
-    const { error } = await sb
+    // Assigned-records-only roles may only schedule calls for their own leads.
+    const { resolvePermissions } = await import("@/lib/permissions/permissions.server");
+    const perms = await resolvePermissions(workspaceId, userId);
+
+    let uq = sb
       .from("leads")
       .update({
         status: "scheduled",
@@ -706,6 +790,8 @@ export const scheduleQualificationCalls = createServerFn({ method: "POST" })
       })
       .eq("workspace_id", workspaceId)
       .in("id", data.leadIds);
+    if (perms.assignedRecordsOnly) uq = uq.eq("assigned_to", userId);
+    const { error } = await uq;
 
     if (error) throw new Error(error.message);
     return { scheduled: data.leadIds.length };
@@ -719,14 +805,20 @@ export const fireScheduledCalls = createServerFn({ method: "POST" })
     if (!workspaceId) throw new Error("No active workspace");
     const sb = supabase as any;
 
+    // Assigned-records-only roles may only fire calls for their own leads.
+    const { resolvePermissions } = await import("@/lib/permissions/permissions.server");
+    const perms = await resolvePermissions(workspaceId, userId);
+
     // Fetch due scheduled leads grouped by agent
-    const { data: scheduledLeads, error } = await sb
+    let dueSel = sb
       .from("leads")
       .select("id, phone, full_name, email, company_name, call_summary, next_action, interest_level, notes, source, meta, scheduled_agent_id, scheduled_from_number")
       .eq("workspace_id", workspaceId)
       .eq("status", "scheduled")
       .lte("scheduled_call_at", new Date().toISOString())
       .not("scheduled_agent_id", "is", null);
+    if (perms.assignedRecordsOnly) dueSel = dueSel.eq("assigned_to", userId);
+    const { data: scheduledLeads, error } = await dueSel;
 
     if (error) throw new Error(error.message);
     if (!scheduledLeads?.length) return { fired: 0, message: "No scheduled calls due" };

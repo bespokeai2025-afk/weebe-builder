@@ -73,7 +73,11 @@ export const getHiveMindPlatformData = createServerFn({ method: "GET" })
   .handler(async ({ context }) => {
     const sb = context.supabase as any;
     const workspaceId = context.workspaceId;
+    const userId = (context as any).userId;
     if (!workspaceId) throw new Error("No workspace");
+
+    const { requirePageAccessEntitled } = await import("@/lib/packages/entitlements.server");
+    await requirePageAccessEntitled(workspaceId, userId, "hivemind", "view");
 
     const url = context.request?.url ?? "";
     const bust = process.env.NODE_ENV !== "production" && new URL(url, "http://x").searchParams.has("bust");
@@ -434,7 +438,11 @@ export const getHiveMindBriefing = createServerFn({ method: "GET" })
   .handler(async ({ context, data }) => {
     const sb = context.supabase as any;
     const workspaceId = context.workspaceId;
+    const userId = (context as any).userId;
     if (!workspaceId) throw new Error("No workspace");
+
+    const { requirePageAccessEntitled } = await import("@/lib/packages/entitlements.server");
+    await requirePageAccessEntitled(workspaceId, userId, "hivemind", "view");
 
     const sinceStr  = data.since ?? new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
     const staleDays = data.staleDays ?? 7;

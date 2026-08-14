@@ -354,7 +354,12 @@ export const listMarketingObjectives = createServerFn({ method: "GET" })
   .handler(async ({ context }) => {
     const sb = context.supabase as any;
     const workspaceId = context.workspaceId;
+    const userId = (context as any).userId;
     if (!workspaceId) throw new Error("No workspace");
+
+    const { requirePageAccessEntitled } = await import("@/lib/packages/entitlements.server");
+    await requirePageAccessEntitled(workspaceId, userId, "hivemind", "view");
+
     const [{ data: objectives }, { data: findings }, { data: settings }] = await Promise.all([
       sb.from("marketing_objectives").select("*").eq("workspace_id", workspaceId)
         .order("created_at", { ascending: false }).limit(50),
@@ -376,7 +381,12 @@ export const getMarketingObjectiveStatus = createServerFn({ method: "POST" })
   .validator((input: unknown) => z.object({ objectiveId: z.string().uuid() }).parse(input))
   .handler(async ({ context, data }) => {
     const workspaceId = context.workspaceId;
+    const userId = (context as any).userId;
     if (!workspaceId) throw new Error("No workspace");
+
+    const { requirePageAccessEntitled } = await import("@/lib/packages/entitlements.server");
+    await requirePageAccessEntitled(workspaceId, userId, "hivemind", "view");
+
     const sbAdmin = await getAdmin();
     return await buildObjectiveStatusCore(sbAdmin, workspaceId, data.objectiveId);
   });

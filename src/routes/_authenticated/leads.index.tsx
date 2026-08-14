@@ -28,6 +28,7 @@ import {
   MessageSquareText,
   Contact,
   AlertTriangle,
+  UserPlus,
 } from "lucide-react";
 import { useState, useMemo, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
@@ -42,6 +43,8 @@ import { SavedFiltersSection } from "@/components/people-views/SavedFiltersSecti
 import { DashboardPage, KpiCard, MiniKpiCard, SummaryTooltip, stickyCell, stickyHead } from "@/components/dashboard/PageShell";
 import { cn } from "@/lib/utils";
 import { LoadingProgress } from "@/components/dashboard/LoadingProgress";
+import { AssignLeadsDialog } from "@/components/leads/AssignLeadsDialog";
+import { getMyPermissions } from "@/lib/permissions/team-access.functions";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -414,6 +417,15 @@ function LeadsPage() {
 
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [qualDialogOpen, setQualDialogOpen] = useState(false);
+  const [assignDialogOpen, setAssignDialogOpen] = useState(false);
+  const myPermsFn = useServerFn(getMyPermissions);
+  const myPermsQ = useQuery({
+    queryKey: ["my-permissions"],
+    queryFn: () => myPermsFn(),
+    staleTime: 5 * 60_000,
+    throwOnError: false,
+  });
+  const canAssign = (myPermsQ.data as any)?.actionAccess?.lead_assignment === true;
   const [firingScheduled, setFiringScheduled] = useState(false);
   const [removeDialogOpen, setRemoveDialogOpen] = useState(false);
   const [isRemoving, setIsRemoving] = useState(false);
@@ -852,6 +864,12 @@ function LeadsPage() {
             <Button size="sm" variant="outline" className="border-blue-500/30 text-blue-400 hover:text-blue-300" onClick={openQualDialog}>
               <ShieldCheck className="mr-1 h-4 w-4" />
               Qualify {selectedIds.size} Lead{selectedIds.size !== 1 ? "s" : ""}
+            </Button>
+          )}
+          {tab === "leads" && !isWbah && selectedIds.size > 0 && canAssign && (
+            <Button size="sm" variant="outline" className="border-emerald-500/30 text-emerald-400 hover:text-emerald-300" onClick={() => setAssignDialogOpen(true)}>
+              <UserPlus className="mr-1 h-4 w-4" />
+              Assign {selectedIds.size}
             </Button>
           )}
           {tab === "leads" && !isWbah && selectedIds.size > 0 && (
@@ -1486,6 +1504,15 @@ function LeadsPage() {
       )}
 
       <LeadEmailDialog lead={emailDialogLead} onClose={() => setEmailDialogLead(null)} />
+
+      {assignDialogOpen && (
+        <AssignLeadsDialog
+          open={assignDialogOpen}
+          onOpenChange={setAssignDialogOpen}
+          leadIds={Array.from(selectedIds)}
+          onAssigned={() => setSelectedIds(new Set())}
+        />
+      )}
 
     </DashboardPage>
   );

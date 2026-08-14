@@ -391,6 +391,13 @@ export type CampaignNotificationInput = {
   recommendedAction?: string | null;
   severity?: "info" | "warning" | "critical";
   /**
+   * When set, recipients are ONLY these users (validated as workspace
+   * members) — the persisted recipient config is bypassed. Used for
+   * person-directed events (e.g. lead_assigned → the assigned agent).
+   * Enable/in-app/email toggles from the event settings still apply.
+   */
+  targetUserIds?: string[] | null;
+  /**
    * Optional stable idempotency key. When set, the SAME (workspace, event,
    * dedupeKey) emit is delivered at most once — losers of the atomic ledger
    * insert skip everything (mirror, in-app rows, emails). Callers build it
@@ -591,9 +598,17 @@ export async function emitCampaignNotification(sb: Sb, input: CampaignNotificati
       ...kpiHighlights(input.kpis),
     ].filter(Boolean).join("\n");
 
-    const recipients = await resolveRecipients(
-      sb, input.workspaceId, settings.recipients, input.campaignOwnerUserId,
-    );
+    const recipients = input.targetUserIds?.length
+      ? await resolveRecipients(
+          sb, input.workspaceId,
+          // Person-directed override: only these users, membership-validated
+          // by resolveRecipients (never leaks outside the workspace).
+          { owner: false, admins: false, userIds: input.targetUserIds, roleKeys: [], customEmails: [], campaignOwner: false },
+          null,
+        )
+      : await resolveRecipients(
+          sb, input.workspaceId, settings.recipients, input.campaignOwnerUserId,
+        );
     if (recipients.length === 0) return;
 
     const { data: ws } = await sb.from("workspaces").select("name").eq("id", input.workspaceId).maybeSingle();
