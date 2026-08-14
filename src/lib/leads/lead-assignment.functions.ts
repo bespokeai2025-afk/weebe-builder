@@ -134,6 +134,7 @@ export const assignLeads = createServerFn({ method: "POST" })
             summary: `You've been assigned ${who}. Open the lead to follow up.`,
             severity: "info",
             targetUserIds: [data.assignedTo],
+            leadId: l.id,
             dedupeKey: auditByLead.get(l.id)
               ? `lead_assigned:audit:${auditByLead.get(l.id)}`
               : `lead_assigned:lead:${l.id}:to:${data.assignedTo}:${nowIso}`,
@@ -145,6 +146,7 @@ export const assignLeads = createServerFn({ method: "POST" })
             summary: `You've been assigned ${toChange.length} leads. Open your leads list to follow up.`,
             severity: "info",
             targetUserIds: [data.assignedTo],
+            leadIds: toChange.map((l: any) => l.id),
             dedupeKey: auditRows?.[0]?.id
               ? `lead_assigned:audit:${auditRows[0].id}`
               : `lead_assigned:bulk:${data.assignedTo}:${nowIso}`,

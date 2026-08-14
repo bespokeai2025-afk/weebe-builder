@@ -18882,6 +18882,7 @@ export type Database = {
           frequency: string
           id: string
           in_app_enabled: boolean
+          lead_filter: Json | null
           recipients: Json
           updated_at: string
           updated_by_user_id: string | null
@@ -18895,6 +18896,7 @@ export type Database = {
           frequency?: string
           id?: string
           in_app_enabled?: boolean
+          lead_filter?: Json | null
           recipients?: Json
           updated_at?: string
           updated_by_user_id?: string | null
@@ -18908,6 +18910,7 @@ export type Database = {
           frequency?: string
           id?: string
           in_app_enabled?: boolean
+          lead_filter?: Json | null
           recipients?: Json
           updated_at?: string
           updated_by_user_id?: string | null

@@ -37,6 +37,7 @@ export async function notifyNewLead(input: NewLeadNotifyInput): Promise<void> {
       campaignName: who,
       summary: details || null,
       severity: "info",
+      leadId: input.leadId,
       // One notification per lead row, however many code paths fire for it.
       dedupeKey: `lead_created:lead:${input.leadId}`,
     });

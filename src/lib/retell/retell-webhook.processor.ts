@@ -1046,9 +1046,22 @@ export async function processRetellWebhook(
             const { isWbahWorkspaceId } = await import("@/lib/wbah-exclusion.shared");
             if (!isWbahWorkspaceId(workspaceId)) {
               const { emitCampaignNotification } = await import("@/lib/notifications/notification-engine.shared");
+              // Resolve the lead this booking belongs to (for lead filters).
+              let bookedLeadId: string | null = null;
+              if (contactPhone) {
+                const { data: bl } = await (supabaseAdmin as any)
+                  .from("leads")
+                  .select("id")
+                  .eq("workspace_id", workspaceId)
+                  .eq("phone", contactPhone)
+                  .limit(1)
+                  .maybeSingle();
+                bookedLeadId = bl?.id ?? null;
+              }
               await emitCampaignNotification(supabaseAdmin as any, {
                 workspaceId,
                 eventKey: "appointments_booked",
+                leadId: bookedLeadId,
                 summary: `An appointment was booked during a call${attendeeName ? ` with ${attendeeName}` : ""} (starts ${new Date(startMs).toLocaleString("en-GB")}).`,
                 // Retell retries webhooks — one notification per provider call.
                 dedupeKey: call.call_id ? `appointments_booked:call:${call.call_id}` : undefined,

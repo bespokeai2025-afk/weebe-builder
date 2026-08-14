@@ -385,7 +385,9 @@ export async function createCampaignFilter(input: {
   const status = input.status === "active" ? "active" : "draft";
   if (status === "active") assertRole(canActivate(input.role), "activate campaign filters");
 
-  const v = validateFilterConfig(input.filterConfig);
+  // Campaign filters run in the scheduler with no authenticated user, so
+  // "Assigned To Me" is meaningless there — reject at save time.
+  const v = validateFilterConfig(input.filterConfig, { disallowFields: ["assigned_to_me"] });
   if (!v.ok) throw new Error(`Invalid filter: ${v.errors.join("; ")}`);
   const safety: SafetyConfig = input.safetyConfig
     ? safetyConfigSchema.parse(input.safetyConfig)
@@ -463,7 +465,8 @@ export async function updateCampaignFilter(input: {
   if (input.patch.sourceTypes !== undefined) update.source_types = input.patch.sourceTypes;
   if (input.patch.status !== undefined) update.status = input.patch.status;
   if (input.patch.filterConfig !== undefined) {
-    const v = validateFilterConfig(input.patch.filterConfig);
+    // Scheduler has no authenticated user — "Assigned To Me" is invalid here.
+    const v = validateFilterConfig(input.patch.filterConfig, { disallowFields: ["assigned_to_me"] });
     if (!v.ok) throw new Error(`Invalid filter: ${v.errors.join("; ")}`);
     update.filter_config = v.config;
   }
@@ -544,7 +547,7 @@ export async function dryRunAndRecord(input: {
     supabaseAdmin as any,
     input.workspaceId,
     input.filterConfig,
-    { mode: input.objectType === "campaign_filter" ? "campaign" : "view", safety },
+    { mode: input.objectType === "campaign_filter" ? "campaign" : "view", safety, currentUserId: input.userId ?? null },
   );
 
   if (input.id) {
@@ -582,6 +585,8 @@ export async function runPeopleView(
   role?: WorkspaceRole,
   /** When set, only leads assigned to this user are returned (assignedRecordsOnly roles). */
   assignedToUserId?: string | null,
+  /** Authenticated caller — needed for "Assigned To Me" filter conditions. */
+  currentUserId?: string | null,
 ) {
   const view = await getCurrent("people_view", workspaceId, viewId);
   if (role && Array.isArray(view.visible_to_roles) && !view.visible_to_roles.includes(role)) {
@@ -601,7 +606,7 @@ export async function runPeopleView(
     .order(sortCol, { ascending })
     .limit(Math.min(limit, 500));
   if (assignedToUserId) q = q.eq("assigned_to", assignedToUserId);
-  q = applyFilterToQuery(q, v.config);
+  q = applyFilterToQuery(q, v.config, undefined, { currentUserId: currentUserId ?? null });
   const { data, error } = await q;
   if (error) throw new Error(error.message);
   return { view, rows: data ?? [] };

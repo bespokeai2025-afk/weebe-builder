@@ -199,6 +199,8 @@ export type NotificationSettings = {
   inAppEnabled: boolean;
   recipients: NotificationRecipientsConfig;
   frequency: "immediate" | "hourly" | "daily" | "weekly";
+  /** Optional lead filter (validated FilterConfig JSON) for lead-category events. */
+  leadFilter?: unknown | null;
 };
 
 /** Defaults when a workspace has no settings row for an event: in-app to owner+admins, no email. */
@@ -287,7 +289,7 @@ export async function loadEventSettings(
   try {
     const { data } = await sb
       .from("workspace_notification_settings")
-      .select("enabled, email_enabled, in_app_enabled, recipients, frequency")
+      .select("enabled, email_enabled, in_app_enabled, recipients, frequency, lead_filter")
       .eq("workspace_id", workspaceId)
       .eq("event_key", eventKey)
       .maybeSingle();
@@ -300,6 +302,7 @@ export async function loadEventSettings(
       frequency: (["immediate", "hourly", "daily", "weekly"].includes(data.frequency)
         ? data.frequency
         : "immediate") as NotificationSettings["frequency"],
+      leadFilter: data.lead_filter ?? null,
     };
   } catch {
     return defaultSettingsForEvent(eventKey);
@@ -404,6 +407,15 @@ export type CampaignNotificationInput = {
    * from stable source identifiers (e.g. `call:<id>`, `lead:<id>:assigned`).
    */
   dedupeKey?: string | null;
+  /**
+   * Lead row id(s) this event is about. Required for lead-category events
+   * when the workspace has configured a lead notification filter — the
+   * engine evaluates the filter against the lead row(s) BEFORE delivery
+   * and suppresses non-matching leads. Batch events pass leadIds; the
+   * event delivers when ANY lead matches.
+   */
+  leadId?: string | null;
+  leadIds?: string[] | null;
 };
 
 function kpiHighlights(kpis: Record<string, unknown> | null | undefined): string[] {
@@ -545,6 +557,75 @@ async function mirrorToExecutiveStream(sb: Sb, input: CampaignNotificationInput)
   }
 }
 
+/** Lead-category events whose delivery can be gated by a lead filter. */
+export const LEAD_FILTERABLE_EVENTS: ReadonlySet<string> = new Set([
+  "lead_created", "lead_positive", "lead_assigned",
+  "qualified_leads_generated", "appointments_booked",
+]);
+
+export function hasLeadFilterConditions(leadFilter: unknown): boolean {
+  return Boolean(
+    leadFilter && typeof leadFilter === "object" &&
+    Array.isArray((leadFilter as any).conditions) &&
+    (leadFilter as any).conditions.length > 0,
+  );
+}
+
+/**
+ * Evaluates the configured lead filter for a lead event. Returns true when
+ * delivery should proceed. FAIL CLOSED: malformed filter, missing lead ids,
+ * or unresolvable lead rows all suppress delivery. Never throws.
+ */
+async function leadFilterAllows(sb: Sb, input: CampaignNotificationInput, rawFilter: unknown): Promise<boolean> {
+  try {
+    // rawFilter is passed from the caller's already-loaded settings — no
+    // second settings read (a transient re-read failure must never fail open).
+    if (rawFilter == null) return true;
+
+    // Dynamic import keeps the server-only filter engine out of client bundles.
+    const { validateFilterConfig, evaluateFilterAgainstRow, FILTER_FIELDS } = await import(
+      "@/lib/people-views/filter-engine.server"
+    );
+    // Validate ANY non-null value — malformed configs suppress (fail closed);
+    // only a VALIDATED empty config passes unfiltered.
+    const v = validateFilterConfig(rawFilter, { allowMeta: true, allowOrLogic: true, disallowFields: ["assigned_to_me"] });
+    if (!v.ok || !v.config) {
+      console.warn(`[notify] malformed lead filter for ${input.eventKey} — suppressing (fail closed)`);
+      return false;
+    }
+    if (!Array.isArray(v.config.conditions) || v.config.conditions.length === 0) return true;
+
+    const ids = [
+      ...(input.leadId ? [input.leadId] : []),
+      ...((input.leadIds ?? []).filter(Boolean)),
+    ].slice(0, 50);
+    if (ids.length === 0) {
+      console.warn(`[notify] lead filter set for ${input.eventKey} but no leadId provided — suppressing (fail closed)`);
+      return false;
+    }
+
+    const { data: rows, error } = await sb
+      .from("leads")
+      .select("*")
+      .eq("workspace_id", input.workspaceId)
+      .in("id", ids);
+    if (error || !rows?.length) return false;
+
+    // WBAH keeps Europe/London date boundaries; all other workspaces use UTC
+    // for date-only values (browser-local display remains a client concern).
+    let timezone: string | null = null;
+    try {
+      const { isWbahWorkspaceId } = await import("@/lib/wbah-exclusion.shared");
+      if (isWbahWorkspaceId(input.workspaceId)) timezone = "Europe/London";
+    } catch { /* default UTC */ }
+
+    return rows.some((r: any) => evaluateFilterAgainstRow(r, v.config!, FILTER_FIELDS, { timezone }));
+  } catch (err: any) {
+    console.warn("[notify] lead filter evaluation failed — suppressing (fail closed):", err?.message ?? err);
+    return false;
+  }
+}
+
 /**
  * Emit a campaign notification: write in-app + email rows per recipient and
  * send immediate emails. NEVER throws.
@@ -587,6 +668,19 @@ export async function emitCampaignNotification(sb: Sb, input: CampaignNotificati
     const settings = clampSettingsToCaps(rawSettings, caps);
     if (!settings.enabled) return;
     if (!settings.inAppEnabled && !settings.emailEnabled) return;
+
+    // Lead notification filter — evaluated server-side BEFORE recipient
+    // resolution/delivery. Lead events with a configured filter deliver only
+    // when the lead row (any row, for batch events) matches. Fail CLOSED for
+    // lead events on malformed filters or unresolvable leads; non-lead
+    // events are never affected (fail open by not being lead events).
+    // Any non-null configured filter goes through evaluation — leadFilterAllows
+    // validates it and FAILS CLOSED on malformed configs. Gating on
+    // hasLeadFilterConditions alone would deliver on malformed non-null values.
+    if (LEAD_FILTERABLE_EVENTS.has(input.eventKey) && settings.leadFilter != null) {
+      const passed = await leadFilterAllows(sb, input, settings.leadFilter);
+      if (!passed) return;
+    }
 
     const severity = input.severity ?? severityForEvent(input.eventKey);
     const label = NOTIFICATION_EVENT_LABELS[input.eventKey as NotificationEventKey] ?? input.eventKey;

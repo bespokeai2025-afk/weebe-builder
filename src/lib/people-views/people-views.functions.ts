@@ -287,7 +287,7 @@ export const runWorkspacePeopleView = createServerFn({ method: "POST" })
     );
     const eff = await resolveEffectiveAccess(workspaceId, userId);
     const assignedToUserId = eff.assignedRecordsOnly === true ? userId : null;
-    return await runPeopleView(workspaceId, data.viewId, data.limit ?? 200, role, assignedToUserId);
+    return await runPeopleView(workspaceId, data.viewId, data.limit ?? 200, role, assignedToUserId, userId);
   });
 
 export const listWorkspaceViewAuditLogs = createServerFn({ method: "POST" })
