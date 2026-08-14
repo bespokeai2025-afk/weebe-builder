@@ -26,6 +26,7 @@ import type { MindKey, MindToolCost, CapabilityState } from "./tool-registry.sha
 import "@/lib/hivemind/growthmind-control/tools.server";
 // GrowthMind SEO department tools (registers on import).
 import "@/lib/minds/register-seo-tools.server";
+import "@/lib/minds/register-notification-tools.server";
 import "@/lib/minds/register-content-tools.server";
 // Website UX / conversion-diagnosis tools (registers on import).
 import "@/lib/minds/register-website-tools.server";

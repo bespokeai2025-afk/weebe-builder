@@ -705,6 +705,21 @@ export async function emitCampaignNotification(sb: Sb, input: CampaignNotificati
         );
     if (recipients.length === 0) return;
 
+    // Personal mutes: drop MEMBER recipients who muted this (non-critical)
+    // event for themselves. Custom-email (userId=null) recipients are
+    // workspace policy and are never affected. FAIL OPEN — a prefs lookup
+    // error must never drop delivery.
+    let deliverable = recipients;
+    try {
+      const { getMutedUserIds } = await import("./user-notification-prefs.server");
+      const memberIds = recipients.map((r) => r.userId).filter((v): v is string => !!v);
+      const muted = await getMutedUserIds(input.workspaceId, input.eventKey, memberIds);
+      if (muted.size > 0) deliverable = recipients.filter((r) => !r.userId || !muted.has(r.userId));
+    } catch (err: any) {
+      console.warn("[notify] personal mute filter failed (failing open):", err?.message ?? err);
+    }
+    if (deliverable.length === 0) return;
+
     const { data: ws } = await sb.from("workspaces").select("name").eq("id", input.workspaceId).maybeSingle();
     const workspaceName = ws?.name ?? "Workspace";
 
@@ -721,7 +736,7 @@ export async function emitCampaignNotification(sb: Sb, input: CampaignNotificati
     // In-app rows — one per member recipient (deduped by userId).
     if (settings.inAppEnabled) {
       const seen = new Set<string>();
-      const inAppRows = recipients
+      const inAppRows = deliverable
         .filter((r) => r.userId && !seen.has(r.userId!) && (seen.add(r.userId!), true))
         .map((r) => ({
           ...baseRow,
@@ -739,7 +754,7 @@ export async function emitCampaignNotification(sb: Sb, input: CampaignNotificati
     // Email rows — immediate send or digest queue. One per distinct email.
     if (settings.emailEnabled) {
       const seenEmails = new Set<string>();
-      const emailRecipients = recipients.filter((r) => {
+      const emailRecipients = deliverable.filter((r) => {
         const e = r.email?.toLowerCase();
         if (!e || seenEmails.has(e)) return false;
         seenEmails.add(e);

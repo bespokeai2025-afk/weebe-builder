@@ -118,6 +118,7 @@
 - [GrowthMind Content Intelligence foundation](growthmind-content-intelligence.md) — versioned DNA + whitelisted proposals; Meta OAuth callback must re-check admin; encrypted-token column excluded from grants.
 - [Trend Scout architecture](trend-scout-arch.md) — cheap-first discovery + user-only AI scoring; partial unique index blocks upsert onConflict; plugin chain must stay alias-free (trend-signals.server.ts split).
 - [Executive recommendation follow-through](executive-followthrough.md) — recs propose only pending hivemind_actions (mode-gated, sensitive-flagged, server-built payloads); outcomes reflect back, terminal recs never resurrected.
+- [Mobile API v1 surface & personal mutes](mobile-api-v1-surface.md) — dual-auth routes call shared cores only; per-user mute table needs alias-free imports (vite-config chain); provisioning insert-only.
 - [Mind API dual-auth pattern](mind-api-dual-auth.md) — /api/v1/minds/* JWT vs HMAC rules; getClaims throws on malformed JWT; WEBESPOKE_ADMIN creds are NOT Supabase logins.
 - [Mind conversation persistence](mind-conversation-persistence.md) — per-USER RLS (not workspace-members), one active conv per (ws,user,mind), chunked idempotent appends; briefing gated on empty history.
 - [GrowthMind Phase 5 performance & learning](growthmind-phase5-performance-learning.md) — proposals-only learnings (accept-gated, clamped); never schedule unapproved content; see growthmind-script-performance.md.

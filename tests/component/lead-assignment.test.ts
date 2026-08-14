@@ -120,7 +120,8 @@ describe("assignedRecordsOnly enforcement (source contract)", () => {
   });
 
   it("assignLeads writes audit before the lead update (audit-first)", () => {
-    const src = read("src/lib/leads/lead-assignment.functions.ts");
+    // Core logic moved into the shared server core (used by web + v1 API).
+    const src = read("src/lib/leads/lead-assignment.server.ts");
     const auditIdx = src.indexOf('from("lead_assignment_audit")');
     const updateIdx = src.indexOf("assigned_at: data.assignedTo");
     expect(auditIdx).toBeGreaterThan(-1);

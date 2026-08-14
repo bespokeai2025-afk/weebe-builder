@@ -262,6 +262,24 @@ export const listWorkspaceNotifications = createServerFn({ method: "GET" })
     return listWorkspaceNotificationsCore(workspaceId, userId, data);
   });
 
+/** Unread in-app count core — consumed by /api/v1/minds/notifications. */
+export async function countUnreadNotificationsCore(
+  workspaceId: string,
+  userId: string,
+): Promise<number> {
+  const perms = await resolvePermissions(workspaceId, userId);
+  if (!perms.isMember) throw new Error("Not a member of this workspace");
+  const { count, error } = await sb
+    .from("workspace_notifications")
+    .select("id", { count: "exact", head: true })
+    .eq("workspace_id", workspaceId)
+    .eq("channel", "in_app")
+    .or(`recipient_user_id.eq.${userId},recipient_user_id.is.null`)
+    .is("read_at", null);
+  if (error) throw new Error(error.message);
+  return count ?? 0;
+}
+
 /** Shared mark-read core — consumed by web server fn + /api/v1 route. */
 export async function markNotificationsReadCore(
   workspaceId: string,
