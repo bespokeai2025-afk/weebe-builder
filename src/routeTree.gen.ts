@@ -241,6 +241,7 @@ import { Route as LovableEmailTransactionalPreviewRouteImport } from './routes/l
 import { Route as LovableEmailQueueProcessRouteImport } from './routes/lovable/email/queue/process'
 import { Route as LovableEmailAuthWebhookRouteImport } from './routes/lovable/email/auth/webhook'
 import { Route as LovableEmailAuthPreviewRouteImport } from './routes/lovable/email/auth/preview'
+import { Route as ApiV1WhatsappUnreadCountRouteImport } from './routes/api/v1/whatsapp.unread-count'
 import { Route as ApiV1WhatsappConversationsRouteImport } from './routes/api/v1/whatsapp.conversations'
 import { Route as ApiV1NotificationsPreferencesRouteImport } from './routes/api/v1/notifications.preferences'
 import { Route as ApiV1NotificationsCatalogueRouteImport } from './routes/api/v1/notifications.catalogue'
@@ -316,6 +317,7 @@ import { Route as AuthenticatedAdminAccountsCostsRouteImport } from './routes/_a
 import { Route as AuthenticatedAdminAccountsClientsRouteImport } from './routes/_authenticated/admin.accounts.clients'
 import { Route as AuthenticatedAdminAccountsAlertsRouteImport } from './routes/_authenticated/admin.accounts.alerts'
 import { Route as AuthenticatedAdminAccountsClientsIndexRouteImport } from './routes/_authenticated/admin.accounts.clients.index'
+import { Route as ApiV1WhatsappConversationsMarkReadRouteImport } from './routes/api/v1/whatsapp.conversations.mark-read'
 import { Route as ApiV1MindsToolsExecuteRouteImport } from './routes/api/v1/minds.tools.execute'
 import { Route as ApiV1MindsTasksIdRouteImport } from './routes/api/v1/minds.tasks.$id'
 import { Route as ApiV1MindsConversationsIdRouteImport } from './routes/api/v1/minds.conversations.$id'
@@ -1648,6 +1650,12 @@ const LovableEmailAuthPreviewRoute = LovableEmailAuthPreviewRouteImport.update({
   path: '/lovable/email/auth/preview',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiV1WhatsappUnreadCountRoute =
+  ApiV1WhatsappUnreadCountRouteImport.update({
+    id: '/api/v1/whatsapp/unread-count',
+    path: '/api/v1/whatsapp/unread-count',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiV1WhatsappConversationsRoute =
   ApiV1WhatsappConversationsRouteImport.update({
     id: '/api/v1/whatsapp/conversations',
@@ -2072,6 +2080,12 @@ const AuthenticatedAdminAccountsClientsIndexRoute =
     id: '/',
     path: '/',
     getParentRoute: () => AuthenticatedAdminAccountsClientsRoute,
+  } as any)
+const ApiV1WhatsappConversationsMarkReadRoute =
+  ApiV1WhatsappConversationsMarkReadRouteImport.update({
+    id: '/mark-read',
+    path: '/mark-read',
+    getParentRoute: () => ApiV1WhatsappConversationsRoute,
   } as any)
 const ApiV1MindsToolsExecuteRoute = ApiV1MindsToolsExecuteRouteImport.update({
   id: '/execute',
@@ -2513,7 +2527,8 @@ export interface FileRoutesByFullPath {
   '/api/v1/minds/tools': typeof ApiV1MindsToolsRouteWithChildren
   '/api/v1/notifications/catalogue': typeof ApiV1NotificationsCatalogueRoute
   '/api/v1/notifications/preferences': typeof ApiV1NotificationsPreferencesRoute
-  '/api/v1/whatsapp/conversations': typeof ApiV1WhatsappConversationsRoute
+  '/api/v1/whatsapp/conversations': typeof ApiV1WhatsappConversationsRouteWithChildren
+  '/api/v1/whatsapp/unread-count': typeof ApiV1WhatsappUnreadCountRoute
   '/lovable/email/auth/preview': typeof LovableEmailAuthPreviewRoute
   '/lovable/email/auth/webhook': typeof LovableEmailAuthWebhookRoute
   '/lovable/email/queue/process': typeof LovableEmailQueueProcessRoute
@@ -2536,6 +2551,7 @@ export interface FileRoutesByFullPath {
   '/api/v1/minds/conversations/$id': typeof ApiV1MindsConversationsIdRouteWithChildren
   '/api/v1/minds/tasks/$id': typeof ApiV1MindsTasksIdRoute
   '/api/v1/minds/tools/execute': typeof ApiV1MindsToolsExecuteRoute
+  '/api/v1/whatsapp/conversations/mark-read': typeof ApiV1WhatsappConversationsMarkReadRoute
   '/admin/accounts/clients/': typeof AuthenticatedAdminAccountsClientsIndexRoute
   '/api/public/v1/sites/$siteKey/categories': typeof ApiPublicV1SitesSiteKeyCategoriesRoute
   '/api/public/v1/sites/$siteKey/feed': typeof ApiPublicV1SitesSiteKeyFeedRoute
@@ -2835,7 +2851,8 @@ export interface FileRoutesByTo {
   '/api/v1/minds/tools': typeof ApiV1MindsToolsRouteWithChildren
   '/api/v1/notifications/catalogue': typeof ApiV1NotificationsCatalogueRoute
   '/api/v1/notifications/preferences': typeof ApiV1NotificationsPreferencesRoute
-  '/api/v1/whatsapp/conversations': typeof ApiV1WhatsappConversationsRoute
+  '/api/v1/whatsapp/conversations': typeof ApiV1WhatsappConversationsRouteWithChildren
+  '/api/v1/whatsapp/unread-count': typeof ApiV1WhatsappUnreadCountRoute
   '/lovable/email/auth/preview': typeof LovableEmailAuthPreviewRoute
   '/lovable/email/auth/webhook': typeof LovableEmailAuthWebhookRoute
   '/lovable/email/queue/process': typeof LovableEmailQueueProcessRoute
@@ -2858,6 +2875,7 @@ export interface FileRoutesByTo {
   '/api/v1/minds/conversations/$id': typeof ApiV1MindsConversationsIdRouteWithChildren
   '/api/v1/minds/tasks/$id': typeof ApiV1MindsTasksIdRoute
   '/api/v1/minds/tools/execute': typeof ApiV1MindsToolsExecuteRoute
+  '/api/v1/whatsapp/conversations/mark-read': typeof ApiV1WhatsappConversationsMarkReadRoute
   '/admin/accounts/clients': typeof AuthenticatedAdminAccountsClientsIndexRoute
   '/api/public/v1/sites/$siteKey/categories': typeof ApiPublicV1SitesSiteKeyCategoriesRoute
   '/api/public/v1/sites/$siteKey/feed': typeof ApiPublicV1SitesSiteKeyFeedRoute
@@ -3169,7 +3187,8 @@ export interface FileRoutesById {
   '/api/v1/minds/tools': typeof ApiV1MindsToolsRouteWithChildren
   '/api/v1/notifications/catalogue': typeof ApiV1NotificationsCatalogueRoute
   '/api/v1/notifications/preferences': typeof ApiV1NotificationsPreferencesRoute
-  '/api/v1/whatsapp/conversations': typeof ApiV1WhatsappConversationsRoute
+  '/api/v1/whatsapp/conversations': typeof ApiV1WhatsappConversationsRouteWithChildren
+  '/api/v1/whatsapp/unread-count': typeof ApiV1WhatsappUnreadCountRoute
   '/lovable/email/auth/preview': typeof LovableEmailAuthPreviewRoute
   '/lovable/email/auth/webhook': typeof LovableEmailAuthWebhookRoute
   '/lovable/email/queue/process': typeof LovableEmailQueueProcessRoute
@@ -3192,6 +3211,7 @@ export interface FileRoutesById {
   '/api/v1/minds/conversations/$id': typeof ApiV1MindsConversationsIdRouteWithChildren
   '/api/v1/minds/tasks/$id': typeof ApiV1MindsTasksIdRoute
   '/api/v1/minds/tools/execute': typeof ApiV1MindsToolsExecuteRoute
+  '/api/v1/whatsapp/conversations/mark-read': typeof ApiV1WhatsappConversationsMarkReadRoute
   '/_authenticated/admin/accounts/clients/': typeof AuthenticatedAdminAccountsClientsIndexRoute
   '/api/public/v1/sites/$siteKey/categories': typeof ApiPublicV1SitesSiteKeyCategoriesRoute
   '/api/public/v1/sites/$siteKey/feed': typeof ApiPublicV1SitesSiteKeyFeedRoute
@@ -3504,6 +3524,7 @@ export interface FileRouteTypes {
     | '/api/v1/notifications/catalogue'
     | '/api/v1/notifications/preferences'
     | '/api/v1/whatsapp/conversations'
+    | '/api/v1/whatsapp/unread-count'
     | '/lovable/email/auth/preview'
     | '/lovable/email/auth/webhook'
     | '/lovable/email/queue/process'
@@ -3526,6 +3547,7 @@ export interface FileRouteTypes {
     | '/api/v1/minds/conversations/$id'
     | '/api/v1/minds/tasks/$id'
     | '/api/v1/minds/tools/execute'
+    | '/api/v1/whatsapp/conversations/mark-read'
     | '/admin/accounts/clients/'
     | '/api/public/v1/sites/$siteKey/categories'
     | '/api/public/v1/sites/$siteKey/feed'
@@ -3826,6 +3848,7 @@ export interface FileRouteTypes {
     | '/api/v1/notifications/catalogue'
     | '/api/v1/notifications/preferences'
     | '/api/v1/whatsapp/conversations'
+    | '/api/v1/whatsapp/unread-count'
     | '/lovable/email/auth/preview'
     | '/lovable/email/auth/webhook'
     | '/lovable/email/queue/process'
@@ -3848,6 +3871,7 @@ export interface FileRouteTypes {
     | '/api/v1/minds/conversations/$id'
     | '/api/v1/minds/tasks/$id'
     | '/api/v1/minds/tools/execute'
+    | '/api/v1/whatsapp/conversations/mark-read'
     | '/admin/accounts/clients'
     | '/api/public/v1/sites/$siteKey/categories'
     | '/api/public/v1/sites/$siteKey/feed'
@@ -4159,6 +4183,7 @@ export interface FileRouteTypes {
     | '/api/v1/notifications/catalogue'
     | '/api/v1/notifications/preferences'
     | '/api/v1/whatsapp/conversations'
+    | '/api/v1/whatsapp/unread-count'
     | '/lovable/email/auth/preview'
     | '/lovable/email/auth/webhook'
     | '/lovable/email/queue/process'
@@ -4181,6 +4206,7 @@ export interface FileRouteTypes {
     | '/api/v1/minds/conversations/$id'
     | '/api/v1/minds/tasks/$id'
     | '/api/v1/minds/tools/execute'
+    | '/api/v1/whatsapp/conversations/mark-read'
     | '/_authenticated/admin/accounts/clients/'
     | '/api/public/v1/sites/$siteKey/categories'
     | '/api/public/v1/sites/$siteKey/feed'
@@ -4307,7 +4333,8 @@ export interface RootRouteChildren {
   ApiV1MindsToolsRoute: typeof ApiV1MindsToolsRouteWithChildren
   ApiV1NotificationsCatalogueRoute: typeof ApiV1NotificationsCatalogueRoute
   ApiV1NotificationsPreferencesRoute: typeof ApiV1NotificationsPreferencesRoute
-  ApiV1WhatsappConversationsRoute: typeof ApiV1WhatsappConversationsRoute
+  ApiV1WhatsappConversationsRoute: typeof ApiV1WhatsappConversationsRouteWithChildren
+  ApiV1WhatsappUnreadCountRoute: typeof ApiV1WhatsappUnreadCountRoute
   LovableEmailAuthPreviewRoute: typeof LovableEmailAuthPreviewRoute
   LovableEmailAuthWebhookRoute: typeof LovableEmailAuthWebhookRoute
   LovableEmailQueueProcessRoute: typeof LovableEmailQueueProcessRoute
@@ -5952,6 +5979,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LovableEmailAuthPreviewRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/v1/whatsapp/unread-count': {
+      id: '/api/v1/whatsapp/unread-count'
+      path: '/api/v1/whatsapp/unread-count'
+      fullPath: '/api/v1/whatsapp/unread-count'
+      preLoaderRoute: typeof ApiV1WhatsappUnreadCountRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/v1/whatsapp/conversations': {
       id: '/api/v1/whatsapp/conversations'
       path: '/api/v1/whatsapp/conversations'
@@ -6476,6 +6510,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/admin/accounts/clients/'
       preLoaderRoute: typeof AuthenticatedAdminAccountsClientsIndexRouteImport
       parentRoute: typeof AuthenticatedAdminAccountsClientsRoute
+    }
+    '/api/v1/whatsapp/conversations/mark-read': {
+      id: '/api/v1/whatsapp/conversations/mark-read'
+      path: '/mark-read'
+      fullPath: '/api/v1/whatsapp/conversations/mark-read'
+      preLoaderRoute: typeof ApiV1WhatsappConversationsMarkReadRouteImport
+      parentRoute: typeof ApiV1WhatsappConversationsRoute
     }
     '/api/v1/minds/tools/execute': {
       id: '/api/v1/minds/tools/execute'
@@ -7484,6 +7525,21 @@ const ApiV1MindsToolsRouteWithChildren = ApiV1MindsToolsRoute._addFileChildren(
   ApiV1MindsToolsRouteChildren,
 )
 
+interface ApiV1WhatsappConversationsRouteChildren {
+  ApiV1WhatsappConversationsMarkReadRoute: typeof ApiV1WhatsappConversationsMarkReadRoute
+}
+
+const ApiV1WhatsappConversationsRouteChildren: ApiV1WhatsappConversationsRouteChildren =
+  {
+    ApiV1WhatsappConversationsMarkReadRoute:
+      ApiV1WhatsappConversationsMarkReadRoute,
+  }
+
+const ApiV1WhatsappConversationsRouteWithChildren =
+  ApiV1WhatsappConversationsRoute._addFileChildren(
+    ApiV1WhatsappConversationsRouteChildren,
+  )
+
 interface ApiPublicV1SitesSiteKeyPostsRouteChildren {
   ApiPublicV1SitesSiteKeyPostsSlugRoute: typeof ApiPublicV1SitesSiteKeyPostsSlugRoute
 }
@@ -7617,7 +7673,8 @@ const rootRouteChildren: RootRouteChildren = {
   ApiV1MindsToolsRoute: ApiV1MindsToolsRouteWithChildren,
   ApiV1NotificationsCatalogueRoute: ApiV1NotificationsCatalogueRoute,
   ApiV1NotificationsPreferencesRoute: ApiV1NotificationsPreferencesRoute,
-  ApiV1WhatsappConversationsRoute: ApiV1WhatsappConversationsRoute,
+  ApiV1WhatsappConversationsRoute: ApiV1WhatsappConversationsRouteWithChildren,
+  ApiV1WhatsappUnreadCountRoute: ApiV1WhatsappUnreadCountRoute,
   LovableEmailAuthPreviewRoute: LovableEmailAuthPreviewRoute,
   LovableEmailAuthWebhookRoute: LovableEmailAuthWebhookRoute,
   LovableEmailQueueProcessRoute: LovableEmailQueueProcessRoute,

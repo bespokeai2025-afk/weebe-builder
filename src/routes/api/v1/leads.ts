@@ -111,15 +111,41 @@ export const Route = createFileRoute("/api/v1/leads")({
           if (!toIso) return jsonErr("created_to is not a valid date", 400);
         }
 
+        // ?preset= shorthand — maps to canonical filter fields.
+        // Applied BEFORE the explicit ?filter= param so filter can further narrow.
+        const preset = url.searchParams.get("preset");
+        const PRESET_FILTERS: Record<string, Record<string, unknown>> = {
+          qualified:        { status: "qualified" },
+          positive:         { sentiment: "positive" },
+          booked:           { meeting_requested: true },
+          needs_calling:    { status: "need_to_call" },
+          buzzchat_replied: { has_buzzchat_reply: true },
+        };
+        // assigned_to_me resolved below (needs userId)
+
         let q = sb().from("leads")
           .select(
-            "id, full_name, name, phone, email, status, pipeline_stage, source, created_at, updated_at, " +
-            "assigned_to, assigned_at, assigned_by",
+            "id, full_name, phone, email, status, pipeline_stage, source, source_detail, created_at, updated_at, " +
+            "assigned_to, assigned_at, assigned_by, " +
+            "has_buzzchat_reply, last_buzzchat_reply_at, buzzchat_conversation_id",
             { count: "exact" },
           )
           .eq("workspace_id", workspaceId)
           .order("created_at", { ascending: false })
           .range(offset, offset + limit - 1);
+
+        // Apply preset filter first.
+        if (preset === "assigned_to_me") {
+          if (!userId) return jsonErr("preset=assigned_to_me requires JWT auth", 400);
+          q = q.eq("assigned_to", userId);
+        } else if (preset && PRESET_FILTERS[preset]) {
+          const pf = PRESET_FILTERS[preset];
+          for (const [col, val] of Object.entries(pf)) {
+            q = (q as any).eq(col, val);
+          }
+        } else if (preset) {
+          return jsonErr(`Unknown preset '${preset}'. Valid: ${Object.keys(PRESET_FILTERS).concat("assigned_to_me").join(", ")}`, 400);
+        }
 
         if (status) q = q.eq("status", status);
         if (fromIso) q = q.gte("created_at", fromIso);

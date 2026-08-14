@@ -11310,6 +11310,7 @@ export type Database = {
           business_address: string | null
           business_type: string | null
           buying_intent: string | null
+          buzzchat_conversation_id: string | null
           call_outcome: string | null
           call_summary: string | null
           callback_date: string | null
@@ -11324,8 +11325,10 @@ export type Database = {
           funding_amount: number | null
           gbraid: string | null
           gclid: string | null
+          has_buzzchat_reply: boolean
           id: string
           interest_level: string | null
+          last_buzzchat_reply_at: string | null
           last_contacted_at: string | null
           lead_score: number | null
           meeting_requested: boolean
@@ -11374,6 +11377,7 @@ export type Database = {
           business_address?: string | null
           business_type?: string | null
           buying_intent?: string | null
+          buzzchat_conversation_id?: string | null
           call_outcome?: string | null
           call_summary?: string | null
           callback_date?: string | null
@@ -11388,8 +11392,10 @@ export type Database = {
           funding_amount?: number | null
           gbraid?: string | null
           gclid?: string | null
+          has_buzzchat_reply?: boolean
           id?: string
           interest_level?: string | null
+          last_buzzchat_reply_at?: string | null
           last_contacted_at?: string | null
           lead_score?: number | null
           meeting_requested?: boolean
@@ -11438,6 +11444,7 @@ export type Database = {
           business_address?: string | null
           business_type?: string | null
           buying_intent?: string | null
+          buzzchat_conversation_id?: string | null
           call_outcome?: string | null
           call_summary?: string | null
           callback_date?: string | null
@@ -11452,8 +11459,10 @@ export type Database = {
           funding_amount?: number | null
           gbraid?: string | null
           gclid?: string | null
+          has_buzzchat_reply?: boolean
           id?: string
           interest_level?: string | null
+          last_buzzchat_reply_at?: string | null
           last_contacted_at?: string | null
           lead_score?: number | null
           meeting_requested?: boolean
@@ -20283,6 +20292,7 @@ export type Database = {
         | "custom_form"
         | "webee_website_form"
         | "api"
+        | "whatsapp"
       lead_status:
         | "need_to_call"
         | "calling"
@@ -20470,6 +20480,7 @@ export const Constants = {
         "custom_form",
         "webee_website_form",
         "api",
+        "whatsapp",
       ],
       lead_status: [
         "need_to_call",

@@ -20,7 +20,7 @@ type FieldDef = {
   label: string;
   enumValues?: string[];
   /** derived booleans compile to special query fragments */
-  derived?: "email_exists" | "phone_exists" | "voicemail" | "do_not_contact" | "opted_out" | "assigned_to_me" | "unassigned";
+  derived?: "email_exists" | "phone_exists" | "voicemail" | "do_not_contact" | "opted_out" | "assigned_to_me" | "unassigned" | "buzzchat_replied";
 };
 
 export const FILTER_FIELDS: Record<string, FieldDef> = {
@@ -54,6 +54,8 @@ export const FILTER_FIELDS: Record<string, FieldDef> = {
   assigned_to:          { column: "assigned_to", kind: "text", label: "Assigned To (user id)" },
   assigned_to_me:       { column: "assigned_to", kind: "boolean", label: "Assigned To Me", derived: "assigned_to_me" },
   unassigned:           { column: "assigned_to", kind: "boolean", label: "Unassigned", derived: "unassigned" },
+  // BuzzChat / WhatsApp reply state (set by the inbound webhook pipeline).
+  buzzchat_replied:     { column: "has_buzzchat_reply", kind: "boolean", label: "BuzzChat Replied", derived: "buzzchat_replied" },
 };
 
 // ── Per-page dataset registries (additive; leads registry stays the default) ─
@@ -307,6 +309,10 @@ function applyDerivedBoolean(q: any, def: FieldDef, truthy: boolean): any {
       // Requires a currentUserId in query opts; fail CLOSED (match nothing)
       // when the caller did not provide one.
       return q; // handled in applyFilterToQuery (needs opts)
+    case "buzzchat_replied":
+      return truthy
+        ? q.eq("has_buzzchat_reply", true)
+        : q.or("has_buzzchat_reply.is.null,has_buzzchat_reply.eq.false");
     default:
       return q;
   }

@@ -67,9 +67,49 @@ export const Route = createFileRoute("/api/v1/whatsapp/conversations")({
           }
           if (unreadOnly) q = q.gt("unread_count", 0);
 
-          const { data, error, count } = await q;
+          const { data: convRows, error, count } = await q;
           if (error) return jsonErr(error.message, 500);
-          return jsonOk({ object: "list", data: data ?? [], total: count ?? null, limit, offset });
+
+          // Enrich each conversation with the linked lead_id (if any) by
+          // looking up leads whose buzzchat_conversation_id matches the
+          // conversation's contact_phone or conversation_id.
+          const rows = convRows ?? [];
+          let leadMap: Map<string, string> = new Map();
+          try {
+            const convIds: string[] = rows
+              .map((r: any) => r.conversation_id ?? r.id)
+              .filter(Boolean);
+            const phones: string[] = rows
+              .map((r: any) => r.contact_phone)
+              .filter(Boolean);
+            if (convIds.length > 0) {
+              const { data: byConvId } = await sb
+                .from("leads")
+                .select("id, buzzchat_conversation_id, phone")
+                .eq("workspace_id", workspaceId)
+                .in("buzzchat_conversation_id", convIds);
+              for (const l of byConvId ?? []) {
+                if (l.buzzchat_conversation_id) leadMap.set(l.buzzchat_conversation_id, l.id);
+              }
+            }
+            if (phones.length > 0) {
+              const { data: byPhone } = await sb
+                .from("leads")
+                .select("id, phone")
+                .eq("workspace_id", workspaceId)
+                .in("phone", phones);
+              for (const l of byPhone ?? []) {
+                if (l.phone && !leadMap.has(l.phone)) leadMap.set(l.phone, l.id);
+              }
+            }
+          } catch { /* enrichment is best-effort */ }
+
+          const enriched = rows.map((r: any) => ({
+            ...r,
+            lead_id: leadMap.get(r.conversation_id ?? r.id) ?? leadMap.get(r.contact_phone) ?? null,
+          }));
+
+          return jsonOk({ object: "list", data: enriched, total: count ?? null, limit, offset });
         } catch (err: any) {
           return jsonErr(err?.message ?? "Failed to load conversations", 500);
         }

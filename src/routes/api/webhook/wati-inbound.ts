@@ -43,6 +43,7 @@ import {
   watiTemplatePatchFromWebhook,
 } from "@/lib/whatsapp/wati-template-status.shared";
 import { emitCampaignNotification } from "@/lib/notifications/notification-engine.shared";
+import { matchOrCreateLeadForWhatsApp } from "@/lib/whatsapp/lead-sync.server";
 
 function json(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
@@ -226,12 +227,39 @@ async function storeInboundMessage(
   await syncWhatsappConversation(workspaceId, message.contact_phone);
 
   if (isNewMessage) {
-    // Best-effort — never let notification failures break webhook processing.
+    // BuzzChat → CRM Lead Pipeline: match or create a lead for this reply.
+    // Best-effort — never let CRM sync failure break webhook processing.
+    let canonicalLeadId: string | null = leadId;
+    try {
+      const sync = await matchOrCreateLeadForWhatsApp({
+        workspaceId,
+        contactPhone: message.contact_phone,
+        contactName: message.contact_name ?? null,
+        conversationId: message.conversation_id ?? null,
+        externalMessageId: message.external_id ?? null,
+        messageBody: message.body ?? null,
+        repliedAt: message.sent_at ?? null,
+      });
+      canonicalLeadId = sync.leadId;
+      // If the message was stored with a different (or null) leadId, back-fill it now.
+      if (canonicalLeadId && canonicalLeadId !== leadId) {
+        await (sb as any)
+          .from("whatsapp_messages")
+          .update({ lead_id: canonicalLeadId })
+          .eq("workspace_id", workspaceId)
+          .eq("external_id", message.external_id);
+      }
+    } catch (e) {
+      console.warn("[WATI WEBHOOK] BuzzChat lead-sync failed (non-fatal):", (e as Error).message ?? e);
+    }
+
+    // Best-effort notification — never let notification failures break webhook processing.
     const who = message.contact_name?.trim() || message.contact_phone || "Unknown contact";
     const preview = (message.body ?? "").trim().slice(0, 160);
     await emitCampaignNotification(sb as any, {
       workspaceId,
       eventKey: "whatsapp_reply_received",
+      leadId: canonicalLeadId ?? undefined,
       summary: preview ? `${who}: "${preview}"` : `${who} sent a WhatsApp message.`,
       severity: "info",
       // Belt-and-braces on top of isNewMessage — one notification per provider message.

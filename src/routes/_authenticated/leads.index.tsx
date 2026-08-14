@@ -646,6 +646,7 @@ function LeadsPage() {
         case "disqualified": if (st !== "not_interested") return false; break;
         case "callback":     if (!(l.callback_date || st === "callback_requested")) return false; break;
         case "not_called":   if (st !== "not_connected") return false; break;
+        case "buzzchat_replied": if (!l.has_buzzchat_reply) return false; break;
       }
     }
     return true;
@@ -1123,6 +1124,7 @@ function LeadsPage() {
                 { value: "positive", label: "Positive" },
                 { value: "neutral",  label: "Neutral" },
                 ...(isWbah ? [{ value: "partial_qualified", label: "Partial Qualified" }] : []),
+                ...(!isWbah ? [{ value: "buzzchat_replied", label: "BuzzChat Replied" }] : []),
               ].map((c) => {
                 const active = quickFilter === c.value;
                 return (
@@ -1213,6 +1215,11 @@ function LeadsPage() {
                               <span className="truncate text-[11px] font-medium min-w-0">{lead.full_name ?? "—"}</span>
                               <LeadSourceBadge lead={lead} />
                               <BookingFailedBadge lead={lead} />
+                              {!isWbah && lead.has_buzzchat_reply && (
+                                <span title="BuzzChat reply received" className="inline-flex items-center gap-0.5 rounded-full px-1.5 py-0.5 text-[9px] font-semibold bg-emerald-500/15 text-emerald-400 ring-1 ring-emerald-500/30 whitespace-nowrap">
+                                  <MessageCircle className="h-2.5 w-2.5" />BuzzChat
+                                </span>
+                              )}
                               {isWbah && (
                                 <WbahCallCountBadge
                                   count={lead.meta?.call_count ?? 1}
