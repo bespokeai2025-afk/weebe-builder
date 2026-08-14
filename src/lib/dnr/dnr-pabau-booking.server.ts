@@ -2,6 +2,7 @@
  * DNR booking logic — Pabau services, clients, availability, appointments.
  */
 import {
+  PabauApiError,
   pabauFetch,
   pabauListItems,
   pabauRequestHeaders,
@@ -294,6 +295,96 @@ export async function pabauCheckAvailability(args: {
   };
 }
 
+/** Pull Pabau's own `message` out of a JSON error body. */
+function pabauMessageFrom(body: string): string | null {
+  try {
+    const parsed = JSON.parse(body) as { message?: unknown };
+    const message = typeof parsed.message === "string" ? parsed.message.trim() : "";
+    return message || null;
+  } catch {
+    return null;
+  }
+}
+
+export interface DnrBookingFailure {
+  /** Spoken back to the caller by the agent, so it stays plain English. */
+  message: string;
+  /** Machine-readable cause for logs and for branching in the prompt. */
+  reason: "no_shift" | "slot_taken" | "permission" | "pabau_rejected";
+  /** What the agent should do next. */
+  hint: string;
+}
+
+/**
+ * Turn a Pabau refusal into something the receptionist can act on.
+ *
+ * The "no shift" case is the common one: check_availability builds slots from the
+ * location's opening hours, but Pabau will only accept a booking inside the
+ * assigned employee's rostered shift, and it exposes no shift/rota endpoint on
+ * this API key. So a slot we offered in good faith can still be refused.
+ */
+export function describePabauBookingFailure(pabauMessage: string | null): DnrBookingFailure {
+  const text = (pabauMessage ?? "").toLowerCase();
+
+  // Pabau phrases the same underlying problem two ways: no shift at all, or a
+  // shift that is not at this location. Both mean "nobody is rostered then".
+  if (text.includes("no shift") || text.includes("rostered")) {
+    return {
+      reason: "no_shift",
+      message:
+        "That time isn't on the clinician's rota, so I can't hold it. Let me find you another time.",
+      hint: "Call check_availability again for a different day, or a different practitioner_name. If the second attempt also fails, use transfer_to_foh.",
+    };
+  }
+
+  if (text.includes("already") || text.includes("taken") || text.includes("booked")) {
+    return {
+      reason: "slot_taken",
+      message: "That slot has just been taken. Let me offer you the next available time.",
+      hint: "Call check_availability again and offer a different slot.",
+    };
+  }
+
+  if (text.includes("not allowed") || text.includes("permission") || text.includes("unauthor")) {
+    return {
+      reason: "permission",
+      message:
+        "I can't complete the booking from here. Let me pass you to our front-of-house team to finish it.",
+      hint: "Use transfer_to_foh — the Pabau API key is missing appointment write access.",
+    };
+  }
+
+  return {
+    reason: "pabau_rejected",
+    message: pabauMessage
+      ? `The booking system wouldn't accept that: ${pabauMessage}`
+      : "The booking system wouldn't accept that time.",
+    hint: "Offer an alternative slot from check_availability. After two failures, use transfer_to_foh.",
+  };
+}
+
+/**
+ * Appointment notes for a phone booking.
+ *
+ * Bookings always go into the AI Receptionist column, so a caller asking for a
+ * specific clinician would otherwise lose that request silently. Recording it
+ * here lets front of house move the appointment to the right column.
+ */
+export function buildDnrAppointmentNotes(
+  notes: string | undefined,
+  requestedPractitionerId?: number,
+): string {
+  const parts = [notes?.trim() || "Booked via WEBEE AI receptionist"];
+  if (
+    requestedPractitionerId != null &&
+    Number.isFinite(requestedPractitionerId) &&
+    requestedPractitionerId !== DNR_VOICE.pabau.bookingEmployeeId
+  ) {
+    parts.push(`Caller requested practitioner id ${requestedPractitionerId} — please reassign`);
+  }
+  return parts.join(" · ").slice(0, 500);
+}
+
 export async function pabauBookAppointment(args: {
   config: PabauClientConfig;
   contactId: number | string;
@@ -303,7 +394,13 @@ export async function pabauBookAppointment(args: {
   notes?: string;
   locationId?: number;
   practitionerId?: number;
-}): Promise<{ ok: boolean; message: string; raw: unknown }> {
+}): Promise<{
+  ok: boolean;
+  message: string;
+  raw: unknown;
+  reason?: DnrBookingFailure["reason"];
+  hint?: string;
+}> {
   const locationId = resolveDnrLocationId(args.locationId);
   const services = await pabauListServices(args.config, locationId);
   const service = matchPabauService(services, args.serviceName);
@@ -319,23 +416,45 @@ export async function pabauBookAppointment(args: {
     start_date: args.startDate,
     start_time: args.startTime.length === 5 ? `${args.startTime}:00` : args.startTime,
     location_id: locationId,
-    notes: args.notes ?? "Booked via WEBEE AI receptionist",
+    notes: buildDnrAppointmentNotes(args.notes, args.practitionerId),
+    // Always the AI Receptionist column — Pabau checks employee_id against that
+    // user's rota, and it is the one the clinic maintains for phone bookings.
+    // Pabau's create API wants employee_id here, not user_id / practitioner_id.
+    employee_id: DNR_VOICE.pabau.bookingEmployeeId,
   };
-  const employeeId = args.practitionerId ?? DNR_VOICE.pabau.defaultEmployeeId;
-  if (employeeId != null) {
-    // Pabau create API uses employee_id (staff shift calendar), not user_id / practitioner_id.
-    body.employee_id = employeeId;
+
+  const locName = location?.location_name ?? DNR_VOICE.location.name;
+
+  let raw: unknown;
+  try {
+    raw = await pabauCreateAppointment(args.config, body as never);
+  } catch (e) {
+    // A refused booking is a normal conversational outcome, not a crash: the
+    // agent needs to hear why so it can offer another slot instead of dying.
+    if (e instanceof PabauApiError) {
+      const failure = describePabauBookingFailure(pabauMessageFrom(e.body));
+      console.warn("[dnr-pabau] Pabau refused booking", {
+        status: e.status,
+        reason: failure.reason,
+        body: e.body.slice(0, 300),
+        attempted: { ...body },
+      });
+      return { ok: false, message: failure.message, hint: failure.hint, reason: failure.reason, raw: e.body };
+    }
+    throw e;
   }
 
-  const raw = await pabauCreateAppointment(args.config, body as never);
   const o = raw && typeof raw === "object" ? (raw as Record<string, unknown>) : {};
-  const ok = o.success !== false;
-  const locName = location?.location_name ?? DNR_VOICE.location.name;
+  if (o.success === false) {
+    const failure = describePabauBookingFailure(
+      typeof o.message === "string" ? o.message : null,
+    );
+    return { ok: false, message: failure.message, hint: failure.hint, reason: failure.reason, raw };
+  }
+
   return {
-    ok,
-    message: ok
-      ? `Booked ${service.service_name} on ${args.startDate} at ${args.startTime} at ${locName}.`
-      : String(o.message ?? "Booking failed"),
+    ok: true,
+    message: `Booked ${service.service_name} on ${args.startDate} at ${args.startTime} at ${locName}.`,
     raw,
   };
 }
