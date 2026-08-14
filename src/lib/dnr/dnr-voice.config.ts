@@ -68,8 +68,21 @@ export const DNR_VOICE = {
   pabau: {
     provider: "pabau",
     locationId: 3526,
-    /** Default Pabau employee_id for API bookings when caller has no preference (Nurse Antonia). */
-    defaultEmployeeId: 142159,
+    /**
+     * The employee_id every API booking is created against — the "AI Receptionist"
+     * user (152257) the clinic set up for this integration, assigned to Cheshire
+     * (3526) and to ~796 services.
+     *
+     * This is deliberately not a fallback: all phone bookings land in this one
+     * column regardless of which clinician the caller asks for, and front of house
+     * reassigns from there. A caller's preference is recorded in the appointment
+     * notes instead.
+     *
+     * Pabau validates this employee against their rostered shift at the location,
+     * so this user needs a published rota at Castlerock House or /appointments/create
+     * refuses with "There is no shift for this timeslot".
+     */
+    bookingEmployeeId: 152257,
   },
 
   /** Retell → WEBEE call events */
