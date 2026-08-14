@@ -6,10 +6,10 @@
 // You can pass additional config via defineConfig({ vite: { ... } }) if needed.
 import { defineConfig } from "@lovable.dev/vite-tanstack-config";
 import path from "node:path";
-import { hyperStreamRelayPlugin } from "./hyperstream-relay.plugin";
-import { elVoiceRelayPlugin } from "./el-voice-relay.plugin";
-import { telephonyStreamPlugin } from "./telephony-stream.plugin";
-import { frejunStreamPlugin } from "./frejun-stream.plugin";
+// One plugin mounts every voice relay (HyperStream, cascade, Twilio, FreJun);
+// the relays themselves live in src/lib/voice/gateway so production runs the
+// same code via scripts/prod-entry.mjs.
+import { voiceGatewayPlugin } from "./voice-gateway.plugin";
 import { campaignSchedulerPlugin } from "./campaign-scheduler.plugin";
 import { videoJobPollerPlugin } from "./video-job-poller.plugin";
 import { providerHealthSweepPlugin } from "./provider-health-sweep.plugin";
@@ -93,7 +93,7 @@ export default defineConfig({
         ],
       },
     },
-    plugins: [hyperStreamRelayPlugin(), elVoiceRelayPlugin(), telephonyStreamPlugin(), frejunStreamPlugin(), campaignSchedulerPlugin(), videoJobPollerPlugin(), providerHealthSweepPlugin(), adsSyncPlugin(), trendScoutPlugin(), accountsMindSchedulerPlugin()],
+    plugins: [voiceGatewayPlugin(), campaignSchedulerPlugin(), videoJobPollerPlugin(), providerHealthSweepPlugin(), adsSyncPlugin(), trendScoutPlugin(), accountsMindSchedulerPlugin()],
     resolve: {
       alias: {
         "entities/lib/decode.js": path.resolve(

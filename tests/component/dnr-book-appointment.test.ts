@@ -62,6 +62,33 @@ describe("dnr-book-appointment", () => {
     }
   });
 
+  it("accepts null optional args from Retell strict mode", () => {
+    const r = parseDnrBookAppointment({
+      agent_id: "agent_b2afcd65c127f79126ea57deb2",
+      contact_id: 12345,
+      service_name: "Ultherapy - Lower Face",
+      start_date: "2026-08-15",
+      start_time: "10:30",
+      notes: null,
+    });
+    expect(r.ok).toBe(true);
+    if (r.ok) expect(r.data.notes).toBeUndefined();
+  });
+
+  it("always names a field when validation fails", () => {
+    const r = parseDnrBookAppointment({
+      contact_id: 12345,
+      service_name: { name: "Ultherapy" },
+      start_date: "2026-08-15",
+      start_time: "10:30",
+    });
+    expect(r.ok).toBe(false);
+    if (!r.ok) {
+      expect([...(r.missing ?? []), ...(r.invalid ?? [])]).toContain("service_name");
+      expect(r.details).toBeTruthy();
+    }
+  });
+
   it("reports invalid date format separately from missing", () => {
     const r = parseDnrBookAppointment({
       contact_id: 1,

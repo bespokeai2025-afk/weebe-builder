@@ -13,6 +13,7 @@ import {
   resolveWatiChatStatus,
 } from "@/lib/whatsapp/wati-chat-status.shared";
 import { selectInboxSyncBatch } from "@/lib/whatsapp/wati-inbox-sync.server";
+import { sortWhatsappInboxThreads } from "@/lib/whatsapp/wa-inbox-threads.shared";
 
 describe("parseWatiTicketEvent", () => {
   it("reads the 24h expiry event", () => {
@@ -193,6 +194,37 @@ describe("resolveWatiChatStatus", () => {
 
   it("has no status to show before the first sync", () => {
     expect(resolveWatiChatStatus({ watiChatStatus: null, lastInboundAt: null, now })).toBeNull();
+  });
+});
+
+describe("sortWhatsappInboxThreads", () => {
+  // A campaign send from minutes ago vs a reply from two days ago.
+  const threads = [
+    { phone: "old-reply", lastAt: "2026-08-11T09:00:00.000Z", lastDirection: "inbound" },
+    { phone: "sent-today", lastAt: "2026-08-13T09:16:00.000Z", lastDirection: "outbound" },
+    { phone: "reply-today", lastAt: "2026-08-13T09:33:00.000Z", lastDirection: "inbound" },
+  ];
+
+  it("pins anything awaiting a reply above newer sends by default", () => {
+    expect(sortWhatsappInboxThreads(threads).map((t) => t.phone)).toEqual([
+      "reply-today",
+      "old-reply",
+      "sent-today",
+    ]);
+  });
+
+  it("orders purely by recency in 'recent' mode, so today's sends surface", () => {
+    expect(sortWhatsappInboxThreads(threads, "recent").map((t) => t.phone)).toEqual([
+      "reply-today",
+      "sent-today",
+      "old-reply",
+    ]);
+  });
+
+  it("does not mutate the input", () => {
+    const input = [...threads];
+    sortWhatsappInboxThreads(input, "recent");
+    expect(input.map((t) => t.phone)).toEqual(threads.map((t) => t.phone));
   });
 });
 

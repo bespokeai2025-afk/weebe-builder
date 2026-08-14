@@ -4,7 +4,9 @@ description: Bugs fixed to get the OpenAI Realtime WebSocket relay working in th
 ---
 
 ## Rule
-When touching the HyperStream relay (`hyperstream-relay.plugin.ts`) or `createOpenAIRealtimeSession`, keep these fixes in place.
+When touching the HyperStream relay (`src/lib/voice/gateway/hyperstream.gateway.ts`) or `createOpenAIRealtimeSession`, keep these fixes in place.
+
+The relays no longer live in Vite plugins. They are routes in `src/lib/voice/gateway/`, mounted by `mountVoiceGateways(httpServer)` from both `voice-gateway.plugin.ts` (dev) and `scripts/prod-entry.mjs` (prod, via an srvx plugin over the bundle built by `scripts/build-voice-gateway.mjs`). Points 1, 2 and 5 below are now enforced centrally in `src/lib/voice/gateway/realtime-session.ts` — build session frames with `buildSessionUpdate()` and open sockets with `openRealtimeSocket()` rather than hand-rolling either, which is how the telephony relays silently kept all three bugs.
 
 **Why:** Each was a silent failure that looked like "call hangs up immediately" or "agent never responds to user speech."
 

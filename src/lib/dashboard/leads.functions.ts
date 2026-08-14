@@ -3,6 +3,8 @@ import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { retellFetch } from "@/lib/providers/retell/client.server";
+import { resolveDeploymentMode } from "@/lib/runtime/adapter";
+import { placeNativeOutboundCall } from "@/lib/telephony/native-outbound.server";
 import { cacheWrap, invalidateDashboardCache } from "@/lib/cache/redis.server";
 import { LEAD_STATUS_CATEGORY_MAP } from "@/lib/dashboard/lead-status-categories";
 
@@ -584,6 +586,9 @@ export const startQualificationCallsForLeads = createServerFn({ method: "POST" }
     const resolvedKey = clientRetellKey || (deployedRetellAgentId ? agentApiKey : undefined);
 
     const fromNumber = data.fromNumber?.trim() || (agentSettings.phoneNumber as string | undefined) || null;
+    // Migrated agents dial through our own Twilio account, so the Retell id and
+    // key resolved above do not apply to them.
+    const dialNative = resolveDeploymentMode(agentSettings as never) === "WEBEE_NATIVE";
 
     let placed = 0;
     let queued = 0;
@@ -618,7 +623,7 @@ export const startQualificationCallsForLeads = createServerFn({ method: "POST" }
         continue;
       }
 
-      if (!retellAgentId || !fromNumber) {
+      if (!dialNative && (!retellAgentId || !fromNumber)) {
         // Queue without placing — agent not fully configured
         await sb.from("leads").update({ status: "need_to_call", updated_at: now }).eq("id", lead.id);
         queued += 1;
@@ -626,35 +631,51 @@ export const startQualificationCallsForLeads = createServerFn({ method: "POST" }
       }
 
       try {
-        // Build dynamic variables from preCallMappings (placeholder → lead field)
-        // Always include full_name as a baseline, then apply builder-configured mappings.
-        const dynamicVars: Record<string, string> = {
-          full_name: lead.full_name ?? "",
-        };
-        for (const [placeholder, leadField] of Object.entries(preCallMappings)) {
-          const val = (lead as Record<string, unknown>)[leadField];
-          if (val != null && val !== "") {
-            dynamicVars[placeholder] = String(val);
+        let providerCallId: string | null = null;
+        let dialedFrom = fromNumber;
+
+        if (dialNative) {
+          const dial = await placeNativeOutboundCall({
+            sb: supabaseAdmin as never,
+            workspaceId,
+            agentId: agent.id,
+            to: lead.phone,
+            fromNumber: data.fromNumber?.trim() || null,
+          });
+          providerCallId = dial.callId;
+          dialedFrom = dial.fromNumber;
+        } else {
+          // Build dynamic variables from preCallMappings (placeholder → lead field)
+          // Always include full_name as a baseline, then apply builder-configured mappings.
+          const dynamicVars: Record<string, string> = {
+            full_name: lead.full_name ?? "",
+          };
+          for (const [placeholder, leadField] of Object.entries(preCallMappings)) {
+            const val = (lead as Record<string, unknown>)[leadField];
+            if (val != null && val !== "") {
+              dynamicVars[placeholder] = String(val);
+            }
           }
+
+          const callPayload: Record<string, unknown> = {
+            from_number: fromNumber,
+            to_number: lead.phone,
+            override_agent_id: retellAgentId,
+            metadata: { lead_id: lead.id, workspace_id: workspaceId },
+            retell_llm_dynamic_variables: dynamicVars,
+          };
+
+          const call = await retellFetch<any>("/v2/create-phone-call", callPayload, "POST", resolvedKey);
+          providerCallId = call?.call_id ?? null;
         }
-
-        const callPayload: Record<string, unknown> = {
-          from_number: fromNumber,
-          to_number: lead.phone,
-          override_agent_id: retellAgentId,
-          metadata: { lead_id: lead.id, workspace_id: workspaceId },
-          retell_llm_dynamic_variables: dynamicVars,
-        };
-
-        const call = await retellFetch<any>("/v2/create-phone-call", callPayload, "POST", resolvedKey);
 
         await sb.from("leads").update({ status: "calling", updated_at: now }).eq("id", lead.id);
         await sb.from("calls").insert({
           workspace_id: workspaceId,
-          retell_call_id: call?.call_id ?? null,
-          agent_id: retellAgentId,
+          retell_call_id: providerCallId,
+          agent_id: dialNative ? agent.id : retellAgentId,
           agent_name: agent.name ?? null,
-          from_number: fromNumber,
+          from_number: dialedFrom,
           to_number: lead.phone,
           call_type: "outbound",
           call_status: "initiated",
@@ -758,7 +779,7 @@ export const fireScheduledCalls = createServerFn({ method: "POST" })
     const todayStart = todayUtc.toISOString();
 
     // Group by agent so we only load each agent once
-    const agentCache: Record<string, { retellAgentId: string | null; fromNumber: string | null; name: string; preCallMappings: Record<string, string>; resolvedKey: string | undefined }> = {};
+    const agentCache: Record<string, { retellAgentId: string | null; fromNumber: string | null; name: string; preCallMappings: Record<string, string>; resolvedKey: string | undefined; dialNative: boolean }> = {};
 
     for (const lead of scheduledLeads) {
       if (!lead.phone?.trim()) {
@@ -796,13 +817,14 @@ export const fireScheduledCalls = createServerFn({ method: "POST" })
           name: agent?.name ?? "Agent",
           preCallMappings: (qualifySettings.preCallMappings as Record<string, string> | undefined) ?? {},
           resolvedKey: clientRetellKey || (deployedRetellAgentId ? agentApiKey : undefined),
+          dialNative: resolveDeploymentMode(agentSettings as never) === "WEBEE_NATIVE",
         };
       }
 
-      const { retellAgentId, fromNumber: agentFromNumber, name: agentName, preCallMappings, resolvedKey } = agentCache[agentId];
+      const { retellAgentId, fromNumber: agentFromNumber, name: agentName, preCallMappings, resolvedKey, dialNative } = agentCache[agentId];
       const fromNumber = (lead.scheduled_from_number as string | null) || agentFromNumber;
 
-      if (!retellAgentId || !fromNumber) {
+      if (!dialNative && (!retellAgentId || !fromNumber)) {
         failed += 1;
         errors.push({ leadId: lead.id, message: "Agent not fully configured" });
         continue;
@@ -823,27 +845,44 @@ export const fireScheduledCalls = createServerFn({ method: "POST" })
       }
 
       try {
-        const dynamicVars: Record<string, string> = { full_name: lead.full_name ?? "" };
-        for (const [placeholder, leadField] of Object.entries(preCallMappings)) {
-          const val = (lead as Record<string, unknown>)[leadField as string];
-          if (val != null && val !== "") dynamicVars[placeholder] = String(val);
+        let providerCallId: string | null = null;
+        let dialedFrom = fromNumber;
+
+        if (dialNative) {
+          const dial = await placeNativeOutboundCall({
+            sb: supabaseAdmin as never,
+            workspaceId,
+            agentId,
+            to: lead.phone,
+            fromNumber: (lead.scheduled_from_number as string | null) ?? null,
+          });
+          providerCallId = dial.callId;
+          dialedFrom = dial.fromNumber;
+        } else {
+          const dynamicVars: Record<string, string> = { full_name: lead.full_name ?? "" };
+          for (const [placeholder, leadField] of Object.entries(preCallMappings)) {
+            const val = (lead as Record<string, unknown>)[leadField as string];
+            if (val != null && val !== "") dynamicVars[placeholder] = String(val);
+          }
+
+          const callPayload = {
+            from_number: fromNumber,
+            to_number: lead.phone,
+            override_agent_id: retellAgentId,
+            metadata: { lead_id: lead.id, workspace_id: workspaceId },
+            retell_llm_dynamic_variables: dynamicVars,
+          };
+
+          const call = await retellFetch<any>("/v2/create-phone-call", callPayload, "POST", resolvedKey);
+          providerCallId = call?.call_id ?? null;
         }
 
-        const callPayload = {
-          from_number: fromNumber,
-          to_number: lead.phone,
-          override_agent_id: retellAgentId,
-          metadata: { lead_id: lead.id, workspace_id: workspaceId },
-          retell_llm_dynamic_variables: dynamicVars,
-        };
-
-        const call = await retellFetch<any>("/v2/create-phone-call", callPayload, "POST", resolvedKey);
         await sb.from("calls").insert({
           workspace_id: workspaceId,
-          retell_call_id: call?.call_id ?? null,
-          agent_id: retellAgentId,
+          retell_call_id: providerCallId,
+          agent_id: dialNative ? agentId : retellAgentId,
           agent_name: agentName,
-          from_number: fromNumber,
+          from_number: dialedFrom,
           to_number: lead.phone,
           call_type: "outbound",
           call_status: "initiated",

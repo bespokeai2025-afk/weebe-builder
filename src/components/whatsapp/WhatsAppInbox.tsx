@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect, useMemo, useCallback } from "react";
 import { RelativeTime } from "@/components/ui/relative-time";
 import { useServerFn } from "@tanstack/react-start";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient, keepPreviousData } from "@tanstack/react-query";
 import {
   Search,
   Send,
@@ -37,7 +37,10 @@ import {
   updateWhatsappConversation,
 } from "@/lib/dashboard/whatsapp.functions";
 import { getWatiConnection } from "@/lib/whatsapp/wati.functions";
-import { sortWhatsappInboxThreads } from "@/lib/whatsapp/wa-inbox-threads.shared";
+import {
+  type InboxSortMode,
+  sortWhatsappInboxThreads,
+} from "@/lib/whatsapp/wa-inbox-threads.shared";
 import { resolveWatiChatStatus } from "@/lib/whatsapp/wati-chat-status.shared";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -122,6 +125,8 @@ const TAG_ALL = "__all__";
 const STATUS_ALL = "__all__";
 const CHAT_STATUS_ALL = "__all__";
 const TEAM_NONE = "__none__";
+/** Threads fetched per page. A campaign blast can create hundreds of threads in one go. */
+const THREAD_PAGE_SIZE = 60;
 
 export function WhatsAppInbox() {
   const qc = useQueryClient();
@@ -139,6 +144,8 @@ export function WhatsAppInbox() {
   const [assigneeFilter, setAssigneeFilter] = useState<string>(ASSIGNEE_ALL);
   const [tagFilter, setTagFilter] = useState<string>(TAG_ALL);
   const [chatStatusFilter, setChatStatusFilter] = useState<string>(CHAT_STATUS_ALL);
+  const [sortMode, setSortMode] = useState<InboxSortMode>("replies-first");
+  const [visibleCount, setVisibleCount] = useState(THREAD_PAGE_SIZE);
   const [activePhone, setActivePhone] = useState<string | null>(null);
   const [reply, setReply] = useState("");
   const [newTag, setNewTag] = useState("");
@@ -181,15 +188,27 @@ export function WhatsAppInbox() {
         chatStatusFilter === CHAT_STATUS_ALL
           ? undefined
           : (chatStatusFilter as "open" | "pending" | "solved" | "expired"),
+      limit: visibleCount,
     }),
-    [search, statusFilter, assigneeFilter, tagFilter, chatStatusFilter],
+    [search, statusFilter, assigneeFilter, tagFilter, chatStatusFilter, visibleCount],
   );
 
-  const { data: threads = [], isLoading } = useQuery({
+  // Narrowing the list should start from the top again rather than keep a deep page open.
+  useEffect(() => {
+    setVisibleCount(THREAD_PAGE_SIZE);
+  }, [search, statusFilter, assigneeFilter, tagFilter, chatStatusFilter]);
+
+  const {
+    data: threads = [],
+    isLoading,
+    isFetching,
+  } = useQuery({
     queryKey: ["wa-threads", filters],
     queryFn: () => listFn({ data: filters }),
     // Realtime drives updates; this is just a safety net if the socket drops.
     refetchInterval: 60_000,
+    // Growing the page changes the query key, so hold the current list instead of flashing empty.
+    placeholderData: keepPreviousData,
     throwOnError: false,
   });
 
@@ -240,7 +259,7 @@ export function WhatsAppInbox() {
     };
   }, []);
 
-  const sorted = sortWhatsappInboxThreads(threads as InboxThread[]);
+  const sorted = sortWhatsappInboxThreads(threads as InboxThread[], sortMode);
   const replyWaitingCount = sorted.filter((t) => t.needsReply).length;
   const active = sorted.find((t) => t.phone === activePhone) ?? sorted[0] ?? null;
 
@@ -338,6 +357,13 @@ export function WhatsAppInbox() {
     tagFilter !== TAG_ALL ||
     chatStatusFilter !== CHAT_STATUS_ALL;
 
+  const totalThreads = meta?.conversationCount ?? sorted.length;
+  // A full page back means the server likely has more; filters are counted client-side after the
+  // session-expiry pass, so fall back to comparing against the total.
+  const canLoadMore = hasFilters
+    ? sorted.length >= visibleCount
+    : sorted.length < totalThreads && sorted.length >= visibleCount;
+
   if (isLoading) {
     return (
       <div className="flex h-[min(640px,calc(100vh-14rem))] items-center justify-center text-muted-foreground text-sm">
@@ -400,6 +426,19 @@ export function WhatsAppInbox() {
             </Select>
           </div>
 
+          <Select
+            value={sortMode}
+            onValueChange={(v) => setSortMode(v as InboxSortMode)}
+          >
+            <SelectTrigger className="h-7 w-full text-[10px]">
+              <SelectValue placeholder="Sort" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="replies-first">Replies first</SelectItem>
+              <SelectItem value="recent">Newest activity first</SelectItem>
+            </SelectContent>
+          </Select>
+
           <Select value={chatStatusFilter} onValueChange={setChatStatusFilter}>
             <SelectTrigger className="h-7 w-full text-[10px]">
               <SelectValue placeholder="WhatsApp session" />
@@ -432,9 +471,16 @@ export function WhatsAppInbox() {
           {watiConnected && replyWaitingCount > 0 && (
             <p className="flex items-center gap-1.5 text-[10px] font-medium text-emerald-700 dark:text-emerald-400">
               <MessageSquareReply className="h-3 w-3 shrink-0" />
-              {replyWaitingCount} waiting for your reply — shown at top
+              {replyWaitingCount} waiting for your reply
+              {sortMode === "replies-first" ? " — shown at top" : ""}
             </p>
           )}
+
+          <p className="text-[10px] text-muted-foreground">
+            {hasFilters
+              ? `${sorted.length} matching`
+              : `Showing ${sorted.length} of ${totalThreads} conversations`}
+          </p>
         </div>
 
         <ul className="min-h-0 flex-1 divide-y divide-border/60 overflow-y-auto">
@@ -556,6 +602,21 @@ export function WhatsAppInbox() {
               </li>
             );
           })}
+
+          {canLoadMore && (
+            <li className="p-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="h-7 w-full text-[10px]"
+                disabled={isFetching}
+                onClick={() => setVisibleCount((n) => n + THREAD_PAGE_SIZE)}
+              >
+                {isFetching ? "Loading…" : "Load more conversations"}
+              </Button>
+            </li>
+          )}
         </ul>
       </div>
 

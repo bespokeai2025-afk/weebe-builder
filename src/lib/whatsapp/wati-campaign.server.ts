@@ -10,11 +10,9 @@ export type CampaignAudienceFilter = {
   lead_ids?: string[];
 };
 
-import {
-  watiApiRoot,
-  watiApiV3Base,
-} from "@/lib/whatsapp/wati-api-base.shared";
+import { watiApiRoot, watiApiV3Base } from "@/lib/whatsapp/wati-api-base.shared";
 import { defaultParamSample } from "@/lib/whatsapp/wati-template-create.shared";
+import { describeWatiNonTextBody } from "@/lib/whatsapp/wati-message-content.shared";
 import { parseNotesToMeta } from "@/lib/whatsapp/csv-leads.shared";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 
@@ -98,22 +96,18 @@ export function buildWatiTemplateParams(
       });
 
   return orderedEntries.map(([paramKey, fieldKey]) => {
-      const raw = leadFieldRaw(lead, fieldKey);
-      let value =
-        raw == null || raw === ""
-          ? ""
-          : typeof raw === "string"
-            ? raw.trim()
-            : String(raw).trim();
-      if (!value) {
-        value = defaultParamSample(paramKey);
-      }
-      // Use first name when full name is very long (common in property CSVs)
-      if (fieldKey === "full_name" && !fieldKey.startsWith("literal:") && value.includes(" ")) {
-        value = value.split(/\s+/)[0] || value;
-      }
-      return { name: paramKey, value };
-    });
+    const raw = leadFieldRaw(lead, fieldKey);
+    let value =
+      raw == null || raw === "" ? "" : typeof raw === "string" ? raw.trim() : String(raw).trim();
+    if (!value) {
+      value = defaultParamSample(paramKey);
+    }
+    // Use first name when full name is very long (common in property CSVs)
+    if (fieldKey === "full_name" && !fieldKey.startsWith("literal:") && value.includes(" ")) {
+      value = value.split(/\s+/)[0] || value;
+    }
+    return { name: paramKey, value };
+  });
 }
 
 const WATI_CREDIT_HINT =
@@ -132,7 +126,11 @@ export function formatWatiSendError(raw: string | undefined): string {
     }
   }
   const base = message.slice(0, 300);
-  if (/insufficient\s+credit|not\s+enough\s+credit|credit.*deplet|wallet.*balance|low\s+balance/i.test(base)) {
+  if (
+    /insufficient\s+credit|not\s+enough\s+credit|credit.*deplet|wallet.*balance|low\s+balance/i.test(
+      base,
+    )
+  ) {
     return `${base} — ${WATI_CREDIT_HINT}`;
   }
   return base;
@@ -140,7 +138,9 @@ export function formatWatiSendError(raw: string | undefined): string {
 
 export function isWatiCreditError(raw: string | undefined): boolean {
   if (!raw) return false;
-  return /insufficient\s+credit|not\s+enough\s+credit|credit.*deplet|wallet.*balance|low\s+balance/i.test(raw);
+  return /insufficient\s+credit|not\s+enough\s+credit|credit.*deplet|wallet.*balance|low\s+balance/i.test(
+    raw,
+  );
 }
 
 /** Free-text reply within WATI's 24-hour customer care window (after inbound or template). */
@@ -171,10 +171,9 @@ export async function sendWatiSessionMessage(opts: {
     }
     if (!res.ok) {
       const raw = formatWatiSendError(text);
-      const hint =
-        /24\s*hour|session|window|template/i.test(raw)
-          ? `${raw} — use a template campaign if the 24-hour reply window has expired.`
-          : raw;
+      const hint = /24\s*hour|session|window|template/i.test(raw)
+        ? `${raw} — use a template campaign if the 24-hour reply window has expired.`
+        : raw;
       return { ok: false, error: hint };
     }
     const messageId =
@@ -243,14 +242,17 @@ function parseV1SendResponse(
   resOk: boolean,
   fallbackLocalMessageId?: string,
 ): { ok: boolean; messageId?: string; error?: string } {
-  const receivers = data.receivers as Array<{ localMessageId?: string; errors?: unknown[] }> | undefined;
+  const receivers = data.receivers as
+    | Array<{ localMessageId?: string; errors?: unknown[] }>
+    | undefined;
   const receiverErrors = receivers?.flatMap((r) => r.errors ?? []) ?? [];
   const resultFlag = data.result;
   if (resOk && resultFlag === false) {
     const info = data.info ?? data.error ?? data.message;
     let err = info ? String(info) : text.slice(0, 300);
     if (data.validWhatsAppNumber === false) {
-      err += " (not a valid WhatsApp number — check country code and that the number uses WhatsApp)";
+      err +=
+        " (not a valid WhatsApp number — check country code and that the number uses WhatsApp)";
     }
     return { ok: false, error: err.slice(0, 400) };
   }
@@ -590,10 +592,7 @@ export async function findLeadByPhone(
       .ilike("phone", `%${tail}`)
       .limit(5);
     const list = (rows ?? []) as Array<{ id: string; full_name: string | null; phone: string }>;
-    const match =
-      list.find((r) => phoneTail(r.phone) === tail) ??
-      list[0] ??
-      null;
+    const match = list.find((r) => phoneTail(r.phone) === tail) ?? list[0] ?? null;
     return match;
   }
 
@@ -630,7 +629,13 @@ export async function resolveCampaignAudienceLeads(
   }
 
   // Fallback: campaign with no lead filter — use Buzzchat contacts imported from CSV/WATI
-  if (rows.length === 0 && !f.lead_ids?.length && !f.status && !f.pipeline_stage && !f.qualification_status) {
+  if (
+    rows.length === 0 &&
+    !f.lead_ids?.length &&
+    !f.status &&
+    !f.pipeline_stage &&
+    !f.qualification_status
+  ) {
     let contactQ = sb
       .from("whatsapp_contacts")
       .select("phone, name, notes, do_not_contact")
@@ -730,9 +735,7 @@ export function isWatiInboundMessageEvent(payload: Record<string, unknown>): boo
  * Campaign replies are usually button taps, so missing these drops the most common reply of
  * all. Accepts snake_case (API V3 message rows) and camelCase (V1 rows + webhook payloads).
  */
-export function extractWatiInteractiveReplyText(
-  payload: Record<string, unknown>,
-): string | null {
+export function extractWatiInteractiveReplyText(payload: Record<string, unknown>): string | null {
   const nested = (...keys: string[]): Record<string, unknown> | null => {
     for (const key of keys) {
       const value = payload[key];
@@ -741,10 +744,7 @@ export function extractWatiInteractiveReplyText(
     return null;
   };
 
-  const firstText = (
-    source: Record<string, unknown> | null,
-    ...keys: string[]
-  ): string | null => {
+  const firstText = (source: Record<string, unknown> | null, ...keys: string[]): string | null => {
     if (!source) return null;
     for (const key of keys) {
       const value = source[key];
@@ -819,24 +819,6 @@ function parseWatiInboundMessageSentAt(payload: Record<string, unknown>): string
   return new Date().toISOString();
 }
 
-/** Human label for a media / non-text WATI message, e.g. "[image]". */
-function watiNonTextBodyLabel(payload: Record<string, unknown>): string {
-  const type = String(payload.type ?? "").trim().toLowerCase();
-  const known = [
-    "image",
-    "video",
-    "audio",
-    "voice",
-    "document",
-    "sticker",
-    "location",
-    "contacts",
-    "reaction",
-    "order",
-    "catalog",
-  ];
-  return known.includes(type) ? `[${type}]` : "[Non-text message]";
-}
 
 /** Media url / mime / filename from a WATI message payload, when it carries an attachment. */
 function parseWatiMediaFields(payload: Record<string, unknown>): {
@@ -896,7 +878,7 @@ export function parseWatiInboundMessage(
     return null;
   }
 
-  const body = text ?? watiNonTextBodyLabel(payload);
+  const body = text ?? describeWatiNonTextBody(payload);
 
   const whatsapp_message_id =
     payload.whatsappMessageId != null ? String(payload.whatsappMessageId) : null;

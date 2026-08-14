@@ -92,10 +92,9 @@ export interface PabauNewClientInput {
   mobile: string;
   email: string;
   gender: "Male" | "Female" | "Other";
-  /** YYYY-MM-DD */
-  dob: string;
+  /** YYYY-MM-DD. Not collected on the phone — only set if the caller volunteers it. */
+  dob?: string;
   preferred_language?: string;
-  how_did_you_hear_about_us?: string;
   salutation?: string;
 }
 
@@ -110,13 +109,11 @@ export async function pabauCreateClient(
     mobile: input.mobile,
     email: input.email,
     gender: input.gender,
-    DOB: input.dob,
     salutation: input.salutation ?? "None",
+    // Pabau expects the field; the receptionist no longer asks for it.
     preferred_language: input.preferred_language ?? "English",
   };
-  if (input.how_did_you_hear_about_us?.trim()) {
-    body.description = `How did you hear about us: ${input.how_did_you_hear_about_us.trim()}`;
-  }
+  if (input.dob) body.DOB = input.dob;
   const raw = await pabauFetch(
     `${base}/clients/create`,
     {

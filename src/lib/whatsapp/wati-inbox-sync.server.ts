@@ -18,6 +18,11 @@ import {
   syncWhatsappConversations,
   updateWatiChatState,
 } from "@/lib/whatsapp/whatsapp-conversations.server";
+import {
+  collapseOptimisticOutboundDuplicates,
+  findRedundantOptimisticMessageIds,
+} from "@/lib/whatsapp/whatsapp-message-dedupe.server";
+import { isWatiNonTextPlaceholderBody } from "@/lib/whatsapp/wati-message-content.shared";
 
 type WatiConn = {
   api_key: string;
@@ -84,6 +89,25 @@ function watiMessageDedupeKey(msg: Record<string, unknown>): string {
   return `${owner}:${ts}:${text.slice(0, 80)}`;
 }
 
+/**
+ * Combine two views of the same message field by field.
+ *
+ * V1 and V3 describe a message differently — a shared contact card only appears on V1's `contacts`,
+ * while V3 omits the field entirely — so replacing one record with the other loses whichever
+ * fields the winner does not carry. A null never overwrites a populated value.
+ */
+function mergeWatiMessageRecords(
+  base: Record<string, unknown>,
+  incoming: Record<string, unknown>,
+): Record<string, unknown> {
+  const merged = { ...base };
+  for (const [key, value] of Object.entries(incoming)) {
+    if (value == null) continue;
+    merged[key] = value;
+  }
+  return merged;
+}
+
 /** Merge V1 + V3 rows — V1 alone often has outbound only; replies live in V3 on EU tenants. */
 export function mergeWatiMessageLists(
   ...lists: Array<Array<Record<string, unknown>>>
@@ -91,7 +115,9 @@ export function mergeWatiMessageLists(
   const merged = new Map<string, Record<string, unknown>>();
   for (const list of lists) {
     for (const msg of list) {
-      merged.set(watiMessageDedupeKey(msg), msg);
+      const key = watiMessageDedupeKey(msg);
+      const existing = merged.get(key);
+      merged.set(key, existing ? mergeWatiMessageRecords(existing, msg) : msg);
     }
   }
   return [...merged.values()];
@@ -310,12 +336,17 @@ function findDuplicateMessage(
 
     const existingMs = parseSentAtMs(row.sent_at);
     const parsedMs = parseSentAtMs(parsed.sent_at);
+    // A stored placeholder is this same message from a parse that could not read its content, so
+    // requiring equal bodies would store an upgraded copy alongside the original.
+    const sameContent =
+      String(row.body ?? "").trim() === parsed.body.trim() ||
+      isWatiNonTextPlaceholderBody(row.body);
     if (
       existingMs != null &&
       parsedMs != null &&
       Math.abs(existingMs - parsedMs) <= 5000 &&
       row.direction === parsed.direction &&
-      String(row.body ?? "").trim() === parsed.body.trim()
+      sameContent
     ) {
       return row;
     }
@@ -444,10 +475,13 @@ export async function syncWatiInboxForPhones(
         if (parsed.sender_channel && !duplicate.sender_channel) {
           patch.sender_channel = parsed.sender_channel;
         }
-        if (
-          parsed.body.length > String(duplicate.body ?? "").length &&
-          !String(duplicate.body ?? "").startsWith("[Template:")
-        ) {
+        const storedBody = String(duplicate.body ?? "");
+        // A placeholder gives way to real content even when that content is shorter, e.g.
+        // "[document]" to "plan.pdf" — but never the reverse, and never a same-value rewrite.
+        const isUpgrade = isWatiNonTextPlaceholderBody(storedBody)
+          ? !isWatiNonTextPlaceholderBody(parsed.body)
+          : parsed.body.length > storedBody.length;
+        if (!storedBody.startsWith("[Template:") && isUpgrade) {
           patch.body = parsed.body;
         }
         if (duplicate.id && Object.keys(patch).length > 0) {
@@ -517,6 +551,14 @@ export async function syncWatiInboxForPhones(
           });
         }
       }
+    }
+
+    // A send from the inbox writes an optimistic row under a synthesised id; once WATI reports the
+    // same message under its real id the optimistic copy is a duplicate. `existing` is only used to
+    // decide whether it is worth looking — the collapse itself re-reads, so a message whose insert
+    // failed above can never have its optimistic copy dropped.
+    if (findRedundantOptimisticMessageIds(existing).length > 0) {
+      await collapseOptimisticOutboundDuplicates(workspaceId, phone);
     }
 
     return { inserted: phoneInserted, chatState };

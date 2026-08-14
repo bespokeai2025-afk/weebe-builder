@@ -9,7 +9,7 @@ import { toast } from "sonner";
 import {
   Pencil, Trash2, Plus, RefreshCw, TrendingUp, DollarSign,
   Cpu, Mic, Phone, Database, Wrench, Server, BarChart3, Zap,
-  Users, Briefcase, X, ChevronDown, ChevronUp, Calculator,
+  Users, Briefcase, X, ChevronDown, ChevronUp, Calculator, Waves,
 } from "lucide-react";
 import { Link } from "@tanstack/react-router";
 import { cn } from "@/lib/utils";
@@ -19,11 +19,12 @@ import {
   saveVoiceCost, deleteVoiceCost,
   saveTelephonyCost, deleteTelephonyCost,
   saveKnowledgeCost, saveToolsCost, saveInfrastructureCost,
-  saveRetellCost, saveMarkup, savePlan, deletePlan,
+  saveRetellCost, saveWebeeNativeCost, saveMarkup, savePlan, deletePlan,
   saveDevRole, deleteDevRole,
   getClientEstimates, saveClientEstimate, deleteClientEstimate,
   getActivePlatformClients,
   calcHyperstreamCostPerMin, calcRetellCostPerMin, calcRetellFullCostPerMin,
+  calcWebeeNativeCostPerMin,
   applyMarkup, calcInfraCostPerMin,
   getProviderCostRates, saveProviderCostRate, deleteProviderCostRate,
 } from "@/lib/cost-engine/cost-engine.functions";
@@ -614,6 +615,20 @@ function FixedCostsTab({ data, onSaved }: { data: CostEngineData; onSaved: () =>
   const [tools, setTools] = useState({ webhook_cost_per_call: n(data.tools?.webhook_cost_per_call), api_cost_per_call: n(data.tools?.api_cost_per_call), crm_cost_per_month: n(data.tools?.crm_cost_per_month), calendar_cost_per_month: n(data.tools?.calendar_cost_per_month), notes: data.tools?.notes ?? "" });
   const [infra, setInfra] = useState({ server_cost: n(data.infrastructure?.server_cost), database_cost: n(data.infrastructure?.database_cost), storage_cost: n(data.infrastructure?.storage_cost), bandwidth_cost: n(data.infrastructure?.bandwidth_cost), allocation_type: data.infrastructure?.allocation_type ?? "monthly", estimated_monthly_minutes: n(data.infrastructure?.estimated_monthly_minutes) || 1000, notes: data.infrastructure?.notes ?? "" });
   const [retell, setRetell] = useState({ subscription_cost_monthly: n(data.retell?.subscription_cost_monthly), minute_cost: n(data.retell?.minute_cost), number_cost_monthly: n(data.retell?.number_cost_monthly), voice_cost_per_min: n(data.retell?.voice_cost_per_min), transfer_cost_per_min: n(data.retell?.transfer_cost_per_min), notes: data.retell?.notes ?? "" });
+  // Defaults mirror the migration's seed so an unmigrated database still shows a
+  // usable form rather than a grid of zeros that would imply the engine is free.
+  const [native, setNative] = useState({
+    tts_cost_per_1m_bytes: n(data.webee_native?.tts_cost_per_1m_bytes) || 15,
+    tts_chars_per_min: n(data.webee_native?.tts_chars_per_min) || 900,
+    agent_talk_ratio: n(data.webee_native?.agent_talk_ratio) || 0.5,
+    stt_cost_per_min: n(data.webee_native?.stt_cost_per_min) || 0.006,
+    llm_cost_per_min: n(data.webee_native?.llm_cost_per_min) || 0.015,
+    router_cost_per_min: n(data.webee_native?.router_cost_per_min) || 0.002,
+    analysis_cost_per_call: n(data.webee_native?.analysis_cost_per_call) || 0.004,
+    concurrency_tier_monthly: n(data.webee_native?.concurrency_tier_monthly),
+    estimated_monthly_minutes: n(data.webee_native?.estimated_monthly_minutes) || 5000,
+    notes: data.webee_native?.notes ?? "",
+  });
 
   const act = async (fn: () => Promise<unknown>, label: string) => {
     setBusy(true);
@@ -622,6 +637,15 @@ function FixedCostsTab({ data, onSaved }: { data: CostEngineData; onSaved: () =>
   };
 
   const infraCostPerMin = calcInfraCostPerMin({ ...infra, id: "", is_current: true, notes: null });
+  // Priced live off the form, so the effect of a rate edit is visible before it
+  // is saved.
+  const nativeBreakdown = calcWebeeNativeCostPerMin({
+    native: { ...native, id: "", is_current: true },
+    telephony: null,
+    infrastructure: null,
+    callDirection: "outbound",
+  });
+  const retellPerMin = n(retell.minute_cost) + n(retell.voice_cost_per_min);
 
   return (
     <div className="grid md:grid-cols-2 gap-6">
@@ -686,6 +710,43 @@ function FixedCostsTab({ data, onSaved }: { data: CostEngineData; onSaved: () =>
         </div>
         <div className="mt-2 text-xs text-muted-foreground">Total cost /min: <span className="font-medium text-foreground">{fmtCurrency(n(retell.minute_cost) + n(retell.voice_cost_per_min))}</span></div>
         <Button size="sm" className="mt-2 h-7 text-xs" disabled={busy} onClick={() => act(() => saveRetellCost({ data: retell }), "OmniVoice")}>Save</Button>
+      </div>
+
+      {/* WEBEE Native cascade */}
+      <div className="rounded-lg border p-4 md:col-span-2">
+        <SectionHeader icon={Waves} title="WEBEE Native Engine" subtitle="Fish Audio TTS + streaming STT + GPT text — the in-house cascade" />
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+          <NumInput label="TTS /1M bytes" value={native.tts_cost_per_1m_bytes} onChange={v => setNative(f => ({ ...f, tts_cost_per_1m_bytes: v }))} step="0.5" />
+          <NumInput label="Chars /min spoken" value={native.tts_chars_per_min} onChange={v => setNative(f => ({ ...f, tts_chars_per_min: v }))} step="10" />
+          <NumInput label="Agent talk ratio" value={native.agent_talk_ratio} onChange={v => setNative(f => ({ ...f, agent_talk_ratio: v }))} step="0.05" />
+          <NumInput label="STT /min" value={native.stt_cost_per_min} onChange={v => setNative(f => ({ ...f, stt_cost_per_min: v }))} />
+          <NumInput label="LLM /min" value={native.llm_cost_per_min} onChange={v => setNative(f => ({ ...f, llm_cost_per_min: v }))} />
+          <NumInput label="Edge routing /min" value={native.router_cost_per_min} onChange={v => setNative(f => ({ ...f, router_cost_per_min: v }))} />
+          <NumInput label="Analysis /call" value={native.analysis_cost_per_call} onChange={v => setNative(f => ({ ...f, analysis_cost_per_call: v }))} />
+          <NumInput label="Concurrency tier /mo" value={native.concurrency_tier_monthly} onChange={v => setNative(f => ({ ...f, concurrency_tier_monthly: v }))} step="10" />
+          <NumInput label="Est. monthly minutes" value={native.estimated_monthly_minutes} onChange={v => setNative(f => ({ ...f, estimated_monthly_minutes: v }))} step="100" />
+          <div className="col-span-2 md:col-span-3"><Label className="text-xs">Notes</Label><Input className="h-7 text-xs" value={native.notes} onChange={e => setNative(f => ({ ...f, notes: e.target.value }))} /></div>
+        </div>
+        <div className="mt-2 grid grid-cols-2 md:grid-cols-4 gap-x-4 gap-y-1 text-xs text-muted-foreground">
+          <span>TTS: <span className="text-foreground">{fmtCurrency(nativeBreakdown.tts)}</span></span>
+          <span>STT: <span className="text-foreground">{fmtCurrency(nativeBreakdown.stt)}</span></span>
+          <span>LLM: <span className="text-foreground">{fmtCurrency(nativeBreakdown.llm)}</span></span>
+          <span>Routing: <span className="text-foreground">{fmtCurrency(nativeBreakdown.router)}</span></span>
+          <span>Analysis: <span className="text-foreground">{fmtCurrency(nativeBreakdown.analysis)}</span></span>
+          <span>Concurrency: <span className="text-foreground">{fmtCurrency(nativeBreakdown.concurrency)}</span></span>
+          <span className="md:col-span-2">
+            Engine cost /min: <span className="font-medium text-foreground">{fmtCurrency(nativeBreakdown.engineTotal)}</span>
+            {retellPerMin > 0 && (
+              <span className={cn("ml-1", nativeBreakdown.engineTotal < retellPerMin ? "text-emerald-600" : "text-amber-600")}>
+                ({fmtCurrency(Math.abs(retellPerMin - nativeBreakdown.engineTotal))}/min {nativeBreakdown.engineTotal < retellPerMin ? "cheaper" : "dearer"} than OmniVoice)
+              </span>
+            )}
+          </span>
+        </div>
+        <p className="mt-1 text-[11px] text-muted-foreground">
+          Engine meters only — carrier minutes are billed by Twilio and reconciled there. Calls report this rate as <code>call_cost</code>.
+        </p>
+        <Button size="sm" className="mt-2 h-7 text-xs" disabled={busy} onClick={() => act(() => saveWebeeNativeCost({ data: native }), "WEBEE Native")}>Save</Button>
       </div>
     </div>
   );

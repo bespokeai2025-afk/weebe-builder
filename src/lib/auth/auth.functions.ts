@@ -133,9 +133,11 @@ export const getMySpend = createServerFn({ method: "GET" })
 // OmniVoice default: $0.36/min = 0.6 ¢/s
 // VoxStream (ElevenLabs): $0.05/min ≈ 0.0833 ¢/s
 // HyperStream (OpenAI Realtime): $0.09/min = 0.15 ¢/s (token-exact path preferred)
+// WEBEE Native (Fish cascade): $0.03/min = 0.05 ¢/s
 const CENTS_PER_SECOND: Record<string, number> = {
   ELEVENLABS_NATIVE: 0.05 / 60 * 100,   // ≈ 0.0833 ¢/s
   OPENAI_REALTIME:   0.09 / 60 * 100,   // ≈ 0.15 ¢/s
+  WEBEE_NATIVE:      0.03 / 60 * 100,   // = 0.05 ¢/s
 };
 const DEFAULT_CENTS_PER_SECOND = 0.36 / 60 * 100; // ≈ 0.6 ¢/s (OmniVoice)
 

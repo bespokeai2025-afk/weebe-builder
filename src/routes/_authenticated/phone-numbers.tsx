@@ -10,6 +10,8 @@ import {
   Check,
   Mic,
   MessageSquare,
+  Search,
+  Download,
   User,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -19,6 +21,11 @@ import {
   savePhoneNumber,
   deletePhoneNumber,
 } from "@/lib/telephony/telephony.functions";
+import {
+  importVoiceNumber,
+  purchaseVoiceNumber,
+  searchVoiceNumbers,
+} from "@/lib/telephony/phone-provisioning.functions";
 import { supabase } from "@/integrations/supabase/client";
 
 export const Route = createFileRoute("/_authenticated/phone-numbers")({
@@ -40,6 +47,7 @@ function PhoneNumbersPage() {
   const saveFn = useServerFn(savePhoneNumber);
   const deleteFn = useServerFn(deletePhoneNumber);
   const [showAdd, setShowAdd] = useState(false);
+  const [showBuy, setShowBuy] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
   const [deleting, setDeleting] = useState<string | null>(null);
 
@@ -82,12 +90,27 @@ function PhoneNumbersPage() {
           <Button variant="outline" size="sm" onClick={() => refetch()} disabled={isFetching}>
             <RefreshCw className={`h-3.5 w-3.5 ${isFetching ? "animate-spin" : ""}`} />
           </Button>
-          <Button size="sm" onClick={() => setShowAdd(true)}>
+          <Button variant="outline" size="sm" onClick={() => setShowAdd(true)}>
             <Plus className="h-3.5 w-3.5" />
-            Add Number
+            Add Manually
+          </Button>
+          <Button size="sm" onClick={() => setShowBuy(true)}>
+            <Search className="h-3.5 w-3.5" />
+            Get a Number
           </Button>
         </div>
       </div>
+
+      {showBuy && (
+        <GetNumberDialog
+          agents={agents}
+          onClose={() => setShowBuy(false)}
+          onDone={() => {
+            qc.invalidateQueries({ queryKey: ["phone-numbers"] });
+            setShowBuy(false);
+          }}
+        />
+      )}
 
       {(showAdd || editId) && (
         <AddNumberDialog
@@ -169,6 +192,220 @@ function PhoneNumbersPage() {
           <TablePagBar {...numbersPag} />
         </div>
       )}
+    </div>
+  );
+}
+
+/**
+ * Buy a number from Twilio, or adopt one already in the account.
+ *
+ * Both paths wire the number to this app's inbound webhook server-side, which is
+ * the step that makes a call actually reach an agent — a number added by hand in
+ * the table has no routing until that happens.
+ */
+function GetNumberDialog({
+  agents,
+  onClose,
+  onDone,
+}: {
+  agents: any[];
+  onClose: () => void;
+  onDone: () => void;
+}) {
+  const searchFn = useServerFn(searchVoiceNumbers);
+  const buyFn = useServerFn(purchaseVoiceNumber);
+  const importFn = useServerFn(importVoiceNumber);
+
+  const [tab, setTab] = useState<"buy" | "import">("buy");
+  const [country, setCountry] = useState("US");
+  const [areaCode, setAreaCode] = useState("");
+  const [tollFree, setTollFree] = useState(false);
+  const [agentId, setAgentId] = useState("");
+  const [importNumber, setImportNumber] = useState("");
+  const [error, setError] = useState<string | null>(null);
+
+  const searchMut = useMutation({
+    mutationFn: () =>
+      searchFn({
+        data: {
+          country,
+          areaCode: areaCode.trim() || undefined,
+          tollFree,
+          limit: 20,
+        },
+      }),
+    onError: (e: Error) => setError(e.message),
+    onSuccess: () => setError(null),
+  });
+
+  const buyMut = useMutation({
+    mutationFn: (phoneNumber: string) =>
+      buyFn({ data: { phoneNumber, agentId: agentId || null } }),
+    onError: (e: Error) => setError(e.message),
+    onSuccess: onDone,
+  });
+
+  const importMut = useMutation({
+    mutationFn: () =>
+      importFn({ data: { phoneNumber: importNumber.trim(), agentId: agentId || null } }),
+    onError: (e: Error) => setError(e.message),
+    onSuccess: onDone,
+  });
+
+  const results = searchMut.data ?? [];
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
+      <div className="w-full max-w-2xl rounded-xl border border-border bg-card p-6 shadow-2xl">
+        <h2 className="text-base font-semibold">Get a Phone Number</h2>
+        <p className="mt-0.5 text-sm text-muted-foreground">
+          Numbers are provisioned on Twilio and pointed at this workspace automatically.
+        </p>
+
+        <div className="mt-4 flex gap-1 rounded-lg bg-muted/40 p-1">
+          {(["buy", "import"] as const).map((t) => (
+            <button
+              key={t}
+              type="button"
+              onClick={() => { setTab(t); setError(null); }}
+              className={`flex-1 rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
+                tab === t ? "bg-card shadow-sm" : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              {t === "buy" ? "Search & Buy" : "Import Existing"}
+            </button>
+          ))}
+        </div>
+
+        <div className="mt-4">
+          <label className="mb-1 block text-xs font-medium text-muted-foreground">
+            Assign to Agent
+          </label>
+          <select
+            value={agentId}
+            onChange={(e) => setAgentId(e.target.value)}
+            className="w-full rounded-md border border-border bg-muted/30 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+          >
+            <option value="">— Assign later —</option>
+            {agents.map((a: any) => (
+              <option key={a.id} value={a.id}>{a.name}</option>
+            ))}
+          </select>
+        </div>
+
+        {tab === "buy" ? (
+          <>
+            <div className="mt-3 flex flex-wrap items-end gap-3">
+              <div className="w-24">
+                <label className="mb-1 block text-xs font-medium text-muted-foreground">Country</label>
+                <input
+                  value={country}
+                  onChange={(e) => setCountry(e.target.value.toUpperCase().slice(0, 2))}
+                  className="w-full rounded-md border border-border bg-muted/30 px-3 py-2 text-sm uppercase focus:outline-none focus:ring-1 focus:ring-primary"
+                />
+              </div>
+              <div className="w-32">
+                <label className="mb-1 block text-xs font-medium text-muted-foreground">Area Code</label>
+                <input
+                  value={areaCode}
+                  onChange={(e) => setAreaCode(e.target.value.replace(/\D/g, "").slice(0, 5))}
+                  placeholder="415"
+                  className="w-full rounded-md border border-border bg-muted/30 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+                />
+              </div>
+              <label className="flex cursor-pointer items-center gap-2 pb-2">
+                <input
+                  type="checkbox"
+                  checked={tollFree}
+                  onChange={(e) => setTollFree(e.target.checked)}
+                  className="rounded"
+                />
+                <span className="text-sm">Toll-free</span>
+              </label>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => searchMut.mutate()}
+                disabled={searchMut.isPending || country.length !== 2}
+              >
+                <Search className="h-3.5 w-3.5" />
+                {searchMut.isPending ? "Searching…" : "Search"}
+              </Button>
+            </div>
+
+            {results.length > 0 && (
+              <div className="mt-4 max-h-64 overflow-y-auto rounded-lg border border-border">
+                <table className="w-full text-sm">
+                  <tbody className="divide-y divide-border">
+                    {results.map((n: any) => (
+                      <tr key={n.phoneNumber} className="hover:bg-muted/20">
+                        <td className="px-3 py-2 font-mono">{n.phoneNumber}</td>
+                        <td className="px-3 py-2 text-muted-foreground">
+                          {[n.locality, n.region].filter(Boolean).join(", ") || n.isoCountry}
+                        </td>
+                        <td className="px-3 py-2">
+                          <div className="flex gap-1">
+                            {n.capabilities.voice && <Mic className="h-3.5 w-3.5 text-primary" />}
+                            {n.capabilities.sms && (
+                              <MessageSquare className="h-3.5 w-3.5 text-primary" />
+                            )}
+                          </div>
+                        </td>
+                        <td className="px-3 py-2 text-right">
+                          <Button
+                            size="sm"
+                            onClick={() => buyMut.mutate(n.phoneNumber)}
+                            disabled={buyMut.isPending}
+                          >
+                            {buyMut.isPending && buyMut.variables === n.phoneNumber ? "Buying…" : "Buy"}
+                          </Button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+
+            {searchMut.isSuccess && results.length === 0 && (
+              <p className="mt-4 text-sm text-muted-foreground">
+                No numbers matched. Try a different area code or country.
+              </p>
+            )}
+          </>
+        ) : (
+          <div className="mt-3 flex items-end gap-3">
+            <div className="flex-1">
+              <label className="mb-1 block text-xs font-medium text-muted-foreground">
+                E.164 Number
+              </label>
+              <input
+                value={importNumber}
+                onChange={(e) => setImportNumber(e.target.value)}
+                placeholder="+14155552671"
+                className="w-full rounded-md border border-border bg-muted/30 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+              />
+            </div>
+            <Button
+              onClick={() => importMut.mutate()}
+              disabled={importMut.isPending || !importNumber.trim()}
+            >
+              <Download className="h-3.5 w-3.5" />
+              {importMut.isPending ? "Importing…" : "Import"}
+            </Button>
+          </div>
+        )}
+
+        {error && (
+          <p className="mt-4 rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">
+            {error}
+          </p>
+        )}
+
+        <div className="mt-5 flex justify-end">
+          <Button variant="outline" onClick={onClose}>Close</Button>
+        </div>
+      </div>
     </div>
   );
 }

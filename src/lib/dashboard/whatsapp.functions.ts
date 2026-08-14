@@ -60,6 +60,7 @@ import {
   WHATSAPP_CONVERSATION_COLUMNS,
 } from "@/lib/whatsapp/whatsapp-conversations.server";
 import { WATI_CHAT_STATUSES, resolveWatiChatStatus } from "@/lib/whatsapp/wati-chat-status.shared";
+import { collapseOptimisticOutboundDuplicates } from "@/lib/whatsapp/whatsapp-message-dedupe.server";
 
 // ── Inbox ─────────────────────────────────────────────────────────────────────
 
@@ -167,7 +168,7 @@ const inboxFiltersSchema = z.object({
   unreadOnly: z.boolean().optional(),
   /** WATI's chat status — "expired" means the 24h reply window has closed. */
   chatStatus: z.enum(WATI_CHAT_STATUSES).optional(),
-  limit: z.number().int().min(1).max(200).optional(),
+  limit: z.number().int().min(1).max(1000).optional(),
 });
 
 /** PostgREST treats these as filter syntax inside or()/ilike patterns. */
@@ -549,24 +550,29 @@ export const getWhatsappInboxMeta = createServerFn({ method: "GET" })
     if (!workspaceId) throw new Error("No active workspace");
     const sb = supabase as any;
 
-    const [{ data: members }, { data: teams }, { data: tagRows }] = await Promise.all([
-      sb
-        .from("workspace_members")
-        .select("user_id, role")
-        .eq("workspace_id", workspaceId)
-        .limit(200),
-      sb
-        .from("whatsapp_teams")
-        .select("id, name")
-        .eq("workspace_id", workspaceId)
-        .order("name")
-        .limit(100),
-      sb
-        .from("whatsapp_conversations")
-        .select("tags")
-        .eq("workspace_id", workspaceId)
-        .limit(500),
-    ]);
+    const [{ data: members }, { data: teams }, { data: tagRows }, { count: conversationCount }] =
+      await Promise.all([
+        sb
+          .from("workspace_members")
+          .select("user_id, role")
+          .eq("workspace_id", workspaceId)
+          .limit(200),
+        sb
+          .from("whatsapp_teams")
+          .select("id, name")
+          .eq("workspace_id", workspaceId)
+          .order("name")
+          .limit(100),
+        sb
+          .from("whatsapp_conversations")
+          .select("tags")
+          .eq("workspace_id", workspaceId)
+          .limit(2000),
+        sb
+          .from("whatsapp_conversations")
+          .select("id", { count: "exact", head: true })
+          .eq("workspace_id", workspaceId),
+      ]);
 
     const memberRows = (members ?? []) as Array<{ user_id: string; role: string | null }>;
 
@@ -608,6 +614,8 @@ export const getWhatsappInboxMeta = createServerFn({ method: "GET" })
         name: t.name,
       })),
       tags,
+      /** Total threads, so the inbox can tell the user how many are still below the fold. */
+      conversationCount: conversationCount ?? 0,
     };
   });
 
@@ -681,6 +689,10 @@ export const sendWhatsappMessage = createServerFn({ method: "POST" })
         provider: "wati",
         sent_at: new Date().toISOString(),
       });
+
+      // The inbox refetch that follows a send triggers an API sync, which writes the same message
+      // again under WATI's real id. Drop whichever copy is redundant before the thread reloads.
+      await collapseOptimisticOutboundDuplicates(workspaceId, contactPhone);
 
       await markWhatsappContactsMessaged(sb, workspaceId, [contactPhone]);
       await syncWhatsappConversation(workspaceId, contactPhone);

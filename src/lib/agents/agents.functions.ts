@@ -757,7 +757,11 @@ export const setAgentVoiceProvider = createServerFn({ method: "POST" })
               "OpenAI Realtime inbound URL not configured. Set OPENAI_REALTIME_INBOUND_URL in your environment.",
             );
           }
-          voiceUrl = `${baseUrl.replace(/\/$/, "")}/api/telephony/inbound-call`;
+          // Must match the real route (src/routes/api/public/telephony/inbound.ts).
+          // This previously pointed at /api/telephony/inbound-call, which has
+          // never existed, so switching a number to the in-house engine silently
+          // made every inbound call fail.
+          voiceUrl = `${baseUrl.replace(/\/$/, "")}/api/public/telephony/inbound`;
         }
 
         await client.incomingPhoneNumbers(numRecord.sid).update({ voiceUrl });

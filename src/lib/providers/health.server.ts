@@ -149,6 +149,19 @@ async function dispatchHealthCheck(
       const key = str(stored.apiKey) || str(ws.elevenlabs_api_key) || process.env.ELEVENLABS_API_KEY || "";
       return new ElevenLabsVoiceAdapter(key).healthCheck!();
     }
+    case "voice:fish": {
+      const key = str(stored.apiKey) || process.env.FISH_API_KEY || "";
+      if (!key) return false;
+      // Cheapest authenticated call: one own-model page.
+      try {
+        const res = await fetch("https://api.fish.audio/model?self=true&page_size=1", {
+          headers: { Authorization: `Bearer ${key}` },
+        });
+        return res.ok;
+      } catch {
+        return false;
+      }
+    }
 
     // ── Email ──────────────────────────────────────────────────────────────────
     case "email:resend": {

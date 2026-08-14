@@ -46,13 +46,18 @@ export const DNR_VOICE = {
     transferPhone: "+44 808 189 2587",
   },
 
-  /** Fields to collect on the phone before find_or_create_client (new clients). */
+  /**
+   * Fields to collect on the phone before find_or_create_client (new clients).
+   * Kept to the minimum Pabau needs for a usable record — everything else is
+   * completed by front of house so the call stays short.
+   */
   newClientIntake: {
-    required: ["first_name", "last_name", "gender", "date_of_birth", "email", "mobile"] as const,
+    required: ["first_name", "last_name", "gender", "email", "mobile"] as const,
     genderOptions: ["Male", "Female", "Other"] as const,
-    defaultLanguage: "English",
-    optional: ["how_did_you_hear_about_us"] as const,
     notCollectedOnPhone: [
+      "date_of_birth",
+      "preferred_language",
+      "how_did_you_hear_about_us",
       "address",
       "gp_details",
       "next_of_kin",
@@ -104,15 +109,12 @@ ${DNR_VOICE.hours.weekdays.join(", ")} · ${DNR_VOICE.hours.open}–${DNR_VOICE.
 1. Greet → listen.
 2. **Qualify** — ask new or existing client.
    - **Existing**: first name, last name, phone (match in Pabau).
-   - **New client** — collect before find_or_create_client:
-     • First name, last name (required)
-     • Gender: ${DNR_VOICE.newClientIntake.genderOptions.join(" / ")} (required)
-     • Date of birth — day, month, year (required)
-     • Email (required)
-     • Mobile with +44 (required)
-     • Preferred language (default ${DNR_VOICE.newClientIntake.defaultLanguage})
-     • Optional: how did you hear about us?
-     Do **not** ask for address, GP details, or next of kin on the phone — FOH completes those in Pabau if needed.
+   - **New client** — collect these five and nothing else before find_or_create_client:
+     • First name, last name
+     • Gender: ${DNR_VOICE.newClientIntake.genderOptions.join(" / ")}
+     • Email
+     • Mobile with +44
+     Do **not** ask for date of birth, preferred language, how they heard about us, address, GP details, or next of kin — FOH completes those in Pabau if needed. Keep intake to the five fields above.
 3. Which **treatment/service** they want (use their words).
 4. **list_services** if you need the exact service name from Pabau — always confirm the exact name with the caller before booking.
 5. **check_availability** for their service and preferred dates at **Cheshire only** (location_id ${DNR_VOICE.pabau.locationId}). If they ask for a specific clinician, pass practitioner_name or practitioner_id from list_locations. If they want the **earliest/latest** slot, pass **start_date** as today's date (${DNR_VOICE.timezone}) and **end_date** ~14 days ahead — never use past years or old dates.
@@ -132,7 +134,7 @@ Clinic direct line (information only, do not transfer here unless asked): ${DNR_
 - **list_locations** → POST ${dnrPublicToolUrl(base, t.listLocations)} — Cheshire location_id and practitioners at Castlerock House
 - **list_services** → POST ${dnrPublicToolUrl(base, t.listServices)} — optional location_id (default Cheshire ${DNR_VOICE.pabau.locationId})
 - **check_availability** → POST ${dnrPublicToolUrl(base, t.checkAvailability)} — args: service_name, location_id (${DNR_VOICE.pabau.locationId} for Cheshire), start_date (YYYY-MM-DD), end_date (optional), practitioner_name or practitioner_id (optional)
-- **find_or_create_client** → POST ${dnrPublicToolUrl(base, t.findOrCreateClient)} — args: first_name, last_name, phone/mobile, email, gender (Male|Female|Other), date_of_birth (YYYY-MM-DD), preferred_language (default English), is_new_client (boolean), how_did_you_hear_about_us (optional)
+- **find_or_create_client** → POST ${dnrPublicToolUrl(base, t.findOrCreateClient)} — args: first_name, last_name, phone/mobile, email, gender (Male|Female|Other), is_new_client (boolean)
 - **book_appointment** → POST ${dnrPublicToolUrl(base, t.bookAppointment)} — args: contact_id, service_name, start_date, start_time (HH:MM), location_id (${DNR_VOICE.pabau.locationId}), practitioner_id (optional), notes (optional)
 
 # Booking notes

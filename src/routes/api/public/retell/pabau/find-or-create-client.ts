@@ -45,7 +45,7 @@ export const Route = createFileRoute("/api/public/retell/pabau/find-or-create-cl
             }
             return dnrPabauJson({
               error: "No existing client found for that phone",
-              hint: "If they are new, set is_new_client: true and collect email, gender, and date_of_birth.",
+              hint: "If they are new, set is_new_client: true and collect email and gender.",
             }, 404);
           }
 
@@ -56,8 +56,6 @@ export const Route = createFileRoute("/api/public/retell/pabau/find-or-create-cl
             email: data.email,
             gender: data.gender,
             dob: data.date_of_birth,
-            preferred_language: data.preferred_language,
-            how_did_you_hear_about_us: data.how_did_you_hear_about_us,
           });
           if (!created.contact_id) {
             return dnrPabauJson({ error: "Could not create client", detail: created.raw }, 502);

@@ -4,6 +4,7 @@
  */
 
 import { watiApiV3Base } from "@/lib/whatsapp/wati-api-base.shared";
+import { extractWatiContactCardText } from "@/lib/whatsapp/wati-message-content.shared";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import {
   extractWatiInteractiveReplyText,
@@ -64,6 +65,9 @@ export function extractWatiConversationMessageText(
     // Before eventDescription — a button tap carries its meaning in the reply title, while
     // eventDescription is a generic system string.
     extractWatiInteractiveReplyText(msg),
+    // A shared contact card is real content, not an attachment, so it belongs here rather than
+    // being left to the non-text fallback.
+    extractWatiContactCardText(msg),
     msg.eventDescription,
     (msg.data as Record<string, unknown> | undefined)?.text,
     (msg.message as Record<string, unknown> | undefined)?.text,
