@@ -63,9 +63,15 @@ export function TalkToUsForm({ onClose, sourcePage, inline = false }: TalkToUsFo
         body: JSON.stringify({
           ...form,
           source_page:  sourcePage ?? (typeof window !== "undefined" ? window.location.pathname : ""),
-          utm_source:   urlParams.get("utm_source"),
-          utm_campaign: urlParams.get("utm_campaign"),
-          utm_medium:   urlParams.get("utm_medium"),
+          landing_url:  typeof window !== "undefined" ? window.location.href : undefined,
+          referrer:     typeof document !== "undefined" ? document.referrer || undefined : undefined,
+          utm_source:   urlParams.get("utm_source") ?? undefined,
+          utm_campaign: urlParams.get("utm_campaign") ?? undefined,
+          utm_medium:   urlParams.get("utm_medium") ?? undefined,
+          gclid:        urlParams.get("gclid") ?? undefined,
+          gbraid:       urlParams.get("gbraid") ?? undefined,
+          wbraid:       urlParams.get("wbraid") ?? undefined,
+          keyword:      urlParams.get("keyword") ?? undefined,
         }),
       });
       const data = await res.json();

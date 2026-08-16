@@ -74,6 +74,7 @@ function extractUtm(raw: Record<string, unknown>) {
     gclid:        clickIds.gclid,
     gbraid:       clickIds.gbraid,
     wbraid:       clickIds.wbraid,
+    keyword:      clickIds.keyword,
     landing_url:  sanitizeLandingUrl(raw.landing_url ?? raw.landing_page ?? raw.source_page),
   };
 }
@@ -380,10 +381,11 @@ export async function processWebformSubmission(opts: {
         utm_medium:     utm.utm_medium,
         utm_campaign:   utm.utm_campaign,
         referrer:       utm.referrer,
-        // Only overwrite click IDs when a real one was captured.
-        ...(utm.gclid  ? { gclid:  utm.gclid }  : {}),
-        ...(utm.gbraid ? { gbraid: utm.gbraid } : {}),
-        ...(utm.wbraid ? { wbraid: utm.wbraid } : {}),
+        // Only overwrite click IDs / keyword when a real one was captured.
+        ...(utm.gclid   ? { gclid:   utm.gclid }   : {}),
+        ...(utm.gbraid  ? { gbraid:  utm.gbraid }  : {}),
+        ...(utm.wbraid  ? { wbraid:  utm.wbraid }  : {}),
+        ...(utm.keyword ? { keyword: utm.keyword } : {}),
         updated_at:     new Date().toISOString(),
       })
       .eq("id", leadId);
@@ -411,6 +413,7 @@ export async function processWebformSubmission(opts: {
         gclid:          utm.gclid,
         gbraid:         utm.gbraid,
         wbraid:         utm.wbraid,
+        keyword:        utm.keyword,
         meta:           {
           website:            mapped.website ?? null,
           preferred_contact:  toJsonScalar(raw.preferred_contact_method ?? raw.preferred_contact),
@@ -587,7 +590,8 @@ export async function processWebformSubmission(opts: {
         form_name: formName,
         lead_status: leadStatus,
       },
-      clickIds: { gclid: utm.gclid, gbraid: utm.gbraid, wbraid: utm.wbraid },
+      clickIds: { gclid: utm.gclid, gbraid: utm.gbraid, wbraid: utm.wbraid, keyword: utm.keyword },
+      keyword: utm.keyword,
       landingUrl: utm.landing_url,
       dedupKey: submission?.id
         ? `webform:${submission.id}`
@@ -618,6 +622,8 @@ export async function processContactForm(fields: {
   gbraid?: string;
   wbraid?: string;
   landing_url?: string;
+  /** Google Ads matched keyword (ValueTrack {keyword}). */
+  keyword?: string;
 }, meta: { ip: string | null; userAgent: string | null }): Promise<{ ok: boolean; error?: string }> {
   // Find WEBEE admin workspace
   const adminWorkspaceId = process.env.WEBEE_ADMIN_WORKSPACE_ID ?? null;

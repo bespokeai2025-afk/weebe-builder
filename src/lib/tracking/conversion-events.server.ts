@@ -25,7 +25,12 @@ export interface ClickIds {
   gclid: string | null;
   gbraid: string | null;
   wbraid: string | null;
+  /** Google Ads matched keyword (ValueTrack {keyword} parameter). */
+  keyword: string | null;
 }
+
+/** Allowed characters for a Google Ads keyword (printable, no HTML/script). */
+const KEYWORD_RE = /^[\w\s'"+.,!()&/-]{1,200}$/;
 
 /** Extract + validate click IDs from an untrusted payload. Invalid → null. */
 export function extractClickIds(raw: Record<string, unknown>): ClickIds {
@@ -33,15 +38,25 @@ export function extractClickIds(raw: Record<string, unknown>): ClickIds {
     const s = typeof v === "string" ? v.trim() : "";
     return CLICK_ID_RE.test(s) ? s : null;
   };
+  const pickKeyword = (v: unknown): string | null => {
+    const s = typeof v === "string" ? v.trim() : "";
+    return s && KEYWORD_RE.test(s) ? s : null;
+  };
   return {
-    gclid:  pick(raw.gclid),
-    gbraid: pick(raw.gbraid),
-    wbraid: pick(raw.wbraid),
+    gclid:   pick(raw.gclid),
+    gbraid:  pick(raw.gbraid),
+    wbraid:  pick(raw.wbraid),
+    keyword: pickKeyword(raw.keyword),
   };
 }
 
 export function hasClickId(ids: ClickIds | null | undefined): boolean {
   return Boolean(ids && (ids.gclid || ids.gbraid || ids.wbraid));
+}
+
+/** True when at least one attribution signal (click ID or keyword) exists. */
+export function hasAttribution(ids: ClickIds | null | undefined): boolean {
+  return Boolean(ids && (ids.gclid || ids.gbraid || ids.wbraid || ids.keyword));
 }
 
 /** Sanitise a landing-page URL (http/https only, capped length). */
@@ -76,6 +91,8 @@ export interface RecordConversionEventInput {
    * the transaction id on upload so provider-side dedup holds across retries.
    */
   orderId?: string | null;
+  /** Google Ads matched keyword (ValueTrack {keyword}), if captured. */
+  keyword?: string | null;
   /**
    * Visitor ad-consent state as genuinely captured ("granted" | "denied" |
    * null=unknown). "denied" records the event but blocks any upload.
@@ -157,6 +174,7 @@ export async function recordConversionEvent(
         gclid:           clickIds.gclid,
         gbraid:          clickIds.gbraid,
         wbraid:          clickIds.wbraid,
+        keyword:         input.keyword ?? clickIds.keyword ?? null,
         landing_url:     input.landingUrl ?? null,
         dedup_key:       input.dedupKey,
         delivery_status: initialStatus,
