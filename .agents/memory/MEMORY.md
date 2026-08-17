@@ -8,7 +8,7 @@
 - [Campaign executor architecture](campaign-executor-arch.md) — dual dev/prod: Vite plugin ticks every 5 min in dev; prod uses POST /api/public/campaign-executor hit by pg_cron. lastRunDate stored inside __sched_v1__ JSON blob.
 - [HiveMind architecture](hivemind-arch.md) — observer-only layer, HiveMindShell sidebar; see also hivemind-phase2-ai.md, hivemind-phase3-tasks.md, hivemind-phase4-coo.md.
 - [GrowthMind Multi-LLM routing](growthmind-multi-llm.md) — model-router.shared.ts exports SMART_ROUTING/MODEL_META/FALLBACK (safe client-side); server side only in model-router.server.ts + providers/.
-- [TanStack quirks](tanstack-serverfn-data-wrap.md) — `{ data: input }` wrapping; `throwOnError:false` per route useQuery (tanstack-suspense-throwOnError.md); stale server-fn IDs after restart (tanstack-stale-serverfn-ids.md); dynamic imports must be string literals (tanstack-serverfn-dynamic-import-literal.md); dotted child routes need parent <Outlet/> (tanstack-route-nesting-outlet.md).
+- [TanStack quirks](tanstack-serverfn-data-wrap.md) — `{ data: input }` wrap; throwOnError:false per-route; stale server-fn IDs after restart; dynamic imports must be string literals; dotted routes need parent Outlet.
 - [Universal Provider Framework registry isolation](provider-registry-isolation.md) — REGISTRY is global/immutable seed; buildScopedView() clones + overlays per request — never call mergeDbSettings or mutate entries directly.
 - [Provider healthCheck pattern](provider-health-check-pattern.md) — healthCheck() on adapter classes; dispatch by "cat:name"; derivedConnected must OR dbConnectedSet or env-var gaps override saved credentials.
 - [Executive Knowledge System](executive-knowledge-system.md) — private exec RAG (pgvector), service_role-only match RPC, idempotent seed_key; platform-wide layer in platform-kb-layer.md (scope col, NULL workspace_id).
@@ -42,7 +42,7 @@
 - [Prefetch staleTime + WBAH voicemails](rq-prefetch-wbah-voicemails.md) — prefetch args must match page query keys (also qualified-definition-and-prefetch-keys.md); date-filter/query-key pattern in wbah-date-filter.md.
 - [Client Supabase env trap](supabase-client-env-trap.md) — client code must import { supabase } from "@/integrations/supabase/client"; hand-rolled createClient uses wrong env name → route crash.
 - [Service-role KB-context IDOR](service-role-kb-context-idor.md) — supabaseAdmin bypasses RLS; client-supplied "specific KB" context reads in Image/Video Studio must `.eq(workspace_id)` or a foreign KB id leaks another tenant's docs.
-- [Prod login outage](prod-login-supabase-outage.md) — PGRST002/503 or CF 522 = Supabase project down (not code); restart via Mgmt API POST /projects/{ref}/restart; Live Calls "reconnecting…" is same outage signal.
+- [Prod login outage](prod-login-supabase-outage.md) — PGRST002/503 or CF 522 = Supabase down; restart via Mgmt API POST /projects/{ref}/restart.
 - [WBAH pipeline derivation](wbah-pipeline-derivation.md) — WBAH cards derive from wbah_calls (positive=qualified); stage-move writeback is a no-op (card id is wbah_calls.id, mutation writes leads).
 - [data_records list perf, bloat & CSV-only tab](data-records-list-perf.md) — WBAH sort timeout needs (ws,is_deleted,source,updated_at) index; Records tab shows only source='csv' (data-records-csv-only.md).
 - [Live in-call transcript source](live-call-transcript-source.md) — managed agents stream transcript only via transcript_updated webhook; snapshot table; guard ended-session resurrection.
@@ -52,19 +52,15 @@
 - [SystemMind n8n Discovery](systemmind-n8n-discovery.md) — n8n client is READ-ONLY (never add write verbs); preserve AI understanding when n8n_updated_at unchanged.
 - [SystemMind generators (WA/sequence/n8n)](systemmind-generators-arch.md) — hub-and-detail kinds dispatch by action_kind at activation; deterministic n8n mapping (unsafe nodes hard-blocked); credential-shape scrubber rejects drafts.
 - [Migration apply-state & audit](migration-apply-state.md) — migration history unreliable; audit real schema via Mgmt-API snapshot; apply additive/idempotent only, one file at a time.
-- [WBAH unified sync_state](wbah-sync-state.md) — descriptive-only; record manual sync outcomes only, never auto-sync (logs admin out); error upserts omit last_successful_sync_at.
 - [WBAH "not showing latest calls" — dialer stopped vs sync bug](wbah-calls-stopped-vs-syncbug.md) — compare wbah_calls vs Retell newest ts; if equal, dialing stopped (operational); merge only when Retell is ahead.
 - [Workspace RLS policy pattern](workspace-rls-policy-pattern.md) — use workspace_members/auth.uid() not current_setting; context.supabase=authenticated role; validate under SET ROLE authenticated, not Mgmt-API (bypasses RLS).
-- [Screenshot QA blocked by localStorage modal](screenshot-qa-localstorage-modal-blocker.md) — app_preview has no persisted localStorage, so localStorage-gated tours block every screenshot; verify via code+DB instead of chasing it as a bug.
 - [Teaching SystemMind about shipped work](systemmind-platform-knowledge-teaching.md) — after real feature/behavior changes, write a platform_systemmind KB note via recordSystemMindPlatformKnowledge() or the seed script.
 - [Intelligence packet contract for hivemind_tasks](intelligence-packet-contract.md) — all Mind task inserts go through prepareMindTaskInsert; exceptions need inline JUSTIFIED-EXCEPTION comment.
 - [leads enum columns](lead-enum-columns.md) — leads.source/status are Postgres enums; entry status is need_to_call (no "new"); use toLeadSourceEnum(); supabase builders lack .catch and never throw — check {error}.
 - [WBAH aggregate cache & Leads perf](wbah-aggregate-cache-perf.md) — in-process cache + single-flight (Redis 5MB cap trap), invalidate ONLY via invalidateWbahAggregate; leads bloat/index/upsert rules in wbah-leads-inflation-perf.md.
 - [Full-height page layout trap](fullheight-page-layout-trap.md) — `h-full` page roots collapse inside the min-h-screen sidebar chain; bound the page root with a dvh calc instead.
 - [Cursor repo sync procedure](cursor-repo-snapshot-sync.md) — user pushes from Cursor to weebe-builder repo; diff trees first, sync only deltas, never hard reset; repo lockfile can be stale.
-- [Prod has no IPv6 ingress](prod-no-ipv6-ingress.md) — webeereceptionist.com/webespokeai.com are AAAA-less; backend sees clients' IPv4 in x-forwarded-for even for IPv6 users; allowlist the real IPv4, not a guessed /64.
-- [Live "AI energy" plasma orb technique](ava-live-orb-plasma.md) — no anim libs installed; use SVG feTurbulence+feDisplacement; CSS can't stop SMIL — conditionally render <animate>.
-- [Retell API quirks](retell-list-agents-duplicate-ids.md) — dedupe agent_id per version; dangling CF edges stall calls (retell-cf-dangling-edges-and-db-resync.md); phone binding uses inbound_agents/outbound_agents arrays (retell-phone-agent-binding.md); always import shared retellFetch (retell-fetch-duplicate-helper-trap.md).
+- [Retell API quirks](retell-list-agents-duplicate-ids.md) — dedupe agent_id per version; dangling CF edges stall calls; phone binding uses inbound/outbound_agents arrays; always import shared retellFetch.
 - [Lead auto-call automation + bulk remove](lead-auto-call-and-bulk-remove.md) — one call-recipe shared by auto/manual/scheduled; 3/day cap is a rate limit not a dedupe lock; v1 API SUPABASE_URL needs VITE_ fallback.
 - [Business DNA KB upload wiring](business-dna-kb-upload.md) — KB uploads on Business DNA pages target executive's own KB slug (e.g. growthmind); reuse pattern for any future "upload docs to inform X" feature.
 - [Lead email automation](lead-email-automation.md) — shared send-to-lead path (Resend-only, no separate Outlook adapter); preferred_contact fallback-key convention; auto-send once-per-lead unique index.
@@ -157,3 +153,4 @@
 - [Clarity + Website Change Queue](clarity-website-change-queue.md) — 10 req/project/day API; all calls via one quota-lease choke point; website changes = handoff packages, never "live".
 - [Website Ava web-call lead capture](ava-web-call-arch.md) — signed-webhook-only 401s, event:call_id dedup, admin-key-set authz (keys shared across ws), tool-result-only booking truth, version-pinned sessions.
 - [Canonical lead origin system](lead-origin-system.md) — lead_origin+origin_provider columns; deriveLeadOrigin() fallback; all creation paths stamped; web filter uses client-side derivation.
+- [WBAH crm-contacts webhook mirror](wbah-crm-contacts-webhook-mirror.md) — post-call webhook now upserts wbah_crm_contacts (ignoreDuplicates); get-userCall-lead pagination bug; lead_origin column missing.
