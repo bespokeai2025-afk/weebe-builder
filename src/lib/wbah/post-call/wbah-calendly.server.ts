@@ -60,6 +60,65 @@ export function wbahCalendlyRandomDelayMs(): number {
   return randomDelayMs();
 }
 
+// ─── Genuine Calendly availability (for Retell slot tool) ───────────────────
+
+export interface CalendlyAvailableTime {
+  status: string;
+  invitees_remaining: number;
+  start_time: string; // ISO 8601 UTC, e.g. "2026-08-17T09:00:00.000000Z"
+}
+
+/**
+ * Fetch genuinely bookable start times from Calendly's event_type_available_times API.
+ *
+ * Both arguments must be ISO 8601 strings (UTC).  The Calendly API enforces a
+ * ≤ 7-day window per request; callers must enforce this themselves if needed.
+ *
+ * Returns only slots whose status === "available".  Returns [] on any error so
+ * the caller can degrade gracefully rather than throwing.
+ */
+export async function getWbahCalendlyAvailableTimes(
+  startTimeIso: string,
+  endTimeIso: string,
+): Promise<CalendlyAvailableTime[]> {
+  const token = calendlyToken();
+  if (!token) {
+    console.warn("[wbah-calendly] no token — cannot fetch available times");
+    return [];
+  }
+
+  const eventTypeUri = `https://api.calendly.com/event_types/${WBAH_CALENDLY_EVENT_TYPE_ID}`;
+  const params = new URLSearchParams({
+    event_type: eventTypeUri,
+    start_time: startTimeIso,
+    end_time: endTimeIso,
+  });
+
+  const res = await fetch(
+    `https://api.calendly.com/event_type_available_times?${params.toString()}`,
+    {
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+    },
+  );
+
+  if (!res.ok) {
+    const body = await res.text().catch(() => "");
+    console.error(
+      `[wbah-calendly] available_times ${res.status}:`,
+      body.slice(0, 300),
+    );
+    return [];
+  }
+
+  const json = (await res.json()) as { collection?: CalendlyAvailableTime[] };
+  return (json.collection ?? []).filter((s) => s.status === "available");
+}
+
+// ─── n8n invitee creation ────────────────────────────────────────────────────
+
 /** n8n node 37 — POST /invitees with Q&A (batch 1 / 2s in n8n). */
 export async function createWbahCalendlyInvitee(input: {
   email: string;

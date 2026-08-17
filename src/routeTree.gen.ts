@@ -271,6 +271,7 @@ import { Route as ApiPublicTelephonyStatusRouteImport } from './routes/api/publi
 import { Route as ApiPublicTelephonyRecordingRouteImport } from './routes/api/public/telephony/recording'
 import { Route as ApiPublicTelephonyInboundRouteImport } from './routes/api/public/telephony/inbound'
 import { Route as ApiPublicSystemmindChatStreamRouteImport } from './routes/api/public/systemmind/chat-stream'
+import { Route as ApiPublicRetellWbahGetSlotsRouteImport } from './routes/api/public/retell/wbah-get-slots'
 import { Route as ApiPublicRetellSendUploadLinkRouteImport } from './routes/api/public/retell/send-upload-link'
 import { Route as ApiPublicRetellRescheduleRouteImport } from './routes/api/public/retell/reschedule'
 import { Route as ApiPublicRetellEventTypesRouteImport } from './routes/api/public/retell/event-types'
@@ -1814,6 +1815,12 @@ const ApiPublicSystemmindChatStreamRoute =
     path: '/api/public/systemmind/chat-stream',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiPublicRetellWbahGetSlotsRoute =
+  ApiPublicRetellWbahGetSlotsRouteImport.update({
+    id: '/api/public/retell/wbah-get-slots',
+    path: '/api/public/retell/wbah-get-slots',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiPublicRetellSendUploadLinkRoute =
   ApiPublicRetellSendUploadLinkRouteImport.update({
     id: '/api/public/retell/send-upload-link',
@@ -2499,6 +2506,7 @@ export interface FileRoutesByFullPath {
   '/api/public/retell/event-types': typeof ApiPublicRetellEventTypesRoute
   '/api/public/retell/reschedule': typeof ApiPublicRetellRescheduleRoute
   '/api/public/retell/send-upload-link': typeof ApiPublicRetellSendUploadLinkRoute
+  '/api/public/retell/wbah-get-slots': typeof ApiPublicRetellWbahGetSlotsRoute
   '/api/public/systemmind/chat-stream': typeof ApiPublicSystemmindChatStreamRoute
   '/api/public/telephony/inbound': typeof ApiPublicTelephonyInboundRouteWithChildren
   '/api/public/telephony/recording': typeof ApiPublicTelephonyRecordingRoute
@@ -2823,6 +2831,7 @@ export interface FileRoutesByTo {
   '/api/public/retell/event-types': typeof ApiPublicRetellEventTypesRoute
   '/api/public/retell/reschedule': typeof ApiPublicRetellRescheduleRoute
   '/api/public/retell/send-upload-link': typeof ApiPublicRetellSendUploadLinkRoute
+  '/api/public/retell/wbah-get-slots': typeof ApiPublicRetellWbahGetSlotsRoute
   '/api/public/systemmind/chat-stream': typeof ApiPublicSystemmindChatStreamRoute
   '/api/public/telephony/inbound': typeof ApiPublicTelephonyInboundRouteWithChildren
   '/api/public/telephony/recording': typeof ApiPublicTelephonyRecordingRoute
@@ -3159,6 +3168,7 @@ export interface FileRoutesById {
   '/api/public/retell/event-types': typeof ApiPublicRetellEventTypesRoute
   '/api/public/retell/reschedule': typeof ApiPublicRetellRescheduleRoute
   '/api/public/retell/send-upload-link': typeof ApiPublicRetellSendUploadLinkRoute
+  '/api/public/retell/wbah-get-slots': typeof ApiPublicRetellWbahGetSlotsRoute
   '/api/public/systemmind/chat-stream': typeof ApiPublicSystemmindChatStreamRoute
   '/api/public/telephony/inbound': typeof ApiPublicTelephonyInboundRouteWithChildren
   '/api/public/telephony/recording': typeof ApiPublicTelephonyRecordingRoute
@@ -3495,6 +3505,7 @@ export interface FileRouteTypes {
     | '/api/public/retell/event-types'
     | '/api/public/retell/reschedule'
     | '/api/public/retell/send-upload-link'
+    | '/api/public/retell/wbah-get-slots'
     | '/api/public/systemmind/chat-stream'
     | '/api/public/telephony/inbound'
     | '/api/public/telephony/recording'
@@ -3819,6 +3830,7 @@ export interface FileRouteTypes {
     | '/api/public/retell/event-types'
     | '/api/public/retell/reschedule'
     | '/api/public/retell/send-upload-link'
+    | '/api/public/retell/wbah-get-slots'
     | '/api/public/systemmind/chat-stream'
     | '/api/public/telephony/inbound'
     | '/api/public/telephony/recording'
@@ -4154,6 +4166,7 @@ export interface FileRouteTypes {
     | '/api/public/retell/event-types'
     | '/api/public/retell/reschedule'
     | '/api/public/retell/send-upload-link'
+    | '/api/public/retell/wbah-get-slots'
     | '/api/public/systemmind/chat-stream'
     | '/api/public/telephony/inbound'
     | '/api/public/telephony/recording'
@@ -4315,6 +4328,7 @@ export interface RootRouteChildren {
   ApiPublicRetellEventTypesRoute: typeof ApiPublicRetellEventTypesRoute
   ApiPublicRetellRescheduleRoute: typeof ApiPublicRetellRescheduleRoute
   ApiPublicRetellSendUploadLinkRoute: typeof ApiPublicRetellSendUploadLinkRoute
+  ApiPublicRetellWbahGetSlotsRoute: typeof ApiPublicRetellWbahGetSlotsRoute
   ApiPublicSystemmindChatStreamRoute: typeof ApiPublicSystemmindChatStreamRoute
   ApiPublicTelephonyInboundRoute: typeof ApiPublicTelephonyInboundRouteWithChildren
   ApiPublicTelephonyRecordingRoute: typeof ApiPublicTelephonyRecordingRoute
@@ -6189,6 +6203,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicSystemmindChatStreamRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/retell/wbah-get-slots': {
+      id: '/api/public/retell/wbah-get-slots'
+      path: '/api/public/retell/wbah-get-slots'
+      fullPath: '/api/public/retell/wbah-get-slots'
+      preLoaderRoute: typeof ApiPublicRetellWbahGetSlotsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/retell/send-upload-link': {
       id: '/api/public/retell/send-upload-link'
       path: '/api/public/retell/send-upload-link'
@@ -7654,6 +7675,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiPublicRetellEventTypesRoute: ApiPublicRetellEventTypesRoute,
   ApiPublicRetellRescheduleRoute: ApiPublicRetellRescheduleRoute,
   ApiPublicRetellSendUploadLinkRoute: ApiPublicRetellSendUploadLinkRoute,
+  ApiPublicRetellWbahGetSlotsRoute: ApiPublicRetellWbahGetSlotsRoute,
   ApiPublicSystemmindChatStreamRoute: ApiPublicSystemmindChatStreamRoute,
   ApiPublicTelephonyInboundRoute: ApiPublicTelephonyInboundRouteWithChildren,
   ApiPublicTelephonyRecordingRoute: ApiPublicTelephonyRecordingRoute,
