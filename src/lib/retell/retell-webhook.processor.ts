@@ -522,6 +522,54 @@ export async function processRetellWebhook(
   const incomingAgentId = call.agent_id ? stripPrefix(call.agent_id) : "";
   console.log("[RETELL WEBHOOK] Received event", { event, callId, agentId: incomingAgentId });
 
+  // ── LIVE TRANSCRIPT: transcript_updated ────────────────────────────────────
+  // Must run BEFORE the WBAH pipeline — the WBAH handler returns early for all
+  // WBAH agent events, which would otherwise prevent this from ever running.
+  // Fires MANY times per call carrying the full cumulative transcript; handled
+  // before recordWebhookEvent so it never bloats the webhook event log, and kept
+  // OUT of SUPPORTED_RETELL_EVENTS so it never touches calls/analytics/leads/CRM.
+  // Writes are wrapped so this display-only path can never break post-call processing.
+  if (event === "transcript_updated") {
+    try {
+      const isWebCall = call.call_type === "web_call" || call.call_type === "webcall";
+      if (callId && incomingAgentId && !isWebCall) {
+        // Try managed-agent lookup first; fall back to WBAH external allow-map
+        // (WBAH agents are not in the `agents` table so resolveAgent returns null).
+        let agentRow = await resolveAgent(incomingAgentId, options.forcedWorkspaceId);
+        if (!agentRow) {
+          const { resolveWbahRetellAgent } = await import(
+            "@/lib/wbah/post-call/wbah-retell-agents.shared"
+          );
+          const wbahAgent = resolveWbahRetellAgent(incomingAgentId);
+          if (wbahAgent) {
+            agentRow = {
+              workspace_id: wbahAgent.workspaceId,
+              name: wbahAgent.agentName,
+              agent_type: "external",
+              dashboardAgentType: null,
+              leadGenSettings: null,
+              qualifySettings: null,
+            };
+          }
+        }
+        if (agentRow) {
+          // transcript_updated carries the transcript at the TOP LEVEL of the
+          // body (sibling of `call`), not inside it — merge before extracting.
+          mergeWebhookTranscript(call, payload as Record<string, unknown>);
+          await upsertLiveCallSession({
+            workspaceId: agentRow.workspace_id as string,
+            agentName: agentRow.name as string | null,
+            event,
+            call,
+          });
+        }
+      }
+    } catch (e) {
+      console.warn("[RETELL WEBHOOK] Live transcript upsert failed (non-fatal)", e);
+    }
+    return { ok: true, status: 200, message: "live transcript", event, callId };
+  }
+
   // ── WBAH external agents: native post-call pipeline (n8n migration) ───────
   // Production WBAH dialers are not in the `agents` table; they route here instead
   // of the generic lead-gen / CRM paths. Live transcript + dashboard + Dynamics.
@@ -543,36 +591,6 @@ export async function processRetellWebhook(
     }
   } catch (wbahErr) {
     console.error("[RETELL WEBHOOK] WBAH pipeline error (non-fatal)", wbahErr);
-  }
-
-  // ── LIVE TRANSCRIPT: transcript_updated ────────────────────────────────────
-  // This is the ONLY live in-progress transcript source for managed agents. It
-  // fires MANY times per call carrying the full cumulative transcript, so it is
-  // handled here — BEFORE recordWebhookEvent — so it never bloats the webhook
-  // event log, and is intentionally kept OUT of SUPPORTED_RETELL_EVENTS so it
-  // never touches the calls table / analytics / leads / CRM. Writes are wrapped
-  // so this display-only path can never break canonical post-call processing.
-  if (event === "transcript_updated") {
-    try {
-      const isWebCall = call.call_type === "web_call" || call.call_type === "webcall";
-      if (callId && incomingAgentId && !isWebCall) {
-        const agentRow = await resolveAgent(incomingAgentId, options.forcedWorkspaceId);
-        if (agentRow) {
-          // transcript_updated carries the transcript at the TOP LEVEL of the
-          // body (sibling of `call`), not inside it — merge before extracting.
-          mergeWebhookTranscript(call, payload as Record<string, unknown>);
-          await upsertLiveCallSession({
-            workspaceId: agentRow.workspace_id as string,
-            agentName: agentRow.name as string | null,
-            event,
-            call,
-          });
-        }
-      }
-    } catch (e) {
-      console.warn("[RETELL WEBHOOK] Live transcript upsert failed (non-fatal)", e);
-    }
-    return { ok: true, status: 200, message: "live transcript", event, callId };
   }
 
   const eventLogId = await recordWebhookEvent({
