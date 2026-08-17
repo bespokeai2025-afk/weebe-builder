@@ -1,0 +1,208 @@
+IMPORTANT — I HAVE NOW CONFIRMED THE ACTUAL RETELL BOOKING FLOW.
+
+The Retell conversation flow already contains:
+
+Extract Variables
+→ Get Available Slots (function/tool node)
+→ Conversation using {{slot_message}}
+→ customer confirms date/time
+→ Book Appointment (function/tool node)
+
+Therefore DO NOT redesign or replace this flow.
+
+I want you to determine exactly what the existing `Get Available Slots` tool currently does and make it LIVE if necessary.
+
+==================================================
+1. TRACE GET AVAILABLE SLOTS
+==================================================
+
+Find the exact Retell tool/function attached to the:
+
+Get Available Slots
+
+node.
+
+Report:
+
+- tool/function name
+- HTTP endpoint
+- request body
+- dynamic variables passed
+- response mapping
+- how `slot_message` is populated
+- whether it calls Calendly live during the active call
+- whether it reads pre-injected `available_slots`
+
+Do not guess.
+
+==================================================
+2. REQUIRED BEHAVIOUR
+==================================================
+
+Every time the Retell flow enters:
+
+Get Available Slots
+
+it must perform:
+
+Retell live call
+→ WEBEE availability endpoint
+→ Calendly live API
+→ current available slots
+→ return slots
+→ populate `slot_message`
+
+This must happen DURING THE CALL.
+
+Do NOT use availability fetched when the outbound call was originally dispatched.
+
+==================================================
+3. KEEP slot_message
+==================================================
+
+The existing Conversation node already expects:
+
+{{slot_message}}
+
+Keep this variable if possible.
+
+Have the live availability tool dynamically generate it from the fresh Calendly response.
+
+For example:
+
+slot_message:
+"Tuesday 18 August at 10:00 AM; Tuesday 18 August at 2:30 PM; Wednesday 19 August at 11:00 AM"
+
+Also return structured slot data internally if needed for booking validation.
+
+==================================================
+4. MULTIPLE CHECKS IN SAME CALL
+==================================================
+
+This is critical.
+
+If the customer says:
+
+"What about Wednesday?"
+
+the flow should return to:
+
+Get Available Slots
+
+and make ANOTHER live API request.
+
+If they then say:
+
+"What about next week?"
+
+call it again.
+
+Do not reuse the first response as authoritative.
+
+==================================================
+5. DATE/RANGE INPUT
+==================================================
+
+Allow Get Available Slots to accept the customer's requested range where available:
+
+- requested date
+- requested day
+- morning/afternoon
+- date range
+- timezone
+
+If no preference is given, search the configured default upcoming window.
+
+==================================================
+6. VERIFY SATURDAY FAILURE
+==================================================
+
+Trace the exact tool call from Neil's failed call.
+
+The transcript showed the tool returning:
+
+success: true
+slot_count: 0
+slots: []
+message: "No appointment slots are available in the next week..."
+
+Determine whether that result came from:
+
+A. a genuine live Calendly API request made at 4:19 during the call
+
+OR
+
+B. the tool simply converting the pre-injected empty `available_slots` variable into that response.
+
+This distinction is extremely important.
+
+Return the exact evidence.
+
+==================================================
+7. BOOK APPOINTMENT NODE
+==================================================
+
+Keep the existing:
+
+Book Appointment
+
+tool/node.
+
+Verify it performs a LIVE booking request against Calendly when the customer confirms.
+
+It must:
+
+- take selected slot
+- revalidate/book it
+- wait for Calendly success
+- only then tell the caller the appointment is booked
+
+If the slot has just been taken:
+
+- return failure
+- route back to Get Available Slots
+- fetch fresh options
+
+==================================================
+8. DO NOT REMOVE THE EXISTING CONVERSATION FLOW
+==================================================
+
+Preserve:
+
+- Get Available Slots node
+- slot_message conversation node
+- confirmation node
+- Book Appointment node
+- callback fallback
+
+We are fixing the DATA SOURCE behind the existing tools, not rebuilding the Retell flow.
+
+==================================================
+FINAL RESPONSE ONLY
+
+Get Available Slots tool:
+...
+
+Current endpoint:
+...
+
+Currently live mid-call:
+YES/NO
+
+Currently depends on pre-call available_slots:
+YES/NO
+
+How slot_message is generated:
+...
+
+Neil's 0-slot result came from:
+LIVE CALENDLY / PRE-INJECTED DATA / OTHER
+
+Book Appointment is live:
+YES/NO
+
+Exact change required:
+...
+
+Retell flow redesign required:
+NO
