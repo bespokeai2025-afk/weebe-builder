@@ -125,7 +125,7 @@ SYSTEMMIND_CLAUDE_ENABLED = "true"
 WEBEE_WORKSPACE_ID = "c13db1d5-22e4-44ad-b678-6f296c31a947"
 AVA_AGENT_VERSION = "20"
 SUPABASE_URL = "https://ugrsdmmztnfgeajhwhzy.supabase.co"
-VITE_SUPABASE_URL = "https://ugrsdmmztnfgeajhwhzy.supabase.co"
+VITE_SUPABASE_URL = "VITE_SUPABASE_URL=https://ugrsdmmztnfgeajhwhzy.supabase.co"
 
 [userenv.production]
 PUBLIC_BASE_URL = "https://webeebuilder.com"
