@@ -41,6 +41,13 @@ const DEFAULT_LIMIT = 12;
 /** How many slots to mention aloud in the message. */
 const SPOKEN_SLOTS = 3;
 
+/** yyyy-MM-dd of today in London time. */
+function todayInLondon(): string {
+  return new Intl.DateTimeFormat("en-CA", { timeZone: WBAH_TZ }).format(
+    new Date(),
+  );
+}
+
 // ─── schema ──────────────────────────────────────────────────────────────────
 
 const Body = z.object({
@@ -129,8 +136,16 @@ function weekdayLabel(dateStr: string): string {
 
 /**
  * Choose up to `n` slots spread across times/days for the spoken message.
- * Strategy: earliest available, then something 3+ hours later or a different day,
- * then something on a different day if possible.
+ *
+ * Strategy (priority order):
+ *   1. Earliest slot today (or earliest overall if no today slots).
+ *   2. Earliest slot on a DIFFERENT day from slot 1 (prefer tomorrow or next
+ *      working day over another same-day time, so caller hears real options).
+ *   3. Earliest slot on a DIFFERENT day from both prior picks (or 3+ hours
+ *      later on the same day if no third day exists).
+ *
+ * This ensures the agent says "10 AM today, 2 PM tomorrow, 11 AM Thursday"
+ * rather than exhausting every same-day slot before mentioning future dates.
  */
 function pickSpoken(slots: DisplaySlot[], n: number): DisplaySlot[] {
   if (slots.length <= n) return slots;
@@ -138,26 +153,43 @@ function pickSpoken(slots: DisplaySlot[], n: number): DisplaySlot[] {
   const chosen: DisplaySlot[] = [slots[0]];
 
   if (n >= 2) {
-    const second = slots.find(
-      (s) =>
-        !chosen.includes(s) &&
-        (s.date !== chosen[0].date ||
-          new Date(s.utc).getTime() - new Date(chosen[0].utc).getTime() >=
-            3 * 3600 * 1000),
+    // Strongly prefer a slot on a different day for slot 2
+    const diffDay = slots.find(
+      (s) => !chosen.includes(s) && s.date !== chosen[0].date,
     );
-    chosen.push(second ?? slots[1]);
+    if (diffDay) {
+      chosen.push(diffDay);
+    } else {
+      // Same day — at least 3 hours later
+      const laterToday = slots.find(
+        (s) =>
+          !chosen.includes(s) &&
+          new Date(s.utc).getTime() - new Date(chosen[0].utc).getTime() >=
+            3 * 3600 * 1000,
+      );
+      chosen.push(laterToday ?? slots[1]);
+    }
   }
 
   if (n >= 3) {
-    const last = chosen[chosen.length - 1];
-    const third = slots.find(
-      (s) =>
-        !chosen.includes(s) &&
-        (s.date !== chosen[0].date ||
-          new Date(s.utc).getTime() - new Date(last.utc).getTime() >=
-            2 * 3600 * 1000),
+    const usedDates = new Set(chosen.map((s) => s.date));
+    // Prefer a third distinct day
+    const thirdDay = slots.find(
+      (s) => !chosen.includes(s) && !usedDates.has(s.date),
     );
-    if (third) chosen.push(third);
+    if (thirdDay) {
+      chosen.push(thirdDay);
+    } else {
+      // Same days — pick something 2+ hours after the last chosen
+      const last = chosen[chosen.length - 1];
+      const later = slots.find(
+        (s) =>
+          !chosen.includes(s) &&
+          new Date(s.utc).getTime() - new Date(last.utc).getTime() >=
+            2 * 3600 * 1000,
+      );
+      if (later) chosen.push(later);
+    }
   }
 
   return chosen;
@@ -243,23 +275,31 @@ export const Route = createFileRoute("/api/public/retell/wbah-get-slots")({
         let windowStart: string;
         let windowEnd: string;
 
-        if (!rawPreferredDate) {
-          // No date preference → search from now for 7 days
+        // Detect the {{current_date}} Retell default: if the preferred_date
+        // equals today in London time, treat it as "no preference" and search
+        // the full 7-day forward window.  This prevents the agent from burning
+        // through every today-slot before the caller can ask for tomorrow.
+        const today = todayInLondon();
+        const effectiveDate =
+          rawPreferredDate === today ? null : rawPreferredDate;
+
+        if (!effectiveDate) {
+          // No date preference (or default current_date) → search from now for 7 days
           windowStart = now.toISOString();
           windowEnd = new Date(
             now.getTime() + MAX_WINDOW_DAYS * 24 * 3600 * 1000,
           ).toISOString();
-        } else if (isWeekend(rawPreferredDate)) {
-          // Weekend requested (or Saturday current_date bug) → next weekday
-          requestedDayName = weekdayLabel(rawPreferredDate);
+        } else if (isWeekend(effectiveDate)) {
+          // Weekend requested → advance to next weekday
+          requestedDayName = weekdayLabel(effectiveDate);
           fallbackUsed = true;
-          const nextWd = nextWeekdayAfter(rawPreferredDate);
+          const nextWd = nextWeekdayAfter(effectiveDate);
           windowStart = dayWindowUtc(nextWd).start;
           windowEnd = dayWindowUtc(addDays(nextWd, MAX_WINDOW_DAYS - 1)).end;
         } else {
-          // Specific weekday → search that day only first
-          requestedDayName = weekdayLabel(rawPreferredDate);
-          const { start, end } = dayWindowUtc(rawPreferredDate);
+          // Caller explicitly named a future weekday → search that day first
+          requestedDayName = weekdayLabel(effectiveDate);
+          const { start, end } = dayWindowUtc(effectiveDate);
           windowStart = start;
           windowEnd = end;
         }
@@ -267,15 +307,15 @@ export const Route = createFileRoute("/api/public/retell/wbah-get-slots")({
         // ── First Calendly call ─────────────────────────────────────────────
         let times = await getWbahCalendlyAvailableTimes(windowStart, windowEnd);
 
-        // ── Fallback: specific weekday was empty → search next 7 days ───────
+        // ── Fallback: specific future weekday was empty → search next 7 days ─
         if (
-          rawPreferredDate &&
-          !isWeekend(rawPreferredDate) &&
+          effectiveDate &&
+          !isWeekend(effectiveDate) &&
           times.length === 0
         ) {
           fallbackUsed = true;
-          const dayAfter = addDays(rawPreferredDate, 1);
-          const weekAfter = addDays(rawPreferredDate, MAX_WINDOW_DAYS);
+          const dayAfter = addDays(effectiveDate, 1);
+          const weekAfter = addDays(effectiveDate, MAX_WINDOW_DAYS);
           times = await getWbahCalendlyAvailableTimes(
             dayWindowUtc(dayAfter).start,
             dayWindowUtc(weekAfter).end,
@@ -293,6 +333,8 @@ export const Route = createFileRoute("/api/public/retell/wbah-get-slots")({
 
         console.log("[wbah-get-slots]", {
           preferred_date: rawPreferredDate,
+          effective_date: effectiveDate ?? "(7-day window)",
+          today_override: rawPreferredDate === today,
           fallbackUsed,
           slot_count: totalCount,
           returned: displaySlots.length,
