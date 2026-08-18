@@ -87,6 +87,13 @@ export function buildWbahAllensCrmPayload(input: {
     }
   }
 
+  // Negative sentiment → set standard Dynamics "Do Not Contact" phone flag so
+  // the lead cannot be dialled again from Dynamics or any campaign queue.
+  // This is idempotent (setting true when already true is a no-op in Dynamics).
+  if (allens.setDoNotPhone) {
+    payload.donotphone = true;
+  }
+
   if (formatted.userSentiment) payload.cos_user_sentiment = formatted.userSentiment;
   if (formatted.callSummary) payload.cos_call_summary = formatted.callSummary;
 

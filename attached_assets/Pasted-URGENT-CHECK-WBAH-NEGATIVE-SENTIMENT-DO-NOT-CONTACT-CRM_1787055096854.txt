@@ -1,0 +1,145 @@
+URGENT — CHECK WBAH NEGATIVE SENTIMENT → DO NOT CONTACT CRM ROUTING
+
+Do not change anything until you trace this exact call.
+
+Lead:
+Name: Aruna Day
+Phone: +447889247935
+Last called: 18 Aug 2026 at approximately 10:51
+Call status: Completed
+Sentiment: Negative
+
+Business rule:
+
+For WBAH, when the final post-call sentiment is NEGATIVE, the corresponding contact/lead must be returned/updated to the WBAH CRM “Do Not Contact” status/category so they are not called again.
+
+1. TRACE THIS EXACT RECORD
+
+Find Aruna Day by phone/canonical contact ID.
+
+Trace:
+
+Retell call
+→ post-call webhook
+→ sentiment extraction
+→ WEBEE lead/call update
+→ WBAH CRM/Dynamics sync
+→ final CRM status/category
+
+Return the actual values at every stage.
+
+2. CONFIRM WHETHER CRM WAS UPDATED
+
+For this exact lead report:
+
+WEBEE sentiment:
+CRM contact/lead ID:
+CRM status before call:
+CRM status after call:
+Do Not Contact flag/category:
+CRM update request sent: YES/NO
+CRM response:
+Any error:
+
+Do not assume that because WEBEE displays “Negative” the CRM update occurred.
+
+3. VERIFY THE ROUTING RULE
+
+Find the existing WBAH outcome/status mapping.
+
+Confirm whether:
+
+sentiment = negative
+
+currently maps to:
+
+Do Not Contact
+
+If it instead maps to:
+- Disqualified
+- Tried To Contact
+- no change
+- another category
+
+show me exactly where that mapping is defined.
+
+4. NEGATIVE MUST BLOCK FUTURE CALLING
+
+If the agreed WBAH rule is Negative → Do Not Contact, ensure the canonical post-call workflow does:
+
+Negative final sentiment
+→ update WEBEE lead
+→ update WBAH CRM/Dynamics to Do Not Contact
+→ mark lead as non-callable
+→ remove/exclude from future campaign queues
+→ prevent automatic requeue/retry
+
+Do NOT delete the lead.
+
+Keep the call history and recording.
+
+5. DO NOT CONFUSE STATUS DIMENSIONS
+
+Keep these separate:
+
+Call status = Completed
+Sentiment = Negative
+CRM disposition = Do Not Contact
+
+Do not overwrite sentiment with the CRM status.
+
+6. IDEMPOTENCY
+
+The CRM write must be safe if the webhook is retried.
+
+A duplicate Retell/post-call webhook must not create duplicate CRM activities or repeatedly mutate the record.
+
+7. AUDIT RECENT NEGATIVE WBAH CALLS
+
+After checking Aruna Day, audit recent WBAH calls with:
+
+sentiment = Negative
+
+Compare how many:
+
+- correctly became Do Not Contact
+- remained callable
+- failed CRM sync
+- have no CRM match
+
+Do not alter historical records until the mapping has been verified.
+
+FINAL RESPONSE ONLY:
+
+Aruna Day WEBEE sentiment:
+...
+
+WBAH CRM record found:
+YES/NO
+
+CRM status before:
+...
+
+CRM status now:
+...
+
+Moved to Do Not Contact:
+YES/NO
+
+Negative → DNC rule currently exists:
+YES/NO
+
+If not, current mapping is:
+...
+
+Future calling currently blocked:
+YES/NO
+
+Recent negative calls incorrectly still callable:
+<count>
+
+Root cause:
+...
+
+Fix required:
+...

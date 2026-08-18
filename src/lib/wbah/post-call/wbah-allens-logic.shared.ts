@@ -31,6 +31,12 @@ export type AllensLogicResult = {
   callbackType: string | null;
   rule: "callback" | "negative" | "logged" | "tried_to_contact" | "none";
   allenLogicResult: string;
+  /**
+   * True when the sentiment is negative: instructs the CRM writer to set
+   * Dynamics `donotphone = true` so the contact is flagged as Do Not Contact
+   * for phone calls and removed from future campaign queues.
+   */
+  setDoNotPhone: boolean;
 };
 
 function hasValidCalendly(url: string | null | undefined): boolean {
@@ -66,6 +72,7 @@ export function applyAllensLogicV5(input: AllensLogicInput): AllensLogicResult {
     isCallbackRequest: false,
     callbackDatetimeUtc: callbackUtc,
     callbackType,
+    setDoNotPhone: false,
   };
 
   if (hasCallback) {
@@ -86,8 +93,10 @@ export function applyAllensLogicV5(input: AllensLogicInput): AllensLogicResult {
     if (existingCurrentStatus === WBAH_DYNAMICS_STATUS.DISQUALIFIED) {
       return {
         ...base,
+        // Already Disqualified — skip status update but still enforce donotphone
+        setDoNotPhone: true,
         rule: "negative",
-        allenLogicResult: "RULE 1: NEGATIVE — already Disqualified — NO UPDATE",
+        allenLogicResult: "RULE 1: NEGATIVE — already Disqualified — donotphone=true enforced",
       };
     }
     return {
@@ -96,8 +105,11 @@ export function applyAllensLogicV5(input: AllensLogicInput): AllensLogicResult {
       skipStatusUpdate: false,
       skipStatecodeUpdate: true,
       skipAppointmentUpdate: true,
+      // Standard Dynamics Do Not Contact phone flag — marks the lead so they
+      // cannot be dialled again from Dynamics or campaign queues.
+      setDoNotPhone: true,
       rule: "negative",
-      allenLogicResult: `RULE 1: NEGATIVE → Disqualified (${WBAH_DYNAMICS_STATUS.DISQUALIFIED})`,
+      allenLogicResult: `RULE 1: NEGATIVE → Disqualified (${WBAH_DYNAMICS_STATUS.DISQUALIFIED}) + donotphone=true`,
     };
   }
 
