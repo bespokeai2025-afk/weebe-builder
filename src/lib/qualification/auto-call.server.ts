@@ -179,6 +179,131 @@ export async function triggerAutoCallForNewLead(
   }
 }
 
+/**
+ * Manually trigger a call for a WBAH CRM "Delayed" new lead directly from
+ * the People page. Unlike triggerAutoCallForNewLead this does NOT require a
+ * WEBEE lead ID — it works directly from the phone number + name that
+ * WeeBespoke's CRM row provides.
+ */
+export const callWbahDelayedLead = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .validator((input) =>
+    z
+      .object({
+        phone: z.string().min(5),
+        name: z.string().optional(),
+        externalLeadId: z.string().optional(),
+      })
+      .parse(input),
+  )
+  .handler(async ({ context, data }): Promise<AutoCallResult> => {
+    const { supabase, workspaceId } = context;
+    if (!workspaceId) throw new Error("No active workspace");
+    const sb = supabase as any;
+
+    const { data: wsSettings } = await sb
+      .from("workspace_settings")
+      .select("lead_auto_call_enabled, lead_auto_call_agent_id, retell_workspace_id")
+      .eq("workspace_id", workspaceId)
+      .maybeSingle();
+
+    if (!wsSettings?.lead_auto_call_agent_id) {
+      return { placed: false, reason: "agent_not_configured" };
+    }
+
+    const { data: agent } = await sb
+      .from("agents")
+      .select("id, retell_agent_id, name, settings")
+      .eq("id", wsSettings.lead_auto_call_agent_id)
+      .eq("workspace_id", workspaceId)
+      .maybeSingle();
+
+    if (!agent) return { placed: false, reason: "agent_not_found" };
+
+    const agentSettings = (agent.settings ?? {}) as Record<string, unknown>;
+    const deployedRetellAgentId =
+      (agentSettings.deployedRetellAgentId as string | undefined) ?? null;
+    const retellAgentId = deployedRetellAgentId ?? agent.retell_agent_id ?? null;
+    const fromNumber = (agentSettings.phoneNumber as string | undefined) ?? null;
+    const dialNative = resolveDeploymentMode(agentSettings as never) === "WEBEE_NATIVE";
+
+    if (!dialNative && (!retellAgentId || !fromNumber)) {
+      return { placed: false, reason: "agent_not_fully_configured" };
+    }
+
+    const clientRetellKey =
+      (wsSettings as any)?.retell_workspace_id?.trim() || undefined;
+
+    // Daily cap: max 3 attempts per phone per UTC day.
+    const todayUtc = new Date();
+    todayUtc.setUTCHours(0, 0, 0, 0);
+    const { count: attemptsToday } = await sb
+      .from("calls")
+      .select("id", { count: "exact", head: true })
+      .eq("workspace_id", workspaceId)
+      .eq("to_number", data.phone)
+      .gte("created_at", todayUtc.toISOString());
+    if ((attemptsToday ?? 0) >= 3) {
+      return { placed: false, reason: "daily_limit_reached" };
+    }
+
+    const dynamicVars: Record<string, string> = {
+      full_name: data.name ?? "",
+      name: data.name ?? "",
+      user_name: data.name?.split(" ")[0] ?? "",
+    };
+
+    let callId: string | null = null;
+    let dialedFrom = fromNumber;
+
+    if (dialNative) {
+      const { placeNativeOutboundCall: placeNative } = await import(
+        "@/lib/telephony/native-outbound.server"
+      );
+      const dial = await placeNative({
+        sb,
+        workspaceId,
+        agentId: agent.id,
+        to: data.phone,
+      });
+      callId = dial.callId;
+      dialedFrom = dial.fromNumber;
+    } else {
+      const callPayload = {
+        from_number: fromNumber,
+        to_number: data.phone,
+        override_agent_id: retellAgentId,
+        metadata: {
+          workspace_id: workspaceId,
+          trigger: "manual_delayed_new_lead",
+          external_lead_id: data.externalLeadId ?? null,
+        },
+        retell_llm_dynamic_variables: dynamicVars,
+      };
+      const call = await retellFetch<any>(
+        "/v2/create-phone-call",
+        callPayload,
+        "POST",
+        clientRetellKey,
+      );
+      callId = call?.call_id ?? null;
+    }
+
+    const now = new Date().toISOString();
+    await sb.from("calls").insert({
+      workspace_id: workspaceId,
+      retell_call_id: callId,
+      agent_id: dialNative ? agent.id : retellAgentId,
+      agent_name: agent.name ?? null,
+      from_number: dialedFrom,
+      to_number: data.phone,
+      call_type: "outbound",
+      call_status: "initiated",
+    });
+
+    return { placed: true, callId: callId ?? undefined };
+  });
+
 export const getLeadAutoCallSettings = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
