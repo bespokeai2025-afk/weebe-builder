@@ -20,7 +20,6 @@ import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { retellFetch } from "@/lib/providers/retell/client.server";
 import {
   fetchActiveLiveCallSessions,
-  fetchRecentEndedLiveSessions,
   cleanupStaleLiveCallSessions,
   type ActiveLiveSession,
 } from "@/lib/retell/live-call-sessions.server";
@@ -523,47 +522,11 @@ export const Route = createFileRoute("/api/dashboard/live-calls-sse")({
                   });
                 }
 
-                // Build recently-completed cards. Primary source: the `calls`
-                // table (written by the standard webhook path). Fallback source:
-                // `live_call_sessions` recently-ended rows — catches workspaces
-                // (e.g. WBAH) whose webhook processor routes to a separate table
-                // and never writes to `calls`, so their completed transcripts
-                // would otherwise vanish from the panel the moment a call ends.
-                const [recentCompleted, recentEndedSessions] = await Promise.all([
-                  fetchRecentCompletedCalls(workspaceId, agentNames),
-                  fetchRecentEndedLiveSessions(workspaceId),
-                ]);
+                // Build recently-completed cards from the `calls` table
+                // (written by the standard webhook path on call_ended).
+                const recentCompleted = await fetchRecentCompletedCalls(workspaceId, agentNames);
 
-                // Index calls-table results by call_id so we can dedupe below.
-                const completedByCallId = new Map(recentCompleted.map((r) => [r.call_id, r]));
-
-                // Convert ended live-sessions into the same card shape and
-                // merge, preferring the calls-table entry when both exist
-                // (it may have richer metadata from call_analyzed).
-                for (const s of recentEndedSessions) {
-                  if (completedByCallId.has(s.retell_call_id)) continue;
-                  const cs: "ended" | "failed" =
-                    s.call_status === "failed" ? "failed" : "ended";
-                  completedByCallId.set(s.retell_call_id, {
-                    call_id: s.retell_call_id,
-                    agent_id: s.agent_id ?? "",
-                    agent_name:
-                      s.agent_name ?? agentNames[s.agent_id ?? ""] ?? "Unknown agent",
-                    direction: s.direction ?? "outbound",
-                    call_type: s.call_type ?? "phone_call",
-                    from_number: s.from_number ?? null,
-                    to_number: s.to_number ?? null,
-                    start_timestamp: s.started_at ? new Date(s.started_at).getTime() : null,
-                    transcript: s.transcript,
-                    status: "completed" as const,
-                    call_status: cs,
-                    lead_name: null,
-                    current_node_id: null,
-                    current_node_label: null,
-                  });
-                }
-
-                const completedCards = [...completedByCallId.values()]
+                const completedCards = recentCompleted
                   .filter((r) => !liveOngoingIds.has(r.call_id))
                   .map((r) => ({ ...r, live_transcript: false }));
 
