@@ -46,6 +46,7 @@
 - [WBAH pipeline derivation](wbah-pipeline-derivation.md) — WBAH cards derive from wbah_calls (positive=qualified); stage-move writeback is a no-op (card id is wbah_calls.id, mutation writes leads).
 - [data_records list perf, bloat & CSV-only tab](data-records-list-perf.md) — WBAH sort timeout needs (ws,is_deleted,source,updated_at) index; Records tab shows only source='csv' (data-records-csv-only.md).
 - [Live in-call transcript source](live-call-transcript-source.md) — managed agents stream transcript only via transcript_updated webhook; snapshot table; guard ended-session resurrection.
+- [WBAH live transcript — calls table gap](wbah-live-transcript-calls-table-gap.md) — WBAH webhook skips `calls` table; fetchRecentEndedLiveSessions fallback in SSE fixes vanishing completed cards.
 - [External-agent live ingest](external-agent-live-ingest.md) — live-transcript chain = Retell webhook + n8n forward + in-code allow-map; prod must REPUBLISH to add agents.
 - [SystemMind Deployment Planner & Intelligence](systemmind-deployment-planner.md) — plan-only; planner MUST consult knowledge graph; AI template IDs whitelisted; graph in systemmind-knowledge-graph.md.
 - [SystemMind Template Library](systemmind-template-library.md) — curated template repo on top of template discovery; is_trusted only on approve; RLS SELECT-only + service_role writes; secrets masked; classification cols nullable.
