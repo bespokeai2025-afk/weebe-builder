@@ -253,16 +253,36 @@ export async function fetchActiveLiveCallSessions(
   if (!workspaceId) return [];
   try {
     const since = new Date(Date.now() - recencyMs).toISOString();
-    const { data } = await supabaseAdmin
-      .from("live_call_sessions")
-      .select(
-        "retell_call_id, agent_id, agent_name, from_number, to_number, direction, call_type, call_status, transcript, started_at",
-      )
-      .eq("workspace_id", workspaceId)
-      .in("call_status", ["ringing", "in_progress"])
-      .gte("updated_at", since)
-      .order("updated_at", { ascending: false })
-      .limit(25);
+    // Ringing calls that never connected (started_at is null) are ghost sessions —
+    // Retell fires call_started only when the callee picks up, so a null started_at
+    // after ~3 min means the call was never answered and we missed the ended event.
+    // Apply a much tighter 3-minute window to those rows only.
+    const ringingSince = new Date(Date.now() - 3 * 60 * 1000).toISOString();
+
+    const [inProgressResult, ringingResult] = await Promise.all([
+      supabaseAdmin
+        .from("live_call_sessions")
+        .select(
+          "retell_call_id, agent_id, agent_name, from_number, to_number, direction, call_type, call_status, transcript, started_at",
+        )
+        .eq("workspace_id", workspaceId)
+        .eq("call_status", "in_progress")
+        .gte("updated_at", since)
+        .order("updated_at", { ascending: false })
+        .limit(25),
+      supabaseAdmin
+        .from("live_call_sessions")
+        .select(
+          "retell_call_id, agent_id, agent_name, from_number, to_number, direction, call_type, call_status, transcript, started_at",
+        )
+        .eq("workspace_id", workspaceId)
+        .eq("call_status", "ringing")
+        .gte("updated_at", ringingSince)
+        .order("updated_at", { ascending: false })
+        .limit(25),
+    ]);
+
+    const data = [...(inProgressResult.data ?? []), ...(ringingResult.data ?? [])];
 
     return (data ?? []).map((row: Record<string, unknown>) => ({
       retell_call_id: String(row.retell_call_id ?? ""),
