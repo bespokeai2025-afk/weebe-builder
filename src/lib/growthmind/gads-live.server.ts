@@ -205,7 +205,7 @@ export const getGadsDashboard = createServerFn({ method: "POST" })
         .in("status", ["new", "under_review", "approved", "applied"])
         .order("created_at", { ascending: false }).limit(100),
       sb.from("growthmind_gads_change_requests")
-        .select("id, recommendation_id, campaign_id, change_type, payload, status, approved_at")
+        .select("id, recommendation_id, campaign_id, change_type, payload, status, status_detail, marketing_action_id, approved_at, executed_at")
         .eq("workspace_id", workspaceId)
         .order("created_at", { ascending: false }).limit(50),
     ]);
@@ -319,9 +319,11 @@ export const setGadsRecommendationStatus = createServerFn({ method: "POST" })
       status: data.status, reviewed_by: userId, reviewed_at: now, updated_at: now,
     }).eq("id", rec.id);
 
-    // Approval creates a change-request row. It is NEVER executed automatically —
-    // there is intentionally no executor for live Google Ads edits.
+    // Approval creates a change-request row, then routes it through the
+    // Marketing Action Engine (guardrails, approvals, real execution with
+    // verification & rollback via the Google Ads executor).
     let changeRequestId: string | null = null;
+    let engineOutcome: { marketingActionId: string | null; status: string; detail: string } | null = null;
     if (data.status === "approved") {
       const { data: cr } = await sb.from("growthmind_gads_change_requests").insert({
         workspace_id: workspaceId,
@@ -335,7 +337,55 @@ export const setGadsRecommendationStatus = createServerFn({ method: "POST" })
         approved_by: userId,
       }).select("id").single();
       changeRequestId = cr?.id ?? null;
+      try {
+        const { routeGadsRecommendationToEngine } = await import("@/lib/growthmind/gads-actions-bridge.server");
+        const out = await routeGadsRecommendationToEngine(sb, workspaceId, rec as any, { changeRequestId, userId });
+        engineOutcome = { marketingActionId: out.marketingActionId, status: out.changeRequestStatus, detail: out.detail };
+        if (out.changeRequestStatus === "executed") {
+          await sb.from("growthmind_gads_recommendations").update({ status: "applied", updated_at: now }).eq("id", rec.id);
+        }
+      } catch (e: any) {
+        const detail = `Engine routing failed: ${e?.message ?? "unknown error"}`;
+        if (changeRequestId) {
+          await sb.from("growthmind_gads_change_requests").update({ status: "failed", status_detail: detail }).eq("id", changeRequestId);
+        }
+        engineOutcome = { marketingActionId: null, status: "failed", detail };
+      }
     }
-    return { ok: true, changeRequestId };
+    return { ok: true, changeRequestId, engineOutcome };
+  });
+
+// ── Negative Keyword Decision Log (permanent, append-only) ───────────────────
+
+export const listGadsNegativeDecisionLog = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const workspaceId = context.workspaceId;
+    if (!workspaceId) throw new Error("No workspace");
+    // Member-scoped read via the RLS client — members can see the log.
+    const { data, error } = await (context.supabase as any)
+      .from("growthmind_gads_negative_decision_log")
+      .select("id, customer_id, campaign_id, campaign_name, search_term, match_type, classification, decision, reason, evidence, decided_by, marketing_action_id, created_at")
+      .eq("workspace_id", workspaceId)
+      .order("created_at", { ascending: false })
+      .limit(300);
+    if (error) throw error;
+    return { entries: data ?? [] };
+  });
+
+// ── Write-access probe (validate-only, changes nothing) ──────────────────────
+
+export const checkGadsWriteAccessFn = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const { workspaceId } = await requireAdmin(context);
+    const acc = await getGoogleAccountRow(workspaceId);
+    if (!acc?.customer_id) return { canWrite: false, detail: "No Google Ads account is connected yet." };
+    const { checkGadsWriteAccess } = await import("./gads-mutate.server");
+    return await checkGadsWriteAccess({
+      workspaceId,
+      customerId: acc.customer_id,
+      loginCustomerId: acc.login_customer_id ?? null,
+    });
   });
 

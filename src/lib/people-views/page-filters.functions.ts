@@ -179,6 +179,6 @@ export const runWorkspacePageFilter = createServerFn({ method: "GET" })
     z.object({ id: z.string().uuid(), limit: z.number().int().min(1).max(500).nullish() }).parse(input),
   )
   .handler(async ({ data, context }) => {
-    const { workspaceId, role } = await ctxRole(context);
-    return runPageFilter(workspaceId, data.id, data.limit ?? 200, role);
+    const { workspaceId, userId, role } = await ctxRole(context);
+    return runPageFilter(workspaceId, data.id, data.limit ?? 200, role, userId);
   });

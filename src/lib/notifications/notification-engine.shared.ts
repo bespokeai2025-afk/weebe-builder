@@ -40,6 +40,23 @@ export const NOTIFICATION_EVENT_KEYS = [
   "reseller_client_created",
   "email_provider_failing",
   "lead_created",
+  "whatsapp_reply_received",
+  "marketing_operator_digest",
+  // ── Canonical catalogue extension (2026-08) ────────────────────────────────
+  "lead_positive",
+  "lead_assigned",
+  "campaign_stalled",
+  "report_failed",
+  "followup_reply_received",
+  "followup_failed",
+  "hivemind_alert",
+  "hivemind_task_created",
+  "hivemind_recommendation",
+  "systemmind_workflow_failed",
+  "systemmind_integration_error",
+  "systemmind_agent_setup_issue",
+  "accountsmind_billing_alert",
+  "accountsmind_cost_threshold",
 ] as const;
 export type NotificationEventKey = (typeof NOTIFICATION_EVENT_KEYS)[number];
 
@@ -67,15 +84,98 @@ export const NOTIFICATION_EVENT_LABELS: Record<NotificationEventKey, string> = {
   reseller_client_created: "Client account created",
   email_provider_failing: "Email provider failing",
   lead_created: "New lead captured",
+  whatsapp_reply_received: "WhatsApp reply received",
+  marketing_operator_digest: "Daily marketing operator digest",
+  lead_positive: "Positive-sentiment lead",
+  lead_assigned: "Lead assigned to you",
+  campaign_stalled: "Campaign stalled",
+  report_failed: "Report generation failed",
+  followup_reply_received: "Follow-up reply received",
+  followup_failed: "Follow-up send failed",
+  hivemind_alert: "HiveMind alert",
+  hivemind_task_created: "HiveMind task created",
+  hivemind_recommendation: "HiveMind recommendation",
+  systemmind_workflow_failed: "SystemMind workflow failed",
+  systemmind_integration_error: "SystemMind integration error",
+  systemmind_agent_setup_issue: "Agent setup issue detected",
+  accountsmind_billing_alert: "Billing alert",
+  accountsmind_cost_threshold: "Cost threshold reached",
 };
+
+// ── Per-event catalogue metadata ─────────────────────────────────────────────
+// category: Settings UI section. capability: which workspace capability must
+// be active for the event to be applicable ("core" = always applicable).
+// deepLink: in-app destination for the notification.
+export type NotificationCapabilityKey =
+  | "core" | "leads" | "campaigns" | "campaign_reports" | "follow_up"
+  | "whatsapp" | "hivemind" | "growthmind" | "systemmind" | "accountsmind"
+  | "reseller";
+
+export type NotificationEventDef = {
+  category: string;
+  capability: NotificationCapabilityKey;
+  deepLink: string;
+};
+
+export const NOTIFICATION_EVENT_DEFS: Record<NotificationEventKey, NotificationEventDef> = {
+  launched:                  { category: "Campaigns", capability: "campaigns", deepLink: "/campaigns" },
+  activated:                 { category: "Campaigns", capability: "campaigns", deepLink: "/campaigns" },
+  paused:                    { category: "Campaigns", capability: "campaigns", deepLink: "/campaigns" },
+  completed:                 { category: "Campaigns", capability: "campaigns", deepLink: "/campaigns" },
+  failed:                    { category: "Campaigns", capability: "campaigns", deepLink: "/campaigns" },
+  safety_blocked:            { category: "Campaigns", capability: "campaigns", deepLink: "/campaigns" },
+  no_eligible_leads:         { category: "Campaigns", capability: "campaigns", deepLink: "/campaigns" },
+  daily_cap_hit:             { category: "Campaigns", capability: "campaigns", deepLink: "/campaigns" },
+  safety_cap_hit:            { category: "Campaigns", capability: "campaigns", deepLink: "/campaigns" },
+  provider_error:            { category: "Campaigns", capability: "campaigns", deepLink: "/campaigns" },
+  workflow_error:            { category: "Campaigns", capability: "campaigns", deepLink: "/campaigns" },
+  campaign_stalled:          { category: "Campaigns", capability: "campaigns", deepLink: "/campaigns" },
+  high_negative_sentiment:   { category: "Campaigns", capability: "campaigns", deepLink: "/campaigns" },
+  high_positive_performance: { category: "Campaigns", capability: "campaigns", deepLink: "/campaigns" },
+  marketing_operator_digest: { category: "Campaigns", capability: "growthmind", deepLink: "/growthmind" },
+  kpi_report_ready:          { category: "Reports", capability: "campaign_reports", deepLink: "/campaigns" },
+  report_failed:             { category: "Reports", capability: "campaign_reports", deepLink: "/campaigns" },
+  lead_created:              { category: "Leads", capability: "leads", deepLink: "/leads" },
+  lead_positive:             { category: "Leads", capability: "leads", deepLink: "/leads" },
+  lead_assigned:             { category: "Leads", capability: "leads", deepLink: "/leads" },
+  qualified_leads_generated: { category: "Leads", capability: "leads", deepLink: "/qualified" },
+  appointments_booked:       { category: "Leads", capability: "leads", deepLink: "/leads" },
+  follow_up_tasks_created:   { category: "Follow-up", capability: "follow_up", deepLink: "/follow-up" },
+  followup_reply_received:   { category: "Follow-up", capability: "follow_up", deepLink: "/follow-up" },
+  followup_failed:           { category: "Follow-up", capability: "follow_up", deepLink: "/follow-up" },
+  whatsapp_reply_received:   { category: "WhatsApp", capability: "whatsapp", deepLink: "/whatsapp" },
+  hivemind_alert:            { category: "HiveMind", capability: "hivemind", deepLink: "/hivemind" },
+  hivemind_task_created:     { category: "HiveMind", capability: "hivemind", deepLink: "/hivemind" },
+  hivemind_recommendation:   { category: "HiveMind", capability: "hivemind", deepLink: "/hivemind" },
+  systemmind_fix_suggested:      { category: "SystemMind", capability: "systemmind", deepLink: "/systemmind" },
+  systemmind_workflow_failed:    { category: "SystemMind", capability: "systemmind", deepLink: "/systemmind" },
+  systemmind_integration_error:  { category: "SystemMind", capability: "systemmind", deepLink: "/systemmind" },
+  systemmind_agent_setup_issue:  { category: "SystemMind", capability: "systemmind", deepLink: "/systemmind" },
+  accountsmind_billing_alert:    { category: "AccountsMind", capability: "accountsmind", deepLink: "/accountsmind" },
+  accountsmind_cost_threshold:   { category: "AccountsMind", capability: "accountsmind", deepLink: "/accountsmind" },
+  staff_invite_accepted:     { category: "Workspace", capability: "core", deepLink: "/settings" },
+  needs_admin_attention:     { category: "Workspace", capability: "core", deepLink: "/settings" },
+  email_provider_failing:    { category: "Workspace", capability: "core", deepLink: "/settings" },
+  reseller_client_created:   { category: "Workspace", capability: "reseller", deepLink: "/reseller" },
+};
+
+/** Order of Settings UI sections. */
+export const NOTIFICATION_CATEGORY_ORDER = [
+  "Leads", "Campaigns", "Reports", "Follow-up", "WhatsApp",
+  "HiveMind", "SystemMind", "AccountsMind", "Workspace",
+] as const;
 
 const CRITICAL_EVENTS: ReadonlySet<string> = new Set([
   "failed", "provider_error", "workflow_error", "safety_cap_hit",
-  "email_provider_failing",
+  "email_provider_failing", "systemmind_workflow_failed",
+  "systemmind_integration_error", "report_failed",
 ]);
 const WARNING_EVENTS: ReadonlySet<string> = new Set([
   "paused", "safety_blocked", "no_eligible_leads", "daily_cap_hit",
   "high_negative_sentiment", "needs_admin_attention", "systemmind_fix_suggested",
+  "campaign_stalled", "followup_failed", "hivemind_alert",
+  "systemmind_agent_setup_issue", "accountsmind_billing_alert",
+  "accountsmind_cost_threshold",
 ]);
 
 export function severityForEvent(eventKey: string): "info" | "warning" | "critical" {
@@ -99,6 +199,8 @@ export type NotificationSettings = {
   inAppEnabled: boolean;
   recipients: NotificationRecipientsConfig;
   frequency: "immediate" | "hourly" | "daily" | "weekly";
+  /** Optional lead filter (validated FilterConfig JSON) for lead-category events. */
+  leadFilter?: unknown | null;
 };
 
 /** Defaults when a workspace has no settings row for an event: in-app to owner+admins, no email. */
@@ -109,6 +211,24 @@ export const DEFAULT_EVENT_SETTINGS: NotificationSettings = {
   recipients: { owner: true, admins: true, userIds: [], roleKeys: [], customEmails: [], campaignOwner: false },
   frequency: "immediate",
 };
+
+/**
+ * High-volume events that default OFF when a workspace has no settings row.
+ * Only NEW catalogue keys may appear here — existing keys keep their historic
+ * default-on behaviour so no workspace's current notifications change.
+ */
+export const DEFAULT_OFF_EVENTS: ReadonlySet<string> = new Set([
+  "hivemind_task_created",
+  "hivemind_recommendation",
+  "followup_reply_received",
+]);
+
+/** Catalogue default settings for one event (default-off aware). */
+export function defaultSettingsForEvent(eventKey: string): NotificationSettings {
+  const base = structuredClone(DEFAULT_EVENT_SETTINGS);
+  if (DEFAULT_OFF_EVENTS.has(eventKey)) base.enabled = false;
+  return base;
+}
 
 /**
  * Package caps for a workspace, FAIL CLOSED: any lookup problem means no
@@ -169,11 +289,11 @@ export async function loadEventSettings(
   try {
     const { data } = await sb
       .from("workspace_notification_settings")
-      .select("enabled, email_enabled, in_app_enabled, recipients, frequency")
+      .select("enabled, email_enabled, in_app_enabled, recipients, frequency, lead_filter")
       .eq("workspace_id", workspaceId)
       .eq("event_key", eventKey)
       .maybeSingle();
-    if (!data) return DEFAULT_EVENT_SETTINGS;
+    if (!data) return defaultSettingsForEvent(eventKey);
     return {
       enabled: data.enabled !== false,
       emailEnabled: data.email_enabled === true,
@@ -182,9 +302,10 @@ export async function loadEventSettings(
       frequency: (["immediate", "hourly", "daily", "weekly"].includes(data.frequency)
         ? data.frequency
         : "immediate") as NotificationSettings["frequency"],
+      leadFilter: data.lead_filter ?? null,
     };
   } catch {
-    return DEFAULT_EVENT_SETTINGS;
+    return defaultSettingsForEvent(eventKey);
   }
 }
 
@@ -272,6 +393,29 @@ export type CampaignNotificationInput = {
   failureReason?: string | null;
   recommendedAction?: string | null;
   severity?: "info" | "warning" | "critical";
+  /**
+   * When set, recipients are ONLY these users (validated as workspace
+   * members) — the persisted recipient config is bypassed. Used for
+   * person-directed events (e.g. lead_assigned → the assigned agent).
+   * Enable/in-app/email toggles from the event settings still apply.
+   */
+  targetUserIds?: string[] | null;
+  /**
+   * Optional stable idempotency key. When set, the SAME (workspace, event,
+   * dedupeKey) emit is delivered at most once — losers of the atomic ledger
+   * insert skip everything (mirror, in-app rows, emails). Callers build it
+   * from stable source identifiers (e.g. `call:<id>`, `lead:<id>:assigned`).
+   */
+  dedupeKey?: string | null;
+  /**
+   * Lead row id(s) this event is about. Required for lead-category events
+   * when the workspace has configured a lead notification filter — the
+   * engine evaluates the filter against the lead row(s) BEFORE delivery
+   * and suppresses non-matching leads. Batch events pass leadIds; the
+   * event delivers when ANY lead matches.
+   */
+  leadId?: string | null;
+  leadIds?: string[] | null;
 };
 
 function kpiHighlights(kpis: Record<string, unknown> | null | undefined): string[] {
@@ -307,9 +451,16 @@ function buildEmailHtml(input: CampaignNotificationInput, workspaceName: string,
   }
   if (input.failureReason) parts.push(`<p><strong>Failure reason:</strong> ${escapeHtml(input.failureReason)}</p>`);
   if (input.recommendedAction) parts.push(`<p><strong>Recommended action:</strong> ${escapeHtml(input.recommendedAction)}</p>`);
-  const isLeadEvent = input.eventKey === "lead_created";
-  const ctaUrl = isLeadEvent ? `${appUrl}/leads` : `${appUrl}/campaigns`;
-  const ctaLabel = isLeadEvent ? "View Leads" : "View Campaigns &amp; Reports";
+  const def = NOTIFICATION_EVENT_DEFS[input.eventKey as NotificationEventKey];
+  const ctaUrl = `${appUrl}${def?.deepLink ?? "/campaigns"}`;
+  const ctaLabel =
+    input.eventKey === "whatsapp_reply_received"
+      ? "Open WhatsApp Inbox"
+      : def?.category === "Leads"
+        ? "View Leads"
+        : def
+          ? `Open ${def.category}`
+          : "View Campaigns &amp; Reports";
   parts.push(
     `<p style="margin-top:20px;"><a href="${ctaUrl}" style="background:#6d5df6;color:#ffffff;padding:10px 18px;border-radius:8px;text-decoration:none;font-weight:600;">${ctaLabel}</a></p>`,
   );
@@ -406,6 +557,75 @@ async function mirrorToExecutiveStream(sb: Sb, input: CampaignNotificationInput)
   }
 }
 
+/** Lead-category events whose delivery can be gated by a lead filter. */
+export const LEAD_FILTERABLE_EVENTS: ReadonlySet<string> = new Set([
+  "lead_created", "lead_positive", "lead_assigned",
+  "qualified_leads_generated", "appointments_booked",
+]);
+
+export function hasLeadFilterConditions(leadFilter: unknown): boolean {
+  return Boolean(
+    leadFilter && typeof leadFilter === "object" &&
+    Array.isArray((leadFilter as any).conditions) &&
+    (leadFilter as any).conditions.length > 0,
+  );
+}
+
+/**
+ * Evaluates the configured lead filter for a lead event. Returns true when
+ * delivery should proceed. FAIL CLOSED: malformed filter, missing lead ids,
+ * or unresolvable lead rows all suppress delivery. Never throws.
+ */
+async function leadFilterAllows(sb: Sb, input: CampaignNotificationInput, rawFilter: unknown): Promise<boolean> {
+  try {
+    // rawFilter is passed from the caller's already-loaded settings — no
+    // second settings read (a transient re-read failure must never fail open).
+    if (rawFilter == null) return true;
+
+    // Dynamic import keeps the server-only filter engine out of client bundles.
+    const { validateFilterConfig, evaluateFilterAgainstRow, FILTER_FIELDS } = await import(
+      "@/lib/people-views/filter-engine.server"
+    );
+    // Validate ANY non-null value — malformed configs suppress (fail closed);
+    // only a VALIDATED empty config passes unfiltered.
+    const v = validateFilterConfig(rawFilter, { allowMeta: true, allowOrLogic: true, disallowFields: ["assigned_to_me"] });
+    if (!v.ok || !v.config) {
+      console.warn(`[notify] malformed lead filter for ${input.eventKey} — suppressing (fail closed)`);
+      return false;
+    }
+    if (!Array.isArray(v.config.conditions) || v.config.conditions.length === 0) return true;
+
+    const ids = [
+      ...(input.leadId ? [input.leadId] : []),
+      ...((input.leadIds ?? []).filter(Boolean)),
+    ].slice(0, 50);
+    if (ids.length === 0) {
+      console.warn(`[notify] lead filter set for ${input.eventKey} but no leadId provided — suppressing (fail closed)`);
+      return false;
+    }
+
+    const { data: rows, error } = await sb
+      .from("leads")
+      .select("*")
+      .eq("workspace_id", input.workspaceId)
+      .in("id", ids);
+    if (error || !rows?.length) return false;
+
+    // WBAH keeps Europe/London date boundaries; all other workspaces use UTC
+    // for date-only values (browser-local display remains a client concern).
+    let timezone: string | null = null;
+    try {
+      const { isWbahWorkspaceId } = await import("@/lib/wbah-exclusion.shared");
+      if (isWbahWorkspaceId(input.workspaceId)) timezone = "Europe/London";
+    } catch { /* default UTC */ }
+
+    return rows.some((r: any) => evaluateFilterAgainstRow(r, v.config!, FILTER_FIELDS, { timezone }));
+  } catch (err: any) {
+    console.warn("[notify] lead filter evaluation failed — suppressing (fail closed):", err?.message ?? err);
+    return false;
+  }
+}
+
 /**
  * Emit a campaign notification: write in-app + email rows per recipient and
  * send immediate emails. NEVER throws.
@@ -413,6 +633,30 @@ async function mirrorToExecutiveStream(sb: Sb, input: CampaignNotificationInput)
 export async function emitCampaignNotification(sb: Sb, input: CampaignNotificationInput): Promise<void> {
   try {
     if (!input.workspaceId || !input.eventKey) return;
+
+    // Event-level dedup: atomic insert-detect on the ledger. The winner of
+    // the (workspace, event, dedupeKey) insert proceeds; losers skip
+    // EVERYTHING (mirror, in-app, email). Fail OPEN on ledger errors —
+    // a broken ledger must never silently drop notifications.
+    if (input.dedupeKey) {
+      try {
+        const { data: won, error: ledgerErr } = await sb
+          .from("notification_event_ledger")
+          .upsert(
+            {
+              workspace_id: input.workspaceId,
+              event_key: input.eventKey,
+              dedupe_key: String(input.dedupeKey).slice(0, 500),
+            },
+            { onConflict: "workspace_id,event_key,dedupe_key", ignoreDuplicates: true },
+          )
+          .select("id");
+        if (!ledgerErr && (won ?? []).length === 0) return; // duplicate — already delivered
+        if (ledgerErr) console.warn("[notify] dedup ledger error (failing open):", ledgerErr.message);
+      } catch (err: any) {
+        console.warn("[notify] dedup ledger failed (failing open):", err?.message ?? err);
+      }
+    }
 
     // Mirror significant events into the HiveMind executive event stream —
     // BEFORE notification settings checks, since the executive stream is
@@ -425,6 +669,19 @@ export async function emitCampaignNotification(sb: Sb, input: CampaignNotificati
     if (!settings.enabled) return;
     if (!settings.inAppEnabled && !settings.emailEnabled) return;
 
+    // Lead notification filter — evaluated server-side BEFORE recipient
+    // resolution/delivery. Lead events with a configured filter deliver only
+    // when the lead row (any row, for batch events) matches. Fail CLOSED for
+    // lead events on malformed filters or unresolvable leads; non-lead
+    // events are never affected (fail open by not being lead events).
+    // Any non-null configured filter goes through evaluation — leadFilterAllows
+    // validates it and FAILS CLOSED on malformed configs. Gating on
+    // hasLeadFilterConditions alone would deliver on malformed non-null values.
+    if (LEAD_FILTERABLE_EVENTS.has(input.eventKey) && settings.leadFilter != null) {
+      const passed = await leadFilterAllows(sb, input, settings.leadFilter);
+      if (!passed) return;
+    }
+
     const severity = input.severity ?? severityForEvent(input.eventKey);
     const label = NOTIFICATION_EVENT_LABELS[input.eventKey as NotificationEventKey] ?? input.eventKey;
     const title = input.campaignName ? `${label} — ${input.campaignName}` : label;
@@ -435,10 +692,33 @@ export async function emitCampaignNotification(sb: Sb, input: CampaignNotificati
       ...kpiHighlights(input.kpis),
     ].filter(Boolean).join("\n");
 
-    const recipients = await resolveRecipients(
-      sb, input.workspaceId, settings.recipients, input.campaignOwnerUserId,
-    );
+    const recipients = input.targetUserIds?.length
+      ? await resolveRecipients(
+          sb, input.workspaceId,
+          // Person-directed override: only these users, membership-validated
+          // by resolveRecipients (never leaks outside the workspace).
+          { owner: false, admins: false, userIds: input.targetUserIds, roleKeys: [], customEmails: [], campaignOwner: false },
+          null,
+        )
+      : await resolveRecipients(
+          sb, input.workspaceId, settings.recipients, input.campaignOwnerUserId,
+        );
     if (recipients.length === 0) return;
+
+    // Personal mutes: drop MEMBER recipients who muted this (non-critical)
+    // event for themselves. Custom-email (userId=null) recipients are
+    // workspace policy and are never affected. FAIL OPEN — a prefs lookup
+    // error must never drop delivery.
+    let deliverable = recipients;
+    try {
+      const { getMutedUserIds } = await import("./user-notification-prefs.server");
+      const memberIds = recipients.map((r) => r.userId).filter((v): v is string => !!v);
+      const muted = await getMutedUserIds(input.workspaceId, input.eventKey, memberIds);
+      if (muted.size > 0) deliverable = recipients.filter((r) => !r.userId || !muted.has(r.userId));
+    } catch (err: any) {
+      console.warn("[notify] personal mute filter failed (failing open):", err?.message ?? err);
+    }
+    if (deliverable.length === 0) return;
 
     const { data: ws } = await sb.from("workspaces").select("name").eq("id", input.workspaceId).maybeSingle();
     const workspaceName = ws?.name ?? "Workspace";
@@ -456,7 +736,7 @@ export async function emitCampaignNotification(sb: Sb, input: CampaignNotificati
     // In-app rows — one per member recipient (deduped by userId).
     if (settings.inAppEnabled) {
       const seen = new Set<string>();
-      const inAppRows = recipients
+      const inAppRows = deliverable
         .filter((r) => r.userId && !seen.has(r.userId!) && (seen.add(r.userId!), true))
         .map((r) => ({
           ...baseRow,
@@ -474,7 +754,7 @@ export async function emitCampaignNotification(sb: Sb, input: CampaignNotificati
     // Email rows — immediate send or digest queue. One per distinct email.
     if (settings.emailEnabled) {
       const seenEmails = new Set<string>();
-      const emailRecipients = recipients.filter((r) => {
+      const emailRecipients = deliverable.filter((r) => {
         const e = r.email?.toLowerCase();
         if (!e || seenEmails.has(e)) return false;
         seenEmails.add(e);

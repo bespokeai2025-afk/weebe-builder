@@ -38,6 +38,9 @@ export const getFunnelLiveData = createServerFn({ method: "GET" })
     const sb          = context.supabase as any;
     const workspaceId = context.workspaceId;
     if (!workspaceId) throw new Error("No workspace");
+    const userId = (context as any).userId;
+    const { requirePageAccessEntitled } = await import("@/lib/packages/entitlements.server");
+    await requirePageAccessEntitled(workspaceId, userId, "growthmind", "view");
 
     const leadsRes = await sb
       .from("leads")
@@ -128,6 +131,9 @@ export const saveFunnelSnapshot = createServerFn({ method: "POST" })
     const sb          = context.supabase as any;
     const workspaceId = context.workspaceId;
     if (!workspaceId) throw new Error("No workspace");
+    const userId = (context as any).userId;
+    const { requirePageAccessEntitled } = await import("@/lib/packages/entitlements.server");
+    await requirePageAccessEntitled(workspaceId, userId, "growthmind", "view");
 
     const { error } = await sb.from("growthmind_funnels").insert({
       workspace_id: workspaceId,
@@ -148,6 +154,9 @@ export const getFunnelSnapshots = createServerFn({ method: "GET" })
     const sb          = context.supabase as any;
     const workspaceId = context.workspaceId;
     if (!workspaceId) throw new Error("No workspace");
+    const userId = (context as any).userId;
+    const { requirePageAccessEntitled } = await import("@/lib/packages/entitlements.server");
+    await requirePageAccessEntitled(workspaceId, userId, "growthmind", "view");
 
     const { data, error } = await sb
       .from("growthmind_funnels")
@@ -178,6 +187,9 @@ export const deleteFunnelSnapshot = createServerFn({ method: "POST" })
     const sb          = context.supabase as any;
     const workspaceId = context.workspaceId;
     if (!workspaceId) throw new Error("No workspace");
+    const userId = (context as any).userId;
+    const { requirePageAccessEntitled } = await import("@/lib/packages/entitlements.server");
+    await requirePageAccessEntitled(workspaceId, userId, "growthmind", "view");
 
     const { error } = await sb
       .from("growthmind_funnels")

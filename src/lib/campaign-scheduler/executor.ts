@@ -288,7 +288,8 @@ export async function runCampaignTick(opts?: {
         });
         continue;
       }
-      const validated = validateFilterConfig(filterRow.filter_config);
+      // No authenticated user in scheduler context — assigned_to_me invalid.
+      const validated = validateFilterConfig(filterRow.filter_config, { disallowFields: ["assigned_to_me"] });
       if (!validated.ok || !validated.config) {
         results.push({ ...base, skipped: true, skipReason: "attached campaign filter invalid" });
         await safeWriteCampaignReport(sb, {

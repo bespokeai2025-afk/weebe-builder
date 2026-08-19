@@ -141,4 +141,86 @@ export async function upsertWbahCallFromWebhook(input: {
     .from("wbah_calls")
     .upsert(merged, { onConflict: "id" });
   if (error) throw new Error(`wbah_calls upsert failed: ${error.message}`);
+
+  // Mirror the contact into wbah_crm_contacts so the People tab shows results
+  // even when WeeBespoke's CRM pipeline hasn't registered the lead yet (e.g.
+  // intake race conditions, test campaigns, or new leads not yet in get-all-calldata).
+  // We use ignoreDuplicates=true so existing WeeBespoke-sourced rows are never
+  // clobbered — this only creates missing rows.
+  const phone = merged.phone;
+  if (phone && String(phone).trim()) {
+    const dedupKey = String(phone).trim();
+    const leadStatus = roleToLeadStatus(input.agent.role);
+    const wbahCallStatus = merged.call_status === "ongoing" ? "need_to_call"
+      : merged.call_status === "no_answer" ? "not_connected"
+      : "ended";
+    const isNegative = merged.sentiment === "negative";
+
+    const crmRow = {
+      dedup_key: dedupKey,
+      workspace_id: input.agent.workspaceId,
+      external_id: String(callId),
+      phone: dedupKey,
+      name: merged.customer_name ?? null,
+      email: null,
+      lead_status: leadStatus,
+      call_status: wbahCallStatus,
+      sentiment: merged.sentiment
+        ? String(merged.sentiment).charAt(0).toUpperCase() + String(merged.sentiment).slice(1)
+        : null,
+      disconnection_reason: merged.disconnection_reason ?? null,
+      end_reason: merged.end_reason ?? null,
+      agent_name: input.agent.agentName,
+      duration_ms: durationMs > 0 ? durationMs : null,
+      start_timestamp: startMs > 0 ? startMs : null,
+      recording_url: merged.recording_url ?? null,
+      transcript: merged.transcript ?? null,
+      appointment_date: merged.appointment_date ?? null,
+      appointment_time: merged.appointment_time ?? null,
+      booking_status: merged.booking_status ?? null,
+      calendly_booking_url: merged.calendly_booking_url ?? null,
+      crm_loaded_at: merged.started_at,
+      synced_at: new Date().toISOString(),
+    };
+
+    // Insert-only mirror — never clobber existing WeeBespoke-sourced rows.
+    const { error: crmErr } = await (supabaseAdmin as any)
+      .from("wbah_crm_contacts")
+      .upsert(crmRow, { onConflict: "workspace_id,dedup_key", ignoreDuplicates: true });
+    if (crmErr) {
+      // Non-fatal — log and continue; wbah_calls is the source of truth
+      console.warn("[wbah-calls-upsert] wbah_crm_contacts mirror failed:", crmErr.message);
+    }
+
+    // For negative sentiment: always UPDATE do_not_contact = true on the
+    // existing row (regardless of ignoreDuplicates above) so the contact is
+    // excluded from future WEBEE campaign queues even if the Dynamics PATCH
+    // fails.  This is idempotent — setting true when already true is safe.
+    if (isNegative) {
+      const { error: dncErr } = await (supabaseAdmin as any)
+        .from("wbah_crm_contacts")
+        .update({ do_not_contact: true, synced_at: new Date().toISOString() })
+        .eq("workspace_id", input.agent.workspaceId)
+        .eq("dedup_key", dedupKey);
+      if (dncErr) {
+        console.warn("[wbah-calls-upsert] DNC update failed:", dncErr.message);
+      } else {
+        console.log("[wbah-calls-upsert] do_not_contact=true set for negative sentiment", {
+          dedupKey,
+          workspace: input.agent.workspaceId,
+        });
+      }
+    }
+  }
+}
+
+/** Map agent role → WeeBespoke lead_status label for new wbah_crm_contacts rows. */
+function roleToLeadStatus(role?: string): string {
+  switch (role) {
+    case "new_leads_dialer": return "New";
+    case "tried_to_contact": return "Tried To Contact";
+    case "rebooking": return "Rebook Initial Consultation";
+    case "qualification": return "Tried To Contact";
+    default: return "Tried To Contact";
+  }
 }

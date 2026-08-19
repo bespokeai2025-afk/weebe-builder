@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "NODE_OPTIONS=--max-old-space-size=4096 vite dev",
-    "build": "NODE_OPTIONS=--max-old-space-size=4096 vite build && node scripts/build-voice-gateway.mjs",
+    "build": "NODE_OPTIONS=--max-old-space-size=5632 vite build && node scripts/build-voice-gateway.mjs",
     "build:voice-gateway": "node scripts/build-voice-gateway.mjs",
     "build:dev": "vite build --mode development",
     "preview": "vite preview",
@@ -84,8 +84,8 @@
     "input-otp": "^1.4.2",
     "jsdom": "^29.1.1",
     "lucide-react": "^0.575.0",
-    "mammoth": "^1.12.0",
     "marked": "^15.0.0",
+    "mammoth": "^1.12.0",
     "nitro": "3.0.260429-beta",
     "pdf-lib": "^1.17.1",
     "pdf-parse": "^2.4.5",
@@ -134,6 +134,7 @@
     "prettier": "^3.7.3",
     "typescript": "^5.8.3",
     "typescript-eslint": "^8.56.1",
-    "vite": "^7.3.1"
+    "vite": "^7.3.1",
+    "ws": "^8.21.1"
   }
 }

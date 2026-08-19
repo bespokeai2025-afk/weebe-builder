@@ -86,6 +86,12 @@ export type PipelineLead = {
   created_at: string | null;
   source: string | null;
   state_name: string | null;
+  // Ava web-call booking attempt that FAILED (meta.booking_failed) — surfaced
+  // so follow-up-required leads stand out on pipeline/detail surfaces.
+  bookingFailed: boolean;
+  bookingError: string | null;
+  // human sales-agent assignment
+  assigned_to: string | null;
   // indicator flags
   hasBooking: boolean;
   hasNotes: boolean;
@@ -132,6 +138,12 @@ function mapLead(
     created_at: (lead.created_at as string | null) ?? null,
     source: (lead.source as string | null) ?? null,
     state_name: (lead.state_name as string | null) ?? null,
+    assigned_to: (lead.assigned_to as string | null) ?? null,
+    bookingFailed: Boolean((lead.meta as any)?.booking_failed),
+    bookingError:
+      typeof (lead.meta as any)?.booking_error === "string" && (lead.meta as any).booking_error.trim()
+        ? ((lead.meta as any).booking_error as string).trim()
+        : null,
     hasBooking: bookedIds.has(id),
     hasNotes: notedIds.has(id),
     hasDocuments: normPhone ? docsPhones.has(normPhone) : false,
@@ -245,6 +257,9 @@ async function getWbahPipelineLeads(workspaceId: string): Promise<PipelineLead[]
         created_at: startedIso,
         source: "wbah",
         state_name: null,
+        assigned_to: null,
+        bookingFailed: false,
+        bookingError: null,
         hasBooking: booked,
         hasNotes: notedIds.has(c.id),
         hasDocuments: false,
@@ -275,6 +290,9 @@ async function getWbahPipelineLeads(workspaceId: string): Promise<PipelineLead[]
         created_at: null,
         source: "wbah",
         state_name: null,
+        assigned_to: null,
+        bookingFailed: false,
+        bookingError: null,
         hasBooking: true,
         hasNotes: notedIds.has(b.id),
         hasDocuments: false,
@@ -470,7 +488,7 @@ export const getLeadDetail = createServerFn({ method: "GET" })
       .parse(input),
   )
   .handler(async ({ context, data }): Promise<LeadDetail> => {
-    const { supabase, workspaceId } = context;
+    const { supabase, workspaceId, userId } = context;
     const empty: LeadDetail = {
       callSummary: null,
       appointmentBooked: false,
@@ -481,13 +499,34 @@ export const getLeadDetail = createServerFn({ method: "GET" })
     if (!workspaceId) return empty;
     const sb = supabase as any;
 
+    // Assigned-records-only roles may only read details of their own leads.
+    // For those roles the caller-supplied phone is NEVER trusted — it is
+    // replaced with the authorized lead's stored phone, otherwise a foreign
+    // lead's phone could pull another lead's booking summary (IDOR).
+    let effectivePhone: string | null = data.phone ?? null;
+    {
+      const { resolvePermissions } = await import("@/lib/permissions/permissions.server");
+      const perms = await resolvePermissions(workspaceId, userId);
+      if (perms.assignedRecordsOnly) {
+        const { data: own } = await sb
+          .from("leads")
+          .select("id, phone")
+          .eq("id", data.leadId)
+          .eq("workspace_id", workspaceId)
+          .eq("assigned_to", userId)
+          .maybeSingle();
+        if (!own) return empty;
+        effectivePhone = (own.phone as string | null) ?? null;
+      }
+    }
+
     const { data: wsRow } = await sb
       .from("workspaces")
       .select("slug")
       .eq("id", workspaceId)
       .maybeSingle();
     if (wsRow?.slug === "webuyanyhouse") {
-      return getWbahLeadDetail(data.leadId, data.phone ?? null, workspaceId);
+      return getWbahLeadDetail(data.leadId, effectivePhone, workspaceId);
     }
 
     // Latest call summary for this lead's phone
@@ -496,12 +535,12 @@ export const getLeadDetail = createServerFn({ method: "GET" })
     let appointmentDate: string | null = null;
     let appointmentReason: string | null = null;
 
-    if (data.phone) {
+    if (effectivePhone) {
       const { data: sd } = await sb
         .from("booking_summaries")
         .select("summary, appointment_booked, appointment_date, appointment_reason")
         .eq("workspace_id", workspaceId)
-        .eq("customer_phone", data.phone)
+        .eq("customer_phone", effectivePhone)
         .order("created_at", { ascending: false })
         .limit(1)
         .maybeSingle();
@@ -540,9 +579,22 @@ export const setSaleDoneAmount = createServerFn({ method: "POST" })
     z.object({ leadId: z.string(), amount: z.number().nonnegative() }).parse(input),
   )
   .handler(async ({ context, data }) => {
-    const { supabase, workspaceId } = context;
+    const { supabase, workspaceId, userId } = context;
     if (!workspaceId) throw new Error("No workspace");
     const sb = supabase as any;
+    // Assigned-records-only roles may only mutate their own leads.
+    const { resolvePermissions } = await import("@/lib/permissions/permissions.server");
+    const perms = await resolvePermissions(workspaceId, userId);
+    if (perms.assignedRecordsOnly) {
+      const { data: own } = await sb
+        .from("leads")
+        .select("id")
+        .eq("id", data.leadId)
+        .eq("workspace_id", workspaceId)
+        .eq("assigned_to", userId)
+        .maybeSingle();
+      if (!own) throw new Error("You can only update leads assigned to you.");
+    }
     const { error } = await sb
       .from("leads")
       .update({ sale_amount: data.amount, updated_at: new Date().toISOString() })
@@ -577,9 +629,22 @@ export const setLeadPipelineStage = createServerFn({ method: "POST" })
     z.object({ leadId: z.string(), stage: z.string() }).parse(input),
   )
   .handler(async ({ context, data }) => {
-    const { supabase, workspaceId } = context;
+    const { supabase, workspaceId, userId } = context;
     if (!workspaceId) throw new Error("No workspace");
     const sb = supabase as any;
+    // Assigned-records-only roles may only move their own leads.
+    const { resolvePermissions } = await import("@/lib/permissions/permissions.server");
+    const perms = await resolvePermissions(workspaceId, userId);
+    if (perms.assignedRecordsOnly) {
+      const { data: own } = await sb
+        .from("leads")
+        .select("id")
+        .eq("id", data.leadId)
+        .eq("workspace_id", workspaceId)
+        .eq("assigned_to", userId)
+        .maybeSingle();
+      if (!own) throw new Error("You can only update leads assigned to you.");
+    }
     const stage = data.stage as PipelineStage;
     const newStatus = STAGE_TO_STATUS[stage] ?? "need_to_call";
     const { error } = await sb

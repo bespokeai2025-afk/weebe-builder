@@ -26,13 +26,14 @@ export const Route = createFileRoute("/api/v1/minds/notifications")({
         const limit = Math.min(Math.max(parseInt(url.searchParams.get("limit") ?? "50") || 50, 1), 200);
 
         try {
-          const { listWorkspaceNotificationsCore } = await import("@/lib/notifications/notifications.functions");
-          const rows = await listWorkspaceNotificationsCore(workspaceId, userId!, {
-            limit,
-            unreadOnly,
-            severity,
-          });
-          return jsonOk({ object: "list", notifications: rows, total: rows.length });
+          const { listWorkspaceNotificationsCore, countUnreadNotificationsCore } = await import(
+            "@/lib/notifications/notifications.functions"
+          );
+          const [rows, unreadCount] = await Promise.all([
+            listWorkspaceNotificationsCore(workspaceId, userId!, { limit, unreadOnly, severity }),
+            countUnreadNotificationsCore(workspaceId, userId!),
+          ]);
+          return jsonOk({ object: "list", notifications: rows, total: rows.length, unread_count: unreadCount });
         } catch (err: any) {
           const msg = err?.message ?? "Failed to load notifications";
           return jsonErr(msg, /not a member/i.test(msg) ? 403 : 500);

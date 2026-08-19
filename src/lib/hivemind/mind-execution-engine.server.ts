@@ -532,6 +532,11 @@ export const getTaskExecutionDetail = createServerFn({ method: "GET" })
   .handler(async ({ context, data }) => {
     const sb = context.supabase as any;
     const workspaceId = context.workspaceId!;
+    const userId = (context as any).userId;
+
+    const { requirePageAccessEntitled } = await import("@/lib/packages/entitlements.server");
+    await requirePageAccessEntitled(workspaceId, userId, "hivemind", "view");
+
     const { data: executions, error } = await sb.from("mind_task_executions")
       .select("*").eq("workspace_id", workspaceId).eq("task_id", data.taskId)
       .order("created_at", { ascending: false }).limit(5);

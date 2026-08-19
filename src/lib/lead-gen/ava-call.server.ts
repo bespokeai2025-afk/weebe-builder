@@ -11,6 +11,7 @@ import { createHash, randomInt } from "crypto";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { sendResendEmail, escapeHtml, renderBasicEmail } from "@/lib/email/resend.server";
 import { toLeadSourceEnum, WEBEE_ADMIN_EMAIL } from "@/lib/lead-gen/webforms.server";
+import { normalizeSpokenEmail, normalizeSpokenPhone } from "@/lib/lead-gen/spoken-contact-normalize.shared";
 import {
   extractClickIds,
   sanitizeLandingUrl,
@@ -101,9 +102,33 @@ function isAllowedCountry(phone: string): boolean {
   return ALLOWED_PREFIXES.some((p) => phone.startsWith(p));
 }
 
+// Cache the env-var workspace validation for the process lifetime — the row
+// existing is a stable fact; re-checking on every webhook is wasted latency.
+let validatedEnvWorkspaceId: string | null | undefined;
+
 export async function resolveAdminWorkspaceId(): Promise<string | null> {
-  const fromEnv = process.env.WEBEE_ADMIN_WORKSPACE_ID?.trim();
-  if (fromEnv) return fromEnv;
+  // Preferred: the verified WEBEE workspace pinned via server env. Validate it
+  // against the real workspaces table before trusting it (typo protection).
+  const pinned = (process.env.WEBEE_WORKSPACE_ID ?? process.env.WEBEE_ADMIN_WORKSPACE_ID)?.trim();
+  if (pinned) {
+    if (validatedEnvWorkspaceId !== undefined) return validatedEnvWorkspaceId;
+    try {
+      const { data } = await supabaseAdmin
+        .from("workspaces")
+        .select("id")
+        .eq("id", pinned)
+        .maybeSingle();
+      if (data?.id) {
+        validatedEnvWorkspaceId = pinned;
+        return pinned;
+      }
+      console.error("[AVA] WEBEE_WORKSPACE_ID does not match any workspace — falling back to lookup");
+      validatedEnvWorkspaceId = null;
+    } catch {
+      // Transient DB error — do NOT cache; fall through to lookup this time.
+      return pinned;
+    }
+  }
   try {
     // NOTE: workspace_members has no PostgREST relationship to a users table,
     // so resolve the admin user via the Auth admin API, then their membership.
@@ -561,8 +586,15 @@ export async function processAvaCallAnalyzed(call: AvaAnalyzedCall, isNoAnswerCa
   // ── Booked + positive/neutral → create or promote the lead ────────────────
   const workspaceId = request.workspace_id;
   const now = new Date().toISOString();
-  const email = (str(custom.email) ?? request.email).toLowerCase();
-  const phone = str(custom.phone_number) ?? request.phone;
+  // Normalize transcribed number-words ("eightyseven" → 87) before saving.
+  const email =
+    normalizeSpokenEmail((str(custom.email) ?? request.email).toLowerCase()).email ??
+    request.email.toLowerCase();
+  // Canonicalize to E.164 so dedupe matches the OTP-verified request phone
+  // ("0044…" vs "+44…"); if the transcription can't be canonicalized, fall
+  // back to the verified request phone rather than saving a mangled value.
+  const spokenPhone = normalizeSpokenPhone(str(custom.phone_number)).phone;
+  const phone = (spokenPhone ? normalizePhoneE164(spokenPhone) : null) ?? request.phone;
   const digits = (s: string) => s.replace(/\D/g, "");
 
   type ExistingLead = { id: string; full_name: string | null; status: string; meta: Record<string, unknown> | null; email: string | null; phone: string | null };

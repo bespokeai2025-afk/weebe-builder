@@ -13,6 +13,7 @@ import { runCampaignTick } from "./src/lib/campaign-scheduler/executor";
 import { runBlogDraftTick } from "./src/lib/growthmind/blog-draft-tick";
 import { runCMOAnalysisTick } from "./src/lib/growthmind/cmo-analysis-tick";
 import { runGscSyncTick } from "./src/lib/growthmind/gsc-sync-core";
+import { runClaritySyncTick } from "./src/lib/growthmind/clarity-sync-core";
 
 const TICK_INTERVAL_MS = 5 * 60 * 1000;
 const INITIAL_DELAY_MS = 45_000;
@@ -86,6 +87,57 @@ export function campaignSchedulerPlugin(): Plugin {
           }
         } catch (e: any) {
           console.warn("[gsc-sync] dev tick failed:", e?.message ?? e);
+        }
+
+        // Microsoft Clarity daily sync + Website Change Queue refresh.
+        // No-ops until a workspace's last_sync is >20h old (quota: max 10
+        // Clarity API requests/project/day — the tick spends 1). Best-effort.
+        try {
+          const clarity = await runClaritySyncTick();
+          if (clarity.ran.length || clarity.failed.length) {
+            console.log(
+              `[clarity-sync] ran=${clarity.ran.length} skipped=${clarity.skipped} failed=${clarity.failed.length}` +
+              (clarity.ran.length ? ` — ${clarity.ran.map((r) => `${r.workspaceId}: rows=${r.rows}`).join(", ")}` : "") +
+              (clarity.failed.length ? ` — errors: ${clarity.failed.map((f) => `${f.workspaceId}: ${f.error}`).join("; ")}` : ""),
+            );
+          }
+        } catch (e: any) {
+          console.warn("[clarity-sync] dev tick failed:", e?.message ?? e);
+        }
+
+        // Daily Marketing Operator (mirrors the prod campaign-executor
+        // endpoint). Loaded via ssrLoadModule because the module uses "@/"
+        // aliases. CAS-claimed per workspace (~20h), approval-first.
+        try {
+          const { runMarketingOperatorTick } = (await server.ssrLoadModule(
+            "/src/lib/hivemind/marketing-operator-tick.ts",
+          )) as typeof import("./src/lib/hivemind/marketing-operator-tick");
+          const opTick = await runMarketingOperatorTick();
+          if (opTick.ran.length || opTick.failed.length) {
+            console.log(
+              `[marketing-operator] ran=${opTick.ran.length} skipped=${opTick.skipped} failed=${opTick.failed.length}` +
+              (opTick.failed.length ? ` — errors: ${opTick.failed.map((f) => `${f.workspaceId}: ${f.error}`).join("; ")}` : ""),
+            );
+          }
+        } catch (e: any) {
+          console.warn("[marketing-operator] dev tick failed:", e?.message ?? e);
+        }
+
+        // Auto SEO blog campaign creation (mirrors the prod campaign-executor
+        // endpoint). Loaded via ssrLoadModule because the module uses "@/"
+        // aliases. Best-effort — approval-first by construction.
+        try {
+          const { runSeoCampaignTick } = (await server.ssrLoadModule(
+            "/src/lib/growthmind/seo-campaign-tick.ts",
+          )) as typeof import("./src/lib/growthmind/seo-campaign-tick");
+          const seoTick = await runSeoCampaignTick();
+          if (seoTick.created.length || seoTick.failed.length) {
+            console.log(
+              `[seo-campaign-tick] created=${seoTick.created.length} skipped=${seoTick.skipped.length} failed=${seoTick.failed.length}`,
+            );
+          }
+        } catch (e: any) {
+          console.warn("[seo-campaign-tick] dev tick failed:", e?.message ?? e);
         }
 
         // WBAH dialler campaign start/finish reports (mirrors the prod

@@ -282,7 +282,7 @@ export function GadsLivePanel({ onConnectClick }: { onConnectClick: () => void }
     onSuccess: (r: any, vars) => {
       if (vars.status === "approved") {
         toast.success("Approved — logged as a change request for you to apply in Google Ads", {
-          description: "WEBEE never edits your live Google Ads account automatically.",
+          description: "Executable changes run through the Marketing Action Engine under your autonomy settings and guardrails; advisory items stay manual.",
         });
       } else {
         toast.success("Recommendation dismissed");
@@ -658,7 +658,7 @@ export function GadsLivePanel({ onConnectClick }: { onConnectClick: () => void }
                   </p>
                   <p className="text-[10px] text-muted-foreground/60 mb-2.5">
                     Every recommendation is generated deterministically from your synced Google Ads data (and CRM lead outcomes where attribution exists) — each one carries its numeric evidence.
-                    Approving logs a change request for your team — WEBEE never edits your live Google Ads account. Critical findings are also forwarded to HiveMind.
+                    Approving routes the change through the Marketing Action Engine: executable changes (budgets, pauses, negative keywords) are applied to your live Google Ads account under your autonomy settings and guardrails, with verification and one-click undo. Advisory-only recommendations stay as manual change requests. Critical findings are also forwarded to HiveMind.
                   </p>
                   <div className="space-y-2">
                     {recommendations.map((r: any) => (
@@ -702,20 +702,39 @@ export function GadsLivePanel({ onConnectClick }: { onConnectClick: () => void }
                 </div>
               )}
 
-              {/* Approved change requests */}
-              {changeRequests.filter((cr: any) => cr.status === "approved").length > 0 && (
+              {/* Change requests with honest engine statuses */}
+              {changeRequests.length > 0 && (
                 <div className="border-t border-white/[0.05] px-4 py-3">
                   <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground mb-2 flex items-center gap-1.5">
                     <MousePointerClick className="h-3 w-3 text-blue-400" />
-                    Approved change requests — apply these in Google Ads
+                    Change requests
                   </p>
                   <div className="space-y-1.5">
-                    {changeRequests.filter((cr: any) => cr.status === "approved").slice(0, 5).map((cr: any) => (
-                      <div key={cr.id} className="rounded-lg border border-blue-500/15 bg-blue-500/[0.04] px-3 py-2">
-                        <p className="text-xs font-medium">{cr.payload?.title ?? cr.change_type}</p>
-                        <p className="text-[10px] text-muted-foreground mt-0.5">{cr.payload?.recommendedAction}</p>
-                      </div>
-                    ))}
+                    {changeRequests.slice(0, 8).map((cr: any) => {
+                      const st = String(cr.status ?? "");
+                      const tone =
+                        st === "executed" ? "text-emerald-400 border-emerald-500/20 bg-emerald-500/[0.05]" :
+                        st === "failed" ? "text-red-400 border-red-500/20 bg-red-500/[0.05]" :
+                        st === "submitted" ? "text-blue-400 border-blue-500/15 bg-blue-500/[0.04]" :
+                        st === "draft" ? "text-amber-400 border-amber-500/15 bg-amber-500/[0.04]" :
+                        "text-muted-foreground border-white/[0.08] bg-white/[0.02]";
+                      const label =
+                        st === "executed" ? "Applied to Google Ads" :
+                        st === "failed" ? "Failed" :
+                        st === "submitted" ? "In the action engine (awaiting approval or execution)" :
+                        st === "draft" ? "Manual — apply in Google Ads yourself" :
+                        st;
+                      return (
+                        <div key={cr.id} className={cn("rounded-lg border px-3 py-2", tone)}>
+                          <div className="flex items-center justify-between gap-2">
+                            <p className="text-xs font-medium text-foreground">{cr.payload?.title ?? cr.change_type}</p>
+                            <span className="text-[9px] font-semibold uppercase shrink-0">{label}</span>
+                          </div>
+                          <p className="text-[10px] text-muted-foreground mt-0.5">{cr.payload?.recommendedAction}</p>
+                          {cr.status_detail && <p className="text-[10px] mt-0.5 opacity-80">{cr.status_detail}</p>}
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
               )}

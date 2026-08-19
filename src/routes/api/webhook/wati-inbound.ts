@@ -42,6 +42,8 @@ import {
   isWatiTemplateLifecycleEvent,
   watiTemplatePatchFromWebhook,
 } from "@/lib/whatsapp/wati-template-status.shared";
+import { emitCampaignNotification } from "@/lib/notifications/notification-engine.shared";
+import { matchOrCreateLeadForWhatsApp } from "@/lib/whatsapp/lead-sync.server";
 
 function json(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
@@ -218,8 +220,52 @@ async function storeInboundMessage(
     wati_status: message.wati_status,
   };
 
-  await upsertWhatsappMessage(sb, row);
+  // insertOnly=true → ON CONFLICT DO NOTHING + RETURNING, so exactly one of any
+  // concurrent duplicate webhook deliveries observes isNewMessage=true (atomic
+  // in the DB — a read-then-write pre-check would race under retries).
+  const isNewMessage = await upsertWhatsappMessage(sb, row, { insertOnly: true });
   await syncWhatsappConversation(workspaceId, message.contact_phone);
+
+  if (isNewMessage) {
+    // BuzzChat → CRM Lead Pipeline: match or create a lead for this reply.
+    // Best-effort — never let CRM sync failure break webhook processing.
+    let canonicalLeadId: string | null = leadId;
+    try {
+      const sync = await matchOrCreateLeadForWhatsApp({
+        workspaceId,
+        contactPhone: message.contact_phone,
+        contactName: message.contact_name ?? null,
+        conversationId: message.conversation_id ?? null,
+        externalMessageId: message.external_id ?? null,
+        messageBody: message.body ?? null,
+        repliedAt: message.sent_at ?? null,
+      });
+      canonicalLeadId = sync.leadId;
+      // If the message was stored with a different (or null) leadId, back-fill it now.
+      if (canonicalLeadId && canonicalLeadId !== leadId) {
+        await (sb as any)
+          .from("whatsapp_messages")
+          .update({ lead_id: canonicalLeadId })
+          .eq("workspace_id", workspaceId)
+          .eq("external_id", message.external_id);
+      }
+    } catch (e) {
+      console.warn("[WATI WEBHOOK] BuzzChat lead-sync failed (non-fatal):", (e as Error).message ?? e);
+    }
+
+    // Best-effort notification — never let notification failures break webhook processing.
+    const who = message.contact_name?.trim() || message.contact_phone || "Unknown contact";
+    const preview = (message.body ?? "").trim().slice(0, 160);
+    await emitCampaignNotification(sb as any, {
+      workspaceId,
+      eventKey: "whatsapp_reply_received",
+      leadId: canonicalLeadId ?? undefined,
+      summary: preview ? `${who}: "${preview}"` : `${who} sent a WhatsApp message.`,
+      severity: "info",
+      // Belt-and-braces on top of isNewMessage — one notification per provider message.
+      dedupeKey: message.external_id ? `whatsapp_reply_received:msg:${message.external_id}` : undefined,
+    });
+  }
 
   if (isWhatsappOptOutMessage(message.body)) {
     try {
@@ -277,34 +323,51 @@ const OPTIONAL_MESSAGE_COLUMNS = [
   "wati_status",
 ] as const;
 
+/**
+ * Upserts a message row keyed on (workspace_id, external_id).
+ *
+ * With `insertOnly` the upsert becomes INSERT ... ON CONFLICT DO NOTHING RETURNING id, and the
+ * return value reports whether a NEW row was inserted (atomic — safe under concurrent duplicate
+ * webhook deliveries, so exactly one delivery fires the reply notification). Without it, conflicts
+ * update the existing row and the return value is always false.
+ */
 async function upsertWhatsappMessage(
   sb: ReturnType<typeof adminClient>,
   row: Record<string, unknown>,
-): Promise<void> {
-  const upsert = (payload: Record<string, unknown>) =>
-    (sb as any)
+  opts?: { insertOnly?: boolean },
+): Promise<boolean> {
+  const upsert = async (payload: Record<string, unknown>) => {
+    let q = (sb as any)
       .from("whatsapp_messages")
-      .upsert(payload, { onConflict: "workspace_id,external_id" });
+      .upsert(payload, {
+        onConflict: "workspace_id,external_id",
+        ignoreDuplicates: opts?.insertOnly === true,
+      });
+    if (opts?.insertOnly) q = q.select("id");
+    const { data, error } = await q;
+    return { inserted: Array.isArray(data) && data.length > 0, error };
+  };
 
-  const { error } = await upsert(row);
-  if (!error) return;
+  const res = await upsert(row);
+  if (!res.error) return res.inserted;
 
   // An un-migrated environment rejects the newer columns by name. Retry without them rather than
   // losing the message entirely.
   const rejected = OPTIONAL_MESSAGE_COLUMNS.filter((column) =>
-    String(error.message).includes(column),
+    String(res.error.message).includes(column),
   );
-  if (rejected.length === 0) throw error;
+  if (rejected.length === 0) throw res.error;
 
   const fallback = { ...row };
   for (const column of OPTIONAL_MESSAGE_COLUMNS) delete fallback[column];
 
-  const { error: retryErr } = await upsert(fallback);
-  if (retryErr) throw retryErr;
+  const retry = await upsert(fallback);
+  if (retry.error) throw retry.error;
 
   console.warn("[WATI WEBHOOK] stored message without optional columns", {
     missing: rejected,
   });
+  return retry.inserted;
 }
 
 async function resolveWorkspaceId(

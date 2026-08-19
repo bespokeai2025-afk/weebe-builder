@@ -389,6 +389,9 @@ export const runOpportunityEngine = createServerFn({ method: "POST" })
     const sb          = context.supabase as any;
     const workspaceId = context.workspaceId;
     if (!workspaceId) throw new Error("No workspace");
+    const userId = (context as any).userId;
+    const { requirePageAccessEntitled } = await import("@/lib/packages/entitlements.server");
+    await requirePageAccessEntitled(workspaceId, userId, "growthmind", "view");
 
     const t0 = Date.now();
     try {
@@ -434,6 +437,9 @@ export const getOpportunities = createServerFn({ method: "GET" })
     const sb          = context.supabase as any;
     const workspaceId = context.workspaceId;
     if (!workspaceId) throw new Error("No workspace");
+    const userId = (context as any).userId;
+    const { requirePageAccessEntitled } = await import("@/lib/packages/entitlements.server");
+    await requirePageAccessEntitled(workspaceId, userId, "growthmind", "view");
 
     const { data, error } = await sb
       .from("growthmind_opportunities")
@@ -474,6 +480,9 @@ export const sendOpportunityToHiveMind = createServerFn({ method: "POST" })
     const sb          = context.supabase as any;
     const workspaceId = context.workspaceId;
     if (!workspaceId) throw new Error("No workspace");
+    const userId = (context as any).userId;
+    const { requirePageAccessEntitled } = await import("@/lib/packages/entitlements.server");
+    await requirePageAccessEntitled(workspaceId, userId, "growthmind", "view");
 
     const { data: opp, error: oppErr } = await sb
       .from("growthmind_opportunities")

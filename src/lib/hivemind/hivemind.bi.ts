@@ -63,7 +63,11 @@ export const getExecutiveBriefing = createServerFn({ method: "GET" })
   .handler(async ({ context }) => {
     const sb          = context.supabase as any;
     const workspaceId = context.workspaceId;
+    const userId      = (context as any).userId;
     if (!workspaceId) throw new Error("No workspace");
+
+    const { requirePageAccessEntitled } = await import("@/lib/packages/entitlements.server");
+    await requirePageAccessEntitled(workspaceId, userId, "hivemind", "view");
 
     const now         = new Date();
     const hour        = now.getHours();

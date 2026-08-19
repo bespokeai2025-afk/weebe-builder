@@ -27,7 +27,10 @@ import {
   MessageCircle,
   MessageSquareText,
   Contact,
+  AlertTriangle,
+  UserPlus,
 } from "lucide-react";
+import { deriveLeadOrigin, ORIGIN_FILTER_OPTIONS } from "@/lib/leads/lead-origin.shared";
 import { useState, useMemo, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { normalizeSentiment } from "@/lib/sentiment";
@@ -41,6 +44,8 @@ import { SavedFiltersSection } from "@/components/people-views/SavedFiltersSecti
 import { DashboardPage, KpiCard, MiniKpiCard, SummaryTooltip, stickyCell, stickyHead } from "@/components/dashboard/PageShell";
 import { cn } from "@/lib/utils";
 import { LoadingProgress } from "@/components/dashboard/LoadingProgress";
+import { AssignLeadsDialog } from "@/components/leads/AssignLeadsDialog";
+import { getMyPermissions } from "@/lib/permissions/team-access.functions";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -198,39 +203,68 @@ function bookingStatusBadge(status: string | null) {
   );
 }
 
-// ── Lead source / preferred contact indicators ────────────────────────────
-// Derived purely from the lead's own record (source_type/source, meta) —
-// never from workspace identity — so the same renderer works for every
-// account, including WBAH (its CRM-sourced rows are tagged source:"crm" at
-// the data layer, not via an isWbah branch here).
-type LeadBadgeSpec = { Icon: typeof Globe; label: string; tone: string };
+// ── Lead origin / source indicators ─────────────────────────────────────────
+// Uses the canonical deriveLeadOrigin() — consistent across web + mobile.
+// Never branches on workspace identity; same renderer for every workspace.
+type LeadBadgeSpec = { Icon: typeof Globe; label: string; tone: string; tooltip: string };
 
-function leadSourceBadgeSpec(lead: any): LeadBadgeSpec | null {
-  const raw = String(lead?.source_type ?? lead?.source ?? "").toLowerCase().trim();
-  if (!raw) return null;
-  const FORM = new Set([
-    "webform", "website_form", "form", "landing_page", "facebook_lead_form",
-    "google_ads_lead_form", "tiktok_lead_form", "linkedin_lead_form",
-    "custom_form", "webee_website_form", "zapier", "make",
-  ]);
-  const CRM = new Set(["crm", "dynamics", "pipedrive", "hubspot", "import", "inbound", "outbound", "referral"]);
-  const UPLOAD = new Set(["csv", "data_upload"]);
-  const API = new Set(["api", "webhook"]);
-  if (FORM.has(raw)) return { Icon: Globe, label: "Web form lead", tone: "text-sky-400 bg-sky-500/10" };
-  if (CRM.has(raw)) return { Icon: Building2, label: "CRM lead", tone: "text-violet-400 bg-violet-500/10" };
-  if (UPLOAD.has(raw)) return { Icon: Upload, label: "CSV / uploaded lead", tone: "text-amber-400 bg-amber-500/10" };
-  if (raw === "manual") return { Icon: UserCog, label: "Manually added lead", tone: "text-slate-400 bg-slate-500/10" };
-  if (API.has(raw)) return { Icon: Plug, label: "API / webhook lead", tone: "text-emerald-400 bg-emerald-500/10" };
-  return null;
+const ORIGIN_ICON_MAP: Record<string, typeof Globe> = {
+  whatsapp:   MessageCircle,
+  voice_call: Phone,
+  web_form:   Globe,
+  crm:        Building2,
+  csv_import: Upload,
+  manual:     UserCog,
+  api:        Plug,
+  email:      Mail,
+  sms:        MessageSquareText,
+  campaign:   BarChart3,
+  unknown:    Contact,
+};
+
+function leadOriginBadgeSpec(lead: any): LeadBadgeSpec | null {
+  const origin = deriveLeadOrigin(lead);
+  if (origin === "unknown") return null;          // hide badge for unknown
+
+  const Icon = ORIGIN_ICON_MAP[origin] ?? Contact;
+  const LABELS: Record<string, string> = {
+    whatsapp:   "WhatsApp",
+    voice_call: "Voice",
+    web_form:   "Web Form",
+    crm:        "CRM",
+    csv_import: "CSV / Import",
+    manual:     "Manual",
+    api:        "API",
+    email:      "Email",
+    sms:        "SMS",
+    campaign:   "Campaign",
+  };
+  const TONES: Record<string, string> = {
+    whatsapp:   "text-emerald-400 bg-emerald-500/10",
+    voice_call: "text-blue-400 bg-blue-500/10",
+    web_form:   "text-sky-400 bg-sky-500/10",
+    crm:        "text-violet-400 bg-violet-500/10",
+    csv_import: "text-amber-400 bg-amber-500/10",
+    manual:     "text-slate-400 bg-slate-500/10",
+    api:        "text-emerald-400 bg-emerald-500/10",
+    email:      "text-orange-400 bg-orange-500/10",
+    sms:        "text-fuchsia-400 bg-fuchsia-500/10",
+    campaign:   "text-pink-400 bg-pink-500/10",
+  };
+  const label  = LABELS[origin]  ?? origin;
+  const tone   = TONES[origin]   ?? "text-muted-foreground bg-muted/40";
+  const provider = lead.origin_provider ?? null;
+  const tooltip = provider ? `${label}\nvia ${provider}` : label;
+  return { Icon, label, tone, tooltip };
 }
 
 function LeadSourceBadge({ lead }: { lead: any }) {
-  const spec = leadSourceBadgeSpec(lead);
+  const spec = leadOriginBadgeSpec(lead);
   if (!spec) return null;
-  const { Icon, label, tone } = spec;
+  const { Icon, tooltip, tone } = spec;
   return (
     <span
-      title={label}
+      title={tooltip}
       className={cn("inline-flex shrink-0 items-center justify-center rounded p-0.5", tone)}
     >
       <Icon className="h-2.5 w-2.5" />
@@ -289,6 +323,24 @@ function PreferredContactBadge({ lead, onEmailClick }: { lead: any; onEmailClick
       className={cn("inline-flex shrink-0 items-center justify-center rounded p-0.5", tone)}
     >
       <Icon className="h-2.5 w-2.5" />
+    </span>
+  );
+}
+
+// ── Booking failed — follow up (Ava web-call bookings that errored) ────────
+// Flag written by ava-web-call.server.ts: meta.booking_failed / booking_error.
+function BookingFailedBadge({ lead, detailed = false }: { lead: any; detailed?: boolean }) {
+  if (!lead?.meta?.booking_failed) return null;
+  const err = typeof lead?.meta?.booking_error === "string" && lead.meta.booking_error.trim()
+    ? lead.meta.booking_error.trim()
+    : null;
+  return (
+    <span
+      title={err ? `Booking failed — follow up. Error: ${err}` : "Booking failed — follow up"}
+      className="inline-flex shrink-0 items-center gap-1 rounded-full bg-red-500/15 px-1.5 py-0.5 text-[10px] font-medium text-red-400 ring-1 ring-red-500/30 whitespace-nowrap"
+    >
+      <AlertTriangle className="h-2.5 w-2.5" />
+      {detailed ? "Booking failed — follow up" : "Booking failed"}
     </span>
   );
 }
@@ -355,6 +407,7 @@ function LeadsPage() {
   const [leadsTo, setLeadsTo]             = useState("");
   const [wbahAgentFilter, setWbahAgentFilter] = useState("all");
   const [agentFilter, setAgentFilter] = useState("all");
+  const [originFilter, setOriginFilter] = useState("");
   const workspaceAgents = useWorkspaceAgentOptions();
   const selectedAgent = agentFilter !== "all" ? workspaceAgents.find((a) => a.id === agentFilter) ?? null : null;
 
@@ -395,6 +448,15 @@ function LeadsPage() {
 
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [qualDialogOpen, setQualDialogOpen] = useState(false);
+  const [assignDialogOpen, setAssignDialogOpen] = useState(false);
+  const myPermsFn = useServerFn(getMyPermissions);
+  const myPermsQ = useQuery({
+    queryKey: ["my-permissions"],
+    queryFn: () => myPermsFn(),
+    staleTime: 5 * 60_000,
+    throwOnError: false,
+  });
+  const canAssign = (myPermsQ.data as any)?.actionAccess?.lead_assignment === true;
   const [firingScheduled, setFiringScheduled] = useState(false);
   const [removeDialogOpen, setRemoveDialogOpen] = useState(false);
   const [isRemoving, setIsRemoving] = useState(false);
@@ -603,6 +665,7 @@ function LeadsPage() {
         if (dateTo && ts > new Date(dateTo).getTime()) return false;
       }
     }
+    if (originFilter && deriveLeadOrigin(l) !== originFilter) return false;
     if (quickFilter) {
       const ns = normalizeSentiment(l.sentiment);
       const st = l.status;
@@ -615,6 +678,7 @@ function LeadsPage() {
         case "disqualified": if (st !== "not_interested") return false; break;
         case "callback":     if (!(l.callback_date || st === "callback_requested")) return false; break;
         case "not_called":   if (st !== "not_connected") return false; break;
+        case "buzzchat_replied": if (!l.has_buzzchat_reply) return false; break;
       }
     }
     return true;
@@ -647,7 +711,7 @@ function LeadsPage() {
       leads.length, pos, neu, neg, unk);
   }, [isWbah, leads]);
 
-  const hasLeadFilters = search.trim() || statusFilter || leadStatusCat !== "all" || sentimentFilter || callStatusFilter || quickFilter || leadsDuration || leadsOutcome || wbahDaysFilter === "custom" || wbahAgentFilter !== "all" || agentFilter !== "all";
+  const hasLeadFilters = search.trim() || statusFilter || leadStatusCat !== "all" || sentimentFilter || callStatusFilter || quickFilter || leadsDuration || leadsOutcome || wbahDaysFilter === "custom" || wbahAgentFilter !== "all" || agentFilter !== "all" || originFilter;
 
   const positive = leads.filter((l: any) => normalizeSentiment(l.sentiment) === "positive").length;
   const withScore = leads.filter((l: any) => l.lead_score != null);
@@ -835,6 +899,12 @@ function LeadsPage() {
               Qualify {selectedIds.size} Lead{selectedIds.size !== 1 ? "s" : ""}
             </Button>
           )}
+          {tab === "leads" && !isWbah && selectedIds.size > 0 && canAssign && (
+            <Button size="sm" variant="outline" className="border-emerald-500/30 text-emerald-400 hover:text-emerald-300" onClick={() => setAssignDialogOpen(true)}>
+              <UserPlus className="mr-1 h-4 w-4" />
+              Assign {selectedIds.size}
+            </Button>
+          )}
           {tab === "leads" && !isWbah && selectedIds.size > 0 && (
             <Button size="sm" variant="outline" className="border-red-500/30 text-red-400 hover:text-red-300" onClick={openRemoveDialog}>
               <Trash2 className="mr-1 h-4 w-4" />
@@ -971,6 +1041,16 @@ function LeadsPage() {
                 <option value="neutral">Neutral</option>
                 {!isWbah && <option value="negative">Negative</option>}
               </select>
+              <select
+                value={originFilter}
+                onChange={(e) => setOriginFilter(e.target.value)}
+                className="h-6 rounded-md border border-white/[0.08] bg-card/80 px-1.5 text-[11px] text-foreground focus:outline-none focus:ring-1 focus:ring-primary/40"
+                title="Lead source / origin"
+              >
+                {ORIGIN_FILTER_OPTIONS.map((o) => (
+                  <option key={o.value} value={o.value}>{o.label}</option>
+                ))}
+              </select>
               {(isRetell || isWbah) && (
                 <select
                   value={callStatusFilter}
@@ -1086,6 +1166,7 @@ function LeadsPage() {
                 { value: "positive", label: "Positive" },
                 { value: "neutral",  label: "Neutral" },
                 ...(isWbah ? [{ value: "partial_qualified", label: "Partial Qualified" }] : []),
+                ...(!isWbah ? [{ value: "buzzchat_replied", label: "BuzzChat Replied" }] : []),
               ].map((c) => {
                 const active = quickFilter === c.value;
                 return (
@@ -1175,6 +1256,12 @@ function LeadsPage() {
                             <div className="flex items-center gap-1 min-w-0">
                               <span className="truncate text-[11px] font-medium min-w-0">{lead.full_name ?? "—"}</span>
                               <LeadSourceBadge lead={lead} />
+                              <BookingFailedBadge lead={lead} />
+                              {!isWbah && lead.has_buzzchat_reply && (
+                                <span title="BuzzChat reply received" className="inline-flex items-center gap-0.5 rounded-full px-1.5 py-0.5 text-[9px] font-semibold bg-emerald-500/15 text-emerald-400 ring-1 ring-emerald-500/30 whitespace-nowrap">
+                                  <MessageCircle className="h-2.5 w-2.5" />BuzzChat
+                                </span>
+                              )}
                               {isWbah && (
                                 <WbahCallCountBadge
                                   count={lead.meta?.call_count ?? 1}
@@ -1466,6 +1553,15 @@ function LeadsPage() {
       )}
 
       <LeadEmailDialog lead={emailDialogLead} onClose={() => setEmailDialogLead(null)} />
+
+      {assignDialogOpen && (
+        <AssignLeadsDialog
+          open={assignDialogOpen}
+          onOpenChange={setAssignDialogOpen}
+          leadIds={Array.from(selectedIds)}
+          onAssigned={() => setSelectedIds(new Set())}
+        />
+      )}
 
     </DashboardPage>
   );

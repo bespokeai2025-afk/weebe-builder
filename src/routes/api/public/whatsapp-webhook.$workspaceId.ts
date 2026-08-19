@@ -17,6 +17,9 @@ import { createFileRoute } from "@tanstack/react-router";
 import { createHmac, timingSafeEqual } from "crypto";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { processWhatsAppMessage } from "@/lib/whatsapp/runtime";
+import { emitCampaignNotification } from "@/lib/notifications/notification-engine.shared";
+import { matchOrCreateLeadForWhatsApp } from "@/lib/whatsapp/lead-sync.server";
+import { syncWhatsappConversation } from "@/lib/whatsapp/whatsapp-conversations.server";
 
 const CORS = {
   "Access-Control-Allow-Origin": "*",
@@ -120,17 +123,28 @@ export const Route = createFileRoute("/api/public/whatsapp-webhook/$workspaceId"
 
                 if (!msgBody || !from) continue;
 
-                const { data: lead } = await supabaseAdmin
-                  .from("leads")
-                  .select("id")
-                  .eq("workspace_id", workspaceId)
-                  .eq("phone", from)
-                  .maybeSingle();
+                // BuzzChat → CRM Lead Pipeline: match or create lead first so
+                // the upserted message row immediately has the correct lead_id.
+                let leadId: string | null = null;
+                try {
+                  const sync = await matchOrCreateLeadForWhatsApp({
+                    workspaceId,
+                    contactPhone: from,
+                    contactName: profileName ?? null,
+                    conversationId: null,
+                    externalMessageId: msgId || null,
+                    messageBody: msgBody,
+                    repliedAt: new Date().toISOString(),
+                  });
+                  leadId = sync.leadId;
+                } catch (e) {
+                  console.warn("[whatsapp-webhook] Meta lead-sync failed (non-fatal):", (e as Error).message ?? e);
+                }
 
-                await supabaseAdmin.from("whatsapp_messages").upsert(
+                const { data: inserted } = await supabaseAdmin.from("whatsapp_messages").upsert(
                   {
                     workspace_id:  workspaceId,
-                    lead_id:       (lead?.id as string | undefined) ?? null,
+                    lead_id:       leadId,
                     external_id:   msgId,
                     contact_phone: from,
                     contact_name:  profileName,
@@ -138,8 +152,26 @@ export const Route = createFileRoute("/api/public/whatsapp-webhook/$workspaceId"
                     body:          msgBody,
                     status:        "sent",
                   } as never,
-                  { onConflict: "workspace_id,external_id" },
-                );
+                  { onConflict: "workspace_id,external_id", ignoreDuplicates: true },
+                ) as any;
+
+                const isNewMessage = Array.isArray(inserted) ? inserted.length > 0 : !!inserted;
+
+                // Sync conversation state.
+                syncWhatsappConversation(workspaceId, from).catch(() => {});
+
+                if (isNewMessage) {
+                  const who = (profileName?.trim() ?? "") || from || "Unknown contact";
+                  const preview = msgBody.slice(0, 160);
+                  emitCampaignNotification(supabaseAdmin as any, {
+                    workspaceId,
+                    eventKey: "whatsapp_reply_received",
+                    leadId: leadId ?? undefined,
+                    summary: preview ? `${who}: "${preview}"` : `${who} sent a WhatsApp message.`,
+                    severity: "info",
+                    dedupeKey: msgId ? `whatsapp_reply_received:msg:${msgId}` : undefined,
+                  }).catch(() => {});
+                }
 
                 processWhatsAppMessage({
                   workspaceId,
@@ -208,16 +240,28 @@ export const Route = createFileRoute("/api/public/whatsapp-webhook/$workspaceId"
           return new Response(TWIML_OK, { status: 200, headers: TWIML_HEADERS });
         }
 
-        const { data: lead } = await supabaseAdmin
-          .from("leads")
-          .select("id")
-          .eq("workspace_id", workspaceId)
-          .eq("phone", from)
-          .maybeSingle();
+        // BuzzChat → CRM Lead Pipeline: match or create lead first.
+        let twilioLeadId: string | null = null;
+        if (body) {
+          try {
+            const sync = await matchOrCreateLeadForWhatsApp({
+              workspaceId,
+              contactPhone: from,
+              contactName: profileName ?? null,
+              conversationId: null,
+              externalMessageId: messageSid || null,
+              messageBody: body,
+              repliedAt: new Date().toISOString(),
+            });
+            twilioLeadId = sync.leadId;
+          } catch (e) {
+            console.warn("[whatsapp-webhook] Twilio lead-sync failed (non-fatal):", (e as Error).message ?? e);
+          }
+        }
 
         const row = {
           workspace_id:  workspaceId,
-          lead_id:       (lead?.id as string | undefined) ?? null,
+          lead_id:       twilioLeadId,
           external_id:   messageSid,
           contact_phone: from,
           contact_name:  profileName,
@@ -227,12 +271,30 @@ export const Route = createFileRoute("/api/public/whatsapp-webhook/$workspaceId"
           status:        "sent" as const,
         };
 
-        const { error } = await supabaseAdmin.from("whatsapp_messages").upsert(row as never, {
+        const { data: twilioInserted, error } = await supabaseAdmin.from("whatsapp_messages").upsert(row as never, {
           onConflict: "workspace_id,external_id",
-        });
+          ignoreDuplicates: true,
+        } as any) as any;
         if (error) {
           console.error("[whatsapp-webhook] upsert failed", error.message, { to, from });
           return new Response("db error", { status: 500, headers: CORS });
+        }
+
+        const twilioIsNew = Array.isArray(twilioInserted) ? twilioInserted.length > 0 : !!twilioInserted;
+
+        syncWhatsappConversation(workspaceId, from).catch(() => {});
+
+        if (body && twilioIsNew) {
+          const who = (profileName?.trim() ?? "") || from;
+          const preview = body.slice(0, 160);
+          emitCampaignNotification(supabaseAdmin as any, {
+            workspaceId,
+            eventKey: "whatsapp_reply_received",
+            leadId: twilioLeadId ?? undefined,
+            summary: preview ? `${who}: "${preview}"` : `${who} sent a WhatsApp message.`,
+            severity: "info",
+            dedupeKey: messageSid ? `whatsapp_reply_received:msg:${messageSid}` : undefined,
+          }).catch(() => {});
         }
 
         if (body) {

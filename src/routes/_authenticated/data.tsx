@@ -111,9 +111,11 @@ import {
   isTestLeadStatus,
   isTestLeadSyncDisabledError,
   NEW_LEAD_STATUS,
+  NEW_LEAD_SYNC_SUB_SLUGS,
   resolveWbahCrmPersonName,
   TEST_LEAD_STATUS,
 } from "@/lib/integrations/webespokeEnterprise/wbah-campaign-sync.types";
+import { callWbahDelayedLead } from "@/lib/qualification/auto-call.server";
 
 export const Route = createFileRoute("/_authenticated/data")({
   head: () => ({ meta: [{ title: "Data Records — Webee" }] }),
@@ -982,6 +984,7 @@ function DataPage() {
   const [wbahLeadDetail, setWbahLeadDetail] = useState<WbahLeadDetailView | null>(null);
   const [wbahImporting, setWbahImporting] = useState(false);
   const [wbahNewLeadSyncOn, setWbahNewLeadSyncOn] = useState<boolean | null>(null);
+  const [callingDelayedLeadId, setCallingDelayedLeadId] = useState<string | null>(null);
 
   const [showManualEntry, setShowManualEntry] = useState(false);
   const [csvHeaders, setCsvHeaders] = useState<string[]>([]);
@@ -1010,6 +1013,7 @@ function DataPage() {
   const listWbahCategorizedLeadsFn = useServerFn(listWbahCategorizedLeads);
   const listWbahPeopleCategoriesFn = useServerFn(listWbahPeopleCategories);
   const getWbahCallbackSummaryFn = useServerFn(getWbahCallbackSummary);
+  const callWbahDelayedLeadFn = useServerFn(callWbahDelayedLead);
   const qc = useQueryClient();
 
   const filters = useMemo(() => {
@@ -3010,7 +3014,51 @@ function DataPage() {
                             </td>
                             {isNewTab && (
                               <td className="px-2 py-0.5 whitespace-nowrap">
-                                <WbahNewLeadSubBadge slug={r.syncCategorySlug} />
+                                {String(r.syncCategorySlug ?? "").toLowerCase() ===
+                                NEW_LEAD_SYNC_SUB_SLUGS.delayed ? (
+                                  <button
+                                    type="button"
+                                    disabled={callingDelayedLeadId === r.id}
+                                    onClick={async () => {
+                                      if (!r.contact) {
+                                        toast.error("No phone number for this lead");
+                                        return;
+                                      }
+                                      setCallingDelayedLeadId(r.id);
+                                      try {
+                                        const res = await callWbahDelayedLeadFn({
+                                          data: {
+                                            phone: r.contact,
+                                            name: r.name ?? undefined,
+                                            externalLeadId: r.id ?? undefined,
+                                          },
+                                        });
+                                        if (res.placed) {
+                                          toast.success(`Calling ${r.name || r.contact}…`);
+                                        } else {
+                                          const msgs: Record<string, string> = {
+                                            daily_limit_reached: "Daily call limit reached for this number (3/day)",
+                                            agent_not_configured: "New Leads Agent is not configured",
+                                            agent_not_fully_configured: "New Leads Agent has no phone number set",
+                                            agent_not_found: "New Leads Agent not found",
+                                          };
+                                          toast.error(msgs[res.reason ?? ""] ?? `Could not place call: ${res.reason}`);
+                                        }
+                                      } catch (e: any) {
+                                        toast.error(e?.message ?? "Failed to place call");
+                                      } finally {
+                                        setCallingDelayedLeadId(null);
+                                      }
+                                    }}
+                                    className="inline-flex items-center gap-1 rounded border border-amber-400/40 bg-amber-500/15 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-amber-300 hover:bg-amber-500/25 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                                    title="Place a call now via New Leads Agent"
+                                  >
+                                    <PhoneOutgoing className="h-2.5 w-2.5 shrink-0" />
+                                    {callingDelayedLeadId === r.id ? "Calling…" : "Call now"}
+                                  </button>
+                                ) : (
+                                  <WbahNewLeadSubBadge slug={r.syncCategorySlug} />
+                                )}
                               </td>
                             )}
                             <td

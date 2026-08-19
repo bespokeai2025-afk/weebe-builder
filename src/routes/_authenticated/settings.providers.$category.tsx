@@ -87,6 +87,10 @@ const CREDENTIAL_FIELDS: Record<string, CredField[]> = {
     { key: "gcpProject", label: "GCP Project ID", type: "text", required: true },
     { key: "accessToken", label: "OAuth Access Token", type: "password", required: true },
   ],
+  "analytics:microsoft_clarity": [
+    { key: "projectId", label: "Clarity Project ID", type: "text", required: false, placeholder: "From the Clarity project URL (optional — for reference)" },
+    { key: "apiToken", label: "Data Export API Token", type: "password", required: true, placeholder: "Clarity → Settings → Data Export → Generate new API token" },
+  ],
   "analytics:google_analytics": [
     { key: "propertyId", label: "GA4 Property ID", type: "text", required: true, placeholder: "123456789" },
     { key: "accessToken", label: "OAuth Access Token", type: "password", required: true },

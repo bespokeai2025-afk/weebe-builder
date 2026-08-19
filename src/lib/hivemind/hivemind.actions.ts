@@ -20,7 +20,8 @@ export type ActionType     =
   | "activate_lead_intake_workflow"
   | "activate_systemmind_automation"
   | "seo_campaign_approval"
-  | "content_publication_approval";
+  | "content_publication_approval"
+  | "marketing_action_execute";
 
 export interface HiveMindAction {
   id:             string;
@@ -238,9 +239,9 @@ export async function executeAction(sb: any, workspaceId: string, action: HiveMi
     }
 
     case "gads_create_change_requests": {
-      // Converts analysis recommendations into approved change-request DRAFTS.
-      // Internal records only — there is intentionally NO executor for live
-      // Google Ads writes (GrowthMind is advisory-only).
+      // Converts analysis recommendations into change requests and routes each
+      // through the Marketing Action Engine, which owns guardrails, approvals
+      // and REAL Google Ads execution via the google_ads executor.
       const ids = Array.isArray(p.recommendation_ids) ? (p.recommendation_ids as string[]).map(String) : [];
       if (!ids.length) throw new Error("No recommendation_ids in action payload");
       // growthmind_gads_change_requests is server-write-only (authenticated has
@@ -254,7 +255,10 @@ export async function executeAction(sb: any, workspaceId: string, action: HiveMi
       const usable = (recs ?? []).filter((r: any) => r.status !== "applied");
       if (!usable.length) throw new Error("None of the referenced recommendations are available");
       const nowIso = new Date().toISOString();
+      const approver = (action as any).authorised_by_user_id ?? null;
       const createdIds: string[] = [];
+      const outcomes: Array<{ change_request_id: string; recommendation_id: string; status: string; detail: string; marketing_action_id: string | null }> = [];
+      const { routeGadsRecommendationToEngine } = await import("@/lib/growthmind/gads-actions-bridge.server");
       for (const rec of usable) {
         const { data: cr, error: crErr } = await (gadsAdmin as any).from("growthmind_gads_change_requests").insert({
           workspace_id: workspaceId,
@@ -265,18 +269,33 @@ export async function executeAction(sb: any, workspaceId: string, action: HiveMi
           change_type: rec.section,
           payload: { title: rec.title, recommendedAction: rec.recommended_action, evidence: rec.evidence },
           status: "approved",
-          approved_by: (action as any).authorised_by_user_id ?? null,
+          approved_by: approver,
         }).select("id").single();
         if (crErr) throw crErr;
         createdIds.push(cr.id as string);
         await (gadsAdmin as any).from("growthmind_gads_recommendations").update({
           status: "approved", reviewed_at: nowIso, updated_at: nowIso,
         }).eq("id", rec.id).eq("workspace_id", workspaceId);
+        // Route through the Marketing Action Engine — honest per-rec outcomes.
+        try {
+          const out = await routeGadsRecommendationToEngine(gadsAdmin as any, workspaceId, rec as any, { changeRequestId: cr.id as string, userId: approver });
+          outcomes.push({ change_request_id: cr.id as string, recommendation_id: rec.id, status: out.changeRequestStatus, detail: out.detail, marketing_action_id: out.marketingActionId });
+          if (out.changeRequestStatus === "executed") {
+            await (gadsAdmin as any).from("growthmind_gads_recommendations").update({ status: "applied", updated_at: nowIso }).eq("id", rec.id).eq("workspace_id", workspaceId);
+          }
+        } catch (e: any) {
+          const detail = `Engine routing failed: ${e?.message ?? "unknown error"}`;
+          await (gadsAdmin as any).from("growthmind_gads_change_requests").update({ status: "failed", status_detail: detail }).eq("id", cr.id).eq("workspace_id", workspaceId);
+          outcomes.push({ change_request_id: cr.id as string, recommendation_id: rec.id, status: "failed", detail, marketing_action_id: null });
+        }
       }
       return {
         change_request_ids: createdIds,
         change_requests_created: createdIds.length,
-        external_write: "blocked_awaiting_integration",
+        outcomes,
+        external_write: outcomes.some((o) => o.status === "executed") ? "executed_via_marketing_engine"
+          : outcomes.some((o) => o.status === "submitted") ? "queued_in_marketing_engine"
+          : outcomes.every((o) => o.status === "draft") ? "advisory_only" : "mixed",
       };
     }
 
@@ -553,6 +572,13 @@ export async function executeAction(sb: any, workspaceId: string, action: HiveMi
       return { itemId, stage, state: result.state ?? null };
     }
 
+    case "marketing_action_execute": {
+      // Marketing Action Engine — approval bridge. The engine re-validates
+      // status, runs guardrail checks and confirm-then-verify execution.
+      const { executeApprovedMarketingAction } = await import("@/lib/marketing/action-engine.server");
+      return await executeApprovedMarketingAction(workspaceId, p ?? {}, action.id ?? null);
+    }
+
     default:
       throw new Error(`Unknown action type: ${action.action_type}`);
   }
@@ -563,6 +589,13 @@ export const getHiveMindMode = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
     const sb = context.supabase as any;
+    const workspaceId = context.workspaceId;
+    const userId = (context as any).userId;
+    if (!workspaceId) throw new Error("No workspace");
+
+    const { requirePageAccessEntitled } = await import("@/lib/packages/entitlements.server");
+    await requirePageAccessEntitled(workspaceId, userId, "hivemind", "view");
+
     const fallback = {
       mode: "recommend" as HiveMindMode,
       operatorEnabled: false,
@@ -669,6 +702,13 @@ export const getHiveMindActionsAndCounts = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
     const sb = context.supabase as any;
+    const workspaceId = context.workspaceId;
+    const userId = (context as any).userId;
+    if (!workspaceId) throw new Error("No workspace");
+
+    const { requirePageAccessEntitled } = await import("@/lib/packages/entitlements.server");
+    await requirePageAccessEntitled(workspaceId, userId, "hivemind", "view");
+
     const { data, error } = await sb.from("hivemind_actions")
       .select("*")
       .eq("workspace_id", context.workspaceId)
@@ -706,6 +746,11 @@ export const getHiveMindLearningSummary = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
     const workspaceId = context.workspaceId!;
+    const userId = (context as any).userId;
+
+    const { requirePageAccessEntitled } = await import("@/lib/packages/entitlements.server");
+    await requirePageAccessEntitled(workspaceId, userId, "hivemind", "view");
+
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { data, error } = await (supabaseAdmin as any)
       .from("hivemind_confidence_adjustments")
@@ -993,9 +1038,28 @@ export async function rejectHiveMindActionCore(
     .update({ status: "rejected", updated_at: new Date().toISOString() })
     .eq("id", data.id)
     .eq("workspace_id", workspaceId)
-    .select("source_recommendation_id");
+    .select("source_recommendation_id, action_type, action_payload");
   if (error) throw error;
-  const srcRec = (rejected ?? [])[0]?.source_recommendation_id ?? null;
+  const rejectedRow = (rejected ?? [])[0] ?? null;
+  // Rejecting a marketing-action approval must fail the bound marketing
+  // action too, or it (and any linked SEO queue item) hangs in
+  // awaiting_approval/executing forever. Best-effort; legal CAS transition.
+  const marketingActionId = rejectedRow?.action_type === "marketing_action_execute"
+    ? (rejectedRow?.action_payload as any)?.marketing_action_id ?? null : null;
+  if (marketingActionId) {
+    try {
+      const [{ transitionMarketingAction }, { supabaseAdmin }] = await Promise.all([
+        import("@/lib/marketing/action-engine.server"),
+        import("@/integrations/supabase/client.server"),
+      ]);
+      await transitionMarketingAction(supabaseAdmin as any, marketingActionId,
+        "awaiting_approval", "failed",
+        { error_message: "Approval rejected by user." }, "Approval rejected by user");
+    } catch (e) {
+      console.warn("[hivemind] failed to fail rejected marketing action", (e as Error)?.message);
+    }
+  }
+  const srcRec = rejectedRow?.source_recommendation_id ?? null;
   if (srcRec) {
     const { reflectActionOutcomeOnRecommendation } =
       await import("@/lib/hivemind/executive-followthrough.server");
@@ -1039,7 +1103,11 @@ export const generateOperatorActions = createServerFn({ method: "POST" })
   .handler(async ({ context }) => {
     const sb          = context.supabase as any;
     const workspaceId = context.workspaceId;
+    const userId      = (context as any).userId;
     if (!workspaceId) throw new Error("No workspace");
+
+    const { requirePageAccessEntitled } = await import("@/lib/packages/entitlements.server");
+    await requirePageAccessEntitled(workspaceId, userId, "hivemind", "view");
 
     // Observe mode: engine must not create actions.
     const { isProposalAllowed } = await import("@/lib/hivemind/mode-gate.server");

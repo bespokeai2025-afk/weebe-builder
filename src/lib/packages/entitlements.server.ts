@@ -401,6 +401,14 @@ export async function provisionWorkspacePackage(opts: {
   if (error) throw new Error(error.message);
   invalidateEntitlementsCache(opts.workspaceId);
   await seedNotificationDefaults(opts.workspaceId, packageKey);
+  // Materialize catalogue-default rows for all applicable events (insert-only,
+  // never overrides the package seed above or admin customisations).
+  try {
+    const { provisionWorkspaceNotifications } = await import("@/lib/notifications/notification-provisioning.server");
+    await provisionWorkspaceNotifications(opts.workspaceId, "package_provisioned");
+  } catch (err: any) {
+    console.warn("[packages] notification provisioning failed (non-fatal):", err?.message ?? err);
+  }
   writeAccessAudit({
     workspaceId: opts.workspaceId,
     actingUserId: opts.actingUserId ?? null,

@@ -4,6 +4,9 @@
 //     componentTagger (dev-only), VITE_* env injection, @ path alias, React/TanStack dedupe,
 //     error logger plugins, and sandbox detection (port/host/strictPort).
 // You can pass additional config via defineConfig({ vite: { ... } }) if needed.
+// SECURITY: env-guard MUST be the first import — it normalizes a corrupted
+// VITE_SUPABASE_URL/SUPABASE_URL secret before any plugin captures process.env.
+import { CANONICAL_SUPABASE_URL } from "./env-guard";
 import { defineConfig } from "@lovable.dev/vite-tanstack-config";
 import path from "node:path";
 // One plugin mounts every voice relay (HyperStream, cascade, Twilio, FreJun);
@@ -52,6 +55,11 @@ export default defineConfig({
     // SECURITY: never widen this to "WEBESPOKE_" — that would bake WEBESPOKE_ADMIN_PASSWORD
     // into the client bundle at build time. Only this exact (non-secret) var is exposed.
     envPrefix: ["VITE_", "WEBESPOKE_API_BASE_URL"],
+    // Hard override: guarantees the client bundle always gets the pinned public URL,
+    // never whatever is currently stored in the VITE_SUPABASE_URL secret (see guard above).
+    define: {
+      "import.meta.env.VITE_SUPABASE_URL": JSON.stringify(CANONICAL_SUPABASE_URL),
+    },
     server: {
       host: "0.0.0.0",
       port: 5000,

@@ -97,6 +97,26 @@ export function ConversionDiagnosticsPanel() {
         </div>
       )}
 
+      {data.funnel && (data.funnel.callsStarted > 0 || data.funnel.avaBookings > 0 || data.funnel.webFormLeads > 0) && (
+        <div className="space-y-1">
+          <p className="text-[11px] font-medium text-muted-foreground">Funnel (last 30 days)</p>
+          <div className="flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-muted-foreground">
+            <span>Ava calls started: <span className="text-foreground">{data.funnel.callsStarted}</span></span>
+            <span>Ava leads: <span className="text-foreground">{data.funnel.avaLeads}</span></span>
+            <span>Ava bookings: <span className={cn(data.funnel.avaBookings > 0 ? "text-emerald-400" : "text-foreground")}>{data.funnel.avaBookings}</span></span>
+            <span>Ads-attributed bookings: <span className="text-foreground">{data.funnel.adsAttributedBookings}</span></span>
+            <span>Organic bookings: <span className="text-foreground">{data.funnel.organicBookings}</span></span>
+            <span>Web-form leads: <span className="text-foreground">{data.funnel.webFormLeads}</span></span>
+            {data.funnel.callToLeadRatePct != null && (
+              <span>Call → lead: <span className="text-foreground">{data.funnel.callToLeadRatePct}%</span></span>
+            )}
+            {data.funnel.callToBookingRatePct != null && (
+              <span>Call → booking: <span className="text-foreground">{data.funnel.callToBookingRatePct}%</span></span>
+            )}
+          </div>
+        </div>
+      )}
+
       {data.lastProviderError && (
         <p className="text-[11px] text-red-400/90 leading-snug break-all">
           Last provider error: {data.lastProviderError.message}

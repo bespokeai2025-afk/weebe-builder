@@ -2458,6 +2458,51 @@ export type Database = {
           },
         ]
       }
+      clarity_metrics_daily: {
+        Row: {
+          bot_sessions: number
+          created_at: string
+          device: string
+          distinct_users: number
+          id: string
+          metric_date: string
+          metrics: Json
+          raw: Json | null
+          sessions: number
+          updated_at: string
+          url: string
+          workspace_id: string
+        }
+        Insert: {
+          bot_sessions?: number
+          created_at?: string
+          device?: string
+          distinct_users?: number
+          id?: string
+          metric_date: string
+          metrics?: Json
+          raw?: Json | null
+          sessions?: number
+          updated_at?: string
+          url: string
+          workspace_id: string
+        }
+        Update: {
+          bot_sessions?: number
+          created_at?: string
+          device?: string
+          distinct_users?: number
+          id?: string
+          metric_date?: string
+          metrics?: Json
+          raw?: Json | null
+          sessions?: number
+          updated_at?: string
+          url?: string
+          workspace_id?: string
+        }
+        Relationships: []
+      }
       client_api_connections: {
         Row: {
           auth_type: string
@@ -3147,57 +3192,6 @@ export type Database = {
         }
         Relationships: []
       }
-      cost_engine_webee_native: {
-        Row: {
-          agent_talk_ratio: number
-          analysis_cost_per_call: number
-          concurrency_tier_monthly: number
-          created_at: string
-          estimated_monthly_minutes: number
-          id: string
-          is_current: boolean
-          llm_cost_per_min: number
-          notes: string | null
-          router_cost_per_min: number
-          stt_cost_per_min: number
-          tts_chars_per_min: number
-          tts_cost_per_1m_bytes: number
-          updated_at: string
-        }
-        Insert: {
-          agent_talk_ratio?: number
-          analysis_cost_per_call?: number
-          concurrency_tier_monthly?: number
-          created_at?: string
-          estimated_monthly_minutes?: number
-          id?: string
-          is_current?: boolean
-          llm_cost_per_min?: number
-          notes?: string | null
-          router_cost_per_min?: number
-          stt_cost_per_min?: number
-          tts_chars_per_min?: number
-          tts_cost_per_1m_bytes?: number
-          updated_at?: string
-        }
-        Update: {
-          agent_talk_ratio?: number
-          analysis_cost_per_call?: number
-          concurrency_tier_monthly?: number
-          created_at?: string
-          estimated_monthly_minutes?: number
-          id?: string
-          is_current?: boolean
-          llm_cost_per_min?: number
-          notes?: string | null
-          router_cost_per_min?: number
-          stt_cost_per_min?: number
-          tts_chars_per_min?: number
-          tts_cost_per_1m_bytes?: number
-          updated_at?: string
-        }
-        Relationships: []
-      }
       cost_engine_systemmind: {
         Row: {
           base_charge_per_run_usd: number
@@ -3366,6 +3360,57 @@ export type Database = {
           updated_at?: string
           voice_id?: string
           voice_name?: string
+        }
+        Relationships: []
+      }
+      cost_engine_webee_native: {
+        Row: {
+          agent_talk_ratio: number
+          analysis_cost_per_call: number
+          concurrency_tier_monthly: number
+          created_at: string
+          estimated_monthly_minutes: number
+          id: string
+          is_current: boolean
+          llm_cost_per_min: number
+          notes: string | null
+          router_cost_per_min: number
+          stt_cost_per_min: number
+          tts_chars_per_min: number
+          tts_cost_per_1m_bytes: number
+          updated_at: string
+        }
+        Insert: {
+          agent_talk_ratio?: number
+          analysis_cost_per_call?: number
+          concurrency_tier_monthly?: number
+          created_at?: string
+          estimated_monthly_minutes?: number
+          id?: string
+          is_current?: boolean
+          llm_cost_per_min?: number
+          notes?: string | null
+          router_cost_per_min?: number
+          stt_cost_per_min?: number
+          tts_chars_per_min?: number
+          tts_cost_per_1m_bytes?: number
+          updated_at?: string
+        }
+        Update: {
+          agent_talk_ratio?: number
+          analysis_cost_per_call?: number
+          concurrency_tier_monthly?: number
+          created_at?: string
+          estimated_monthly_minutes?: number
+          id?: string
+          is_current?: boolean
+          llm_cost_per_min?: number
+          notes?: string | null
+          router_cost_per_min?: number
+          stt_cost_per_min?: number
+          tts_chars_per_min?: number
+          tts_cost_per_1m_bytes?: number
+          updated_at?: string
         }
         Relationships: []
       }
@@ -3629,6 +3674,35 @@ export type Database = {
           },
           {
             foreignKeyName: "deployments_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      dnr_pabau_call_sessions: {
+        Row: {
+          retell_call_id: string
+          session: Json
+          updated_at: string
+          workspace_id: string
+        }
+        Insert: {
+          retell_call_id?: string
+          session?: Json
+          updated_at?: string
+          workspace_id: string
+        }
+        Update: {
+          retell_call_id?: string
+          session?: Json
+          updated_at?: string
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "dnr_pabau_call_sessions_workspace_id_fkey"
             columns: ["workspace_id"]
             isOneToOne: false
             referencedRelation: "workspaces"
@@ -6651,9 +6725,11 @@ export type Database = {
           customer_id: string | null
           executed_at: string | null
           id: string
+          marketing_action_id: string | null
           payload: Json | null
           recommendation_id: string | null
           status: string
+          status_detail: string | null
           workspace_id: string
         }
         Insert: {
@@ -6666,9 +6742,11 @@ export type Database = {
           customer_id?: string | null
           executed_at?: string | null
           id?: string
+          marketing_action_id?: string | null
           payload?: Json | null
           recommendation_id?: string | null
           status?: string
+          status_detail?: string | null
           workspace_id: string
         }
         Update: {
@@ -6681,9 +6759,11 @@ export type Database = {
           customer_id?: string | null
           executed_at?: string | null
           id?: string
+          marketing_action_id?: string | null
           payload?: Json | null
           recommendation_id?: string | null
           status?: string
+          status_detail?: string | null
           workspace_id?: string
         }
         Relationships: [
@@ -6755,6 +6835,63 @@ export type Database = {
           label?: string | null
           meta?: Json | null
           updated_at?: string
+          workspace_id?: string
+        }
+        Relationships: []
+      }
+      growthmind_gads_negative_decision_log: {
+        Row: {
+          account_row_id: string | null
+          campaign_id: string | null
+          campaign_name: string | null
+          classification: string
+          created_at: string
+          customer_id: string | null
+          decided_by: string | null
+          decision: string
+          evidence: Json
+          id: string
+          marketing_action_id: string | null
+          match_type: string | null
+          reason: string | null
+          recommendation_id: string | null
+          search_term: string
+          workspace_id: string
+        }
+        Insert: {
+          account_row_id?: string | null
+          campaign_id?: string | null
+          campaign_name?: string | null
+          classification: string
+          created_at?: string
+          customer_id?: string | null
+          decided_by?: string | null
+          decision: string
+          evidence?: Json
+          id?: string
+          marketing_action_id?: string | null
+          match_type?: string | null
+          reason?: string | null
+          recommendation_id?: string | null
+          search_term: string
+          workspace_id: string
+        }
+        Update: {
+          account_row_id?: string | null
+          campaign_id?: string | null
+          campaign_name?: string | null
+          classification?: string
+          created_at?: string
+          customer_id?: string | null
+          decided_by?: string | null
+          decision?: string
+          evidence?: Json
+          id?: string
+          marketing_action_id?: string | null
+          match_type?: string | null
+          reason?: string | null
+          recommendation_id?: string | null
+          search_term?: string
           workspace_id?: string
         }
         Relationships: []
@@ -9084,6 +9221,87 @@ export type Database = {
         }
         Relationships: []
       }
+      growthmind_seo_opportunities: {
+        Row: {
+          business_value: number
+          confidence: number
+          created_at: string
+          dedupe_key: string
+          dim_key: string
+          effort: number
+          evidence: Json
+          id: string
+          kind: string
+          last_detected_at: string
+          linked_campaign_id: string | null
+          linked_package_id: string | null
+          marketing_action_id: string | null
+          measurement: Json
+          property_url: string
+          ranking_opportunity: number
+          rationale: string
+          recommended_execution: string
+          score: number
+          status: string
+          status_changed_at: string | null
+          title: string
+          updated_at: string
+          workspace_id: string
+        }
+        Insert: {
+          business_value: number
+          confidence: number
+          created_at?: string
+          dedupe_key: string
+          dim_key: string
+          effort: number
+          evidence?: Json
+          id?: string
+          kind: string
+          last_detected_at?: string
+          linked_campaign_id?: string | null
+          linked_package_id?: string | null
+          marketing_action_id?: string | null
+          measurement?: Json
+          property_url: string
+          ranking_opportunity: number
+          rationale: string
+          recommended_execution: string
+          score: number
+          status?: string
+          status_changed_at?: string | null
+          title: string
+          updated_at?: string
+          workspace_id: string
+        }
+        Update: {
+          business_value?: number
+          confidence?: number
+          created_at?: string
+          dedupe_key?: string
+          dim_key?: string
+          effort?: number
+          evidence?: Json
+          id?: string
+          kind?: string
+          last_detected_at?: string
+          linked_campaign_id?: string | null
+          linked_package_id?: string | null
+          marketing_action_id?: string | null
+          measurement?: Json
+          property_url?: string
+          ranking_opportunity?: number
+          rationale?: string
+          recommended_execution?: string
+          score?: number
+          status?: string
+          status_changed_at?: string | null
+          title?: string
+          updated_at?: string
+          workspace_id?: string
+        }
+        Relationships: []
+      }
       growthmind_seo_sites: {
         Row: {
           ai_rec_at: string | null
@@ -11030,6 +11248,44 @@ export type Database = {
         }
         Relationships: []
       }
+      lead_assignment_audit: {
+        Row: {
+          assigned_by: string
+          assigned_to: string | null
+          created_at: string
+          id: string
+          lead_id: string
+          previous_assigned_to: string | null
+          workspace_id: string
+        }
+        Insert: {
+          assigned_by: string
+          assigned_to?: string | null
+          created_at?: string
+          id?: string
+          lead_id: string
+          previous_assigned_to?: string | null
+          workspace_id: string
+        }
+        Update: {
+          assigned_by?: string
+          assigned_to?: string | null
+          created_at?: string
+          id?: string
+          lead_id?: string
+          previous_assigned_to?: string | null
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lead_assignment_audit_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       lead_email_log: {
         Row: {
           created_at: string
@@ -11095,6 +11351,9 @@ export type Database = {
       }
       leads: {
         Row: {
+          assigned_at: string | null
+          assigned_by: string | null
+          assigned_to: string | null
           attempt_count: number
           bank_statements_status: string | null
           bank_statements_uploaded: boolean
@@ -11102,6 +11361,7 @@ export type Database = {
           business_address: string | null
           business_type: string | null
           buying_intent: string | null
+          buzzchat_conversation_id: string | null
           call_outcome: string | null
           call_summary: string | null
           callback_date: string | null
@@ -11116,8 +11376,10 @@ export type Database = {
           funding_amount: number | null
           gbraid: string | null
           gclid: string | null
+          has_buzzchat_reply: boolean
           id: string
           interest_level: string | null
+          last_buzzchat_reply_at: string | null
           last_contacted_at: string | null
           lead_score: number | null
           meeting_requested: boolean
@@ -11156,6 +11418,9 @@ export type Database = {
           workspace_id: string
         }
         Insert: {
+          assigned_at?: string | null
+          assigned_by?: string | null
+          assigned_to?: string | null
           attempt_count?: number
           bank_statements_status?: string | null
           bank_statements_uploaded?: boolean
@@ -11163,6 +11428,7 @@ export type Database = {
           business_address?: string | null
           business_type?: string | null
           buying_intent?: string | null
+          buzzchat_conversation_id?: string | null
           call_outcome?: string | null
           call_summary?: string | null
           callback_date?: string | null
@@ -11177,8 +11443,10 @@ export type Database = {
           funding_amount?: number | null
           gbraid?: string | null
           gclid?: string | null
+          has_buzzchat_reply?: boolean
           id?: string
           interest_level?: string | null
+          last_buzzchat_reply_at?: string | null
           last_contacted_at?: string | null
           lead_score?: number | null
           meeting_requested?: boolean
@@ -11217,6 +11485,9 @@ export type Database = {
           workspace_id: string
         }
         Update: {
+          assigned_at?: string | null
+          assigned_by?: string | null
+          assigned_to?: string | null
           attempt_count?: number
           bank_statements_status?: string | null
           bank_statements_uploaded?: boolean
@@ -11224,6 +11495,7 @@ export type Database = {
           business_address?: string | null
           business_type?: string | null
           buying_intent?: string | null
+          buzzchat_conversation_id?: string | null
           call_outcome?: string | null
           call_summary?: string | null
           callback_date?: string | null
@@ -11238,8 +11510,10 @@ export type Database = {
           funding_amount?: number | null
           gbraid?: string | null
           gclid?: string | null
+          has_buzzchat_reply?: boolean
           id?: string
           interest_level?: string | null
+          last_buzzchat_reply_at?: string | null
           last_contacted_at?: string | null
           lead_score?: number | null
           meeting_requested?: boolean
@@ -11350,6 +11624,268 @@ export type Database = {
           workspace_id?: string
         }
         Relationships: []
+      }
+      marketing_actions: {
+        Row: {
+          action_type: string
+          api_response: Json | null
+          approval_action_id: string | null
+          approval_required: boolean
+          auto_claimed_at: string | null
+          baseline: Json | null
+          confidence: number | null
+          created_at: string
+          error_message: string | null
+          evidence: Json
+          executed_at: string | null
+          execution_attempts: number
+          existing_value: Json | null
+          expected_impact: string | null
+          external_resource_id: string | null
+          id: string
+          measured_at: string | null
+          objective: string | null
+          objective_id: string | null
+          outcome: Json | null
+          outcome_classification: string | null
+          platform: string
+          proposed_value: Json | null
+          reassess_at: string | null
+          requested_by: string | null
+          risk_level: string
+          rollback_of: string | null
+          rollback_payload: Json | null
+          source: string
+          status: string
+          status_history: Json
+          target: Json
+          updated_at: string
+          verification_evidence: Json | null
+          verification_status: string | null
+          verified_at: string | null
+          workspace_id: string
+        }
+        Insert: {
+          action_type: string
+          api_response?: Json | null
+          approval_action_id?: string | null
+          approval_required?: boolean
+          auto_claimed_at?: string | null
+          baseline?: Json | null
+          confidence?: number | null
+          created_at?: string
+          error_message?: string | null
+          evidence?: Json
+          executed_at?: string | null
+          execution_attempts?: number
+          existing_value?: Json | null
+          expected_impact?: string | null
+          external_resource_id?: string | null
+          id?: string
+          measured_at?: string | null
+          objective?: string | null
+          objective_id?: string | null
+          outcome?: Json | null
+          outcome_classification?: string | null
+          platform: string
+          proposed_value?: Json | null
+          reassess_at?: string | null
+          requested_by?: string | null
+          risk_level?: string
+          rollback_of?: string | null
+          rollback_payload?: Json | null
+          source: string
+          status?: string
+          status_history?: Json
+          target?: Json
+          updated_at?: string
+          verification_evidence?: Json | null
+          verification_status?: string | null
+          verified_at?: string | null
+          workspace_id: string
+        }
+        Update: {
+          action_type?: string
+          api_response?: Json | null
+          approval_action_id?: string | null
+          approval_required?: boolean
+          auto_claimed_at?: string | null
+          baseline?: Json | null
+          confidence?: number | null
+          created_at?: string
+          error_message?: string | null
+          evidence?: Json
+          executed_at?: string | null
+          execution_attempts?: number
+          existing_value?: Json | null
+          expected_impact?: string | null
+          external_resource_id?: string | null
+          id?: string
+          measured_at?: string | null
+          objective?: string | null
+          objective_id?: string | null
+          outcome?: Json | null
+          outcome_classification?: string | null
+          platform?: string
+          proposed_value?: Json | null
+          reassess_at?: string | null
+          requested_by?: string | null
+          risk_level?: string
+          rollback_of?: string | null
+          rollback_payload?: Json | null
+          source?: string
+          status?: string
+          status_history?: Json
+          target?: Json
+          updated_at?: string
+          verification_evidence?: Json | null
+          verification_status?: string | null
+          verified_at?: string | null
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "marketing_actions_rollback_of_fkey"
+            columns: ["rollback_of"]
+            isOneToOne: false
+            referencedRelation: "marketing_actions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "marketing_actions_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      marketing_objectives: {
+        Row: {
+          baseline: Json
+          command_text: string | null
+          constraints: Json
+          created_at: string
+          created_by_user_id: string | null
+          id: string
+          last_review: Json | null
+          last_reviewed_at: string | null
+          metric: string
+          metric_source: string
+          priority: number
+          status: string
+          target: Json
+          title: string
+          updated_at: string
+          work_order_ids: Json
+          workspace_id: string
+        }
+        Insert: {
+          baseline?: Json
+          command_text?: string | null
+          constraints?: Json
+          created_at?: string
+          created_by_user_id?: string | null
+          id?: string
+          last_review?: Json | null
+          last_reviewed_at?: string | null
+          metric: string
+          metric_source?: string
+          priority?: number
+          status?: string
+          target?: Json
+          title: string
+          updated_at?: string
+          work_order_ids?: Json
+          workspace_id: string
+        }
+        Update: {
+          baseline?: Json
+          command_text?: string | null
+          constraints?: Json
+          created_at?: string
+          created_by_user_id?: string | null
+          id?: string
+          last_review?: Json | null
+          last_reviewed_at?: string | null
+          metric?: string
+          metric_source?: string
+          priority?: number
+          status?: string
+          target?: Json
+          title?: string
+          updated_at?: string
+          work_order_ids?: Json
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "marketing_objectives_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      marketing_operator_findings: {
+        Row: {
+          created_at: string
+          data: Json
+          dedupe_key: string
+          detail: string | null
+          finding_kind: string
+          id: string
+          marketing_action_id: string | null
+          objective_id: string | null
+          run_date: string
+          severity: string
+          status: string
+          title: string
+          updated_at: string
+          workspace_id: string
+        }
+        Insert: {
+          created_at?: string
+          data?: Json
+          dedupe_key: string
+          detail?: string | null
+          finding_kind: string
+          id?: string
+          marketing_action_id?: string | null
+          objective_id?: string | null
+          run_date: string
+          severity?: string
+          status?: string
+          title: string
+          updated_at?: string
+          workspace_id: string
+        }
+        Update: {
+          created_at?: string
+          data?: Json
+          dedupe_key?: string
+          detail?: string | null
+          finding_kind?: string
+          id?: string
+          marketing_action_id?: string | null
+          objective_id?: string | null
+          run_date?: string
+          severity?: string
+          status?: string
+          title?: string
+          updated_at?: string
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "marketing_operator_findings_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       mind_conversation_messages: {
         Row: {
@@ -11639,6 +12175,30 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      notification_event_ledger: {
+        Row: {
+          created_at: string
+          dedupe_key: string
+          event_key: string
+          id: string
+          workspace_id: string
+        }
+        Insert: {
+          created_at?: string
+          dedupe_key: string
+          event_key: string
+          id?: string
+          workspace_id: string
+        }
+        Update: {
+          created_at?: string
+          dedupe_key?: string
+          event_key?: string
+          id?: string
+          workspace_id?: string
+        }
+        Relationships: []
       }
       oauth_state_nonces: {
         Row: {
@@ -12244,6 +12804,47 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "provider_usage_log_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      receptionist_tool_events: {
+        Row: {
+          created_at: string
+          id: string
+          ok: boolean
+          request_summary: Json
+          response_summary: Json
+          retell_call_id: string | null
+          tool_name: string
+          workspace_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          ok?: boolean
+          request_summary?: Json
+          response_summary?: Json
+          retell_call_id?: string | null
+          tool_name: string
+          workspace_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          ok?: boolean
+          request_summary?: Json
+          response_summary?: Json
+          retell_call_id?: string | null
+          tool_name?: string
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "receptionist_tool_events_workspace_id_fkey"
             columns: ["workspace_id"]
             isOneToOne: false
             referencedRelation: "workspaces"
@@ -15742,6 +16343,66 @@ export type Database = {
         }
         Relationships: []
       }
+      voice_shadow_runs: {
+        Row: {
+          agent_id: string
+          average_similarity: number
+          candidate_agent_turns: number
+          candidate_transcript: string | null
+          created_at: string
+          diff: Json
+          diverged_at_turn: number | null
+          error: string | null
+          id: string
+          node_path: Json
+          reference_agent_turns: number
+          reference_call_id: string | null
+          reference_engine: string
+          user_turn_count: number
+          verdict: string
+          warnings: Json
+          workspace_id: string
+        }
+        Insert: {
+          agent_id: string
+          average_similarity?: number
+          candidate_agent_turns?: number
+          candidate_transcript?: string | null
+          created_at?: string
+          diff?: Json
+          diverged_at_turn?: number | null
+          error?: string | null
+          id?: string
+          node_path?: Json
+          reference_agent_turns?: number
+          reference_call_id?: string | null
+          reference_engine?: string
+          user_turn_count?: number
+          verdict?: string
+          warnings?: Json
+          workspace_id: string
+        }
+        Update: {
+          agent_id?: string
+          average_similarity?: number
+          candidate_agent_turns?: number
+          candidate_transcript?: string | null
+          created_at?: string
+          diff?: Json
+          diverged_at_turn?: number | null
+          error?: string | null
+          id?: string
+          node_path?: Json
+          reference_agent_turns?: number
+          reference_call_id?: string | null
+          reference_engine?: string
+          user_turn_count?: number
+          verdict?: string
+          warnings?: Json
+          workspace_id?: string
+        }
+        Relationships: []
+      }
       wati_campaigns: {
         Row: {
           broadcast_name: string | null
@@ -15801,6 +16462,7 @@ export type Database = {
           status: string
           tenant_id: string
           updated_at: string | null
+          warmup_config: Json
           webhook_manual: boolean
           webhook_secret: string | null
           workspace_id: string
@@ -15818,6 +16480,7 @@ export type Database = {
           status?: string
           tenant_id: string
           updated_at?: string | null
+          warmup_config?: Json
           webhook_manual?: boolean
           webhook_secret?: string | null
           workspace_id: string
@@ -15835,6 +16498,7 @@ export type Database = {
           status?: string
           tenant_id?: string
           updated_at?: string | null
+          warmup_config?: Json
           webhook_manual?: boolean
           webhook_secret?: string | null
           workspace_id?: string
@@ -16661,6 +17325,87 @@ export type Database = {
           },
         ]
       }
+      website_change_queue: {
+        Row: {
+          change_type: string
+          confidence: number
+          created_at: string
+          current_state: string
+          dedupe_key: string
+          expected_impact: string
+          first_detected_at: string
+          id: string
+          last_detected_at: string
+          marketing_action_id: string | null
+          measurement: Json | null
+          package_id: string | null
+          page_url: string
+          proposed_state: string
+          risk: string
+          rollback_plan: string
+          score: number
+          status: string
+          status_changed_at: string
+          supporting_data: Json
+          title: string
+          updated_at: string
+          why: string
+          workspace_id: string
+        }
+        Insert: {
+          change_type: string
+          confidence?: number
+          created_at?: string
+          current_state: string
+          dedupe_key: string
+          expected_impact: string
+          first_detected_at?: string
+          id?: string
+          last_detected_at?: string
+          marketing_action_id?: string | null
+          measurement?: Json | null
+          package_id?: string | null
+          page_url: string
+          proposed_state: string
+          risk: string
+          rollback_plan: string
+          score?: number
+          status?: string
+          status_changed_at?: string
+          supporting_data?: Json
+          title: string
+          updated_at?: string
+          why: string
+          workspace_id: string
+        }
+        Update: {
+          change_type?: string
+          confidence?: number
+          created_at?: string
+          current_state?: string
+          dedupe_key?: string
+          expected_impact?: string
+          first_detected_at?: string
+          id?: string
+          last_detected_at?: string
+          marketing_action_id?: string | null
+          measurement?: Json | null
+          package_id?: string | null
+          page_url?: string
+          proposed_state?: string
+          risk?: string
+          rollback_plan?: string
+          score?: number
+          status?: string
+          status_changed_at?: string
+          supporting_data?: Json
+          title?: string
+          updated_at?: string
+          why?: string
+          workspace_id?: string
+        }
+        Relationships: []
+      }
       whatsapp_campaigns: {
         Row: {
           audience_filter: Json | null
@@ -16737,7 +17482,9 @@ export type Database = {
         Row: {
           archived: boolean | null
           created_at: string | null
+          do_not_contact: boolean
           id: string
+          import_meta: Json
           lead_status: string | null
           name: string | null
           notes: string | null
@@ -16750,7 +17497,9 @@ export type Database = {
         Insert: {
           archived?: boolean | null
           created_at?: string | null
+          do_not_contact?: boolean
           id?: string
+          import_meta?: Json
           lead_status?: string | null
           name?: string | null
           notes?: string | null
@@ -16763,7 +17512,9 @@ export type Database = {
         Update: {
           archived?: boolean | null
           created_at?: string | null
+          do_not_contact?: boolean
           id?: string
+          import_meta?: Json
           lead_status?: string | null
           name?: string | null
           notes?: string | null
@@ -16875,61 +17626,6 @@ export type Database = {
             columns: ["workspace_id"]
             isOneToOne: false
             referencedRelation: "workspaces"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      whatsapp_teams: {
-        Row: {
-          created_at: string
-          id: string
-          name: string
-          workspace_id: string
-        }
-        Insert: {
-          created_at?: string
-          id?: string
-          name: string
-          workspace_id: string
-        }
-        Update: {
-          created_at?: string
-          id?: string
-          name?: string
-          workspace_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "whatsapp_teams_workspace_id_fkey"
-            columns: ["workspace_id"]
-            isOneToOne: false
-            referencedRelation: "workspaces"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      whatsapp_team_members: {
-        Row: {
-          created_at: string
-          team_id: string
-          user_id: string
-        }
-        Insert: {
-          created_at?: string
-          team_id: string
-          user_id: string
-        }
-        Update: {
-          created_at?: string
-          team_id?: string
-          user_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "whatsapp_team_members_team_id_fkey"
-            columns: ["team_id"]
-            isOneToOne: false
-            referencedRelation: "whatsapp_teams"
             referencedColumns: ["id"]
           },
         ]
@@ -17144,6 +17840,61 @@ export type Database = {
           },
         ]
       }
+      whatsapp_team_members: {
+        Row: {
+          created_at: string
+          team_id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          team_id: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          team_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "whatsapp_team_members_team_id_fkey"
+            columns: ["team_id"]
+            isOneToOne: false
+            referencedRelation: "whatsapp_teams"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      whatsapp_teams: {
+        Row: {
+          created_at: string
+          id: string
+          name: string
+          workspace_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          name: string
+          workspace_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          name?: string
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "whatsapp_teams_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       whatsapp_templates: {
         Row: {
           body: string
@@ -17345,66 +18096,6 @@ export type Database = {
           status?: string
           title?: string
           updated_at?: string
-          workspace_id?: string
-        }
-        Relationships: []
-      }
-      voice_shadow_runs: {
-        Row: {
-          agent_id: string
-          average_similarity: number
-          candidate_agent_turns: number
-          candidate_transcript: string | null
-          created_at: string
-          diff: Json
-          diverged_at_turn: number | null
-          error: string | null
-          id: string
-          node_path: Json
-          reference_agent_turns: number
-          reference_call_id: string | null
-          reference_engine: string
-          user_turn_count: number
-          verdict: string
-          warnings: Json
-          workspace_id: string
-        }
-        Insert: {
-          agent_id: string
-          average_similarity?: number
-          candidate_agent_turns?: number
-          candidate_transcript?: string | null
-          created_at?: string
-          diff?: Json
-          diverged_at_turn?: number | null
-          error?: string | null
-          id?: string
-          node_path?: Json
-          reference_agent_turns?: number
-          reference_call_id?: string | null
-          reference_engine?: string
-          user_turn_count?: number
-          verdict?: string
-          warnings?: Json
-          workspace_id: string
-        }
-        Update: {
-          agent_id?: string
-          average_similarity?: number
-          candidate_agent_turns?: number
-          candidate_transcript?: string | null
-          created_at?: string
-          diff?: Json
-          diverged_at_turn?: number | null
-          error?: string | null
-          id?: string
-          node_path?: Json
-          reference_agent_turns?: number
-          reference_call_id?: string | null
-          reference_engine?: string
-          user_turn_count?: number
-          verdict?: string
-          warnings?: Json
           workspace_id?: string
         }
         Relationships: []
@@ -18311,6 +19002,7 @@ export type Database = {
           frequency: string
           id: string
           in_app_enabled: boolean
+          lead_filter: Json | null
           recipients: Json
           updated_at: string
           updated_by_user_id: string | null
@@ -18324,6 +19016,7 @@ export type Database = {
           frequency?: string
           id?: string
           in_app_enabled?: boolean
+          lead_filter?: Json | null
           recipients?: Json
           updated_at?: string
           updated_by_user_id?: string | null
@@ -18337,6 +19030,7 @@ export type Database = {
           frequency?: string
           id?: string
           in_app_enabled?: boolean
+          lead_filter?: Json | null
           recipients?: Json
           updated_at?: string
           updated_by_user_id?: string | null
@@ -18866,6 +19560,12 @@ export type Database = {
           lead_auto_call_enabled: boolean
           lead_auto_email_enabled: boolean | null
           lead_auto_email_template_id: string | null
+          marketing_autonomy_level: string
+          marketing_autonomy_set_at: string | null
+          marketing_autonomy_set_by: string | null
+          marketing_guardrails: Json
+          marketing_operator_enabled: boolean
+          marketing_operator_last_run_at: string | null
           meta_access_token: string | null
           meta_ads_access_token: string | null
           meta_ads_account_id: string | null
@@ -18879,10 +19579,13 @@ export type Database = {
           openai_realtime_inbound_url: string | null
           pipedrive_api_token: string | null
           plan_tier: string
+          push_tokens: Json
           retell_default_agent_id: string | null
           retell_workspace_id: string | null
           salesforce_access_token: string | null
           salesforce_instance_url: string | null
+          seo_auto_campaigns_per_week: number
+          seo_auto_last_created_at: string | null
           systemmind_cto_settings: Json | null
           timezone: string
           twilio_account_sid: string | null
@@ -18952,6 +19655,12 @@ export type Database = {
           lead_auto_call_enabled?: boolean
           lead_auto_email_enabled?: boolean | null
           lead_auto_email_template_id?: string | null
+          marketing_autonomy_level?: string
+          marketing_autonomy_set_at?: string | null
+          marketing_autonomy_set_by?: string | null
+          marketing_guardrails?: Json
+          marketing_operator_enabled?: boolean
+          marketing_operator_last_run_at?: string | null
           meta_access_token?: string | null
           meta_ads_access_token?: string | null
           meta_ads_account_id?: string | null
@@ -18965,10 +19674,13 @@ export type Database = {
           openai_realtime_inbound_url?: string | null
           pipedrive_api_token?: string | null
           plan_tier?: string
+          push_tokens?: Json
           retell_default_agent_id?: string | null
           retell_workspace_id?: string | null
           salesforce_access_token?: string | null
           salesforce_instance_url?: string | null
+          seo_auto_campaigns_per_week?: number
+          seo_auto_last_created_at?: string | null
           systemmind_cto_settings?: Json | null
           timezone?: string
           twilio_account_sid?: string | null
@@ -19038,6 +19750,12 @@ export type Database = {
           lead_auto_call_enabled?: boolean
           lead_auto_email_enabled?: boolean | null
           lead_auto_email_template_id?: string | null
+          marketing_autonomy_level?: string
+          marketing_autonomy_set_at?: string | null
+          marketing_autonomy_set_by?: string | null
+          marketing_guardrails?: Json
+          marketing_operator_enabled?: boolean
+          marketing_operator_last_run_at?: string | null
           meta_access_token?: string | null
           meta_ads_access_token?: string | null
           meta_ads_account_id?: string | null
@@ -19051,10 +19769,13 @@ export type Database = {
           openai_realtime_inbound_url?: string | null
           pipedrive_api_token?: string | null
           plan_tier?: string
+          push_tokens?: Json
           retell_default_agent_id?: string | null
           retell_workspace_id?: string | null
           salesforce_access_token?: string | null
           salesforce_instance_url?: string | null
+          seo_auto_campaigns_per_week?: number
+          seo_auto_last_created_at?: string | null
           systemmind_cto_settings?: Json | null
           timezone?: string
           twilio_account_sid?: string | null
@@ -19234,6 +19955,35 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "workspace_user_access_overrides_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      workspace_user_notification_prefs: {
+        Row: {
+          muted_event_keys: Json
+          updated_at: string
+          user_id: string
+          workspace_id: string
+        }
+        Insert: {
+          muted_event_keys?: Json
+          updated_at?: string
+          user_id: string
+          workspace_id: string
+        }
+        Update: {
+          muted_event_keys?: Json
+          updated_at?: string
+          user_id?: string
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "workspace_user_notification_prefs_workspace_id_fkey"
             columns: ["workspace_id"]
             isOneToOne: false
             referencedRelation: "workspaces"
@@ -19597,6 +20347,10 @@ export type Database = {
           read_ct: number
         }[]
       }
+      sync_whatsapp_conversation: {
+        Args: { _contact_phone: string; _workspace_id: string }
+        Returns: undefined
+      }
       trigger_ads_sync: { Args: never; Returns: undefined }
       trigger_campaign_executor: { Args: never; Returns: undefined }
       trigger_provider_health_sweep: { Args: never; Returns: undefined }
@@ -19649,6 +20403,7 @@ export type Database = {
         | "custom_form"
         | "webee_website_form"
         | "api"
+        | "whatsapp"
       lead_status:
         | "need_to_call"
         | "calling"
@@ -19662,7 +20417,7 @@ export type Database = {
       message_status: "queued" | "sent" | "delivered" | "read" | "failed"
       sentiment_kind: "positive" | "neutral" | "negative"
       user_type: "admin" | "user"
-      workspace_role: "owner" | "admin" | "member"
+      workspace_role: "owner" | "admin" | "member" | "sales_agent"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -19836,6 +20591,7 @@ export const Constants = {
         "custom_form",
         "webee_website_form",
         "api",
+        "whatsapp",
       ],
       lead_status: [
         "need_to_call",
@@ -19851,7 +20607,7 @@ export const Constants = {
       message_status: ["queued", "sent", "delivered", "read", "failed"],
       sentiment_kind: ["positive", "neutral", "negative"],
       user_type: ["admin", "user"],
-      workspace_role: ["owner", "admin", "member"],
+      workspace_role: ["owner", "admin", "member", "sales_agent"],
     },
   },
 } as const

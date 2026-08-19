@@ -170,6 +170,9 @@ export const getStrategies = createServerFn({ method: "GET" })
     const sb          = context.supabase as any;
     const workspaceId = context.workspaceId;
     if (!workspaceId) throw new Error("No workspace");
+    const userId = (context as any).userId;
+    const { requirePageAccessEntitled } = await import("@/lib/packages/entitlements.server");
+    await requirePageAccessEntitled(workspaceId, userId, "growthmind", "view");
 
     const { data, error } = await sb
       .from("growthmind_strategies")
@@ -192,6 +195,9 @@ export const generateStrategy = createServerFn({ method: "POST" })
     const sb          = context.supabase as any;
     const workspaceId = context.workspaceId;
     if (!workspaceId) throw new Error("No workspace");
+    const userId = (context as any).userId;
+    const { requirePageAccessEntitled } = await import("@/lib/packages/entitlements.server");
+    await requirePageAccessEntitled(workspaceId, userId, "growthmind", "view");
 
     const apiKey = process.env.OPENAI_API_KEY;
     if (!apiKey) throw new Error("OPENAI_API_KEY not set");
@@ -343,6 +349,9 @@ export const deleteStrategy = createServerFn({ method: "POST" })
     const sb          = context.supabase as any;
     const workspaceId = context.workspaceId;
     if (!workspaceId) throw new Error("No workspace");
+    const userId = (context as any).userId;
+    const { requirePageAccessEntitled } = await import("@/lib/packages/entitlements.server");
+    await requirePageAccessEntitled(workspaceId, userId, "growthmind", "view");
 
     const { error } = await sb
       .from("growthmind_strategies")
@@ -363,6 +372,9 @@ export const sendStrategyToHiveMind = createServerFn({ method: "POST" })
     const sb          = context.supabase as any;
     const workspaceId = context.workspaceId;
     if (!workspaceId) throw new Error("No workspace");
+    const userId = (context as any).userId;
+    const { requirePageAccessEntitled } = await import("@/lib/packages/entitlements.server");
+    await requirePageAccessEntitled(workspaceId, userId, "growthmind", "view");
 
     const { data: strat, error: stratErr } = await sb
       .from("growthmind_strategies")

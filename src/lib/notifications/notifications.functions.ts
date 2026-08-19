@@ -10,11 +10,18 @@ import { requireAction, resolvePermissions, writeAccessAudit } from "@/lib/permi
 import {
   NOTIFICATION_EVENT_KEYS,
   NOTIFICATION_EVENT_LABELS,
+  NOTIFICATION_EVENT_DEFS,
+  NOTIFICATION_CATEGORY_ORDER,
   DEFAULT_EVENT_SETTINGS,
+  defaultSettingsForEvent,
   loadNotificationCaps,
   type NotificationEventKey,
   type NotificationRecipientsConfig,
 } from "./notification-engine.shared";
+import {
+  getWorkspaceNotificationCapabilities,
+  applicableEventKeys,
+} from "./notification-capabilities.server";
 
 const sb = supabaseAdmin as any;
 
@@ -27,10 +34,10 @@ export const listNotificationSettings = createServerFn({ method: "GET" })
     const perms = await resolvePermissions(workspaceId, userId);
     if (!perms.isMember) throw new Error("Not a member of this workspace");
 
-    const [{ data, error }, caps, provider, lastEmailByEvent] = await Promise.all([
+    const [{ data, error }, caps, provider, lastEmailByEvent, wsCaps] = await Promise.all([
       sb
         .from("workspace_notification_settings")
-        .select("event_key, enabled, email_enabled, in_app_enabled, recipients, frequency")
+        .select("event_key, enabled, email_enabled, in_app_enabled, recipients, frequency, lead_filter")
         .eq("workspace_id", workspaceId),
       loadNotificationCaps(sb, workspaceId),
       (async () => {
@@ -67,12 +74,28 @@ export const listNotificationSettings = createServerFn({ method: "GET" })
         }
         return map;
       })(),
+      getWorkspaceNotificationCapabilities(workspaceId),
     ]);
     if (error) throw new Error(error.message);
     const byEvent = new Map<string, any>((data ?? []).map((r: any) => [r.event_key, r]));
 
-    const rows = NOTIFICATION_EVENT_KEYS.map((eventKey) => {
+    // Only events applicable to this workspace's active capabilities are
+    // shown (capability resolution fails open to everything).
+    const applicable = applicableEventKeys(wsCaps);
+
+    // Lazy auto-provisioning: if any applicable event has no settings row yet,
+    // materialize catalogue defaults (insert-only, best-effort, non-blocking).
+    if (applicable.some((k) => !byEvent.has(k))) {
+      import("./notification-provisioning.server")
+        .then(({ provisionWorkspaceNotifications }) =>
+          provisionWorkspaceNotifications(workspaceId, "settings_opened"),
+        )
+        .catch(() => {});
+    }
+
+    const rows = applicable.map((eventKey) => {
       const row = byEvent.get(eventKey);
+      const defaults = defaultSettingsForEvent(eventKey);
       const base = row
         ? {
             eventKey,
@@ -81,12 +104,22 @@ export const listNotificationSettings = createServerFn({ method: "GET" })
             inAppEnabled: row.in_app_enabled !== false,
             recipients: row.recipients ?? DEFAULT_EVENT_SETTINGS.recipients,
             frequency: row.frequency ?? "immediate",
+            leadFilter: row.lead_filter ?? null,
             isDefault: false,
           }
-        : { eventKey, ...structuredClone(DEFAULT_EVENT_SETTINGS), isDefault: true };
-      return { ...base, lastEmail: lastEmailByEvent.get(eventKey) ?? null };
+        : { eventKey, ...defaults, leadFilter: null, isDefault: true };
+      return {
+        ...base,
+        category: NOTIFICATION_EVENT_DEFS[eventKey].category,
+        lastEmail: lastEmailByEvent.get(eventKey) ?? null,
+      };
     });
-    return { rows, caps, providerSource: provider };
+    return {
+      rows,
+      caps,
+      providerSource: provider,
+      categoryOrder: [...NOTIFICATION_CATEGORY_ORDER],
+    };
   });
 
 export const updateNotificationSetting = createServerFn({ method: "POST" })
@@ -99,6 +132,7 @@ export const updateNotificationSetting = createServerFn({ method: "POST" })
       inAppEnabled: boolean;
       recipients: NotificationRecipientsConfig;
       frequency: "immediate" | "hourly" | "daily" | "weekly";
+      leadFilter?: unknown | null;
     }) => input,
   )
   .handler(async ({ context, data }) => {
@@ -140,9 +174,29 @@ export const updateNotificationSetting = createServerFn({ method: "POST" })
       .eq("event_key", data.eventKey)
       .maybeSingle();
 
+    // Lead notification filter — only for lead-category events, validated
+    // against the leads filter registry (ANY/ALL supported). assigned_to_me
+    // is rejected: there is no "current user" at delivery time.
+    let leadFilter: unknown | null = null;
+    if (data.leadFilter !== undefined && data.leadFilter !== null) {
+      const { LEAD_FILTERABLE_EVENTS } = await import("./notification-engine.shared");
+      if (!LEAD_FILTERABLE_EVENTS.has(data.eventKey)) {
+        throw new Error("Lead filters are only supported on lead notification events.");
+      }
+      const { validateFilterConfig } = await import("@/lib/people-views/filter-engine.server");
+      const v = validateFilterConfig(data.leadFilter, {
+        allowMeta: true,
+        allowOrLogic: true,
+        disallowFields: ["assigned_to_me"],
+      });
+      if (!v.ok || !v.config) throw new Error(`Invalid lead filter: ${v.errors.join("; ")}`);
+      leadFilter = v.config;
+    }
+
     const row = {
       workspace_id: workspaceId,
       event_key: data.eventKey,
+      lead_filter: data.leadFilter === undefined ? (before?.lead_filter ?? null) : leadFilter,
       enabled: data.enabled,
       email_enabled: data.emailEnabled,
       in_app_enabled: data.inAppEnabled,
@@ -207,6 +261,24 @@ export const listWorkspaceNotifications = createServerFn({ method: "GET" })
     if (!workspaceId) throw new Error("No active workspace");
     return listWorkspaceNotificationsCore(workspaceId, userId, data);
   });
+
+/** Unread in-app count core — consumed by /api/v1/minds/notifications. */
+export async function countUnreadNotificationsCore(
+  workspaceId: string,
+  userId: string,
+): Promise<number> {
+  const perms = await resolvePermissions(workspaceId, userId);
+  if (!perms.isMember) throw new Error("Not a member of this workspace");
+  const { count, error } = await sb
+    .from("workspace_notifications")
+    .select("id", { count: "exact", head: true })
+    .eq("workspace_id", workspaceId)
+    .eq("channel", "in_app")
+    .or(`recipient_user_id.eq.${userId},recipient_user_id.is.null`)
+    .is("read_at", null);
+  if (error) throw new Error(error.message);
+  return count ?? 0;
+}
 
 /** Shared mark-read core — consumed by web server fn + /api/v1 route. */
 export async function markNotificationsReadCore(
@@ -327,4 +399,36 @@ export const sendTestNotificationEmail = createServerFn({ method: "POST" })
       throw new Error(`Test send failed: ${result.error ?? "unknown error"}`);
     }
     return { ok: true, to: profile.email, providerUsed: (result as any).providerUsed ?? null };
+  });
+
+/**
+ * Field catalog for the lead notification filter builder UI. Derived from
+ * the leads filter registry so the UI never invents fake fields.
+ * assigned_to_me is excluded — there is no "current user" at delivery time.
+ */
+export const getLeadFilterFieldCatalog = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const { workspaceId } = context;
+    if (!workspaceId) throw new Error("No active workspace");
+    const { FILTER_FIELDS, FILTER_OPERATORS } = await import(
+      "@/lib/people-views/filter-engine.server"
+    );
+    const OPERATORS_BY_KIND: Record<string, string[]> = {
+      text:    ["equals", "not_equals", "contains", "not_contains", "is_empty", "is_not_empty", "in_list", "not_in_list"],
+      number:  ["equals", "not_equals", "greater_than", "less_than", "between", "is_empty", "is_not_empty"],
+      date:    ["before", "after", "between", "is_empty", "is_not_empty"],
+      boolean: ["equals"],
+      enum:    ["equals", "not_equals", "in_list", "not_in_list", "is_empty", "is_not_empty"],
+    };
+    const fields = Object.entries(FILTER_FIELDS)
+      .filter(([key]) => key !== "assigned_to_me")
+      .map(([key, def]) => ({
+        key,
+        label: def.label,
+        kind: def.kind,
+        enumValues: def.enumValues ?? null,
+        operators: OPERATORS_BY_KIND[def.kind] ?? [],
+      }));
+    return { fields, allOperators: [...FILTER_OPERATORS] };
   });

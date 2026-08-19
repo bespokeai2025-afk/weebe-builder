@@ -146,7 +146,12 @@ export const getWorkOrders = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
     const workspaceId = context.workspaceId;
+    const userId = (context as any).userId;
     if (!workspaceId) throw new Error("No workspace");
+
+    const { requirePageAccessEntitled } = await import("@/lib/packages/entitlements.server");
+    await requirePageAccessEntitled(workspaceId, userId, "hivemind", "view");
+
     return (await getWorkOrdersCore(context.supabase as any, workspaceId, { activeOnly: false })) as any;
   });
 
@@ -155,7 +160,12 @@ export const getWorkOrderDetail = createServerFn({ method: "GET" })
   .validator((input: unknown) => z.object({ id: z.string().uuid() }).parse(input))
   .handler(async ({ context, data }) => {
     const workspaceId = context.workspaceId;
+    const userId = (context as any).userId;
     if (!workspaceId) throw new Error("No workspace");
+
+    const { requirePageAccessEntitled } = await import("@/lib/packages/entitlements.server");
+    await requirePageAccessEntitled(workspaceId, userId, "hivemind", "view");
+
     const sb = context.supabase as any;
 
     const { data: wo, error } = await sb

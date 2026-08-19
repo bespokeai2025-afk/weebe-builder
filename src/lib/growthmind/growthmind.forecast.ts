@@ -200,6 +200,9 @@ export const getForecastData = createServerFn({ method: "GET" })
     const sb          = context.supabase as any;
     const workspaceId = context.workspaceId;
     if (!workspaceId) throw new Error("No workspace");
+    const userId = (context as any).userId;
+    const { requirePageAccessEntitled } = await import("@/lib/packages/entitlements.server");
+    await requirePageAccessEntitled(workspaceId, userId, "growthmind", "view");
 
     const since90 = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString();
 
@@ -259,6 +262,9 @@ export const saveForecast = createServerFn({ method: "POST" })
     const sb          = context.supabase as any;
     const workspaceId = context.workspaceId;
     if (!workspaceId) throw new Error("No workspace");
+    const userId = (context as any).userId;
+    const { requirePageAccessEntitled } = await import("@/lib/packages/entitlements.server");
+    await requirePageAccessEntitled(workspaceId, userId, "growthmind", "view");
 
     const { error } = await sb.from("growthmind_forecasts").insert({
       workspace_id: workspaceId,
@@ -280,6 +286,9 @@ export const getForecasts = createServerFn({ method: "GET" })
     const sb          = context.supabase as any;
     const workspaceId = context.workspaceId;
     if (!workspaceId) throw new Error("No workspace");
+    const userId = (context as any).userId;
+    const { requirePageAccessEntitled } = await import("@/lib/packages/entitlements.server");
+    await requirePageAccessEntitled(workspaceId, userId, "growthmind", "view");
 
     const { data, error } = await sb
       .from("growthmind_forecasts")
@@ -316,6 +325,9 @@ export const saveForecastSettings = createServerFn({ method: "POST" })
     const sb          = context.supabase as any;
     const workspaceId = context.workspaceId;
     if (!workspaceId) throw new Error("No workspace");
+    const userId = (context as any).userId;
+    const { requirePageAccessEntitled } = await import("@/lib/packages/entitlements.server");
+    await requirePageAccessEntitled(workspaceId, userId, "growthmind", "view");
 
     const { data: existing } = await sb
       .from("workspace_settings")
@@ -341,6 +353,9 @@ export const generateForecastBriefing = createServerFn({ method: "POST" })
     const sb          = context.supabase as any;
     const workspaceId = context.workspaceId;
     if (!workspaceId) throw new Error("No workspace");
+    const userId = (context as any).userId;
+    const { requirePageAccessEntitled } = await import("@/lib/packages/entitlements.server");
+    await requirePageAccessEntitled(workspaceId, userId, "growthmind", "view");
 
     const settings = (context as any).settings ?? {};
     const apiKey   = process.env.OPENAI_API_KEY ?? settings.openai_api_key;

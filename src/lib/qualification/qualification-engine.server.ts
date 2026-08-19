@@ -187,7 +187,7 @@ export async function applyQualificationToLead(
     await (supabaseAdmin.from("leads") as any).update(patch).eq("id", matched.id as string);
     console.log("[QUALIFY] Lead updated", { leadId: matched.id, status: finalStatus, score: finalScore });
     if (finalStatus === "qualified") {
-      await notifyQualifiedLead(workspaceId, hints?.contactName ?? null, phone, finalScore);
+      await notifyQualifiedLead(workspaceId, hints?.contactName ?? null, phone, finalScore, matched.id as string);
     }
     return;
   }
@@ -234,7 +234,7 @@ export async function applyQualificationToLead(
       } catch { /* best-effort */ }
     }
     if (finalStatus === "qualified") {
-      await notifyQualifiedLead(workspaceId, fullName, phone, finalScore);
+      await notifyQualifiedLead(workspaceId, fullName, phone, finalScore, inserted?.id as string | null);
     }
   }
 }
@@ -245,6 +245,7 @@ async function notifyQualifiedLead(
   name: string | null,
   phone: string,
   score: number,
+  leadId?: string | null,
 ): Promise<void> {
   try {
     const { isWbahWorkspaceId } = await import("@/lib/wbah-exclusion.shared");
@@ -254,6 +255,7 @@ async function notifyQualifiedLead(
       workspaceId,
       eventKey: "qualified_leads_generated",
       summary: `${name || phone} was qualified after a call (score ${score}).`,
+      leadId: leadId ?? null,
     });
   } catch (err: any) {
     console.warn("[QUALIFY] qualified-lead notification failed (non-fatal):", err?.message ?? err);

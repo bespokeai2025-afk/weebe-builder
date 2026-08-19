@@ -114,6 +114,39 @@ export const Route = createFileRoute("/api/public/campaign-executor")({
             console.warn("[gsc-sync] tick failed:", e?.message ?? e);
           }
 
+          // Microsoft Clarity daily sync + Website Change Queue refresh
+          // (no-ops until a workspace's last sync is >20h old; 1 Clarity API
+          // request per workspace per day out of the 10/day quota).
+          try {
+            const { runClaritySyncTick } = await import("@/lib/growthmind/clarity-sync-core");
+            const clarity = await runClaritySyncTick();
+            if (clarity.ran.length || clarity.failed.length) {
+              console.log(
+                `[clarity-sync] ran=${clarity.ran.length} skipped=${clarity.skipped} failed=${clarity.failed.length}`,
+              );
+            }
+          } catch (e: any) {
+            console.warn("[clarity-sync] tick failed:", e?.message ?? e);
+          }
+
+          // Daily Marketing Operator: findings with adequate-data thresholds,
+          // autopilot submission of low-risk actions (engine-gated),
+          // measurement sweep + learning, digest notification. CAS-claimed
+          // per workspace (~20h). Best-effort.
+          try {
+            const { runMarketingOperatorTick } = await import(
+              "@/lib/hivemind/marketing-operator-tick"
+            );
+            const opTick = await runMarketingOperatorTick();
+            if (opTick.ran.length || opTick.failed.length) {
+              console.log(
+                `[marketing-operator] ran=${opTick.ran.length} skipped=${opTick.skipped} failed=${opTick.failed.length}`,
+              );
+            }
+          } catch (e: any) {
+            console.warn("[marketing-operator] tick failed:", e?.message ?? e);
+          }
+
           // Daily AccountsMind metric snapshots (once per workspace per UTC
           // day — powers trend/progress widget history). Best-effort.
           try {
@@ -195,6 +228,23 @@ export const Route = createFileRoute("/api/public/campaign-executor")({
             }
           } catch (pubErr: any) {
             console.warn("[content-publish] tick failed:", pubErr?.message ?? pubErr);
+          }
+
+          // Auto SEO blog campaign creation (opt-in via
+          // workspace_settings.seo_auto_campaigns_per_week; approval-first).
+          // Best-effort — never blocks the tick.
+          try {
+            const { runSeoCampaignTick } = await import(
+              "@/lib/growthmind/seo-campaign-tick"
+            );
+            const seoTick = await runSeoCampaignTick();
+            if (seoTick.created.length || seoTick.failed.length) {
+              console.log(
+                `[seo-campaign-tick] created=${seoTick.created.length} skipped=${seoTick.skipped.length} failed=${seoTick.failed.length}`,
+              );
+            }
+          } catch (seoErr: any) {
+            console.warn("[seo-campaign-tick] failed:", seoErr?.message ?? seoErr);
           }
 
           // Public content scheduled publications (due scheduled_publish executions). Best-effort.

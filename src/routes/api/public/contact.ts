@@ -68,6 +68,7 @@ export const Route = createFileRoute("/api/public/contact")({
             gbraid:                   fields.gbraid,
             wbraid:                   fields.wbraid,
             landing_url:              fields.landing_url ?? fields.landing_page,
+            keyword:                  fields.keyword,
           },
           { ip, userAgent: request.headers.get("user-agent") },
         );

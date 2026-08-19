@@ -26,7 +26,11 @@ import type { MindKey, MindToolCost, CapabilityState } from "./tool-registry.sha
 import "@/lib/hivemind/growthmind-control/tools.server";
 // GrowthMind SEO department tools (registers on import).
 import "@/lib/minds/register-seo-tools.server";
+import "@/lib/minds/register-notification-tools.server";
 import "@/lib/minds/register-content-tools.server";
+// Website UX / conversion-diagnosis tools (registers on import).
+import "@/lib/minds/register-website-tools.server";
+import "@/lib/hivemind/growthmind-control/marketing-objective-tools.server";
 
 // ── HiveMind action kinds (executed via approve flow → registry) ────────────
 interface HiveMindKind {
@@ -109,6 +113,11 @@ const HIVEMIND_ACTION_KINDS: HiveMindKind[] = [
   {
     type: "seo_campaign_approval", mind: "hivemind", featureFamily: "seo",
     title: "Approve SEO campaign stage", description: "Approve one stage of an SEO blog campaign (strategy, brief, content or deployment). Moves the campaign exactly one stage forward; deployment stays a manual Lovable handoff.", cost: "low",
+  },
+  {
+    type: "marketing_action_execute", mind: "hivemind", featureFamily: "marketing_automation",
+    title: "Execute marketing action", description: "Execute an approved Marketing Action Engine change (confirm-then-verify against the real platform API; guardrails re-checked at execution time).", cost: "low",
+    affected: (r) => (r?.marketing_action_id ? { type: "marketing_action", id: String(r.marketing_action_id) } : null),
   },
   {
     type: "content_publication_approval", mind: "hivemind", featureFamily: "content_publishing",

@@ -253,16 +253,36 @@ export async function fetchActiveLiveCallSessions(
   if (!workspaceId) return [];
   try {
     const since = new Date(Date.now() - recencyMs).toISOString();
-    const { data } = await supabaseAdmin
-      .from("live_call_sessions")
-      .select(
-        "retell_call_id, agent_id, agent_name, from_number, to_number, direction, call_type, call_status, transcript, started_at",
-      )
-      .eq("workspace_id", workspaceId)
-      .in("call_status", ["ringing", "in_progress"])
-      .gte("updated_at", since)
-      .order("updated_at", { ascending: false })
-      .limit(25);
+    // Ringing calls that never connected (started_at is null) are ghost sessions —
+    // Retell fires call_started only when the callee picks up, so a null started_at
+    // after ~3 min means the call was never answered and we missed the ended event.
+    // Apply a much tighter 3-minute window to those rows only.
+    const ringingSince = new Date(Date.now() - 3 * 60 * 1000).toISOString();
+
+    const [inProgressResult, ringingResult] = await Promise.all([
+      supabaseAdmin
+        .from("live_call_sessions")
+        .select(
+          "retell_call_id, agent_id, agent_name, from_number, to_number, direction, call_type, call_status, transcript, started_at",
+        )
+        .eq("workspace_id", workspaceId)
+        .eq("call_status", "in_progress")
+        .gte("updated_at", since)
+        .order("updated_at", { ascending: false })
+        .limit(25),
+      supabaseAdmin
+        .from("live_call_sessions")
+        .select(
+          "retell_call_id, agent_id, agent_name, from_number, to_number, direction, call_type, call_status, transcript, started_at",
+        )
+        .eq("workspace_id", workspaceId)
+        .eq("call_status", "ringing")
+        .gte("updated_at", ringingSince)
+        .order("updated_at", { ascending: false })
+        .limit(25),
+    ]);
+
+    const data = [...(inProgressResult.data ?? []), ...(ringingResult.data ?? [])];
 
     return (data ?? []).map((row: Record<string, unknown>) => ({
       retell_call_id: String(row.retell_call_id ?? ""),
@@ -273,6 +293,52 @@ export async function fetchActiveLiveCallSessions(
       direction: (row.direction as string | null) ?? null,
       call_type: (row.call_type as string | null) ?? null,
       call_status: (row.call_status as LiveSessionStatus) ?? "in_progress",
+      transcript: Array.isArray(row.transcript)
+        ? (row.transcript as LiveTranscriptLine[])
+        : [],
+      started_at: (row.started_at as string | null) ?? null,
+    }));
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Fetch recently-ended sessions for a workspace (ended within `recencyMs`).
+ * Used as a fallback for workspaces whose webhook processor skips the `calls`
+ * table (e.g. WBAH), so the Live Calls panel still shows completed cards with
+ * their transcript immediately after a call ends.
+ */
+export async function fetchRecentEndedLiveSessions(
+  workspaceId: string,
+  recencyMs = 20 * 60 * 1000,
+): Promise<ActiveLiveSession[]> {
+  if (!workspaceId) return [];
+  try {
+    const since = new Date(Date.now() - recencyMs).toISOString();
+    const { data } = await supabaseAdmin
+      .from("live_call_sessions")
+      .select(
+        "retell_call_id, agent_id, agent_name, from_number, to_number, direction, call_type, call_status, transcript, started_at, transcript_len",
+      )
+      .eq("workspace_id", workspaceId)
+      .in("call_status", ["ended", "failed"])
+      .gte("ended_at", since)
+      // Only surface calls that have at least one transcript line — empty
+      // transcript rows just add noise and duplicate the DB-sourced completed cards.
+      .gt("transcript_len", 0)
+      .order("ended_at", { ascending: false })
+      .limit(10);
+
+    return (data ?? []).map((row: Record<string, unknown>) => ({
+      retell_call_id: String(row.retell_call_id ?? ""),
+      agent_id: (row.agent_id as string | null) ?? null,
+      agent_name: (row.agent_name as string | null) ?? null,
+      from_number: (row.from_number as string | null) ?? null,
+      to_number: (row.to_number as string | null) ?? null,
+      direction: (row.direction as string | null) ?? null,
+      call_type: (row.call_type as string | null) ?? null,
+      call_status: (row.call_status as LiveSessionStatus) ?? "ended",
       transcript: Array.isArray(row.transcript)
         ? (row.transcript as LiveTranscriptLine[])
         : [],

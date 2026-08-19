@@ -5,6 +5,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   ArrowLeft,
   Bell,
+  Filter,
   Loader2,
   Lock,
   Mail,
@@ -52,6 +53,7 @@ import {
   listWorkspaceNotifications,
   markNotificationsRead,
   sendTestNotificationEmail,
+  getLeadFilterFieldCatalog,
 } from "@/lib/notifications/notifications.functions";
 
 function providerLabel(source: string): string {
@@ -235,6 +237,19 @@ function NotificationsTab({ canManage }: { canManage: boolean }) {
   const providerSource: string | null = Array.isArray(payload) ? null : (payload.providerSource ?? null);
   const members = membersQ.data ?? [];
 
+  // Group rows into catalogue categories (server provides order + category).
+  const categoryOrder: string[] = Array.isArray(payload?.categoryOrder) ? payload.categoryOrder : [];
+  const grouped = new Map<string, any[]>();
+  for (const r of rows) {
+    const cat = r.category ?? "Other";
+    if (!grouped.has(cat)) grouped.set(cat, []);
+    grouped.get(cat)!.push(r);
+  }
+  const categories = [
+    ...categoryOrder.filter((c) => grouped.has(c)),
+    ...[...grouped.keys()].filter((c) => !categoryOrder.includes(c)),
+  ];
+
   return (
     <div className="space-y-4">
     <NotificationInboxCard />
@@ -259,8 +274,13 @@ function NotificationsTab({ canManage }: { canManage: boolean }) {
           )}
         </div>
       </CardHeader>
-      <CardContent className="space-y-3">
-        {rows.map((row: any) => (
+      <CardContent className="space-y-5">
+        {categories.map((cat) => (
+          <div key={cat} className="space-y-3">
+            <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              {cat}
+            </div>
+            {grouped.get(cat)!.map((row: any) => (
           <div
             key={row.eventKey}
             className="flex flex-wrap items-center gap-3 rounded-lg border p-3"
@@ -387,6 +407,25 @@ function NotificationsTab({ canManage }: { canManage: boolean }) {
                 })
               }
             />
+            {LEAD_FILTER_EVENTS.includes(row.eventKey) && (
+              <LeadFilterEditor
+                row={row}
+                canManage={canManage}
+                onSave={(leadFilter) =>
+                  saveM.mutate({
+                    eventKey: row.eventKey,
+                    enabled: row.enabled,
+                    emailEnabled: row.emailEnabled,
+                    inAppEnabled: row.inAppEnabled,
+                    recipients: row.recipients,
+                    frequency: row.frequency,
+                    leadFilter,
+                  })
+                }
+              />
+            )}
+          </div>
+            ))}
           </div>
         ))}
       </CardContent>
@@ -1414,5 +1453,202 @@ function EmailProviderTab() {
         </CardContent>
       </Card>
     </div>
+  );
+}
+
+// ── Lead notification filter builder ─────────────────────────────────────────
+
+const LEAD_FILTER_EVENTS = [
+  "lead_created", "lead_positive", "lead_assigned",
+  "qualified_leads_generated", "appointments_booked",
+];
+
+function leadFilterSummary(f: any): string {
+  const n = Array.isArray(f?.conditions) ? f.conditions.length : 0;
+  if (!n) return "No filter";
+  return `${n} condition${n === 1 ? "" : "s"} (${f.logic === "or" ? "ANY" : "ALL"})`;
+}
+
+function LeadFilterEditor({
+  row,
+  canManage,
+  onSave,
+}: {
+  row: any;
+  canManage: boolean;
+  onSave: (leadFilter: any | null) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [draft, setDraft] = useState<any>(null);
+  const catalogFn = useServerFn(getLeadFilterFieldCatalog);
+  const catalogQ = useQuery({
+    queryKey: ["lead-filter-catalog"],
+    queryFn: () => catalogFn(),
+    enabled: open,
+    throwOnError: false,
+  });
+  const fields: any[] = (catalogQ.data as any)?.fields ?? [];
+  const fieldByKey = new Map(fields.map((f: any) => [f.key, f]));
+
+  const current = draft ?? {
+    logic: row.leadFilter?.logic === "or" ? "or" : "and",
+    conditions: Array.isArray(row.leadFilter?.conditions)
+      ? row.leadFilter.conditions.map((c: any) => ({ ...c }))
+      : [],
+  };
+  const set = (patch: any) => setDraft({ ...current, ...patch });
+  const setCond = (i: number, patch: any) => {
+    const conditions = current.conditions.map((c: any, j: number) => (j === i ? { ...c, ...patch } : c));
+    set({ conditions });
+  };
+
+  const hasFilter = Array.isArray(row.leadFilter?.conditions) && row.leadFilter.conditions.length > 0;
+
+  return (
+    <Dialog
+      open={open}
+      onOpenChange={(v) => {
+        setOpen(v);
+        if (!v) setDraft(null);
+      }}
+    >
+      <DialogTrigger asChild>
+        <Button variant="outline" size="sm" className="h-8 text-xs" disabled={!row.enabled}>
+          <Filter className="mr-1 h-3.5 w-3.5" />
+          {hasFilter ? leadFilterSummary(row.leadFilter) : "Lead filter"}
+        </Button>
+      </DialogTrigger>
+      <DialogContent className="max-w-2xl">
+        <DialogHeader>
+          <DialogTitle>Lead filter — {(NOTIFICATION_EVENT_LABELS as any)[row.eventKey] ?? row.eventKey}</DialogTitle>
+          <DialogDescription>
+            Only leads matching this filter trigger the notification. Leave empty to notify for every lead.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-3">
+          <div className="flex items-center gap-2 text-sm">
+            <span>Match</span>
+            <Select value={current.logic} onValueChange={(v) => set({ logic: v })} disabled={!canManage}>
+              <SelectTrigger className="h-8 w-[130px] text-xs"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="and">ALL conditions</SelectItem>
+                <SelectItem value="or">ANY condition</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          {current.conditions.map((c: any, i: number) => {
+            const def = fieldByKey.get(c.field);
+            const ops: string[] = def?.operators ?? [];
+            const needsValue = !["is_empty", "is_not_empty"].includes(c.operator);
+            const isList = ["in_list", "not_in_list"].includes(c.operator);
+            return (
+              <div key={i} className="flex flex-wrap items-center gap-2 rounded-md border p-2">
+                <Select value={c.field ?? ""} onValueChange={(v) => {
+                  const nd = fieldByKey.get(v);
+                  setCond(i, { field: v, operator: nd?.operators?.[0] ?? "equals", value: undefined, value2: undefined });
+                }} disabled={!canManage}>
+                  <SelectTrigger className="h-8 w-[190px] text-xs"><SelectValue placeholder="Field" /></SelectTrigger>
+                  <SelectContent>
+                    {fields.map((f: any) => (
+                      <SelectItem key={f.key} value={f.key}>{f.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Select value={c.operator ?? ""} onValueChange={(v) => setCond(i, { operator: v })} disabled={!canManage || !c.field}>
+                  <SelectTrigger className="h-8 w-[150px] text-xs"><SelectValue placeholder="Operator" /></SelectTrigger>
+                  <SelectContent>
+                    {ops.map((o) => (
+                      <SelectItem key={o} value={o}>{o.replace(/_/g, " ")}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {needsValue && def?.kind === "boolean" && (
+                  <Select value={String(c.value ?? "true")} onValueChange={(v) => setCond(i, { value: v })} disabled={!canManage}>
+                    <SelectTrigger className="h-8 w-[100px] text-xs"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="true">Yes</SelectItem>
+                      <SelectItem value="false">No</SelectItem>
+                    </SelectContent>
+                  </Select>
+                )}
+                {needsValue && def?.kind === "enum" && !isList && (
+                  <Select value={String(c.value ?? "")} onValueChange={(v) => setCond(i, { value: v })} disabled={!canManage}>
+                    <SelectTrigger className="h-8 w-[170px] text-xs"><SelectValue placeholder="Value" /></SelectTrigger>
+                    <SelectContent>
+                      {(def.enumValues ?? []).map((ev: string) => (
+                        <SelectItem key={ev} value={ev}>{ev}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+                {needsValue && def?.kind !== "boolean" && (def?.kind !== "enum" || isList) && (
+                  <Input
+                    className="h-8 w-[180px] text-xs"
+                    placeholder={isList ? "Comma-separated values" : def?.kind === "date" ? "YYYY-MM-DD" : "Value"}
+                    value={isList && Array.isArray(c.value) ? c.value.join(", ") : String(c.value ?? "")}
+                    onChange={(e) =>
+                      setCond(i, {
+                        value: isList
+                          ? e.target.value.split(",").map((s) => s.trim()).filter(Boolean)
+                          : e.target.value,
+                      })
+                    }
+                    disabled={!canManage}
+                  />
+                )}
+                {c.operator === "between" && (
+                  <Input
+                    className="h-8 w-[140px] text-xs"
+                    placeholder={def?.kind === "date" ? "YYYY-MM-DD (to)" : "To"}
+                    value={String(c.value2 ?? "")}
+                    onChange={(e) => setCond(i, { value2: e.target.value })}
+                    disabled={!canManage}
+                  />
+                )}
+                {canManage && (
+                  <Button
+                    variant="ghost" size="sm" className="h-8 px-2 text-xs"
+                    onClick={() => set({ conditions: current.conditions.filter((_: any, j: number) => j !== i) })}
+                  >
+                    Remove
+                  </Button>
+                )}
+              </div>
+            );
+          })}
+          {canManage && (
+            <Button
+              variant="outline" size="sm" className="h-8 text-xs"
+              onClick={() => set({ conditions: [...current.conditions, { field: "", operator: "equals", value: undefined }] })}
+              disabled={current.conditions.length >= 20}
+            >
+              Add condition
+            </Button>
+          )}
+        </div>
+        <DialogFooter className="gap-2">
+          {canManage && hasFilter && (
+            <Button
+              variant="ghost"
+              onClick={() => { onSave(null); setOpen(false); setDraft(null); }}
+            >
+              Clear filter
+            </Button>
+          )}
+          <Button variant="outline" onClick={() => { setOpen(false); setDraft(null); }}>Cancel</Button>
+          {canManage && (
+            <Button
+              onClick={() => {
+                const conditions = current.conditions.filter((c: any) => c.field);
+                onSave(conditions.length ? { logic: current.logic, conditions } : null);
+                setOpen(false); setDraft(null);
+              }}
+            >
+              Save filter
+            </Button>
+          )}
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }

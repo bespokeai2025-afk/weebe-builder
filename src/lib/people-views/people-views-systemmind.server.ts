@@ -164,6 +164,7 @@ export async function generatePeopleViewDraftServer(args: {
     const dryRun = await runFilterDryRun(supabaseAdmin as any, workspaceId, validated.config, {
       mode: parsed.object_type === "campaign_filter" ? "campaign" : "view",
       safety,
+      currentUserId: userId ?? null,
     });
 
     const payload = {

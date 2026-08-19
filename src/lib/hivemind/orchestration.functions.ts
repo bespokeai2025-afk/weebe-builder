@@ -17,6 +17,12 @@ export const runOrchestrationPlaybookFn = createServerFn({ method: "POST" })
   .handler(async ({ context, data }) => {
     const sb = (context as any).supabase;
     const workspaceId = (context as any).workspaceId as string;
+    const userId = (context as any).userId;
+    if (!workspaceId) throw new Error("No workspace");
+
+    const { requirePageAccessEntitled } = await import("@/lib/packages/entitlements.server");
+    await requirePageAccessEntitled(workspaceId, userId, "hivemind", "view");
+
     const { runOrchestrationPlaybook } = await import("@/lib/hivemind/orchestration.server");
     return runOrchestrationPlaybook(sb, workspaceId, data.playbook, {
       triggerSource: "manual",
@@ -29,6 +35,12 @@ export const listOrchestrationRunsFn = createServerFn({ method: "GET" })
   .handler(async ({ context }) => {
     const sb = (context as any).supabase;
     const workspaceId = (context as any).workspaceId as string;
+    const userId = (context as any).userId;
+    if (!workspaceId) throw new Error("No workspace");
+
+    const { requirePageAccessEntitled } = await import("@/lib/packages/entitlements.server");
+    await requirePageAccessEntitled(workspaceId, userId, "hivemind", "view");
+
     const { listOrchestrationRuns } = await import("@/lib/hivemind/orchestration.server");
     return listOrchestrationRuns(sb, workspaceId);
   });

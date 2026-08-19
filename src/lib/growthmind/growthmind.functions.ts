@@ -18,6 +18,9 @@ export const getGrowthMindData = createServerFn({ method: "GET" })
     const sb = context.supabase as any;
     const workspaceId = context.workspaceId;
     if (!workspaceId) throw new Error("No workspace");
+    const userId = (context as any).userId;
+    const { requirePageAccessEntitled } = await import("@/lib/packages/entitlements.server");
+    await requirePageAccessEntitled(workspaceId, userId, "growthmind", "view");
 
     const url = context.request?.url ?? "";
     const bust = process.env.NODE_ENV !== "production" && new URL(url, "http://x").searchParams.has("bust");
@@ -679,6 +682,9 @@ export const saveGrowthMindRecommendations = createServerFn({ method: "POST" })
     const sb = context.supabase as any;
     const workspaceId = context.workspaceId;
     if (!workspaceId) throw new Error("No workspace");
+    const userId = (context as any).userId;
+    const { requirePageAccessEntitled } = await import("@/lib/packages/entitlements.server");
+    await requirePageAccessEntitled(workspaceId, userId, "growthmind", "view");
 
     try {
       // Replace all existing recs for this workspace
@@ -716,6 +722,9 @@ export const getStoredGrowthMindRecommendations = createServerFn({ method: "GET"
     const sb = context.supabase as any;
     const workspaceId = context.workspaceId;
     if (!workspaceId) throw new Error("No workspace");
+    const userId = (context as any).userId;
+    const { requirePageAccessEntitled } = await import("@/lib/packages/entitlements.server");
+    await requirePageAccessEntitled(workspaceId, userId, "growthmind", "view");
 
     try {
       const { data } = await sb

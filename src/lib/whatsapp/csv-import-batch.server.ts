@@ -287,6 +287,8 @@ export async function batchImportCsvLeads(
         company_name: row.company_name ?? null,
         notes: row.notes ?? null,
         source: "import",
+        lead_origin: "csv_import",
+        origin_provider: "CSV",
         whatsapp_opt_in: true,
         meta: Object.keys(rowMeta).length > 0 ? rowMeta : {},
       });

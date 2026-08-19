@@ -7,6 +7,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { GrowthMindShell } from "./GrowthMindShell";
+import { WebsiteUxQueue } from "./WebsiteUxQueue";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -26,9 +27,13 @@ import {
   markSeoPackageDeployed,
   cancelSeoCampaign,
   getSeoCampaignDetail,
+  listSeoOpportunityQueue,
+  refreshSeoOpportunityQueueNow,
+  executeSeoOpportunity,
+  dismissSeoOpportunity,
 } from "@/lib/growthmind/growthmind.seo-department";
 
-const TABS = ["Overview", "Intelligence", "Campaigns", "Teachings"] as const;
+const TABS = ["Overview", "Queue", "Website UX", "Intelligence", "Campaigns", "Teachings"] as const;
 type Tab = (typeof TABS)[number];
 
 const STATUS_LABELS: Record<string, string> = {
@@ -524,6 +529,146 @@ function TeachingsTab() {
   );
 }
 
+// ── Queue tab ────────────────────────────────────────────────────────────────
+
+const KIND_LABELS: Record<string, string> = {
+  high_impression_low_ctr: "High impressions, low clicks",
+  title_meta_weak: "Weak title/meta",
+  near_page_one: "Near page one",
+  declining_query: "Declining query",
+  declining_page: "Declining page",
+  missing_content: "Missing content",
+  keyword_cannibalisation: "Keyword cannibalisation",
+  indexing_issue: "Indexing issue",
+  sitemap_missing: "Sitemap missing",
+  thin_or_outdated: "Thin / outdated content",
+};
+
+const EXECUTION_LABELS: Record<string, string> = {
+  create_article: "Write a new article (approval-first campaign)",
+  refresh_content: "Refresh existing content (approval-first campaign)",
+  faq_section: "Add an FAQ section (approval-first campaign)",
+  metadata_change: "Title/meta rework (approval-first campaign)",
+  page_change: "Page change (website handoff package)",
+  internal_links: "Internal links (approval-first campaign)",
+  sitemap_submit: "Submit sitemap to Search Console",
+};
+
+const OPP_STATUS_LABELS: Record<string, string> = {
+  open: "Open",
+  executing: "Awaiting approval / executing",
+  handled: "Handled",
+};
+
+function QueueTab() {
+  const qc = useQueryClient();
+  const listFn = useServerFn(listSeoOpportunityQueue);
+  const refreshFn = useServerFn(refreshSeoOpportunityQueueNow);
+  const executeFn = useServerFn(executeSeoOpportunity);
+  const dismissFn = useServerFn(dismissSeoOpportunity);
+  const [busy, setBusy] = useState<string | null>(null);
+  const [expanded, setExpanded] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
+
+  const { data, isLoading } = useQuery({
+    queryKey: ["seo-opportunity-queue"],
+    queryFn: () => listFn(),
+    throwOnError: false,
+  });
+  const opps = data?.opportunities ?? [];
+  const refresh = () => qc.invalidateQueries({ queryKey: ["seo-opportunity-queue"] });
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between gap-3">
+        <p className="text-xs text-muted-foreground">
+          Ranked opportunities detected from your Search Console data (score = business value × ranking opportunity × confidence ÷ effort).
+          Executing an item routes it through approval — nothing changes without your sign-off, and website changes are handed off as packages (WEBEE never edits your site directly).
+        </p>
+        <Button size="sm" variant="outline" disabled={busy === "refresh"} onClick={async () => {
+          setBusy("refresh"); setError(null); setNotice(null);
+          try {
+            const r = await refreshFn();
+            if (!r.ok) setError(r.error ?? "Refresh failed");
+            else setNotice(`Refreshed: ${r.detected} detected, ${r.inserted} new, ${r.updated} updated, ${r.expired} expired.`);
+            refresh();
+          } finally { setBusy(null); }
+        }}>
+          {busy === "refresh" ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="mr-1.5 h-3.5 w-3.5" />}
+          Refresh queue
+        </Button>
+      </div>
+
+      {error && <p className="rounded-lg border border-red-500/25 bg-red-500/10 p-2 text-xs text-red-400">{error}</p>}
+      {notice && <p className="rounded-lg border border-emerald-500/25 bg-emerald-500/10 p-2 text-xs text-emerald-400">{notice}</p>}
+
+      {isLoading && <p className="text-sm text-muted-foreground"><Loader2 className="mr-2 inline h-4 w-4 animate-spin" />Loading queue…</p>}
+      {!isLoading && opps.length === 0 && (
+        <p className="text-sm text-muted-foreground">No opportunities in the queue yet. The queue fills automatically after each Search Console sync — or press Refresh queue.</p>
+      )}
+
+      <div className="space-y-2">
+        {opps.map((o: any) => (
+          <div key={o.id} className="rounded-lg border border-border bg-card p-3">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="rounded bg-primary/10 px-2 py-0.5 text-xs font-semibold text-primary">{Number(o.score).toFixed(1)}</span>
+              <span className="text-sm font-medium">{o.title}</span>
+              <Pill warn={o.status !== "open"}>{OPP_STATUS_LABELS[o.status] ?? o.status}</Pill>
+              <span className="text-[11px] text-muted-foreground">{KIND_LABELS[o.kind] ?? o.kind}</span>
+              <div className="ml-auto flex items-center gap-1.5">
+                <Button size="sm" variant="ghost" className="h-7 px-2 text-xs" onClick={() => setExpanded(expanded === o.id ? null : o.id)}>
+                  {expanded === o.id ? "Hide" : "Details"}
+                </Button>
+                {o.status === "open" && (
+                  <>
+                    <Button size="sm" className="h-7 px-2 text-xs" disabled={busy === o.id} onClick={async () => {
+                      setBusy(o.id); setError(null); setNotice(null);
+                      try {
+                        const r = await executeFn({ data: { opportunityId: o.id } });
+                        if (!r.ok) setError(r.detail ?? r.error ?? "Failed");
+                        else setNotice(r.outcome === "awaiting_approval" ? "Queued for your approval in the Action Centre." : (r.detail ?? "Submitted."));
+                        refresh();
+                      } catch (e: any) { setError(e?.message ?? "Failed"); }
+                      finally { setBusy(null); }
+                    }}>
+                      {busy === o.id ? <Loader2 className="mr-1 h-3 w-3 animate-spin" /> : null}Execute
+                    </Button>
+                    <Button size="sm" variant="outline" className="h-7 px-2 text-xs" disabled={busy === o.id} onClick={async () => {
+                      setBusy(o.id);
+                      try { await dismissFn({ data: { opportunityId: o.id } }); refresh(); }
+                      catch (e: any) { setError(e?.message ?? "Failed"); }
+                      finally { setBusy(null); }
+                    }}>Dismiss</Button>
+                  </>
+                )}
+              </div>
+            </div>
+            <p className="mt-1 text-xs text-muted-foreground">{o.rationale}</p>
+            <p className="mt-0.5 text-[11px] text-muted-foreground">Recommended: {EXECUTION_LABELS[o.recommended_execution] ?? o.recommended_execution}</p>
+            {expanded === o.id && (
+              <div className="mt-2 grid gap-2 rounded-md border border-border/60 bg-background/50 p-2 text-[11px] text-muted-foreground sm:grid-cols-2">
+                <div>
+                  <p className="font-medium text-foreground">Score breakdown</p>
+                  <p>Business value: {Number(o.business_value).toFixed(2)} · Ranking opportunity: {Number(o.ranking_opportunity).toFixed(2)}</p>
+                  <p>Confidence: {Number(o.confidence).toFixed(2)} · Effort: {Number(o.effort).toFixed(1)}</p>
+                  <p className="mt-1 font-medium text-foreground">Target</p>
+                  <p className="break-all">{o.dim_key}</p>
+                </div>
+                <div>
+                  <p className="font-medium text-foreground">Evidence (from Search Console)</p>
+                  <pre className="mt-1 max-h-40 overflow-auto whitespace-pre-wrap break-all">{JSON.stringify(o.evidence, null, 1)}</pre>
+                  <p className="mt-1">Last detected: {o.last_detected_at ? new Date(o.last_detected_at).toLocaleString() : "—"}</p>
+                </div>
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 // ── Page ─────────────────────────────────────────────────────────────────────
 
 export function GrowthMindSEODepartment() {
@@ -546,6 +691,8 @@ export function GrowthMindSEODepartment() {
           ))}
         </div>
         {tab === "Overview" && <OverviewTab />}
+        {tab === "Queue" && <QueueTab />}
+        {tab === "Website UX" && <WebsiteUxQueue />}
         {tab === "Intelligence" && <IntelligenceTab />}
         {tab === "Campaigns" && <CampaignsTab />}
         {tab === "Teachings" && <TeachingsTab />}

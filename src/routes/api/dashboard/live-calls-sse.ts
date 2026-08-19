@@ -522,9 +522,10 @@ export const Route = createFileRoute("/api/dashboard/live-calls-sse")({
                   });
                 }
 
-                // Build recently-completed cards (DB source), excluding any
-                // call that is still showing as live on Retell.
+                // Build recently-completed cards from the `calls` table
+                // (written by the standard webhook path on call_ended).
                 const recentCompleted = await fetchRecentCompletedCalls(workspaceId, agentNames);
+
                 const completedCards = recentCompleted
                   .filter((r) => !liveOngoingIds.has(r.call_id))
                   .map((r) => ({ ...r, live_transcript: false }));

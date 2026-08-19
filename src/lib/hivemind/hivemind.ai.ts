@@ -1760,7 +1760,11 @@ export const getHiveMindAIResponse = createServerFn({ method: "POST" })
   .handler(async ({ context, data }) => {
     const sb          = context.supabase as any;
     const workspaceId = context.workspaceId;
+    const userId      = (context as any).userId;
     if (!workspaceId) throw new Error("No workspace");
+
+    const { requirePageAccessEntitled } = await import("@/lib/packages/entitlements.server");
+    await requirePageAccessEntitled(workspaceId, userId, "hivemind", "view");
 
     try {
       const prep = await prepareHiveMindChat(sb, workspaceId, {
@@ -1802,7 +1806,12 @@ export const getHiveMindMorningBriefing = createServerFn({ method: "GET" })
   .handler(async ({ context }) => {
     const sb          = context.supabase as any;
     const workspaceId = context.workspaceId;
+    const userId      = (context as any).userId;
     if (!workspaceId) throw new Error("No workspace");
+
+    const { requirePageAccessEntitled } = await import("@/lib/packages/entitlements.server");
+    await requirePageAccessEntitled(workspaceId, userId, "hivemind", "view");
+
     const [d, gm, sm] = await Promise.all([
       fetchFullPlatformData(sb, workspaceId),
       buildMarketingCouncilSummarySafe(sb, workspaceId),
@@ -1893,7 +1902,11 @@ export const getHiveMindSystemContext = createServerFn({ method: "GET" })
   .handler(async ({ context, data }) => {
     const sb          = context.supabase as any;
     const workspaceId = context.workspaceId;
+    const userId      = (context as any).userId;
     if (!workspaceId) throw new Error("No workspace");
+
+    const { requirePageAccessEntitled } = await import("@/lib/packages/entitlements.server");
+    await requirePageAccessEntitled(workspaceId, userId, "hivemind", "view");
 
     const todayStr = new Date().toISOString().split("T")[0];
     const [platformData, cfgRow, marketingCouncil, systemCouncil, dueTasksRes, overdueTasksRes] = await Promise.all([

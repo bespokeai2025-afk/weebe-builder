@@ -335,3 +335,127 @@ export const getSeoCampaignDetail = createServerFn({ method: "POST" })
     }
     return { campaign, deploymentPackage: pkg };
   });
+
+// ── SEO Opportunity Queue (ranked, approval-first execution) ─────────────────
+
+export const listSeoOpportunityQueue = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const sb = context.supabase as any;
+    const workspaceId = context.workspaceId;
+    if (!workspaceId) throw new Error("No workspace");
+    // Reconcile stuck "executing" rows against failed/rejected marketing
+    // actions before listing, so failures reopen instead of hanging forever.
+    try {
+      const { reconcileSeoOpportunities } = await import("@/lib/growthmind/seo-opportunity-core");
+      await reconcileSeoOpportunities(workspaceId);
+    } catch { /* non-fatal — list still renders */ }
+    const { data, error } = await sb
+      .from("growthmind_seo_opportunities")
+      .select("*")
+      .eq("workspace_id", workspaceId)
+      .in("status", ["open", "executing", "handled"])
+      .order("score", { ascending: false })
+      .limit(200);
+    if (error) throw new Error(error.message);
+    return { opportunities: data ?? [] };
+  });
+
+export const refreshSeoOpportunityQueueNow = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const workspaceId = context.workspaceId;
+    if (!workspaceId) throw new Error("No workspace");
+    const { refreshSeoOpportunityQueue } = await import("@/lib/growthmind/seo-opportunity-core");
+    return await refreshSeoOpportunityQueue(workspaceId);
+  });
+
+export const executeSeoOpportunity = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .validator((input: unknown) => z.object({ opportunityId: z.string().uuid() }).parse(input))
+  .handler(async ({ context, data }) => {
+    const sb = context.supabase as any;
+    const workspaceId = context.workspaceId;
+    if (!workspaceId) throw new Error("No workspace");
+    const { requireAction } = await import("@/lib/permissions/permissions.server");
+    await requireAction(workspaceId, context.user?.id ?? null, "campaign_activation");
+
+    // RLS read proves membership + visibility.
+    const { data: opp, error } = await sb
+      .from("growthmind_seo_opportunities")
+      .select("*")
+      .eq("id", data.opportunityId)
+      .eq("workspace_id", workspaceId)
+      .maybeSingle();
+    if (error) throw new Error(error.message);
+    if (!opp) throw new Error("Opportunity not found");
+    if (opp.status !== "open") return { ok: false, error: `Opportunity is ${opp.status} — only open items can be executed.` };
+
+    const { executionToActionType } = await import("@/lib/marketing/executors/seo.executor.server");
+    const actionType = executionToActionType(opp.recommended_execution);
+
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const sbAdmin = supabaseAdmin as any;
+    const { createMarketingAction, submitMarketingActionForExecution } = await import("@/lib/marketing/action-engine.server");
+
+    // Atomic claim FIRST (open → executing). If we lose the CAS, someone else
+    // is already executing this opportunity — no action row is created.
+    const { data: claimed, error: claimErr } = await sbAdmin.from("growthmind_seo_opportunities").update({
+      status: "executing", status_changed_at: new Date().toISOString(), updated_at: new Date().toISOString(),
+    }).eq("id", opp.id).eq("workspace_id", workspaceId).eq("status", "open").select("id");
+    if (claimErr) throw new Error(claimErr.message);
+    if (!claimed || claimed.length === 0) {
+      return { ok: false, error: "Opportunity is already being executed." };
+    }
+
+    const action = await createMarketingAction(sbAdmin, workspaceId, {
+      source: "seo_opportunity_queue",
+      requested_by: context.user?.id ?? null,
+      objective: opp.title,
+      platform: "seo",
+      action_type: actionType,
+      target: { opportunity_id: opp.id, dim_key: opp.dim_key, kind: opp.kind },
+      expected_impact: opp.rationale,
+      confidence: Number(opp.confidence) || null,
+      risk_level: "medium",
+      evidence: { score: opp.score, ...((opp.evidence as any) ?? {}) },
+    });
+
+    // Link the action to the already-claimed opportunity.
+    await sbAdmin.from("growthmind_seo_opportunities").update({
+      marketing_action_id: action.id, updated_at: new Date().toISOString(),
+    }).eq("id", opp.id).eq("status", "executing");
+
+    const routed = await submitMarketingActionForExecution(sbAdmin, workspaceId, action.id);
+    if (routed.outcome === "not_allowed" || routed.outcome === "failed") {
+      // Reopen so the user can retry after fixing autonomy settings etc.
+      await sbAdmin.from("growthmind_seo_opportunities").update({
+        status: "open", status_changed_at: new Date().toISOString(), updated_at: new Date().toISOString(),
+      }).eq("id", opp.id).eq("status", "executing");
+    }
+    return { ok: routed.outcome !== "not_allowed" && routed.outcome !== "failed", outcome: routed.outcome, detail: routed.detail, marketingActionId: action.id };
+  });
+
+export const dismissSeoOpportunity = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .validator((input: unknown) => z.object({ opportunityId: z.string().uuid() }).parse(input))
+  .handler(async ({ context, data }) => {
+    const sb = context.supabase as any;
+    const workspaceId = context.workspaceId;
+    if (!workspaceId) throw new Error("No workspace");
+    const { data: opp, error } = await sb
+      .from("growthmind_seo_opportunities")
+      .select("id, status")
+      .eq("id", data.opportunityId)
+      .eq("workspace_id", workspaceId)
+      .maybeSingle();
+    if (error) throw new Error(error.message);
+    if (!opp) throw new Error("Opportunity not found");
+    if (opp.status !== "open") return { ok: false, error: `Opportunity is ${opp.status}.` };
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { error: upErr } = await (supabaseAdmin as any).from("growthmind_seo_opportunities").update({
+      status: "dismissed", status_changed_at: new Date().toISOString(), updated_at: new Date().toISOString(),
+    }).eq("id", data.opportunityId).eq("workspace_id", workspaceId).eq("status", "open");
+    if (upErr) throw new Error(upErr.message);
+    return { ok: true };
+  });

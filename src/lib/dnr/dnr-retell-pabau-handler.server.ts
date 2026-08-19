@@ -60,8 +60,11 @@ export type DnrPabauToolContext = {
   args: Record<string, unknown>;
 };
 
+// Secure by default: signature verification is ALWAYS on unless explicitly
+// disabled for local development — and the dev opt-out is ignored in production.
 const RETELL_SIGNATURE_VERIFICATION_DISABLED =
-  process.env.RETELL_SIGNATURE_VERIFICATION_ENABLED !== "true";
+  process.env.RETELL_SIGNATURE_VERIFICATION_ENABLED === "false" &&
+  process.env.NODE_ENV !== "production";
 
 export async function authorizeDnrPabauTool(
   rawBody: string,

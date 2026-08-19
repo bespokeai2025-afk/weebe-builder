@@ -159,7 +159,7 @@ export async function generatePageFilterDraftServer(args: {
     }
 
     // Read-only dry-run NOW so the approver sees real counts.
-    const dryRun = await runPageFilterDryRun(sb, workspaceId, parsed.page_key, validated.config);
+    const dryRun = await runPageFilterDryRun(sb, workspaceId, parsed.page_key, validated.config, { currentUserId: userId ?? null });
 
     const payload = {
       kind: "page_filter",

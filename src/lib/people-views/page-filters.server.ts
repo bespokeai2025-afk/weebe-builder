@@ -378,6 +378,7 @@ export async function dryRunPageFilter(input: {
     input.workspaceId,
     input.pageKey,
     input.filterConfig,
+    { currentUserId: input.userId ?? null },
   );
 
   if (input.id) {
@@ -406,6 +407,7 @@ export async function runPageFilter(
   filterId: string,
   limit = 200,
   role?: WorkspaceRole,
+  currentUserId?: string | null,
 ) {
   assertNotWbahWorkspace(workspaceId);
   const filter = await getCurrent(workspaceId, filterId);
@@ -428,7 +430,7 @@ export async function runPageFilter(
     .eq("workspace_id", workspaceId)
     .order(sortCol, { ascending })
     .limit(Math.min(limit, 500));
-  q = applyFilterToQuery(q, config, ds.registry);
+  q = applyFilterToQuery(q, config, ds.registry, { currentUserId: currentUserId ?? null });
   const { data, error } = await q;
   if (error) throw new Error(error.message);
   return { filter, rows: data ?? [] };
