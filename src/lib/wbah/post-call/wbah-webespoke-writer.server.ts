@@ -1,6 +1,7 @@
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import * as api from "@/lib/integrations/webespokeEnterprise/client.server";
 import { getWebespokeAdminCreds } from "@/lib/integrations/webespokeEnterprise/webespoke-env.server";
+import type { WbahCallbackRequestBody } from "./wbah-callback-post.shared";
 
 const INTEGRATION_KEY = "webespoke_enterprise";
 const CLIENT_NAME = "Webuyanyhouse";
@@ -86,10 +87,6 @@ export type WbahCallOutputCreateBody = {
   call_summary?: string | null;
   sentiment_analysis?: string | null;
   call_successful?: boolean | null;
-  callback_datetime?: string | null;
-  callback_datetime_raw?: string | null;
-  callback_type?: string | null;
-  is_callback_request?: boolean | null;
   retell_call_id?: string | null;
   crm_type?: string | null;
   opportunity_id?: string | null;
@@ -115,4 +112,86 @@ export async function postWbahCallOutputCreate(body: WbahCallOutputCreateBody): 
     status: res.status,
     result: typeof res.data === "object" ? (res.data as Record<string, unknown>)?.result : res.data,
   });
+}
+
+const CALLBACK_RETRY_MAX = 5;
+const CALLBACK_RETRY_BASE_MS = 2000;
+
+function callbackBackoffMs(attempt: number): number {
+  return Math.min(CALLBACK_RETRY_BASE_MS * 2 ** attempt, 120_000);
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function callbackResponseOk(data: unknown): boolean {
+  if (!data || typeof data !== "object") return true;
+  const o = data as Record<string, unknown>;
+  if (o.success === false) return false;
+  const action = String(o.action ?? "");
+  if (action === "duplicate" || action === "inserted") return true;
+  return o.success !== false;
+}
+
+export type PostWbahCallbackRequestOptions = {
+  maxAttempts?: number;
+  /** Override retry delay (defaults to exponential backoff). */
+  retryDelayMs?: (attempt: number) => number;
+  /** Test hook — bypasses OAuth when set. */
+  postJson?: (path: string, body: WbahCallbackRequestBody) => Promise<{ ok: boolean; status: number; data: unknown }>;
+};
+
+/**
+ * Callback-only POST (no `raw_data`). Retries with the same `call_id` on non-2xx.
+ */
+export async function postWbahCallbackRequest(
+  body: WbahCallbackRequestBody,
+  options: PostWbahCallbackRequestOptions = {},
+): Promise<void> {
+  const maxAttempts = options.maxAttempts ?? CALLBACK_RETRY_MAX;
+  let lastError = "unknown error";
+
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
+    try {
+      const res = options.postJson
+        ? await options.postJson("/call-output-data/create", body)
+        : await postWbahCallbackRequestOnce(body);
+
+      if (res.ok && callbackResponseOk(res.data)) {
+        console.log("[WBAH POST-CALL] callback request ok", {
+          lead_id: body.lead_id,
+          call_id: body.call_id,
+          status: res.status,
+          action: typeof res.data === "object" ? (res.data as Record<string, unknown>).action : undefined,
+        });
+        return;
+      }
+
+      lastError = `HTTP ${res.status}: ${JSON.stringify(res.data).slice(0, 200)}`;
+    } catch (e) {
+      lastError = e instanceof Error ? e.message : String(e);
+    }
+
+    if (attempt < maxAttempts - 1) {
+      const delayMs = options.retryDelayMs?.(attempt) ?? callbackBackoffMs(attempt);
+      if (delayMs > 0) await sleep(delayMs);
+    }
+  }
+
+  throw new Error(`WeeBespoke callback request failed after ${maxAttempts} attempts: ${lastError}`);
+}
+
+async function postWbahCallbackRequestOnce(
+  body: WbahCallbackRequestBody,
+): Promise<{ ok: boolean; status: number; data: unknown }> {
+  const { getTokens, saveNewAccessToken, reloginFn } = await getWbahEnterpriseTokenCallbacks();
+  const res = await api.authenticatedFetch<unknown>(
+    "/call-output-data/create",
+    { method: "POST", body: JSON.stringify(body) },
+    getTokens,
+    saveNewAccessToken,
+    reloginFn,
+  );
+  return { ok: res.ok, status: res.status, data: res.data };
 }
