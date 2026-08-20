@@ -12,6 +12,7 @@ import {
 import { isWbahPostCallExecutionEnabled } from "./wbah-retell-agents.shared";
 import { upsertWbahCallFromWebhook } from "./wbah-calls-upsert.server";
 import { postWbahCallOutputCreate } from "./wbah-webespoke-writer.server";
+import { forwardWbahDashboardAnalyzed } from "./wbah-dashboard-forward.shared";
 import { resolveWbahRebookEntityIds } from "./wbah-rebook-entity.shared";
 import {
   buildWbahRebookOpportunityPayload,
@@ -139,25 +140,18 @@ export async function runWbahRebookPostCallPipeline(
 
   if (stepOn("dashboard_analyzed")) {
     try {
-      await postWbahCallOutputCreate({
+      await forwardWbahDashboardAnalyzed({
         leadId: recordId,
-        event: "call_analyzed",
-        raw_data: cleanWbahRawData(payload),
-        retell_call_id: call.call_id ?? null,
-        crm_type: "opportunity",
-        opportunity_id: entity.opportunityId,
-        customer_name: formatted.customerName,
-        email: formatted.email,
-        appointment_date: formatted.appointmentDate,
-        appointment_time: formatted.appointmentTimeUk ?? formatted.requestedStartUtc,
-        booking_status: formatted.appointmentConfirmed ? "confirmed" : "",
-        call_summary: formatted.callSummary ?? call.call_analysis?.call_summary ?? null,
-        sentiment_analysis: formatted.userSentiment ?? call.call_analysis?.user_sentiment ?? null,
-        call_successful: formatted.callSuccessful,
-        callback_datetime: formatted.callbackDatetimeUtc ?? formatted.callbackDatetime,
-        callback_datetime_raw: formatted.callbackDatetime,
-        callback_type: formatted.callbackType,
-        is_callback_request: formatted.isCallbackRequest,
+        call,
+        payload,
+        formatted,
+        calendlyBookingUrl: null,
+        postCallExtras: {
+          crm_type: "opportunity",
+          opportunity_id: entity.opportunityId,
+          appointment_time: formatted.appointmentTimeUk ?? formatted.requestedStartUtc,
+          booking_status: formatted.appointmentConfirmed ? "confirmed" : "",
+        },
       });
       branches.push("dashboard_analyzed");
     } catch (e) {

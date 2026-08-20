@@ -60,7 +60,7 @@ export const WBAH_N8N_NODE_IMPLEMENTATIONS: Record<string, WbahN8nNodeImplementa
     file: "src/lib/wbah/post-call/wbah-webespoke-writer.server.ts",
     fn: "postWbahCallOutputCreate",
     description:
-      "POST UAT /call-output-data/create with raw_data, booking fields, callback UTC, is_callback_request.",
+      "POST UAT /call-output-data/create with raw_data and booking fields (callback sent separately).",
     runsWhen: "dashboard_analyzed step enabled",
     n8nNote: "n8n node #10 POST TO DASHBOARD",
   },

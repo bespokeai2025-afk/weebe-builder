@@ -1,5 +1,6 @@
 /**
  * POST /call-output-data/create body — n8n node #10 parity (dashboard analyzed branch).
+ * Post-call result only — callback fields are sent in a separate POST (see wbah-callback-post.shared.ts).
  */
 import { cleanWbahRawData } from "./wbah-format-data.shared";
 
@@ -10,30 +11,6 @@ export type WbahBuildSlotUrlOutput = {
   appointment_time_uk?: string;
   error?: string;
 };
-
-function normalizeCallbackDatetimeUtc(raw: string): string {
-  if (!raw || raw === "NA") return "";
-  try {
-    if (/Z|[+-]\d{2}:?\d{2}$/.test(raw)) {
-      return new Date(raw).toISOString();
-    }
-    const [datePart, timePart = "00:00:00"] = raw.split("T");
-    const [y, m, day] = datePart.split("-").map(Number);
-    const [hh, mm, ss = 0] = timePart.split(":").map(Number);
-    const tmpUTC = new Date(Date.UTC(y, m - 1, day, hh, mm, ss));
-    const ukFmt = new Intl.DateTimeFormat("en-GB", {
-      timeZone: "Europe/London",
-      timeZoneName: "shortOffset",
-    });
-    const parts = ukFmt.formatToParts(tmpUTC);
-    const offPart = parts.find((p) => p.type === "timeZoneName")?.value || "GMT";
-    const off = offPart.match(/GMT([+-]\d+)?/);
-    const offHrs = off && off[1] ? Number(off[1]) : 0;
-    return new Date(Date.UTC(y, m - 1, day, hh - offHrs, mm, ss)).toISOString();
-  } catch {
-    return raw.endsWith("Z") ? raw : `${raw}Z`;
-  }
-}
 
 /**
  * Build WeeBespoke dashboard POST body (mirrors n8n POST TO DASHBOARD inline IIFE).
@@ -47,15 +24,9 @@ export function buildWbahDashboardAnalyzedPostBody(
   const body = (webhookItem.body ?? webhookItem) as Record<string, unknown>;
   const call = (body.call ?? {}) as Record<string, unknown>;
   const analysis = (call.call_analysis ?? {}) as Record<string, unknown>;
-  const cad = (analysis.custom_analysis_data ?? {}) as Record<string, unknown>;
   const dyn = (call.retell_llm_dynamic_variables ?? {}) as Record<string, unknown>;
 
   const rawData = cleanWbahRawData(body as Record<string, unknown>);
-
-  const cbDatetimeRaw = String(cad.callback_datetime ?? "");
-  const cbType = String(cad.callback_type ?? "");
-  const hasCallback = Boolean(cbDatetimeRaw && cbDatetimeRaw !== "" && cbDatetimeRaw !== "NA");
-  const cbDatetimeUTC = hasCallback ? normalizeCallbackDatetimeUtc(cbDatetimeRaw) : "";
 
   const callSuccessfulRaw = analysis.call_successful;
   const callSuccessful =
@@ -74,10 +45,6 @@ export function buildWbahDashboardAnalyzedPostBody(
     calendly_booking_url: slot.booking_url ?? "",
     appointment_date: slot.appointment_date ?? "",
     appointment_time: slot.appointment_time ?? "",
-    callback_datetime: cbDatetimeUTC,
-    callback_datetime_raw: cbDatetimeRaw,
-    callback_type: cbType,
-    is_callback_request: hasCallback,
     booking_status: "success",
   };
 }
@@ -131,30 +98,6 @@ export const WBAH_DASHBOARD_ANALYZED_POST_BODY_TEMPLATE = `={{
     }
     let slot = {};
     try { slot = $('Build Slot URL').item.json || {}; } catch(e) { slot = {}; }
-    const cbDatetimeRaw = cad.callback_datetime || '';
-    const cbType = cad.callback_type || '';
-    const hasCallback = cbDatetimeRaw && cbDatetimeRaw !== '' && cbDatetimeRaw !== 'NA';
-    let cbDatetimeUTC = '';
-    if (hasCallback) {
-      try {
-        if (/Z|[+-]\\d{2}:?\\d{2}$/.test(cbDatetimeRaw)) {
-          cbDatetimeUTC = new Date(cbDatetimeRaw).toISOString();
-        } else {
-          const [dp, tp = '00:00:00'] = cbDatetimeRaw.split('T');
-          const [y, m, day] = dp.split('-').map(Number);
-          const [hh, mm, ss = 0] = tp.split(':').map(Number);
-          const tmpUTC = new Date(Date.UTC(y, m - 1, day, hh, mm, ss));
-          const ukFmt = new Intl.DateTimeFormat('en-GB', { timeZone: 'Europe/London', timeZoneName: 'shortOffset' });
-          const parts = ukFmt.formatToParts(tmpUTC);
-          const offPart = parts.find(p => p.type === 'timeZoneName')?.value || 'GMT';
-          const off = offPart.match(/GMT([+-]\\d+)?/);
-          const offHrs = off && off[1] ? Number(off[1]) : 0;
-          cbDatetimeUTC = new Date(Date.UTC(y, m - 1, day, hh - offHrs, mm, ss)).toISOString();
-        }
-      } catch (e) {
-        cbDatetimeUTC = cbDatetimeRaw.endsWith('Z') ? cbDatetimeRaw : cbDatetimeRaw + 'Z';
-      }
-    }
     return {
       raw_data: rawData,
       lead_id: dyn.lead_id || '',
@@ -164,10 +107,6 @@ export const WBAH_DASHBOARD_ANALYZED_POST_BODY_TEMPLATE = `={{
       calendly_booking_url: slot.booking_url || '',
       appointment_date: slot.appointment_date || '',
       appointment_time: slot.appointment_time || '',
-      callback_datetime: cbDatetimeUTC,
-      callback_datetime_raw: cbDatetimeRaw,
-      callback_type: cbType,
-      is_callback_request: hasCallback ? true : false,
       booking_status: 'success'
     };
   })())

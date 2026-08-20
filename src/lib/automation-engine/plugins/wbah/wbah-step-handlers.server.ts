@@ -26,6 +26,7 @@ import {
 import { cleanWbahRawData, formatWbahRetellCallData } from "@/lib/wbah/post-call/wbah-format-data.shared";
 import { upsertWbahCallFromWebhook } from "@/lib/wbah/post-call/wbah-calls-upsert.server";
 import { postWbahCallOutputCreate } from "@/lib/wbah/post-call/wbah-webespoke-writer.server";
+import { forwardWbahDashboardAnalyzed } from "@/lib/wbah/post-call/wbah-dashboard-forward.shared";
 import type { WbahRunBag } from "./wbah-run-context";
 
 export async function wbahStepLiveTranscript(bag: WbahRunBag): Promise<void> {
@@ -123,24 +124,12 @@ export async function wbahStepDashboardAnalyzed(
   calendlyBookingUrl: string | null,
 ): Promise<void> {
   if (!formatted.leadId) return;
-  await postWbahCallOutputCreate({
+  await forwardWbahDashboardAnalyzed({
     leadId: formatted.leadId,
-    event: "call_analyzed",
-    raw_data: cleanWbahRawData(bag.payload),
-    retell_call_id: bag.call.call_id ?? null,
-    customer_name: formatted.customerName,
-    email: formatted.email,
-    appointment_date: formatted.appointmentDate,
-    appointment_time: formatted.requestedStartUtc ?? formatted.appointmentTimeUk,
-    booking_status: "success",
-    calendly_booking_url: calendlyBookingUrl ?? "",
-    call_summary: formatted.callSummary ?? bag.call.call_analysis?.call_summary ?? null,
-    sentiment_analysis: formatted.userSentiment ?? bag.call.call_analysis?.user_sentiment ?? null,
-    call_successful: formatted.callSuccessful,
-    callback_datetime: formatted.callbackDatetimeUtc ?? formatted.callbackDatetime,
-    callback_datetime_raw: formatted.callbackDatetime,
-    callback_type: formatted.callbackType,
-    is_callback_request: formatted.isCallbackRequest,
+    call: bag.call,
+    payload: bag.payload,
+    formatted,
+    calendlyBookingUrl,
   });
 }
 

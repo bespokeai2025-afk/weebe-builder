@@ -37,6 +37,7 @@ import {
 } from "./wbah-retell-agents.shared";
 import { upsertWbahCallFromWebhook } from "./wbah-calls-upsert.server";
 import { postWbahCallOutputCreate } from "./wbah-webespoke-writer.server";
+import { forwardWbahDashboardAnalyzed } from "./wbah-dashboard-forward.shared";
 
 type RetellCall = {
   call_id?: string;
@@ -144,24 +145,12 @@ async function postDashboardAnalyzed(input: {
   const { formatted, call, payload, calendlyBookingUrl } = input;
   if (!formatted.leadId) return;
 
-  await postWbahCallOutputCreate({
+  await forwardWbahDashboardAnalyzed({
     leadId: formatted.leadId,
-    event: "call_analyzed",
-    raw_data: cleanWbahRawData(payload),
-    retell_call_id: call.call_id ?? null,
-    customer_name: formatted.customerName,
-    email: formatted.email,
-    appointment_date: formatted.appointmentDate,
-    appointment_time: formatted.requestedStartUtc ?? formatted.appointmentTimeUk,
-    booking_status: "success",
-    calendly_booking_url: calendlyBookingUrl ?? "",
-    call_summary: formatted.callSummary ?? call.call_analysis?.call_summary ?? null,
-    sentiment_analysis: formatted.userSentiment ?? call.call_analysis?.user_sentiment ?? null,
-    call_successful: formatted.callSuccessful,
-    callback_datetime: formatted.callbackDatetimeUtc ?? formatted.callbackDatetime,
-    callback_datetime_raw: formatted.callbackDatetime,
-    callback_type: formatted.callbackType,
-    is_callback_request: formatted.isCallbackRequest,
+    call,
+    payload,
+    formatted,
+    calendlyBookingUrl,
   });
 }
 
