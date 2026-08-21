@@ -5,6 +5,7 @@
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import type { WbahFormattedCallData } from "./wbah-format-data.shared";
 import type { WbahRetellAgentMapping } from "./wbah-retell-agents.shared";
+import { isWbahExplicitDoNotContactRequest } from "./wbah-explicit-dnc.shared";
 
 type RetellCall = {
   call_id?: string;
@@ -20,6 +21,7 @@ type RetellCall = {
   call_analysis?: {
     call_summary?: string;
     user_sentiment?: string;
+    custom_analysis_data?: Record<string, unknown>;
   };
 };
 
@@ -154,7 +156,13 @@ export async function upsertWbahCallFromWebhook(input: {
     const wbahCallStatus = merged.call_status === "ongoing" ? "need_to_call"
       : merged.call_status === "no_answer" ? "not_connected"
       : "ended";
-    const isNegative = merged.sentiment === "negative";
+    const custom = input.call.call_analysis?.custom_analysis_data ?? {};
+    const explicitDnc = isWbahExplicitDoNotContactRequest(
+      custom.detailed_call_summary,
+      formatted?.callSummary,
+      input.call.call_analysis?.call_summary,
+      input.call.transcript,
+    );
 
     const crmRow = {
       dedup_key: dedupKey,
@@ -192,11 +200,8 @@ export async function upsertWbahCallFromWebhook(input: {
       console.warn("[wbah-calls-upsert] wbah_crm_contacts mirror failed:", crmErr.message);
     }
 
-    // For negative sentiment: always UPDATE do_not_contact = true on the
-    // existing row (regardless of ignoreDuplicates above) so the contact is
-    // excluded from future WEBEE campaign queues even if the Dynamics PATCH
-    // fails.  This is idempotent — setting true when already true is safe.
-    if (isNegative) {
+    // Explicit remove-from-list / stop-calling requests only — not all negative calls.
+    if (explicitDnc) {
       const { error: dncErr } = await (supabaseAdmin as any)
         .from("wbah_crm_contacts")
         .update({ do_not_contact: true, synced_at: new Date().toISOString() })
@@ -205,7 +210,7 @@ export async function upsertWbahCallFromWebhook(input: {
       if (dncErr) {
         console.warn("[wbah-calls-upsert] DNC update failed:", dncErr.message);
       } else {
-        console.log("[wbah-calls-upsert] do_not_contact=true set for negative sentiment", {
+        console.log("[wbah-calls-upsert] do_not_contact=true (explicit DNC request)", {
           dedupKey,
           workspace: input.agent.workspaceId,
         });

@@ -1,3 +1,5 @@
+import { isWbahExplicitDoNotContactRequest } from "./wbah-explicit-dnc.shared";
+
 /** Dynamics `new_currentstatus` option-set values (Allen's Logic V5). */
 export const WBAH_DYNAMICS_STATUS = {
   CALLBACK: 181510002,
@@ -18,6 +20,10 @@ export type AllensLogicInput = {
   appointmentBooked?: boolean | null;
   existingCurrentStatus?: number | null;
   existingStateCode?: number | null;
+  /** Call summaries / transcript — used to detect explicit remove-from-list requests. */
+  callSummary?: string | null;
+  detailedCallSummary?: string | null;
+  transcript?: string | null;
 };
 
 export type AllensLogicResult = {
@@ -32,9 +38,8 @@ export type AllensLogicResult = {
   rule: "callback" | "negative" | "logged" | "tried_to_contact" | "none";
   allenLogicResult: string;
   /**
-   * True when the sentiment is negative: instructs the CRM writer to set
-   * Dynamics `donotphone = true` so the contact is flagged as Do Not Contact
-   * for phone calls and removed from future campaign queues.
+   * True only when the caller explicitly asked to stop contact / be removed
+   * from the call list — not for every negative sentiment.
    */
   setDoNotPhone: boolean;
 };
@@ -90,13 +95,21 @@ export function applyAllensLogicV5(input: AllensLogicInput): AllensLogicResult {
   }
 
   if (sentiment.includes("negative")) {
+    const explicitDnc = isWbahExplicitDoNotContactRequest(
+      input.detailedCallSummary,
+      input.callSummary,
+      input.transcript,
+    );
+    const dncSuffix = explicitDnc ? " + donotphone=true (explicit remove/stop contact)" : "";
+
     if (existingCurrentStatus === WBAH_DYNAMICS_STATUS.DISQUALIFIED) {
       return {
         ...base,
-        // Already Disqualified — skip status update but still enforce donotphone
-        setDoNotPhone: true,
+        setDoNotPhone: explicitDnc,
         rule: "negative",
-        allenLogicResult: "RULE 1: NEGATIVE — already Disqualified — donotphone=true enforced",
+        allenLogicResult: explicitDnc
+          ? "RULE 1: NEGATIVE — already Disqualified — explicit DNC — donotphone=true"
+          : "RULE 1: NEGATIVE — already Disqualified — no explicit DNC request",
       };
     }
     return {
@@ -105,11 +118,9 @@ export function applyAllensLogicV5(input: AllensLogicInput): AllensLogicResult {
       skipStatusUpdate: false,
       skipStatecodeUpdate: true,
       skipAppointmentUpdate: true,
-      // Standard Dynamics Do Not Contact phone flag — marks the lead so they
-      // cannot be dialled again from Dynamics or campaign queues.
-      setDoNotPhone: true,
+      setDoNotPhone: explicitDnc,
       rule: "negative",
-      allenLogicResult: `RULE 1: NEGATIVE → Disqualified (${WBAH_DYNAMICS_STATUS.DISQUALIFIED}) + donotphone=true`,
+      allenLogicResult: `RULE 1: NEGATIVE → Disqualified (${WBAH_DYNAMICS_STATUS.DISQUALIFIED})${dncSuffix}`,
     };
   }
 

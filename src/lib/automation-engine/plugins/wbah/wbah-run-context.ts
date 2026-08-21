@@ -16,6 +16,7 @@ export type RetellCallShape = {
     user_sentiment?: string;
     custom_analysis_data?: Record<string, unknown>;
   };
+  transcript?: string;
   retell_llm_dynamic_variables?: Record<string, unknown>;
 };
 

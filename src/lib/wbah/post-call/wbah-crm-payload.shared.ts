@@ -23,6 +23,10 @@ export function filterValidDynamicsFields(
       out[key] = value;
       continue;
     }
+    if (typeof value === "number") {
+      out[key] = value;
+      continue;
+    }
     if (typeof value === "string") {
       const trimmed = value.trim();
       if (!trimmed) continue;
@@ -87,9 +91,7 @@ export function buildWbahAllensCrmPayload(input: {
     }
   }
 
-  // Negative sentiment → set standard Dynamics "Do Not Contact" phone flag so
-  // the lead cannot be dialled again from Dynamics or any campaign queue.
-  // This is idempotent (setting true when already true is a no-op in Dynamics).
+  // Dynamics donotphone only when Allen's Logic detected an explicit remove/stop-contact request.
   if (allens.setDoNotPhone) {
     payload.donotphone = true;
   }

@@ -123,6 +123,36 @@ export async function patchWbahOpportunity(
   });
 }
 
+/** Post timeline note bound to Lead (objectid_lead). */
+export async function postWbahLeadTimelineNote(input: {
+  leadId: string;
+  subject: string;
+  noteText: string;
+}): Promise<void> {
+  const cfg = getWbahDynamicsConfig();
+  if (!cfg) throw new Error("Dynamics credentials not configured");
+
+  const headers = await dynamicsHeaders(cfg);
+  const url = `${apiBase(cfg)}/annotations`;
+  const body = {
+    subject: input.subject.slice(0, 200),
+    notetext: input.noteText.slice(0, 100_000),
+    "objectid_lead@odata.bind": `/leads(${input.leadId})`,
+  };
+  const res = await fetch(url, {
+    method: "POST",
+    headers,
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(`Dynamics lead note failed (${res.status}): ${text.slice(0, 400)}`);
+  }
+  console.log("[DynamicsNote] Posted call summary for lead", {
+    leadId: input.leadId,
+  });
+}
+
 /** Post timeline note bound to Opportunity (objectid_opportunity). */
 export async function postWbahOpportunityTimelineNote(input: {
   opportunityId: string;

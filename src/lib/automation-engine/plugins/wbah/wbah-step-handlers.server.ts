@@ -155,6 +155,7 @@ export async function wbahStepDynamicsAllens(
 ): Promise<void> {
   if (!bag.leadId || !isWbahDynamicsConfigured()) return;
   const leadStatus = await getWbahLeadCurrentStatus(bag.leadId).catch(() => null);
+  const custom = bag.custom ?? bag.call.call_analysis?.custom_analysis_data ?? {};
   const allens = applyAllensLogicV5({
     userSentiment: formatted.userSentiment,
     callbackDatetime: formatted.callbackDatetime,
@@ -169,6 +170,10 @@ export async function wbahStepDynamicsAllens(
     }),
     existingCurrentStatus: leadStatus?.new_currentstatus ?? null,
     existingStateCode: leadStatus?.statecode ?? null,
+    callSummary: formatted.callSummary,
+    detailedCallSummary:
+      typeof custom.detailed_call_summary === "string" ? custom.detailed_call_summary : null,
+    transcript: bag.call.transcript ?? null,
   });
   const patch = buildWbahAllensCrmPayload({
     formatted,

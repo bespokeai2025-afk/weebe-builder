@@ -191,9 +191,11 @@ export async function runWbahRebookPostCallPipeline(
     if (stepOn("dynamics_rebook_note")) {
       try {
         const noteText = buildWbahRebookTimelineNote({
+          label: "WBAH Rebook AI call",
           callSummary: formatted.callSummary,
           userSentiment: formatted.userSentiment,
           callId: call.call_id ?? null,
+          transcript: call.transcript ?? null,
         });
         await postWbahOpportunityTimelineNote({
           opportunityId: entity.opportunityId,

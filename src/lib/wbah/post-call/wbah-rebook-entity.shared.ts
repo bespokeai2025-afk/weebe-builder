@@ -28,9 +28,14 @@ export function resolveWbahRebookEntityIds(
     return null;
   }
 
-  const opportunityId =
+  let opportunityId =
     explicitOpp ||
     (isOpportunity && legacyLeadId ? legacyLeadId : "");
+
+  // Rebook campaign dials often send the Dynamics opportunity id in lead_id only.
+  if (!opportunityId && legacyLeadId && crmTypeRaw !== "lead") {
+    opportunityId = legacyLeadId;
+  }
   if (!opportunityId) return null;
 
   const originatingLeadId = String(

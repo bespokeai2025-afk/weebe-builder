@@ -29,7 +29,9 @@ import {
   getWbahLeadCurrentStatus,
   isWbahDynamicsConfigured,
   patchWbahLead,
+  postWbahLeadTimelineNote,
 } from "./wbah-dynamics.server";
+import { buildWbahAiTimelineNoteText } from "./wbah-timeline-note.shared";
 import { cleanWbahRawData, formatWbahRetellCallData } from "./wbah-format-data.shared";
 import {
   isWbahPostCallExecutionEnabled,
@@ -158,8 +160,13 @@ async function runDynamicsAllensPath(input: {
   leadId: string;
   formatted: ReturnType<typeof formatWbahRetellCallData>;
   calendlyBookingUrl: string | null;
+  custom?: Record<string, unknown>;
+  transcript?: string | null;
 }): Promise<void> {
   const leadStatus = await getWbahLeadCurrentStatus(input.leadId).catch(() => null);
+  const custom = input.custom ?? {};
+  const detailed =
+    typeof custom.detailed_call_summary === "string" ? custom.detailed_call_summary : null;
 
   const allens = applyAllensLogicV5({
     userSentiment: input.formatted.userSentiment,
@@ -175,6 +182,9 @@ async function runDynamicsAllensPath(input: {
     }),
     existingCurrentStatus: leadStatus?.new_currentstatus ?? null,
     existingStateCode: leadStatus?.statecode ?? null,
+    callSummary: input.formatted.callSummary,
+    detailedCallSummary: detailed,
+    transcript: input.transcript ?? null,
   });
 
   const patch = buildWbahAllensCrmPayload({
@@ -428,7 +438,7 @@ export async function runWbahPostCallPipelineCore(
   if (isWbahDynamicsConfigured()) {
     if (stepOn("dynamics_allens")) {
       try {
-        await runDynamicsAllensPath({ leadId, formatted, calendlyBookingUrl });
+        await runDynamicsAllensPath({ leadId, formatted, calendlyBookingUrl, custom, transcript: call.transcript ?? null });
         branches.push("dynamics_allens");
       } catch (e) {
         errors.push(`dynamics_allens: ${(e as Error).message}`);
@@ -445,6 +455,29 @@ export async function runWbahPostCallPipelineCore(
         branches.push("dynamics_agentic");
       } catch (e) {
         errors.push(`dynamics_agentic: ${(e as Error).message}`);
+      }
+    }
+
+    if (
+      leadId &&
+      (stepOn("dynamics_allens") || stepOn("dynamics_agentic"))
+    ) {
+      try {
+        const noteText = buildWbahAiTimelineNoteText({
+          label: "WBAH AI call",
+          callId: call.call_id ?? null,
+          userSentiment: formatted.userSentiment,
+          callSummary: formatted.callSummary,
+          transcript: call.transcript ?? null,
+        });
+        await postWbahLeadTimelineNote({
+          leadId,
+          subject: "WBAH AI call summary",
+          noteText,
+        });
+        branches.push("dynamics_lead_note");
+      } catch (e) {
+        errors.push(`dynamics_lead_note: ${(e as Error).message}`);
       }
     }
   }
