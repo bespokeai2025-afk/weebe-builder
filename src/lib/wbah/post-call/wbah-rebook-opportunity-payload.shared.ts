@@ -116,16 +116,4 @@ export function buildWbahRebookOpportunityPayload(input: {
   return patch;
 }
 
-export function buildWbahRebookTimelineNote(input: {
-  callSummary: string | null;
-  userSentiment: string | null;
-  callId: string | null;
-}): string {
-  const parts = [
-    "WBAH Rebook AI call",
-    input.callId ? `call_id=${input.callId}` : null,
-    input.userSentiment ? `sentiment=${input.userSentiment}` : null,
-    input.callSummary ?? "No summary",
-  ].filter(Boolean);
-  return parts.join(" — ");
-}
+export { buildWbahAiTimelineNoteText as buildWbahRebookTimelineNote } from "./wbah-timeline-note.shared";

@@ -28,8 +28,16 @@ describe("resolveWbahRebookEntityIds", () => {
     ).toMatchObject({ opportunityId: "legacy-opp-id" });
   });
 
-  it("rejects plain lead cohort without opportunity marker", () => {
-    expect(resolveWbahRebookEntityIds({ lead_id: "lead-only" })).toBeNull();
+  it("uses lead_id as opportunity when crm_type is absent (rebook campaign dials)", () => {
+    expect(
+      resolveWbahRebookEntityIds({
+        lead_id: "fe732cf4-0838-f111-88b3-7ced8d460595",
+      }),
+    ).toMatchObject({ opportunityId: "fe732cf4-0838-f111-88b3-7ced8d460595" });
+  });
+
+  it("rejects plain lead cohort when crm_type is lead", () => {
+    expect(resolveWbahRebookEntityIds({ crm_type: "lead", lead_id: "lead-only" })).toBeNull();
   });
 });
 

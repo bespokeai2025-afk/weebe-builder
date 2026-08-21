@@ -11,3 +11,16 @@ Rule: keep the build script's `--max-old-space-size` well below total machine RA
 Update Aug 2026: after the voice-gateway merge the SSR build OOMs at 4096MB even with
 the dev server stopped; build script heap is now 5632MB (machine has 7GB — keep dev
 server stopped during prodbuild or it OOMs again).
+
+Update Aug 2026: the workspace TypeScript language server can retain ~2GB even after
+the app workflow is stopped. If the 5632MB build still ends silently at SSR with the
+dev server stopped, check available memory before blaming the source: temporarily stop
+the mockup Vite workflow and terminate the stale project tsserver/language-server
+processes, then rerun the existing build workflow. Restore paused previews afterwards.
+
+**Why:** the build needs headroom beyond its Node heap; an oversized editor indexer caused
+the same no-error SSR kill even after the normal dev-server safeguard was followed.
+
+**How to apply:** use this only for the characteristic client-success/SSR-silent failure,
+not a compiler error. Confirm memory is released before retrying rather than raising the
+heap cap further.

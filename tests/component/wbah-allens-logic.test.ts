@@ -38,4 +38,17 @@ describe("applyAllensLogicV5", () => {
     expect(result.rule).toBe("none");
     expect(result.skipStatusUpdate).toBe(true);
   });
+
+  it("RULE 0: neutral + callback_datetime → Callback Request", () => {
+    const result = applyAllensLogicV5({
+      userSentiment: "Neutral",
+      callbackDatetime: "2026-08-20T15:00:00",
+      callbackDatetimeUtc: "2026-08-20T14:00:00.000Z",
+      calendlyBookingUrl: null,
+      appointmentBooked: false,
+    });
+    expect(result.rule).toBe("callback");
+    expect(result.newCurrentStatus).toBe(WBAH_DYNAMICS_STATUS.CALLBACK);
+    expect(result.skipStatusUpdate).toBe(false);
+  });
 });

@@ -1,4 +1,5 @@
 import { addMinutesIso, normalizeUkTime24, ukLocalToUtcIso } from "./wbah-uk-datetime.shared";
+import { resolveWbahCallSummaryText } from "./wbah-timeline-note.shared";
 
 export type CalendlySlotShape = {
   preferred_slot?: { date?: string; time?: string };
@@ -187,7 +188,7 @@ export function formatWbahRetellCallData(input: WbahFormatDataInput): WbahFormat
     customerName: resolveName(dyn, custom),
     email: pickStr(custom, "email_address", "email") || pickStr(dyn, "email", "Email"),
     userSentiment: pickStr(custom, "user_sentiment") || pickStr(analysis, "user_sentiment") || null,
-    callSummary: pickStr(custom, "call_summary") || pickStr(analysis, "call_summary") || null,
+    callSummary: resolveWbahCallSummaryText(custom, analysis),
     callSuccessful,
     callbackDatetime: callbackRaw,
     callbackDatetimeUtc: callbackUtc,
