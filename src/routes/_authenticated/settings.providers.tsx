@@ -463,6 +463,12 @@ const CREDENTIAL_FIELDS: Record<string, CredField[]> = {
   "voice:elevenlabs": [
     { key: "apiKey", label: "ElevenLabs API Key", type: "password", required: true, placeholder: "sk_..." },
   ],
+  "voice:fish": [
+    { key: "apiKey", label: "Fish Audio API Key", type: "password", required: false, placeholder: "Leave blank to use platform FISH_API_KEY" },
+  ],
+  "voice:deepgram": [
+    { key: "apiKey", label: "Deepgram API Key", type: "password", required: false, placeholder: "Leave blank to use platform DEEPGRAM_API_KEY" },
+  ],
   "telephony:frejun": [
     { key: "apiKey", label: "FreJun API Key", type: "password", required: true, placeholder: "Token …" },
   ],

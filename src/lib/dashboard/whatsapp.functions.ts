@@ -707,8 +707,8 @@ export const sendWhatsappMessage = createServerFn({ method: "POST" })
       .single();
 
     const accountSid = ws?.twilio_account_sid ?? process.env.TWILIO_ACCOUNT_SID;
-    const authToken  = ws?.twilio_auth_token  ?? process.env.TWILIO_AUTH_TOKEN;
-    const fromPhone  = ws?.whatsapp_phone_id;
+    const authToken = ws?.twilio_auth_token ?? process.env.TWILIO_AUTH_TOKEN;
+    const fromPhone = ws?.whatsapp_phone_id;
 
     if (!accountSid || !authToken || !fromPhone) {
       throw new Error(
@@ -1106,16 +1106,23 @@ export const getWAAnalytics = createServerFn({ method: "GET" })
       }
     }
 
-    const [{ data: msgs }, { data: campaigns }, { data: watiCamps }, { data: watiConn }] = await Promise.all([
-      sb.from("whatsapp_messages").select("direction, status, sent_at, provider").eq("workspace_id", workspaceId),
-      sb.from("whatsapp_campaigns").select("stats, provider").eq("workspace_id", workspaceId),
-      sb.from("wati_campaigns").select("sent, delivered, read_count").eq("workspace_id", workspaceId),
-      sb.from("wati_connections").select("status").eq("workspace_id", workspaceId).maybeSingle(),
-    ]);
+    const [{ data: msgs }, { data: campaigns }, { data: watiCamps }, { data: watiConn }] =
+      await Promise.all([
+        sb
+          .from("whatsapp_messages")
+          .select("direction, status, sent_at, provider")
+          .eq("workspace_id", workspaceId),
+        sb.from("whatsapp_campaigns").select("stats, provider").eq("workspace_id", workspaceId),
+        sb
+          .from("wati_campaigns")
+          .select("sent, delivered, read_count")
+          .eq("workspace_id", workspaceId),
+        sb.from("wati_connections").select("status").eq("workspace_id", workspaceId).maybeSingle(),
+      ]);
 
-    const all      = (msgs ?? []) as any[];
+    const all = (msgs ?? []) as any[];
     const outbound = all.filter((m) => m.direction === "outbound");
-    const inbound  = all.filter((m) => m.direction === "inbound");
+    const inbound = all.filter((m) => m.direction === "inbound");
 
     let sent      = outbound.length;
     let delivered = outbound.filter((m) => ["delivered", "read"].includes(m.status)).length;
@@ -1151,17 +1158,17 @@ export const getWAAnalytics = createServerFn({ method: "GET" })
 
     const convRate = sent > 0 ? Math.round((responses / sent) * 100) : 0;
 
-    const now  = new Date();
+    const now = new Date();
     const days: { date: string; sent: number; received: number }[] = [];
     for (let i = 6; i >= 0; i--) {
       const d = new Date(now);
       d.setDate(d.getDate() - i);
-      const label  = d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+      const label = d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
       const dayStr = d.toISOString().slice(0, 10);
       days.push({
         date: label,
-        sent:     outbound.filter((m) => m.sent_at?.slice(0, 10) === dayStr).length,
-        received: inbound.filter((m)  => m.sent_at?.slice(0, 10) === dayStr).length,
+        sent: outbound.filter((m) => m.sent_at?.slice(0, 10) === dayStr).length,
+        received: inbound.filter((m) => m.sent_at?.slice(0, 10) === dayStr).length,
       });
     }
 
@@ -1212,17 +1219,24 @@ export const getWAProviderStatus = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
     const { supabase, workspaceId } = context;
-    if (!workspaceId) return { provider: null, twilioConfigured: false, watiConnected: false, isConfigured: false };
+    if (!workspaceId)
+      return { provider: null, twilioConfigured: false, watiConnected: false, isConfigured: false };
     const sb = supabase as any;
 
     const { data: ws } = await sb
       .from("workspace_settings")
-      .select("twilio_account_sid, twilio_auth_token, whatsapp_phone_id, whatsapp_provider, meta_phone_number_id, meta_access_token")
+      .select(
+        "twilio_account_sid, twilio_auth_token, whatsapp_phone_id, whatsapp_provider, meta_phone_number_id, meta_access_token",
+      )
       .eq("workspace_id", workspaceId)
       .maybeSingle();
 
-    const twilioConfigured = !!(ws?.twilio_account_sid?.trim() && ws?.twilio_auth_token?.trim() && ws?.whatsapp_phone_id?.trim());
-    const metaConfigured   = !!(ws?.meta_phone_number_id?.trim() && ws?.meta_access_token?.trim());
+    const twilioConfigured = !!(
+      ws?.twilio_account_sid?.trim() &&
+      ws?.twilio_auth_token?.trim() &&
+      ws?.whatsapp_phone_id?.trim()
+    );
+    const metaConfigured = !!(ws?.meta_phone_number_id?.trim() && ws?.meta_access_token?.trim());
 
     const { data: watiRow } = await sb
       .from("wati_connections")
@@ -1273,7 +1287,9 @@ export const getWASettings = createServerFn({ method: "GET" })
     const sb = supabase as any;
     const { data } = await sb
       .from("workspace_settings")
-      .select("twilio_account_sid, twilio_auth_token, whatsapp_phone_id, whatsapp_provider, meta_phone_number_id, meta_waba_id, meta_access_token, meta_verify_token")
+      .select(
+        "twilio_account_sid, twilio_auth_token, whatsapp_phone_id, whatsapp_provider, meta_phone_number_id, meta_waba_id, meta_access_token, meta_verify_token",
+      )
       .eq("workspace_id", workspaceId)
       .maybeSingle();
     const domain = process.env.REPLIT_DEV_DOMAIN;
@@ -1301,22 +1317,20 @@ export const saveMetaSettings = createServerFn({ method: "POST" })
     if (!workspaceId) throw new Error("Not authenticated");
     const sb = supabase as any;
 
-    const verifyToken = data.data.meta_verify_token?.trim() ||
-      crypto.randomUUID().replace(/-/g, "");
+    const verifyToken =
+      data.data.meta_verify_token?.trim() || crypto.randomUUID().replace(/-/g, "");
 
-    await sb
-      .from("workspace_settings")
-      .upsert(
-        {
-          workspace_id:         workspaceId,
-          whatsapp_provider:    "meta",
-          meta_phone_number_id: data.data.meta_phone_number_id.trim(),
-          meta_waba_id:         data.data.meta_waba_id.trim(),
-          meta_access_token:    data.data.meta_access_token.trim(),
-          meta_verify_token:    verifyToken,
-        },
-        { onConflict: "workspace_id" },
-      );
+    await sb.from("workspace_settings").upsert(
+      {
+        workspace_id: workspaceId,
+        whatsapp_provider: "meta",
+        meta_phone_number_id: data.data.meta_phone_number_id.trim(),
+        meta_waba_id: data.data.meta_waba_id.trim(),
+        meta_access_token: data.data.meta_access_token.trim(),
+        meta_verify_token: verifyToken,
+      },
+      { onConflict: "workspace_id" },
+    );
 
     return { ok: true, meta_verify_token: verifyToken };
   });
@@ -1344,15 +1358,13 @@ export const saveWASettings = createServerFn({ method: "POST" })
 
     // Auto-register Twilio webhook on the phone number so the user doesn't
     // have to copy-paste the URL into the Twilio Console manually.
-    const accountSid  = data.data.twilio_account_sid?.trim();
-    const authToken   = data.data.twilio_auth_token?.trim();
+    const accountSid = data.data.twilio_account_sid?.trim();
+    const authToken = data.data.twilio_auth_token?.trim();
     const phoneNumber = data.data.whatsapp_phone_id?.trim();
 
     if (accountSid && authToken && phoneNumber) {
       const domain = process.env.REPLIT_DEV_DOMAIN;
-      const origin = domain
-        ? `https://${domain}`
-        : (process.env.VITE_PUBLIC_APP_URL ?? "");
+      const origin = domain ? `https://${domain}` : (process.env.VITE_PUBLIC_APP_URL ?? "");
       const webhookUrl = `${origin}/api/public/whatsapp-webhook/${workspaceId}`;
       const webhookResult = await registerTwilioWebhookForNumber(
         accountSid,
@@ -1363,7 +1375,12 @@ export const saveWASettings = createServerFn({ method: "POST" })
       return { ok: true, webhookUrl, ...webhookResult };
     }
 
-    return { ok: true, webhookUrl: null, webhookRegistered: false, webhookNote: "Enter all credentials to auto-register." };
+    return {
+      ok: true,
+      webhookUrl: null,
+      webhookRegistered: false,
+      webhookNote: "Enter all credentials to auto-register.",
+    };
   });
 
 /**
@@ -1396,8 +1413,7 @@ async function registerTwilioWebhookForNumber(
     }
 
     const lookupData = (await lookupRes.json()) as any;
-    const phoneSid: string | undefined =
-      lookupData?.incoming_phone_numbers?.[0]?.sid;
+    const phoneSid: string | undefined = lookupData?.incoming_phone_numbers?.[0]?.sid;
 
     if (!phoneSid) {
       return {
@@ -1441,7 +1457,8 @@ async function registerTwilioWebhookForNumber(
     console.error("[wa-settings] Twilio auto-register error", e);
     return {
       webhookRegistered: false,
-      webhookNote: "Credentials saved. Auto-webhook registration failed — paste the URL into the Twilio Console manually.",
+      webhookNote:
+        "Credentials saved. Auto-webhook registration failed — paste the URL into the Twilio Console manually.",
     };
   }
 }
@@ -1458,8 +1475,8 @@ export const registerTwilioWebhook = createServerFn({ method: "POST" })
       .eq("workspace_id", workspaceId)
       .maybeSingle();
 
-    const accountSid  = ws?.twilio_account_sid?.trim();
-    const authToken   = ws?.twilio_auth_token?.trim();
+    const accountSid = ws?.twilio_account_sid?.trim();
+    const authToken = ws?.twilio_auth_token?.trim();
     const phoneNumber = ws?.whatsapp_phone_id?.trim();
 
     if (!accountSid || !authToken || !phoneNumber) {
@@ -1470,7 +1487,12 @@ export const registerTwilioWebhook = createServerFn({ method: "POST" })
     const origin = domain ? `https://${domain}` : (process.env.VITE_PUBLIC_APP_URL ?? "");
     const webhookUrl = `${origin}/api/public/whatsapp-webhook/${workspaceId}`;
 
-    const result = await registerTwilioWebhookForNumber(accountSid, authToken, phoneNumber, webhookUrl);
+    const result = await registerTwilioWebhookForNumber(
+      accountSid,
+      authToken,
+      phoneNumber,
+      webhookUrl,
+    );
     return { webhookUrl, ...result };
   });
 
@@ -1797,8 +1819,8 @@ export const launchWACampaign = createServerFn({ method: "POST" })
       .single();
 
     const accountSid = ws?.twilio_account_sid;
-    const authToken  = ws?.twilio_auth_token;
-    const fromPhone  = ws?.whatsapp_phone_id;
+    const authToken = ws?.twilio_auth_token;
+    const fromPhone = ws?.whatsapp_phone_id;
     if (!accountSid || !authToken || !fromPhone) {
       throw new Error("Twilio credentials not configured — go to WhatsApp → Settings");
     }
@@ -1836,7 +1858,7 @@ export const launchWACampaign = createServerFn({ method: "POST" })
             "Content-Type": "application/x-www-form-urlencoded",
           },
           body: new URLSearchParams({
-            To:   `whatsapp:${contact.phone}`,
+            To: `whatsapp:${contact.phone}`,
             From: `whatsapp:${fromPhone}`,
             Body: body,
           }),
@@ -1846,10 +1868,10 @@ export const launchWACampaign = createServerFn({ method: "POST" })
           sent++;
           await sb.from("whatsapp_messages").insert({
             workspace_id: workspaceId,
-            external_id:  json.sid,
+            external_id: json.sid,
             contact_phone: contact.phone,
-            contact_name:  name,
-            direction:     "outbound",
+            contact_name: name,
+            direction: "outbound",
             body,
             status: "sent",
             sent_at: new Date().toISOString(),
@@ -2211,26 +2233,27 @@ export const searchTwilioNumbers = createServerFn({ method: "POST" })
   )
   .handler(async ({ data }) => {
     const { accountSid, authToken, countryCode, areaCode } = data as {
-      accountSid: string; authToken: string; countryCode: string; areaCode?: string;
+      accountSid: string;
+      authToken: string;
+      countryCode: string;
+      areaCode?: string;
     };
     const client = twilio(accountSid, authToken);
 
-    const list = await client
-      .availablePhoneNumbers(countryCode.toUpperCase())
-      .local.list({
-        smsEnabled: true,
-        ...(areaCode?.trim() ? { areaCode: areaCode.trim() } : {}),
-        pageSize: 10,
-      });
+    const list = await client.availablePhoneNumbers(countryCode.toUpperCase()).local.list({
+      smsEnabled: true,
+      ...(areaCode?.trim() ? { areaCode: areaCode.trim() } : {}),
+      pageSize: 10,
+    });
 
     return list.map((n) => ({
-      phoneNumber:  n.phoneNumber,
+      phoneNumber: n.phoneNumber,
       friendlyName: n.friendlyName,
-      locality:     n.locality     ?? "",
-      region:       n.region       ?? "",
-      sms:          !!(n.capabilities as any)?.sms,
-      mms:          !!(n.capabilities as any)?.mms,
-      voice:        !!(n.capabilities as any)?.voice,
+      locality: n.locality ?? "",
+      region: n.region ?? "",
+      sms: !!(n.capabilities as any)?.sms,
+      mms: !!(n.capabilities as any)?.mms,
+      voice: !!(n.capabilities as any)?.voice,
     }));
   });
 
@@ -2250,7 +2273,9 @@ export const purchaseTwilioNumber = createServerFn({ method: "POST" })
   .handler(async ({ context, data }) => {
     const { supabase, workspaceId } = context;
     const { accountSid, authToken, phoneNumber } = data as {
-      accountSid: string; authToken: string; phoneNumber: string;
+      accountSid: string;
+      authToken: string;
+      phoneNumber: string;
     };
 
     if (!workspaceId) throw new Error("No workspace");
@@ -2267,9 +2292,9 @@ export const purchaseTwilioNumber = createServerFn({ method: "POST" })
       );
 
     return {
-      ok:           true,
-      phoneNumber:  purchased.phoneNumber,
+      ok: true,
+      phoneNumber: purchased.phoneNumber,
       friendlyName: purchased.friendlyName,
-      sid:          purchased.sid,
+      sid: purchased.sid,
     };
   });

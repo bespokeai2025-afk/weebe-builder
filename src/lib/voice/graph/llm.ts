@@ -39,6 +39,31 @@ const EXTRACT_SYSTEM = [
   "and never carry over an example value as if the caller had said it.",
 ].join("\n");
 
+/** Parse a model's structured or numeric routing choice into a zero-based edge index. */
+export function parseTransitionIndex(raw: string, choices: string[]): number {
+  const value = raw.trim();
+  let transition: unknown = value;
+  try {
+    const parsed: unknown = JSON.parse(value);
+    transition =
+      parsed && typeof parsed === "object" && "transition" in parsed
+        ? (parsed as { transition?: unknown }).transition
+        : parsed;
+  } catch {
+    const numeric = value.match(/^-?\d+$/);
+    if (!numeric) return -1;
+    transition = Number.parseInt(numeric[0], 10);
+  }
+
+  if (typeof transition === "number" || (typeof transition === "string" && /^\d+$/.test(transition.trim()))) {
+    const picked = Number(transition);
+    return Number.isInteger(picked) && picked >= 1 && picked <= choices.length ? picked - 1 : -1;
+  }
+  if (typeof transition !== "string") return -1;
+  const label = transition.trim().toLowerCase();
+  return label ? choices.findIndex((choice) => choice.toLowerCase().includes(label)) : -1;
+}
+
 export function createOpenAiVmLlm(options: OpenAiVmLlmOptions): VmLlm {
   const { apiKey } = options;
   const defaultModel = options.defaultModel || "gpt-4.1";
@@ -76,12 +101,7 @@ export function createOpenAiVmLlm(options: OpenAiVmLlmOptions): VmLlm {
         maxTokens: 8,
       });
 
-      const match = raw.match(/-?\d+/);
-      if (!match) return -1;
-      const picked = Number.parseInt(match[0], 10);
-      // The prompt asks for 1-based answers and reserves 0 for "none".
-      if (picked <= 0 || picked > choices.length) return -1;
-      return picked - 1;
+       return parseTransitionIndex(raw, choices);
     },
 
     async extract(messages, fields, opts) {

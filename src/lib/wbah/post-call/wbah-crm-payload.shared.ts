@@ -1,6 +1,7 @@
 import type { AllensLogicResult } from "./wbah-allens-logic.shared";
 import type { WbahFormattedCallData } from "./wbah-format-data.shared";
 import { normalizeWbahAgenticCrmFields } from "./wbah-agentic-crm-normalize.shared";
+import { mapWbahCallbackTypeToAgentPreference } from "./wbah-callback-dynamics.shared";
 import { mapWbahVerifiedDetailsToDynamicsFields } from "./wbah-verified-details-dynamics.shared";
 
 export type WbahCrmPatchPayload = Record<string, string | number | boolean | null>;
@@ -82,6 +83,12 @@ export function buildWbahAllensCrmPayload(input: {
 
     if (allens.isCallbackRequest && callbackUtc) {
       payload.cos_callbackrequest = callbackUtc;
+      const agentPreference = mapWbahCallbackTypeToAgentPreference({
+        callbackType: formatted.callbackType,
+        callbackHandler: formatted.callbackHandler,
+        datetimeSource: formatted.callbackDatetimeSource,
+      });
+      if (agentPreference != null) payload.cr_agentpreference = agentPreference;
     }
 
     if (!allens.skipAppointmentUpdate) {

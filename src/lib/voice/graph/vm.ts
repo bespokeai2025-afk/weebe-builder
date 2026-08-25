@@ -23,7 +23,13 @@
  */
 
 import { compileFlow, interpolate, nodeModel, type CompiledFlow } from "./flow";
-import { selectDigitEdge, selectEdge, selectGlobalNode, type RouteContext } from "./router";
+import {
+  selectDigitEdge,
+  selectEdge,
+  selectGlobalNode,
+  tryHeuristicEdgeIndex,
+  type RouteContext,
+} from "./router";
 import type {
   EndReason,
   FlowEdge,
@@ -103,6 +109,26 @@ export class ConversationVm {
   /** Diagnostics from compiling the flow (dropped nodes, dangling edges, …). */
   getWarnings(): string[] {
     return [...this.compiled.warnings];
+  }
+
+  /**
+   * Return a safe, static next utterance for speculative TTS warm-up.
+   * This intentionally uses only deterministic routing and never mutates VM state.
+   */
+  peekSpeechWarmTarget(partialUserText: string): { kind: "static"; text: string } | null {
+    const node = this.currentNode();
+    if (!node) return null;
+    const edges = (node.edges ?? []).filter((edge) => edge.destination_node_id);
+    const index = tryHeuristicEdgeIndex(
+      edges.map((edge) => edge.transition_condition.prompt.trim()),
+      partialUserText,
+    );
+    if (index == null) return null;
+    const destinationId = edges[index]?.destination_node_id;
+    const destination = destinationId ? this.compiled.nodes.get(destinationId) : null;
+    if (destination?.type !== "conversation" || destination.instruction?.type !== "static_text") return null;
+    const text = interpolate(destination.instruction.text ?? "", this.variables).trim();
+    return text ? { kind: "static", text } : null;
   }
 
   /**
@@ -556,7 +582,13 @@ export class ConversationVm {
         `# Known information\n${known.map(([k, v]) => `- ${k}: ${String(v)}`).join("\n")}`,
       );
     }
-    system.push(`# Your task for this turn\n${interpolate(raw, this.variables)}`);
+    system.push(
+      [
+        "# Script to say",
+        interpolate(raw, this.variables),
+        "Do not ask any question beyond what the script already contains.",
+      ].join("\n"),
+    );
 
     try {
       const text = await this.llm.generate(

@@ -14,6 +14,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
+import { resolveTwilioCredentialsForWorkspace } from "@/lib/telephony/twilio-credentials.server";
 
 /**
  * Verify a Twilio request signature.
@@ -59,25 +60,13 @@ export const Route = createFileRoute("/api/public/telephony/inbound")({
           new URLSearchParams(rawBody).forEach((v, k) => { params[k] = v; });
         } catch {}
 
-        const twilioAuthToken = process.env.TWILIO_AUTH_TOKEN ?? "";
-        if (twilioAuthToken) {
-          const sigHeader  = request.headers.get("X-Twilio-Signature");
-          const proto      = request.headers.get("x-forwarded-proto") ?? "https";
-          const host       = request.headers.get("host") ?? "";
-          const fullUrl    = `${proto}://${host}/api/public/telephony/inbound`;
-          if (!verifyTwilioSignature(twilioAuthToken, sigHeader, fullUrl, params)) {
-            console.warn("[telephony/inbound] Invalid Twilio signature — rejected");
-            return new Response("Forbidden", { status: 403 });
-          }
-        }
-
         const callSid = params["CallSid"] ?? "";
         const to      = params["To"]      ?? "";
         const from    = params["From"]    ?? "";
 
         if (!callSid || !to) return rejectTwiml();
 
-        // Find the phone number → workspace → agent
+        // Find the phone number → workspace → agent (needed for workspace-scoped Twilio auth)
         const { data: numberRow } = await supabaseAdmin
           .from("phone_numbers")
           .select("id, workspace_id, agent_id, is_active")
@@ -88,6 +77,29 @@ export const Route = createFileRoute("/api/public/telephony/inbound")({
         if (!numberRow) {
           console.log("[telephony/inbound] unknown number:", to);
           return rejectTwiml();
+        }
+
+        let twilioAuthToken = "";
+        try {
+          twilioAuthToken = (
+            await resolveTwilioCredentialsForWorkspace(
+              supabaseAdmin,
+              numberRow.workspace_id as string,
+            )
+          ).authToken;
+        } catch {
+          twilioAuthToken = process.env.TWILIO_AUTH_TOKEN ?? "";
+        }
+
+        if (twilioAuthToken) {
+          const sigHeader  = request.headers.get("X-Twilio-Signature");
+          const proto      = request.headers.get("x-forwarded-proto") ?? "https";
+          const host       = request.headers.get("host") ?? "";
+          const fullUrl    = `${proto}://${host}/api/public/telephony/inbound`;
+          if (!verifyTwilioSignature(twilioAuthToken, sigHeader, fullUrl, params)) {
+            console.warn("[telephony/inbound] Invalid Twilio signature — rejected");
+            return new Response("Forbidden", { status: 403 });
+          }
         }
 
         // Insert telephony_calls row

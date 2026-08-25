@@ -247,14 +247,54 @@ function HyperStreamTranscriptionSettings() {
   );
 }
 
+function WebeeNativeTranscriptionSettings() {
+  const settings = useBuilderStore((s) => s.settings);
+  const setSettings = useBuilderStore((s) => s.setSettings);
+
+  function csv(key: keyof BuilderSettings, val: string) {
+    const arr = val.split(",").map((s) => s.trim()).filter(Boolean);
+    setSettings({ [key]: arr });
+  }
+
+  return (
+    <div className="space-y-5">
+      <div>
+        <SectionLabel
+          label="Speech-to-Text"
+          description="Fish Audio Realtime ASR — uses the same FISH_API_KEY as voice synthesis."
+        />
+        <p className="mt-1.5 rounded-md border border-white/[0.06] bg-white/[0.02] px-2.5 py-2 text-[11px] text-muted-foreground">
+          Fish Audio STT + TTS (WEBEE Native)
+        </p>
+      </div>
+
+      <div>
+        <SectionLabel
+          label="Boosted Keywords"
+          description="Domain words to help recognition (reserved for future STT bias)."
+        />
+        <input
+          type="text"
+          className="w-full rounded-md border border-white/[0.08] bg-white/[0.03] px-2.5 py-1.5 text-[11px] text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary/50"
+          placeholder="Split by comma. Example: Webespoke, Dubai Marina"
+          value={(settings.boostedKeywords ?? []).join(", ")}
+          onChange={(e) => csv("boostedKeywords", e.target.value)}
+        />
+      </div>
+    </div>
+  );
+}
+
 export function TranscriptionSettingsSection({
   isRetell,
   isHyperStream,
+  isWebeeNative,
 }: {
   isRetell: boolean;
   isHyperStream: boolean;
+  isWebeeNative?: boolean;
 }) {
-  if (!isRetell && !isHyperStream) return null;
+  if (!isRetell && !isHyperStream && !isWebeeNative) return null;
 
   return (
     <Collapsible className="rounded-lg border border-white/[0.06] bg-white/[0.01]">
@@ -269,6 +309,7 @@ export function TranscriptionSettingsSection({
       <CollapsibleContent className="px-3 pb-4 pt-1">
         {isRetell && <RetellTranscriptionSettings />}
         {isHyperStream && <HyperStreamTranscriptionSettings />}
+        {isWebeeNative && <WebeeNativeTranscriptionSettings />}
       </CollapsibleContent>
     </Collapsible>
   );

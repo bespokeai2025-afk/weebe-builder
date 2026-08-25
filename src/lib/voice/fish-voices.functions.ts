@@ -29,6 +29,16 @@ export interface FishVoice {
   owned: boolean;
 }
 
+/** Combine owned and library results without showing a duplicate library voice. */
+export function mergeFishVoiceLists(owned: FishVoice[], library: FishVoice[]): FishVoice[] {
+  const seen = new Set<string>();
+  return [...owned, ...library].filter((voice) => {
+    if (seen.has(voice.voiceId)) return false;
+    seen.add(voice.voiceId);
+    return true;
+  });
+}
+
 interface FishModelItem {
   _id?: string;
   id?: string;

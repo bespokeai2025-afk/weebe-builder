@@ -113,6 +113,7 @@ describe("createTtsProvider", () => {
   });
 
   it("falls back to the other provider when the preferred one has no key", () => {
+    delete process.env.FISH_API_KEY;
     const provider = createTtsProvider("fish", { elevenLabsApiKey: "el-key" });
     expect(provider.name).toBe("elevenlabs");
   });

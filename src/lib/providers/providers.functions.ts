@@ -89,7 +89,10 @@ export const getProviderRegistryData = createServerFn({ method: "GET" })
       "voice:retell":      !!(ws?.retell_workspace_id || process.env.RETELL_API_KEY) || dbConnectedSet.has("voice:retell"),
       "voice:openai":      !!(ws?.openai_api_key || process.env.OPENAI_API_KEY)      || dbConnectedSet.has("voice:openai"),
       "voice:elevenlabs":  !!(ws?.elevenlabs_api_key || process.env.ELEVENLABS_API_KEY) || dbConnectedSet.has("voice:elevenlabs"),
-      "telephony:twilio":  !!(ws?.twilio_account_sid && ws?.twilio_auth_token)       || dbConnectedSet.has("telephony:twilio"),
+      "telephony:twilio":
+        !!(ws?.twilio_account_sid && ws?.twilio_auth_token) ||
+        !!(process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_AUTH_TOKEN) ||
+        dbConnectedSet.has("telephony:twilio"),
       "telephony:frejun":  dbConnectedSet.has("telephony:frejun"),
       "whatsapp:wati":     !!(watiConn?.status === "active"),
       "whatsapp:twilio":   !!(ws?.twilio_account_sid && ws?.twilio_auth_token)       || dbConnectedSet.has("whatsapp:twilio"),

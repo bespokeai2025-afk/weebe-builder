@@ -39,10 +39,13 @@ import {
   normalizeCampaignLeadStatus,
   parseCampaignLeadStatusOptionsFromApi,
   parseWbahNewLeadSyncToggle,
+  parseWbahLiveTransferSettings,
   resolveCampaignScheduleOptions,
   TEST_LEAD_STATUS,
   type WbahNewLeadSyncToggleState,
+  type WbahLiveTransferSettingsState,
 } from "@/lib/integrations/webespokeEnterprise/wbah-campaign-sync.types";
+import { requirePageAccess } from "@/lib/permissions/permissions.server";
 
 // ── Internal: require webuyanyhouse membership + get API token callbacks ───────
 
@@ -738,6 +741,75 @@ export const setWbahNewLeadSyncToggle = createServerFn({ method: "POST" })
       return { enabled: data.enabled, source: "redis" as const, envDefault: false };
     }
     return parsed satisfies WbahNewLeadSyncToggleState;
+  });
+
+const liveTransferDaySchema = z.object({
+  weekday: z.number().int().min(1).max(7),
+  start: z
+    .string()
+    .regex(/^\d{2}:\d{2}$/),
+  end: z
+    .string()
+    .regex(/^\d{2}:\d{2}$/),
+});
+
+const liveTransferPatchSchema = z.object({
+  weekly_schedule: z.array(liveTransferDaySchema).min(1),
+  timezone: z.string().optional(),
+  fallback: z.literal("callback").optional(),
+});
+
+export const getWbahLiveTransferSettings = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    requireActiveWbahWorkspace(context.workspaceId);
+    await requirePageAccess(context.workspaceId, context.userId, "campaigns", "view");
+    const cbs = await requireWbahCbs(context.userId);
+    const res = await api.wbahGetLiveTransferSettings(
+      cbs.getTokens,
+      cbs.saveNewAccessToken,
+      cbs.reloginFn,
+    );
+    if (!res.ok) throwWbahCampaignApiError(res, "Failed to load live transfer hours");
+    const parsed = parseWbahLiveTransferSettings(res.data);
+    if (!parsed) throw new Error("Invalid live transfer settings response");
+    return parsed satisfies WbahLiveTransferSettingsState;
+  });
+
+export const patchWbahLiveTransferSettings = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .validator((i) => liveTransferPatchSchema.parse(i ?? {}))
+  .handler(async ({ context, data }) => {
+    requireActiveWbahWorkspace(context.workspaceId);
+    await requirePageAccess(context.workspaceId, context.userId, "campaigns", "edit");
+    const cbs = await requireWbahCbs(context.userId);
+    const res = await api.wbahPatchLiveTransferSettings(
+      data,
+      cbs.getTokens,
+      cbs.saveNewAccessToken,
+      cbs.reloginFn,
+    );
+    if (!res.ok) throwWbahCampaignApiError(res, "Failed to save live transfer hours");
+    const parsed = parseWbahLiveTransferSettings(res.data);
+    if (!parsed) throw new Error("Invalid live transfer settings response");
+    return parsed satisfies WbahLiveTransferSettingsState;
+  });
+
+export const resetWbahLiveTransferSettings = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    requireActiveWbahWorkspace(context.workspaceId);
+    await requirePageAccess(context.workspaceId, context.userId, "campaigns", "edit");
+    const cbs = await requireWbahCbs(context.userId);
+    const res = await api.wbahResetLiveTransferSettings(
+      cbs.getTokens,
+      cbs.saveNewAccessToken,
+      cbs.reloginFn,
+    );
+    if (!res.ok) throwWbahCampaignApiError(res, "Failed to reset live transfer hours");
+    const parsed = parseWbahLiveTransferSettings(res.data);
+    if (!parsed) throw new Error("Invalid live transfer settings response");
+    return parsed satisfies WbahLiveTransferSettingsState;
   });
 
 export const previewWbahDynamicsCategorySync = createServerFn({ method: "GET" })

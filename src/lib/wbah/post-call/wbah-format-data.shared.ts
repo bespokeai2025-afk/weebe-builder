@@ -1,4 +1,10 @@
-import { addMinutesIso, normalizeUkTime24, ukLocalToUtcIso } from "./wbah-uk-datetime.shared";
+import {
+  addMinutesIso,
+  normalizeCallbackDatetimeUtc as normalizeCallbackDatetimeUtcValue,
+  normalizeUkTime24,
+  ukLocalToUtcIso,
+} from "./wbah-uk-datetime.shared";
+import { resolveWbahCallbackFromAnalysis, type WbahCallbackHandler } from "./wbah-callback-dynamics.shared";
 import { resolveWbahCallSummaryText } from "./wbah-timeline-note.shared";
 
 export type CalendlySlotShape = {
@@ -28,6 +34,8 @@ export type WbahFormattedCallData = {
   callbackDatetime: string | null;
   callbackDatetimeUtc: string | null;
   callbackType: string | null;
+  callbackHandler: WbahCallbackHandler | null;
+  callbackDatetimeSource: "callback_datetime" | "human_callback_datetime" | "booking_callback_datetime" | null;
   isCallbackRequest: boolean;
   appointmentDate: string | null;
   appointmentTimeUk: string | null;
@@ -117,29 +125,7 @@ function resolveSlot(
 
 /** Normalize callback_datetime (naive UK local) → UTC ISO — mirrors n8n POST dashboard body. */
 export function normalizeCallbackDatetimeUtc(raw: string | null | undefined): string | null {
-  const cb = String(raw ?? "").trim();
-  if (!cb || cb === "NA") return null;
-
-  try {
-    if (/Z|[+-]\d{2}:?\d{2}$/.test(cb)) {
-      return new Date(cb).toISOString();
-    }
-    const [datePart, timePart = "00:00:00"] = cb.split("T");
-    const [y, m, day] = datePart.split("-").map(Number);
-    const [hh, mm, ss = 0] = timePart.split(":").map(Number);
-    const tmpUTC = new Date(Date.UTC(y, m - 1, day, hh, mm, ss));
-    const ukFmt = new Intl.DateTimeFormat("en-GB", {
-      timeZone: "Europe/London",
-      timeZoneName: "shortOffset",
-    });
-    const parts = ukFmt.formatToParts(tmpUTC);
-    const offPart = parts.find((p) => p.type === "timeZoneName")?.value || "GMT";
-    const off = offPart.match(/GMT([+-]\d+)?/);
-    const offHrs = off && off[1] ? Number(off[1]) : 0;
-    return new Date(Date.UTC(y, m - 1, day, hh - offHrs, mm, ss)).toISOString();
-  } catch {
-    return cb.endsWith("Z") ? cb : `${cb}Z`;
-  }
+  return normalizeCallbackDatetimeUtcValue(raw);
 }
 
 /** Port of n8n "Format Data" — UK slot → UTC ISO for Calendly + dashboard. */
@@ -166,9 +152,7 @@ export function formatWbahRetellCallData(input: WbahFormatDataInput): WbahFormat
       ? (structured.verified_details as Record<string, unknown>)
       : structured;
 
-  const callbackRaw = pickStr(custom, "callback_datetime", "callback_date_time");
-  const callbackUtc = normalizeCallbackDatetimeUtc(callbackRaw);
-  const hasCallback = Boolean(callbackRaw && callbackRaw !== "NA");
+  const callback = resolveWbahCallbackFromAnalysis(custom);
 
   const callSuccessfulRaw = analysis.call_successful ?? custom.call_successful;
   const callSuccessful =
@@ -190,10 +174,12 @@ export function formatWbahRetellCallData(input: WbahFormatDataInput): WbahFormat
     userSentiment: pickStr(custom, "user_sentiment") || pickStr(analysis, "user_sentiment") || null,
     callSummary: resolveWbahCallSummaryText(custom, analysis),
     callSuccessful,
-    callbackDatetime: callbackRaw,
-    callbackDatetimeUtc: callbackUtc,
-    callbackType: pickStr(custom, "callback_type") || null,
-    isCallbackRequest: hasCallback,
+    callbackDatetime: callback.callbackDatetime,
+    callbackDatetimeUtc: callback.callbackDatetimeUtc,
+    callbackType: callback.callbackType,
+    callbackHandler: callback.callbackHandler,
+    callbackDatetimeSource: callback.datetimeSource,
+    isCallbackRequest: callback.isCallbackRequest,
     appointmentDate: slot?.date ?? null,
     appointmentTimeUk: timeUk,
     requestedStartUtc,

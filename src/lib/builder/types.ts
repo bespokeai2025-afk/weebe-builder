@@ -377,6 +377,10 @@ export interface BuilderSettings {
   /** Display name of the selected Fish Audio voice. */
   webeeVoiceName?: string;
   /**
+   * STT for WEBEE_NATIVE — always Fish Audio (same key as TTS).
+   */
+  webeeSttProvider?: "fish";
+  /**
    * OpenAI Realtime model ID (only used when deploymentMode === "OPENAI_NATIVE").
    * Defaults to "gpt-4o-realtime-preview" when unset.
    * Valid values: "gpt-4o-realtime-preview" | "gpt-4o-mini-realtime-preview"

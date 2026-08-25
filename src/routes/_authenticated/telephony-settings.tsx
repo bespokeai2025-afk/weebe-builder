@@ -1,10 +1,13 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { useState } from "react";
-import { Settings, Check, AlertCircle, RefreshCw, ExternalLink, Phone, Zap, X, ShieldCheck, ShieldOff } from "lucide-react";
+import { useState, useEffect } from "react";
+import { Settings, Check, AlertCircle, RefreshCw, ExternalLink, Phone, Zap, X, ShieldCheck, ShieldOff, Eye, EyeOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { getTelephonyConfig, saveTelephonyConfig, autoConfigureWebhooks } from "@/lib/telephony/telephony.functions";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { getTelephonyConfig, saveTelephonyConfig, saveTelephonyCredentials, autoConfigureWebhooks } from "@/lib/telephony/telephony.functions";
+import { Link } from "@tanstack/react-router";
 
 export const Route = createFileRoute("/_authenticated/telephony-settings")({
   head: () => ({ meta: [{ title: "Telephony Settings — Webee" }] }),
@@ -51,6 +54,7 @@ function TelephonySettingsPage() {
   const qc = useQueryClient();
   const getFn = useServerFn(getTelephonyConfig);
   const saveFn = useServerFn(saveTelephonyConfig);
+  const saveCredsFn = useServerFn(saveTelephonyCredentials);
   const autoConfigFn = useServerFn(autoConfigureWebhooks);
 
   const { data: config, isFetching, refetch } = useQuery({
@@ -62,6 +66,10 @@ function TelephonySettingsPage() {
   const [provider, setProvider] = useState("twilio");
   const [isActive, setIsActive] = useState(true);
   const [saved, setSaved] = useState(false);
+  const [credsSaved, setCredsSaved] = useState(false);
+  const [accountSid, setAccountSid] = useState("");
+  const [authToken, setAuthToken] = useState("");
+  const [showToken, setShowToken] = useState(false);
   const [autoResult, setAutoResult] = useState<Awaited<ReturnType<typeof autoConfigFn>> | null>(null);
 
   const autoConfigMut = useMutation({
@@ -79,11 +87,31 @@ function TelephonySettingsPage() {
     },
   });
 
-  const sidOk = config?.sid_configured ?? false;
-  const tokenOk = config?.token_configured ?? false;
-  const credentialsReady = sidOk && tokenOk;
+  const saveCredsMut = useMutation({
+    mutationFn: () =>
+      saveCredsFn({ data: { accountSid, authToken } }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["telephony-config"] });
+      setCredsSaved(true);
+      setAuthToken("");
+      setTimeout(() => setCredsSaved(false), 2500);
+    },
+  });
+
+  const credentialsReady = config?.credentials_ready ?? false;
+  const credentialSource = config?.credential_source ?? "none";
+  const workspaceSidOk = config?.workspace_sid_configured ?? false;
+  const workspaceTokenOk = config?.workspace_token_configured ?? false;
+  const envSidOk = config?.env_sid_configured ?? false;
+  const envTokenOk = config?.env_token_configured ?? false;
   const frejunOk = config?.frejun_configured ?? false;
   const activeProvider = config?.provider ?? "twilio";
+
+  useEffect(() => {
+    if (config?.workspace_account_sid) {
+      setAccountSid(config.workspace_account_sid);
+    }
+  }, [config?.workspace_account_sid]);
 
   const webhookHost =
     typeof window !== "undefined"
@@ -127,7 +155,7 @@ function TelephonySettingsPage() {
         <div>
           <h1 className="text-xl font-semibold">Telephony Settings</h1>
           <p className="mt-0.5 text-sm text-muted-foreground">
-            Platform-wide voice configuration shared across all workspaces.
+            Configure Twilio for live phone calls in this workspace. Workspace credentials take precedence over platform env vars.
           </p>
         </div>
         <Button variant="outline" size="sm" onClick={() => refetch()} disabled={isFetching}>
@@ -135,33 +163,96 @@ function TelephonySettingsPage() {
         </Button>
       </div>
 
-      {/* Master Credentials Status */}
+      {/* Twilio Credentials */}
       <div className="rounded-xl border border-border bg-card p-5">
         <div className="mb-4 flex items-center gap-2">
           {credentialsReady
             ? <ShieldCheck className="h-4 w-4 text-emerald-400" />
             : <ShieldOff className="h-4 w-4 text-amber-400" />}
-          <h2 className="text-sm font-semibold">Master Twilio Credentials</h2>
+          <h2 className="text-sm font-semibold">Twilio Credentials</h2>
           <span className={`ml-auto rounded-full px-2 py-0.5 text-xs font-medium ${credentialsReady ? "bg-emerald-500/15 text-emerald-400" : "bg-amber-500/15 text-amber-400"}`}>
             {credentialsReady ? "Ready" : "Incomplete"}
           </span>
         </div>
 
         <p className="mb-4 text-xs text-muted-foreground leading-relaxed">
-          These credentials are set once at the platform level and shared across all workspaces — the same pattern as your OmniVoice API key. To update them, go to the <strong>Secrets</strong> tab in your Replit project.
+          Save your Twilio Account SID and Auth Token here for this workspace, or configure{" "}
+          <code className="bg-black/20 rounded px-1">TWILIO_ACCOUNT_SID</code> /{" "}
+          <code className="bg-black/20 rounded px-1">TWILIO_AUTH_TOKEN</code> in the server environment as a platform fallback.
+          You can also manage these under{" "}
+          <Link to="/settings/providers/telephony" className="underline">Settings → Providers → Telephony</Link>.
         </p>
 
-        <div className="flex flex-col gap-2">
+        {credentialSource !== "none" && (
+          <p className="mb-4 text-xs text-emerald-400">
+            Active source: {credentialSource === "workspace" ? "workspace settings" : "platform environment variables"}
+          </p>
+        )}
+
+        <div className="space-y-3">
+          <div className="space-y-1">
+            <Label className="text-xs">Account SID</Label>
+            <Input
+              value={accountSid}
+              onChange={(e) => setAccountSid(e.target.value)}
+              placeholder="ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+              className="font-mono text-xs"
+            />
+          </div>
+          <div className="space-y-1">
+            <Label className="text-xs">Auth Token</Label>
+            <div className="relative">
+              <Input
+                type={showToken ? "text" : "password"}
+                value={authToken}
+                onChange={(e) => setAuthToken(e.target.value)}
+                placeholder={config?.workspace_auth_token_set ? "••••••••  (saved — enter to replace)" : "Your Twilio auth token"}
+                className="font-mono text-xs pr-9"
+              />
+              <button
+                type="button"
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                onClick={() => setShowToken((v) => !v)}
+              >
+                {showToken ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+              </button>
+            </div>
+          </div>
+          <div className="flex items-center gap-3">
+            <Button
+              size="sm"
+              onClick={() => saveCredsMut.mutate()}
+              disabled={saveCredsMut.isPending || !accountSid.trim() || !authToken.trim()}
+            >
+              {saveCredsMut.isPending ? "Saving…" : "Save credentials"}
+            </Button>
+            {credsSaved && (
+              <span className="flex items-center gap-1 text-sm text-emerald-400">
+                <Check className="h-3.5 w-3.5" /> Saved
+              </span>
+            )}
+            {saveCredsMut.isError && (
+              <span className="text-sm text-destructive">
+                {String((saveCredsMut.error as any)?.message ?? "Failed to save")}
+              </span>
+            )}
+          </div>
+        </div>
+
+        <div className="mt-5 flex flex-col gap-2 border-t border-border pt-4">
+          <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Status</p>
           {[
-            { label: "TWILIO_ACCOUNT_SID", ok: sidOk },
-            { label: "TWILIO_AUTH_TOKEN", ok: tokenOk },
+            { label: "Workspace Account SID", ok: workspaceSidOk },
+            { label: "Workspace Auth Token", ok: workspaceTokenOk },
+            { label: "Env TWILIO_ACCOUNT_SID", ok: envSidOk },
+            { label: "Env TWILIO_AUTH_TOKEN", ok: envTokenOk },
           ].map(({ label, ok }) => (
             <div key={label} className="flex items-center gap-3 rounded-lg bg-muted/30 px-3 py-2.5">
               {ok
                 ? <Check className="h-4 w-4 flex-shrink-0 text-emerald-400" />
-                : <AlertCircle className="h-4 w-4 flex-shrink-0 text-amber-400" />}
+                : <AlertCircle className="h-4 w-4 flex-shrink-0 text-muted-foreground" />}
               <code className="flex-1 text-xs font-mono">{label}</code>
-              <span className={`text-xs ${ok ? "text-emerald-400" : "text-amber-400"}`}>
+              <span className={`text-xs ${ok ? "text-emerald-400" : "text-muted-foreground"}`}>
                 {ok ? "Configured" : "Not set"}
               </span>
             </div>
@@ -172,7 +263,8 @@ function TelephonySettingsPage() {
           <div className="mt-4 flex items-start gap-2 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2.5 text-xs text-amber-300">
             <AlertCircle className="mt-0.5 h-3.5 w-3.5 flex-shrink-0" />
             <span>
-              Add the missing secrets in the <strong>Replit Secrets</strong> panel (the lock icon in the sidebar), then reload this page.
+              Add workspace credentials above or set <strong>TWILIO_ACCOUNT_SID</strong> and{" "}
+              <strong>TWILIO_AUTH_TOKEN</strong> in your server environment before placing live calls.
             </span>
           </div>
         )}

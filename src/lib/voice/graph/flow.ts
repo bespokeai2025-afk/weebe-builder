@@ -180,6 +180,12 @@ export function compileFlow(raw: unknown): CompiledFlow {
     // `is_global` without a condition gives the router nothing to match on, so
     // such nodes stay reachable only through ordinary edges.
     if (!condition) continue;
+    // Retell exports this editor placeholder on some templates. Treating it as a
+    // live interrupt rule lets a classifier jump into an arbitrary node mid-call.
+    if (/^describe\s+the\s+condition(?:\s+to\s+jump\s+to\s+this\s+node)?\.?$/i.test(condition)) {
+      warnings.push(`node "${node.id}" has a placeholder global condition; ignoring`);
+      continue;
+    }
     if (node.id === startNodeId) {
       warnings.push(`start node "${node.id}" cannot also be a global node; ignoring`);
       continue;

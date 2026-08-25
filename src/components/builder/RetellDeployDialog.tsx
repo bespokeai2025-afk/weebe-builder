@@ -45,6 +45,7 @@ import {
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { getTotalCostPerMinute, getHyperStreamCostPerMinute, calcHyperStreamTurnCost, HYPERSTREAM_TELEPHONY_PER_MIN, ELEVENLABS_PER_MIN, WEBEE_NATIVE_PER_MIN } from "@/lib/builder/pricing";
 import { validateFlow } from "@/lib/builder/validate";
+import { resolveWebeeSpeechModel } from "@/lib/voice/webee-native.shared";
 import { cn } from "@/lib/utils";
 
 export type TxEntry = { id: string; role: "user" | "agent"; text: string; partial: boolean };
@@ -2068,7 +2069,9 @@ export function RetellDeployDialog({
       console.warn("[elv-relay] flow export failed, using flat prompt:", (err as Error).message);
     }
 
-    const textModel = settings.openaiRealtimeModel ?? settings.model ?? "gpt-4.1";
+    const textModel = isWebeeNative
+      ? resolveWebeeSpeechModel(settings as Record<string, unknown>)
+      : (settings.openaiRealtimeModel ?? settings.model ?? "gpt-4.1");
     // Shared with the relay so the stored call row and this session are the same
     // call, which is what lets a test call be inspected afterwards.
     const relaySessionId =
@@ -2173,6 +2176,14 @@ export function RetellDeployDialog({
           agentId: rowId,
           flow: exportedFlow,
           sessionId: relaySessionId,
+          settings,
+          speechLanguages: settings.speechLanguages ?? [settings.language ?? "en-US"],
+          silenceDurationMs: settings.hyperstreamSilenceDurationMs ?? 800,
+          responsiveness: settings.responsiveness,
+          interruptionSensitivity: settings.interruptionSensitivity,
+          boostedKeywords: settings.boostedKeywords,
+          ttsProvider: isWebeeNative ? "fish" : undefined,
+          sttProvider: isWebeeNative ? "fish" : undefined,
         }));
         // Keep-alive: send a ping every 5 s so the reverse-proxy never sees an
         // idle connection and closes it (happens when EL streams audio quickly,
@@ -2388,6 +2399,12 @@ export function RetellDeployDialog({
 
         if (msg.type === "call.ended") {
           console.log(`[elv-relay] call ended by flow (${String(msg.reason ?? "")})`);
+          return;
+        }
+
+        if (msg.type === "node.active" && typeof msg.nodeId === "string") {
+          const nodeId = String(msg.nodeId);
+          if (nodes.some((n) => n.id === nodeId)) setActiveNode(nodeId);
           return;
         }
 

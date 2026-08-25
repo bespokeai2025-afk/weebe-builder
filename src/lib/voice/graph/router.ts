@@ -21,6 +21,56 @@ export interface RouteContext {
   model?: string;
 }
 
+const DIGIT_WORDS = new Set([
+  "zero", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine",
+  "oh", "double", "triple",
+]);
+
+/** True for normal digit strings and natural spoken phone-number phrasing. */
+export function looksLikePhoneAnswer(answer: string): boolean {
+  const normalized = answer.toLowerCase().replace(/[^a-z0-9\s]/g, " ");
+  const numericCount = (normalized.match(/\d/g) ?? []).length;
+  if (numericCount >= 7) return true;
+  const numberWords = normalized.split(/\s+/).filter((word) => DIGIT_WORDS.has(word));
+  return numberWords.length >= 5;
+}
+
+/**
+ * Choose deterministic, unambiguous transitions before paying for a classifier.
+ * Returns null whenever the answer does not provide enough signal to route safely.
+ */
+export function tryHeuristicEdgeIndex(conditions: string[], answer: string): number | null {
+  const response = answer.trim().toLowerCase().replace(/[^\p{L}\p{N}\s]/gu, " ").replace(/\s+/g, " ");
+  if (!response) return null;
+  const find = (pattern: RegExp) => conditions.findIndex((condition) => pattern.test(condition.toLowerCase()));
+  const firstAnswer = () => find(/\b(?:user|caller)\s+answers?\b|\b(?:gives?|provides?)\b/);
+
+  if (/^(?:yes|yeah|yep|correct|confirmed?|sure|okay|ok|please)\b/.test(response)) {
+    const hit = find(/\byes\b|\bconfirm|\bagree|\baccept|\bpositive\b/);
+    return hit >= 0 ? hit : null;
+  }
+  if (/^(?:no|nope|nah|decline|refuse|negative)\b/.test(response)) {
+    const hit = find(/\bno\b|\bdeclin|\brefus|\bnegative\b/);
+    return hit >= 0 ? hit : null;
+  }
+  if (looksLikePhoneAnswer(response)) {
+    const hit = find(/\bphone\b|\bnumber\b|\bcontact\b/);
+    return hit >= 0 ? hit : firstAnswer() >= 0 ? firstAnswer() : null;
+  }
+
+  const words = response.split(" ").filter(Boolean);
+  const likelyShortName =
+    words.length <= 3 &&
+    response.length >= 2 &&
+    response.length <= 32 &&
+    words.every((word) => /^[\p{L}'-]+$/u.test(word));
+  if (likelyShortName) {
+    const hit = find(/\bname\b|\b(?:user|caller)\s+answers?\b/);
+    return hit >= 0 ? hit : null;
+  }
+  return null;
+}
+
 /**
  * Choose an edge.
  *
@@ -40,6 +90,9 @@ export async function selectEdge(
   // that would add a round-trip per node for no information.
   const conditions = usable.map((e) => interpolate(e.transition_condition.prompt.trim(), ctx.variables));
   if (usable.length === 1 && !conditions[0]) return usable[0];
+  const lastUserTurn = [...ctx.history].reverse().find((message) => message.role === "user")?.content;
+  const heuristicIndex = lastUserTurn ? tryHeuristicEdgeIndex(conditions, lastUserTurn) : null;
+  if (heuristicIndex != null) return usable[heuristicIndex] ?? null;
 
   const choices = conditions.map((c, i) => c || `Continue (option ${i + 1})`);
   let index: number;

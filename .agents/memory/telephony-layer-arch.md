@@ -21,9 +21,11 @@ Use entirely separate DB tables (`telephony_configs`, `phone_numbers`, `telephon
 - All use `supabaseAdmin` (service role) since there is no user auth context.
 
 ## Audio Bridge (WebSocket)
-- `telephony-stream.plugin.ts` — Vite dev plugin, mirrors hyperstream-relay pattern. Path: `/api/telephony/stream/:callId`.
+- `src/lib/voice/gateway/telephony.gateway.ts` — path `/api/telephony/stream/:callId`. Registered as a route in `src/lib/voice/gateway/mount.ts`.
 - Protocol: Twilio sends μ-law 8 kHz chunks as base64 JSON; bridge decodes μ-law → PCM16 → resample to 24 kHz → OpenAI Realtime; response PCM16 24 kHz → resample to 8 kHz → μ-law encode → Twilio.
-- Same codec pattern must be implemented in the srvx production server handler if deploying to non-dev.
+- Codecs live in `src/lib/voice/gateway/audio.ts` and are shared with the FreJun gateway — do not re-implement them per carrier. They are ITU-T G.711; an earlier hand-rolled copy had a mismatched encode/decode pair (mean error 7176 vs 142) that distorted every call.
+- Dev **and** prod run the same code: the Vite plugin (`voice-gateway.plugin.ts`) and `scripts/prod-entry.mjs` both call `mountVoiceGateways(httpServer)`. There is no separate production handler to keep in sync.
+- Inbound `voiceUrl` must be `/api/public/telephony/inbound`. `/api/telephony/inbound-call` has never existed.
 
 ## How to apply the migration
 ```bash

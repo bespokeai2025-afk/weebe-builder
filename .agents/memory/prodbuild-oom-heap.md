@@ -24,3 +24,7 @@ the same no-error SSR kill even after the normal dev-server safeguard was follow
 **How to apply:** use this only for the characteristic client-success/SSR-silent failure,
 not a compiler error. Confirm memory is released before retrying rather than raising the
 heap cap further.
+
+Confirmed Aug 25, 2026: on the 7.8GB workspace, the merged voice build still OOMs at
+4096MB with previews stopped; after terminating the stale TypeScript server, the existing
+5632MB prodbuild workflow completes successfully.

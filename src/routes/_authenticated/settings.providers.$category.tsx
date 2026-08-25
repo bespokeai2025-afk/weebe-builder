@@ -19,6 +19,7 @@ import {
   toggleProviderEnabled,
 } from "@/lib/providers/providers.functions";
 import { startGoogleAdsOAuth, getGoogleAdsOAuthStatus } from "@/lib/providers/advertising/google-ads-oauth.functions";
+import { getTelephonyConfig } from "@/lib/telephony/telephony.functions";
 
 // Trigger an ad sync after connecting an ads provider so campaigns appear immediately
 const triggerAdsSyncForWorkspace = createServerFn({ method: "POST" })
@@ -127,6 +128,8 @@ const CREDENTIAL_FIELDS: Record<string, CredField[]> = {
   "voice:retell": [{ key: "apiKey", label: "OmniVoice API Key", type: "password", required: true, placeholder: "key_..." }],
   "voice:openai": [{ key: "apiKey", label: "OpenAI API Key", type: "password", required: true, placeholder: "sk-..." }],
   "voice:elevenlabs": [{ key: "apiKey", label: "ElevenLabs API Key", type: "password", required: true, placeholder: "sk_..." }],
+  "voice:fish": [{ key: "apiKey", label: "Fish Audio API Key", type: "password", required: false, placeholder: "Leave blank to use platform FISH_API_KEY" }],
+  "voice:deepgram": [{ key: "apiKey", label: "Deepgram API Key", type: "password", required: false, placeholder: "Leave blank to use platform DEEPGRAM_API_KEY" }],
   "whatsapp:meta": [
     { key: "accessToken",   label: "Permanent Access Token",     type: "password", required: true,  placeholder: "EAAxxxxx… (System User or Business token)" },
     { key: "phoneNumberId", label: "Phone Number ID",            type: "text",     required: true,  placeholder: "1234567890123456" },
@@ -256,6 +259,7 @@ function ProviderPanel({
   const testFn   = useServerFn(testProviderConnection);
   const toggleFn = useServerFn(toggleProviderEnabled);
   const syncFn   = useServerFn(triggerAdsSyncForWorkspace);
+  const telephonyCfgFn = useServerFn(getTelephonyConfig);
 
   const [open,     setOpen]    = useState(false);
   const [creds,    setCreds]   = useState<Record<string, string>>({});
@@ -267,6 +271,18 @@ function ProviderPanel({
   const isConnected  = provider.status === "connected";
   const isComingSoon = provider.status === "coming_soon";
   const isAds        = category === "advertising";
+
+  useEffect(() => {
+    if (!open || (credKey !== "telephony:twilio" && credKey !== "whatsapp:twilio")) return;
+    telephonyCfgFn({})
+      .then((cfg) => {
+        setCreds((current) => ({
+          ...current,
+          accountSid: current.accountSid || cfg.workspace_account_sid || "",
+        }));
+      })
+      .catch(() => {});
+  }, [open, credKey, telephonyCfgFn]);
 
   async function handleSave() {
     setSaving(true);
