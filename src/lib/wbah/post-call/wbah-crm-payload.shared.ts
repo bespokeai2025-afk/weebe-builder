@@ -82,6 +82,9 @@ export function buildWbahAllensCrmPayload(input: {
 
     if (allens.isCallbackRequest && callbackUtc) {
       payload.cos_callbackrequest = callbackUtc;
+      if (formatted.dynamicsAgentPreference != null) {
+        payload.cr_agentpreference = formatted.dynamicsAgentPreference;
+      }
     }
 
     if (!allens.skipAppointmentUpdate) {

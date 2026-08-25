@@ -104,6 +104,8 @@ export class EnergyVad implements Vad {
   reset(): void {
     this.endpointer.reset();
     this.frozenThreshold = null;
+    this.window = [];
+    this.framesSeen = 0;
   }
 
   push(frame: Buffer): VadEvent {

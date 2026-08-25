@@ -63,6 +63,7 @@ describe("buildWbahAllensCrmPayload — callback (Amal Samine scenario)", () => 
     expect(patch.new_currentstatus).toBe(WBAH_DYNAMICS_STATUS.CALLBACK);
     expect(patch.statecode).toBe(0);
     expect(patch.cos_callbackrequest).toBe("2026-08-20T14:00:00.000Z");
+    expect(patch.cr_agentpreference).toBe(121590000);
     expect(patch.cos_user_sentiment).toBe("Neutral");
   });
 });

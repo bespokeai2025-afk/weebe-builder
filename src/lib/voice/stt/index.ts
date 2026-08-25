@@ -1,59 +1,48 @@
 /**
- * Speech-to-text provider selection.
+ * Speech-to-text provider selection for WEBEE Native.
+ *
+ * WEBEE Native uses Fish Audio ASR only (same FISH_API_KEY as TTS).
  *
  * Relative imports only — this module is reachable from vite.config.ts.
  */
 
-import { DeepgramSttProvider } from "./deepgram";
-import { WhisperSttProvider } from "./whisper-batch";
+import { FishSttProvider } from "./fish";
 import type { SttProvider } from "./types";
 
-export { DeepgramSttProvider } from "./deepgram";
-export { WhisperSttProvider } from "./whisper-batch";
-export { CASCADE_SAMPLE_RATE, buildWav, whisperTranscribe } from "./whisper";
+export { FishSttProvider, fishTranscribe, type FishAsrResponse } from "./fish";
+export { CASCADE_SAMPLE_RATE, buildWav } from "./whisper";
 export type { SttOpenOptions, SttProvider, SttSession } from "./types";
 
-export type SttProviderName = "deepgram" | "whisper";
+export type SttProviderName = "fish";
 
 export interface SttProviderKeys {
-  deepgramApiKey?: string;
-  openaiApiKey?: string;
+  fishApiKey?: string;
 }
 
-/** Providers with credentials available, best first. */
+/** Fish ASR when FISH_API_KEY is configured. */
 export function availableSttProviders(keys: SttProviderKeys = {}): SttProviderName[] {
-  const deepgram = keys.deepgramApiKey ?? process.env.DEEPGRAM_API_KEY ?? "";
-  const openai = keys.openaiApiKey ?? process.env.OPENAI_API_KEY ?? "";
-  const out: SttProviderName[] = [];
-  if (deepgram) out.push("deepgram");
-  if (openai) out.push("whisper");
-  return out;
+  const fish = keys.fishApiKey ?? process.env.FISH_API_KEY ?? "";
+  return fish ? ["fish"] : [];
 }
 
-/**
- * Resolve an STT provider.
- *
- * Deepgram wins by default because streaming recognition removes the whole
- * transcription from the turn's latency budget. Whisper is the fallback so a
- * workspace with only an OpenAI key still works.
- */
+/** WEBEE Native always uses Fish ASR. */
+export function resolveWebeeSttPreference(
+  _settings?: Record<string, unknown> | null,
+  keys: SttProviderKeys = {},
+): SttProviderName | null {
+  const fishKey = keys.fishApiKey ?? process.env.FISH_API_KEY ?? "";
+  return fishKey ? "fish" : null;
+}
+
+/** @deprecated Alias for resolveWebeeSttPreference — WEBEE Native is Fish-only. */
+export const resolveEffectiveSttProvider = resolveWebeeSttPreference;
+
+/** Build the Fish Audio STT provider (WEBEE Native only). */
 export function createSttProvider(
-  preferred: SttProviderName | null | undefined,
+  _preferred: SttProviderName | null | undefined,
   keys: SttProviderKeys = {},
 ): SttProvider {
-  const deepgramKey = keys.deepgramApiKey ?? process.env.DEEPGRAM_API_KEY ?? "";
-  const openaiKey = keys.openaiApiKey ?? process.env.OPENAI_API_KEY ?? "";
-
-  if (preferred === "deepgram") {
-    if (!deepgramKey) throw new Error("Deepgram requested but DEEPGRAM_API_KEY is not set");
-    return new DeepgramSttProvider(deepgramKey);
-  }
-  if (preferred === "whisper") {
-    if (!openaiKey) throw new Error("Whisper requested but OPENAI_API_KEY is not set");
-    return new WhisperSttProvider(openaiKey);
-  }
-
-  if (deepgramKey) return new DeepgramSttProvider(deepgramKey);
-  if (openaiKey) return new WhisperSttProvider(openaiKey);
-  throw new Error("No STT provider configured: set DEEPGRAM_API_KEY or OPENAI_API_KEY");
+  const fishKey = keys.fishApiKey ?? process.env.FISH_API_KEY ?? "";
+  if (!fishKey) throw new Error("Fish ASR requires FISH_API_KEY");
+  return new FishSttProvider(fishKey);
 }

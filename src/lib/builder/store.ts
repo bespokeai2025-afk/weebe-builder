@@ -97,6 +97,7 @@ const defaultSettings: BuilderSettings = {
   beginMessageDelayMs: 0,
   booking: { enabled: true, instructions: "", eventTypeId: "" },
   sttMode: "fast",
+  webeeSttProvider: "fish",
   vocabSpecialization: "general",
   allowUserDtmf: false,
   allowDtmfInterruption: false,
@@ -167,6 +168,7 @@ const initialNodes: FlowNode[] = [
   }),
   makeNode("ending", "end-node", 700, 200, {
     label: "End Call",
+    instructionType: "prompt",
     endingPrompt: "Politely end the call",
   }),
 ];
@@ -224,7 +226,9 @@ export const useBuilderStore = create<State>()(
         };
         const node = makeNode(kind, id, pos.x, pos.y, {
           ...(kind === "function" ? { speakDuringExecution: false, waitForResult: true } : {}),
-          ...(kind === "ending" ? { endingPrompt: "Politely end the call" } : {}),
+          ...(kind === "ending"
+            ? { instructionType: "prompt" as const, endingPrompt: "Politely end the call" }
+            : {}),
           ...(kind === "conversation" ? { instructionType: "prompt" } : {}),
           ...(kind === "wa_wait_reply" ? { dialogue: "" } : {}),
           ...(kind === "wa_extract_var" ? { extractVarName: "", extractVarPrompt: "" } : {}),

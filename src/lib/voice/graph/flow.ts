@@ -177,9 +177,8 @@ export function compileFlow(raw: unknown): CompiledFlow {
   for (const node of nodes.values()) {
     const setting = isRecord(node.global_node_setting) ? node.global_node_setting : undefined;
     const condition = str(setting?.condition).trim();
-    // `is_global` without a condition gives the router nothing to match on, so
-    // such nodes stay reachable only through ordinary edges.
-    if (!condition) continue;
+    // Retell template placeholders and empty conditions are not real global handlers.
+    if (!condition || /^describe the (condition|transition)/i.test(condition)) continue;
     if (node.id === startNodeId) {
       warnings.push(`start node "${node.id}" cannot also be a global node; ignoring`);
       continue;

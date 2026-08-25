@@ -965,19 +965,21 @@ function mapNode(n: FlowNode, edges: FlowEdge[]): Record<string, unknown> & { id
         code: d.codeSource ?? (raw.code as string) ?? "",
         edges,
       });
-    case "ending":
+    case "ending": {
+      const rawInstr = raw.instruction as { type?: string; text?: string } | undefined;
       return orderNode({
         ...base,
         type: "end",
         instruction: {
-          type: "prompt",
+          type: d.instructionType ?? rawInstr?.type ?? "prompt",
           text:
             d.endingPrompt ??
-            (raw.instruction as { text?: string })?.text ??
+            rawInstr?.text ??
             d.dialogue ??
             "End the call",
         },
       });
+    }
 
     case "http_request": {
       // HTTP Request nodes export as function nodes with a webhook URL.

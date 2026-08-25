@@ -367,6 +367,23 @@ export const wbahPatchNewLeadSyncToggle = (
   rl?: Relogin,
 ) => aPatch("/campaigns/new-lead-sync/toggle", { enabled }, gt, st, rl);
 
+export const wbahGetLiveTransferSettings = (gt: GetTokens, st: SaveToken, rl?: Relogin) =>
+  aGet("/campaigns/live-transfer/settings", gt, st, rl);
+
+export const wbahPatchLiveTransferSettings = (
+  body: {
+    weekly_schedule: Array<{ weekday: number; start: string; end: string }>;
+    timezone?: string;
+    fallback?: "callback";
+  },
+  gt: GetTokens,
+  st: SaveToken,
+  rl?: Relogin,
+) => aPatch("/campaigns/live-transfer/settings", body, gt, st, rl);
+
+export const wbahResetLiveTransferSettings = (gt: GetTokens, st: SaveToken, rl?: Relogin) =>
+  aPost("/campaigns/live-transfer/settings/reset", {}, gt, st, rl);
+
 // ── Agents ────────────────────────────────────────────────────────────────────
 
 export const wbahGetAgents = (

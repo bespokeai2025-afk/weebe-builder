@@ -112,7 +112,8 @@ for (const job of jobs) {
       calendlyBookingUrl: null,
       appointmentBooked: formatted.appointmentConfirmed,
       callSummary: formatted.callSummary,
-      detailedCallSummary: custom.detailed_call_summary as string | undefined,
+      detailedCallSummary:
+        typeof custom.detailed_call_summary === "string" ? custom.detailed_call_summary : undefined,
     });
     const patch = buildWbahAllensCrmPayload({
       formatted,
@@ -126,6 +127,12 @@ for (const job of jobs) {
       isCallbackRequest: formatted.isCallbackRequest,
       callbackDatetime: formatted.callbackDatetime,
       callbackDatetimeUtc: formatted.callbackDatetimeUtc,
+      callbackType: formatted.callbackType,
+      callbackHandler: formatted.callbackHandler,
+      callbackDatetimeSource: formatted.callbackDatetimeSource,
+      humanCallbackDatetime: formatted.humanCallbackDatetime,
+      bookingCallbackDatetime: formatted.bookingCallbackDatetime,
+      dynamicsAgentPreference: formatted.dynamicsAgentPreference,
       allensRule: allens.rule,
       allenLogicResult: allens.allenLogicResult,
       patchFields: Object.keys(patch),

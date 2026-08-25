@@ -38,7 +38,7 @@ export const searchVoiceNumbers = createServerFn({ method: "POST" })
   )
   .handler(async ({ context, data }) => {
     if (!context.workspaceId) throw new Error("No active workspace");
-    return searchAvailableNumbers(data);
+    return searchAvailableNumbers({ ...data, workspaceId: context.workspaceId });
   });
 
 /**
@@ -70,6 +70,7 @@ export const purchaseVoiceNumber = createServerFn({ method: "POST" })
     const purchased = await purchaseNumber({
       phoneNumber: data.phoneNumber,
       friendlyName: data.friendlyName,
+      workspaceId,
     });
     const id = await savePhoneNumberRow({
       workspaceId,
@@ -102,7 +103,7 @@ export const importVoiceNumber = createServerFn({ method: "POST" })
     const { workspaceId } = context;
     if (!workspaceId) throw new Error("No active workspace");
 
-    const owned = await findOwnedNumber(data.phoneNumber);
+    const owned = await findOwnedNumber(data.phoneNumber, workspaceId);
     if (!owned) {
       throw new Error(
         `${data.phoneNumber} is not in the connected Twilio account. Buy it first, or check the credentials.`,
@@ -110,7 +111,7 @@ export const importVoiceNumber = createServerFn({ method: "POST" })
     }
     // Import means "route this number to WEBEE", so repointing it is the job,
     // not a side effect.
-    await configureNumberWebhooks(owned.sid);
+    await configureNumberWebhooks(owned.sid, workspaceId);
 
     const id = await savePhoneNumberRow({
       workspaceId,
@@ -157,7 +158,7 @@ export const assignVoiceNumberToAgent = createServerFn({ method: "POST" })
     let webhooksConfigured = false;
     if (row.provider === "twilio" && row.provider_sid) {
       try {
-        await configureNumberWebhooks(row.provider_sid as string);
+        await configureNumberWebhooks(row.provider_sid as string, workspaceId);
         webhooksConfigured = true;
       } catch (err) {
         // Assignment is a DB fact and still worth saving; the caller is told the
@@ -208,7 +209,7 @@ export const releaseVoiceNumber = createServerFn({ method: "POST" })
 
     let released = false;
     if (row.provider === "twilio" && row.provider_sid) {
-      await releaseNumber(row.provider_sid as string);
+      await releaseNumber(row.provider_sid as string, workspaceId);
       released = true;
     }
 

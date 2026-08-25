@@ -9,7 +9,7 @@
  * Relative imports only — this module is reachable from vite.config.ts.
  */
 
-import { gptComplete, type ChatMsg } from "../llm/gpt";
+import { gptComplete, gptStream, type ChatMsg } from "../llm/gpt";
 import type { LlmMessage, VariableValue, VmLlm } from "./types";
 
 export interface OpenAiVmLlmOptions {
@@ -26,10 +26,11 @@ export interface OpenAiVmLlmOptions {
 }
 
 const CLASSIFY_SYSTEM = [
-  "You are a routing classifier inside a voice agent.",
-  "Read the conversation, then decide which ONE of the numbered options applies.",
-  "Reply with the option number only — no words, no punctuation, no explanation.",
-  'If none of the options apply, reply with "0".',
+  "You are a routing classifier for a voice agent.",
+  "Pick exactly one transition option, or none.",
+  'Reply with JSON only: {"transition": <option_number_or_label>}',
+  "Option numbers are 1-based. Use 0 if none apply.",
+  "Labels may match option text (e.g. \"positive\"). Do not generate speech.",
 ].join("\n");
 
 const EXTRACT_SYSTEM = [
@@ -42,7 +43,7 @@ const EXTRACT_SYSTEM = [
 export function createOpenAiVmLlm(options: OpenAiVmLlmOptions): VmLlm {
   const { apiKey } = options;
   const defaultModel = options.defaultModel || "gpt-4.1";
-  const classifierModel = options.classifierModel || "gpt-4.1-mini";
+  const classifierModel = options.classifierModel || "gpt-4o-mini";
 
   const complete = (messages: LlmMessage[], model: string, extra: Record<string, unknown> = {}) =>
     gptComplete(messages as ChatMsg[], {
@@ -57,6 +58,16 @@ export function createOpenAiVmLlm(options: OpenAiVmLlmOptions): VmLlm {
       return complete(messages, opts?.model || defaultModel);
     },
 
+    generateStream(messages, opts) {
+      return gptStream(messages as ChatMsg[], {
+        model: opts?.model || defaultModel,
+        apiKey,
+        temperature: options.temperature,
+        maxTokens: 80,
+        signal: opts?.signal,
+      });
+    },
+
     async classify(messages, choices, opts) {
       if (choices.length === 0) return -1;
 
@@ -66,22 +77,18 @@ export function createOpenAiVmLlm(options: OpenAiVmLlmOptions): VmLlm {
         ...messages,
         {
           role: "user",
-          content: `Options:\n${numbered}\n\nWhich option applies? Answer with a single number.`,
+          content: `Options:\n${numbered}\n\nWhich transition applies?`,
         },
       ];
 
-      // Routing must not inherit a creative temperature from the agent config.
+      // Routing always uses the cheap classifier — never the speech model.
       const raw = await complete(prompt, opts?.model || classifierModel, {
         temperature: 0,
-        maxTokens: 8,
+        maxTokens: 24,
+        responseFormat: "json_object",
       });
 
-      const match = raw.match(/-?\d+/);
-      if (!match) return -1;
-      const picked = Number.parseInt(match[0], 10);
-      // The prompt asks for 1-based answers and reserves 0 for "none".
-      if (picked <= 0 || picked > choices.length) return -1;
-      return picked - 1;
+      return parseTransitionIndex(raw, choices);
     },
 
     async extract(messages, fields, opts) {
@@ -130,6 +137,36 @@ export function createOpenAiVmLlm(options: OpenAiVmLlmOptions): VmLlm {
       return out;
     },
   };
+}
+
+/** Parse structured routing output like {"transition": 2} or {"transition": "positive"}. */
+export function parseTransitionIndex(raw: string, choices: string[]): number {
+  try {
+    const parsed = JSON.parse(raw) as { transition?: unknown };
+    const value = parsed.transition;
+    if (typeof value === "number") {
+      if (value <= 0 || value > choices.length) return -1;
+      return value - 1;
+    }
+    if (typeof value === "string") {
+      const trimmed = value.trim();
+      const asNum = Number.parseInt(trimmed, 10);
+      if (Number.isFinite(asNum) && asNum > 0 && asNum <= choices.length) return asNum - 1;
+      const needle = trimmed.toLowerCase();
+      if (!needle || needle === "0" || needle === "none") return -1;
+      for (let i = 0; i < choices.length; i++) {
+        if (choices[i].toLowerCase().includes(needle)) return i;
+      }
+    }
+  } catch {
+    /* fall through to legacy number parsing */
+  }
+
+  const match = raw.match(/-?\d+/);
+  if (!match) return -1;
+  const picked = Number.parseInt(match[0], 10);
+  if (picked <= 0 || picked > choices.length) return -1;
+  return picked - 1;
 }
 
 function coerce(value: unknown, type: string): VariableValue {

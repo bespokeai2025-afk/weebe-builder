@@ -18,13 +18,15 @@ export interface ChatMsg {
 export function resolveTextModel(modelId: string): string {
   const MAP: Record<string, string> = {
     "gpt-realtime": "gpt-4.1",
-    "gpt-4o-realtime-preview": "gpt-4.1",
-    "gpt-4o-mini-realtime-preview": "gpt-4.1-mini",
+    "gpt-4o-realtime-preview": "gpt-4o",
+    "gpt-4o-mini-realtime-preview": "gpt-4o-mini",
     "gpt-4.1": "gpt-4.1",
     "gpt-4.1-fast": "gpt-4.1",
     "gpt-4.1-mini": "gpt-4.1-mini",
+    "gpt-4o": "gpt-4o",
+    "gpt-4o-mini": "gpt-4o-mini",
   };
-  return MAP[modelId] ?? "gpt-4.1";
+  return MAP[modelId] ?? modelId;
 }
 
 export interface GptStreamOptions {

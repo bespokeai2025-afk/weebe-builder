@@ -7,6 +7,9 @@ import type { ConversationFlow, FlowNode, VmLlm } from "@/lib/voice/graph/types"
 function llm(classify: (choices: string[]) => number = () => 0): VmLlm {
   return {
     generate: async () => "generated",
+    generateStream: async function* () {
+      yield "generated";
+    },
     classify: async (_m, choices) => classify(choices),
     extract: async () => ({}),
   };
@@ -27,8 +30,15 @@ function flowOf(nodes: FlowNode[]): ConversationFlow {
 /** Records every callback the session makes, in order. */
 function recorder(overrides: { speakDelayMs?: number } = {}) {
   const events: string[] = [];
+  const readSpeech = async (source: string | AsyncIterable<string>) => {
+    if (typeof source === "string") return source;
+    let text = "";
+    for await (const chunk of source) text = text ? `${text} ${chunk}` : chunk;
+    return text;
+  };
   const callbacks = {
-    speak: async (text: string) => {
+    speak: async (source: string | AsyncIterable<string>) => {
+      const text = await readSpeech(source);
       events.push(`speak:${text}`);
       if (overrides.speakDelayMs) {
         await new Promise((r) => setTimeout(r, overrides.speakDelayMs));

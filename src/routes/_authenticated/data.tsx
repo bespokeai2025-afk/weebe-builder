@@ -111,11 +111,9 @@ import {
   isTestLeadStatus,
   isTestLeadSyncDisabledError,
   NEW_LEAD_STATUS,
-  NEW_LEAD_SYNC_SUB_SLUGS,
   resolveWbahCrmPersonName,
   TEST_LEAD_STATUS,
 } from "@/lib/integrations/webespokeEnterprise/wbah-campaign-sync.types";
-import { callWbahDelayedLead } from "@/lib/qualification/auto-call.server";
 
 export const Route = createFileRoute("/_authenticated/data")({
   head: () => ({ meta: [{ title: "Data Records — Webee" }] }),
@@ -280,11 +278,14 @@ function parseCsvLine(line: string): string[] {
 
 function fmtDate(iso?: string | null, isWbah = false) {
   if (!iso) return "\u2014";
-  return new Date(iso).toLocaleDateString("en-US", wbahDateTimeOptions(isWbah, {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-  }));
+  return new Date(iso).toLocaleDateString(
+    "en-US",
+    wbahDateTimeOptions(isWbah, {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+    }),
+  );
 }
 
 function statusBadgeClass(status?: string | null) {
@@ -303,8 +304,14 @@ function statusBadgeClass(status?: string | null) {
 function fmtTs(ts: number | null | undefined, isWbah = false): string {
   if (!ts) return "N/A";
   const d = new Date(ts);
-  const time = d.toLocaleTimeString("en-GB", wbahDateTimeOptions(isWbah, { hour: "2-digit", minute: "2-digit" }));
-  const date = d.toLocaleDateString("en-GB", wbahDateTimeOptions(isWbah, { day: "2-digit", month: "short", year: "numeric" }));
+  const time = d.toLocaleTimeString(
+    "en-GB",
+    wbahDateTimeOptions(isWbah, { hour: "2-digit", minute: "2-digit" }),
+  );
+  const date = d.toLocaleDateString(
+    "en-GB",
+    wbahDateTimeOptions(isWbah, { day: "2-digit", month: "short", year: "numeric" }),
+  );
   return `${time} · ${date}`;
 }
 
@@ -439,8 +446,7 @@ function wbahCallDetailFromRow(r: any): Record<string, unknown> {
     RecordingUrl: overlay.RecordingUrl ?? raw.recordingUrl ?? raw.recording_url ?? null,
     DisconnectionReason:
       overlay.DisconnectionReason ?? raw.disconnectionReason ?? raw.disconnection_reason ?? null,
-    SentimentAnalysis:
-      overlay.SentimentAnalysis ?? raw.sentimentAnalysis ?? raw.sentiment ?? null,
+    SentimentAnalysis: overlay.SentimentAnalysis ?? raw.sentimentAnalysis ?? raw.sentiment ?? null,
     Event: overlay.Event ?? raw.event ?? raw.callStatus ?? raw.call_status ?? null,
     Email: overlay.Email ?? raw.email ?? null,
     LeadId: raw.lead_id ?? raw.leadId ?? null,
@@ -455,8 +461,7 @@ function wbahCallDetailFromRow(r: any): Record<string, unknown> {
     sentimentAnalysis: overlay.sentimentAnalysis ?? raw.sentimentAnalysis ?? raw.sentiment ?? null,
     call_status: overlay.call_status ?? raw.callStatus ?? raw.call_status ?? null,
     EndReason: overlay.EndReason ?? raw.endReason ?? raw.end_reason ?? null,
-    CallSummary:
-      overlay.CallSummary ?? raw.callSummary ?? raw.call_summary ?? null,
+    CallSummary: overlay.CallSummary ?? raw.callSummary ?? raw.call_summary ?? null,
   };
 }
 
@@ -496,7 +501,10 @@ function WbahLeadDetailModal({
   }
 
   function renderDisqualification(crm: WbahCrmData | null) {
-    if (!crm || (!crm.disqualification_reason && !crm.disqualified_at && !isWbahLeadDisqualified(crm))) {
+    if (
+      !crm ||
+      (!crm.disqualification_reason && !crm.disqualified_at && !isWbahLeadDisqualified(crm))
+    ) {
       return null;
     }
     const rows: Array<{ label: string; value: string }> = [
@@ -509,9 +517,7 @@ function WbahLeadDetailModal({
       {
         label: "Reason code",
         value:
-          crm.new_disqualifiedreason_code != null
-            ? String(crm.new_disqualifiedreason_code)
-            : "—",
+          crm.new_disqualifiedreason_code != null ? String(crm.new_disqualifiedreason_code) : "—",
       },
       {
         label: "Disqualified at",
@@ -580,7 +586,9 @@ function WbahLeadDetailModal({
           {renderDisqualification(crmParsed)}
           {renderProfileSection("Lead & CRM", crmProfile)}
           {!detail.call && !detail.crm && (
-            <p className="text-xs text-muted-foreground">No detail fields available for this row.</p>
+            <p className="text-xs text-muted-foreground">
+              No detail fields available for this row.
+            </p>
           )}
         </div>
       </div>
@@ -741,8 +749,7 @@ function wbahRowPasses(
       if (!callable && !callNeed) return false;
     } else if (statusF === "disqualified") {
       const crmDq =
-        isWbahLeadDisqualified(r._crm) ||
-        (r.leadStatus ?? "").toLowerCase() === "disqualified";
+        isWbahLeadDisqualified(r._crm) || (r.leadStatus ?? "").toLowerCase() === "disqualified";
       const callDq = wbahStatusKey(r.callStatus) === "disqualified";
       if (!crmDq && !callDq) return false;
     } else if (wbahStatusKey(r.callStatus) !== statusF) {
@@ -934,9 +941,9 @@ function DataPage() {
   const [crmPeopleSelected, setCrmPeopleSelected] = useState<Set<string>>(new Set());
   const [crmImporting, setCrmImporting] = useState(false);
   const [crmImportAgentId, setCrmImportAgentId] = useState<string>("");
-  const [crmSearch, setCrmSearch]             = useState("");
+  const [crmSearch, setCrmSearch] = useState("");
   const [crmStatusFilter, setCrmStatusFilter] = useState("all");
-  const [crmDateFilter, setCrmDateFilter]     = useState("all");
+  const [crmDateFilter, setCrmDateFilter] = useState("all");
   const [crmCallDialogOpen, setCrmCallDialogOpen] = useState(false);
 
   const [qualifiedLeads, setQualifiedLeads] = useState<QualifiedLeadRow[]>([]);
@@ -984,7 +991,6 @@ function DataPage() {
   const [wbahLeadDetail, setWbahLeadDetail] = useState<WbahLeadDetailView | null>(null);
   const [wbahImporting, setWbahImporting] = useState(false);
   const [wbahNewLeadSyncOn, setWbahNewLeadSyncOn] = useState<boolean | null>(null);
-  const [callingDelayedLeadId, setCallingDelayedLeadId] = useState<string | null>(null);
 
   const [showManualEntry, setShowManualEntry] = useState(false);
   const [csvHeaders, setCsvHeaders] = useState<string[]>([]);
@@ -1013,7 +1019,6 @@ function DataPage() {
   const listWbahCategorizedLeadsFn = useServerFn(listWbahCategorizedLeads);
   const listWbahPeopleCategoriesFn = useServerFn(listWbahPeopleCategories);
   const getWbahCallbackSummaryFn = useServerFn(getWbahCallbackSummary);
-  const callWbahDelayedLeadFn = useServerFn(callWbahDelayedLead);
   const qc = useQueryClient();
 
   const filters = useMemo(() => {
@@ -1127,39 +1132,29 @@ function DataPage() {
     ],
   );
 
-  const wbahCatFiltered = useMemo(
-    () => {
-      // Test Lead rows are CRM cohort records — call-status dropdown is for Calls tab.
-      const statusF =
-        wbahPeopleSubTab === TEST_LEAD_STATUS || wbahPeopleSubTab === NEW_LEAD_STATUS
-          ? "all"
-          : wbahStatusFilter;
-      // Search is server-side for category tabs (passed to get-crm-data?search=).
-      const searchF =
-        wbahPeopleSubTab === "calls" || wbahPeopleSubTab === WBAH_CALLBACK_TAB
-          ? wbahPeopleSearch
-          : "";
-      return wbahActiveCatRows.filter((r) =>
-        wbahRowPasses(
-          r,
-          searchF,
-          statusF,
-          wbahSentimentFilter,
-          wbahDateCut,
-          wbahAgentFilter,
-        ),
-      );
-    },
-    [
-      wbahActiveCatRows,
-      wbahPeopleSearch,
-      wbahStatusFilter,
-      wbahSentimentFilter,
-      wbahDateCut,
-      wbahAgentFilter,
-      wbahPeopleSubTab,
-    ],
-  );
+  const wbahCatFiltered = useMemo(() => {
+    // Test Lead rows are CRM cohort records — call-status dropdown is for Calls tab.
+    const statusF =
+      wbahPeopleSubTab === TEST_LEAD_STATUS || wbahPeopleSubTab === NEW_LEAD_STATUS
+        ? "all"
+        : wbahStatusFilter;
+    // Search is server-side for category tabs (passed to get-crm-data?search=).
+    const searchF =
+      wbahPeopleSubTab === "calls" || wbahPeopleSubTab === WBAH_CALLBACK_TAB
+        ? wbahPeopleSearch
+        : "";
+    return wbahActiveCatRows.filter((r) =>
+      wbahRowPasses(r, searchF, statusF, wbahSentimentFilter, wbahDateCut, wbahAgentFilter),
+    );
+  }, [
+    wbahActiveCatRows,
+    wbahPeopleSearch,
+    wbahStatusFilter,
+    wbahSentimentFilter,
+    wbahDateCut,
+    wbahAgentFilter,
+    wbahPeopleSubTab,
+  ]);
 
   // Calls rows come pre-shaped and already filtered/paginated by the server —
   // no client-side re-mapping or wbahRowPasses filtering (that would only filter
@@ -1168,30 +1163,39 @@ function DataPage() {
 
   // Standard CRM People filters — options derived from the workspace's own rows.
   const crmStatusOptions = useMemo(
-    () => Array.from(new Set(crmPeople.map((p) => String(p.status ?? "").trim()).filter(Boolean))).sort((a, b) => a.localeCompare(b)),
+    () =>
+      Array.from(new Set(crmPeople.map((p) => String(p.status ?? "").trim()).filter(Boolean))).sort(
+        (a, b) => a.localeCompare(b),
+      ),
     [crmPeople],
   );
   const crmDateCut = useMemo(() => wbahDateCutoff(crmDateFilter), [crmDateFilter]);
   const crmFiltered = useMemo(
-    () => crmPeople.filter((p) => {
-      if (crmSearch.trim()) {
-        const q = crmSearch.toLowerCase();
-        if (
-          !(p.name ?? "").toLowerCase().includes(q) &&
-          !String(p.phone ?? "").toLowerCase().includes(q) &&
-          !(p.email ?? "").toLowerCase().includes(q)
-        ) return false;
-      }
-      if (crmStatusFilter !== "all" && String(p.status ?? "").trim() !== crmStatusFilter) return false;
-      if (crmDateCut > 0) {
-        const ts = p.created_at ? Date.parse(p.created_at) : 0;
-        if (!ts || ts < crmDateCut) return false;
-      }
-      return true;
-    }),
+    () =>
+      crmPeople.filter((p) => {
+        if (crmSearch.trim()) {
+          const q = crmSearch.toLowerCase();
+          if (
+            !(p.name ?? "").toLowerCase().includes(q) &&
+            !String(p.phone ?? "")
+              .toLowerCase()
+              .includes(q) &&
+            !(p.email ?? "").toLowerCase().includes(q)
+          )
+            return false;
+        }
+        if (crmStatusFilter !== "all" && String(p.status ?? "").trim() !== crmStatusFilter)
+          return false;
+        if (crmDateCut > 0) {
+          const ts = p.created_at ? Date.parse(p.created_at) : 0;
+          if (!ts || ts < crmDateCut) return false;
+        }
+        return true;
+      }),
     [crmPeople, crmSearch, crmStatusFilter, crmDateCut],
   );
-  const crmHasFilters = crmSearch.trim() !== "" || crmStatusFilter !== "all" || crmDateFilter !== "all";
+  const crmHasFilters =
+    crmSearch.trim() !== "" || crmStatusFilter !== "all" || crmDateFilter !== "all";
 
   const recordsPag = useTablePagination(records);
   const wbahPag = useTablePagination(wbahFiltered);
@@ -1210,8 +1214,7 @@ function DataPage() {
     changePageSize: (s: number) => handleFetchWbahCallsPage(1, { pageSize: s }),
   };
 
-  const wbahActiveCatTotal =
-    wbahCategories.find((c) => c.name === wbahPeopleSubTab)?.count ?? 0;
+  const wbahActiveCatTotal = wbahCategories.find((c) => c.name === wbahPeopleSubTab)?.count ?? 0;
 
   const wbahCatServerPag = {
     page: wbahCatPage,
@@ -1522,10 +1525,7 @@ function DataPage() {
     const dqReasonShort = crm ? dqReasonLabel(crm) : null;
     const booking = sanitizeWbahBookingFields({
       appointment_date:
-        r.meta?.appointment_date ??
-        raw.appointment_date ??
-        rawCrm.call_appointment_date ??
-        null,
+        r.meta?.appointment_date ?? raw.appointment_date ?? rawCrm.call_appointment_date ?? null,
       appointment_time:
         raw.appointment_time ?? r.meta?.appointment_time ?? rawCrm.call_appointment_time ?? null,
       booking_status:
@@ -1623,10 +1623,7 @@ function DataPage() {
 
     void (async () => {
       try {
-        const d = (await getWbahCallDetailFn({ data: { id: callId } })) as Record<
-          string,
-          unknown
-        >;
+        const d = (await getWbahCallDetailFn({ data: { id: callId } })) as Record<string, unknown>;
         const postCall = (d.postCall as Record<string, unknown> | null) ?? null;
         setWbahLeadDetail((prev) => {
           if (!prev) return prev;
@@ -1831,9 +1828,7 @@ function DataPage() {
               prev.summary ??
               (typeof d.callSummary === "string" ? d.callSummary.trim() || null : null),
             transcript:
-              (typeof d.transcript === "string" && d.transcript) ||
-              prev.transcript ||
-              null,
+              (typeof d.transcript === "string" && d.transcript) || prev.transcript || null,
             loading: false,
             polling: !done,
           };
@@ -1880,8 +1875,7 @@ function DataPage() {
                 inlineSummary ??
                 (typeof d.callSummary === "string" ? d.callSummary.trim() || null : null),
               transcript:
-                (typeof d.transcript === "string" && d.transcript) ||
-                "No transcript available.",
+                (typeof d.transcript === "string" && d.transcript) || "No transcript available.",
               loading: false,
               callRow: {
                 ...(prev.callRow ?? {}),
@@ -2078,7 +2072,10 @@ function DataPage() {
   async function handleCrmStartCalls({
     agentId,
     fromNumber,
-  }: { agentId: string; fromNumber: string | null }) {
+  }: {
+    agentId: string;
+    fromNumber: string | null;
+  }) {
     await handleStartCalling(agentId, fromNumber);
     setCrmCallDialogOpen(false);
   }
@@ -2087,7 +2084,11 @@ function DataPage() {
     agentId,
     fromNumber,
     scheduledAtIso,
-  }: { agentId: string; fromNumber: string | null; scheduledAtIso: string }) {
+  }: {
+    agentId: string;
+    fromNumber: string | null;
+    scheduledAtIso: string;
+  }) {
     await handleSchedule(scheduledAtIso, agentId);
     setCrmCallDialogOpen(false);
   }
@@ -2149,10 +2150,8 @@ function DataPage() {
 
       {/* Tabs — Records + Campaigns only for WBAH; People for all */}
       <div className="flex gap-1 overflow-x-auto border-b border-white/[0.06]">
-        {(isWbah
-          ? (["records", "people", "campaigns"] as const)
-          : (["people"] as const)
-        ).map((t) => (
+        {(isWbah ? (["records", "people", "campaigns"] as const) : (["people"] as const)).map(
+          (t) => (
             <button
               key={t}
               onClick={() => setDataTab(t)}
@@ -2176,7 +2175,8 @@ function DataPage() {
                 </span>
               )}
             </button>
-          ))}
+          ),
+        )}
       </div>
 
       {dataTab === "campaigns" && <WbahCallSchedulingSection />}
@@ -2359,7 +2359,12 @@ function DataPage() {
                     {agents.map((a) => (
                       <SelectItem key={a.id} value={a.id}>
                         {a.name}
-                        <span className="ml-1.5 text-[10px] text-muted-foreground">· {agentTypeLabel((a.settings as any)?.dashboardAgentType as string | undefined)}</span>
+                        <span className="ml-1.5 text-[10px] text-muted-foreground">
+                          ·{" "}
+                          {agentTypeLabel(
+                            (a.settings as any)?.dashboardAgentType as string | undefined,
+                          )}
+                        </span>
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -2763,442 +2768,411 @@ function DataPage() {
             {wbahPeopleSubTab === WBAH_CALLBACK_TAB ? (
               <WbahCallbacksPanel onSummaryChange={handleCallbackSummaryChange} />
             ) : (
-            (() => {
-              const isLeads = false;
-              const isCalls = wbahPeopleSubTab === "calls";
-              const isCat = !isCalls && !!wbahPeopleSubTab;
-              const isNewTab = wbahPeopleSubTab === NEW_LEAD_STATUS;
-              const isDisqualifiedTab = wbahPeopleSubTab === "Disqualified";
+              (() => {
+                const isLeads = false;
+                const isCalls = wbahPeopleSubTab === "calls";
+                const isCat = !isCalls && !!wbahPeopleSubTab;
+                const isNewTab = wbahPeopleSubTab === NEW_LEAD_STATUS;
+                const isDisqualifiedTab = wbahPeopleSubTab === "Disqualified";
 
-              const loading = isCalls ? wbahCallsLoading : !!wbahCatLoadingMap[wbahPeopleSubTab];
-              const error = isCalls ? wbahCallsError : (wbahCatErrorMap[wbahPeopleSubTab] ?? null);
-              const knownTotal = isCalls ? wbahCallsTotal : isCat ? wbahActiveCatCount : 0;
-              const rowCount = isCalls ? wbahCallsData.length : wbahActiveCatRows.length;
-              const empty = rowCount === 0 && !(knownTotal > 0 && loading);
-              const showLoading = loading || (rowCount === 0 && knownTotal > 0 && !error);
-              const onLoad = isCalls
-                ? () => handleFetchWbahCallsPage(1, { refresh: true })
-                : () => handleFetchWbahCategory(wbahPeopleSubTab);
-              const loadLabel = isCalls ? "Load Calls" : `Load ${wbahPeopleSubTab || "data"}`;
-              const rows = isCalls ? wbahCallsRows : wbahCatFiltered;
-              const pag = isCalls ? wbahCallsPag : isCat ? wbahCatServerPag : wbahCatPag;
-              const loadingNoun = isCalls ? "calls" : `${wbahPeopleSubTab || "records"} records`;
+                const loading = isCalls ? wbahCallsLoading : !!wbahCatLoadingMap[wbahPeopleSubTab];
+                const error = isCalls
+                  ? wbahCallsError
+                  : (wbahCatErrorMap[wbahPeopleSubTab] ?? null);
+                const knownTotal = isCalls ? wbahCallsTotal : isCat ? wbahActiveCatCount : 0;
+                const rowCount = isCalls ? wbahCallsData.length : wbahActiveCatRows.length;
+                const empty = rowCount === 0 && !(knownTotal > 0 && loading);
+                const showLoading = loading || (rowCount === 0 && knownTotal > 0 && !error);
+                const onLoad = isCalls
+                  ? () => handleFetchWbahCallsPage(1, { refresh: true })
+                  : () => handleFetchWbahCategory(wbahPeopleSubTab);
+                const loadLabel = isCalls ? "Load Calls" : `Load ${wbahPeopleSubTab || "data"}`;
+                const rows = isCalls ? wbahCallsRows : wbahCatFiltered;
+                const pag = isCalls ? wbahCallsPag : isCat ? wbahCatServerPag : wbahCatPag;
+                const loadingNoun = isCalls ? "calls" : `${wbahPeopleSubTab || "records"} records`;
 
-              if (showLoading)
-                return (
-                  <LoadingProgress
-                    label={`Loading ${loadingNoun}`}
-                    estimatedMs={9000}
-                    className="py-20"
-                  />
-                );
-              if (error) {
-                const testLeadDisabled =
-                  wbahPeopleSubTab === TEST_LEAD_STATUS &&
-                  isTestLeadSyncDisabledError(error);
-                if (testLeadDisabled) {
+                if (showLoading)
                   return (
-                    <div className="flex flex-col items-center gap-2 py-16 px-6 text-center text-sm">
-                      <AlertCircle className="h-8 w-8 text-amber-400/80" />
-                      <p className="font-medium text-foreground">Test Lead sync is not enabled</p>
-                      <p className="max-w-md text-xs text-muted-foreground">
-                        Set{" "}
-                        <code className="rounded bg-muted px-1">ENABLE_TEST_LEAD_CATEGORY_SYNC=true</code>{" "}
-                        on UAT, then run <strong>Sync from Dynamics</strong> in Campaigns.
-                      </p>
-                    </div>
+                    <LoadingProgress
+                      label={`Loading ${loadingNoun}`}
+                      estimatedMs={9000}
+                      className="py-20"
+                    />
                   );
-                }
-                return (
-                  <div className="flex flex-col items-center gap-2 py-16 text-sm">
-                    <AlertCircle className="h-8 w-8 text-destructive/60" />
-                    <p className="font-medium text-destructive">Could not load data</p>
-                    <p className="max-w-sm text-center text-xs text-muted-foreground">{error}</p>
-                    <Button variant="outline" size="sm" className="mt-2" onClick={onLoad}>
-                      Try again
-                    </Button>
-                  </div>
-                );
-              }
-              if (empty) {
-                if (wbahPeopleSubTab === TEST_LEAD_STATUS) {
-                  return (
-                    <div className="flex flex-col items-center gap-2 py-16 px-6 text-center">
-                      <Users className="h-8 w-8 text-muted-foreground" />
-                      <p className="text-sm font-medium">No test leads in CRM yet</p>
-                      <p className="max-w-md text-xs text-muted-foreground">
-                        Run <strong>Data → Campaigns → Sync from Dynamics</strong> after UAT has{" "}
-                        <code className="rounded bg-muted px-1">ENABLE_TEST_LEAD_CATEGORY_SYNC=true</code>.
-                        Preview should show <strong>test_lead</strong> with dynamicsFetched &gt; 0.
-                      </p>
-                      <div className="mt-2 flex flex-wrap items-center justify-center gap-2">
-                        <Button variant="outline" size="sm" onClick={onLoad}>
-                          <RefreshCw className="mr-1.5 h-3.5 w-3.5" /> Refresh Test Lead
-                        </Button>
-                        <Button
-                          variant="secondary"
-                          size="sm"
-                          onClick={() => setDataTab("campaigns")}
-                        >
-                          Open Campaigns sync
-                        </Button>
+                if (error) {
+                  const testLeadDisabled =
+                    wbahPeopleSubTab === TEST_LEAD_STATUS && isTestLeadSyncDisabledError(error);
+                  if (testLeadDisabled) {
+                    return (
+                      <div className="flex flex-col items-center gap-2 py-16 px-6 text-center text-sm">
+                        <AlertCircle className="h-8 w-8 text-amber-400/80" />
+                        <p className="font-medium text-foreground">Test Lead sync is not enabled</p>
+                        <p className="max-w-md text-xs text-muted-foreground">
+                          Set{" "}
+                          <code className="rounded bg-muted px-1">
+                            ENABLE_TEST_LEAD_CATEGORY_SYNC=true
+                          </code>{" "}
+                          on UAT, then run <strong>Sync from Dynamics</strong> in Campaigns.
+                        </p>
                       </div>
+                    );
+                  }
+                  return (
+                    <div className="flex flex-col items-center gap-2 py-16 text-sm">
+                      <AlertCircle className="h-8 w-8 text-destructive/60" />
+                      <p className="font-medium text-destructive">Could not load data</p>
+                      <p className="max-w-sm text-center text-xs text-muted-foreground">{error}</p>
+                      <Button variant="outline" size="sm" className="mt-2" onClick={onLoad}>
+                        Try again
+                      </Button>
                     </div>
                   );
                 }
-                return (
-                  <div className="flex flex-col items-center gap-2 py-16">
-                    <Users className="h-8 w-8 text-muted-foreground" />
-                    <p className="text-sm font-medium">No data loaded yet</p>
-                    <p className="text-xs text-muted-foreground">
-                      Click <strong>{loadLabel}</strong> to fetch records.
-                    </p>
-                    <Button variant="outline" size="sm" className="mt-2" onClick={onLoad}>
-                      <RefreshCw className="mr-1.5 h-3.5 w-3.5" /> {loadLabel}
-                    </Button>
-                  </div>
-                );
-              }
-
-              return (
-                <div className="min-w-0 overflow-x-auto">
-                  {isNewTab && (
-                    <div
-                      className={cn(
-                        "mx-3 mt-3 rounded-lg border px-3 py-2 text-[11px]",
-                        wbahCatStyle(NEW_LEAD_STATUS).banner,
-                      )}
-                    >
-                      {wbahNewLeadSyncOn === false ? (
-                        <>
-                          Auto-dial is <strong>off</strong> — existing New rows stay visible; no new
-                          imports or dials until you turn it on.
-                        </>
-                      ) : (
-                        <>
-                          Inbound <strong>New</strong> leads auto-dial via cron (WBAH New Leads Agent,
-                          +441616968308). After a call: <strong>Logged</strong> if booked (positive +
-                          appointment), <strong>Disqualified</strong> if negative sentiment,{" "}
-                          <strong>Tried To Contact</strong> if positive without booking, or no status
-                          change for neutral/no-answer.
-                        </>
-                      )}
+                if (empty) {
+                  if (wbahPeopleSubTab === TEST_LEAD_STATUS) {
+                    return (
+                      <div className="flex flex-col items-center gap-2 py-16 px-6 text-center">
+                        <Users className="h-8 w-8 text-muted-foreground" />
+                        <p className="text-sm font-medium">No test leads in CRM yet</p>
+                        <p className="max-w-md text-xs text-muted-foreground">
+                          Run <strong>Data → Campaigns → Sync from Dynamics</strong> after UAT has{" "}
+                          <code className="rounded bg-muted px-1">
+                            ENABLE_TEST_LEAD_CATEGORY_SYNC=true
+                          </code>
+                          . Preview should show <strong>test_lead</strong> with dynamicsFetched &gt;
+                          0.
+                        </p>
+                        <div className="mt-2 flex flex-wrap items-center justify-center gap-2">
+                          <Button variant="outline" size="sm" onClick={onLoad}>
+                            <RefreshCw className="mr-1.5 h-3.5 w-3.5" /> Refresh Test Lead
+                          </Button>
+                          <Button
+                            variant="secondary"
+                            size="sm"
+                            onClick={() => setDataTab("campaigns")}
+                          >
+                            Open Campaigns sync
+                          </Button>
+                        </div>
+                      </div>
+                    );
+                  }
+                  return (
+                    <div className="flex flex-col items-center gap-2 py-16">
+                      <Users className="h-8 w-8 text-muted-foreground" />
+                      <p className="text-sm font-medium">No data loaded yet</p>
+                      <p className="text-xs text-muted-foreground">
+                        Click <strong>{loadLabel}</strong> to fetch records.
+                      </p>
+                      <Button variant="outline" size="sm" className="mt-2" onClick={onLoad}>
+                        <RefreshCw className="mr-1.5 h-3.5 w-3.5" /> {loadLabel}
+                      </Button>
                     </div>
-                  )}
-                  <table className="w-full text-[11px]">
-                    <thead>
-                      <tr className="border-b border-white/[0.06] bg-card/30">
-                        {isLeads && (
-                          <th className={cn("w-8 px-2 py-1", stickyHead, "left-0")}>
-                            <Checkbox
-                              checked={rows.length > 0 && rows.every((r) => wbahSelected.has(r.id))}
-                              onCheckedChange={(v) => {
-                                if (v)
-                                  setWbahSelected(
-                                    (prev) => new Set([...prev, ...rows.map((r: any) => r.id)]),
-                                  );
-                                else
-                                  setWbahSelected((prev) => {
-                                    const n = new Set(prev);
-                                    rows.forEach((r: any) => n.delete(r.id));
-                                    return n;
-                                  });
-                              }}
-                            />
-                          </th>
+                  );
+                }
+
+                return (
+                  <div className="min-w-0 overflow-x-auto">
+                    {isNewTab && (
+                      <div
+                        className={cn(
+                          "mx-3 mt-3 rounded-lg border px-3 py-2 text-[11px]",
+                          wbahCatStyle(NEW_LEAD_STATUS).banner,
                         )}
-                        {(
-                          [
-                            "SR NO",
-                            "NAME",
-                            ...(isNewTab ? ["CALL ON"] : []),
-                            "CONTACT",
-                            ...(isCat ? ["LOADED"] : []),
-                            ...(isNewTab ? ["LEAD STATUS"] : ["TYPE"]),
-                            "LAST CALLED AT",
-                            "CALL STATUS",
-                            ...(isDisqualifiedTab ? ["DQ REASON", "DISQUALIFIED AT"] : []),
-                            "DURATION",
-                            "RECORDING",
-                            "TRANSCRIPT",
-                            "SENTIMENT",
-                            "APPT DATE",
-                            "APPT TIME",
-                            "BOOKING STATUS",
-                            "CALENDLY",
-                            "END REASON",
-                            "DISCONNECTION",
-                          ] as string[]
-                        ).map((col) => (
-                          <th
-                            key={col}
-                            className={cn(
-                              "px-2 py-1 text-left text-[9px] font-semibold uppercase tracking-[0.08em] text-muted-foreground whitespace-nowrap",
-                              col === "SR NO" &&
-                                cn(stickyHead, isLeads ? "left-8 w-9" : "left-0 w-9"),
-                              col === "NAME" &&
-                                cn(stickyHead, isLeads ? "left-[4.25rem] w-24" : "left-9 w-24"),
-                              col === "CONTACT" &&
-                                cn(
-                                  stickyHead,
-                                  isLeads
-                                    ? "left-[10.25rem] w-28 shadow-[4px_0_8px_-4px_rgba(0,0,0,0.45)]"
-                                    : "left-[8.25rem] w-28 shadow-[4px_0_8px_-4px_rgba(0,0,0,0.45)]",
-                                ),
-                            )}
-                          >
-                            {col}
-                          </th>
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {pag.sliced.map((r: any, rowIdx: number) => {
-                        const statusBadge = wbahCallStatusBadge(r.callStatus);
-                        const sentBadge = wbahSentimentBadge(resolveWbahDisplaySentiment(r));
-                        const isSelected = wbahSelected.has(r.id);
-                        const rowSrNo = (pag.page - 1) * Number(pag.pageSize) + rowIdx + 1;
-                        return (
-                          <tr
-                            key={r.id}
-                            className={`group h-8 border-b border-white/[0.04] align-middle hover:bg-white/[0.02] transition-colors ${isSelected ? "bg-blue-500/5" : ""}`}
-                          >
-                            {isLeads && (
-                              <td className={cn("px-2 py-0.5", stickyCell, "left-0 w-8")}>
-                                <Checkbox
-                                  checked={isSelected}
-                                  onCheckedChange={() => {
-                                    const n = new Set(wbahSelected);
-                                    if (n.has(r.id)) n.delete(r.id);
-                                    else n.add(r.id);
-                                    setWbahSelected(n);
-                                  }}
-                                />
+                      >
+                        {wbahNewLeadSyncOn === false ? (
+                          <>
+                            Auto-dial is <strong>off</strong> — existing New rows stay visible; no
+                            new imports or dials until you turn it on.
+                          </>
+                        ) : (
+                          <>
+                            Inbound <strong>New</strong> leads auto-dial via cron (WBAH New Leads
+                            Agent, +441616968308). After a call: <strong>Logged</strong> if booked
+                            (positive + appointment), <strong>Disqualified</strong> if negative
+                            sentiment, <strong>Tried To Contact</strong> if positive without
+                            booking, or no status change for neutral/no-answer.
+                          </>
+                        )}
+                      </div>
+                    )}
+                    <table className="w-full text-[11px]">
+                      <thead>
+                        <tr className="border-b border-white/[0.06] bg-card/30">
+                          {isLeads && (
+                            <th className={cn("w-8 px-2 py-1", stickyHead, "left-0")}>
+                              <Checkbox
+                                checked={
+                                  rows.length > 0 && rows.every((r) => wbahSelected.has(r.id))
+                                }
+                                onCheckedChange={(v) => {
+                                  if (v)
+                                    setWbahSelected(
+                                      (prev) => new Set([...prev, ...rows.map((r: any) => r.id)]),
+                                    );
+                                  else
+                                    setWbahSelected((prev) => {
+                                      const n = new Set(prev);
+                                      rows.forEach((r: any) => n.delete(r.id));
+                                      return n;
+                                    });
+                                }}
+                              />
+                            </th>
+                          )}
+                          {(
+                            [
+                              "SR NO",
+                              "NAME",
+                              ...(isNewTab ? ["CALL ON"] : []),
+                              "CONTACT",
+                              ...(isCat ? ["LOADED"] : []),
+                              ...(isNewTab ? ["LEAD STATUS"] : ["TYPE"]),
+                              "LAST CALLED AT",
+                              "CALL STATUS",
+                              ...(isDisqualifiedTab ? ["DQ REASON", "DISQUALIFIED AT"] : []),
+                              "DURATION",
+                              "RECORDING",
+                              "TRANSCRIPT",
+                              "SENTIMENT",
+                              "APPT DATE",
+                              "APPT TIME",
+                              "BOOKING STATUS",
+                              "CALENDLY",
+                              "END REASON",
+                              "DISCONNECTION",
+                            ] as string[]
+                          ).map((col) => (
+                            <th
+                              key={col}
+                              className={cn(
+                                "px-2 py-1 text-left text-[9px] font-semibold uppercase tracking-[0.08em] text-muted-foreground whitespace-nowrap",
+                                col === "SR NO" &&
+                                  cn(stickyHead, isLeads ? "left-8 w-9" : "left-0 w-9"),
+                                col === "NAME" &&
+                                  cn(stickyHead, isLeads ? "left-[4.25rem] w-24" : "left-9 w-24"),
+                                col === "CONTACT" &&
+                                  cn(
+                                    stickyHead,
+                                    isLeads
+                                      ? "left-[10.25rem] w-28 shadow-[4px_0_8px_-4px_rgba(0,0,0,0.45)]"
+                                      : "left-[8.25rem] w-28 shadow-[4px_0_8px_-4px_rgba(0,0,0,0.45)]",
+                                  ),
+                              )}
+                            >
+                              {col}
+                            </th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {pag.sliced.map((r: any, rowIdx: number) => {
+                          const statusBadge = wbahCallStatusBadge(r.callStatus);
+                          const sentBadge = wbahSentimentBadge(resolveWbahDisplaySentiment(r));
+                          const isSelected = wbahSelected.has(r.id);
+                          const rowSrNo = (pag.page - 1) * Number(pag.pageSize) + rowIdx + 1;
+                          return (
+                            <tr
+                              key={r.id}
+                              className={`group h-8 border-b border-white/[0.04] align-middle hover:bg-white/[0.02] transition-colors ${isSelected ? "bg-blue-500/5" : ""}`}
+                            >
+                              {isLeads && (
+                                <td className={cn("px-2 py-0.5", stickyCell, "left-0 w-8")}>
+                                  <Checkbox
+                                    checked={isSelected}
+                                    onCheckedChange={() => {
+                                      const n = new Set(wbahSelected);
+                                      if (n.has(r.id)) n.delete(r.id);
+                                      else n.add(r.id);
+                                      setWbahSelected(n);
+                                    }}
+                                  />
+                                </td>
+                              )}
+                              <td
+                                className={cn(
+                                  "px-2 py-0.5 text-[10px] text-muted-foreground",
+                                  stickyCell,
+                                  isLeads ? "left-8 w-9" : "left-0 w-9",
+                                )}
+                              >
+                                {rowSrNo}
                               </td>
-                            )}
-                            <td
-                              className={cn(
-                                "px-2 py-0.5 text-[10px] text-muted-foreground",
-                                stickyCell,
-                                isLeads ? "left-8 w-9" : "left-0 w-9",
-                              )}
-                            >
-                              {rowSrNo}
-                            </td>
-                            <td
-                              className={cn(
-                                "max-w-[6rem] truncate px-2 py-0.5 font-medium",
-                                stickyCell,
-                                isLeads ? "left-[4.25rem] w-24" : "left-9 w-24",
-                              )}
-                            >
-                              <div className="flex items-center gap-1 min-w-0">
-                                <button
-                                  type="button"
-                                  onClick={() => openWbahLeadDetail(r)}
-                                  className="truncate text-left hover:text-primary transition-colors"
-                                  title="View lead details"
-                                >
-                                  {r.name || "—"}
-                                </button>
-                                {r.isTestLead && <WbahTestLeadBadge />}
-                                <button
-                                  type="button"
-                                  onClick={() => openWbahLeadDetail(r)}
-                                  className="shrink-0 rounded p-0.5 text-muted-foreground hover:text-foreground hover:bg-white/[0.06] transition-colors"
-                                  title="View lead details"
-                                >
-                                  <Eye className="h-3 w-3" />
-                                </button>
-                              </div>
-                            </td>
-                            {isNewTab && (
-                              <td className="px-2 py-0.5 whitespace-nowrap">
-                                {String(r.syncCategorySlug ?? "").toLowerCase() ===
-                                NEW_LEAD_SYNC_SUB_SLUGS.delayed ? (
+                              <td
+                                className={cn(
+                                  "max-w-[6rem] truncate px-2 py-0.5 font-medium",
+                                  stickyCell,
+                                  isLeads ? "left-[4.25rem] w-24" : "left-9 w-24",
+                                )}
+                              >
+                                <div className="flex items-center gap-1 min-w-0">
                                   <button
                                     type="button"
-                                    disabled={callingDelayedLeadId === r.id}
-                                    onClick={async () => {
-                                      if (!r.contact) {
-                                        toast.error("No phone number for this lead");
-                                        return;
-                                      }
-                                      setCallingDelayedLeadId(r.id);
-                                      try {
-                                        const res = await callWbahDelayedLeadFn({
-                                          data: {
-                                            phone: r.contact,
-                                            name: r.name ?? undefined,
-                                            externalLeadId: r.id ?? undefined,
-                                          },
-                                        });
-                                        if (res.placed) {
-                                          toast.success(`Calling ${r.name || r.contact}…`);
-                                        } else {
-                                          const msgs: Record<string, string> = {
-                                            daily_limit_reached: "Daily call limit reached for this number (3/day)",
-                                            agent_not_configured: "New Leads Agent is not configured",
-                                            agent_not_fully_configured: "New Leads Agent has no phone number set",
-                                            agent_not_found: "New Leads Agent not found",
-                                          };
-                                          toast.error(msgs[res.reason ?? ""] ?? `Could not place call: ${res.reason}`);
-                                        }
-                                      } catch (e: any) {
-                                        toast.error(e?.message ?? "Failed to place call");
-                                      } finally {
-                                        setCallingDelayedLeadId(null);
-                                      }
-                                    }}
-                                    className="inline-flex items-center gap-1 rounded border border-amber-400/40 bg-amber-500/15 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-amber-300 hover:bg-amber-500/25 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                                    title="Place a call now via New Leads Agent"
+                                    onClick={() => openWbahLeadDetail(r)}
+                                    className="truncate text-left hover:text-primary transition-colors"
+                                    title="View lead details"
                                   >
-                                    <PhoneOutgoing className="h-2.5 w-2.5 shrink-0" />
-                                    {callingDelayedLeadId === r.id ? "Calling…" : "Call now"}
+                                    {r.name || "—"}
                                   </button>
-                                ) : (
+                                  {r.isTestLead && <WbahTestLeadBadge />}
+                                  <button
+                                    type="button"
+                                    onClick={() => openWbahLeadDetail(r)}
+                                    className="shrink-0 rounded p-0.5 text-muted-foreground hover:text-foreground hover:bg-white/[0.06] transition-colors"
+                                    title="View lead details"
+                                  >
+                                    <Eye className="h-3 w-3" />
+                                  </button>
+                                </div>
+                              </td>
+                              {isNewTab && (
+                                <td className="px-2 py-0.5 whitespace-nowrap">
                                   <WbahNewLeadSubBadge slug={r.syncCategorySlug} />
+                                </td>
+                              )}
+                              <td
+                                className={cn(
+                                  "max-w-[7rem] truncate px-2 py-0.5 font-mono text-[10px] text-muted-foreground",
+                                  stickyCell,
+                                  isLeads
+                                    ? "left-[10.25rem] w-28 shadow-[4px_0_8px_-4px_rgba(0,0,0,0.35)]"
+                                    : "left-[8.25rem] w-28 shadow-[4px_0_8px_-4px_rgba(0,0,0,0.35)]",
+                                )}
+                              >
+                                {r.contact ? (
+                                  <a
+                                    href={`tel:${r.contact}`}
+                                    className="flex items-center gap-1 hover:text-foreground transition-colors truncate"
+                                  >
+                                    <Phone className="h-3 w-3 shrink-0" />
+                                    {r.contact}
+                                  </a>
+                                ) : (
+                                  "—"
                                 )}
                               </td>
-                            )}
-                            <td
-                              className={cn(
-                                "max-w-[7rem] truncate px-2 py-0.5 font-mono text-[10px] text-muted-foreground",
-                                stickyCell,
-                                isLeads
-                                  ? "left-[10.25rem] w-28 shadow-[4px_0_8px_-4px_rgba(0,0,0,0.35)]"
-                                  : "left-[8.25rem] w-28 shadow-[4px_0_8px_-4px_rgba(0,0,0,0.35)]",
-                              )}
-                            >
-                              {r.contact ? (
-                                <a
-                                  href={`tel:${r.contact}`}
-                                  className="flex items-center gap-1 hover:text-foreground transition-colors truncate"
-                                >
-                                  <Phone className="h-3 w-3 shrink-0" />
-                                  {r.contact}
-                                </a>
-                              ) : (
-                                "—"
-                              )}
-                            </td>
-                            {isCat && (
-                              <td className="px-2 py-0.5 text-[10px] text-muted-foreground whitespace-nowrap">
-                                {r.loadedAt ? fmtDate(r.loadedAt, true) : "—"}
-                              </td>
-                            )}
-                            <td className="px-2 py-0.5 text-[10px] text-muted-foreground whitespace-nowrap capitalize">
-                              {isNewTab
-                                ? (r.leadStatus || "—")
-                                : (r.callType || "—").replace(/_/g, " ")}
-                            </td>
-                            <td className="px-2 py-0.5 text-[10px] text-muted-foreground whitespace-nowrap">
-                              {fmtTs(r.startTimestamp, true)}
-                            </td>
-                            <td className="px-2 py-0.5 whitespace-nowrap">
-                              <span
-                                className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium ring-1 ring-white/[0.06] ${statusBadge.cls}`}
-                              >
-                                {statusBadge.label}
-                              </span>
-                            </td>
-                            {isDisqualifiedTab && (
-                              <>
-                                <td
-                                  className="px-2 py-0.5 text-[10px] text-muted-foreground max-w-[140px] truncate"
-                                  title={r.dqReasonFull ?? r.dqReason ?? undefined}
-                                >
-                                  {r.dqReason && r.dqReason !== "—"
-                                    ? truncateDqReason(r.dqReasonFull ?? r.dqReason, 40)
-                                    : "—"}
-                                </td>
+                              {isCat && (
                                 <td className="px-2 py-0.5 text-[10px] text-muted-foreground whitespace-nowrap">
-                                  {r.disqualifiedAt ? fmtDate(r.disqualifiedAt, true) : "—"}
+                                  {r.loadedAt ? fmtDate(r.loadedAt, true) : "—"}
                                 </td>
-                              </>
-                            )}
-                            <td className="px-2 py-0.5 text-muted-foreground text-[11px] whitespace-nowrap">
-                              {fmtMs(r.durationMs)}
-                            </td>
-                            <td className="px-2 py-0.5">
-                              {r.recordingUrl ? (
-                                <a
-                                  href={r.recordingUrl}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="inline-flex items-center gap-1 rounded-md bg-primary/10 px-2 py-1 text-[10px] font-medium text-primary hover:bg-primary/20 transition-colors"
-                                >
-                                  <Play className="h-3 w-3" /> Play
-                                </a>
-                              ) : (
-                                <span className="text-muted-foreground/40 text-[11px]">—</span>
                               )}
-                            </td>
-                            <td className="px-2 py-0.5">
-                              {r.transcript ||
-                              r.hasTranscript ||
-                              r.callSummary ||
-                              (isCalls && String(r.id ?? "").startsWith("call_")) ? (
-                                <button
-                                  onClick={() => openWbahCallDetail(r)}
-                                  className="inline-flex items-center gap-1 rounded-md bg-muted/60 px-2 py-1 text-[10px] font-medium text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+                              <td className="px-2 py-0.5 text-[10px] text-muted-foreground whitespace-nowrap capitalize">
+                                {isNewTab
+                                  ? r.leadStatus || "—"
+                                  : (r.callType || "—").replace(/_/g, " ")}
+                              </td>
+                              <td className="px-2 py-0.5 text-[10px] text-muted-foreground whitespace-nowrap">
+                                {fmtTs(r.startTimestamp, true)}
+                              </td>
+                              <td className="px-2 py-0.5 whitespace-nowrap">
+                                <span
+                                  className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium ring-1 ring-white/[0.06] ${statusBadge.cls}`}
                                 >
-                                  <FileText className="h-3 w-3" /> View
-                                </button>
-                              ) : (
-                                <span className="text-muted-foreground/40 text-[11px]">—</span>
+                                  {statusBadge.label}
+                                </span>
+                              </td>
+                              {isDisqualifiedTab && (
+                                <>
+                                  <td
+                                    className="px-2 py-0.5 text-[10px] text-muted-foreground max-w-[140px] truncate"
+                                    title={r.dqReasonFull ?? r.dqReason ?? undefined}
+                                  >
+                                    {r.dqReason && r.dqReason !== "—"
+                                      ? truncateDqReason(r.dqReasonFull ?? r.dqReason, 40)
+                                      : "—"}
+                                  </td>
+                                  <td className="px-2 py-0.5 text-[10px] text-muted-foreground whitespace-nowrap">
+                                    {r.disqualifiedAt ? fmtDate(r.disqualifiedAt, true) : "—"}
+                                  </td>
+                                </>
                               )}
-                            </td>
-                            <td
-                              className={`px-2 py-0.5 text-[11px] font-medium whitespace-nowrap ${sentBadge.cls}`}
-                            >
-                              {sentBadge.label}
-                            </td>
-                            <td className="px-2 py-0.5 text-muted-foreground text-[11px] whitespace-nowrap">
-                              {wbahAppointmentDateCell(r)}
-                            </td>
-                            <td className="px-2 py-0.5 text-muted-foreground text-[11px] whitespace-nowrap">
-                              {wbahAppointmentTimeCell(r)}
-                            </td>
-                            <td className="px-2 py-0.5">
-                              {(() => {
-                                const statusText = wbahBookingStatusCell(r);
-                                if (statusText === "—") {
-                                  return <span className="text-muted-foreground/40 text-[11px]">—</span>;
-                                }
-                                return (
-                                  <span className="inline-flex items-center rounded-full bg-muted px-2 py-0.5 text-[10px] font-medium text-muted-foreground ring-1 ring-white/[0.06] capitalize">
-                                    {statusText}
-                                  </span>
-                                );
-                              })()}
-                            </td>
-                            <td className="px-2 py-0.5 text-[11px] text-muted-foreground whitespace-nowrap">
-                              <WbahCallCalendlyLink row={r} />
-                            </td>
-                            <td className="px-2 py-0.5 text-muted-foreground text-[11px] whitespace-nowrap capitalize max-w-[120px] truncate">
-                              {r.endReason ? r.endReason.replace(/_/g, " ") : "—"}
-                            </td>
-                            <td className="px-2 py-0.5 text-muted-foreground text-[11px] whitespace-nowrap capitalize max-w-[140px] truncate">
-                              {r.disconnectionReason
-                                ? r.disconnectionReason.replace(/_/g, " ")
-                                : "—"}
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                  {rows.length > 0 && <TablePagBar {...pag} />}
-                  {rows.length === 0 && (
-                    <div className="flex flex-col items-center gap-2 py-12 text-sm text-muted-foreground">
-                      <Search className="h-6 w-6" />
-                      <p>No records match your search</p>
-                    </div>
-                  )}
-                </div>
-              );
-            })())}
+                              <td className="px-2 py-0.5 text-muted-foreground text-[11px] whitespace-nowrap">
+                                {fmtMs(r.durationMs)}
+                              </td>
+                              <td className="px-2 py-0.5">
+                                {r.recordingUrl ? (
+                                  <a
+                                    href={r.recordingUrl}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="inline-flex items-center gap-1 rounded-md bg-primary/10 px-2 py-1 text-[10px] font-medium text-primary hover:bg-primary/20 transition-colors"
+                                  >
+                                    <Play className="h-3 w-3" /> Play
+                                  </a>
+                                ) : (
+                                  <span className="text-muted-foreground/40 text-[11px]">—</span>
+                                )}
+                              </td>
+                              <td className="px-2 py-0.5">
+                                {r.transcript ||
+                                r.hasTranscript ||
+                                r.callSummary ||
+                                (isCalls && String(r.id ?? "").startsWith("call_")) ? (
+                                  <button
+                                    onClick={() => openWbahCallDetail(r)}
+                                    className="inline-flex items-center gap-1 rounded-md bg-muted/60 px-2 py-1 text-[10px] font-medium text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+                                  >
+                                    <FileText className="h-3 w-3" /> View
+                                  </button>
+                                ) : (
+                                  <span className="text-muted-foreground/40 text-[11px]">—</span>
+                                )}
+                              </td>
+                              <td
+                                className={`px-2 py-0.5 text-[11px] font-medium whitespace-nowrap ${sentBadge.cls}`}
+                              >
+                                {sentBadge.label}
+                              </td>
+                              <td className="px-2 py-0.5 text-muted-foreground text-[11px] whitespace-nowrap">
+                                {wbahAppointmentDateCell(r)}
+                              </td>
+                              <td className="px-2 py-0.5 text-muted-foreground text-[11px] whitespace-nowrap">
+                                {wbahAppointmentTimeCell(r)}
+                              </td>
+                              <td className="px-2 py-0.5">
+                                {(() => {
+                                  const statusText = wbahBookingStatusCell(r);
+                                  if (statusText === "—") {
+                                    return (
+                                      <span className="text-muted-foreground/40 text-[11px]">
+                                        —
+                                      </span>
+                                    );
+                                  }
+                                  return (
+                                    <span className="inline-flex items-center rounded-full bg-muted px-2 py-0.5 text-[10px] font-medium text-muted-foreground ring-1 ring-white/[0.06] capitalize">
+                                      {statusText}
+                                    </span>
+                                  );
+                                })()}
+                              </td>
+                              <td className="px-2 py-0.5 text-[11px] text-muted-foreground whitespace-nowrap">
+                                <WbahCallCalendlyLink row={r} />
+                              </td>
+                              <td className="px-2 py-0.5 text-muted-foreground text-[11px] whitespace-nowrap capitalize max-w-[120px] truncate">
+                                {r.endReason ? r.endReason.replace(/_/g, " ") : "—"}
+                              </td>
+                              <td className="px-2 py-0.5 text-muted-foreground text-[11px] whitespace-nowrap capitalize max-w-[140px] truncate">
+                                {r.disconnectionReason
+                                  ? r.disconnectionReason.replace(/_/g, " ")
+                                  : "—"}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                    {rows.length > 0 && <TablePagBar {...pag} />}
+                    {rows.length === 0 && (
+                      <div className="flex flex-col items-center gap-2 py-12 text-sm text-muted-foreground">
+                        <Search className="h-6 w-6" />
+                        <p>No records match your search</p>
+                      </div>
+                    )}
+                  </div>
+                );
+              })()
+            )}
           </div>
         </>
       )}
@@ -3220,7 +3194,9 @@ function DataPage() {
                 Inbound Leads from CRM
                 {crmPeople.length > 0 && (
                   <span className="ml-2 normal-case text-xs font-normal tracking-normal text-muted-foreground">
-                    {crmHasFilters ? `${crmFiltered.length} of ${crmPeople.length}` : `${crmPeople.length} lead${crmPeople.length !== 1 ? "s" : ""}`}
+                    {crmHasFilters
+                      ? `${crmFiltered.length} of ${crmPeople.length}`
+                      : `${crmPeople.length} lead${crmPeople.length !== 1 ? "s" : ""}`}
                   </span>
                 )}
                 {crmPeopleSelected.size > 0 && (
@@ -3250,17 +3226,23 @@ function DataPage() {
                   </div>
                   {crmStatusOptions.length > 0 && (
                     <Select value={crmStatusFilter} onValueChange={setCrmStatusFilter}>
-                      <SelectTrigger className="h-7 w-[140px] text-xs"><SelectValue placeholder="Status" /></SelectTrigger>
+                      <SelectTrigger className="h-7 w-[140px] text-xs">
+                        <SelectValue placeholder="Status" />
+                      </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="all">All statuses</SelectItem>
                         {crmStatusOptions.map((s) => (
-                          <SelectItem key={s} value={s} className="capitalize">{s.replace(/_/g, " ")}</SelectItem>
+                          <SelectItem key={s} value={s} className="capitalize">
+                            {s.replace(/_/g, " ")}
+                          </SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
                   )}
                   <Select value={crmDateFilter} onValueChange={setCrmDateFilter}>
-                    <SelectTrigger className="h-7 w-[130px] text-xs"><SelectValue placeholder="Date" /></SelectTrigger>
+                    <SelectTrigger className="h-7 w-[130px] text-xs">
+                      <SelectValue placeholder="Date" />
+                    </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="all">All time</SelectItem>
                       <SelectItem value="today">Today</SelectItem>
@@ -3270,7 +3252,11 @@ function DataPage() {
                   </Select>
                   {crmHasFilters && (
                     <button
-                      onClick={() => { setCrmSearch(""); setCrmStatusFilter("all"); setCrmDateFilter("all"); }}
+                      onClick={() => {
+                        setCrmSearch("");
+                        setCrmStatusFilter("all");
+                        setCrmDateFilter("all");
+                      }}
                       className="text-[11px] text-muted-foreground hover:text-foreground underline whitespace-nowrap"
                     >
                       Clear filters
@@ -3328,7 +3314,9 @@ function DataPage() {
                   size="sm"
                   variant="outline"
                   className="h-7 text-xs"
-                  onClick={() => setCrmPeopleSelected(new Set(crmFiltered.map((p) => p.external_id)))}
+                  onClick={() =>
+                    setCrmPeopleSelected(new Set(crmFiltered.map((p) => p.external_id)))
+                  }
                 >
                   Select All
                 </Button>
@@ -3381,7 +3369,11 @@ function DataPage() {
                 variant="outline"
                 size="sm"
                 className="mt-2"
-                onClick={() => { setCrmSearch(""); setCrmStatusFilter("all"); setCrmDateFilter("all"); }}
+                onClick={() => {
+                  setCrmSearch("");
+                  setCrmStatusFilter("all");
+                  setCrmDateFilter("all");
+                }}
               >
                 Clear filters
               </Button>
@@ -3397,7 +3389,8 @@ function DataPage() {
                           crmPeople.length > 0 && crmPeopleSelected.size === crmPeople.length
                         }
                         onCheckedChange={(v) => {
-                          if (v) setCrmPeopleSelected(new Set(crmFiltered.map((p) => p.external_id)));
+                          if (v)
+                            setCrmPeopleSelected(new Set(crmFiltered.map((p) => p.external_id)));
                           else setCrmPeopleSelected(new Set());
                         }}
                       />

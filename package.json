@@ -84,9 +84,10 @@
     "input-otp": "^1.4.2",
     "jsdom": "^29.1.1",
     "lucide-react": "^0.575.0",
-    "marked": "^15.0.0",
     "mammoth": "^1.12.0",
+    "marked": "^15.0.0",
     "nitro": "3.0.260429-beta",
+    "onnxruntime-node": "^1.27.0",
     "pdf-lib": "^1.17.1",
     "pdf-parse": "^2.4.5",
     "pg": "^8.21.0",
@@ -136,5 +137,11 @@
     "typescript-eslint": "^8.56.1",
     "vite": "^7.3.1",
     "ws": "^8.21.1"
+  },
+  "pnpm": {
+    "overrides": {
+      "react": "$react",
+      "react-dom": "$react-dom"
+    }
   }
 }

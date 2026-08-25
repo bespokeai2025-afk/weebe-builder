@@ -15,19 +15,21 @@ import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import {
   buildNumberWebhooks,
   resolvePublicHost,
-  resolveTwilioCredentials,
   type TwilioCredentials,
 } from "./twilio-env";
+import { resolveTwilioCredentialsForWorkspace } from "./twilio-credentials.server";
 
 export {
   buildNumberWebhooks,
   resolvePublicHost,
-  resolveTwilioCredentials,
   type TwilioCredentials,
 };
 
-async function client(): Promise<Twilio> {
-  const { accountSid, authToken } = resolveTwilioCredentials();
+async function client(workspaceId?: string): Promise<Twilio> {
+  const { accountSid, authToken } = await resolveTwilioCredentialsForWorkspace(
+    supabaseAdmin,
+    workspaceId,
+  );
   // `twilio` is CommonJS (`export =`): at runtime the callable factory arrives on
   // `default`, but its types describe the bare namespace, so the cast is needed
   // to reach it. Calling the namespace directly typechecks and then fails at
@@ -55,10 +57,11 @@ export interface SearchOptions {
   tollFree?: boolean;
   smsEnabled?: boolean;
   limit?: number;
+  workspaceId?: string;
 }
 
 export async function searchAvailableNumbers(options: SearchOptions): Promise<AvailableNumber[]> {
-  const twilioClient = await client();
+  const twilioClient = await client(options.workspaceId);
   const country = options.country.toUpperCase();
   const filters: Record<string, unknown> = {
     limit: Math.min(options.limit ?? 20, 50),
@@ -95,8 +98,11 @@ export interface OwnedNumber {
 }
 
 /** Look up a number already in the Twilio account, for the import path. */
-export async function findOwnedNumber(phoneNumber: string): Promise<OwnedNumber | null> {
-  const twilioClient = await client();
+export async function findOwnedNumber(
+  phoneNumber: string,
+  workspaceId?: string,
+): Promise<OwnedNumber | null> {
+  const twilioClient = await client(workspaceId);
   const [match] = await twilioClient.incomingPhoneNumbers.list({ phoneNumber, limit: 1 });
   if (!match) return null;
   return {
@@ -111,8 +117,9 @@ export async function findOwnedNumber(phoneNumber: string): Promise<OwnedNumber 
 export async function purchaseNumber(args: {
   phoneNumber: string;
   friendlyName?: string;
+  workspaceId?: string;
 }): Promise<OwnedNumber> {
-  const twilioClient = await client();
+  const twilioClient = await client(args.workspaceId);
   const created = await twilioClient.incomingPhoneNumbers.create({
     phoneNumber: args.phoneNumber,
     friendlyName: args.friendlyName,
@@ -127,8 +134,8 @@ export async function purchaseNumber(args: {
 }
 
 /** Repoint an existing number at our endpoints. */
-export async function configureNumberWebhooks(sid: string): Promise<void> {
-  const twilioClient = await client();
+export async function configureNumberWebhooks(sid: string, workspaceId?: string): Promise<void> {
+  const twilioClient = await client(workspaceId);
   await twilioClient.incomingPhoneNumbers(sid).update(buildNumberWebhooks());
 }
 
@@ -138,8 +145,8 @@ export async function configureNumberWebhooks(sid: string): Promise<void> {
  * Irreversible: the number returns to the pool and someone else can buy it.
  * Callers must confirm with the user first.
  */
-export async function releaseNumber(sid: string): Promise<void> {
-  const twilioClient = await client();
+export async function releaseNumber(sid: string, workspaceId?: string): Promise<void> {
+  const twilioClient = await client(workspaceId);
   await twilioClient.incomingPhoneNumbers(sid).remove();
 }
 

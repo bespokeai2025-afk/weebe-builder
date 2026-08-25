@@ -126,19 +126,14 @@ async function enrichInboxMessageBodies(
   for (const m of shorthand) {
     const campaign = m.campaign_id ? campaignsById.get(String(m.campaign_id)) : undefined;
     const templateName =
-      campaign?.wati_template_name ??
-      parseTemplateFallbackBody(String(m.body))?.templateName ??
-      "";
-    const template = templateName
-      ? templatesByName.get(templateName.toLowerCase())
-      : undefined;
+      campaign?.wati_template_name ?? parseTemplateFallbackBody(String(m.body))?.templateName ?? "";
+    const template = templateName ? templatesByName.get(templateName.toLowerCase()) : undefined;
     const lead = m.lead_id ? leadsById.get(String(m.lead_id)) : undefined;
     const mapping = (campaign?.template_params ?? null) as Record<string, string> | null;
 
     let resolved: string | null = null;
     if (template && mapping && lead) {
-      const bodyText =
-        watiTemplateBodyOriginalText(template) ?? watiTemplateBodyPreview(template);
+      const bodyText = watiTemplateBodyOriginalText(template) ?? watiTemplateBodyPreview(template);
       const paramSlots = extractWatiTemplateParamSlots(template);
       if (bodyText && paramSlots.length > 0) {
         const parameters = buildWatiTemplateParams(lead, mapping, paramSlots);
@@ -176,10 +171,7 @@ function sanitizeSearchTerm(term: string): string {
   return term.replace(/[%,()*\\]/g, "").trim();
 }
 
-async function groupThreadsFromMessages(
-  workspaceId: string,
-  rows: Array<Record<string, unknown>>,
-) {
+async function groupThreadsFromMessages(workspaceId: string, rows: Array<Record<string, unknown>>) {
   await enrichInboxMessageBodies(workspaceId, rows, { skipWatiApi: true });
 
   const threadMap = new Map<string, Array<Record<string, unknown>>>();
@@ -208,11 +200,11 @@ export const listWhatsappThreads = createServerFn({ method: "GET" })
     const search = sanitizeSearchTerm(data.search ?? "");
     const hasStructuralFilter = Boolean(
       data.status ||
-        data.assigneeId ||
-        data.unassigned ||
-        data.tag ||
-        data.unreadOnly ||
-        data.chatStatus,
+      data.assigneeId ||
+      data.unassigned ||
+      data.tag ||
+      data.unreadOnly ||
+      data.chatStatus,
     );
 
     // Search matches a contact (name/phone) or anything they said, so collect candidate phones
@@ -278,7 +270,10 @@ export const listWhatsappThreads = createServerFn({ method: "GET" })
       if (error) throw new Error(error.message);
 
       return sortWhatsappInboxThreads(
-        await groupThreadsFromMessages(workspaceId, (allRows ?? []) as Array<Record<string, unknown>>),
+        await groupThreadsFromMessages(
+          workspaceId,
+          (allRows ?? []) as Array<Record<string, unknown>>,
+        ),
       );
     }
 
@@ -521,9 +516,7 @@ export const setWhatsappTeamMembers = createServerFn({ method: "POST" })
       .from("workspace_members")
       .select("user_id")
       .eq("workspace_id", workspaceId);
-    const allowed = new Set(
-      ((members ?? []) as Array<{ user_id: string }>).map((m) => m.user_id),
-    );
+    const allowed = new Set(((members ?? []) as Array<{ user_id: string }>).map((m) => m.user_id));
     const userIds = [...new Set(data.userIds)].filter((id) => allowed.has(id));
 
     const { error: delErr } = await sb
@@ -650,16 +643,16 @@ export const syncWhatsappThread = createServerFn({ method: "POST" })
       return { ok: true as const, synced };
     } catch (err) {
       console.error("[wa-inbox] WATI thread sync failed:", err);
-      throw new Error(
-        err instanceof Error ? err.message : "Could not sync conversation from WATI",
-      );
+      throw new Error(err instanceof Error ? err.message : "Could not sync conversation from WATI");
     }
   });
 
 export const sendWhatsappMessage = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input) =>
-    z.object({ to: z.string(), body: z.string().min(1), contactName: z.string().optional() }).parse(input),
+    z
+      .object({ to: z.string(), body: z.string().min(1), contactName: z.string().optional() })
+      .parse(input),
   )
   .handler(async ({ context, data }) => {
     const { supabase, workspaceId } = context;
@@ -707,8 +700,8 @@ export const sendWhatsappMessage = createServerFn({ method: "POST" })
       .single();
 
     const accountSid = ws?.twilio_account_sid ?? process.env.TWILIO_ACCOUNT_SID;
-    const authToken  = ws?.twilio_auth_token  ?? process.env.TWILIO_AUTH_TOKEN;
-    const fromPhone  = ws?.whatsapp_phone_id;
+    const authToken = ws?.twilio_auth_token ?? process.env.TWILIO_AUTH_TOKEN;
+    const fromPhone = ws?.whatsapp_phone_id;
 
     if (!accountSid || !authToken || !fromPhone) {
       throw new Error(
@@ -717,7 +710,7 @@ export const sendWhatsappMessage = createServerFn({ method: "POST" })
     }
 
     const client = twilio(accountSid, authToken);
-    const to   = `whatsapp:${contactPhone}`;
+    const to = `whatsapp:${contactPhone}`;
     const from = fromPhone.startsWith("whatsapp:") ? fromPhone : `whatsapp:${fromPhone}`;
 
     const msg = await client.messages.create({ from, to, body: data.body });
@@ -755,7 +748,11 @@ export const listWAContacts = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
     const { supabase, workspaceId } = context;
-    if (!workspaceId) return { contacts: [], summary: { total: 0, messaged: 0, replied: 0, not_messaged: 0, dnc: 0 } };
+    if (!workspaceId)
+      return {
+        contacts: [],
+        summary: { total: 0, messaged: 0, replied: 0, not_messaged: 0, dnc: 0 },
+      };
     const sb = supabase as any;
     const { data, error } = await sb
       .from("whatsapp_contacts")
@@ -795,14 +792,16 @@ export const listWAContacts = createServerFn({ method: "GET" })
 export const createWAContact = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input) =>
-    z.object({
-      name: z.string().optional(),
-      phone: z.string().min(1),
-      tags: z.array(z.string()).optional(),
-      source: z.string().optional(),
-      lead_status: z.string().optional(),
-      notes: z.string().optional(),
-    }).parse(input),
+    z
+      .object({
+        name: z.string().optional(),
+        phone: z.string().min(1),
+        tags: z.array(z.string()).optional(),
+        source: z.string().optional(),
+        lead_status: z.string().optional(),
+        notes: z.string().optional(),
+      })
+      .parse(input),
   )
   .handler(async ({ context, data }) => {
     const { supabase, workspaceId } = context;
@@ -823,17 +822,19 @@ export const createWAContact = createServerFn({ method: "POST" })
 export const updateWAContact = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input) =>
-    z.object({
-      id: z.string(),
-      name: z.string().optional(),
-      phone: z.string().optional(),
-      tags: z.array(z.string()).optional(),
-      source: z.string().optional(),
-      lead_status: z.string().optional(),
-      notes: z.string().optional(),
-      archived: z.boolean().optional(),
-      do_not_contact: z.boolean().optional(),
-    }).parse(input),
+    z
+      .object({
+        id: z.string(),
+        name: z.string().optional(),
+        phone: z.string().optional(),
+        tags: z.array(z.string()).optional(),
+        source: z.string().optional(),
+        lead_status: z.string().optional(),
+        notes: z.string().optional(),
+        archived: z.boolean().optional(),
+        do_not_contact: z.boolean().optional(),
+      })
+      .parse(input),
   )
   .handler(async ({ context, data }) => {
     const { supabase, workspaceId } = context;
@@ -916,12 +917,14 @@ export const listWATemplates = createServerFn({ method: "GET" })
 export const createWATemplate = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input) =>
-    z.object({
-      name: z.string().min(1),
-      body: z.string().min(1),
-      variables: z.array(z.string()).optional(),
-      category: z.string().optional(),
-    }).parse(input),
+    z
+      .object({
+        name: z.string().min(1),
+        body: z.string().min(1),
+        variables: z.array(z.string()).optional(),
+        category: z.string().optional(),
+      })
+      .parse(input),
   )
   .handler(async ({ context, data }) => {
     const { supabase, workspaceId } = context;
@@ -939,13 +942,15 @@ export const createWATemplate = createServerFn({ method: "POST" })
 export const updateWATemplate = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input) =>
-    z.object({
-      id: z.string(),
-      name: z.string().optional(),
-      body: z.string().optional(),
-      variables: z.array(z.string()).optional(),
-      category: z.string().optional(),
-    }).parse(input),
+    z
+      .object({
+        id: z.string(),
+        name: z.string().optional(),
+        body: z.string().optional(),
+        variables: z.array(z.string()).optional(),
+        category: z.string().optional(),
+      })
+      .parse(input),
   )
   .handler(async ({ context, data }) => {
     const { supabase, workspaceId } = context;
@@ -1106,20 +1111,27 @@ export const getWAAnalytics = createServerFn({ method: "GET" })
       }
     }
 
-    const [{ data: msgs }, { data: campaigns }, { data: watiCamps }, { data: watiConn }] = await Promise.all([
-      sb.from("whatsapp_messages").select("direction, status, sent_at, provider").eq("workspace_id", workspaceId),
-      sb.from("whatsapp_campaigns").select("stats, provider").eq("workspace_id", workspaceId),
-      sb.from("wati_campaigns").select("sent, delivered, read_count").eq("workspace_id", workspaceId),
-      sb.from("wati_connections").select("status").eq("workspace_id", workspaceId).maybeSingle(),
-    ]);
+    const [{ data: msgs }, { data: campaigns }, { data: watiCamps }, { data: watiConn }] =
+      await Promise.all([
+        sb
+          .from("whatsapp_messages")
+          .select("direction, status, sent_at, provider")
+          .eq("workspace_id", workspaceId),
+        sb.from("whatsapp_campaigns").select("stats, provider").eq("workspace_id", workspaceId),
+        sb
+          .from("wati_campaigns")
+          .select("sent, delivered, read_count")
+          .eq("workspace_id", workspaceId),
+        sb.from("wati_connections").select("status").eq("workspace_id", workspaceId).maybeSingle(),
+      ]);
 
-    const all      = (msgs ?? []) as any[];
+    const all = (msgs ?? []) as any[];
     const outbound = all.filter((m) => m.direction === "outbound");
-    const inbound  = all.filter((m) => m.direction === "inbound");
+    const inbound = all.filter((m) => m.direction === "inbound");
 
-    let sent      = outbound.length;
+    let sent = outbound.length;
     let delivered = outbound.filter((m) => ["delivered", "read"].includes(m.status)).length;
-    let read      = outbound.filter((m) => m.status === "read").length;
+    let read = outbound.filter((m) => m.status === "read").length;
     const responses = inbound.length;
 
     // Supplement from Webee campaign stats (WATI launches write sent count here)
@@ -1136,7 +1148,11 @@ export const getWAAnalytics = createServerFn({ method: "GET" })
     let watiSyncedSent = 0;
     let watiSyncedDelivered = 0;
     let watiSyncedRead = 0;
-    for (const c of (watiCamps ?? []) as Array<{ sent?: number; delivered?: number; read_count?: number }>) {
+    for (const c of (watiCamps ?? []) as Array<{
+      sent?: number;
+      delivered?: number;
+      read_count?: number;
+    }>) {
       watiSyncedSent += c.sent ?? 0;
       watiSyncedDelivered += c.delivered ?? 0;
       watiSyncedRead += c.read_count ?? 0;
@@ -1151,17 +1167,17 @@ export const getWAAnalytics = createServerFn({ method: "GET" })
 
     const convRate = sent > 0 ? Math.round((responses / sent) * 100) : 0;
 
-    const now  = new Date();
+    const now = new Date();
     const days: { date: string; sent: number; received: number }[] = [];
     for (let i = 6; i >= 0; i--) {
       const d = new Date(now);
       d.setDate(d.getDate() - i);
-      const label  = d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+      const label = d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
       const dayStr = d.toISOString().slice(0, 10);
       days.push({
         date: label,
-        sent:     outbound.filter((m) => m.sent_at?.slice(0, 10) === dayStr).length,
-        received: inbound.filter((m)  => m.sent_at?.slice(0, 10) === dayStr).length,
+        sent: outbound.filter((m) => m.sent_at?.slice(0, 10) === dayStr).length,
+        received: inbound.filter((m) => m.sent_at?.slice(0, 10) === dayStr).length,
       });
     }
 
@@ -1212,17 +1228,24 @@ export const getWAProviderStatus = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
     const { supabase, workspaceId } = context;
-    if (!workspaceId) return { provider: null, twilioConfigured: false, watiConnected: false, isConfigured: false };
+    if (!workspaceId)
+      return { provider: null, twilioConfigured: false, watiConnected: false, isConfigured: false };
     const sb = supabase as any;
 
     const { data: ws } = await sb
       .from("workspace_settings")
-      .select("twilio_account_sid, twilio_auth_token, whatsapp_phone_id, whatsapp_provider, meta_phone_number_id, meta_access_token")
+      .select(
+        "twilio_account_sid, twilio_auth_token, whatsapp_phone_id, whatsapp_provider, meta_phone_number_id, meta_access_token",
+      )
       .eq("workspace_id", workspaceId)
       .maybeSingle();
 
-    const twilioConfigured = !!(ws?.twilio_account_sid?.trim() && ws?.twilio_auth_token?.trim() && ws?.whatsapp_phone_id?.trim());
-    const metaConfigured   = !!(ws?.meta_phone_number_id?.trim() && ws?.meta_access_token?.trim());
+    const twilioConfigured = !!(
+      ws?.twilio_account_sid?.trim() &&
+      ws?.twilio_auth_token?.trim() &&
+      ws?.whatsapp_phone_id?.trim()
+    );
+    const metaConfigured = !!(ws?.meta_phone_number_id?.trim() && ws?.meta_access_token?.trim());
 
     const { data: watiRow } = await sb
       .from("wati_connections")
@@ -1273,7 +1296,9 @@ export const getWASettings = createServerFn({ method: "GET" })
     const sb = supabase as any;
     const { data } = await sb
       .from("workspace_settings")
-      .select("twilio_account_sid, twilio_auth_token, whatsapp_phone_id, whatsapp_provider, meta_phone_number_id, meta_waba_id, meta_access_token, meta_verify_token")
+      .select(
+        "twilio_account_sid, twilio_auth_token, whatsapp_phone_id, whatsapp_provider, meta_phone_number_id, meta_waba_id, meta_access_token, meta_verify_token",
+      )
       .eq("workspace_id", workspaceId)
       .maybeSingle();
     const domain = process.env.REPLIT_DEV_DOMAIN;
@@ -1287,36 +1312,36 @@ export const getWASettings = createServerFn({ method: "GET" })
 export const saveMetaSettings = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input) =>
-    z.object({
-      data: z.object({
-        meta_phone_number_id: z.string().min(1),
-        meta_waba_id:         z.string().min(1),
-        meta_access_token:    z.string().min(1),
-        meta_verify_token:    z.string().optional(),
-      }),
-    }).parse(input),
+    z
+      .object({
+        data: z.object({
+          meta_phone_number_id: z.string().min(1),
+          meta_waba_id: z.string().min(1),
+          meta_access_token: z.string().min(1),
+          meta_verify_token: z.string().optional(),
+        }),
+      })
+      .parse(input),
   )
   .handler(async ({ context, data }) => {
     const { supabase, workspaceId } = context;
     if (!workspaceId) throw new Error("Not authenticated");
     const sb = supabase as any;
 
-    const verifyToken = data.data.meta_verify_token?.trim() ||
-      crypto.randomUUID().replace(/-/g, "");
+    const verifyToken =
+      data.data.meta_verify_token?.trim() || crypto.randomUUID().replace(/-/g, "");
 
-    await sb
-      .from("workspace_settings")
-      .upsert(
-        {
-          workspace_id:         workspaceId,
-          whatsapp_provider:    "meta",
-          meta_phone_number_id: data.data.meta_phone_number_id.trim(),
-          meta_waba_id:         data.data.meta_waba_id.trim(),
-          meta_access_token:    data.data.meta_access_token.trim(),
-          meta_verify_token:    verifyToken,
-        },
-        { onConflict: "workspace_id" },
-      );
+    await sb.from("workspace_settings").upsert(
+      {
+        workspace_id: workspaceId,
+        whatsapp_provider: "meta",
+        meta_phone_number_id: data.data.meta_phone_number_id.trim(),
+        meta_waba_id: data.data.meta_waba_id.trim(),
+        meta_access_token: data.data.meta_access_token.trim(),
+        meta_verify_token: verifyToken,
+      },
+      { onConflict: "workspace_id" },
+    );
 
     return { ok: true, meta_verify_token: verifyToken };
   });
@@ -1324,14 +1349,16 @@ export const saveMetaSettings = createServerFn({ method: "POST" })
 export const saveWASettings = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input) =>
-    z.object({
-      data: z.object({
-        twilio_account_sid: z.string().optional(),
-        twilio_auth_token:  z.string().optional(),
-        whatsapp_phone_id:  z.string().optional(),
-        whatsapp_provider:  z.string().optional(),
-      }),
-    }).parse(input),
+    z
+      .object({
+        data: z.object({
+          twilio_account_sid: z.string().optional(),
+          twilio_auth_token: z.string().optional(),
+          whatsapp_phone_id: z.string().optional(),
+          whatsapp_provider: z.string().optional(),
+        }),
+      })
+      .parse(input),
   )
   .handler(async ({ context, data }) => {
     const { supabase, workspaceId } = context;
@@ -1344,15 +1371,13 @@ export const saveWASettings = createServerFn({ method: "POST" })
 
     // Auto-register Twilio webhook on the phone number so the user doesn't
     // have to copy-paste the URL into the Twilio Console manually.
-    const accountSid  = data.data.twilio_account_sid?.trim();
-    const authToken   = data.data.twilio_auth_token?.trim();
+    const accountSid = data.data.twilio_account_sid?.trim();
+    const authToken = data.data.twilio_auth_token?.trim();
     const phoneNumber = data.data.whatsapp_phone_id?.trim();
 
     if (accountSid && authToken && phoneNumber) {
       const domain = process.env.REPLIT_DEV_DOMAIN;
-      const origin = domain
-        ? `https://${domain}`
-        : (process.env.VITE_PUBLIC_APP_URL ?? "");
+      const origin = domain ? `https://${domain}` : (process.env.VITE_PUBLIC_APP_URL ?? "");
       const webhookUrl = `${origin}/api/public/whatsapp-webhook/${workspaceId}`;
       const webhookResult = await registerTwilioWebhookForNumber(
         accountSid,
@@ -1363,7 +1388,12 @@ export const saveWASettings = createServerFn({ method: "POST" })
       return { ok: true, webhookUrl, ...webhookResult };
     }
 
-    return { ok: true, webhookUrl: null, webhookRegistered: false, webhookNote: "Enter all credentials to auto-register." };
+    return {
+      ok: true,
+      webhookUrl: null,
+      webhookRegistered: false,
+      webhookNote: "Enter all credentials to auto-register.",
+    };
   });
 
 /**
@@ -1396,8 +1426,7 @@ async function registerTwilioWebhookForNumber(
     }
 
     const lookupData = (await lookupRes.json()) as any;
-    const phoneSid: string | undefined =
-      lookupData?.incoming_phone_numbers?.[0]?.sid;
+    const phoneSid: string | undefined = lookupData?.incoming_phone_numbers?.[0]?.sid;
 
     if (!phoneSid) {
       return {
@@ -1441,7 +1470,8 @@ async function registerTwilioWebhookForNumber(
     console.error("[wa-settings] Twilio auto-register error", e);
     return {
       webhookRegistered: false,
-      webhookNote: "Credentials saved. Auto-webhook registration failed — paste the URL into the Twilio Console manually.",
+      webhookNote:
+        "Credentials saved. Auto-webhook registration failed — paste the URL into the Twilio Console manually.",
     };
   }
 }
@@ -1458,8 +1488,8 @@ export const registerTwilioWebhook = createServerFn({ method: "POST" })
       .eq("workspace_id", workspaceId)
       .maybeSingle();
 
-    const accountSid  = ws?.twilio_account_sid?.trim();
-    const authToken   = ws?.twilio_auth_token?.trim();
+    const accountSid = ws?.twilio_account_sid?.trim();
+    const authToken = ws?.twilio_auth_token?.trim();
     const phoneNumber = ws?.whatsapp_phone_id?.trim();
 
     if (!accountSid || !authToken || !phoneNumber) {
@@ -1470,7 +1500,12 @@ export const registerTwilioWebhook = createServerFn({ method: "POST" })
     const origin = domain ? `https://${domain}` : (process.env.VITE_PUBLIC_APP_URL ?? "");
     const webhookUrl = `${origin}/api/public/whatsapp-webhook/${workspaceId}`;
 
-    const result = await registerTwilioWebhookForNumber(accountSid, authToken, phoneNumber, webhookUrl);
+    const result = await registerTwilioWebhookForNumber(
+      accountSid,
+      authToken,
+      phoneNumber,
+      webhookUrl,
+    );
     return { webhookUrl, ...result };
   });
 
@@ -1529,7 +1564,9 @@ async function launchWatiCampaignFromWebee(
     const parts: string[] = [];
     if (filtered.skippedDnc > 0) parts.push(`${filtered.skippedDnc} on do-not-contact list`);
     if (filtered.skippedOverlap > 0) {
-      parts.push(`${filtered.skippedOverlap} already messaged (enable “Include already messaged” to resend)`);
+      parts.push(
+        `${filtered.skippedOverlap} already messaged (enable “Include already messaged” to resend)`,
+      );
     }
     throw new Error(
       parts.length
@@ -1538,9 +1575,8 @@ async function launchWatiCampaignFromWebee(
     );
   }
 
-  const { checkWatiWarmupSendGate, splitItemsByChannelAllocations } = await import(
-    "@/lib/whatsapp/wati-warmup.server"
-  );
+  const { checkWatiWarmupSendGate, splitItemsByChannelAllocations } =
+    await import("@/lib/whatsapp/wati-warmup.server");
   const gate = await checkWatiWarmupSendGate(workspaceId, allLeads.length, { autoStart: true });
   if (!gate.allowed) {
     throw new Error(
@@ -1764,9 +1800,7 @@ export const launchWACampaign = createServerFn({ method: "POST" })
     }
 
     const watiConn = await getWatiConnectionForWorkspace(sb, workspaceId);
-    const useWati =
-      campaign.provider === "wati" ||
-      (!!watiConn && !!campaign.wati_template_name);
+    const useWati = campaign.provider === "wati" || (!!watiConn && !!campaign.wati_template_name);
 
     if (useWati) {
       assertNotWbahWorkspace(workspaceId);
@@ -1787,7 +1821,8 @@ export const launchWACampaign = createServerFn({ method: "POST" })
     if (campaignWithTpl.status === "active") throw new Error("Campaign already active");
 
     const templateBody: string = campaignWithTpl.whatsapp_templates?.body ?? "";
-    if (!templateBody) throw new Error("Campaign has no template body — use WATI template or add a native template");
+    if (!templateBody)
+      throw new Error("Campaign has no template body — use WATI template or add a native template");
 
     // Get workspace settings for Twilio creds
     const { data: ws } = await sb
@@ -1797,8 +1832,8 @@ export const launchWACampaign = createServerFn({ method: "POST" })
       .single();
 
     const accountSid = ws?.twilio_account_sid;
-    const authToken  = ws?.twilio_auth_token;
-    const fromPhone  = ws?.whatsapp_phone_id;
+    const authToken = ws?.twilio_auth_token;
+    const fromPhone = ws?.whatsapp_phone_id;
     if (!accountSid || !authToken || !fromPhone) {
       throw new Error("Twilio credentials not configured — go to WhatsApp → Settings");
     }
@@ -1836,7 +1871,7 @@ export const launchWACampaign = createServerFn({ method: "POST" })
             "Content-Type": "application/x-www-form-urlencoded",
           },
           body: new URLSearchParams({
-            To:   `whatsapp:${contact.phone}`,
+            To: `whatsapp:${contact.phone}`,
             From: `whatsapp:${fromPhone}`,
             Body: body,
           }),
@@ -1846,10 +1881,10 @@ export const launchWACampaign = createServerFn({ method: "POST" })
           sent++;
           await sb.from("whatsapp_messages").insert({
             workspace_id: workspaceId,
-            external_id:  json.sid,
+            external_id: json.sid,
             contact_phone: contact.phone,
-            contact_name:  name,
-            direction:     "outbound",
+            contact_name: name,
+            direction: "outbound",
             body,
             status: "sent",
             sent_at: new Date().toISOString(),
@@ -1879,9 +1914,7 @@ export const launchWACampaign = createServerFn({ method: "POST" })
 
 export const importWatiCampaignLeadsCsv = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .validator((input) =>
-    z.object({ rows: z.array(csvLeadRowSchema).min(1).max(5000) }).parse(input),
-  )
+  .validator((input) => z.object({ rows: z.array(csvLeadRowSchema).min(1).max(5000) }).parse(input))
   .handler(async ({ context, data }) => {
     const { supabase, workspaceId } = context;
     if (!workspaceId) throw new Error("No workspace");
@@ -2016,8 +2049,8 @@ export const sendLeadWhatsappTemplate = createServerFn({ method: "POST" })
     if (mappingError) throw new Error(mappingError);
 
     const templateBodyText =
-    watiTemplateBodyOriginalText(tplRow ?? null) ??
-    watiTemplateBodyPreview(tplRow ?? { name: templateName });
+      watiTemplateBodyOriginalText(tplRow ?? null) ??
+      watiTemplateBodyPreview(tplRow ?? { name: templateName });
     const parameters = buildWatiTemplateParams(lead, mapping, paramSlots);
     const broadcastName = data.broadcastName ?? `lead_${data.leadId.slice(0, 8)}`;
 
@@ -2032,11 +2065,7 @@ export const sendLeadWhatsappTemplate = createServerFn({ method: "POST" })
     });
     if (!result.ok) throw new Error(result.error ?? "WATI send failed");
 
-    const bodyPreview = resolveWatiTemplateMessageBody(
-      templateBodyText,
-      templateName,
-      parameters,
-    );
+    const bodyPreview = resolveWatiTemplateMessageBody(templateBodyText, templateName, parameters);
 
     const { data: row, error: insErr } = await sb
       .from("whatsapp_messages")
@@ -2124,9 +2153,7 @@ export const exportBuzzchatContactsCsv = createServerFn({ method: "POST" })
   .validator((input) =>
     z
       .object({
-        filter: z
-          .enum(["all", "messaged", "not_messaged", "replied", "dnc"])
-          .optional(),
+        filter: z.enum(["all", "messaged", "not_messaged", "replied", "dnc"]).optional(),
       })
       .parse(input),
   )
@@ -2202,35 +2229,38 @@ export const backfillWhatsappContactedStatus = createServerFn({ method: "POST" }
 export const searchTwilioNumbers = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input) =>
-    z.object({
-      accountSid:  z.string().min(1),
-      authToken:   z.string().min(1),
-      countryCode: z.string().default("US"),
-      areaCode:    z.string().optional(),
-    }).parse(input),
+    z
+      .object({
+        accountSid: z.string().min(1),
+        authToken: z.string().min(1),
+        countryCode: z.string().default("US"),
+        areaCode: z.string().optional(),
+      })
+      .parse(input),
   )
   .handler(async ({ data }) => {
     const { accountSid, authToken, countryCode, areaCode } = data as {
-      accountSid: string; authToken: string; countryCode: string; areaCode?: string;
+      accountSid: string;
+      authToken: string;
+      countryCode: string;
+      areaCode?: string;
     };
     const client = twilio(accountSid, authToken);
 
-    const list = await client
-      .availablePhoneNumbers(countryCode.toUpperCase())
-      .local.list({
-        smsEnabled: true,
-        ...(areaCode?.trim() ? { areaCode: areaCode.trim() } : {}),
-        pageSize: 10,
-      });
+    const list = await client.availablePhoneNumbers(countryCode.toUpperCase()).local.list({
+      smsEnabled: true,
+      ...(areaCode?.trim() ? { areaCode: areaCode.trim() } : {}),
+      pageSize: 10,
+    });
 
     return list.map((n) => ({
-      phoneNumber:  n.phoneNumber,
+      phoneNumber: n.phoneNumber,
       friendlyName: n.friendlyName,
-      locality:     n.locality     ?? "",
-      region:       n.region       ?? "",
-      sms:          !!(n.capabilities as any)?.sms,
-      mms:          !!(n.capabilities as any)?.mms,
-      voice:        !!(n.capabilities as any)?.voice,
+      locality: n.locality ?? "",
+      region: n.region ?? "",
+      sms: !!(n.capabilities as any)?.sms,
+      mms: !!(n.capabilities as any)?.mms,
+      voice: !!(n.capabilities as any)?.voice,
     }));
   });
 
@@ -2241,16 +2271,20 @@ export const searchTwilioNumbers = createServerFn({ method: "POST" })
 export const purchaseTwilioNumber = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input) =>
-    z.object({
-      accountSid:  z.string().min(1),
-      authToken:   z.string().min(1),
-      phoneNumber: z.string().min(1),
-    }).parse(input),
+    z
+      .object({
+        accountSid: z.string().min(1),
+        authToken: z.string().min(1),
+        phoneNumber: z.string().min(1),
+      })
+      .parse(input),
   )
   .handler(async ({ context, data }) => {
     const { supabase, workspaceId } = context;
     const { accountSid, authToken, phoneNumber } = data as {
-      accountSid: string; authToken: string; phoneNumber: string;
+      accountSid: string;
+      authToken: string;
+      phoneNumber: string;
     };
 
     if (!workspaceId) throw new Error("No workspace");
@@ -2267,9 +2301,9 @@ export const purchaseTwilioNumber = createServerFn({ method: "POST" })
       );
 
     return {
-      ok:           true,
-      phoneNumber:  purchased.phoneNumber,
+      ok: true,
+      phoneNumber: purchased.phoneNumber,
       friendlyName: purchased.friendlyName,
-      sid:          purchased.sid,
+      sid: purchased.sid,
     };
   });

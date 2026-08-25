@@ -1,6 +1,13 @@
 import { describe, expect, it } from "vitest";
 import { resolveWbahRebookEntityIds } from "@/lib/wbah/post-call/wbah-rebook-entity.shared";
-import { buildWbahRebookOpportunityPayload, REBOOK_HSD_CONSULTATION_BOOKED } from "@/lib/wbah/post-call/wbah-rebook-opportunity-payload.shared";
+import {
+  buildWbahRebookOpportunityPayload,
+  REBOOK_DEFAULT_NEGATIVE_DISQUALIFIED_REASON,
+  REBOOK_DISQUALIFIED_REASON,
+  REBOOK_HSD_CONSULTATION_BOOKED,
+  REBOOK_HSD_CONSULTATION_NOT_BOOKED,
+  REBOOK_STATUS_REASON_DISQUALIFIED,
+} from "@/lib/wbah/post-call/wbah-rebook-opportunity-payload.shared";
 import { formatWbahRetellCallData } from "@/lib/wbah/post-call/wbah-format-data.shared";
 import { defaultRebookPostCallWorkflowConfig } from "@/lib/wbah/workflow/wbah-rebook-workflow.shared";
 import { isWbahRebookPostCallWorkflow } from "@/lib/wbah/post-call/wbah-rebook-post-call.server";
@@ -102,6 +109,59 @@ describe("buildWbahRebookOpportunityPayload", () => {
     });
     expect(patch).not.toHaveProperty("cr_hsdconsultation");
     expect(patch).not.toHaveProperty("crf6a_new_appointmentdatetime");
+  });
+
+  it("sets cos_statusreason1=Disqualified and new_disqualifiedreason when sentiment is negative", () => {
+    const formatted = formatWbahRetellCallData({
+      dynVars: { first_name: "Jane", last_name: "Smith" },
+      custom: { user_sentiment: "Negative", call_summary: "Caller not interested in rebooking." },
+      callAnalysis: { user_sentiment: "Negative", call_summary: "Caller not interested in rebooking." },
+    });
+    const patch = buildWbahRebookOpportunityPayload({
+      formatted,
+      dynVars: { first_name: "Jane", last_name: "Smith" },
+      custom: {},
+    });
+    expect(patch.cos_statusreason1).toBe(REBOOK_STATUS_REASON_DISQUALIFIED);
+    expect(patch.cr_hsdconsultation).toBe(REBOOK_HSD_CONSULTATION_NOT_BOOKED);
+    expect(patch.new_disqualifiedreason).toBe(REBOOK_DEFAULT_NEGATIVE_DISQUALIFIED_REASON);
+    expect(patch.cos_user_sentiment).toBe("Negative");
+    expect(patch.cos_call_summary).toBe("Caller not interested in rebooking.");
+  });
+
+  it("uses explicit new_disqualifiedreason from analysis when provided", () => {
+    const formatted = formatWbahRetellCallData({
+      dynVars: { first_name: "Jane", last_name: "Smith" },
+      custom: { user_sentiment: "Negative" },
+      callAnalysis: { user_sentiment: "Negative" },
+    });
+    const patch = buildWbahRebookOpportunityPayload({
+      formatted,
+      dynVars: { first_name: "Jane", last_name: "Smith" },
+      custom: {
+        new_disqualifiedreason: String(REBOOK_DISQUALIFIED_REASON.SOLD_ON_MARKET),
+      },
+    });
+    expect(patch.new_disqualifiedreason).toBe(REBOOK_DISQUALIFIED_REASON.SOLD_ON_MARKET);
+  });
+
+  it("prefers Booked over Not Booked when a slot was confirmed despite sentiment", () => {
+    const formatted = formatWbahRetellCallData({
+      dynVars: { first_name: "Caroline", last_name: "Moore" },
+      custom: {
+        calendly_slot: JSON.stringify({ preferred_slot: { date: "2026-08-06", time: "16:50" } }),
+        appointment_confirmed: true,
+      },
+      callAnalysis: { user_sentiment: "Negative" },
+    });
+    const patch = buildWbahRebookOpportunityPayload({
+      formatted,
+      dynVars: { first_name: "Caroline", last_name: "Moore" },
+      custom: {},
+    });
+    expect(patch.cr_hsdconsultation).toBe(REBOOK_HSD_CONSULTATION_BOOKED);
+    expect(patch).not.toHaveProperty("cos_statusreason1");
+    expect(patch).not.toHaveProperty("new_disqualifiedreason");
   });
 });
 

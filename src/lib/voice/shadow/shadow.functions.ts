@@ -296,16 +296,13 @@ async function computeCutoverReadiness(
       : "No voice picked — calls will use the default WEBEE Native voice",
   });
 
-  const deepgram = Boolean(process.env.DEEPGRAM_API_KEY);
   checks.push({
     id: "stt",
     label: "Speech recognition",
-    status: deepgram ? "pass" : openai ? "warn" : "fail",
-    detail: deepgram
-      ? "Deepgram streaming configured"
-      : openai
-        ? "Falling back to batch Whisper — adds the whole transcription to every turn"
-        : "No STT provider configured",
+    status: fish ? "pass" : "fail",
+    detail: fish
+      ? "Fish Audio ASR configured (same key as TTS)"
+      : "Set FISH_API_KEY for Fish Audio STT + TTS",
   });
 
   // The flow is the actual Retell replacement, so an agent whose graph does not

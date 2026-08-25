@@ -83,6 +83,45 @@ const DEFAULT_PROMPT_TEMPLATE = (stepLabel: string) =>
     "- Move to the next step only when you have everything required here.",
   ].join("\n");
 
+function InstructionTypeTabs({
+  value,
+  onChange,
+}: {
+  value: "prompt" | "static_text";
+  onChange: (value: "prompt" | "static_text") => void;
+}) {
+  return (
+    <div className="rounded-lg border bg-muted/30 p-1">
+      <div className="grid grid-cols-2 gap-1">
+        <button
+          type="button"
+          onClick={() => onChange("prompt")}
+          className={`rounded-md px-3 py-2 text-left transition-colors ${
+            value === "prompt"
+              ? "bg-background shadow-sm ring-1 ring-border"
+              : "text-muted-foreground hover:text-foreground"
+          }`}
+        >
+          <div className="text-sm font-medium">Prompt</div>
+          <div className="text-[11px] text-muted-foreground">LLM generates speech</div>
+        </button>
+        <button
+          type="button"
+          onClick={() => onChange("static_text")}
+          className={`rounded-md px-3 py-2 text-left transition-colors ${
+            value === "static_text"
+              ? "bg-background shadow-sm ring-1 ring-border"
+              : "text-muted-foreground hover:text-foreground"
+          }`}
+        >
+          <div className="text-sm font-medium">Static</div>
+          <div className="text-[11px] text-muted-foreground">Read text verbatim</div>
+        </button>
+      </div>
+    </div>
+  );
+}
+
 export function NodeEditorDialog() {
   const { selectedNodeId, selectNode, nodes, updateNode, setStartNode, pendingAddVariable } = useBuilderStore();
   const node = nodes.find((n) => n.id === selectedNodeId);
@@ -184,48 +223,34 @@ export function NodeEditorDialog() {
             </Button>
           </div>
 
+          {(d.kind === "conversation" || d.kind === "ending") && (
+            <InstructionTypeTabs
+              value={d.instructionType ?? "prompt"}
+              onChange={(v) => updateNode(node.id, { instructionType: v })}
+            />
+          )}
+
           {d.kind === "conversation" && (
             <>
-              <div className="grid grid-cols-2 gap-3">
+              {d.isStart && (
                 <div>
-                  <Label>Instruction type</Label>
+                  <Label>Start speaker</Label>
                   <Select
-                    value={d.instructionType ?? "prompt"}
+                    value={d.startSpeaker ?? "agent"}
                     onValueChange={(v) =>
-                      updateNode(node.id, {
-                        instructionType: v as "prompt" | "static_text",
-                      })
+                      updateNode(node.id, { startSpeaker: v as "agent" | "user" })
                     }
                   >
                     <SelectTrigger>
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="prompt">Prompt (LLM)</SelectItem>
-                      <SelectItem value="static_text">Static text</SelectItem>
+                      <SelectItem value="agent">Agent</SelectItem>
+                      <SelectItem value="user">User</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
-                {d.isStart && (
-                  <div>
-                    <Label>Start speaker</Label>
-                    <Select
-                      value={d.startSpeaker ?? "agent"}
-                      onValueChange={(v) =>
-                        updateNode(node.id, { startSpeaker: v as "agent" | "user" })
-                      }
-                    >
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="agent">Agent</SelectItem>
-                        <SelectItem value="user">User</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                )}
-              </div>
+              )}
               <div>
                 <div className="flex items-center justify-between">
                   <Label>{d.instructionType === "static_text" ? "Static text" : "Prompt"}</Label>
@@ -737,12 +762,22 @@ export function NodeEditorDialog() {
 
           {d.kind === "ending" && (
             <div>
-              <Label>Ending prompt</Label>
+              <Label>{d.instructionType === "static_text" ? "Static text" : "Ending prompt"}</Label>
               <Textarea
                 rows={3}
                 value={d.endingPrompt ?? ""}
                 onChange={(e) => updateNode(node.id, { endingPrompt: e.target.value })}
+                placeholder={
+                  d.instructionType === "static_text"
+                    ? "Thanks for your time. Goodbye!"
+                    : "Politely end the call and summarize next steps if any."
+                }
               />
+              <p className="mt-1 text-[11px] text-muted-foreground">
+                {d.instructionType === "static_text"
+                  ? "The agent reads this line verbatim before hanging up."
+                  : "The LLM generates a closing line from this instruction."}
+              </p>
             </div>
           )}
 

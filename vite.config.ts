@@ -9,6 +9,7 @@
 import { CANONICAL_SUPABASE_URL } from "./env-guard";
 import { defineConfig } from "@lovable.dev/vite-tanstack-config";
 import path from "node:path";
+import { createRequire } from "node:module";
 // One plugin mounts every voice relay (HyperStream, cascade, Twilio, FreJun);
 // the relays themselves live in src/lib/voice/gateway so production runs the
 // same code via scripts/prod-entry.mjs.
@@ -34,6 +35,13 @@ import { accountsMindSchedulerPlugin } from "./accountsmind-scheduler.plugin";
 // EC2/production still uses dist/server + srvx when VERCEL is unset.
 // Lovable's nitro wrapper defaults output to dist/ — override to Vercel Build Output API paths.
 const isVercelBuild = !!(process.env.VERCEL || process.env.VERCEL_ENV);
+
+/** htmlparser2@8 expects entities@4 `lib/*`; parse5 hoists entities@8 at the root. */
+const require = createRequire(import.meta.url);
+const entitiesDecodePath = require.resolve("entities/lib/decode.js", {
+  paths: [require.resolve("htmlparser2")],
+});
+const entitiesLibDir = path.dirname(entitiesDecodePath);
 
 export default defineConfig({
   nitro: isVercelBuild
@@ -104,15 +112,9 @@ export default defineConfig({
     plugins: [voiceGatewayPlugin(), campaignSchedulerPlugin(), videoJobPollerPlugin(), providerHealthSweepPlugin(), adsSyncPlugin(), trendScoutPlugin(), accountsMindSchedulerPlugin()],
     resolve: {
       alias: {
-        "entities/lib/decode.js": path.resolve(
-          process.cwd(),
-          "node_modules/entities/lib/decode.js",
-        ),
-        "entities/lib/encode.js": path.resolve(
-          process.cwd(),
-          "node_modules/entities/lib/encode.js",
-        ),
-        entities: path.resolve(process.cwd(), "node_modules/entities"),
+        "entities/lib/decode.js": entitiesDecodePath,
+        // encode.js exists on disk but is not in entities@4 exports — map directly.
+        "entities/lib/encode.js": path.join(entitiesLibDir, "encode.js"),
       },
     },
   },

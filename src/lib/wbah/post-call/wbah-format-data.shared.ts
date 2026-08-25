@@ -1,4 +1,10 @@
-import { addMinutesIso, normalizeUkTime24, ukLocalToUtcIso } from "./wbah-uk-datetime.shared";
+import {
+  addMinutesIso,
+  normalizeCallbackDatetimeUtc,
+  normalizeUkTime24,
+  ukLocalToUtcIso,
+} from "./wbah-uk-datetime.shared";
+import { resolveWbahCallbackFromAnalysis } from "./wbah-callback-dynamics.shared";
 import { resolveWbahCallSummaryText } from "./wbah-timeline-note.shared";
 
 export type CalendlySlotShape = {
@@ -28,6 +34,15 @@ export type WbahFormattedCallData = {
   callbackDatetime: string | null;
   callbackDatetimeUtc: string | null;
   callbackType: string | null;
+  callbackHandler: "human" | "ai" | null;
+  callbackDatetimeSource:
+    | "callback_datetime"
+    | "human_callback_datetime"
+    | "booking_callback_datetime"
+    | null;
+  humanCallbackDatetime: string | null;
+  bookingCallbackDatetime: string | null;
+  dynamicsAgentPreference: number | null;
   isCallbackRequest: boolean;
   appointmentDate: string | null;
   appointmentTimeUk: string | null;
@@ -115,32 +130,7 @@ function resolveSlot(
   return null;
 }
 
-/** Normalize callback_datetime (naive UK local) → UTC ISO — mirrors n8n POST dashboard body. */
-export function normalizeCallbackDatetimeUtc(raw: string | null | undefined): string | null {
-  const cb = String(raw ?? "").trim();
-  if (!cb || cb === "NA") return null;
-
-  try {
-    if (/Z|[+-]\d{2}:?\d{2}$/.test(cb)) {
-      return new Date(cb).toISOString();
-    }
-    const [datePart, timePart = "00:00:00"] = cb.split("T");
-    const [y, m, day] = datePart.split("-").map(Number);
-    const [hh, mm, ss = 0] = timePart.split(":").map(Number);
-    const tmpUTC = new Date(Date.UTC(y, m - 1, day, hh, mm, ss));
-    const ukFmt = new Intl.DateTimeFormat("en-GB", {
-      timeZone: "Europe/London",
-      timeZoneName: "shortOffset",
-    });
-    const parts = ukFmt.formatToParts(tmpUTC);
-    const offPart = parts.find((p) => p.type === "timeZoneName")?.value || "GMT";
-    const off = offPart.match(/GMT([+-]\d+)?/);
-    const offHrs = off && off[1] ? Number(off[1]) : 0;
-    return new Date(Date.UTC(y, m - 1, day, hh - offHrs, mm, ss)).toISOString();
-  } catch {
-    return cb.endsWith("Z") ? cb : `${cb}Z`;
-  }
-}
+export { normalizeCallbackDatetimeUtc } from "./wbah-uk-datetime.shared";
 
 /** Port of n8n "Format Data" — UK slot → UTC ISO for Calendly + dashboard. */
 export function formatWbahRetellCallData(input: WbahFormatDataInput): WbahFormattedCallData {
@@ -166,9 +156,13 @@ export function formatWbahRetellCallData(input: WbahFormatDataInput): WbahFormat
       ? (structured.verified_details as Record<string, unknown>)
       : structured;
 
-  const callbackRaw = pickStr(custom, "callback_datetime", "callback_date_time");
-  const callbackUtc = normalizeCallbackDatetimeUtc(callbackRaw);
-  const hasCallback = Boolean(callbackRaw && callbackRaw !== "NA");
+  const resolvedCallback = resolveWbahCallbackFromAnalysis(custom);
+  const humanCallbackDatetime = pickStr(custom, "human_callback_datetime");
+  const bookingCallbackDatetime = pickStr(
+    custom,
+    "booking_callback_datetime",
+    "ai_callback_datetime",
+  );
 
   const callSuccessfulRaw = analysis.call_successful ?? custom.call_successful;
   const callSuccessful =
@@ -190,10 +184,15 @@ export function formatWbahRetellCallData(input: WbahFormatDataInput): WbahFormat
     userSentiment: pickStr(custom, "user_sentiment") || pickStr(analysis, "user_sentiment") || null,
     callSummary: resolveWbahCallSummaryText(custom, analysis),
     callSuccessful,
-    callbackDatetime: callbackRaw,
-    callbackDatetimeUtc: callbackUtc,
-    callbackType: pickStr(custom, "callback_type") || null,
-    isCallbackRequest: hasCallback,
+    callbackDatetime: resolvedCallback.callbackDatetime,
+    callbackDatetimeUtc: resolvedCallback.callbackDatetimeUtc,
+    callbackType: resolvedCallback.callbackType,
+    callbackHandler: resolvedCallback.callbackHandler,
+    callbackDatetimeSource: resolvedCallback.datetimeSource,
+    humanCallbackDatetime,
+    bookingCallbackDatetime,
+    dynamicsAgentPreference: resolvedCallback.dynamicsAgentPreference,
+    isCallbackRequest: resolvedCallback.isCallbackRequest,
     appointmentDate: slot?.date ?? null,
     appointmentTimeUk: timeUk,
     requestedStartUtc,

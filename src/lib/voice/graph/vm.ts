@@ -15,15 +15,21 @@
  *     transfer outcome) and then returns.
  *   - Call `run` again with that input to resume. All state lives on the instance,
  *     so the transport layer stays a dumb pipe.
- *   - Speech is emitted as whole utterances. Token-level streaming into TTS is
- *     deliberately left to the turn-taking phase, where the latency budget and
- *     barge-in cancellation are designed together.
+ *   - Speech is emitted as directives. Generated lines stream tokens (or sentence
+ *     batches) into TTS so playback can start before the model finishes writing.
  *
  * Relative imports only — this module is reachable from vite.config.ts.
  */
 
 import { compileFlow, interpolate, nodeModel, type CompiledFlow } from "./flow";
-import { selectDigitEdge, selectEdge, selectGlobalNode, type RouteContext } from "./router";
+import { summarizeCollectedFacts } from "./collected-facts.shared";
+import type { CallTurnTrace } from "./latency-trace";
+import { selectDigitEdge, selectEdge, selectGlobalNode, looksLikePhoneAnswer, tryHeuristicEdgeIndex, type RouteContext } from "./router";
+import {
+  partialMatchesFinal,
+  streamSpeculativeTokens,
+  type SpeculativeSpeechRun,
+} from "../speculative-speech.shared";
 import type {
   EndReason,
   FlowEdge,
@@ -32,6 +38,7 @@ import type {
   LlmMessage,
   VariableValue,
   VmDirective,
+  VmLatencyHooks,
   VmHooks,
   VmInput,
   VmLlm,
@@ -46,12 +53,108 @@ type StepResult =
 
 const DEFAULT_MAX_STEPS = 25;
 
-const TURN_RULES = [
+const TURN_RULES_BASE = [
   "You are speaking on a live phone call. Produce ONLY the words to say next.",
-  "Say one step's worth of content — at most two short sentences — then stop.",
-  "Never narrate stage directions, never describe what you are doing, and never",
-  "read instruction text aloud. Do not greet the caller again mid-call.",
+  "Follow the task for THIS turn exactly.",
+  "Do not ask about property size, bedrooms, bathrooms, price, type, or address unless the task explicitly asks for it.",
+  "Never re-ask for information the caller already provided earlier in this conversation.",
+  "Never narrate stage directions, never describe what you are doing, and never read meta-instructions aloud.",
+  "Do not greet the caller again mid-call unless the script requires it.",
 ].join(" ");
+
+/** Split node prompt text into spoken script vs builder-only style directions. */
+function splitPromptScript(raw: string): { script: string; directions: string[] } {
+  const script: string[] = [];
+  const directions: string[] = [];
+  for (const line of raw.split(/\n+/).map((l) => l.trim()).filter(Boolean)) {
+    const isDirection =
+      /^(be |do not |don't |and do not |never |always |make sure|if the user|when the user|only |avoid |keep |stay )/i.test(
+        line,
+      ) || /\bdo not ask any other questions\b/i.test(line);
+    if (isDirection) {
+      directions.push(line);
+    } else {
+      script.push(line);
+    }
+  }
+  return { script: script.join("\n"), directions };
+}
+
+function buildTurnRules(raw: string): string {
+  const { script, directions } = splitPromptScript(raw);
+  const rules = [TURN_RULES_BASE];
+  const noExtraQuestions = directions.some((d) => /\bdo not ask any other questions\b/i.test(d));
+  const wantsFlavor = directions.some((d) => /\b(funny|quirky|humou?r|inviting)\b/i.test(d));
+
+  if (script.trim()) {
+    rules.push(
+      "The task includes a script. Speak the script lines in order, keeping required names, company names, and offers intact.",
+      wantsFlavor
+        ? "You may add brief quirky flavor, but never skip the script or replace it with unrelated questions."
+        : "Stay close to the script wording; do not invent a different pitch or question.",
+    );
+    if (noExtraQuestions) {
+      rules.push("Do not ask any question beyond what the script already contains.");
+    }
+    rules.push("Use up to three short sentences when the script needs them.");
+  } else {
+    rules.push(
+      "Ask one question from the task, nothing else.",
+      "Say ONE short sentence — under 25 words when possible — then stop.",
+    );
+  }
+  return rules.join(" ");
+}
+
+/** Ignore mid-thought fillers so the agent does not re-prompt on "uh" / "it's". */
+function isFillerUtterance(text: string): boolean {
+  const stripped = text.trim().toLowerCase().replace(/[.,!?…'"]/g, " ");
+  const words = stripped.split(/\s+/).filter(Boolean);
+  if (words.length === 0) return true;
+  if (words.length > 3) return false;
+  const fillers = new Set([
+    "uh",
+    "um",
+    "er",
+    "ah",
+    "hmm",
+    "hm",
+    "like",
+    "so",
+    "well",
+    "its",
+    "it",
+    "i",
+    "a",
+    "the",
+  ]);
+  return words.every((w) => fillers.has(w) || w === "its" || w === "it's");
+}
+
+/** Caller is stalling without giving the requested information. */
+function isHedgingUtterance(text: string): boolean {
+  const t = text.trim().toLowerCase();
+  return /\b(maybe later|not sure|don't know|do not know|still thinking|thinking about|hold on|hang on|wait a|one sec|just a sec|give me a sec|not now|call me back|call back later|i'll think|let me think)\b/.test(
+    t,
+  );
+}
+
+/** Caller gave concrete data (phone, name, address fragment) worth acknowledging. */
+function isSubstantiveAnswer(text: string): boolean {
+  const t = text.trim();
+  if (!t || isFillerUtterance(t) || isHedgingUtterance(t)) return false;
+  if (looksLikePhoneAnswer(t)) return true;
+  if (/\d/.test(t)) return true;
+  if (/\b(apartment|villa|flat|house|street|road|dubai|email|at gmail|at yahoo)\b/i.test(t)) {
+    return true;
+  }
+  const words = t.split(/\s+/).filter(Boolean);
+  return words.length >= 1 && words.length <= 4 && t.length >= 2;
+}
+
+export type SpeechWarmTarget =
+  | { kind: "static"; text: string }
+  | { kind: "prompt"; nodeId: string; messages: LlmMessage[]; model: string };
 
 export class ConversationVm {
   private readonly compiled: CompiledFlow;
@@ -59,6 +162,7 @@ export class ConversationVm {
   private readonly hooks: VmHooks;
   private readonly fallbackModel?: string;
   private readonly maxStepsPerTurn: number;
+  private readonly languageLock: string;
 
   private variables: Record<string, VariableValue>;
   private history: LlmMessage[] = [];
@@ -68,6 +172,10 @@ export class ConversationVm {
   private awaiting: "user" | "digit" | "transfer" | null = null;
   private ended = false;
   private started = false;
+  private turnTrace: CallTurnTrace | null = null;
+  private latencyHooks: VmLatencyHooks = {};
+  /** Speech started on stable partial STT, keyed by predicted destination node. */
+  private speculativeSpeech = new Map<string, SpeculativeSpeechRun>();
 
   constructor(options: VmOptions) {
     this.compiled = compileFlow(options.flow);
@@ -75,6 +183,7 @@ export class ConversationVm {
     this.hooks = options.hooks ?? {};
     this.fallbackModel = options.model;
     this.maxStepsPerTurn = options.maxStepsPerTurn ?? DEFAULT_MAX_STEPS;
+    this.languageLock = options.languageLock?.trim() ?? "";
     this.variables = { ...(options.variables ?? {}) };
     this.currentNodeId = this.compiled.startNodeId;
 
@@ -103,6 +212,74 @@ export class ConversationVm {
   /** Diagnostics from compiling the flow (dropped nodes, dangling edges, …). */
   getWarnings(): string[] {
     return [...this.compiled.warnings];
+  }
+
+  /** Attach per-turn latency marks from the cascade session. */
+  setTurnTrace(trace: CallTurnTrace | null): void {
+    this.turnTrace = trace;
+  }
+
+  getTurnTrace(): CallTurnTrace | null {
+    return this.turnTrace;
+  }
+
+  setLatencyHooks(hooks: VmLatencyHooks): void {
+    this.latencyHooks = hooks;
+  }
+
+  setSpeculativeSpeech(nodeId: string, run: SpeculativeSpeechRun | null): void {
+    const prev = this.speculativeSpeech.get(nodeId);
+    if (prev && prev !== run) prev.ctrl.abort();
+    if (run) this.speculativeSpeech.set(nodeId, run);
+    else this.speculativeSpeech.delete(nodeId);
+  }
+
+  clearSpeculativeSpeech(): void {
+    for (const run of this.speculativeSpeech.values()) run.ctrl.abort();
+    this.speculativeSpeech.clear();
+  }
+
+  /**
+   * If a heuristic edge from the current node matches `userText`, return the
+   * first speakable chunk of the destination static_text node (for TTS pre-warm).
+   */
+  peekStaticSpeechAfterHeuristic(userText: string): string | null {
+    const target = this.peekSpeechWarmTarget(userText);
+    return target?.kind === "static" ? target.text : null;
+  }
+
+  /**
+   * Predict the next speakable output when a heuristic edge matches partial/final STT.
+   */
+  peekSpeechWarmTarget(userText: string): SpeechWarmTarget | null {
+    const node = this.currentNode();
+    if (!node) return null;
+
+    const usable = (node.edges ?? []).filter((e) => e.destination_node_id);
+    if (usable.length === 0) return null;
+
+    const conditions = usable.map((e) =>
+      interpolate(e.transition_condition.prompt.trim(), this.variables),
+    );
+    const index = tryHeuristicEdgeIndex(conditions, userText);
+    if (index === null || index < 0 || index >= usable.length) return null;
+
+    const destId = usable[index]!.destination_node_id!;
+    const dest = this.compiled.nodes.get(destId);
+    if (!dest?.instruction) return null;
+
+    const raw = String(dest.instruction.text ?? "").trim();
+    if (!raw || /^NO_RESPONSE_NEEDED$/i.test(raw)) return null;
+
+    if (dest.instruction.type === "static_text") {
+      const text = interpolate(raw, this.variables);
+      return text ? { kind: "static", text } : null;
+    }
+
+    const messages = this.buildSpeechMessages(dest, raw);
+    const model = nodeModel(dest, this.compiled, this.fallbackModel) ?? this.fallbackModel ?? "";
+    if (!model || !this.llm.generateStream) return null;
+    return { kind: "prompt", nodeId: dest.id, messages, model };
   }
 
   /**
@@ -188,10 +365,18 @@ export class ConversationVm {
    */
   private async *afterUserTurn(): AsyncGenerator<VmDirective> {
     const node = this.currentNode();
+    this.latencyHooks.onRouteStart?.();
+
+    const latestUser = this.history.filter((m) => m.role === "user").at(-1)?.content ?? "";
+    const warm = this.peekStaticSpeechAfterHeuristic(latestUser);
+    if (warm) this.latencyHooks.onSpeculativeTts?.(warm);
+
     const ctx = this.routeContext(node);
 
     if (this.compiled.globalNodes.length > 0) {
+      this.turnTrace?.mark("graph_route_global_start");
       const hit = await selectGlobalNode(this.compiled.globalNodes, ctx, this.llm);
+      this.turnTrace?.mark("graph_route_global_end");
       if (hit && hit.node.id !== node?.id) {
         if (hit.returnToPrevious && node) this.returnStack.push(node.id);
         yield* this.advance(hit.node.id);
@@ -205,7 +390,9 @@ export class ConversationVm {
       return;
     }
 
+    this.turnTrace?.mark("graph_route_edge_start");
     const edge = await selectEdge(node.edges ?? [], ctx, this.llm);
+    this.turnTrace?.mark("graph_route_edge_end");
     if (edge?.destination_node_id) {
       yield* this.advance(edge.destination_node_id);
       return;
@@ -220,13 +407,31 @@ export class ConversationVm {
       return;
     }
 
-    // Otherwise the caller has not yet satisfied any transition, so stay on this
-    // step and take another turn rather than dead-ending the call.
-    yield* this.advance(node.id);
+    // No edge matched — stay on this step. Static nodes may re-speak verbatim;
+    // prompt nodes acknowledge substantive answers so the caller is not left in silence.
+    if (isFillerUtterance(latestUser) || isHedgingUtterance(latestUser)) {
+      this.awaiting = "user";
+      yield { type: "await_user", nodeId: node.id };
+      return;
+    }
+    if (node.instruction?.type === "static_text") {
+      yield* this.advance(node.id);
+      return;
+    }
+    if (isSubstantiveAnswer(latestUser)) {
+      this.log(`routing miss on "${node.id}" — acknowledging substantive reply via LLM`);
+      yield* this.yieldSpeech(node);
+      this.awaiting = "user";
+      yield { type: "await_user", nodeId: node.id };
+      return;
+    }
+    this.awaiting = "user";
+    yield { type: "await_user", nodeId: node.id };
   }
 
   /** Execute nodes until the flow blocks or ends. */
   private async *advance(startNodeId: string): AsyncGenerator<VmDirective> {
+    this.turnTrace?.mark("graph_advance_start");
     let nodeId: string | null = startNodeId;
     let steps = 0;
 
@@ -247,20 +452,24 @@ export class ConversationVm {
       }
 
       this.currentNodeId = nodeId;
+      this.turnTrace?.mark("graph_node_loaded");
       const result = yield* this.executeNode(node);
 
       if (result.kind === "await") {
         this.awaiting = result.what;
         if (result.what === "user") yield { type: "await_user", nodeId: node.id };
+        this.turnTrace?.mark("graph_advance_end");
         return;
       }
       if (result.kind === "end") {
         this.ended = true;
         yield { type: "end_call", nodeId: node.id, reason: result.reason };
+        this.turnTrace?.mark("graph_advance_end");
         return;
       }
       nodeId = result.nodeId;
     }
+    this.turnTrace?.mark("graph_advance_end");
   }
 
   // ─── Node executors ─────────────────────────────────────────────────────────
@@ -291,11 +500,7 @@ export class ConversationVm {
   }
 
   private async *execConversation(node: FlowNode): AsyncGenerator<VmDirective, StepResult> {
-    const text = await this.resolveSpeech(node);
-    if (text) {
-      this.history.push({ role: "assistant", content: text });
-      yield { type: "speak", nodeId: node.id, text };
-    }
+    yield* this.yieldSpeech(node);
     // A conversation node always hands the floor back, even with no outgoing
     // edges — the caller may still be mid-thought, and silence timeouts are the
     // transport's job, not the graph's.
@@ -303,11 +508,7 @@ export class ConversationVm {
   }
 
   private async *execEnd(node: FlowNode): AsyncGenerator<VmDirective, StepResult> {
-    const text = await this.resolveSpeech(node);
-    if (text) {
-      this.history.push({ role: "assistant", content: text });
-      yield { type: "speak", nodeId: node.id, text };
-    }
+    yield* this.yieldSpeech(node);
     return { kind: "end", reason: "flow_ended" };
   }
 
@@ -420,11 +621,7 @@ export class ConversationVm {
   }
 
   private async *execPressDigit(node: FlowNode): AsyncGenerator<VmDirective, StepResult> {
-    const prompt = await this.resolveSpeech(node);
-    if (prompt) {
-      this.history.push({ role: "assistant", content: prompt });
-      yield { type: "speak", nodeId: node.id, text: prompt };
-    }
+    yield* this.yieldSpeech(node);
     const pauseDetectionMs =
       typeof (node as { pause_detection_ms?: number }).pause_detection_ms === "number"
         ? (node as { pause_detection_ms: number }).pause_detection_ms
@@ -534,19 +731,123 @@ export class ConversationVm {
     return { kind: "end", reason: "dead_end" };
   }
 
-  /** Resolve the words a node speaks: verbatim for static text, generated otherwise. */
-  private async resolveSpeech(node: FlowNode): Promise<string> {
+  /** Emit speech for a node and record the assistant line once playback can start. */
+  private async *yieldSpeech(
+    node: FlowNode,
+    options: { interruptible?: boolean } = {},
+  ): AsyncGenerator<VmDirective> {
+    const speech = await this.prepareSpeech(node);
+    if (!speech) return;
+
+    if (speech.kind === "static") {
+      this.history.push({ role: "assistant", content: speech.text });
+      yield {
+        type: "speak",
+        nodeId: node.id,
+        text: speech.text,
+        interruptible: options.interruptible,
+      };
+      return;
+    }
+
+    let resolveText!: (text: string) => void;
+    const textDone = new Promise<string>((resolve) => {
+      resolveText = resolve;
+    });
+
+    async function* collectTokens(): AsyncGenerator<string> {
+      let full = "";
+      try {
+        for await (const delta of speech.stream) {
+          full += delta;
+          yield delta;
+        }
+        resolveText(full.trim() || speech.fallback);
+      } catch (err) {
+        resolveText(speech.fallback);
+        if (speech.fallback) yield speech.fallback;
+        throw err;
+      }
+    }
+
+    yield {
+      type: "speak",
+      nodeId: node.id,
+      textStream: collectTokens(),
+      interruptible: options.interruptible,
+    };
+
+    const text = await textDone;
+    if (text) this.history.push({ role: "assistant", content: text });
+  }
+
+  private async prepareSpeech(
+    node: FlowNode,
+  ): Promise<
+    | { kind: "static"; text: string }
+    | { kind: "generated"; stream: AsyncIterable<string>; fallback: string }
+    | null
+  > {
     const instruction = node.instruction;
     const raw = String(instruction?.text ?? "").trim();
-    // Retell's sentinel for "advance without speaking".
-    if (/^NO_RESPONSE_NEEDED$/i.test(raw)) return "";
-    if (!raw) return "";
+    if (/^NO_RESPONSE_NEEDED$/i.test(raw)) return null;
+    if (!raw) return null;
 
-    if (instruction?.type === "static_text") return interpolate(raw, this.variables);
+    if (instruction?.type === "static_text") {
+      const text = interpolate(raw, this.variables);
+      return text ? { kind: "static", text } : null;
+    }
 
-    const system: string[] = [TURN_RULES];
-    if (this.compiled.globalPrompt) {
-      system.push(`# Overall instructions\n${interpolate(this.compiled.globalPrompt, this.variables)}`);
+    const messages = this.buildSpeechMessages(node, raw);
+    const fallback = interpolate(raw, this.variables);
+    const model = nodeModel(node, this.compiled, this.fallbackModel);
+
+    const latestUser = this.history.filter((m) => m.role === "user").at(-1)?.content ?? "";
+    const spec = this.speculativeSpeech.get(node.id);
+    if (spec) {
+      if (partialMatchesFinal(spec.partial, latestUser)) {
+        this.speculativeSpeech.delete(node.id);
+        this.turnTrace?.mark("speculative_speech_hit");
+        return {
+          kind: "generated",
+          stream: streamSpeculativeTokens(spec),
+          fallback,
+        };
+      }
+      spec.ctrl.abort();
+      this.speculativeSpeech.delete(node.id);
+    }
+
+    if (this.llm.generateStream) {
+      try {
+        return {
+          kind: "generated",
+          stream: this.llm.generateStream(messages, { model }),
+          fallback,
+        };
+      } catch (err) {
+        this.log(`stream setup failed on node "${node.id}": ${errMessage(err)}`);
+      }
+    }
+
+    try {
+      const text = await this.llm.generate(messages, { model });
+      const clean = text.trim() || fallback;
+      return clean ? { kind: "static", text: clean } : null;
+    } catch (err) {
+      this.log(`generation failed on node "${node.id}": ${errMessage(err)}`);
+      return fallback ? { kind: "static", text: fallback } : null;
+    }
+  }
+
+  private buildSpeechMessages(node: FlowNode, raw: string): LlmMessage[] {
+    const interpolated = interpolate(raw, this.variables);
+    const { script, directions } = splitPromptScript(interpolated);
+    const system: string[] = [buildTurnRules(interpolated)];
+    if (this.languageLock) system.push(this.languageLock);
+    const collected = summarizeCollectedFacts(this.history);
+    if (collected) {
+      system.push(`# Already collected from the caller (do not ask again)\n${collected}`);
     }
     const known = Object.entries(this.variables).filter(
       ([, v]) => v !== null && v !== undefined && v !== "",
@@ -556,20 +857,33 @@ export class ConversationVm {
         `# Known information\n${known.map(([k, v]) => `- ${k}: ${String(v)}`).join("\n")}`,
       );
     }
-    system.push(`# Your task for this turn\n${interpolate(raw, this.variables)}`);
-
-    try {
-      const text = await this.llm.generate(
-        [{ role: "system", content: system.join("\n\n") }, ...this.history.slice(-16)],
-        { model: nodeModel(node, this.compiled, this.fallbackModel) },
+    if (script.trim()) {
+      system.push(`# Script to say\n${script}`);
+    }
+    if (directions.length) {
+      system.push(
+        `# Style notes (do not read aloud)\n${directions.map((d) => `- ${d}`).join("\n")}`,
       );
-      const clean = text.trim();
-      // An empty generation would leave dead air; the authored instruction is a
-      // poor line to read aloud but better than silence.
-      return clean || interpolate(raw, this.variables);
+    }
+    if (!script.trim()) {
+      system.push(`# Your task for this turn\n${interpolated}`);
+    }
+    return [{ role: "system", content: system.join("\n\n") }, ...this.history.slice(-12)];
+  }
+
+  /** Blocking speech resolution for transfer prompts and other one-shot paths. */
+  private async resolveSpeech(node: FlowNode): Promise<string> {
+    const speech = await this.prepareSpeech(node);
+    if (!speech) return "";
+    if (speech.kind === "static") return speech.text;
+
+    let full = "";
+    try {
+      for await (const delta of speech.stream) full += delta;
+      return full.trim() || speech.fallback;
     } catch (err) {
       this.log(`generation failed on node "${node.id}": ${errMessage(err)}`);
-      return interpolate(raw, this.variables);
+      return speech.fallback;
     }
   }
 
@@ -651,8 +965,15 @@ export class ConversationVm {
       history: this.history,
       variables: this.variables,
       globalPrompt: this.compiled.globalPrompt,
-      model: node ? nodeModel(node, this.compiled, this.fallbackModel) : this.fallbackModel,
+      currentNodeHint: node ? this.nodeHint(node) : undefined,
     };
+  }
+
+  private nodeHint(node: FlowNode): string {
+    const raw = String(node.instruction?.text ?? "").trim();
+    const brief = raw ? truncate(interpolate(raw, this.variables), 120) : node.type;
+    const label = node.name ? `${node.type} (${node.name})` : node.type;
+    return `${label}: ${brief}`;
   }
 
   private currentNode(): FlowNode | null {

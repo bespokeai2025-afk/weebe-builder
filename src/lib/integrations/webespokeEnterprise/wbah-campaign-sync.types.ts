@@ -142,6 +142,212 @@ export function parseWbahNewLeadSyncToggle(raw: unknown): WbahNewLeadSyncToggleS
   };
 }
 
+/** GET/PATCH/POST /campaigns/live-transfer/settings */
+export type WbahLiveTransferSettingsSource = "redis" | "env";
+export type WbahLiveTransferFallback = "callback";
+
+export type WbahLiveTransferDaySchedule = {
+  /** Luxon: 1=Mon … 7=Sun */
+  weekday: number;
+  /** Inclusive HH:mm */
+  start: string;
+  /** Exclusive HH:mm */
+  end: string;
+};
+
+export type WbahLiveTransferSettingsShape = {
+  timezone: string;
+  fallback: WbahLiveTransferFallback;
+  weekly_schedule: WbahLiveTransferDaySchedule[];
+};
+
+export type WbahLiveTransferTodayWindow = {
+  start: string;
+  end: string;
+} | null;
+
+export type WbahLiveTransferLiveStatus = {
+  allowed: boolean;
+  now_local: string;
+  today_window: WbahLiveTransferTodayWindow;
+  schedule_label: string;
+  weekly_schedule: WbahLiveTransferDaySchedule[];
+  next_opens_at_label: string | null;
+  timezone: string;
+  fallback: WbahLiveTransferFallback;
+};
+
+export type WbahLiveTransferSettingsState = {
+  settings: WbahLiveTransferSettingsShape;
+  source: WbahLiveTransferSettingsSource;
+  envDefaults: WbahLiveTransferSettingsShape;
+  live: WbahLiveTransferLiveStatus;
+};
+
+export const WBAH_LIVE_TRANSFER_WEEKDAYS = [
+  { id: 1, label: "Monday" },
+  { id: 2, label: "Tuesday" },
+  { id: 3, label: "Wednesday" },
+  { id: 4, label: "Thursday" },
+  { id: 5, label: "Friday" },
+  { id: 6, label: "Saturday" },
+  { id: 7, label: "Sunday" },
+] as const;
+
+/** Default WBAH live-transfer window (Mon–Fri 9–5, Sat 9–3, Sun closed). */
+export const WBAH_LIVE_TRANSFER_DEFAULT_SCHEDULE: WbahLiveTransferDaySchedule[] = [
+  { weekday: 1, start: "09:00", end: "17:00" },
+  { weekday: 2, start: "09:00", end: "17:00" },
+  { weekday: 3, start: "09:00", end: "17:00" },
+  { weekday: 4, start: "09:00", end: "17:00" },
+  { weekday: 5, start: "09:00", end: "17:00" },
+  { weekday: 6, start: "09:00", end: "15:00" },
+];
+
+export type WbahLiveTransferScheduleRow = {
+  weekday: number;
+  label: string;
+  open: boolean;
+  start: string;
+  end: string;
+};
+
+const HH_MM = /^\d{2}:\d{2}$/;
+
+export function defaultLiveTransferEndForWeekday(weekday: number): string {
+  return weekday === 6 ? "15:00" : "17:00";
+}
+
+export function hydrateLiveTransferRows(
+  schedule: WbahLiveTransferDaySchedule[],
+): WbahLiveTransferScheduleRow[] {
+  return WBAH_LIVE_TRANSFER_WEEKDAYS.map((day) => {
+    const row = schedule.find((s) => s.weekday === day.id);
+    return {
+      weekday: day.id,
+      label: day.label,
+      open: !!row,
+      start: row?.start ?? "09:00",
+      end: row?.end ?? defaultLiveTransferEndForWeekday(day.id),
+    };
+  });
+}
+
+export function buildLiveTransferWeeklySchedule(
+  rows: WbahLiveTransferScheduleRow[],
+): WbahLiveTransferDaySchedule[] {
+  return rows
+    .filter((r) => r.open)
+    .map((r) => ({ weekday: r.weekday, start: r.start, end: r.end }));
+}
+
+export function validateLiveTransferRows(rows: WbahLiveTransferScheduleRow[]): string | null {
+  const open = rows.filter((r) => r.open);
+  if (open.length === 0) return "At least one day must be open";
+  for (const row of open) {
+    if (!HH_MM.test(row.start) || !HH_MM.test(row.end)) {
+      return `${row.label}: use valid HH:mm times`;
+    }
+    if (row.start >= row.end) {
+      return `${row.label}: start must be before end`;
+    }
+  }
+  return null;
+}
+
+export function liveTransferRowsEqual(
+  a: WbahLiveTransferScheduleRow[],
+  b: WbahLiveTransferScheduleRow[],
+): boolean {
+  if (a.length !== b.length) return false;
+  return a.every((row, i) => {
+    const other = b[i];
+    return (
+      row.weekday === other.weekday &&
+      row.open === other.open &&
+      row.start === other.start &&
+      row.end === other.end
+    );
+  });
+}
+
+function parseLiveTransferDaySchedule(raw: unknown): WbahLiveTransferDaySchedule | null {
+  if (!raw || typeof raw !== "object") return null;
+  const o = raw as Record<string, unknown>;
+  const weekday = Number(o.weekday);
+  const start = String(o.start ?? "").trim();
+  const end = String(o.end ?? "").trim();
+  if (!Number.isInteger(weekday) || weekday < 1 || weekday > 7) return null;
+  if (!HH_MM.test(start) || !HH_MM.test(end)) return null;
+  return { weekday, start, end };
+}
+
+function parseLiveTransferWeeklySchedule(raw: unknown): WbahLiveTransferDaySchedule[] | null {
+  if (!Array.isArray(raw)) return null;
+  const rows = raw
+    .map(parseLiveTransferDaySchedule)
+    .filter((r): r is WbahLiveTransferDaySchedule => r != null);
+  if (rows.length === 0) return null;
+  return [...rows].sort((a, b) => a.weekday - b.weekday);
+}
+
+function parseLiveTransferSettingsBlock(raw: unknown): WbahLiveTransferSettingsShape | null {
+  if (!raw || typeof raw !== "object") return null;
+  const o = raw as Record<string, unknown>;
+  const timezone = String(o.timezone ?? "Europe/London").trim() || "Europe/London";
+  const weekly_schedule = parseLiveTransferWeeklySchedule(o.weekly_schedule);
+  if (!weekly_schedule) return null;
+  return {
+    timezone,
+    fallback: "callback",
+    weekly_schedule,
+  };
+}
+
+function parseLiveTransferTodayWindow(raw: unknown): WbahLiveTransferTodayWindow {
+  if (!raw || typeof raw !== "object") return null;
+  const o = raw as Record<string, unknown>;
+  const start = String(o.start ?? "").trim();
+  const end = String(o.end ?? "").trim();
+  if (!HH_MM.test(start) || !HH_MM.test(end)) return null;
+  return { start, end };
+}
+
+function parseLiveTransferLiveBlock(raw: unknown): WbahLiveTransferLiveStatus | null {
+  if (!raw || typeof raw !== "object") return null;
+  const o = raw as Record<string, unknown>;
+  const weekly_schedule = parseLiveTransferWeeklySchedule(o.weekly_schedule) ?? [];
+  return {
+    allowed: Boolean(o.allowed),
+    now_local: String(o.now_local ?? ""),
+    today_window: parseLiveTransferTodayWindow(o.today_window),
+    schedule_label: String(o.schedule_label ?? ""),
+    weekly_schedule,
+    next_opens_at_label:
+      o.next_opens_at_label == null || o.next_opens_at_label === ""
+        ? null
+        : String(o.next_opens_at_label),
+    timezone: String(o.timezone ?? "Europe/London").trim() || "Europe/London",
+    fallback: "callback",
+  };
+}
+
+export function parseWbahLiveTransferSettings(raw: unknown): WbahLiveTransferSettingsState | null {
+  if (!raw || typeof raw !== "object") return null;
+  const o = raw as Record<string, unknown>;
+  const inner =
+    o.data && typeof o.data === "object" && !Array.isArray(o.data)
+      ? (o.data as Record<string, unknown>)
+      : o;
+  const settings = parseLiveTransferSettingsBlock(inner.settings);
+  const envDefaults = parseLiveTransferSettingsBlock(inner.envDefaults);
+  const live = parseLiveTransferLiveBlock(inner.live);
+  if (!settings || !envDefaults || !live) return null;
+  const sourceRaw = String(inner.source ?? "redis").toLowerCase();
+  const source: WbahLiveTransferSettingsSource = sourceRaw === "env" ? "env" : "redis";
+  return { settings, source, envDefaults, live };
+}
+
 const NEW_LEAD_SUB_SLUG_LABELS = new Set(["call now", "delayed"]);
 
 /** True when a CRM `name` value is actually a new-lead sub-cohort label, not a person name. */

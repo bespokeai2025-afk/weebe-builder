@@ -4,16 +4,17 @@ import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { createTelephonyProvider } from "./provider-factory";
 import type { TelephonyConfig } from "./types";
+import {
+  getTwilioCredentialStatus,
+  resolveTwilioCredentialsForWorkspace,
+} from "./twilio-credentials.server";
 
-// ── Master Twilio credentials (platform-level, same pattern as RETELL_API_KEY) ─
-// Credentials live in env vars: TWILIO_ACCOUNT_SID / TWILIO_AUTH_TOKEN.
-// The DB row only stores provider + is_active metadata — never secrets.
+// ── Master Twilio credentials (platform-level fallback) ───────────────────────
+// Workspace credentials in `workspace_settings` take precedence when present.
 
-function getMasterTwilioClient() {
-  const sid = process.env.TWILIO_ACCOUNT_SID;
-  const token = process.env.TWILIO_AUTH_TOKEN;
-  if (!sid || !token) throw new Error("Master Twilio credentials not configured. Add TWILIO_ACCOUNT_SID and TWILIO_AUTH_TOKEN to Replit Secrets.");
-  return { sid, token };
+async function getMasterTwilioClient(workspaceId?: string) {
+  const resolved = await resolveTwilioCredentialsForWorkspace(supabaseAdmin, workspaceId);
+  return { sid: resolved.accountSid, token: resolved.authToken, source: resolved.source };
 }
 
 // ── Telephony Config ───────────────────────────────────────────────────────────
@@ -24,9 +25,8 @@ export const getTelephonyConfig = createServerFn({ method: "POST" })
     const { workspaceId } = context;
     if (!workspaceId) throw new Error("No active workspace");
 
-    const sidConfigured     = !!process.env.TWILIO_ACCOUNT_SID;
-    const tokenConfigured   = !!process.env.TWILIO_AUTH_TOKEN;
-    const frejunConfigured  = !!process.env.FREJUN_API_KEY;
+    const twilioStatus = await getTwilioCredentialStatus(supabaseAdmin, workspaceId);
+    const frejunConfigured = !!process.env.FREJUN_API_KEY;
 
     const { data } = await supabaseAdmin
       .from("telephony_configs")
@@ -45,11 +45,46 @@ export const getTelephonyConfig = createServerFn({ method: "POST" })
     return {
       provider: data?.provider ?? "twilio",
       is_active: data?.is_active ?? true,
-      sid_configured: sidConfigured,
-      token_configured: tokenConfigured,
-      credentials_ready: sidConfigured && tokenConfigured,
+      sid_configured: twilioStatus.workspace_sid_configured || twilioStatus.env_sid_configured,
+      token_configured: twilioStatus.workspace_token_configured || twilioStatus.env_token_configured,
+      credentials_ready: twilioStatus.credentials_ready,
+      credential_source: twilioStatus.credential_source,
+      workspace_sid_configured: twilioStatus.workspace_sid_configured,
+      workspace_token_configured: twilioStatus.workspace_token_configured,
+      env_sid_configured: twilioStatus.env_sid_configured,
+      env_token_configured: twilioStatus.env_token_configured,
+      workspace_account_sid: twilioStatus.workspace_account_sid,
+      workspace_auth_token_set: twilioStatus.workspace_auth_token_set,
       frejun_configured: frejunConfigured,
     };
+  });
+
+export const saveTelephonyCredentials = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .validator((input) =>
+    z
+      .object({
+        accountSid: z.string().min(1),
+        authToken: z.string().min(1),
+      })
+      .parse(input ?? {}),
+  )
+  .handler(async ({ context, data }) => {
+    const { workspaceId } = context;
+    if (!workspaceId) throw new Error("No active workspace");
+
+    const { error } = await supabaseAdmin.from("workspace_settings").upsert(
+      {
+        workspace_id: workspaceId,
+        twilio_account_sid: data.accountSid.trim(),
+        twilio_auth_token: data.authToken.trim(),
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: "workspace_id" },
+    );
+    if (error) throw new Error(error.message);
+
+    return { success: true };
   });
 
 export const saveTelephonyConfig = createServerFn({ method: "POST" })
@@ -274,7 +309,14 @@ export const initiateOutboundCall = createServerFn({ method: "POST" })
       ? `https://${process.env.REPLIT_DEV_DOMAIN}`
       : process.env.PUBLIC_URL ?? "https://localhost:3000";
 
-    const provider = createTelephonyProvider(configRes.data as TelephonyConfig);
+    const twilioCreds = await resolveTwilioCredentialsForWorkspace(supabaseAdmin, workspaceId);
+    const providerConfig: TelephonyConfig = {
+      ...(configRes.data as TelephonyConfig),
+      account_sid: twilioCreds.accountSid,
+      auth_token: twilioCreds.authToken,
+    };
+
+    const provider = createTelephonyProvider(providerConfig);
 
     const callResult = await provider.makeCall({
       to: data.to,
@@ -447,7 +489,7 @@ export const autoConfigureWebhooks = createServerFn({ method: "POST" })
     if (!workspaceId) throw new Error("No active workspace");
 
     // Use master platform credentials from env vars
-    const { sid, token } = getMasterTwilioClient();
+    const { sid, token } = await getMasterTwilioClient(workspaceId);
 
     // Resolve public host — prefer REPLIT_DEV_DOMAIN, fall back to PUBLIC_URL
     const devDomain = process.env.REPLIT_DEV_DOMAIN ?? "";

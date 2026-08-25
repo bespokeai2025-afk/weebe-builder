@@ -170,6 +170,33 @@ describe("loadFlowFromAgent", () => {
     expect(last.at(-1)).toMatchObject({ type: "end_call", reason: "flow_ended" });
   });
 
+  it("reads static ending nodes verbatim", async () => {
+    const flowData = {
+      nodes: [
+        builderNode("greet", "conversation", {
+          isStart: true,
+          instructionType: "static_text",
+          dialogue: "Hello.",
+          transitions: [{ id: "t1", condition: "done", target: "bye" }],
+        }),
+        builderNode("bye", "ending", {
+          instructionType: "static_text",
+          endingPrompt: "Thanks for calling. Goodbye!",
+        }),
+      ],
+      edges: [{ id: "e1", source: "greet", target: "bye", sourceHandle: "t1" }],
+    };
+
+    const loaded = loadFlowFromAgent(flowData, {});
+    const llm = stubLlm(() => 0);
+    const vm = new ConversationVm({ flow: loaded.flow, llm, variables: loaded.variables });
+
+    await drain(vm.run({ type: "begin" }));
+    const last = await drain(vm.run({ type: "user_utterance", text: "ok" }));
+    expect(speech(last)).toEqual(["Thanks for calling. Goodbye!"]);
+    expect(last.at(-1)).toMatchObject({ type: "end_call", reason: "flow_ended" });
+  });
+
   it("seeds declared defaults but leaves uncollected variables absent", () => {
     const loaded = loadFlowFromAgent(
       { nodes: [], edges: [], variables: [{ name: "brand", defaultValue: "WEBEE" }, { name: "postcode" }] },
