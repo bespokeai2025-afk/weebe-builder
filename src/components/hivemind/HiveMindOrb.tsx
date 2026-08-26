@@ -493,7 +493,7 @@ type DragOffset = { x: number; y: number };
 const ORB_POSITION_STORAGE_KEY = "hm-orb-position";
 const LEGACY_ORB_POSITION_KEYS = ["hm-orb-offset", "hm-orb-pos"];
 const COLLISION_GUTTER = 18;
-const HIVE_MIND_CORNER_GUTTER = 16;
+const HIVE_MIND_CORNER_GUTTER = 4;
 
 function viewportOrbSize() {
   if (window.innerWidth < 640) return { width: 126, height: 105 };
