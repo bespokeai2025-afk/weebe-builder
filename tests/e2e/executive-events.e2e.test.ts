@@ -12,7 +12,10 @@ import {
   classifyPendingExecutiveEvents,
   classifyEvent,
 } from "@/lib/hivemind/executive-events.shared";
-import { claimReconJob } from "@/lib/hivemind/executive-reconciliation.server";
+import {
+  claimReconJob,
+  listWorkspaceIdsForReconciliation,
+} from "@/lib/hivemind/executive-reconciliation.server";
 
 const sb = supabaseAdmin as any;
 
@@ -185,6 +188,147 @@ describe("reconciliation jobs against real schema", () => {
       await expect(job.run(sb, WS_A)).resolves.toBeTruthy();
     }
   });
+
+  it("turns notification gaps into one proposal and closes it after the gap is fixed", async () => {
+    const { error: settingError } = await sb.from("workspace_notification_settings").insert({
+      workspace_id: WS_A,
+      event_key: "qualified_leads_generated",
+      enabled: false,
+      email_enabled: false,
+      in_app_enabled: false,
+      recipients: {
+        owner: true,
+        admins: false,
+        userIds: [],
+        roleKeys: [],
+        customEmails: [],
+        campaignOwner: false,
+      },
+      frequency: "immediate",
+    });
+    if (settingError) throw new Error(settingError.message);
+
+    const { error: leadError } = await sb.from("leads").insert({
+      workspace_id: WS_A,
+      full_name: "Notification gap e2e lead",
+      phone: "+447700000581",
+      status: "qualified",
+      source: "website_form",
+      updated_at: new Date().toISOString(),
+    });
+    if (leadError) throw new Error(leadError.message);
+
+    const { RECON_JOBS_FOR_TEST } = await import("@/lib/hivemind/executive-reconciliation.server");
+    const job = RECON_JOBS_FOR_TEST.find(
+      (candidate) => candidate.key === "notification_gap_recommendations",
+    )!;
+
+    const first = await job.run(sb, WS_A);
+    expect(first.created).toBe(1);
+    const second = await job.run(sb, WS_A);
+    expect(second.created).toBe(0);
+
+    const dedupeKey =
+      "notification_gap:qualified_leads_notifications_off:qualified_leads_generated";
+    const { data: openRec, error: recError } = await sb
+      .from("hivemind_recommendations")
+      .select("id, status, approval_required, reassess_at")
+      .eq("workspace_id", WS_A)
+      .eq("dedupe_key", dedupeKey)
+      .single();
+    if (recError) throw new Error(recError.message);
+    expect(openRec.status).toBe("new");
+    expect(openRec.approval_required).toBe(true);
+    expect(new Date(openRec.reassess_at).getTime()).toBeGreaterThan(Date.now());
+
+    // The accountability job can expire an untouched recommendation before
+    // the next daily scan. An active gap must reopen instead of remaining
+    // hidden behind its stable dedupe key.
+    const { error: expireError } = await sb
+      .from("hivemind_recommendations")
+      .update({ status: "expired", reassess_at: new Date(Date.now() - 60_000).toISOString() })
+      .eq("id", openRec.id);
+    if (expireError) throw new Error(expireError.message);
+    const reopened = await job.run(sb, WS_A);
+    expect(reopened.reopened).toBe(1);
+    const { data: reopenedRec } = await sb
+      .from("hivemind_recommendations")
+      .select("status, reassess_at")
+      .eq("id", openRec.id)
+      .single();
+    expect(reopenedRec.status).toBe("new");
+    expect(new Date(reopenedRec.reassess_at).getTime()).toBeGreaterThan(Date.now());
+
+    const { error: fixError } = await sb
+      .from("workspace_notification_settings")
+      .update({ enabled: true, in_app_enabled: true })
+      .eq("workspace_id", WS_A)
+      .eq("event_key", "qualified_leads_generated");
+    if (fixError) throw new Error(fixError.message);
+
+    const resolved = await job.run(sb, WS_A);
+    expect(resolved.resolved).toBe(1);
+    const { data: closedRec } = await sb
+      .from("hivemind_recommendations")
+      .select("status")
+      .eq("id", openRec.id)
+      .single();
+    expect(closedRec.status).toBe("completed");
+
+    const { error: regressError } = await sb
+      .from("workspace_notification_settings")
+      .update({ enabled: false, in_app_enabled: false })
+      .eq("workspace_id", WS_A)
+      .eq("event_key", "qualified_leads_generated");
+    if (regressError) throw new Error(regressError.message);
+    const recurring = await job.run(sb, WS_A);
+    expect(recurring.reopened).toBe(1);
+    const { data: recurringRec } = await sb
+      .from("hivemind_recommendations")
+      .select("status")
+      .eq("id", openRec.id)
+      .single();
+    expect(recurringRec.status).toBe("new");
+
+    // Approved is an explicit owner decision (the canonical recommendation
+    // lifecycle state), so a still-active gap must not overwrite it or clear
+    // its outcome on later scans.
+    const { error: approveError } = await sb
+      .from("hivemind_recommendations")
+      .update({
+        status: "approved",
+        result: "Owner approved the notification settings follow-through.",
+      })
+      .eq("id", openRec.id);
+    if (approveError) throw new Error(approveError.message);
+    const protectedScan = await job.run(sb, WS_A);
+    expect(protectedScan.reopened).toBe(0);
+    const { data: approvedRec } = await sb
+      .from("hivemind_recommendations")
+      .select("status, result")
+      .eq("id", openRec.id)
+      .single();
+    expect(approvedRec.status).toBe("approved");
+    expect(approvedRec.result).toBe("Owner approved the notification settings follow-through.");
+
+    const { error: inProgressError } = await sb
+      .from("hivemind_recommendations")
+      .update({
+        status: "in_progress",
+        result: "Owner is currently correcting the notification settings.",
+      })
+      .eq("id", openRec.id);
+    if (inProgressError) throw new Error(inProgressError.message);
+    const inProgressScan = await job.run(sb, WS_A);
+    expect(inProgressScan.reopened).toBe(0);
+    const { data: inProgressRec } = await sb
+      .from("hivemind_recommendations")
+      .select("status, result")
+      .eq("id", openRec.id)
+      .single();
+    expect(inProgressRec.status).toBe("in_progress");
+    expect(inProgressRec.result).toBe("Owner is currently correcting the notification settings.");
+  });
 });
 
 describe("reconciliation CAS claims", () => {
@@ -210,5 +354,33 @@ describe("reconciliation CAS claims", () => {
   it("claims are workspace-scoped", async () => {
     const other = await claimReconJob(sb, WS_B, "e2e_job", 60 * 60 * 1000);
     expect(other).toBe(true);
+  });
+});
+
+describe("reconciliation workspace scanning", () => {
+  it("pages past the first workspace batch without skipping later workspaces", async () => {
+    const ids = Array.from(
+      { length: 401 },
+      (_, index) => `workspace-${String(index).padStart(4, "0")}`,
+    );
+    let cursor: string | null = null;
+    const query = {
+      order: () => query,
+      limit: () => query,
+      gt: (_column: string, value: string) => {
+        cursor = value;
+        return query;
+      },
+      then: (resolve: (result: { data: Array<{ id: string }>; error: null }) => unknown) => {
+        const start = cursor ? ids.indexOf(cursor) + 1 : 0;
+        return Promise.resolve({
+          data: ids.slice(start, start + 200).map((id) => ({ id })),
+          error: null,
+        }).then(resolve);
+      },
+    };
+    const sb = { from: () => ({ select: () => query }) };
+
+    await expect(listWorkspaceIdsForReconciliation(sb)).resolves.toEqual(ids);
   });
 });
