@@ -1,0 +1,91 @@
+Implement the attached/pasted **Lovable PORTABLE IMPLEMENTATION SPEC** inside the WEBEE dashboard.
+
+This is not a redesign.
+
+The Lovable implementation is the **source of truth** and must be reproduced as faithfully as technically possible.
+
+### Important difference
+
+The website version is large.
+
+For the WEBEE dashboard I need the **same visual at a smaller scale**.
+
+Scale the entire visual proportionally rather than redesigning it.
+
+Target approximately:
+
+* desktop visual width: **150–190px**
+* tablet: **130–160px**
+* mobile: **105–135px**
+
+Preserve the same:
+
+* particle density relative to visual size
+* central-star proportions
+* particle colours
+* particle distribution
+* constellation behaviour
+* line styling
+* orbital fragments
+* animation speed
+* twinkle behaviour
+* glow
+* opacity
+* randomness
+* overall character
+
+### Absolutely remove the existing HiveMind oval
+
+The current WEBEE implementation has an oval/capsule-shaped appearance.
+
+Delete that visual treatment completely.
+
+There must be:
+
+* NO oval
+* NO pill
+* NO enclosing shape
+* NO background rectangle
+* NO radial blob pretending to be a background
+* NO visible component boundary
+
+The particles must appear to exist **directly inside the WEBEE dashboard environment**.
+
+The component background must remain transparent.
+
+### Existing dashboard
+
+Do not redesign the surrounding WEBEE interface.
+
+Keep the current:
+
+* HiveMind positioning
+* HiveMind label
+* click behaviour
+* navigation
+* functionality
+* dashboard structure
+
+Only replace the visual effect.
+
+### Animation
+
+Retain the exact animation behaviour from the Lovable implementation.
+
+It must remain a genuinely animated visual rather than being converted to a static PNG/GIF/video.
+
+Where dimensions need changing, scale positions, connection distances, particle sizes and other spatial constants proportionally so the small version feels exactly like the large website version.
+
+Do not independently "improve" any visual values.
+
+### Deliverable
+
+Implement it fully, then report:
+
+1. files changed
+2. old HiveMind implementation removed
+3. new component used
+4. dimensions used
+5. whether any values had to differ from the Lovable specification and exactly why
+
+Do not stop at a mock-up or explanation. Implement and test the working visual.
