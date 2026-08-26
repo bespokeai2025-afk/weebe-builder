@@ -369,6 +369,21 @@ export interface MarketingOperatorTickReport {
   failed: Array<{ workspaceId: string; error: string }>;
 }
 
+/** Atomically claim this workspace's daily run window. */
+export async function claimMarketingOperatorRun(
+  sb: Sb,
+  workspaceId: string,
+  cutoffIso: string,
+): Promise<boolean> {
+  const { data: claimed } = await sb.from("workspace_settings")
+    .update({ marketing_operator_last_run_at: nowIso() })
+    .eq("workspace_id", workspaceId)
+    .eq("marketing_operator_enabled", true)
+    .or(`marketing_operator_last_run_at.is.null,marketing_operator_last_run_at.lte.${cutoffIso}`)
+    .select("workspace_id");
+  return Boolean(claimed?.length);
+}
+
 export async function runMarketingOperatorTick(): Promise<MarketingOperatorTickReport> {
   const sb = adminClient();
   const report: MarketingOperatorTickReport = { ran: [], skipped: 0, failed: [] };
@@ -393,13 +408,10 @@ export async function runMarketingOperatorTick(): Promise<MarketingOperatorTickR
     const workspaceId = (ws as any).workspace_id as string;
     try {
       // Atomic CAS claim — exactly one instance per window.
-      const { data: claimed } = await sb.from("workspace_settings")
-        .update({ marketing_operator_last_run_at: nowIso() })
-        .eq("workspace_id", workspaceId)
-        .eq("marketing_operator_enabled", true)
-        .or(`marketing_operator_last_run_at.is.null,marketing_operator_last_run_at.lte.${cutoffIso}`)
-        .select("workspace_id");
-      if (!claimed?.length) { report.skipped++; continue; }
+      if (!await claimMarketingOperatorRun(sb, workspaceId, cutoffIso)) {
+        report.skipped++;
+        continue;
+      }
 
       // Expire stale open findings (>14 days) so the list stays current.
       await sb.from("marketing_operator_findings")

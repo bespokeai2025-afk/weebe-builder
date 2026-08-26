@@ -117,14 +117,24 @@ describe("conversion trend findings fail closed", () => {
 });
 
 describe("measurement sweep confound rule", () => {
-  it("classifies inconclusive (no learning) when ONE other same-platform action overlaps the window", async () => {
+  const runScenario = async ({
+    baselineConversions = 10,
+    afterConversions = 20,
+    gadsError = null,
+    overlapping = 0,
+  }: {
+    baselineConversions?: number;
+    afterConversions?: number;
+    gadsError?: any;
+    overlapping?: number;
+  }) => {
     const { runMarketingMeasurementSweep } = await import("@/lib/hivemind/marketing-operator-tick");
     const past = new Date(Date.now() - 10 * 24 * 60 * 60 * 1000).toISOString();
     const reassess = new Date(Date.now() - 60 * 1000).toISOString();
     const action = {
       id: "a1", platform: "google_ads", action_type: "negative_keyword_add",
       executed_at: past, reassess_at: reassess,
-      baseline: { ok: true, conversions: 10, spend: 100, clicks: 200, qualified: 4, bookings: 2 },
+      baseline: { ok: true, conversions: baselineConversions, spend: 0, clicks: 0, qualified: 0, bookings: 0 },
       target: {}, outcome_classification: null,
     };
     const updates: any[] = [];
@@ -137,10 +147,13 @@ describe("measurement sweep confound rule", () => {
         q.update = (patch: any) => { updates.push({ table, patch }); return q; };
         q.insert = () => q;
         q.then = (resolve: any) => {
-          if (table === "marketing_actions" && q._head) return resolve({ count: 1, error: null }); // ONE overlapping action
+          if (table === "marketing_actions" && q._head) return resolve({ count: overlapping, error: null });
+          if (table === "marketing_actions" && updates.at(-1)?.table === table) return resolve({ data: [{ id: action.id }], error: null });
           if (table === "marketing_actions") return resolve({ data: [action], error: null });
-          if (table === "growthmind_gads_campaign_daily") return resolve({ data: [{ cost_micros: 50e6, conversions: 20, clicks: 300 }], error: null });
-          if (table === "conversion_events") return resolve({ count: 8, error: null });
+          if (table === "growthmind_gads_campaign_daily") {
+            return resolve({ data: gadsError ? null : [{ cost_micros: 0, conversions: afterConversions, clicks: 0 }], error: gadsError });
+          }
+          if (table === "conversion_events") return resolve({ count: 0, error: null });
           if (table === "calendar_bookings") return resolve({ data: [], error: null });
           return resolve({ data: [], count: 0, error: null });
         };
@@ -148,11 +161,86 @@ describe("measurement sweep confound rule", () => {
       },
     };
     const res = await runMarketingMeasurementSweep(sb, "ws-1");
-    expect(res.measured).toBe(1);
     const patch = updates.find((u) => u.table === "marketing_actions" && u.patch.outcome_classification)?.patch;
+    return { res, patch, updates };
+  };
+
+  it("classifies inconclusive (no learning) when ONE other same-platform action overlaps the window", async () => {
+    const { res, patch, updates } = await runScenario({ overlapping: 1 });
+    expect(res.measured).toBe(1);
     expect(patch?.outcome_classification).toBe("inconclusive");
     // No confidence/pattern learning writes for inconclusive outcomes.
     expect(updates.some((u) => u.table === "growthmind_learned_patterns")).toBe(false);
+  });
+
+  it("classifies inconclusive when a measurement source errors", async () => {
+    const { patch } = await runScenario({ gadsError: { message: "warehouse timeout" } });
+    expect(patch?.outcome_classification).toBe("inconclusive");
+    expect(patch?.outcome.detail.reason).toContain("warehouse timeout");
+  });
+
+  it("classifies a zero-baseline burst as inconclusive", async () => {
+    const { patch } = await runScenario({ baselineConversions: 0, afterConversions: 50 });
+    expect(patch?.outcome_classification).toBe("inconclusive");
+    expect(patch?.outcome.detail.reason).toContain("both the before and after windows");
+  });
+});
+
+describe("marketing operator daily claim", () => {
+  it("allows only one of two concurrent claimants to win", async () => {
+    const { claimMarketingOperatorRun } = await import("@/lib/hivemind/marketing-operator-tick");
+    let lastRunAt: string | null = null;
+    const sb: any = {
+      from: () => {
+        let patch: any;
+        let cutoff = "";
+        const q: any = {
+          update(value: any) { patch = value; return q; },
+          eq() { return q; },
+          or(filter: string) { cutoff = filter.split(".lte.")[1] ?? ""; return q; },
+          select() {
+            return new Promise((resolve) => queueMicrotask(() => {
+              if (lastRunAt === null || lastRunAt <= cutoff) {
+                lastRunAt = patch.marketing_operator_last_run_at;
+                resolve({ data: [{ workspace_id: "ws-1" }], error: null });
+              } else {
+                resolve({ data: [], error: null });
+              }
+            }));
+          },
+        };
+        return q;
+      },
+    };
+    const cutoff = new Date(Date.now() - 20 * 60 * 60 * 1000).toISOString();
+    const results = await Promise.all([
+      claimMarketingOperatorRun(sb, "ws-1", cutoff),
+      claimMarketingOperatorRun(sb, "ws-1", cutoff),
+    ]);
+    expect(results.sort()).toEqual([false, true]);
+  });
+});
+
+describe("Google Ads objective linkage", () => {
+  it("refuses to link actions when two active objectives make ownership ambiguous", async () => {
+    const { linkGadsActionsToObjectives } = await import("@/lib/hivemind/marketing-objectives.server");
+    let actionUpdates = 0;
+    const sb: any = {
+      from(table: string) {
+        const q: any = {};
+        for (const method of ["select", "eq"]) q[method] = () => q;
+        q.update = () => { actionUpdates++; return q; };
+        q.then = (resolve: any) => resolve({
+          data: table === "marketing_objectives"
+            ? [{ id: "o1", created_at: "2026-01-01" }, { id: "o2", created_at: "2026-01-02" }]
+            : [],
+          error: null,
+        });
+        return q;
+      },
+    };
+    await expect(linkGadsActionsToObjectives(sb, "ws-1")).resolves.toBe(0);
+    expect(actionUpdates).toBe(0);
   });
 });
 
