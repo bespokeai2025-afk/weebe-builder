@@ -60,42 +60,67 @@ function AuthenticatedLayout() {
 
   useEffect(() => {
     let active = true;
-    (async () => {
-      const { data: sess } = await supabase.auth.getSession();
-      if (!sess.session) {
-        if (active) {
-          setChecked(true);
-          navigate({
-            to: "/login",
-            search: { redirect: window.location.pathname },
-          });
-        }
-        return;
-      }
+    let sessionEstablished = false;
+
+    const redirectToLogin = () => {
+      if (!active) return;
+      lastAuthUserId = null;
+      qc.clear();
+      setAuthed(false);
+      setChecked(true);
+      navigate({
+        to: "/login",
+        search: { redirect: window.location.pathname },
+        replace: true,
+      });
+    };
+
+    const acceptSession = (
+      session: NonNullable<
+        Awaited<ReturnType<typeof supabase.auth.getSession>>["data"]["session"]
+      >,
+    ) => {
+      if (!active) return;
       // Account-isolation boundary: if a different user is now authenticated on
       // this same SPA session, clear cached query data before this layout's
       // children render their queries, so no prior account's data is served.
-      const uid = sess.session.user.id;
+      const uid = session.user.id;
       if (lastAuthUserId !== null && lastAuthUserId !== uid) {
         qc.clear();
       }
       lastAuthUserId = uid;
+      sessionEstablished = true;
       setAuthed(true);
       setChecked(true);
-    })();
+    };
+
+    void supabase.auth
+      .getSession()
+      .then(({ data, error }) => {
+        if (error || !data.session) {
+          redirectToLogin();
+          return;
+        }
+        acceptSession(data.session);
+      })
+      .catch(redirectToLogin);
+
     // If the session dies mid-use (e.g. the refresh token was revoked or
     // already rotated — surfaces as "Invalid Refresh Token: Refresh Token Not
     // Found"), supabase-js emits SIGNED_OUT. Without this listener the user
     // stays on the page while every data request fails; bounce them cleanly
     // to the sign-in page instead.
-    const { data: sub } = supabase.auth.onAuthStateChange((event) => {
-      if (event === "SIGNED_OUT") {
-        lastAuthUserId = null;
-        qc.clear();
-        navigate({
-          to: "/login",
-          search: { redirect: window.location.pathname },
-        });
+    const { data: sub } = supabase.auth.onAuthStateChange((event, session) => {
+      if ((event === "SIGNED_IN" || event === "TOKEN_REFRESHED") && session) {
+        acceptSession(session);
+        return;
+      }
+
+      // Ignore a stale sign-out notification emitted while Supabase is still
+      // restoring local storage. The definitive getSession() result above will
+      // redirect if no usable session exists.
+      if (event === "SIGNED_OUT" && sessionEstablished) {
+        redirectToLogin();
       }
     });
     return () => {
@@ -103,6 +128,19 @@ function AuthenticatedLayout() {
       sub.subscription.unsubscribe();
     };
   }, [navigate, qc]);
+
+  // Do not mount authenticated routes, dashboard queries, or the HiveMind
+  // renderer until the session check has completed successfully.
+  if (!checked || !authed) {
+    return (
+      <main
+        className="flex min-h-screen items-center justify-center bg-background"
+        aria-busy="true"
+      >
+        <span className="text-sm text-muted-foreground">Checking your sign-in…</span>
+      </main>
+    );
+  }
 
   return (
     <SidebarProvider defaultOpen={false}>

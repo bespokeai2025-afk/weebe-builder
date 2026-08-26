@@ -48,9 +48,17 @@ function LoginPage() {
     const data = new FormData(e.currentTarget as HTMLFormElement);
     const email = (data.get("email") as string) ?? "";
     const password = (data.get("password") as string) ?? "";
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    const { data: signInData, error } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+    });
     if (error) {
       toast.error(error.message);
+      setLoading(false);
+      return;
+    }
+    if (!signInData.session) {
+      toast.error("Your account did not return a session. Please verify your email and try again.");
       setLoading(false);
       return;
     }

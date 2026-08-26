@@ -358,13 +358,8 @@ export function AvaSignal({
       return { x, y, z, rBase };
     }
 
-    function drawGradientDot(
-      x: number,
-      y: number,
-      radius: number,
-      color: string,
-      alpha: number,
-    ) {
+    function drawGradientDot(x: number, y: number, radius: number, color: string, alpha: number) {
+      if (![x, y, radius].every(Number.isFinite)) return;
       const gradient = ctx.createRadialGradient(x, y, 0, x, y, Math.max(0.1, radius));
       gradient.addColorStop(0, color);
       gradient.addColorStop(1, color.replace(/\/ [^)]+\)/, "/ 0)"));
