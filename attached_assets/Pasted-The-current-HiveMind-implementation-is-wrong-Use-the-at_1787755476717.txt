@@ -1,0 +1,331 @@
+The current HiveMind implementation is wrong.
+
+Use the attached screenshots as follows:
+
+* **Image A** = current incorrect result (the blurry compact blob)
+* **Image B** = desired Loveable-style result (source of truth)
+
+I want HiveMind rebuilt so it matches **Image B** much more closely.
+
+## First: what is wrong with the current implementation
+
+The current HiveMind (Image A) has these problems:
+
+1. it looks like a **blurry lump**
+2. the dots are **too large**
+3. particle density is **far too high**
+4. the central area is **over-bright and smeared**
+5. the neural / constellation lines are **not visible enough**
+6. the curved fragments / subtle arcs are missing or too weak
+7. the shape is too compressed instead of airy and organic
+8. the motion either is not happening or is too weak to perceive
+9. it does not resemble the Loveable version
+
+## Source of truth
+
+**Image B is the source of truth.**
+
+I want HiveMind to feel like the Loveable / web app version:
+
+* formless
+* airy
+* constellation-like
+* crisp
+* neural
+* subtle
+* animated
+* premium
+
+Do NOT reinterpret it into a different particle effect.
+
+---
+
+# REQUIRED FIXES
+
+## 1. Rebuild the composition to match Image B
+
+The composition must become:
+
+* wider and more open
+* less compact
+* more distributed around a small center
+* softer at the edges through particle sparsity, not blur
+* clearly structured as a living intelligence field
+
+I want a visible:
+
+* **central focal star**
+* **mid-field particle network**
+* **outer sparse dots and curved fragments**
+
+Do NOT create:
+
+* a blob
+* a pill
+* an oval
+* a dense circular cluster
+* a soft cloud
+
+---
+
+## 2. Reduce particle density substantially
+
+The current density is far too high.
+
+Reduce the number of particles significantly so the visual becomes readable.
+
+Target direction:
+
+* around **50–70% fewer visible particles in the dense center area**
+* much more negative space between dots
+* clearer separation between core, mid-field and outer-field
+
+The final look should feel **light and intelligent**, not crowded.
+
+---
+
+## 3. Make particles much smaller
+
+Most particles should be **tiny pinpoints**, not big glowing circles.
+
+Target visual sizing:
+
+* most particles: very small pinpoints
+* some medium accent points
+* only a very small number of larger bright nodes
+
+Approximate direction:
+
+* majority: `0.5–1.2px`
+* accents: `1.2–1.8px`
+* rare bright nodes: max `2px`
+
+Do NOT let the visual be dominated by large fuzzy dots.
+
+---
+
+## 4. Remove the blurry look
+
+The current effect is too soft.
+
+Reduce:
+
+* blur
+* bloom
+* shadow blur
+* glow radius
+* soft halos
+
+Each particle should have:
+
+* a crisp core
+* only a subtle glow
+
+The visual should be sharp enough that I can distinguish individual particles clearly.
+
+If using Canvas:
+
+* render properly for `devicePixelRatio`
+* do not rely on CSS scaling of a low-res canvas
+* keep the result crisp on high-DPI displays
+
+---
+
+## 5. Make the central star small and crisp
+
+The center should be a **small bright focal point**, like Image B.
+
+Not a smeared bright mass.
+
+Requirements:
+
+* compact white/cyan star
+* crisp
+* slightly brighter than surrounding particles
+* subtle pulse only
+* no large orb
+* no giant bloom
+
+---
+
+## 6. Make neural / constellation lines clearly visible
+
+This is critical.
+
+Image B clearly shows:
+
+* thin neural connections
+* delicate constellation links
+* subtle curved fragments/arcs
+
+The WEBEE HiveMind must also show these.
+
+Requirements:
+
+* thin cyan/blue lines
+* visible but elegant
+* opacity based on distance / region
+* strongest around core and mid-field
+* fewer / fainter at the outer edges
+
+Do NOT create a dense spider web.
+Do create a sparse, intelligent network.
+
+The lines should be immediately visible when looking at HiveMind.
+
+---
+
+## 7. Add the curved fragments seen in Image B
+
+Image B includes delicate curved fragments/streaks around the field.
+
+These help define the intelligence shape.
+
+Add:
+
+* sparse curved light fragments
+* subtle arc-like streaks
+* very thin strokes
+* some movement / drift
+* random but elegant distribution
+
+They must remain subtle and airy.
+
+---
+
+## 8. Match the shape logic from Image B
+
+Image B does NOT look like a centered blob.
+
+It reads more like:
+
+* a small central intelligence point
+* surrounded by distributed dots
+* with slightly denser center
+* fading outward into sparse points/fragments
+
+Implement this kind of field structure:
+
+### Core zone
+
+* small bright star
+* slightly denser nearby particles
+
+### Mid-field
+
+* readable neural network
+* clear dots / lines / fragments
+
+### Outer field
+
+* sparse dots
+* isolated fragments
+* negative space
+* no hard boundary
+
+The outer edge should disappear naturally by sparsity, not by blur.
+
+---
+
+## 9. Motion must be visible and correct
+
+The current result does not feel alive enough.
+
+I want visible but subtle movement like the Loveable version.
+
+Required motion:
+
+* particles drift slowly
+* particles have independent movement
+* some particles gently curve through the field
+* constellation links update dynamically
+* particles twinkle subtly
+* curved fragments shift slightly
+* center has a soft pulse
+
+The animation should be noticeable if watched for 2–3 seconds, but still premium and restrained.
+
+Do NOT make it static.
+Do NOT make it chaotic.
+
+---
+
+## 10. Scale the field appropriately
+
+The current rendering feels like a compressed cluster.
+
+I want the final HiveMind to be:
+
+* a bit larger in footprint than the current tiny compact clump
+* but visually lighter and more open
+* not oversized
+* not tiny
+* not compressed
+
+The important rule is:
+**larger field footprint, lower density, smaller particles**
+
+Not:
+**same footprint + more particles**
+and not:
+**large footprint + same dense center**
+
+---
+
+# HARD SCOPE LOCK
+
+Only change HiveMind.
+
+Do NOT modify:
+
+* sidebar
+* header
+* dashboard shell
+* background colours
+* cards
+* layout
+* navigation
+* text
+* functionality
+* WhatsApp changes
+* other components
+
+Only edit the HiveMind component / particle system / animation.
+
+---
+
+# BEFORE COMMITTING, VISUALLY VERIFY
+
+Do not complete the task until all of these are true:
+
+* HiveMind no longer looks like a blurry lump
+* particles are much smaller
+* particle density is reduced
+* the field is more open / airy
+* central star is small and crisp
+* neural lines are clearly visible
+* curved fragments are visible
+* shape resembles the Loveable version
+* movement is visibly active but subtle
+* no unrelated UI changed
+
+If it still looks like Image A, do NOT mark complete.
+
+---
+
+# FINAL REPORT
+
+After implementing, tell me:
+
+1. exact HiveMind files changed
+2. previous particle count vs new particle count
+3. previous particle size range vs new size range
+4. previous blur/glow settings vs new settings
+5. how neural line visibility was increased
+6. how the curved fragments were implemented
+7. how the animation loop was adjusted
+8. how the composition was changed to match Image B
+9. confirmation that only HiveMind was changed
+
+Most importantly:
+**Rebuild HiveMind so it behaves and looks much closer to Image B, not like the current blurry cluster.**
