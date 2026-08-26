@@ -1,5 +1,5 @@
 export const HIVE_MIND_SHELL_GUTTER = 32;
-export const HIVE_MIND_POSITION_VERSION = 2;
+export const HIVE_MIND_POSITION_VERSION = 3;
 const VISIBLE_GUTTER = 16;
 
 export type HiveMindDragOffset = { x: number; y: number };

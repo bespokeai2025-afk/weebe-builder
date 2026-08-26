@@ -493,6 +493,7 @@ type DragOffset = { x: number; y: number };
 const ORB_POSITION_STORAGE_KEY = "hm-orb-position";
 const LEGACY_ORB_POSITION_KEYS = ["hm-orb-offset", "hm-orb-pos"];
 const COLLISION_GUTTER = 18;
+const HIVE_MIND_CORNER_GUTTER = 16;
 
 function viewportOrbSize() {
   if (window.innerWidth < 640) return { width: 126, height: 105 };
@@ -615,7 +616,7 @@ export function HiveMindOrb() {
   const [positionStorageReady, setPositionStorageReady] = useState(false);
 
   // Old versions stored coordinates for a broken fixed/viewport system. Clear
-  // those values once, then restore only v2 shell-overlay offsets.
+  // those values once, then restore only current shell-overlay offsets.
   useEffect(() => {
     try {
       for (const key of LEGACY_ORB_POSITION_KEYS) {
@@ -715,11 +716,16 @@ export function HiveMindOrb() {
     };
   }, [pathname]);
 
-  // HiveMind is intentionally a simple lower-right shell control. Keep its
-  // resting position independent of page rails, full-screen backdrops, and
-  // previously saved drag offsets so it cannot jump to the top of the app.
-  const displayedRight = HIVE_MIND_SHELL_GUTTER;
-  const displayedBottom = HIVE_MIND_SHELL_GUTTER;
+  // Start at the very bottom-right corner, then allow the user to drag the
+  // orb up or left. The calculated max values keep it inside the viewport.
+  const displayedRight = Math.min(
+    Math.max(HIVE_MIND_CORNER_GUTTER - dragOffset.x, HIVE_MIND_CORNER_GUTTER),
+    anchor.maxRight,
+  );
+  const displayedBottom = Math.min(
+    Math.max(HIVE_MIND_CORNER_GUTTER - dragOffset.y, HIVE_MIND_CORNER_GUTTER),
+    anchor.maxBottom,
+  );
   const dragRef = useRef<DragState | null>(null);
   const suppressClickRef = useRef(false);
 
@@ -744,11 +750,11 @@ export function HiveMindOrb() {
     const dy = e.clientY - d.startY;
     if (!d.moved && Math.abs(dx) < 5 && Math.abs(dy) < 5) return;
     d.moved = true;
-    const right = Math.min(Math.max(d.right - dx, anchor.right), d.maxRight);
-    const bottom = Math.min(Math.max(d.bottom - dy, anchor.bottom), d.maxBottom);
+    const right = Math.min(Math.max(d.right - dx, HIVE_MIND_CORNER_GUTTER), d.maxRight);
+    const bottom = Math.min(Math.max(d.bottom - dy, HIVE_MIND_CORNER_GUTTER), d.maxBottom);
     setDragOffset({
-      x: anchor.right - right,
-      y: anchor.bottom - bottom,
+      x: HIVE_MIND_CORNER_GUTTER - right,
+      y: HIVE_MIND_CORNER_GUTTER - bottom,
     });
   }
   function onDragPointerUp() {
@@ -869,11 +875,15 @@ export function HiveMindOrb() {
         {/* The orb button */}
         <button
           onClick={handleOrbClick}
+          onPointerDown={onDragPointerDown}
+          onPointerMove={onDragPointerMove}
+          onPointerUp={onDragPointerUp}
+          onPointerCancel={onDragPointerUp}
           onMouseEnter={() => setHovered(true)}
           onMouseLeave={() => setHovered(false)}
           aria-label={open ? "Collapse HiveMind" : "Open HiveMind Executive Assistant"}
-          title={open ? "Collapse HiveMind" : "Open HiveMind"}
-          className="relative cursor-pointer transition-transform duration-300 active:scale-95 focus:outline-none"
+          title={open ? "Collapse HiveMind" : "Open HiveMind — drag to move"}
+          className="relative cursor-grab active:cursor-grabbing transition-transform duration-300 active:scale-95 focus:outline-none"
           style={{
             background: "none",
             border: "none",
