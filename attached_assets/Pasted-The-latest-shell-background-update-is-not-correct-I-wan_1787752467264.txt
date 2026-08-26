@@ -1,0 +1,129 @@
+The latest shell/background update is not correct.
+
+I want to change direction.
+
+### What was wrong with the latest result
+- The sidebar became too blended/light compared with before
+- I actually preferred the darker sidebar
+- The main dashboard background is now too bright / too blue
+- The contrast between the dark sidebar and the brighter content area feels off
+- The overall result feels less premium than before
+
+### New direction
+Keep the **sidebar dark**, close to how it was before.
+
+Instead of lightening or softening the sidebar too much, I want you to **darken the main dashboard background** so it makes visual sense with the darker sidebar.
+
+### Goal
+Make the dashboard feel more premium, darker, and more cohesive by:
+- keeping the sidebar dark
+- making the main content area deeper and richer
+- keeping the top header aligned with the same darker visual system
+- reducing the bright blue look
+
+### Required changes
+
+#### 1. Restore / preserve the darker sidebar feel
+I liked the darker sidebar from before.
+
+Requirements:
+- keep the sidebar dark navy / near-black navy
+- do NOT make it bright blue
+- do NOT make it obviously lighter to force blending
+- it should remain visually strong and darker than the main content
+
+The sidebar should feel like:
+- deep navy
+- dark premium
+- subtle, not flat black
+- consistent with WEBEE
+
+#### 2. Darken the main dashboard background
+The main content/background now needs to be darker.
+
+Move the page background toward:
+- deep navy
+- midnight blue
+- subtle indigo
+- restrained blue-violet undertone
+
+Do NOT use a bright or overly saturated blue wash.
+
+The content background should sit much closer to:
+- `#071126`
+- `#0A1430`
+- `#141A3A`
+
+Use a subtle dark two-tone gradient, but keep it understated.
+
+#### 3. Keep the header in the same darker family
+The top header should also move into the darker colour system.
+
+Requirements:
+- dark navy / indigo family
+- subtle blending into the page
+- no bright blue strip
+- no obvious separate panel look
+
+#### 4. Keep the darker sidebar as the anchor
+The visual hierarchy should be:
+
+- Sidebar = darkest
+- Main dashboard = slightly lighter, but still dark and rich
+- Header = aligned with the main dashboard / shell
+
+Do NOT try to make the sidebar match by lightening it.
+Match the whole dashboard by darkening the content instead.
+
+#### 5. Reduce the bright blue glow effect
+The current background feels too bright and too “blue”.
+
+Reduce:
+- bright blue gradients
+- overly visible glow
+- high saturation in the main background
+
+Keep:
+- subtle depth
+- subtle indigo tone
+- premium dark atmosphere
+
+#### 6. Preserve everything else
+Do NOT redesign:
+- cards
+- pills
+- voicemail banner
+- live calls
+- HiveMind
+- layout
+- spacing
+- navigation
+- functionality
+
+Only adjust:
+- sidebar background
+- header background
+- main shell background
+- blending / colour values
+
+### Important
+This is a correction of the latest shell update.
+
+The right direction is:
+**dark sidebar stays**
++
+**main background gets darker**
++
+**overall dashboard becomes deeper and more premium**
+
+Not:
+**sidebar gets lighter to match a bright background**
+
+### Deliverable
+Implement the correction, then report:
+1. which files changed
+2. whether the darker sidebar was preserved/restored
+3. previous main background values
+4. new darker main background values
+5. how the header was adjusted
+6. confirmation that cards/layout/functionality were unchanged
