@@ -114,15 +114,15 @@
   --sidebar-border: rgba(10, 15, 28, 0.1);
   --sidebar-ring: #0a0f1c;
 
-  --flow-canvas: #ffffff;
-  --flow-grid: rgba(10, 15, 28, 0.06);
-  --flow-node: #0a0f1c;
-  --flow-edge: #52525b;
-  --flow-minimap-bg: rgba(255, 255, 255, 0.92);
-  --flow-minimap-border: rgba(10, 15, 28, 0.1);
-  --flow-minimap-node-stroke: #0a0f1c;
-  --flow-minimap-viewport: rgba(10, 15, 28, 0.08);
-  --flow-minimap-viewport-stroke: #0a0f1c;
+  --flow-canvas: #070d1b;
+  --flow-grid: rgba(157, 210, 238, 0.08);
+  --flow-node: #f4fbff;
+  --flow-edge: rgba(125, 211, 252, 0.68);
+  --flow-minimap-bg: rgba(6, 14, 29, 0.92);
+  --flow-minimap-border: rgba(210, 235, 255, 0.16);
+  --flow-minimap-node-stroke: rgba(244, 251, 255, 0.8);
+  --flow-minimap-viewport: rgba(125, 211, 252, 0.14);
+  --flow-minimap-viewport-stroke: rgba(186, 230, 253, 0.75);
 
   --gradient-primary: linear-gradient(135deg, #0a0f1c 0%, #52525b 100%);
   --gradient-glow: linear-gradient(135deg, rgba(10, 15, 28, 0.1) 0%, rgba(82, 82, 91, 0.1) 100%);
@@ -192,15 +192,15 @@
   --sidebar-ring: rgba(79, 140, 255, 0.55);
 
   /* Flow canvas */
-  --flow-canvas: #0b0f14;
-  --flow-grid: rgba(255, 255, 255, 0.04);
-  --flow-node: #4f8cff;
-  --flow-edge: #6b7280;
-  --flow-minimap-bg: rgba(17, 24, 39, 0.85);
-  --flow-minimap-border: rgba(255, 255, 255, 0.06);
-  --flow-minimap-node-stroke: #4f8cff;
-  --flow-minimap-viewport: rgba(79, 140, 255, 0.14);
-  --flow-minimap-viewport-stroke: rgba(79, 140, 255, 0.5);
+  --flow-canvas: #070d1b;
+  --flow-grid: rgba(157, 210, 238, 0.08);
+  --flow-node: #f4fbff;
+  --flow-edge: rgba(125, 211, 252, 0.68);
+  --flow-minimap-bg: rgba(6, 14, 29, 0.92);
+  --flow-minimap-border: rgba(210, 235, 255, 0.16);
+  --flow-minimap-node-stroke: rgba(244, 251, 255, 0.8);
+  --flow-minimap-viewport: rgba(125, 211, 252, 0.14);
+  --flow-minimap-viewport-stroke: rgba(186, 230, 253, 0.75);
 
   /* Gradients & glows — subtle, never neon */
   --gradient-primary: linear-gradient(135deg, #4f8cff 0%, #3b6fe0 100%);
@@ -771,6 +771,128 @@
 @media (prefers-reduced-motion: reduce) {
   .bg-mesh::before {
     animation: none;
+  }
+}
+
+/* ── Conversation Flow visual system ─────────────────────────────────────── */
+.webee-flow-node {
+  background: #0a1630;
+  border-color: rgba(210, 235, 255, 0.25);
+  box-shadow: 0 8px 20px -16px rgba(0, 0, 0, 0.85);
+}
+
+.webee-flow-node:hover {
+  border-color: rgba(210, 235, 255, 0.42);
+  box-shadow: 0 10px 24px -16px rgba(0, 0, 0, 0.9);
+}
+
+.webee-flow-node[data-flow-state="connected"] {
+  border-color: rgba(125, 211, 252, 0.72);
+  box-shadow:
+    0 0 0 1px rgba(103, 232, 249, 0.25),
+    0 0 10px rgba(34, 211, 238, 0.16);
+}
+
+.webee-flow-node[data-flow-state="active"] {
+  border-color: rgba(165, 243, 252, 0.82);
+  box-shadow:
+    0 0 0 1px rgba(165, 243, 252, 0.28),
+    0 0 12px rgba(34, 211, 238, 0.2);
+}
+
+.webee-flow-node[data-flow-state="selected"] {
+  border-color: #f4fbff;
+  box-shadow:
+    0 0 0 1px rgba(244, 251, 255, 0.9),
+    0 0 0 2px rgba(125, 211, 252, 0.46),
+    0 0 16px rgba(103, 232, 249, 0.28),
+    inset 0 1px rgba(255, 255, 255, 0.24);
+}
+
+.webee-flow-node__header {
+  background: linear-gradient(180deg, #f4fbff 0%, #e7f3fb 100%);
+  border-bottom-color: rgba(207, 227, 242, 0.95);
+  box-shadow: inset 0 1px rgba(255, 255, 255, 0.9);
+}
+
+.webee-flow-node__section {
+  background: rgba(5, 18, 39, 0.72);
+  border-color: rgba(183, 224, 255, 0.16);
+}
+
+.webee-flow-node__item {
+  background: rgba(5, 18, 39, 0.55);
+  border-color: rgba(183, 224, 255, 0.14);
+}
+
+.webee-flow-node__item:hover {
+  border-color: rgba(125, 211, 252, 0.48);
+  background: rgba(10, 32, 58, 0.78);
+}
+
+.react-flow .webee-flow-handle {
+  border: 1px solid rgba(210, 235, 255, 0.7);
+  background: #f4fbff;
+  box-shadow: 0 0 0 1px rgba(7, 13, 27, 0.72);
+  transition:
+    background-color 160ms ease,
+    border-color 160ms ease,
+    box-shadow 160ms ease;
+}
+
+.react-flow .webee-flow-handle[data-flow-state="connected"] {
+  border-color: #a5f3fc;
+  background: #ecfeff;
+  box-shadow:
+    0 0 0 1px rgba(7, 13, 27, 0.72),
+    0 0 5px rgba(103, 232, 249, 0.58);
+}
+
+.react-flow .webee-flow-handle[data-flow-state="active"] {
+  border-color: #cffafe;
+  background: #ffffff;
+  box-shadow:
+    0 0 0 1px rgba(7, 13, 27, 0.72),
+    0 0 7px rgba(103, 232, 249, 0.72);
+}
+
+.react-flow .webee-flow-handle[data-flow-state="selected"] {
+  border-color: #ffffff;
+  background: #ffffff;
+  box-shadow:
+    0 0 0 1px rgba(7, 13, 27, 0.72),
+    0 0 0 2px rgba(125, 211, 252, 0.44),
+    0 0 7px rgba(103, 232, 249, 0.78);
+}
+
+.react-flow .react-flow__edge-path {
+  vector-effect: non-scaling-stroke;
+  stroke: var(--flow-edge);
+  stroke-width: 1px;
+  filter: drop-shadow(0 0 3px rgba(110, 231, 249, 0.22));
+  shape-rendering: geometricPrecision;
+}
+
+.react-flow .react-flow__edge:hover .react-flow__edge-path {
+  stroke: #a5f3fc;
+  filter: drop-shadow(0 0 3px rgba(165, 243, 252, 0.32));
+}
+
+.react-flow .react-flow__edge.selected .react-flow__edge-path {
+  stroke: #f4fbff;
+  stroke-width: 1.2px;
+  filter:
+    drop-shadow(0 0 2px rgba(244, 251, 255, 0.9))
+    drop-shadow(0 0 5px rgba(103, 232, 249, 0.42));
+}
+
+[data-flow-state="selected"] .webee-flow-handle {
+  opacity: 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .react-flow .webee-flow-handle {
+    transition: none;
   }
 }
 

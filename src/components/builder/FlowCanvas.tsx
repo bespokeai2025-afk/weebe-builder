@@ -35,15 +35,15 @@ const KIND_COLOR: Record<string, string> = {
   code: "var(--flow-node)",
   ending: "var(--flow-node)",
   note: "var(--flow-node)",
-  wa_start:        "var(--flow-node)",
-  wa_message:      "var(--flow-node)",
-  wa_delay:        "var(--flow-node)",
-  wa_media:        "var(--flow-node)",
-  wa_booking:      "var(--flow-node)",
-  wa_wait_reply:   "var(--flow-node)",
-  wa_extract_var:  "var(--flow-node)",
-  wa_tag:          "var(--flow-node)",
-  wa_template:     "var(--flow-node)",
+  wa_start: "var(--flow-node)",
+  wa_message: "var(--flow-node)",
+  wa_delay: "var(--flow-node)",
+  wa_media: "var(--flow-node)",
+  wa_booking: "var(--flow-node)",
+  wa_wait_reply: "var(--flow-node)",
+  wa_extract_var: "var(--flow-node)",
+  wa_tag: "var(--flow-node)",
+  wa_template: "var(--flow-node)",
 };
 
 const MINI_MAP_WIDTH = 132;
@@ -284,12 +284,12 @@ function CanvasInner({
       maxZoom={2}
       proOptions={{ hideAttribution: true }}
       defaultEdgeOptions={{
-        type: "smoothstep",
+        type: "bezier",
         animated: false,
         style: {
           stroke: "var(--flow-edge)",
-          strokeWidth: 2,
-          filter: "drop-shadow(0 0 6px rgba(110, 231, 249, 0.5))",
+          strokeWidth: 1,
+          filter: "drop-shadow(0 0 3px rgba(110, 231, 249, 0.22))",
         },
       }}
     >
