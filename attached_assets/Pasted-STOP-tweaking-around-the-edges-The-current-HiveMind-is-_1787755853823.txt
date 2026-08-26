@@ -1,0 +1,258 @@
+STOP tweaking around the edges.
+
+The current HiveMind is still wrong.
+
+## THE MAIN FAILURE
+
+You are still rendering HiveMind as a **blurred glowing particle blob**.
+
+That is NOT what I want.
+
+I want the HiveMind particles to look like the **[www.webespokeai.com](http://www.webespokeai.com) / Loveable version**:
+
+* tiny
+* crisp
+* high-definition
+* mostly pinpoint dots
+* very low blur
+* very low glow
+* delicate neural lines
+* airy spacing
+* not a fuzzy clump
+
+## REMOVE THIS IMMEDIATELY
+
+Get rid of the large blurry glowing blobs.
+
+I do NOT want:
+
+* blurry bokeh circles
+* oversized glowing dots
+* soft cloud-like particles
+* fuzzy halos dominating the dot
+* a smeared bright center
+* compressed particle fog
+
+If the current implementation uses any large-radius blurred circles as particles, remove that approach.
+
+## WHAT I ACTUALLY WANT
+
+HiveMind should be made of:
+
+### Particles
+
+* mostly tiny HD dots
+* crisp visible centers
+* subtle glow only
+* small, elegant, premium
+
+### Neural structure
+
+* thin visible constellation lines
+* small readable central star
+* sparse moving fragments/arcs
+* organic, formless intelligence field
+
+### Motion
+
+* subtle drifting
+* dynamic connections
+* visible movement
+* no static blob
+
+---
+
+# HARD TECHNICAL RULES
+
+## 1. PARTICLE SIZE — STRICT LIMITS
+
+Use very small particles only.
+
+Target particle radius/diameter direction:
+
+* majority of dots: **0.5px–1.1px**
+* medium accent dots: **1.1px–1.6px**
+* rare brightest nodes: **max 1.8px–2px**
+
+Anything larger than that should be removed unless there is an extremely rare accent node.
+
+If the current implementation has particles that look like large circles/blobs, they are too big.
+
+## 2. GLOW / BLUR — REDUCE AGGRESSIVELY
+
+Reduce blur/glow drastically.
+
+Target:
+
+* reduce current blur/glow by **at least 80–90%**
+
+Each dot should have:
+
+* a crisp core
+* only a tiny subtle halo
+
+The glow should NEVER dominate the particle.
+
+If using Canvas:
+
+* sharply reduce `shadowBlur`
+* sharply reduce shadow opacity
+* do not stack multiple glow layers that create fuzzy blobs
+
+I should see **dots**, not **glow balls**.
+
+## 3. REMOVE BLOOMY CORE CLUMP
+
+The center is currently becoming a smeared bright lump.
+
+Fix it so the center becomes:
+
+* a small crisp cyan-white focal star
+* a few nearby tiny dots
+* thin visible neural lines
+* no blown-out white fuzzy cluster
+
+Do NOT let the middle become a glowing mass.
+
+## 4. REDUCE PARTICLE DENSITY IN THE CORE
+
+The dense center is helping create the blob look.
+
+Reduce core particle density substantially.
+
+Direction:
+
+* reduce visible core density by roughly **50–65%**
+* increase spacing between dots
+* preserve a central entity shape without crowding
+
+The result should feel airy and structured.
+
+## 5. HIGH-DPI / HD RENDERING
+
+I want **small HD dots**.
+
+If this is Canvas, you must ensure:
+
+* proper `devicePixelRatio` handling
+* internal canvas resolution scaled up correctly
+* drawing coordinates scaled accordingly
+* no CSS stretching of a low-resolution canvas
+
+This is essential.
+
+If the canvas is low-res and then scaled visually, the dots will keep looking fuzzy.
+
+Make it render crisp on high-DPI displays.
+
+## 6. LINES MUST BE VISIBLE
+
+Right now the blobs overpower the neural structure.
+
+Once the large blurry dots are removed, make the neural lines visible.
+
+Use:
+
+* fine cyan/blue lines
+* visually around `0.5–0.8px`
+* elegant opacity
+* visible around the center and mid-field
+* sparse, not dense
+
+I need to be able to see the constellation/neural logic clearly.
+
+## 7. KEEP THE FIELD AIRY
+
+The Loveable version is not a dense glowing lump.
+
+It has:
+
+* lots of negative space
+* small dots
+* subtle fragments
+* readable structure
+* distributed points
+
+Rebalance the field so it looks like an **intelligence constellation**, not a fog cloud.
+
+## 8. ANIMATION STILL REQUIRED
+
+Do not make it static.
+
+Keep:
+
+* subtle particle drift
+* changing connections
+* small twinkle
+* tiny fragment movement
+
+But the animation must happen on crisp dots, not blurry blobs.
+
+---
+
+# VISUAL SOURCE OF TRUTH
+
+The WebespokeAI / Loveable version is the source of truth.
+
+Match that style:
+
+* tiny HD dots
+* small bright center
+* crisp, fine particles
+* sparse and elegant
+* visible neural lines
+* no big blurred circles
+
+---
+
+# DO NOT TOUCH ANYTHING ELSE
+
+Only change HiveMind.
+
+Do NOT modify:
+
+* sidebar
+* header
+* background
+* cards
+* layout
+* spacing
+* text
+* navigation
+* functionality
+
+---
+
+# DO NOT COMPLETE UNTIL THIS IS TRUE
+
+Before marking complete, visually confirm:
+
+* there are NO big blurry blob particles
+* there are NO large fuzzy circles dominating the image
+* particles are tiny and crisp
+* center is sharp, not smeared
+* neural lines are clearly visible
+* field is airy, not crowded
+* movement is visible
+* HiveMind looks much closer to the Loveable version
+
+If there are still any big blurry fucking blobs, the task is NOT complete.
+
+---
+
+# FINAL REPORT
+
+After implementing, tell me:
+
+1. exact HiveMind files changed
+2. previous particle size range vs new particle size range
+3. previous glow/blur values vs new glow/blur values
+4. whether `devicePixelRatio` / HD canvas rendering was fixed
+5. how core density was reduced
+6. how line visibility was improved
+7. confirmation that the big blurry blobs are gone
+
+This is not a soft refinement.
+
+This is a direct correction:
+**remove the blurry blob particles and replace them with tiny HD Loveable-style dots immediately.**
