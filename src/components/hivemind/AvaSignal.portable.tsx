@@ -87,7 +87,7 @@ const ARM_WIDTH = [0.34, 0.5, 0.62];
 const LAYER_SPEED = [1.7, 1.1, 0.6];
 const LAYER_ALPHA = [1, 0.94, 0.8];
 const VISUAL_SCALE = 0.58;
-const PARTICLE_SCALE = 0.64;
+const PARTICLE_SCALE = 0.54;
 
 const CURVED_FRAGMENTS: CurvedFragment[] = [
   { distance: 0.56, angle: -0.82, length: 0.25, bow: 0.08, speed: 0.34, phase: 0.2, hue: 191, alpha: 0.5 },
@@ -177,9 +177,9 @@ function makePart(reduced: boolean, mobile: boolean): Particle {
     light: kind === 3 ? rand(68, 80) : color.lightness,
     alpha: kind === 0 ? rand(0.55, 0.92) : rand(0.6, 0.95),
     tw: rand(0, TAU),
-    tws: reduced ? rand(0.06, 0.16) : rand(0.2, 0.8),
+    tws: reduced ? rand(0.06, 0.16) : rand(0.42, 1.35),
     tw2: rand(0, TAU),
-    tws2: reduced ? rand(0.04, 0.1) : rand(0.12, 0.42),
+    tws2: reduced ? rand(0.04, 0.1) : rand(0.22, 0.68),
     react: Math.pow(Math.random(), 1.5),
     drift: rand(0, TAU),
     driftS: reduced ? rand(0.03, 0.08) : rand(0.1, 0.3),
@@ -230,9 +230,9 @@ function makeMicro(reduced: boolean, mobile: boolean): Particle {
     light: focal ? rand(84, 96) : anchor ? rand(72, 86) : tier > 0.8 ? rand(62, 78) : rand(56, 70),
     alpha: focal ? rand(0.94, 1) : anchor ? rand(0.88, 1) : tier > 0.8 ? rand(0.7, 0.9) : tier > 0.46 ? rand(0.62, 0.82) : rand(0.5, 0.78),
     tw: rand(0, TAU),
-    tws: reduced ? rand(0.08, 0.2) : rand(0.35, 1.1),
+    tws: reduced ? rand(0.08, 0.2) : rand(0.7, 1.9),
     tw2: rand(0, TAU),
-    tws2: reduced ? rand(0.04, 0.1) : rand(0.12, 0.42),
+    tws2: reduced ? rand(0.04, 0.1) : rand(0.24, 0.76),
     react: Math.pow(Math.random(), 1.6),
     drift: rand(0, TAU),
     driftS: reduced ? rand(0.03, 0.08) : rand(0.1, 0.3),
@@ -470,7 +470,7 @@ export function AvaSignal({
           );
           const rad = clamp(
             0.4,
-            1.18,
+             0.96,
             particle.size * (0.5 + (depth + 1) * 0.27) * (1 + nearCore * voice * 0.1) * (mobile ? 1.12 : 1),
           );
           const hue = particle.hue + Math.sin(now * 0.00016 + particle.a) * 1.2;

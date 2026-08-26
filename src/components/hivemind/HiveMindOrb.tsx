@@ -173,7 +173,7 @@ function MiniChat({ onClose, onCollapse, onStateChange }: {
 
   useEffect(() => {
     const name = userName.current;
-    setMessages([{ id: "greet", role: "hm", content: name ? `Online, ${name}. How can I assist?` : "HiveMind online. How can I assist?" }]);
+    setMessages([{ id: "greet", role: "hm", content: name ? `Online, ${name}. How can I assist?` : "Assistant online. How can I assist?" }]);
   }, []);
 
   function stopAudio() { audioRef.current?.pause(); audioRef.current = null; setSpeaking(false); }
@@ -320,7 +320,7 @@ function MiniChat({ onClose, onCollapse, onStateChange }: {
         </div>
 
         <div className="flex-1 min-w-0">
-          <span className="text-xs font-semibold text-sky-200 tracking-wide">HiveMind</span>
+          <span className="text-xs font-semibold text-sky-200 tracking-wide">Assistant</span>
           {(thinking || recording || speaking) && (
             <span className="ml-2 text-[9px] text-sky-400/70 uppercase tracking-widest">
               {thinking ? "thinking" : recording ? "listening" : "speaking"}
@@ -330,7 +330,7 @@ function MiniChat({ onClose, onCollapse, onStateChange }: {
 
         {thinking && <Loader2 className="h-3 w-3 text-sky-400 animate-spin" />}
 
-        <button onClick={onCollapse} aria-label="Collapse HiveMind"
+        <button onClick={onCollapse} aria-label="Collapse assistant"
           title="Collapse"
           className="text-sky-400/30 hover:text-sky-400/70 transition-colors ml-1">
           <ChevronDown className="h-3.5 w-3.5" />
@@ -443,7 +443,7 @@ function MiniChat({ onClose, onCollapse, onStateChange }: {
               value={input}
               onChange={e => setInput(e.target.value)}
               onKeyDown={e => e.key === "Enter" && !e.shiftKey && (e.preventDefault(), send(input))}
-              placeholder={recording ? "Listening…" : "Ask HiveMind…"}
+              placeholder={recording ? "Listening…" : "Ask assistant…"}
               className="flex-1 bg-transparent text-xs placeholder:text-sky-400/25 focus:outline-none min-w-0 text-sky-100"
             />
 
@@ -493,7 +493,7 @@ type DragOffset = { x: number; y: number };
 const ORB_POSITION_STORAGE_KEY = "hm-orb-position";
 const LEGACY_ORB_POSITION_KEYS = ["hm-orb-offset", "hm-orb-pos"];
 const COLLISION_GUTTER = 18;
-const HIVE_MIND_CORNER_GUTTER = 4;
+const HIVE_MIND_CORNER_GUTTER = 0;
 
 function viewportOrbSize() {
   if (window.innerWidth < 640) return { width: 126, height: 105 };
@@ -815,7 +815,7 @@ export function HiveMindOrb() {
       )}
 
       <div className="relative flex flex-col items-end">
-        {/* Full HiveMind link pill (when open) */}
+        {/* Full assistant link pill (when open) */}
         {open && (
           <a
             href="/hivemind/chat"
@@ -826,7 +826,7 @@ export function HiveMindOrb() {
               backdropFilter: "blur(16px)",
             }}
           >
-            Full HiveMind <ExternalLink className="h-2.5 w-2.5" />
+            Open assistant <ExternalLink className="h-2.5 w-2.5" />
           </a>
         )}
 
@@ -842,7 +842,7 @@ export function HiveMindOrb() {
               boxShadow: "0 8px 24px rgba(0,0,0,0.5)",
             }}
           >
-            <span className="opacity-60 text-[9px] uppercase tracking-widest mr-1.5">DoubleClick</span>Full HiveMind
+            <span className="opacity-60 text-[9px] uppercase tracking-widest mr-1.5">DoubleClick</span>Open assistant
             <div
               className="absolute -bottom-1 right-5 w-2 h-2 rotate-45"
               style={{ background: "rgba(2,12,27,0.95)", borderRight: "1px solid rgba(6,182,212,0.2)", borderBottom: "1px solid rgba(6,182,212,0.2)" }}
@@ -881,8 +881,8 @@ export function HiveMindOrb() {
           onPointerCancel={onDragPointerUp}
           onMouseEnter={() => setHovered(true)}
           onMouseLeave={() => setHovered(false)}
-          aria-label={open ? "Collapse HiveMind" : "Open HiveMind Executive Assistant"}
-          title={open ? "Collapse HiveMind" : "Open HiveMind — drag to move"}
+          aria-label={open ? "Collapse assistant" : "Open executive assistant"}
+          title={open ? "Collapse assistant" : "Open assistant — drag to move"}
           className="relative cursor-grab active:cursor-grabbing transition-transform duration-300 active:scale-95 focus:outline-none"
           style={{
             background: "none",
@@ -899,13 +899,6 @@ export function HiveMindOrb() {
           />
         </button>
 
-        {/* "Executive Assistant" identity line */}
-        <div
-          className="mt-0.5 text-center text-[8px] font-semibold tracking-[0.18em] uppercase pointer-events-none"
-          style={{ color: "rgba(6,182,212,0.4)", letterSpacing: "0.18em" }}
-        >
-          HiveMind
-        </div>
       </div>
     </div>
   );
