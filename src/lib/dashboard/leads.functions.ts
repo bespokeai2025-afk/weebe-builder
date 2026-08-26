@@ -376,6 +376,7 @@ export const listLeads = createServerFn({ method: "POST" })
   .validator((input) =>
     z
       .object({
+        id: z.string().uuid().optional(),
         status: z.string().optional(),
         statusCategory: z
           .enum(["all", "tried_to_contact", "disqualified", "rebooked_consultation"])
@@ -413,6 +414,7 @@ export const listLeads = createServerFn({ method: "POST" })
         .order("updated_at", { ascending: false })
         .range(offset, offset + batchSize - 1);
       if (assignedOnly) q = q.eq("assigned_to", userId);
+      if (data.id) q = q.eq("id", data.id);
       if (data.qualifiedOnly) q = q.in("status", ["interested", "qualified"]);
       if (data.status && data.status !== "all") q = q.eq("status", data.status);
       if (data.statusCategory && data.statusCategory !== "all") {

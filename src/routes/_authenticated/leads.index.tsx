@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
+import { z } from "zod";
 import {
   Users,
   Phone,
@@ -101,6 +102,10 @@ import { useWorkspaceAgentOptions, rowMatchesAgent, agentTypeLabel } from "@/com
 import { wbahDateTimeOptions } from "@/lib/dashboard/wbah-timezone";
 
 export const Route = createFileRoute("/_authenticated/leads/")({
+  validateSearch: (search: Record<string, unknown>) => {
+    const parsed = z.object({ id: z.string().uuid().optional() }).safeParse(search);
+    return { id: parsed.success ? parsed.data.id : undefined };
+  },
   head: () => ({ meta: [{ title: "Leads — Webee" }] }),
   component: LeadsPage,
 });
@@ -381,6 +386,8 @@ function filterToDates(filter: string): { dateFrom?: string; dateTo?: string } {
 }
 
 function LeadsPage() {
+  const { id: requestedLeadId } = Route.useSearch();
+  const navigate = Route.useNavigate();
   const qc = useQueryClient();
   const listLeadsFn = useServerFn(listLeads);
   const listWbahPositiveNeutralLeadsFn = useServerFn(listWbahPositiveNeutralLeads);
@@ -555,6 +562,14 @@ function LeadsPage() {
     throwOnError: false,
   });
 
+  const requestedLeadQ = useQuery({
+    queryKey: ["lead-by-id", requestedLeadId],
+    queryFn: () => listLeadsFn({ data: { id: requestedLeadId!, limit: 1 } }),
+    enabled: wsResolved && !isWbah && Boolean(requestedLeadId),
+    staleTime: 5 * 60_000,
+    throwOnError: false,
+  });
+
   const statsQ = useQuery({
     queryKey:             ["campaign-stats"],
     queryFn:              () => getCampaignStatsFn({ data: {} }),
@@ -572,6 +587,12 @@ function LeadsPage() {
   });
 
   const leads = (leadsQ.data ?? []) as any[];
+  const requestedLead = ((requestedLeadQ.data ?? []) as any[])[0] ?? null;
+
+  useEffect(() => {
+    if (!requestedLeadId || !requestedLead || panel) return;
+    openLeadPanel(requestedLead);
+  }, [panel, requestedLead, requestedLeadId]);
 
   const wbahAgentNamesFromData = useMemo(
     () => leads.map((l: any) => l.meta?.agent_name as string | undefined),
@@ -1541,7 +1562,13 @@ function LeadsPage() {
       {panel && (
         <NotesBookingSheet
           open={!!panel}
-          onOpenChange={(o) => { if (!o) setPanel(null); }}
+          onOpenChange={(o) => {
+            if (o) return;
+            setPanel(null);
+            if (requestedLeadId) {
+              navigate({ to: "/leads", search: { id: undefined }, replace: true });
+            }
+          }}
           entityType={panel.entityType}
           entityId={panel.entityId}
           entityName={panel.entityName}

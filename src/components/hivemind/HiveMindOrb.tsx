@@ -716,14 +716,12 @@ export function HiveMindOrb() {
     };
   }, [pathname]);
 
-  // Start at the very bottom-right corner, then allow the user to drag the
-  // orb up or left. The calculated max values keep it inside the viewport.
   const displayedRight = Math.min(
-    Math.max(HIVE_MIND_CORNER_GUTTER - dragOffset.x, HIVE_MIND_CORNER_GUTTER),
+    Math.max(anchor.right - dragOffset.x, anchor.right),
     anchor.maxRight,
   );
   const displayedBottom = Math.min(
-    Math.max(HIVE_MIND_CORNER_GUTTER - dragOffset.y, HIVE_MIND_CORNER_GUTTER),
+    Math.max(anchor.bottom - dragOffset.y, anchor.bottom),
     anchor.maxBottom,
   );
   const dragRef = useRef<DragState | null>(null);
@@ -750,11 +748,11 @@ export function HiveMindOrb() {
     const dy = e.clientY - d.startY;
     if (!d.moved && Math.abs(dx) < 5 && Math.abs(dy) < 5) return;
     d.moved = true;
-    const right = Math.min(Math.max(d.right - dx, HIVE_MIND_CORNER_GUTTER), d.maxRight);
-    const bottom = Math.min(Math.max(d.bottom - dy, HIVE_MIND_CORNER_GUTTER), d.maxBottom);
+    const right = Math.min(Math.max(d.right - dx, anchor.right), d.maxRight);
+    const bottom = Math.min(Math.max(d.bottom - dy, anchor.bottom), d.maxBottom);
     setDragOffset({
-      x: HIVE_MIND_CORNER_GUTTER - right,
-      y: HIVE_MIND_CORNER_GUTTER - bottom,
+      x: anchor.right - right,
+      y: anchor.bottom - bottom,
     });
   }
   function onDragPointerUp() {

@@ -196,6 +196,85 @@ async function groupThreadsFromMessages(
     .filter((t): t is NonNullable<typeof t> => t != null);
 }
 
+/**
+ * Adds canonical CRM lead IDs to inbox threads that predate message-level lead_id backfills.
+ * Both conversation-state and message-only inbox paths use this lookup.
+ */
+type LeadLookupResult = {
+  data?: Array<{
+    id?: unknown;
+    phone?: unknown;
+    buzzchat_conversation_id?: unknown;
+  }>;
+};
+
+type LeadLookupClient = {
+  from: (table: string) => {
+    select: (columns: string) => {
+      eq: (column: string, value: string) => {
+        in: (column: string, values: string[]) => Promise<LeadLookupResult>;
+      };
+    };
+  };
+};
+
+export async function enrichInboxThreadsWithLeadIds(
+  sb: LeadLookupClient & Parameters<typeof findLeadByPhone>[0],
+  workspaceId: string,
+  threads: Array<{ phone: string; leadId?: string | null }>,
+  conversationIdByPhone = new Map<string, string>(),
+): Promise<void> {
+  const unlinkedThreads = threads.filter((thread) => !thread.leadId);
+  if (unlinkedThreads.length === 0) return;
+
+  try {
+    const conversationIds = [
+      ...new Set(
+        unlinkedThreads
+          .map((thread) => conversationIdByPhone.get(normalizeWhatsAppPhone(thread.phone)))
+          .filter((id): id is string => Boolean(id)),
+      ),
+    ];
+    const byConversationResult = await (
+      conversationIds.length > 0
+        ? sb
+            .from("leads")
+            .select("id, buzzchat_conversation_id")
+            .eq("workspace_id", workspaceId)
+            .in("buzzchat_conversation_id", conversationIds)
+        : Promise.resolve({ data: [] })
+    );
+
+    const leadByConversationId = new Map<string, string>();
+    for (const lead of byConversationResult.data ?? []) {
+      if (lead.buzzchat_conversation_id && lead.id) {
+        leadByConversationId.set(String(lead.buzzchat_conversation_id), String(lead.id));
+      }
+    }
+
+    const phoneLookups = await Promise.all(
+      unlinkedThreads.map(async (thread) => ({
+        thread,
+        lead:
+          leadByConversationId.get(
+            conversationIdByPhone.get(normalizeWhatsAppPhone(thread.phone)) ?? "",
+          )
+            ? null
+            : await findLeadByPhone(sb, workspaceId, thread.phone),
+      })),
+    );
+    for (const { thread, lead } of phoneLookups) {
+      const phone = normalizeWhatsAppPhone(thread.phone);
+      thread.leadId =
+        leadByConversationId.get(conversationIdByPhone.get(phone) ?? "") ??
+        (lead?.id ? String(lead.id) : null) ??
+        null;
+    }
+  } catch {
+    // Lead linking is additive; an unavailable lookup must not take down the inbox.
+  }
+}
+
 export const listWhatsappThreads = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .validator((input) => inboxFiltersSchema.parse(input ?? {}))
@@ -277,9 +356,23 @@ export const listWhatsappThreads = createServerFn({ method: "GET" })
         .limit(1000);
       if (error) throw new Error(error.message);
 
-      return sortWhatsappInboxThreads(
-        await groupThreadsFromMessages(workspaceId, (allRows ?? []) as Array<Record<string, unknown>>),
+      const messageRows = (allRows ?? []) as Array<Record<string, unknown>>;
+      const fallbackThreads = await groupThreadsFromMessages(workspaceId, messageRows);
+      const conversationIdByPhone = new Map<string, string>();
+      for (const row of messageRows) {
+        if (!row.contact_phone || !row.conversation_id) continue;
+        conversationIdByPhone.set(
+          normalizeWhatsAppPhone(String(row.contact_phone)),
+          String(row.conversation_id),
+        );
+      }
+      await enrichInboxThreadsWithLeadIds(
+        sb,
+        workspaceId,
+        fallbackThreads,
+        conversationIdByPhone,
       );
+      return sortWhatsappInboxThreads(fallbackThreads);
     }
 
     const phones = conversations.map((c) => c.contact_phone);
@@ -313,6 +406,7 @@ export const listWhatsappThreads = createServerFn({ method: "GET" })
         }),
         name: thread?.name ?? conv.contact_name,
         conversationId: conv.id,
+        leadId: thread?.leadId ?? null,
         status: conv.status,
         assigneeId: conv.assignee_id,
         assignedTeamId: conv.assigned_team_id,
@@ -328,6 +422,20 @@ export const listWhatsappThreads = createServerFn({ method: "GET" })
         lastMessageOrigin: conv.last_message_origin,
       };
     });
+
+    await enrichInboxThreadsWithLeadIds(
+      sb,
+      workspaceId,
+      merged,
+      new Map(
+        conversations
+          .filter((conversation) => Boolean(conversation.wati_conversation_id))
+          .map((conversation) => [
+            normalizeWhatsAppPhone(conversation.contact_phone),
+            conversation.wati_conversation_id!,
+          ]),
+      ),
+    );
 
     // Session expiry is a function of time, so it is resolved here rather than filtered in SQL
     // against a stored status that may be one poll behind.

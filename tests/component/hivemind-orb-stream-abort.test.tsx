@@ -129,14 +129,14 @@ async function renderOrbChat() {
     render(<HiveMindOrb />);
   });
   // Single click opens the mini chat after a ~220ms single/double-click debounce.
-  fireEvent.click(screen.getByLabelText("Open HiveMind Executive Assistant (drag to move)"));
-  await screen.findByPlaceholderText("Ask HiveMind…", {}, { timeout: 5_000 });
+  fireEvent.click(screen.getByRole("button", { name: /open executive assistant/i }));
+  await screen.findByPlaceholderText("Ask assistant…", {}, { timeout: 5_000 });
   // Greeting confirms the panel is fully mounted.
   await screen.findByText(/online/i);
 }
 
 async function sendQuestion(text: string) {
-  const box = screen.getByPlaceholderText("Ask HiveMind…");
+  const box = screen.getByPlaceholderText("Ask assistant…");
   fireEvent.change(box, { target: { value: text } });
   fireEvent.keyDown(box, { key: "Enter" });
   // The Stop control replaces Send while streaming.

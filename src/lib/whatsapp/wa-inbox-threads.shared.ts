@@ -18,6 +18,8 @@ export type WhatsappInboxThread = {
 
   /** Conversation state — absent only when derived purely from messages. */
   conversationId?: string;
+  /** Canonical CRM lead linked to this WhatsApp thread, when one exists. */
+  leadId?: string | null;
   status?: WhatsappChatStatus | string;
   assigneeId?: string | null;
   assignedTeamId?: string | null;
@@ -87,6 +89,7 @@ export function buildWhatsappThreadFromMessages(
     latest.contact_name ??
     null;
   const needsReply = threadNeedsReply({ lastDirection: latest.direction });
+  const linkedLeadId = sorted.find((m) => m.lead_id)?.lead_id;
   return {
     phone,
     name,
@@ -95,6 +98,7 @@ export function buildWhatsappThreadFromMessages(
     lastDirection: latest.direction,
     needsReply,
     unread: needsReply ? 1 : 0,
+    leadId: linkedLeadId ? String(linkedLeadId) : null,
     messages: sorted,
   };
 }
