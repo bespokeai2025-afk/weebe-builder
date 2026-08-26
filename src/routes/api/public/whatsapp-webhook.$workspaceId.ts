@@ -141,19 +141,22 @@ export const Route = createFileRoute("/api/public/whatsapp-webhook/$workspaceId"
                   console.warn("[whatsapp-webhook] Meta lead-sync failed (non-fatal):", (e as Error).message ?? e);
                 }
 
-                const { data: inserted } = await supabaseAdmin.from("whatsapp_messages").upsert(
-                  {
-                    workspace_id:  workspaceId,
-                    lead_id:       leadId,
-                    external_id:   msgId,
-                    contact_phone: from,
-                    contact_name:  profileName,
-                    direction:     "inbound",
-                    body:          msgBody,
-                    status:        "sent",
-                  } as never,
-                  { onConflict: "workspace_id,external_id", ignoreDuplicates: true },
-                ) as any;
+                const { data: inserted } = await supabaseAdmin
+                  .from("whatsapp_messages")
+                  .upsert(
+                    {
+                      workspace_id:  workspaceId,
+                      lead_id:       leadId,
+                      external_id:   msgId,
+                      contact_phone: from,
+                      contact_name:  profileName,
+                      direction:     "inbound",
+                      body:          msgBody,
+                      status:        "sent",
+                    } as never,
+                    { onConflict: "workspace_id,external_id", ignoreDuplicates: true },
+                  )
+                  .select("id") as any;
 
                 const isNewMessage = Array.isArray(inserted) ? inserted.length > 0 : !!inserted;
 
@@ -271,10 +274,13 @@ export const Route = createFileRoute("/api/public/whatsapp-webhook/$workspaceId"
           status:        "sent" as const,
         };
 
-        const { data: twilioInserted, error } = await supabaseAdmin.from("whatsapp_messages").upsert(row as never, {
-          onConflict: "workspace_id,external_id",
-          ignoreDuplicates: true,
-        } as any) as any;
+        const { data: twilioInserted, error } = await supabaseAdmin
+          .from("whatsapp_messages")
+          .upsert(row as never, {
+            onConflict: "workspace_id,external_id",
+            ignoreDuplicates: true,
+          } as any)
+          .select("id") as any;
         if (error) {
           console.error("[whatsapp-webhook] upsert failed", error.message, { to, from });
           return new Response("db error", { status: 500, headers: CORS });
