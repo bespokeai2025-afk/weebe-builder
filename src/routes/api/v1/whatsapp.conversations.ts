@@ -55,7 +55,11 @@ export const Route = createFileRoute("/api/v1/whatsapp/conversations")({
             const contactPhone = thread?.contact_phone ?? phone;
             const { data: messages, error: msgErr } = await sb
               .from("whatsapp_messages")
-              .select("id, direction, body, message_type, status, sent_at, created_at")
+              // The schema calls this media_mime_type; keep the mobile
+              // contract's message_type field stable via a PostgREST alias.
+              .select(
+                "id, direction, body, message_type:media_mime_type, status, sent_at, created_at",
+              )
               .eq("workspace_id", workspaceId)
               .eq("contact_phone", contactPhone)
               .order("sent_at", { ascending: false })

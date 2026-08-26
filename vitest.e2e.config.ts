@@ -8,7 +8,7 @@ export default defineConfig({
     },
   },
   test: {
-    include: ["tests/e2e/**/*.e2e.test.ts"],
+    include: ["tests/e2e/**/*.e2e.test.ts", "scripts/acceptance-582-mobile-api.test.ts"],
     environment: "node",
     testTimeout: 180_000,
     hookTimeout: 60_000,
