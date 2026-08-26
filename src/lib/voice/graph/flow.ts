@@ -177,15 +177,8 @@ export function compileFlow(raw: unknown): CompiledFlow {
   for (const node of nodes.values()) {
     const setting = isRecord(node.global_node_setting) ? node.global_node_setting : undefined;
     const condition = str(setting?.condition).trim();
-    // `is_global` without a condition gives the router nothing to match on, so
-    // such nodes stay reachable only through ordinary edges.
-    if (!condition) continue;
-    // Retell exports this editor placeholder on some templates. Treating it as a
-    // live interrupt rule lets a classifier jump into an arbitrary node mid-call.
-    if (/^describe\s+the\s+condition(?:\s+to\s+jump\s+to\s+this\s+node)?\.?$/i.test(condition)) {
-      warnings.push(`node "${node.id}" has a placeholder global condition; ignoring`);
-      continue;
-    }
+    // Retell template placeholders and empty conditions are not real global handlers.
+    if (!condition || /^describe the (condition|transition)/i.test(condition)) continue;
     if (node.id === startNodeId) {
       warnings.push(`start node "${node.id}" cannot also be a global node; ignoring`);
       continue;

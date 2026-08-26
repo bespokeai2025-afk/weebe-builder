@@ -36,7 +36,11 @@ export function buildWav(bufs: Buffer[], sampleRate: number = CASCADE_SAMPLE_RAT
   return Buffer.concat([header, pcm]);
 }
 
-export async function whisperTranscribe(wav: Buffer, apiKey: string): Promise<string> {
+export async function whisperTranscribe(
+  wav: Buffer,
+  apiKey: string,
+  language?: string,
+): Promise<string> {
   const form = new FormData();
   // Copy into a fresh Uint8Array: a pooled Buffer's underlying ArrayBuffer is
   // larger than the Buffer itself, which would append unrelated bytes.
@@ -44,6 +48,7 @@ export async function whisperTranscribe(wav: Buffer, apiKey: string): Promise<st
   bytes.set(wav);
   form.append("file", new Blob([bytes], { type: "audio/wav" }), "speech.wav");
   form.append("model", "whisper-1");
+  if (language) form.append("language", language);
 
   const res = await fetch("https://api.openai.com/v1/audio/transcriptions", {
     method: "POST",

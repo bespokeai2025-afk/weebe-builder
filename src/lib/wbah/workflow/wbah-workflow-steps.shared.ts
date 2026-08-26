@@ -92,7 +92,7 @@ export const WBAH_POST_CALL_STEP_CATALOG: WbahPostCallStepDef[] = [
     type: "wbah_calls_upsert",
     title: "WEBEE Calls tab upsert",
     summary: "Upsert call row in WEBEE Calls for reporting.",
-    events: ["call_analyzed"],
+    events: ["call_ended", "call_analyzed"],
     defaultEnabled: true,
   },
   {

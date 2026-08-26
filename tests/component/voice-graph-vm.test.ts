@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { compileFlow, interpolate } from "@/lib/voice/graph/flow";
-import { selectEdge } from "@/lib/voice/graph/router";
+import { selectEdge, selectGlobalNode, looksLikeGlobalInterrupt } from "@/lib/voice/graph/router";
 import { ConversationVm } from "@/lib/voice/graph/vm";
 import type {
   ConversationFlow,
@@ -39,6 +39,10 @@ function fakeLlm(overrides: FakeLlmOverrides = {}): FakeLlm {
       calls.generate.push(messages);
       return overrides.generate?.(messages) ?? "a generated line";
     },
+    async *generateStream(messages) {
+      calls.generate.push(messages);
+      yield overrides.generate?.(messages) ?? "a generated line";
+    },
     async classify(messages, choices) {
       calls.classify.push({ messages, choices });
       return overrides.classify?.(messages, choices) ?? 0;
@@ -56,8 +60,30 @@ async function drain(gen: AsyncGenerator<VmDirective>): Promise<VmDirective[]> {
   return out;
 }
 
+/** Drain directives and consume any streamed speech for assertions. */
+async function drainWithSpeech(gen: AsyncGenerator<VmDirective>): Promise<{
+  directives: VmDirective[];
+  speeches: string[];
+}> {
+  const directives: VmDirective[] = [];
+  const speeches: string[] = [];
+  for await (const d of gen) {
+    directives.push(d);
+    if (d.type !== "speak") continue;
+    if (d.text) speeches.push(d.text);
+    else if (d.textStream) {
+      let full = "";
+      for await (const chunk of d.textStream) full = full ? `${full} ${chunk}` : chunk;
+      speeches.push(full.trim());
+    }
+  }
+  return { directives, speeches };
+}
+
 const speech = (ds: VmDirective[]) =>
-  ds.filter((d): d is Extract<VmDirective, { type: "speak" }> => d.type === "speak").map((d) => d.text);
+  ds
+    .filter((d): d is Extract<VmDirective, { type: "speak" }> => d.type === "speak")
+    .map((d) => d.text ?? "[streamed]");
 const kinds = (ds: VmDirective[]) => ds.map((d) => d.type);
 
 /** A `conversation` node that speaks fixed words. */
@@ -206,6 +232,56 @@ describe("selectEdge", () => {
     // The unconditional branch is the safe default, not simply the first edge.
     expect(chosen?.destination_node_id).toBe("b");
   });
+
+  it("routes obvious yes/no without a classifier call", async () => {
+    const llm = fakeLlm();
+    const yesCtx = {
+      history: [{ role: "user" as const, content: "Yes." }],
+      variables: {},
+      globalPrompt: "",
+    };
+    const chosen = await selectEdge(
+      [edge("e1", "yes-node", "user says yes or confirms"), edge("e2", "no-node", "user says no")],
+      yesCtx,
+      llm,
+    );
+
+    expect(chosen?.destination_node_id).toBe("yes-node");
+    expect(llm.calls.classify).toHaveLength(0);
+  });
+});
+
+describe("selectGlobalNode fast path", () => {
+  it("skips the classifier for normal replies like yes or a name", async () => {
+    const llm = fakeLlm();
+    const globals = [{ condition: "caller asks for a human", node: { id: "human" } }];
+    const ctx = {
+      history: [{ role: "user" as const, content: "Yes" }],
+      variables: {},
+      globalPrompt: "",
+    };
+
+    expect(looksLikeGlobalInterrupt("Yes")).toBe(false);
+    expect(await selectGlobalNode(globals, ctx, llm)).toBeNull();
+    expect(llm.calls.classify).toHaveLength(0);
+  });
+
+  it("runs the classifier when the caller might be interrupting", async () => {
+    const llm = fakeLlm({
+      classify: (_m, choices) => choices.findIndex((c) => c.includes("human")),
+    });
+    const globals = [{ condition: "caller asks for a human", node: { id: "human" } }];
+    const ctx = {
+      history: [{ role: "user" as const, content: "I need to speak to a human" }],
+      variables: {},
+      globalPrompt: "",
+    };
+
+    expect(looksLikeGlobalInterrupt("I need to speak to a human")).toBe(true);
+    const hit = await selectGlobalNode(globals, ctx, llm);
+    expect(hit?.node.id).toBe("human");
+    expect(llm.calls.classify).toHaveLength(1);
+  });
 });
 
 // ─── Conversation nodes and turn-taking ───────────────────────────────────────
@@ -242,9 +318,9 @@ describe("ConversationVm conversation flow", () => {
       ]),
       llm,
     });
-    const out = await drain(vm.run({ type: "begin" }));
+    const out = await drainWithSpeech(vm.run({ type: "begin" }));
 
-    expect(speech(out)).toEqual(["Sure, I can help with that."]);
+    expect(out.speeches).toEqual(["Sure, I can help with that."]);
     const system = llm.calls.generate[0][0].content;
     expect(system).toContain("Ask why they are calling");
     expect(system).toContain("ONLY the words to say next");
@@ -303,6 +379,95 @@ describe("ConversationVm conversation flow", () => {
     const out = await drain(vm.run({ type: "user_utterance", text: "who is this?" }));
 
     expect(speech(out)).toEqual(["What is your account number?"]);
+    expect(vm.nodeId).toBe("ask");
+  });
+
+  it("waits silently on prompt nodes when routing misses instead of improvising", async () => {
+    const llm = fakeLlm({
+      classify: () => -1,
+      generate: () => "What is the property address?",
+    });
+    const vm = new ConversationVm({
+      flow: flowOf([
+        {
+          id: "ask",
+          type: "conversation",
+          instruction: { type: "prompt", text: "Ask for the property address only." },
+          edges: [edge("e1", "done", "gave an address")],
+        },
+        say("done", "Thanks"),
+      ]),
+      llm,
+    });
+
+    await drainWithSpeech(vm.run({ type: "begin" }));
+    const first = await drainWithSpeech(vm.run({ type: "user_utterance", text: "maybe later" }));
+    expect(first.speeches).toEqual([]);
+    expect(first.directives.some((d) => d.type === "await_user")).toBe(true);
+    const second = await drain(vm.run({ type: "user_utterance", text: "still thinking" }));
+    expect(speech(second)).toEqual([]);
+    expect(second.some((d) => d.type === "await_user")).toBe(true);
+    expect(vm.nodeId).toBe("ask");
+  });
+
+  it("routes spelled-out phone numbers without waiting for the LLM classifier", async () => {
+    const llm = fakeLlm({
+      classify: () => {
+        throw new Error("classifier should not run");
+      },
+      generate: () => "Thanks, noted your number.",
+    });
+    const vm = new ConversationVm({
+      flow: flowOf([
+        {
+          id: "ask_phone",
+          type: "conversation",
+          instruction: { type: "prompt", text: "Ask for contact number." },
+          edges: [edge("e1", "next", "caller provides phone number or contact number")],
+        },
+        say("next", "What is your email?"),
+      ]),
+      llm,
+    });
+
+    await drainWithSpeech(vm.run({ type: "begin" }));
+    const out = await drainWithSpeech(
+      vm.run({
+        type: "user_utterance",
+        text: "Double nine six four nine one nine triple zero.",
+      }),
+    );
+
+    expect(out.speeches).toEqual(["What is your email?"]);
+    expect(vm.nodeId).toBe("next");
+    expect(llm.calls.classify).toHaveLength(0);
+  });
+
+  it("acknowledges substantive replies on prompt nodes when routing still misses", async () => {
+    const llm = fakeLlm({
+      classify: () => -1,
+      generate: () => "Got it, thanks for that.",
+    });
+    const vm = new ConversationVm({
+      flow: flowOf([
+        {
+          id: "ask",
+          type: "conversation",
+          instruction: { type: "prompt", text: "Ask for the property address only." },
+          edges: [edge("e1", "done", "gave an exact street address")],
+        },
+        say("done", "Thanks"),
+      ]),
+      llm,
+    });
+
+    await drainWithSpeech(vm.run({ type: "begin" }));
+    const out = await drainWithSpeech(
+      vm.run({ type: "user_utterance", text: "Ten Upping Street London" }),
+    );
+
+    expect(out.speeches).toEqual(["Got it, thanks for that."]);
+    expect(out.directives.some((d) => d.type === "await_user")).toBe(true);
     expect(vm.nodeId).toBe("ask");
   });
 

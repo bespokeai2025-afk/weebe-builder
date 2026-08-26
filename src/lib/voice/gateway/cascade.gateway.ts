@@ -22,8 +22,9 @@ import { randomUUID } from "node:crypto";
 import { WebSocket } from "ws";
 import { CascadeSession, type CascadeTransport } from "./cascade-session";
 import { makeSupabaseAdmin, readAnalysisSchema } from "./telephony-core";
-import { availableSttProviders, CASCADE_SAMPLE_RATE } from "../stt";
-import { availableTtsProviders, type TtsProviderName } from "../tts";
+import { CASCADE_SAMPLE_RATE } from "../stt";
+import { resolveWebeeSpeechModel } from "../webee-native.shared";
+import type { TtsProviderName } from "../tts";
 import type { SttProviderName } from "../stt";
 import { NativeCallLifecycle } from "../lifecycle/call-lifecycle";
 import { loadNativeCostCentsPerMinute } from "../lifecycle/cost";
@@ -34,12 +35,17 @@ import type { VoiceGatewayContext, VoiceGatewayRoute } from "./types";
 const RELAY_PATH = "/api/el-voice-relay";
 const LOG = "[cascade-gateway]";
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
 function safeSend(ws: WebSocket, msg: Record<string, unknown>): void {
   if (ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(msg));
 }
 
 function handleConnection(ws: WebSocket, _ctx: VoiceGatewayContext): void {
   let session: CascadeSession | null = null;
+  let callerAudioChunks = 0;
 
   const transport: CascadeTransport = {
     sendAudio: (pcm) => safeSend(ws, { type: "audio.delta", data: pcm.toString("base64") }),
@@ -49,6 +55,7 @@ function handleConnection(ws: WebSocket, _ctx: VoiceGatewayContext): void {
     onResponseDone: () => safeSend(ws, { type: "response.done" }),
     onEnd: (reason) => safeSend(ws, { type: "call.ended", reason }),
     onError: (message) => safeSend(ws, { type: "relay.error", message }),
+    onNodeActive: (nodeId) => safeSend(ws, { type: "node.active", nodeId }),
   };
 
   function startSession(msg: Record<string, unknown>): void {
@@ -61,7 +68,13 @@ function handleConnection(ws: WebSocket, _ctx: VoiceGatewayContext): void {
       callId,
       apiKey: process.env.OPENAI_API_KEY!,
       voiceId: String(msg.voiceId ?? ""),
-      model: String(msg.model ?? "gpt-4.1"),
+      model: resolveWebeeSpeechModel(
+        isRecord(msg.settings)
+          ? (msg.settings as Record<string, unknown>)
+          : msg.model
+            ? { model: msg.model }
+            : null,
+      ),
       systemPrompt: String(msg.systemPrompt ?? ""),
       beginMessage: String(msg.beginMessage ?? "").trim(),
       sampleRate: CASCADE_SAMPLE_RATE,
@@ -73,6 +86,20 @@ function handleConnection(ws: WebSocket, _ctx: VoiceGatewayContext): void {
       supabase: agentId ? makeSupabaseAdmin() : null,
       flow: msg.flow,
       variables: (msg.variables ?? {}) as Record<string, VariableValue>,
+      speechLanguages: Array.isArray(msg.speechLanguages)
+        ? (msg.speechLanguages as string[])
+        : msg.speechLanguages
+          ? [String(msg.speechLanguages)]
+          : undefined,
+      silenceDurationMs:
+        typeof msg.silenceDurationMs === "number" ? msg.silenceDurationMs : undefined,
+      responsiveness: typeof msg.responsiveness === "number" ? msg.responsiveness : undefined,
+      interruptionSensitivity:
+        typeof msg.interruptionSensitivity === "number" ? msg.interruptionSensitivity : undefined,
+      boostedKeywords: Array.isArray(msg.boostedKeywords)
+        ? (msg.boostedKeywords as string[])
+        : undefined,
+      settings: isRecord(msg.settings) ? (msg.settings as Record<string, unknown>) : null,
       // Only saved agents are reported: an unsaved builder flow has no row to
       // report against.
       resolveLifecycle: (runtime) => {
@@ -108,8 +135,11 @@ function handleConnection(ws: WebSocket, _ctx: VoiceGatewayContext): void {
     });
 
     session
-      .start()
-      .then((banner) => safeSend(ws, { type: "relay.connected", ...banner }))
+      .prepare()
+      .then((banner) => {
+        safeSend(ws, { type: "relay.connected", ...banner });
+        return session!.beginConversation();
+      })
       .catch((err: Error) => {
         console.error(`${LOG} session start failed: ${err.message}`);
         safeSend(ws, { type: "relay.error", message: err.message });
@@ -132,6 +162,7 @@ function handleConnection(ws: WebSocket, _ctx: VoiceGatewayContext): void {
     }
 
     if (msg.type === "playback.done") {
+      console.log(`${LOG} playback.done received`);
       session?.playbackDone();
       return;
     }
@@ -147,7 +178,14 @@ function handleConnection(ws: WebSocket, _ctx: VoiceGatewayContext): void {
     }
 
     if (msg.type === "audio.chunk") {
-      session?.pushCallerAudio(Buffer.from(String(msg.data ?? ""), "base64"));
+      const pcm = Buffer.from(String(msg.data ?? ""), "base64");
+      callerAudioChunks += 1;
+      if (callerAudioChunks === 1) {
+        console.log(`${LOG} first caller audio chunk (${pcm.byteLength} bytes)`);
+      } else if (callerAudioChunks % 100 === 0) {
+        console.log(`${LOG} caller audio chunks=${callerAudioChunks}`);
+      }
+      session?.pushCallerAudio(pcm);
       return;
     }
   });
@@ -167,12 +205,9 @@ export const cascadeRoute: VoiceGatewayRoute = {
   name: "cascade",
   match: (pathname) => (pathname === RELAY_PATH ? {} : null),
   preflight: () => {
-    // The LLM needs OpenAI; STT needs Deepgram or OpenAI; TTS needs at least one
-    // supported vendor.
     const missing = [
       !process.env.OPENAI_API_KEY && "OPENAI_API_KEY",
-      availableSttProviders().length === 0 && "DEEPGRAM_API_KEY or OPENAI_API_KEY",
-      availableTtsProviders().length === 0 && "FISH_API_KEY or ELEVENLABS_API_KEY",
+      !process.env.FISH_API_KEY && "FISH_API_KEY",
     ].filter(Boolean);
     return missing.length ? `Missing: ${missing.join(", ")}` : null;
   },

@@ -113,6 +113,97 @@ async function getWbahRetellKey(sb: Sb): Promise<{ workspaceId: string; apiKey: 
   return { workspaceId: ws.id as string, apiKey };
 }
 
+async function syncRetellAccountPages(input: {
+  sb: Sb;
+  workspaceId: string;
+  apiKey: string;
+  full: boolean;
+  maxPages: number;
+}): Promise<{ synced: number; pages: number; caughtUp: boolean; enrichCandidates: string[] }> {
+  const { sb, workspaceId, apiKey, full, maxPages } = input;
+  const { listRetellCallsPage, listRetellAgents } = await import("@/lib/providers/retell/list.server");
+
+  const agentNames: Record<string, string> = {};
+  try {
+    const agents = await listRetellAgents(apiKey);
+    for (const a of (Array.isArray(agents) ? agents : []) as any[]) {
+      if (a.agent_id && !agentNames[a.agent_id]) agentNames[a.agent_id] = a.agent_name ?? a.agent_id;
+    }
+  } catch {
+    /* non-fatal */
+  }
+
+  let synced = 0;
+  let pages = 0;
+  let caughtUp = false;
+  const enrichCandidates: string[] = [];
+  let paginationKey: string | undefined;
+  const PAGE = 1000;
+
+  for (; pages < maxPages; pages++) {
+    let res: Awaited<ReturnType<typeof listRetellCallsPage>>;
+    try {
+      res = await listRetellCallsPage(
+        {
+          limit: PAGE,
+          sort_order: "descending",
+          ...(paginationKey ? { pagination_key: paginationKey } : {}),
+        },
+        apiKey,
+      );
+    } catch (e: any) {
+      console.error(`[wbah-retell-calls] v3/list-calls page ${pages + 1} failed: ${e?.message}`);
+      throw new Error(`Retell v3/list-calls page ${pages + 1} failed: ${e?.message ?? e}`);
+    }
+    const calls: any[] = res.items;
+    if (calls.length === 0) {
+      caughtUp = true;
+      break;
+    }
+
+    const rows = calls
+      .map((c) => {
+        const row = buildRetellCallRow(c, workspaceId);
+        if (row && !row.agent_name && c.agent_id && agentNames[c.agent_id]) {
+          row.agent_name = agentNames[c.agent_id];
+        }
+        return row;
+      })
+      .filter(Boolean) as any[];
+
+    for (const r of rows) {
+      if (r.call_status !== "ongoing") enrichCandidates.push(String(r.id));
+    }
+
+    if (!full && rows.length > 0) {
+      const ids = rows.map((r) => r.id);
+      const { data: existing } = await (sb as any)
+        .from("wbah_calls")
+        .select("id")
+        .eq("workspace_id", workspaceId)
+        .in("id", ids);
+      const known = new Set(((existing ?? []) as any[]).map((e) => String(e.id)));
+      await upsertRows(sb, rows);
+      synced += rows.length;
+      if (pages >= 1 && ids.every((id) => known.has(id))) {
+        caughtUp = true;
+        break;
+      }
+    } else {
+      await upsertRows(sb, rows);
+      synced += rows.length;
+    }
+
+    if (!res.hasMore || !res.paginationKey) {
+      caughtUp = true;
+      break;
+    }
+    paginationKey = res.paginationKey;
+  }
+
+  return { synced, pages, caughtUp, enrichCandidates };
+}
+
 // transcript is preserved too: Retell's v3/list-calls (July 2026) no longer
 // returns transcript/transcript_object, so re-upserts would otherwise wipe
 // transcripts previously fetched via GET /v2/get-call.
@@ -244,90 +335,66 @@ export async function refreshWbahCallsFromRetell(opts?: { full?: boolean; maxPag
     const sb = getAdminClient();
     const conn = await getWbahRetellKey(sb);
     if (!conn) return { synced: 0, pages: 0, caughtUp: false };
-    const { workspaceId, apiKey } = conn;
 
-    // agent_id → name (list-agents returns one row per version; dedupe).
-    const agentNames: Record<string, string> = {};
-    try {
-      const { listRetellAgents } = await import("@/lib/providers/retell/list.server");
-      const agents = await listRetellAgents(apiKey);
-      for (const a of (Array.isArray(agents) ? agents : []) as any[]) {
-        if (a.agent_id && !agentNames[a.agent_id]) agentNames[a.agent_id] = a.agent_name ?? a.agent_id;
-      }
-    } catch { /* non-fatal */ }
-
-    const { listRetellCallsPage } = await import("@/lib/providers/retell/list.server");
+    const { getWbahRetellApiKeysForSync } = await import(
+      "@/lib/wbah/post-call/wbah-retell-agents.shared"
+    );
+    const apiKeys = getWbahRetellApiKeysForSync(conn.apiKey);
+    if (apiKeys.length === 0) return { synced: 0, pages: 0, caughtUp: false };
 
     let synced = 0;
     let pages = 0;
-    let caughtUp = false;
+    let caughtUp = true;
     const enrichCandidates: string[] = [];
-    let paginationKey: string | undefined;
-    const PAGE = 1000;
 
-    for (; pages < maxPages; pages++) {
-      let res: Awaited<ReturnType<typeof listRetellCallsPage>>;
+    for (const apiKey of apiKeys) {
       try {
-        res = await listRetellCallsPage(
-          {
-            limit: PAGE,
-            sort_order: "descending",
-            ...(paginationKey ? { pagination_key: paginationKey } : {}),
-          },
+        const result = await syncRetellAccountPages({
+          sb,
+          workspaceId: conn.workspaceId,
           apiKey,
-        );
+          full,
+          maxPages,
+        });
+        synced += result.synced;
+        pages += result.pages;
+        caughtUp = caughtUp && result.caughtUp;
+        enrichCandidates.push(...result.enrichCandidates);
       } catch (e: any) {
-        // Do NOT report success on a failed page — surface the failure so the
-        // sync outcome is honest (no silent partial sync).
-        console.error(`[wbah-retell-calls] v3/list-calls page ${pages + 1} failed: ${e?.message}`);
-        throw new Error(`Retell v3/list-calls page ${pages + 1} failed: ${e?.message ?? e}`);
+        console.warn(`[wbah-retell-calls] sync skipped for key …${apiKey.slice(-6)}: ${e?.message ?? e}`);
       }
-      const calls: any[] = res.items;
-      if (calls.length === 0) { caughtUp = true; break; }
-
-      const rows = calls
-        .map((c) => {
-          const row = buildRetellCallRow(c, workspaceId);
-          if (row && !row.agent_name && c.agent_id && agentNames[c.agent_id]) row.agent_name = agentNames[c.agent_id];
-          return row;
-        })
-        .filter(Boolean) as any[];
-
-      // v3/list-calls no longer includes transcripts; queue ended calls for
-      // per-call transcript enrichment after the paging loop.
-      for (const r of rows) {
-        if (r.call_status !== "ongoing") enrichCandidates.push(String(r.id));
-      }
-
-      // Incremental: stop once every id on this page is already stored.
-      if (!full && rows.length > 0) {
-        const ids = rows.map((r) => r.id);
-        const { data: existing } = await (sb as any)
-          .from("wbah_calls").select("id").eq("workspace_id", workspaceId).in("id", ids);
-        const known = new Set(((existing ?? []) as any[]).map((e) => String(e.id)));
-        await upsertRows(sb, rows);
-        synced += rows.length;
-        if (pages >= 1 && ids.every((id) => known.has(id))) { caughtUp = true; break; }
-      } else {
-        await upsertRows(sb, rows);
-        synced += rows.length;
-      }
-
-      // Retell v3 paginates via pagination_key while has_more is true.
-      if (!res.hasMore || !res.paginationKey) { caughtUp = true; break; }
-      paginationKey = res.paginationKey;
     }
 
     _lastRunAt = Date.now();
 
     let enriched = 0;
+    const enrichKey = apiKeys[0];
     try {
-      enriched = await enrichMissingTranscripts(sb, apiKey, workspaceId, enrichCandidates, full ? 2000 : 300);
+      enriched = await enrichMissingTranscripts(
+        sb,
+        enrichKey,
+        conn.workspaceId,
+        enrichCandidates,
+        full ? 2000 : 300,
+      );
+      if (apiKeys.length > 1) {
+        for (const apiKey of apiKeys.slice(1)) {
+          enriched += await enrichMissingTranscripts(
+            sb,
+            apiKey,
+            conn.workspaceId,
+            enrichCandidates,
+            full ? 2000 : 300,
+          );
+        }
+      }
     } catch (e: any) {
       console.warn(`[wbah-retell-calls] transcript enrichment pass failed: ${e?.message}`);
     }
 
-    console.log(`[wbah-retell-calls] synced=${synced} pages=${pages} caughtUp=${caughtUp} full=${full} transcriptsEnriched=${enriched}`);
+    console.log(
+      `[wbah-retell-calls] synced=${synced} pages=${pages} caughtUp=${caughtUp} full=${full} accounts=${apiKeys.length} transcriptsEnriched=${enriched}`,
+    );
     return { synced, pages, caughtUp };
   })();
 

@@ -24,6 +24,7 @@ import {
   resample,
 } from "./audio";
 import { CascadeSession, type CascadeTransport } from "./cascade-session";
+import { resolveWebeeSpeechModel } from "../webee-native.shared";
 import {
   connectRealtimeForCall,
   createCallLifecycle,
@@ -38,6 +39,8 @@ import {
 import { isWebeeNativeMode } from "../../runtime/adapter";
 import type { NativeCallLifecycle } from "../lifecycle/call-lifecycle";
 import type { VoiceGatewayContext, VoiceGatewayRoute } from "./types";
+import type { TwilioCredentials } from "../../telephony/twilio-env";
+import { resolveTwilioCredentialsForWorkspace } from "../../telephony/twilio-credentials.server";
 
 const STREAM_PATH = /^\/api\/telephony\/stream\/([a-zA-Z0-9-]+)$/;
 const LOG = "[tel-stream]";
@@ -58,9 +61,12 @@ function readStreamSid(msg: Record<string, unknown>): string {
  * dials the destination. Done over REST rather than the SDK because this module
  * is bundled for the gateway and the Twilio client pulls in a large tree.
  */
-async function redirectTwilioCall(callSid: string, destination: string): Promise<boolean> {
-  const sid = process.env.TWILIO_ACCOUNT_SID ?? "";
-  const token = process.env.TWILIO_AUTH_TOKEN ?? "";
+async function redirectTwilioCall(
+  callSid: string,
+  destination: string,
+  credentials: TwilioCredentials,
+): Promise<boolean> {
+  const { accountSid: sid, authToken: token } = credentials;
   if (!sid || !token || !callSid) {
     console.warn(`${LOG} transfer skipped: missing Twilio credentials or call sid`);
     return false;
@@ -108,6 +114,18 @@ async function runCascadeBridge(
   let session: CascadeSession | null = null;
   let lifecycle: NativeCallLifecycle | null = null;
   const transcript: TranscriptEntry[] = [];
+  let twilioCredentials: TwilioCredentials | null = null;
+
+  if (config.workspaceId) {
+    try {
+      twilioCredentials = await resolveTwilioCredentialsForWorkspace(sb, config.workspaceId);
+    } catch (err) {
+      console.warn(
+        `${LOG} workspace Twilio credentials unavailable for transfer:`,
+        err instanceof Error ? err.message : err,
+      );
+    }
+  }
 
   const persist = () => void persistTranscript(sb, callId, transcript).catch(() => {});
 
@@ -140,7 +158,10 @@ async function runCascadeBridge(
       setTimeout(() => ws.close(1000, "call ended"), 4000);
     },
     onError: (message) => console.error(`${LOG} cascade error call=${callId}: ${message}`),
-    transferCall: (destination) => redirectTwilioCall(callSid, destination),
+    transferCall: (destination) => {
+      if (!twilioCredentials) return Promise.resolve(false);
+      return redirectTwilioCall(callSid, destination, twilioCredentials);
+    },
   };
 
   ws.on("message", (raw) => {
@@ -164,7 +185,7 @@ async function runCascadeBridge(
         callId,
         apiKey: process.env.OPENAI_API_KEY ?? "",
         voiceId: config.voiceId,
-        model: String(config.settings.model ?? "gpt-4.1"),
+        model: resolveWebeeSpeechModel(config.settings),
         // Only reached when the agent has no runnable graph; the compiled prompt
         // is a better fallback than dropping the call.
         systemPrompt: config.systemPrompt,

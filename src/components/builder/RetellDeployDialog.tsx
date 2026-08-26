@@ -105,6 +105,7 @@ export function RetellDeployDialog({
   const captureSinkRef = useRef<GainNode | null>(null);
   const keepAliveRef = useRef<OscillatorNode | null>(null);
   const wsPingRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const wsConnectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const nextPlayTimeRef = useRef(0);
   // All AudioBufferSourceNodes scheduled for the current response.
@@ -306,23 +307,19 @@ export function RetellDeployDialog({
     }
   }, [transcript]);
 
-  // Tick elapsed seconds while in a call; notify parent of call state.
+  // Notify parent while connecting or in-call; tick elapsed time once live.
   useEffect(() => {
-    onCallActive?.(inCall);
+    onCallActive?.(inCall || calling);
+  }, [inCall, calling]);
+
+  useEffect(() => {
     if (!inCall) return;
     const t = setInterval(() => {
       if (startedAtRef.current) {
         setElapsedSec(Math.floor((Date.now() - startedAtRef.current) / 1000));
       }
     }, 500);
-    return () => {
-      clearInterval(t);
-      // Only tell the parent the call ended — do NOT wipe the transcript here.
-      // Clearing it prevented users from reading the post-call transcript and
-      // caused the "transcript only shows at end" bug (final Retell `update`
-      // event arrives after call_ended and re-populated it too late).
-      onCallActive?.(false);
-    };
+    return () => clearInterval(t);
   }, [inCall]);
 
   async function handleOpenAIRealtimeDeploy() {
@@ -2010,8 +2007,33 @@ export function RetellDeployDialog({
     callEndFiredRef.current = false;
     setCalling(true);
 
+    // Acquire mic on the user click (autoplay gesture) so AudioContext + capture
+    // are ready before the greeting TTS arrives (~2–4s after session.init).
+    try {
+      const micStream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: false,
+          channelCount: 1,
+          sampleRate: 24000,
+        },
+      });
+      streamRef.current = micStream;
+    } catch (err) {
+      toast.error("Microphone access required", {
+        description: (err as Error).message || "Allow microphone access to test the agent.",
+      });
+      setCalling(false);
+      return;
+    }
+
     function cleanupElVoice() {
       if (wsPingRef.current !== null) { clearInterval(wsPingRef.current); wsPingRef.current = null; }
+      if (wsConnectTimeoutRef.current !== null) {
+        clearTimeout(wsConnectTimeoutRef.current);
+        wsConnectTimeoutRef.current = null;
+      }
       finalizeRecording();
       for (const node of activeSourceNodesRef.current) {
         try { node.stop(); } catch { /* already ended */ }
@@ -2078,17 +2100,25 @@ export function RetellDeployDialog({
       typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID() : `web-${Date.now()}`;
 
     try {
-      const wsProto = window.location.protocol === "https:" ? "wss:" : "ws:";
-      const ws = new WebSocket(`${wsProto}//${window.location.host}/api/el-voice-relay`);
-      wsRelayRef.current = ws;
-      ws.binaryType = "arraybuffer";
-
-      // 24 kHz AudioContext — matches PCM16 pipeline rate
+      // ── Audio + mic capture BEFORE WebSocket (HyperStream pattern) ─────────
+      // Worklet setup yields the event loop; doing it after WS open drops early
+      // relay messages. Mic is acquired on click; capture is gated until relay.connected.
       const audioCtx = new AudioContext({ sampleRate: 24000 });
       audioCtxRef.current = audioCtx;
       nextPlayTimeRef.current = 0;
+      await audioCtx.resume();
+      console.log(
+        `[elv-relay] AudioContext sampleRate=${audioCtx.sampleRate} (requested 24000) state=${audioCtx.state}`,
+      );
+      audioCtx.onstatechange = () => {
+        console.log(`[elv-relay] AudioContext state → ${audioCtx.state}`);
+      };
 
-      // Silent keep-alive oscillator (prevents browser AudioContext auto-suspend)
+      const masterGain = audioCtx.createGain();
+      masterGain.gain.value = 1;
+      masterGain.connect(audioCtx.destination);
+      masterGainRef.current = masterGain;
+
       const keepAliveOsc = audioCtx.createOscillator();
       const keepAliveGain = audioCtx.createGain();
       keepAliveGain.gain.value = 0;
@@ -2097,18 +2127,143 @@ export function RetellDeployDialog({
       keepAliveOsc.start();
       keepAliveRef.current = keepAliveOsc;
 
-      let elDeltaCount = 0; // per-response audio delta counter (for jitter buffer)
-
-      // ── Mic gate for EL Voice (same pattern as HyperStream) ──────────────
-      // Mute mic while AI audio is playing to prevent the speaker output from
-      // echoing back through the mic as "user speech" (the cause of false
-      // transcript entries the user never said).
-      // ── Playback state for EL Voice ───────────────────────────────────────
-      // The mic is no longer gated (see the capture handlers below): the relay
-      // needs to hear the caller during playback to detect an interruption. This
-      // only tracks when queued audio has drained so the relay can be told.
+      let elDeltaCount = 0;
+      let audioDeltaReceived = 0;
       let isElAISpeaking = false;
       let elDrainTimer: ReturnType<typeof setTimeout> | null = null;
+      let captureLive = false;
+      let micChunkCount = 0;
+      let micSrc: MediaStreamAudioSourceNode | null = null;
+
+      let ws!: WebSocket;
+
+      function sendMicPcm(int16: Int16Array) {
+        if (!captureLive || !ws || ws.readyState !== WebSocket.OPEN || int16.length === 0) return;
+        const u8 = new Uint8Array(int16.buffer, int16.byteOffset, int16.byteLength);
+        let bin = "";
+        for (let i = 0; i < u8.length; i++) bin += String.fromCharCode(u8[i]);
+        ws.send(JSON.stringify({ type: "audio.chunk", data: btoa(bin) }));
+        micChunkCount += 1;
+        if (micChunkCount === 1) {
+          console.log(`[elv-relay] first mic chunk sent (${int16.length} samples @ 24kHz)`);
+        }
+      }
+
+      /** Downsample browser mic to 24 kHz Int16 (ScriptProcessor fallback). */
+      function downsampleTo24k(f32: Float32Array, inputRate: number): Int16Array {
+        const ratio = inputRate / 24000;
+        if (Math.abs(ratio - 1) < 0.01) {
+          const out = new Int16Array(f32.length);
+          for (let i = 0; i < f32.length; i++) {
+            const s = f32[i];
+            out[i] = s < -1 ? -32768 : s > 1 ? 32767 : Math.round(s * 32767);
+          }
+          return out;
+        }
+        const outLen = Math.max(0, Math.floor((f32.length - 1) / ratio));
+        const out = new Int16Array(outLen);
+        let pos = 0;
+        let prev = 0;
+        for (let o = 0; o < outLen; o++) {
+          const idx = Math.floor(pos);
+          const frac = pos - idx;
+          const s0 = idx === 0 ? prev : f32[idx - 1]!;
+          const s1 = f32[idx] ?? s0;
+          let s = s0 + (s1 - s0) * frac;
+          s = s < -1 ? -1 : s > 1 ? 1 : s;
+          out[o] = s < 0 ? Math.round(s * 0x8000) : Math.round(s * 0x7fff);
+          pos += ratio;
+        }
+        return out;
+      }
+
+      const micStream = streamRef.current;
+      if (!micStream) throw new Error("Microphone stream missing");
+      micSrc = audioCtx.createMediaStreamSource(micStream);
+
+      let usingWorklet = false;
+      if (audioCtx.audioWorklet) {
+        try {
+          const workletSrc = `
+            class ElvCaptureProcessor extends AudioWorkletProcessor {
+              constructor() {
+                super();
+                this._ratio = sampleRate / 24000;
+                this._pos = 0; this._prev = 0;
+                this._buf = new Int16Array(1200); this._n = 0;
+              }
+              process(inputs) {
+                const ch = inputs[0] && inputs[0][0];
+                if (ch && ch.length) {
+                  const len = ch.length;
+                  while (this._pos < len) {
+                    const i = Math.floor(this._pos);
+                    const frac = this._pos - i;
+                    const s0 = i === 0 ? this._prev : ch[i - 1];
+                    const s1 = ch[i];
+                    let s = s0 + (s1 - s0) * frac;
+                    s = s < -1 ? -1 : s > 1 ? 1 : s;
+                    this._buf[this._n++] = s < 0 ? s * 0x8000 : s * 0x7fff;
+                    if (this._n === this._buf.length) {
+                      const out = this._buf.slice(0, this._n);
+                      this.port.postMessage(out.buffer, [out.buffer]);
+                      this._n = 0;
+                    }
+                    this._pos += this._ratio;
+                  }
+                  this._prev = ch[len - 1];
+                  this._pos -= len;
+                }
+                return true;
+              }
+            }
+            registerProcessor('elv-capture', ElvCaptureProcessor);
+          `;
+          const blobUrl = URL.createObjectURL(new Blob([workletSrc], { type: "application/javascript" }));
+          try { await audioCtx.audioWorklet.addModule(blobUrl); } finally { URL.revokeObjectURL(blobUrl); }
+          const wn = new AudioWorkletNode(audioCtx, "elv-capture");
+          workletRef.current = wn;
+          wn.port.onmessage = (e) => sendMicPcm(new Int16Array(e.data as ArrayBuffer));
+          micSrc.connect(wn);
+          usingWorklet = true;
+          console.log("[elv-relay] mic capture via AudioWorklet");
+        } catch (err) {
+          console.warn("[elv-relay] AudioWorklet unavailable, using ScriptProcessor:", err);
+        }
+      }
+      if (!usingWorklet) {
+        console.warn(
+          `[elv-relay] ScriptProcessor fallback (resampling ${audioCtx.sampleRate} → 24000 Hz)`,
+        );
+        const sp = audioCtx.createScriptProcessor(4096, 1, 1);
+        processorRef.current = sp;
+        sp.onaudioprocess = (e) => {
+          const f32 = e.inputBuffer.getChannelData(0);
+          sendMicPcm(downsampleTo24k(f32, audioCtx.sampleRate));
+        };
+        const sink = audioCtx.createGain();
+        sink.gain.value = 0;
+        captureSinkRef.current = sink;
+        micSrc.connect(sp);
+        sp.connect(sink);
+      }
+
+      function startRecording() {
+        if (!micSrc || recorderRef.current) return;
+        try {
+          const recDest = audioCtx.createMediaStreamDestination();
+          masterGainRef.current?.connect(recDest);
+          micSrc.connect(recDest);
+          const recorder = new MediaRecorder(recDest.stream);
+          recChunksRef.current = [];
+          recorder.ondataavailable = (e: BlobEvent) => {
+            if (e.data.size > 0) recChunksRef.current.push(e.data);
+          };
+          recorder.start(1000);
+          recorderRef.current = recorder;
+        } catch { /* recording not supported */ }
+      }
+
       const reportPlaybackDone = () => {
         isElAISpeaking = false;
         if (ws.readyState === WebSocket.OPEN) {
@@ -2116,7 +2271,6 @@ export function RetellDeployDialog({
         }
       };
 
-      /** Drop everything queued — the caller interrupted and the agent must stop. */
       const clearQueuedAudio = () => {
         for (const node of activeSourceNodesRef.current) {
           try { node.stop(); } catch { /* already ended */ }
@@ -2128,43 +2282,69 @@ export function RetellDeployDialog({
         isElAISpeaking = false;
       };
 
-      // ── Schedule incoming PCM16 audio chunk for playback ──────────────────
-      function scheduleAudioChunk(b64: string) {
-        const ctx = audioCtxRef.current;
-        if (!ctx || !b64) return;
-        if (ctx.state === "suspended") void ctx.resume();
-        const binaryStr = atob(b64);
-        const bytes = new Uint8Array(binaryStr.length);
-        for (let i = 0; i < binaryStr.length; i++) bytes[i] = binaryStr.charCodeAt(i);
-        const int16 = new Int16Array(bytes.buffer);
-        if (int16.length === 0) return;
-        const float32 = new Float32Array(int16.length);
-        for (let i = 0; i < int16.length; i++) float32[i] = int16[i] / 32768;
-        const buf = ctx.createBuffer(1, float32.length, 24000);
-        buf.copyToChannel(float32, 0);
-        const src = ctx.createBufferSource();
-        src.buffer = buf;
-        src.connect(masterGainRef.current ?? ctx.destination);
-        activeSourceNodesRef.current.push(src);
-        src.onended = () => {
-          const arr = activeSourceNodesRef.current;
-          const idx = arr.indexOf(src);
-          if (idx !== -1) arr.splice(idx, 1);
-        };
-        elDeltaCount += 1;
-        const JITTER = elDeltaCount === 1 ? 0.080 : 0.250;
-        const startAt =
-          nextPlayTimeRef.current > ctx.currentTime
-            ? nextPlayTimeRef.current
-            : ctx.currentTime + JITTER;
-        src.start(startAt);
-        nextPlayTimeRef.current = startAt + buf.duration;
+      async function scheduleAudioChunk(b64: string) {
+        try {
+          const ctx = audioCtxRef.current;
+          if (!ctx || !b64) return;
+          if (ctx.state === "suspended") {
+            await ctx.resume();
+          }
+          const binaryStr = atob(b64);
+          const bytes = new Uint8Array(binaryStr.length);
+          for (let i = 0; i < binaryStr.length; i++) bytes[i] = binaryStr.charCodeAt(i);
+          const sampleCount = Math.floor(bytes.length / 2);
+          if (sampleCount === 0) return;
+          const int16 = new Int16Array(bytes.buffer, bytes.byteOffset, sampleCount);
+          const float32 = new Float32Array(int16.length);
+          for (let i = 0; i < int16.length; i++) float32[i] = int16[i]! / 32768;
+          const buf = ctx.createBuffer(1, float32.length, 24000);
+          buf.copyToChannel(float32, 0);
+          const src = ctx.createBufferSource();
+          src.buffer = buf;
+          src.connect(masterGainRef.current ?? ctx.destination);
+          activeSourceNodesRef.current.push(src);
+          src.onended = () => {
+            const arr = activeSourceNodesRef.current;
+            const idx = arr.indexOf(src);
+            if (idx !== -1) arr.splice(idx, 1);
+          };
+          if (elDeltaCount === 0) {
+            console.log(
+              `[elv-relay] playing first audio chunk (${sampleCount} samples, ctx=${ctx.state})`,
+            );
+          }
+          elDeltaCount += 1;
+          const JITTER = elDeltaCount === 1 ? 0.080 : 0.020;
+          const startAt =
+            nextPlayTimeRef.current > ctx.currentTime
+              ? nextPlayTimeRef.current
+              : ctx.currentTime + JITTER;
+          src.start(startAt);
+          nextPlayTimeRef.current = startAt + buf.duration;
+        } catch (err) {
+          console.error("[elv-relay] scheduleAudioChunk failed:", err);
+        }
       }
 
-      // IMPORTANT: set ws.onopen synchronously here — no await before this line.
-      // The WebSocket opens in <10 ms on localhost. Any await (e.g. getUserMedia)
-      // between new WebSocket() and setting ws.onopen causes onopen to fire before
-      // the handler is attached, so session.init is never sent and the relay silently closes.
+      const wsProto = window.location.protocol === "https:" ? "wss:" : "ws:";
+      ws = new WebSocket(`${wsProto}//${window.location.host}/api/el-voice-relay`);
+      wsRelayRef.current = ws;
+      ws.binaryType = "arraybuffer";
+
+      wsConnectTimeoutRef.current = setTimeout(() => {
+        wsConnectTimeoutRef.current = null;
+        if (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING) {
+          toast.error("Voice relay timed out", {
+            description: "Session setup took too long. Check FISH_API_KEY and refresh the page.",
+          });
+          cleanupElVoice();
+          setCalling(false);
+          setInCall(false);
+        }
+      }, 25_000);
+
+      // IMPORTANT: set ws.onopen synchronously here — no await between new WebSocket()
+      // and this handler or session.init is never sent.
       ws.onopen = () => {
         console.log("[elv-relay] ws.onopen — sending session.init");
         ws.send(JSON.stringify({
@@ -2204,135 +2384,33 @@ export function RetellDeployDialog({
         // getUserMedia lives here (not before new WebSocket) so it doesn't
         // block onopen from being registered in time.
         if (msg.type === "relay.connected") {
-          (async () => {
-            // Acquire mic here — after onopen is already set and session.init sent
-            const micStream = await navigator.mediaDevices.getUserMedia({
-              audio: {
-                echoCancellation: true,
-                noiseSuppression: true,
-                autoGainControl: false,
-                channelCount: 1,
-                sampleRate: 24000,
-              },
+          const mode = String(msg.mode ?? "flat");
+          const stt = String(msg.stt ?? "?");
+          const tts = String(msg.tts ?? "?");
+          const vad = String(msg.vad ?? "?");
+          console.log(`[elv-relay] connected mode=${mode} stt=${stt} tts=${tts} vad=${vad}`);
+          if (wsConnectTimeoutRef.current !== null) {
+            clearTimeout(wsConnectTimeoutRef.current);
+            wsConnectTimeoutRef.current = null;
+          }
+          void audioCtxRef.current?.resume();
+          pushTranscript([]);
+          startedAtRef.current = Date.now();
+          setElapsedSec(0);
+          setCalling(false);
+          setInCall(true);
+          captureLive = true;
+          startRecording();
+          console.log("[elv-relay] mic capture live");
+          if (isWebeeNative) {
+            const sttLabel = stt === "fish" ? "Fish ASR" : stt;
+            toast.message("WEBEE Native call live", {
+              description: `${tts === "fish" ? "Fish Audio" : tts} TTS · ${sttLabel} STT · ${vad} VAD`,
+              duration: 4000,
             });
-            streamRef.current = micStream;
-            const micSrc = audioCtx.createMediaStreamSource(micStream);
-
-            let usingWorklet = false;
-            if (audioCtx.audioWorklet) {
-              try {
-                const workletSrc = `
-                  class ElvCaptureProcessor extends AudioWorkletProcessor {
-                    constructor() {
-                      super();
-                      this._ratio = sampleRate / 24000;
-                      this._pos = 0; this._prev = 0;
-                      this._buf = new Int16Array(1200); this._n = 0;
-                    }
-                    process(inputs) {
-                      const ch = inputs[0] && inputs[0][0];
-                      if (ch && ch.length) {
-                        const len = ch.length;
-                        while (this._pos < len) {
-                          const i = Math.floor(this._pos);
-                          const frac = this._pos - i;
-                          const s0 = i === 0 ? this._prev : ch[i - 1];
-                          const s1 = ch[i];
-                          let s = s0 + (s1 - s0) * frac;
-                          s = s < -1 ? -1 : s > 1 ? 1 : s;
-                          this._buf[this._n++] = s < 0 ? s * 0x8000 : s * 0x7fff;
-                          if (this._n === this._buf.length) {
-                            const out = this._buf.slice(0, this._n);
-                            this.port.postMessage(out.buffer, [out.buffer]);
-                            this._n = 0;
-                          }
-                          this._pos += this._ratio;
-                        }
-                        this._prev = ch[len - 1];
-                        this._pos -= len;
-                      }
-                      return true;
-                    }
-                  }
-                  registerProcessor('elv-capture', ElvCaptureProcessor);
-                `;
-                const blobUrl = URL.createObjectURL(new Blob([workletSrc], { type: "application/javascript" }));
-                try { await audioCtx.audioWorklet.addModule(blobUrl); } finally { URL.revokeObjectURL(blobUrl); }
-                const wn = new AudioWorkletNode(audioCtx, "elv-capture");
-                workletRef.current = wn;
-                wn.port.onmessage = (e) => {
-                  if (ws.readyState !== WebSocket.OPEN) return;
-                  // Full duplex: audio keeps flowing while the agent speaks, which
-                  // is what lets the relay detect an interruption. Echo suppression
-                  // is left to the browser's AEC (echoCancellation above) plus the
-                  // relay's requirement for sustained speech before it cuts in.
-                  const int16 = new Int16Array(e.data as ArrayBuffer);
-                  const u8 = new Uint8Array(int16.buffer);
-                  let bin = "";
-                  for (let i = 0; i < u8.length; i++) bin += String.fromCharCode(u8[i]);
-                  ws.send(JSON.stringify({ type: "audio.chunk", data: btoa(bin) }));
-                };
-                // Do NOT connect worklet output to audioCtx.destination.
-                // Same AEC self-cancellation risk as HyperStream: routing mic audio
-                // into the output graph causes the browser to cancel the user's
-                // own voice. The worklet stays active via active inputs + process()
-                // returning true, and the keep-alive oscillator keeps the context running.
-                micSrc.connect(wn);
-                usingWorklet = true;
-              } catch (err) {
-                console.warn("[elv-relay] AudioWorklet unavailable, using ScriptProcessor:", err);
-              }
-            }
-            if (!usingWorklet) {
-              const sp = audioCtx.createScriptProcessor(4096, 1, 1);
-              processorRef.current = sp;
-              sp.onaudioprocess = (e) => {
-                if (ws.readyState !== WebSocket.OPEN) return;
-                // Full duplex — see the AudioWorklet path above.
-                const f32 = e.inputBuffer.getChannelData(0);
-                const int16 = new Int16Array(f32.length);
-                for (let i = 0; i < f32.length; i++) {
-                  const s = f32[i];
-                  int16[i] = s < -1 ? -32768 : s > 1 ? 32767 : Math.round(s * 32767);
-                }
-                const u8 = new Uint8Array(int16.buffer);
-                let bin = "";
-                for (let i = 0; i < u8.length; i++) bin += String.fromCharCode(u8[i]);
-                ws.send(JSON.stringify({ type: "audio.chunk", data: btoa(bin) }));
-              };
-              const sink = audioCtx.createGain();
-              sink.gain.value = 0;
-              captureSinkRef.current = sink;
-              micSrc.connect(sp);
-              sp.connect(sink);
-              // Do NOT connect sink to audioCtx.destination — same AEC issue.
-              // ScriptProcessorNode (deprecated fallback) is pulled by micSrc.
-            }
-            // ── Recording setup (EL Voice) ──────────────────────────────────
-            try {
-              const recDest = audioCtx.createMediaStreamDestination();
-              const masterGain = audioCtx.createGain();
-              masterGain.connect(audioCtx.destination);
-              masterGain.connect(recDest);
-              masterGainRef.current = masterGain;
-              micSrc.connect(recDest); // mic → record only (not to speakers)
-              const recorder = new MediaRecorder(recDest.stream);
-              recChunksRef.current = [];
-              recorder.ondataavailable = (e: BlobEvent) => {
-                if (e.data.size > 0) recChunksRef.current.push(e.data);
-              };
-              recorder.start(1000);
-              recorderRef.current = recorder;
-            } catch { /* recording not supported in this browser */ }
-            setInCall(true);
-            setCalling(false);
-            startedAtRef.current = Date.now();
-            pushTranscript([]);
-          })().catch((err: Error) => {
-            toast.error("Mic setup failed", { description: err.message });
-            setCalling(false);
-            cleanupElVoice();
-          });
+          }
+          const startNode = nodes.find((n) => n.data.isStart) ?? nodes[0];
+          if (startNode) setActiveNode(startNode.id);
           return;
         }
 
@@ -2340,6 +2418,7 @@ export function RetellDeployDialog({
           const role = msg.role as "user" | "agent";
           const text = String(msg.text ?? "");
           if (!text) return;
+          console.log(`[elv-relay] transcript ${role}: ${text.slice(0, 120)}`);
           if (role === "agent") elDeltaCount = 0;
           pushTranscript((prev) => [
             // The confirmed line supersedes any interim text still on screen.
@@ -2365,11 +2444,16 @@ export function RetellDeployDialog({
           // NOTE: the relay sends the agent transcript BEFORE TTS audio starts, so
           // the transcript event cannot tell us when playback is done. We rely on
           // response.done (sent after all TTS chunks) instead.
+          if (audioDeltaReceived === 0) {
+            const nbytes = String(msg.data ?? "").length;
+            console.log(`[elv-relay] first audio.delta (b64 len=${nbytes})`);
+          }
+          audioDeltaReceived += 1;
           if (!isElAISpeaking) {
             if (elDrainTimer !== null) { clearTimeout(elDrainTimer); elDrainTimer = null; }
             isElAISpeaking = true;
           }
-          scheduleAudioChunk(String(msg.data ?? ""));
+          void scheduleAudioChunk(String(msg.data ?? ""));
           return;
         }
 
@@ -2385,6 +2469,7 @@ export function RetellDeployDialog({
         // relay once the queued audio has actually finished playing, so it knows
         // when the agent is no longer speaking.
         if (msg.type === "response.done") {
+          console.log(`[elv-relay] response.done (played ${elDeltaCount} audio chunks)`);
           const ctx = audioCtxRef.current;
           const remainingMs = ctx && nextPlayTimeRef.current > ctx.currentTime
             ? (nextPlayTimeRef.current - ctx.currentTime) * 1000

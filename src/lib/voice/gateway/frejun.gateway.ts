@@ -12,7 +12,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { WebSocket, type RawData } from "ws";
 import { base64ToPcm16, pcm16ToBase64, pcm16ToBuffer, resample } from "./audio";
-import { CascadeSession, type CascadeTransport } from "./cascade-session";
+import { resolveWebeeSpeechModel } from "../webee-native.shared";
 import {
   connectRealtimeForCall,
   createCallLifecycle,
@@ -118,7 +118,7 @@ async function runCascadeBridge(
     callId,
     apiKey: process.env.OPENAI_API_KEY ?? "",
     voiceId: config.voiceId,
-    model: String(config.settings.model ?? "gpt-4.1"),
+    model: resolveWebeeSpeechModel(config.settings),
     systemPrompt: config.systemPrompt,
     sampleRate: FREJUN_RATE,
     logPrefix: LOG,

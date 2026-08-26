@@ -11,6 +11,7 @@
  */
 
 import { interpolate } from "./flow";
+import { summarizeCollectedFacts } from "./collected-facts.shared";
 import type { FlowEdge, LlmMessage, VariableValue, VmLlm } from "./types";
 
 export interface RouteContext {
@@ -18,57 +19,8 @@ export interface RouteContext {
   history: LlmMessage[];
   variables: Record<string, VariableValue>;
   globalPrompt: string;
-  model?: string;
-}
-
-const DIGIT_WORDS = new Set([
-  "zero", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine",
-  "oh", "double", "triple",
-]);
-
-/** True for normal digit strings and natural spoken phone-number phrasing. */
-export function looksLikePhoneAnswer(answer: string): boolean {
-  const normalized = answer.toLowerCase().replace(/[^a-z0-9\s]/g, " ");
-  const numericCount = (normalized.match(/\d/g) ?? []).length;
-  if (numericCount >= 7) return true;
-  const numberWords = normalized.split(/\s+/).filter((word) => DIGIT_WORDS.has(word));
-  return numberWords.length >= 5;
-}
-
-/**
- * Choose deterministic, unambiguous transitions before paying for a classifier.
- * Returns null whenever the answer does not provide enough signal to route safely.
- */
-export function tryHeuristicEdgeIndex(conditions: string[], answer: string): number | null {
-  const response = answer.trim().toLowerCase().replace(/[^\p{L}\p{N}\s]/gu, " ").replace(/\s+/g, " ");
-  if (!response) return null;
-  const find = (pattern: RegExp) => conditions.findIndex((condition) => pattern.test(condition.toLowerCase()));
-  const firstAnswer = () => find(/\b(?:user|caller)\s+answers?\b|\b(?:gives?|provides?)\b/);
-
-  if (/^(?:yes|yeah|yep|correct|confirmed?|sure|okay|ok|please)\b/.test(response)) {
-    const hit = find(/\byes\b|\bconfirm|\bagree|\baccept|\bpositive\b/);
-    return hit >= 0 ? hit : null;
-  }
-  if (/^(?:no|nope|nah|decline|refuse|negative)\b/.test(response)) {
-    const hit = find(/\bno\b|\bdeclin|\brefus|\bnegative\b/);
-    return hit >= 0 ? hit : null;
-  }
-  if (looksLikePhoneAnswer(response)) {
-    const hit = find(/\bphone\b|\bnumber\b|\bcontact\b/);
-    return hit >= 0 ? hit : firstAnswer() >= 0 ? firstAnswer() : null;
-  }
-
-  const words = response.split(" ").filter(Boolean);
-  const likelyShortName =
-    words.length <= 3 &&
-    response.length >= 2 &&
-    response.length <= 32 &&
-    words.every((word) => /^[\p{L}'-]+$/u.test(word));
-  if (likelyShortName) {
-    const hit = find(/\bname\b|\b(?:user|caller)\s+answers?\b/);
-    return hit >= 0 ? hit : null;
-  }
-  return null;
+  /** Short label for the node being routed from. */
+  currentNodeHint?: string;
 }
 
 /**
@@ -90,19 +42,19 @@ export async function selectEdge(
   // that would add a round-trip per node for no information.
   const conditions = usable.map((e) => interpolate(e.transition_condition.prompt.trim(), ctx.variables));
   if (usable.length === 1 && !conditions[0]) return usable[0];
-  const lastUserTurn = [...ctx.history].reverse().find((message) => message.role === "user")?.content;
-  const heuristicIndex = lastUserTurn ? tryHeuristicEdgeIndex(conditions, lastUserTurn) : null;
-  if (heuristicIndex != null) return usable[heuristicIndex] ?? null;
 
   const choices = conditions.map((c, i) => c || `Continue (option ${i + 1})`);
+  const userText = lastUserText(ctx.history);
+  const heuristic = tryHeuristicEdgeIndex(conditions, userText);
+  if (heuristic !== null) return usable[heuristic];
+
   let index: number;
   try {
-    index = await llm.classify(buildRoutingMessages(ctx), choices, { model: ctx.model });
+    index = await llm.classify(buildRoutingMessages(ctx), choices);
   } catch {
-    // A classifier outage should not strand the call: prefer the first
-    // unconditional edge, else the first edge, so the flow keeps moving.
+    // Prefer staying on the current node over jumping to an arbitrary edge.
     const unconditional = usable.findIndex((_, i) => !conditions[i]);
-    return usable[unconditional >= 0 ? unconditional : 0];
+    return unconditional >= 0 ? usable[unconditional] : null;
   }
 
   if (!Number.isInteger(index) || index < 0 || index >= usable.length) return null;
@@ -122,6 +74,9 @@ export async function selectGlobalNode<T extends { condition: string }>(
 ): Promise<T | null> {
   if (globals.length === 0) return null;
 
+  const userText = lastUserText(ctx.history);
+  if (!looksLikeGlobalInterrupt(userText)) return null;
+
   const NONE = "None of the above — the conversation is continuing normally";
   const choices = [
     ...globals.map((g) => interpolate(g.condition, ctx.variables)),
@@ -130,7 +85,7 @@ export async function selectGlobalNode<T extends { condition: string }>(
 
   let index: number;
   try {
-    index = await llm.classify(buildRoutingMessages(ctx), choices, { model: ctx.model });
+    index = await llm.classify(buildRoutingMessages(ctx), choices);
   } catch {
     // Failing closed keeps the caller on the scripted path rather than
     // teleporting them somewhere unexpected.
@@ -174,28 +129,176 @@ function escapeRegExp(value: string): string {
 }
 
 /**
- * Build the message list a routing decision sees.
+ * Build the minimal message list a routing decision sees.
  *
- * The global prompt is included because transition conditions routinely lean on
- * business context defined there ("if the caller is an existing customer").
+ * Routing only needs the current step, a brief agent context slice, and the
+ * last couple of exchanges — not the full knowledge base or long history.
  */
 function buildRoutingMessages(ctx: RouteContext): LlmMessage[] {
-  const preamble: string[] = [];
-  if (ctx.globalPrompt) preamble.push(`# Agent context\n${ctx.globalPrompt}`);
+  const parts: string[] = ["Pick the transition that matches the caller's latest reply."];
+  if (ctx.currentNodeHint) parts.push(`Current step: ${ctx.currentNodeHint}`);
+  if (ctx.globalPrompt) parts.push(`Brief context: ${truncatePrompt(ctx.globalPrompt, 240)}`);
 
   const known = Object.entries(ctx.variables).filter(
     ([, v]) => v !== null && v !== undefined && v !== "",
   );
-  if (known.length) {
-    preamble.push(
-      `# Known information\n${known.map(([k, v]) => `- ${k}: ${String(v)}`).join("\n")}`,
+  if (known.length > 0 && known.length <= 8) {
+    parts.push(
+      `Known: ${known.map(([k, v]) => `${k}=${String(v)}`).join(", ")}`,
     );
   }
 
-  const messages: LlmMessage[] = [];
-  if (preamble.length) messages.push({ role: "system", content: preamble.join("\n\n") });
-  // Recent turns carry the signal for a transition decision; older history mostly
-  // adds tokens and, with it, latency.
+  const collected = summarizeCollectedFacts(ctx.history);
+  if (collected) parts.push(`Already collected: ${collected}`);
+
+  const messages: LlmMessage[] = [{ role: "system", content: parts.join("\n") }];
   messages.push(...ctx.history.slice(-12));
   return messages;
+}
+
+function truncatePrompt(value: string, max: number): string {
+  const trimmed = value.trim();
+  return trimmed.length <= max ? trimmed : `${trimmed.slice(0, max)}…`;
+}
+
+function lastUserText(history: LlmMessage[]): string {
+  for (let i = history.length - 1; i >= 0; i--) {
+    const msg = history[i];
+    if (msg.role === "user") return msg.content.trim();
+  }
+  return "";
+}
+
+/** Spelled-out or digit phone numbers — common in voice (e.g. "double nine six…"). */
+export function looksLikePhoneAnswer(userText: string): boolean {
+  const t = userText.trim();
+  if (!t) return false;
+  const compact = t.replace(/[\s().-]/g, "");
+  if (/\d{4,}/.test(compact)) return true;
+  if (/^\+?\d[\d\s().-]{5,}\d$/.test(t)) return true;
+
+  const numberWords =
+    t.match(/\b(zero|oh|o|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|double|triple|quadruple)\b/gi) ??
+    [];
+  return numberWords.length >= 3;
+}
+
+function edgeExpectsPhone(condition: string): boolean {
+  return /\b(phone|mobile|contact|number|callback|telephone|cell|reach you|call you back|digits)\b/.test(
+    condition.toLowerCase(),
+  );
+}
+
+/** Edge expects the caller to continue / provide info (not a rejection path). */
+function edgeExpectsGenericContinuation(condition: string): boolean {
+  return /\b(user answers?|user gives details|any answer|any acknowledgement|provided|caller provides|gives? (?:contact|info|details))\b/.test(
+    condition.toLowerCase(),
+  );
+}
+
+/** Edge expects the caller to supply their name — not "wrong name" objections. */
+function edgeExpectsNameProvided(condition: string): boolean {
+  const c = condition.toLowerCase();
+  if (/\b(wrong name|incorrect name|not my name|not me|bad name)\b/.test(c)) return false;
+  return /\b(correct name|tells us the|tell us the|gives? (?:us )?(?:their |his |her )?name|first name|your name|good name|introduc|spell(?:ing)?|called)\b/.test(
+    c,
+  );
+}
+
+export function looksLikeNameAnswer(userText: string): boolean {
+  const t = userText.trim();
+  if (!t || looksLikePhoneAnswer(t)) return false;
+  const words = t.split(/\s+/).filter(Boolean);
+  return words.length <= 4 && t.length >= 2 && /^[\p{L}\s'.-]+$/u.test(t);
+}
+
+/**
+ * Retell-style fast path: skip the global classifier unless the caller might be
+ * triggering an interrupt handler (human, stop, transfer, …).
+ */
+export function looksLikeGlobalInterrupt(userText: string): boolean {
+  const t = userText.trim().toLowerCase();
+  if (!t) return false;
+  return /\b(human|agent|representative|operator|manager|supervisor|real person|someone else|transfer|stop calling|don't call|do not call|not interested|remove me|opt out|complaint|speak to|talk to a|talk to someone|connect me|wrong number|who is this|what company|are you a bot|are you real)\b/.test(
+    t,
+  );
+}
+
+/**
+ * Skip the classifier for obvious yes/no/ok answers — saves ~1–3s per turn on
+ * typical qualification flows where most edges are affirmative/negative prompts.
+ */
+export function tryHeuristicEdgeIndex(conditions: string[], userText: string): number | null {
+  const t = userText.trim().toLowerCase().replace(/[.!?,]+$/g, "");
+  if (!t) return null;
+
+  const YES =
+    /^(yes|yeah|yep|yup|sure|ok|okay|correct|right|absolutely|definitely|of course|please|go ahead|sounds good|that works|mm[\s-]?hm|uh[\s-]?huh|y)$/i;
+  const NO = /^(no|nope|nah|not really|negative|pass)$/i;
+  const CONTINUE =
+    /^(continue|proceed|next|go on|keep going|sure thing|that's fine|fine|alright|all right)$/i;
+
+  for (let i = 0; i < conditions.length; i++) {
+    const c = conditions[i]?.toLowerCase() ?? "";
+    if (!c) continue;
+    if (
+      YES.test(t) &&
+      /\b(yes|positive|affirm|confirm|correct|agree|available|interested|helpful|proceed|continue)\b/.test(
+        c,
+      )
+    ) {
+      return i;
+    }
+    if (NO.test(t) && /\b(no|negative|declin|reject|not|unavailable|refus)\b/.test(c)) {
+      return i;
+    }
+    if (CONTINUE.test(t) && /\b(continue|proceed|next|move on|go ahead)\b/.test(c)) {
+      return i;
+    }
+  }
+
+  // Short name-like answers — must not match "wrong name" edges by substring.
+  if (looksLikeNameAnswer(userText)) {
+    for (let i = 0; i < conditions.length; i++) {
+      if (edgeExpectsNameProvided(conditions[i] ?? "")) return i;
+    }
+    for (let i = 0; i < conditions.length; i++) {
+      const c = conditions[i]?.toLowerCase() ?? "";
+      if (/\buser answers?\b/.test(c)) return i;
+    }
+  }
+
+  // Spelled-out or digit phone numbers when an edge expects contact info.
+  if (looksLikePhoneAnswer(userText)) {
+    for (let i = 0; i < conditions.length; i++) {
+      if (edgeExpectsPhone(conditions[i] ?? "")) return i;
+    }
+    for (let i = 0; i < conditions.length; i++) {
+      if (edgeExpectsGenericContinuation(conditions[i] ?? "")) return i;
+    }
+  }
+
+  // Numeric / detail answers (price, floor, size, bedrooms).
+  if (
+    /\d/.test(t) ||
+    /\b(one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|double|triple|zero|oh|million|thousand|hundred|floor|bhk|b h k|goodbye|bye|thanks|thank you)\b/.test(
+      t,
+    )
+  ) {
+    for (let i = 0; i < conditions.length; i++) {
+      const c = conditions[i]?.toLowerCase() ?? "";
+      if (
+        /\b(price|amount|floor|size|bedroom|detail|unit|square|goodbye|end|finish|affirm|yes|continue|proceed|phone|mobile|contact|callback|details)\b/.test(
+          c,
+        )
+      ) {
+        return i;
+      }
+    }
+    for (let i = 0; i < conditions.length; i++) {
+      if (edgeExpectsGenericContinuation(conditions[i] ?? "")) return i;
+    }
+  }
+
+  return null;
 }

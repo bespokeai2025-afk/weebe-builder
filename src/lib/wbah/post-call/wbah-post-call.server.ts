@@ -352,6 +352,21 @@ export async function runWbahPostCallPipelineCore(
   const leadId = String(dynVars.lead_id ?? dynVars.leadId ?? "").trim() || null;
   const custom = call.call_analysis?.custom_analysis_data ?? {};
 
+  if (event === "call_ended" && stepOn("wbah_calls_upsert")) {
+    try {
+      await upsertWbahCallFromWebhook({
+        call,
+        agent,
+        dynVars,
+        formatted: null,
+        event,
+      });
+      branches.push("wbah_calls_upsert");
+    } catch (e) {
+      errors.push(`wbah_calls_upsert: ${(e as Error).message}`);
+    }
+  }
+
   if ((event === "call_started" || event === "call_ended") && leadId) {
     if (stepOn("dashboard_raw")) {
       try {
@@ -364,6 +379,15 @@ export async function runWbahPostCallPipelineCore(
     return {
       handled: true,
       message: `processed ${event}`,
+      branches,
+      errors,
+    };
+  }
+
+  if (event === "call_ended") {
+    return {
+      handled: true,
+      message: "processed call_ended",
       branches,
       errors,
     };

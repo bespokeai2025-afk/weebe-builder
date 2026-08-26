@@ -15,10 +15,14 @@
 
 import type { ConversationVm } from "../graph/vm";
 import type { EndReason, VariableValue, VmDirective, VmInput } from "../graph/types";
+import { normalizeSpeechText } from "../tts/types";
 
 export interface GraphSessionCallbacks {
-  /** Render speech. Must resolve once the words are handed to the transport. */
-  speak(text: string, options: { interruptible: boolean; nodeId: string }): Promise<void>;
+  /** Render speech. Must resolve once audio has been handed to the transport. */
+  speak(
+    source: string | AsyncIterable<string>,
+    options: { interruptible: boolean; nodeId: string },
+  ): Promise<void>;
   onTranscript?(role: "agent" | "user", text: string): void;
   onVariables?(values: Record<string, VariableValue>): void;
   onToolCall?(toolId: string, result: string, ok: boolean): void;
@@ -89,13 +93,31 @@ export class GraphSession {
 
   private async apply(directive: VmDirective): Promise<VmInput | null> {
     switch (directive.type) {
-      case "speak":
-        this.cb.onTranscript?.("agent", directive.text);
-        await this.cb.speak(directive.text, {
-          interruptible: directive.interruptible === true,
-          nodeId: directive.nodeId,
-        });
+      case "speak": {
+        if (directive.textStream) {
+          let transcript = "";
+          async function* tap(): AsyncGenerator<string> {
+            for await (const chunk of directive.textStream!) {
+              transcript += chunk;
+              yield chunk;
+            }
+          }
+          await this.cb.speak(tap(), {
+            interruptible: directive.interruptible === true,
+            nodeId: directive.nodeId,
+          });
+          const clean = normalizeSpeechText(transcript);
+          if (clean) this.cb.onTranscript?.("agent", clean);
+        } else {
+          const text = normalizeSpeechText(directive.text ?? "");
+          if (text) this.cb.onTranscript?.("agent", text);
+          await this.cb.speak(text, {
+            interruptible: directive.interruptible === true,
+            nodeId: directive.nodeId,
+          });
+        }
         return null;
+      }
 
       case "await_user":
         this.cb.onAwaitUser?.();

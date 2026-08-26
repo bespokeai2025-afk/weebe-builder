@@ -241,7 +241,7 @@ export function romanizeForEnglishStt(text: string): string {
 
   if (/[\u0900-\u097F]/.test(trimmed)) {
     const roman = romanizeDevanagari(trimmed)
-      .replace(/\baar(?:a)?\b/gi, "ar")
+      .replace(/\baara\b/gi, "ar")
       .replace(/\bhelo\b/gi, "hello")
       .replace(/\bhaalo\b/gi, "hello")
       .replace(/\s+/g, " ")

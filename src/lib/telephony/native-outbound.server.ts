@@ -12,7 +12,8 @@
  * gets, which is why it must exist before the call is created.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { resolvePublicHost, resolveTwilioCredentials } from "./twilio-env";
+import { resolvePublicHost } from "./twilio-env";
+import { resolveTwilioCredentialsForWorkspace } from "./twilio-credentials.server";
 
 export interface NativeDialParams {
   /** Service-role client; this runs from schedulers with no user session. */
@@ -86,7 +87,7 @@ export async function placeNativeOutboundCall(
   }
 
   const host = resolvePublicHost();
-  const credentials = resolveTwilioCredentials();
+  const credentials = await resolveTwilioCredentialsForWorkspace(sb, workspaceId);
 
   const { data: callRow, error: insertErr } = await sb
     .from("telephony_calls")

@@ -19,9 +19,9 @@ export interface TwilioCredentials {
  * `telephony_configs` table has credential columns from an earlier design but
  * they are never written, so reading them would silently pick up empty strings.
  */
-export function resolveTwilioCredentials(): TwilioCredentials {
-  const accountSid = process.env.TWILIO_ACCOUNT_SID ?? "";
-  const authToken = process.env.TWILIO_AUTH_TOKEN ?? "";
+export function resolveTwilioCredentials(override?: Partial<TwilioCredentials>): TwilioCredentials {
+  const accountSid = override?.accountSid?.trim() || process.env.TWILIO_ACCOUNT_SID?.trim() || "";
+  const authToken = override?.authToken?.trim() || process.env.TWILIO_AUTH_TOKEN?.trim() || "";
   if (!accountSid || !authToken) {
     throw new Error(
       "Twilio is not configured. Add TWILIO_ACCOUNT_SID and TWILIO_AUTH_TOKEN to the environment.",

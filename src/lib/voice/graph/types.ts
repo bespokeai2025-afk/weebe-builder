@@ -161,7 +161,13 @@ export type VariableValue = string | number | boolean | null;
 export interface SpeakDirective {
   type: "speak";
   nodeId: string;
-  text: string;
+  /** Verbatim speech when the line is known up front (static text, fillers). */
+  text?: string;
+  /**
+   * Token or sentence stream for generated dialogue. The transport must drain
+   * this before the VM advances, so history and the next node see the full line.
+   */
+  textStream?: AsyncIterable<string>;
   /** True for filler speech while a tool runs, which barge-in may cut short. */
   interruptible?: boolean;
 }
@@ -272,6 +278,14 @@ export interface VmLlm {
   /** Free-form generation for `instruction.type === "prompt"` nodes. */
   generate(messages: LlmMessage[], options?: { model?: string }): Promise<string>;
   /**
+   * Streamed generation for live speech. When omitted the VM falls back to
+   * `generate` and speaks the finished line in one shot.
+   */
+  generateStream?(
+    messages: LlmMessage[],
+    options?: { model?: string; signal?: AbortSignal },
+  ): AsyncIterable<string>;
+  /**
    * Pick one of `choices` given the conversation. Must return an index into
    * `choices`, or -1 when none apply.
    */
@@ -314,6 +328,13 @@ export interface ToolOutcome {
  * degrades to a logged no-op that follows the failure edge rather than throwing,
  * because a caller is on the line by the time any of this runs.
  */
+export interface VmLatencyHooks {
+  /** Fired when graph routing begins after a user turn. */
+  onRouteStart?: () => void;
+  /** Fired when a heuristic route points at speakable static text (TTS pre-warm). */
+  onSpeculativeTts?: (text: string | null) => void;
+}
+
 export interface VmHooks {
   executeTool?(invocation: ToolInvocation): Promise<ToolOutcome>;
   sendSms?(message: string, variables: Record<string, VariableValue>): Promise<boolean>;
@@ -341,4 +362,6 @@ export interface VmOptions {
    * (branch → branch → …). Counted per turn.
    */
   maxStepsPerTurn?: number;
+  /** Appended to every generation turn — keeps the agent in the configured language. */
+  languageLock?: string;
 }

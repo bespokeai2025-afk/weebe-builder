@@ -28,6 +28,7 @@ class WhisperSttSession implements SttSession {
     const text = await whisperTranscribe(
       buildWav(frames, this.options.sampleRate),
       this.apiKey,
+      this.options.language,
     );
     if (text) this.options.onFinal?.(text);
     return text;

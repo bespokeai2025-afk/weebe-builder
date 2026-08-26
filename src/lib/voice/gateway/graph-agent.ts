@@ -12,9 +12,12 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { ConversationVm } from "../graph/vm";
 import { createOpenAiVmLlm } from "../graph/llm";
+import { createTracedVmLlm } from "../graph/traced-llm";
 import { createVmHooks } from "../graph/tools";
 import { loadFlowFromAgent, seedVariablesFromAgent } from "../graph/load";
 import type { ConversationFlow, VariableValue } from "../graph/types";
+import { buildLanguageLockInstruction } from "../language-lock.shared";
+import { resolveWebeeSpeechModel } from "../webee-native.shared";
 
 export interface GraphRuntime {
   vm: ConversationVm;
@@ -111,19 +114,31 @@ export async function buildGraphRuntime(
 
   if (!flow) return null;
 
-  const configuredModel = String(settings.model ?? settings.openai_model ?? "").trim();
-  const llm = createOpenAiVmLlm({
-    apiKey,
-    defaultModel: configuredModel || undefined,
-    temperature:
-      typeof flow.model_temperature === "number" ? flow.model_temperature : undefined,
-  });
+  const configuredModel = resolveWebeeSpeechModel(settings);
+  let vm!: ConversationVm;
+  const llm = createTracedVmLlm(
+    createOpenAiVmLlm({
+      apiKey,
+      defaultModel: configuredModel,
+      temperature:
+        typeof flow.model_temperature === "number" ? flow.model_temperature : undefined,
+    }),
+    () => vm.getTurnTrace(),
+  );
 
-  const vm = new ConversationVm({
+  vm = new ConversationVm({
     flow,
     llm,
     variables,
-    model: configuredModel || undefined,
+    model: configuredModel,
+    languageLock: buildLanguageLockInstruction(
+      Array.isArray(settings.speechLanguages)
+        ? (settings.speechLanguages as string[])
+        : settings.language
+          ? [String(settings.language)]
+          : undefined,
+      String(settings.language ?? "en-US"),
+    ),
     hooks: createVmHooks({
       tools: Array.isArray(flow.tools) ? (flow.tools as Array<Record<string, unknown>>) : [],
       sendSms: options.sendSms,
@@ -138,7 +153,7 @@ export async function buildGraphRuntime(
     // like "11labs-Adrian", which Fish would reject. Prefer the native field and
     // let the TTS provider fall back to its own default when it is unset.
     voiceId: String(settings.webeeVoiceId ?? settings.voice_id ?? settings.voiceId ?? "").trim(),
-    model: configuredModel || "gpt-4.1",
+    model: configuredModel,
     warnings,
     agent,
     settings,

@@ -40,6 +40,8 @@ export interface SttSession {
    * providers flush their own buffer instead and ignore it.
    */
   finalizeUtterance(frames: Buffer[]): Promise<string>;
+  /** Drop buffered audio (streaming providers). Called after agent speech ends. */
+  clearInputBuffer?(): void;
   close(): void;
 }
 

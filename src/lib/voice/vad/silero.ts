@@ -19,6 +19,7 @@
 
 import { resample } from "../gateway/audio";
 import { computeRms } from "./energy";
+import { resolveSileroModelPath } from "./silero-path.shared";
 import { Endpointer, type EndpointingOptions, type Vad, type VadEvent } from "./types";
 
 /** Silero operates on 16 kHz audio in fixed windows. */
@@ -85,9 +86,11 @@ export class SileroVad implements Vad {
    * the caller can fall back rather than run a half-initialised detector.
    */
   static async create(options: SileroVadOptions = {}): Promise<SileroVad> {
-    const modelPath = options.modelPath ?? process.env.SILERO_VAD_MODEL_PATH ?? "";
+    const modelPath = resolveSileroModelPath(options.modelPath);
     if (!modelPath) {
-      throw new Error("SILERO_VAD_MODEL_PATH is not set");
+      throw new Error(
+        "SILERO_VAD_MODEL_PATH is not set and models/silero_vad.onnx was not found (run node scripts/setup-silero-vad.mjs)",
+      );
     }
 
     let ort: OrtModule;

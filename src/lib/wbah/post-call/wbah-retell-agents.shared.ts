@@ -83,11 +83,22 @@ export function getWbahAdditionalRetellApiKeys(): string[] {
     .filter((k) => k.startsWith("key_"));
 }
 
+/** All Retell API keys for WBAH (Settings primary + new-workspace env). */
+export function getWbahRetellApiKeysForSync(primaryFromDb: string | null | undefined): string[] {
+  const keys = new Set<string>();
+  const primary = primaryFromDb?.trim();
+  if (primary?.startsWith("key_")) keys.add(primary);
+  for (const k of getWbahAdditionalRetellApiKeys()) keys.add(k);
+  return [...keys];
+}
+
 export function stripRetellAgentPrefix(value: string): string {
   return value.replace(/^agents\//, "").trim();
 }
 
-export function resolveWbahRetellAgent(agentId: string | null | undefined): WbahRetellAgentMapping | null {
+export function resolveWbahRetellAgent(
+  agentId: string | null | undefined,
+): WbahRetellAgentMapping | null {
   if (!agentId) return null;
   const id = stripRetellAgentPrefix(agentId);
   return WBAH_RETELL_AGENT_MAP[id] ?? null;

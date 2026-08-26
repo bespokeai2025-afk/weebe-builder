@@ -94,7 +94,12 @@ import { cn } from "@/lib/utils";
 import { MODELS, HYPERSTREAM_MODELS } from "@/lib/builder/pricing";
 import { searchElevenLabsVoices, previewElevenLabsVoice, previewRetellVoice } from "@/lib/builder/retell.functions";
 import { listElevenLabsVoices, cloneElevenLabsVoice } from "@/lib/builder/elevenlabs-voices.functions";
-import { listFishVoices, type FishVoice } from "@/lib/voice/fish-voices.functions";
+import { listFishVoices, previewFishVoice, type FishVoice } from "@/lib/voice/fish-voices.functions";
+import {
+  formatFishVoiceLabel,
+  formatFishVoiceSubtitle,
+  fishVoiceGroup,
+} from "@/lib/voice/fish-voice-label.shared";
 import { extractPostCallVariables, type PostCallExtracted } from "@/lib/builder/post-call-extract.functions";
 import { saveHyperStreamTestCall, updateCallSentiment } from "@/lib/builder/save-hyperstream-call.functions";
 import { useServerFn } from "@tanstack/react-start";
@@ -326,6 +331,7 @@ function MiniAudioPlayer({ url }: { url: string }) {
   const [duration, setDuration] = useState(0);
 
   function fmt(s: number) {
+    if (!Number.isFinite(s) || s < 0) return "0:00";
     const m = Math.floor(s / 60);
     const sec = Math.floor(s % 60);
     return `${m}:${sec.toString().padStart(2, "0")}`;
@@ -347,7 +353,10 @@ function MiniAudioPlayer({ url }: { url: string }) {
         onPause={() => setPlaying(false)}
         onEnded={() => setPlaying(false)}
         onTimeUpdate={() => setCurrent(audioRef.current?.currentTime ?? 0)}
-        onLoadedMetadata={() => setDuration(audioRef.current?.duration ?? 0)}
+        onLoadedMetadata={() => {
+          const d = audioRef.current?.duration ?? 0;
+          setDuration(Number.isFinite(d) ? d : 0);
+        }}
       />
       <div className="flex items-center gap-1.5">
         <button
@@ -372,7 +381,7 @@ function MiniAudioPlayer({ url }: { url: string }) {
           />
         </div>
         <span className="text-[9px] tabular-nums text-muted-foreground/70 shrink-0">
-          {fmt(current)}{duration ? ` / ${fmt(duration)}` : ""}
+          {fmt(current)}{Number.isFinite(duration) && duration > 0 ? ` / ${fmt(duration)}` : ""}
         </span>
       </div>
     </div>
@@ -475,6 +484,13 @@ export function Builder({
   const [fishVoicesLoading, setFishVoicesLoading] = useState(false);
   const [fishVoicesError, setFishVoicesError] = useState<string | null>(null);
   const [fishSearch, setFishSearch] = useState("");
+  const [fishLanguage, setFishLanguage] = useState<"en" | "all">("en");
+  const [fishTag, setFishTag] = useState("");
+  const [fishPreviewText, setFishPreviewText] = useState("Hi there! How can I help you today?");
+  const [fishPlayingId, setFishPlayingId] = useState<string | null>(null);
+  const [fishTtsLoadingId, setFishTtsLoadingId] = useState<string | null>(null);
+  const fishAudioRef = useRef<HTMLAudioElement | null>(null);
+  const fishTtsCacheRef = useRef<Map<string, string>>(new Map());
   const hsVoiceProvider = settings.voiceOutputProvider ?? "openai";
 
   function fileToBase64(file: File): Promise<string> {
@@ -520,22 +536,27 @@ export function Builder({
       .finally(() => setElHsVoicesLoading(false));
   }, [hsVoiceProvider]);
 
-  // Fish Audio catalog for the native engine. An empty search lists the
-  // workspace's own cloned models; a term searches the public Voice Library, so
-  // a voice can be adopted without cloning it first.
+  // Fish Audio catalog for WEBEE Native — English browse by default, search on demand.
   useEffect(() => {
     if (!isWebeeNative) return;
     setFishVoicesLoading(true);
     setFishVoicesError(null);
     const term = fishSearch.trim();
     const timer = setTimeout(() => {
-      listFishVoices({ data: term ? { search: term } : {} })
-        .then((voices) => setFishVoices(voices))
+      listFishVoices({
+        data: {
+          search: term || undefined,
+          language: fishLanguage,
+          tag: fishTag || undefined,
+          page: 1,
+        },
+      })
+        .then((result) => setFishVoices(result.voices))
         .catch((e: Error) => setFishVoicesError(e.message))
         .finally(() => setFishVoicesLoading(false));
     }, term ? 350 : 0);
     return () => clearTimeout(timer);
-  }, [isWebeeNative, fishSearch]);
+  }, [isWebeeNative, fishSearch, fishLanguage, fishTag]);
   const retAudioRef = useRef<HTMLAudioElement | null>(null);
 
   useEffect(() => {
@@ -1212,7 +1233,7 @@ export function Builder({
                 >
                   {liveTranscript.length === 0 && !postCallData && !postCallLoading ? (
                     <p className="py-8 text-center text-[11px] text-muted-foreground">
-                      Waiting for conversation…
+                      {callActive ? "Waiting for conversation…" : "Start a test call to see the transcript here."}
                     </p>
                   ) : (
                     liveTranscript.map((entry) => (
@@ -1394,64 +1415,12 @@ export function Builder({
                 </div>
               )}
 
-              {/* WEBEE Native — Fish Audio voice, picked from the workspace's own
-                  models or the public library. Stored separately from voiceId so
-                  switching engines back to OmniVoice keeps that voice intact. */}
               {isWebeeNative && (
-                <div className="pt-1 space-y-1.5">
-                  <div className="flex items-center gap-1.5 rounded-full border border-white/[0.08] bg-white/[0.03] px-2 py-0.5 w-fit">
-                    <Waves className="h-2.5 w-2.5 shrink-0 text-muted-foreground" />
-                    <span className="text-[9px] text-muted-foreground">
-                      Runs the flow graph in-house · WEBEE Native TTS
-                    </span>
-                  </div>
-                  <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium">WEBEE Native Voice</p>
-                  <Input
-                    value={fishSearch}
-                    onChange={(e) => setFishSearch(e.target.value)}
-                    placeholder="Search the voice library, or leave blank for your own"
-                    className="h-7 text-[10px]"
-                  />
-                  {fishVoicesLoading ? (
-                    <div className="flex items-center gap-1.5 py-1.5 text-[9px] text-muted-foreground">
-                      <Loader2 className="h-3 w-3 animate-spin" />Loading voices…
-                    </div>
-                  ) : fishVoicesError ? (
-                    <p className="text-[9px] text-destructive/80 leading-snug bg-destructive/5 border border-destructive/20 rounded px-2 py-1.5">{fishVoicesError}</p>
-                  ) : fishVoices.length > 0 ? (
-                    <Select
-                      value={settings.webeeVoiceId ?? ""}
-                      onValueChange={(v) => {
-                        const voice = fishVoices.find((x) => x.voiceId === v);
-                        setSettings({ webeeVoiceId: v, webeeVoiceName: voice?.title });
-                      }}
-                    >
-                      <SelectTrigger className="h-7 text-[10px]">
-                        <SelectValue placeholder="Select a voice…" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {fishVoices.map((v) => (
-                          <SelectItem key={v.voiceId} value={v.voiceId}>
-                            <span className="flex items-center justify-between gap-3 w-full">
-                              <span className="font-medium">{v.title}</span>
-                              <span className="text-muted-foreground text-[10px]">
-                                {v.owned ? "yours" : (v.languages[0] ?? "library")}
-                              </span>
-                            </span>
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  ) : (
-                    <p className="text-[9px] text-muted-foreground/70 leading-snug">
-                      No voices found. Clone a voice in your voice workspace, or search the public library above.
-                    </p>
-                  )}
-                  {settings.webeeVoiceName && (
-                    <p className="text-[8.5px] text-muted-foreground/50">
-                      Using “{settings.webeeVoiceName}” for both phone and browser calls.
-                    </p>
-                  )}
+                <div className="flex items-center gap-1.5 rounded-full border border-white/[0.08] bg-white/[0.03] px-2 py-0.5 w-fit">
+                  <Waves className="h-2.5 w-2.5 shrink-0 text-muted-foreground" />
+                  <span className="text-[9px] text-muted-foreground">
+                    Runs the flow graph in-house · Fish Audio TTS — pick a voice under Voice &amp; Language
+                  </span>
                 </div>
               )}
 
@@ -1690,6 +1659,283 @@ export function Builder({
                     )}
                     <CustomVoiceUploadDialog onUploaded={(voiceId) => setSettings({ voiceId })} />
                   </>
+                )}
+                {isWebeeNative && (
+                  <div className="space-y-1.5">
+                    <Label className="text-[9px]">Voice (Fish Audio)</Label>
+                    {settings.webeeVoiceId && (
+                      <div className="flex items-center gap-1.5 rounded border border-primary/20 bg-primary/[0.04] px-2 py-1">
+                        <Waves className="h-2.5 w-2.5 text-primary shrink-0" />
+                        <div className="flex flex-col min-w-0 flex-1">
+                          <span className="text-[9px] font-medium text-primary truncate leading-tight">
+                            {settings.webeeVoiceName ||
+                              formatFishVoiceLabel(
+                                fishVoices.find((x) => x.voiceId === settings.webeeVoiceId) ?? {
+                                  title: "Selected voice",
+                                  languages: [],
+                                  tags: [],
+                                  owned: false,
+                                },
+                              )}
+                          </span>
+                          <span className="text-[8px] font-mono text-muted-foreground truncate leading-tight">
+                            {settings.webeeVoiceId}
+                          </span>
+                        </div>
+                        <button
+                          type="button"
+                          className="text-[9px] text-muted-foreground hover:text-destructive shrink-0"
+                          onClick={() => setSettings({ webeeVoiceId: "", webeeVoiceName: "" })}
+                        >
+                          ×
+                        </button>
+                      </div>
+                    )}
+                    <div className="flex flex-wrap gap-1">
+                      {(
+                        [
+                          { id: "en", label: "English" },
+                          { id: "all", label: "All languages" },
+                        ] as const
+                      ).map(({ id, label }) => (
+                        <button
+                          key={id}
+                          type="button"
+                          className={cn(
+                            "text-[9px] px-2 py-0.5 rounded-md border font-medium transition-colors",
+                            fishLanguage === id
+                              ? "border-primary/60 bg-primary/10 text-primary"
+                              : "border-white/[0.08] text-muted-foreground hover:border-white/[0.16]",
+                          )}
+                          onClick={() => setFishLanguage(id)}
+                        >
+                          {label}
+                        </button>
+                      ))}
+                      {(["", "male", "female", "narration"] as const).map((tag) => (
+                        <button
+                          key={tag || "any"}
+                          type="button"
+                          className={cn(
+                            "text-[9px] px-2 py-0.5 rounded-md border font-medium transition-colors capitalize",
+                            fishTag === tag
+                              ? "border-primary/60 bg-primary/10 text-primary"
+                              : "border-white/[0.08] text-muted-foreground hover:border-white/[0.16]",
+                          )}
+                          onClick={() => setFishTag(tag)}
+                        >
+                          {tag || "Any style"}
+                        </button>
+                      ))}
+                    </div>
+                    <div className="flex gap-1">
+                      <Input
+                        value={fishSearch}
+                        onChange={(e) => setFishSearch(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") {
+                            setFishVoicesLoading(true);
+                            listFishVoices({
+                              data: {
+                                search: fishSearch.trim() || undefined,
+                                language: fishLanguage,
+                                tag: fishTag || undefined,
+                              },
+                            })
+                              .then((r) => setFishVoices(r.voices))
+                              .catch((err: Error) => setFishVoicesError(err.message))
+                              .finally(() => setFishVoicesLoading(false));
+                          }
+                        }}
+                        placeholder="Search by name, accent, or style…"
+                        className="h-7 text-[10px] flex-1"
+                      />
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-7 px-2 text-[9px] shrink-0"
+                        disabled={fishVoicesLoading}
+                        onClick={() => {
+                          setFishVoicesLoading(true);
+                          listFishVoices({
+                            data: {
+                              search: fishSearch.trim() || undefined,
+                              language: fishLanguage,
+                              tag: fishTag || undefined,
+                            },
+                          })
+                            .then((r) => setFishVoices(r.voices))
+                            .catch((err: Error) => setFishVoicesError(err.message))
+                            .finally(() => setFishVoicesLoading(false));
+                        }}
+                      >
+                        <Search className="h-2.5 w-2.5 mr-1" />
+                        {fishVoicesLoading ? "…" : "Search"}
+                      </Button>
+                    </div>
+                    {fishVoicesError && (
+                      <p className="text-[9px] text-destructive/80 leading-snug bg-destructive/5 border border-destructive/20 rounded px-2 py-1.5">
+                        {fishVoicesError}
+                      </p>
+                    )}
+                    {!fishVoicesLoading && !fishVoicesError && fishVoices.length === 0 && (
+                      <p className="text-[9px] text-muted-foreground/70 leading-snug">
+                        No voices found. Try English + a search like “British”, “narrator”, or “female”.
+                      </p>
+                    )}
+                    {(fishVoices.length > 0 || fishVoicesLoading) && (
+                      <>
+                        <div className="space-y-1">
+                          <Label className="text-[9px] text-muted-foreground">Preview text</Label>
+                          <Input
+                            value={fishPreviewText}
+                            onChange={(e) => setFishPreviewText(e.target.value)}
+                            placeholder="Hi there! How can I help you today?"
+                            className="h-6 text-[9px]"
+                          />
+                        </div>
+                        {fishVoicesLoading ? (
+                          <div className="flex items-center gap-1.5 py-2 text-[9px] text-muted-foreground">
+                            <Loader2 className="h-3 w-3 animate-spin" />
+                            Loading voices…
+                          </div>
+                        ) : (
+                          <div className="max-h-44 overflow-y-auto rounded border border-white/[0.06] divide-y divide-white/[0.04]">
+                            {(["yours", "library"] as const).map((group) => {
+                              const groupVoices = fishVoices.filter((v) => fishVoiceGroup(v) === group);
+                              if (groupVoices.length === 0) return null;
+                              return (
+                                <div key={group}>
+                                  <p className="sticky top-0 z-10 bg-background/95 px-2 py-1 text-[8px] uppercase tracking-wide text-muted-foreground border-b border-white/[0.04]">
+                                    {group === "yours" ? "Your clones" : "Voice library"}
+                                  </p>
+                                  {groupVoices.map((v) => (
+                                    <div
+                                      key={v.voiceId}
+                                      className="flex w-full items-start gap-1.5 px-2 py-1.5 hover:bg-white/[0.04] transition-colors"
+                                    >
+                                      <button
+                                        type="button"
+                                        className="flex flex-1 items-start gap-1.5 text-left min-w-0"
+                                        onClick={() => {
+                                          setSettings({
+                                            webeeVoiceId: v.voiceId,
+                                            webeeVoiceName: formatFishVoiceLabel(v),
+                                          });
+                                          if (fishAudioRef.current) {
+                                            fishAudioRef.current.pause();
+                                            fishAudioRef.current = null;
+                                          }
+                                          setFishPlayingId(null);
+                                          setFishTtsLoadingId(null);
+                                        }}
+                                      >
+                                        <Check
+                                          className={cn(
+                                            "h-2.5 w-2.5 mt-0.5 shrink-0",
+                                            settings.webeeVoiceId === v.voiceId ? "text-primary" : "text-transparent",
+                                          )}
+                                        />
+                                        <div className="min-w-0">
+                                          <p className="text-[9px] font-medium leading-tight truncate">
+                                            {formatFishVoiceLabel(v)}
+                                          </p>
+                                          <p className="text-[8px] text-muted-foreground leading-tight">
+                                            {formatFishVoiceSubtitle(v)}
+                                          </p>
+                                          {v.description && (
+                                            <p className="text-[8px] text-muted-foreground/60 leading-tight line-clamp-1">
+                                              {v.description}
+                                            </p>
+                                          )}
+                                        </div>
+                                      </button>
+                                      <button
+                                        type="button"
+                                        className="shrink-0 mt-0.5 text-muted-foreground hover:text-primary transition-colors disabled:opacity-40"
+                                        title={fishPlayingId === v.voiceId ? "Stop preview" : "Play preview"}
+                                        disabled={fishTtsLoadingId === v.voiceId}
+                                        onClick={async (e) => {
+                                          e.stopPropagation();
+                                          if (fishPlayingId === v.voiceId) {
+                                            fishAudioRef.current?.pause();
+                                            fishAudioRef.current = null;
+                                            setFishPlayingId(null);
+                                            return;
+                                          }
+                                          if (fishAudioRef.current) {
+                                            fishAudioRef.current.pause();
+                                            fishAudioRef.current = null;
+                                          }
+                                          setFishPlayingId(null);
+                                          const ttsText =
+                                            fishPreviewText.trim() || "Hi there! How can I help you today?";
+                                          const cacheKey = `${v.voiceId}|${ttsText}`;
+                                          const cachedUrl = fishTtsCacheRef.current.get(cacheKey);
+                                          const playUrl = (url: string) => {
+                                            const audio = new Audio(url);
+                                            fishAudioRef.current = audio;
+                                            setFishPlayingId(v.voiceId);
+                                            audio.play().catch(() => {});
+                                            audio.onended = () => {
+                                              fishAudioRef.current = null;
+                                              setFishPlayingId(null);
+                                            };
+                                          };
+                                          if (cachedUrl) {
+                                            playUrl(cachedUrl);
+                                            return;
+                                          }
+                                          setFishTtsLoadingId(v.voiceId);
+                                          try {
+                                            const result = await previewFishVoice({
+                                              data: { voiceId: v.voiceId, text: ttsText },
+                                            });
+                                            if (result.audio) {
+                                              const bytes = Uint8Array.from(atob(result.audio), (c) =>
+                                                c.charCodeAt(0),
+                                              );
+                                              const blob = new Blob([bytes], {
+                                                type: result.mimeType ?? "audio/wav",
+                                              });
+                                              const url = URL.createObjectURL(blob);
+                                              fishTtsCacheRef.current.set(cacheKey, url);
+                                              playUrl(url);
+                                            } else {
+                                              toast.error("Preview unavailable", {
+                                                description: result.missingKey
+                                                  ? "No Fish Audio API key configured."
+                                                  : "TTS returned no audio.",
+                                              });
+                                            }
+                                          } catch {
+                                            toast.error("Preview failed");
+                                          } finally {
+                                            setFishTtsLoadingId(null);
+                                          }
+                                        }}
+                                      >
+                                        {fishTtsLoadingId === v.voiceId ? (
+                                          <span className="h-2.5 w-2.5 block rounded-full border border-current border-t-transparent animate-spin" />
+                                        ) : fishPlayingId === v.voiceId ? (
+                                          <Square className="h-2.5 w-2.5 fill-current" />
+                                        ) : (
+                                          <Play className="h-2.5 w-2.5" />
+                                        )}
+                                      </button>
+                                    </div>
+                                  ))}
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </>
+                    )}
+                    <p className="text-[8px] text-muted-foreground">
+                      Browse popular English voices or search the Fish library. Preview before test call.
+                    </p>
+                  </div>
                 )}
               </CollapsibleContent>
             </Collapsible>
@@ -2186,7 +2432,7 @@ export function Builder({
             ) : (
               <>
                 <SpeechSettingsSection isRetell={isRetell} />
-                <TranscriptionSettingsSection isRetell={isRetell} isHyperStream={isOpenAI} />
+                <TranscriptionSettingsSection isRetell={isRetell} isHyperStream={isOpenAI} isWebeeNative={isWebeeNative} />
                 {isOpenAI && <HyperStreamSettingsSection />}
               </>
             )}

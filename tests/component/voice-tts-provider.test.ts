@@ -26,16 +26,12 @@ describe("alignPcm16", () => {
   });
 
   it("carries a split sample across chunk boundaries instead of shifting the stream", async () => {
-    // 3 bytes then 3 bytes: naive forwarding would emit an odd-length frame and
-    // shift every following sample by one byte, turning speech into noise.
     const chunks = [Buffer.from([1, 2, 3]), Buffer.from([4, 5, 6])];
     const out = await collect(alignPcm16(fromArray(chunks)));
 
-    // Every emitted buffer must hold whole samples.
     for (const buf of out) {
       expect(buf.byteLength % 2).toBe(0);
     }
-    // And no bytes may be reordered or lost.
     expect(Buffer.concat(out)).toEqual(Buffer.from([1, 2, 3, 4, 5, 6]));
   });
 
@@ -66,9 +62,7 @@ describe("batchIntoSentences", () => {
   it("breaks on a word boundary once maxChars is exceeded so playback never stalls", async () => {
     const tokens = ["word ".repeat(10)];
     const out = await collect(batchIntoSentences(fromArray(tokens), 20));
-    // Must have split rather than buffering the whole clause.
     expect(out.length).toBeGreaterThan(1);
-    // No segment may split a word.
     for (const seg of out) {
       expect(seg).not.toMatch(/\bwor$|\bwo$|\bw$/);
     }
@@ -83,62 +77,68 @@ describe("batchIntoSentences", () => {
   it("yields nothing for an empty stream", async () => {
     expect(await collect(batchIntoSentences(fromArray([])))).toEqual([]);
   });
+  it("flushes an early first chunk for low-latency streaming", async () => {
+    const { batchForVoiceLatency, VOICE_LATENCY_TTS_BATCH } = await import("@/lib/voice/tts/types");
+    const tokens = ["Hello", " there", " friend", " how", " are", " you?"];
+    const out = await collect(batchForVoiceLatency(fromArray(tokens)));
+    expect(out.length).toBeGreaterThan(1);
+    expect(out[0].length).toBeLessThanOrEqual(VOICE_LATENCY_TTS_BATCH.firstFlushChars + 8);
+  });
+
+  it("normalizes spaced punctuation from streamed tokens", async () => {
+    const { normalizeSpeechText } = await import("@/lib/voice/tts/types");
+    expect(normalizeSpeechText("Hi , may I have your name , please ?")).toBe(
+      "Hi, may I have your name, please?",
+    );
+  });
+});
+
+describe("Fish TTS model", () => {
+  it("defaults to s2.1-pro-free", async () => {
+    const { FISH_TTS_DEFAULT_MODEL, resolveFishTtsModel } = await import(
+      "@/lib/voice/tts/fish.provider"
+    );
+    expect(FISH_TTS_DEFAULT_MODEL).toBe("s2.1-pro-free");
+    expect(resolveFishTtsModel()).toBe("s2.1-pro-free");
+  });
+
+  it("honours FISH_TTS_MODEL override", async () => {
+    const prev = process.env.FISH_TTS_MODEL;
+    process.env.FISH_TTS_MODEL = "s2.1-pro";
+    const { resolveFishTtsModel } = await import("@/lib/voice/tts/fish.provider");
+    expect(resolveFishTtsModel()).toBe("s2.1-pro");
+    if (prev === undefined) delete process.env.FISH_TTS_MODEL;
+    else process.env.FISH_TTS_MODEL = prev;
+  });
 });
 
 describe("createTtsProvider", () => {
   const originalFish = process.env.FISH_API_KEY;
-  const originalEl = process.env.ELEVENLABS_API_KEY;
 
   afterEach(() => {
     if (originalFish === undefined) delete process.env.FISH_API_KEY;
     else process.env.FISH_API_KEY = originalFish;
-    if (originalEl === undefined) delete process.env.ELEVENLABS_API_KEY;
-    else process.env.ELEVENLABS_API_KEY = originalEl;
   });
 
-  it("prefers Fish Audio when no explicit preference is given", () => {
-    const provider = createTtsProvider(null, {
-      fishApiKey: "fish-key",
-      elevenLabsApiKey: "el-key",
-    });
+  it("creates Fish Audio TTS when a key is present", () => {
+    const provider = createTtsProvider(null, { fishApiKey: "fish-key" });
     expect(provider.name).toBe("fish");
   });
 
-  it("honours an explicit ElevenLabs preference", () => {
-    const provider = createTtsProvider("elevenlabs", {
-      fishApiKey: "fish-key",
-      elevenLabsApiKey: "el-key",
-    });
-    expect(provider.name).toBe("elevenlabs");
-  });
-
-  it("falls back to the other provider when the preferred one has no key", () => {
-    delete process.env.FISH_API_KEY;
-    const provider = createTtsProvider("fish", { elevenLabsApiKey: "el-key" });
-    expect(provider.name).toBe("elevenlabs");
-  });
-
   it("prefers a per-workspace key over the platform env key", () => {
-    process.env.ELEVENLABS_API_KEY = "platform-el";
     delete process.env.FISH_API_KEY;
     const provider = createTtsProvider(null, { fishApiKey: "workspace-fish" });
     expect(provider.name).toBe("fish");
   });
 
-  it("throws a directive error when nothing is configured", () => {
+  it("throws when FISH_API_KEY is missing", () => {
     delete process.env.FISH_API_KEY;
-    delete process.env.ELEVENLABS_API_KEY;
-    expect(() => createTtsProvider(null, {})).toThrow(/FISH_API_KEY or ELEVENLABS_API_KEY/);
+    expect(() => createTtsProvider(null, {})).toThrow(/FISH_API_KEY/);
   });
 
-  it("reports which providers are usable", () => {
+  it("reports Fish when configured", () => {
     delete process.env.FISH_API_KEY;
-    delete process.env.ELEVENLABS_API_KEY;
     expect(availableTtsProviders({})).toEqual([]);
     expect(availableTtsProviders({ fishApiKey: "k" })).toEqual(["fish"]);
-    expect(availableTtsProviders({ fishApiKey: "k", elevenLabsApiKey: "k2" })).toEqual([
-      "fish",
-      "elevenlabs",
-    ]);
   });
 });
