@@ -141,6 +141,76 @@ export interface CreateObjectiveInput {
   delegate?: boolean;
 }
 
+export interface UpdateMarketingObjectiveInput {
+  objectiveId?: string;
+  objectiveName?: string;
+  status?: "active" | "paused" | "achieved" | "not_achieved" | "abandoned";
+  targetPct?: number | null;
+  deadline?: string | null;
+}
+
+function isIsoCalendarDate(value: string): boolean {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+  const parsed = new Date(`${value}T00:00:00.000Z`);
+  return !Number.isNaN(parsed.getTime()) && parsed.toISOString().slice(0, 10) === value;
+}
+
+/**
+ * Update an objective through the same owner/admin gate used by the UI.
+ * Names must resolve uniquely so conversational references never change the
+ * wrong objective.
+ */
+export async function updateMarketingObjectiveCore(
+  sbAdmin: Sb,
+  workspaceId: string,
+  userId: string | null,
+  input: UpdateMarketingObjectiveInput,
+): Promise<any> {
+  const { resolvePermissions, isOwnerOrAdmin } = await import("@/lib/permissions/permissions.server");
+  const perms = await resolvePermissions(workspaceId, userId);
+  if (!isOwnerOrAdmin(perms)) throw new Error("Only a workspace owner or admin can change a marketing objective.");
+
+  if (!input.objectiveId && !input.objectiveName?.trim()) {
+    throw new Error("Provide an objective id or name.");
+  }
+  if (input.status === undefined && input.targetPct === undefined && input.deadline === undefined) {
+    throw new Error("Provide a status, target percentage, or deadline to change.");
+  }
+  if (typeof input.deadline === "string" && !isIsoCalendarDate(input.deadline)) {
+    throw new Error("Deadline must be a valid ISO calendar date (YYYY-MM-DD).");
+  }
+
+  let lookup = sbAdmin.from("marketing_objectives")
+    .select("id,title,status,target")
+    .eq("workspace_id", workspaceId);
+  if (input.objectiveId) lookup = lookup.eq("id", input.objectiveId);
+  else lookup = lookup.eq("title", input.objectiveName!.trim());
+  const { data: matches, error: lookupError } = await lookup.limit(2);
+  if (lookupError) throw lookupError;
+  if (!matches?.length) throw new Error("Marketing objective not found in this workspace.");
+  if (matches.length > 1) throw new Error("More than one marketing objective has that name. Use the objective id instead.");
+
+  const objective = matches[0] as any;
+  const patch: Record<string, unknown> = { updated_at: nowIso() };
+  if (input.status !== undefined) patch.status = input.status;
+  if (input.targetPct !== undefined || input.deadline !== undefined) {
+    patch.target = {
+      ...(objective.target && typeof objective.target === "object" ? objective.target : {}),
+      ...(input.targetPct !== undefined ? { pct: input.targetPct } : {}),
+      ...(input.deadline !== undefined ? { deadline: input.deadline } : {}),
+    };
+  }
+
+  const { data: updated, error } = await sbAdmin.from("marketing_objectives")
+    .update(patch)
+    .eq("workspace_id", workspaceId)
+    .eq("id", objective.id)
+    .select("id,title,status,target,updated_at")
+    .single();
+  if (error) throw error;
+  return updated;
+}
+
 export async function createMarketingObjectiveCore(
   sbAdmin: Sb, workspaceId: string, userId: string | null, input: CreateObjectiveInput,
 ): Promise<{ objective: any; delegated: { workOrderId: string | null; note: string } }> {
@@ -400,14 +470,13 @@ export const setMarketingObjectiveStatus = createServerFn({ method: "POST" })
   .handler(async ({ context, data }) => {
     const workspaceId = context.workspaceId;
     if (!workspaceId) throw new Error("No workspace");
-    const { resolvePermissions, isOwnerOrAdmin } = await import("@/lib/permissions/permissions.server");
-    const perms = await resolvePermissions(workspaceId, (context as any).userId ?? null);
-    if (!isOwnerOrAdmin(perms)) throw new Error("Only a workspace owner or admin can change objective status.");
     const sbAdmin = await getAdmin();
-    const { error } = await sbAdmin.from("marketing_objectives")
-      .update({ status: data.status, updated_at: nowIso() })
-      .eq("workspace_id", workspaceId).eq("id", data.objectiveId);
-    if (error) throw error;
+    await updateMarketingObjectiveCore(
+      sbAdmin,
+      workspaceId,
+      (context as any).userId ?? null,
+      { objectiveId: data.objectiveId, status: data.status },
+    );
     return { ok: true };
   });
 
