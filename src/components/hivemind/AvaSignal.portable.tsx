@@ -75,6 +75,8 @@ const ARM_BASE = [-0.75, 1.7, 3.9];
 const ARM_WIDTH = [0.34, 0.5, 0.62];
 const LAYER_SPEED = [1.7, 1.1, 0.6];
 const LAYER_ALPHA = [1, 0.94, 0.8];
+const VISUAL_SCALE = 0.36;
+const PARTICLE_SCALE = 0.36;
 
 const FILAMENTS = [
   { a: -0.42, off: 0.1, len: 1.55, wid: 0.4, sp: 0.31, ph: 0, hue: 189, lig: 92, al: 1 },
@@ -157,7 +159,9 @@ function makePart(reduced: boolean, mobile: boolean): Particle {
     s: rand(0.14, 0.3) * (Math.random() < 0.14 ? -1 : 1),
     tilt: rand(0.36, 0.72),
     yOff: rand(-0.12, 0.12),
-    size: kind === 3 ? rand(0.85, 1.1) : kind === 1 ? rand(0.65, 0.92) : rand(0.4, 0.78),
+    size:
+      (kind === 3 ? rand(0.85, 1.1) : kind === 1 ? rand(0.65, 0.92) : rand(0.4, 0.78)) *
+      PARTICLE_SCALE,
     light: kind === 3 ? rand(68, 80) : color.lightness,
     alpha: kind === 0 ? rand(0.55, 0.92) : rand(0.6, 0.95),
     tw: rand(0, TAU),
@@ -201,7 +205,16 @@ function makeMicro(reduced: boolean, mobile: boolean): Particle {
     s: rand(0.15, 0.3) * (radial > 0.9 ? 0.6 : 1),
     tilt: rand(0.38, 0.7),
     yOff: rand(-0.1, 0.1),
-    size: focal ? rand(1.15, 1.45) : anchor ? rand(0.95, 1.18) : tier > 0.8 ? rand(0.8, 0.98) : tier > 0.46 ? rand(0.62, 0.82) : rand(0.38, 0.62),
+    size:
+      (focal
+        ? rand(1.15, 1.45)
+        : anchor
+          ? rand(0.95, 1.18)
+          : tier > 0.8
+            ? rand(0.8, 0.98)
+            : tier > 0.46
+              ? rand(0.62, 0.82)
+              : rand(0.38, 0.62)) * PARTICLE_SCALE,
     light: focal ? rand(84, 96) : anchor ? rand(72, 86) : tier > 0.8 ? rand(62, 78) : rand(56, 70),
     alpha: focal ? rand(0.94, 1) : anchor ? rand(0.88, 1) : tier > 0.8 ? rand(0.7, 0.9) : tier > 0.46 ? rand(0.62, 0.82) : rand(0.5, 0.78),
     tw: rand(0, TAU),
@@ -229,7 +242,7 @@ function makeNodes(reduced: boolean, mobile: boolean): Node[] {
     s: rand(0.05, 0.11),
     tilt: rand(0.3, 0.48),
     yOff: rand(-0.06, 0.06),
-    size: Math.random() < 0.22 ? rand(1.15, 1.4) : rand(0.85, 1.15),
+    size: (Math.random() < 0.22 ? rand(1.15, 1.4) : rand(0.85, 1.15)) * PARTICLE_SCALE,
     hue: Math.random() < 0.62 ? rand(186, 196) : Math.random() < 0.5 ? rand(204, 214) : rand(242, 250),
   }));
 }
@@ -344,7 +357,9 @@ export function AvaSignal({
       ripple: number,
     ) {
       const rBase = particle.r * (1 + Math.sin(particle.drift) * (micro ? 0.06 : 0.05));
-      const angle = particle.a + rBase * particle.spiral;
+      const driftAngle =
+        Math.sin(particle.drift * 0.72 + particle.a * 1.7) * (micro ? 0.035 : 0.055);
+      const angle = particle.a + rBase * particle.spiral + driftAngle;
       const rr =
         rBase *
         radius *
@@ -414,14 +429,20 @@ export function AvaSignal({
           const hue = particle.hue + Math.sin(now * 0.0002 + particle.a) * 1.5;
           const color = hsla(hue, 98, lightFor(particle.light, dark, mobile), alpha);
           if (particle.kind === 3) {
-            drawGradientDot(p.x, p.y, particle.size * 1.25, hsla(hue, 98, lightFor(particle.light, dark, mobile), alpha * 0.4), alpha);
+            drawGradientDot(
+              p.x,
+              p.y,
+              particle.size * 1.35,
+              hsla(hue, 98, lightFor(particle.light, dark, mobile), alpha * 0.12),
+              alpha,
+            );
             ctx.fillStyle = color;
             ctx.beginPath();
-            ctx.arc(p.x, p.y, Math.max(0.4, particle.size * 0.62), 0, TAU);
+            ctx.arc(p.x, p.y, Math.max(0.22, particle.size * 0.62), 0, TAU);
             ctx.fill();
           } else if (particle.kind === 2) {
             ctx.strokeStyle = color;
-            ctx.lineWidth = Math.max(0.4, particle.size * 0.5);
+            ctx.lineWidth = Math.max(0.24, particle.size * 0.5);
             ctx.lineCap = "round";
             ctx.beginPath();
             ctx.moveTo(p.x, p.y);
@@ -433,7 +454,7 @@ export function AvaSignal({
           } else {
             ctx.fillStyle = color;
             ctx.beginPath();
-            ctx.arc(p.x, p.y, Math.max(0.35, particle.size), 0, TAU);
+            ctx.arc(p.x, p.y, Math.max(0.18, particle.size), 0, TAU);
             ctx.fill();
           }
         } else {
@@ -455,18 +476,18 @@ export function AvaSignal({
             1,
           );
           const rad = clamp(
-            0.32,
-            1.5,
+            0.15,
+            0.72,
             particle.size * (0.55 + (depth + 1) * 0.3) * (1 + nearCore * voice * 0.12) * (mobile ? 1.18 : 1),
           );
           const hue = particle.hue + Math.sin(now * 0.00016 + particle.a) * 1.2;
           const light = lightFor(particle.light, dark, mobile);
           if (particle.focal) {
-            drawGradientDot(p.x, p.y, rad * 1.35, hsla(hue, 98, light, alpha * 0.32), alpha);
+            drawGradientDot(p.x, p.y, rad * 1.35, hsla(hue, 98, light, alpha * 0.1), alpha);
           }
           if (particle.trail) {
             ctx.strokeStyle = hsla(hue, 98, light, alpha);
-            ctx.lineWidth = Math.max(0.35, rad * 0.45);
+            ctx.lineWidth = Math.max(0.2, rad * 0.45);
             ctx.lineCap = "round";
             ctx.beginPath();
             ctx.moveTo(p.x, p.y);
@@ -480,7 +501,7 @@ export function AvaSignal({
           if (particle.glint) {
             const glintAlpha = clamp(alpha * 0.34 * aBoost, 0, 1);
             ctx.strokeStyle = hsla(hue, 98, light + 6, glintAlpha);
-            ctx.lineWidth = Math.max(0.3, rad * 0.24);
+            ctx.lineWidth = Math.max(0.18, rad * 0.24);
             ctx.lineCap = "butt";
             ctx.beginPath();
             ctx.moveTo(p.x - rad * (1.7 + shimmer * 0.4), p.y);
@@ -552,9 +573,9 @@ export function AvaSignal({
         const life = link.age / link.dur;
         const envelope = Math.min(1, Math.min(life, 1 - life) * 5);
         const near = 1 - distance / (radius * 0.8);
-        const alpha = Math.min(
-          0.62,
-          envelope * (0.26 + near * 0.2) * (mobile ? 1.5 : 1) *
+          const alpha = Math.min(
+            0.52,
+            envelope * (0.34 + near * 0.24) * (mobile ? 1.5 : 1) *
             (1 + hoverAmount * 0.3 + voice * 0.65 + speakPulse * 0.3 + energy * 0.12 + success * 0.4),
         );
         const gradient = ctx.createLinearGradient(a.x, a.y, b.x, b.y);
@@ -563,7 +584,7 @@ export function AvaSignal({
         gradient.addColorStop(0.66, hsla(link.hue, 96, lightFor(56, dark, mobile), alpha));
         gradient.addColorStop(1, hsla(link.hue, 96, lightFor(56, dark, mobile), 0));
         ctx.strokeStyle = gradient;
-        ctx.lineWidth = 0.7;
+        ctx.lineWidth = 0.6;
         ctx.lineCap = "round";
         const mx = (a.x + b.x) / 2 - (b.y - a.y) * link.bow;
         const my = (a.y + b.y) / 2 + (b.x - a.x) * link.bow;
@@ -605,8 +626,8 @@ export function AvaSignal({
         if (distance > radius * 0.8) return;
         const near = 1 - distance / (radius * 0.8);
         const alpha = Math.min(
-          0.3,
-          fade * (0.12 + near * 0.09) * (1 + hoverAmount * 0.35 + voice * 0.6 + speakPulse * 0.25 + energy * 0.15 + success * 0.4),
+          0.42,
+          fade * (0.18 + near * 0.12) * (1 + hoverAmount * 0.35 + voice * 0.6 + speakPulse * 0.25 + energy * 0.15 + success * 0.4),
         );
         const gradient = ctx.createLinearGradient(a.x, a.y, b.x, b.y);
         gradient.addColorStop(0, hsla(204, 94, lightFor(50, dark, mobile), 0));
@@ -614,7 +635,7 @@ export function AvaSignal({
         gradient.addColorStop(0.6, hsla(204, 94, lightFor(50, dark, mobile), alpha));
         gradient.addColorStop(1, hsla(204, 94, lightFor(50, dark, mobile), 0));
         ctx.strokeStyle = gradient;
-        ctx.lineWidth = 0.65;
+        ctx.lineWidth = 0.55;
         ctx.lineCap = "round";
         ctx.beginPath();
         ctx.moveTo(a.x, a.y);
@@ -632,7 +653,7 @@ export function AvaSignal({
           (0.3 + hoverAmount * 0.12 + voice * 0.2 + energy * 0.06) * (0.6 + (node.z + 1) * 0.22),
         );
         const rad = node.size * 0.44 * (0.9 + (node.z + 1) * 0.1);
-        drawGradientDot(node.x, node.y, rad * 1.6, hsla(node.hue, 98, lightFor(50, dark, mobile), a * 0.2), a);
+        drawGradientDot(node.x, node.y, rad * 1.2, hsla(node.hue, 98, lightFor(50, dark, mobile), a * 0.06), a);
         ctx.fillStyle = hsla(node.hue, 98, lightFor(50 + voice * 6, dark, mobile), Math.min(1, a * 1.2));
         ctx.beginPath();
         ctx.arc(node.x, node.y, rad, 0, TAU);
@@ -664,7 +685,7 @@ export function AvaSignal({
       ctx.rotate(-0.5 + Math.sin(now * 0.00013) * 0.12);
       ctx.scale(1.5, 0.92);
       const haze = ctx.createRadialGradient(0, 0, 0, 0, 0, kr * 2.1);
-      const hazeAlpha = 0.1 + hoverAmount * 0.035 + voice * 0.08 + energy * 0.03;
+      const hazeAlpha = 0.03 + hoverAmount * 0.014 + voice * 0.03 + energy * 0.012;
       haze.addColorStop(0, hsla(191, 100, 62, hazeAlpha));
       haze.addColorStop(0.55, hsla(206, 98, 54, hazeAlpha * 0.35));
       haze.addColorStop(1, hsla(230, 92, 56, 0));
@@ -722,12 +743,12 @@ export function AvaSignal({
         const cycle = (now * 0.0005 * (0.5 + i * 0.23) + i * 0.41) % 1;
         const angle = i * 1.9 + Math.sin(now * 0.00021 + i) * 0.9;
         const distance = kr * (0.9 + cycle * 1.5);
-        const sparkRadius = Math.max(0.35, kr * 0.1 * (1 - cycle * 0.4));
+        const sparkRadius = Math.max(0.2, kr * 0.1 * (1 - cycle * 0.4));
         const alpha = Math.sin(cycle * Math.PI) * (0.35 + voice * 0.45 + hoverAmount * 0.15);
         drawGradientDot(
           kx + Math.cos(angle) * distance,
           ky + Math.sin(angle) * distance,
-          sparkRadius * 2.4,
+          sparkRadius * 1.5,
           hsla(194, 98, 78, alpha),
           alpha,
         );
@@ -772,9 +793,9 @@ export function AvaSignal({
         breath *
         (1 + voice * 0.1 + energyValue * 0.02 + hoverValue * 0.075 - (phase === "listening" ? 0.03 : 0) + greenValue * 0.04);
       const speedMul = (isReduced ? 0.16 : 1) * (1 + hoverValue * 0.12 + voice * 0.18 + energyValue * 0.12);
-      const radius = Math.min(width, height) * 0.3;
+      const radius = Math.min(width, height) * 0.3 * VISUAL_SCALE;
       const hazeRadius = radius * (1.35 + voice * 0.04);
-      const hazeAlpha = (dark ? (mobile ? 0.11 : 0.028) : 0.018) + voice * 0.01 + energyValue * 0.005 + greenValue * 0.012;
+      const hazeAlpha = (dark ? (mobile ? 0.035 : 0.008) : 0.008) + voice * 0.004 + energyValue * 0.002 + greenValue * 0.006;
       const centerX = width * 0.5 + radius * 0.04;
       const centerY = height * 0.5 - radius * 0.03;
 
@@ -790,10 +811,14 @@ export function AvaSignal({
       ctx.fill();
 
       parts.forEach((particle) => {
-        particle.drift += particle.driftS * speedMul * dt * LAYER_SPEED[layerFor(particle.r, false)];
+        const layerSpeed = LAYER_SPEED[layerFor(particle.r, false)];
+        particle.a = (particle.a + particle.s * speedMul * dt * layerSpeed * 0.42) % TAU;
+        particle.drift += particle.driftS * speedMul * dt * layerSpeed;
       });
       microStars.forEach((particle) => {
-        particle.drift += particle.driftS * speedMul * dt * LAYER_SPEED[layerFor(particle.r, true)];
+        const layerSpeed = LAYER_SPEED[layerFor(particle.r, true)];
+        particle.a = (particle.a + particle.s * speedMul * dt * layerSpeed * 0.38) % TAU;
+        particle.drift += particle.driftS * speedMul * dt * layerSpeed;
       });
       microPositions = new Array(microStars.length);
       const aBoost = dark ? (mobile ? 2.15 : 1.3) : 1;
