@@ -87,15 +87,7 @@ const ARM_WIDTH = [0.34, 0.5, 0.62];
 const LAYER_SPEED = [1.7, 1.1, 0.6];
 const LAYER_ALPHA = [1, 0.94, 0.8];
 const VISUAL_SCALE = 0.58;
-const PARTICLE_SCALE = 0.82;
-
-const FILAMENTS = [
-  { a: -0.42, off: 0.1, len: 1.55, wid: 0.4, sp: 0.31, ph: 0, hue: 189, lig: 92, al: 1 },
-  { a: 0.85, off: 0.22, len: 1.12, wid: 0.3, sp: 0.23, ph: 1.9, hue: 196, lig: 78, al: 0.9 },
-  { a: 2.05, off: 0.34, len: 0.86, wid: 0.24, sp: 0.41, ph: 3.4, hue: 203, lig: 66, al: 0.8 },
-  { a: -1.62, off: 0.18, len: 0.7, wid: 0.21, sp: 0.27, ph: 5.1, hue: 186, lig: 84, al: 0.7 },
-  { a: 2.75, off: 0.46, len: 0.58, wid: 0.16, sp: 0.35, ph: 2.4, hue: 246, lig: 60, al: 0.5 },
-];
+const PARTICLE_SCALE = 0.78;
 
 const CURVED_FRAGMENTS: CurvedFragment[] = [
   { distance: 0.56, angle: -0.82, length: 0.25, bow: 0.08, speed: 0.34, phase: 0.2, hue: 191, alpha: 0.5 },
@@ -160,15 +152,15 @@ function stretch(angle: number, t: number, anisotropy: [number, number, number],
 
 function makePart(reduced: boolean, mobile: boolean): Particle {
   const n = Math.random();
-  const kind: Particle["kind"] = n < 0.88 ? 0 : n < 0.96 ? 1 : n < 0.99 ? 2 : 3;
+  const kind: Particle["kind"] = n < 0.9 ? 0 : n < 0.975 ? 1 : n < 0.995 ? 2 : 3;
   const arm = pickArm();
   const roll = Math.random();
   const radius =
-    (roll < 0.22
+    (roll < 0.35
       ? Math.pow(Math.random(), 0.5) * 0.38 + 0.9
-      : roll < 0.52
+      : roll < 0.78
         ? Math.pow(Math.random(), 0.9) * 0.38 + 0.52
-        : Math.pow(Math.random(), 1.7) * 0.5 + 0.1) *
+        : Math.pow(Math.random(), 1.5) * 0.28 + 0.28) *
     (arm === 0 ? 1.62 : arm === 1 ? 1.24 : 1.4);
   const color = hueRange(Math.random(), mobile);
   return {
@@ -180,7 +172,7 @@ function makePart(reduced: boolean, mobile: boolean): Particle {
     tilt: rand(0.36, 0.72),
     yOff: rand(-0.12, 0.12),
     size:
-      (kind === 3 ? rand(0.85, 1.1) : kind === 1 ? rand(0.65, 0.92) : rand(0.4, 0.78)) *
+      (kind === 3 ? rand(1.35, 1.65) : kind === 1 ? rand(0.95, 1.25) : rand(0.65, 1.05)) *
       PARTICLE_SCALE,
     light: kind === 3 ? rand(68, 80) : color.lightness,
     alpha: kind === 0 ? rand(0.55, 0.92) : rand(0.6, 0.95),
@@ -202,20 +194,20 @@ function makePart(reduced: boolean, mobile: boolean): Particle {
 }
 
 function makeMicro(reduced: boolean, mobile: boolean): Particle {
-  const pocket = Math.random() < 0.16;
+  const pocket = Math.random() < 0.08;
   const arm = pickArm();
   const zone = Math.random();
   const reach = arm === 0 ? 1.62 : arm === 1 ? 1.24 : 1.4;
   const radial = pocket
-    ? rand(0.5, 1)
-    : zone > 0.86
-      ? Math.pow(Math.random(), 0.5) * 0.42 + 0.9
-      : zone > 0.58
-        ? Math.pow(Math.random(), 0.85) * 0.44 + 0.5
-        : Math.pow(Math.random(), 1.7) * 0.46 + 0.12;
+    ? rand(0.68, 1.04)
+    : zone > 0.62
+      ? Math.pow(Math.random(), 0.5) * 0.44 + 0.92
+      : zone > 0.2
+        ? Math.pow(Math.random(), 0.9) * 0.4 + 0.52
+        : Math.pow(Math.random(), 1.35) * 0.3 + 0.26;
   const tier = Math.random();
-  const focal = tier > 0.991;
-  const anchor = tier > 0.965;
+  const focal = tier > 0.996;
+  const anchor = tier > 0.978;
   const color = hueRange(Math.random(), mobile);
   return {
     a: pocket ? rand(0, TAU) : armAngle(radial, arm),
@@ -227,14 +219,14 @@ function makeMicro(reduced: boolean, mobile: boolean): Particle {
     yOff: rand(-0.1, 0.1),
     size:
       (focal
-        ? rand(1.15, 1.45)
+        ? rand(1.65, 1.95)
         : anchor
-          ? rand(0.95, 1.18)
+          ? rand(1.25, 1.55)
           : tier > 0.8
-            ? rand(0.8, 0.98)
+            ? rand(0.9, 1.2)
             : tier > 0.46
-              ? rand(0.62, 0.82)
-              : rand(0.38, 0.62)) * PARTICLE_SCALE,
+              ? rand(0.68, 0.98)
+              : rand(0.56, 0.82)) * PARTICLE_SCALE,
     light: focal ? rand(84, 96) : anchor ? rand(72, 86) : tier > 0.8 ? rand(62, 78) : rand(56, 70),
     alpha: focal ? rand(0.94, 1) : anchor ? rand(0.88, 1) : tier > 0.8 ? rand(0.7, 0.9) : tier > 0.46 ? rand(0.62, 0.82) : rand(0.5, 0.78),
     tw: rand(0, TAU),
@@ -262,7 +254,7 @@ function makeNodes(reduced: boolean, mobile: boolean): Node[] {
     s: rand(0.05, 0.11),
     tilt: rand(0.3, 0.48),
     yOff: rand(-0.06, 0.06),
-    size: (Math.random() < 0.22 ? rand(1.15, 1.4) : rand(0.85, 1.15)) * PARTICLE_SCALE,
+    size: (Math.random() < 0.18 ? rand(1.15, 1.35) : rand(0.75, 1.05)) * PARTICLE_SCALE,
     hue: Math.random() < 0.62 ? rand(186, 196) : Math.random() < 0.5 ? rand(204, 214) : rand(242, 250),
   }));
 }
@@ -358,8 +350,8 @@ export function AvaSignal({
 
     const seed = () => {
       const isReduced = reducedRef.current;
-      parts = Array.from({ length: isReduced ? 38 : mobile ? 75 : 95 }, () => makePart(isReduced, mobile));
-      microStars = Array.from({ length: isReduced ? 38 : mobile ? 90 : 108 }, () => makeMicro(isReduced, mobile));
+      parts = Array.from({ length: isReduced ? 28 : mobile ? 48 : 60 }, () => makePart(isReduced, mobile));
+      microStars = Array.from({ length: isReduced ? 30 : mobile ? 60 : 72 }, () => makeMicro(isReduced, mobile));
       nodes = makeNodes(isReduced, mobile);
       nodeLinks = makeNodeLinks(isReduced, mobile, nodes);
       starLinks = [];
@@ -391,18 +383,6 @@ export function AvaSignal({
       const z = Math.sin(angle);
       const y = height * 0.5 - radius * 0.03 + z * rr * particle.tilt + particle.yOff * radius;
       return { x, y, z, rBase };
-    }
-
-    function drawGradientDot(x: number, y: number, radius: number, color: string, alpha: number) {
-      if (![x, y, radius].every(Number.isFinite)) return;
-      const gradient = ctx.createRadialGradient(x, y, 0, x, y, Math.max(0.1, radius));
-      gradient.addColorStop(0, color);
-      gradient.addColorStop(1, color.replace(/\/ [^)]+\)/, "/ 0)"));
-      ctx.fillStyle = gradient;
-      ctx.beginPath();
-      ctx.arc(x, y, Math.max(0.1, radius), 0, TAU);
-      ctx.fill();
-      void alpha;
     }
 
     function drawParticles(
@@ -449,16 +429,9 @@ export function AvaSignal({
           const hue = particle.hue + Math.sin(now * 0.0002 + particle.a) * 1.5;
           const color = hsla(hue, 98, lightFor(particle.light, dark, mobile), alpha);
           if (particle.kind === 3) {
-            drawGradientDot(
-              p.x,
-              p.y,
-              particle.size * 1.35,
-              hsla(hue, 98, lightFor(particle.light, dark, mobile), alpha * 0.08),
-              alpha,
-            );
             ctx.fillStyle = color;
             ctx.beginPath();
-            ctx.arc(p.x, p.y, Math.max(0.22, particle.size * 0.62), 0, TAU);
+            ctx.arc(p.x, p.y, Math.min(1.35, Math.max(0.38, particle.size * 0.7)), 0, TAU);
             ctx.fill();
           } else if (particle.kind === 2) {
             ctx.strokeStyle = color;
@@ -496,15 +469,12 @@ export function AvaSignal({
             1,
           );
           const rad = clamp(
-            0.26,
-            2,
+            0.4,
+            1.55,
             particle.size * (0.55 + (depth + 1) * 0.3) * (1 + nearCore * voice * 0.12) * (mobile ? 1.18 : 1),
           );
           const hue = particle.hue + Math.sin(now * 0.00016 + particle.a) * 1.2;
           const light = lightFor(particle.light, dark, mobile);
-          if (particle.focal) {
-            drawGradientDot(p.x, p.y, rad * 1.2, hsla(hue, 98, light, alpha * 0.07), alpha);
-          }
           if (particle.trail) {
             ctx.strokeStyle = hsla(hue, 98, light, alpha);
             ctx.lineWidth = Math.max(0.2, rad * 0.45);
@@ -548,7 +518,7 @@ export function AvaSignal({
         linkAccumulator += dt;
         nextLinkIn -= dt;
         if (nextLinkIn <= 0) {
-          const maxLinks = (mobile ? 18 : 26) + (hoverAmount > 0.4 ? 3 : 0);
+          const maxLinks = (mobile ? 14 : 18) + (hoverAmount > 0.4 ? 2 : 0);
           const candidates = microStars
             .map((star, index) => ({ star, index }))
             .filter(({ star }) => star.link);
@@ -580,7 +550,7 @@ export function AvaSignal({
           linkAccumulator = 0;
         }
       }
-      const maxLinks = (isReduced ? 4 : mobile ? 18 : 26) + (hoverAmount > 0.4 ? 3 : 0);
+      const maxLinks = (isReduced ? 3 : mobile ? 14 : 18) + (hoverAmount > 0.4 ? 2 : 0);
       starLinks = starLinks.filter((link) => {
         link.age += dt;
         return link.age < link.dur && link.a < microPositions.length && link.b < microPositions.length;
@@ -627,7 +597,7 @@ export function AvaSignal({
       const fragments = isReduced ? CURVED_FRAGMENTS.slice(0, 3) : CURVED_FRAGMENTS;
 
       ctx.save();
-      ctx.globalCompositeOperation = dark ? "lighter" : "source-over";
+      ctx.globalCompositeOperation = "source-over";
       fragments.forEach((fragment) => {
         const drift = now * 0.00032 * fragment.speed + fragment.phase;
         const angle = fragment.angle + Math.sin(drift) * 0.16;
@@ -718,7 +688,6 @@ export function AvaSignal({
           (0.3 + hoverAmount * 0.12 + voice * 0.2 + energy * 0.06) * (0.6 + (node.z + 1) * 0.22),
         );
         const rad = node.size * 0.44 * (0.9 + (node.z + 1) * 0.1);
-        drawGradientDot(node.x, node.y, rad * 1.15, hsla(node.hue, 98, lightFor(50, dark, mobile), a * 0.04), a);
         ctx.fillStyle = hsla(node.hue, 98, lightFor(50 + voice * 6, dark, mobile), Math.min(1, a * 1.2));
         ctx.beginPath();
         ctx.arc(node.x, node.y, rad, 0, TAU);
@@ -739,94 +708,49 @@ export function AvaSignal({
     ) {
       const kx = width * 0.5 + radius * 0.04;
       const ky = height * 0.5 - radius * 0.03;
-      const kr = radius * 0.065 * (1 + voice * 0.07 + speakPulse * 0.02 + hoverAmount * 0.022);
-      const green = success;
-      const mixHue = (hue: number) => hue + (150 - hue) * green;
-      const mixSat = (saturation: number) => saturation - (saturation - 78) * green;
+      const pulse = 1 + Math.sin(now * 0.0018) * 0.025 + speakPulse * 0.04;
+      const coreRadius = clamp(radius * 0.021 * pulse, 0.42, 0.68);
+      const coreHue = 190 + (150 - 190) * success;
+      const rayAlpha = (0.42 + voice * 0.16 + hoverAmount * 0.08 + energy * 0.06) * (listening ? 0.8 : 1);
+
       ctx.save();
-      ctx.globalCompositeOperation = dark ? "lighter" : "source-over";
-
-      ctx.translate(kx, ky);
-      ctx.rotate(-0.5 + Math.sin(now * 0.00013) * 0.12);
-      ctx.scale(1.5, 0.92);
-      const haze = ctx.createRadialGradient(0, 0, 0, 0, 0, kr * 2.1);
-      const hazeAlpha = 0.02 + hoverAmount * 0.01 + voice * 0.02 + energy * 0.008;
-      haze.addColorStop(0, hsla(191, 100, 62, hazeAlpha));
-      haze.addColorStop(0.55, hsla(206, 98, 54, hazeAlpha * 0.35));
-      haze.addColorStop(1, hsla(230, 92, 56, 0));
-      ctx.fillStyle = haze;
-      ctx.beginPath();
-      ctx.arc(0, 0, kr * 2.1, 0, TAU);
-      ctx.fill();
-      ctx.restore();
-
-      const corePulse = 0.95 + Math.sin(now * 0.0018) * 0.05 + speakPulse * 0.025;
-      const coreRadius = Math.max(0.42, kr * 0.34 * corePulse);
-      drawGradientDot(kx, ky, coreRadius * 1.6, hsla(190, 100, 82, 0.08), 0.08);
-      ctx.fillStyle = hsla(190, 100, 96, 0.96);
+      ctx.globalCompositeOperation = "source-over";
+      ctx.fillStyle = hsla(coreHue, 100, 96, 0.96);
       ctx.beginPath();
       ctx.arc(kx, ky, coreRadius, 0, TAU);
       ctx.fill();
 
-      FILAMENTS.forEach((filament, i) => {
-        const w1 = Math.sin(now * 0.001 * filament.sp + filament.ph);
-        const w2 = Math.sin(now * 0.001 * filament.sp * 1.7 + filament.ph * 1.3);
-        const beat = 0.5 + 0.5 * Math.sin(now * 0.001 * (2.2 + i * 0.9) + filament.ph);
-        const lift = voice * (0.35 + beat * 0.85) + speakPulse * 0.12;
-        const pull = listening ? 0.86 : 1;
-        const angle = filament.a + w1 * 0.16;
-        const distance = kr * filament.off * (1 + w2 * 0.22) * pull;
-        const alpha = Math.min(1, (filament.al * (0.62 + beat * 0.2) + lift * 0.3) * (listening ? 0.82 : 1));
+      [-0.42, 1.2].forEach((baseAngle, i) => {
+        const angle = baseAngle + Math.sin(now * (0.00028 + i * 0.00016)) * 0.06;
+        const length = coreRadius * (i ? 2.7 : 3.8) * (1 + voice * 0.08);
         ctx.save();
-        ctx.translate(kx + Math.cos(angle) * distance, ky + Math.sin(angle) * distance);
-        ctx.rotate(angle + 0.35 + w2 * 0.2);
-        ctx.scale(filament.len * (1 + w1 * 0.14 + lift * 0.1) * pull, filament.wid * (1 + w2 * 0.18));
-        const filamentGradient = ctx.createRadialGradient(0, 0, 0, 0, 0, kr);
-        filamentGradient.addColorStop(0, hsla(mixHue(0), mixSat(0), 100, alpha));
-        filamentGradient.addColorStop(0.28, hsla(mixHue(filament.hue), 100, Math.min(96, filament.lig + lift * 8), alpha * 0.92));
-        filamentGradient.addColorStop(0.68, hsla(mixHue(filament.hue + 12), 98, filament.lig - 18, alpha * 0.42));
-        filamentGradient.addColorStop(1, hsla(mixHue(filament.hue + 26), 94, 50, 0));
-        ctx.fillStyle = filamentGradient;
-        ctx.beginPath();
-        ctx.ellipse(0, 0, kr, kr * 0.32, 0, 0, TAU);
-        ctx.fill();
-        ctx.restore();
-      });
-
-      [-0.35, 1.25].forEach((baseAngle, i) => {
-        const angle = baseAngle + Math.sin(now * (0.0004 + i * 0.0003)) * 0.14;
-        const scale = 1 + Math.sin(now * (0.0011 + i * 0.0007)) * 0.12 + voice * 0.08;
-        const length = (i ? 0.62 : 0.95) * scale * kr * 2.1;
-        const widthValue = (i ? 0.16 : 0.22) * scale * kr;
-        const ox = i ? kr * 0.06 : -kr * 0.06;
-        const oy = i ? -kr * 0.05 : kr * 0.05;
-        ctx.save();
-        ctx.translate(kx + ox, ky + oy);
+        ctx.translate(kx, ky);
         ctx.rotate(angle);
-        const sliver = ctx.createLinearGradient(-length, 0, length, 0);
-        sliver.addColorStop(0, hsla(0, 0, 100, Math.min(1, (i ? 0.8 : 1) * (0.9 + voice * 0.1) + hoverAmount * 0.06)));
-        sliver.addColorStop(0.5, hsla(188, 100, dark ? 94 : 54, 0.7));
-        sliver.addColorStop(1, hsla(196, 100, 70, 0));
-        ctx.fillStyle = sliver;
-        ctx.fillRect(-length, -widthValue * 0.5, length * 2, widthValue);
+        const ray = ctx.createLinearGradient(-length, 0, length, 0);
+        ray.addColorStop(0, hsla(coreHue + 16, 98, 72, 0));
+        ray.addColorStop(0.42, hsla(coreHue + 6, 100, 88, rayAlpha * 0.58));
+        ray.addColorStop(0.5, hsla(coreHue, 100, 98, rayAlpha));
+        ray.addColorStop(0.58, hsla(coreHue + 6, 100, 88, rayAlpha * 0.58));
+        ray.addColorStop(1, hsla(coreHue + 16, 98, 72, 0));
+        ctx.strokeStyle = ray;
+        ctx.lineWidth = 0.45;
+        ctx.lineCap = "round";
+        ctx.beginPath();
+        ctx.moveTo(-length, 0);
+        ctx.lineTo(length, 0);
+        ctx.stroke();
         ctx.restore();
       });
 
-      for (let i = 0; i < 4; i += 1) {
-        const cycle = (now * 0.0005 * (0.5 + i * 0.23) + i * 0.41) % 1;
-        const angle = i * 1.9 + Math.sin(now * 0.00021 + i) * 0.9;
-        const distance = kr * (0.9 + cycle * 1.5);
-        const sparkRadius = Math.max(0.2, kr * 0.1 * (1 - cycle * 0.4));
-        const alpha = Math.sin(cycle * Math.PI) * (0.35 + voice * 0.45 + hoverAmount * 0.15);
-        drawGradientDot(
-          kx + Math.cos(angle) * distance,
-          ky + Math.sin(angle) * distance,
-          sparkRadius * 1.5,
-          hsla(194, 98, 78, alpha),
-          alpha,
-        );
+      for (let i = 0; i < 3; i += 1) {
+        const angle = i * 2.1 + now * 0.00016 * (i % 2 ? -1 : 1);
+        const distance = coreRadius * (2.3 + i * 0.7);
+        ctx.fillStyle = hsla(coreHue + 8, 98, 82, 0.44 + voice * 0.16);
+        ctx.beginPath();
+        ctx.arc(kx + Math.cos(angle) * distance, ky + Math.sin(angle) * distance, 0.3, 0, TAU);
+        ctx.fill();
       }
-      ctx.globalCompositeOperation = "source-over";
+      ctx.restore();
     }
 
     function drawFrame(now: number) {
@@ -867,21 +791,11 @@ export function AvaSignal({
         (1 + voice * 0.1 + energyValue * 0.02 + hoverValue * 0.075 - (phase === "listening" ? 0.03 : 0) + greenValue * 0.04);
       const speedMul = (isReduced ? 0.16 : 1) * (1 + hoverValue * 0.12 + voice * 0.18 + energyValue * 0.12);
       const radius = Math.min(width, height) * 0.3 * VISUAL_SCALE;
-      const hazeRadius = radius * (1.35 + voice * 0.04);
-      const hazeAlpha = (dark ? (mobile ? 0.025 : 0.005) : 0.006) + voice * 0.003 + energyValue * 0.002 + greenValue * 0.004;
       const centerX = width * 0.5 + radius * 0.04;
       const centerY = height * 0.5 - radius * 0.03;
 
       ctx.clearRect(0, 0, width, height);
       ctx.globalCompositeOperation = "source-over";
-      const atmosphere = ctx.createRadialGradient(centerX, centerY, 0, centerX, centerY, hazeRadius);
-      atmosphere.addColorStop(0, hsla(dark ? 198 : 220, dark ? 90 : 12, dark ? 62 : 26, hazeAlpha));
-      atmosphere.addColorStop(0.5, hsla(dark ? 210 : 220, dark ? 85 : 10, dark ? 58 : 28, hazeAlpha * 0.4));
-      atmosphere.addColorStop(1, hsla(dark ? 216 : 220, dark ? 80 : 10, dark ? 56 : 30, 0));
-      ctx.fillStyle = atmosphere;
-      ctx.beginPath();
-      ctx.arc(centerX, centerY, hazeRadius, 0, TAU);
-      ctx.fill();
 
       parts.forEach((particle) => {
         const layerSpeed = LAYER_SPEED[layerFor(particle.r, false)];
@@ -894,7 +808,7 @@ export function AvaSignal({
         particle.drift += particle.driftS * speedMul * dt * layerSpeed;
       });
       microPositions = new Array(microStars.length);
-      const aBoost = dark ? (mobile ? 2.15 : 1.3) : 1;
+      const aBoost = dark && mobile ? 1.1 : 1;
       drawParticles(parts, radius, spread, t, voice, mid, hoverValue, energyValue, greenValue, false, aBoost);
       drawParticles(microStars, radius, spread, t, voice, mid, hoverValue, energyValue, greenValue, true, aBoost, microPositions);
       drawStarLinks(radius, hoverValue, voice, speakPulse, energyValue, greenValue, dt, isReduced);
