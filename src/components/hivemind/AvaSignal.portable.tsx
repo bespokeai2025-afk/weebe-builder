@@ -75,8 +75,8 @@ const ARM_BASE = [-0.75, 1.7, 3.9];
 const ARM_WIDTH = [0.34, 0.5, 0.62];
 const LAYER_SPEED = [1.7, 1.1, 0.6];
 const LAYER_ALPHA = [1, 0.94, 0.8];
-const VISUAL_SCALE = 0.36;
-const PARTICLE_SCALE = 0.36;
+const VISUAL_SCALE = 0.5;
+const PARTICLE_SCALE = 1;
 
 const FILAMENTS = [
   { a: -0.42, off: 0.1, len: 1.55, wid: 0.4, sp: 0.31, ph: 0, hue: 189, lig: 92, al: 1 },
@@ -188,9 +188,9 @@ function makeMicro(reduced: boolean, mobile: boolean): Particle {
   const reach = arm === 0 ? 1.62 : arm === 1 ? 1.24 : 1.4;
   const radial = pocket
     ? rand(0.5, 1)
-    : zone > 0.78
+    : zone > 0.86
       ? Math.pow(Math.random(), 0.5) * 0.42 + 0.9
-      : zone > 0.5
+      : zone > 0.58
         ? Math.pow(Math.random(), 0.85) * 0.44 + 0.5
         : Math.pow(Math.random(), 1.7) * 0.46 + 0.12;
   const tier = Math.random();
@@ -338,8 +338,8 @@ export function AvaSignal({
 
     const seed = () => {
       const isReduced = reducedRef.current;
-      parts = Array.from({ length: isReduced ? 150 : mobile ? 300 : 380 }, () => makePart(isReduced, mobile));
-      microStars = Array.from({ length: isReduced ? 150 : mobile ? 360 : 430 }, () => makeMicro(isReduced, mobile));
+      parts = Array.from({ length: isReduced ? 75 : mobile ? 150 : 190 }, () => makePart(isReduced, mobile));
+      microStars = Array.from({ length: isReduced ? 75 : mobile ? 180 : 215 }, () => makeMicro(isReduced, mobile));
       nodes = makeNodes(isReduced, mobile);
       nodeLinks = makeNodeLinks(isReduced, mobile, nodes);
       starLinks = [];
@@ -476,8 +476,8 @@ export function AvaSignal({
             1,
           );
           const rad = clamp(
-            0.15,
-            0.72,
+            0.3,
+            2.2,
             particle.size * (0.55 + (depth + 1) * 0.3) * (1 + nearCore * voice * 0.12) * (mobile ? 1.18 : 1),
           );
           const hue = particle.hue + Math.sin(now * 0.00016 + particle.a) * 1.2;
@@ -528,7 +528,7 @@ export function AvaSignal({
         linkAccumulator += dt;
         nextLinkIn -= dt;
         if (nextLinkIn <= 0) {
-          const maxLinks = (mobile ? 28 : 38) + (hoverAmount > 0.4 ? 3 : 0);
+          const maxLinks = (mobile ? 22 : 30) + (hoverAmount > 0.4 ? 3 : 0);
           const candidates = microStars
             .map((star, index) => ({ star, index }))
             .filter(({ star }) => star.link);
@@ -560,7 +560,7 @@ export function AvaSignal({
           linkAccumulator = 0;
         }
       }
-      const maxLinks = (isReduced ? 5 : mobile ? 28 : 38) + (hoverAmount > 0.4 ? 3 : 0);
+      const maxLinks = (isReduced ? 5 : mobile ? 22 : 30) + (hoverAmount > 0.4 ? 3 : 0);
       starLinks = starLinks.filter((link) => {
         link.age += dt;
         return link.age < link.dur && link.a < microPositions.length && link.b < microPositions.length;
@@ -574,8 +574,8 @@ export function AvaSignal({
         const envelope = Math.min(1, Math.min(life, 1 - life) * 5);
         const near = 1 - distance / (radius * 0.8);
           const alpha = Math.min(
-            0.52,
-            envelope * (0.34 + near * 0.24) * (mobile ? 1.5 : 1) *
+            0.62,
+            envelope * (0.38 + near * 0.26) * (mobile ? 1.35 : 1) *
             (1 + hoverAmount * 0.3 + voice * 0.65 + speakPulse * 0.3 + energy * 0.12 + success * 0.4),
         );
         const gradient = ctx.createLinearGradient(a.x, a.y, b.x, b.y);
@@ -584,7 +584,7 @@ export function AvaSignal({
         gradient.addColorStop(0.66, hsla(link.hue, 96, lightFor(56, dark, mobile), alpha));
         gradient.addColorStop(1, hsla(link.hue, 96, lightFor(56, dark, mobile), 0));
         ctx.strokeStyle = gradient;
-        ctx.lineWidth = 0.6;
+        ctx.lineWidth = 0.7;
         ctx.lineCap = "round";
         const mx = (a.x + b.x) / 2 - (b.y - a.y) * link.bow;
         const my = (a.y + b.y) / 2 + (b.x - a.x) * link.bow;
@@ -626,8 +626,8 @@ export function AvaSignal({
         if (distance > radius * 0.8) return;
         const near = 1 - distance / (radius * 0.8);
         const alpha = Math.min(
-          0.42,
-          fade * (0.18 + near * 0.12) * (1 + hoverAmount * 0.35 + voice * 0.6 + speakPulse * 0.25 + energy * 0.15 + success * 0.4),
+          0.5,
+          fade * (0.2 + near * 0.14) * (1 + hoverAmount * 0.35 + voice * 0.6 + speakPulse * 0.25 + energy * 0.15 + success * 0.4),
         );
         const gradient = ctx.createLinearGradient(a.x, a.y, b.x, b.y);
         gradient.addColorStop(0, hsla(204, 94, lightFor(50, dark, mobile), 0));
@@ -635,7 +635,7 @@ export function AvaSignal({
         gradient.addColorStop(0.6, hsla(204, 94, lightFor(50, dark, mobile), alpha));
         gradient.addColorStop(1, hsla(204, 94, lightFor(50, dark, mobile), 0));
         ctx.strokeStyle = gradient;
-        ctx.lineWidth = 0.55;
+        ctx.lineWidth = 0.65;
         ctx.lineCap = "round";
         ctx.beginPath();
         ctx.moveTo(a.x, a.y);
@@ -812,12 +812,12 @@ export function AvaSignal({
 
       parts.forEach((particle) => {
         const layerSpeed = LAYER_SPEED[layerFor(particle.r, false)];
-        particle.a = (particle.a + particle.s * speedMul * dt * layerSpeed * 0.42) % TAU;
+        particle.a = (particle.a + particle.s * speedMul * dt * layerSpeed * 0.5) % TAU;
         particle.drift += particle.driftS * speedMul * dt * layerSpeed;
       });
       microStars.forEach((particle) => {
         const layerSpeed = LAYER_SPEED[layerFor(particle.r, true)];
-        particle.a = (particle.a + particle.s * speedMul * dt * layerSpeed * 0.38) % TAU;
+        particle.a = (particle.a + particle.s * speedMul * dt * layerSpeed * 0.46) % TAU;
         particle.drift += particle.driftS * speedMul * dt * layerSpeed;
       });
       microPositions = new Array(microStars.length);
