@@ -487,6 +487,23 @@ export async function processRetellWebhook(
       }
     }
 
+    if (!sigResult.valid) {
+      try {
+        const { getWbahAdditionalRetellApiKeys } = await import(
+          "@/lib/wbah/post-call/wbah-retell-agents.shared"
+        );
+        for (const extraKey of getWbahAdditionalRetellApiKeys()) {
+          const extraResult = verifyRetellSignature(rawBody, sigHeader, extraKey);
+          if (extraResult.valid) {
+            sigResult = extraResult;
+            break;
+          }
+        }
+      } catch (e) {
+        console.warn("[RETELL WEBHOOK] WBAH additional Retell key lookup failed", e);
+      }
+    }
+
     signatureValid = sigResult.valid;
     console.log("[RETELL WEBHOOK] Signature validation result", sigResult);
     if (!sigResult.valid) {
