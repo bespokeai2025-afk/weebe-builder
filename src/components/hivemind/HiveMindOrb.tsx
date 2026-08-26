@@ -59,6 +59,34 @@ const ORB_STYLES = `
   0%,100% { opacity: 0.4; transform: scale(1); }
   50%     { opacity: 0.9; transform: scale(1.08); }
 }
+@keyframes hm-entity-float {
+  0%,100% { transform: translate3d(0, 0, 0) scale(1); }
+  50%     { transform: translate3d(1px, -3px, 0) scale(1.035); }
+}
+@keyframes hm-entity-nebula {
+  0%,100% { transform: rotate(-2deg) scale(0.98); opacity: 0.72; }
+  50%     { transform: rotate(2deg) scale(1.04); opacity: 1; }
+}
+@keyframes hm-entity-orbit {
+  from { transform: rotate(0deg) translateX(1px) rotate(0deg); }
+  to   { transform: rotate(360deg) translateX(1px) rotate(-360deg); }
+}
+@keyframes hm-entity-twinkle {
+  0%,100% { opacity: 0.22; transform: scale(0.7); }
+  45%     { opacity: 0.9; transform: scale(1.25); }
+  70%     { opacity: 0.42; transform: scale(0.9); }
+}
+@keyframes hm-entity-streak {
+  0%,100% { opacity: 0.12; transform: translateX(-5px) scaleX(0.65); }
+  50%     { opacity: 0.8; transform: translateX(4px) scaleX(1); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .hm-entity-motion,
+  .hm-entity-motion * {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+  }
+}
 `;
 
 // ── Types ──────────────────────────────────────────────────────────────────────
@@ -133,6 +161,136 @@ const ORB_CONFIG: Record<OrbState, {
   },
 };
 
+// Fixed positions keep the nebula stable across renders while each speck gets
+// its own speed and phase. The wide, sparse edges mirror the reference entity.
+const ENTITY_PARTICLES = [
+  { x: 3, y: 48, r: 0.7, o: 0.32, d: 0.2, t: 3.8, c: "#22d3ee" },
+  { x: 8, y: 36, r: 0.55, o: 0.5, d: 1.3, t: 2.7, c: "#38bdf8" },
+  { x: 11, y: 61, r: 0.8, o: 0.28, d: 2.2, t: 4.4, c: "#67e8f9" },
+  { x: 15, y: 43, r: 0.5, o: 0.6, d: 0.6, t: 2.9, c: "#0ea5e9" },
+  { x: 19, y: 69, r: 0.65, o: 0.38, d: 1.8, t: 3.6, c: "#22d3ee" },
+  { x: 22, y: 30, r: 0.75, o: 0.5, d: 2.8, t: 4.8, c: "#38bdf8" },
+  { x: 25, y: 54, r: 0.55, o: 0.7, d: 0.4, t: 2.2, c: "#a5f3fc" },
+  { x: 28, y: 38, r: 0.95, o: 0.42, d: 1.2, t: 3.2, c: "#22d3ee" },
+  { x: 31, y: 63, r: 0.65, o: 0.8, d: 2.1, t: 2.6, c: "#67e8f9" },
+  { x: 34, y: 45, r: 0.52, o: 0.58, d: 3.3, t: 3.9, c: "#0ea5e9" },
+  { x: 37, y: 52, r: 0.9, o: 0.7, d: 0.9, t: 2.4, c: "#22d3ee" },
+  { x: 40, y: 35, r: 0.62, o: 0.48, d: 1.7, t: 3.5, c: "#38bdf8" },
+  { x: 42, y: 67, r: 0.7, o: 0.55, d: 2.6, t: 4.1, c: "#67e8f9" },
+  { x: 44, y: 43, r: 1.05, o: 0.7, d: 0.1, t: 2.8, c: "#a5f3fc" },
+  { x: 46, y: 57, r: 0.8, o: 0.9, d: 1.4, t: 2.1, c: "#22d3ee" },
+  { x: 48, y: 48, r: 1.15, o: 0.95, d: 2.4, t: 2.6, c: "#cffafe" },
+  { x: 50, y: 41, r: 0.72, o: 0.78, d: 3.1, t: 3.1, c: "#67e8f9" },
+  { x: 52, y: 61, r: 0.82, o: 0.82, d: 0.8, t: 2.3, c: "#38bdf8" },
+  { x: 54, y: 34, r: 0.62, o: 0.56, d: 1.9, t: 3.6, c: "#22d3ee" },
+  { x: 56, y: 52, r: 1.05, o: 0.84, d: 2.7, t: 2.9, c: "#a5f3fc" },
+  { x: 59, y: 70, r: 0.55, o: 0.4, d: 0.5, t: 4.3, c: "#0ea5e9" },
+  { x: 61, y: 43, r: 0.7, o: 0.68, d: 1.5, t: 2.5, c: "#67e8f9" },
+  { x: 64, y: 57, r: 0.92, o: 0.7, d: 2.2, t: 3.3, c: "#22d3ee" },
+  { x: 67, y: 30, r: 0.6, o: 0.45, d: 3.5, t: 4.7, c: "#38bdf8" },
+  { x: 70, y: 65, r: 0.8, o: 0.52, d: 0.7, t: 3.8, c: "#67e8f9" },
+  { x: 73, y: 47, r: 0.52, o: 0.62, d: 1.1, t: 2.4, c: "#0ea5e9" },
+  { x: 77, y: 38, r: 0.72, o: 0.42, d: 2.5, t: 4.2, c: "#22d3ee" },
+  { x: 81, y: 59, r: 0.6, o: 0.5, d: 3.2, t: 3.1, c: "#38bdf8" },
+  { x: 86, y: 32, r: 0.45, o: 0.34, d: 0.3, t: 4.5, c: "#67e8f9" },
+  { x: 91, y: 54, r: 0.75, o: 0.38, d: 1.6, t: 3.7, c: "#22d3ee" },
+  { x: 96, y: 43, r: 0.52, o: 0.3, d: 2.9, t: 4.8, c: "#38bdf8" },
+] as const;
+
+const ENTITY_STREAKS = [
+  { x: 2, y: 57, w: 23, rotate: -17, d: 0.4, t: 4.8 },
+  { x: 9, y: 31, w: 18, rotate: 18, d: 2.2, t: 5.6 },
+  { x: 18, y: 73, w: 22, rotate: -42, d: 1.3, t: 6.2 },
+  { x: 28, y: 24, w: 15, rotate: 36, d: 3.1, t: 4.4 },
+  { x: 58, y: 76, w: 19, rotate: 28, d: 0.8, t: 5.2 },
+  { x: 68, y: 22, w: 25, rotate: -26, d: 2.6, t: 6.5 },
+  { x: 77, y: 69, w: 19, rotate: 42, d: 1.7, t: 5.8 },
+  { x: 86, y: 42, w: 16, rotate: -13, d: 3.7, t: 4.9 },
+] as const;
+
+function EntityNebula({ state }: { state: OrbState }) {
+  const speed = state === "thinking" ? 0.75 : state === "speaking" ? 0.55 : 1;
+  return (
+    <div
+      className="hm-entity-motion absolute pointer-events-none"
+      style={{ inset: "-28% -22%", animation: "hm-entity-float 4.8s ease-in-out infinite" }}
+    >
+      <span
+        className="absolute rounded-full"
+        style={{
+          inset: "17% 8%",
+          background: "radial-gradient(ellipse at 50% 50%, rgba(14,165,233,0.22) 0%, rgba(8,145,178,0.09) 23%, transparent 65%)",
+          filter: "blur(3px)",
+          animation: `hm-entity-nebula ${5.5 * speed}s ease-in-out infinite`,
+        }}
+      />
+      <span
+        className="absolute rounded-full"
+        style={{
+          inset: "30% 22%",
+          background: "radial-gradient(ellipse, rgba(34,211,238,0.3) 0%, rgba(56,189,248,0.1) 35%, transparent 74%)",
+          filter: "blur(2px)",
+          animation: `hm-entity-nebula ${3.8 * speed}s ease-in-out infinite reverse`,
+        }}
+      />
+      {ENTITY_STREAKS.map((line, i) => (
+        <span
+          key={`streak-${i}`}
+          className="absolute h-px origin-left"
+          style={{
+            left: `${line.x}%`,
+            top: `${line.y}%`,
+            width: `${line.w}%`,
+            background: "linear-gradient(90deg, transparent, rgba(34,211,238,0.72), transparent)",
+            transform: `rotate(${line.rotate}deg)`,
+            animation: `hm-entity-streak ${line.t * speed}s ease-in-out ${line.d * speed}s infinite`,
+          }}
+        />
+      ))}
+      {ENTITY_PARTICLES.map((particle, i) => (
+        <span
+          key={`particle-${i}`}
+          className="absolute rounded-full"
+          style={{
+            left: `${particle.x}%`,
+            top: `${particle.y}%`,
+            width: particle.r * 2,
+            height: particle.r * 2,
+            background: particle.c,
+            opacity: particle.o,
+            boxShadow: `0 0 ${particle.r * 3}px ${particle.c}`,
+            animation: `hm-entity-twinkle ${particle.t * speed}s ease-in-out ${particle.d * speed}s infinite`,
+          }}
+        />
+      ))}
+      <span
+        className="absolute left-1/2 top-1/2 h-7 w-7 -translate-x-1/2 -translate-y-1/2"
+        style={{
+          background: "radial-gradient(ellipse, rgba(34,211,238,0.56) 0%, rgba(56,189,248,0.2) 22%, transparent 72%)",
+          filter: "blur(1px)",
+          animation: `hm-entity-nebula ${2.8 * speed}s ease-in-out infinite`,
+        }}
+      />
+      <span
+        className="absolute left-1/2 top-1/2 h-1 w-1 -translate-x-1/2 -translate-y-1/2 rounded-full"
+        style={{
+          background: "#e0fbff",
+          boxShadow: "0 0 2px 1px #ffffff, 0 0 7px 3px #67e8f9, 0 0 18px 7px rgba(14,165,233,0.9)",
+          animation: state === "speaking" ? "hm-entity-twinkle 0.7s ease-in-out infinite" : undefined,
+        }}
+      />
+      <span
+        className="absolute left-1/2 top-1/2 h-px w-8 -translate-x-1/2 -translate-y-1/2"
+        style={{ background: "linear-gradient(90deg, transparent, rgba(186,230,253,0.9), transparent)", opacity: 0.85 }}
+      />
+      <span
+        className="absolute left-1/2 top-1/2 h-8 w-px -translate-x-1/2 -translate-y-1/2"
+        style={{ background: "linear-gradient(180deg, transparent, rgba(186,230,253,0.8), transparent)", opacity: 0.7 }}
+      />
+    </div>
+  );
+}
+
 // ── Waveform bars (speaking state) ────────────────────────────────────────────
 function WaveformBars() {
   const barCount = 8;
@@ -185,13 +343,14 @@ function OrbVisual({ state, notifCount, alertMode, isOpen }: {
   return (
     <div
       className="relative flex items-center justify-center transition-all duration-500"
-      style={{ width: sz, height: sz, willChange: "width, height" }}
+      style={{ width: sz * 1.65, height: sz, willChange: "width, height" }}
     >
-      {/* Outermost halo — always */}
+      {/* Soft atmospheric glow behind the particle entity */}
       <span
-        className="absolute inset-0 rounded-full pointer-events-none"
+        className="absolute rounded-full pointer-events-none"
         style={{
-          background: `radial-gradient(circle, ${cfg.glowColor} 0%, transparent 70%)`,
+          inset: "10% -7%",
+          background: `radial-gradient(ellipse, ${cfg.glowColor} 0%, transparent 68%)`,
           boxShadow: cfg.glowSize,
           animation: state === "idle"
             ? "hm-orb-idle-breathe 3.5s ease-in-out infinite"
@@ -216,97 +375,21 @@ function OrbVisual({ state, notifCount, alertMode, isOpen }: {
         />
       )}
 
-      {/* Outer rotating ring (dashed) */}
-      <span
-        className="absolute rounded-full pointer-events-none"
-        style={{
-          inset: 4,
-          border: `1px dashed ${cfg.ringColor}`,
-          opacity: cfg.ringOpacity,
-          animation: state === "thinking"
-            ? "hm-ring-cw 1.2s linear infinite"
-            : state === "speaking"
-            ? "hm-ring-cw 1.8s linear infinite"
-            : state === "listening"
-            ? "hm-ring-cw 2.5s linear infinite"
-            : "hm-ring-cw 6s linear infinite",
-          willChange: "transform",
-        }}
-      />
+      {/* The icon is a moving field of particles, not a solid orb. */}
+      <EntityNebula state={state} />
 
-      {/* Middle counter-ring (dotted) */}
-      <span
-        className="absolute rounded-full pointer-events-none"
-        style={{
-          inset: 10,
-          border: `1px dotted ${cfg.ringColor}`,
-          opacity: cfg.ringOpacity * 0.6,
-          animation: state === "thinking"
-            ? "hm-ring-ccw 0.9s linear infinite"
-            : state === "speaking"
-            ? "hm-ring-ccw 1.4s linear infinite"
-            : "hm-ring-ccw 8s linear infinite",
-          willChange: "transform",
-        }}
-      />
-
-      {/* Pulse rings (listening + speaking) */}
+      {/* Listening/speaking energy ripples stay subtle so the reference silhouette remains visible. */}
       {(state === "listening" || state === "speaking") && (
-        <>
-          <span
-            className="absolute inset-0 rounded-full pointer-events-none"
-            style={{
-              border: `1px solid ${cfg.ringColor}`,
-              animation: "hm-pulse-out 1.6s ease-out infinite",
-              willChange: "transform, opacity",
-            }}
-          />
-          <span
-            className="absolute inset-0 rounded-full pointer-events-none"
-            style={{
-              border: `1px solid ${cfg.ringColor}`,
-              animation: "hm-pulse-out 1.6s ease-out infinite",
-              animationDelay: "0.8s",
-              willChange: "transform, opacity",
-            }}
-          />
-        </>
+        <span
+          className="absolute pointer-events-none rounded-full"
+          style={{
+            inset: "19% 16%",
+            border: `1px solid ${cfg.ringColor}`,
+            opacity: 0.35,
+            animation: "hm-pulse-out 1.8s ease-out infinite",
+          }}
+        />
       )}
-
-      {/* Waveform bars — speaking only */}
-      {state === "speaking" && <WaveformBars />}
-
-      {/* Core sphere */}
-      <span
-        className="absolute rounded-full pointer-events-none"
-        style={{
-          inset: 16,
-          background: `radial-gradient(circle at 38% 38%, rgba(255,255,255,0.25), transparent 70%), radial-gradient(circle, ${cfg.glowColor} 0%, rgba(0,30,60,0.6) 100%)`,
-          boxShadow: `inset 0 1px 0 rgba(255,255,255,0.2), 0 0 12px 4px ${cfg.glowColor}`,
-          animation: state === "thinking"
-            ? "hm-core-think 1.8s ease-in-out infinite"
-            : state === "idle"
-            ? "hm-orb-idle-breathe 3.5s ease-in-out infinite"
-            : undefined,
-          willChange: "transform",
-        }}
-      />
-
-      {/* Bright center dot */}
-      <span
-        className="absolute rounded-full pointer-events-none transition-all duration-500"
-        style={{
-          width: cfg.coreSize,
-          height: cfg.coreSize,
-          marginLeft: -(cfg.coreSize / 2),
-          marginTop: -(cfg.coreSize / 2),
-          top: "50%",
-          left: "50%",
-          background: cfg.coreColor,
-          boxShadow: `0 0 12px 6px ${cfg.glowColor}, 0 0 24px 10px ${cfg.glowColor}`,
-          willChange: "width, height, box-shadow",
-        }}
-      />
 
       {/* Notification badge */}
       {notifCount > 0 && (
