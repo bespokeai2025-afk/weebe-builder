@@ -552,9 +552,7 @@ export function AppSidebar() {
     <Sidebar
       collapsible="icon"
       className={cn(
-        "border-r border-white/[0.06]",
-        "bg-[linear-gradient(180deg,hsl(var(--sidebar-background))_0%,hsl(var(--sidebar-background))_100%)]",
-        "backdrop-blur-xl",
+        "app-shell-sidebar border-r border-white/[0.035] backdrop-blur-xl",
       )}
     >
       <SidebarHeader className="px-2 pt-3 pb-2 group-data-[collapsible=icon]:px-1.5">

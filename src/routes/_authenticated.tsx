@@ -106,21 +106,21 @@ function AuthenticatedLayout() {
 
   return (
     <SidebarProvider defaultOpen={false}>
-      <div className="relative flex min-h-screen w-full min-w-0 bg-transparent bg-noise">
+      <div className="app-shell-root relative flex min-h-screen w-full min-w-0">
         {/* Dashboard depth: soft dotted grid that fades toward the bottom */}
         <div
           aria-hidden
           className="pointer-events-none fixed inset-0 -z-10 bg-grid bg-grid-fade opacity-60"
         />
         <AppSidebar />
-        {/* Thin blurred divider between sidebar and content */}
+        {/* Soft divider between sidebar and content */}
         <div
           aria-hidden
-          className="pointer-events-none hidden md:block w-px shrink-0 bg-gradient-to-b from-transparent via-white/10 to-transparent backdrop-blur-sm"
+          className="app-shell-divider pointer-events-none hidden md:block w-px shrink-0"
         />
-        <SidebarInset className="flex min-w-0 flex-1 flex-col overflow-x-hidden bg-transparent">
+        <SidebarInset className="app-shell-main flex min-w-0 flex-1 flex-col overflow-x-hidden">
           {!hideHeader && (
-            <div className="sticky top-0 z-30 flex h-10 items-center gap-2 border-b border-white/[0.04] bg-background/60 px-2.5 backdrop-blur-xl">
+            <div className="app-shell-header sticky top-0 z-30 flex h-10 items-center gap-2 px-2.5">
               <SidebarTrigger />
               <div className="ml-auto flex items-center gap-1">
                 <NotificationsBell />

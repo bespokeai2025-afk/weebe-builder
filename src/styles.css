@@ -129,7 +129,7 @@
   --radius: 0.875rem; /* 14px */
 
   /* Premium enterprise dark — Retell / Stripe / Linear */
-  --background: #0b0f14;
+  --background: #0b1430;
   --foreground: #f9fafb;
   --card: #151d2b;
   --card-foreground: #e5e7eb;
@@ -164,13 +164,13 @@
 
   /* Sidebar */
   /* Sidebar — slightly darker than main background for depth */
-  --sidebar: #080b10;
+  --sidebar: #071126;
   --sidebar-foreground: #e5e7eb;
   --sidebar-primary: #f9fafb;
   --sidebar-primary-foreground: #0b0f14;
   --sidebar-accent: rgba(255, 255, 255, 0.04);
   --sidebar-accent-foreground: #e5e7eb;
-  --sidebar-border: rgba(255, 255, 255, 0.04);
+  --sidebar-border: rgba(148, 163, 184, 0.09);
   --sidebar-ring: rgba(79, 140, 255, 0.55);
 
   /* Flow canvas */
@@ -417,6 +417,53 @@
     backdrop-filter: blur(12px) saturate(140%);
     -webkit-backdrop-filter: blur(12px) saturate(140%);
   }
+}
+
+/* Shared authenticated dashboard shell — one continuous WEBEE environment. */
+.app-shell-root {
+  background: var(--background);
+}
+
+.app-shell-main {
+  background: var(--background);
+}
+
+.app-shell-header {
+  border-bottom: 1px solid var(--border);
+  background: color-mix(in srgb, var(--background) 88%, transparent);
+  backdrop-filter: blur(16px) saturate(120%);
+  -webkit-backdrop-filter: blur(16px) saturate(120%);
+}
+
+.dark .app-shell-root {
+  background: linear-gradient(135deg, #071126 0%, #0b1430 48%, #17133c 100%);
+}
+
+.dark .app-shell-main {
+  background:
+    linear-gradient(122deg, #0b1430 0%, #0d1531 46%, #17133c 100%);
+}
+
+.dark .app-shell-header {
+  border-bottom-color: rgba(148, 163, 184, 0.055);
+  background:
+    linear-gradient(108deg, rgba(11, 20, 48, 0.9), rgba(23, 19, 60, 0.8));
+}
+
+.dark .app-shell-divider {
+  background: linear-gradient(
+    to bottom,
+    transparent,
+    rgba(148, 163, 184, 0.045) 14%,
+    rgba(148, 163, 184, 0.06) 50%,
+    rgba(148, 163, 184, 0.045) 86%,
+    transparent
+  );
+}
+
+.dark .app-shell-sidebar [data-sidebar="sidebar"] {
+  background:
+    linear-gradient(180deg, #071126 0%, #08132a 54%, #0b1530 100%) !important;
 }
 
 /* ============================================================
