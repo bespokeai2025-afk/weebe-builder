@@ -1,0 +1,389 @@
+Refine the visual design of the Conversation Flow / Builder nodes and connector lines.
+
+Do NOT redesign the Builder layout or change any workflow functionality.
+
+The goal is to make the nodes feel much more premium, high-definition and consistent with the new WEBEE dark navy / Ava / HiveMind visual language.
+
+## 1. REMOVE THE DULL GREY NODE STYLE
+
+The current grey node headers/surfaces look flat and dated.
+
+Replace the grey treatment with a very subtle ICE-WHITE / cool-white finish.
+
+Visual direction:
+
+#F4FBFF
+#EAF6FF
+#DDEEFF
+
+Use these as directional references only.
+
+The white should have a very subtle cold-blue tint so it belongs naturally inside the deep navy WEBEE interface.
+
+Do NOT use:
+- beige white
+- warm grey
+- flat grey
+- dirty off-white
+
+It should feel like:
+
+ICE WHITE
++
+VERY SUBTLE CYAN-BLUE TINT
++
+PRECISE DIGITAL UI
+
+## 2. KEEP THE NODE BODY SOPHISTICATED
+
+Do not turn the entire Builder into a bright white interface.
+
+I want a strong contrast between:
+
+- ice-white node chrome/header
+- deep navy node body
+- dark WEBEE canvas
+
+A node could visually behave approximately like:
+
+ICE-WHITE HEADER
+↓
+DEEP NAVY CONTENT BODY
+↓
+FINE ICE/CYAN EDGE
+
+This will make the workflow much easier to read.
+
+## 3. NODE DEFAULT STATE
+
+When a node is idle and NOT connected/selected:
+
+- crisp ice-white header
+- very clean sharp borders
+- extremely subtle cool-blue edge
+- virtually no glow
+- high-definition rendering
+- no fuzzy shadows
+
+Example visual direction:
+
+border:
+1px solid rgba(210, 235, 255, 0.25)
+
+header:
+linear-gradient(
+  180deg,
+  #f4fbff,
+  #e7f3fb
+)
+
+Keep shadows restrained.
+
+The nodes should feel sharp and expensive.
+
+## 4. CONNECTED NODE STATE
+
+When a node has a valid connection to another node:
+
+introduce a subtle luminous edge.
+
+The connected node should have:
+
+- slightly brighter ice-white edge
+- subtle cyan-blue luminosity
+- small controlled outer glow
+- visible connection handles
+
+Do NOT create a large neon halo.
+
+Think:
+
+PRECISION LIGHTING
+
+not
+
+GAMING RGB.
+
+The node should communicate:
+
+"This is connected and active."
+
+## 5. SELECTED NODE STATE
+
+When the user selects/clicks a node, make the state significantly clearer.
+
+Selected should be brighter than connected.
+
+Use:
+
+- brighter ice-white outline
+- stronger cyan/ice-blue edge
+- subtle inner highlight
+- slightly stronger controlled glow
+- clearly illuminated connection handles
+
+Example concept:
+
+CONNECTED:
+soft cyan edge
+
+SELECTED:
+bright ice-white + cyan edge
+
+The selected state should be immediately obvious without becoming visually aggressive.
+
+## 6. CONNECTOR LINES
+
+Upgrade the workflow connector lines as well.
+
+Current connector lines should become much more precise and high-definition.
+
+### Default/unconnected preview
+
+Keep them subtle:
+
+- thin
+- crisp
+- low opacity
+- blue-grey / cyan-blue
+
+### Connected
+
+Once two nodes are connected:
+
+make the connector visibly luminous.
+
+Use:
+
+- approximately 1px crisp central line
+- cyan / ice-blue
+- very subtle secondary glow
+- smooth Bezier curves
+- anti-aliased rendering
+
+The central connector line must remain SHARP.
+
+Do not create thick blurred tubes.
+
+### Selected connection
+
+When a connected node or connection is selected:
+
+increase brightness further.
+
+Selected connection should feel like energy is passing through it.
+
+Use:
+
+CRISP WHITE-CYAN CORE
++
+SMALL CYAN GLOW
+
+Do not increase line thickness dramatically.
+
+Brightness should communicate state more than thickness.
+
+## 7. CONNECTION HANDLES
+
+Upgrade the small connection points/handles.
+
+Idle:
+small ice-white dot
+
+Connected:
+cyan-white illuminated dot
+
+Selected:
+brighter white centre + cyan halo
+
+Keep them small and precise.
+
+No large glowing circles.
+
+## 8. OPTIONAL SUBTLE FLOW ANIMATION
+
+For an active connected line, add an extremely subtle moving energy cue.
+
+For example:
+
+a tiny low-opacity cyan highlight travelling slowly along the connection path.
+
+It should imply:
+
+DATA / INTELLIGENCE FLOWING BETWEEN NODES
+
+Do NOT:
+- animate the entire line aggressively
+- create moving neon stripes
+- use fast pulses
+- distract the user
+
+It should be barely noticeable but make the workflow feel alive.
+
+## 9. HIGH-DEFINITION RENDERING
+
+This is important.
+
+The nodes and connector lines currently need to feel sharper.
+
+Check:
+
+- SVG stroke rendering
+- CSS transforms
+- devicePixelRatio where Canvas is involved
+- fractional positioning that may blur 1px lines
+- CSS scaling
+- filter blur
+- shadow blur
+- SVG vector-effect / stroke handling
+
+Ensure borders and lines land cleanly on the pixel grid where practical.
+
+Use SVG for connector lines if the Builder already uses SVG/React Flow.
+
+Keep vector rendering rather than converting anything to raster graphics.
+
+## 10. REDUCE BLUR
+
+The entire visual language should become sharper.
+
+Reduce:
+
+- oversized box-shadow blur
+- heavy bloom
+- fuzzy borders
+- soft halos
+
+Use layered crisp edges instead:
+
+CRISP CORE
++
+VERY SMALL CONTROLLED GLOW
+
+That should become a general rule for the Builder.
+
+## 11. PRESERVE NODE TYPES
+
+Do not remove the existing colour identity of node types.
+
+For example:
+
+Conversation
+Function
+Logic Split
+End Call
+Transfer
+
+may retain their existing small semantic colour indicator/icon.
+
+But the PRIMARY node surface/chrome should use the new ice-white treatment.
+
+The semantic colours should become accents rather than controlling the whole node design.
+
+## 12. STATE HIERARCHY
+
+The visual hierarchy should be extremely clear:
+
+IDLE
+ice-white / sharp / minimal glow
+
+↓
+
+CONNECTED
+ice-white + subtle cyan illumination
+
+↓
+
+SELECTED
+bright ice-white + stronger cyan edge/glow
+
+↓
+
+ACTIVE / RUNNING
+optional subtle flowing energy along connection
+
+This hierarchy should be consistent everywhere in the Builder.
+
+## 13. KEEP THE CANVAS DARK
+
+Do NOT lighten the Builder canvas.
+
+The deep navy / near-black canvas is what will make the ice-white nodes look premium.
+
+The visual relationship should be:
+
+DEEP DARK CANVAS
++
+ICE-WHITE NODES
++
+CYAN CONNECTION ENERGY
+
+This should feel like one coherent WEBEE system.
+
+## 14. DO NOT CHANGE
+
+Do NOT modify:
+
+- workflow functionality
+- node behaviour
+- dragging
+- connection logic
+- node positioning
+- builder toolbar
+- SystemMind bar
+- sidebar
+- right settings panel
+- HiveMind
+- page backgrounds
+- data
+- APIs
+
+This task is strictly visual styling for:
+
+- workflow nodes
+- node states
+- connection handles
+- connector lines
+- selected/connected state lighting
+- rendering sharpness
+
+## FINAL VISUAL TARGET
+
+I want the Builder to feel like a premium high-resolution control system.
+
+Think:
+
+deep midnight WEBEE environment
+
++
+
+sharp ice-white workflow nodes
+
++
+
+thin luminous neural-like cyan connections
+
++
+
+brighter controlled illumination when selected.
+
+No dull grey.
+
+No blurry glow.
+
+No chunky neon.
+
+Everything should be crisp, refined and high-definition.
+
+Before completing, visually test:
+
+1. idle node
+2. connected node
+3. selected node
+4. two connected selected nodes
+5. connection handles
+6. curved connector lines
+7. zoomed-in Builder
+8. zoomed-out Builder
+
+Then report exactly which files/styles were changed and the final colour, border, glow and connection-line values used.
