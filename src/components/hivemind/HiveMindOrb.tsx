@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect, useLayoutEffect, useCallback } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { useRouterState, useNavigate } from "@tanstack/react-router";
-import { Send, Mic, MicOff, X, Minus, Loader2, ChevronRight, User, ExternalLink, ClipboardList, Square } from "lucide-react";
+import { Send, Mic, MicOff, X, Loader2, ChevronDown, ChevronRight, User, ExternalLink, ClipboardList, Square } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { getHiveMindAIResponse, getHiveMindTTS } from "@/lib/hivemind/hivemind.ai";
 import { streamHiveMindChat } from "@/lib/hivemind/use-hivemind-stream";
@@ -88,8 +88,9 @@ function OrbVisual({ state, notifCount, alertMode, hovered }: {
 }
 
 // ── Mini chat panel ────────────────────────────────────────────────────────────
-function MiniChat({ onClose, onStateChange }: {
+function MiniChat({ onClose, onCollapse, onStateChange }: {
   onClose: () => void;
+  onCollapse: () => void;
   onStateChange: (s: { thinking: boolean; speaking: boolean; listening: boolean }) => void;
 }) {
   const aiFn  = useServerFn(getHiveMindAIResponse);
@@ -99,7 +100,6 @@ function MiniChat({ onClose, onStateChange }: {
   const [messages, setMessages]   = useState<Msg[]>([]);
   const [input, setInput]         = useState("");
   const [thinking, setThinkingS]  = useState(false);
-  const [minimized, setMinimized] = useState(false);
   const [recording, setRecording] = useState(false);
   const [speaking, setSpeakingS]  = useState(false);
   const [micError, setMicError]   = useState<string | null>(null);
@@ -168,8 +168,8 @@ function MiniChat({ onClose, onStateChange }: {
   }, [thinking, speaking, recording]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
-    if (!minimized) bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages, thinking, minimized]);
+    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages, thinking]);
 
   useEffect(() => {
     const name = userName.current;
@@ -290,8 +290,7 @@ function MiniChat({ onClose, onStateChange }: {
 
   return (
     <div className={cn(
-      "absolute bottom-24 right-0 w-[340px] rounded-2xl overflow-hidden transition-all duration-300 select-text",
-      minimized ? "h-12" : "h-[440px]",
+      "absolute bottom-24 right-0 h-[440px] w-[340px] rounded-2xl overflow-hidden select-text",
     )}
     style={{
       background: "linear-gradient(160deg, rgba(2,12,27,0.97) 0%, rgba(4,20,44,0.97) 100%)",
@@ -331,9 +330,10 @@ function MiniChat({ onClose, onStateChange }: {
 
         {thinking && <Loader2 className="h-3 w-3 text-sky-400 animate-spin" />}
 
-        <button onClick={() => setMinimized(m => !m)}
+        <button onClick={onCollapse} aria-label="Collapse HiveMind"
+          title="Collapse"
           className="text-sky-400/30 hover:text-sky-400/70 transition-colors ml-1">
-          <Minus className="h-3.5 w-3.5" />
+          <ChevronDown className="h-3.5 w-3.5" />
         </button>
         <button onClick={() => { stopAudio(); onClose(); }} aria-label="Close"
           className="text-sky-400/30 hover:text-sky-400/70 transition-colors">
@@ -341,8 +341,7 @@ function MiniChat({ onClose, onStateChange }: {
         </button>
       </div>
 
-      {!minimized && (
-        <>
+      <>
           {/* Messages */}
           <div className="flex-1 overflow-y-auto px-3 py-3 space-y-2.5 h-[calc(440px-100px)]"
             style={{ scrollbarWidth: "thin", scrollbarColor: "rgba(6,182,212,0.2) transparent" }}>
@@ -466,8 +465,7 @@ function MiniChat({ onClose, onStateChange }: {
               </button>
             )}
           </div>
-        </>
-      )}
+      </>
     </div>
   );
 }
@@ -717,14 +715,11 @@ export function HiveMindOrb() {
     };
   }, [pathname]);
 
-  const displayedRight = Math.min(
-    Math.max(anchor.right - dragOffset.x, anchor.right),
-    anchor.maxRight,
-  );
-  const displayedBottom = Math.min(
-    Math.max(anchor.bottom - dragOffset.y, anchor.bottom),
-    anchor.maxBottom,
-  );
+  // HiveMind is intentionally a simple lower-right shell control. Keep its
+  // resting position independent of page rails, full-screen backdrops, and
+  // previously saved drag offsets so it cannot jump to the top of the app.
+  const displayedRight = HIVE_MIND_SHELL_GUTTER;
+  const displayedBottom = HIVE_MIND_SHELL_GUTTER;
   const dragRef = useRef<DragState | null>(null);
   const suppressClickRef = useRef(false);
 
@@ -808,6 +803,7 @@ export function HiveMindOrb() {
       {open && (
         <MiniChat
           onClose={() => setOpen(false)}
+          onCollapse={() => setOpen(false)}
           onStateChange={setChatState}
         />
       )}
@@ -873,15 +869,11 @@ export function HiveMindOrb() {
         {/* The orb button */}
         <button
           onClick={handleOrbClick}
-          onPointerDown={onDragPointerDown}
-          onPointerMove={onDragPointerMove}
-          onPointerUp={onDragPointerUp}
-          onPointerCancel={onDragPointerUp}
           onMouseEnter={() => setHovered(true)}
           onMouseLeave={() => setHovered(false)}
-          aria-label="Open HiveMind Executive Assistant (drag to move)"
-          title="Drag to move"
-          className="relative cursor-grab active:cursor-grabbing transition-transform duration-300 active:scale-95 focus:outline-none"
+          aria-label={open ? "Collapse HiveMind" : "Open HiveMind Executive Assistant"}
+          title={open ? "Collapse HiveMind" : "Open HiveMind"}
+          className="relative cursor-pointer transition-transform duration-300 active:scale-95 focus:outline-none"
           style={{
             background: "none",
             border: "none",
