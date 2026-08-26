@@ -49,7 +49,7 @@ function UserActivityPage() {
   const rowsPag = useTablePagination(rows, 25);
 
   return (
-    <main className="min-h-screen bg-background">
+    <main className="min-h-screen bg-transparent">
       <header className="border-b">
         <div className="mx-auto max-w-5xl px-4 py-3 flex items-center justify-between">
           <Link

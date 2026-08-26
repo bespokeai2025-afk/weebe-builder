@@ -68,7 +68,7 @@ function InvitePage() {
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-background p-4">
+    <div className="platform-nebula-surface flex min-h-screen items-center justify-center bg-transparent p-4">
       <Card className="w-full max-w-md">
         <CardHeader className="items-center text-center">
           <Logo className="mb-2 h-8" />

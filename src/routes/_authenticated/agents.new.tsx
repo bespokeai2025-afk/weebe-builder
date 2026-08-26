@@ -67,7 +67,7 @@ function AgentsNewPage() {
   }
 
   return (
-    <main className="min-h-screen bg-background">
+    <main className="min-h-screen bg-transparent">
       <div className="mx-auto max-w-3xl px-4 py-12 space-y-8">
         <div className="space-y-1 text-center">
           <h1 className="text-2xl font-semibold tracking-tight">Create a new agent</h1>

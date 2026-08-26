@@ -65,7 +65,7 @@ function UnsubscribePage() {
   };
 
   return (
-    <main className="min-h-screen flex items-center justify-center bg-background px-4">
+    <main className="platform-nebula-surface min-h-screen flex items-center justify-center bg-transparent px-4">
       <div className="w-full max-w-md rounded-xl border bg-card p-8 shadow-sm">
         <h1 className="text-2xl font-semibold text-foreground">Unsubscribe</h1>
         <p className="mt-2 text-sm text-muted-foreground">

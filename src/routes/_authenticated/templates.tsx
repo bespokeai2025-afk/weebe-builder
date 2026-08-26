@@ -190,7 +190,7 @@ function TemplatesPage() {
 
   if (templatesQ.isLoading) {
     return (
-      <main className="min-h-screen bg-background">
+      <main className="min-h-screen bg-transparent">
         <header className="border-b">
           <div className="mx-auto max-w-6xl px-4 py-3 flex items-center justify-between">
             <Link
@@ -229,7 +229,7 @@ function TemplatesPage() {
 
   if (templatesQ.isError) {
     return (
-      <main className="min-h-screen bg-background">
+      <main className="min-h-screen bg-transparent">
         <header className="border-b">
           <div className="mx-auto max-w-6xl px-4 py-3 flex items-center justify-between">
             {isPicker ? (
@@ -274,7 +274,7 @@ function TemplatesPage() {
   const isAdmin = adminQ.data?.isAdmin ?? false;
 
   return (
-    <main className="min-h-screen bg-background">
+    <main className="min-h-screen bg-transparent">
       <header className="border-b">
         <div className="mx-auto max-w-6xl px-4 py-3 flex items-center justify-between">
           {isPicker ? (

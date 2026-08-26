@@ -150,7 +150,7 @@ function CalendarSettingsPage() {
   const hasKey = Boolean(settingsQ.data?.calcom_api_key);
 
   return (
-    <main className="min-h-screen bg-background flex flex-col">
+    <main className="min-h-screen bg-transparent flex flex-col">
       <header className="border-b shrink-0">
         <div className="mx-auto max-w-5xl px-4 py-3 flex items-center justify-between">
           <Link

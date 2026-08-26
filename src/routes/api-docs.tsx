@@ -344,7 +344,7 @@ function ApiDocsPage() {
   }'`;
 
   return (
-    <div className="min-h-screen bg-white dark:bg-zinc-950">
+    <div className="min-h-screen bg-white dark:bg-transparent">
       <div className="border-b border-zinc-200 dark:border-zinc-800 bg-zinc-950 text-white">
         <div className="max-w-5xl mx-auto px-6 py-8">
           <div className="flex items-center gap-3 mb-3">

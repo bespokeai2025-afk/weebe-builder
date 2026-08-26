@@ -200,7 +200,7 @@ function AdminUsersPage() {
   };
 
   return (
-    <main className="min-h-screen bg-background">
+    <main className="min-h-screen bg-transparent">
       <header className="border-b">
         <div className="mx-auto max-w-5xl px-4 py-3 flex items-center justify-between">
           <h1 className="text-sm font-medium">User Management</h1>

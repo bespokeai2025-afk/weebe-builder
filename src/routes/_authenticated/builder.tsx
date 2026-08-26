@@ -202,7 +202,7 @@ function BuilderPage() {
   );
 
   return (
-    <div className="flex h-screen flex-col bg-background">
+    <div className="flex h-screen flex-col bg-transparent">
       <Builder
         heightClass="h-full rounded-none border-0 bg-transparent shadow-none"
         toolbarStart={<SidebarTrigger className="!h-7 !w-7 !p-0" />}

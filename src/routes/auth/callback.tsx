@@ -91,7 +91,7 @@ function AuthCallbackPage() {
 
   if (status === "loading") {
     return (
-      <main className="flex min-h-screen items-center justify-center bg-background bg-mesh bg-noise px-4">
+      <main className="platform-nebula-surface flex min-h-screen items-center justify-center bg-transparent bg-mesh bg-noise px-4">
         <div className="text-center">
           <div className="mx-auto mb-4 h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
           <p className="text-sm text-muted-foreground">Completing sign in...</p>
@@ -101,7 +101,7 @@ function AuthCallbackPage() {
   }
 
   return (
-    <main className="flex min-h-screen items-center justify-center bg-background bg-mesh bg-noise px-4">
+    <main className="platform-nebula-surface flex min-h-screen items-center justify-center bg-transparent bg-mesh bg-noise px-4">
       <div className="w-full max-w-sm rounded-2xl border bg-card p-6 shadow-sm text-center">
         <h2 className="text-lg font-semibold text-destructive">Sign in failed</h2>
         <p className="mt-2 text-sm text-muted-foreground">
