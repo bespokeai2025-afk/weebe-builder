@@ -70,13 +70,24 @@ type StarLink = {
   hue: number;
 };
 
+type CurvedFragment = {
+  distance: number;
+  angle: number;
+  length: number;
+  bow: number;
+  speed: number;
+  phase: number;
+  hue: number;
+  alpha: number;
+};
+
 const TAU = Math.PI * 2;
 const ARM_BASE = [-0.75, 1.7, 3.9];
 const ARM_WIDTH = [0.34, 0.5, 0.62];
 const LAYER_SPEED = [1.7, 1.1, 0.6];
 const LAYER_ALPHA = [1, 0.94, 0.8];
-const VISUAL_SCALE = 0.5;
-const PARTICLE_SCALE = 1;
+const VISUAL_SCALE = 0.58;
+const PARTICLE_SCALE = 0.82;
 
 const FILAMENTS = [
   { a: -0.42, off: 0.1, len: 1.55, wid: 0.4, sp: 0.31, ph: 0, hue: 189, lig: 92, al: 1 },
@@ -84,6 +95,15 @@ const FILAMENTS = [
   { a: 2.05, off: 0.34, len: 0.86, wid: 0.24, sp: 0.41, ph: 3.4, hue: 203, lig: 66, al: 0.8 },
   { a: -1.62, off: 0.18, len: 0.7, wid: 0.21, sp: 0.27, ph: 5.1, hue: 186, lig: 84, al: 0.7 },
   { a: 2.75, off: 0.46, len: 0.58, wid: 0.16, sp: 0.35, ph: 2.4, hue: 246, lig: 60, al: 0.5 },
+];
+
+const CURVED_FRAGMENTS: CurvedFragment[] = [
+  { distance: 0.56, angle: -0.82, length: 0.25, bow: 0.08, speed: 0.34, phase: 0.2, hue: 191, alpha: 0.5 },
+  { distance: 0.76, angle: 0.18, length: 0.2, bow: -0.1, speed: -0.24, phase: 1.4, hue: 205, alpha: 0.42 },
+  { distance: 0.98, angle: 1.18, length: 0.28, bow: 0.12, speed: 0.17, phase: 2.3, hue: 193, alpha: 0.34 },
+  { distance: 0.7, angle: 2.42, length: 0.17, bow: -0.08, speed: 0.28, phase: 3.1, hue: 223, alpha: 0.3 },
+  { distance: 1.08, angle: -2.32, length: 0.22, bow: 0.1, speed: -0.14, phase: 4.2, hue: 198, alpha: 0.28 },
+  { distance: 1.22, angle: 2.92, length: 0.15, bow: -0.06, speed: 0.2, phase: 5.1, hue: 245, alpha: 0.22 },
 ];
 
 function clamp(value: number, min: number, max: number): number {
@@ -338,8 +358,8 @@ export function AvaSignal({
 
     const seed = () => {
       const isReduced = reducedRef.current;
-      parts = Array.from({ length: isReduced ? 75 : mobile ? 150 : 190 }, () => makePart(isReduced, mobile));
-      microStars = Array.from({ length: isReduced ? 75 : mobile ? 180 : 215 }, () => makeMicro(isReduced, mobile));
+      parts = Array.from({ length: isReduced ? 38 : mobile ? 75 : 95 }, () => makePart(isReduced, mobile));
+      microStars = Array.from({ length: isReduced ? 38 : mobile ? 90 : 108 }, () => makeMicro(isReduced, mobile));
       nodes = makeNodes(isReduced, mobile);
       nodeLinks = makeNodeLinks(isReduced, mobile, nodes);
       starLinks = [];
@@ -433,7 +453,7 @@ export function AvaSignal({
               p.x,
               p.y,
               particle.size * 1.35,
-              hsla(hue, 98, lightFor(particle.light, dark, mobile), alpha * 0.12),
+              hsla(hue, 98, lightFor(particle.light, dark, mobile), alpha * 0.08),
               alpha,
             );
             ctx.fillStyle = color;
@@ -476,14 +496,14 @@ export function AvaSignal({
             1,
           );
           const rad = clamp(
-            0.3,
-            2.2,
+            0.26,
+            2,
             particle.size * (0.55 + (depth + 1) * 0.3) * (1 + nearCore * voice * 0.12) * (mobile ? 1.18 : 1),
           );
           const hue = particle.hue + Math.sin(now * 0.00016 + particle.a) * 1.2;
           const light = lightFor(particle.light, dark, mobile);
           if (particle.focal) {
-            drawGradientDot(p.x, p.y, rad * 1.35, hsla(hue, 98, light, alpha * 0.1), alpha);
+            drawGradientDot(p.x, p.y, rad * 1.2, hsla(hue, 98, light, alpha * 0.07), alpha);
           }
           if (particle.trail) {
             ctx.strokeStyle = hsla(hue, 98, light, alpha);
@@ -528,7 +548,7 @@ export function AvaSignal({
         linkAccumulator += dt;
         nextLinkIn -= dt;
         if (nextLinkIn <= 0) {
-          const maxLinks = (mobile ? 22 : 30) + (hoverAmount > 0.4 ? 3 : 0);
+          const maxLinks = (mobile ? 18 : 26) + (hoverAmount > 0.4 ? 3 : 0);
           const candidates = microStars
             .map((star, index) => ({ star, index }))
             .filter(({ star }) => star.link);
@@ -560,7 +580,7 @@ export function AvaSignal({
           linkAccumulator = 0;
         }
       }
-      const maxLinks = (isReduced ? 5 : mobile ? 22 : 30) + (hoverAmount > 0.4 ? 3 : 0);
+      const maxLinks = (isReduced ? 4 : mobile ? 18 : 26) + (hoverAmount > 0.4 ? 3 : 0);
       starLinks = starLinks.filter((link) => {
         link.age += dt;
         return link.age < link.dur && link.a < microPositions.length && link.b < microPositions.length;
@@ -573,9 +593,9 @@ export function AvaSignal({
         const life = link.age / link.dur;
         const envelope = Math.min(1, Math.min(life, 1 - life) * 5);
         const near = 1 - distance / (radius * 0.8);
-          const alpha = Math.min(
-            0.62,
-            envelope * (0.38 + near * 0.26) * (mobile ? 1.35 : 1) *
+        const alpha = Math.min(
+          0.62,
+          envelope * (0.38 + near * 0.26) * (mobile ? 1.35 : 1) *
             (1 + hoverAmount * 0.3 + voice * 0.65 + speakPulse * 0.3 + energy * 0.12 + success * 0.4),
         );
         const gradient = ctx.createLinearGradient(a.x, a.y, b.x, b.y);
@@ -593,6 +613,51 @@ export function AvaSignal({
         ctx.quadraticCurveTo(mx, my, b.x, b.y);
         ctx.stroke();
       });
+    }
+
+    function drawCurvedFragments(
+      radius: number,
+      now: number,
+      hoverAmount: number,
+      energy: number,
+      isReduced: boolean,
+    ) {
+      const centerX = width * 0.5 + radius * 0.04;
+      const centerY = height * 0.5 - radius * 0.03;
+      const fragments = isReduced ? CURVED_FRAGMENTS.slice(0, 3) : CURVED_FRAGMENTS;
+
+      ctx.save();
+      ctx.globalCompositeOperation = dark ? "lighter" : "source-over";
+      fragments.forEach((fragment) => {
+        const drift = now * 0.00032 * fragment.speed + fragment.phase;
+        const angle = fragment.angle + Math.sin(drift) * 0.16;
+        const distance = radius * fragment.distance * (1 + Math.sin(drift * 1.7) * 0.06);
+        const length = radius * fragment.length * (0.88 + Math.sin(drift * 1.3) * 0.12);
+        const alpha =
+          fragment.alpha *
+          (0.58 + Math.sin(drift * 1.9) * 0.22 + hoverAmount * 0.1 + energy * 0.08);
+        const x = centerX + Math.cos(angle) * distance;
+        const y = centerY + Math.sin(angle) * distance * 0.68;
+        ctx.save();
+        ctx.translate(x, y);
+        ctx.rotate(angle + Math.sin(drift * 1.2) * 0.14);
+        const gradient = ctx.createLinearGradient(-length, 0, length, 0);
+
+        gradient.addColorStop(0, hsla(fragment.hue, 98, lightFor(58, dark, mobile), 0));
+        gradient.addColorStop(0.3, hsla(fragment.hue, 98, lightFor(58, dark, mobile), alpha));
+        gradient.addColorStop(0.7, hsla(fragment.hue + 8, 98, lightFor(62, dark, mobile), alpha * 0.82));
+        gradient.addColorStop(1, hsla(fragment.hue + 12, 98, lightFor(58, dark, mobile), 0));
+
+        ctx.strokeStyle = gradient;
+        ctx.lineWidth = 0.55;
+        ctx.lineCap = "round";
+        ctx.beginPath();
+        ctx.moveTo(-length, 0);
+        ctx.quadraticCurveTo(0, length * fragment.bow, length, 0);
+        ctx.stroke();
+        ctx.restore();
+      });
+      ctx.restore();
     }
 
     function drawNodes(
@@ -626,7 +691,7 @@ export function AvaSignal({
         if (distance > radius * 0.8) return;
         const near = 1 - distance / (radius * 0.8);
         const alpha = Math.min(
-          0.5,
+            0.5,
           fade * (0.2 + near * 0.14) * (1 + hoverAmount * 0.35 + voice * 0.6 + speakPulse * 0.25 + energy * 0.15 + success * 0.4),
         );
         const gradient = ctx.createLinearGradient(a.x, a.y, b.x, b.y);
@@ -653,7 +718,7 @@ export function AvaSignal({
           (0.3 + hoverAmount * 0.12 + voice * 0.2 + energy * 0.06) * (0.6 + (node.z + 1) * 0.22),
         );
         const rad = node.size * 0.44 * (0.9 + (node.z + 1) * 0.1);
-        drawGradientDot(node.x, node.y, rad * 1.2, hsla(node.hue, 98, lightFor(50, dark, mobile), a * 0.06), a);
+        drawGradientDot(node.x, node.y, rad * 1.15, hsla(node.hue, 98, lightFor(50, dark, mobile), a * 0.04), a);
         ctx.fillStyle = hsla(node.hue, 98, lightFor(50 + voice * 6, dark, mobile), Math.min(1, a * 1.2));
         ctx.beginPath();
         ctx.arc(node.x, node.y, rad, 0, TAU);
@@ -674,7 +739,7 @@ export function AvaSignal({
     ) {
       const kx = width * 0.5 + radius * 0.04;
       const ky = height * 0.5 - radius * 0.03;
-      const kr = radius * 0.082 * (1 + voice * 0.07 + speakPulse * 0.02 + hoverAmount * 0.022);
+      const kr = radius * 0.065 * (1 + voice * 0.07 + speakPulse * 0.02 + hoverAmount * 0.022);
       const green = success;
       const mixHue = (hue: number) => hue + (150 - hue) * green;
       const mixSat = (saturation: number) => saturation - (saturation - 78) * green;
@@ -685,7 +750,7 @@ export function AvaSignal({
       ctx.rotate(-0.5 + Math.sin(now * 0.00013) * 0.12);
       ctx.scale(1.5, 0.92);
       const haze = ctx.createRadialGradient(0, 0, 0, 0, 0, kr * 2.1);
-      const hazeAlpha = 0.03 + hoverAmount * 0.014 + voice * 0.03 + energy * 0.012;
+      const hazeAlpha = 0.02 + hoverAmount * 0.01 + voice * 0.02 + energy * 0.008;
       haze.addColorStop(0, hsla(191, 100, 62, hazeAlpha));
       haze.addColorStop(0.55, hsla(206, 98, 54, hazeAlpha * 0.35));
       haze.addColorStop(1, hsla(230, 92, 56, 0));
@@ -694,6 +759,14 @@ export function AvaSignal({
       ctx.arc(0, 0, kr * 2.1, 0, TAU);
       ctx.fill();
       ctx.restore();
+
+      const corePulse = 0.95 + Math.sin(now * 0.0018) * 0.05 + speakPulse * 0.025;
+      const coreRadius = Math.max(0.42, kr * 0.34 * corePulse);
+      drawGradientDot(kx, ky, coreRadius * 1.6, hsla(190, 100, 82, 0.08), 0.08);
+      ctx.fillStyle = hsla(190, 100, 96, 0.96);
+      ctx.beginPath();
+      ctx.arc(kx, ky, coreRadius, 0, TAU);
+      ctx.fill();
 
       FILAMENTS.forEach((filament, i) => {
         const w1 = Math.sin(now * 0.001 * filament.sp + filament.ph);
@@ -795,7 +868,7 @@ export function AvaSignal({
       const speedMul = (isReduced ? 0.16 : 1) * (1 + hoverValue * 0.12 + voice * 0.18 + energyValue * 0.12);
       const radius = Math.min(width, height) * 0.3 * VISUAL_SCALE;
       const hazeRadius = radius * (1.35 + voice * 0.04);
-      const hazeAlpha = (dark ? (mobile ? 0.035 : 0.008) : 0.008) + voice * 0.004 + energyValue * 0.002 + greenValue * 0.006;
+      const hazeAlpha = (dark ? (mobile ? 0.025 : 0.005) : 0.006) + voice * 0.003 + energyValue * 0.002 + greenValue * 0.004;
       const centerX = width * 0.5 + radius * 0.04;
       const centerY = height * 0.5 - radius * 0.03;
 
@@ -825,6 +898,7 @@ export function AvaSignal({
       drawParticles(parts, radius, spread, t, voice, mid, hoverValue, energyValue, greenValue, false, aBoost);
       drawParticles(microStars, radius, spread, t, voice, mid, hoverValue, energyValue, greenValue, true, aBoost, microPositions);
       drawStarLinks(radius, hoverValue, voice, speakPulse, energyValue, greenValue, dt, isReduced);
+      drawCurvedFragments(radius, now, hoverValue, energyValue, isReduced);
       drawNodes(radius, spread, t, voice, hoverValue, speakPulse, energyValue, greenValue, speedMul, dt);
       if (hoverValue > 0.01) {
         for (let i = 0; i < 9; i += 1) {
