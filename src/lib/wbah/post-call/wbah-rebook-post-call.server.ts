@@ -124,6 +124,24 @@ export async function runWbahRebookPostCallPipeline(
     } catch (e) {
       errors.push(`dashboard_raw: ${(e as Error).message}`);
     }
+  }
+
+  if (event === "call_ended" && stepOn("wbah_calls_upsert")) {
+    try {
+      await upsertWbahCallFromWebhook({
+        call,
+        agent,
+        dynVars: { ...dynVars, crm_type: "opportunity", opportunity_id: entity.opportunityId },
+        formatted: null,
+        event,
+      });
+      branches.push("wbah_calls_upsert");
+    } catch (e) {
+      errors.push(`wbah_calls_upsert: ${(e as Error).message}`);
+    }
+  }
+
+  if (event === "call_started" || event === "call_ended") {
     return { handled: true, message: `rebook processed ${event}`, branches, errors };
   }
 
