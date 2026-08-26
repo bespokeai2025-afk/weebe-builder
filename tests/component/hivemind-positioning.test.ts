@@ -1,7 +1,18 @@
 import { describe, expect, it } from "vitest";
-import { calculateHiveMindAnchor } from "@/components/hivemind/hiveMindPositioning";
+import {
+  calculateHiveMindAnchor,
+  parseHiveMindDragOffset,
+} from "@/components/hivemind/hiveMindPositioning";
 
 describe("HiveMind shell positioning", () => {
+  it("rejects drag offsets saved by the previous coordinate system", () => {
+    expect(parseHiveMindDragOffset(JSON.stringify({ x: 0, y: -640 }))).toBeNull();
+    expect(parseHiveMindDragOffset(JSON.stringify({
+      version: 2,
+      offset: { x: -80, y: -120 },
+    }))).toEqual({ x: -80, y: -120 });
+  });
+
   it("uses a deliberate bottom-right shell anchor on standard pages", () => {
     const anchor = calculateHiveMindAnchor({
       viewportWidth: 1440,

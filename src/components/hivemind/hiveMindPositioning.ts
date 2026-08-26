@@ -1,5 +1,25 @@
 export const HIVE_MIND_SHELL_GUTTER = 32;
+export const HIVE_MIND_POSITION_VERSION = 2;
 const VISIBLE_GUTTER = 16;
+
+export type HiveMindDragOffset = { x: number; y: number };
+
+export function parseHiveMindDragOffset(raw: string | null): HiveMindDragOffset | null {
+  if (!raw) return null;
+  try {
+    const parsed = JSON.parse(raw);
+    if (
+      parsed?.version !== HIVE_MIND_POSITION_VERSION ||
+      !Number.isFinite(parsed?.offset?.x) ||
+      !Number.isFinite(parsed?.offset?.y)
+    ) {
+      return null;
+    }
+    return { x: parsed.offset.x, y: parsed.offset.y };
+  } catch {
+    return null;
+  }
+}
 
 export type HiveMindAnchorInput = {
   viewportWidth: number;

@@ -11,6 +11,8 @@ import { AvaSignal } from "./AvaSignal.portable";
 import {
   calculateHiveMindAnchor,
   HIVE_MIND_SHELL_GUTTER,
+  HIVE_MIND_POSITION_VERSION,
+  parseHiveMindDragOffset,
 } from "./hiveMindPositioning";
 
 // ── Types ──────────────────────────────────────────────────────────────────────
@@ -489,7 +491,8 @@ type DragState = {
 
 type DragOffset = { x: number; y: number };
 
-const ORB_OFFSET_STORAGE_KEY = "hm-orb-offset";
+const ORB_POSITION_STORAGE_KEY = "hm-orb-position";
+const LEGACY_ORB_POSITION_KEYS = ["hm-orb-offset", "hm-orb-pos"];
 const COLLISION_GUTTER = 18;
 
 function viewportOrbSize() {
@@ -531,6 +534,7 @@ function getLayoutReserves(
     if (
       element === orbRoot ||
       orbRoot.contains(element) ||
+      element.closest("[data-hivemind-overlay]") ||
       element.closest("[data-sidebar='sidebar'], [data-sidebar='sidebar'] *")
     ) {
       return;
@@ -608,21 +612,32 @@ export function HiveMindOrb() {
   });
   const [dragOffset, setDragOffset] = useState<DragOffset>({ x: 0, y: 0 });
   const [dragging, setDragging] = useState(false);
+  const [positionStorageReady, setPositionStorageReady] = useState(false);
 
-  // Restore the shell-relative position after mount (avoids SSR/client
-  // hydration mismatch). The old viewport-coordinate key is intentionally not
-  // reused because it would defeat layout-aware positioning.
+  // Old versions stored coordinates for a broken fixed/viewport system. Clear
+  // those values once, then restore only v2 shell-overlay offsets.
   useEffect(() => {
     try {
-      const saved = JSON.parse(localStorage.getItem(ORB_OFFSET_STORAGE_KEY) ?? "");
-      if (saved && Number.isFinite(saved.x) && Number.isFinite(saved.y)) {
-        setDragOffset({ x: saved.x, y: saved.y });
+      for (const key of LEGACY_ORB_POSITION_KEYS) {
+        localStorage.removeItem(key);
+        sessionStorage.removeItem(key);
+      }
+      const saved = parseHiveMindDragOffset(localStorage.getItem(ORB_POSITION_STORAGE_KEY));
+      if (saved) {
+        setDragOffset(saved);
       }
     } catch {}
+    setPositionStorageReady(true);
   }, []);
   useEffect(() => {
-    try { localStorage.setItem(ORB_OFFSET_STORAGE_KEY, JSON.stringify(dragOffset)); } catch {}
-  }, [dragOffset]);
+    if (!positionStorageReady) return;
+    try {
+      localStorage.setItem(ORB_POSITION_STORAGE_KEY, JSON.stringify({
+        version: HIVE_MIND_POSITION_VERSION,
+        offset: dragOffset,
+      }));
+    } catch {}
+  }, [dragOffset, positionStorageReady]);
 
   useLayoutEffect(() => {
     const root = orbRootRef.current;
@@ -631,8 +646,7 @@ export function HiveMindOrb() {
     let frame = 0;
     const recalculate = () => {
       frame = 0;
-      const main = root.parentElement?.closest<HTMLElement>(".app-shell-main")
-        ?? document.querySelector<HTMLElement>(".app-shell-main");
+      const main = document.querySelector<HTMLElement>(".app-shell-main");
       const mainRect = main?.getBoundingClientRect() ?? new DOMRect(0, 0, window.innerWidth, window.innerHeight);
       const { width: orbWidth, height: orbHeight } = viewportOrbSize();
       const { rightReserve, bottomReserve, cornerBottomReserve } = getLayoutReserves(
@@ -669,8 +683,7 @@ export function HiveMindOrb() {
     const resizeObserver = typeof ResizeObserver !== "undefined"
       ? new ResizeObserver(schedule)
       : null;
-    const main = root.parentElement?.closest<HTMLElement>(".app-shell-main")
-      ?? document.querySelector<HTMLElement>(".app-shell-main");
+    const main = document.querySelector<HTMLElement>(".app-shell-main");
     if (main) resizeObserver?.observe(main);
     window.addEventListener("resize", schedule, { passive: true });
     window.addEventListener("scroll", schedule, { passive: true });
@@ -781,7 +794,7 @@ export function HiveMindOrb() {
     <div
       ref={orbRootRef}
       data-hivemind-orb
-      className="fixed z-50 flex flex-col items-end select-none"
+      className="absolute pointer-events-auto flex flex-col items-end select-none"
       style={{
         right: displayedRight,
         bottom: displayedBottom,

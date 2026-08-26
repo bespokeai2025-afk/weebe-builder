@@ -169,7 +169,6 @@ function AuthenticatedLayout() {
           <LockedRouteGuard>
             <Outlet />
           </LockedRouteGuard>
-          <HiveMindOrb />
         </SidebarInset>
       </div>
       {/* Onboarding V2 — path-selection welcome modal (first login only) */}
@@ -178,6 +177,17 @@ function AuthenticatedLayout() {
       <GatedOnboardingTour />
       {/* Progress checklist widget — shown after path is selected */}
       <OnboardingChecklist />
+      {/*
+        A viewport-stable overlay for HiveMind. This is deliberately a sibling
+        of page content so route height, scrolling containers, and transforms
+        cannot redefine the orb's positioning coordinate system.
+      */}
+      <div
+        data-hivemind-overlay
+        className="app-shell-hivemind-overlay pointer-events-none fixed inset-0 z-50"
+      >
+        <HiveMindOrb />
+      </div>
       <PrefetchOnLogin authed={authed} />
     </SidebarProvider>
   );
