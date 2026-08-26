@@ -511,92 +511,6 @@
   animation-delay: -7s;
 }
 
-.platform-nebula__core {
-  position: absolute;
-  top: 48%;
-  left: 43%;
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: #b8f5ff;
-  box-shadow:
-    0 0 5px 2px rgba(77, 225, 255, 0.72),
-    0 0 22px 9px rgba(16, 190, 238, 0.22),
-    0 0 58px 22px rgba(32, 100, 224, 0.12);
-  animation: platform-nebula-core 4.8s ease-in-out infinite;
-}
-
-.platform-nebula__core::before,
-.platform-nebula__core::after {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  content: "";
-  width: 90px;
-  height: 1px;
-  background: linear-gradient(90deg, transparent, rgba(102, 228, 255, 0.56), transparent);
-  transform: translate(-50%, -50%) rotate(32deg);
-}
-
-.platform-nebula__core::after {
-  transform: translate(-50%, -50%) rotate(-32deg);
-  opacity: 0.75;
-}
-
-.platform-nebula__particles,
-.platform-nebula__streaks,
-.platform-nebula__constellation {
-  position: absolute;
-  inset: 0;
-}
-
-.platform-nebula__particles {
-  animation: platform-nebula-drift 28s ease-in-out infinite alternate;
-}
-
-.platform-nebula__particle {
-  position: absolute;
-  display: block;
-  border-radius: 50%;
-  background: #67dfff;
-  box-shadow: 0 0 7px rgba(55, 211, 255, 0.5);
-  animation: platform-nebula-twinkle ease-in-out infinite;
-}
-
-.platform-nebula__particle:nth-child(3n) {
-  background: #8c9cff;
-  box-shadow: 0 0 6px rgba(112, 136, 255, 0.42);
-}
-
-.platform-nebula__particle:nth-child(5n) {
-  background: #d4fbff;
-  box-shadow: 0 0 9px rgba(186, 246, 255, 0.62);
-}
-
-.platform-nebula__constellation {
-  overflow: visible;
-  opacity: 0.52;
-  animation: platform-nebula-constellation 22s ease-in-out infinite alternate;
-}
-
-.platform-nebula__constellation line {
-  stroke: rgba(36, 180, 242, 0.46);
-  stroke-width: 0.12;
-  stroke-dasharray: 0.02 0.08;
-  vector-effect: non-scaling-stroke;
-}
-
-.platform-nebula__streak {
-  position: absolute;
-  display: block;
-  width: clamp(18px, 3vw, 42px);
-  height: 1px;
-  transform-origin: left center;
-  background: linear-gradient(90deg, rgba(50, 206, 255, 0.7), transparent);
-  filter: blur(0.2px);
-  animation: platform-nebula-streak 8s ease-in-out infinite;
-}
-
 .platform-nebula-surface {
   background-color: transparent !important;
 }
@@ -619,38 +533,6 @@
   }
 }
 
-@keyframes platform-nebula-drift {
-  from {
-    transform: translate3d(-1.2%, 0.5%, 0) scale(1);
-  }
-  to {
-    transform: translate3d(1.5%, -1%, 0) scale(1.03);
-  }
-}
-
-@keyframes platform-nebula-twinkle {
-  0%,
-  100% {
-    filter: brightness(0.8);
-    transform: scale(0.8);
-  }
-  45% {
-    filter: brightness(1.25);
-    transform: scale(1.25);
-  }
-}
-
-@keyframes platform-nebula-constellation {
-  from {
-    transform: translate3d(-0.5%, 0, 0);
-    opacity: 0.38;
-  }
-  to {
-    transform: translate3d(0.7%, -0.8%, 0);
-    opacity: 0.7;
-  }
-}
-
 @keyframes platform-nebula-halo {
   from {
     opacity: 0.65;
@@ -662,30 +544,6 @@
   }
 }
 
-@keyframes platform-nebula-core {
-  0%,
-  100% {
-    opacity: 0.78;
-    transform: scale(0.9);
-  }
-  50% {
-    opacity: 1;
-    transform: scale(1.12);
-  }
-}
-
-@keyframes platform-nebula-streak {
-  0%,
-  100% {
-    transform: translate3d(-6px, 2px, 0) rotate(var(--platform-nebula-angle, 0deg));
-    opacity: 0.35;
-  }
-  50% {
-    transform: translate3d(7px, -3px, 0) rotate(var(--platform-nebula-angle, 0deg));
-    opacity: 0.9;
-  }
-}
-
 @media (max-width: 640px) {
   .platform-nebula__field {
     top: 10vh;
@@ -693,13 +551,6 @@
     height: 54vh;
   }
 
-  .platform-nebula__core {
-    left: 42%;
-  }
-
-  .platform-nebula__constellation {
-    opacity: 0.38;
-  }
 }
 
 @media (prefers-reduced-motion: reduce) {
