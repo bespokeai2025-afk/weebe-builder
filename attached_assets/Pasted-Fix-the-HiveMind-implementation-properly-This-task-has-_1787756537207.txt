@@ -1,0 +1,182 @@
+Fix the HiveMind implementation properly.
+
+This task has **three goals at the same time**:
+
+1. keep the rule that HiveMind must be positioned correctly **across every page**
+2. allow HiveMind to **move intelligently** depending on layout/context
+3. fix the remaining **blurriness** and make the effect look more fitting, crisp, and premium
+
+## NON-NEGOTIABLE POSITIONING RULE
+
+HiveMind must **not** be positioned with page-specific one-off CSS hacks.
+
+It needs to work correctly across the whole WEBEE app.
+
+That rule stays in place.
+
+## GLOBAL POSITIONING BEHAVIOUR
+
+HiveMind should behave like a **shared ambient shell element**, not something tied to one card or one page section.
+
+### Required behaviour
+
+* position HiveMind using the **shared app shell / main content area**
+* keep placement consistent across pages
+* let it **move contextually** when page layout changes
+* allow it to shift so it stays visually fitting and does not overlap important UI
+
+### Examples
+
+* on standard pages: place it near the **bottom-right of the main content area**
+* on pages with a right settings rail/panel: allow it to **shift left and/or upward**
+* on pages with bottom action bars or floating UI: allow it to **move to avoid collisions**
+* on smaller screens: scale and reposition it appropriately
+
+### Important
+
+It is allowed to move, but only through a **shared layout-aware positioning system**.
+
+Do NOT hardcode random page-specific offsets.
+
+## POSITIONING SYSTEM
+
+Implement a reusable shared positioning solution.
+
+For example:
+
+* a shared HiveMind wrapper
+* layout-aware anchor logic
+* CSS variables for offsets
+* detection of right panel / bottom bar / constrained layout
+* responsive breakpoints
+* optional collision-safe positioning logic
+
+The point is:
+HiveMind may move when needed, but the movement must come from a **system**, not from manual per-page fixes.
+
+## VISUAL GOAL
+
+HiveMind should feel:
+
+* subtle
+* premium
+* crisp
+* fitting
+* ambient
+* intelligent
+
+It should look like a natural part of WEBEE, not like something pasted awkwardly into a corner.
+
+## FIX THE BLURRINESS
+
+HiveMind is still too blurry/soft.
+
+I want it made noticeably cleaner and sharper.
+
+### Required visual changes
+
+* reduce blur further
+* reduce glow radius further
+* reduce soft halos around dots
+* keep particles as **small HD dots**
+* keep neural lines crisp and readable
+* keep the center clean and defined
+
+### What I do NOT want
+
+* large blurry blobs
+* soft bokeh-style circles
+* fuzzy glow dominating the particle
+* cloudy bright cluster
+* smudged center
+
+### What I DO want
+
+* mostly tiny crisp points
+* subtle glow only
+* fine visible neural lines
+* a small bright focal center
+* clean negative space
+* an organic, fitting intelligence field
+
+## MAKE IT LOOK FITTING
+
+The positioning and visual density should feel appropriate to the UI around it.
+
+That means:
+
+* not too big
+* not too tiny
+* not too close to edges
+* not overlapping controls
+* not looking awkwardly dropped into the corner
+* not visually heavier than the surrounding UI
+
+HiveMind should feel intentionally placed and visually balanced.
+
+## KEEP CURRENT RULES
+
+Do NOT break the previously locked rules.
+
+Do NOT modify:
+
+* sidebar styling
+* header styling
+* shell/background colours
+* cards
+* layout structure
+* navigation
+* data
+* functionality
+* unrelated components
+
+Only change:
+
+* HiveMind component
+* HiveMind wrapper/positioning system
+* HiveMind rendering sharpness
+* HiveMind layout-aware movement logic
+
+## TESTING REQUIREMENT
+
+Test HiveMind positioning on multiple page types, including:
+
+* dashboard
+* conversation flow / builder
+* pages with a right settings panel
+* pages without a right settings panel
+* pages with bottom UI/action bars
+* smaller responsive layouts
+
+Visually verify:
+
+* HiveMind stays fitting across pages
+* HiveMind can shift/move when needed
+* it does not overlap important controls
+* it remains crisp and less blurry
+* it still looks premium and subtle
+
+## FINAL VALIDATION
+
+Before completing, confirm all of these are true:
+
+* HiveMind positioning is controlled globally, not with page-specific hacks
+* HiveMind can move intelligently depending on layout
+* HiveMind remains correctly positioned across different pages
+* particles are sharper and less blurry
+* the effect looks more fitting in the UI
+* no unrelated UI elements were changed
+
+## FINAL REPORT
+
+After implementing, tell me:
+
+1. exact files changed
+2. how the shared/global HiveMind positioning system works
+3. how HiveMind decides when to move
+4. what offsets/rules are used for different layouts
+5. what was changed to reduce blur
+6. what was changed to improve crispness/fitting
+7. which page types were tested
+8. confirmation that no page-specific positioning hacks were used
+9. confirmation that sidebar/background/layout were untouched
