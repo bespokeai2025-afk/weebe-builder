@@ -1,0 +1,658 @@
+# WEBEE Background Design Blueprint
+
+## Design objective
+
+Create one unified visual environment that combines:
+
+**WEBEE black sidebar**
++
+**WebespokeAI deep navy / indigo two-tone sheen**
++
+**very subtle Ava-style neural intelligence cues**
+
+The result must feel:
+
+* premium
+* dark
+* sophisticated
+* technical
+* cohesive
+* calm enough for data-heavy screens
+* recognisably part of the same brand as the WebespokeAI homepage
+
+It must NOT feel like a sci-fi wallpaper.
+
+The interface and data must always remain more important than the background.
+
+---
+
+# 1. Overall visual hierarchy
+
+Use three primary depth levels.
+
+### Level 1 — Sidebar
+
+Keep the existing sidebar:
+
+`#080B10`
+
+This is the darkest part of the application and should remain the visual anchor.
+
+Do not put the WebespokeAI purple/blue sheen inside the sidebar.
+
+The sidebar should feel almost black, with only extremely subtle navy influence.
+
+---
+
+### Level 2 — Main application background
+
+The main WEBEE application area should begin very dark immediately beside the sidebar and gradually introduce the WebespokeAI navy/indigo colour as the eye moves across the page.
+
+The transition should feel natural:
+
+**near-black navy → deep midnight blue → restrained indigo**
+
+Suggested base family:
+
+```css
+--webee-black: #080b10;
+
+--webee-navy-950: #060b18;
+--webee-navy-900: #081124;
+--webee-navy-850: #0a132b;
+
+--webee-indigo-deep: #121334;
+--webee-indigo-sheen: #1a1645;
+```
+
+If the Lovable background document contains exact production values, use those instead.
+
+The Lovable values remain the source of truth.
+
+---
+
+# 2. Main two-tone background
+
+Do not use one flat background colour.
+
+The main shell should use a very restrained layered gradient.
+
+Conceptually:
+
+```css
+background:
+  radial-gradient(
+    ellipse at 82% 16%,
+    rgba(67, 47, 132, 0.13) 0%,
+    rgba(35, 31, 90, 0.07) 30%,
+    transparent 62%
+  ),
+  linear-gradient(
+    112deg,
+    #060b18 0%,
+    #081124 38%,
+    #0a132b 67%,
+    #121334 100%
+  );
+```
+
+The important part is not the literal values.
+
+The visual behaviour is:
+
+### Left side
+
+Very close to the black sidebar.
+
+### Centre
+
+Deep midnight navy.
+
+### Right / upper-right
+
+Slightly richer blue-indigo character.
+
+This produces the WebespokeAI-style two-tone sheen without making WEBEE purple.
+
+---
+
+# 3. Sidebar transition
+
+Do NOT try to make the sidebar and application identical.
+
+The contrast is intentional.
+
+The transition should instead be:
+
+```text
+BLACK SIDEBAR
+#080B10
+
+        ↓ very subtle transition
+
+DEEP NAVY APP
+#060B18 / #081124
+
+        ↓
+
+MIDNIGHT BLUE
+
+        ↓
+
+SUBTLE INDIGO SHEEN
+```
+
+Avoid a strong vertical border between them.
+
+If a divider is required structurally, use something extremely subtle such as:
+
+```css
+border-color: rgba(110, 145, 190, 0.07);
+```
+
+The transition should be perceived through colour depth rather than a visible line.
+
+---
+
+# 4. Header
+
+The header should belong to the navy environment.
+
+Do not make it:
+
+* pure black
+* a separate navy rectangle
+* a visible glass card
+
+Use something like:
+
+```css
+background: rgba(6, 11, 24, 0.82);
+backdrop-filter: blur(12px);
+border-bottom: 1px solid rgba(130, 150, 190, 0.05);
+```
+
+Allow a small amount of the underlying two-tone colour to come through.
+
+The black sidebar remains darker than the header.
+
+---
+
+# 5. Ava influence — important
+
+Do NOT place another full Ava entity behind the dashboard.
+
+HiveMind already exists as the active intelligence entity.
+
+If the background also contains a large visible constellation entity, the interface becomes visually confused.
+
+Instead, take the **visual language** of Ava and reduce it to ambient environmental detail.
+
+Use:
+
+* tiny cyan points
+* extremely faint neural connections
+* occasional short curved fragments
+* subtle depth movement
+* very sparse distribution
+
+Do NOT use:
+
+* another central star
+* a recognisable second entity
+* dense particle clouds
+* glowing blobs
+* large constellation formations
+
+The background should whisper **“the system is alive”**, not show another character.
+
+---
+
+# 6. Ambient neural layer
+
+Create a dedicated shell-level ambient layer behind all content.
+
+Example structure:
+
+```text
+App Shell
+│
+├── Black Sidebar
+│
+└── Main Shell
+    │
+    ├── Base navy gradient
+    ├── Indigo sheen
+    ├── Ambient neural field
+    └── Actual UI content
+```
+
+The neural field should always sit behind cards/content.
+
+Use:
+
+```css
+pointer-events: none;
+user-select: none;
+z-index: 0;
+```
+
+Application content remains above it.
+
+---
+
+# 7. Particle specification
+
+The background particles should be dramatically subtler than HiveMind.
+
+### Particle size
+
+Most:
+
+`0.4px – 0.8px`
+
+Occasional:
+
+`0.8px – 1.2px`
+
+Absolute maximum:
+
+`1.4px`
+
+No blurry balls.
+
+No 3px/4px particles.
+
+---
+
+### Particle opacity
+
+Typical:
+
+`0.06 – 0.16`
+
+Occasional brighter point:
+
+`0.20 – 0.28`
+
+Never use full opacity.
+
+The user should often notice these particles only after looking at the page for a moment.
+
+---
+
+### Colours
+
+Use mainly:
+
+```text
+cyan
+deep blue
+soft aqua
+very occasional violet
+```
+
+Example family:
+
+```css
+rgba(48, 190, 230, ...)
+rgba(45, 126, 210, ...)
+rgba(88, 160, 230, ...)
+rgba(117, 92, 220, ...)
+```
+
+Do not introduce white-heavy particles.
+
+---
+
+# 8. Neural line specification
+
+The Ava website aesthetic can also appear through extremely subtle line fragments.
+
+Use:
+
+### Width
+
+`0.35px – 0.6px`
+
+### Opacity
+
+`0.04 – 0.12`
+
+### Connection length
+
+Keep them short.
+
+Do not create a full-screen connected network.
+
+Only a small percentage of particles should have visible connections.
+
+The lines should disappear naturally.
+
+---
+
+# 9. Curved fragments
+
+Use a few of the curved neural/orbital fragments seen around Ava.
+
+However, drastically reduce them for the dashboard.
+
+Across an entire desktop viewport, there should only be approximately:
+
+**3–7 visible curved fragments at any given time**
+
+They should be:
+
+* very thin
+* low opacity
+* short
+* slow-moving
+* randomly distributed
+
+Do not use full circles or obvious orbit paths.
+
+---
+
+# 10. Position particles intelligently
+
+This is essential for a data application.
+
+Do NOT uniformly scatter particles behind everything.
+
+Use a density map.
+
+## High-density UI zones
+
+Examples:
+
+* tables
+* reports
+* charts
+* cards
+* forms
+* builder nodes
+* text-heavy panels
+
+Background particle density:
+
+**0–20% of normal**
+
+Ideally almost none directly behind text.
+
+---
+
+## Medium-density areas
+
+Examples:
+
+* spaces between cards
+* margins around content
+* unused side areas
+
+Density:
+
+**30–50%**
+
+---
+
+## Empty shell areas
+
+Examples:
+
+* large empty upper-right areas
+* empty margins
+* unused canvas regions
+* large gaps between sections
+
+Density:
+
+**70–100%**
+
+This makes the interface feel alive without interfering with readability.
+
+---
+
+# 11. Do not put particles behind text
+
+Create exclusion / fade regions around important content.
+
+Particles should fade substantially behind:
+
+* headings
+* body copy
+* numbers
+* charts
+* tables
+* form controls
+* cards
+* builder nodes
+
+The visual should emerge mainly in negative space.
+
+This is one of the most important differences between a classy design and a distracting one.
+
+---
+
+# 12. Motion
+
+The background should move much more slowly than HiveMind.
+
+HiveMind = active intelligence.
+
+Background = ambient environment.
+
+### Background motion
+
+Particle drift:
+
+**extremely slow**
+
+Roughly:
+
+`0.02 – 0.08px/frame`
+
+Do not make motion immediately obvious.
+
+Use:
+
+* subtle drift
+* occasional line formation
+* very faint twinkle
+* extremely slow curved movement
+
+No particles shooting around.
+
+No rapid network changes.
+
+No constant visual noise.
+
+---
+
+# 13. Depth/parallax
+
+A tiny amount of parallax could make this excellent.
+
+When the user moves the mouse:
+
+* deepest background layer barely moves
+* particle layer shifts approximately 1–3px maximum
+* foreground UI remains stationary
+
+Do not use exaggerated 3D movement.
+
+It should be almost subconscious.
+
+---
+
+# 14. Cards
+
+Keep cards darker and quieter than the ambient background.
+
+Suggested card treatment:
+
+```css
+background: rgba(10, 17, 33, 0.80);
+border: 1px solid rgba(130, 150, 190, 0.09);
+```
+
+This effectively creates **calm islands for information**.
+
+Particles should not visibly bleed through text-heavy cards.
+
+---
+
+# 15. Colour proportions
+
+The overall screen should feel approximately:
+
+### 60–65%
+
+near-black / deepest navy
+
+### 25–30%
+
+midnight blue
+
+### 7–10%
+
+indigo / violet sheen
+
+### <2%
+
+cyan environmental accents
+
+This is important.
+
+The Ava cyan must remain an accent.
+
+Do NOT turn the app into a blue neon interface.
+
+---
+
+# 16. Light direction
+
+Establish one consistent virtual light source.
+
+I recommend:
+
+**upper-right / centre-right**
+
+This means:
+
+* indigo sheen originates subtly from the upper-right
+* background becomes darker toward the sidebar
+* cards nearest that area may receive a barely perceptible blue edge
+* cyan elements still appear luminous
+
+This creates a coherent spatial environment.
+
+---
+
+# 17. Relationship to HiveMind
+
+HiveMind should remain clearly distinguishable from the environment.
+
+Use the hierarchy:
+
+```text
+BACKGROUND
+tiny, dim, sparse neural traces
+
+↓
+
+HIVEMIND
+sharper, brighter, more organised,
+more animated
+
+↓
+
+CONTENT
+highest readability / interaction priority
+```
+
+Never make the ambient background particles as bright or dense as HiveMind.
+
+HiveMind should feel like the background intelligence has **concentrated itself into an entity**.
+
+That gives the entire design a logical visual narrative.
+
+---
+
+# 18. Relationship to Ava
+
+Ava and HiveMind should feel like they come from the same visual universe without being identical.
+
+### Ava
+
+More expansive, elegant constellation field.
+
+### HiveMind
+
+Smaller concentrated neural intelligence.
+
+### WEBEE background
+
+Only traces of that same neural language.
+
+Therefore the user subconsciously sees:
+
+**same technology / same universe / different function**
+
+without the UI becoming cluttered.
+
+---
+
+# 19. What NOT to do
+
+Do not add:
+
+* another obvious entity in the background
+* large cyan stars
+* dense star fields
+* large glowing blobs
+* nebula imagery
+* bright purple gradients
+* constant moving lines
+* particle effects behind every card
+* large radial halos
+* excessive glassmorphism
+* large background animations
+* saturated electric-blue surfaces
+
+If the user notices the background animation before they notice their data, it is too strong.
+
+---
+
+# 20. Recommended final visual
+
+The final WEBEE interface should feel like:
+
+**black command/navigation rail**
+
+flowing into
+
+**a deep midnight-navy operating environment**
+
+with
+
+**a subtle WebespokeAI indigo sheen**
+
+and underneath everything
+
+**barely visible traces of the same living neural intelligence used by Ava**
+
+while
+
+**HiveMind appears as the concentrated active intelligence within that environment.**
+
+The visual should feel expensive and intentional rather than decorative.
+
+---
+
+# Core rule
+
+**The background creates atmosphere.
+HiveMind creates identity.
+The data remains the focus.**
+
+That hierarchy should never be broken.
