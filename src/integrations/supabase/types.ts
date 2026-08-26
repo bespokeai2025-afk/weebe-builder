@@ -2830,6 +2830,7 @@ export type Database = {
           gbraid: string | null
           gclid: string | null
           id: string
+          keyword: string | null
           landing_url: string | null
           last_error: string | null
           lead_id: string | null
@@ -2849,6 +2850,7 @@ export type Database = {
           gbraid?: string | null
           gclid?: string | null
           id?: string
+          keyword?: string | null
           landing_url?: string | null
           last_error?: string | null
           lead_id?: string | null
@@ -2868,6 +2870,7 @@ export type Database = {
           gbraid?: string | null
           gclid?: string | null
           id?: string
+          keyword?: string | null
           landing_url?: string | null
           last_error?: string | null
           lead_id?: string | null
@@ -11379,8 +11382,10 @@ export type Database = {
           has_buzzchat_reply: boolean
           id: string
           interest_level: string | null
+          keyword: string | null
           last_buzzchat_reply_at: string | null
           last_contacted_at: string | null
+          lead_origin: string | null
           lead_score: number | null
           meeting_requested: boolean
           meta: Json
@@ -11390,6 +11395,7 @@ export type Database = {
           next_step: string | null
           notes: string | null
           objections: string | null
+          origin_provider: string | null
           phone: string
           pipeline_stage: string | null
           qualification_score: number | null
@@ -11446,8 +11452,10 @@ export type Database = {
           has_buzzchat_reply?: boolean
           id?: string
           interest_level?: string | null
+          keyword?: string | null
           last_buzzchat_reply_at?: string | null
           last_contacted_at?: string | null
+          lead_origin?: string | null
           lead_score?: number | null
           meeting_requested?: boolean
           meta?: Json
@@ -11457,6 +11465,7 @@ export type Database = {
           next_step?: string | null
           notes?: string | null
           objections?: string | null
+          origin_provider?: string | null
           phone: string
           pipeline_stage?: string | null
           qualification_score?: number | null
@@ -11513,8 +11522,10 @@ export type Database = {
           has_buzzchat_reply?: boolean
           id?: string
           interest_level?: string | null
+          keyword?: string | null
           last_buzzchat_reply_at?: string | null
           last_contacted_at?: string | null
+          lead_origin?: string | null
           lead_score?: number | null
           meeting_requested?: boolean
           meta?: Json
@@ -11524,6 +11535,7 @@ export type Database = {
           next_step?: string | null
           notes?: string | null
           objections?: string | null
+          origin_provider?: string | null
           phone?: string
           pipeline_stage?: string | null
           qualification_score?: number | null
@@ -16939,13 +16951,17 @@ export type Database = {
           crm_loaded_at: string | null
           dedup_key: string
           disconnection_reason: string | null
+          do_not_contact: boolean
           duration_ms: number | null
           email: string | null
           end_reason: string | null
           external_id: string | null
+          full_name: string | null
+          lead_origin: string | null
           lead_status: string | null
           meta: Json | null
           name: string | null
+          origin_provider: string | null
           phone: string | null
           recording_url: string | null
           sentiment: string | null
@@ -16964,13 +16980,17 @@ export type Database = {
           crm_loaded_at?: string | null
           dedup_key: string
           disconnection_reason?: string | null
+          do_not_contact?: boolean
           duration_ms?: number | null
           email?: string | null
           end_reason?: string | null
           external_id?: string | null
+          full_name?: string | null
+          lead_origin?: string | null
           lead_status?: string | null
           meta?: Json | null
           name?: string | null
+          origin_provider?: string | null
           phone?: string | null
           recording_url?: string | null
           sentiment?: string | null
@@ -16989,13 +17009,17 @@ export type Database = {
           crm_loaded_at?: string | null
           dedup_key?: string
           disconnection_reason?: string | null
+          do_not_contact?: boolean
           duration_ms?: number | null
           email?: string | null
           end_reason?: string | null
           external_id?: string | null
+          full_name?: string | null
+          lead_origin?: string | null
           lead_status?: string | null
           meta?: Json | null
           name?: string | null
+          origin_provider?: string | null
           phone?: string | null
           recording_url?: string | null
           sentiment?: string | null
