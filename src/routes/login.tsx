@@ -58,7 +58,7 @@ function LoginPage() {
   };
 
   return (
-    <main className="min-h-screen flex items-center justify-center bg-background bg-mesh bg-noise px-4">
+    <main className="platform-nebula-surface min-h-screen flex items-center justify-center bg-transparent bg-noise px-4">
       <div className="w-full max-w-sm rounded-2xl border bg-card p-6 shadow-sm">
         <Logo className="mx-auto h-10 mb-4" />
         <h1 className="text-xl font-semibold">Sign in</h1>

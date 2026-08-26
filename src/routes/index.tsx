@@ -1010,7 +1010,7 @@ function Footer() {
 /* ─── Page assembly ─────────────────────────────────────────────── */
 function Index() {
   return (
-    <main style={{ background: "#050e1e", color: "#fff", fontFamily: "'Inter', system-ui, -apple-system, sans-serif", WebkitFontSmoothing: "antialiased", MozOsxFontSmoothing: "grayscale" }}>
+    <main className="platform-nebula-page" style={{ background: "#050e1e", color: "#fff", fontFamily: "'Inter', system-ui, -apple-system, sans-serif", WebkitFontSmoothing: "antialiased", MozOsxFontSmoothing: "grayscale" }}>
       <GlobalStyles />
       <Nav />
       <HeroSection />

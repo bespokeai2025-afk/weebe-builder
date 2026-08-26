@@ -106,7 +106,7 @@ function AuthenticatedLayout() {
 
   return (
     <SidebarProvider defaultOpen={false}>
-      <div className="relative flex min-h-screen w-full min-w-0 bg-background bg-noise">
+      <div className="relative flex min-h-screen w-full min-w-0 bg-transparent bg-noise">
         {/* Dashboard depth: soft dotted grid that fades toward the bottom */}
         <div
           aria-hidden

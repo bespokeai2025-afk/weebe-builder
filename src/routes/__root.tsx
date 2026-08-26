@@ -7,12 +7,13 @@ import {
   Scripts,
 } from "@tanstack/react-router";
 import { Toaster } from "@/components/ui/sonner";
+import { PlatformNebulaBackground } from "@/components/shared/PlatformNebulaBackground";
 
 import appCss from "../styles.css?url";
 
 function NotFoundComponent() {
   return (
-    <div className="flex min-h-screen items-center justify-center bg-background px-4">
+    <div className="platform-nebula-surface flex min-h-screen items-center justify-center bg-background px-4">
       <div className="max-w-md text-center">
         <h1 className="text-7xl font-bold text-foreground">404</h1>
         <h2 className="mt-4 text-xl font-semibold text-foreground">Page not found</h2>
@@ -109,7 +110,7 @@ function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
     if (Date.now() - last > 20000) {
       setTimeout(() => autoReloadOnce(), 250);
       return (
-        <div className="flex min-h-screen items-center justify-center bg-background px-4">
+        <div className="platform-nebula-surface flex min-h-screen items-center justify-center bg-background px-4">
           <p className="text-sm text-muted-foreground">
             {isStale ? "Updating to the latest version…" : "Reloading…"}
           </p>
@@ -119,7 +120,7 @@ function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-background px-4">
+    <div className="platform-nebula-surface flex min-h-screen items-center justify-center bg-background px-4">
       <div className="max-w-md text-center">
         <h1 className="text-xl font-semibold tracking-tight text-foreground">
           This page didn't load
@@ -254,7 +255,10 @@ function RootComponent() {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <Outlet />
+      <PlatformNebulaBackground />
+      <div className="relative z-10 min-h-screen">
+        <Outlet />
+      </div>
       <Toaster position="bottom-right" richColors />
     </QueryClientProvider>
   );
