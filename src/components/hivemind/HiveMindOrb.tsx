@@ -550,10 +550,14 @@ function getLayoutReserves(
     const touchesBottom = rect.bottom >= viewportHeight - 24 && rect.top < viewportHeight;
     const broadEnoughForBottomBar =
       rect.width >= Math.min(viewportWidth * 0.35, Math.max(260, mainRect.width * 0.35));
+    const shortEnoughForBottomBar =
+      rect.height <= Math.min(180, Math.max(96, viewportHeight * 0.32));
     if (
       (style.position === "fixed" || style.position === "sticky") &&
+      !isRail &&
       touchesBottom &&
       broadEnoughForBottomBar &&
+      shortEnoughForBottomBar &&
       rect.top > 0
     ) {
       bottomReserve = Math.max(bottomReserve, viewportHeight - rect.top + COLLISION_GUTTER);
@@ -880,7 +884,7 @@ export function HiveMindOrb() {
 
         {/* "Executive Assistant" identity line */}
         <div
-          className="mt-1.5 text-center text-[8px] font-semibold tracking-[0.18em] uppercase pointer-events-none"
+          className="mt-0.5 text-center text-[8px] font-semibold tracking-[0.18em] uppercase pointer-events-none"
           style={{ color: "rgba(6,182,212,0.4)", letterSpacing: "0.18em" }}
         >
           HiveMind

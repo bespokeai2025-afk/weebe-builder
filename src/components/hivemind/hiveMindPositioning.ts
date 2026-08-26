@@ -1,4 +1,4 @@
-export const HIVE_MIND_SHELL_GUTTER = 24;
+export const HIVE_MIND_SHELL_GUTTER = 32;
 const VISIBLE_GUTTER = 16;
 
 export type HiveMindAnchorInput = {
