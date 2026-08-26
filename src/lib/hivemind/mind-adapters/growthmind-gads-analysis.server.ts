@@ -372,6 +372,7 @@ export async function runGadsAnalysisExecution(ctx: AdapterContext): Promise<Ada
     action_payload: {
       recommendation_ids: topRecs.map((r: any) => r.id),
       account_row_id: account.id,
+      objective_id: typeof ctx.inputSpec?.objective_id === "string" ? ctx.inputSpec.objective_id : null,
       summary: topRecs.map((r: any) => r.title).slice(0, 5),
       report_id: deepReportId,
     },

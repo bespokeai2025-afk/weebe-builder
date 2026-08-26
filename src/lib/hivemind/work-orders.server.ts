@@ -17,6 +17,8 @@ import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 export interface GadsWorkOrderOptions {
   title?: string;
   objective?: string;
+  /** Exact marketing objective that originated this delegated work order. */
+  objectiveId?: string | null;
   days?: number;
   /** Optional campaign focus resolved from live synced data. */
   focusCampaignId?: string | null;
@@ -128,6 +130,7 @@ export async function createGadsAnalysisWorkOrderCore(
     execution_status: "awaiting_approval",
     input_spec: {
       days,
+      ...(opts.objectiveId ? { objective_id: opts.objectiveId } : {}),
       ...(focusId || focusName
         ? { focus_campaign: { campaign_id: focusId, campaign_name: focusName } }
         : {}),

@@ -731,12 +731,14 @@ describe("Acceptance — Family 7: Google Ads analysis (GrowthMind) [regression]
   });
 
   it("chain ①–⑮: connected account — real 30-day campaign evidence, keyword proposals visible", async () => {
+    const yesterday = new Date(Date.now() - 86_400_000).toISOString().slice(0, 10);
+    const twoDaysAgo = new Date(Date.now() - 2 * 86_400_000).toISOString().slice(0, 10);
     const { sb, inserted } = makeSb({
       growthmind_ads_accounts: { rows: [gadsAccount()] },
       growthmind_gads_campaign_daily: {
         rows: [
-          gadsCampaignDaily({ date: "2026-07-20" }),
-          gadsCampaignDaily({ campaign_id: "camp-2", campaign_name: "Retargeting", date: "2026-07-19", cost_micros: 2_000_000, clicks: 80, impressions: 3_000, conversions: 4 }),
+          gadsCampaignDaily({ date: yesterday }),
+          gadsCampaignDaily({ campaign_id: "camp-2", campaign_name: "Retargeting", date: twoDaysAgo, cost_micros: 2_000_000, clicks: 80, impressions: 3_000, conversions: 4 }),
         ],
       },
       growthmind_gads_recommendations: { rows: [gadsRecommendation(), gadsRecommendation({ id: "rec-2", title: "Add negative keywords", status: "pending" })] },

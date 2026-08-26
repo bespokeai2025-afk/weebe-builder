@@ -14,6 +14,7 @@ export default defineConfig({
     environment: "jsdom",
     globals: false,
     testTimeout: 30_000,
+    pool: "threads",
     fileParallelism: false,
   },
 });

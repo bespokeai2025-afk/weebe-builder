@@ -123,7 +123,7 @@ export async function routeGadsRecommendationToEngine(
   sbAdmin: any,
   workspaceId: string,
   rec: GadsRecLike,
-  opts: { changeRequestId: string | null; userId: string | null },
+  opts: { changeRequestId: string | null; userId: string | null; objectiveId?: string | null },
 ): Promise<BridgeOutcome> {
   const mapped = mapGadsRecommendationToAction(rec);
   const now = new Date().toISOString();
@@ -155,9 +155,25 @@ export async function routeGadsRecommendationToEngine(
     return { marketingActionId: null, submit: null, changeRequestStatus: "draft", detail: mapped.advisory };
   }
 
+  // New work-order-driven recommendations carry their exact objective through
+  // the approval payload. Rows approved directly from the recommendations UI
+  // predate that chain, so preserve the old fail-closed single-active-objective
+  // fallback for those legacy rows only.
+  let objectiveId = opts.objectiveId ?? null;
+  if (!objectiveId) {
+    const { data: objectives, error: objectiveError } = await sbAdmin.from("marketing_objectives")
+      .select("id")
+      .eq("workspace_id", workspaceId)
+      .eq("status", "active")
+      .eq("metric_source", "google_ads")
+      .limit(2);
+    if (!objectiveError && objectives?.length === 1) objectiveId = objectives[0].id;
+  }
+
   const action = await createMarketingAction(sbAdmin, workspaceId, {
     ...mapped,
     requested_by: opts.userId,
+    objective_id: objectiveId,
   });
   const submit = await submitMarketingActionForExecution(sbAdmin, workspaceId, action.id);
 

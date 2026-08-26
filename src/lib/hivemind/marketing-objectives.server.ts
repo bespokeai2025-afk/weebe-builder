@@ -259,6 +259,7 @@ export async function createMarketingObjectiveCore(
       const { createGadsAnalysisWorkOrderCore } = await import("@/lib/hivemind/work-orders.server");
       const { workOrder } = await createGadsAnalysisWorkOrderCore(sbAdmin, workspaceId, userId, {
         objective: `Objective "${title}": ${input.commandText}`.slice(0, 500),
+        objectiveId: objective.id,
         source: "hivemind_tool",
       });
       delegated = {
