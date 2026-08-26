@@ -155,3 +155,4 @@
 - [Website Ava web-call lead capture](ava-web-call-arch.md) — signed-webhook-only 401s, event:call_id dedup, admin-key-set authz (keys shared across ws), tool-result-only booking truth, version-pinned sessions.
 - [Canonical lead origin system](lead-origin-system.md) — lead_origin+origin_provider columns; deriveLeadOrigin() fallback; all creation paths stamped; web filter uses client-side derivation.
 - [WBAH crm-contacts webhook mirror](wbah-crm-contacts-webhook-mirror.md) — post-call webhook now upserts wbah_crm_contacts (ignoreDuplicates); get-userCall-lead pagination bug; lead_origin column missing.
+- [HiveMind full-viewport backdrop collisions](hivemind-fullviewport-backdrop-collisions.md) — fixed inset-0 visual backdrops can force a bottom anchor to top-right unless ignored.

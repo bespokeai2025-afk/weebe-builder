@@ -1,10 +1,24 @@
 import { describe, expect, it } from "vitest";
 import {
   calculateHiveMindAnchor,
+  isFullViewportBackground,
   parseHiveMindDragOffset,
 } from "@/components/hivemind/hiveMindPositioning";
 
 describe("HiveMind shell positioning", () => {
+  it("does not treat a full-screen decorative background as a collision", () => {
+    expect(isFullViewportBackground(
+      { left: 0, top: 0, right: 1024, bottom: 720 },
+      1024,
+      720,
+    )).toBe(true);
+    expect(isFullViewportBackground(
+      { left: 776, top: 0, right: 1024, bottom: 720 },
+      1024,
+      720,
+    )).toBe(false);
+  });
+
   it("rejects drag offsets saved by the previous coordinate system", () => {
     expect(parseHiveMindDragOffset(JSON.stringify({ x: 0, y: -640 }))).toBeNull();
     expect(parseHiveMindDragOffset(JSON.stringify({

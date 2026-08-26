@@ -12,6 +12,7 @@ import {
   calculateHiveMindAnchor,
   HIVE_MIND_SHELL_GUTTER,
   HIVE_MIND_POSITION_VERSION,
+  isFullViewportBackground,
   parseHiveMindDragOffset,
 } from "./hiveMindPositioning";
 
@@ -545,6 +546,7 @@ function getLayoutReserves(
     if (!isVisibleLayoutElement(element)) return;
 
     const rect = element.getBoundingClientRect();
+    if (isFullViewportBackground(rect, viewportWidth, viewportHeight)) return;
     const nearMainRight = rect.right >= mainRect.right - 80;
     const tallEnoughForRail = rect.height >= Math.min(viewportHeight * 0.28, 280);
     if (isRail && nearMainRight && tallEnoughForRail && rect.left < mainRect.right) {

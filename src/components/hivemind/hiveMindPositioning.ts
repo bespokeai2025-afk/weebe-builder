@@ -4,6 +4,31 @@ const VISIBLE_GUTTER = 16;
 
 export type HiveMindDragOffset = { x: number; y: number };
 
+export type HiveMindRect = {
+  left: number;
+  top: number;
+  right: number;
+  bottom: number;
+};
+
+/**
+ * Decorative application backdrops often use `fixed inset-0`. They are not
+ * controls and must never reserve the lower-right workspace for HiveMind.
+ */
+export function isFullViewportBackground(
+  rect: HiveMindRect,
+  viewportWidth: number,
+  viewportHeight: number,
+) {
+  const tolerance = 2;
+  return (
+    rect.left <= tolerance &&
+    rect.top <= tolerance &&
+    rect.right >= viewportWidth - tolerance &&
+    rect.bottom >= viewportHeight - tolerance
+  );
+}
+
 export function parseHiveMindDragOffset(raw: string | null): HiveMindDragOffset | null {
   if (!raw) return null;
   try {
