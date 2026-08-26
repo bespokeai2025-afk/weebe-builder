@@ -419,6 +419,51 @@
   }
 }
 
+/* Shared authenticated dashboard shell — deliberately darker than the public
+   atmosphere so the existing near-black sidebar remains the visual anchor. */
+.app-shell-root {
+  background: var(--background);
+}
+
+.app-shell-main {
+  background: var(--background);
+}
+
+.app-shell-header {
+  border-bottom: 1px solid var(--border);
+  background: color-mix(in srgb, var(--background) 88%, transparent);
+  backdrop-filter: blur(14px) saturate(115%);
+  -webkit-backdrop-filter: blur(14px) saturate(115%);
+}
+
+.dark .app-shell-root {
+  background: linear-gradient(135deg, #080b10 0%, #071126 52%, #141a3a 100%);
+}
+
+.dark .app-shell-main {
+  background: linear-gradient(122deg, #071126 0%, #0a1430 50%, #141a3a 100%);
+}
+
+.dark .app-shell-header {
+  border-bottom-color: rgba(148, 163, 184, 0.045);
+  background: linear-gradient(
+    108deg,
+    rgba(7, 17, 38, 0.92),
+    rgba(20, 26, 58, 0.82)
+  );
+}
+
+.dark .app-shell-divider {
+  background: linear-gradient(
+    to bottom,
+    transparent,
+    rgba(148, 163, 184, 0.035) 18%,
+    rgba(148, 163, 184, 0.05) 50%,
+    rgba(148, 163, 184, 0.035) 82%,
+    transparent
+  );
+}
+
 /* ============================================================
    Shared platform atmosphere
    A quiet, fixed nebula layer sits behind page content. It is
