@@ -33,6 +33,11 @@ export type WbahRetellAgentRef = {
 /** Production WBAH dialer agents that share the same n8n webhook. */
 export const WBAH_N8N_RETELL_AGENTS: WbahRetellAgentRef[] = [
   {
+    retellAgentId: "agent_53f739ef52b1244f5d86fcd955",
+    label: "WBAH New Leads Agent (new workspace)",
+    role: "new_leads_dialer",
+  },
+  {
     retellAgentId: "agent_a03162ee94d003c298817e727c",
     label: "WBAH New Leads Agent",
     role: "new_leads_dialer",
@@ -64,6 +69,11 @@ export const WBAH_NEW_LEADS_AGENTS = WBAH_N8N_RETELL_AGENTS.filter(
 );
 
 export const WBAH_REBOOK_AGENTS: WbahRetellAgentRef[] = [
+  {
+    retellAgentId: "agent_b642aebb65a218741169ba7759",
+    label: "WBAH Rebooking Agent (new workspace)",
+    role: "rebooking",
+  },
   {
     retellAgentId: "agent_1e1b13bd9564da4556370fe0be",
     label: "Rebooking consultation agent",

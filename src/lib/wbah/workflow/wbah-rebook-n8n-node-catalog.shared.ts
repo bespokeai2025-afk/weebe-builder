@@ -6,6 +6,7 @@ import { mergeN8nNodeConfig } from "./wbah-n8n-node-presets.shared";
 import { withDefaultCodeIfMissing } from "./wbah-n8n-code-snippets.shared";
 
 export const WBAH_REBOOK_RETELL_AGENTS = [
+  "agent_b642aebb65a218741169ba7759",
   "agent_1e1b13bd9564da4556370fe0be",
   "agent_0e07f26bebd25acbd82993e3a3",
 ] as const;

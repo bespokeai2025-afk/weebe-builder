@@ -27,6 +27,17 @@ export const WBAH_RETELL_AGENT_MAP: Record<string, WbahRetellAgentMapping> = {
     agentName: "WBAH Tried to contact agent",
     role: "tried_to_contact",
   },
+  // New Retell workspace (New Leads + Rebooking moved here — add IDs only; TTC/DQ unchanged above)
+  agent_53f739ef52b1244f5d86fcd955: {
+    workspaceId: WBAH_WORKSPACE_ID,
+    agentName: "WBAH New Leads Agent",
+    role: "new_leads_dialer",
+  },
+  agent_b642aebb65a218741169ba7759: {
+    workspaceId: WBAH_WORKSPACE_ID,
+    agentName: "WBAH Rebooking Agent",
+    role: "rebooking",
+  },
   agent_a03162ee94d003c298817e727c: {
     workspaceId: WBAH_WORKSPACE_ID,
     agentName: "WBAH New Leads Agent",
@@ -54,11 +65,31 @@ export const WBAH_RETELL_AGENT_MAP: Record<string, WbahRetellAgentMapping> = {
   },
 };
 
+/**
+ * Extra Retell API key for the new WBAH workspace (New Leads + Rebooking).
+ * Leave Settings → Providers on the existing key — TTC/DQ stay on the old account.
+ */
+export function getWbahAdditionalRetellApiKeys(): string[] {
+  const raw =
+    process.env.WBAH_RETELL_NEW_WORKSPACE_API_KEY?.trim() ||
+    process.env.WBAH_RETELL_ADDITIONAL_API_KEYS?.trim() ||
+    // Back-compat alias from earlier cutover draft
+    process.env.WBAH_RETELL_LEGACY_API_KEY?.trim() ||
+    "";
+  if (!raw) return [];
+  return raw
+    .split(",")
+    .map((k) => k.trim())
+    .filter((k) => k.startsWith("key_"));
+}
+
 export function stripRetellAgentPrefix(value: string): string {
   return value.replace(/^agents\//, "").trim();
 }
 
-export function resolveWbahRetellAgent(agentId: string | null | undefined): WbahRetellAgentMapping | null {
+export function resolveWbahRetellAgent(
+  agentId: string | null | undefined,
+): WbahRetellAgentMapping | null {
   if (!agentId) return null;
   const id = stripRetellAgentPrefix(agentId);
   return WBAH_RETELL_AGENT_MAP[id] ?? null;
