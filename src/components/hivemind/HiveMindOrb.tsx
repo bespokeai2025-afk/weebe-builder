@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useEffect, useLayoutEffect, useCallback } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { useRouterState, useNavigate } from "@tanstack/react-router";
 import { Send, Mic, MicOff, X, Minus, Loader2, ChevronRight, User, ExternalLink, ClipboardList, Square } from "lucide-react";
@@ -8,6 +8,10 @@ import { streamHiveMindChat } from "@/lib/hivemind/use-hivemind-stream";
 import { useMindConversation } from "@/hooks/useMindConversation";
 import { loadHiveMindVoiceSettings, loadHiveMindUserName } from "@/lib/hivemind/voice-profile";
 import { AvaSignal } from "./AvaSignal.portable";
+import {
+  calculateHiveMindAnchor,
+  HIVE_MIND_SHELL_GUTTER,
+} from "./hiveMindPositioning";
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 import { readinessLabel } from "@/lib/minds/intelligence-packet-ui.shared";
@@ -465,10 +469,119 @@ function MiniChat({ onClose, onStateChange }: {
   );
 }
 
+// ── Shared shell placement ──────────────────────────────────────────────────────
+type LayoutAnchor = {
+  right: number;
+  bottom: number;
+  maxRight: number;
+  maxBottom: number;
+};
+
+type DragState = {
+  startX: number;
+  startY: number;
+  right: number;
+  bottom: number;
+  maxRight: number;
+  maxBottom: number;
+  moved: boolean;
+};
+
+type DragOffset = { x: number; y: number };
+
+const ORB_OFFSET_STORAGE_KEY = "hm-orb-offset";
+const COLLISION_GUTTER = 18;
+
+function viewportOrbSize() {
+  if (window.innerWidth < 640) return { width: 126, height: 105 };
+  if (window.innerWidth < 1024) return { width: 154, height: 124 };
+  return { width: 180, height: 145 };
+}
+
+function isVisibleLayoutElement(element: HTMLElement) {
+  const rect = element.getBoundingClientRect();
+  const style = window.getComputedStyle(element);
+  return (
+    rect.width > 0 &&
+    rect.height > 0 &&
+    style.display !== "none" &&
+    style.visibility !== "hidden" &&
+    style.opacity !== "0"
+  );
+}
+
+function getLayoutReserves(
+  orbRoot: HTMLElement,
+  mainRect: DOMRect,
+  viewportWidth: number,
+  viewportHeight: number,
+) {
+  let rightReserve = 0;
+  let bottomReserve = 0;
+  let cornerBottomReserve = 0;
+  const selectors = [
+    "[class~='fixed']",
+    "[class~='sticky']",
+    "aside",
+    "[role='complementary']",
+    "[data-hivemind-avoid]",
+  ].join(",");
+
+  document.querySelectorAll<HTMLElement>(selectors).forEach((element) => {
+    if (
+      element === orbRoot ||
+      orbRoot.contains(element) ||
+      element.closest("[data-sidebar='sidebar'], [data-sidebar='sidebar'] *")
+    ) {
+      return;
+    }
+    const style = window.getComputedStyle(element);
+    const isRail = element.matches("aside, [role='complementary'], [data-hivemind-avoid]");
+    if (!isRail && style.position !== "fixed" && style.position !== "sticky") return;
+    if (!isVisibleLayoutElement(element)) return;
+
+    const rect = element.getBoundingClientRect();
+    const nearMainRight = rect.right >= mainRect.right - 80;
+    const tallEnoughForRail = rect.height >= Math.min(viewportHeight * 0.28, 280);
+    if (isRail && nearMainRight && tallEnoughForRail && rect.left < mainRect.right) {
+      rightReserve = Math.max(rightReserve, viewportWidth - rect.left + COLLISION_GUTTER);
+    }
+
+    const touchesBottom = rect.bottom >= viewportHeight - 24 && rect.top < viewportHeight;
+    const broadEnoughForBottomBar =
+      rect.width >= Math.min(viewportWidth * 0.35, Math.max(260, mainRect.width * 0.35));
+    if (
+      (style.position === "fixed" || style.position === "sticky") &&
+      touchesBottom &&
+      broadEnoughForBottomBar &&
+      rect.top > 0
+    ) {
+      bottomReserve = Math.max(bottomReserve, viewportHeight - rect.top + COLLISION_GUTTER);
+    }
+
+    const bottomRightFloat =
+      (style.position === "fixed" || style.position === "sticky") &&
+      rect.right >= viewportWidth - 24 &&
+      rect.bottom >= viewportHeight - 24 &&
+      rect.width >= 150 &&
+      rect.height >= 48;
+    if (bottomRightFloat) {
+      rightReserve = Math.max(rightReserve, viewportWidth - rect.left + COLLISION_GUTTER);
+      cornerBottomReserve = Math.max(
+        cornerBottomReserve,
+        viewportHeight - rect.top + COLLISION_GUTTER,
+      );
+    }
+  });
+
+  return { rightReserve, bottomReserve, cornerBottomReserve };
+}
+
 // ── Main Orb ───────────────────────────────────────────────────────────────────
 export function HiveMindOrb() {
   const pathname   = useRouterState({ select: s => s.location.pathname });
   const navigate   = useNavigate();
+  const orbRootRef = useRef<HTMLDivElement>(null);
 
   const [open, setOpen]         = useState(false);
   const [hovered, setHovered]   = useState(false);
@@ -480,26 +593,134 @@ export function HiveMindOrb() {
 
   const clickTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // ── Draggable position (offsets from bottom-right, persisted) ──
-  const [pos, setPos] = useState<{ right: number; bottom: number }>({ right: 24, bottom: 24 });
-  // Restore saved position after mount (avoids SSR/client hydration mismatch).
+  // Placement is anchored to the authenticated shell's main content area. The
+  // persisted value is an offset from that safe anchor, not an arbitrary
+  // viewport coordinate, so route/layout changes can still move the entity.
+  const [anchor, setAnchor] = useState<LayoutAnchor>({
+    right: HIVE_MIND_SHELL_GUTTER,
+    bottom: HIVE_MIND_SHELL_GUTTER,
+    maxRight: HIVE_MIND_SHELL_GUTTER,
+    maxBottom: HIVE_MIND_SHELL_GUTTER,
+  });
+  const [dragOffset, setDragOffset] = useState<DragOffset>({ x: 0, y: 0 });
+  const [dragging, setDragging] = useState(false);
+
+  // Restore the shell-relative position after mount (avoids SSR/client
+  // hydration mismatch). The old viewport-coordinate key is intentionally not
+  // reused because it would defeat layout-aware positioning.
   useEffect(() => {
     try {
-      const saved = JSON.parse(localStorage.getItem("hm-orb-pos") ?? "");
-      if (saved && Number.isFinite(saved.right) && Number.isFinite(saved.bottom)) {
-        setPos({
-          right: Math.min(Math.max(saved.right, 8), window.innerWidth - 80),
-          bottom: Math.min(Math.max(saved.bottom, 8), window.innerHeight - 80),
-        });
+      const saved = JSON.parse(localStorage.getItem(ORB_OFFSET_STORAGE_KEY) ?? "");
+      if (saved && Number.isFinite(saved.x) && Number.isFinite(saved.y)) {
+        setDragOffset({ x: saved.x, y: saved.y });
       }
     } catch {}
   }, []);
-  const dragRef = useRef<{ startX: number; startY: number; right: number; bottom: number; moved: boolean } | null>(null);
+  useEffect(() => {
+    try { localStorage.setItem(ORB_OFFSET_STORAGE_KEY, JSON.stringify(dragOffset)); } catch {}
+  }, [dragOffset]);
+
+  useLayoutEffect(() => {
+    const root = orbRootRef.current;
+    if (!root || typeof window === "undefined") return;
+
+    let frame = 0;
+    const recalculate = () => {
+      frame = 0;
+      const main = root.parentElement?.closest<HTMLElement>(".app-shell-main")
+        ?? document.querySelector<HTMLElement>(".app-shell-main");
+      const mainRect = main?.getBoundingClientRect() ?? new DOMRect(0, 0, window.innerWidth, window.innerHeight);
+      const { width: orbWidth, height: orbHeight } = viewportOrbSize();
+      const { rightReserve, bottomReserve, cornerBottomReserve } = getLayoutReserves(
+        root,
+        mainRect,
+        window.innerWidth,
+        window.innerHeight,
+      );
+      const { right, bottom, maxRight, maxBottom } = calculateHiveMindAnchor({
+        viewportWidth: window.innerWidth,
+        viewportHeight: window.innerHeight,
+        mainLeft: mainRect.left,
+        mainRight: mainRect.right,
+        mainTop: mainRect.top,
+        orbWidth,
+        orbHeight,
+        rightReserve,
+        bottomReserve,
+        cornerBottomReserve,
+      });
+      setAnchor((current) => (
+        current.right === right &&
+        current.bottom === bottom &&
+        current.maxRight === maxRight &&
+        current.maxBottom === maxBottom
+          ? current
+          : { right, bottom, maxRight, maxBottom }
+      ));
+    };
+    const schedule = () => {
+      if (!frame) frame = window.requestAnimationFrame(recalculate);
+    };
+
+    const resizeObserver = typeof ResizeObserver !== "undefined"
+      ? new ResizeObserver(schedule)
+      : null;
+    const main = root.parentElement?.closest<HTMLElement>(".app-shell-main")
+      ?? document.querySelector<HTMLElement>(".app-shell-main");
+    if (main) resizeObserver?.observe(main);
+    window.addEventListener("resize", schedule, { passive: true });
+    window.addEventListener("scroll", schedule, { passive: true });
+
+    // Observe only the authenticated shell host (which also contains its
+    // shell-level overlays), rather than the entire document. This catches
+    // rails and bars being mounted/toggled without subscribing HiveMind to
+    // unrelated page-wide mutation churn.
+    const shellHost = main?.closest(".app-shell-root")?.parentElement ?? main;
+    const mutationObserver = typeof MutationObserver !== "undefined" && shellHost
+      ? new MutationObserver(schedule)
+      : null;
+    if (mutationObserver && shellHost) {
+      mutationObserver.observe(shellHost, {
+        subtree: true,
+        childList: true,
+        attributes: true,
+        attributeFilter: ["class", "style", "data-state", "data-open"],
+      });
+    }
+
+    recalculate();
+    return () => {
+      if (frame) window.cancelAnimationFrame(frame);
+      resizeObserver?.disconnect();
+      mutationObserver?.disconnect();
+      window.removeEventListener("resize", schedule);
+      window.removeEventListener("scroll", schedule);
+    };
+  }, [pathname]);
+
+  const displayedRight = Math.min(
+    Math.max(anchor.right - dragOffset.x, anchor.right),
+    anchor.maxRight,
+  );
+  const displayedBottom = Math.min(
+    Math.max(anchor.bottom - dragOffset.y, anchor.bottom),
+    anchor.maxBottom,
+  );
+  const dragRef = useRef<DragState | null>(null);
   const suppressClickRef = useRef(false);
 
   function onDragPointerDown(e: React.PointerEvent) {
     if (e.button !== 0) return;
-    dragRef.current = { startX: e.clientX, startY: e.clientY, right: pos.right, bottom: pos.bottom, moved: false };
+    dragRef.current = {
+      startX: e.clientX,
+      startY: e.clientY,
+      right: displayedRight,
+      bottom: displayedBottom,
+      maxRight: anchor.maxRight,
+      maxBottom: anchor.maxBottom,
+      moved: false,
+    };
+    setDragging(true);
     (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
   }
   function onDragPointerMove(e: React.PointerEvent) {
@@ -509,20 +730,19 @@ export function HiveMindOrb() {
     const dy = e.clientY - d.startY;
     if (!d.moved && Math.abs(dx) < 5 && Math.abs(dy) < 5) return;
     d.moved = true;
-    setPos({
-      right: Math.min(Math.max(d.right - dx, 8), window.innerWidth - 80),
-      bottom: Math.min(Math.max(d.bottom - dy, 8), window.innerHeight - 80),
+    const right = Math.min(Math.max(d.right - dx, anchor.right), d.maxRight);
+    const bottom = Math.min(Math.max(d.bottom - dy, anchor.bottom), d.maxBottom);
+    setDragOffset({
+      x: anchor.right - right,
+      y: anchor.bottom - bottom,
     });
   }
   function onDragPointerUp() {
     const d = dragRef.current;
     dragRef.current = null;
+    setDragging(false);
     if (d?.moved) {
       suppressClickRef.current = true;
-      setPos((p) => {
-        try { localStorage.setItem("hm-orb-pos", JSON.stringify(p)); } catch {}
-        return p;
-      });
       setTimeout(() => { suppressClickRef.current = false; }, 0);
     }
   }
@@ -555,8 +775,15 @@ export function HiveMindOrb() {
 
   return (
     <div
+      ref={orbRootRef}
+      data-hivemind-orb
       className="fixed z-50 flex flex-col items-end select-none"
-      style={{ right: pos.right, bottom: pos.bottom, touchAction: "none" }}
+      style={{
+        right: displayedRight,
+        bottom: displayedBottom,
+        touchAction: "none",
+        transition: dragging ? "none" : "right 260ms ease-out, bottom 260ms ease-out",
+      }}
     >
       {/* Chat panel */}
       {open && (

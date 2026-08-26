@@ -169,6 +169,7 @@ function AuthenticatedLayout() {
           <LockedRouteGuard>
             <Outlet />
           </LockedRouteGuard>
+          <HiveMindOrb />
         </SidebarInset>
       </div>
       {/* Onboarding V2 — path-selection welcome modal (first login only) */}
@@ -177,7 +178,6 @@ function AuthenticatedLayout() {
       <GatedOnboardingTour />
       {/* Progress checklist widget — shown after path is selected */}
       <OnboardingChecklist />
-      <HiveMindOrb />
       <PrefetchOnLogin authed={authed} />
     </SidebarProvider>
   );

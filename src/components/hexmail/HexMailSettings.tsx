@@ -43,7 +43,7 @@ import {
 import {
   getLeadAutoEmailSettings,
   saveLeadAutoEmailSettings,
-} from "@/lib/lead-gen/lead-email.server";
+} from "@/lib/lead-gen/lead-email.functions";
 import { listHexmailTemplates } from "@/lib/hexmail/templates.functions";
 
 type TestState = "idle" | "testing" | "ok" | "error";

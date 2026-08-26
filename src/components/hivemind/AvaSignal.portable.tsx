@@ -87,7 +87,7 @@ const ARM_WIDTH = [0.34, 0.5, 0.62];
 const LAYER_SPEED = [1.7, 1.1, 0.6];
 const LAYER_ALPHA = [1, 0.94, 0.8];
 const VISUAL_SCALE = 0.58;
-const PARTICLE_SCALE = 0.78;
+const PARTICLE_SCALE = 0.64;
 
 const CURVED_FRAGMENTS: CurvedFragment[] = [
   { distance: 0.56, angle: -0.82, length: 0.25, bow: 0.08, speed: 0.34, phase: 0.2, hue: 191, alpha: 0.5 },
@@ -431,11 +431,11 @@ export function AvaSignal({
           if (particle.kind === 3) {
             ctx.fillStyle = color;
             ctx.beginPath();
-            ctx.arc(p.x, p.y, Math.min(1.35, Math.max(0.38, particle.size * 0.7)), 0, TAU);
+            ctx.arc(p.x, p.y, Math.min(1.1, Math.max(0.3, particle.size * 0.65)), 0, TAU);
             ctx.fill();
           } else if (particle.kind === 2) {
             ctx.strokeStyle = color;
-            ctx.lineWidth = Math.max(0.24, particle.size * 0.5);
+            ctx.lineWidth = Math.max(0.2, particle.size * 0.45);
             ctx.lineCap = "round";
             ctx.beginPath();
             ctx.moveTo(p.x, p.y);
@@ -447,7 +447,7 @@ export function AvaSignal({
           } else {
             ctx.fillStyle = color;
             ctx.beginPath();
-            ctx.arc(p.x, p.y, Math.max(0.18, particle.size), 0, TAU);
+            ctx.arc(p.x, p.y, Math.max(0.14, particle.size), 0, TAU);
             ctx.fill();
           }
         } else {
@@ -470,14 +470,14 @@ export function AvaSignal({
           );
           const rad = clamp(
             0.4,
-            1.55,
-            particle.size * (0.55 + (depth + 1) * 0.3) * (1 + nearCore * voice * 0.12) * (mobile ? 1.18 : 1),
+            1.18,
+            particle.size * (0.5 + (depth + 1) * 0.27) * (1 + nearCore * voice * 0.1) * (mobile ? 1.12 : 1),
           );
           const hue = particle.hue + Math.sin(now * 0.00016 + particle.a) * 1.2;
           const light = lightFor(particle.light, dark, mobile);
           if (particle.trail) {
             ctx.strokeStyle = hsla(hue, 98, light, alpha);
-            ctx.lineWidth = Math.max(0.2, rad * 0.45);
+            ctx.lineWidth = Math.max(0.16, rad * 0.38);
             ctx.lineCap = "round";
             ctx.beginPath();
             ctx.moveTo(p.x, p.y);
@@ -489,9 +489,9 @@ export function AvaSignal({
           ctx.arc(p.x, p.y, rad, 0, TAU);
           ctx.fill();
           if (particle.glint) {
-            const glintAlpha = clamp(alpha * 0.34 * aBoost, 0, 1);
+            const glintAlpha = clamp(alpha * 0.24 * aBoost, 0, 1);
             ctx.strokeStyle = hsla(hue, 98, light + 6, glintAlpha);
-            ctx.lineWidth = Math.max(0.18, rad * 0.24);
+            ctx.lineWidth = Math.max(0.16, rad * 0.2);
             ctx.lineCap = "butt";
             ctx.beginPath();
             ctx.moveTo(p.x - rad * (1.7 + shimmer * 0.4), p.y);
@@ -574,7 +574,7 @@ export function AvaSignal({
         gradient.addColorStop(0.66, hsla(link.hue, 96, lightFor(56, dark, mobile), alpha));
         gradient.addColorStop(1, hsla(link.hue, 96, lightFor(56, dark, mobile), 0));
         ctx.strokeStyle = gradient;
-        ctx.lineWidth = 0.7;
+        ctx.lineWidth = 0.55;
         ctx.lineCap = "round";
         const mx = (a.x + b.x) / 2 - (b.y - a.y) * link.bow;
         const my = (a.y + b.y) / 2 + (b.x - a.x) * link.bow;
@@ -670,7 +670,7 @@ export function AvaSignal({
         gradient.addColorStop(0.6, hsla(204, 94, lightFor(50, dark, mobile), alpha));
         gradient.addColorStop(1, hsla(204, 94, lightFor(50, dark, mobile), 0));
         ctx.strokeStyle = gradient;
-        ctx.lineWidth = 0.65;
+        ctx.lineWidth = 0.5;
         ctx.lineCap = "round";
         ctx.beginPath();
         ctx.moveTo(a.x, a.y);
@@ -823,7 +823,7 @@ export function AvaSignal({
           const alpha = clamp(hoverValue * 0.72 * (0.55 + 0.45 * Math.sin(i + t * 1.7)) * aBoost, 0, 1);
           ctx.fillStyle = hsla(i % 3 === 0 ? 192 : i % 3 === 1 ? 208 : 246, 98, lightFor(62, dark, mobile), alpha);
           ctx.beginPath();
-          ctx.arc(x, y, rand(0.4, 0.85), 0, TAU);
+           ctx.arc(x, y, rand(0.3, 0.62), 0, TAU);
           ctx.fill();
         }
       }

@@ -28,7 +28,7 @@ import {
   sendComposedEmailToLead,
   sendTemplateEmailToLead,
   listLeadEmailLog,
-} from "@/lib/lead-gen/lead-email.server";
+} from "@/lib/lead-gen/lead-email.functions";
 import { listHexmailTemplates } from "@/lib/hexmail/templates.functions";
 
 export interface LeadEmailDialogLead {
