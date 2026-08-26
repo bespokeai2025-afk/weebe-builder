@@ -1,0 +1,202 @@
+Good — the sidebar verification is complete and the sidebar is correctly locked at `#080b10`.
+
+Now STOP analysing the sidebar.
+
+Do not spend any more time checking it unless your HiveMind changes unexpectedly alter it.
+
+## EXECUTE THE ACTUAL TASK NOW
+
+Modify the HiveMind visual.
+
+The current HiveMind is:
+
+* too small
+* too dense
+* too blurry
+* lacking a readable entity/constellation shape
+* neural lines are not visible enough
+* animation/movement is either absent or too subtle to see
+
+### 1. Increase HiveMind size
+
+Increase the current HiveMind visual footprint by approximately **40%**.
+
+Do NOT increase particle count proportionally.
+
+The visual should become physically larger while remaining airy.
+
+### 2. Reduce particle count
+
+Reduce the current total particle count by approximately **45–55%**.
+
+The current problem is excessive particle density.
+
+I want significantly more negative space between particles.
+
+The larger canvas/footprint combined with fewer particles should create a clearer intelligence/entity shape instead of a blurry lump.
+
+### 3. Keep particles very small
+
+Do NOT increase particle diameter when making the visual larger.
+
+Particles should remain tiny pinpoints.
+
+Target roughly:
+
+* majority: `0.5–1.2px`
+* medium accent particles: `1.2–1.8px`
+* very few bright nodes: max `2–2.5px`
+
+Avoid large glowing dots.
+
+### 4. Reduce glow/blur
+
+Reduce particle glow/bloom approximately **60–70%** from the current implementation.
+
+Every particle should have:
+
+* crisp core
+* very small subtle halo
+
+No fuzzy bokeh.
+No cloudy cluster.
+No glowing blob.
+
+### 5. Make the entity structure readable
+
+The particle layout should form a loose intelligent neural presence similar to the Lovable website implementation.
+
+Create three density zones:
+
+**Core**
+
+* slightly denser around the central intelligence point
+
+**Mid-field**
+
+* sparse connected nodes and moving fragments
+
+**Outer field**
+
+* very sparse dots and arcs fading naturally into the background
+
+Do NOT create a circular or oval boundary.
+
+The shape must remain organic and formless.
+
+### 6. Make neural lines significantly more visible
+
+The constellation/neural lines are currently too difficult to see.
+
+Increase their clarity without making them thick.
+
+Use approximately:
+
+* visual width: `0.5–0.8px`
+* cyan/blue
+* moderate low opacity
+* opacity based on distance
+* strongest around core/mid-field
+* fewer connections farther out
+
+Connections must dynamically update as particles move.
+
+I should immediately be able to see that the particles form an intelligent neural network.
+
+### 7. Animation must visibly work
+
+Confirm the HiveMind actually moves.
+
+Particles should:
+
+* drift continuously
+* move independently
+* subtly curve
+* occasionally move inward/outward
+* twinkle independently
+
+Neural connections should:
+
+* appear
+* move
+* break
+* reform
+
+Curved fragments should also move slowly.
+
+The movement must be visible if I watch HiveMind for 2–3 seconds, while still being subtle and premium.
+
+Do NOT make it static.
+
+Do NOT merely animate opacity.
+
+Actual particle positions need to change.
+
+### 8. Central intelligence point
+
+Keep a small crisp central cyan-white star.
+
+It should:
+
+* remain much smaller than the overall entity
+* gently pulse
+* subtly attract visual attention
+* not become an orb or blob
+
+### 9. USE THE LOVABLE IMPLEMENTATION AS SOURCE OF TRUTH
+
+If the Lovable HiveMind/Ava particle implementation or extracted documentation is available in this workspace/context, inspect it and reuse its movement principles.
+
+Do not invent a different particle effect.
+
+The target is the same:
+
+* sparse
+* crisp
+* neural
+* organic
+* intelligent
+* moving
+* formless
+
+### 10. HARD SCOPE LOCK
+
+ONLY modify the HiveMind implementation.
+
+Do NOT alter:
+
+* `src/components/app-sidebar.tsx`
+* sidebar colour `#080b10`
+* `.app-shell-root`
+* `.app-shell-main`
+* `.app-shell-header`
+* dashboard background
+* header
+* cards
+* layout
+* navigation
+* WhatsApp changes
+* any unrelated functionality
+
+Those areas are LOCKED.
+
+### IMPORTANT
+
+Do not return another verification-only response.
+
+I am explicitly instructing you to **EDIT AND IMPLEMENT THE HIVEMIND CHANGES NOW**.
+
+After editing, run the app and visually verify the result.
+
+Do not mark complete unless:
+
+* HiveMind is ~40% larger
+* particle count is ~50% lower
+* particles are tiny and crisp
+* blur is substantially reduced
+* neural lines are clearly visible
+* the shape is organic rather than oval
+* particle positions visibly animate
+* sidebar is still exactly `#080b10`
+
+Then report the exact HiveMind file(s) changed and the before/after particle count, dimensions, particle sizes and animation behaviour.
