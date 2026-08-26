@@ -180,9 +180,9 @@
     radial-gradient(720px 460px at 92% 8%, hsl(var(--webee-shell-secondary) / 0.20), transparent 58%),
     radial-gradient(900px 520px at 50% 115%, hsl(var(--webee-shell-cyan) / 0.14), transparent 58%),
     linear-gradient(170deg, hsl(var(--webee-shell-base)) 0%, hsl(222 56% 10%) 55%, hsl(230 52% 12%) 100%);
-  --webee-sidebar-background: hsl(222 60% 7%);
+  --webee-sidebar-background: #080b10;
   --webee-header-background: hsl(222 60% 7% / 0.72);
-  --sidebar: var(--webee-sidebar-background);
+  --sidebar: #080b10;
   --sidebar-foreground: #e5e7eb;
   --sidebar-primary: #f9fafb;
   --sidebar-primary-foreground: #0b0f14;
