@@ -437,20 +437,46 @@
 }
 
 .dark .app-shell-root {
-  background: linear-gradient(135deg, #080b10 0%, #071126 52%, #141a3a 100%);
+  background:
+    radial-gradient(
+      105% 150% at 74% 14%,
+      rgba(30, 60, 160, 0.12) 0%,
+      transparent 72%
+    ),
+    linear-gradient(
+      160deg,
+      #050e1e 0%,
+      #0a1a35 40%,
+      #0d1a40 70%,
+      #080f28 100%
+    );
 }
 
 .dark .app-shell-main {
-  background: linear-gradient(122deg, #071126 0%, #0a1430 50%, #141a3a 100%);
+  background:
+    radial-gradient(
+      105% 150% at 74% 14%,
+      rgba(30, 60, 160, 0.12) 0%,
+      transparent 72%
+    ),
+    linear-gradient(
+      160deg,
+      #050e1e 0%,
+      #0a1a35 40%,
+      #0d1a40 70%,
+      #080f28 100%
+    );
 }
 
 .dark .app-shell-header {
   border-bottom-color: rgba(148, 163, 184, 0.045);
-  background: linear-gradient(
-    108deg,
-    rgba(7, 17, 38, 0.92),
-    rgba(20, 26, 58, 0.82)
-  );
+  background:
+    linear-gradient(
+      160deg,
+      rgba(5, 14, 30, 0.9) 0%,
+      rgba(10, 26, 53, 0.84) 45%,
+      rgba(8, 15, 40, 0.88) 100%
+    );
 }
 
 .dark .app-shell-divider {
