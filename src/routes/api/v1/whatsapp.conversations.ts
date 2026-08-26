@@ -1,17 +1,32 @@
 /**
- * WEBEE Mind API — WhatsApp / BuzzChat conversation threads (read-only)
+ * WEBEE Mind API — WhatsApp / BuzzChat conversation threads
  * GET /api/v1/whatsapp/conversations
  *     ?status=open|pending|solved &unread_only=true &limit &offset
  *       — workspace thread list, most recent activity first
  * GET /api/v1/whatsapp/conversations?phone=+447...
  *       — one thread's state + its recent messages (limit ≤ 200)
+ * POST /api/v1/whatsapp/conversations
+ *       { phone | conversation_id, body } — send an operator reply
  *
- * Auth: dual (Supabase user JWT with X-Workspace-Id, or workspace API key
- * with contacts:read). Read-only — replying stays in the web inbox.
+ * Auth: GET is dual (Supabase user JWT or workspace API key). POST is JWT-only
+ * and requires the workspace's outbound-message action grant.
  */
 import { createFileRoute } from "@tanstack/react-router";
+import { z } from "zod";
 import { authenticateMindApiRequest } from "@/lib/developer-api/mind-auth.middleware";
 import { jsonOk, jsonErr } from "@/lib/developer-api/v1-auth.middleware";
+
+const ReplyBodySchema = z
+  .object({
+    phone: z.string().min(1).max(40).optional(),
+    to: z.string().min(1).max(40).optional(),
+    conversation_id: z.string().min(1).max(200).optional(),
+    body: z.string().trim().min(1).max(4096),
+    contact_name: z.string().max(200).nullable().optional(),
+  })
+  .refine((value) => value.phone || value.to || value.conversation_id, {
+    message: "Provide either 'phone', 'to', or 'conversation_id'",
+  });
 
 export const Route = createFileRoute("/api/v1/whatsapp/conversations")({
   server: {
@@ -112,6 +127,84 @@ export const Route = createFileRoute("/api/v1/whatsapp/conversations")({
           return jsonOk({ object: "list", data: enriched, total: count ?? null, limit, offset });
         } catch (err: any) {
           return jsonErr(err?.message ?? "Failed to load conversations", 500);
+        }
+      },
+      POST: async ({ request }) => {
+        const auth = await authenticateMindApiRequest(request, "contacts:write", {
+          requireUser: true,
+        });
+        if (!auth.ok) return auth.response;
+        const { workspaceId, userId } = auth.ctx;
+
+        let body: z.infer<typeof ReplyBodySchema>;
+        try {
+          body = ReplyBodySchema.parse(await request.json());
+        } catch (err: any) {
+          return jsonErr(`Invalid request body: ${err?.message ?? "expected a reply body"}`, 400);
+        }
+
+        // Outbound replies are an operator action, not merely a contacts write.
+        // The existing campaign_activation grant is the workspace's gate for
+        // sending external WhatsApp messages and is checked fail-closed.
+        try {
+          const { requireAction } = await import("@/lib/permissions/permissions.server");
+          await requireAction(workspaceId, userId, "campaign_activation");
+        } catch (err: any) {
+          return jsonErr(err?.message ?? "You are not permitted to send WhatsApp replies", 403);
+        }
+
+        try {
+          const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+          const sb = supabaseAdmin as any;
+          const convMod = await import("@/lib/whatsapp/whatsapp-conversations.server");
+          const { sendWhatsAppMessageViaRuntime } = await import("@/lib/whatsapp/runtime");
+
+          let contactPhone = body.phone ?? body.to ?? "";
+          let contactName = body.contact_name ?? null;
+
+          if (body.conversation_id) {
+            const { data: thread, error: threadError } = await sb
+              .from("whatsapp_conversations")
+              .select("contact_phone, contact_name")
+              .eq("workspace_id", workspaceId)
+              .or(`id.eq.${body.conversation_id},conversation_id.eq.${body.conversation_id}`)
+              .maybeSingle();
+            if (threadError) return jsonErr(threadError.message, 500);
+            if (!thread?.contact_phone) return jsonErr("Conversation not found", 404);
+            contactPhone = thread.contact_phone;
+            contactName = contactName ?? thread.contact_name ?? null;
+          }
+
+          contactPhone = contactPhone.replace(/^whatsapp:/i, "");
+          const { normalizeWhatsAppPhone } = await import(
+            "@/lib/whatsapp/wati-campaign.server"
+          );
+          const normalizedPhone = normalizeWhatsAppPhone(contactPhone);
+          if (normalizedPhone.length < 7) return jsonErr("Invalid phone number", 400);
+
+          const sent = await sendWhatsAppMessageViaRuntime({
+            workspaceId,
+            contactPhone: normalizedPhone,
+            contactName,
+            body: body.body,
+          });
+          await convMod.syncWhatsappConversation(workspaceId, normalizedPhone);
+
+          const { data: thread } = await sb
+            .from("whatsapp_conversations")
+            .select(convMod.WHATSAPP_CONVERSATION_COLUMNS)
+            .eq("workspace_id", workspaceId)
+            .eq("contact_phone", normalizedPhone)
+            .maybeSingle();
+
+          return jsonOk({
+            object: "whatsapp_message",
+            message_id: sent.messageId,
+            provider: sent.provider,
+            thread: thread ?? null,
+          });
+        } catch (err: any) {
+          return jsonErr(err?.message ?? "Failed to send WhatsApp reply", 500);
         }
       },
     },

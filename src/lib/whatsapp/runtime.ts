@@ -32,9 +32,13 @@
  *   replaced with values accumulated in session.workflow_variables.
  */
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
-import { createWhatsAppProviderWithFallback, createWhatsAppProvider } from "@/lib/providers/whatsapp/factory";
+import {
+  createWhatsAppProviderWithFallback,
+  createWhatsAppProvider,
+} from "@/lib/providers/whatsapp/factory";
 import type { WhatsAppConfig } from "@/lib/providers/whatsapp/factory";
 import { watiApiRoot } from "@/lib/whatsapp/wati-api-base.shared";
+import { normalizeWhatsAppPhone } from "@/lib/whatsapp/wati-campaign.server";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -73,6 +77,141 @@ interface RuntimeInput {
 }
 
 // ── Send helpers (all outbound sends now routed via createWhatsAppProviderWithFallback) ──
+
+async function resolveWatiConfigForWorkspace(workspaceId: string): Promise<WhatsAppConfig | null> {
+  const sb = supabaseAdmin as any;
+  const { data: conn } = await sb
+    .from("wati_connections")
+    .select("api_key, tenant_id, status, api_host")
+    .eq("workspace_id", workspaceId)
+    .maybeSingle();
+
+  if (conn?.status === "connected" && conn.api_key && conn.tenant_id) {
+    return {
+      provider: "wati",
+      apiEndpoint: watiApiRoot(conn.tenant_id, conn.api_host),
+      apiKey: conn.api_key as string,
+    };
+  }
+
+  const { data: fallbackRow } = await sb
+    .from("provider_settings")
+    .select("credentials")
+    .eq("workspace_id", workspaceId)
+    .eq("provider_category", "whatsapp")
+    .eq("provider_name", "wati")
+    .eq("status", "connected")
+    .maybeSingle();
+  const credentials =
+    typeof fallbackRow?.credentials === "string"
+      ? (() => {
+          try {
+            return JSON.parse(fallbackRow.credentials);
+          } catch {
+            return null;
+          }
+        })()
+      : fallbackRow?.credentials;
+
+  return credentials?.apiEndpoint && credentials?.apiKey
+    ? {
+        provider: "wati",
+        apiEndpoint: credentials.apiEndpoint as string,
+        apiKey: credentials.apiKey as string,
+      }
+    : null;
+}
+
+export interface SendWhatsAppMessageInput {
+  workspaceId: string;
+  contactPhone: string;
+  contactName?: string | null;
+  body: string;
+  mediaUrl?: string;
+}
+
+/**
+ * Send and persist an operator reply using the same provider routing as the
+ * WhatsApp runtime. Secrets are loaded server-side and are never accepted from
+ * the caller.
+ */
+export async function sendWhatsAppMessageViaRuntime(
+  input: SendWhatsAppMessageInput,
+): Promise<{ messageId: string; provider: string }> {
+  const body = input.body.trim();
+  if (!body) throw new Error("Message body cannot be empty");
+
+  const sb = supabaseAdmin as any;
+  const { data: ws, error: wsError } = await sb
+    .from("workspace_settings")
+    .select(
+      "twilio_account_sid, twilio_auth_token, whatsapp_phone_id, whatsapp_provider, meta_phone_number_id, meta_access_token",
+    )
+    .eq("workspace_id", input.workspaceId)
+    .maybeSingle();
+  if (wsError) throw new Error(`Could not load WhatsApp settings: ${wsError.message}`);
+
+  const selectedProvider = String(ws?.whatsapp_provider ?? "twilio").trim().toLowerCase();
+  const watiConfig = await resolveWatiConfigForWorkspace(input.workspaceId);
+
+  let primaryConfig: WhatsAppConfig & { workspaceId: string };
+  if (selectedProvider === "wati") {
+    if (!watiConfig || watiConfig.provider !== "wati") {
+      throw new Error("WATI is not connected for this workspace");
+    }
+    primaryConfig = { ...watiConfig, workspaceId: input.workspaceId };
+  } else if (selectedProvider === "meta") {
+    if (!ws?.meta_phone_number_id || !ws?.meta_access_token) {
+      throw new Error("Meta WhatsApp is not configured for this workspace");
+    }
+    primaryConfig = {
+      provider: "meta",
+      accessToken: ws.meta_access_token as string,
+      phoneNumberId: ws.meta_phone_number_id as string,
+      workspaceId: input.workspaceId,
+    };
+  } else {
+    const accountSid = ws?.twilio_account_sid ?? process.env.TWILIO_ACCOUNT_SID;
+    const authToken = ws?.twilio_auth_token ?? process.env.TWILIO_AUTH_TOKEN;
+    if (!accountSid || !authToken || !ws?.whatsapp_phone_id) {
+      throw new Error(
+        "WhatsApp not configured. Connect WATI, Meta, or add Twilio credentials.",
+      );
+    }
+    primaryConfig = {
+      provider: "twilio",
+      accountSid: accountSid as string,
+      authToken: authToken as string,
+      from: ws.whatsapp_phone_id as string,
+      workspaceId: input.workspaceId,
+    };
+  }
+
+  const provider = createWhatsAppProviderWithFallback(
+    primaryConfig,
+    selectedProvider === "wati" ? null : watiConfig,
+  );
+  const { messageId } = await provider.sendMessage({
+    to: normalizeWhatsAppPhone(input.contactPhone),
+    body,
+    mediaUrl: input.mediaUrl,
+  });
+
+  const { error: insertError } = await sb.from("whatsapp_messages").insert({
+    workspace_id: input.workspaceId,
+    external_id: messageId,
+    contact_phone: normalizeWhatsAppPhone(input.contactPhone),
+    contact_name: input.contactName ?? null,
+    direction: "outbound",
+    body,
+    media_url: input.mediaUrl ?? null,
+    status: "sent",
+    sent_at: new Date().toISOString(),
+  });
+  if (insertError) throw new Error(`Message sent but could not be recorded: ${insertError.message}`);
+
+  return { messageId, provider: primaryConfig.provider };
+}
 
 // ── OpenAI helpers ────────────────────────────────────────────────────────────
 
@@ -402,6 +541,11 @@ export async function processWhatsAppMessage(input: RuntimeInput): Promise<void>
       console.warn("[wa-runtime] Meta credentials not configured for workspace", workspaceId);
       return;
     }
+  } else if (provider === "wati") {
+    if (!(await resolveWatiConfigForWorkspace(workspaceId))) {
+      console.warn("[wa-runtime] WATI not configured for workspace", workspaceId);
+      return;
+    }
   } else {
     const accountSid = ws?.twilio_account_sid ?? process.env.TWILIO_ACCOUNT_SID;
     const authToken = ws?.twilio_auth_token ?? process.env.TWILIO_AUTH_TOKEN;
@@ -484,79 +628,14 @@ export async function processWhatsAppMessage(input: RuntimeInput): Promise<void>
       .eq("contact_phone", contactPhone);
   }
 
-  // Helper: resolve the workspace's WATI config (used as fallback for all sends,
-  // and as the primary transport for wa_template nodes that pick a WATI template).
-  // Cached so a single inbound message never queries twice.
-  //
-  // Canonical store is `wati_connections` (populated by the WATI connect flow).
-  // The adapter appends `/api/v1/...` to apiEndpoint, so the endpoint base must
-  // be the tenant root WITHOUT `/api/v1`. provider_settings is kept as a
-  // secondary source for any workspace configured via the provider framework.
-  let _watiConfigResolved = false;
-  let _watiConfig: WhatsAppConfig | null = null;
-  async function resolveWatiConfig(): Promise<WhatsAppConfig | null> {
-    if (_watiConfigResolved) return _watiConfig;
-    _watiConfigResolved = true;
-
-    const { data: conn } = await (supabaseAdmin as any)
-      .from("wati_connections")
-      .select("api_key, tenant_id, status, api_host")
-      .eq("workspace_id", workspaceId)
-      .maybeSingle();
-    if (conn?.status === "connected" && conn.api_key && conn.tenant_id) {
-      _watiConfig = {
-        provider: "wati" as const,
-        apiEndpoint: watiApiRoot(conn.tenant_id, conn.api_host),
-        apiKey: conn.api_key as string,
-      };
-      return _watiConfig;
-    }
-
-    const { data: fallbackRow } = await (supabaseAdmin as any)
-      .from("provider_settings")
-      .select("credentials")
-      .eq("workspace_id", workspaceId)
-      .eq("provider_category", "whatsapp")
-      .eq("provider_name", "wati")
-      .eq("status", "connected")
-      .maybeSingle();
-    _watiConfig =
-      fallbackRow?.credentials?.apiEndpoint && fallbackRow?.credentials?.apiKey
-        ? {
-            provider: "wati" as const,
-            apiEndpoint: fallbackRow.credentials.apiEndpoint as string,
-            apiKey: fallbackRow.credentials.apiKey as string,
-          }
-        : null;
-    return _watiConfig;
-  }
-
   // Helper: send message via active provider (with automatic fallback) and persist it
   async function sendAndPersist(body: string, mediaUrl?: string): Promise<void> {
-    const msg = interpolate(body, variables);
-
-    // Build primary config from workspace settings
-    const primaryConfig: WhatsAppConfig & { workspaceId: string } =
-      provider === "meta"
-        ? { provider: "meta", accessToken: ws.meta_access_token as string, phoneNumberId: ws.meta_phone_number_id as string, workspaceId }
-        : { provider: "twilio", accountSid: (ws?.twilio_account_sid ?? process.env.TWILIO_ACCOUNT_SID) as string, authToken: (ws?.twilio_auth_token ?? process.env.TWILIO_AUTH_TOKEN) as string, from: ws?.whatsapp_phone_id as string, workspaceId };
-
-    // Optional WATI fallback (resolved + cached from provider_settings)
-    const fallbackConfig = await resolveWatiConfig();
-
-    const waProvider = createWhatsAppProviderWithFallback(primaryConfig, fallbackConfig);
-    const { messageId } = await waProvider.sendMessage({ to: contactPhone, body: msg, mediaUrl });
-
-    await sb.from("whatsapp_messages").insert({
-      workspace_id: workspaceId,
-      external_id: messageId,
-      contact_phone: contactPhone,
-      contact_name: contactName,
-      direction: "outbound",
-      body: msg,
-      media_url: mediaUrl ?? null,
-      status: "sent",
-      sent_at: new Date().toISOString(),
+    await sendWhatsAppMessageViaRuntime({
+      workspaceId,
+      contactPhone,
+      contactName,
+      body: interpolate(body, variables),
+      mediaUrl,
     });
   }
 
@@ -685,7 +764,7 @@ export async function processWhatsAppMessage(input: RuntimeInput): Promise<void>
     let templateSent = false;
     const watiTemplateName = currentNode.data.watiTemplateName;
     if (watiTemplateName) {
-      const watiCfg = await resolveWatiConfig();
+      const watiCfg = await resolveWatiConfigForWorkspace(workspaceId);
       if (watiCfg) {
         try {
           // Interpolate params, then drop only TRAILING empties so WATI's
