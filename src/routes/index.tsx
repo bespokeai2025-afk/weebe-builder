@@ -10,6 +10,7 @@ import {
   RefreshCw, Repeat2, Cpu, LayoutPanelLeft,
 } from "lucide-react";
 import logoWebee from "@/assets/webee-logo-yellow.png";
+import { CallAvaLauncher } from "@/components/landing/CallAvaLauncher";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -1022,6 +1023,7 @@ function Index() {
       <EnterpriseSection />
       <CTASection />
       <Footer />
+      <CallAvaLauncher />
     </main>
   );
 }
