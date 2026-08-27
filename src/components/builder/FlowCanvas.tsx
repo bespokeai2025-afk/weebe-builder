@@ -244,7 +244,7 @@ function CanvasInner({
   const { nodes, edges, onNodesChange, onEdgesChange, onConnect, deleteEdge, flowVersion } =
     useBuilderStore();
   const renderEdges = useMemo(
-    () => edges.map((edge) => (edge.type === "default" ? edge : { ...edge, type: "default" })),
+    () => edges.map((edge) => (edge.type === "straight" ? edge : { ...edge, type: "straight" })),
     [edges],
   );
 
@@ -288,7 +288,7 @@ function CanvasInner({
       maxZoom={2}
       proOptions={{ hideAttribution: true }}
       defaultEdgeOptions={{
-        type: "default",
+        type: "straight",
         animated: false,
         style: {
           stroke: "var(--flow-edge)",

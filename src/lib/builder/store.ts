@@ -197,7 +197,7 @@ export const useBuilderStore = create<State>()(
       onConnect: (c) => {
         const edgeId = `edge-${Date.now().toString(36)}`;
         set({
-          edges: addEdge({ ...c, type: "default", animated: false, id: edgeId }, get().edges),
+          edges: addEdge({ ...c, type: "straight", animated: false, id: edgeId }, get().edges),
         });
         // If the connection originates from a transition handle, link it.
         if (c.sourceHandle && c.source && c.target) {
