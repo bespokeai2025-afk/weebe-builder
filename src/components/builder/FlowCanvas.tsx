@@ -284,7 +284,7 @@ function CanvasInner({
       maxZoom={2}
       proOptions={{ hideAttribution: true }}
       defaultEdgeOptions={{
-        type: "smoothstep",
+        type: "straight",
         animated: false,
         style: {
           stroke: "var(--flow-edge)",
