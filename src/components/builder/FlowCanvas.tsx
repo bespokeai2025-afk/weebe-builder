@@ -284,12 +284,12 @@ function CanvasInner({
       maxZoom={2}
       proOptions={{ hideAttribution: true }}
       defaultEdgeOptions={{
-        type: "bezier",
+        type: "smoothstep",
         animated: false,
         style: {
           stroke: "var(--flow-edge)",
-          strokeWidth: 1,
-          filter: "drop-shadow(0 0 3px rgba(110, 231, 249, 0.22))",
+          strokeWidth: 2,
+          filter: "drop-shadow(0 0 6px rgba(110, 231, 249, 0.5))",
         },
       }}
     >
