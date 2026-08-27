@@ -98,6 +98,7 @@ function AuthenticatedLayout() {
       .getSession()
       .then(({ data, error }) => {
         if (error || !data.session) {
+          if (error) void supabase.auth.signOut({ scope: "local" });
           redirectToLogin();
           return;
         }

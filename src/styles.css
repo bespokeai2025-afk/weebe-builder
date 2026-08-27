@@ -114,16 +114,6 @@
   --sidebar-border: rgba(10, 15, 28, 0.1);
   --sidebar-ring: #0a0f1c;
 
-  --flow-canvas: #070d1b;
-  --flow-grid: rgba(157, 210, 238, 0.08);
-  --flow-node: #f4fbff;
-  --flow-edge: rgba(125, 211, 252, 0.68);
-  --flow-minimap-bg: rgba(6, 14, 29, 0.92);
-  --flow-minimap-border: rgba(210, 235, 255, 0.16);
-  --flow-minimap-node-stroke: rgba(244, 251, 255, 0.8);
-  --flow-minimap-viewport: rgba(125, 211, 252, 0.14);
-  --flow-minimap-viewport-stroke: rgba(186, 230, 253, 0.75);
-
   --gradient-primary: linear-gradient(135deg, #0a0f1c 0%, #52525b 100%);
   --gradient-glow: linear-gradient(135deg, rgba(10, 15, 28, 0.1) 0%, rgba(82, 82, 91, 0.1) 100%);
   --shadow-elegant: 0 1px 2px rgba(10, 15, 28, 0.04), 0 8px 24px -8px rgba(10, 15, 28, 0.1);
@@ -190,17 +180,6 @@
   --sidebar-accent-foreground: #e5e7eb;
   --sidebar-border: rgba(255, 255, 255, 0.04);
   --sidebar-ring: rgba(79, 140, 255, 0.55);
-
-  /* Flow canvas */
-  --flow-canvas: #070d1b;
-  --flow-grid: rgba(157, 210, 238, 0.08);
-  --flow-node: #f4fbff;
-  --flow-edge: rgba(125, 211, 252, 0.68);
-  --flow-minimap-bg: rgba(6, 14, 29, 0.92);
-  --flow-minimap-border: rgba(210, 235, 255, 0.16);
-  --flow-minimap-node-stroke: rgba(244, 251, 255, 0.8);
-  --flow-minimap-viewport: rgba(125, 211, 252, 0.14);
-  --flow-minimap-viewport-stroke: rgba(186, 230, 253, 0.75);
 
   /* Gradients & glows — subtle, never neon */
   --gradient-primary: linear-gradient(135deg, #4f8cff 0%, #3b6fe0 100%);
@@ -774,124 +753,228 @@
   }
 }
 
-/* ── Conversation Flow visual system ─────────────────────────────────────── */
-.webee-flow-node {
-  background: #0a1630;
-  border-color: rgba(210, 235, 255, 0.25);
-  box-shadow: 0 8px 20px -16px rgba(0, 0, 0, 0.85);
+/* ── Conversation Flow visual system — Builder page only ─────────────────── */
+.webee-builder-page {
+  --flow-canvas: #050914;
+  --flow-grid: rgba(157, 210, 238, 0.055);
+  --flow-node: #101827;
+  --flow-node-text: #f4f7fb;
+  --flow-node-muted: #b7c7d8;
+  --flow-edge: rgba(165, 243, 252, 0.72);
+  --flow-minimap-bg: rgba(5, 9, 20, 0.96);
+  --flow-minimap-border: rgba(210, 235, 255, 0.16);
+  --flow-minimap-node-fill: #101827;
+  --flow-minimap-node-stroke: rgba(244, 251, 255, 0.82);
+  --flow-minimap-viewport: rgba(125, 211, 252, 0.14);
+  --flow-minimap-viewport-stroke: rgba(186, 230, 253, 0.75);
 }
 
-.webee-flow-node:hover {
+.webee-builder-page .webee-flow-node {
+  background: var(--flow-node);
+  color: var(--flow-node-text);
+  border-color: rgba(186, 210, 230, 0.28);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.055),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.2),
+    0 10px 24px -16px rgba(0, 0, 0, 0.95),
+    0 2px 8px rgba(0, 0, 0, 0.2);
+  font-synthesis: none;
+}
+
+.webee-builder-page .webee-flow-node:hover {
   border-color: rgba(210, 235, 255, 0.42);
-  box-shadow: 0 10px 24px -16px rgba(0, 0, 0, 0.9);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.07),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.2),
+    0 12px 26px -16px rgba(0, 0, 0, 0.95);
 }
 
-.webee-flow-node[data-flow-state="connected"] {
+.webee-builder-page .webee-flow-node[data-flow-state="connected"] {
   border-color: rgba(125, 211, 252, 0.72);
   box-shadow:
-    0 0 0 1px rgba(103, 232, 249, 0.25),
-    0 0 10px rgba(34, 211, 238, 0.16);
+    inset 0 1px 0 rgba(255, 255, 255, 0.08),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.22),
+    0 0 0 1px rgba(103, 232, 249, 0.2),
+    0 0 11px rgba(34, 211, 238, 0.13),
+    0 10px 24px -16px rgba(0, 0, 0, 0.95);
 }
 
-.webee-flow-node[data-flow-state="active"] {
+.webee-builder-page .webee-flow-node[data-flow-state="active"] {
   border-color: rgba(165, 243, 252, 0.82);
   box-shadow:
-    0 0 0 1px rgba(165, 243, 252, 0.28),
-    0 0 12px rgba(34, 211, 238, 0.2);
+    inset 0 1px 0 rgba(255, 255, 255, 0.1),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.22),
+    0 0 0 1px rgba(165, 243, 252, 0.32),
+    0 0 12px rgba(34, 211, 238, 0.18),
+    0 10px 24px -16px rgba(0, 0, 0, 0.95);
 }
 
-.webee-flow-node[data-flow-state="selected"] {
-  border-color: #f4fbff;
+.webee-builder-page .webee-flow-node[data-flow-state="selected"] {
+  border-color: #f8fcff;
   box-shadow:
-    0 0 0 1px rgba(244, 251, 255, 0.9),
-    0 0 0 2px rgba(125, 211, 252, 0.46),
-    0 0 16px rgba(103, 232, 249, 0.28),
-    inset 0 1px rgba(255, 255, 255, 0.24);
+    inset 0 1px 0 rgba(255, 255, 255, 0.22),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.22),
+    0 0 0 1px rgba(248, 252, 255, 0.92),
+    0 0 0 2px rgba(165, 243, 252, 0.48),
+    0 0 10px rgba(244, 251, 255, 0.3),
+    0 8px 22px -14px rgba(0, 0, 0, 0.95);
 }
 
-.webee-flow-node__header {
+.webee-builder-page .webee-flow-node[data-flow-state="selected"],
+.webee-builder-page .webee-flow-node[data-flow-state="active"] {
+  color: #ffffff;
+}
+
+.webee-builder-page .webee-flow-node__header {
   background: linear-gradient(180deg, #f4fbff 0%, #e7f3fb 100%);
   border-bottom-color: rgba(207, 227, 242, 0.95);
   box-shadow: inset 0 1px rgba(255, 255, 255, 0.9);
 }
 
-.webee-flow-node__section {
-  background: rgba(5, 18, 39, 0.72);
+.webee-builder-page .webee-flow-node__section {
+  background: rgba(5, 12, 26, 0.58);
   border-color: rgba(183, 224, 255, 0.16);
+  color: var(--flow-node-muted);
 }
 
-.webee-flow-node__item {
-  background: rgba(5, 18, 39, 0.55);
+.webee-builder-page .webee-flow-node__item {
+  background: rgba(5, 12, 26, 0.42);
   border-color: rgba(183, 224, 255, 0.14);
+  color: #d5e2ed;
+  line-height: 1.35;
+  letter-spacing: 0.01em;
 }
 
-.webee-flow-node__item:hover {
+.webee-builder-page .webee-flow-node__item:hover {
   border-color: rgba(125, 211, 252, 0.48);
   background: rgba(10, 32, 58, 0.78);
 }
 
-.react-flow .webee-flow-handle {
+.webee-builder-page .webee-flow-node__body-text {
+  color: var(--flow-node-text);
+  line-height: 1.45;
+  letter-spacing: 0.002em;
+}
+
+.webee-builder-page .webee-flow-node__placeholder,
+.webee-builder-page .webee-flow-node__section-label {
+  color: var(--flow-node-muted);
+  font-weight: 500;
+  line-height: 1.4;
+  letter-spacing: 0.01em;
+}
+
+.webee-builder-page .webee-flow-node__item-label {
+  color: #d5e2ed;
+  font-weight: 500;
+}
+
+.webee-builder-page .webee-flow-node[data-flow-state="selected"] .webee-flow-node__body-text,
+.webee-builder-page .webee-flow-node[data-flow-state="active"] .webee-flow-node__body-text,
+.webee-builder-page .webee-flow-node[data-flow-state="selected"] .webee-flow-node__item-label,
+.webee-builder-page .webee-flow-node[data-flow-state="active"] .webee-flow-node__item-label {
+  color: #ffffff;
+}
+
+.webee-builder-page .webee-flow-node[data-flow-state="selected"] .webee-flow-node__placeholder,
+.webee-builder-page .webee-flow-node[data-flow-state="active"] .webee-flow-node__placeholder,
+.webee-builder-page .webee-flow-node[data-flow-state="selected"] .webee-flow-node__section-label,
+.webee-builder-page .webee-flow-node[data-flow-state="active"] .webee-flow-node__section-label {
+  color: #c9d9e7;
+}
+
+.webee-builder-page .webee-flow-node .text-muted-foreground {
+  color: var(--flow-node-muted);
+}
+
+.webee-builder-page .webee-flow-node__panel {
+  color: var(--flow-node-text);
+  background: #101827;
+  border-color: rgba(186, 210, 230, 0.24);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.055),
+    0 14px 28px -16px rgba(0, 0, 0, 0.95);
+}
+
+.webee-builder-page .webee-flow-node__panel .text-muted-foreground {
+  color: var(--flow-node-muted);
+}
+
+.webee-builder-page .webee-flow-node__panel input,
+.webee-builder-page .webee-flow-node__panel textarea,
+.webee-builder-page .webee-flow-node__panel button[role="combobox"] {
+  color: #f4f7fb;
+  border-color: rgba(186, 210, 230, 0.2);
+  background: rgba(5, 12, 26, 0.62);
+}
+
+.webee-builder-page .webee-flow-node__panel input::placeholder,
+.webee-builder-page .webee-flow-node__panel textarea::placeholder {
+  color: #9fb2c5;
+  opacity: 1;
+}
+
+.webee-builder-page .react-flow .webee-flow-handle {
   border: 1px solid rgba(210, 235, 255, 0.7);
   background: #f4fbff;
-  box-shadow: 0 0 0 1px rgba(7, 13, 27, 0.72);
+  box-shadow: 0 0 0 1px rgba(5, 9, 20, 0.72);
   transition:
     background-color 160ms ease,
     border-color 160ms ease,
     box-shadow 160ms ease;
 }
 
-.react-flow .webee-flow-handle[data-flow-state="connected"] {
+.webee-builder-page .react-flow .webee-flow-handle[data-flow-state="connected"] {
   border-color: #a5f3fc;
   background: #ecfeff;
   box-shadow:
-    0 0 0 1px rgba(7, 13, 27, 0.72),
-    0 0 5px rgba(103, 232, 249, 0.58);
+    0 0 0 1px rgba(5, 9, 20, 0.72),
+    0 0 5px rgba(103, 232, 249, 0.5);
 }
 
-.react-flow .webee-flow-handle[data-flow-state="active"] {
+.webee-builder-page .react-flow .webee-flow-handle[data-flow-state="active"] {
   border-color: #cffafe;
   background: #ffffff;
   box-shadow:
-    0 0 0 1px rgba(7, 13, 27, 0.72),
-    0 0 7px rgba(103, 232, 249, 0.72);
+    0 0 0 1px rgba(5, 9, 20, 0.72),
+    0 0 6px rgba(103, 232, 249, 0.62);
 }
 
-.react-flow .webee-flow-handle[data-flow-state="selected"] {
+.webee-builder-page .react-flow .webee-flow-handle[data-flow-state="selected"] {
   border-color: #ffffff;
   background: #ffffff;
   box-shadow:
-    0 0 0 1px rgba(7, 13, 27, 0.72),
-    0 0 0 2px rgba(125, 211, 252, 0.44),
-    0 0 7px rgba(103, 232, 249, 0.78);
+    0 0 0 1px rgba(5, 9, 20, 0.72),
+    0 0 0 2px rgba(125, 211, 252, 0.4),
+    0 0 6px rgba(103, 232, 249, 0.68);
 }
 
-.react-flow .react-flow__edge-path {
+.webee-builder-page .react-flow .react-flow__edge-path {
   vector-effect: non-scaling-stroke;
   stroke: var(--flow-edge);
-  stroke-width: 1px;
-  filter: drop-shadow(0 0 3px rgba(110, 231, 249, 0.22));
+  stroke-width: 1.25px;
+  filter: drop-shadow(0 0 3px rgba(110, 231, 249, 0.2));
   shape-rendering: geometricPrecision;
 }
 
-.react-flow .react-flow__edge:hover .react-flow__edge-path {
+.webee-builder-page .react-flow .react-flow__edge:hover .react-flow__edge-path {
   stroke: #a5f3fc;
-  filter: drop-shadow(0 0 3px rgba(165, 243, 252, 0.32));
+  filter: drop-shadow(0 0 3px rgba(165, 243, 252, 0.28));
 }
 
-.react-flow .react-flow__edge.selected .react-flow__edge-path {
+.webee-builder-page .react-flow .react-flow__edge.selected .react-flow__edge-path {
   stroke: #f4fbff;
-  stroke-width: 1.2px;
-  filter:
-    drop-shadow(0 0 2px rgba(244, 251, 255, 0.9))
-    drop-shadow(0 0 5px rgba(103, 232, 249, 0.42));
+  stroke-width: 1.35px;
+  filter: drop-shadow(0 0 2px rgba(244, 251, 255, 0.78))
+    drop-shadow(0 0 4px rgba(103, 232, 249, 0.34));
 }
 
-[data-flow-state="selected"] .webee-flow-handle {
+.webee-builder-page [data-flow-state="selected"] .webee-flow-handle {
   opacity: 1;
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .react-flow .webee-flow-handle {
+  .webee-builder-page .react-flow .webee-flow-handle {
     transition: none;
   }
 }

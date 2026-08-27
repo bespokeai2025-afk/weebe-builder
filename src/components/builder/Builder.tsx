@@ -778,7 +778,7 @@ export function Builder({
   return (
     <div
       className={cn(
-        "flex flex-col overflow-hidden rounded-2xl border bg-card shadow-sm",
+        "webee-builder-page flex flex-col overflow-hidden rounded-2xl border bg-card shadow-sm",
         heightClass,
       )}
     >

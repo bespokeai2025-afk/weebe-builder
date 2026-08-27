@@ -20,8 +20,16 @@ function LoginPage() {
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data }) => {
-      if (data.session) navigate({ to: search.redirect as "/dashboard" });
+    supabase.auth.getSession().then(({ data, error }) => {
+      if (data.session) {
+        navigate({ to: search.redirect as "/dashboard" });
+        return;
+      }
+      // A revoked/rotated refresh token can leave a broken local session
+      // behind. Clear only the browser session so a fresh login can proceed.
+      if (error || !data.session) void supabase.auth.signOut({ scope: "local" });
+    }).catch(() => {
+      void supabase.auth.signOut({ scope: "local" });
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);

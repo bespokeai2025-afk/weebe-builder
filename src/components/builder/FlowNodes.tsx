@@ -213,7 +213,7 @@ function flowHandleState({
 }
 
 const NODE_SURFACE_CLASS =
-  "webee-flow-node overflow-visible rounded-2xl border text-[#e8f4ff] transition-[border-color,box-shadow] duration-200";
+  "webee-flow-node overflow-visible rounded-2xl border text-[#f4f7fb] transition-[border-color,box-shadow] duration-200";
 const NODE_HEADER_CLASS = "webee-flow-node__header relative rounded-t-xl border-b px-3 py-2";
 const NODE_SECTION_CLASS = "webee-flow-node__section mx-2 rounded-lg border";
 const NODE_ITEM_CLASS =
@@ -318,17 +318,17 @@ function ConversationStyleNode({ id, data, selected }: NodeProps<FlowNode>) {
           {data.dialogue || data.endingPrompt || data.smsMessage ? (
             <HighlightedPrompt
               text={data.dialogue || data.endingPrompt || data.smsMessage || ""}
-              className="line-clamp-4 whitespace-pre-wrap text-sm text-[#e8f4ff]"
+              className="webee-flow-node__body-text line-clamp-4 whitespace-pre-wrap text-sm"
             />
           ) : (
-            <p className="text-sm italic text-[#a9c5dc]">Tap to add prompt…</p>
+            <p className="webee-flow-node__placeholder text-sm italic">Tap to add prompt…</p>
           )}
         </div>
 
         {/* Transitions section */}
         {kind !== "ending" && kind !== "note" && (
           <div className={cn(NODE_SECTION_CLASS, "mb-2")}>
-            <div className="flex items-center justify-between px-3 py-1.5 text-xs text-[#9ec2da]">
+            <div className="webee-flow-node__section-label flex items-center justify-between px-3 py-1.5 text-xs">
               <span className="inline-flex items-center gap-1">
                 <svg width="10" height="10" viewBox="0 0 12 12" className="opacity-70">
                   <path
@@ -361,7 +361,7 @@ function ConversationStyleNode({ id, data, selected }: NodeProps<FlowNode>) {
                       <circle cx="6" cy="6" r="2.5" fill="currentColor" />
                       <path d="M1 6 L3 6 M9 6 L11 6" stroke="currentColor" strokeWidth="1" />
                     </svg>
-                    <span className="flex-1 truncate text-[#c5dced]">
+                    <span className="webee-flow-node__item-label flex-1 truncate">
                       {t.condition || "Set condition…"}
                     </span>
                     <Handle
@@ -455,10 +455,10 @@ function SimpleNode({ id, data, selected }: NodeProps<FlowNode>) {
           {data.dialogue || data.endingPrompt || data.smsMessage ? (
             <HighlightedPrompt
               text={data.dialogue || data.endingPrompt || data.smsMessage || ""}
-              className="line-clamp-3 whitespace-pre-wrap text-sm text-[#e8f4ff]"
+              className="webee-flow-node__body-text line-clamp-3 whitespace-pre-wrap text-sm"
             />
           ) : (
-            <p className="text-sm italic text-[#a9c5dc]">Tap to configure…</p>
+            <p className="webee-flow-node__placeholder text-sm italic">Tap to configure…</p>
           )}
         </div>
       </div>
@@ -490,7 +490,7 @@ function VarPanel({
 
   return (
     <div
-      className="nodrag nopan w-80 rounded-xl border border-border bg-white dark:bg-gray-900 shadow-xl p-4 space-y-3"
+      className="webee-flow-node__panel nodrag nopan w-80 rounded-xl border p-4 space-y-3"
       onClick={(e) => e.stopPropagation()}
     >
       <div className="flex items-center justify-between">
@@ -694,7 +694,7 @@ function ExtractVariableNode({ id, data, selected }: NodeProps<FlowNode>) {
 
         {/* Variables section */}
         <div className={cn(NODE_SECTION_CLASS, "mt-2")}>
-          <div className="flex items-center justify-between px-3 py-1.5 text-xs text-[#9ec2da]">
+          <div className="webee-flow-node__section-label flex items-center justify-between px-3 py-1.5 text-xs">
             <span className="inline-flex items-center gap-1.5">
               <span className="font-mono text-[11px] leading-none">≡</span>
               Variables
@@ -716,7 +716,9 @@ function ExtractVariableNode({ id, data, selected }: NodeProps<FlowNode>) {
                   className="webee-flow-node__item flex cursor-pointer items-center gap-1.5 transition-colors"
                 >
                   <span className="font-mono font-bold text-indigo-500 shrink-0">{"{}"}</span>
-                  <span className="truncate text-[#c5dced]">{v.name || "unnamed"}</span>
+                  <span className="webee-flow-node__item-label truncate">
+                    {v.name || "unnamed"}
+                  </span>
                 </div>
               ))}
             </div>
@@ -725,7 +727,7 @@ function ExtractVariableNode({ id, data, selected }: NodeProps<FlowNode>) {
 
         {/* Transitions section */}
         <div className={cn(NODE_SECTION_CLASS, "my-2")}>
-          <div className="flex items-center justify-between px-3 py-1.5 text-xs text-[#9ec2da]">
+          <div className="webee-flow-node__section-label flex items-center justify-between px-3 py-1.5 text-xs">
             <span className="inline-flex items-center gap-1">
               <svg width="10" height="10" viewBox="0 0 12 12" className="opacity-70">
                 <path
@@ -758,7 +760,7 @@ function ExtractVariableNode({ id, data, selected }: NodeProps<FlowNode>) {
                     <circle cx="6" cy="6" r="2.5" fill="currentColor" />
                     <path d="M1 6 L3 6 M9 6 L11 6" stroke="currentColor" strokeWidth="1" />
                   </svg>
-                  <span className="flex-1 truncate text-[#c5dced]">
+                  <span className="webee-flow-node__item-label flex-1 truncate">
                     {t.condition || "Set condition…"}
                   </span>
                   <Handle
