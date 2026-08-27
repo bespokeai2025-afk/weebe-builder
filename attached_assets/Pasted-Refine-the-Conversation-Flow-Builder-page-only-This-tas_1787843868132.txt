@@ -1,0 +1,188 @@
+Refine the **Conversation Flow / Builder page only**.
+
+This task is specifically for the Builder page with the workflow nodes.
+
+Do NOT apply these changes globally across WEBEE.
+
+## Scope lock
+
+Only modify styling/components used by:
+
+* Builder canvas
+* Builder side panels
+* Builder cards/panels
+* workflow nodes
+* connector lines
+* Builder typography
+* Builder icons
+* Builder controls
+
+Do NOT modify:
+
+* Dashboard
+* Knowledge Centre
+* Leads
+* Reports
+* Accounts
+* global card styles
+* global typography
+* global icon system
+* sidebar
+* app shell
+* header
+* HiveMind
+* page background system
+* unrelated pages
+
+If a shared component is also used outside Builder, do NOT change its global styling. Create a Builder-specific variant/class/token instead.
+
+# Builder design goal
+
+The Builder needs to feel more premium, sharper and more modern.
+
+Current issues:
+
+* Builder cards/panels are too similar to the dark background
+* typography feels dated
+* icons/symbols feel dated
+* nodes need to remain visually distinct and high-definition
+* connector lines and selection states need to feel more refined
+
+## Builder panels/cards
+
+Increase separation between the Builder background and its UI panels.
+
+Keep them dark, but use a slightly elevated dark navy surface.
+
+Directional example:
+
+```css
+--builder-panel-bg: rgba(14, 22, 40, 0.92);
+--builder-panel-border: rgba(175, 205, 235, 0.10);
+```
+
+Use a subtle internal gradient if needed.
+
+Do not make panels bright or grey.
+
+## Builder typography
+
+Modernise typography ONLY inside Builder.
+
+Use:
+
+* clean modern sans-serif
+* sharper weights
+* tighter heading tracking
+* stronger primary text
+* clearer secondary text
+* less dull grey
+
+Directional colours:
+
+```css
+--builder-text-primary: #F3F7FB;
+--builder-text-secondary: #A8B4C6;
+--builder-text-muted: #758398;
+```
+
+If WEBEE already uses a better matching brand font, reuse that.
+
+## Builder icons
+
+Modernise Builder icons only.
+
+Use:
+
+* consistent vector outline style
+* crisp 1.5–2px strokes
+* cleaner rounded geometry
+* no chunky filled legacy symbols
+* no mixed icon styles
+* no blurry raster icons
+
+Prefer the existing icon library where possible.
+
+## Nodes
+
+Keep the previous node direction:
+
+* ice-white node chrome/header
+* deep navy node body
+* crisp edges
+* subtle cyan illumination when connected
+* brighter ice/cyan edge when selected
+* no dull grey
+
+Nodes must remain visually brighter than ordinary Builder panels.
+
+## Connector lines
+
+Keep connector lines:
+
+* crisp
+* thin
+* high-definition
+* subtle cyan when connected
+* brighter white-cyan when selected
+* controlled glow only
+
+No thick blurry neon tubes.
+
+## Builder panel hierarchy
+
+Desired hierarchy:
+
+DEEP NAVY BUILDER CANVAS
+
+↓
+
+DARK ELEVATED BUILDER PANELS
+
+↓
+
+ICE-WHITE WORKFLOW NODES
+
+↓
+
+CYAN / WHITE ACTIVE CONNECTION STATES
+
+This should make the Builder easier to read without brightening the whole app.
+
+## Important implementation rule
+
+Do NOT change shared design tokens if they affect pages outside Builder.
+
+Use Builder-scoped classes/tokens such as:
+
+```css
+.builder-shell
+.builder-panel
+.builder-node
+.builder-text-primary
+.builder-icon
+```
+
+or the equivalent existing architecture.
+
+## Validation
+
+Before completing, confirm:
+
+1. changes are visible on Builder
+2. Dashboard is unchanged
+3. Knowledge Centre is unchanged
+4. Leads/Reports are unchanged
+5. sidebar/header are unchanged
+6. global typography is unchanged
+7. HiveMind is unchanged
+
+Then report:
+
+* exact Builder files changed
+* Builder-specific card colours
+* Builder typography changes
+* Builder icon changes
+* node styling changes
+* connector styling changes
+* confirmation no other pages were affected
