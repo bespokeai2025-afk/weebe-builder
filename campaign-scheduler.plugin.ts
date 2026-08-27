@@ -187,6 +187,23 @@ export function campaignSchedulerPlugin(): Plugin {
           console.warn("[perf-snapshots] dev tick failed:", e?.message ?? e);
         }
 
+        // HiveMind executive reconciliation (including notification-gap
+        // recommendations). Each workspace job is CAS-claimed, so this is
+        // safe alongside the production campaign-executor cron.
+        try {
+          const { runExecutiveEventsTick } = (await server.ssrLoadModule(
+            "/src/lib/hivemind/executive-reconciliation.server.ts",
+          )) as typeof import("./src/lib/hivemind/executive-reconciliation.server");
+          const execEvents = await runExecutiveEventsTick();
+          if (execEvents.jobsRun > 0 || execEvents.errors > 0) {
+            console.log(
+              `[exec-events] ws=${execEvents.workspacesScanned} jobs=${execEvents.jobsRun} published=${execEvents.eventsPublished} classified=${execEvents.eventsClassified} errors=${execEvents.errors}`,
+            );
+          }
+        } catch (e: any) {
+          console.warn("[exec-events] dev tick failed:", e?.message ?? e);
+        }
+
         // SystemMind call runtime: trigger evaluation, queue processing,
         // integration-error retries, health sweep (mirrors the prod
         // campaign-executor endpoint). Loaded via ssrLoadModule because the
