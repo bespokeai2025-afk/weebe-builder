@@ -74,7 +74,11 @@ n8n forward the same events. Requires a production republish to go live.
   broken forward) must land, and records that the platform vs workspace Retell key
   split is real — a lesson that cost several 404s to learn.
 
-## n8n relay status: ONLINE (verified 2026-07-06)
+## n8n relay status: DECOMMISSIONED (2026-08-17)
+
+n8n is no longer used. WBAH agents now send directly to `webeebuilder.com/api/public/voice-webhook` via their Retell `webhook_url`. The `retell-live-ingest.ts` external ingest endpoint and allow-map are now dead code but left in place harmlessly.
+
+## n8n relay status: ONLINE (verified 2026-07-06) [HISTORICAL — n8n now decommissioned]
 
 An earlier note claimed `bespoke.app.n8n.cloud` was OFFLINE ("404 - No workspace
 here"). That is NO LONGER TRUE. Verified 2026-07-06 by POSTing a synthetic

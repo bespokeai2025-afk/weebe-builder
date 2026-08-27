@@ -1,0 +1,765 @@
+# MAIN WEBEE WEB APP / BACKEND PROMPT — Canonical Notification & Capability System
+
+Extend the existing WEBEE main web application/backend so that notification configuration, workspace capability detection, HiveMind/SystemMind notification management, lead filtering, recipient rules and human sales-agent assignments are handled centrally.
+
+This main WEBEE backend must become the **single canonical source of truth** for both the web app and mobile app.
+
+## CRITICAL RULE
+
+Do NOT build a separate mobile notification/business-logic system.
+
+The mobile app will consume the APIs/services created here.
+
+Before changing anything:
+
+1. Audit existing HiveMind settings.
+2. Audit existing SystemMind settings.
+3. Audit existing AccountsMind settings.
+4. Audit current workspace/account settings.
+5. Audit existing notification tables/services.
+6. Audit existing in-app notification logic.
+7. Audit existing Expo/push notification backend logic.
+8. Audit workspace roles and sub-accounts.
+9. Audit lead filtering and assignment fields.
+10. Audit workspace-specific/custom data sources.
+
+Reuse existing infrastructure wherever possible.
+
+Do NOT replace working systems.
+
+---
+
+# 1. CENTRAL NOTIFICATION ENGINE
+
+Create or extend ONE canonical backend notification engine.
+
+All notification-producing events must flow through this service.
+
+Required logical flow:
+
+**Event occurs**
+→ resolve workspace
+→ identify notification type
+→ check workspace capability
+→ load workspace notification policy
+→ evaluate filters
+→ resolve recipients
+→ apply user preferences
+→ deduplicate event
+→ create durable in-app notification
+→ dispatch enabled channels
+→ record delivery result
+
+Do not scatter independent notification-send logic throughout webhook handlers.
+
+---
+
+# 2. WORKSPACE CAPABILITY ENGINE
+
+Create or extend a canonical resolver such as:
+
+`getWorkspaceCapabilities(workspaceId)`
+
+It must inspect real workspace configuration, enabled products, agents, integrations and services.
+
+Possible capabilities include:
+
+* leads
+* qualification
+* sentiment
+* bookings
+* calendar
+* calls
+* inbound receptionist
+* outbound lead generation
+* campaigns
+* reports
+* BuzzChat
+* WhatsApp
+* Follow-Up Centre
+* HiveMind
+* GrowthMind
+* SystemMind
+* AccountsMind
+* email
+* CRM
+* human sales agents
+* lead assignment
+* deployed AI agents
+
+Do not infer capabilities simply because a frontend menu exists.
+
+---
+
+# 3. AUTOMATIC PROVISIONING
+
+Whenever:
+
+* a workspace is created
+* onboarding is completed
+* a service is activated
+* an AI agent is deployed
+* BuzzChat is connected
+* a CRM is connected
+* calendar functionality is enabled
+* campaigns become available
+* Follow-Up Centre is enabled
+* another WEBEE product/module is added
+
+rerun workspace capability analysis.
+
+Automatically provision any newly applicable notification definitions.
+
+This must be:
+
+**incremental**
+
+and
+
+**idempotent**
+
+Running it repeatedly must NOT:
+
+* duplicate settings
+* reset existing choices
+* reset existing filters
+* change recipients unexpectedly
+
+---
+
+# 4. NOTIFICATION CATALOGUE
+
+Create/extend a central registry of supported notification types.
+
+Include where applicable:
+
+## Leads
+
+* `lead.new`
+* `lead.qualified`
+* `lead.positive`
+* `lead.booked`
+* `lead.followup_required`
+* `lead.assigned`
+* `lead.reassigned`
+
+## BuzzChat
+
+* `buzzchat.message_received`
+
+## Campaigns
+
+* `campaign.failed`
+* `campaign.completed`
+* `campaign.paused`
+* `campaign.stalled`
+
+## Reports
+
+* `report.ready`
+* `report.failed`
+
+## Follow-Up Centre
+
+* `followup.required`
+* `followup.reply_received`
+* `followup.failed`
+
+## HiveMind
+
+* `hivemind.alert`
+* `hivemind.task`
+* `hivemind.recommendation`
+
+## SystemMind
+
+* `systemmind.workflow_failed`
+* `systemmind.integration_error`
+* `systemmind.agent_setup_issue`
+
+## AccountsMind
+
+Reuse the same engine for relevant finance/commercial alerts such as:
+
+* invoice/payment alerts
+* usage/cost thresholds
+* billing issue
+* commercial alert
+
+Each notification definition should support:
+
+* required capability
+* default enabled state
+* allowed roles
+* available channels
+* default recipients
+* filter availability
+* deep-link target
+* severity/priority
+
+---
+
+# 5. DEFAULT NOTIFICATION BEHAVIOUR
+
+Use sensible defaults.
+
+Examples of important events that can default ON:
+
+* qualified lead
+* booked appointment
+* lead assigned
+* campaign failure
+* integration failure
+* workflow failure
+
+Potentially high-volume events should be optional/default OFF unless existing settings already specify otherwise:
+
+* every new lead
+* every campaign completion
+* routine reports
+* low-priority informational events
+
+Do not change existing client choices.
+
+---
+
+# 6. LEAD NOTIFICATION FILTERS
+
+Admins must be able to tailor which leads generate alerts.
+
+Use real canonical lead fields available to the workspace.
+
+Possible filters:
+
+* Qualified
+* Positive sentiment
+* Appointment booked
+* Lead status
+* Campaign
+* AI agent
+* Lead source
+* Call outcome
+* Human salesperson assigned
+* Follow-up required
+* workspace-specific valid lead fields
+
+Support:
+
+**ANY condition matches**
+
+and
+
+**ALL conditions match**
+
+Filters must be evaluated server-side before notification creation/delivery.
+
+Do not create fake filter fields.
+
+---
+
+# 7. LEAD SCREEN FILTER SYSTEM
+
+Ensure the web Leads area supports canonical server-side filtering for applicable criteria, including:
+
+* All
+* Qualified
+* Positive
+* Booked
+* Follow-up required
+* Assigned to me
+* Unassigned
+* Campaign
+* AI agent
+* Human sales agent
+* Source
+* Date range
+
+This should be reusable by mobile through backend endpoints/services.
+
+Do not implement a separate mobile interpretation later.
+
+---
+
+# 8. HUMAN SALES AGENT SUB-ACCOUNTS
+
+Implement or extend workspace-level human sales accounts.
+
+Workspace Owners/Admins must be able to:
+
+* create/invite human sales agents
+* enter name/email
+* assign role
+* activate/deactivate
+* manage permissions
+* assign/reassign/unassign leads
+* bulk assign where appropriate
+
+Use a workspace role such as:
+
+`workspace_sales_agent`
+
+or adapt the existing role model.
+
+Do not create separate workspaces for salespeople.
+
+---
+
+# 9. LEAD ASSIGNMENT
+
+Admins must be able to allocate leads from:
+
+* Lead details
+* Lead lists
+* Qualified leads
+* Positive leads
+* Booked leads
+
+Store canonical assignment information.
+
+Reuse existing schema if equivalent fields already exist.
+
+Otherwise implement something equivalent to:
+
+`assigned_to_user_id`
+
+with an assignment audit trail containing:
+
+* workspace
+* lead
+* assigned user
+* assigned by
+* timestamp
+* reassignment history
+
+---
+
+# 10. SALES AGENT PERMISSIONS
+
+Sales agents should see relevant assigned work such as:
+
+* My Leads
+* New
+* Booked
+* Follow-ups
+* Completed
+
+Unless permission explicitly allows it, they must not see:
+
+* billing
+* API credentials
+* unrestricted workspace administration
+* unrelated sales agents' private assignments
+* integration secrets
+* company-level sensitive settings
+
+Enforce this server-side/RLS.
+
+Do not rely only on hiding frontend components.
+
+---
+
+# 11. ASSIGNMENT NOTIFICATIONS
+
+When a lead is assigned, notify the relevant sales agent.
+
+Example:
+
+**New lead assigned to you**
+
+John Smith
+Qualified · Appointment booked
+
+Tap/click should resolve to the exact lead.
+
+When lead ownership changes, future assignment-specific notifications should follow the new assignment.
+
+---
+
+# 12. HIVEMIND ROLE
+
+Extend existing HiveMind functionality without changing its current settings/autonomy architecture.
+
+HiveMind should act as the operational intelligence layer.
+
+It should be able to identify things such as:
+
+* qualified leads arriving with notifications disabled
+* booked leads not reaching sales agents
+* BuzzChat replies going unnoticed
+* sales users receiving inappropriate notification volume
+* notification filters that appear operationally ineffective
+
+HiveMind can recommend changes.
+
+If existing HiveMind operator/autonomy permissions allow action, it may instruct SystemMind to apply the change.
+
+If approval is currently required, keep that approval requirement.
+
+Do NOT alter existing HiveMind autonomy rules.
+
+---
+
+# 13. SYSTEMMIND ROLE
+
+Extend existing SystemMind functionality without rebuilding it.
+
+SystemMind should act as the technical operator for notification infrastructure.
+
+It should be able to:
+
+* inspect workspace notification configuration
+* detect missing notification definitions
+* detect missing event sources
+* provision settings when services are added
+* validate filters
+* validate recipient configuration
+* validate push plumbing
+* validate web/mobile notification parity
+* repair missing configuration where existing SystemMind permissions allow
+
+Use the existing SystemMind execution model.
+
+---
+
+# 14. HIVEMIND + SYSTEMMIND SETTINGS
+
+Do NOT create a duplicate settings architecture.
+
+Add this functionality cleanly into the current HiveMind/SystemMind/workspace settings system.
+
+Where appropriate expose:
+
+**Settings → Notifications & Alerts**
+
+with sections dynamically generated from the workspace's capabilities.
+
+For example:
+
+### Leads
+
+Qualified lead — ON
+Positive lead — ON
+Booked appointment — ON
+Lead assigned — ON
+
+### BuzzChat
+
+New WhatsApp reply — ON
+
+### Campaigns
+
+Campaign failed — ON
+Campaign completed — OFF
+
+### Reports
+
+Report ready — ON
+
+Do not show irrelevant empty sections.
+
+---
+
+# 15. CHANNELS
+
+Support canonical channels:
+
+* In-app
+* Mobile push
+* Email where available
+
+The engine should allow additional channels later without rebuilding the business logic.
+
+---
+
+# 16. RECIPIENT RULES
+
+Support recipient targeting such as:
+
+* workspace owner
+* admins
+* assigned sales agent
+* campaign owner
+* selected users
+* role-based recipients
+
+Do not send every event to everyone.
+
+---
+
+# 17. BUZZCHAT PROVIDER PARITY
+
+Inbound WhatsApp notifications must use the same event type regardless of supported provider.
+
+Where inbound messages already exist in WEBEE, ensure notification support covers supported providers such as:
+
+* WATI / BuzzChat
+* Meta WhatsApp
+* Twilio WhatsApp
+
+Deduplicate webhook retries using provider message IDs or equivalent stable event identifiers.
+
+---
+
+# 18. EVENT DEDUPLICATION
+
+All notification-producing events must support idempotency.
+
+Use stable event keys for:
+
+* lead qualification
+* booking creation
+* positive status transition
+* WhatsApp inbound message
+* campaign run failure
+* report generation
+* assignment
+
+Retries must not produce duplicate notifications.
+
+---
+
+# 19. DURABLE IN-APP NOTIFICATION CENTRE
+
+Maintain or upgrade a canonical Notification Centre.
+
+Each notification should store:
+
+* workspace
+* user/recipient
+* notification type
+* title
+* description
+* created time
+* read/unread
+* related entity type
+* entity ID
+* destination/deep link
+* idempotency/event ID
+* delivery status
+
+Support:
+
+* mark read
+* mark all read
+* unread count
+* opening exact related record
+
+The push notification must not be the only record of the event.
+
+---
+
+# 20. WEB/MOBILE API CONTRACT
+
+Expose the canonical services/endpoints required by mobile.
+
+Mobile must be able to retrieve:
+
+* workspace capabilities
+* notification categories
+* workspace policies
+* personal preferences
+* notification filters
+* human sales agents
+* lead assignments
+* in-app notifications
+* unread count
+* filtered leads
+* reports
+* campaign state
+* BuzzChat threads
+* bookings
+
+Do not require mobile to duplicate business logic.
+
+---
+
+# 21. DATA SOURCE PARITY
+
+Some WEBEE workspaces may use different canonical data sources.
+
+Respect all existing workspace-aware resolvers.
+
+If one workspace's web version uses a specialised calls/leads source, mobile must later receive data from that same source through the canonical backend.
+
+Do not migrate workspace data sources merely for mobile convenience.
+
+---
+
+# 22. TIMEZONE / DATE PARITY
+
+All canonical filtering and reporting must use the same workspace timezone/date rules used by web.
+
+Ensure:
+
+* Today
+* Yesterday
+* Week
+* Month
+* custom range
+
+return consistent data regardless of client.
+
+---
+
+# 23. EXISTING WORKSPACE MIGRATION
+
+Run capability analysis across all existing workspaces.
+
+For each:
+
+1. Detect enabled products/services.
+2. Detect current notification definitions.
+3. Add only missing applicable definitions.
+4. Preserve existing enabled/disabled state.
+5. Preserve existing filters.
+6. Preserve recipients.
+7. Preserve HiveMind settings.
+8. Preserve SystemMind settings.
+9. Preserve AccountsMind settings.
+10. Record migration results.
+
+Do not reset existing client preferences.
+
+---
+
+# 24. NEW WORKSPACE BEHAVIOUR
+
+Required workflow:
+
+**New workspace created**
+→ capability analysis
+→ relevant notification definitions provisioned
+→ sensible defaults applied
+→ admin can customise
+
+No developer intervention should be required.
+
+---
+
+# 25. NEW SERVICE BEHAVIOUR
+
+Required workflow:
+
+**Existing workspace enables new service**
+→ capability re-analysis
+→ only new applicable notification functionality provisioned
+→ HiveMind becomes aware of new capability
+→ SystemMind validates technical configuration
+→ existing preferences remain untouched
+
+Optionally show:
+
+**New notification options available**
+
+with:
+
+**Review settings**
+
+or
+
+**Keep defaults**
+
+Do not block the service from being used.
+
+---
+
+# 26. AUDIT TRAIL
+
+Record:
+
+* notification setting provisioned
+* enabled/disabled change
+* filter change
+* recipient change
+* assignment
+* reassignment
+* HiveMind recommendation/action
+* SystemMind action
+* admin action
+
+Include:
+
+* workspace
+* previous value
+* new value
+* actor
+* reason
+* timestamp
+
+---
+
+# 27. SECURITY
+
+Every endpoint must validate:
+
+* authenticated user
+* workspace membership
+* role
+* permission
+* target record workspace
+
+Never trust an arbitrary client `workspace_id`.
+
+Preserve existing RLS and extend where necessary.
+
+---
+
+# 28. ACCEPTANCE TESTING
+
+Do not mark complete because the UI exists.
+
+Test at least:
+
+### Workspace A
+
+Receptionist + Leads + Calendar
+
+### Workspace B
+
+Lead Gen + Campaigns + Reports
+
+### Workspace C
+
+Receptionist + BuzzChat + Follow-Up
+
+### Workspace D
+
+Full WEBEE suite
+
+Verify each only receives relevant notification categories.
+
+Then enable another service and confirm:
+
+* new settings appear
+* existing settings remain unchanged
+* filters work
+* recipient rules work
+* assignment works
+* in-app notification works
+* canonical API returns correct configuration
+
+Also verify all existing HiveMind, SystemMind and AccountsMind settings remain unchanged unless explicitly extended.
+
+---
+
+# FINAL REPORT
+
+When finished report:
+
+* existing notification systems reused
+* existing HiveMind/SystemMind systems reused
+* backend services added/extended
+* database migrations made
+* APIs exposed to mobile
+* notification catalogue implemented
+* capability analysis implementation
+* workspace migration results
+* lead filter implementation
+* human sales-agent implementation
+* assignment implementation
+* security/RLS changes
+* workspaces tested
+* proof that existing preferences/settings were preserved
+* remaining limitations
+
+This backend must be the **single source of truth** for notification configuration and lead assignment across WEBEE.

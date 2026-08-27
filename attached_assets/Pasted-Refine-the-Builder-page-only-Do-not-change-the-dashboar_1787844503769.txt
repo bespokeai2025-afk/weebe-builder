@@ -1,0 +1,36 @@
+Refine the **Builder page only**. Do not change the dashboard, sidebar, header, HiveMind, or any global page styling.
+
+The current Builder still needs stronger contrast, especially the **text inside nodes and panels**, which does not stand out enough against the dark backgrounds.
+
+Make these changes:
+
+* Keep the Builder canvas very dark, around `#050914`
+* Keep node bodies clearly elevated from the canvas, around `#101827`
+* Keep the ice-white node headers
+* Increase primary text brightness so key labels use a crisp near-white such as `#F4F7FB`
+* Increase secondary text contrast so descriptions, variable names, helper text, and metadata are still clearly readable rather than dull grey
+* Avoid low-opacity grey text that disappears into the navy background
+* Make node titles slightly bolder and sharper without making them oversized
+* Improve font weight hierarchy:
+
+  * Node titles: 600–650
+  * Important values/actions: 550–600
+  * Supporting text: 450–500
+* Increase small-text legibility slightly through line-height, letter spacing, and contrast rather than simply making everything larger
+* Make icons and text feel like one consistent high-definition visual system
+* Inputs, dropdown values, condition labels, and connector labels must all remain clearly readable at a glance
+* Selected and active nodes should also slightly brighten their internal text so the whole node feels active, not just the border
+* Keep idle nodes refined and premium, but never washed out
+
+Retain the stronger node/canvas separation:
+
+* Canvas = darkest layer
+* Node body = elevated dark layer
+* Primary text = crisp near-white
+* Secondary text = clearly visible cool grey/white
+* Ice-white header = brightest static element
+* Selected/active state = brightest interactive state
+
+Do not make the design neon, overly glowing, chunky, or cartoonish. The target is **premium, sharp, modern, technical and high-definition**.
+
+Audit the existing Builder-specific CSS/tokens first and update the existing styles rather than layering conflicting overrides. Keep every change strictly scoped to the Builder page.

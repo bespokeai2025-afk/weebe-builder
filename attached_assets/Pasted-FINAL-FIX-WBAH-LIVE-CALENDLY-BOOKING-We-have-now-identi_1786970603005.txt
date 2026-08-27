@@ -1,0 +1,272 @@
+FINAL FIX — WBAH LIVE CALENDLY BOOKING
+
+We have now identified the exact booking issue.
+
+Do not rebuild the booking architecture.
+
+The existing live flow is correct:
+
+Get Available Slots
+→ slot_message
+→ customer selects
+→ Book Appointment
+
+However there are TWO logic bugs that must be fixed.
+
+==================================================
+1. STOP PASSING current_date AS preferred_date BY DEFAULT
+==================================================
+
+The current Retell node sends:
+
+preferred_date = {{current_date}}
+
+on every availability check.
+
+This is wrong.
+
+It means a caller who has NOT requested a particular date is only searching the day the call happens.
+
+That caused Neil's Saturday call to search:
+
+2026-08-15
+
+and return zero.
+
+But this problem is not specific to weekends.
+
+It could also fail:
+
+- after business hours
+- when today's appointments are full
+- late on Friday
+- on holidays
+
+Correct behaviour:
+
+IF the caller explicitly asks for a date:
+→ preferred_date = requested date
+
+IF the caller has NOT requested a specific date:
+→ preferred_date = null
+
+Then the backend searches for the NEXT genuinely available appointments.
+
+Do not substitute {{current_date}} for a missing date preference.
+
+==================================================
+2. EXTRACT ACTUAL REQUESTED DATE
+==================================================
+
+If the caller says:
+
+"What do you have Tuesday?"
+
+send Tuesday's actual date.
+
+If caller says:
+
+"Wednesday afternoon?"
+
+send Wednesday's date plus the relevant time preference if supported.
+
+If caller simply says:
+
+"What's your next appointment?"
+
+send:
+
+preferred_date = null
+
+==================================================
+3. BACKEND FALLBACK
+==================================================
+
+The WeeBespoke endpoint should also be defensive.
+
+If preferred_date is null:
+
+search forward across the configured future availability window.
+
+If preferred_date is supplied:
+
+search that requested date.
+
+If no appointments exist on the requested date:
+
+return that result PLUS next available alternatives where appropriate.
+
+Do not falsely say:
+
+"No appointments are available in the next week"
+
+when only one date was checked.
+
+==================================================
+4. REMOVE FAKE 5-MINUTE SLOT GENERATION
+==================================================
+
+The existing endpoint is generating times such as:
+
+09:00
+09:05
+09:10
+09:15
+
+from generic free-time windows.
+
+Stop doing this.
+
+Use Calendly's genuine event-type available-times logic so only actually bookable appointment start times are returned.
+
+The availability query must respect:
+
+- event duration
+- buffers
+- scheduling rules
+- calendar conflicts
+- minimum notice
+- event-specific availability
+
+Do not manufacture appointment starts locally.
+
+==================================================
+5. KEEP EXISTING TOOL CONTRACT
+==================================================
+
+Keep:
+
+get_available_slots
+
+and continue returning:
+
+success
+slot_count
+slots
+message
+
+Keep:
+
+message → slot_message
+
+so the existing Retell conversation node continues working.
+
+==================================================
+6. LIMIT SPOKEN OPTIONS
+==================================================
+
+Do not give Retell hundreds of appointment times to read.
+
+Keep the structured available slots internally, but make slot_message offer approximately the best 2–3 options.
+
+Example:
+
+"I have Monday at 10:00 AM, Monday at 2:30 PM, or Tuesday at 11:00 AM."
+
+If those do not work, the caller can request another date and the tool runs again live.
+
+==================================================
+7. MULTIPLE LIVE CHECKS
+==================================================
+
+The availability tool must remain callable multiple times in one conversation.
+
+Example:
+
+Caller:
+"What's next available?"
+
+→ preferred_date = null
+→ live check
+
+Caller:
+"Anything Wednesday?"
+
+→ preferred_date = Wednesday
+→ new live check
+
+Caller:
+"What about Thursday afternoon?"
+
+→ new live check
+
+Never rely on the previous availability response.
+
+==================================================
+8. BOOKING VALIDATION
+==================================================
+
+Keep the existing Book Appointment node.
+
+When the customer selects a time:
+
+→ send the selected genuine Calendly slot
+→ attempt live booking
+→ confirm to caller ONLY after success
+
+If the slot has become unavailable:
+
+→ do not confirm it
+→ route back to Get Available Slots
+→ retrieve fresh options
+
+==================================================
+9. TEST CASES
+==================================================
+
+Test:
+
+A. Saturday call, no requested date
+Expected:
+preferred_date = null
+→ next weekday appointments returned
+
+B. Monday call, no requested date, Monday full
+Expected:
+→ Tuesday/next available returned
+
+C. Caller explicitly requests Wednesday
+Expected:
+→ Wednesday searched
+
+D. Caller requests Saturday where no weekend appointments exist
+Expected:
+→ explain none Saturday and offer next available options
+
+E. Real returned slot
+Expected:
+→ Book Appointment successfully accepts exact slot
+
+F. Two simultaneous callers
+Expected:
+→ no overlapping fake 5-minute slots generated
+
+==================================================
+FINAL REPORT
+
+Default preferred_date:
+NULL
+
+Caller-requested preferred_date:
+<how extracted>
+
+current_date passed automatically:
+NO
+
+5-minute artificial slots removed:
+YES/NO
+
+Genuine Calendly slots used:
+YES/NO
+
+Saturday/no-date test:
+PASS/FAIL
+
+Weekday-full/no-date test:
+PASS/FAIL
+
+Specific-date test:
+PASS/FAIL
+
+Live booking test:
+PASS/FAIL

@@ -1,0 +1,173 @@
+Fix the current **HiveMind particle visual** in the WEBEE app shown in the attached screenshots.
+
+The current implementation is not correct.
+
+## Current problems
+
+1. **HiveMind is too large**
+
+   * it takes up too much space in the panel/card area
+   * it feels oversized relative to the surrounding UI
+
+2. **The dots/particles look blurry**
+
+   * they should be sharper and more refined
+   * the current effect looks too soft/fuzzy
+   * the particles need to feel crisp, premium, and intentional
+
+3. **The animation/movement is wrong**
+
+   * it does **not move like it does on the website built in Lovable**
+   * I want the motion style to match the website behaviour much more closely
+   * it should feel alive, subtle, intelligent, and elegant
+
+## Source of truth
+
+The **Loveable website implementation** is the visual and animation source of truth.
+
+Do not redesign or reinterpret HiveMind.
+
+Use the existing Loveable implementation/values/logic if that code or extracted spec is already available in the project or previous task documents.
+
+If needed, inspect the current website implementation again and align this WEBEE version to it.
+
+## Required fixes
+
+### 1. Reduce size
+
+Make the HiveMind visual noticeably smaller.
+
+It should feel like a refined ambient intelligence visual, not a dominant graphic.
+
+Target:
+
+* reduce overall rendered footprint by roughly **25–40%**
+* keep it proportionate to the card/panel it sits in
+* ensure it does not crowd surrounding UI
+
+If it appears in more than one place, use context-appropriate sizing but keep the same visual language.
+
+### 2. Sharpen the particles
+
+The particles/dots must be made much crisper.
+
+Requirements:
+
+* reduce blur significantly
+* reduce soft glow/fogginess
+* make dot edges more defined
+* preserve subtle glow, but do not let glow overpower the particle itself
+* constellation points should feel clean and premium
+* the central cluster must remain luminous, but not smeared
+
+Avoid:
+
+* cloudy blobs
+* fuzzy bokeh look
+* over-bloomed particles
+* low-definition soft particle fields
+
+### 3. Match Loveable movement
+
+The animation must feel much closer to the Loveable website version.
+
+Required motion character:
+
+* subtle drifting particles
+* delicate twinkling
+* elegant, fine movement
+* gentle constellation behaviour
+* smooth natural motion
+* restrained energy
+* feels like “thinking” or “processing”, not random chaos
+
+Avoid:
+
+* static appearance
+* jerky motion
+* overly fast animation
+* obvious looping
+* aggressive orbiting
+* floating blur cloud behaviour
+* particles just wobbling randomly
+
+### 4. Preserve the formless look
+
+Do NOT let it turn into:
+
+* an oval
+* a pill
+* a badge
+* a blob
+* a background cloud
+* a dense glowing smear
+
+It should remain:
+
+* formless
+* airy
+* constellation-like
+* particle-led
+* transparent around the edges
+
+### 5. Keep it integrated with the UI
+
+The effect should remain visually embedded in the WEBEE interface.
+
+Do not add:
+
+* background box
+* extra panel
+* visible container
+* solid backing shape
+
+## Technical direction
+
+Before editing:
+
+1. identify the exact component rendering HiveMind
+2. identify the current sizing logic
+3. identify the particle blur/glow settings
+4. identify the animation logic currently being used
+5. compare that against the Loveable implementation/spec if available
+
+Then correct the implementation rather than replacing it with a rough approximation.
+
+### Animation quality requirements
+
+* smooth and performant
+* no choppy movement
+* respect existing app performance
+* avoid unnecessary heavy libraries if not needed
+* preserve transparency
+* keep the effect responsive
+
+## Do not change
+
+Do NOT modify:
+
+* dashboard layout
+* card layout
+* surrounding controls
+* typography
+* content structure
+* functionality
+* other unrelated shell/background work
+
+Only fix:
+
+* HiveMind scale
+* particle sharpness
+* animation behaviour
+* overall visual fidelity to the Loveable version
+
+## Deliverable
+
+After implementing, report:
+
+1. exact files changed
+2. previous size vs new size
+3. what was changed to reduce blur
+4. what was changed in the animation logic
+5. whether the Loveable implementation/spec was used as reference
+6. confirmation that HiveMind is now smaller, sharper, and closer to the website motion

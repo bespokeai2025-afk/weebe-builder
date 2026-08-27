@@ -1,0 +1,674 @@
+# PROMPT 1 — MAIN WEBEE WEB APP / BACKEND: BuzzChat → CRM Lead Pipeline + Canonical Mobile APIs
+
+Upgrade the MAIN WEBEE web application/backend so inbound BuzzChat/WhatsApp replies are properly connected to the canonical CRM/Leads pipeline and exposed through stable backend APIs for the mobile app.
+
+The current WEBEE web application is the **source of truth**.
+
+## CRITICAL
+
+Do NOT rebuild BuzzChat.
+
+Do NOT redesign the existing BuzzChat UI shown in the current application.
+
+Preserve the existing:
+
+* BuzzChat Inbox
+* Contacts
+* Campaigns
+* Templates
+* Agents
+* Analytics
+* Settings
+* WATI integration
+* existing message history
+* campaigns
+* contact imports
+* templates
+* existing CRM/Leads
+* notification engine
+* human sales-agent assignments
+* workspace isolation
+
+Create a checkpoint first.
+
+---
+
+# 1. AUDIT THE CURRENT FLOW
+
+Before changing anything, trace the complete existing production flow:
+
+**Inbound WhatsApp message**
+→ provider webhook
+→ workspace resolution
+→ BuzzChat contact
+→ conversation
+→ message storage
+→ unread/replied state
+→ notification generation
+
+Identify the exact tables/services/routes involved.
+
+Also inspect the canonical WEBEE Leads/CRM implementation and determine:
+
+* canonical lead/contact tables
+* lead statuses
+* sentiment fields
+* booking fields
+* assignment fields
+* pipeline/category implementation
+* source fields
+* activity/history implementation
+* phone normalization
+* workspace-specific lead resolvers
+
+Do not create duplicate models unnecessarily.
+
+---
+
+# 2. INBOUND BUZZCHAT REPLY MUST UPDATE THE CRM
+
+When a genuinely NEW inbound customer WhatsApp reply is received, automatically connect it to the canonical WEBEE CRM/Lead system.
+
+Required flow:
+
+**New inbound BuzzChat message**
+
+→ deduplicate provider webhook
+→ resolve workspace
+→ normalize customer phone number
+→ locate canonical contact/lead
+→ update/create appropriate CRM relationship
+→ record BuzzChat activity
+→ surface person in Leads/CRM pipeline
+→ create configured notification
+→ make same state immediately available to mobile
+
+---
+
+# 3. CONTACT / LEAD MATCHING
+
+Do not create duplicate leads every time someone sends another WhatsApp message.
+
+Match in this order where applicable:
+
+1. existing canonical BuzzChat/contact relationship
+2. external CRM/contact ID
+3. normalized E.164 phone number
+4. existing WEBEE lead/contact mapping
+5. other existing canonical identifier
+
+Phone matching must normalize formatting such as:
+
+* `+44...`
+* `0044...`
+* local formats
+
+according to existing project rules.
+
+Always scope matching to the correct workspace.
+
+---
+
+# 4. IF AN EXISTING LEAD EXISTS
+
+If the person already exists as a WEBEE lead:
+
+Do NOT create another lead.
+
+Update the existing lead with relevant BuzzChat activity.
+
+Store/reuse fields or relationships capable of representing:
+
+* BuzzChat conversation ID
+* latest inbound WhatsApp message
+* latest reply timestamp
+* unread/reply state
+* message source
+* WhatsApp provider
+* requires human follow-up where applicable
+
+Prefer an activity/event relationship rather than bloating the lead row if the existing architecture already supports activities.
+
+---
+
+# 5. IF CONTACT EXISTS BUT NOT AS A LEAD
+
+If the person exists in BuzzChat/CRM contacts but has no canonical WEBEE lead and they send a genuine inbound reply:
+
+create or promote them into the Leads pipeline using existing CRM conventions.
+
+Use source such as:
+
+**BuzzChat / WhatsApp**
+
+Do this ONCE.
+
+Subsequent replies update the same lead.
+
+Do not create one lead per message.
+
+---
+
+# 6. BUZZCHAT REPLY PIPELINE STATE
+
+Users need to clearly see customers who have replied.
+
+Add or reuse a canonical pipeline concept representing:
+
+**WhatsApp Replied**
+
+or:
+
+**BuzzChat Reply**
+
+Prefer the existing pipeline/category architecture.
+
+IMPORTANT:
+
+Do NOT automatically change:
+
+* Qualified status
+* Positive sentiment
+* Booking status
+
+merely because someone replied.
+
+A reply means:
+
+**customer has responded**
+
+not:
+
+**customer is qualified**
+
+and not:
+
+**customer sentiment is positive**
+
+If the existing system uses a fixed lead-status enum, do NOT corrupt that enum merely to add BuzzChat.
+
+Instead create a canonical property/activity/filter such as:
+
+* `has_buzzchat_reply`
+* `last_buzzchat_reply_at`
+* `buzzchat_requires_followup`
+
+or an equivalent existing pipeline/category mechanism.
+
+---
+
+# 7. CRM / LEADS UI
+
+In the WEBEE Leads/CRM area, make BuzzChat replies immediately visible.
+
+Add a useful pipeline/filter/category such as:
+
+**WhatsApp Replies**
+
+or:
+
+**BuzzChat Replies**
+
+Show people who have actually replied.
+
+For each applicable lead show where useful:
+
+**WhatsApp replied**
+
+Latest reply time
+
+Unread indicator
+
+Assigned sales agent
+
+Short latest-message preview
+
+Do not turn the lead table/card into a messaging interface.
+
+Clicking the BuzzChat indicator should open the corresponding BuzzChat conversation.
+
+---
+
+# 8. PIPELINE COUNTS
+
+The BuzzChat reply pipeline/filter count must come from canonical backend data.
+
+Example:
+
+**BuzzChat Replies · 39**
+
+must represent the actual relevant leads for that workspace.
+
+Do not calculate it separately in the browser.
+
+---
+
+# 9. PRESERVE LEAD SEMANTICS
+
+Audit and explicitly preserve the distinction between:
+
+### Lead status
+
+Examples:
+
+* need to call
+* interested
+* qualified
+* completed
+* DNC
+
+### Sentiment
+
+Examples:
+
+* positive
+* neutral
+* negative
+
+### Booking
+
+* booked
+* not booked
+
+### Communication state
+
+* WhatsApp replied
+* unread reply
+* awaiting response
+
+These are separate dimensions.
+
+Do not merge them.
+
+---
+
+# 10. BUZZCHAT REPLY NOTIFICATIONS
+
+When a unique new inbound reply is received, generate the canonical:
+
+**BuzzChat reply received**
+
+notification if enabled by workspace/user settings.
+
+Notification should contain:
+
+* workspace
+* contact/lead
+* conversation
+* related lead ID where available
+* conversation ID
+* timestamp
+* short safe preview
+* deep-link metadata
+
+Deduplicate retries using provider message ID or another stable canonical identifier.
+
+ONE inbound message must produce ONE event.
+
+---
+
+# 11. PROVIDER ABSTRACTION
+
+The canonical inbound reply event should be provider-independent.
+
+Support current configured providers where WEBEE already supports them, including applicable:
+
+* WATI
+* Meta WhatsApp
+* Twilio WhatsApp
+
+Do not write lead-sync logic directly inside one provider-specific UI component.
+
+Normalize provider events into the central BuzzChat/message service first.
+
+---
+
+# 12. CANONICAL BUZZCHAT API FOR MOBILE
+
+The mobile app currently fails with:
+
+**Couldn't load conversations**
+
+Expose/repair one canonical authenticated API contract for mobile BuzzChat.
+
+Mobile needs at minimum:
+
+### Conversation list
+
+Return:
+
+* conversation ID
+* contact/lead ID where linked
+* name
+* phone
+* latest message preview
+* latest message timestamp
+* unread count/state
+* assigned user where applicable
+* conversation status
+* workspace
+* provider only where needed
+
+### Conversation detail
+
+Return canonical message history.
+
+### Unread count
+
+Expose a workspace-scoped canonical unread BuzzChat count.
+
+### Mark/read state
+
+Provide canonical read-state handling where applicable.
+
+---
+
+# 13. API SECURITY
+
+Every BuzzChat API request must enforce:
+
+* authenticated user
+* workspace membership
+* role/permission
+* conversation belongs to workspace
+
+Sales agents must only receive conversations allowed by their current permissions/assignment model.
+
+Never trust a mobile-supplied workspace ID without validating membership.
+
+---
+
+# 14. LEADS API — MAKE IT THE MOBILE CONTRACT
+
+Audit the backend lead endpoint consumed by mobile.
+
+The mobile screenshots show:
+
+**Qualified**
+
+and:
+
+**Positive**
+
+apparently returning the same `Need to call` records.
+
+This is incorrect.
+
+Create/verify canonical server-side lead filters.
+
+Mobile must be able to request explicit dimensions such as:
+
+### Qualified
+
+Use the EXACT web application's canonical definition.
+
+### Positive
+
+Use the EXACT web application's canonical positive-sentiment definition.
+
+### Booked
+
+Use the EXACT canonical booking definition.
+
+### Needs calling
+
+Use canonical lead/call status.
+
+### BuzzChat replied
+
+Use the new canonical reply relationship.
+
+### Assigned to me
+
+Use canonical assignment.
+
+Do NOT require mobile to interpret these fields locally.
+
+---
+
+# 15. CANONICAL TOTAL COUNTS
+
+The lead API must return proper metadata such as:
+
+* total matching records
+* page
+* page size
+* current filter
+* canonical counts where appropriate
+
+Do NOT make mobile infer:
+
+`total leads = number of rows currently fetched`
+
+If a backend safety/page limit is 500, mobile must NOT display:
+
+**500 leads**
+
+just because exactly 500 rows were returned.
+
+Return the actual canonical total separately.
+
+---
+
+# 16. WEB/MOBILE FILTER DEFINITIONS
+
+Where practical, expose filter metadata from the backend.
+
+For example:
+
+`qualified`
+
+`positive`
+
+`booked`
+
+`needs_calling`
+
+`buzzchat_replied`
+
+`assigned_to_me`
+
+This allows web and mobile to call the SAME canonical query rules.
+
+Avoid recreating filter logic twice.
+
+---
+
+# 17. REALTIME / CACHE EVENTS
+
+When a BuzzChat reply arrives:
+
+invalidate/publish relevant canonical changes for:
+
+* BuzzChat inbox
+* BuzzChat unread count
+* Leads/CRM
+* BuzzChat Replies pipeline/filter
+* Notification Centre
+* assigned user state
+
+Web users should not need to manually refresh repeatedly.
+
+Mobile will consume the same update signals.
+
+---
+
+# 18. ASSIGNMENT
+
+If the replied lead already has a human sales-agent assignment:
+
+preserve it.
+
+Do not reset assignments because a BuzzChat reply was received.
+
+If unassigned:
+
+allow admins to assign the lead using the existing human-sales-agent system.
+
+---
+
+# 19. CONVERSATION ↔ LEAD NAVIGATION
+
+Add canonical relationships enabling:
+
+**CRM Lead → Open BuzzChat**
+
+and:
+
+**BuzzChat Conversation → Open Lead**
+
+where a lead relationship exists.
+
+Do not duplicate customer records merely to support navigation.
+
+---
+
+# 20. HISTORICAL BACKFILL
+
+Audit existing BuzzChat conversations and contacts.
+
+There are already replied contacts/messages in the current BuzzChat system.
+
+Create a safe, idempotent backfill mechanism that can identify existing contacts with genuine inbound replies and connect them into the Leads pipeline.
+
+Requirements:
+
+* dry-run/report first
+* workspace scoped
+* no duplicates
+* do not alter qualification/sentiment
+* preserve existing lead assignments/status
+* log matched vs created vs skipped
+
+Do NOT blindly create hundreds of duplicate leads.
+
+---
+
+# 21. TEST CURRENT WATI EXAMPLE DATA
+
+Use real existing development/test workspace data where safe.
+
+Verify existing BuzzChat contacts with replies can be linked to canonical CRM leads.
+
+For example, if Contacts shows:
+
+**39 replied**
+
+the system should be able to explain:
+
+* how many already have leads
+* how many were newly linked
+* how many would be created
+* how many could not safely be matched
+
+Do not assume the final CRM count must equal 39 because some contacts may already map to the same lead or be excluded by canonical rules.
+
+---
+
+# 22. TESTS
+
+Add automated tests covering:
+
+### Existing lead reply
+
+Inbound message
+
+→ existing lead matched
+→ no duplicate
+→ reply activity created
+→ pipeline filter contains lead
+→ notification emitted once
+
+### New contact reply
+
+Inbound message
+
+→ one canonical lead created
+→ source = BuzzChat/WhatsApp
+→ subsequent message does NOT create another lead
+
+### Duplicate webhook
+
+Same provider message twice
+
+→ one stored event / one notification / no duplicate CRM transition
+
+### Qualified lead
+
+BuzzChat reply must NOT remove qualified state.
+
+### Positive sentiment
+
+Reply must NOT automatically become positive.
+
+### Booked lead
+
+Reply must NOT alter booking.
+
+### Workspace isolation
+
+Same phone in two workspaces must not cross-link.
+
+---
+
+# 23. DO NOT REDESIGN WEB UI
+
+This task is functionality/data integration first.
+
+Keep the current BuzzChat web design unless a very small UI addition is necessary for:
+
+* Open Lead
+* WhatsApp replied badge
+* pipeline/filter
+* reply activity
+
+Do not redesign Inbox/Contacts/Campaigns/Templates.
+
+---
+
+# ACCEPTANCE TEST
+
+Do not report this complete until this exact flow works:
+
+**Customer sends WhatsApp reply**
+
+→ provider webhook received
+→ duplicate filtered
+→ BuzzChat conversation updates
+→ correct workspace resolved
+→ canonical contact/lead matched or safely created
+→ lead appears in BuzzChat Replies pipeline/filter
+→ existing qualification/sentiment/booking preserved
+→ configured notification generated
+→ web Leads screen updates
+→ canonical API returns same updated lead to mobile.
+
+Also verify the canonical lead API returns genuinely different results for:
+
+**Qualified**
+
+vs
+
+**Positive**
+
+when the underlying data differs.
+
+---
+
+# FINAL REPORT
+
+Return:
+
+* existing BuzzChat architecture reused
+* inbound webhook flow traced
+* canonical lead matching rules
+* reply pipeline implementation
+* new fields/relationships added
+* API endpoints added/changed
+* actual lead filter semantics
+* total-count fix
+* notification integration
+* backfill dry-run results
+* tests and counts
+* unresolved records requiring manual review
+* confirmation no duplicate CRM/lead system was created

@@ -1,0 +1,356 @@
+Fix the HiveMind visual only.
+
+The current result is still wrong.
+
+## Current problems
+
+* HiveMind is still far too large
+* individual particles/dots are far too large
+* particles are blurry and over-glowing
+* neural/constellation connection lines are barely visible
+* the HiveMind visual is not moving at all
+* it does not resemble the refined animated version from the Lovable website
+
+## NON-NEGOTIABLE SCOPE
+
+ONLY modify the HiveMind visual/component and its animation.
+
+DO NOT touch:
+
+* black sidebar
+* sidebar colours
+* header
+* dashboard background
+* Lovable background colours
+* cards
+* navigation
+* layout
+* spacing
+* application functionality
+
+The black sidebar and current background work are LOCKED.
+
+---
+
+# 1. REDUCE HIVEMIND SIZE BY 60–70%
+
+The entire rendered HiveMind effect needs to be approximately **65% smaller than it is now**.
+
+This means the final visual should be only around **30–40% of its current footprint**.
+
+Do NOT simply shrink the outer container while keeping oversized particles.
+
+Scale down proportionally:
+
+* particle field radius
+* particle distribution
+* orbital/streak distances
+* neural line lengths
+* central star
+* overall animation area
+
+It should look like a small, refined ambient AI visual inside the interface, not a dominant graphic.
+
+---
+
+# 2. REDUCE PARTICLE SIZE BY 60–70%
+
+The individual dots are much too large.
+
+Reduce particle diameter/radius by approximately **60–70%**.
+
+Target visual character:
+
+* mostly tiny pinpoints
+* some slightly brighter medium points
+* very few larger accent particles
+* nothing should resemble large blurry bokeh circles
+
+The vast majority of particles should be crisp, tiny points.
+
+Think:
+**digital neural particles**, not glowing bubbles.
+
+---
+
+# 3. REMOVE THE BLURRY LOOK
+
+The current dots are too soft.
+
+Significantly reduce:
+
+* blur
+* shadow blur
+* bloom
+* oversized glow radius
+* soft halo size
+
+Each particle should have:
+
+1. a crisp visible centre
+2. only a very subtle surrounding glow
+
+The glow must NOT be larger than several times the particle itself.
+
+The visual needs to look sharp even on a high-DPI display.
+
+If Canvas is being used:
+
+* correctly handle `devicePixelRatio`
+* render at native/high-DPI resolution
+* scale drawing coordinates appropriately
+* avoid CSS scaling a low-resolution canvas
+
+This is important because the current effect looks low-resolution and fuzzy.
+
+---
+
+# 4. MAKE THE NEURAL LINES CLEARLY VISIBLE
+
+I currently cannot properly see the constellation/neural connections.
+
+Increase their visual definition WITHOUT making them thick.
+
+The lines should be:
+
+* extremely thin
+* crisp
+* cyan / blue
+* partially transparent
+* clearly visible against the dark background
+
+They should connect nearby particles dynamically.
+
+Aim for approximately:
+
+* line width: around `0.5–1px` visually
+* low-to-medium opacity
+* stronger nearer the centre
+* progressively fainter toward the outer field
+
+Do NOT make the neural network dense enough to resemble a spider web.
+
+I want a sparse, elegant constellation network.
+
+---
+
+# 5. THE HIVEMIND MUST ACTUALLY MOVE
+
+The current HiveMind appears static.
+
+That is unacceptable.
+
+The Lovable website version is animated, and this version needs the same feeling.
+
+Make sure there is a real continuous animation loop running.
+
+Use `requestAnimationFrame` if this is Canvas.
+
+Every frame should update particle positions.
+
+Particles should NOT simply be generated once and left static.
+
+---
+
+# 6. REQUIRED MOTION
+
+Idle motion should include:
+
+### Particle drift
+
+Each particle should:
+
+* move very slowly
+* have its own velocity
+* drift organically
+* slightly change direction over time
+
+Movement should be subtle.
+
+### Central attraction/orbit
+
+Some particles should gently:
+
+* drift around the central point
+* curve through the field
+* pass inward/outward
+
+Do NOT make everything rotate around the centre.
+
+### Neural connections
+
+Connections should dynamically:
+
+* appear between nearby particles
+* move as particles move
+* disappear as distance increases
+* continuously reform
+
+This is important because it makes HiveMind feel alive.
+
+### Twinkling
+
+Some particles should:
+
+* subtly vary opacity
+* brighten/fade at independent rates
+
+Do not flash.
+
+### Curved neural fragments
+
+Include the fine curved line fragments seen in the Lovable/WebespokeAI visual.
+
+These should:
+
+* slowly move
+* subtly rotate/change position
+* appear/disappear naturally
+
+They should not form a visible oval or circle.
+
+---
+
+# 7. CENTRAL STAR
+
+Keep the central bright intelligence point, but reduce it substantially.
+
+The centre should be:
+
+* small
+* crisp
+* white/cyan
+* slightly brighter than surrounding particles
+
+Add a very subtle breathing pulse:
+
+approximately:
+
+`scale / brightness = 0.95 → 1.05 → 0.95`
+
+over several seconds.
+
+Do NOT create a large glowing orb.
+
+---
+
+# 8. NO OVAL SHAPE
+
+The particle distribution must NOT create an obvious oval/capsule.
+
+HiveMind should remain **formless**.
+
+Avoid:
+
+* symmetrical oval boundary
+* pill-shaped distribution
+* obvious circular perimeter
+* enclosing orbital ring
+* background glow forming a shape
+
+Particles should naturally become more sparse toward the edges.
+
+The edge of HiveMind should effectively disappear into the dashboard.
+
+---
+
+# 9. MATCH THE LOVABLE VISUAL
+
+The Lovable/WebespokeAI implementation is still the visual source of truth.
+
+The target appearance is:
+
+* tiny crisp cyan particles
+* very small central star
+* visible fine neural connections
+* sparse curved fragments
+* lots of negative space
+* subtle constant movement
+* no blob
+* no oval
+* no obvious container
+
+Do NOT reinterpret this into another particle design.
+
+---
+
+# 10. PERFORMANCE / ANIMATION DEBUGGING
+
+Since the current version is not moving, explicitly verify:
+
+* `requestAnimationFrame` is actually running
+* particle positions change between frames
+* the canvas is not being rendered only once
+* animation has not been disabled by an incorrect state condition
+* `prefers-reduced-motion` is not accidentally disabling animation for all users
+* React re-renders are not continually resetting particle positions
+* canvas lifecycle cleanup is correct
+* animation continues while the component is visible
+
+Use browser/dev logs temporarily if necessary to prove the animation loop runs.
+
+Remove unnecessary debugging afterwards.
+
+---
+
+# 11. VISUAL TARGET
+
+Compared with the current version:
+
+### Overall HiveMind size
+
+**reduce approximately 65%**
+
+### Particle size
+
+**reduce approximately 65%**
+
+### Particle blur
+
+**reduce approximately 70–85%**
+
+### Neural line visibility
+
+**increase significantly**
+
+### Animation
+
+**must be visibly active but subtle**
+
+The finished effect should look significantly smaller, sharper and more intricate.
+
+---
+
+# IMPORTANT VALIDATION
+
+Before committing, visually verify all of these:
+
+* HiveMind footprint is roughly 60–70% smaller
+* dots are tiny and crisp
+* no large fuzzy particles
+* central glow is small
+* neural connection lines are clearly visible
+* particles visibly move when watched for several seconds
+* neural connections update as particles move
+* subtle curved fragments move
+* there is no oval/capsule shape
+* the black sidebar has not changed
+* dashboard/background/header have not changed
+* surrounding layout has not moved
+
+If the animation is still static, DO NOT mark the task complete.
+
+## Final report
+
+Tell me:
+
+1. exact HiveMind files changed
+2. previous overall dimensions vs new dimensions
+3. previous particle size range vs new range
+4. previous blur/glow values vs new values
+5. neural line width/opacity used
+6. particle movement/velocity implementation
+7. how `requestAnimationFrame` is being used
+8. confirmation you visually verified that it is moving
+9. confirmation HiveMind is approximately 60–70% smaller
+10. confirmation sidebar/background/layout were completely untouched

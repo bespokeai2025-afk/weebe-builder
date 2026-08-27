@@ -1,0 +1,184 @@
+URGENT — WBAH AGENTS ARE STILL ONLY OFFERING TODAY'S APPOINTMENTS
+
+The latest live call proves the availability fix is not behaving correctly.
+
+The agent offered:
+
+09:40 today
+09:45 today
+09:50 today
+09:55 today
+10:00 today
+...
+and eventually said:
+
+"all the available consultation slots I can offer are today."
+
+This is wrong.
+
+DO NOT redesign the conversation flow.
+
+==================================================
+ROOT ISSUE TO TRACE
+==================================================
+
+Trace the actual runtime invocation of:
+
+get_available_slots
+
+for this call.
+
+Return the exact:
+
+preferred_date
+limit
+start_time
+end_time
+slots returned
+
+I expect preferred_date is still resolving to {{current_date}} or the backend is restricting an explicit date to today's availability.
+
+==================================================
+CORRECT REQUIRED BEHAVIOUR
+==================================================
+
+If the caller has NOT specifically requested a date:
+
+preferred_date MUST be null.
+
+The endpoint must search NEXT AVAILABLE future appointments across the configured search window.
+
+Example:
+
+Call happens Tuesday.
+
+If Tuesday has slots:
+→ it can offer one or two Tuesday slots
+
+BUT it must also be able to offer later options such as:
+
+Wednesday
+Thursday
+Friday
+
+The caller must NOT be forced through every slot today before reaching tomorrow.
+
+==================================================
+IF CALLER REQUESTS A DATE
+==================================================
+
+Only send preferred_date when the caller explicitly says something like:
+
+"Wednesday"
+"tomorrow"
+"Friday"
+"the 24th"
+
+Then resolve that requested date and search it.
+
+Do NOT automatically map:
+
+{{current_date}} → preferred_date
+
+==================================================
+CHANGE THE DEFAULT TOOL INPUT
+==================================================
+
+Audit every WBAH Retell agent using get_available_slots.
+
+Remove any default such as:
+
+preferred_date: {{current_date}}
+
+Default must be:
+
+preferred_date: null
+
+Then populate preferred_date only from an ACTUAL caller date preference.
+
+Apply this consistently to ALL WBAH agents using this booking tool.
+
+==================================================
+IMPROVE SLOT SELECTION
+==================================================
+
+When no preferred date is specified, do not return hundreds of same-day options first.
+
+Return a useful spread of genuinely bookable appointments.
+
+For example:
+
+- earliest available today
+- next useful slot later today
+- earliest available next working day
+
+or the next 2–3 sensible choices across dates.
+
+The caller should hear:
+
+"I have 10 AM today, 2 PM tomorrow, or 11:30 Thursday."
+
+NOT:
+
+"9:40 today... 9:45 today... 9:50 today..."
+
+==================================================
+5-MINUTE BUG
+==================================================
+
+Also verify the previous fix removing artificial 5-minute slot generation is actually live.
+
+If the endpoint is STILL returning:
+
+09:40
+09:45
+09:50
+09:55
+
+then the genuine Calendly event-type availability fix has NOT been deployed correctly.
+
+Only genuine bookable Calendly start times should be returned.
+
+==================================================
+ACCEPTANCE TEST
+==================================================
+
+Test a WBAH call with no requested date.
+
+Expected:
+
+preferred_date = null
+
+and response includes sensible future availability rather than only today.
+
+Then test:
+
+Caller: "What do you have tomorrow?"
+
+Expected:
+
+preferred_date = tomorrow's resolved date
+
+and only genuine tomorrow availability returned.
+
+Apply this to ALL WBAH agents using this shared booking function.
+
+FINAL RESPONSE:
+
+Runtime preferred_date:
+...
+
+Why only today's slots were returned:
+...
+
+current_date default removed:
+YES/NO
+
+No-date search across future days:
+PASS/FAIL
+
+Artificial 5-minute slots removed:
+YES/NO
+
+All WBAH agents audited:
+YES/NO

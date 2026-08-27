@@ -1,0 +1,162 @@
+Update the **WEBEE dashboard background only** so it uses the same **deep navy + subtle two-tone sheen** as the homepage of **[www.webespokeai.com](http://www.webespokeai.com)**.
+
+The WebespokeAI homepage is the **visual source of truth**.
+
+### What I want
+
+The background should NOT just be dark blue.
+
+It should have that same premium layered effect from the website:
+
+**deep midnight navy base**
++
+**subtle indigo / blue-violet secondary tone**
++
+**very soft directional sheen**
+
+The effect should be visible enough to give the background depth, but subtle enough that it still feels very dark.
+
+### Target visual character
+
+Think roughly:
+
+`#050B1C`
+→ `#08132A`
+→ `#15143C`
+
+These are directional references only.
+
+If possible, inspect the actual WebespokeAI homepage CSS/background implementation and reuse the closest existing brand gradient values.
+
+### Main dashboard background
+
+Replace the current flat/bright blue with a much deeper layered background.
+
+Use something conceptually similar to:
+
+```css
+background:
+  radial-gradient(
+    circle at 72% 18%,
+    rgba(66, 52, 145, 0.16),
+    transparent 45%
+  ),
+  linear-gradient(
+    125deg,
+    #050b1c 0%,
+    #08132a 48%,
+    #15143c 100%
+  );
+```
+
+Do NOT blindly use those exact values if the website already contains the actual WEBESPOKEAI colours. Prefer the real brand values where available.
+
+### The sheen is important
+
+I specifically want the subtle **two-tone sheen** visible on the WebespokeAI homepage.
+
+It should look like a very soft secondary indigo/blue-violet light sitting underneath the navy surface.
+
+It must NOT look like:
+
+* a visible circle
+* a spotlight
+* a large purple blob
+* a bright gradient
+* a glowing card
+* a radial halo
+
+The transition should be extremely soft and broad.
+
+You should notice the colour variation subconsciously rather than seeing an obvious effect.
+
+### Sidebar
+
+KEEP THE SIDEBAR DARK.
+
+I liked the previous darker sidebar.
+
+Do not lighten it to match the page.
+
+The hierarchy should remain:
+
+**Sidebar — darkest navy**
+→
+**Main dashboard — deep navy with subtle two-tone sheen**
+
+The dark sidebar should make sense naturally against the deeper dashboard background.
+
+### Header
+
+Make the header use the same deep navy environment as the dashboard.
+
+Do not make it a separate black or blue strip.
+
+Allow the underlying navy/indigo colour language to continue into it while keeping enough distinction for navigation.
+
+### Important colour rule
+
+Do not make the whole dashboard purple.
+
+The hierarchy should be approximately:
+
+**85–90% deep navy / midnight blue**
+
+**10–15% subtle indigo / blue-violet influence**
+
+Cyan remains an **accent colour only** for:
+
+* live states
+* active navigation
+* borders
+* interactive states
+* status indicators
+
+### Preserve everything else
+
+Do NOT modify:
+
+* dashboard layout
+* sidebar structure
+* navigation
+* cards
+* agent pills
+* voicemail banner
+* Live Calls
+* HiveMind
+* icons
+* typography
+* spacing
+* functionality
+* data
+
+This task is ONLY about the **background colour system and shell blending**.
+
+### Very important
+
+Do not reinterpret this into a new design.
+
+I want the background to feel like the **WebespokeAI homepage has been extended into the WEBEE dashboard**.
+
+Deep navy first.
+
+Subtle two-tone indigo sheen second.
+
+No bright blue wash.
+
+No obvious purple gradient.
+
+No large glow.
+
+No flat single-colour background.
+
+Implement this in the shared application shell/theme rather than adding page-specific hacks.
+
+After implementing, tell me:
+
+1. exact files changed
+2. final background CSS/variables
+3. sidebar colour used
+4. main navy colours used
+5. indigo/blue-violet sheen values
+6. confirmation that no dashboard layout or functionality changed

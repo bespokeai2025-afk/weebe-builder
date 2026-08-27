@@ -1,0 +1,142 @@
+Fix the HiveMind positioning across the WEBEE app.
+
+The current positioning is still wrong.
+
+## What is wrong now
+
+On pages like the attached Knowledge Centre screen, HiveMind is:
+
+* too high
+* too close to the top-right
+* floating in the decorative background area
+* visually detached from the actual interface
+* not feeling like a deliberate system element
+
+The HIVEMIND label is also too separated from the particle field.
+
+## New global rule
+
+HiveMind should default to the **bottom-right of the main content shell** across the app.
+
+It should behave like a persistent ambient system element.
+
+### Standard pages
+
+When there is no right-side settings panel:
+
+* anchor HiveMind to the bottom-right of the main content area
+* use roughly:
+
+  * 28–36px from the right edge
+  * 28–40px from the bottom edge
+
+### Pages with a right-side settings panel
+
+If a right rail/settings panel is open:
+
+* keep HiveMind in the lower-right region
+* shift it left and/or upward enough to avoid:
+
+  * accordions
+  * buttons
+  * controls
+  * scrollbars
+  * bottom actions
+
+### Pages with bottom bars or floating controls
+
+If a bottom toolbar or action bar exists:
+
+* move HiveMind upward just enough to avoid collision
+* keep the bottom-right anchoring logic
+
+## Important
+
+Do NOT place HiveMind:
+
+* in the top-right hero area
+* near page titles
+* in decorative header space
+* on top of cards
+* randomly per page
+
+Keep the positioning controlled by one shared global system.
+
+## HiveMind label
+
+Keep the `HIVEMIND` label visually attached to the particle visual.
+
+Do not separate them.
+
+Place the label:
+
+* just below, or
+* slightly lower-right of the particle field
+
+Keep the spacing tight and intentional.
+
+## Shared implementation only
+
+Do not create page-specific CSS hacks.
+
+Use:
+
+* shared shell positioning
+* responsive offsets
+* right-panel awareness
+* bottom-bar awareness
+
+The preferred anchor should always be:
+
+**bottom-right of the main content shell**
+
+with only small adaptive movement for collision avoidance.
+
+## Do not change anything else
+
+Do NOT modify:
+
+* sidebar
+* header
+* background colours
+* cards
+* layout
+* navigation
+* data
+* HiveMind particle styling
+* HiveMind animation
+* functionality
+
+This task is positioning only.
+
+## Validation
+
+Test on:
+
+1. Dashboard
+2. Knowledge Centre
+3. Conversation Flow / Builder
+4. pages with a right settings rail
+5. pages without a right settings rail
+
+Verify:
+
+* HiveMind is no longer top-right
+* it sits bottom-right by default
+* it does not overlap controls
+* the label stays visually connected
+* no page-specific hacks were added
+* no unrelated UI changed
+
+## Final report
+
+Tell me:
+
+1. files changed
+2. how the shared positioning works
+3. default desktop offsets
+4. how right-panel collisions are handled
+5. how bottom-bar collisions are handled
+6. how the label placement was fixed
+7. pages tested
+8. confirmation no unrelated UI changed

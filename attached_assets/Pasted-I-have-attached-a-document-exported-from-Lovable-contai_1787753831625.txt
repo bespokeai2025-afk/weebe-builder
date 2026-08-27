@@ -1,0 +1,255 @@
+I have attached a document exported from Lovable containing the **exact background implementation/specification used on the WebespokeAI homepage**.
+
+Use that attached document as the **SOURCE OF TRUTH** for this task.
+
+Do NOT guess the colours from screenshots.
+Do NOT create your own interpretation of the gradient.
+Do NOT use the approximate colours from our previous attempts where the Lovable document provides exact values.
+
+## TASK
+
+Apply the WebespokeAI homepage's **exact deep navy + two-tone blue/indigo sheen** to the WEBEE application dashboard shell.
+
+The objective is for the WEBEE dashboard background to feel like a direct continuation of the visual environment used on the WebespokeAI homepage.
+
+### STEP 1 — READ THE ATTACHED DOCUMENT FIRST
+
+Before changing any code:
+
+1. Read the entire attached Lovable background document.
+2. Identify:
+
+   * exact base navy colour
+   * secondary blue/indigo colour
+   * gradient declarations
+   * gradient angles
+   * gradient stops
+   * radial gradient positioning
+   * opacity values
+   * overlays
+   * pseudo-elements
+   * blur/filter values
+   * blend modes
+   * CSS variables/design tokens
+   * background layers
+3. Identify which parts are responsible specifically for the **deep two-tone background sheen**.
+
+Do not start editing until this is understood.
+
+## STEP 2 — PORT IT TO WEBEE
+
+Recreate that background treatment in WEBEE as faithfully as possible.
+
+Use the actual Lovable values wherever technically compatible.
+
+The WEBEE implementation should use the same:
+
+* navy base
+* indigo/blue-violet secondary tone
+* gradient direction
+* gradient positioning
+* opacity balance
+* background lighting
+* sheen
+* layering
+* blending behaviour
+
+If Lovable uses multiple background layers, reproduce those layers rather than collapsing everything into one approximate gradient.
+
+## IMPORTANT: KEEP THE SIDEBAR DARK
+
+I liked the original dark sidebar.
+
+DO NOT lighten the sidebar again.
+
+The desired hierarchy is:
+
+**Sidebar**
+→ darkest deep navy
+
+**Main dashboard**
+→ deep navy with the exact WebespokeAI two-tone sheen
+
+**Top header**
+→ same dark navy environment as the main dashboard, blended naturally into it
+
+The sidebar should remain visibly darker while still belonging to the same colour family.
+
+Do not turn the sidebar blue.
+
+Do not make it purple.
+
+Do not use pure flat black unless that is already part of the existing sidebar styling.
+
+## MAIN DASHBOARD
+
+The current WEBEE background is too flat/bright blue.
+
+Replace that background treatment with the implementation extracted from the Lovable document.
+
+The result should be:
+
+* significantly darker
+* deep midnight navy
+* subtly two-tone
+* subtle indigo/blue-violet depth
+* premium
+* restrained
+* sophisticated
+
+The secondary colour should behave like a **sheen underneath the navy**, not like a visible purple gradient.
+
+## SHEEN
+
+This is particularly important.
+
+The WebespokeAI homepage has a subtle second tone running through the dark navy.
+
+I want that SAME effect.
+
+It should NOT become:
+
+* a purple blob
+* obvious radial circle
+* spotlight
+* bright blue wash
+* neon gradient
+* large glow
+* cartoonish lighting
+
+The viewer should perceive depth and colour variation without immediately seeing an obvious gradient shape.
+
+## TOP HEADER
+
+Make the top header naturally continue the same background environment.
+
+The header should no longer look like an unrelated strip sitting above the dashboard.
+
+However:
+
+DO NOT remove the structural header.
+DO NOT change its height.
+DO NOT move its controls.
+DO NOT redesign it.
+
+Only correct its background/blending.
+
+## SIDEBAR
+
+Preserve the existing dark sidebar styling as much as possible.
+
+Only make tiny colour adjustments if necessary to harmonise it with the exact Lovable navy.
+
+Do NOT repeat the previous mistake of lightening the sidebar.
+
+The solution is to make the **main dashboard darker**, not the sidebar lighter.
+
+## KEEP CYAN AS AN ACCENT
+
+The cyan/teal currently used for:
+
+* live agents
+* active navigation
+* status indicators
+* interactive borders
+* HiveMind
+* icons
+
+should remain an accent.
+
+Do not introduce additional cyan into the page background.
+
+The dark navy background should make these accents stand out naturally.
+
+## DO NOT TOUCH
+
+Do not modify:
+
+* dashboard layout
+* cards
+* stat cards
+* agent pills
+* voicemail banner
+* Live Calls
+* HiveMind
+* HiveMind animation
+* navigation items
+* sidebar structure
+* header controls
+* typography
+* spacing
+* data
+* APIs
+* functionality
+* Ava
+* website homepage
+* public WebespokeAI website
+
+The WebespokeAI/Lovable implementation is **REFERENCE SOURCE CODE ONLY**.
+
+The edit target is the **WEBEE application**.
+
+## IMPLEMENTATION QUALITY
+
+Implement this at the proper shared shell/theme level.
+
+Do NOT:
+
+* add dashboard-specific CSS hacks
+* duplicate gradients across multiple components
+* hardcode different colours in multiple places
+* create unnecessary new wrappers
+
+Where sensible, create/reuse shared theme variables such as:
+
+```css
+--webee-shell-base
+--webee-shell-secondary
+--webee-shell-sheen
+--webee-sidebar-bg
+--webee-header-bg
+```
+
+But preserve the exact visual values from the Lovable document.
+
+## IMPORTANT CONFLICT RULE
+
+If there is a conflict between:
+
+1. approximate colours mentioned in previous Replit instructions
+2. your own interpretation
+3. values contained in the attached Lovable document
+
+**THE LOVABLE DOCUMENT WINS.**
+
+Do not substitute approximate values where exact values are available.
+
+## BEFORE IMPLEMENTING
+
+First tell me internally/through your task process:
+
+* which WEBEE shell/layout component controls the dashboard background
+* which files control the sidebar/header
+* what exact Lovable background values you found
+
+Then implement the changes.
+
+## AFTER IMPLEMENTATION REPORT
+
+Report:
+
+1. exact WEBEE files changed
+2. exact Lovable base colour copied
+3. exact Lovable secondary colour copied
+4. complete gradient/background declaration implemented
+5. sheen/overlay implementation
+6. sidebar final background value
+7. header final background treatment
+8. whether any Lovable values could not be reproduced exactly and why
+9. confirmation sidebar remained dark
+10. confirmation dashboard layout/functionality was untouched
+11. confirmation Ava/HiveMind/public website were untouched
+
+Most importantly:
+
+**Do not redesign the dashboard. Port the exact WebespokeAI background colour system from the attached Lovable document into the existing WEBEE shell.**

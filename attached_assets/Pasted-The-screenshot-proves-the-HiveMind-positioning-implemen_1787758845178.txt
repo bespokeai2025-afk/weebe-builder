@@ -1,0 +1,190 @@
+The screenshot proves the HiveMind positioning implementation is still incorrect.
+
+You reported that HiveMind defaults to 32px from the right and 32px from the bottom of the main content shell.
+
+That is NOT what is actually rendering.
+
+In the attached screenshot HiveMind is still appearing at the **TOP-RIGHT of the page**, underneath the header/notification area, and the `HIVEMIND` label is overlapping the live-agent pills.
+
+Do not make another cosmetic offset adjustment.
+
+## FIND THE ACTUAL POSITIONING BUG
+
+Inspect the rendered DOM and determine why a supposedly bottom-right anchored component is rendering top-right.
+
+Specifically investigate:
+
+1. which DOM element is actually being used as the containing block
+2. the real measured height of `.app-shell-main`
+3. whether an ancestor with `position: relative`, transforms, overflow, containment, or unusual height is changing the positioning context
+4. whether persisted HiveMind drag coordinates are overriding the new default position
+5. whether old localStorage/sessionStorage position data is still being restored
+6. whether the label and particle field are being positioned separately
+7. whether route transitions are preserving an invalid coordinate from another layout
+
+## REQUIRED FIX
+
+HiveMind must have ONE shared positioning wrapper containing BOTH:
+
+* particle field
+* `HIVEMIND` label
+
+They must move and position together as a single unit.
+
+### Desktop default
+
+On a normal page such as Dashboard:
+
+HiveMind must render in the **lower-right of the usable application viewport/content shell**.
+
+NOT:
+
+* top-right
+* header
+* hero area
+* next to agent pills
+
+Default target:
+
+```text
+right: 28–36px
+bottom: 28–40px
+```
+
+relative to the usable app area.
+
+## IMPORTANT: USE THE CORRECT ANCHOR
+
+If `.app-shell-main` cannot guarantee a full viewport-height positioning context, do NOT continue pretending it can.
+
+Fix the shell geometry properly OR use a dedicated shell-level HiveMind overlay that covers:
+
+```text
+top: header height
+left: sidebar width
+right: 0
+bottom: 0
+```
+
+Then position HiveMind inside that full usable area.
+
+The positioning container must represent the ACTUAL visible application workspace.
+
+Do not anchor HiveMind to page content whose height changes per route.
+
+## PRESERVED DRAGGING
+
+HiveMind must remain draggable.
+
+However:
+
+### Initial/default position
+
+Always starts bottom-right.
+
+### After user drags it
+
+The user-defined position may persist.
+
+### Critical migration rule
+
+Clear or invalidate any OLD stored HiveMind coordinates created by the previous broken positioning system.
+
+Old top-right drag coordinates must NOT override the corrected default.
+
+Add a positioning schema/version if necessary, for example:
+
+```text
+hivemindPositionVersion = 2
+```
+
+If stored coordinates came from the old positioning system, discard them and initialize bottom-right.
+
+## COLLISION SYSTEM
+
+After establishing the correct bottom-right default:
+
+* right settings rail → shift left
+* bottom toolbar → shift upward
+* floating controls → move only enough to avoid them
+* viewport resize → clamp back inside usable bounds
+
+Collision handling must start from the bottom-right anchor.
+
+It must NEVER arbitrarily relocate HiveMind into the top-right header region.
+
+## LABEL BUG
+
+The `HIVEMIND` text is currently detached and overlapping other UI.
+
+Fix this.
+
+Particle visual + label must live inside ONE wrapper:
+
+```text
+HiveMind wrapper
+ ├─ particle animation
+ └─ HIVEMIND label
+```
+
+The label should stay approximately 2–5px underneath or lower-right of the particle field.
+
+It must never independently overlap page content.
+
+## VISUAL VALIDATION IS REQUIRED
+
+Do not rely only on tests.
+
+Run an authenticated Dashboard preview.
+
+On the Dashboard screenshot I should see:
+
+* HiveMind in the LOWER-RIGHT
+* nowhere near the notification bell
+* nowhere near the agent pills
+* label attached to particles
+* no overlap with voicemail bar / Live Calls
+* sensible breathing room from edges
+
+Then test:
+
+* Dashboard
+* Knowledge Centre
+* Conversation Flow
+* right-settings-panel layout
+
+Take screenshots or inspect the actual rendered UI.
+
+## LOCKED AREAS
+
+Do NOT alter:
+
+* black sidebar
+* shell colours
+* header styling
+* cards
+* agent pills
+* HiveMind particle design
+* particle sharpness
+* animation
+* page layouts
+* data/functionality
+
+This task is specifically to fix the **broken positioning coordinate system**.
+
+## DO NOT COMPLETE UNTIL
+
+The actual rendered authenticated Dashboard shows HiveMind in the lower-right.
+
+A passing unit test is not sufficient.
+
+Report:
+
+1. root cause of why `bottom: 32px` rendered top-right
+2. actual containing element previously used
+3. corrected positioning container
+4. whether stale drag coordinates were found
+5. whether stored coordinates were migrated/reset
+6. final default coordinates
+7. screenshots/pages visually checked
+8. confirmation particle field and label now move as one unit

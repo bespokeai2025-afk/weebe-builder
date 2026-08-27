@@ -1,0 +1,126 @@
+# REVERT ONLY THE RECENT BOOKING / CALENDAR CHANGES
+
+I believe recent Replit work changed the WBAH / TTC booking and Calendly logic.
+
+I want those recent Replit booking changes reverted before we make any further changes.
+
+Do NOT perform a broad rollback.
+Do NOT revert unrelated WEBEE work.
+Do NOT redesign the Retell flow.
+
+## Preserve the existing Retell flow
+
+The intended Retell flow already exists:
+
+Extract Variables
+→ Get Available Slots
+→ Conversation using `{{slot_message}}`
+→ confirm selected date/time
+→ Book Appointment
+
+Preserve this flow.
+
+## Step 1 — Audit recent changes first
+
+Inspect git history/diffs and identify every recent change related to:
+
+* Calendly
+* appointment availability
+* `available_slots`
+* `slot_message`
+* `Get Available Slots`
+* `Book Appointment`
+* `wbah-availability`
+* WEBEE campaign executor booking logic
+* pre-call availability fetching
+* live availability fetching
+* Retell booking tools/functions
+* WBAH TTC agent booking
+* callback fallback logic
+
+Identify which changes were made during the recent investigation/fix attempts.
+
+## Step 2 — Revert only those recent changes
+
+Restore the booking/calendar code to the **last known working state immediately before these recent Replit booking modifications**.
+
+Do NOT revert:
+
+* canonical Leads fixes
+* workspace scoping
+* BuzzChat
+* mobile fixes
+* notifications
+* lead origin
+* campaigns unrelated to booking
+* other API changes
+
+This must be a surgical revert.
+
+## Step 3 — Do not modify Retell yet
+
+Do not push any new Retell agent configuration.
+
+Do not change:
+
+* Get Available Slots node
+* Book Appointment node
+* conversation nodes
+* transitions
+* `slot_message`
+* prompts
+
+I want the existing Retell flow left untouched while we determine exactly how its current tool works.
+
+## Step 4 — Do not replace the old system with a new one
+
+Do NOT currently:
+
+* add new availability endpoints
+* change Calendly integrations
+* inject new dynamic variables
+* remove existing dynamic variables
+* change campaign dispatch
+* introduce a new booking architecture
+
+This task is REVERT ONLY.
+
+## Step 5 — prove what was reverted
+
+After reverting, run builds/tests and confirm the API still starts.
+
+Return only:
+
+### Booking-related commits/changes found
+
+<list>
+
+### Files reverted
+
+<list>
+
+### Last known working state restored from
+
+<commit SHA>
+
+### Retell flow modified
+
+NO
+
+### Unrelated WEBEE changes preserved
+
+YES/NO
+
+### API build
+
+PASS/FAIL
+
+### Tests
+
+PASS/FAIL
+
+### Current booking behaviour after revert
+
+<brief description>
+
+Do not make any new booking implementation changes after the revert.

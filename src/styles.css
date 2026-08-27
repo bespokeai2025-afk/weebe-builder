@@ -64,6 +64,13 @@
 
 :root {
   --radius: 1rem;
+  --webee-shell-base: var(--background);
+  --webee-shell-secondary: var(--background);
+  --webee-shell-sheen: var(--background);
+  --webee-shell-cyan: var(--background);
+  --webee-shell-background: var(--background);
+  --webee-sidebar-background: var(--sidebar);
+  --webee-header-background: color-mix(in srgb, var(--background) 88%, transparent);
 
   /* Black & White — webespoke light */
   --background: #ffffff;
@@ -106,16 +113,6 @@
   --sidebar-accent-foreground: #0a0f1c;
   --sidebar-border: rgba(10, 15, 28, 0.1);
   --sidebar-ring: #0a0f1c;
-
-  --flow-canvas: #ffffff;
-  --flow-grid: rgba(10, 15, 28, 0.06);
-  --flow-node: #0a0f1c;
-  --flow-edge: #52525b;
-  --flow-minimap-bg: rgba(255, 255, 255, 0.92);
-  --flow-minimap-border: rgba(10, 15, 28, 0.1);
-  --flow-minimap-node-stroke: #0a0f1c;
-  --flow-minimap-viewport: rgba(10, 15, 28, 0.08);
-  --flow-minimap-viewport-stroke: #0a0f1c;
 
   --gradient-primary: linear-gradient(135deg, #0a0f1c 0%, #52525b 100%);
   --gradient-glow: linear-gradient(135deg, rgba(10, 15, 28, 0.1) 0%, rgba(82, 82, 91, 0.1) 100%);
@@ -164,6 +161,17 @@
 
   /* Sidebar */
   /* Sidebar — slightly darker than main background for depth */
+  --webee-shell-base: 222 62% 6%;
+  --webee-shell-secondary: 268 72% 52%;
+  --webee-shell-sheen: 217 91% 60%;
+  --webee-shell-cyan: 190 92% 46%;
+  --webee-shell-background:
+    radial-gradient(900px 520px at 12% -15%, hsl(var(--webee-shell-sheen) / 0.26), transparent 62%),
+    radial-gradient(720px 460px at 92% 8%, hsl(var(--webee-shell-secondary) / 0.20), transparent 58%),
+    radial-gradient(900px 520px at 50% 115%, hsl(var(--webee-shell-cyan) / 0.14), transparent 58%),
+    linear-gradient(170deg, hsl(var(--webee-shell-base)) 0%, hsl(222 56% 10%) 55%, hsl(230 52% 12%) 100%);
+  --webee-sidebar-background: #080b10;
+  --webee-header-background: hsl(222 60% 7% / 0.72);
   --sidebar: #080b10;
   --sidebar-foreground: #e5e7eb;
   --sidebar-primary: #f9fafb;
@@ -172,17 +180,6 @@
   --sidebar-accent-foreground: #e5e7eb;
   --sidebar-border: rgba(255, 255, 255, 0.04);
   --sidebar-ring: rgba(79, 140, 255, 0.55);
-
-  /* Flow canvas */
-  --flow-canvas: #0b0f14;
-  --flow-grid: rgba(255, 255, 255, 0.04);
-  --flow-node: #4f8cff;
-  --flow-edge: #6b7280;
-  --flow-minimap-bg: rgba(17, 24, 39, 0.85);
-  --flow-minimap-border: rgba(255, 255, 255, 0.06);
-  --flow-minimap-node-stroke: #4f8cff;
-  --flow-minimap-viewport: rgba(79, 140, 255, 0.14);
-  --flow-minimap-viewport-stroke: rgba(79, 140, 255, 0.5);
 
   /* Gradients & glows — subtle, never neon */
   --gradient-primary: linear-gradient(135deg, #4f8cff 0%, #3b6fe0 100%);
@@ -419,6 +416,189 @@
   }
 }
 
+/* Shared authenticated dashboard shell — deliberately darker than the public
+   atmosphere so the existing near-black sidebar remains the visual anchor. */
+.app-shell-root {
+  background: var(--webee-shell-background);
+}
+
+.app-shell-main {
+  background: transparent;
+}
+
+.app-shell-header {
+  border-bottom: 1px solid var(--border);
+  background: var(--webee-header-background);
+  backdrop-filter: blur(14px) saturate(140%);
+  -webkit-backdrop-filter: blur(14px) saturate(140%);
+}
+
+.dark .app-shell-root {
+  background: var(--webee-shell-background);
+}
+
+.dark .app-shell-main {
+  background: transparent;
+}
+
+.dark .app-shell-header {
+  border-bottom-color: hsl(222 40% 18% / 0.34);
+  background: var(--webee-header-background);
+}
+
+.dark .app-shell-divider {
+  background: linear-gradient(
+    to bottom,
+    transparent,
+    hsl(222 40% 18% / 0.18) 18%,
+    hsl(222 40% 18% / 0.28) 50%,
+    hsl(222 40% 18% / 0.18) 82%,
+    transparent
+  );
+}
+
+/* ============================================================
+   Shared platform atmosphere
+   A quiet, fixed nebula layer sits behind page content. It is
+   intentionally dark-theme-only so the light theme stays legible.
+   ============================================================ */
+
+.platform-nebula {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  pointer-events: none;
+  background:
+    linear-gradient(150deg, #071022 0%, #0b1228 46%, #111233 100%);
+  opacity: 0;
+  transition: opacity 0.35s ease;
+}
+
+.dark .platform-nebula {
+  opacity: 1;
+}
+
+.platform-nebula__wash,
+.platform-nebula__wash::before,
+.platform-nebula__wash::after {
+  position: absolute;
+  inset: 0;
+  content: "";
+  pointer-events: none;
+}
+
+.platform-nebula__wash {
+  background:
+    radial-gradient(70% 44% at 14% 9%, rgba(29, 70, 156, 0.2), transparent 72%),
+    radial-gradient(58% 50% at 93% 4%, rgba(71, 42, 153, 0.2), transparent 72%),
+    radial-gradient(64% 42% at 42% 40%, rgba(10, 170, 225, 0.06), transparent 70%),
+    linear-gradient(180deg, rgba(7, 14, 34, 0.06), rgba(3, 9, 25, 0.2));
+}
+
+.platform-nebula__wash::before {
+  background:
+    radial-gradient(60% 36% at 50% 58%, rgba(14, 154, 215, 0.07), transparent 72%),
+    radial-gradient(45% 35% at 73% 80%, rgba(28, 54, 145, 0.13), transparent 70%);
+  filter: blur(18px);
+  animation: platform-nebula-wash 34s ease-in-out infinite alternate;
+}
+
+.platform-nebula__wash::after {
+  opacity: 0.28;
+  background-image:
+    radial-gradient(rgba(137, 216, 255, 0.16) 0.6px, transparent 0.8px),
+    radial-gradient(rgba(88, 111, 238, 0.12) 0.55px, transparent 0.8px);
+  background-size: 83px 97px, 127px 131px;
+  background-position: 12px 7px, 36px 51px;
+  mix-blend-mode: screen;
+}
+
+.platform-nebula__field {
+  position: absolute;
+  top: clamp(72px, 9vh, 132px);
+  left: 50%;
+  width: min(1080px, 90vw);
+  height: min(580px, 60vh);
+  transform: translateX(-50%);
+  filter: drop-shadow(0 0 18px rgba(19, 181, 242, 0.06));
+}
+
+.platform-nebula__halo {
+  position: absolute;
+  border-radius: 50%;
+  pointer-events: none;
+  filter: blur(24px);
+  animation: platform-nebula-halo 18s ease-in-out infinite alternate;
+}
+
+.platform-nebula__halo--left {
+  top: 25%;
+  left: 8%;
+  width: 48%;
+  height: 32%;
+  background: radial-gradient(ellipse, rgba(14, 137, 208, 0.11), transparent 72%);
+}
+
+.platform-nebula__halo--right {
+  top: 11%;
+  right: 5%;
+  width: 42%;
+  height: 42%;
+  background: radial-gradient(ellipse, rgba(89, 73, 201, 0.12), transparent 72%);
+  animation-delay: -7s;
+}
+
+.platform-nebula-surface {
+  background-color: transparent !important;
+}
+
+.platform-nebula-page {
+  background-color: transparent !important;
+}
+
+.platform-nebula-page > section,
+.platform-nebula-page > footer {
+  background: transparent !important;
+}
+
+@keyframes platform-nebula-wash {
+  from {
+    transform: translate3d(-1%, -1%, 0) scale(1);
+  }
+  to {
+    transform: translate3d(2%, 1.5%, 0) scale(1.04);
+  }
+}
+
+@keyframes platform-nebula-halo {
+  from {
+    opacity: 0.65;
+    transform: scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1.05);
+  }
+}
+
+@media (max-width: 640px) {
+  .platform-nebula__field {
+    top: 10vh;
+    width: 134vw;
+    height: 54vh;
+  }
+
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .platform-nebula *,
+  .platform-nebula__wash::before {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+  }
+}
+
 @layer utilities {
   .glass {
     background: rgba(17, 24, 39, 0.65);
@@ -570,6 +750,232 @@
 @media (prefers-reduced-motion: reduce) {
   .bg-mesh::before {
     animation: none;
+  }
+}
+
+/* ── Conversation Flow visual system — Builder page only ─────────────────── */
+.webee-builder-page {
+  --flow-canvas: var(--webee-sidebar-background);
+  --flow-grid: rgba(157, 210, 238, 0.055);
+  --flow-node: #101827;
+  --flow-node-text: #f4f7fb;
+  --flow-node-muted: #b7c7d8;
+  --flow-edge: rgba(165, 243, 252, 0.72);
+  --flow-minimap-bg: rgba(5, 9, 20, 0.96);
+  --flow-minimap-border: rgba(210, 235, 255, 0.16);
+  --flow-minimap-node-fill: #101827;
+  --flow-minimap-node-stroke: rgba(244, 251, 255, 0.82);
+  --flow-minimap-viewport: rgba(125, 211, 252, 0.14);
+  --flow-minimap-viewport-stroke: rgba(186, 230, 253, 0.75);
+}
+
+.webee-builder-page .webee-flow-node {
+  background: var(--flow-node);
+  color: var(--flow-node-text);
+  border-color: rgba(186, 210, 230, 0.28);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.055),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.2),
+    0 10px 24px -16px rgba(0, 0, 0, 0.95),
+    0 2px 8px rgba(0, 0, 0, 0.2);
+  font-synthesis: none;
+}
+
+.webee-builder-page .webee-flow-node:hover {
+  border-color: rgba(210, 235, 255, 0.42);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.07),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.2),
+    0 12px 26px -16px rgba(0, 0, 0, 0.95);
+}
+
+.webee-builder-page .webee-flow-node[data-flow-state="connected"] {
+  border-color: rgba(125, 211, 252, 0.72);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.08),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.22),
+    0 0 0 1px rgba(103, 232, 249, 0.2),
+    0 0 11px rgba(34, 211, 238, 0.13),
+    0 10px 24px -16px rgba(0, 0, 0, 0.95);
+}
+
+.webee-builder-page .webee-flow-node[data-flow-state="active"] {
+  border-color: rgba(165, 243, 252, 0.82);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.1),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.22),
+    0 0 0 1px rgba(165, 243, 252, 0.32),
+    0 0 12px rgba(34, 211, 238, 0.18),
+    0 10px 24px -16px rgba(0, 0, 0, 0.95);
+}
+
+.webee-builder-page .webee-flow-node[data-flow-state="selected"] {
+  border-color: #f8fcff;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.22),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.22),
+    0 0 0 1px rgba(248, 252, 255, 0.92),
+    0 0 0 2px rgba(165, 243, 252, 0.48),
+    0 0 10px rgba(244, 251, 255, 0.3),
+    0 8px 22px -14px rgba(0, 0, 0, 0.95);
+}
+
+.webee-builder-page .webee-flow-node[data-flow-state="selected"],
+.webee-builder-page .webee-flow-node[data-flow-state="active"] {
+  color: #ffffff;
+}
+
+.webee-builder-page .webee-flow-node__header {
+  background: linear-gradient(180deg, #f4fbff 0%, #e7f3fb 100%);
+  border-bottom-color: rgba(207, 227, 242, 0.95);
+  box-shadow: inset 0 1px rgba(255, 255, 255, 0.9);
+}
+
+.webee-builder-page .webee-flow-node__section {
+  background: rgba(5, 12, 26, 0.58);
+  border-color: rgba(183, 224, 255, 0.16);
+  color: var(--flow-node-muted);
+}
+
+.webee-builder-page .webee-flow-node__item {
+  background: rgba(5, 12, 26, 0.42);
+  border-color: rgba(183, 224, 255, 0.14);
+  color: #d5e2ed;
+  line-height: 1.35;
+  letter-spacing: 0.01em;
+}
+
+.webee-builder-page .webee-flow-node__item:hover {
+  border-color: rgba(125, 211, 252, 0.48);
+  background: rgba(10, 32, 58, 0.78);
+}
+
+.webee-builder-page .webee-flow-node__body-text {
+  color: var(--flow-node-text);
+  line-height: 1.45;
+  letter-spacing: 0.002em;
+}
+
+.webee-builder-page .webee-flow-node__placeholder,
+.webee-builder-page .webee-flow-node__section-label {
+  color: var(--flow-node-muted);
+  font-weight: 500;
+  line-height: 1.4;
+  letter-spacing: 0.01em;
+}
+
+.webee-builder-page .webee-flow-node__item-label {
+  color: #d5e2ed;
+  font-weight: 500;
+}
+
+.webee-builder-page .webee-flow-node[data-flow-state="selected"] .webee-flow-node__body-text,
+.webee-builder-page .webee-flow-node[data-flow-state="active"] .webee-flow-node__body-text,
+.webee-builder-page .webee-flow-node[data-flow-state="selected"] .webee-flow-node__item-label,
+.webee-builder-page .webee-flow-node[data-flow-state="active"] .webee-flow-node__item-label {
+  color: #ffffff;
+}
+
+.webee-builder-page .webee-flow-node[data-flow-state="selected"] .webee-flow-node__placeholder,
+.webee-builder-page .webee-flow-node[data-flow-state="active"] .webee-flow-node__placeholder,
+.webee-builder-page .webee-flow-node[data-flow-state="selected"] .webee-flow-node__section-label,
+.webee-builder-page .webee-flow-node[data-flow-state="active"] .webee-flow-node__section-label {
+  color: #c9d9e7;
+}
+
+.webee-builder-page .webee-flow-node .text-muted-foreground {
+  color: var(--flow-node-muted);
+}
+
+.webee-builder-page .webee-flow-node__panel {
+  color: var(--flow-node-text);
+  background: #101827;
+  border-color: rgba(186, 210, 230, 0.24);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.055),
+    0 14px 28px -16px rgba(0, 0, 0, 0.95);
+}
+
+.webee-builder-page .webee-flow-node__panel .text-muted-foreground {
+  color: var(--flow-node-muted);
+}
+
+.webee-builder-page .webee-flow-node__panel input,
+.webee-builder-page .webee-flow-node__panel textarea,
+.webee-builder-page .webee-flow-node__panel button[role="combobox"] {
+  color: #f4f7fb;
+  border-color: rgba(186, 210, 230, 0.2);
+  background: rgba(5, 12, 26, 0.62);
+}
+
+.webee-builder-page .webee-flow-node__panel input::placeholder,
+.webee-builder-page .webee-flow-node__panel textarea::placeholder {
+  color: #9fb2c5;
+  opacity: 1;
+}
+
+.webee-builder-page .react-flow .webee-flow-handle {
+  border: 1px solid rgba(210, 235, 255, 0.7);
+  background: #f4fbff;
+  box-shadow: 0 0 0 1px rgba(5, 9, 20, 0.72);
+  transition:
+    background-color 160ms ease,
+    border-color 160ms ease,
+    box-shadow 160ms ease;
+}
+
+.webee-builder-page .react-flow .webee-flow-handle[data-flow-state="connected"] {
+  border-color: #a5f3fc;
+  background: #ecfeff;
+  box-shadow:
+    0 0 0 1px rgba(5, 9, 20, 0.72),
+    0 0 5px rgba(103, 232, 249, 0.5);
+}
+
+.webee-builder-page .react-flow .webee-flow-handle[data-flow-state="active"] {
+  border-color: #cffafe;
+  background: #ffffff;
+  box-shadow:
+    0 0 0 1px rgba(5, 9, 20, 0.72),
+    0 0 6px rgba(103, 232, 249, 0.62);
+}
+
+.webee-builder-page .react-flow .webee-flow-handle[data-flow-state="selected"] {
+  border-color: #ffffff;
+  background: #ffffff;
+  box-shadow:
+    0 0 0 1px rgba(5, 9, 20, 0.72),
+    0 0 0 2px rgba(125, 211, 252, 0.4),
+    0 0 6px rgba(103, 232, 249, 0.68);
+}
+
+.webee-builder-page .react-flow .react-flow__edge-path {
+  vector-effect: non-scaling-stroke;
+  stroke: var(--flow-edge);
+  stroke-width: 1.25px;
+  filter: drop-shadow(0 0 3px rgba(110, 231, 249, 0.2));
+  shape-rendering: geometricPrecision;
+}
+
+.webee-builder-page .react-flow .react-flow__edge:hover .react-flow__edge-path {
+  stroke: #a5f3fc;
+  filter: drop-shadow(0 0 3px rgba(165, 243, 252, 0.28));
+}
+
+.webee-builder-page .react-flow .react-flow__edge.selected .react-flow__edge-path {
+  stroke: #f4fbff;
+  stroke-width: 1.35px;
+  filter: drop-shadow(0 0 2px rgba(244, 251, 255, 0.78))
+    drop-shadow(0 0 4px rgba(103, 232, 249, 0.34));
+}
+
+.webee-builder-page [data-flow-state="selected"] .webee-flow-handle {
+  opacity: 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .webee-builder-page .react-flow .webee-flow-handle {
+    transition: none;
   }
 }
 

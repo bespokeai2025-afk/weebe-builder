@@ -1,0 +1,44 @@
+Refine the **Builder page only**. The current dark-on-dark node treatment still does not create enough contrast, so move the workflow nodes to a much stronger **ice-white-on-dark visual system**.
+
+Do not change the dashboard, sidebar, header, HiveMind, or any global styling.
+
+Use this direction:
+
+* Keep the Builder canvas as a very deep near-black navy around `#050914`
+* Change the main workflow node/card surface to a clean **ice white / cold white**, around `#F4F8FC`
+* Add a secondary inner card/panel treatment using a slightly darker ice-white tone around `#E6EDF5`
+* Use the secondary ice-white surface for nested controls, conditions, variables, parameter groups, or internal node sections
+* Text on ice-white surfaces must use a very dark navy/charcoal such as `#0A1220`
+* Secondary text should still be dark enough to remain clearly readable; do not use washed-out grey
+* Keep typography sharp, modern and high-definition
+* Node titles should be clearly bold and immediately readable
+* Icons should use refined dark navy/cyan vector styling and remain crisp
+* Idle nodes should be clearly visible against the canvas without excessive glow
+* Connected nodes should gain a subtle cyan edge and restrained glow
+* Selected nodes should become brighter/purer white with a noticeably stronger cyan/ice-white edge and tighter glow
+* Active/running nodes can use a controlled cyan highlight but must not become neon
+* Connector lines should remain thin, curved and cyan, with a subtle glow
+* Preserve generous spacing and clean internal layout so the lighter cards do not feel visually heavy
+
+The visual hierarchy should be:
+
+**Canvas = darkest layer**
+**Primary node = ice white**
+**Secondary node sections = softer/darker ice white**
+**Text = deep navy / near black**
+**Connected state = subtle cyan edge**
+**Selected/active state = brightest white + strongest controlled glow**
+
+Avoid:
+
+* bright white everywhere with no hierarchy
+* oversized borders
+* excessive cyan
+* glass blur that reduces text clarity
+* grey-on-grey text
+* bulky dashboard-style cards
+* cartoonish or neon styling
+
+The goal is a **premium, high-contrast, high-definition workflow builder**, almost like precision engineering software: clean ice-white nodes floating clearly over a deep navy technical canvas.
+
+Audit the existing Builder CSS/tokens first and modify the existing Builder-specific styles rather than stacking conflicting overrides.

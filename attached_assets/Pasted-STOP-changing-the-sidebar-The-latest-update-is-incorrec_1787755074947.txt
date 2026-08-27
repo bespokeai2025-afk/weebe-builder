@@ -1,0 +1,155 @@
+STOP changing the sidebar.
+
+The latest update is incorrect because you removed/altered the **dark black sidebar again**, despite explicit instructions not to do so.
+
+## NON-NEGOTIABLE RULE
+
+The existing dark/black sidebar is now LOCKED.
+
+Do NOT change:
+
+* sidebar background
+* sidebar colour
+* sidebar gradient
+* sidebar opacity
+* sidebar borders
+* sidebar width
+* sidebar layout
+* sidebar icons
+* sidebar hover states
+* sidebar active states
+* sidebar structure
+
+Restore the sidebar to the exact dark appearance it had before the latest shell/background changes.
+
+If necessary, use git diff/history to identify the previous sidebar styling and restore only that styling.
+
+## What I actually want changed
+
+Use the deeper navy / two-tone sheen values extracted from the Lovable WebespokeAI homepage ONLY on the relevant non-sidebar shell areas:
+
+* main dashboard/page background
+* top header background
+* shared content shell behind the dashboard
+* other large main-content surfaces where the same base page background is intended
+
+Do NOT apply those colours to the sidebar.
+
+## Desired visual hierarchy
+
+The correct result is:
+
+**Sidebar**
+
+* original dark / near-black appearance
+* visually strongest and darkest area
+* unchanged
+
+**Main application background**
+
+* deeper navy
+* subtle two-tone indigo / blue-violet sheen from the Lovable spec
+* much darker than the current bright blue
+* premium and restrained
+
+**Top header**
+
+* use the deeper navy colour family
+* blend into the main application area
+* remain separate from the black sidebar
+
+The point is NOT to make the whole app one colour.
+
+The contrast between:
+**black/dark sidebar**
+and
+**deep navy two-tone main area**
+is intentional and must remain.
+
+## Lovable document
+
+Use the attached/existing Lovable background specification as the source of truth for:
+
+* main navy
+* secondary indigo
+* gradient stops
+* sheen
+* opacity
+* background lighting
+* overlays
+
+Apply those values ONLY to the main application shell and header where appropriate.
+
+The Lovable colours must NOT override the sidebar styling.
+
+## Do not touch HiveMind
+
+This task is NOT about HiveMind.
+
+Do not change:
+
+* HiveMind component
+* HiveMind particles
+* HiveMind animation
+* HiveMind size
+* HiveMind positioning
+* HiveMind styling
+
+## Do not change UI content
+
+Do NOT modify:
+
+* cards
+* agent pills
+* live calls
+* voicemail banner
+* navigation
+* typography
+* spacing
+* controls
+* layouts
+* functionality
+* data
+
+## Scope control
+
+Before making any edit, identify the exact selectors/components for:
+
+1. sidebar
+2. top header
+3. main content background
+
+Then explicitly EXCLUDE the sidebar selector/component from this task.
+
+Only edit the header/main shell background styles.
+
+## Safety check before committing
+
+Before committing, verify all of the following visually:
+
+* sidebar is still dark/black exactly as intended
+* sidebar has NOT adopted the Lovable blue
+* main area uses the deeper Lovable navy
+* subtle two-tone sheen is visible in the main area
+* header matches the deeper navy environment
+* no layout/functionality changed
+* HiveMind unchanged
+
+If the sidebar has changed at all, DO NOT commit until it is restored.
+
+## Final report
+
+Report:
+
+1. sidebar file/selectors confirmed unchanged/restored
+2. exact files changed
+3. exact Lovable colours applied to main area
+4. header colours applied
+5. confirmation sidebar remained dark
+6. confirmation HiveMind was untouched
+7. confirmation no layout/functionality changed
+
+This time, do not generalise the theme across the entire shell.
+
+**BLACK SIDEBAR STAYS.**
+**LOVABLE DEEP NAVY/TWO-TONE COLOURS GO ONLY ON THE MAIN APP AREA AND RELEVANT HEADER/BACKGROUND SURFACES.**

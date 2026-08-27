@@ -1,0 +1,89 @@
+DO NOT CHANGE CODE YET.
+
+The live mid-call architecture is correct, but I want the Saturday diagnosis verified properly.
+
+You said Calendly returned zero slots because the call was dispatched at 16:05 BST on Saturday and there were no Saturday slots.
+
+Prove this from the actual Calendly request.
+
+Trace Neil's exact pre-call availability fetch and return:
+
+- Calendly endpoint called
+- event type ID/URI
+- start_time sent
+- end_time sent
+- timezone
+- HTTP status
+- number of slots returned
+- raw response shape, with sensitive data removed
+
+IMPORTANT:
+
+Calendly availability is queried using an explicit future date range.
+
+Therefore Saturday itself should NOT cause zero availability if the request was correctly searching the following 7 days.
+
+Determine whether the real problem was:
+
+1. start_time/end_time only covered Saturday
+2. incorrect timezone/date calculation
+3. wrong event type
+4. availability request window malformed
+5. Calendly genuinely had no availability in the requested future range
+6. some other filtering issue
+
+Then proceed with the intended architecture:
+
+Retell live call
+→ check_calendar_availability tool
+→ WEBEE /api/public/retell/wbah-availability
+→ Calendly live availability
+→ slots returned directly to Retell
+
+The Retell agent must be able to call this tool multiple times during the SAME call.
+
+Do NOT read appointment availability from `available_slots` dynamic variables anymore.
+
+Also confirm the live endpoint accepts a requested date/range so the caller can say things like:
+
+- "What do you have Tuesday?"
+- "Anything Wednesday afternoon?"
+- "What about next week?"
+
+and Retell can perform another live availability request each time.
+
+Keep dynamic variables only for static context such as:
+- customer name
+- contact ID
+- workspace
+- event type
+- campaign
+
+NOT live availability.
+
+Return only:
+
+Neil Calendly request:
+start:
+end:
+timezone:
+event type:
+slots returned:
+
+Actual reason zero slots were returned:
+...
+
+Live endpoint ready:
+YES/NO
+
+Retell tool currently calls live endpoint:
+YES/NO
+
+Still depends on available_slots dynVar:
+YES/NO
+
+Changes required in WeeBespoke:
+...
+
+Changes required in WEBEE:
+...

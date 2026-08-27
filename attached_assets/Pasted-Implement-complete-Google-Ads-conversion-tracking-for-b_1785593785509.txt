@@ -1,0 +1,222 @@
+Implement complete Google Ads conversion tracking for bookings made through the website Ava Retell voice agent.
+
+This must work alongside the existing web-form conversion tracking and must not alter Retell, Cal.com, lead creation, workspace routing or the website design.
+
+GOAL
+
+When a visitor arrives from Google Ads and later books a real Cal.com appointment through Ava, upload a verified Google Ads conversion even though no web form was submitted.
+
+The server-side booking webhook must be the source of truth.
+
+1. CAPTURE AD ATTRIBUTION ON LANDING
+
+On the marketing site, capture and preserve:
+
+- gclid
+- gbraid
+- wbraid
+- utm_source
+- utm_medium
+- utm_campaign
+- utm_term
+- utm_content
+- landing_page
+- referring_url
+- visitor_session_id
+- consent state
+
+Store these in first-party storage and persist them server-side.
+
+Do not rely only on localStorage.
+
+Pass them into the existing Ava web-call session metadata and dynamic variables.
+
+Server-force the values where appropriate and do not allow browser data to override protected routing fields.
+
+2. CREATE SEPARATE CONVERSION ACTIONS
+
+Use separate Google Ads conversion actions:
+
+- WEBEE – Ava Call Started
+- WEBEE – Ava Qualified Lead
+- WEBEE – Ava Appointment Booked
+- WEBEE – Web Form Lead
+
+Classification:
+
+- Ava Call Started = secondary / observation only
+- Ava Qualified Lead = secondary initially
+- Ava Appointment Booked = primary conversion
+- Web Form Lead = retain separately so the two funnels can be compared
+
+Do not count a microphone click as an appointment conversion.
+
+3. BOOKING CONVERSION TRIGGER
+
+Upload “WEBEE – Ava Appointment Booked” only when all are true:
+
+- Cal.com booking tool returned success
+- genuine booking UID exists
+- call belongs to the website Ava flow
+- conversion has not already been uploaded
+- required consent permits the upload
+
+Do not trigger from:
+
+- sentiment
+- spoken booking confirmation
+- transcript text alone
+- booking_status alone
+- extracted booking_slot alone
+- call completion alone
+
+4. GOOGLE ADS API UPLOAD
+
+Use Google Ads enhanced conversions for leads through the Google Ads API.
+
+Upload:
+
+- Google Ads customer ID
+- conversion action resource
+- exactly one available click identifier:
+  - gclid, or
+  - gbraid, or
+  - wbraid
+- normalized and SHA-256 hashed email
+- normalized and SHA-256 hashed phone number
+- conversion date/time with timezone
+- conversion value when configured
+- currency_code: GBP
+- conversion_environment: WEB
+- consent.ad_user_data
+- order_id: Cal.com booking UID
+
+Send all available permitted identifiers.
+
+Store the Google Ads API response and partial failure details.
+
+5. DEDUPLICATION
+
+Use the Cal.com booking UID as the conversion order ID.
+
+Also create a database uniqueness constraint or idempotency record using:
+
+google_ads_conversion_action + booking_uid
+
+Retries must never create a second Google Ads conversion.
+
+6. LEAD AND BOOKING LINKAGE
+
+Store on the WEBEE lead/call metadata:
+
+- google_ads_conversion_status
+- conversion_action
+- conversion_uploaded_at
+- conversion_order_id
+- google_ads_job_id
+- gclid / gbraid / wbraid
+- UTM fields
+- booking_uid
+- booking_start_time
+- attribution_source: ava_web_call
+
+Do not expose raw advertising identifiers publicly.
+
+7. GA4 ANALYTICS
+
+Also emit analytics events for reporting:
+
+- ava_call_started
+- generate_lead when a legitimate lead is captured
+- ava_qualified_lead
+- ava_appointment_booked
+
+Use booking_uid as the transaction/deduplication reference where applicable.
+
+Do not send a second Google Ads website conversion tag if the server-side upload is the source of truth.
+
+8. FAILURE HANDLING
+
+If Google Ads upload fails:
+
+- do not fail the booking
+- do not remove the lead
+- mark the conversion as pending_retry
+- retry with exponential backoff
+- retain the API error
+- surface failures in admin diagnostics
+
+Do not retry permanent validation failures indefinitely.
+
+9. ADMIN REPORTING
+
+Add reporting fields that separate:
+
+- Web-form leads
+- Ava voice leads
+- Ava qualified leads
+- Ava confirmed bookings
+- Google Ads attributed bookings
+- Organic/direct Ava bookings
+
+Show:
+
+- calls started
+- call-to-lead rate
+- call-to-booking rate
+- cost per Ava lead
+- cost per confirmed Ava booking
+- campaign, ad group and keyword where available
+
+10. TEST CASES
+
+Test:
+
+A. Google Ads visitor books successfully through Ava
+- one Google Ads appointment conversion
+- correct booking UID
+- correct lead and workspace
+
+B. Organic visitor books
+- booking and lead created
+- no Google Ads click conversion falsely attributed
+
+C. Ava verbally claims booking but no UID exists
+- no Google Ads appointment conversion
+
+D. Duplicate webhook/retry
+- one conversion only
+
+E. Web form submission
+- existing form conversion remains separate
+
+F. Visitor starts Ava but does not book
+- call-start observation event only
+- no appointment conversion
+
+11. CONFIGURATION
+
+Use secrets for:
+
+- GOOGLE_ADS_CUSTOMER_ID
+- GOOGLE_ADS_CONVERSION_CUSTOMER_ID
+- GOOGLE_ADS_DEVELOPER_TOKEN
+- GOOGLE_ADS_CLIENT_ID
+- GOOGLE_ADS_CLIENT_SECRET
+- GOOGLE_ADS_REFRESH_TOKEN
+- GOOGLE_ADS_AVA_BOOKING_CONVERSION_ACTION_ID
+
+Never expose these to the frontend.
+
+12. ACCEPTANCE REPORT
+
+Return:
+
+- conversion action names and IDs used
+- attribution fields captured
+- database changes
+- API upload implementation
+- deduplication method
+- test conversion IDs
+- screenshots from Google Ads diagnostics where available
+- confirmation that no test conversions remain in production reporting
