@@ -493,7 +493,7 @@ type DragOffset = { x: number; y: number };
 const ORB_POSITION_STORAGE_KEY = "hm-orb-position";
 const LEGACY_ORB_POSITION_KEYS = ["hm-orb-offset", "hm-orb-pos"];
 const COLLISION_GUTTER = 18;
-const HIVE_MIND_CORNER_GUTTER = 0;
+const HIVE_MIND_CORNER_GUTTER = 16;
 
 function viewportOrbSize() {
   if (window.innerWidth < 640) return { width: 126, height: 105 };
@@ -716,12 +716,16 @@ export function HiveMindOrb() {
     };
   }, [pathname]);
 
+  // Keep the resting position independent of page rails and collision
+  // reserves. Those elements can be full-viewport layers and previously
+  // forced the entity to the top of the app. The calculated maxima still keep
+  // a user-dragged entity visible on every viewport.
   const displayedRight = Math.min(
-    Math.max(anchor.right - dragOffset.x, anchor.right),
+    Math.max(HIVE_MIND_CORNER_GUTTER - dragOffset.x, HIVE_MIND_CORNER_GUTTER),
     anchor.maxRight,
   );
   const displayedBottom = Math.min(
-    Math.max(anchor.bottom - dragOffset.y, anchor.bottom),
+    Math.max(HIVE_MIND_CORNER_GUTTER - dragOffset.y, HIVE_MIND_CORNER_GUTTER),
     anchor.maxBottom,
   );
   const dragRef = useRef<DragState | null>(null);
@@ -748,11 +752,17 @@ export function HiveMindOrb() {
     const dy = e.clientY - d.startY;
     if (!d.moved && Math.abs(dx) < 5 && Math.abs(dy) < 5) return;
     d.moved = true;
-    const right = Math.min(Math.max(d.right - dx, anchor.right), d.maxRight);
-    const bottom = Math.min(Math.max(d.bottom - dy, anchor.bottom), d.maxBottom);
+    const right = Math.min(
+      Math.max(d.right - dx, HIVE_MIND_CORNER_GUTTER),
+      d.maxRight,
+    );
+    const bottom = Math.min(
+      Math.max(d.bottom - dy, HIVE_MIND_CORNER_GUTTER),
+      d.maxBottom,
+    );
     setDragOffset({
-      x: anchor.right - right,
-      y: anchor.bottom - bottom,
+      x: HIVE_MIND_CORNER_GUTTER - right,
+      y: HIVE_MIND_CORNER_GUTTER - bottom,
     });
   }
   function onDragPointerUp() {

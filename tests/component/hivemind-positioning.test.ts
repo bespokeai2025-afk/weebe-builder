@@ -24,6 +24,10 @@ describe("HiveMind shell positioning", () => {
     expect(parseHiveMindDragOffset(JSON.stringify({
       version: 3,
       offset: { x: -80, y: -120 },
+    }))).toBeNull();
+    expect(parseHiveMindDragOffset(JSON.stringify({
+      version: 4,
+      offset: { x: -80, y: -120 },
     }))).toEqual({ x: -80, y: -120 });
   });
 
