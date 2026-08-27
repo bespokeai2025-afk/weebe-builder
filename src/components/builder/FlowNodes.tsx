@@ -180,20 +180,73 @@ function resolveNodeStyle(data: FlowNode["data"] | undefined): Style {
   return STYLES[resolveNodeKind(data)];
 }
 
+type FlowVisualState = "idle" | "connected" | "selected" | "active";
+
+function flowVisualState({
+  isConnected,
+  isSelected,
+  isActive,
+}: {
+  isConnected: boolean;
+  isSelected: boolean;
+  isActive: boolean;
+}): FlowVisualState {
+  if (isSelected) return "selected";
+  if (isActive) return "active";
+  if (isConnected) return "connected";
+  return "idle";
+}
+
+function flowHandleState({
+  isConnected,
+  isSelected,
+  isActive,
+}: {
+  isConnected: boolean;
+  isSelected: boolean;
+  isActive: boolean;
+}): FlowVisualState {
+  if (isSelected) return "selected";
+  if (isActive) return "active";
+  if (isConnected) return "connected";
+  return "idle";
+}
+
+const NODE_SURFACE_CLASS =
+  "webee-flow-node overflow-visible rounded-2xl border text-[#f4f7fb] transition-[border-color,box-shadow] duration-200";
+const NODE_HEADER_CLASS = "webee-flow-node__header relative rounded-t-xl border-b px-3 py-2";
+const NODE_SECTION_CLASS = "webee-flow-node__section mx-2 rounded-lg border";
+const NODE_ITEM_CLASS =
+  "webee-flow-node__item relative flex items-center gap-2 rounded-md border px-2 py-1.5 text-xs";
+const HANDLE_CLASS = "webee-flow-handle";
+
 /**
  * Conversation-style node matching the dashboard UI:
- * - Pink-tinted header with # icon + node name
- * - White prompt card
+ * - Ice-white header with # icon + node name
+ * - Deep navy prompt body
  * - Separate "Transition" section with + and per-transition source handles
  */
-function ConversationStyleNode({ id, data }: NodeProps<FlowNode>) {
+function ConversationStyleNode({ id, data, selected }: NodeProps<FlowNode>) {
   const selectNode = useBuilderStore((s) => s.selectNode);
   const deleteNode = useBuilderStore((s) => s.deleteNode);
   const updateNode = useBuilderStore((s) => s.updateNode);
   const isActive = useBuilderStore((s) => s.activeNodeId === id);
+  const selectedNodeId = useBuilderStore((s) => s.selectedNodeId);
+  const isSelected = selected || selectedNodeId === id;
+  const edges = useBuilderStore((s) => s.edges);
   const nodeData = data ?? ({} as FlowNode["data"]);
   const kind = resolveNodeKind(nodeData);
-  const style = resolveNodeStyle(nodeData);
+  const visualState = flowVisualState({
+    isConnected: edges.some((edge) => edge.source === id || edge.target === id),
+    isSelected,
+    isActive,
+  });
+  const isTargetConnected = edges.some((edge) => edge.target === id);
+  const connectedSourceHandles = new Set(
+    edges
+      .filter((edge) => edge.source === id && edge.sourceHandle)
+      .map((edge) => edge.sourceHandle),
+  );
 
   const addTransition = () =>
     updateNode(id, {
@@ -213,26 +266,25 @@ function ConversationStyleNode({ id, data }: NodeProps<FlowNode>) {
 
       <div
         {...(data.isStart ? { "data-tour": "node-root" } : {})}
-        className={cn(
-          "w-72 rounded-2xl border bg-card text-card-foreground backdrop-blur-md shadow-[0_10px_30px_-10px_rgba(0,0,0,0.15)] ring-1 ring-border transition-all overflow-visible",
-          "border-border hover:border-foreground/30 hover:shadow-[0_10px_30px_-10px_rgba(0,0,0,0.25)]",
-          "dark:bg-[rgba(17,24,39,0.85)] dark:border-white/10 dark:ring-white/5 dark:hover:border-[#4F8CFF]/40 dark:hover:shadow-[0_0_30px_-5px_rgba(79,140,255,0.35)]",
-          !isActive && style.ringClass,
-          isActive &&
-            "!ring-4 !ring-emerald-500 !border-emerald-500 shadow-[0_0_40px_-2px_rgba(52,211,153,0.5)] animate-pulse",
-        )}
+        data-flow-state={visualState}
+        className={cn(NODE_SURFACE_CLASS, "w-72")}
       >
         {/* Header */}
-        <div className={cn("relative rounded-t-xl border-b px-3 py-2", style.headerClass)}>
+        <div className={NODE_HEADER_CLASS}>
           <Handle
             type="target"
             position={Position.Left}
-            className="!h-3 !w-3 !-left-1.5 !top-3 !bg-white !border !border-foreground/40"
+            data-flow-state={flowHandleState({
+              isConnected: isTargetConnected,
+              isSelected,
+              isActive,
+            })}
+            className={cn(HANDLE_CLASS, "!h-2.5 !w-2.5 !-left-1.5 !top-3")}
           />
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-1.5 min-w-0">
-              <Hash className="h-3.5 w-3.5 text-foreground/60" />
-              <span className="truncate text-sm font-medium">{data.label}</span>
+              <Hash className="h-3.5 w-3.5 text-[#087c9f]" />
+              <span className="truncate text-sm font-semibold text-[#0b1627]">{data.label}</span>
               {data.isGlobalNode && (
                 <span
                   title="Global node"
@@ -262,23 +314,21 @@ function ConversationStyleNode({ id, data }: NodeProps<FlowNode>) {
         </div>
 
         {/* Prompt body */}
-        <div className="px-3 py-3 cursor-pointer" onClick={() => selectNode(id)}>
+        <div className="cursor-pointer px-3 py-3" onClick={() => selectNode(id)}>
           {data.dialogue || data.endingPrompt || data.smsMessage ? (
             <HighlightedPrompt
               text={data.dialogue || data.endingPrompt || data.smsMessage || ""}
-              className="text-sm text-foreground dark:text-white whitespace-pre-wrap line-clamp-4"
+              className="webee-flow-node__body-text line-clamp-4 whitespace-pre-wrap text-sm"
             />
           ) : (
-            <p className="text-sm italic text-muted-foreground dark:text-white/60">
-              Tap to add prompt…
-            </p>
+            <p className="webee-flow-node__placeholder text-sm italic">Tap to add prompt…</p>
           )}
         </div>
 
         {/* Transitions section */}
         {kind !== "ending" && kind !== "note" && (
-          <div className="mx-2 mb-2 rounded-lg bg-muted/40 border border-muted">
-            <div className="flex items-center justify-between px-3 py-1.5 text-xs text-muted-foreground">
+          <div className={cn(NODE_SECTION_CLASS, "mb-2")}>
+            <div className="webee-flow-node__section-label flex items-center justify-between px-3 py-1.5 text-xs">
               <span className="inline-flex items-center gap-1">
                 <svg width="10" height="10" viewBox="0 0 12 12" className="opacity-70">
                   <path
@@ -301,10 +351,7 @@ function ConversationStyleNode({ id, data }: NodeProps<FlowNode>) {
             {(nodeData.transitions ?? []).length > 0 && (
               <div className="px-1 pb-1 space-y-1">
                 {(nodeData.transitions ?? []).map((t) => (
-                  <div
-                    key={t.id}
-                    className="relative flex items-center gap-2 rounded-md bg-background border px-2 py-1.5 text-xs"
-                  >
+                  <div key={t.id} className={NODE_ITEM_CLASS}>
                     <svg
                       width="10"
                       height="10"
@@ -314,14 +361,19 @@ function ConversationStyleNode({ id, data }: NodeProps<FlowNode>) {
                       <circle cx="6" cy="6" r="2.5" fill="currentColor" />
                       <path d="M1 6 L3 6 M9 6 L11 6" stroke="currentColor" strokeWidth="1" />
                     </svg>
-                    <span className="flex-1 truncate text-foreground/80">
+                    <span className="webee-flow-node__item-label flex-1 truncate">
                       {t.condition || "Set condition…"}
                     </span>
                     <Handle
                       type="source"
                       position={Position.Right}
                       id={t.id}
-                      className="!h-3 !w-3 !-right-1.5 !bg-white !border !border-foreground/40"
+                      data-flow-state={flowHandleState({
+                        isConnected: connectedSourceHandles.has(t.id),
+                        isSelected,
+                        isActive,
+                      })}
+                      className={cn(HANDLE_CLASS, "!h-2.5 !w-2.5 !-right-1.5")}
                     />
                   </div>
                 ))}
@@ -335,31 +387,35 @@ function ConversationStyleNode({ id, data }: NodeProps<FlowNode>) {
 }
 
 /** Compact node for End Call / Note — no transitions section */
-function SimpleNode({ id, data }: NodeProps<FlowNode>) {
+function SimpleNode({ id, data, selected }: NodeProps<FlowNode>) {
   const selectNode = useBuilderStore((s) => s.selectNode);
   const deleteNode = useBuilderStore((s) => s.deleteNode);
   const isActive = useBuilderStore((s) => s.activeNodeId === id);
+  const selectedNodeId = useBuilderStore((s) => s.selectedNodeId);
+  const isSelected = selected || selectedNodeId === id;
+  const edges = useBuilderStore((s) => s.edges);
   const nodeData = data ?? ({} as FlowNode["data"]);
   const kind = resolveNodeKind(nodeData);
   const style = resolveNodeStyle(nodeData);
   const isNote = kind === "note";
+  const isConnected = edges.some((edge) => edge.source === id || edge.target === id);
+  const visualState = flowVisualState({ isConnected, isSelected, isActive });
+  const isTargetConnected = edges.some((edge) => edge.target === id);
 
   return (
     <div className="relative group">
-      <div
-        className={cn(
-          "w-56 rounded-xl border bg-card shadow-sm overflow-visible",
-          !isActive && style.ringClass,
-          isActive &&
-            "ring-4 ring-emerald-400 border-emerald-400 shadow-[0_0_30px_-2px_rgba(52,211,153,0.7)] animate-pulse",
-        )}
-      >
-        <div className={cn("relative rounded-t-xl border-b px-3 py-2", style.headerClass)}>
+      <div data-flow-state={visualState} className={cn(NODE_SURFACE_CLASS, "w-56 rounded-xl")}>
+        <div className={NODE_HEADER_CLASS}>
           {!isNote && (
             <Handle
               type="target"
               position={Position.Left}
-              className="!h-3 !w-3 !-left-1.5 !top-3 !bg-white !border !border-foreground/40"
+              data-flow-state={flowHandleState({
+                isConnected: isTargetConnected,
+                isSelected,
+                isActive,
+              })}
+              className={cn(HANDLE_CLASS, "!h-2.5 !w-2.5 !-left-1.5 !top-3")}
             />
           )}
           <div className="flex items-center justify-between">
@@ -369,7 +425,7 @@ function SimpleNode({ id, data }: NodeProps<FlowNode>) {
               >
                 {style.badge}
               </span>
-              <span className="truncate text-sm font-medium">{data.label}</span>
+              <span className="truncate text-sm font-semibold text-[#0b1627]">{data.label}</span>
               {data.isGlobalNode && (
                 <span
                   title="Global node"
@@ -395,14 +451,14 @@ function SimpleNode({ id, data }: NodeProps<FlowNode>) {
             </div>
           </div>
         </div>
-        <div className="px-3 py-3 cursor-pointer" onClick={() => selectNode(id)}>
+        <div className="cursor-pointer px-3 py-3" onClick={() => selectNode(id)}>
           {data.dialogue || data.endingPrompt || data.smsMessage ? (
             <HighlightedPrompt
               text={data.dialogue || data.endingPrompt || data.smsMessage || ""}
-              className="text-sm text-foreground whitespace-pre-wrap line-clamp-3"
+              className="webee-flow-node__body-text line-clamp-3 whitespace-pre-wrap text-sm"
             />
           ) : (
-            <p className="text-sm italic text-muted-foreground">Tap to configure…</p>
+            <p className="webee-flow-node__placeholder text-sm italic">Tap to configure…</p>
           )}
         </div>
       </div>
@@ -434,7 +490,7 @@ function VarPanel({
 
   return (
     <div
-      className="nodrag nopan w-80 rounded-xl border border-border bg-white dark:bg-gray-900 shadow-xl p-4 space-y-3"
+      className="webee-flow-node__panel nodrag nopan w-80 rounded-xl border p-4 space-y-3"
       onClick={(e) => e.stopPropagation()}
     >
       <div className="flex items-center justify-between">
@@ -470,14 +526,11 @@ function VarPanel({
 
       <div className="space-y-1">
         <Label className="text-xs">
-          Variable Type{" "}
-          <span className="text-muted-foreground font-normal">(Optional)</span>
+          Variable Type <span className="text-muted-foreground font-normal">(Optional)</span>
         </Label>
         <Select
           value={draft.type}
-          onValueChange={(v) =>
-            setDraft((d) => ({ ...d, type: v as ExtractVariableItem["type"] }))
-          }
+          onValueChange={(v) => setDraft((d) => ({ ...d, type: v as ExtractVariableItem["type"] }))}
         >
           <SelectTrigger className="h-8 text-sm">
             <SelectValue />
@@ -505,12 +558,22 @@ function VarPanel({
 }
 
 /** Dedicated node for Extract Variable — shows Variables section + Transitions. */
-function ExtractVariableNode({ id, data }: NodeProps<FlowNode>) {
+function ExtractVariableNode({ id, data, selected }: NodeProps<FlowNode>) {
   const selectNode = useBuilderStore((s) => s.selectNode);
   const deleteNode = useBuilderStore((s) => s.deleteNode);
   const updateNode = useBuilderStore((s) => s.updateNode);
   const isActive = useBuilderStore((s) => s.activeNodeId === id);
-  const style = STYLES.extract_variable;
+  const selectedNodeId = useBuilderStore((s) => s.selectedNodeId);
+  const isSelected = selected || selectedNodeId === id;
+  const edges = useBuilderStore((s) => s.edges);
+  const isConnected = edges.some((edge) => edge.source === id || edge.target === id);
+  const visualState = flowVisualState({ isConnected, isSelected, isActive });
+  const isTargetConnected = edges.some((edge) => edge.target === id);
+  const connectedSourceHandles = new Set(
+    edges
+      .filter((edge) => edge.source === id && edge.sourceHandle)
+      .map((edge) => edge.sourceHandle),
+  );
 
   const [panelVar, setPanelVar] = useState<ExtractVariableItem | null>(null);
   const [panelIsNew, setPanelIsNew] = useState(false);
@@ -519,7 +582,14 @@ function ExtractVariableNode({ id, data }: NodeProps<FlowNode>) {
     data.extractVariables && data.extractVariables.length > 0
       ? (data.extractVariables as ExtractVariableItem[])
       : data.variableName
-        ? [{ id: "legacy", name: data.variableName as string, description: (data.variableDescription as string) ?? "", type: "string" as const }]
+        ? [
+            {
+              id: "legacy",
+              name: data.variableName as string,
+              description: (data.variableDescription as string) ?? "",
+              type: "string" as const,
+            },
+          ]
         : [];
 
   const openNew = (e: React.MouseEvent) => {
@@ -565,12 +635,7 @@ function ExtractVariableNode({ id, data }: NodeProps<FlowNode>) {
       {/* Floating variable panel anchored to the right of this node */}
       <NodeToolbar isVisible={!!panelVar} position={Position.Right} offset={12}>
         {panelVar && (
-          <VarPanel
-            item={panelVar}
-            isNew={panelIsNew}
-            onSave={saveVar}
-            onClose={closePanel}
-          />
+          <VarPanel item={panelVar} isNew={panelIsNew} onSave={saveVar} onClose={closePanel} />
         )}
       </NodeToolbar>
 
@@ -581,25 +646,27 @@ function ExtractVariableNode({ id, data }: NodeProps<FlowNode>) {
       )}
       <div
         {...(data.isStart ? { "data-tour": "node-root" } : {})}
-        className={cn(
-          "w-72 rounded-2xl border bg-card text-card-foreground backdrop-blur-md shadow-[0_10px_30px_-10px_rgba(0,0,0,0.15)] ring-1 ring-border transition-all overflow-visible",
-          "border-border hover:border-foreground/30 hover:shadow-[0_10px_30px_-10px_rgba(0,0,0,0.25)]",
-          "dark:bg-[rgba(17,24,39,0.85)] dark:border-white/10 dark:ring-white/5 dark:hover:border-[#4F8CFF]/40 dark:hover:shadow-[0_0_30px_-5px_rgba(79,140,255,0.35)]",
-          isActive &&
-            "!ring-4 !ring-emerald-500 !border-emerald-500 shadow-[0_0_40px_-2px_rgba(52,211,153,0.5)] animate-pulse",
-        )}
+        data-flow-state={visualState}
+        className={cn(NODE_SURFACE_CLASS, "w-72")}
       >
         {/* Header */}
-        <div className={cn("relative rounded-t-xl border-b px-3 py-2", style.headerClass)}>
+        <div className={NODE_HEADER_CLASS}>
           <Handle
             type="target"
             position={Position.Left}
-            className="!h-3 !w-3 !-left-1.5 !top-3 !bg-white !border !border-foreground/40"
+            data-flow-state={flowHandleState({
+              isConnected: isTargetConnected,
+              isSelected,
+              isActive,
+            })}
+            className={cn(HANDLE_CLASS, "!h-2.5 !w-2.5 !-left-1.5 !top-3")}
           />
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-1.5 min-w-0">
-              <span className="font-mono text-xs font-bold text-indigo-600 dark:text-indigo-400">{"{}"}</span>
-              <span className="truncate text-sm font-medium">{data.label}</span>
+              <span className="font-mono text-xs font-bold text-indigo-600 dark:text-indigo-400">
+                {"{}"}
+              </span>
+              <span className="truncate text-sm font-semibold text-[#0b1627]">{data.label}</span>
               {data.isGlobalNode && (
                 <span className="inline-flex items-center gap-0.5 rounded bg-sky-500/15 px-1 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-sky-700 dark:text-sky-300">
                   <Globe className="h-3 w-3" /> Global
@@ -626,8 +693,8 @@ function ExtractVariableNode({ id, data }: NodeProps<FlowNode>) {
         </div>
 
         {/* Variables section */}
-        <div className="mx-2 mt-2 rounded-lg bg-muted/40 border border-muted">
-          <div className="flex items-center justify-between px-3 py-1.5 text-xs text-muted-foreground">
+        <div className={cn(NODE_SECTION_CLASS, "mt-2")}>
+          <div className="webee-flow-node__section-label flex items-center justify-between px-3 py-1.5 text-xs">
             <span className="inline-flex items-center gap-1.5">
               <span className="font-mono text-[11px] leading-none">≡</span>
               Variables
@@ -646,10 +713,12 @@ function ExtractVariableNode({ id, data }: NodeProps<FlowNode>) {
                 <div
                   key={v.id}
                   onClick={(e) => openEdit(v, e)}
-                  className="flex items-center gap-1.5 rounded-md bg-background border px-2 py-1.5 text-xs cursor-pointer hover:border-indigo-300 transition-colors"
+                  className="webee-flow-node__item flex cursor-pointer items-center gap-1.5 transition-colors"
                 >
                   <span className="font-mono font-bold text-indigo-500 shrink-0">{"{}"}</span>
-                  <span className="truncate text-foreground/80">{v.name || "unnamed"}</span>
+                  <span className="webee-flow-node__item-label truncate">
+                    {v.name || "unnamed"}
+                  </span>
                 </div>
               ))}
             </div>
@@ -657,11 +726,16 @@ function ExtractVariableNode({ id, data }: NodeProps<FlowNode>) {
         </div>
 
         {/* Transitions section */}
-        <div className="mx-2 my-2 rounded-lg bg-muted/40 border border-muted">
-          <div className="flex items-center justify-between px-3 py-1.5 text-xs text-muted-foreground">
+        <div className={cn(NODE_SECTION_CLASS, "my-2")}>
+          <div className="webee-flow-node__section-label flex items-center justify-between px-3 py-1.5 text-xs">
             <span className="inline-flex items-center gap-1">
               <svg width="10" height="10" viewBox="0 0 12 12" className="opacity-70">
-                <path d="M2 2 L6 6 L2 10 M6 6 L10 6" stroke="currentColor" fill="none" strokeWidth="1.5" />
+                <path
+                  d="M2 2 L6 6 L2 10 M6 6 L10 6"
+                  stroke="currentColor"
+                  fill="none"
+                  strokeWidth="1.5"
+                />
               </svg>
               Transition
             </span>
@@ -676,22 +750,29 @@ function ExtractVariableNode({ id, data }: NodeProps<FlowNode>) {
           {data.transitions.length > 0 && (
             <div className="px-1 pb-1 space-y-1">
               {data.transitions.map((t) => (
-                <div
-                  key={t.id}
-                  className="relative flex items-center gap-2 rounded-md bg-background border px-2 py-1.5 text-xs"
-                >
-                  <svg width="10" height="10" viewBox="0 0 12 12" className="text-muted-foreground shrink-0">
+                <div key={t.id} className={NODE_ITEM_CLASS}>
+                  <svg
+                    width="10"
+                    height="10"
+                    viewBox="0 0 12 12"
+                    className="text-muted-foreground shrink-0"
+                  >
                     <circle cx="6" cy="6" r="2.5" fill="currentColor" />
                     <path d="M1 6 L3 6 M9 6 L11 6" stroke="currentColor" strokeWidth="1" />
                   </svg>
-                  <span className="flex-1 truncate text-foreground/80">
+                  <span className="webee-flow-node__item-label flex-1 truncate">
                     {t.condition || "Set condition…"}
                   </span>
                   <Handle
                     type="source"
                     position={Position.Right}
                     id={t.id}
-                    className="!h-3 !w-3 !-right-1.5 !bg-white !border !border-foreground/40"
+                    data-flow-state={flowHandleState({
+                      isConnected: connectedSourceHandles.has(t.id),
+                      isSelected,
+                      isActive,
+                    })}
+                    className={cn(HANDLE_CLASS, "!h-2.5 !w-2.5 !-right-1.5")}
                   />
                 </div>
               ))}

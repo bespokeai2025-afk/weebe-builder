@@ -24,26 +24,26 @@ import { NodeRenderers } from "./FlowNodes";
 import type { FlowNodeData } from "@/lib/builder/types";
 
 const KIND_COLOR: Record<string, string> = {
-  conversation: "var(--flow-node)",
-  function: "var(--flow-node)",
-  call_transfer: "var(--flow-node)",
-  agent_transfer: "var(--flow-node)",
-  press_digit: "var(--flow-node)",
-  logic_split: "var(--flow-node)",
-  sms: "var(--flow-node)",
-  extract_variable: "var(--flow-node)",
-  code: "var(--flow-node)",
-  ending: "var(--flow-node)",
-  note: "var(--flow-node)",
-  wa_start:        "var(--flow-node)",
-  wa_message:      "var(--flow-node)",
-  wa_delay:        "var(--flow-node)",
-  wa_media:        "var(--flow-node)",
-  wa_booking:      "var(--flow-node)",
-  wa_wait_reply:   "var(--flow-node)",
-  wa_extract_var:  "var(--flow-node)",
-  wa_tag:          "var(--flow-node)",
-  wa_template:     "var(--flow-node)",
+  conversation: "var(--flow-minimap-node-fill)",
+  function: "var(--flow-minimap-node-fill)",
+  call_transfer: "var(--flow-minimap-node-fill)",
+  agent_transfer: "var(--flow-minimap-node-fill)",
+  press_digit: "var(--flow-minimap-node-fill)",
+  logic_split: "var(--flow-minimap-node-fill)",
+  sms: "var(--flow-minimap-node-fill)",
+  extract_variable: "var(--flow-minimap-node-fill)",
+  code: "var(--flow-minimap-node-fill)",
+  ending: "var(--flow-minimap-node-fill)",
+  note: "var(--flow-minimap-node-fill)",
+  wa_start: "var(--flow-minimap-node-fill)",
+  wa_message: "var(--flow-minimap-node-fill)",
+  wa_delay: "var(--flow-minimap-node-fill)",
+  wa_media: "var(--flow-minimap-node-fill)",
+  wa_booking: "var(--flow-minimap-node-fill)",
+  wa_wait_reply: "var(--flow-minimap-node-fill)",
+  wa_extract_var: "var(--flow-minimap-node-fill)",
+  wa_tag: "var(--flow-minimap-node-fill)",
+  wa_template: "var(--flow-minimap-node-fill)",
 };
 
 const MINI_MAP_WIDTH = 132;
@@ -243,6 +243,10 @@ function CanvasInner({
 
   const { nodes, edges, onNodesChange, onEdgesChange, onConnect, deleteEdge, flowVersion } =
     useBuilderStore();
+  const renderEdges = useMemo(
+    () => edges.map((edge) => (edge.type === "step" ? edge : { ...edge, type: "step" })),
+    [edges],
+  );
 
   useEffect(() => {
     const node = containerRef.current;
@@ -271,7 +275,7 @@ function CanvasInner({
   return (
     <ReactFlow
       nodes={nodes}
-      edges={edges}
+      edges={renderEdges}
       onNodesChange={onNodesChange}
       onEdgesChange={onEdgesChange}
       onConnect={onConnect}
@@ -284,12 +288,12 @@ function CanvasInner({
       maxZoom={2}
       proOptions={{ hideAttribution: true }}
       defaultEdgeOptions={{
-        type: "smoothstep",
+        type: "step",
         animated: false,
         style: {
           stroke: "var(--flow-edge)",
-          strokeWidth: 2,
-          filter: "drop-shadow(0 0 6px rgba(110, 231, 249, 0.5))",
+          strokeWidth: 1.25,
+          filter: "drop-shadow(0 0 3px rgba(110, 231, 249, 0.2))",
         },
       }}
     >

@@ -8,12 +8,15 @@ import {
   Sparkles, ExternalLink, Check, X, Edit2, Globe,
   Upload, FileText, AlertCircle, Copy,
   Link2, Link2Off, BarChart2,
+  CalendarClock,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { GrowthMindShell } from "./GrowthMindShell";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { getGrowthMindAIResponse } from "@/lib/growthmind/growthmind.ai";
 import { getGrowthMindData } from "@/lib/growthmind/growthmind.functions";
 import {
@@ -32,6 +35,8 @@ import {
   deleteSeoBrief,
   generateContentGap,
   generateMetaTags,
+  getSeoAutoCampaignSettings,
+  updateSeoAutoCampaignSettings,
   type SeoKeyword,
   type ContentIdea,
   type GscQuery,
@@ -1687,6 +1692,8 @@ export function GrowthMindSEO() {
   const listPropsFn   = useServerFn(listGscProperties);
   const savePropFn    = useServerFn(saveGscProperty);
   const syncGscFn     = useServerFn(syncGscToKeywords);
+  const getAutoSettingsFn = useServerFn(getSeoAutoCampaignSettings);
+  const updateAutoSettingsFn = useServerFn(updateSeoAutoCampaignSettings);
   const navigate      = useNavigate();
 
   const [seoTab, setSeoTab] = useState<SeoTab>("keywords");
@@ -1719,6 +1726,7 @@ export function GrowthMindSEO() {
   const [gscFetchLoading, setGscFetchLoading] = useState(false);
   const [gscFetchError, setGscFetchError]   = useState<string | null>(null);
   const [gscSyncing, setGscSyncing]         = useState(false);
+  const [autoSettingsSaving, setAutoSettingsSaving] = useState(false);
 
   const { data: siteData, isLoading } = useQuery({
     queryKey: ["growthmind-seo-site"],
@@ -1740,6 +1748,26 @@ export function GrowthMindSEO() {
     staleTime: 30_000,
     throwOnError: false,
   });
+
+  const { data: autoSettings, isLoading: autoSettingsLoading } = useQuery({
+    queryKey: ["seo-auto-campaign-settings"],
+    queryFn: () => getAutoSettingsFn(),
+    staleTime: 30_000,
+    throwOnError: false,
+  });
+
+  async function saveAutoCadence(perWeek: number) {
+    setAutoSettingsSaving(true);
+    try {
+      await updateAutoSettingsFn({ data: { perWeek } });
+      await qc.invalidateQueries({ queryKey: ["seo-auto-campaign-settings"] });
+      flashMsg(perWeek > 0 ? `Automatic SEO articles set to ${perWeek} per week.` : "Automatic SEO articles switched off.");
+    } catch (e: any) {
+      flashMsg(e?.message ?? "Could not update automatic SEO articles.", true);
+    } finally {
+      setAutoSettingsSaving(false);
+    }
+  }
 
   useEffect(() => {
     const site = siteData?.site;
@@ -2146,6 +2174,62 @@ export function GrowthMindSEO() {
           </div>
         ) : (
           <div className="space-y-5">
+
+            {!autoSettings?.excluded && (
+              <div className="rounded-xl border border-white/[0.06] bg-card/60 p-5">
+                <div className="flex flex-wrap items-start justify-between gap-4">
+                  <div className="flex gap-3">
+                    <div className="rounded-lg bg-emerald-500/10 p-2 h-fit">
+                      <CalendarClock className="h-4 w-4 text-emerald-400" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-semibold">Automatic SEO articles</p>
+                      <p className="mt-1 max-w-xl text-xs text-muted-foreground">
+                        GrowthMind will prepare article campaigns on your schedule. Every article still requires your approval before it can progress or be published.
+                      </p>
+                      {autoSettings?.perWeek ? (
+                        <p className="mt-2 text-xs text-emerald-400/90">
+                          Next campaign due{" "}
+                          {autoSettings.nextDueAt
+                            ? new Date(autoSettings.nextDueAt).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" })
+                            : "soon"}
+                        </p>
+                      ) : (
+                        <p className="mt-2 text-xs text-muted-foreground/70">Automatic campaign creation is off.</p>
+                      )}
+                      {autoSettings && !autoSettings.canManage && (
+                        <p className="mt-2 text-xs text-amber-400/80">Only workspace owners and admins can change this setting.</p>
+                      )}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    {autoSettingsLoading || autoSettingsSaving ? <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" /> : null}
+                    <Switch
+                      aria-label="Automatic SEO articles"
+                      checked={(autoSettings?.perWeek ?? 0) > 0}
+                      disabled={autoSettingsLoading || autoSettingsSaving || !autoSettings?.canManage}
+                      onCheckedChange={(checked) => saveAutoCadence(checked ? (autoSettings?.perWeek || 1) : 0)}
+                    />
+                    <Select
+                      value={String(autoSettings?.perWeek || 1)}
+                      disabled={autoSettingsLoading || autoSettingsSaving || !autoSettings?.canManage || !autoSettings?.perWeek}
+                      onValueChange={(value) => saveAutoCadence(Number(value))}
+                    >
+                      <SelectTrigger className="h-9 w-[132px]" aria-label="Articles per week">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {[1, 2, 3, 4, 5, 6, 7].map((value) => (
+                          <SelectItem key={value} value={String(value)}>
+                            {value} per week
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+              </div>
+            )}
 
             {/* Site connection */}
             <div className="rounded-xl border border-white/[0.06] bg-card/60 p-5">
