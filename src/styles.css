@@ -755,7 +755,7 @@
 
 /* ── Conversation Flow visual system — Builder page only ─────────────────── */
 .webee-builder-page {
-  --flow-canvas: #050914;
+  --flow-canvas: var(--webee-sidebar-background);
   --flow-grid: rgba(157, 210, 238, 0.055);
   --flow-node: #101827;
   --flow-node-text: #f4f7fb;
