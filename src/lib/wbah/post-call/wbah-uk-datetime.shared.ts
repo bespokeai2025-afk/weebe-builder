@@ -68,36 +68,29 @@ export function ukLocalToUtcIso(datePart: string, timePart: string): string | nu
   return d ? d.toISOString() : null;
 }
 
-export function addMinutesIso(iso: string, minutes: number): string | null {
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return null;
-  d.setUTCMinutes(d.getUTCMinutes() + minutes);
-  return d.toISOString();
-}
-
-/** Normalize callback_datetime (naive UK local) → UTC ISO — mirrors n8n POST dashboard body. */
+/** Normalize an ISO-like callback datetime (naive values are Europe/London) to UTC. */
 export function normalizeCallbackDatetimeUtc(raw: string | null | undefined): string | null {
   const cb = String(raw ?? "").trim();
   if (!cb || cb === "NA") return null;
 
   try {
-    if (/Z|[+-]\d{2}:?\d{2}$/.test(cb)) {
-      return new Date(cb).toISOString();
-    }
+    if (/Z|[+-]\d{2}:?\d{2}$/.test(cb)) return new Date(cb).toISOString();
     const [datePart, timePart = "00:00:00"] = cb.split("T");
     const [y, m, day] = datePart.split("-").map(Number);
     const [hh, mm, ss = 0] = timePart.split(":").map(Number);
-    const tmpUTC = new Date(Date.UTC(y, m - 1, day, hh, mm, ss));
-    const ukFmt = new Intl.DateTimeFormat("en-GB", {
-      timeZone: WBAH_TIMEZONE,
-      timeZoneName: "shortOffset",
-    });
-    const parts = ukFmt.formatToParts(tmpUTC);
-    const offPart = parts.find((p) => p.type === "timeZoneName")?.value || "GMT";
-    const off = offPart.match(/GMT([+-]\d+)?/);
-    const offHrs = off && off[1] ? Number(off[1]) : 0;
-    return new Date(Date.UTC(y, m - 1, day, hh - offHrs, mm, ss)).toISOString();
+    const local = ukLocalToUtcDate(
+      `${String(y).padStart(4, "0")}-${String(m).padStart(2, "0")}-${String(day).padStart(2, "0")}`,
+      `${String(hh).padStart(2, "0")}:${String(mm).padStart(2, "0")}:${String(ss).padStart(2, "0")}`,
+    );
+    return local?.toISOString() ?? null;
   } catch {
-    return cb.endsWith("Z") ? cb : `${cb}Z`;
+    return null;
   }
+}
+
+export function addMinutesIso(iso: string, minutes: number): string | null {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return null;
+  d.setUTCMinutes(d.getUTCMinutes() + minutes);
+  return d.toISOString();
 }

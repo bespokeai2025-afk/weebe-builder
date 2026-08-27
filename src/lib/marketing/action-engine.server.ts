@@ -211,6 +211,7 @@ async function autoActionsInFlightToday(sbAdmin: any, workspaceId: string): Prom
 export interface CreateMarketingActionInput {
   source: string;
   requested_by?: string | null;
+  objective_id?: string | null;
   objective?: string | null;
   platform: string;
   action_type: string;
@@ -235,6 +236,7 @@ export async function createMarketingAction(
     workspace_id: workspaceId,
     source: input.source,
     requested_by: input.requested_by ?? null,
+    objective_id: input.objective_id ?? null,
     objective: input.objective ?? null,
     platform: input.platform,
     action_type: input.action_type,

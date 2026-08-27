@@ -1,10 +1,10 @@
 import {
   addMinutesIso,
-  normalizeCallbackDatetimeUtc,
+  normalizeCallbackDatetimeUtc as normalizeCallbackDatetimeUtcValue,
   normalizeUkTime24,
   ukLocalToUtcIso,
 } from "./wbah-uk-datetime.shared";
-import { resolveWbahCallbackFromAnalysis } from "./wbah-callback-dynamics.shared";
+import { resolveWbahCallbackFromAnalysis, type WbahCallbackHandler } from "./wbah-callback-dynamics.shared";
 import { resolveWbahCallSummaryText } from "./wbah-timeline-note.shared";
 
 export type CalendlySlotShape = {
@@ -34,15 +34,8 @@ export type WbahFormattedCallData = {
   callbackDatetime: string | null;
   callbackDatetimeUtc: string | null;
   callbackType: string | null;
-  callbackHandler: "human" | "ai" | null;
-  callbackDatetimeSource:
-    | "callback_datetime"
-    | "human_callback_datetime"
-    | "booking_callback_datetime"
-    | null;
-  humanCallbackDatetime: string | null;
-  bookingCallbackDatetime: string | null;
-  dynamicsAgentPreference: number | null;
+  callbackHandler: WbahCallbackHandler | null;
+  callbackDatetimeSource: "callback_datetime" | "human_callback_datetime" | "booking_callback_datetime" | null;
   isCallbackRequest: boolean;
   appointmentDate: string | null;
   appointmentTimeUk: string | null;
@@ -130,7 +123,10 @@ function resolveSlot(
   return null;
 }
 
-export { normalizeCallbackDatetimeUtc } from "./wbah-uk-datetime.shared";
+/** Normalize callback_datetime (naive UK local) → UTC ISO — mirrors n8n POST dashboard body. */
+export function normalizeCallbackDatetimeUtc(raw: string | null | undefined): string | null {
+  return normalizeCallbackDatetimeUtcValue(raw);
+}
 
 /** Port of n8n "Format Data" — UK slot → UTC ISO for Calendly + dashboard. */
 export function formatWbahRetellCallData(input: WbahFormatDataInput): WbahFormattedCallData {
@@ -156,13 +152,7 @@ export function formatWbahRetellCallData(input: WbahFormatDataInput): WbahFormat
       ? (structured.verified_details as Record<string, unknown>)
       : structured;
 
-  const resolvedCallback = resolveWbahCallbackFromAnalysis(custom);
-  const humanCallbackDatetime = pickStr(custom, "human_callback_datetime");
-  const bookingCallbackDatetime = pickStr(
-    custom,
-    "booking_callback_datetime",
-    "ai_callback_datetime",
-  );
+  const callback = resolveWbahCallbackFromAnalysis(custom);
 
   const callSuccessfulRaw = analysis.call_successful ?? custom.call_successful;
   const callSuccessful =
@@ -184,15 +174,12 @@ export function formatWbahRetellCallData(input: WbahFormatDataInput): WbahFormat
     userSentiment: pickStr(custom, "user_sentiment") || pickStr(analysis, "user_sentiment") || null,
     callSummary: resolveWbahCallSummaryText(custom, analysis),
     callSuccessful,
-    callbackDatetime: resolvedCallback.callbackDatetime,
-    callbackDatetimeUtc: resolvedCallback.callbackDatetimeUtc,
-    callbackType: resolvedCallback.callbackType,
-    callbackHandler: resolvedCallback.callbackHandler,
-    callbackDatetimeSource: resolvedCallback.datetimeSource,
-    humanCallbackDatetime,
-    bookingCallbackDatetime,
-    dynamicsAgentPreference: resolvedCallback.dynamicsAgentPreference,
-    isCallbackRequest: resolvedCallback.isCallbackRequest,
+    callbackDatetime: callback.callbackDatetime,
+    callbackDatetimeUtc: callback.callbackDatetimeUtc,
+    callbackType: callback.callbackType,
+    callbackHandler: callback.callbackHandler,
+    callbackDatetimeSource: callback.datetimeSource,
+    isCallbackRequest: callback.isCallbackRequest,
     appointmentDate: slot?.date ?? null,
     appointmentTimeUk: timeUk,
     requestedStartUtc,

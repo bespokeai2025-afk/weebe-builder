@@ -18,7 +18,12 @@
  *     Gated on the notification_settings action grant.
  */
 import { z } from "zod";
-import { registerMindTool, type MindToolContext, type MindToolRunResult } from "./tool-registry.server";
+import {
+  registerMindTool,
+  type MindToolContext,
+  type MindToolRunResult,
+} from "./tool-registry.server";
+import { detectNotificationGapsForWorkspace } from "./notification-gap-detector.server";
 
 async function loadNotificationOverview(workspaceId: string) {
   const [{ getWorkspaceNotificationCapabilities, applicableEventKeys }, shared, { supabaseAdmin }] =
@@ -96,124 +101,14 @@ registerMindTool({
   mobileAvailable: true,
   currentHealth: "healthy",
   inputSchema: z.object({ lookback_days: z.number().int().min(1).max(90).optional() }).optional(),
-  run: async (ctx: MindToolContext, input?: { lookback_days?: number }): Promise<MindToolRunResult> => {
-    const { caps, applicable, rows, shared, sb } = await loadNotificationOverview(ctx.workspaceId);
-    const days = input?.lookback_days ?? 14;
-    const sinceIso = new Date(Date.now() - days * 86_400_000).toISOString();
-    const rowMap = new Map(rows.map((r) => [r.event_key, r]));
-    const applicableSet = new Set(applicable);
-
-    const effective = (key: string) => {
-      const saved = rowMap.get(key);
-      const d = shared.defaultSettingsForEvent(key);
-      const enabled = saved ? saved.enabled !== false : d.enabled;
-      const inApp = saved ? saved.in_app_enabled !== false : d.inAppEnabled;
-      const email = saved ? saved.email_enabled !== false : d.emailEnabled;
-      return { enabled, deliverable: enabled && (inApp || email) };
-    };
-
-    const findings: Array<{
-      kind: string; severity: "info" | "warning"; event_key: string | null;
-      summary: string; evidence: Record<string, unknown>;
-    }> = [];
-
-    // 1. Qualified leads arriving while their notification can't deliver.
-    if (applicableSet.has("qualified_leads_generated")) {
-      const eff = effective("qualified_leads_generated");
-      if (!eff.deliverable) {
-        const { count, error } = await sb
-          .from("leads")
-          .select("id", { count: "exact", head: true })
-          .eq("workspace_id", ctx.workspaceId)
-          .eq("status", "qualified")
-          .gte("updated_at", sinceIso);
-        if (!error && (count ?? 0) > 0) {
-          findings.push({
-            kind: "qualified_leads_notifications_off",
-            severity: "warning",
-            event_key: "qualified_leads_generated",
-            summary: `${count} lead(s) reached qualified in the last ${days} days but the qualified-leads notification is ${eff.enabled ? "enabled with no delivery channel" : "disabled"}.`,
-            evidence: { qualified_leads: count, lookback_days: days },
-          });
-        }
-      }
-    }
-
-    // 2. Bookings happening while booking notifications are off.
-    if (applicableSet.has("appointments_booked")) {
-      const eff = effective("appointments_booked");
-      if (!eff.deliverable) {
-        const { count, error } = await sb
-          .from("leads")
-          .select("id", { count: "exact", head: true })
-          .eq("workspace_id", ctx.workspaceId)
-          .eq("meeting_requested", true)
-          .gte("updated_at", sinceIso);
-        if (!error && (count ?? 0) > 0) {
-          findings.push({
-            kind: "bookings_notifications_off",
-            severity: "warning",
-            event_key: "appointments_booked",
-            summary: `${count} booked lead(s) in the last ${days} days while booking notifications cannot deliver.`,
-            evidence: { booked_leads: count, lookback_days: days },
-          });
-        }
-      }
-    }
-
-    // 3. Unread WhatsApp/BuzzChat replies while WhatsApp notifications are off.
-    if (caps.whatsapp === true) {
-      const waKeys = applicable.filter(
-        (k: string) => shared.NOTIFICATION_EVENT_DEFS[k]?.capability === "whatsapp",
-      );
-      const anyDeliverable = waKeys.some((k: string) => effective(k).deliverable);
-      if (waKeys.length > 0 && !anyDeliverable) {
-        const { count, error } = await sb
-          .from("whatsapp_conversations")
-          .select("id", { count: "exact", head: true })
-          .eq("workspace_id", ctx.workspaceId)
-          .gt("unread_count", 0)
-          .gte("last_inbound_at", sinceIso);
-        if (!error && (count ?? 0) > 0) {
-          findings.push({
-            kind: "buzzchat_replies_unnoticed",
-            severity: "warning",
-            event_key: waKeys[0] ?? null,
-            summary: `${count} WhatsApp/BuzzChat thread(s) have unread replies from the last ${days} days but no WhatsApp notification can deliver.`,
-            evidence: { unread_threads: count, lookback_days: days },
-          });
-        }
-      }
-    }
-
-    // 4. Booked-lead notifications not reaching any assigned agent: leads
-    // assigned to sales agents whose event delivery has no in-app channel.
-    if (applicableSet.has("lead_assigned")) {
-      const eff = effective("lead_assigned");
-      if (!eff.deliverable) {
-        const { count, error } = await sb
-          .from("leads")
-          .select("id", { count: "exact", head: true })
-          .eq("workspace_id", ctx.workspaceId)
-          .not("assigned_to", "is", null)
-          .gte("assigned_at", sinceIso);
-        if (!error && (count ?? 0) > 0) {
-          findings.push({
-            kind: "assignments_not_notifying_agents",
-            severity: "warning",
-            event_key: "lead_assigned",
-            summary: `${count} lead(s) assigned in the last ${days} days while assignment notifications cannot deliver to agents.`,
-            evidence: { assigned_leads: count, lookback_days: days },
-          });
-        }
-      }
-    }
-
+  run: async (
+    ctx: MindToolContext,
+    input?: { lookback_days?: number },
+  ): Promise<MindToolRunResult> => {
+    const detection = await detectNotificationGapsForWorkspace(ctx.sb, ctx.workspaceId, input);
     return {
       result: {
-        findings,
-        checked_at: new Date().toISOString(),
-        lookback_days: days,
+        ...detection,
         note: "Advisory only — turn findings into recommendations/proposals; this tool changes nothing.",
       },
     };

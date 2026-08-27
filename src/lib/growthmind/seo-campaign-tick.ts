@@ -20,6 +20,7 @@
  */
 
 import { createClient } from "@supabase/supabase-js";
+import { WBAH_WORKSPACE_ID } from "../wbah-exclusion.shared";
 
 export const AUTO_SEO_NAME_PREFIX = "[Auto] ";
 const MAX_PER_WEEK = 7;
@@ -255,6 +256,7 @@ export async function runSeoCampaignTick(): Promise<SeoCampaignTickReport> {
     .from("workspace_settings")
     .select("workspace_id, seo_auto_campaigns_per_week")
     .gt("seo_auto_campaigns_per_week", 0)
+    .neq("workspace_id", WBAH_WORKSPACE_ID)
   ).catch((e: any) => ({ data: null, error: e }));
   if (error || !eligible) {
     return { created: [], skipped: [], failed: [], error: String((error as any)?.message ?? error ?? "no data") };

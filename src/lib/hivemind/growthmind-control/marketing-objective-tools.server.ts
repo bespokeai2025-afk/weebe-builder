@@ -85,6 +85,66 @@ registerMindTool({
 });
 
 registerMindTool({
+  name: "hivemind.update_marketing_objective",
+  mind: "hivemind",
+  title: "Update marketing objective",
+  description:
+    "Pause, resume, complete or otherwise close a marketing objective, or adjust its target percentage or deadline. Identify it by exact name or id. Only workspace owners and admins can make these changes.",
+  access: "write",
+  surface: "registry",
+  sensitive: false,
+  idempotent: true,
+  estimatedCost: "none",
+  platforms: ["web", "mobile", "api", "system"],
+  featureFamily: "marketing_automation",
+  capabilityState: "available",
+  requiredIntegrations: [],
+  rollbackSupported: false,
+  mobileAvailable: true,
+  currentHealth: "healthy",
+  inputSchema: z.object({
+    objective_id: z.string().uuid().optional(),
+    objective_name: z.string().min(1).max(200).optional().describe("Exact objective name; use id when names are ambiguous"),
+    action: z.enum(["pause", "resume", "complete", "mark_not_achieved", "abandon"]).optional(),
+    target_pct: z.number().min(1).max(500).nullable().optional().describe("New target percentage; null clears it"),
+    deadline: z.string().date().nullable().optional().describe("New ISO calendar date (YYYY-MM-DD); null clears it"),
+  }).refine((v) => Boolean(v.objective_id || v.objective_name), {
+    message: "Provide objective_id or objective_name",
+  }).refine((v) => v.action !== undefined || v.target_pct !== undefined || v.deadline !== undefined, {
+    message: "Provide an action, target_pct, or deadline",
+  }),
+  run: async (ctx: MindToolContext, input: any): Promise<MindToolRunResult> => {
+    const statusByAction = {
+      pause: "paused",
+      resume: "active",
+      complete: "achieved",
+      mark_not_achieved: "not_achieved",
+      abandon: "abandoned",
+    } as const;
+    const sbAdmin = await getAdmin();
+    const { updateMarketingObjectiveCore } = await import("@/lib/hivemind/marketing-objectives.server");
+    const objective = await updateMarketingObjectiveCore(sbAdmin, ctx.workspaceId, ctx.userId ?? null, {
+      objectiveId: input.objective_id,
+      objectiveName: input.objective_name,
+      status: input.action ? statusByAction[input.action as keyof typeof statusByAction] : undefined,
+      targetPct: input.target_pct,
+      deadline: input.deadline,
+    });
+    return {
+      result: {
+        objective_id: objective.id,
+        title: objective.title,
+        status: objective.status,
+        target: objective.target,
+        note: "Objective updated. Marketing Operator and objective status views now reflect this change.",
+      },
+      affectedRecordType: "marketing_objective",
+      affectedRecordId: String(objective.id),
+    };
+  },
+});
+
+registerMindTool({
   name: "hivemind.get_marketing_objective_status",
   mind: "hivemind",
   title: "Get marketing objective status",

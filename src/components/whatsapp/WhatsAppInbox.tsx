@@ -43,6 +43,7 @@ import {
 } from "@/lib/whatsapp/wa-inbox-threads.shared";
 import { resolveWatiChatStatus } from "@/lib/whatsapp/wati-chat-status.shared";
 import { supabase } from "@/integrations/supabase/client";
+import { OpenLeadLink } from "@/components/whatsapp/OpenLeadLink";
 import { toast } from "sonner";
 
 type InboxMessage = {
@@ -66,6 +67,7 @@ type InboxThread = {
   needsReply?: boolean;
   lastDirection?: string;
   messages?: InboxMessage[];
+  leadId?: string | null;
   status?: string;
   assigneeId?: string | null;
   assignedTeamId?: string | null;
@@ -633,6 +635,7 @@ export function WhatsAppInbox() {
               <div className="min-w-0 flex-1">
                 <p className="truncate text-sm font-semibold">{active.name ?? active.phone}</p>
                 <p className="truncate text-[10px] text-muted-foreground">{active.phone}</p>
+                <OpenLeadLink leadId={active.leadId} />
               </div>
 
               <Select

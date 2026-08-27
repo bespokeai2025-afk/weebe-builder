@@ -278,7 +278,11 @@ export async function executeAction(sb: any, workspaceId: string, action: HiveMi
         }).eq("id", rec.id).eq("workspace_id", workspaceId);
         // Route through the Marketing Action Engine — honest per-rec outcomes.
         try {
-          const out = await routeGadsRecommendationToEngine(gadsAdmin as any, workspaceId, rec as any, { changeRequestId: cr.id as string, userId: approver });
+          const out = await routeGadsRecommendationToEngine(gadsAdmin as any, workspaceId, rec as any, {
+            changeRequestId: cr.id as string,
+            userId: approver,
+            objectiveId: typeof p.objective_id === "string" ? p.objective_id : null,
+          });
           outcomes.push({ change_request_id: cr.id as string, recommendation_id: rec.id, status: out.changeRequestStatus, detail: out.detail, marketing_action_id: out.marketingActionId });
           if (out.changeRequestStatus === "executed") {
             await (gadsAdmin as any).from("growthmind_gads_recommendations").update({ status: "applied", updated_at: nowIso }).eq("id", rec.id).eq("workspace_id", workspaceId);

@@ -155,7 +155,7 @@ registerMindTool({
   platforms: ["web", "mobile", "api", "system"],
   featureFamily: "content_publishing",
   capabilityState: "approval_required",
-  providerLimitations: "Published state is 'api_published / awaiting Lovable frontend' until live verification on the canonical host succeeds.",
+  providerLimitations: "Verification checks HTTP 200 on the canonical URL + public API confirmation. JS-rendered sites are supported — raw-HTML title matching is not used.",
   mobileAvailable: true,
   currentHealth: "healthy",
   inputSchema: z.object({ itemId: z.string().min(8).max(80) }),
@@ -264,6 +264,30 @@ registerMindTool({
     const { rollbackArticle } = await import("@/lib/growthmind/publication-engine.server");
     const r = await rollbackArticle(ctx.workspaceId, input.itemId, input.targetVersion, ctx.userId ?? "mind");
     if (!r.ok) throw new Error(r.error ?? "Rollback failed");
+    return { result: r as any, affectedRecordType: "growthmind_public_content_items", affectedRecordId: input.itemId };
+  },
+});
+
+registerMindTool({
+  name: "growthmind.content.recheck_live_verification",
+  mind: "growthmind",
+  title: "Re-check whether a published article is live on the website",
+  description: "Re-run live verification for an already-published article (status api_published or live_verification_failed). Checks HTTP 200 on the canonical URL + public API confirmation. Safe to call repeatedly — idempotent and never demotes a live article. Use this if an article is stuck at awaiting_lovable_frontend after the website deployed.",
+  access: "write",
+  surface: "registry",
+  sensitive: false,
+  idempotent: true,
+  estimatedCost: "none",
+  platforms: ["web", "mobile", "api", "system"],
+  featureFamily: "content_publishing",
+  capabilityState: "available",
+  mobileAvailable: true,
+  currentHealth: "healthy",
+  inputSchema: z.object({ itemId: z.string().min(8).max(80) }),
+  run: async (ctx: MindToolContext, input: any): Promise<MindToolRunResult> => {
+    const { recheckLiveVerification } = await import("@/lib/growthmind/publication-engine.server");
+    const r = await recheckLiveVerification(ctx.workspaceId, input.itemId);
+    if (!r.ok) throw new Error(r.error ?? "Recheck failed");
     return { result: r as any, affectedRecordType: "growthmind_public_content_items", affectedRecordId: input.itemId };
   },
 });

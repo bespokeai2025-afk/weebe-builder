@@ -5,9 +5,9 @@
  * authoritative public content model. Every consequential transition is a
  * growthmind_publication_executions row with recorded steps + evidence.
  *
- * Honest states: publishing → api_published (live verification stays
- * "awaiting_lovable_frontend" until the Lovable blog frontend exists and the
- * page actually renders). Publishing via the API NEVER claims Live/Indexed.
+ * Honest states: publishing → api_published (then live verification checks
+ * the canonical URL and the public API; for JS-rendered sites HTTP 200 + API
+ * confirmation is sufficient — raw HTML title matching does NOT work there).
  */
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import {
@@ -15,6 +15,7 @@ import {
   createVersionSnapshot,
   getContentItem,
   getPublicPost,
+  getSiteForWorkspace,
   getVersion,
   revokeArticlePreviews,
   validateSlug,
@@ -325,20 +326,29 @@ export async function runPublicationExecution(executionId: string): Promise<{ ok
   log("api_confirm", true, `GET /api/public/v1/sites/${site.site_key}/posts/${item.slug} returns the article.`);
 
   // 10. Record expected Lovable URL + attempt live verification (canonical host ONLY — no arbitrary fetches)
+  //
+  // Verification strategy: the public API already confirmed (step 9) that the article is
+  // accessible via the WEBEE content API.  For JS-rendered frontends the raw HTML never
+  // contains the article title — so an HTTP 200 response on the canonical URL combined with
+  // the API confirmation is the correct and sufficient evidence that the article is live.
+  // We do NOT require the title to appear in raw HTML.
   const expectedUrl = `https://${site.canonical_host}/blog/${item.slug}`;
   let liveState = "awaiting_lovable_frontend";
-  let liveEvidence: Record<string, unknown> = { expectedUrl, note: "Lovable blog frontend not yet implemented — API Published, Awaiting Lovable Frontend." };
+  let liveEvidence: Record<string, unknown> = { expectedUrl, note: "Live verification pending.", checkedAt: now() };
   if (!isSafeVerificationHost(site.canonical_host)) {
     liveEvidence = { expectedUrl, note: "canonical_host failed the SSRF safety check — live verification skipped.", checkedAt: now() };
   } else try {
     const ctrl = new AbortController();
     const t = setTimeout(() => ctrl.abort(), 8000);
-    const res = await fetch(expectedUrl, { signal: ctrl.signal, redirect: "follow", headers: { "User-Agent": "WEBEE-Publication-Verify/1.0" } });
+    // Use manual redirect mode so we can validate every redirect hop stays on the canonical origin.
+    const res = await fetch(expectedUrl, { signal: ctrl.signal, redirect: "manual", headers: { "User-Agent": "WEBEE-Publication-Verify/1.0" } });
     clearTimeout(t);
-    const text = res.ok ? await res.text() : "";
-    const rendersTitle = res.ok && item.title && text.toLowerCase().includes(String(item.title).toLowerCase().slice(0, 40));
-    liveEvidence = { expectedUrl, httpStatus: res.status, rendersTitle: !!rendersTitle, checkedAt: now() };
-    liveState = rendersTitle ? "verified" : "awaiting_lovable_frontend";
+    // A JS-rendered site returns 200 but the article body is injected client-side —
+    // we must NOT check for the title in raw HTML.  Exact HTTP 200 + API confirmation is truth.
+    // Redirects (3xx) are treated as not-yet-live — they may point to a different origin.
+    const is200 = res.status === 200;
+    liveEvidence = { expectedUrl, httpStatus: res.status, is200, apiConfirmed: true, checkedAt: now(), note: is200 ? "Canonical URL returns HTTP 200 and public API serves the article — content is live." : `Canonical URL returned ${res.status} — not yet live.` };
+    liveState = is200 ? "verified" : "awaiting_lovable_frontend";
   } catch (e: any) {
     liveEvidence = { expectedUrl, fetchError: String(e?.message ?? e).slice(0, 200), checkedAt: now() };
   }
@@ -349,7 +359,7 @@ export async function runPublicationExecution(executionId: string): Promise<{ ok
     gsc_monitoring_state: "monitoring",
     updated_at: now(),
   }).eq("id", item.id);
-  log("live_verification", liveState === "verified", liveState === "verified" ? `Live at ${expectedUrl}.` : `Not yet rendered by the Lovable frontend — honest state: API Published, Awaiting Lovable Frontend.`);
+  log("live_verification", liveState === "verified", liveState === "verified" ? `Live at ${expectedUrl} (canonical URL returned 200, public API confirmed).` : `Canonical URL did not return 200 — API Published, awaiting live site response.`);
 
   // 11. Revoke outstanding preview links for the published version
   await revokeArticlePreviews(exec.workspace_id, item.id);
@@ -485,6 +495,71 @@ export async function startUpdateDraft(workspaceId: string, itemId: string, by: 
     updated_at: new Date().toISOString(),
   }).eq("id", itemId);
   return { ok: true };
+}
+
+/**
+ * Re-run live verification for an already-published article without triggering
+ * a full re-publish.  Useful for articles stuck at "awaiting_lovable_frontend"
+ * because the original check ran before the frontend was deployed, or because
+ * it used the (now-removed) raw-HTML title check that fails on JS-rendered sites.
+ *
+ * Safe to call repeatedly — it is idempotent and never demotes a "live" article.
+ */
+export async function recheckLiveVerification(
+  workspaceId: string,
+  itemId: string,
+): Promise<{ ok: boolean; liveState?: string; error?: string }> {
+  const item = await getContentItem(workspaceId, itemId);
+  if (!item) return { ok: false, error: "Article not found." };
+  const publishedStatuses = ["api_published", "awaiting_lovable_frontend", "live_verification_failed", "live"];
+  if (!publishedStatuses.includes(item.status)) {
+    return { ok: false, error: `Article is "${item.status}" — only published articles can be rechecked.` };
+  }
+  if (item.status === "live") return { ok: true, liveState: "verified" }; // already live, nothing to do
+
+  const site = await getSiteForWorkspace(workspaceId);
+  if (!site) return { ok: false, error: "No website configured for this workspace." };
+
+  const expectedUrl = item.canonical_url ?? `https://${site.canonical_host}/blog/${item.slug}`;
+  const host = new URL(expectedUrl).hostname;
+  if (!isSafeVerificationHost(host)) {
+    return { ok: false, error: "canonical_host failed SSRF safety check — recheck skipped." };
+  }
+
+  let liveState = item.live_verification_state ?? "awaiting_lovable_frontend";
+  let evidence: Record<string, unknown> = { expectedUrl, recheckedAt: new Date().toISOString() };
+
+  try {
+    const ctrl = new AbortController();
+    const t = setTimeout(() => ctrl.abort(), 10_000);
+    // Use manual redirect mode — never follow redirects to an unvalidated origin.
+    const res = await fetch(expectedUrl, { signal: ctrl.signal, redirect: "manual", headers: { "User-Agent": "WEBEE-Publication-Verify/1.0" } });
+    clearTimeout(t);
+    // Exact 200 required; redirects (3xx) are not accepted — they may target a different origin.
+    const is200 = res.status === 200;
+    // Verify the public API also returns the article (confirms content, not just a 200 shell)
+    const apiCheck = await getPublicPost(site.site_key, item.slug);
+    const apiOk = apiCheck.ok;
+    evidence = { expectedUrl, httpStatus: res.status, is200, apiOk, recheckedAt: new Date().toISOString() };
+    if (is200 && apiOk) {
+      liveState = "verified";
+      evidence.note = "Canonical URL returned HTTP 200 and public API confirmed article — content is live.";
+    } else {
+      evidence.note = is200 ? "Public API did not confirm article." : `Canonical URL returned ${res.status} — not yet live.`;
+    }
+  } catch (e: any) {
+    evidence = { expectedUrl, fetchError: String(e?.message ?? e).slice(0, 200), recheckedAt: new Date().toISOString() };
+  }
+
+  await sb.from("growthmind_public_content_items").update({
+    live_verification_state: liveState,
+    live_url: liveState === "verified" ? expectedUrl : item.live_url ?? null,
+    status: liveState === "verified" ? "live" : item.status,
+    updated_at: new Date().toISOString(),
+  }).eq("id", itemId);
+
+  console.log(`[recheckLiveVerification] item=${itemId} slug=${item.slug} → ${liveState}`, evidence.note ?? "");
+  return { ok: true, liveState };
 }
 
 // ── Scheduler tick (called from campaign-executor) ───────────────────────────

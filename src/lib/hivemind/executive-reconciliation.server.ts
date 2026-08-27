@@ -14,14 +14,19 @@
  * NEVER throws — a reconciliation failure must never break the tick.
  */
 import { createClient } from "@supabase/supabase-js";
-import {
-  publishExecutiveEvent,
-  classifyPendingExecutiveEvents,
-} from "./executive-events.shared";
+import { publishExecutiveEvent, classifyPendingExecutiveEvents } from "./executive-events.shared";
 
 type Sb = any;
 
 const HOUR = 60 * 60 * 1000;
+const WORKSPACE_PAGE_SIZE = 200;
+const NOTIFICATION_GAP_SOURCE = "notification_gap_sweep";
+const NOTIFICATION_GAP_OPEN_STATES = ["new", "acknowledged", "under_review", "reopened"];
+// Respect an explicit owner decision not to see a recommendation again. Other
+// terminal states came from automated resolution/expiry and can reopen if the
+// detected condition returns.
+const NOTIFICATION_GAP_USER_FINAL_STATES = ["dismissed", "rejected", "approved"];
+const NOTIFICATION_GAP_REOPENABLE_STATES = ["expired", "completed"];
 
 interface ReconJob {
   key: string;
@@ -186,6 +191,244 @@ const executiveReasoningJob: ReconJob = {
     const res = await runExecutiveReasoning(sb, workspaceId, isWbahWorkspaceId(workspaceId));
     if (!res.ok) throw new Error(res.error ?? "reasoning run failed");
     return { ...res } as unknown as Record<string, unknown>;
+  },
+};
+
+function notificationGapDedupeKey(kind: string, eventKey: string | null): string {
+  return `notification_gap:${kind}:${eventKey ?? "workspace"}`;
+}
+
+function notificationGapRecommendationDraft(
+  finding: {
+    kind: string;
+    severity: "info" | "warning";
+    event_key: string | null;
+    summary: string;
+    evidence: Record<string, unknown>;
+  },
+  checkedAt: string,
+) {
+  const actionByKind: Record<string, string> = {
+    qualified_leads_notifications_off:
+      "Open notification settings and enable Qualified leads generated with at least one delivery channel.",
+    bookings_notifications_off:
+      "Open notification settings and enable Appointments booked with at least one delivery channel.",
+    buzzchat_replies_unnoticed:
+      "Open notification settings and enable a WhatsApp reply notification so unread BuzzChat replies reach the team.",
+    assignments_not_notifying_agents:
+      "Open notification settings and enable Lead assigned so assigned agents are notified.",
+  };
+  const action =
+    actionByKind[finding.kind] ??
+    "Review notification settings and enable an appropriate delivery channel for this event.";
+
+  return {
+    workspace_id: "",
+    title: `Notification gap: ${finding.summary}`.slice(0, 300),
+    department: finding.kind === "buzzchat_replies_unnoticed" ? "operations" : "crm",
+    priority: finding.severity === "warning" ? "high" : "medium",
+    business_issue: finding.summary.slice(0, 2000),
+    evidence: {
+      source: "hivemind.detect_notification_gaps",
+      finding_kind: finding.kind,
+      event_key: finding.event_key,
+      checked_at: checkedAt,
+      ...finding.evidence,
+    },
+    related_entities: [],
+    commercial_impact:
+      "Important leads, bookings, assignments, or customer replies may be missed when the team is not notified.",
+    risk_of_inaction:
+      "The underlying conversations or sales activity can go unnoticed until the opportunity has cooled.",
+    recommended_action: action,
+    next_step: "Review the notification settings and choose at least one delivery channel.",
+    suggested_owner: "workspace owner",
+    due_date: null,
+    approval_required: true,
+    confidence: 0.95,
+    data_freshness: { checkedAt, source: "notification_settings_and_local_activity" },
+    source_systems: ["notifications"],
+    source_event_ids: [],
+    correlation_key: notificationGapDedupeKey(finding.kind, finding.event_key),
+    dedupe_key: notificationGapDedupeKey(finding.kind, finding.event_key),
+    status: "new",
+    source: NOTIFICATION_GAP_SOURCE,
+    reassess_at: new Date(Date.now() + 24 * HOUR).toISOString(),
+  };
+}
+
+/**
+ * Daily: turn current notification-gap findings into visible, actionable
+ * recommendations. This job is claimed by the same reconciliation CAS as
+ * the other executive jobs, so overlapping campaign-executor ticks cannot
+ * duplicate recommendations or actions.
+ */
+const notificationGapRecommendationsJob: ReconJob = {
+  key: "notification_gap_recommendations",
+  intervalMs: 24 * HOUR,
+  run: async (sb, workspaceId) => {
+    const { detectNotificationGapsForWorkspace } =
+      await import("@/lib/minds/notification-gap-detector.server");
+    const detection = await detectNotificationGapsForWorkspace(sb, workspaceId, {
+      lookback_days: 14,
+    });
+    if (!detection.complete) {
+      return {
+        findings: detection.findings.length,
+        created: 0,
+        resolved: 0,
+        proposed: 0,
+        skipped: "incomplete_detection",
+      };
+    }
+
+    const { getHiveMindModeConfig } = await import("@/lib/hivemind/mode-gate.server");
+    const mode = await getHiveMindModeConfig(sb, workspaceId);
+    if (mode.mode === "observe") {
+      return {
+        findings: detection.findings.length,
+        created: 0,
+        resolved: 0,
+        proposed: 0,
+        skipped: "observe_mode",
+      };
+    }
+
+    const { data: existing, error: existingError } = await sb
+      .from("hivemind_recommendations")
+      .select("id, dedupe_key, status")
+      .eq("workspace_id", workspaceId)
+      .eq("source", NOTIFICATION_GAP_SOURCE);
+    if (existingError) throw new Error(existingError.message);
+
+    const activeKeys = new Set(
+      detection.findings.map((finding) =>
+        notificationGapDedupeKey(finding.kind, finding.event_key),
+      ),
+    );
+    let created = 0;
+    let refreshed = 0;
+    let reopened = 0;
+    let proposed = 0;
+    let inserted: any[] = [];
+    const followThroughCandidates: any[] = [];
+    const existingByKey = new Map(
+      (existing ?? []).map((rec: any) => [String(rec.dedupe_key), rec]),
+    );
+    const rows: any[] = [];
+
+    for (const finding of detection.findings) {
+      const key = notificationGapDedupeKey(finding.kind, finding.event_key);
+      const prior = existingByKey.get(key);
+      const draft = {
+        ...notificationGapRecommendationDraft(finding, detection.checked_at),
+        workspace_id: workspaceId,
+      };
+      if (!prior) {
+        rows.push(draft);
+        continue;
+      }
+      if (NOTIFICATION_GAP_USER_FINAL_STATES.includes(String(prior.status))) {
+        continue;
+      }
+
+      const isOpen = NOTIFICATION_GAP_OPEN_STATES.includes(String(prior.status));
+      const isReopenable = NOTIFICATION_GAP_REOPENABLE_STATES.includes(String(prior.status));
+      if (!isOpen && !isReopenable) {
+        // Assigned/in-progress/waiting/failed lifecycle states are owned by
+        // their respective workflows. Do not reset their status or result.
+        continue;
+      }
+      const { workspace_id: _workspaceId, ...updates } = draft;
+      const { data: refreshedRec, error: refreshError } = await sb
+        .from("hivemind_recommendations")
+        .update({
+          ...updates,
+          status: isOpen ? prior.status : "new",
+          result: null,
+          updated_at: detection.checked_at,
+        })
+        .eq("id", prior.id)
+        .eq("workspace_id", workspaceId)
+        .eq("source", NOTIFICATION_GAP_SOURCE)
+        .select(
+          "id, workspace_id, title, department, priority, business_issue, recommended_action, next_step, dedupe_key, correlation_key, status, confidence",
+        )
+        .single();
+      if (refreshError) throw new Error(refreshError.message);
+      if (isOpen) {
+        refreshed++;
+      } else {
+        reopened++;
+        followThroughCandidates.push(refreshedRec);
+      }
+    }
+
+    if (rows.length) {
+      const { data, error } = await sb
+        .from("hivemind_recommendations")
+        .upsert(rows, { onConflict: "workspace_id,dedupe_key", ignoreDuplicates: true })
+        .select(
+          "id, workspace_id, title, department, priority, business_issue, recommended_action, next_step, dedupe_key, correlation_key, status, confidence",
+        );
+      if (error) throw new Error(error.message);
+      inserted = (data ?? []) as any[];
+      created = inserted.length;
+      followThroughCandidates.push(...inserted);
+    }
+
+    // A clean scan is allowed to close only this sweep's still-open
+    // recommendations. If the gap later returns, the reconciliation above
+    // reopens this same stable-dedupe recommendation rather than duplicating it.
+    const resolvedIds = (existing ?? []).filter(
+      (rec: any) =>
+        NOTIFICATION_GAP_OPEN_STATES.includes(String(rec.status)) &&
+        !activeKeys.has(String(rec.dedupe_key)),
+      )
+      .map((rec: any) => rec.id);
+    if (resolvedIds.length) {
+      const { error } = await sb
+        .from("hivemind_recommendations")
+        .update({
+          status: "completed",
+          result: "Notification gap is no longer present on the latest scheduled check.",
+          updated_at: new Date().toISOString(),
+        })
+        .eq("workspace_id", workspaceId)
+        .eq("source", NOTIFICATION_GAP_SOURCE)
+        .in("id", resolvedIds)
+        .in("status", NOTIFICATION_GAP_OPEN_STATES);
+      if (error) throw new Error(error.message);
+    }
+
+    // Match executive reasoning: assistant/operator modes may place a
+    // follow-through in the approval queue, but it is always pending and never
+    // executes here. Recommend mode leaves the visible recommendation for the
+    // owner to act on.
+    if (
+      followThroughCandidates.length &&
+      ["assistant", "operator", "executive_operator"].includes(mode.mode)
+    ) {
+      const { proposeFollowThroughForRecommendation } =
+        await import("@/lib/hivemind/executive-followthrough.server");
+      const { isWbahWorkspaceId } = await import("@/lib/wbah-exclusion.shared");
+      for (const rec of followThroughCandidates) {
+        const result = await proposeFollowThroughForRecommendation(sb, workspaceId, rec, mode, {
+          isWbah: isWbahWorkspaceId(workspaceId),
+          proposedBy: "notification_gap_sweep",
+        });
+        if (result.ok) proposed++;
+      }
+    }
+
+    return {
+      findings: detection.findings.length,
+      created,
+      refreshed,
+      reopened,
+      resolved: resolvedIds.length,
+      proposed,
+    };
   },
 };
 
@@ -377,6 +620,7 @@ const RECON_JOBS: ReconJob[] = [
   integrationFailuresJob,
   staleLeadsJob,
   executiveReasoningJob,
+  notificationGapRecommendationsJob,
   taskAccountabilityJob,
   actionOutcomeLearningJob,
 ];
@@ -454,6 +698,33 @@ async function recordJobResult(
   } catch { /* best-effort */ }
 }
 
+/** Read every workspace deterministically so recurring jobs cannot starve
+ * workspaces after a fixed PostgREST page limit. */
+export async function listWorkspaceIdsForReconciliation(sb: Sb): Promise<string[]> {
+  const ids: string[] = [];
+  let afterId: string | null = null;
+
+  for (;;) {
+    let query = sb
+      .from("workspaces")
+      .select("id")
+      .order("id", { ascending: true })
+      .limit(WORKSPACE_PAGE_SIZE);
+    if (afterId) query = query.gt("id", afterId);
+
+    const { data, error } = await query;
+    if (error) throw new Error(error.message);
+    const page = (data ?? []) as Array<{ id: string }>;
+    if (!page.length) break;
+
+    ids.push(...page.map((workspace) => workspace.id));
+    if (page.length < WORKSPACE_PAGE_SIZE) break;
+    afterId = page[page.length - 1]!.id;
+  }
+
+  return ids;
+}
+
 // ── Tick entry point ──────────────────────────────────────────────────────────
 
 export async function runExecutiveEventsTick(): Promise<ExecutiveEventsTick> {
@@ -473,32 +744,29 @@ export async function runExecutiveEventsTick(): Promise<ExecutiveEventsTick> {
     const sb = createClient(supabaseUrl, serviceKey, { auth: { persistSession: false } }) as Sb;
     publishedThisRun = 0;
 
-    const { data: workspaces, error } = await sb
-      .from("workspaces")
-      .select("id")
-      .limit(500);
-    if (error || !workspaces?.length) return out;
+    const workspaceIds = await listWorkspaceIdsForReconciliation(sb);
+    if (!workspaceIds.length) return out;
 
-    for (const ws of workspaces) {
+    for (const workspaceId of workspaceIds) {
       out.workspacesScanned++;
       for (const job of RECON_JOBS) {
         try {
-          const claimed = await claimReconJob(sb, ws.id, job.key, job.intervalMs);
+          const claimed = await claimReconJob(sb, workspaceId, job.key, job.intervalMs);
           if (!claimed) continue;
           out.jobsRun++;
           try {
-            const detail = await job.run(sb, ws.id);
-            await recordJobResult(sb, ws.id, job.key, "ok", detail);
+            const detail = await job.run(sb, workspaceId);
+            await recordJobResult(sb, workspaceId, job.key, "ok", detail);
           } catch (jobErr: any) {
             out.errors++;
-            await recordJobResult(sb, ws.id, job.key, "error", {
+            await recordJobResult(sb, workspaceId, job.key, "error", {
               error: String(jobErr?.message ?? jobErr).slice(0, 500),
             });
           }
         } catch (claimErr: any) {
           out.errors++;
           console.warn(
-            `[exec-events] recon ${job.key} failed for ws ${ws.id}:`,
+            `[exec-events] recon ${job.key} failed for ws ${workspaceId}:`,
             claimErr?.message ?? claimErr,
           );
         }

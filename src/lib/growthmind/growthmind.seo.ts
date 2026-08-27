@@ -2,6 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { buildGscEncodedSiteUrl } from "./gsc-utils";
+import { assertNotWbahWorkspace, isWbahWorkspaceId } from "@/lib/wbah-exclusion.shared";
 
 // ── Types ───────────────────────────────────────────────────────────────────
 
@@ -41,6 +42,32 @@ export type GscQuery = {
   position:    number | null;
 };
 
+export type SeoAutoCampaignSettings = {
+  perWeek: number;
+  lastCreatedAt: string | null;
+  nextDueAt: string | null;
+  canManage: boolean;
+  excluded: boolean;
+};
+
+function nextSeoAutoCampaignDueAt(perWeek: number, lastCreatedAt: string | null): string | null {
+  if (perWeek <= 0) return null;
+  if (!lastCreatedAt) return new Date().toISOString();
+  const gapDays = Math.floor(7 / Math.min(7, Math.max(1, Math.floor(perWeek))));
+  return new Date(new Date(lastCreatedAt).getTime() + gapDays * 24 * 60 * 60 * 1000).toISOString();
+}
+
+async function getWorkspaceRole(context: any, workspaceId: string): Promise<string | null> {
+  const { data, error } = await (context.supabase as any)
+    .from("workspace_members")
+    .select("role")
+    .eq("workspace_id", workspaceId)
+    .eq("user_id", context.userId)
+    .maybeSingle();
+  if (error) throw new Error(error.message);
+  return data?.role ?? null;
+}
+
 // ── Server functions ─────────────────────────────────────────────────────────
 
 export const getSeoSite = createServerFn({ method: "GET" })
@@ -75,6 +102,69 @@ export const getSeoSite = createServerFn({ method: "GET" })
         createdAt:    data.created_at,
         updatedAt:    data.updated_at,
       } as SeoSite,
+    };
+  });
+
+export const getSeoAutoCampaignSettings = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }): Promise<SeoAutoCampaignSettings> => {
+    const workspaceId = context.workspaceId;
+    if (!workspaceId) throw new Error("No workspace");
+    if (isWbahWorkspaceId(workspaceId)) {
+      return { perWeek: 0, lastCreatedAt: null, nextDueAt: null, canManage: false, excluded: true };
+    }
+
+    const [role, settingsResult] = await Promise.all([
+      getWorkspaceRole(context, workspaceId),
+      (context.supabase as any)
+        .from("workspace_settings")
+        .select("seo_auto_campaigns_per_week, seo_auto_last_created_at")
+        .eq("workspace_id", workspaceId)
+        .maybeSingle(),
+    ]);
+    if (settingsResult.error) throw new Error(settingsResult.error.message);
+
+    const perWeek = Math.min(7, Math.max(0, Math.floor(Number(settingsResult.data?.seo_auto_campaigns_per_week) || 0)));
+    const lastCreatedAt = settingsResult.data?.seo_auto_last_created_at ?? null;
+    return {
+      perWeek,
+      lastCreatedAt,
+      nextDueAt: nextSeoAutoCampaignDueAt(perWeek, lastCreatedAt),
+      canManage: role === "owner" || role === "admin",
+      excluded: false,
+    };
+  });
+
+export const updateSeoAutoCampaignSettings = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .validator((input: unknown) => z.object({ perWeek: z.number().int().min(0).max(7) }).parse(input))
+  .handler(async ({ context, data }): Promise<SeoAutoCampaignSettings> => {
+    const workspaceId = context.workspaceId;
+    if (!workspaceId) throw new Error("No workspace");
+    assertNotWbahWorkspace(workspaceId);
+    const role = await getWorkspaceRole(context, workspaceId);
+    if (role !== "owner" && role !== "admin") {
+      throw new Error("Only workspace owners and admins can change automatic SEO article settings.");
+    }
+
+    const { data: saved, error } = await (context.supabase as any)
+      .from("workspace_settings")
+      .upsert({
+        workspace_id: workspaceId,
+        seo_auto_campaigns_per_week: data.perWeek,
+      }, { onConflict: "workspace_id" })
+      .select("seo_auto_campaigns_per_week, seo_auto_last_created_at")
+      .single();
+    if (error) throw new Error(error.message);
+
+    const perWeek = Number(saved.seo_auto_campaigns_per_week) || 0;
+    const lastCreatedAt = saved.seo_auto_last_created_at ?? null;
+    return {
+      perWeek,
+      lastCreatedAt,
+      nextDueAt: nextSeoAutoCampaignDueAt(perWeek, lastCreatedAt),
+      canManage: true,
+      excluded: false,
     };
   });
 

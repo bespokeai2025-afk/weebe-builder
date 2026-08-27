@@ -1,65 +1,20 @@
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useEffect, useLayoutEffect, useCallback } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { useRouterState, useNavigate } from "@tanstack/react-router";
-import { Send, Mic, MicOff, X, Minus, Loader2, ChevronRight, User, ExternalLink, ClipboardList, Square } from "lucide-react";
+import { Send, Mic, MicOff, X, Loader2, ChevronDown, ChevronRight, User, ExternalLink, ClipboardList, Square } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { getHiveMindAIResponse, getHiveMindTTS } from "@/lib/hivemind/hivemind.ai";
 import { streamHiveMindChat } from "@/lib/hivemind/use-hivemind-stream";
 import { useMindConversation } from "@/hooks/useMindConversation";
 import { loadHiveMindVoiceSettings, loadHiveMindUserName } from "@/lib/hivemind/voice-profile";
-
-// ── Keyframe styles ────────────────────────────────────────────────────────────
-const ORB_STYLES = `
-@keyframes hm-orb-idle-breathe {
-  0%,100% { transform: scale(1); opacity: 1; }
-  50%      { transform: scale(1.06); opacity: 0.9; }
-}
-@keyframes hm-ring-cw {
-  to { transform: rotate(360deg); }
-}
-@keyframes hm-ring-ccw {
-  to { transform: rotate(-360deg); }
-}
-@keyframes hm-ring-cw-slow {
-  to { transform: rotate(360deg); }
-}
-@keyframes hm-pulse-out {
-  0%   { transform: scale(0.9); opacity: 0.7; }
-  100% { transform: scale(2.2); opacity: 0; }
-}
-@keyframes hm-core-think {
-  0%,100% { transform: scale(1) rotate(0deg); }
-  25%     { transform: scale(1.1) rotate(90deg); }
-  50%     { transform: scale(0.95) rotate(180deg); }
-  75%     { transform: scale(1.05) rotate(270deg); }
-}
-@keyframes hm-speak-bounce {
-  0%,100% { transform: scaleY(0.3); }
-  50%     { transform: scaleY(1); }
-}
-@keyframes hm-energy-flow {
-  0%   { stroke-dashoffset: 200; opacity: 0.2; }
-  50%  { opacity: 0.8; }
-  100% { stroke-dashoffset: 0; opacity: 0.2; }
-}
-@keyframes hm-alert-ring {
-  0%,100% { box-shadow: 0 0 0 0 rgba(239,68,68,0.5); }
-  50%     { box-shadow: 0 0 0 6px rgba(239,68,68,0); }
-}
-@keyframes hm-notification-pop {
-  0%   { transform: scale(0.5); opacity: 0; }
-  70%  { transform: scale(1.2); }
-  100% { transform: scale(1); opacity: 1; }
-}
-@keyframes hm-wave-bar {
-  0%,100% { transform: scaleY(0.25); opacity: 0.4; }
-  50%     { transform: scaleY(1); opacity: 1; }
-}
-@keyframes hm-outer-glow-pulse {
-  0%,100% { opacity: 0.4; transform: scale(1); }
-  50%     { opacity: 0.9; transform: scale(1.08); }
-}
-`;
+import { AvaSignal } from "./AvaSignal.portable";
+import {
+  calculateHiveMindAnchor,
+  HIVE_MIND_SHELL_GUTTER,
+  HIVE_MIND_POSITION_VERSION,
+  isFullViewportBackground,
+  parseHiveMindDragOffset,
+} from "./hiveMindPositioning";
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 import { readinessLabel } from "@/lib/minds/intelligence-packet-ui.shared";
@@ -79,233 +34,32 @@ type Msg = { id: string; role: "user" | "hm"; content: string; workOrders?: Work
 
 function uid() { return Math.random().toString(36).slice(2, 9); }
 
-// ── Orb visual sizes & colors by state ────────────────────────────────────────
-const ORB_CONFIG: Record<OrbState, {
-  size: number;
-  coreSize: number;
-  haloOpacity: number;
-  glowColor: string;
-  glowSize: string;
-  ringColor: string;
-  ringOpacity: number;
-  coreColor: string;
-  label: string;
-}> = {
-  idle: {
-    size: 56, coreSize: 18,
-    haloOpacity: 0.15,
-    glowColor: "rgba(14,165,233,0.25)", glowSize: "0 0 20px 8px rgba(14,165,233,0.2)",
-    ringColor: "rgba(14,165,233,0.3)", ringOpacity: 0.5,
-    coreColor: "#7dd3fc",
-    label: "Idle",
-  },
-  listening: {
-    size: 64, coreSize: 20,
-    haloOpacity: 0.22,
-    glowColor: "rgba(6,182,212,0.35)", glowSize: "0 0 30px 12px rgba(6,182,212,0.35)",
-    ringColor: "rgba(6,182,212,0.5)", ringOpacity: 0.75,
-    coreColor: "#22d3ee",
-    label: "Listening",
-  },
-  thinking: {
-    size: 60, coreSize: 18,
-    haloOpacity: 0.2,
-    glowColor: "rgba(99,102,241,0.35)", glowSize: "0 0 28px 10px rgba(99,102,241,0.3)",
-    ringColor: "rgba(99,102,241,0.5)", ringOpacity: 0.7,
-    coreColor: "#a5b4fc",
-    label: "Thinking",
-  },
-  speaking: {
-    size: 72, coreSize: 22,
-    haloOpacity: 0.3,
-    glowColor: "rgba(6,182,212,0.5)", glowSize: "0 0 40px 20px rgba(6,182,212,0.4)",
-    ringColor: "rgba(6,182,212,0.7)", ringOpacity: 0.9,
-    coreColor: "#ffffff",
-    label: "Speaking",
-  },
-  error: {
-    size: 56, coreSize: 18,
-    haloOpacity: 0.2,
-    glowColor: "rgba(239,68,68,0.3)", glowSize: "0 0 20px 8px rgba(239,68,68,0.25)",
-    ringColor: "rgba(239,68,68,0.4)", ringOpacity: 0.6,
-    coreColor: "#fca5a5",
-    label: "Error",
-  },
+const ORB_LABEL: Record<OrbState, string> = {
+  idle: "Idle",
+  listening: "Listening",
+  thinking: "Thinking",
+  speaking: "Speaking",
+  error: "Error",
 };
 
-// ── Waveform bars (speaking state) ────────────────────────────────────────────
-function WaveformBars() {
-  const barCount = 8;
-  const bars = Array.from({ length: barCount });
-  return (
-    <div className="absolute inset-0 pointer-events-none" style={{ borderRadius: "50%" }}>
-      {bars.map((_, i) => {
-        const angle = (i / barCount) * 360;
-        const delay = (i / barCount) * 0.7;
-        const r = 40; // radius from center
-        const rad = (angle * Math.PI) / 180;
-        const x = 50 + r * Math.cos(rad);
-        const y = 50 + r * Math.sin(rad);
-        return (
-          <div
-            key={i}
-            className="absolute"
-            style={{
-              left: `${x}%`,
-              top: `${y}%`,
-              width: 3,
-              height: 12,
-              marginLeft: -1.5,
-              marginTop: -6,
-              borderRadius: 2,
-              background: "linear-gradient(to top, rgba(6,182,212,0.2), rgba(6,182,212,0.9))",
-              transformOrigin: "center bottom",
-              transform: `rotate(${angle + 90}deg) scaleY(0.25)`,
-              animation: `hm-wave-bar 0.5s ease-in-out infinite`,
-              animationDelay: `${delay}s`,
-              willChange: "transform, opacity",
-            }}
-          />
-        );
-      })}
-    </div>
-  );
-}
-
 // ── Orb visual ────────────────────────────────────────────────────────────────
-function OrbVisual({ state, notifCount, alertMode, isOpen }: {
+function OrbVisual({ state, notifCount, alertMode, hovered }: {
   state: OrbState;
   notifCount: number;
   alertMode: boolean;
-  isOpen: boolean;
+  hovered: boolean;
 }) {
-  const cfg = ORB_CONFIG[state];
-  const sz = cfg.size;
-
   return (
     <div
-      className="relative flex items-center justify-center transition-all duration-500"
-      style={{ width: sz, height: sz, willChange: "width, height" }}
+      className="relative flex h-[105px] w-[126px] items-center justify-center sm:h-[124px] sm:w-[154px] lg:h-[145px] lg:w-[180px]"
+      style={{ willChange: "transform" }}
     >
-      {/* Outermost halo — always */}
-      <span
-        className="absolute inset-0 rounded-full pointer-events-none"
-        style={{
-          background: `radial-gradient(circle, ${cfg.glowColor} 0%, transparent 70%)`,
-          boxShadow: cfg.glowSize,
-          animation: state === "idle"
-            ? "hm-orb-idle-breathe 3.5s ease-in-out infinite"
-            : state === "speaking"
-            ? "hm-outer-glow-pulse 0.8s ease-in-out infinite"
-            : "hm-orb-idle-breathe 2s ease-in-out infinite",
-          willChange: "transform, opacity",
-        }}
-      />
-
-      {/* Alert ring */}
-      {alertMode && (
-        <span
-          className="absolute rounded-full pointer-events-none"
-          style={{
-            inset: -4,
-            border: "2px solid rgba(239,68,68,0.6)",
-            borderRadius: "50%",
-            animation: "hm-alert-ring 1.5s ease-in-out infinite",
-            willChange: "box-shadow",
-          }}
-        />
-      )}
-
-      {/* Outer rotating ring (dashed) */}
-      <span
-        className="absolute rounded-full pointer-events-none"
-        style={{
-          inset: 4,
-          border: `1px dashed ${cfg.ringColor}`,
-          opacity: cfg.ringOpacity,
-          animation: state === "thinking"
-            ? "hm-ring-cw 1.2s linear infinite"
-            : state === "speaking"
-            ? "hm-ring-cw 1.8s linear infinite"
-            : state === "listening"
-            ? "hm-ring-cw 2.5s linear infinite"
-            : "hm-ring-cw 6s linear infinite",
-          willChange: "transform",
-        }}
-      />
-
-      {/* Middle counter-ring (dotted) */}
-      <span
-        className="absolute rounded-full pointer-events-none"
-        style={{
-          inset: 10,
-          border: `1px dotted ${cfg.ringColor}`,
-          opacity: cfg.ringOpacity * 0.6,
-          animation: state === "thinking"
-            ? "hm-ring-ccw 0.9s linear infinite"
-            : state === "speaking"
-            ? "hm-ring-ccw 1.4s linear infinite"
-            : "hm-ring-ccw 8s linear infinite",
-          willChange: "transform",
-        }}
-      />
-
-      {/* Pulse rings (listening + speaking) */}
-      {(state === "listening" || state === "speaking") && (
-        <>
-          <span
-            className="absolute inset-0 rounded-full pointer-events-none"
-            style={{
-              border: `1px solid ${cfg.ringColor}`,
-              animation: "hm-pulse-out 1.6s ease-out infinite",
-              willChange: "transform, opacity",
-            }}
-          />
-          <span
-            className="absolute inset-0 rounded-full pointer-events-none"
-            style={{
-              border: `1px solid ${cfg.ringColor}`,
-              animation: "hm-pulse-out 1.6s ease-out infinite",
-              animationDelay: "0.8s",
-              willChange: "transform, opacity",
-            }}
-          />
-        </>
-      )}
-
-      {/* Waveform bars — speaking only */}
-      {state === "speaking" && <WaveformBars />}
-
-      {/* Core sphere */}
-      <span
-        className="absolute rounded-full pointer-events-none"
-        style={{
-          inset: 16,
-          background: `radial-gradient(circle at 38% 38%, rgba(255,255,255,0.25), transparent 70%), radial-gradient(circle, ${cfg.glowColor} 0%, rgba(0,30,60,0.6) 100%)`,
-          boxShadow: `inset 0 1px 0 rgba(255,255,255,0.2), 0 0 12px 4px ${cfg.glowColor}`,
-          animation: state === "thinking"
-            ? "hm-core-think 1.8s ease-in-out infinite"
-            : state === "idle"
-            ? "hm-orb-idle-breathe 3.5s ease-in-out infinite"
-            : undefined,
-          willChange: "transform",
-        }}
-      />
-
-      {/* Bright center dot */}
-      <span
-        className="absolute rounded-full pointer-events-none transition-all duration-500"
-        style={{
-          width: cfg.coreSize,
-          height: cfg.coreSize,
-          marginLeft: -(cfg.coreSize / 2),
-          marginTop: -(cfg.coreSize / 2),
-          top: "50%",
-          left: "50%",
-          background: cfg.coreColor,
-          boxShadow: `0 0 12px 6px ${cfg.glowColor}, 0 0 24px 10px ${cfg.glowColor}`,
-          willChange: "width, height, box-shadow",
-        }}
+      <AvaSignal
+        className="h-[105px] w-[126px] sm:h-[124px] sm:w-[154px] lg:h-[145px] lg:w-[180px]"
+        dark
+        step={state === "thinking" ? "connecting" : state === "speaking" || state === "listening" ? "live" : state === "error" ? "error" : "idle"}
+        agentSpeaking={state === "speaking"}
+        hovered={hovered}
       />
 
       {/* Notification badge */}
@@ -323,13 +77,20 @@ function OrbVisual({ state, notifCount, alertMode, isOpen }: {
           {notifCount > 9 ? "9+" : notifCount}
         </span>
       )}
+      {alertMode && (
+        <span
+          className="absolute right-4 top-7 h-2 w-2 rounded-full bg-red-400 shadow-[0_0_8px_2px_rgba(248,113,113,0.7)]"
+          aria-label="HiveMind alert"
+        />
+      )}
     </div>
   );
 }
 
 // ── Mini chat panel ────────────────────────────────────────────────────────────
-function MiniChat({ onClose, onStateChange }: {
+function MiniChat({ onClose, onCollapse, onStateChange }: {
   onClose: () => void;
+  onCollapse: () => void;
   onStateChange: (s: { thinking: boolean; speaking: boolean; listening: boolean }) => void;
 }) {
   const aiFn  = useServerFn(getHiveMindAIResponse);
@@ -339,7 +100,6 @@ function MiniChat({ onClose, onStateChange }: {
   const [messages, setMessages]   = useState<Msg[]>([]);
   const [input, setInput]         = useState("");
   const [thinking, setThinkingS]  = useState(false);
-  const [minimized, setMinimized] = useState(false);
   const [recording, setRecording] = useState(false);
   const [speaking, setSpeakingS]  = useState(false);
   const [micError, setMicError]   = useState<string | null>(null);
@@ -408,12 +168,12 @@ function MiniChat({ onClose, onStateChange }: {
   }, [thinking, speaking, recording]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
-    if (!minimized) bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages, thinking, minimized]);
+    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages, thinking]);
 
   useEffect(() => {
     const name = userName.current;
-    setMessages([{ id: "greet", role: "hm", content: name ? `Online, ${name}. How can I assist?` : "HiveMind online. How can I assist?" }]);
+    setMessages([{ id: "greet", role: "hm", content: name ? `Online, ${name}. How can I assist?` : "Assistant online. How can I assist?" }]);
   }, []);
 
   function stopAudio() { audioRef.current?.pause(); audioRef.current = null; setSpeaking(false); }
@@ -530,8 +290,7 @@ function MiniChat({ onClose, onStateChange }: {
 
   return (
     <div className={cn(
-      "absolute bottom-24 right-0 w-[340px] rounded-2xl overflow-hidden transition-all duration-300 select-text",
-      minimized ? "h-12" : "h-[440px]",
+      "absolute bottom-24 right-0 h-[440px] w-[340px] rounded-2xl overflow-hidden select-text",
     )}
     style={{
       background: "linear-gradient(160deg, rgba(2,12,27,0.97) 0%, rgba(4,20,44,0.97) 100%)",
@@ -561,7 +320,7 @@ function MiniChat({ onClose, onStateChange }: {
         </div>
 
         <div className="flex-1 min-w-0">
-          <span className="text-xs font-semibold text-sky-200 tracking-wide">HiveMind</span>
+          <span className="text-xs font-semibold text-sky-200 tracking-wide">Assistant</span>
           {(thinking || recording || speaking) && (
             <span className="ml-2 text-[9px] text-sky-400/70 uppercase tracking-widest">
               {thinking ? "thinking" : recording ? "listening" : "speaking"}
@@ -571,9 +330,10 @@ function MiniChat({ onClose, onStateChange }: {
 
         {thinking && <Loader2 className="h-3 w-3 text-sky-400 animate-spin" />}
 
-        <button onClick={() => setMinimized(m => !m)}
+        <button onClick={onCollapse} aria-label="Collapse assistant"
+          title="Collapse"
           className="text-sky-400/30 hover:text-sky-400/70 transition-colors ml-1">
-          <Minus className="h-3.5 w-3.5" />
+          <ChevronDown className="h-3.5 w-3.5" />
         </button>
         <button onClick={() => { stopAudio(); onClose(); }} aria-label="Close"
           className="text-sky-400/30 hover:text-sky-400/70 transition-colors">
@@ -581,8 +341,7 @@ function MiniChat({ onClose, onStateChange }: {
         </button>
       </div>
 
-      {!minimized && (
-        <>
+      <>
           {/* Messages */}
           <div className="flex-1 overflow-y-auto px-3 py-3 space-y-2.5 h-[calc(440px-100px)]"
             style={{ scrollbarWidth: "thin", scrollbarColor: "rgba(6,182,212,0.2) transparent" }}>
@@ -684,7 +443,7 @@ function MiniChat({ onClose, onStateChange }: {
               value={input}
               onChange={e => setInput(e.target.value)}
               onKeyDown={e => e.key === "Enter" && !e.shiftKey && (e.preventDefault(), send(input))}
-              placeholder={recording ? "Listening…" : "Ask HiveMind…"}
+              placeholder={recording ? "Listening…" : "Ask assistant…"}
               className="flex-1 bg-transparent text-xs placeholder:text-sky-400/25 focus:outline-none min-w-0 text-sky-100"
             />
 
@@ -706,16 +465,132 @@ function MiniChat({ onClose, onStateChange }: {
               </button>
             )}
           </div>
-        </>
-      )}
+      </>
     </div>
   );
+}
+
+// ── Shared shell placement ──────────────────────────────────────────────────────
+type LayoutAnchor = {
+  right: number;
+  bottom: number;
+  maxRight: number;
+  maxBottom: number;
+};
+
+type DragState = {
+  startX: number;
+  startY: number;
+  right: number;
+  bottom: number;
+  maxRight: number;
+  maxBottom: number;
+  moved: boolean;
+};
+
+type DragOffset = { x: number; y: number };
+
+const ORB_POSITION_STORAGE_KEY = "hm-orb-position";
+const LEGACY_ORB_POSITION_KEYS = ["hm-orb-offset", "hm-orb-pos"];
+const COLLISION_GUTTER = 18;
+const HIVE_MIND_CORNER_GUTTER = 16;
+
+function viewportOrbSize() {
+  if (window.innerWidth < 640) return { width: 126, height: 105 };
+  if (window.innerWidth < 1024) return { width: 154, height: 124 };
+  return { width: 180, height: 145 };
+}
+
+function isVisibleLayoutElement(element: HTMLElement) {
+  const rect = element.getBoundingClientRect();
+  const style = window.getComputedStyle(element);
+  return (
+    rect.width > 0 &&
+    rect.height > 0 &&
+    style.display !== "none" &&
+    style.visibility !== "hidden" &&
+    style.opacity !== "0"
+  );
+}
+
+function getLayoutReserves(
+  orbRoot: HTMLElement,
+  mainRect: DOMRect,
+  viewportWidth: number,
+  viewportHeight: number,
+) {
+  let rightReserve = 0;
+  let bottomReserve = 0;
+  let cornerBottomReserve = 0;
+  const selectors = [
+    "[class~='fixed']",
+    "[class~='sticky']",
+    "aside",
+    "[role='complementary']",
+    "[data-hivemind-avoid]",
+  ].join(",");
+
+  document.querySelectorAll<HTMLElement>(selectors).forEach((element) => {
+    if (
+      element === orbRoot ||
+      orbRoot.contains(element) ||
+      element.closest("[data-hivemind-overlay]") ||
+      element.closest("[data-sidebar='sidebar'], [data-sidebar='sidebar'] *")
+    ) {
+      return;
+    }
+    const style = window.getComputedStyle(element);
+    const isRail = element.matches("aside, [role='complementary'], [data-hivemind-avoid]");
+    if (!isRail && style.position !== "fixed" && style.position !== "sticky") return;
+    if (!isVisibleLayoutElement(element)) return;
+
+    const rect = element.getBoundingClientRect();
+    if (isFullViewportBackground(rect, viewportWidth, viewportHeight)) return;
+    const nearMainRight = rect.right >= mainRect.right - 80;
+    const tallEnoughForRail = rect.height >= Math.min(viewportHeight * 0.28, 280);
+    if (isRail && nearMainRight && tallEnoughForRail && rect.left < mainRect.right) {
+      rightReserve = Math.max(rightReserve, viewportWidth - rect.left + COLLISION_GUTTER);
+    }
+
+    const touchesBottom = rect.bottom >= viewportHeight - 24 && rect.top < viewportHeight;
+    const broadEnoughForBottomBar =
+      rect.width >= Math.min(viewportWidth * 0.35, Math.max(260, mainRect.width * 0.35));
+    const shortEnoughForBottomBar =
+      rect.height <= Math.min(180, Math.max(96, viewportHeight * 0.32));
+    if (
+      (style.position === "fixed" || style.position === "sticky") &&
+      !isRail &&
+      touchesBottom &&
+      broadEnoughForBottomBar &&
+      shortEnoughForBottomBar &&
+      rect.top > 0
+    ) {
+      bottomReserve = Math.max(bottomReserve, viewportHeight - rect.top + COLLISION_GUTTER);
+    }
+
+    const bottomRightFloat =
+      (style.position === "fixed" || style.position === "sticky") &&
+      rect.right >= viewportWidth - 24 &&
+      rect.bottom >= viewportHeight - 24 &&
+      rect.width >= 150 &&
+      rect.height >= 48;
+    if (bottomRightFloat) {
+      rightReserve = Math.max(rightReserve, viewportWidth - rect.left + COLLISION_GUTTER);
+      cornerBottomReserve = Math.max(
+        cornerBottomReserve,
+        viewportHeight - rect.top + COLLISION_GUTTER,
+      );
+    }
+  });
+
+  return { rightReserve, bottomReserve, cornerBottomReserve };
 }
 
 // ── Main Orb ───────────────────────────────────────────────────────────────────
 export function HiveMindOrb() {
   const pathname   = useRouterState({ select: s => s.location.pathname });
   const navigate   = useNavigate();
+  const orbRootRef = useRef<HTMLDivElement>(null);
 
   const [open, setOpen]         = useState(false);
   const [hovered, setHovered]   = useState(false);
@@ -727,26 +602,147 @@ export function HiveMindOrb() {
 
   const clickTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // ── Draggable position (offsets from bottom-right, persisted) ──
-  const [pos, setPos] = useState<{ right: number; bottom: number }>({ right: 24, bottom: 24 });
-  // Restore saved position after mount (avoids SSR/client hydration mismatch).
+  // Placement is anchored to the authenticated shell's main content area. The
+  // persisted value is an offset from that safe anchor, not an arbitrary
+  // viewport coordinate, so route/layout changes can still move the entity.
+  const [anchor, setAnchor] = useState<LayoutAnchor>({
+    right: HIVE_MIND_SHELL_GUTTER,
+    bottom: HIVE_MIND_SHELL_GUTTER,
+    maxRight: HIVE_MIND_SHELL_GUTTER,
+    maxBottom: HIVE_MIND_SHELL_GUTTER,
+  });
+  const [dragOffset, setDragOffset] = useState<DragOffset>({ x: 0, y: 0 });
+  const [dragging, setDragging] = useState(false);
+  const [positionStorageReady, setPositionStorageReady] = useState(false);
+
+  // Old versions stored coordinates for a broken fixed/viewport system. Clear
+  // those values once, then restore only current shell-overlay offsets.
   useEffect(() => {
     try {
-      const saved = JSON.parse(localStorage.getItem("hm-orb-pos") ?? "");
-      if (saved && Number.isFinite(saved.right) && Number.isFinite(saved.bottom)) {
-        setPos({
-          right: Math.min(Math.max(saved.right, 8), window.innerWidth - 80),
-          bottom: Math.min(Math.max(saved.bottom, 8), window.innerHeight - 80),
-        });
+      for (const key of LEGACY_ORB_POSITION_KEYS) {
+        localStorage.removeItem(key);
+        sessionStorage.removeItem(key);
+      }
+      const saved = parseHiveMindDragOffset(localStorage.getItem(ORB_POSITION_STORAGE_KEY));
+      if (saved) {
+        setDragOffset(saved);
       }
     } catch {}
+    setPositionStorageReady(true);
   }, []);
-  const dragRef = useRef<{ startX: number; startY: number; right: number; bottom: number; moved: boolean } | null>(null);
+  useEffect(() => {
+    if (!positionStorageReady) return;
+    try {
+      localStorage.setItem(ORB_POSITION_STORAGE_KEY, JSON.stringify({
+        version: HIVE_MIND_POSITION_VERSION,
+        offset: dragOffset,
+      }));
+    } catch {}
+  }, [dragOffset, positionStorageReady]);
+
+  useLayoutEffect(() => {
+    const root = orbRootRef.current;
+    if (!root || typeof window === "undefined") return;
+
+    let frame = 0;
+    const recalculate = () => {
+      frame = 0;
+      const main = document.querySelector<HTMLElement>(".app-shell-main");
+      const mainRect = main?.getBoundingClientRect() ?? new DOMRect(0, 0, window.innerWidth, window.innerHeight);
+      const { width: orbWidth, height: orbHeight } = viewportOrbSize();
+      const { rightReserve, bottomReserve, cornerBottomReserve } = getLayoutReserves(
+        root,
+        mainRect,
+        window.innerWidth,
+        window.innerHeight,
+      );
+      const { right, bottom, maxRight, maxBottom } = calculateHiveMindAnchor({
+        viewportWidth: window.innerWidth,
+        viewportHeight: window.innerHeight,
+        mainLeft: mainRect.left,
+        mainRight: mainRect.right,
+        mainTop: mainRect.top,
+        orbWidth,
+        orbHeight,
+        rightReserve,
+        bottomReserve,
+        cornerBottomReserve,
+      });
+      setAnchor((current) => (
+        current.right === right &&
+        current.bottom === bottom &&
+        current.maxRight === maxRight &&
+        current.maxBottom === maxBottom
+          ? current
+          : { right, bottom, maxRight, maxBottom }
+      ));
+    };
+    const schedule = () => {
+      if (!frame) frame = window.requestAnimationFrame(recalculate);
+    };
+
+    const resizeObserver = typeof ResizeObserver !== "undefined"
+      ? new ResizeObserver(schedule)
+      : null;
+    const main = document.querySelector<HTMLElement>(".app-shell-main");
+    if (main) resizeObserver?.observe(main);
+    window.addEventListener("resize", schedule, { passive: true });
+    window.addEventListener("scroll", schedule, { passive: true });
+
+    // Observe only the authenticated shell host (which also contains its
+    // shell-level overlays), rather than the entire document. This catches
+    // rails and bars being mounted/toggled without subscribing HiveMind to
+    // unrelated page-wide mutation churn.
+    const shellHost = main?.closest(".app-shell-root")?.parentElement ?? main;
+    const mutationObserver = typeof MutationObserver !== "undefined" && shellHost
+      ? new MutationObserver(schedule)
+      : null;
+    if (mutationObserver && shellHost) {
+      mutationObserver.observe(shellHost, {
+        subtree: true,
+        childList: true,
+        attributes: true,
+        attributeFilter: ["class", "style", "data-state", "data-open"],
+      });
+    }
+
+    recalculate();
+    return () => {
+      if (frame) window.cancelAnimationFrame(frame);
+      resizeObserver?.disconnect();
+      mutationObserver?.disconnect();
+      window.removeEventListener("resize", schedule);
+      window.removeEventListener("scroll", schedule);
+    };
+  }, [pathname]);
+
+  // Keep the resting position independent of page rails and collision
+  // reserves. Those elements can be full-viewport layers and previously
+  // forced the entity to the top of the app. The calculated maxima still keep
+  // a user-dragged entity visible on every viewport.
+  const displayedRight = Math.min(
+    Math.max(HIVE_MIND_CORNER_GUTTER - dragOffset.x, HIVE_MIND_CORNER_GUTTER),
+    anchor.maxRight,
+  );
+  const displayedBottom = Math.min(
+    Math.max(HIVE_MIND_CORNER_GUTTER - dragOffset.y, HIVE_MIND_CORNER_GUTTER),
+    anchor.maxBottom,
+  );
+  const dragRef = useRef<DragState | null>(null);
   const suppressClickRef = useRef(false);
 
   function onDragPointerDown(e: React.PointerEvent) {
     if (e.button !== 0) return;
-    dragRef.current = { startX: e.clientX, startY: e.clientY, right: pos.right, bottom: pos.bottom, moved: false };
+    dragRef.current = {
+      startX: e.clientX,
+      startY: e.clientY,
+      right: displayedRight,
+      bottom: displayedBottom,
+      maxRight: anchor.maxRight,
+      maxBottom: anchor.maxBottom,
+      moved: false,
+    };
+    setDragging(true);
     (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
   }
   function onDragPointerMove(e: React.PointerEvent) {
@@ -756,34 +752,28 @@ export function HiveMindOrb() {
     const dy = e.clientY - d.startY;
     if (!d.moved && Math.abs(dx) < 5 && Math.abs(dy) < 5) return;
     d.moved = true;
-    setPos({
-      right: Math.min(Math.max(d.right - dx, 8), window.innerWidth - 80),
-      bottom: Math.min(Math.max(d.bottom - dy, 8), window.innerHeight - 80),
+    const right = Math.min(
+      Math.max(d.right - dx, HIVE_MIND_CORNER_GUTTER),
+      d.maxRight,
+    );
+    const bottom = Math.min(
+      Math.max(d.bottom - dy, HIVE_MIND_CORNER_GUTTER),
+      d.maxBottom,
+    );
+    setDragOffset({
+      x: HIVE_MIND_CORNER_GUTTER - right,
+      y: HIVE_MIND_CORNER_GUTTER - bottom,
     });
   }
   function onDragPointerUp() {
     const d = dragRef.current;
     dragRef.current = null;
+    setDragging(false);
     if (d?.moved) {
       suppressClickRef.current = true;
-      setPos((p) => {
-        try { localStorage.setItem("hm-orb-pos", JSON.stringify(p)); } catch {}
-        return p;
-      });
       setTimeout(() => { suppressClickRef.current = false; }, 0);
     }
   }
-
-  // Inject keyframes once
-  useEffect(() => {
-    const id = "hm-orb-styles";
-    if (document.getElementById(id)) return;
-    const style = document.createElement("style");
-    style.id = id;
-    style.textContent = ORB_STYLES;
-    document.head.appendChild(style);
-    return () => { /* keep styles mounted for app lifetime */ };
-  }, []);
 
   // Derive orb state from chat state
   const orbState: OrbState = (() => {
@@ -813,19 +803,27 @@ export function HiveMindOrb() {
 
   return (
     <div
-      className="fixed z-50 flex flex-col items-end select-none"
-      style={{ right: pos.right, bottom: pos.bottom, touchAction: "none" }}
+      ref={orbRootRef}
+      data-hivemind-orb
+      className="absolute pointer-events-auto flex flex-col items-end select-none"
+      style={{
+        right: displayedRight,
+        bottom: displayedBottom,
+        touchAction: "none",
+        transition: dragging ? "none" : "right 260ms ease-out, bottom 260ms ease-out",
+      }}
     >
       {/* Chat panel */}
       {open && (
         <MiniChat
           onClose={() => setOpen(false)}
+          onCollapse={() => setOpen(false)}
           onStateChange={setChatState}
         />
       )}
 
       <div className="relative flex flex-col items-end">
-        {/* Full HiveMind link pill (when open) */}
+        {/* Full assistant link pill (when open) */}
         {open && (
           <a
             href="/hivemind/chat"
@@ -836,7 +834,7 @@ export function HiveMindOrb() {
               backdropFilter: "blur(16px)",
             }}
           >
-            Full HiveMind <ExternalLink className="h-2.5 w-2.5" />
+            Open assistant <ExternalLink className="h-2.5 w-2.5" />
           </a>
         )}
 
@@ -852,7 +850,7 @@ export function HiveMindOrb() {
               boxShadow: "0 8px 24px rgba(0,0,0,0.5)",
             }}
           >
-            <span className="opacity-60 text-[9px] uppercase tracking-widest mr-1.5">DoubleClick</span>Full HiveMind
+            <span className="opacity-60 text-[9px] uppercase tracking-widest mr-1.5">DoubleClick</span>Open assistant
             <div
               className="absolute -bottom-1 right-5 w-2 h-2 rotate-45"
               style={{ background: "rgba(2,12,27,0.95)", borderRight: "1px solid rgba(6,182,212,0.2)", borderBottom: "1px solid rgba(6,182,212,0.2)" }}
@@ -875,11 +873,10 @@ export function HiveMindOrb() {
               className="h-1.5 w-1.5 rounded-full"
               style={{
                 background: orbState === "speaking" ? "#22d3ee" : orbState === "thinking" ? "#a5b4fc" : "#7dd3fc",
-                animation: "hm-orb-idle-breathe 1.2s ease-in-out infinite",
                 boxShadow: `0 0 4px 2px ${orbState === "speaking" ? "rgba(6,182,212,0.6)" : "rgba(99,102,241,0.5)"}`,
               }}
             />
-            {ORB_CONFIG[orbState].label}
+              {ORB_LABEL[orbState]}
           </div>
         )}
 
@@ -892,8 +889,8 @@ export function HiveMindOrb() {
           onPointerCancel={onDragPointerUp}
           onMouseEnter={() => setHovered(true)}
           onMouseLeave={() => setHovered(false)}
-          aria-label="Open HiveMind Executive Assistant (drag to move)"
-          title="Drag to move"
+          aria-label={open ? "Collapse assistant" : "Open executive assistant"}
+          title={open ? "Collapse assistant" : "Open assistant — drag to move"}
           className="relative cursor-grab active:cursor-grabbing transition-transform duration-300 active:scale-95 focus:outline-none"
           style={{
             background: "none",
@@ -906,17 +903,10 @@ export function HiveMindOrb() {
             state={orbState}
             notifCount={notifCount}
             alertMode={alertMode}
-            isOpen={open}
+            hovered={hovered}
           />
         </button>
 
-        {/* "Executive Assistant" identity line */}
-        <div
-          className="mt-1.5 text-center text-[8px] font-semibold tracking-[0.18em] uppercase pointer-events-none"
-          style={{ color: "rgba(6,182,212,0.4)", letterSpacing: "0.18em" }}
-        >
-          HiveMind
-        </div>
       </div>
     </div>
   );
