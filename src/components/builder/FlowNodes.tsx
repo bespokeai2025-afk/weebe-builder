@@ -213,7 +213,7 @@ function flowHandleState({
 }
 
 const NODE_SURFACE_CLASS =
-  "webee-flow-node overflow-visible rounded-2xl border text-[#f4f7fb] transition-[border-color,box-shadow] duration-200";
+  "webee-flow-node overflow-visible rounded-2xl border text-[#0a1220] transition-[border-color,box-shadow] duration-200";
 const NODE_HEADER_CLASS = "webee-flow-node__header relative rounded-t-xl border-b px-3 py-2";
 const NODE_SECTION_CLASS = "webee-flow-node__section mx-2 rounded-lg border";
 const NODE_ITEM_CLASS =
