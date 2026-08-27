@@ -3,6 +3,9 @@
  * Mirrors n8n getAllValidFields + getALLValidFields1.
  */
 
+import { enrichWbahVerifiedDetailsFromSummaries, applyOwnerOccupiedCorrection } from "./wbah-crm-enrichment.shared";
+import { sanitizeWbahUkAddressFields } from "./wbah-uk-address.shared";
+import { normalizeWbahUkMobilePhone } from "./wbah-uk-phone.shared";
 import {
   applyContactAddressSameAsProperty,
   applyVacantOrTenantedToPayload,
@@ -18,14 +21,6 @@ const AGENTIC_EXCLUDED_KEYS = WBAH_VERIFIED_DETAILS_EXCLUDED_KEYS;
 
 function isEmptyValue(v: unknown): boolean {
   return v == null || String(v).trim() === "";
-}
-
-function normalizeMobilePhone(value: string): string {
-  const trimmed = value.trim();
-  if (trimmed.startsWith("+")) return trimmed;
-  const digits = trimmed.replace(/\D/g, "");
-  if (!digits) return trimmed;
-  return `+${digits}`;
 }
 
 function boolVal(v: unknown): boolean | undefined {
@@ -65,6 +60,7 @@ function extractLeaseholdFromSummaries(
 export function normalizeWbahAgenticCrmFields(
   structured: Record<string, unknown>,
   custom?: Record<string, unknown>,
+  transcript?: string | null,
 ): Record<string, unknown> {
   const verified =
     structured.verified_details && typeof structured.verified_details === "object"
@@ -72,9 +68,12 @@ export function normalizeWbahAgenticCrmFields(
       : {};
   const working: Record<string, unknown> = { ...structured, ...verified };
 
+  enrichWbahVerifiedDetailsFromSummaries(working, custom, transcript);
+  sanitizeWbahUkAddressFields(working);
   applyVacantOrTenantedToPayload(working, working.vacant_or_tenanted);
+  applyOwnerOccupiedCorrection(working, custom, verified);
   extractLeaseholdFromSummaries(custom, working);
-  applyContactAddressSameAsProperty(working, working);
+  applyContactAddressSameAsProperty(working, working, custom, transcript);
 
   for (const [alias, canonical] of Object.entries(AGENTIC_EXTRACTION_ALIASES)) {
     const aliasVal = working[alias];
@@ -96,7 +95,11 @@ export function normalizeWbahAgenticCrmFields(
     if (isEmptyValue(value)) continue;
 
     if (key === "mobilephone" && typeof value === "string") {
-      out[key] = normalizeMobilePhone(value);
+      out[key] = normalizeWbahUkMobilePhone(value);
+      continue;
+    }
+    if (key === "new_othervendor_hometelephone" && typeof value === "string") {
+      out[key] = normalizeWbahUkMobilePhone(value);
       continue;
     }
 

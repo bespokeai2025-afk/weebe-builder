@@ -1,6 +1,7 @@
 import type { Edge } from "@xyflow/react";
 import type { FlowNode } from "./store";
-import type { BuilderSettings, BuilderVariable, FlowNodeData, NodeKind, Transition } from "./types";
+import type { BuilderSettings, BuilderVariable, FlowNodeData, NodeKind, Transition, TransitionConditionType } from "./types";
+import { isEquationCondition } from "../voice/graph/transition-engine.shared";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 type AnyObj = Record<string, any>;
@@ -102,11 +103,22 @@ export function importAgentJson(raw: string): {
         : { x: 200 + (idx % 8) * 260, y: 200 + Math.floor(idx / 8) * 200 };
 
     const rEdges = collectRawEdges(rn);
-    const transitions: Transition[] = rEdges.map((e, i) => ({
-      id: e.id ?? `t-${rn.id}-${i}`,
-      target: e.destination_node_id ?? null,
-      condition: e.transition_condition?.prompt ?? "",
-    }));
+    const transitions: Transition[] = rEdges.map((e, i) => {
+      const condition = e.transition_condition?.prompt ?? "";
+      const rawType = e.transition_condition?.type as TransitionConditionType | undefined;
+      const conditionType: TransitionConditionType =
+        rawType === "equation" || rawType === "prompt"
+          ? rawType
+          : isEquationCondition(condition.trim())
+            ? "equation"
+            : "prompt";
+      return {
+        id: e.id ?? `t-${rn.id}-${i}`,
+        target: e.destination_node_id ?? null,
+        condition,
+        conditionType,
+      };
+    });
 
     const nodeData: FlowNodeData = {
       kind,
@@ -283,7 +295,7 @@ export function importAgentJson(raw: string): {
         name: v.name ?? "",
         description: v.description ?? "",
         type: v.type ?? "string",
-        defaultValue: Array.isArray(v.examples) ? (v.examples[0] ?? "") : "",
+        defaultValue: "",
         examples: Array.isArray(v.examples) ? v.examples : undefined,
       }))
     : [];

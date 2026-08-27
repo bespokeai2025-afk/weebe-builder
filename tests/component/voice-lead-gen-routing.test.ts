@@ -95,7 +95,7 @@ describe("Lead Gen Seller routing", () => {
     await drain({ type: "user_utterance", text: "aarajo" });
 
     expect(vm.nodeId).toBe("node-1754206861810");
-    expect(capturedSystem).toContain("Script to say");
+    expect(capturedSystem).toContain("Script:");
     expect(capturedSystem).toMatch(/this is nathan/i);
     expect(capturedSystem).toMatch(/Mister G realty/i);
     expect(capturedSystem).toMatch(/30 seconds/i);

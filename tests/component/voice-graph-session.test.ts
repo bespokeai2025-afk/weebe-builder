@@ -46,6 +46,7 @@ function recorder(overrides: { speakDelayMs?: number } = {}) {
       events.push(`spoken:${text}`);
     },
     onTranscript: (role: string, text: string) => events.push(`transcript:${role}:${text}`),
+    onNodeActive: (nodeId: string) => events.push(`node:${nodeId}`),
     onAwaitUser: () => events.push("await_user"),
     onAwaitDigit: (ms: number) => events.push(`await_digit:${ms}`),
     onVariables: (v: Record<string, unknown>) => events.push(`vars:${Object.keys(v).join(",")}`),
@@ -64,7 +65,7 @@ describe("GraphSession", () => {
 
     await new GraphSession(vm, callbacks).begin();
 
-    expect(events).toEqual(["transcript:agent:Hello", "speak:Hello", "spoken:Hello", "await_user"]);
+    expect(events).toEqual(["node:greet", "transcript:agent:Hello", "speak:Hello", "spoken:Hello", "node:greet", "await_user"]);
   });
 
   it("finishes speaking one utterance before starting the next", async () => {

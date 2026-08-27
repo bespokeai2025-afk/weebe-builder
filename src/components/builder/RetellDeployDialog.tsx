@@ -46,6 +46,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { getTotalCostPerMinute, getHyperStreamCostPerMinute, calcHyperStreamTurnCost, HYPERSTREAM_TELEPHONY_PER_MIN, ELEVENLABS_PER_MIN, WEBEE_NATIVE_PER_MIN } from "@/lib/builder/pricing";
 import { validateFlow } from "@/lib/builder/validate";
 import { resolveWebeeSpeechModel } from "@/lib/voice/webee-native.shared";
+import { AudioPlaybackController } from "@/lib/voice/browser/audio-playback-controller.shared";
 import { cn } from "@/lib/utils";
 
 export type TxEntry = { id: string; role: "user" | "agent"; text: string; partial: boolean };
@@ -112,6 +113,7 @@ export function RetellDeployDialog({
   // Cleared and stopped whenever a new response starts or the call ends,
   // so old audio never plays over new audio (talking-over-itself / jitter fix).
   const activeSourceNodesRef = useRef<AudioBufferSourceNode[]>([]);
+  const elPlaybackRef = useRef<AudioPlaybackController | null>(null);
   const startedAtRef = useRef<number | null>(null);
   const recordedCallRef = useRef(false);
   const transcriptScrollRef = useRef<HTMLDivElement | null>(null);
@@ -2035,6 +2037,8 @@ export function RetellDeployDialog({
         wsConnectTimeoutRef.current = null;
       }
       finalizeRecording();
+      elPlaybackRef.current?.reset();
+      elPlaybackRef.current = null;
       for (const node of activeSourceNodesRef.current) {
         try { node.stop(); } catch { /* already ended */ }
       }
@@ -2130,10 +2134,24 @@ export function RetellDeployDialog({
       let elDeltaCount = 0;
       let audioDeltaReceived = 0;
       let isElAISpeaking = false;
-      let elDrainTimer: ReturnType<typeof setTimeout> | null = null;
+      let activeResponseId = 0;
       let captureLive = false;
       let micChunkCount = 0;
       let micSrc: MediaStreamAudioSourceNode | null = null;
+
+      const playback = new AudioPlaybackController(
+        () => audioCtxRef.current,
+        () => masterGainRef.current,
+        {
+          sampleRate: 24000,
+          resyncOnQueueDrain: true,
+          logPrefix: "[elv-relay]",
+          onFirstPlayback: (responseId) => {
+            console.log(`[elv-relay] audio_first_playback response=${responseId}`);
+          },
+        },
+      );
+      elPlaybackRef.current = playback;
 
       let ws!: WebSocket;
 
@@ -2271,59 +2289,16 @@ export function RetellDeployDialog({
         }
       };
 
-      const clearQueuedAudio = () => {
-        for (const node of activeSourceNodesRef.current) {
-          try { node.stop(); } catch { /* already ended */ }
-        }
-        activeSourceNodesRef.current = [];
-        nextPlayTimeRef.current = 0;
+      const clearQueuedAudio = (reason?: string) => {
+        playback.cancelCurrentAudio(reason ?? "barge_in");
         elDeltaCount = 0;
-        if (elDrainTimer !== null) { clearTimeout(elDrainTimer); elDrainTimer = null; }
         isElAISpeaking = false;
       };
 
-      async function scheduleAudioChunk(b64: string) {
-        try {
-          const ctx = audioCtxRef.current;
-          if (!ctx || !b64) return;
-          if (ctx.state === "suspended") {
-            await ctx.resume();
-          }
-          const binaryStr = atob(b64);
-          const bytes = new Uint8Array(binaryStr.length);
-          for (let i = 0; i < binaryStr.length; i++) bytes[i] = binaryStr.charCodeAt(i);
-          const sampleCount = Math.floor(bytes.length / 2);
-          if (sampleCount === 0) return;
-          const int16 = new Int16Array(bytes.buffer, bytes.byteOffset, sampleCount);
-          const float32 = new Float32Array(int16.length);
-          for (let i = 0; i < int16.length; i++) float32[i] = int16[i]! / 32768;
-          const buf = ctx.createBuffer(1, float32.length, 24000);
-          buf.copyToChannel(float32, 0);
-          const src = ctx.createBufferSource();
-          src.buffer = buf;
-          src.connect(masterGainRef.current ?? ctx.destination);
-          activeSourceNodesRef.current.push(src);
-          src.onended = () => {
-            const arr = activeSourceNodesRef.current;
-            const idx = arr.indexOf(src);
-            if (idx !== -1) arr.splice(idx, 1);
-          };
-          if (elDeltaCount === 0) {
-            console.log(
-              `[elv-relay] playing first audio chunk (${sampleCount} samples, ctx=${ctx.state})`,
-            );
-          }
-          elDeltaCount += 1;
-          const JITTER = elDeltaCount === 1 ? 0.080 : 0.020;
-          const startAt =
-            nextPlayTimeRef.current > ctx.currentTime
-              ? nextPlayTimeRef.current
-              : ctx.currentTime + JITTER;
-          src.start(startAt);
-          nextPlayTimeRef.current = startAt + buf.duration;
-        } catch (err) {
-          console.error("[elv-relay] scheduleAudioChunk failed:", err);
-        }
+      async function scheduleAudioChunk(b64: string, responseId: number) {
+        if (responseId !== activeResponseId) return;
+        await playback.enqueueAudio(b64, responseId);
+        elDeltaCount = playback.queueLength;
       }
 
       const wsProto = window.location.protocol === "https:" ? "wss:" : "ws:";
@@ -2364,6 +2339,7 @@ export function RetellDeployDialog({
           boostedKeywords: settings.boostedKeywords,
           ttsProvider: isWebeeNative ? "fish" : undefined,
           sttProvider: isWebeeNative ? "fish" : undefined,
+          variables: {},
         }));
         // Keep-alive: send a ping every 5 s so the reverse-proxy never sees an
         // idle connection and closes it (happens when EL streams audio quickly,
@@ -2403,9 +2379,10 @@ export function RetellDeployDialog({
           startRecording();
           console.log("[elv-relay] mic capture live");
           if (isWebeeNative) {
+            const lockedVoice = typeof msg.voiceId === "string" ? msg.voiceId : "";
             const sttLabel = stt === "fish" ? "Fish ASR" : stt;
             toast.message("WEBEE Native call live", {
-              description: `${tts === "fish" ? "Fish Audio" : tts} TTS · ${sttLabel} STT · ${vad} VAD`,
+              description: `${tts === "fish" ? "Fish Audio" : tts} TTS · ${sttLabel} STT · ${vad} VAD${lockedVoice ? ` · voice ${lockedVoice.slice(0, 8)}…` : ""}`,
               duration: 4000,
             });
           }
@@ -2441,19 +2418,33 @@ export function RetellDeployDialog({
         }
 
         if (msg.type === "audio.delta") {
-          // NOTE: the relay sends the agent transcript BEFORE TTS audio starts, so
-          // the transcript event cannot tell us when playback is done. We rely on
-          // response.done (sent after all TTS chunks) instead.
+          const responseId =
+            typeof msg.responseId === "number" ? msg.responseId : activeResponseId || 1;
           if (audioDeltaReceived === 0) {
             const nbytes = String(msg.data ?? "").length;
-            console.log(`[elv-relay] first audio.delta (b64 len=${nbytes})`);
+            console.log(
+              `[elv-relay] first audio.delta response=${responseId} (b64 len=${nbytes})`,
+            );
           }
           audioDeltaReceived += 1;
-          if (!isElAISpeaking) {
-            if (elDrainTimer !== null) { clearTimeout(elDrainTimer); elDrainTimer = null; }
-            isElAISpeaking = true;
-          }
-          void scheduleAudioChunk(String(msg.data ?? ""));
+          if (!isElAISpeaking) isElAISpeaking = true;
+          void scheduleAudioChunk(String(msg.data ?? ""), responseId);
+          return;
+        }
+
+        if (msg.type === "response.start") {
+          activeResponseId = typeof msg.responseId === "number" ? msg.responseId : 0;
+          playback.setActiveResponse(activeResponseId);
+          audioDeltaReceived = 0;
+          console.log(`[elv-relay] response.start id=${activeResponseId}`);
+          return;
+        }
+
+        if (msg.type === "response.cancelled") {
+          console.log(
+            `[elv-relay] response.cancelled id=${String(msg.responseId ?? "")} reason=${String(msg.reason ?? "")}`,
+          );
+          clearQueuedAudio(String(msg.reason ?? "cancelled"));
           return;
         }
 
@@ -2461,7 +2452,7 @@ export function RetellDeployDialog({
         // abandoned the turn. Anything already scheduled must be dropped, or the
         // agent keeps talking for seconds after being interrupted.
         if (msg.type === "audio.clear") {
-          clearQueuedAudio();
+          clearQueuedAudio("audio.clear");
           return;
         }
 
@@ -2469,16 +2460,10 @@ export function RetellDeployDialog({
         // relay once the queued audio has actually finished playing, so it knows
         // when the agent is no longer speaking.
         if (msg.type === "response.done") {
-          console.log(`[elv-relay] response.done (played ${elDeltaCount} audio chunks)`);
-          const ctx = audioCtxRef.current;
-          const remainingMs = ctx && nextPlayTimeRef.current > ctx.currentTime
-            ? (nextPlayTimeRef.current - ctx.currentTime) * 1000
-            : 0;
-          if (elDrainTimer !== null) clearTimeout(elDrainTimer);
-          elDrainTimer = setTimeout(() => {
-            elDrainTimer = null;
-            reportPlaybackDone();
-          }, remainingMs + 300);
+          console.log(
+            `[elv-relay] response.done response=${activeResponseId} queue=${playback.queueLength}`,
+          );
+          playback.schedulePlaybackComplete(() => reportPlaybackDone());
           return;
         }
 

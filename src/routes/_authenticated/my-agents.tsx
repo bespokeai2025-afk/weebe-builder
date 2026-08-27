@@ -108,8 +108,18 @@ function MyAgentsPage() {
         (settings.voiceProvider as BuilderSettings["voiceProvider"] | undefined) ??
         (rowAny.voice_provider as BuilderSettings["voiceProvider"] | undefined) ??
         "RETELL";
+      const savedMode = settings.deploymentMode as BuilderSettings["deploymentMode"] | undefined;
       const derivedDeploymentMode =
-        vp === "OPENAI_REALTIME" ? "OPENAI_NATIVE" : "RETELL";
+        savedMode === "WEBEE_NATIVE" ||
+        savedMode === "ELEVENLABS_NATIVE" ||
+        savedMode === "OPENAI_NATIVE" ||
+        savedMode === "CLAUDE_NATIVE" ||
+        savedMode === "GEMINI_NATIVE" ||
+        savedMode === "RETELL"
+          ? savedMode
+          : vp === "OPENAI_REALTIME"
+            ? "OPENAI_NATIVE"
+            : "RETELL";
       useBuilderStore.getState().setSettings({
         voiceProvider: vp,
         deploymentMode: derivedDeploymentMode,

@@ -7,6 +7,7 @@
  */
 
 import { normalizeCallbackDatetimeUtc } from "./wbah-uk-datetime.shared";
+import { summaryRequestsHumanCallback } from "./wbah-crm-enrichment.shared";
 
 /** Dynamics Lead cr_agentpreference option set (verified on WBAH CRM). */
 export const WBAH_DYNAMICS_AGENT_PREFERENCE = {
@@ -36,6 +37,8 @@ export type ResolvedWbahCallback = {
 const HUMAN_CALLBACK_TYPES = new Set([
   "human_callback",
   "live_transfer_fallback",
+  "human_callback_request",
+  "request_human_callback",
 ]);
 
 const AI_CALLBACK_TYPES = new Set([
@@ -81,11 +84,25 @@ export function mapWbahCallbackTypeToAgentPreference(input: {
   callbackType?: string | null;
   callbackHandler?: string | null;
   datetimeSource?: ResolvedWbahCallback["datetimeSource"];
+  custom?: Record<string, unknown>;
 }): number | null {
-  const { callbackType, callbackHandler, datetimeSource } = input;
+  const { callbackType, callbackHandler, datetimeSource, custom } = input;
   const handler = String(callbackHandler ?? "").trim().toLowerCase();
+  const normalizedType = normalizeCallbackType(callbackType);
+
   if (handler === "human" || isWbahHumanCallbackType(callbackType)) {
     return WBAH_DYNAMICS_AGENT_PREFERENCE.HUMAN_ONLY;
+  }
+  if (normalizedType === "callback_request" && handler !== "ai") {
+    return WBAH_DYNAMICS_AGENT_PREFERENCE.HUMAN_ONLY;
+  }
+  if (
+    datetimeSource === "human_callback_datetime" ||
+    summaryRequestsHumanCallback(custom)
+  ) {
+    if (handler !== "ai") {
+      return WBAH_DYNAMICS_AGENT_PREFERENCE.HUMAN_ONLY;
+    }
   }
   if (handler === "ai" || isWbahAiCallbackType(callbackType)) {
     return WBAH_DYNAMICS_AGENT_PREFERENCE.AI_OR_HUMAN;
@@ -166,8 +183,13 @@ export function resolveWbahCallbackFromAnalysis(
         ? "callback_datetime"
         : null;
   } else if (LEGAL_RESCHEDULE_TYPES.has(callbackType ?? "")) {
-    raw = fields.callbackDatetime;
-    datetimeSource = raw ? "callback_datetime" : null;
+    if (fields.humanCallbackDatetime) {
+      raw = fields.humanCallbackDatetime;
+      datetimeSource = "human_callback_datetime";
+    } else {
+      raw = fields.callbackDatetime;
+      datetimeSource = raw ? "callback_datetime" : null;
+    }
   } else {
     raw =
       fields.callbackDatetime ??
@@ -196,6 +218,7 @@ export function resolveWbahCallbackFromAnalysis(
           callbackType,
           callbackHandler: callbackHandlerRaw,
           datetimeSource,
+          custom,
         })
       : null,
     isCallbackRequest,

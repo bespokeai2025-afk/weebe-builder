@@ -1,11 +1,4 @@
 import { useBuilderStore } from "@/lib/builder/store";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -18,8 +11,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
-import { Plus, Trash2, Flag, Pencil } from "lucide-react";
-import type { Transition, ExtractVariableItem } from "@/lib/builder/types";
+import { Plus, Trash2, Flag, X, Pencil } from "lucide-react";
+import type { Transition, ExtractVariableItem, TransitionConditionType } from "@/lib/builder/types";
 import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
@@ -83,39 +76,45 @@ const DEFAULT_PROMPT_TEMPLATE = (stepLabel: string) =>
     "- Move to the next step only when you have everything required here.",
   ].join("\n");
 
-function InstructionTypeTabs({
+export function InstructionTypeTabs({
   value,
   onChange,
+  compact,
 }: {
   value: "prompt" | "static_text";
   onChange: (value: "prompt" | "static_text") => void;
+  compact?: boolean;
 }) {
   return (
-    <div className="rounded-lg border bg-muted/30 p-1">
+    <div className={compact ? "rounded-lg border bg-muted/40 p-1" : "rounded-lg border bg-muted/30 p-1"}>
       <div className="grid grid-cols-2 gap-1">
         <button
           type="button"
           onClick={() => onChange("prompt")}
-          className={`rounded-md px-3 py-2 text-left transition-colors ${
+          className={`${compact ? "rounded-md px-3 py-1.5" : "rounded-md px-3 py-2 text-left"} transition-colors ${
             value === "prompt"
               ? "bg-background shadow-sm ring-1 ring-border"
               : "text-muted-foreground hover:text-foreground"
           }`}
         >
-          <div className="text-sm font-medium">Prompt</div>
-          <div className="text-[11px] text-muted-foreground">LLM generates speech</div>
+          <div className={compact ? "text-xs font-medium leading-tight" : "text-sm font-medium"}>
+            Prompt
+          </div>
+          {!compact && <div className="text-[11px] text-muted-foreground">LLM generates speech</div>}
         </button>
         <button
           type="button"
           onClick={() => onChange("static_text")}
-          className={`rounded-md px-3 py-2 text-left transition-colors ${
+          className={`${compact ? "rounded-md px-3 py-1.5" : "rounded-md px-3 py-2 text-left"} transition-colors ${
             value === "static_text"
               ? "bg-background shadow-sm ring-1 ring-border"
               : "text-muted-foreground hover:text-foreground"
           }`}
         >
-          <div className="text-sm font-medium">Static</div>
-          <div className="text-[11px] text-muted-foreground">Read text verbatim</div>
+          <div className={compact ? "text-xs font-medium leading-tight" : "text-sm font-medium"}>
+            {compact ? "Static" : "Static sentence"}
+          </div>
+          {!compact && <div className="text-[11px] text-muted-foreground">Read text verbatim</div>}
         </button>
       </div>
     </div>
@@ -190,20 +189,27 @@ export function NodeEditorDialog() {
   const setTransitions = (t: Transition[]) => updateNode(node.id, { transitions: t });
 
   return (
-    <Dialog open={!!selectedNodeId} onOpenChange={(o) => !o && selectNode(null)}>
-      <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            Edit {d.kind.replace("_", " ")} node
-            {d.isStart && (
-              <span className="text-xs rounded bg-violet-100 text-violet-700 px-2 py-0.5">
-                Start
-              </span>
-            )}
-          </DialogTitle>
-        </DialogHeader>
+    <div className="flex h-full min-h-0 flex-col">
+      <div className="flex items-center justify-between gap-2 border-b border-white/[0.06] pb-2 mb-2">
+        <div className="min-w-0">
+          <p className="text-[11px] font-semibold tracking-tight truncate">
+            {d.kind.replace(/_/g, " ")}
+          </p>
+          {d.isStart && (
+            <span className="text-[10px] rounded bg-violet-100 text-violet-700 px-1.5 py-0.5">Start</span>
+          )}
+        </div>
+        <button
+          type="button"
+          onClick={() => selectNode(null)}
+          className="rounded p-1 text-muted-foreground hover:text-foreground hover:bg-white/[0.06]"
+          aria-label="Close node editor"
+        >
+          <X className="h-3.5 w-3.5" />
+        </button>
+      </div>
 
-        <div className="space-y-4 py-2">
+      <div className="space-y-4 py-1 flex-1 overflow-y-auto pr-0.5">
           <div className="flex items-end gap-2">
             <div className="flex-1">
               <Label>Name</Label>
@@ -1168,7 +1174,12 @@ export function NodeEditorDialog() {
                   onClick={() =>
                     setTransitions([
                       ...d.transitions,
-                      { id: `t_${Date.now()}`, condition: "", target: null },
+                      {
+                        id: `t_${Date.now()}`,
+                        condition: "",
+                        target: null,
+                        conditionType: d.kind === "logic_split" ? ("equation" as TransitionConditionType) : "prompt",
+                      },
                     ])
                   }
                 >
@@ -1179,20 +1190,43 @@ export function NodeEditorDialog() {
               <div className="space-y-2">
                 {d.transitions.length === 0 && (
                   <p className="text-xs text-muted-foreground">
-                    Add conditions to label the connections leaving this node. They become edge{" "}
-                    <code>transition_condition.prompt</code> values in the JSON.
+                    Label each outgoing connection. Use{" "}
+                    <strong>Prompt</strong> for natural-language conditions (LLM when ambiguous), or{" "}
+                    <strong>Equation</strong> for deterministic rules like{" "}
+                    <code>{'{{available}} == true'}</code>.
                   </p>
                 )}
                 {d.transitions.map((t, i) => (
                   <div key={t.id} className="flex gap-2 items-start">
+                    <Select
+                      value={t.conditionType ?? "prompt"}
+                      onValueChange={(v: TransitionConditionType) => {
+                        const next = [...d.transitions];
+                        next[i] = { ...t, conditionType: v };
+                        setTransitions(next);
+                      }}
+                    >
+                      <SelectTrigger className="w-[110px] shrink-0">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="prompt">Prompt</SelectItem>
+                        <SelectItem value="equation">Equation</SelectItem>
+                      </SelectContent>
+                    </Select>
                     <Input
-                      placeholder="e.g. User confirms appointment"
+                      placeholder={
+                        (t.conditionType ?? "prompt") === "equation"
+                          ? 'e.g. {{appointment_type}} == "botox"'
+                          : "e.g. User confirms appointment"
+                      }
                       value={t.condition}
                       onChange={(e) => {
                         const next = [...d.transitions];
                         next[i] = { ...t, condition: e.target.value };
                         setTransitions(next);
                       }}
+                      className="flex-1"
                     />
                     <Select
                       value={t.target ?? "none"}
@@ -1202,7 +1236,7 @@ export function NodeEditorDialog() {
                         setTransitions(next);
                       }}
                     >
-                      <SelectTrigger className="w-[180px]">
+                      <SelectTrigger className="w-[180px] shrink-0">
                         <SelectValue placeholder="Target" />
                       </SelectTrigger>
                       <SelectContent>
@@ -1229,12 +1263,7 @@ export function NodeEditorDialog() {
             </div>
           )}
         </div>
-
-        <DialogFooter>
-          <Button onClick={() => selectNode(null)}>Done</Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+    </div>
   );
 }
 

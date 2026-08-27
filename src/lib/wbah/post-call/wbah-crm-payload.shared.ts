@@ -59,8 +59,10 @@ export function buildWbahAllensCrmPayload(input: {
   allens: AllensLogicResult;
   calendlyBookingUrl: string | null;
   callbackUtc: string | null;
+  custom?: Record<string, unknown>;
+  transcript?: string | null;
 }): WbahCrmPatchPayload {
-  const { formatted, allens, calendlyBookingUrl, callbackUtc } = input;
+  const { formatted, allens, calendlyBookingUrl, callbackUtc, custom, transcript } = input;
   const payload: Record<string, unknown> = {};
   const vd = formatted.verifiedDetails ?? formatted.structuredJsonOutput ?? {};
 
@@ -111,6 +113,8 @@ export function buildWbahAllensCrmPayload(input: {
     mapWbahVerifiedDetailsToDynamicsFields({
       verifiedDetails: vd,
       fallbackEmail: formatted.email,
+      custom,
+      transcript,
     }),
   );
 
@@ -121,9 +125,10 @@ export function buildWbahAllensCrmPayload(input: {
 export function buildWbahAgenticCrmPayload(
   structured: Record<string, unknown> | null,
   custom?: Record<string, unknown>,
+  transcript?: string | null,
 ): WbahCrmPatchPayload {
   if (!structured) return {};
-  const normalized = normalizeWbahAgenticCrmFields(structured, custom);
+  const normalized = normalizeWbahAgenticCrmFields(structured, custom, transcript);
   return filterValidDynamicsFields(normalized);
 }
 

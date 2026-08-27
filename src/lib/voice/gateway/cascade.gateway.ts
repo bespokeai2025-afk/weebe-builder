@@ -13,7 +13,9 @@
  *   relay   -> { type: "relay.connected", mode: "graph"|"flat", stt, tts, vad }
  *   relay   -> { type: "transcript", role: "user"|"agent", text }
  *   relay   -> { type: "transcript.partial", text }
- *   relay   -> { type: "audio.delta", data: "<base64 PCM16 24kHz mono>" }
+ *   relay   -> { type: "audio.delta", data: "<base64 PCM16 24kHz mono>", responseId, turnId? }
+ *   relay   -> { type: "response.start", responseId, turnId?, nodeId? }
+ *   relay   -> { type: "response.cancelled", responseId, reason }
  *   relay   -> { type: "audio.clear" }   // barge-in: drop queued playback NOW
  *   relay   -> { type: "response.done" } | { type: "pong" }
  *   relay   -> { type: "call.ended", reason } | { type: "relay.error", message }
@@ -23,7 +25,8 @@ import { WebSocket } from "ws";
 import { CascadeSession, type CascadeTransport } from "./cascade-session";
 import { makeSupabaseAdmin, readAnalysisSchema } from "./telephony-core";
 import { CASCADE_SAMPLE_RATE } from "../stt";
-import { resolveWebeeSpeechModel } from "../webee-native.shared";
+import { resolveWebeeLlmProvider, resolveWebeeSpeechModel } from "../webee-native.shared";
+import { resolveVoiceLlmApiKey } from "../llm/gpt";
 import type { TtsProviderName } from "../tts";
 import type { SttProviderName } from "../stt";
 import { NativeCallLifecycle } from "../lifecycle/call-lifecycle";
@@ -48,8 +51,23 @@ function handleConnection(ws: WebSocket, _ctx: VoiceGatewayContext): void {
   let callerAudioChunks = 0;
 
   const transport: CascadeTransport = {
-    sendAudio: (pcm) => safeSend(ws, { type: "audio.delta", data: pcm.toString("base64") }),
+    sendAudio: (pcm, meta) =>
+      safeSend(ws, {
+        type: "audio.delta",
+        data: pcm.toString("base64"),
+        responseId: meta.responseId,
+        turnId: meta.turnId,
+      }),
     clearAudio: () => safeSend(ws, { type: "audio.clear" }),
+    onResponseStart: (meta) =>
+      safeSend(ws, {
+        type: "response.start",
+        responseId: meta.responseId,
+        turnId: meta.turnId,
+        nodeId: meta.nodeId,
+      }),
+    onResponseCancelled: (responseId, reason) =>
+      safeSend(ws, { type: "response.cancelled", responseId, reason }),
     onTranscript: (role, text) => safeSend(ws, { type: "transcript", role, text }),
     onPartialTranscript: (text) => safeSend(ws, { type: "transcript.partial", text }),
     onResponseDone: () => safeSend(ws, { type: "response.done" }),
@@ -64,16 +82,14 @@ function handleConnection(ws: WebSocket, _ctx: VoiceGatewayContext): void {
     const callId = msg.sessionId ? String(msg.sessionId) : randomUUID();
     const agentId = msg.agentId ? String(msg.agentId) : null;
 
+    const settings = isRecord(msg.settings) ? (msg.settings as Record<string, unknown>) : null;
+    const llmProvider = resolveWebeeLlmProvider(settings);
     session = new CascadeSession(transport, {
       callId,
-      apiKey: process.env.OPENAI_API_KEY!,
+      apiKey: resolveVoiceLlmApiKey(undefined, llmProvider),
       voiceId: String(msg.voiceId ?? ""),
       model: resolveWebeeSpeechModel(
-        isRecord(msg.settings)
-          ? (msg.settings as Record<string, unknown>)
-          : msg.model
-            ? { model: msg.model }
-            : null,
+        settings ?? (msg.model ? { model: msg.model } : null),
       ),
       systemPrompt: String(msg.systemPrompt ?? ""),
       beginMessage: String(msg.beginMessage ?? "").trim(),
@@ -99,7 +115,7 @@ function handleConnection(ws: WebSocket, _ctx: VoiceGatewayContext): void {
       boostedKeywords: Array.isArray(msg.boostedKeywords)
         ? (msg.boostedKeywords as string[])
         : undefined,
-      settings: isRecord(msg.settings) ? (msg.settings as Record<string, unknown>) : null,
+      settings,
       // Only saved agents are reported: an unsaved builder flow has no row to
       // report against.
       resolveLifecycle: (runtime) => {
@@ -206,7 +222,7 @@ export const cascadeRoute: VoiceGatewayRoute = {
   match: (pathname) => (pathname === RELAY_PATH ? {} : null),
   preflight: () => {
     const missing = [
-      !process.env.OPENAI_API_KEY && "OPENAI_API_KEY",
+      !process.env.OPENAI_API_KEY && !process.env.CEREBRAS_API_KEY && "OPENAI_API_KEY or CEREBRAS_API_KEY",
       !process.env.FISH_API_KEY && "FISH_API_KEY",
     ].filter(Boolean);
     return missing.length ? `Missing: ${missing.join(", ")}` : null;

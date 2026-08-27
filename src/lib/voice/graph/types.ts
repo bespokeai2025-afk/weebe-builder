@@ -9,8 +9,9 @@
  *   - Node discriminators are Retell's, not the builder's. The builder's 13 voice
  *     node kinds collapse into 10 flow types (`check_documents`,
  *     `send_upload_link` and `http_request` all export as `function`).
- *   - Every transition is a natural-language `transition_condition.prompt`, so
- *     routing is an LLM classification, not a boolean evaluation.
+ *   - Transitions are `transition_condition.prompt` strings. Equation-style
+ *     conditions ({{var}} == "value") are evaluated deterministically before
+ *     any LLM routing; natural-language prompts use heuristics then classifier.
  *
  * Relative imports only — this module is reachable from vite.config.ts.
  */
@@ -18,7 +19,7 @@
 // ─── Flow schema (mirrors the exported conversationFlow block) ────────────────
 
 export interface FlowTransitionCondition {
-  type: "prompt";
+  type: "prompt" | "equation";
   prompt: string;
 }
 
@@ -357,6 +358,10 @@ export interface VmOptions {
   variables?: Record<string, VariableValue>;
   /** Fallback model when the flow and node specify none. */
   model?: string;
+  /** Fast classifier for simple routing (default gpt-oss-120b). */
+  classifierModel?: string;
+  /** Stronger classifier for complex multi-branch nodes (default gpt-oss-120b). */
+  strongClassifierModel?: string;
   /**
    * Guard against flows that loop through non-blocking nodes forever
    * (branch → branch → …). Counted per turn.

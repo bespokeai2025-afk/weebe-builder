@@ -15,7 +15,7 @@ export type VadEvent =
   /** First frame of a new utterance. */
   | { type: "speech_start"; rms: number }
   /** Still inside an utterance. */
-  | { type: "speech" }
+  | { type: "speech"; rms: number }
   /** Endpoint reached; `frames` is the complete utterance including pre-roll. */
   | { type: "utterance_end"; frames: Buffer[]; reason: "endpoint" | "max_duration" }
   /** Endpoint reached but the utterance was too short to be speech. */
@@ -26,6 +26,8 @@ export interface Vad {
   push(frame: Buffer): VadEvent | Promise<VadEvent>;
   /** Drop any partially captured utterance. */
   reset(): void;
+  /** Tighten or restore end-of-speech hangover mid-utterance. */
+  setSilenceFramesTrigger(frames: number): void;
   /** True while an utterance is being captured. */
   readonly isSpeaking: boolean;
   /** Identifies the backend in logs and latency reports. */
@@ -63,7 +65,7 @@ export interface EndpointingOptions {
  * per backend is how the two old relays drifted apart.
  */
 export class Endpointer {
-  private readonly silenceFramesTrigger: number;
+  private silenceFramesTrigger: number;
   private readonly startFrames: number;
   private readonly minSpeechFrames: number;
   private readonly preRollFrames: number;
@@ -88,6 +90,10 @@ export class Endpointer {
 
   get isSpeaking(): boolean {
     return this.state === "speaking";
+  }
+
+  setSilenceFramesTrigger(frames: number): void {
+    this.silenceFramesTrigger = Math.max(3, Math.round(frames));
   }
 
   reset(): void {
@@ -133,11 +139,11 @@ export class Endpointer {
 
     if (isSpeech) {
       this.silentFrames = 0;
-      return { type: "speech" };
+      return { type: "speech", rms: level };
     }
 
     this.silentFrames++;
-    if (this.silentFrames < this.silenceFramesTrigger) return { type: "speech" };
+    if (this.silentFrames < this.silenceFramesTrigger) return { type: "speech", rms: level };
 
     const captured = this.frames;
     const frameCount = captured.length;

@@ -11,6 +11,7 @@ export interface SpeculativeFlatOptions {
   systemContent: string;
   history: ChatMsg[];
   partialUserText: string;
+  provider?: import("../llm/gpt").VoiceLlmProvider;
 }
 
 export type SpeculativeFlatRun = SpeculativeSpeechRun;
@@ -20,6 +21,7 @@ export interface SpeculativeSpeechOptions {
   model: string;
   messages: ChatMsg[];
   partial: string;
+  provider?: import("../llm/gpt").VoiceLlmProvider;
 }
 
 /** Start streaming a reply from a stable partial transcript. */
@@ -37,6 +39,7 @@ export function startSpeculativeFlat(options: SpeculativeFlatOptions): Speculati
       for await (const delta of gptStream(messages, {
         model: options.model,
         apiKey: options.apiKey,
+        provider: options.provider,
         signal: ctrl.signal,
         maxTokens: 80,
       })) {
@@ -62,8 +65,9 @@ export function startSpeculativeSpeech(options: SpeculativeSpeechOptions): Specu
       for await (const delta of gptStream(options.messages, {
         model: options.model,
         apiKey: options.apiKey,
+        provider: options.provider,
         signal: ctrl.signal,
-        maxTokens: 120,
+        maxTokens: 64,
       })) {
         if (ctrl.signal.aborted) break;
         tokens.push(delta);

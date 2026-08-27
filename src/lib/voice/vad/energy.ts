@@ -80,6 +80,10 @@ export class EnergyVad implements Vad {
     return this.endpointer.isSpeaking;
   }
 
+  setSilenceFramesTrigger(frames: number): void {
+    this.endpointer.setSilenceFramesTrigger(frames);
+  }
+
   /**
    * Estimated noise floor.
    *

@@ -12,7 +12,8 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { WebSocket, type RawData } from "ws";
 import { base64ToPcm16, pcm16ToBase64, pcm16ToBuffer, resample } from "./audio";
-import { resolveWebeeSpeechModel } from "../webee-native.shared";
+import { resolveWebeeLlmProvider, resolveWebeeSpeechModel } from "../webee-native.shared";
+import { resolveVoiceLlmApiKey } from "../llm/gpt";
 import {
   connectRealtimeForCall,
   createCallLifecycle,
@@ -99,7 +100,7 @@ async function runCascadeBridge(
   lifecycle.started();
 
   const transport: CascadeTransport = {
-    sendAudio: (pcm) => {
+    sendAudio: (pcm, _meta) => {
       if (ws.readyState === WebSocket.OPEN) ws.send(pcm);
     },
     clearAudio: () => {},
@@ -116,7 +117,7 @@ async function runCascadeBridge(
 
   const session = new CascadeSession(transport, {
     callId,
-    apiKey: process.env.OPENAI_API_KEY ?? "",
+    apiKey: resolveVoiceLlmApiKey(undefined, resolveWebeeLlmProvider(config.settings)),
     voiceId: config.voiceId,
     model: resolveWebeeSpeechModel(config.settings),
     systemPrompt: config.systemPrompt,
@@ -237,7 +238,10 @@ export const frejunRoute: VoiceGatewayRoute = {
     const m = STREAM_PATH.exec(pathname);
     return m ? { callId: m[1] } : null;
   },
-  preflight: () => (process.env.OPENAI_API_KEY ? null : "OPENAI_API_KEY not configured"),
+  preflight: () =>
+    process.env.CEREBRAS_API_KEY || process.env.OPENAI_API_KEY
+      ? null
+      : "OPENAI_API_KEY or CEREBRAS_API_KEY not configured",
   onConnection: (ws: WebSocket, ctx: VoiceGatewayContext) => {
     handleFreJunStream(ws, ctx.params.callId).catch((err) => {
       console.error(`${LOG} handler error:`, err);

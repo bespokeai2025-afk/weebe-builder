@@ -30,10 +30,14 @@ export type NodeKind =
   | "send_upload_link"
   | "http_request";
 
+export type TransitionConditionType = "prompt" | "equation";
+
 export interface Transition {
   id: string;
   condition: string;
   target: string | null;
+  /** How the runtime evaluates this edge. Defaults to prompt (LLM/heuristics). */
+  conditionType?: TransitionConditionType;
 }
 
 export interface FlowNodeData {
@@ -376,10 +380,19 @@ export interface BuilderSettings {
   webeeVoiceId?: string;
   /** Display name of the selected Fish Audio voice. */
   webeeVoiceName?: string;
+  /** True when the selected Fish voice is a workspace clone (not a library voice). */
+  webeeVoiceOwned?: boolean;
   /**
    * STT for WEBEE_NATIVE — always Fish Audio (same key as TTS).
    */
   webeeSttProvider?: "fish";
+  /**
+   * Graph / speech LLM provider for WEBEE_NATIVE. OpenAI is the default so a
+   * Cerebras quota miss cannot freeze the call.
+   */
+  webeeLlmProvider?: "openai" | "cerebras";
+  /** Speech model id for the selected provider (e.g. gpt-4o-mini, gpt-oss-120b). */
+  webeeSpeechModel?: string;
   /**
    * OpenAI Realtime model ID (only used when deploymentMode === "OPENAI_NATIVE").
    * Defaults to "gpt-4o-realtime-preview" when unset.

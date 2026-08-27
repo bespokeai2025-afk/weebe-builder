@@ -1,9 +1,9 @@
 import { Handle, NodeToolbar, Position, type NodeProps } from "@xyflow/react";
-import { Pencil, Trash2, Flag, Plus, Hash, Globe, X } from "lucide-react";
+import { Trash2, Flag, Plus, Hash, Globe, X } from "lucide-react";
 import { useState } from "react";
 import { useBuilderStore, type FlowNode } from "@/lib/builder/store";
 import { cn } from "@/lib/utils";
-import type { NodeKind, ExtractVariableItem } from "@/lib/builder/types";
+import type { NodeKind, ExtractVariableItem, Transition } from "@/lib/builder/types";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
@@ -15,27 +15,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-
-/** Render text with {{variable}} tokens highlighted. */
-function HighlightedPrompt({ text, className }: { text: string; className?: string }) {
-  const parts = text.split(/(\{\{[^}]+\}\})/g);
-  return (
-    <p className={className}>
-      {parts.map((part, i) =>
-        /^\{\{[^}]+\}\}$/.test(part) ? (
-          <span
-            key={i}
-            className="rounded px-1 py-0.5 text-[0.85em] font-mono font-medium bg-amber-200/80 text-amber-900 dark:bg-amber-400/25 dark:text-amber-200"
-          >
-            {part}
-          </span>
-        ) : (
-          <span key={i}>{part}</span>
-        ),
-      )}
-    </p>
-  );
-}
+import { InstructionTypeTabs } from "./NodeEditorDialog";
 
 interface Style {
   badge: string;
@@ -191,8 +171,8 @@ function flowVisualState({
   isSelected: boolean;
   isActive: boolean;
 }): FlowVisualState {
-  if (isSelected) return "selected";
   if (isActive) return "active";
+  if (isSelected) return "selected";
   if (isConnected) return "connected";
   return "idle";
 }
@@ -206,25 +186,23 @@ function flowHandleState({
   isSelected: boolean;
   isActive: boolean;
 }): FlowVisualState {
-  if (isSelected) return "selected";
   if (isActive) return "active";
+  if (isSelected) return "selected";
   if (isConnected) return "connected";
   return "idle";
 }
 
 const NODE_SURFACE_CLASS =
   "webee-flow-node overflow-visible rounded-2xl border text-[#f4f7fb] transition-[border-color,box-shadow] duration-200";
-const NODE_HEADER_CLASS = "webee-flow-node__header relative rounded-t-xl border-b px-3 py-2";
-const NODE_SECTION_CLASS = "webee-flow-node__section mx-2 rounded-lg border";
+const NODE_HEADER_CLASS = "webee-flow-node__header relative rounded-t-xl border-b px-4 py-3";
+const NODE_SECTION_CLASS = "webee-flow-node__section mx-3 rounded-lg border";
 const NODE_ITEM_CLASS =
-  "webee-flow-node__item relative flex items-center gap-2 rounded-md border px-2 py-1.5 text-xs";
+  "webee-flow-node__item relative flex items-center gap-2 rounded-md border px-2.5 py-2 text-xs";
 const HANDLE_CLASS = "webee-flow-handle";
 
 /**
  * Conversation-style node matching the dashboard UI:
- * - Ice-white header with # icon + node name
- * - Deep navy prompt body
- * - Separate "Transition" section with + and per-transition source handles
+ * Ice-white header, navy body, Prompt/Static on the card, inline transitions.
  */
 function ConversationStyleNode({ id, data, selected }: NodeProps<FlowNode>) {
   const selectNode = useBuilderStore((s) => s.selectNode);
@@ -236,6 +214,7 @@ function ConversationStyleNode({ id, data, selected }: NodeProps<FlowNode>) {
   const edges = useBuilderStore((s) => s.edges);
   const nodeData = data ?? ({} as FlowNode["data"]);
   const kind = resolveNodeKind(nodeData);
+  const style = resolveNodeStyle(nodeData);
   const visualState = flowVisualState({
     isConnected: edges.some((edge) => edge.source === id || edge.target === id),
     isSelected,
@@ -247,14 +226,18 @@ function ConversationStyleNode({ id, data, selected }: NodeProps<FlowNode>) {
       .filter((edge) => edge.source === id && edge.sourceHandle)
       .map((edge) => edge.sourceHandle),
   );
+  const isConversation = kind === "conversation";
+  const instructionType = nodeData.instructionType ?? "prompt";
 
   const addTransition = () =>
     updateNode(id, {
       transitions: [
         ...(nodeData.transitions ?? []),
-        { id: `t-${Date.now().toString(36)}`, condition: "", target: null },
+        { id: `t-${Date.now().toString(36)}`, condition: "", target: null, conditionType: "prompt" },
       ],
     });
+
+  const setTransitions = (transitions: Transition[]) => updateNode(id, { transitions });
 
   return (
     <div className="relative group">
@@ -267,9 +250,8 @@ function ConversationStyleNode({ id, data, selected }: NodeProps<FlowNode>) {
       <div
         {...(data.isStart ? { "data-tour": "node-root" } : {})}
         data-flow-state={visualState}
-        className={cn(NODE_SURFACE_CLASS, "w-72")}
+        className={cn("w-[400px]", NODE_SURFACE_CLASS)}
       >
-        {/* Header */}
         <div className={NODE_HEADER_CLASS}>
           <Handle
             type="target"
@@ -281,10 +263,15 @@ function ConversationStyleNode({ id, data, selected }: NodeProps<FlowNode>) {
             })}
             className={cn(HANDLE_CLASS, "!h-2.5 !w-2.5 !-left-1.5 !top-3")}
           />
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-1.5 min-w-0">
-              <Hash className="h-3.5 w-3.5 text-[#087c9f]" />
-              <span className="truncate text-sm font-semibold text-[#0b1627]">{data.label}</span>
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2 min-w-0 flex-1">
+              <Hash className="h-3.5 w-3.5 text-[#087c9f] shrink-0" />
+              <input
+                value={nodeData.label}
+                onChange={(e) => updateNode(id, { label: e.target.value })}
+                className="nodrag nopan nowheel min-w-0 flex-1 bg-transparent text-[15px] font-semibold text-[#0b1627] outline-none"
+                onClick={(e) => e.stopPropagation()}
+              />
               {data.isGlobalNode && (
                 <span
                   title="Global node"
@@ -294,54 +281,66 @@ function ConversationStyleNode({ id, data, selected }: NodeProps<FlowNode>) {
                 </span>
               )}
             </div>
-            <div className="flex items-center gap-1 opacity-100 transition-opacity">
-              <button
-                onClick={() => selectNode(id)}
-                className="rounded p-1 text-[#1d4ed8] hover:bg-white hover:text-[#1e3a8a]"
-                aria-label="Edit"
-              >
-                <Pencil className="h-3.5 w-3.5" />
-              </button>
-              <button
-                onClick={() => deleteNode(id)}
-                className="rounded p-1 text-rose-600 hover:bg-white hover:text-rose-700"
-                aria-label="Delete"
-              >
-                <Trash2 className="h-3.5 w-3.5" />
-              </button>
-            </div>
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                deleteNode(id);
+              }}
+              className="rounded p-1 text-rose-600 hover:bg-white hover:text-rose-700 shrink-0"
+              aria-label="Delete"
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+            </button>
+          </div>
+          <div className="webee-flow-node__kind mt-1.5 text-[10px] font-semibold uppercase tracking-wide">
+            {style.badge}
           </div>
         </div>
 
-        {/* Prompt body */}
-        <div className="cursor-pointer px-3 py-3" onClick={() => selectNode(id)}>
-          {data.dialogue || data.endingPrompt || data.smsMessage ? (
-            <HighlightedPrompt
-              text={data.dialogue || data.endingPrompt || data.smsMessage || ""}
-              className="webee-flow-node__body-text line-clamp-4 whitespace-pre-wrap text-sm"
-            />
-          ) : (
-            <p className="webee-flow-node__placeholder text-sm italic">Tap to add prompt…</p>
+        <div className="px-4 py-3 space-y-3">
+          {isConversation && (
+            <div className="nodrag nopan" onClick={(e) => e.stopPropagation()}>
+              <InstructionTypeTabs
+                compact
+                value={instructionType}
+                onChange={(v) => updateNode(id, { instructionType: v })}
+              />
+            </div>
           )}
+          <Textarea
+            rows={isConversation ? 6 : 4}
+            value={
+              isConversation
+                ? nodeData.dialogue
+                : nodeData.dialogue || nodeData.endingPrompt || nodeData.smsMessage || ""
+            }
+            onChange={(e) => {
+              if (isConversation) updateNode(id, { dialogue: e.target.value });
+              else if (kind === "sms") updateNode(id, { smsMessage: e.target.value });
+              else updateNode(id, { dialogue: e.target.value });
+            }}
+            placeholder={
+              isConversation
+                ? instructionType === "static_text"
+                  ? "What the agent says, word for word…"
+                  : "Ask the preferred title…"
+                : "Tap to add prompt…"
+            }
+            className="nodrag nopan nowheel text-sm leading-relaxed resize-none min-h-[128px]"
+            onClick={(e) => e.stopPropagation()}
+            onFocus={() => selectNode(id)}
+          />
         </div>
 
-        {/* Transitions section */}
         {kind !== "ending" && kind !== "note" && (
-          <div className={cn(NODE_SECTION_CLASS, "mb-2")}>
-            <div className="webee-flow-node__section-label flex items-center justify-between px-3 py-1.5 text-xs">
-              <span className="inline-flex items-center gap-1">
-                <svg width="10" height="10" viewBox="0 0 12 12" className="opacity-70">
-                  <path
-                    d="M2 2 L6 6 L2 10 M6 6 L10 6"
-                    stroke="currentColor"
-                    fill="none"
-                    strokeWidth="1.5"
-                  />
-                </svg>
-                Transition
-              </span>
+          <div className={cn(NODE_SECTION_CLASS, "mb-3")}>
+            <div className="webee-flow-node__section-label flex items-center justify-between px-3 py-2 text-xs">
+              <span>Transitions</span>
               <button
-                onClick={addTransition}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  addTransition();
+                }}
                 className="rounded p-0.5 hover:bg-background"
                 aria-label="Add transition"
               >
@@ -349,21 +348,36 @@ function ConversationStyleNode({ id, data, selected }: NodeProps<FlowNode>) {
               </button>
             </div>
             {(nodeData.transitions ?? []).length > 0 && (
-              <div className="px-1 pb-1 space-y-1">
-                {(nodeData.transitions ?? []).map((t) => (
+              <div className="px-1.5 pb-1.5 space-y-1.5">
+                {(nodeData.transitions ?? []).map((t, i) => (
                   <div key={t.id} className={NODE_ITEM_CLASS}>
-                    <svg
-                      width="10"
-                      height="10"
-                      viewBox="0 0 12 12"
-                      className="text-muted-foreground shrink-0"
+                    <Select
+                      value={t.conditionType ?? "prompt"}
+                      onValueChange={(v) => {
+                        const next = [...(nodeData.transitions ?? [])];
+                        next[i] = { ...t, conditionType: v as Transition["conditionType"] };
+                        setTransitions(next);
+                      }}
                     >
-                      <circle cx="6" cy="6" r="2.5" fill="currentColor" />
-                      <path d="M1 6 L3 6 M9 6 L11 6" stroke="currentColor" strokeWidth="1" />
-                    </svg>
-                    <span className="webee-flow-node__item-label flex-1 truncate">
-                      {t.condition || "Set condition…"}
-                    </span>
+                      <SelectTrigger className="nodrag nopan h-8 w-[96px] shrink-0 text-[11px]">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="prompt">Prompt</SelectItem>
+                        <SelectItem value="equation">Equation</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <input
+                      value={t.condition}
+                      onChange={(e) => {
+                        const next = [...(nodeData.transitions ?? [])];
+                        next[i] = { ...t, condition: e.target.value };
+                        setTransitions(next);
+                      }}
+                      placeholder="Condition…"
+                      className="nodrag nopan nowheel min-w-0 flex-1 bg-transparent text-xs outline-none"
+                      onClick={(e) => e.stopPropagation()}
+                    />
                     <Handle
                       type="source"
                       position={Position.Right}
@@ -386,10 +400,11 @@ function ConversationStyleNode({ id, data, selected }: NodeProps<FlowNode>) {
   );
 }
 
-/** Compact node for End Call / Note — no transitions section */
+/** Compact node for End Call / Note — editable on the card, no pencil modal. */
 function SimpleNode({ id, data, selected }: NodeProps<FlowNode>) {
   const selectNode = useBuilderStore((s) => s.selectNode);
   const deleteNode = useBuilderStore((s) => s.deleteNode);
+  const updateNode = useBuilderStore((s) => s.updateNode);
   const isActive = useBuilderStore((s) => s.activeNodeId === id);
   const selectedNodeId = useBuilderStore((s) => s.selectedNodeId);
   const isSelected = selected || selectedNodeId === id;
@@ -401,10 +416,15 @@ function SimpleNode({ id, data, selected }: NodeProps<FlowNode>) {
   const isConnected = edges.some((edge) => edge.source === id || edge.target === id);
   const visualState = flowVisualState({ isConnected, isSelected, isActive });
   const isTargetConnected = edges.some((edge) => edge.target === id);
+  const isEnding = kind === "ending";
+  const instructionType = nodeData.instructionType ?? "prompt";
 
   return (
     <div className="relative group">
-      <div data-flow-state={visualState} className={cn(NODE_SURFACE_CLASS, "w-56 rounded-xl")}>
+      <div
+        data-flow-state={visualState}
+        className={cn("w-[320px]", NODE_SURFACE_CLASS)}
+      >
         <div className={NODE_HEADER_CLASS}>
           {!isNote && (
             <Handle
@@ -425,41 +445,52 @@ function SimpleNode({ id, data, selected }: NodeProps<FlowNode>) {
               >
                 {style.badge}
               </span>
-              <span className="truncate text-sm font-semibold text-[#0b1627]">{data.label}</span>
-              {data.isGlobalNode && (
-                <span
-                  title="Global node"
-                  className="inline-flex items-center gap-0.5 rounded bg-sky-500/15 px-1 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-sky-700 dark:text-sky-300"
-                >
-                  <Globe className="h-3 w-3" /> Global
-                </span>
-              )}
+              <input
+                value={nodeData.label}
+                onChange={(e) => updateNode(id, { label: e.target.value })}
+                className="nodrag nopan nowheel min-w-0 flex-1 bg-transparent text-sm font-semibold text-[#0b1627] outline-none"
+                onClick={(e) => e.stopPropagation()}
+                onFocus={() => selectNode(id)}
+              />
             </div>
-            <div className="flex items-center gap-1 opacity-100">
-              <button
-                onClick={() => selectNode(id)}
-                className="rounded p-1 text-[#1d4ed8] hover:text-[#1e3a8a]"
-              >
-                <Pencil className="h-3.5 w-3.5" />
-              </button>
-              <button
-                onClick={() => deleteNode(id)}
-                className="rounded p-1 text-rose-600 hover:text-rose-700"
-              >
-                <Trash2 className="h-3.5 w-3.5" />
-              </button>
-            </div>
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                deleteNode(id);
+              }}
+              className="rounded p-1 text-rose-600 hover:text-rose-700"
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+            </button>
           </div>
         </div>
-        <div className="cursor-pointer px-3 py-3" onClick={() => selectNode(id)}>
-          {data.dialogue || data.endingPrompt || data.smsMessage ? (
-            <HighlightedPrompt
-              text={data.dialogue || data.endingPrompt || data.smsMessage || ""}
-              className="webee-flow-node__body-text line-clamp-3 whitespace-pre-wrap text-sm"
-            />
-          ) : (
-            <p className="webee-flow-node__placeholder text-sm italic">Tap to configure…</p>
+        <div className="px-4 py-3 space-y-3">
+          {isEnding && (
+            <div className="nodrag nopan" onClick={(e) => e.stopPropagation()}>
+              <InstructionTypeTabs
+                compact
+                value={instructionType}
+                onChange={(v) => updateNode(id, { instructionType: v })}
+              />
+            </div>
           )}
+          <Textarea
+            rows={4}
+            value={isEnding ? (nodeData.endingPrompt ?? nodeData.dialogue ?? "") : (nodeData.dialogue ?? "")}
+            onChange={(e) =>
+              updateNode(id, isEnding ? { endingPrompt: e.target.value } : { dialogue: e.target.value })
+            }
+            placeholder={
+              isEnding
+                ? instructionType === "static_text"
+                  ? "Goodbye text, spoken exactly…"
+                  : "How to end the call…"
+                : "Note…"
+            }
+            className="nodrag nopan nowheel text-sm leading-relaxed resize-none min-h-[96px]"
+            onClick={(e) => e.stopPropagation()}
+            onFocus={() => selectNode(id)}
+          />
         </div>
       </div>
     </div>
@@ -559,7 +590,6 @@ function VarPanel({
 
 /** Dedicated node for Extract Variable — shows Variables section + Transitions. */
 function ExtractVariableNode({ id, data, selected }: NodeProps<FlowNode>) {
-  const selectNode = useBuilderStore((s) => s.selectNode);
   const deleteNode = useBuilderStore((s) => s.deleteNode);
   const updateNode = useBuilderStore((s) => s.updateNode);
   const isActive = useBuilderStore((s) => s.activeNodeId === id);
@@ -647,7 +677,7 @@ function ExtractVariableNode({ id, data, selected }: NodeProps<FlowNode>) {
       <div
         {...(data.isStart ? { "data-tour": "node-root" } : {})}
         data-flow-state={visualState}
-        className={cn(NODE_SURFACE_CLASS, "w-72")}
+        className={cn("w-[340px]", NODE_SURFACE_CLASS)}
       >
         {/* Header */}
         <div className={NODE_HEADER_CLASS}>
@@ -675,13 +705,6 @@ function ExtractVariableNode({ id, data, selected }: NodeProps<FlowNode>) {
             </div>
             <div className="flex items-center gap-1">
               <button
-                onClick={() => selectNode(id)}
-                className="rounded p-1 text-[#1d4ed8] hover:bg-white hover:text-[#1e3a8a]"
-                aria-label="Edit node"
-              >
-                <Pencil className="h-3.5 w-3.5" />
-              </button>
-              <button
                 onClick={() => deleteNode(id)}
                 className="rounded p-1 text-rose-600 hover:bg-white hover:text-rose-700"
                 aria-label="Delete"
@@ -693,8 +716,8 @@ function ExtractVariableNode({ id, data, selected }: NodeProps<FlowNode>) {
         </div>
 
         {/* Variables section */}
-        <div className={cn(NODE_SECTION_CLASS, "mt-2")}>
-          <div className="webee-flow-node__section-label flex items-center justify-between px-3 py-1.5 text-xs">
+        <div className={cn(NODE_SECTION_CLASS, "mt-3")}>
+          <div className="webee-flow-node__section-label flex items-center justify-between px-3 py-2 text-xs">
             <span className="inline-flex items-center gap-1.5">
               <span className="font-mono text-[11px] leading-none">≡</span>
               Variables
@@ -726,8 +749,8 @@ function ExtractVariableNode({ id, data, selected }: NodeProps<FlowNode>) {
         </div>
 
         {/* Transitions section */}
-        <div className={cn(NODE_SECTION_CLASS, "my-2")}>
-          <div className="webee-flow-node__section-label flex items-center justify-between px-3 py-1.5 text-xs">
+        <div className={cn(NODE_SECTION_CLASS, "my-3")}>
+          <div className="webee-flow-node__section-label flex items-center justify-between px-3 py-2 text-xs">
             <span className="inline-flex items-center gap-1">
               <svg width="10" height="10" viewBox="0 0 12 12" className="opacity-70">
                 <path
@@ -807,4 +830,5 @@ export const NodeRenderers: Record<NodeKind, typeof ConversationStyleNode> = {
   wa_template: ConversationStyleNode,
   check_documents: ConversationStyleNode,
   send_upload_link: ConversationStyleNode,
+  http_request: ConversationStyleNode,
 };

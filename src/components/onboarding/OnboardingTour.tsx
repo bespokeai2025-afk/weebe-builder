@@ -242,10 +242,9 @@ function Step4() {
   return (
     <div className="flex flex-col gap-3">
       <p className="text-xs text-slate-400 leading-relaxed">
-        Click the <span className="text-indigo-300 font-medium">✏️ pencil icon</span> on the{" "}
-        <span className="text-white font-medium">Begin</span> node above to open the node editor. Set your{" "}
+        Click the <span className="text-white font-medium">Begin</span> node above to edit it. Set Prompt vs Static, then add{" "}
         <span className="text-amber-300 font-mono text-[10px]">{"{{agent_name}}"}</span> and{" "}
-        <span className="text-amber-300 font-mono text-[10px]">{"{{company_name}}"}</span> variables in the greeting dialogue, then close the editor.
+        <span className="text-amber-300 font-mono text-[10px]">{"{{company_name}}"}</span> in the greeting.
       </p>
       <div className="rounded-lg border border-slate-700 bg-slate-900/60 px-3 py-2 text-[10px] text-slate-400 space-y-0.5">
         <div className="text-slate-300 font-medium mb-1">Example greeting:</div>

@@ -96,6 +96,11 @@ import { searchElevenLabsVoices, previewElevenLabsVoice, previewRetellVoice } fr
 import { listElevenLabsVoices, cloneElevenLabsVoice } from "@/lib/builder/elevenlabs-voices.functions";
 import { listFishVoices, previewFishVoice, type FishVoice } from "@/lib/voice/fish-voices.functions";
 import {
+  WEBEE_NATIVE_LLM_MODELS,
+  defaultModelForProvider,
+} from "@/lib/voice/webee-native.shared";
+import { FishVoiceCloneDialog } from "@/components/builder/FishVoiceCloneDialog";
+import {
   formatFishVoiceLabel,
   formatFishVoiceSubtitle,
   fishVoiceGroup,
@@ -399,7 +404,7 @@ export function Builder({
   toolbarLeading?: React.ReactNode;
   toolbarTrailing?: React.ReactNode;
 }) {
-  const { addNode, addBookingNode, clearAll, autoLayout, revertLayout, settings, setSettings } =
+  const { addNode, addBookingNode, clearAll, autoLayout, revertLayout, settings, setSettings, selectedNodeId } =
     useBuilderStore();
   const PALETTE = settings.channelType === "whatsapp" ? WA_PALETTE : VOICE_PALETTE;
   const currentAgentRowId = useBuilderStore((s) => s.currentAgentRowId);
@@ -439,7 +444,9 @@ export function Builder({
   const [tab, setTab] = useState<"node" | "components">("node");
   const [leftOpen, setLeftOpen] = useState(true);
   const [rightOpen, setRightOpen] = useState(true);
+  const [rightView, setRightView] = useState<"node" | "agent">("agent");
   const [callActive, setCallActive] = useState(false);
+  const [rightPanelMode, setRightPanelMode] = useState<"settings" | "transcript">("settings");
   const [liveTranscript, setLiveTranscript] = useState<TxEntry[]>([]);
   const [postCallData, setPostCallData] = useState<PostCallExtracted | null>(null);
   const [postCallLoading, setPostCallLoading] = useState(false);
@@ -582,6 +589,7 @@ export function Builder({
       callStartedAtRef.current = Date.now();
       savedCallIdRef.current = null;
       setRightOpen(true);
+      setRightPanelMode("transcript");
       setPostCallData(null);
       setPostCallLoading(false);
       setLastCallMeta(null);
@@ -594,6 +602,27 @@ export function Builder({
       callStartedAtRef.current = null;
     }
   }, [callActive]);
+
+  const hasLastCallArtifacts =
+    liveTranscript.length > 0 ||
+    postCallLoading ||
+    !!postCallData ||
+    !!recordingUrl ||
+    !!lastCallMeta;
+  const showTranscriptPanel = callActive || rightPanelMode === "transcript";
+
+  useEffect(() => {
+    if (!selectedNodeId) {
+      setRightView("agent");
+      return;
+    }
+    setRightOpen(true);
+    setRightView("node");
+  }, [selectedNodeId]);
+
+  function returnToAgentSettings() {
+    setRightPanelMode("settings");
+  }
 
   async function handleCallEnd(transcript: TxEntry[], blob: Blob | null, meta?: CallEndMeta) {
     // Compute call duration from start timestamp recorded when callActive became true.
@@ -667,7 +696,10 @@ export function Builder({
     }
 
     // Run post-call extraction if there's anything to analyse.
-    if (transcript.length === 0) return;
+    if (transcript.length === 0) {
+      returnToAgentSettings();
+      return;
+    }
     setPostCallLoading(true);
     try {
       const result = await extractPostCallVariables({
@@ -694,6 +726,7 @@ export function Builder({
       toast.error("Post-call analysis failed", { description: (err as Error).message });
     } finally {
       setPostCallLoading(false);
+      returnToAgentSettings();
     }
   }
 
@@ -1178,7 +1211,7 @@ export function Builder({
           <button
             onClick={() => setLeftOpen((v) => !v)}
             title={leftOpen ? "Collapse panel" : "Expand panel"}
-            className="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-1/2 z-30 flex h-12 w-4 items-center justify-center rounded-sm border border-white/[0.07] bg-background/80 text-white/40 hover:text-white/80 hover:bg-white/[0.07] hover:border-white/[0.14] transition-all duration-200 backdrop-blur-sm"
+            className="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-1/2 z-30 flex h-12 w-4 items-center justify-center rounded-sm border border-white/[0.1] bg-[#121b2b]/90 text-white/50 hover:text-white/85 hover:bg-white/[0.08] hover:border-white/[0.18] transition-all duration-200 backdrop-blur-sm"
           >
             {leftOpen
               ? <ChevronLeft className="h-3 w-3 shrink-0" strokeWidth={1.5} />
@@ -1189,7 +1222,7 @@ export function Builder({
           <button
             onClick={() => setRightOpen((v) => !v)}
             title={rightOpen ? "Collapse settings" : "Expand settings"}
-            className="absolute right-0 top-1/2 -translate-y-1/2 translate-x-1/2 z-30 flex h-12 w-4 items-center justify-center rounded-sm border border-white/[0.07] bg-background/80 text-white/40 hover:text-white/80 hover:bg-white/[0.07] hover:border-white/[0.14] transition-all duration-200 backdrop-blur-sm"
+            className="absolute right-0 top-1/2 -translate-y-1/2 translate-x-1/2 z-30 flex h-12 w-4 items-center justify-center rounded-sm border border-white/[0.1] bg-[#121b2b]/90 text-white/50 hover:text-white/85 hover:bg-white/[0.08] hover:border-white/[0.18] transition-all duration-200 backdrop-blur-sm"
           >
             {rightOpen
               ? <ChevronRight className="h-3 w-3 shrink-0" strokeWidth={1.5} />
@@ -1201,11 +1234,13 @@ export function Builder({
         </div>
 
         {/* Right global settings / live transcript */}
-        {(rightOpen || callActive || liveTranscript.length > 0 || postCallData || postCallLoading) && (
-          <aside data-tour="right-panel" className="w-[320px] min-w-[300px] max-w-[360px] shrink-0 border-l border-white/[0.04] bg-background/40 overflow-y-auto px-2.5 py-2 space-y-1.5 hidden md:block text-[11px] [&_label]:text-[10px] [&_label]:uppercase [&_label]:tracking-wider [&_label]:text-muted-foreground [&_textarea]:text-[11px] [&_button[role=combobox]]:h-7 [&_button[role=combobox]]:text-[11px] [&_input]:text-[11px] [&_select]:text-[11px]">
+        {(rightOpen || callActive || showTranscriptPanel || selectedNodeId) && (
+          <aside data-tour="right-panel" className={cn(
+            "min-w-[300px] shrink-0 border-l border-white/[0.04] bg-background/40 overflow-y-auto px-2.5 py-2 space-y-1.5 hidden md:block text-[11px] [&_label]:text-[10px] [&_label]:uppercase [&_label]:tracking-wider [&_label]:text-muted-foreground [&_textarea]:text-[11px] [&_button[role=combobox]]:h-7 [&_button[role=combobox]]:text-[11px] [&_input]:text-[11px] [&_select]:text-[11px]",
+            selectedNodeId && rightView === "node" ? "w-[380px] max-w-[420px]" : "w-[320px] max-w-[360px]",
+          )}>
 
-            {/* ── Live transcript view (replaces settings during/after a call) ── */}
-            {(callActive || liveTranscript.length > 0 || postCallData || postCallLoading) ? (
+            {showTranscriptPanel ? (
               <div className="flex flex-col h-full">
                 {/* Header */}
                 <div className="flex items-center justify-between pb-2 border-b border-white/[0.06] mb-2">
@@ -1218,10 +1253,11 @@ export function Builder({
                   {!callActive && (
                     <button
                       type="button"
-                      onClick={() => setLiveTranscript([])}
-                      className="text-[10px] text-muted-foreground/60 hover:text-foreground transition-colors px-1.5 py-0.5 rounded hover:bg-white/[0.06]"
+                      onClick={returnToAgentSettings}
+                      className="flex items-center gap-1 text-[10px] text-primary hover:text-primary/80 transition-colors px-1.5 py-0.5 rounded hover:bg-primary/10"
                     >
-                      Clear
+                      <Settings2 className="h-3 w-3" />
+                      Agent settings
                     </button>
                   )}
                 </div>
@@ -1309,12 +1345,59 @@ export function Builder({
                   </div>
                 )}
               </div>
+            ) : selectedNodeId && rightView === "node" ? (
+              <>
+                <div className="flex border-b border-white/[0.06] mb-1 text-[10px] uppercase tracking-wider">
+                  <button
+                    type="button"
+                    className="flex-1 py-1.5 font-medium bg-white/[0.04] text-foreground"
+                  >
+                    Node
+                  </button>
+                  <button
+                    type="button"
+                    className="flex-1 py-1.5 font-medium text-muted-foreground hover:text-foreground"
+                    onClick={() => setRightView("agent")}
+                  >
+                    Agent
+                  </button>
+                </div>
+                <NodeEditorDialog />
+              </>
             ) : (
             <>
+            {selectedNodeId && (
+              <div className="flex border-b border-white/[0.06] mb-1 text-[10px] uppercase tracking-wider">
+                <button
+                  type="button"
+                  className="flex-1 py-1.5 font-medium text-muted-foreground hover:text-foreground"
+                  onClick={() => setRightView("node")}
+                >
+                  Node
+                </button>
+                <button
+                  type="button"
+                  className="flex-1 py-1.5 font-medium bg-white/[0.04] text-foreground"
+                >
+                  Agent
+                </button>
+              </div>
+            )}
             {/* Panel header */}
             <div className="flex items-center justify-between pb-2 border-b border-white/[0.06]">
               <h3 className="text-[11px] font-semibold tracking-tight text-foreground">Agent Settings</h3>
-              <DropdownMenu>
+              <div className="flex items-center gap-1">
+                {!callActive && hasLastCallArtifacts && (
+                  <button
+                    type="button"
+                    onClick={() => setRightPanelMode("transcript")}
+                    className="flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] text-violet-400 hover:bg-violet-500/10 transition-colors"
+                  >
+                    <MessageSquare className="h-3 w-3" />
+                    Last call
+                  </button>
+                )}
+                <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <button className="flex h-5 w-5 items-center justify-center rounded hover:bg-white/[0.06] text-muted-foreground hover:text-foreground transition-colors">
                     <MoreHorizontal className="h-3 w-3" />
@@ -1326,6 +1409,7 @@ export function Builder({
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
+              </div>
             </div>
 
             {settings.channelType === "whatsapp" ? (
@@ -1550,9 +1634,9 @@ export function Builder({
                 <span className="flex items-center gap-1.5"><Mic className="h-3 w-3" />Voice & Language</span>
                 <ChevronDown className="h-3 w-3 shrink-0 transition-transform duration-200 group-data-[state=open]:rotate-180" />
               </CollapsibleTrigger>
-              <CollapsibleContent className="space-y-1.5 px-2.5 pb-2.5">
-                <div>
-                  <Label className="text-[9px]">Language</Label>
+              <CollapsibleContent className="space-y-3 px-3 pb-3">
+                <div className="space-y-1.5">
+                  <Label className="text-[10px] text-muted-foreground">Language</Label>
                   <LanguagePicker
                     value={settings.speechLanguages ?? [settings.language ?? "en-US"]}
                     onChange={(v) => setSettings({ speechLanguages: v, language: v[0] === "multi" ? "en-US" : v[0] })}
@@ -1661,30 +1745,81 @@ export function Builder({
                   </>
                 )}
                 {isWebeeNative && (
-                  <div className="space-y-1.5">
-                    <Label className="text-[9px]">Voice (Fish Audio)</Label>
+                  <div className="space-y-3">
+                    <div className="space-y-1.5">
+                      <Label className="text-[10px] text-muted-foreground">LLM</Label>
+                      <Select
+                        value={settings.webeeLlmProvider ?? "openai"}
+                        onValueChange={(v) => {
+                          const provider = v as "openai" | "cerebras";
+                          setSettings({
+                            webeeLlmProvider: provider,
+                            webeeSpeechModel: defaultModelForProvider(provider),
+                          });
+                        }}
+                      >
+                        <SelectTrigger className="h-8 text-[11px]">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="openai">OpenAI (GPT)</SelectItem>
+                          <SelectItem value="cerebras">Cerebras</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <Select
+                        value={
+                          settings.webeeSpeechModel ??
+                          defaultModelForProvider(settings.webeeLlmProvider ?? "openai")
+                        }
+                        onValueChange={(v) => setSettings({ webeeSpeechModel: v })}
+                      >
+                        <SelectTrigger className="h-8 text-[11px]">
+                          <span className="truncate">
+                            {(
+                              WEBEE_NATIVE_LLM_MODELS[settings.webeeLlmProvider ?? "openai"] ?? []
+                            ).find(
+                              (m) =>
+                                m.id ===
+                                (settings.webeeSpeechModel ??
+                                  defaultModelForProvider(settings.webeeLlmProvider ?? "openai")),
+                            )?.label ?? "Select model"}
+                          </span>
+                        </SelectTrigger>
+                        <SelectContent>
+                          {(WEBEE_NATIVE_LLM_MODELS[settings.webeeLlmProvider ?? "openai"] ?? []).map(
+                            (m) => (
+                              <SelectItem key={m.id} value={m.id} textValue={m.label}>
+                                <span className="flex flex-col gap-0.5 py-0.5">
+                                  <span className="text-[11px] font-medium leading-none">{m.label}</span>
+                                  <span className="text-[10px] text-muted-foreground leading-snug">
+                                    {m.desc}
+                                  </span>
+                                </span>
+                              </SelectItem>
+                            ),
+                          )}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label className="text-[10px] text-muted-foreground">Voice</Label>
                     {settings.webeeVoiceId && (
-                      <div className="flex items-center gap-1.5 rounded border border-primary/20 bg-primary/[0.04] px-2 py-1">
-                        <Waves className="h-2.5 w-2.5 text-primary shrink-0" />
-                        <div className="flex flex-col min-w-0 flex-1">
-                          <span className="text-[9px] font-medium text-primary truncate leading-tight">
-                            {settings.webeeVoiceName ||
-                              formatFishVoiceLabel(
-                                fishVoices.find((x) => x.voiceId === settings.webeeVoiceId) ?? {
-                                  title: "Selected voice",
-                                  languages: [],
-                                  tags: [],
-                                  owned: false,
-                                },
-                              )}
-                          </span>
-                          <span className="text-[8px] font-mono text-muted-foreground truncate leading-tight">
-                            {settings.webeeVoiceId}
-                          </span>
-                        </div>
+                      <div className="flex items-center gap-2 rounded-md border border-primary/20 bg-primary/[0.04] px-2.5 py-1.5">
+                        <Waves className="h-3 w-3 text-primary shrink-0" />
+                        <span className="text-[11px] font-medium text-primary truncate leading-tight flex-1 min-w-0">
+                          {settings.webeeVoiceName ||
+                            formatFishVoiceLabel(
+                              fishVoices.find((x) => x.voiceId === settings.webeeVoiceId) ?? {
+                                title: "Selected voice",
+                                languages: [],
+                                tags: [],
+                                owned: false,
+                              },
+                            )}
+                        </span>
                         <button
                           type="button"
-                          className="text-[9px] text-muted-foreground hover:text-destructive shrink-0"
+                          className="text-[11px] text-muted-foreground hover:text-destructive shrink-0"
                           onClick={() => setSettings({ webeeVoiceId: "", webeeVoiceName: "" })}
                         >
                           ×
@@ -1749,6 +1884,22 @@ export function Builder({
                         }}
                         placeholder="Search by name, accent, or style…"
                         className="h-7 text-[10px] flex-1"
+                      />
+                      <FishVoiceCloneDialog
+                        onCloned={(voiceId, voiceName) => {
+                          setSettings({
+                            webeeVoiceId: voiceId,
+                            webeeVoiceName: voiceName,
+                            webeeVoiceOwned: true,
+                          });
+                          setFishVoicesLoading(true);
+                          listFishVoices({
+                            data: { language: fishLanguage, tag: fishTag || undefined },
+                          })
+                            .then((r) => setFishVoices(r.voices))
+                            .catch((err: Error) => setFishVoicesError(err.message))
+                            .finally(() => setFishVoicesLoading(false));
+                        }}
                       />
                       <Button
                         size="sm"
@@ -1821,6 +1972,7 @@ export function Builder({
                                           setSettings({
                                             webeeVoiceId: v.voiceId,
                                             webeeVoiceName: formatFishVoiceLabel(v),
+                                            webeeVoiceOwned: v.owned,
                                           });
                                           if (fishAudioRef.current) {
                                             fishAudioRef.current.pause();
@@ -1932,9 +2084,7 @@ export function Builder({
                         )}
                       </>
                     )}
-                    <p className="text-[8px] text-muted-foreground">
-                      Browse popular English voices or search the Fish library. Preview before test call.
-                    </p>
+                  </div>
                   </div>
                 )}
               </CollapsibleContent>
@@ -2032,10 +2182,10 @@ export function Builder({
                 <span className="flex items-center gap-1.5"><MsgSq className="h-3 w-3" />Global Prompt</span>
                 <ChevronDown className="h-3 w-3 shrink-0 transition-transform duration-200 group-data-[state=open]:rotate-180" />
               </CollapsibleTrigger>
-              <CollapsibleContent className="space-y-1.5 px-2.5 pb-2.5">
+              <CollapsibleContent className="space-y-2.5 px-3 pb-3">
                 {isRetell && (
                 <div>
-                  <Label className="text-[9px] flex items-center gap-1">
+                  <Label className="text-[10px] text-muted-foreground flex items-center gap-1">
                     Model
                     <span className="text-[8px] uppercase tracking-wide px-1 py-0.5 rounded bg-muted text-muted-foreground" title="Internal cost estimate (platform rate + margin).">
                       builder cost
@@ -2080,7 +2230,16 @@ export function Builder({
                 </div>
                 )}
                 <SliderField label="Temperature" value={settings.temperature ?? 1} min={0} max={2} step={0.1} onChange={(v) => setSettings({ temperature: v })} />
-                <Textarea rows={4} value={settings.globalPrompt} onChange={(e) => setSettings({ globalPrompt: e.target.value })} placeholder="Enter your global prompt here" className="text-[10px] leading-relaxed" />
+                <div className="space-y-1.5">
+                  <Label className="text-[10px] text-muted-foreground">Prompt</Label>
+                  <Textarea
+                    rows={14}
+                    value={settings.globalPrompt}
+                    onChange={(e) => setSettings({ globalPrompt: e.target.value })}
+                    placeholder="Enter your global prompt here"
+                    className="min-h-[240px] resize-y text-[11px] leading-relaxed"
+                  />
+                </div>
               </CollapsibleContent>
             </Collapsible>
 
@@ -2262,7 +2421,13 @@ export function Builder({
                     </p>
                   </div>
                   <SliderField label="Temperature" value={settings.temperature ?? 1} min={0} max={2} step={0.1} onChange={(v) => setSettings({ temperature: v })} />
-                  <Textarea rows={4} value={settings.globalPrompt} onChange={(e) => setSettings({ globalPrompt: e.target.value })} placeholder="Enter your global prompt here" className="text-[10px] leading-relaxed" />
+                  <Textarea
+                    rows={14}
+                    value={settings.globalPrompt}
+                    onChange={(e) => setSettings({ globalPrompt: e.target.value })}
+                    placeholder="Enter your global prompt here"
+                    className="min-h-[240px] resize-y text-[11px] leading-relaxed"
+                  />
                 </CollapsibleContent>
               </Collapsible>
             )}
@@ -2444,8 +2609,6 @@ export function Builder({
         {/* Platform Guide Drawer — 4th flex column, pushes canvas on open */}
         <PlatformGuideDrawer open={guideOpen} onClose={() => setGuideOpen(false)} />
       </div>
-
-      <NodeEditorDialog />
     </div>
   );
 }

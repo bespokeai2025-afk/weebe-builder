@@ -68,17 +68,7 @@ export function buildLanguageLockInstruction(
   }
 
   if (isEnglishOnlyAgent(speechLanguages, fallback)) {
-    return [
-      "CRITICAL LANGUAGE RULE: You MUST speak and write ONLY in English for this entire call.",
-      "All spoken replies must use Latin letters (A–Z) only — never Devanagari, Arabic, Chinese,",
-      "or other non-Latin scripts in what you say.",
-      "If speech recognition returns a name in another script (e.g. आर जो), infer the English",
-      "spelling (Arjo) and say it in Latin letters; do not echo the foreign script.",
-      "When collecting a name, accept what the caller says once and move on — never ask them to",
-      "repeat, spell, or switch language.",
-      "Never switch to Arabic, Hindi, Urdu, or any other language unless the caller explicitly",
-      "asks you to speak that language.",
-    ].join(" ");
+    return "Speak ONLY in English using Latin letters. Do not switch language or echo non-Latin script.";
   }
 
   const name = primary.replace("_", "-");
@@ -252,6 +242,16 @@ export function romanizeForEnglishStt(text: string): string {
   return "";
 }
 
+/** Romanized Indic noise that is not plausible caller speech on English agents. */
+export function isSpuriousEnglishLockedRomanization(text: string): boolean {
+  const t = text.trim().toLowerCase().replace(/[.!?,]+$/g, "");
+  if (!t) return true;
+  if (/^(ar jao|aao jao|jao|chalo|theek hai|thik hai|haan ji|ji haan|namaste|dhanyavad)$/i.test(t)) {
+    return true;
+  }
+  return false;
+}
+
 /**
  * Normalize STT for English-locked agents: drop hallucinations, romanize Indic
  * script, then strip anything still non-Latin.
@@ -266,6 +266,8 @@ export function normalizeEnglishLockedSttText(text: string, language?: string): 
     const romanized = romanizeForEnglishStt(working);
     if (romanized) working = romanized;
   }
+
+  if (isSpuriousEnglishLockedRomanization(working)) return "";
 
   const latin = working
     .replace(/[^\p{Script=Latin}\p{N}\s.,!?'"$%-]/gu, " ")

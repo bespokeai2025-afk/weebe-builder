@@ -61,13 +61,20 @@ function compileEdge(raw: unknown, fallbackId: string): FlowEdge | null {
   const prompt = str(cond.prompt).trim();
   const destination = str(raw.destination_node_id).trim();
   const id = str(raw.id).trim() || fallbackId;
+  const condType = str(cond.type).trim().toLowerCase();
   // An edge with neither a destination nor a condition can never fire and is not
   // worth keeping; a destination alone is fine (unconditional continue).
   if (!destination && !prompt) return null;
+  const explicitType =
+    condType === "equation" || condType === "prompt" ? condType : null;
+  const isEquation =
+    explicitType === "equation" ||
+    (explicitType !== "prompt" &&
+      /^\{\{\s*[a-zA-Z0-9_]+\s*\}\}(\s*(===|!==|==|!=|<=|>=|<|>|=)\s*.+)?$/i.test(prompt));
   return {
     id,
     ...(destination ? { destination_node_id: destination } : {}),
-    transition_condition: { type: "prompt", prompt },
+    transition_condition: { type: isEquation ? "equation" : "prompt", prompt },
   };
 }
 
@@ -82,6 +89,18 @@ function compileEdges(raw: unknown, nodeId: string): FlowEdge[] {
     out.push(edge);
   });
   return out;
+}
+
+/** Pull a special Retell edge out of `edges` so it is not classified as a prompt. */
+function liftEdgeByPrompt(
+  edges: FlowEdge[] | undefined,
+  match: (prompt: string) => boolean,
+): FlowEdge | null {
+  if (!edges?.length) return null;
+  const idx = edges.findIndex((e) => match(e.transition_condition.prompt.trim()));
+  if (idx < 0) return null;
+  const [lifted] = edges.splice(idx, 1);
+  return lifted ?? null;
 }
 
 /**
@@ -116,13 +135,38 @@ export function compileFlow(raw: unknown): CompiledFlow {
     const node = { ...candidate, id, type } as FlowNode;
     node.edges = compileEdges(candidate.edges, id);
 
-    // Type-specific single edges. Retell keeps these out of `edges` so they are
-    // not offered to the router as ordinary choices.
+    // Retell keeps else / always / skip-response off the prompt-condition list
+    // so the classifier is not asked to "match" them against caller text.
     const single = (key: string) => compileEdge(candidate[key], `${key}-${id}`);
-    if (type === "branch" || type === "function") {
-      const elseEdge = single("else_edge");
-      if (elseEdge) (node as { else_edge?: FlowEdge }).else_edge = elseEdge;
+    const alwaysFromList = liftEdgeByPrompt(node.edges, (p) => /^(always|unconditional)$/i.test(p));
+    const alwaysEdge = single("always_edge") ?? alwaysFromList;
+    if (alwaysEdge) (node as { always_edge?: FlowEdge }).always_edge = alwaysEdge;
+
+    const skipEdge = single("skip_response_edge");
+    if (skipEdge) (node as { skip_response_edge?: FlowEdge }).skip_response_edge = skipEdge;
+
+    const elseFromList = liftEdgeByPrompt(node.edges, (p) => /^(else|otherwise|fallback)$/i.test(p));
+    let elseEdge = single("else_edge") ?? elseFromList;
+    let alwaysEdgeFinal = alwaysEdge;
+
+    // Conversation nodes: a drawn line with no condition is Retell Always (sole
+    // dest) or Else (fallback). Function/extract/code/branch keep unlabeled
+    // edges in `edges` so they remain unconditional continues.
+    if (type === "conversation") {
+      const unlabeled = liftEdgeByPrompt(
+        node.edges,
+        (p) => !p.trim() || /^describe the (condition|transition)/i.test(p),
+      );
+      if (unlabeled) {
+        const remaining = (node.edges ?? []).filter((e) => e.destination_node_id).length;
+        if (!alwaysEdgeFinal && remaining === 0) alwaysEdgeFinal = unlabeled;
+        else if (!elseEdge) elseEdge = unlabeled;
+        else (node.edges ??= []).push(unlabeled);
+      }
     }
+    if (alwaysEdgeFinal) (node as { always_edge?: FlowEdge }).always_edge = alwaysEdgeFinal;
+    if (elseEdge) (node as { else_edge?: FlowEdge }).else_edge = elseEdge;
+
     if (type === "sms") {
       const success = single("success_edge");
       const failed = single("failed_edge");
@@ -153,7 +197,7 @@ export function compileFlow(raw: unknown): CompiledFlow {
     node.edges = (node.edges ?? [])
       .map((e) => pruneDangling(e, node.id))
       .filter((e): e is FlowEdge => Boolean(e));
-    for (const key of ["else_edge", "success_edge", "failed_edge", "edge"] as const) {
+    for (const key of ["else_edge", "success_edge", "failed_edge", "edge", "skip_response_edge", "always_edge"] as const) {
       const holder = node as Record<string, unknown>;
       if (holder[key]) holder[key] = pruneDangling(holder[key] as FlowEdge, node.id);
     }
@@ -219,6 +263,48 @@ export function nodeModel(node: FlowNode, compiled: CompiledFlow, fallback?: str
 }
 
 /**
+ * Classifier model for routing on this node — fast nano by default, stronger
+ * mini only when the node has several ambiguous prompt transitions or complex
+ * qualification instructions.
+ */
+export function nodeClassifierModel(
+  node: FlowNode,
+  edges: FlowEdge[],
+  options?: { fast?: string; strong?: string },
+): string {
+  const fast = options?.fast;
+  const strong = options?.strong;
+  const override = str(
+    (node as { classifier_model_choice?: { model?: string } }).classifier_model_choice?.model,
+  ).trim();
+  if (override) return override;
+  if (needsStrongClassifier(node, edges)) {
+    return strong ?? fast ?? "";
+  }
+  return fast ?? "";
+}
+
+function needsStrongClassifier(node: FlowNode, edges: FlowEdge[]): boolean {
+  const promptEdges = edges.filter(
+    (e) =>
+      e.destination_node_id &&
+      e.transition_condition.type === "prompt" &&
+      e.transition_condition.prompt.trim(),
+  );
+  if (promptEdges.length >= 4) return true;
+
+  const text = String(node.instruction?.text ?? node.name ?? "");
+  if (text.length > 300) return true;
+  if (/\b(qualif|assess|evaluate|determine which|figure out which|complex)\b/i.test(text)) {
+    return true;
+  }
+  if ((node.type === "branch" || node.type === "conversation") && promptEdges.length >= 3) {
+    return true;
+  }
+  return false;
+}
+
+/**
  * Substitute `{{variable}}` references in flow-authored text.
  *
  * Unresolved references are left verbatim: speaking "{{first_name}}" is a visible
@@ -232,4 +318,59 @@ export function interpolate(text: string, variables: Record<string, VariableValu
     if (value === undefined || value === null || value === "") return match;
     return String(value);
   });
+}
+
+/**
+ * Speech-safe interpolation — never emit raw `{{variable}}` tokens to TTS.
+ * Strips unresolved placeholders and drops lines that become empty fragments.
+ */
+export function interpolateForSpeech(
+  text: string,
+  variables: Record<string, VariableValue>,
+): string {
+  if (!text) return text;
+  let out = interpolate(text, variables);
+  if (out.includes("{{")) {
+    out = out.replace(/\{\{\s*[a-zA-Z_][a-zA-Z0-9_]*\s*\}\}/g, "");
+  }
+  return cleanupSpeechLines(out);
+}
+
+/** Builder notes mixed into a node prompt — never speak these to the caller. */
+export function isBuilderDirection(line: string): boolean {
+  const t = line.trim();
+  if (!t) return true;
+  if (
+    /^(be |do not |don't |and do not |never |always |make sure|if the user|when the user|only |avoid |keep |stay |if variables|if it is|note:|n\.b\.|instruction:)/i.test(
+      t,
+    )
+  ) {
+    return true;
+  }
+  return /\b(do not ask any other questions|don't read it back|do not read.{0,24}back|if variables are not detected|please ask for them|read back phonetic)\b/i.test(
+    t,
+  );
+}
+
+function cleanupSpeechLines(text: string): string {
+  return text
+    .split("\n")
+    .map((line) =>
+      line
+        .replace(/\bas\s+a?\s*[,.]?\s*$/i, "")
+        .replace(/\s{2,}/g, " ")
+        .trim(),
+    )
+    .filter((line) => {
+      if (!line || /^(as|a)[.]?$/i.test(line)) return false;
+      if (isBuilderDirection(line)) return false;
+      if (/^I have your contact address\.?$/i.test(line)) return false;
+      if (/I have (?:your )?\w[\w ]* (?:as|number as|type as a?)$/i.test(line)) return false;
+      if (/^I have your \w+ number$/i.test(line)) return false;
+      if (/^I have your last name as$/i.test(line)) return false;
+      if (/^I have the property type\.?$/i.test(line)) return false;
+      return true;
+    })
+    .join("\n")
+    .trim();
 }

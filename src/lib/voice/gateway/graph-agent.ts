@@ -14,10 +14,11 @@ import { ConversationVm } from "../graph/vm";
 import { createOpenAiVmLlm } from "../graph/llm";
 import { createTracedVmLlm } from "../graph/traced-llm";
 import { createVmHooks } from "../graph/tools";
-import { loadFlowFromAgent, seedVariablesFromAgent } from "../graph/load";
+import { loadFlowFromAgent, mergeRuntimeVariables } from "../graph/load";
 import type { ConversationFlow, VariableValue } from "../graph/types";
 import { buildLanguageLockInstruction } from "../language-lock.shared";
-import { resolveWebeeSpeechModel } from "../webee-native.shared";
+import { resolveCallVoiceId } from "../call-voice-profile.shared";
+import { resolveWebeeClassifierModel, resolveWebeeLlmProvider, resolveWebeeSpeechModel, resolveWebeeStrongClassifierModel } from "../webee-native.shared";
 
 export interface GraphRuntime {
   vm: ConversationVm;
@@ -97,9 +98,7 @@ export async function buildGraphRuntime(
       // unsaved voice or model changes.
       settings = isRecord(options.settings) ? options.settings : stored;
 
-      if (providedFlow) {
-        variables = { ...seedVariablesFromAgent(data.flow_data, stored), ...variables };
-      } else {
+      if (!providedFlow) {
         const loaded = loadFlowFromAgent(data.flow_data, stored, variables);
         warnings.push(...loaded.warnings);
         variables = loaded.variables;
@@ -114,12 +113,32 @@ export async function buildGraphRuntime(
 
   if (!flow) return null;
 
+  if (!options.agentId && providedFlow) {
+    const declared = Array.isArray((options.flow as { variables?: unknown[] })?.variables)
+      ? ((options.flow as { variables: unknown[] }).variables ?? [])
+      : Array.isArray(settings.variables)
+        ? (settings.variables as unknown[])
+        : [];
+    variables = { ...mergeRuntimeVariables(declared, variables), ...variables };
+  }
+
+  const variableKeys = Object.keys(variables);
+  console.info(
+    `${logPrefix} graph variables: ${variableKeys.length ? variableKeys.join(", ") : "(none)"}`,
+  );
+
   const configuredModel = resolveWebeeSpeechModel(settings);
+  const classifierModel = resolveWebeeClassifierModel(settings);
+  const strongClassifierModel = resolveWebeeStrongClassifierModel(settings);
+  const llmProvider = resolveWebeeLlmProvider(settings);
+  console.info(`${logPrefix} graph LLM provider=${llmProvider} speech=${configuredModel} classifier=${classifierModel}`);
   let vm!: ConversationVm;
   const llm = createTracedVmLlm(
     createOpenAiVmLlm({
       apiKey,
+      provider: llmProvider,
       defaultModel: configuredModel,
+      classifierModel,
       temperature:
         typeof flow.model_temperature === "number" ? flow.model_temperature : undefined,
     }),
@@ -131,6 +150,8 @@ export async function buildGraphRuntime(
     llm,
     variables,
     model: configuredModel,
+    classifierModel,
+    strongClassifierModel,
     languageLock: buildLanguageLockInstruction(
       Array.isArray(settings.speechLanguages)
         ? (settings.speechLanguages as string[])
@@ -152,7 +173,7 @@ export async function buildGraphRuntime(
     // webeeVoiceId is a Fish Audio model id; voice_id/voiceId are OmniVoice ids
     // like "11labs-Adrian", which Fish would reject. Prefer the native field and
     // let the TTS provider fall back to its own default when it is unset.
-    voiceId: String(settings.webeeVoiceId ?? settings.voice_id ?? settings.voiceId ?? "").trim(),
+    voiceId: resolveCallVoiceId({ settings }),
     model: configuredModel,
     warnings,
     agent,

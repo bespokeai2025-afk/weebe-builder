@@ -24,7 +24,8 @@ import {
   resample,
 } from "./audio";
 import { CascadeSession, type CascadeTransport } from "./cascade-session";
-import { resolveWebeeSpeechModel } from "../webee-native.shared";
+import { resolveWebeeLlmProvider, resolveWebeeSpeechModel } from "../webee-native.shared";
+import { resolveVoiceLlmApiKey } from "../llm/gpt";
 import {
   connectRealtimeForCall,
   createCallLifecycle,
@@ -130,7 +131,7 @@ async function runCascadeBridge(
   const persist = () => void persistTranscript(sb, callId, transcript).catch(() => {});
 
   const transport: CascadeTransport = {
-    sendAudio: (pcm) => {
+    sendAudio: (pcm, _meta) => {
       if (ws.readyState !== WebSocket.OPEN || !streamSid) return;
       ws.send(
         JSON.stringify({
@@ -183,7 +184,7 @@ async function runCascadeBridge(
 
       session = new CascadeSession(transport, {
         callId,
-        apiKey: process.env.OPENAI_API_KEY ?? "",
+        apiKey: resolveVoiceLlmApiKey(undefined, resolveWebeeLlmProvider(config.settings)),
         voiceId: config.voiceId,
         model: resolveWebeeSpeechModel(config.settings),
         // Only reached when the agent has no runnable graph; the compiled prompt
@@ -373,7 +374,10 @@ export const telephonyRoute: VoiceGatewayRoute = {
     const m = STREAM_PATH.exec(pathname);
     return m ? { callId: m[1] } : null;
   },
-  preflight: () => (process.env.OPENAI_API_KEY ? null : "OPENAI_API_KEY not configured"),
+  preflight: () =>
+    process.env.CEREBRAS_API_KEY || process.env.OPENAI_API_KEY
+      ? null
+      : "OPENAI_API_KEY or CEREBRAS_API_KEY not configured",
   onConnection: (ws: WebSocket, ctx: VoiceGatewayContext) => {
     handleTwilioStream(ws, ctx.params.callId).catch((err) => {
       console.error(`${LOG} handler error:`, err);

@@ -96,6 +96,44 @@ describe("buildWbahAllensCrmPayload callback fields", () => {
     expect(patch.cos_callbackrequest).toBe("2026-08-20T14:00:00.000Z");
   });
 
+  it("PATCHes Human Only for callback_request by default (Ben Keen pattern)", () => {
+    const formatted = formatWbahRetellCallData({
+      dynVars: { lead_id: "lead-1" },
+      custom: {
+        callback_datetime: "2026-08-21T09:00:00",
+        callback_type: "callback_request",
+      },
+    });
+    expect(formatted.dynamicsAgentPreference).toBe(WBAH_DYNAMICS_AGENT_PREFERENCE.HUMAN_ONLY);
+  });
+
+  it("PATCHes Human Only for callback_request when summary requests human", () => {
+    const formatted = formatWbahRetellCallData({
+      dynVars: { lead_id: "lead-1" },
+      custom: {
+        callback_datetime: "2026-08-21T09:00:00",
+        callback_type: "callback_request",
+        detailed_call_summary: "Caller requested a human callback tomorrow at 9am.",
+      },
+    });
+    expect(formatted.dynamicsAgentPreference).toBe(WBAH_DYNAMICS_AGENT_PREFERENCE.HUMAN_ONLY);
+  });
+
+  it("PATCHes Human Only for after_legal when human_callback_datetime and real-person summary (Ben Keen)", () => {
+    const formatted = formatWbahRetellCallData({
+      dynVars: { lead_id: "lead-1" },
+      custom: {
+        callback_datetime: "2026-08-27T09:00:00",
+        human_callback_datetime: "2026-08-27T09:00:00",
+        callback_type: "after_legal",
+        detailed_call_summary:
+          "The user requested a callback from a real person for tomorrow morning at 9:00 AM UK time. A human callback was scheduled for 27 August at 9:00 AM UK time.",
+      },
+    });
+    expect(formatted.dynamicsAgentPreference).toBe(WBAH_DYNAMICS_AGENT_PREFERENCE.HUMAN_ONLY);
+    expect(formatted.callbackDatetimeSource).toBe("human_callback_datetime");
+  });
+
   it("PATCHes Human Only for live_transfer_fallback via human datetime", () => {
     const formatted = formatWbahRetellCallData({
       dynVars: { lead_id: "lead-1" },

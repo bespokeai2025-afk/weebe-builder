@@ -98,6 +98,8 @@ const defaultSettings: BuilderSettings = {
   booking: { enabled: true, instructions: "", eventTypeId: "" },
   sttMode: "fast",
   webeeSttProvider: "fish",
+  webeeLlmProvider: "openai",
+  webeeSpeechModel: "gpt-4o-mini",
   vocabSpecialization: "general",
   allowUserDtmf: false,
   allowDtmfInterruption: false,
@@ -235,7 +237,7 @@ export const useBuilderStore = create<State>()(
           ...(kind === "wa_tag" ? { tagName: "" } : {}),
           ...(kind === "wa_template" ? { templateBody: "" } : {}),
         });
-        set({ nodes: [...get().nodes, node] });
+        set({ nodes: [...get().nodes, node], selectedNodeId: id });
       },
       addBookingNode: (position) => {
         const id = nextId("conversation");

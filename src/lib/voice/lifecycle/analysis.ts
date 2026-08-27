@@ -10,12 +10,12 @@
  *
  * Relative imports only (reachable from vite.config.ts).
  */
-import { gptComplete } from "../llm/gpt";
+import { gptComplete, resolveVoiceLlmApiKey } from "../llm/gpt";
 import type { AnalysisField, RetellCallAnalysis, TranscriptTurn } from "./types";
 import { formatTranscript, mergeTurns } from "./transcript";
 
-/** Cheap model on purpose: this is one summarisation pass per call. */
-const DEFAULT_ANALYSIS_MODEL = "gpt-4.1-mini";
+/** Cerebras gpt-oss-120b — same model the live graph uses. */
+const DEFAULT_ANALYSIS_MODEL = "gpt-4o-mini";
 
 /**
  * Same keyword list the webhook processor and the `is_voicemail` backfill use.
@@ -76,7 +76,7 @@ export async function analyzeCall(input: AnalyzeCallInput): Promise<RetellCallAn
     };
   }
 
-  const apiKey = input.apiKey ?? process.env.OPENAI_API_KEY ?? "";
+  const apiKey = input.apiKey ?? resolveVoiceLlmApiKey();
   if (!apiKey) {
     return heuristicAnalysis(transcript, voicemailHeuristic);
   }

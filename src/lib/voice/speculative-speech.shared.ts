@@ -26,18 +26,20 @@ export function partialMatchesFinal(partial: string, final: string): boolean {
   return false;
 }
 
-/** Replay buffered tokens then drain any in-flight stream. */
+/** Replay buffered tokens as they arrive, then drain any remainder. */
 export async function* streamSpeculativeTokens(run: SpeculativeSpeechRun): AsyncGenerator<string> {
   let i = 0;
-  while (i < run.tokens.length) {
-    yield run.tokens[i++]!;
-  }
-  while (!run.done) {
-    await new Promise((r) => setTimeout(r, 5));
+  let settled = false;
+  const markSettled = () => {
+    settled = true;
+  };
+  void run.done.then(markSettled, markSettled);
+  for (;;) {
     while (i < run.tokens.length) {
       yield run.tokens[i++]!;
     }
-    if (run.ctrl.signal.aborted) break;
+    if (settled || run.ctrl.signal.aborted) break;
+    await new Promise((r) => setTimeout(r, 5));
   }
   await run.done.catch(() => "");
   while (i < run.tokens.length) {

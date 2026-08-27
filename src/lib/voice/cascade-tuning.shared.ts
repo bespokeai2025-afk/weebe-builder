@@ -30,21 +30,21 @@ export function resolveCascadeTuning(input: CascadeTuningInput = {}): CascadeTun
   const responsiveness = clamp(input.responsiveness ?? 1, 0, 2);
   const interruption = clamp(input.interruptionSensitivity ?? 0.7, 0, 1);
 
-  // Retell HyperStream default is ~800 ms — short pauses mid-sentence were splitting turns.
+  // Retell-like: ~400–500 ms hangover. Addresses still get extra wait via coalesce.
   let silenceMs = input.silenceDurationMs;
   if (silenceMs == null || silenceMs <= 0) {
-    silenceMs = responsiveness >= 1.2 ? 650 : responsiveness >= 0.8 ? 800 : 1000;
+    silenceMs = responsiveness >= 1.2 ? 400 : responsiveness >= 0.8 ? 500 : 700;
   }
-  silenceMs = clamp(silenceMs, 400, 1500);
+  silenceMs = clamp(silenceMs, 300, 1200);
 
-  const silenceFramesTrigger = Math.max(5, Math.round(silenceMs / BROWSER_VAD_FRAME_MS));
+  const silenceFramesTrigger = Math.max(4, Math.round(silenceMs / BROWSER_VAD_FRAME_MS));
   // High interruption sensitivity → fewer frames to barge in (min 3 ≈ 150 ms).
-  const bargeInSpeechFrames = Math.max(3, Math.round(10 - interruption * 6));
+  const bargeInSpeechFrames = Math.max(8, Math.round(14 - interruption * 4));
 
   return {
     silenceDurationMs: silenceMs,
     bargeInSpeechFrames,
-    utteranceCoalesceMs: Math.min(900, Math.max(400, Math.round(silenceMs * 0.75))),
+    utteranceCoalesceMs: Math.min(320, Math.max(80, Math.round(silenceMs * 0.4))),
     vad: {
       silenceFramesTrigger,
       minSpeechFrames: 6,
@@ -57,3 +57,10 @@ export function resolveCascadeTuning(input: CascadeTuningInput = {}): CascadeTun
 function clamp(n: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, n));
 }
+
+export {
+  resolveUtteranceCoalesceMs,
+  resolveEndpointHangoverMs,
+  looksLikeCommitReadyPartial,
+  shouldSkipSttFinal,
+} from "./turn-commit.shared";

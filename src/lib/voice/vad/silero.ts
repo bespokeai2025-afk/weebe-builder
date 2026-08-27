@@ -113,6 +113,10 @@ export class SileroVad implements Vad {
     return this.endpointer.isSpeaking;
   }
 
+  setSilenceFramesTrigger(frames: number): void {
+    this.endpointer.setSilenceFramesTrigger(frames);
+  }
+
   reset(): void {
     this.endpointer.reset();
     this.pending = new Int16Array(0);

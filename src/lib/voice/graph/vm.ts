@@ -21,10 +21,36 @@
  * Relative imports only — this module is reachable from vite.config.ts.
  */
 
-import { compileFlow, interpolate, nodeModel, type CompiledFlow } from "./flow";
+import {
+  compileFlow,
+  interpolate,
+  interpolateForSpeech,
+  isBuilderDirection,
+  nodeClassifierModel,
+  nodeModel,
+  type CompiledFlow,
+} from "./flow";
+import { historyIndicatesStandaloneHouse, clarificationForNode } from "./stt-clarification.shared";
 import { summarizeCollectedFacts } from "./collected-facts.shared";
+import { guardPrematureWrapUpStream, replacePrematureWrapUp } from "./speech-guard.shared";
+import {
+  leadFieldsForTurn,
+  spokenFallback,
+  splitPromptParts,
+} from "./speech-prompt.shared";
 import type { CallTurnTrace } from "./latency-trace";
-import { selectDigitEdge, selectEdge, selectGlobalNode, looksLikePhoneAnswer, tryHeuristicEdgeIndex, type RouteContext } from "./router";
+import {
+  selectDigitEdge,
+  selectEdge,
+  selectGlobalNode,
+  looksLikePhoneAnswer,
+  looksLikeRepairRequest,
+  tryHeuristicEdgeIndex,
+  edgeIsTerminalOrOptOutCondition,
+  userSignalsCallEnd,
+  userSignalsDecline,
+  type RouteContext,
+} from "./router";
 import {
   partialMatchesFinal,
   streamSpeculativeTokens,
@@ -54,34 +80,17 @@ type StepResult =
 const DEFAULT_MAX_STEPS = 25;
 
 const TURN_RULES_BASE = [
-  "You are speaking on a live phone call. Produce ONLY the words to say next.",
-  "Follow the task for THIS turn exactly.",
-  "Do not ask about property size, bedrooms, bathrooms, price, type, or address unless the task explicitly asks for it.",
-  "Never re-ask for information the caller already provided earlier in this conversation.",
-  "Never narrate stage directions, never describe what you are doing, and never read meta-instructions aloud.",
-  "Do not greet the caller again mid-call unless the script requires it.",
+  "You are on a live phone call. Produce ONLY the next words to speak.",
+  "Follow this turn's task. Do not invent questions, bookings, or goodbyes.",
+  "Do not re-ask facts the caller already gave. Do not read stage directions aloud.",
 ].join(" ");
 
-/** Split node prompt text into spoken script vs builder-only style directions. */
-function splitPromptScript(raw: string): { script: string; directions: string[] } {
-  const script: string[] = [];
-  const directions: string[] = [];
-  for (const line of raw.split(/\n+/).map((l) => l.trim()).filter(Boolean)) {
-    const isDirection =
-      /^(be |do not |don't |and do not |never |always |make sure|if the user|when the user|only |avoid |keep |stay )/i.test(
-        line,
-      ) || /\bdo not ask any other questions\b/i.test(line);
-    if (isDirection) {
-      directions.push(line);
-    } else {
-      script.push(line);
-    }
-  }
-  return { script: script.join("\n"), directions };
+function splitPromptScript(raw: string) {
+  return splitPromptParts(raw, isBuilderDirection);
 }
 
-function buildTurnRules(raw: string): string {
-  const { script, directions } = splitPromptScript(raw);
+function buildTurnRules(raw: string, isEndNode = false): string {
+  const { script, directions, task } = splitPromptScript(raw);
   const rules = [TURN_RULES_BASE];
   const noExtraQuestions = directions.some((d) => /\bdo not ask any other questions\b/i.test(d));
   const wantsFlavor = directions.some((d) => /\b(funny|quirky|humou?r|inviting)\b/i.test(d));
@@ -97,18 +106,31 @@ function buildTurnRules(raw: string): string {
       rules.push("Do not ask any question beyond what the script already contains.");
     }
     rules.push("Use up to three short sentences when the script needs them.");
+  } else if (task.trim()) {
+    rules.push(
+      "The node text is an instruction to you — never read it, quote it, or start with Ask / Find out / Collect.",
+      "Speak one short natural question to the caller that does the task.",
+      "You may give a brief example only if the task includes one (Mr or Mrs, house or flat).",
+      "Say ONE short sentence — under 25 words when possible — then stop.",
+    );
   } else {
     rules.push(
       "Ask one question from the task, nothing else.",
       "Say ONE short sentence — under 25 words when possible — then stop.",
     );
   }
+  if (!isEndNode) {
+    rules.push("The call is still in progress. Do not close, book, or say that's all you need.");
+  }
   return rules.join(" ");
 }
 
 /** Ignore mid-thought fillers so the agent does not re-prompt on "uh" / "it's". */
 function isFillerUtterance(text: string): boolean {
-  const stripped = text.trim().toLowerCase().replace(/[.,!?…'"]/g, " ");
+  const stripped = text
+    .trim()
+    .toLowerCase()
+    .replace(/[.,!?…'"]/g, " ");
   const words = stripped.split(/\s+/).filter(Boolean);
   if (words.length === 0) return true;
   if (words.length > 3) return false;
@@ -142,14 +164,14 @@ function isHedgingUtterance(text: string): boolean {
 /** Caller gave concrete data (phone, name, address fragment) worth acknowledging. */
 function isSubstantiveAnswer(text: string): boolean {
   const t = text.trim();
-  if (!t || isFillerUtterance(t) || isHedgingUtterance(t)) return false;
+  if (!t || isFillerUtterance(t) || isHedgingUtterance(t) || looksLikeRepairRequest(t)) return false;
   if (looksLikePhoneAnswer(t)) return true;
   if (/\d/.test(t)) return true;
   if (/\b(apartment|villa|flat|house|street|road|dubai|email|at gmail|at yahoo)\b/i.test(t)) {
     return true;
   }
   const words = t.split(/\s+/).filter(Boolean);
-  return words.length >= 1 && words.length <= 4 && t.length >= 2;
+  return words.length >= 1 && words.length <= 24 && t.length >= 2;
 }
 
 export type SpeechWarmTarget =
@@ -161,6 +183,8 @@ export class ConversationVm {
   private readonly llm: VmLlm;
   private readonly hooks: VmHooks;
   private readonly fallbackModel?: string;
+  private readonly classifierModel?: string;
+  private readonly strongClassifierModel?: string;
   private readonly maxStepsPerTurn: number;
   private readonly languageLock: string;
 
@@ -182,6 +206,8 @@ export class ConversationVm {
     this.llm = options.llm;
     this.hooks = options.hooks ?? {};
     this.fallbackModel = options.model;
+    this.classifierModel = options.classifierModel;
+    this.strongClassifierModel = options.strongClassifierModel;
     this.maxStepsPerTurn = options.maxStepsPerTurn ?? DEFAULT_MAX_STEPS;
     this.languageLock = options.languageLock?.trim() ?? "";
     this.variables = { ...(options.variables ?? {}) };
@@ -249,11 +275,19 @@ export class ConversationVm {
   }
 
   /**
-   * Predict the next speakable output when a heuristic edge matches partial/final STT.
+   * Predict the next speakable output when a heuristic or Always edge matches
+   * partial/final STT.
    */
   peekSpeechWarmTarget(userText: string): SpeechWarmTarget | null {
     const node = this.currentNode();
     if (!node) return null;
+    if (!userText.trim() || looksLikeRepairRequest(userText)) return null;
+
+    const always = (node as { always_edge?: FlowEdge }).always_edge;
+    if (always?.destination_node_id && !isFillerUtterance(userText)) {
+      const dest = this.speechWarmForNode(always.destination_node_id);
+      if (dest) return dest;
+    }
 
     const usable = (node.edges ?? []).filter((e) => e.destination_node_id);
     if (usable.length === 0) return null;
@@ -264,7 +298,10 @@ export class ConversationVm {
     const index = tryHeuristicEdgeIndex(conditions, userText);
     if (index === null || index < 0 || index >= usable.length) return null;
 
-    const destId = usable[index]!.destination_node_id!;
+    return this.speechWarmForNode(usable[index]!.destination_node_id!);
+  }
+
+  private speechWarmForNode(destId: string): SpeechWarmTarget | null {
     const dest = this.compiled.nodes.get(destId);
     if (!dest?.instruction) return null;
 
@@ -272,14 +309,81 @@ export class ConversationVm {
     if (!raw || /^NO_RESPONSE_NEEDED$/i.test(raw)) return null;
 
     if (dest.instruction.type === "static_text") {
-      const text = interpolate(raw, this.variables);
+      const text = interpolateForSpeech(raw, this.variables);
       return text ? { kind: "static", text } : null;
     }
 
     const messages = this.buildSpeechMessages(dest, raw);
     const model = nodeModel(dest, this.compiled, this.fallbackModel) ?? this.fallbackModel ?? "";
-    if (!model || !this.llm.generateStream) return null;
+    if (!this.llm.generateStream) return null;
     return { kind: "prompt", nodeId: dest.id, messages, model };
+  }
+
+  /**
+   * Retell overlap: start the likely next line while the classifier runs.
+   * prepareSpeech reuses the stream when the chosen dest matches.
+   */
+  private beginRouteRaceSpeech(userText: string): void {
+    if (!this.llm.generateStream) return;
+    const node = this.currentNode();
+    if (!node) return;
+
+    let target = this.peekSpeechWarmTarget(userText);
+    if (!target) {
+      const elseDest = (node as { else_edge?: FlowEdge }).else_edge?.destination_node_id;
+      if (
+        elseDest &&
+        isSubstantiveAnswer(userText) &&
+        !isFillerUtterance(userText) &&
+        !isHedgingUtterance(userText)
+      ) {
+        target = this.speechWarmForNode(elseDest);
+      }
+    }
+    if (!target && node.instruction?.type === "prompt") {
+      target = this.speechWarmForNode(node.id);
+    }
+    if (!target) return;
+
+    if (target.kind === "static") {
+      this.latencyHooks.onSpeculativeTts?.(target.text);
+      return;
+    }
+    if (this.speculativeSpeech.has(target.nodeId)) return;
+
+    const ctrl = new AbortController();
+    const tokens: string[] = [];
+    const started = this.llm.generateStream(target.messages, {
+      model: target.model,
+      signal: ctrl.signal,
+    });
+    const done = (async () => {
+      try {
+        const stream = started instanceof Promise ? await started : started;
+        if (!stream) return "";
+        for await (const delta of stream) {
+          if (ctrl.signal.aborted) break;
+          tokens.push(delta);
+        }
+      } catch {
+        /* aborted or provider error — prepareSpeech falls back */
+      }
+      return tokens.join("").trim();
+    })();
+    this.speculativeSpeech.set(target.nodeId, {
+      partial: userText,
+      ctrl,
+      tokens,
+      done,
+    });
+  }
+
+  private keepSpeculativeFor(nodeId: string): void {
+    for (const [id, run] of this.speculativeSpeech) {
+      if (id === nodeId) continue;
+      run.ctrl.abort();
+      this.speculativeSpeech.delete(id);
+    }
   }
 
   /**
@@ -324,7 +428,12 @@ export class ConversationVm {
           yield* this.afterUserTurn();
           return;
         }
-        const edge = await selectDigitEdge(node.edges ?? [], input.digit, this.routeContext(node), this.llm);
+        const edge = await selectDigitEdge(
+          node.edges ?? [],
+          input.digit,
+          this.routeContext(node),
+          this.llm,
+        );
         if (edge?.destination_node_id) {
           yield* this.advance(edge.destination_node_id);
           return;
@@ -375,8 +484,10 @@ export class ConversationVm {
 
     if (this.compiled.globalNodes.length > 0) {
       this.turnTrace?.mark("graph_route_global_start");
-      const hit = await selectGlobalNode(this.compiled.globalNodes, ctx, this.llm);
+      const globalRoute = await selectGlobalNode(this.compiled.globalNodes, ctx, this.llm);
+      this.turnTrace?.recordRoute("global", globalRoute.method);
       this.turnTrace?.mark("graph_route_global_end");
+      const hit = globalRoute.hit;
       if (hit && hit.node.id !== node?.id) {
         if (hit.returnToPrevious && node) this.returnStack.push(node.id);
         yield* this.advance(hit.node.id);
@@ -390,11 +501,75 @@ export class ConversationVm {
       return;
     }
 
+    const clarify = clarificationForNode(node.instruction?.text, latestUser);
+    if (clarify) {
+      this.history.push({ role: "assistant", content: clarify });
+      yield { type: "speak", nodeId: node.id, text: clarify, interruptible: true };
+      this.awaiting = "user";
+      yield { type: "await_user", nodeId: node.id };
+      return;
+    }
+
+    if (looksLikeRepairRequest(latestUser)) {
+      const last = this.history.filter((m) => m.role === "assistant").at(-1)?.content?.trim() ?? "";
+      const replay =
+        last && !last.split("\n").some((line) => isBuilderDirection(line)) ? last : "";
+      if (replay) {
+        this.history.push({ role: "assistant", content: replay });
+        yield { type: "speak", nodeId: node.id, text: replay, interruptible: true };
+      } else {
+        yield* this.yieldSpeech(node);
+      }
+      this.awaiting = "user";
+      yield { type: "await_user", nodeId: node.id };
+      return;
+    }
+
+    const alwaysEdge = (node as { always_edge?: FlowEdge }).always_edge;
+    if (
+      alwaysEdge?.destination_node_id &&
+      latestUser.trim() &&
+      !isFillerUtterance(latestUser) &&
+      !looksLikeRepairRequest(latestUser)
+    ) {
+      this.keepSpeculativeFor(alwaysEdge.destination_node_id);
+      yield* this.advance(alwaysEdge.destination_node_id);
+      return;
+    }
+
+    this.beginRouteRaceSpeech(latestUser);
+
     this.turnTrace?.mark("graph_route_edge_start");
-    const edge = await selectEdge(node.edges ?? [], ctx, this.llm);
+    const edgeRoute = await selectEdge(node.edges ?? [], ctx, this.llm);
+    this.turnTrace?.recordRoute("edge", edgeRoute.method);
     this.turnTrace?.mark("graph_route_edge_end");
+    const edge = edgeRoute.edge;
     if (edge?.destination_node_id) {
+      this.keepSpeculativeFor(edge.destination_node_id);
       yield* this.advance(edge.destination_node_id);
+      return;
+    }
+
+    const elseEdge = (node as { else_edge?: FlowEdge }).else_edge;
+    const elseDest = elseEdge?.destination_node_id;
+    const elseIsTerminal =
+      !!elseDest &&
+      (this.compiled.nodes.get(elseDest)?.type === "end" ||
+        edgeIsTerminalOrOptOutCondition(String(elseEdge?.transition_condition?.prompt ?? "")) ||
+        /\b(appointment|booked|wrap up|goodbye)\b/i.test(
+          String(elseEdge?.transition_condition?.prompt ?? ""),
+        ));
+    if (
+      elseDest &&
+      isSubstantiveAnswer(latestUser) &&
+      !isFillerUtterance(latestUser) &&
+      !isHedgingUtterance(latestUser) &&
+      !looksLikeRepairRequest(latestUser) &&
+      (!elseIsTerminal || userSignalsCallEnd(latestUser) || userSignalsDecline(latestUser))
+    ) {
+      this.log(`routing miss on "${node.id}" — following else_edge`);
+      this.keepSpeculativeFor(elseDest);
+      yield* this.advance(elseDest);
       return;
     }
 
@@ -418,13 +593,11 @@ export class ConversationVm {
       yield* this.advance(node.id);
       return;
     }
-    if (isSubstantiveAnswer(latestUser)) {
-      this.log(`routing miss on "${node.id}" — acknowledging substantive reply via LLM`);
-      yield* this.yieldSpeech(node);
-      this.awaiting = "user";
-      yield { type: "await_user", nodeId: node.id };
-      return;
-    }
+    // Retell stay: keep talking from this node's prompt. Never read the prompt
+    // aloud — generate the next line from it.
+    this.log(`routing miss on "${node.id}" — staying, generating from this node`);
+    this.keepSpeculativeFor(node.id);
+    yield* this.yieldSpeech(node);
     this.awaiting = "user";
     yield { type: "await_user", nodeId: node.id };
   }
@@ -437,7 +610,10 @@ export class ConversationVm {
 
     while (nodeId && !this.ended) {
       if (++steps > this.maxStepsPerTurn) {
-        yield this.fail(nodeId, `exceeded ${this.maxStepsPerTurn} steps in one turn; flow may loop`);
+        yield this.fail(
+          nodeId,
+          `exceeded ${this.maxStepsPerTurn} steps in one turn; flow may loop`,
+        );
         this.ended = true;
         yield { type: "end_call", nodeId, reason: "step_limit" };
         return;
@@ -453,6 +629,14 @@ export class ConversationVm {
 
       this.currentNodeId = nodeId;
       this.turnTrace?.mark("graph_node_loaded");
+
+      const skipFloorTarget = this.floorNodeSkipTarget(node);
+      if (skipFloorTarget) {
+        this.log(`skipping floor node "${node.id}" — property is a house/bungalow`);
+        nodeId = skipFloorTarget;
+        continue;
+      }
+
       const result = yield* this.executeNode(node);
 
       if (result.kind === "await") {
@@ -463,6 +647,7 @@ export class ConversationVm {
       }
       if (result.kind === "end") {
         this.ended = true;
+        this.log(`flow ended at node "${node.id}" reason=${result.reason}`);
         yield { type: "end_call", nodeId: node.id, reason: result.reason };
         this.turnTrace?.mark("graph_advance_end");
         return;
@@ -473,6 +658,25 @@ export class ConversationVm {
   }
 
   // ─── Node executors ─────────────────────────────────────────────────────────
+
+  /** Skip "which floor" when the caller already said house/bungalow. */
+  private floorNodeSkipTarget(node: FlowNode): string | null {
+    const text = String(node.instruction?.text ?? "");
+    if (!/\b(which floor|what floor|floor is (?:it|the)|floor (?:number|of)|\{\{\s*floor\s*\}\})\b/i.test(text)) {
+      return null;
+    }
+    if (!historyIndicatesStandaloneHouse(this.history)) return null;
+
+    const edges = node.edges ?? [];
+    for (const e of edges) {
+      const prompt = e.transition_condition.prompt.toLowerCase();
+      if (!/\bfloor\b/.test(prompt) && e.destination_node_id) {
+        return e.destination_node_id;
+      }
+    }
+    const elseEdge = (node as { else_edge?: FlowEdge }).else_edge;
+    return elseEdge?.destination_node_id ?? edges[0]?.destination_node_id ?? null;
+  }
 
   private async *executeNode(node: FlowNode): AsyncGenerator<VmDirective, StepResult> {
     switch (node.type) {
@@ -501,6 +705,10 @@ export class ConversationVm {
 
   private async *execConversation(node: FlowNode): AsyncGenerator<VmDirective, StepResult> {
     yield* this.yieldSpeech(node);
+    const skip = (node as { skip_response_edge?: FlowEdge }).skip_response_edge;
+    if (skip?.destination_node_id) {
+      return { kind: "goto", nodeId: skip.destination_node_id };
+    }
     // A conversation node always hands the floor back, even with no outgoing
     // edges — the caller may still be mid-thought, and silence timeouts are the
     // transport's job, not the graph's.
@@ -514,8 +722,8 @@ export class ConversationVm {
 
   private async *execBranch(node: FlowNode): AsyncGenerator<VmDirective, StepResult> {
     const elseEdge = (node as { else_edge?: FlowEdge }).else_edge;
-    const edge = await selectEdge(node.edges ?? [], this.routeContext(node), this.llm);
-    const chosen = edge ?? elseEdge;
+    const edgeRoute = await selectEdge(node.edges ?? [], this.routeContext(node), this.llm);
+    const chosen = edgeRoute.edge ?? elseEdge;
     return this.follow(chosen, node);
   }
 
@@ -552,8 +760,8 @@ export class ConversationVm {
       }
     }
 
-    const edge = await selectEdge(node.edges ?? [], this.routeContext(node), this.llm);
-    return this.follow(edge, node);
+    const edgeRoute = await selectEdge(node.edges ?? [], this.routeContext(node), this.llm);
+    return this.follow(edgeRoute.edge, node);
   }
 
   private async *execFunction(node: FunctionNode): AsyncGenerator<VmDirective, StepResult> {
@@ -592,8 +800,8 @@ export class ConversationVm {
     // immediately and the tool's result never influences routing.
     if (node.wait_for_result === false) {
       void run().catch(() => {});
-      const edge = await selectEdge(node.edges ?? [], this.routeContext(node), this.llm);
-      return this.follow(edge ?? (node.else_edge as FlowEdge | undefined), node);
+      const edgeRoute = await selectEdge(node.edges ?? [], this.routeContext(node), this.llm);
+      return this.follow(edgeRoute.edge ?? (node.else_edge as FlowEdge | undefined), node);
     }
 
     const outcome = await run();
@@ -616,8 +824,8 @@ export class ConversationVm {
     if (!outcome.ok && node.else_edge?.destination_node_id) {
       return { kind: "goto", nodeId: node.else_edge.destination_node_id };
     }
-    const edge = await selectEdge(node.edges ?? [], this.routeContext(node), this.llm);
-    return this.follow(edge ?? (node.else_edge as FlowEdge | undefined), node);
+    const edgeRoute = await selectEdge(node.edges ?? [], this.routeContext(node), this.llm);
+    return this.follow(edgeRoute.edge ?? (node.else_edge as FlowEdge | undefined), node);
   }
 
   private async *execPressDigit(node: FlowNode): AsyncGenerator<VmDirective, StepResult> {
@@ -671,8 +879,8 @@ export class ConversationVm {
       this.log(`code node "${node.id}" skipped: no runCode hook configured`);
     }
 
-    const edge = await selectEdge(node.edges ?? [], this.routeContext(node), this.llm);
-    return this.follow(edge, node);
+    const edgeRoute = await selectEdge(node.edges ?? [], this.routeContext(node), this.llm);
+    return this.follow(edgeRoute.edge, node);
   }
 
   private async *execTransfer(node: FlowNode): AsyncGenerator<VmDirective, StepResult> {
@@ -762,11 +970,15 @@ export class ConversationVm {
           full += delta;
           yield delta;
         }
-        resolveText(full.trim() || speech.fallback);
+        const clean = full.trim() || speech.fallback;
+        resolveText(clean);
+        // gpt-oss can spend the token budget on reasoning and emit no content.
+        if (!full.trim() && speech.fallback) yield speech.fallback;
       } catch (err) {
-        resolveText(speech.fallback);
-        if (speech.fallback) yield speech.fallback;
-        throw err;
+        const clean = full.trim() || speech.fallback;
+        resolveText(clean);
+        if (!full.trim() && speech.fallback) yield speech.fallback;
+        if (!speech.fallback) throw err;
       }
     }
 
@@ -794,12 +1006,13 @@ export class ConversationVm {
     if (!raw) return null;
 
     if (instruction?.type === "static_text") {
-      const text = interpolate(raw, this.variables);
+      const text = interpolateForSpeech(raw, this.variables);
       return text ? { kind: "static", text } : null;
     }
 
     const messages = this.buildSpeechMessages(node, raw);
-    const fallback = interpolate(raw, this.variables);
+    const interpolated = interpolateForSpeech(raw, this.variables);
+    const fallback = spokenFallback(splitPromptScript(interpolated));
     const model = nodeModel(node, this.compiled, this.fallbackModel);
 
     const latestUser = this.history.filter((m) => m.role === "user").at(-1)?.content ?? "";
@@ -810,7 +1023,11 @@ export class ConversationVm {
         this.turnTrace?.mark("speculative_speech_hit");
         return {
           kind: "generated",
-          stream: streamSpeculativeTokens(spec),
+          stream: guardPrematureWrapUpStream(
+            streamSpeculativeTokens(spec),
+            fallback,
+            node.type === "end",
+          ),
           fallback,
         };
       }
@@ -822,7 +1039,11 @@ export class ConversationVm {
       try {
         return {
           kind: "generated",
-          stream: this.llm.generateStream(messages, { model }),
+          stream: guardPrematureWrapUpStream(
+            this.llm.generateStream(messages, { model }),
+            fallback,
+            node.type === "end",
+          ),
           fallback,
         };
       } catch (err) {
@@ -832,7 +1053,7 @@ export class ConversationVm {
 
     try {
       const text = await this.llm.generate(messages, { model });
-      const clean = text.trim() || fallback;
+      const clean = replacePrematureWrapUp(text.trim() || fallback, fallback);
       return clean ? { kind: "static", text: clean } : null;
     } catch (err) {
       this.log(`generation failed on node "${node.id}": ${errMessage(err)}`);
@@ -841,34 +1062,33 @@ export class ConversationVm {
   }
 
   private buildSpeechMessages(node: FlowNode, raw: string): LlmMessage[] {
-    const interpolated = interpolate(raw, this.variables);
-    const { script, directions } = splitPromptScript(interpolated);
-    const system: string[] = [buildTurnRules(interpolated)];
+    const interpolated = interpolateForSpeech(raw, this.variables);
+    const { script, directions, task } = splitPromptScript(interpolated);
+    const system: string[] = [buildTurnRules(interpolate(raw, this.variables), node.type === "end")];
     if (this.languageLock) system.push(this.languageLock);
     const collected = summarizeCollectedFacts(this.history);
     if (collected) {
-      system.push(`# Already collected from the caller (do not ask again)\n${collected}`);
+      system.push(`Already collected: ${collected}`);
     }
-    const known = Object.entries(this.variables).filter(
-      ([, v]) => v !== null && v !== undefined && v !== "",
-    );
-    if (known.length) {
+    const lead = leadFieldsForTurn(raw, this.variables);
+    if (lead.length) {
       system.push(
-        `# Known information\n${known.map(([k, v]) => `- ${k}: ${String(v)}`).join("\n")}`,
+        `Lead fields this turn may read: ${lead.map(([k, v]) => `${k}=${v}`).join("; ")}`,
       );
     }
     if (script.trim()) {
-      system.push(`# Script to say\n${script}`);
+      system.push(`Script:\n${script}`);
+    }
+    if (task.trim()) {
+      system.push(`Task (do not read aloud):\n${task}`);
     }
     if (directions.length) {
-      system.push(
-        `# Style notes (do not read aloud)\n${directions.map((d) => `- ${d}`).join("\n")}`,
-      );
+      system.push(`Style (do not read aloud): ${directions.join("; ")}`);
     }
-    if (!script.trim()) {
-      system.push(`# Your task for this turn\n${interpolated}`);
+    if (!script.trim() && !task.trim()) {
+      system.push(`Task: ${interpolated}`);
     }
-    return [{ role: "system", content: system.join("\n\n") }, ...this.history.slice(-12)];
+    return [{ role: "system", content: system.join("\n") }, ...this.history.slice(-2)];
   }
 
   /** Blocking speech resolution for transfer prompts and other one-shot paths. */
@@ -961,11 +1181,19 @@ export class ConversationVm {
   }
 
   private routeContext(node: FlowNode | null): RouteContext {
+    const edges = node?.edges ?? [];
+    const classifier = node
+      ? nodeClassifierModel(node, edges, {
+          fast: this.classifierModel,
+          strong: this.strongClassifierModel,
+        })
+      : this.classifierModel;
     return {
       history: this.history,
       variables: this.variables,
       globalPrompt: this.compiled.globalPrompt,
       currentNodeHint: node ? this.nodeHint(node) : undefined,
+      classifierModel: classifier || undefined,
     };
   }
 

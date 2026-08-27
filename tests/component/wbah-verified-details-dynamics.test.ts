@@ -41,12 +41,26 @@ describe("mapWbahVerifiedDetailsToDynamicsFields", () => {
     expect(patch.cos_numberofyearsonlease).toBe(85);
   });
 
-  it("does not copy property address when contact fields are empty without confirmation", () => {
+  it("does not copy property address when contact fields are empty and property incomplete", () => {
     const patch = mapWbahVerifiedDetailsToDynamicsFields({
       verifiedDetails: {
         new_propinfo_street2: "10 Upping Street",
         new_propinfo_city: "London",
-        new_propinfo_postalcode: "SW1A2AA",
+        address1_line1: "",
+        address1_city: "",
+        address1_postalcode: "",
+      },
+    });
+    expect(patch.address1_line1).toBeUndefined();
+    expect(patch.address1_city).toBeUndefined();
+  });
+
+  it("does not copy property to contact when contact blank without same-as confirmation", () => {
+    const patch = mapWbahVerifiedDetailsToDynamicsFields({
+      verifiedDetails: {
+        new_propinfo_street2: "10 Upping Street",
+        new_propinfo_city: "London",
+        new_propinfo_postalcode: "SW1A 2AA",
         address1_line1: "",
         address1_city: "",
         address1_postalcode: "",
@@ -55,6 +69,28 @@ describe("mapWbahVerifiedDetailsToDynamicsFields", () => {
     expect(patch.address1_line1).toBeUndefined();
     expect(patch.address1_city).toBeUndefined();
     expect(patch.address1_postalcode).toBeUndefined();
+  });
+
+  it("moves postcode out of property street line (Patricia Stocker pattern)", () => {
+    const patch = mapWbahVerifiedDetailsToDynamicsFields({
+      verifiedDetails: {
+        new_propinfo_street2: "M14 5PQ",
+        new_propinfo_city: "Manchester",
+        new_propinfo_postalcode: "",
+      },
+    });
+    expect(patch.new_propinfo_street2).toBeUndefined();
+    expect(patch.new_propinfo_postalcode).toBe("M14 5PQ");
+    expect(patch.new_propinfo_city).toBe("Manchester");
+  });
+
+  it("normalizes double-plus mobile numbers", () => {
+    const patch = mapWbahVerifiedDetailsToDynamicsFields({
+      verifiedDetails: {
+        mobilephone: "++447712461000",
+      },
+    });
+    expect(patch.mobilephone).toBe("07712461000");
   });
 
   it("copies property address when caller explicitly confirms same", () => {
@@ -74,7 +110,7 @@ describe("mapWbahVerifiedDetailsToDynamicsFields", () => {
     expect(patch.address1_line1).toBe("10 Upping Street");
     expect(patch.address1_line2).toBe("Flat 2");
     expect(patch.address1_city).toBe("London");
-    expect(patch.address1_postalcode).toBe("SW1A2AA");
+    expect(patch.address1_postalcode).toBe("SW1A 2AA");
   });
 
   it("replaces same-as-property placeholder on contact line with property address", () => {
@@ -91,6 +127,97 @@ describe("mapWbahVerifiedDetailsToDynamicsFields", () => {
     expect(patch.address1_line1).toBe("14 Oakwood Avenue");
     expect(patch.address1_city).toBe("Manchester");
     expect(patch.address1_postalcode).toBe("M14 5PQ");
+  });
+
+  it("copies contact address when summary confirms same as property (Sean pattern)", () => {
+    const patch = mapWbahVerifiedDetailsToDynamicsFields({
+      verifiedDetails: {
+        new_propinfo_street2: "22 Elm Close",
+        new_propinfo_city: "Leeds",
+        new_propinfo_postalcode: "LS1 4AB",
+        address1_line1: "",
+        address1_city: "",
+        address1_postalcode: "",
+      },
+      custom: {
+        detailed_call_summary:
+          "Caller confirmed contact address is the same as the property address.",
+      },
+    });
+    expect(patch.address1_line1).toBe("22 Elm Close");
+    expect(patch.address1_city).toBe("Leeds");
+    expect(patch.address1_postalcode).toBe("LS1 4AB");
+  });
+
+  it("extracts tenure and timeframe from summary when structured fields empty (Sarah pattern)", () => {
+    const patch = mapWbahVerifiedDetailsToDynamicsFields({
+      verifiedDetails: {
+        firstname: "Sarah",
+      },
+      custom: {
+        detailed_call_summary:
+          "Property is leasehold. Caller wants to sell within 2 months. Monthly rent achieved £950.",
+      },
+    });
+    expect(patch.cos_tenure).toBe(279640001);
+    expect(patch.new_propinfo_howquickly).toBe(100000002);
+    expect(patch.new_propinfo_rentachieved).toBe(950);
+  });
+
+  it("corrects owner-occupied when summary says caller lives there (Andrew pattern)", () => {
+    const patch = mapWbahVerifiedDetailsToDynamicsFields({
+      verifiedDetails: {
+        vacant_or_tenanted: "181510001",
+      },
+      custom: {
+        detailed_call_summary: "Andrew is living at the property — owner occupied, not rented out.",
+      },
+    });
+    expect(patch.cos_propertyempty).toBe(181510000);
+    expect(patch.cos_propertyrented).toBe(181510000);
+  });
+
+  it("maps Ben Keen call — human callback, contact from transcript, owner occupied, postcode", () => {
+    const verifiedDetails = {
+      property_type: "100000010",
+      vacant_or_tenanted: "181510000",
+      tenure: "279640001",
+      floor: "100000000",
+      timeframe: "100000000",
+      new_propinfo_street2: "Apartment Two, Richmond House",
+      new_propinfo_street3: "Welland Road",
+      new_propinfo_city: "",
+      new_propinfo_postalcode: "DE655NR",
+      address1_line1: "",
+      address1_city: "",
+      address1_postalcode: "",
+      firstname: "Ben",
+      lastname: "Keen",
+      emailaddress1: "benjaminkeene15@gmail.com",
+      mobilephone: "07572414290",
+      decision_maker: "true",
+      cos_numberofyearsonlease: "130",
+      cos_call_summary:
+        "Ground floor leasehold apartment at Apartment Two, Richmond House, Welland Road DE655NR; user lives there; timeframe less than 1 month; decision maker confirmed; human callback scheduled for 27 August 9:00 AM UK.",
+    };
+    const transcript =
+      "Are your contact address details the same as your property address? Yeah. I live in it. Get a real person to call me.";
+    const patch = mapWbahVerifiedDetailsToDynamicsFields({
+      verifiedDetails,
+      custom: {
+        detailed_call_summary:
+          "The user requested a callback from a real person for tomorrow morning at 9:00 AM UK time.",
+      },
+      transcript,
+    });
+    expect(patch.address1_line1).toBe("Apartment Two, Richmond House");
+    expect(patch.address1_line2).toBe("Welland Road");
+    expect(patch.new_propinfo_postalcode).toBe("DE65 5NR");
+    expect(patch.address1_postalcode).toBe("DE65 5NR");
+    expect(patch.mobilephone).toBe("07572414290");
+    expect(patch.cos_propertyempty).toBe(181510000);
+    expect(patch.cos_propertyrented).toBe(181510000);
+    expect(patch.cos_tenure).toBe(279640001);
   });
 });
 
@@ -109,7 +236,6 @@ describe("applyContactAddressSameAsProperty", () => {
     applyContactAddressSameAsProperty(target, {
       new_propinfo_street2: "14 Oakwood Avenue",
       new_propinfo_city: "Manchester",
-      new_propinfo_postalcode: "M14 5PQ",
     });
     expect(target.address1_line1).toBeUndefined();
     expect(target.address1_postalcode).toBeUndefined();
@@ -159,6 +285,6 @@ describe("buildWbahAgenticCrmPayload", () => {
     });
     expect(patch.address1_line1).toBe("10 Upping Street");
     expect(patch.address1_city).toBe("London");
-    expect(patch.address1_postalcode).toBe("SW1A2AA");
+    expect(patch.address1_postalcode).toBe("SW1A 2AA");
   });
 });

@@ -1,6 +1,7 @@
 import type { Edge } from "@xyflow/react";
 import type { FlowNode } from "./store";
-import type { BuilderSettings, BuilderVariable, FlowNodeData } from "./types";
+import type { BuilderSettings, BuilderVariable, FlowNodeData, TransitionConditionType } from "./types";
+import { isEquationCondition } from "../voice/graph/transition-engine.shared";
 
 /**
  * Map our builder graph to a full agent JSON with a nested
@@ -46,12 +47,8 @@ export function exportAgentJson(
           ...(t.target ? { destination_node_id: t.target } : {}),
           id: graphEdge?.id || t.id || `edge-${nodeId}-${i}`,
           transition_condition: {
-            type: "prompt" as const,
-            prompt:
-              t.condition ||
-              (t.target
-                ? `Continue to ${labelOf(nodes, t.target)}`
-                : "Describe the transition condition"),
+            type: resolveTransitionType(t.conditionType, t.condition),
+            prompt: (t.condition ?? "").trim(),
           },
         };
       });
@@ -64,7 +61,7 @@ export function exportAgentJson(
           id: e.id || `edge-${nodeId}-${i}`,
           transition_condition: {
             type: "prompt" as const,
-            prompt: `Continue to ${labelOf(nodes, e.target)}`,
+            prompt: "",
           },
         };
       });
@@ -478,8 +475,16 @@ function labelOf(nodes: FlowNode[], id: string) {
 type FlowEdge = {
   destination_node_id?: string;
   id: string;
-  transition_condition: { type: "prompt"; prompt: string };
+  transition_condition: { type: TransitionConditionType; prompt: string };
 };
+
+function resolveTransitionType(
+  explicit: TransitionConditionType | undefined,
+  condition: string,
+): TransitionConditionType {
+  if (explicit === "equation" || explicit === "prompt") return explicit;
+  return isEquationCondition(condition.trim()) ? "equation" : "prompt";
+}
 
 const NODE_OVERRIDE_KEYS = new Set([
   "voice_speed",
@@ -578,6 +583,9 @@ function mapNode(n: FlowNode, edges: FlowEdge[]): Record<string, unknown> & { id
         ...(d.isStart && d.startSpeaker ? { start_speaker: d.startSpeaker } : {}),
         instruction,
         edges,
+        ...(raw.else_edge !== undefined ? { else_edge: raw.else_edge } : {}),
+        ...(raw.skip_response_edge !== undefined ? { skip_response_edge: raw.skip_response_edge } : {}),
+        ...(raw.always_edge !== undefined ? { always_edge: raw.always_edge } : {}),
       });
     }
 

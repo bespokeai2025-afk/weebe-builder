@@ -26,6 +26,15 @@ export interface TtsVoiceRequest {
   latency?: TtsLatencyMode;
   /** 1.0 = natural pace. Providers clamp to their own supported range. */
   speed?: number;
+  /** Fish Audio expressiveness (0–1). */
+  temperature?: number;
+  /** Fish prosody.volume in dB (-20 to +20). */
+  volume?: number;
+  /**
+   * Workspace-owned Fish clone. These resample timbre on every new WebSocket;
+   * library voices do not, so clone-only locking (in-call audio anchor) applies.
+   */
+  cloneVoice?: boolean;
 }
 
 export interface TtsProvider {

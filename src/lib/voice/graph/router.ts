@@ -11,8 +11,23 @@
  */
 
 import { interpolate } from "./flow";
+import {
+  looksLikeFloorAnswer,
+  looksLikePropertyTypeAnswer,
+  looksLikeTenureAnswer,
+} from "./stt-clarification.shared";
 import { summarizeCollectedFacts } from "./collected-facts.shared";
+import {
+  buildCompactRoutingMessages,
+  isEquationCondition,
+  tryEquationEdge,
+  tryHeuristicGlobalIndex,
+  type TransitionState,
+} from "./transition-engine.shared";
+import type { RouteMethod } from "./latency-trace";
 import type { FlowEdge, LlmMessage, VariableValue, VmLlm } from "./types";
+
+export type { RouteMethod } from "./latency-trace";
 
 export interface RouteContext {
   /** Conversation so far, oldest first. */
@@ -21,6 +36,18 @@ export interface RouteContext {
   globalPrompt: string;
   /** Short label for the node being routed from. */
   currentNodeHint?: string;
+  /** Per-node classifier override (fast vs strong). */
+  classifierModel?: string;
+}
+
+export interface EdgeRouteDecision {
+  edge: FlowEdge | null;
+  method: RouteMethod;
+}
+
+export interface GlobalRouteDecision<T> {
+  hit: T | null;
+  method: RouteMethod;
 }
 
 /**
@@ -34,31 +61,81 @@ export async function selectEdge(
   edges: FlowEdge[],
   ctx: RouteContext,
   llm: VmLlm,
-): Promise<FlowEdge | null> {
+): Promise<EdgeRouteDecision> {
   const usable = edges.filter((e) => e.destination_node_id);
-  if (usable.length === 0) return null;
+  if (usable.length === 0) return { edge: null, method: "none" };
 
-  // A lone unconditional edge is a plain "continue"; asking a model to confirm
-  // that would add a round-trip per node for no information.
   const conditions = usable.map((e) => interpolate(e.transition_condition.prompt.trim(), ctx.variables));
-  if (usable.length === 1 && !conditions[0]) return usable[0];
-
-  const choices = conditions.map((c, i) => c || `Continue (option ${i + 1})`);
   const userText = lastUserText(ctx.history);
-  const heuristic = tryHeuristicEdgeIndex(conditions, userText);
-  if (heuristic !== null) return usable[heuristic];
+  const lastAgentText = lastAssistantText(ctx.history);
 
-  let index: number;
-  try {
-    index = await llm.classify(buildRoutingMessages(ctx), choices);
-  } catch {
-    // Prefer staying on the current node over jumping to an arbitrary edge.
-    const unconditional = usable.findIndex((_, i) => !conditions[i]);
-    return unconditional >= 0 ? usable[unconditional] : null;
+  // Repair turns ("what?", "pardon?") stay on the current node — Retell does not
+  // treat them as a transition.
+  if (looksLikeRepairRequest(userText)) return { edge: null, method: "none" };
+
+  // 1. Always edge — Retell skips every other check once the caller has spoken.
+  const alwaysIdx = conditions.findIndex((c) => edgeIsAlwaysCondition(c));
+  if (alwaysIdx >= 0 && userText.trim()) {
+    return { edge: usable[alwaysIdx]!, method: "unconditional" };
   }
 
-  if (!Number.isInteger(index) || index < 0 || index >= usable.length) return null;
-  return usable[index];
+  // 2. Lone unconditional edge — no classifier needed.
+  if (usable.length === 1 && !conditions[0]) {
+    return { edge: usable[0]!, method: "unconditional" };
+  }
+
+  // 3. Equation conditions (Retell logic-split style) — deterministic, zero LLM cost.
+  const equationHit = tryEquationEdge(usable, ctx.variables);
+  if (equationHit) return { edge: equationHit, method: "equation" };
+
+  // 4. Single edge with generic/any-answer/placeholder prompt + substantive caller reply.
+  if (usable.length === 1 && userText.trim() && !looksLikeRepairRequest(userText)) {
+    const only = conditions[0]?.toLowerCase() ?? "";
+    if (
+      edgeExpectsGenericContinuation(only) ||
+      edgeIsAnyAnswerEdge(only) ||
+      edgeIsPlaceholderCondition(only)
+    ) {
+      return { edge: usable[0]!, method: "generic_single" };
+    }
+  }
+
+  // 4. If every edge is an equation and none matched, do not fall through to LLM.
+  if (conditions.length > 0 && conditions.every(isEquationCondition)) {
+    const elseIdx = usable.findIndex((_, i) => /^(else|default|other)$/i.test(conditions[i] ?? ""));
+    return {
+      edge: elseIdx >= 0 ? usable[elseIdx]! : null,
+      method: elseIdx >= 0 ? "equation_else" : "none",
+    };
+  }
+
+  // 5. Heuristic text matching (yes/no, phone, address, …).
+  const choices = conditions.map((c, i) => c || `Continue (option ${i + 1})`);
+  const heuristic = tryHeuristicEdgeIndex(conditions, userText, lastAgentText);
+  if (heuristic !== null) return { edge: usable[heuristic]!, method: "heuristic" };
+
+  // 6. Ambiguous prompt conditions only — compact context, per-node classifier.
+  let index: number;
+  try {
+    index = await llm.classify(buildTransitionState(ctx), choices, {
+      model: ctx.classifierModel,
+    });
+  } catch {
+    const unconditional = usable.findIndex((_, i) => !conditions[i]);
+    return {
+      edge: unconditional >= 0 ? usable[unconditional]! : null,
+      method: unconditional >= 0 ? "unconditional" : "none",
+    };
+  }
+
+  if (!Number.isInteger(index) || index < 0 || index >= usable.length) {
+    const scored = pickBestScoredEdge(conditions, userText, lastAgentText, 2);
+    return {
+      edge: scored !== null ? usable[scored]! : null,
+      method: scored !== null ? "heuristic" : "none",
+    };
+  }
+  return { edge: usable[index]!, method: "llm" };
 }
 
 /**
@@ -71,29 +148,35 @@ export async function selectGlobalNode<T extends { condition: string }>(
   globals: T[],
   ctx: RouteContext,
   llm: VmLlm,
-): Promise<T | null> {
-  if (globals.length === 0) return null;
+): Promise<GlobalRouteDecision<T>> {
+  if (globals.length === 0) return { hit: null, method: "global_skip" };
 
   const userText = lastUserText(ctx.history);
-  if (!looksLikeGlobalInterrupt(userText)) return null;
+  if (!looksLikeGlobalInterrupt(userText)) return { hit: null, method: "global_skip" };
+
+  const conditions = globals.map((g) => interpolate(g.condition, ctx.variables));
+
+  const heuristicGlobal = tryHeuristicGlobalIndex(conditions, userText);
+  if (heuristicGlobal !== null) {
+    return { hit: globals[heuristicGlobal]!, method: "global_heuristic" };
+  }
 
   const NONE = "None of the above — the conversation is continuing normally";
-  const choices = [
-    ...globals.map((g) => interpolate(g.condition, ctx.variables)),
-    NONE,
-  ];
+  const choices = [...conditions, NONE];
 
   let index: number;
   try {
-    index = await llm.classify(buildRoutingMessages(ctx), choices);
+    index = await llm.classify(buildTransitionState(ctx), choices, {
+      model: ctx.classifierModel,
+    });
   } catch {
-    // Failing closed keeps the caller on the scripted path rather than
-    // teleporting them somewhere unexpected.
-    return null;
+    return { hit: null, method: "none" };
   }
 
-  if (!Number.isInteger(index) || index < 0 || index >= globals.length) return null;
-  return globals[index];
+  if (!Number.isInteger(index) || index < 0 || index >= globals.length) {
+    return { hit: null, method: "none" };
+  }
+  return { hit: globals[index]!, method: "global_llm" };
 }
 
 /**
@@ -121,7 +204,9 @@ export async function selectDigitEdge(
     if (hit) return hit;
   }
 
-  return selectEdge(usable, { ...ctx, history: [...ctx.history, { role: "user", content: `The caller pressed ${pressed}.` }] }, llm);
+  return selectEdge(usable, { ...ctx, history: [...ctx.history, { role: "user", content: `The caller pressed ${pressed}.` }] }, llm).then(
+    (d) => d.edge,
+  );
 }
 
 function escapeRegExp(value: string): string {
@@ -129,36 +214,40 @@ function escapeRegExp(value: string): string {
 }
 
 /**
- * Build the minimal message list a routing decision sees.
- *
- * Routing only needs the current step, a brief agent context slice, and the
- * last couple of exchanges — not the full knowledge base or long history.
+ * Build compact routing state — last user line + variables, not full transcript.
  */
-function buildRoutingMessages(ctx: RouteContext): LlmMessage[] {
-  const parts: string[] = ["Pick the transition that matches the caller's latest reply."];
-  if (ctx.currentNodeHint) parts.push(`Current step: ${ctx.currentNodeHint}`);
-  if (ctx.globalPrompt) parts.push(`Brief context: ${truncatePrompt(ctx.globalPrompt, 240)}`);
-
-  const known = Object.entries(ctx.variables).filter(
-    ([, v]) => v !== null && v !== undefined && v !== "",
-  );
-  if (known.length > 0 && known.length <= 8) {
-    parts.push(
-      `Known: ${known.map(([k, v]) => `${k}=${String(v)}`).join(", ")}`,
-    );
+function buildTransitionState(ctx: RouteContext): LlmMessage[] {
+  let lastAgentText = "";
+  for (let i = ctx.history.length - 1; i >= 0; i--) {
+    const msg = ctx.history[i];
+    if (msg.role === "assistant") {
+      lastAgentText = msg.content;
+      break;
+    }
   }
 
-  const collected = summarizeCollectedFacts(ctx.history);
-  if (collected) parts.push(`Already collected: ${collected}`);
-
-  const messages: LlmMessage[] = [{ role: "system", content: parts.join("\n") }];
-  messages.push(...ctx.history.slice(-12));
-  return messages;
+  const state: TransitionState = {
+    currentNodeHint: ctx.currentNodeHint,
+    globalPrompt: ctx.globalPrompt ? truncatePrompt(ctx.globalPrompt, 240) : undefined,
+    variables: ctx.variables,
+    latestUserText: lastUserText(ctx.history),
+    lastAgentText,
+    collectedFacts: summarizeCollectedFacts(ctx.history) || undefined,
+  };
+  return buildCompactRoutingMessages(state);
 }
 
 function truncatePrompt(value: string, max: number): string {
   const trimmed = value.trim();
   return trimmed.length <= max ? trimmed : `${trimmed.slice(0, max)}…`;
+}
+
+function lastAssistantText(history: LlmMessage[]): string {
+  for (let i = history.length - 1; i >= 0; i--) {
+    const msg = history[i];
+    if (msg.role === "assistant") return msg.content.trim();
+  }
+  return "";
 }
 
 function lastUserText(history: LlmMessage[]): string {
@@ -189,10 +278,193 @@ function edgeExpectsPhone(condition: string): boolean {
   );
 }
 
+function edgeExpectsAddress(condition: string): boolean {
+  return /\b(address|postcode|post code|zip|location|property|where (?:do you|are you)|live|street|city|town|suburb)\b/.test(
+    condition.toLowerCase(),
+  );
+}
+
+/** Street / city / postcode answers common in qualification flows. */
+export function looksLikeAddressAnswer(userText: string): boolean {
+  const t = userText.trim();
+  if (!t || t.length < 8 || looksLikePhoneAnswer(t)) return false;
+  const hasStreetCue =
+    /\b(street|st\.?|road|rd\.?|avenue|ave\.?|lane|ln\.?|drive|dr\.?|court|ct\.?|way|place|pl\.?|boulevard|blvd\.?|close|crescent|terrace|gardens|park|house|flat|apartment|apt\.?)\b/i.test(
+      t,
+    );
+  const hasPostcode = /\b[A-Z]{1,2}\d{1,2}[A-Z]?\s*\d[A-Z]{2}\b/i.test(t);
+  const commaParts = t.split(",").filter((p) => p.trim().length > 2);
+  if (hasPostcode) return true;
+  if (hasStreetCue && commaParts.length >= 1) return true;
+  if (commaParts.length >= 2) return true;
+  if (hasStreetCue && t.split(/\s+/).length >= 3) return true;
+  return false;
+}
+
+function startsWithAffirmative(t: string): boolean {
+  return /^(yes|yeah|yep|yup|yea|sim|si|sí|sure|ok|okay|correct|right|absolutely|definitely|of course|please|go ahead|sounds good|that works|mm[\s-]?hm|uh[\s-]?huh|y)\b/i.test(
+    t,
+  );
+}
+
+function startsWithNegative(t: string): boolean {
+  return /^(no|nope|nah|not really|negative|pass)\b/i.test(t);
+}
+
+/** Edge condition that ends the call or opts the caller out — must not match on generic data answers. */
+export function edgeIsTerminalOrOptOutCondition(condition: string): boolean {
+  const c = condition.toLowerCase();
+  return (
+    /\b(not interested|opt out|stop calling|end call|hang up|goodbye|good bye|end conversation|finish call|decline|reject call|do not call|wrong number)\b/.test(
+      c,
+    ) ||
+    /\b(user (?:wants to )?(?:end|finish|leave|hang up)|caller (?:wants to )?(?:end|finish|hang up))\b/.test(
+      c,
+    )
+  );
+}
+
+export function edgeIsAlwaysCondition(condition: string): boolean {
+  const c = condition.trim().toLowerCase();
+  return c === "always" || c === "unconditional" || c === "always edge";
+}
+
+export function edgeIsElseCondition(condition: string): boolean {
+  const c = condition.trim().toLowerCase();
+  return c === "else" || c === "otherwise" || c === "fallback";
+}
+
+function edgeIsPlaceholderCondition(condition: string): boolean {
+  return /^describe the (condition|transition)/i.test(condition.trim());
+}
+
+export function edgeIsSkipAheadCondition(condition: string): boolean {
+  const c = condition.toLowerCase();
+  return /\b(all (?:the )?details|everything (?:is )?collected|appointment|booked|skip (?:to|ahead|rest)|wrap up|close (?:the )?call|end of (?:the )?flow|finished collecting|no more questions|that's all we need|consultant will call|scheduled time|goodbye|good bye)\b/.test(
+    c,
+  );
+}
+
+export function userSignalsCallEnd(userText: string): boolean {
+  const t = userText.trim().toLowerCase();
+  return /\b(goodbye|bye|not interested|stop calling|hang up|end call|no thanks|don't call|do not call|remove me|opt out)\b/.test(
+    t,
+  );
+}
+
+export function userSignalsDecline(userText: string): boolean {
+  const t = userText.trim().toLowerCase();
+  return (
+    /^(no|nope|nah|not really|negative|pass)$/i.test(t) ||
+    /\b(not interested|don't want|do not want|no thanks|not now|not today)\b/.test(t)
+  );
+}
+
+function heuristicEdgeAllowed(condition: string, userText: string, allowTerminal = false): boolean {
+  if (allowTerminal || !edgeIsTerminalOrOptOutCondition(condition)) return true;
+  return userSignalsCallEnd(userText) || userSignalsDecline(userText);
+}
+
+function pickHeuristicEdge(
+  conditions: string[],
+  userText: string,
+  matches: (condition: string) => boolean,
+  options: { allowTerminal?: boolean } = {},
+): number | null {
+  for (let i = 0; i < conditions.length; i++) {
+    const condition = conditions[i] ?? "";
+    if (!matches(condition)) continue;
+    if (!heuristicEdgeAllowed(condition, userText, options.allowTerminal)) continue;
+    return i;
+  }
+  return null;
+}
+
 /** Edge expects the caller to continue / provide info (not a rejection path). */
 function edgeExpectsGenericContinuation(condition: string): boolean {
   return /\b(user answers?|user gives details|any answer|any acknowledgement|provided|caller provides|gives? (?:contact|info|details))\b/.test(
     condition.toLowerCase(),
+  );
+}
+
+function edgeIsAnyAnswerEdge(condition: string): boolean {
+  const c = condition.trim().toLowerCase();
+  return (
+    c === "any answer" ||
+    c === "any acknowledgement" ||
+    c === "any acknowledgment" ||
+    edgeIsPlaceholderCondition(c)
+  );
+}
+
+/** Affirmative edge — excludes negated prompts like "not interested" / "not available". */
+function edgeExpectsAffirmative(condition: string): boolean {
+  const c = condition.toLowerCase();
+  if (/\bnot (interested|available|sure|really)\b/.test(c)) return false;
+  if (/\b(no|negative|declin|reject|refus|unavailable|wrong name|incorrect name)\b/.test(c)) {
+    return false;
+  }
+  return /\b(yes|positive|affirm|confirm(?:s|ed|ing)?|correct|agree|available|interested|helpful|proceed|continue|live in|owner|occupied|rented|vacant|same as|matches|title deed|documents?)\b/.test(
+    c,
+  );
+}
+
+function edgeExpectsPropertyType(condition: string): boolean {
+  return /\b(property type|flat|house|bungalow|apartment)\b/.test(condition.toLowerCase());
+}
+
+function edgeExpectsTenure(condition: string): boolean {
+  return /\b(vacant|rented|tenanted|owner.?occupied|living there|live there)\b/.test(
+    condition.toLowerCase(),
+  );
+}
+
+function edgeExpectsVacant(condition: string): boolean {
+  return /\bvacant\b/.test(condition.toLowerCase());
+}
+
+function edgeExpectsRented(condition: string): boolean {
+  return /\b(rented|tenanted)\b/.test(condition.toLowerCase());
+}
+
+function edgeExpectsOwnerOccupied(condition: string): boolean {
+  return /\b(living there|live there|owner.?occupied|im living)\b/.test(condition.toLowerCase());
+}
+
+function edgeExpectsPropertyOwner(condition: string): boolean {
+  const c = condition.toLowerCase();
+  if (/\bon behalf\b/.test(c)) return false;
+  return /\b(property owner|are you the owner|owns? the property|you(?:r|'re)? the owner|caller is the owner|user is the owner)\b/.test(
+    c,
+  ) || (/\bowner\b/.test(c) && !/\bowner.?occupied\b/.test(c) && !/\bliving\b/.test(c));
+}
+
+function edgeExpectsOnBehalf(condition: string): boolean {
+  return /\bon behalf\b/.test(condition.toLowerCase());
+}
+
+function edgeExpectsTitle(condition: string): boolean {
+  return /\b(preferred title|title is|mr,?\s*mrs|mister|salutation)\b/.test(condition.toLowerCase());
+}
+
+/** "I am the owner" / "calling on behalf" — not vacant vs rented. */
+export function looksLikeOwnerAnswer(userText: string): boolean {
+  return /\b(i am (the )?owner|i'm (the )?owner|im (the )?owner|i own (it|this|the)|owner of (the |this )?property|calling on behalf|on behalf of)\b/i.test(
+    userText,
+  );
+}
+
+export function looksLikeTitleAnswer(userText: string): boolean {
+  return /^(mr|mrs|miss|ms|mister|dr|doctor|mx|sir|madam)\b\.?$/i.test(userText.trim());
+}
+
+function edgeExpectsFloor(condition: string): boolean {
+  return /\bfloor\b/.test(condition.toLowerCase());
+}
+
+function isShortAcknowledgement(t: string): boolean {
+  return /^(yes|yeah|yep|yup|yea|sim|si|sí|sure|ok|okay|correct|right|absolutely|definitely|of course|please|go ahead|sounds good|that works|mm[\s-]?hm|uh[\s-]?huh|y)$/i.test(
+    t,
   );
 }
 
@@ -205,11 +477,27 @@ function edgeExpectsNameProvided(condition: string): boolean {
   );
 }
 
+export function looksLikeRepairRequest(userText: string): boolean {
+  const t = userText
+    .trim()
+    .toLowerCase()
+    .replace(/[.!?,]+$/g, "");
+  return /^(what|huh|pardon|sorry|come again|say that again|say again|repeat(?: that)?|what was that|i didn't (?:catch|hear|get) that|i did not (?:catch|hear|get) that)$/i.test(
+    t,
+  );
+}
+
 export function looksLikeNameAnswer(userText: string): boolean {
-  const t = userText.trim();
-  if (!t || looksLikePhoneAnswer(t)) return false;
+  const t = userText.trim().replace(/[.!?]+$/g, "");
+  if (!t || looksLikePhoneAnswer(t) || looksLikeRepairRequest(t)) return false;
   const words = t.split(/\s+/).filter(Boolean);
-  return words.length <= 4 && t.length >= 2 && /^[\p{L}\s'.-]+$/u.test(t);
+  if (words.length === 0 || words.length > 4 || t.length < 2) return false;
+  if (
+    /^(what|why|who|huh|wait|sorry|pardon|ok|okay|yes|yeah|yep|no|nope|hi|hello|hey)$/i.test(t)
+  ) {
+    return false;
+  }
+  return /^[\p{L}\s'.-]+$/u.test(t);
 }
 
 /**
@@ -224,36 +512,208 @@ export function looksLikeGlobalInterrupt(userText: string): boolean {
   );
 }
 
+function collapseRepeatedAck(userText: string): string {
+  const tokens = userText
+    .trim()
+    .toLowerCase()
+    .replace(/[.!?,]+/g, " ")
+    .split(/\s+/)
+    .filter(Boolean);
+  if (tokens.length === 0) return userText.trim().toLowerCase();
+  const ack = /^(yes|yeah|yep|yup|sure|ok|okay|correct|right|y)$/i;
+  if (tokens.every((w) => ack.test(w))) return tokens[0]!.toLowerCase();
+  return userText.trim().toLowerCase().replace(/[.!?,]+$/g, "");
+}
+
+function scoreConditionAgainstAgent(condition: string, agentText: string): number {
+  if (!agentText.trim()) return 0;
+  const agent = agentText.toLowerCase();
+  const words = condition
+    .toLowerCase()
+    .split(/\W+/)
+    .filter((w) => w.length > 3 && !/^(user|caller|says?|said|that|this|with|from|have|been)$/.test(w));
+  return words.reduce((score, word) => (agent.includes(word) ? score + 1 : score), 0);
+}
+
+function pickYesEdge(
+  conditions: string[],
+  userText: string,
+  lastAgentText: string,
+): number | null {
+  const hits: number[] = [];
+  for (let i = 0; i < conditions.length; i++) {
+    const condition = conditions[i] ?? "";
+    if (!edgeExpectsAffirmative(condition)) continue;
+    if (edgeIsSkipAheadCondition(condition)) continue;
+    if (!heuristicEdgeAllowed(condition, userText)) continue;
+    hits.push(i);
+  }
+  if (hits.length === 0) return null;
+  if (hits.length === 1) return hits[0]!;
+  let best: number | null = null;
+  let bestScore = 0;
+  for (const i of hits) {
+    const score = scoreConditionAgainstAgent(conditions[i] ?? "", lastAgentText);
+    if (score > bestScore) {
+      bestScore = score;
+      best = i;
+    }
+  }
+  return bestScore >= 1 ? best : null;
+}
+
+/** When the caller said yes, pick the edge whose wording matches what was just asked. */
+function pickBestScoredEdge(
+  conditions: string[],
+  userText: string,
+  lastAgentText: string,
+  minScore: number,
+): number | null {
+  if (!lastAgentText.trim()) return null;
+  let best: number | null = null;
+  let bestScore = 0;
+  for (let i = 0; i < conditions.length; i++) {
+    const condition = conditions[i] ?? "";
+    if (!condition.trim() || edgeIsElseCondition(condition) || edgeIsAlwaysCondition(condition)) {
+      continue;
+    }
+    if (edgeIsSkipAheadCondition(condition)) continue;
+    if (!heuristicEdgeAllowed(condition, userText)) continue;
+    const score = scoreConditionAgainstAgent(condition, lastAgentText);
+    if (score > bestScore) {
+      bestScore = score;
+      best = i;
+    }
+  }
+  return bestScore >= minScore ? best : null;
+}
+
 /**
  * Skip the classifier for obvious yes/no/ok answers — saves ~1–3s per turn on
  * typical qualification flows where most edges are affirmative/negative prompts.
  */
-export function tryHeuristicEdgeIndex(conditions: string[], userText: string): number | null {
-  const t = userText.trim().toLowerCase().replace(/[.!?,]+$/g, "");
-  if (!t) return null;
+export function tryHeuristicEdgeIndex(
+  conditions: string[],
+  userText: string,
+  lastAgentText = "",
+): number | null {
+  const t = collapseRepeatedAck(userText);
+  if (!t || looksLikeRepairRequest(userText)) return null;
 
   const YES =
-    /^(yes|yeah|yep|yup|sure|ok|okay|correct|right|absolutely|definitely|of course|please|go ahead|sounds good|that works|mm[\s-]?hm|uh[\s-]?huh|y)$/i;
+    /^(yes|yeah|yep|yup|yea|sim|si|sí|sure|ok|okay|correct|right|absolutely|definitely|of course|please|go ahead|sounds good|that works|mm[\s-]?hm|uh[\s-]?huh|y)$/i;
   const NO = /^(no|nope|nah|not really|negative|pass)$/i;
   const CONTINUE =
     /^(continue|proceed|next|go on|keep going|sure thing|that's fine|fine|alright|all right)$/i;
 
+  if (YES.test(t) || startsWithAffirmative(t)) {
+    const yesHit = pickYesEdge(conditions, userText, lastAgentText);
+    if (yesHit !== null) return yesHit;
+    const scored = pickBestScoredEdge(conditions, userText, lastAgentText, 1);
+    if (scored !== null) return scored;
+    // Single continue path (Retell Always-style collect) — "Yes" after "does that
+    // sound ok?" often has no "yes" in the edge prompt.
+    const continueOnly: number[] = [];
+    for (let i = 0; i < conditions.length; i++) {
+      const c = conditions[i] ?? "";
+      if (!c.trim()) continue;
+      if (edgeIsSkipAheadCondition(c) || edgeIsTerminalOrOptOutCondition(c)) continue;
+      if (edgeIsElseCondition(c)) continue;
+      const lower = c.toLowerCase();
+      if (/\b(no|negative|declin|reject|refus|unavailable)\b/.test(lower) && !edgeExpectsAffirmative(c)) {
+        continue;
+      }
+      continueOnly.push(i);
+    }
+    if (continueOnly.length === 1) return continueOnly[0]!;
+  }
+
   for (let i = 0; i < conditions.length; i++) {
     const c = conditions[i]?.toLowerCase() ?? "";
     if (!c) continue;
-    if (
-      YES.test(t) &&
-      /\b(yes|positive|affirm|confirm|correct|agree|available|interested|helpful|proceed|continue)\b/.test(
-        c,
-      )
-    ) {
-      return i;
-    }
-    if (NO.test(t) && /\b(no|negative|declin|reject|not|unavailable|refus)\b/.test(c)) {
+    if ((NO.test(t) || startsWithNegative(t)) && /\b(no|negative|declin|reject|not|unavailable|refus)\b/.test(c)) {
       return i;
     }
     if (CONTINUE.test(t) && /\b(continue|proceed|next|move on|go ahead)\b/.test(c)) {
       return i;
+    }
+  }
+
+  if (userSignalsCallEnd(userText) || userSignalsDecline(userText)) {
+    const terminal = pickHeuristicEdge(
+      conditions,
+      userText,
+      (condition) => edgeIsTerminalOrOptOutCondition(condition),
+      { allowTerminal: true },
+    );
+    if (terminal !== null) return terminal;
+  }
+
+  // Short acks on generic / any-answer edges — skip classifier (~1–2 s).
+  if (isShortAcknowledgement(t) || startsWithAffirmative(t)) {
+    const ack = pickHeuristicEdge(conditions, userText, (condition) => {
+      const c = condition.trim().toLowerCase();
+      if (edgeIsSkipAheadCondition(condition)) return false;
+      return edgeExpectsGenericContinuation(condition) || edgeIsAnyAnswerEdge(c);
+    });
+    if (ack !== null) return ack;
+  }
+
+  // Property type answers.
+  if (looksLikePropertyTypeAnswer(userText)) {
+    const property = pickHeuristicEdge(conditions, userText, (condition) =>
+      edgeExpectsPropertyType(condition),
+    );
+    if (property !== null) return property;
+  }
+
+  // Vacant / rented / owner-occupied.
+  if (looksLikeTenureAnswer(userText)) {
+    if (/\b(rented|tenanted|tenant)\b/i.test(userText)) {
+      for (let i = 0; i < conditions.length; i++) {
+        if (edgeExpectsRented(conditions[i] ?? "")) return i;
+      }
+    }
+    if (/\b(vacant|empty|unoccupied)\b/i.test(userText)) {
+      for (let i = 0; i < conditions.length; i++) {
+        if (edgeExpectsVacant(conditions[i] ?? "")) return i;
+      }
+    }
+    if (/\b(live|living|owner.?occupied)\b/i.test(userText)) {
+      for (let i = 0; i < conditions.length; i++) {
+        if (edgeExpectsOwnerOccupied(conditions[i] ?? "")) return i;
+      }
+    }
+    for (let i = 0; i < conditions.length; i++) {
+      if (edgeExpectsTenure(conditions[i] ?? "")) return i;
+    }
+  }
+
+  if (looksLikeOwnerAnswer(userText)) {
+    if (/\bon behalf\b/i.test(userText)) {
+      const behalf = pickHeuristicEdge(conditions, userText, (c) => edgeExpectsOnBehalf(c));
+      if (behalf !== null) return behalf;
+    } else {
+      const owner = pickHeuristicEdge(conditions, userText, (c) => edgeExpectsPropertyOwner(c));
+      if (owner !== null) return owner;
+    }
+  }
+
+  if (looksLikeTitleAnswer(userText)) {
+    const title = pickHeuristicEdge(conditions, userText, (c) => edgeExpectsTitle(c));
+    if (title !== null) return title;
+    const generic = pickHeuristicEdge(conditions, userText, (c) => edgeExpectsGenericContinuation(c));
+    if (generic !== null) return generic;
+  }
+
+  // Floor answers (first, second, ground, …).
+  if (looksLikeFloorAnswer(userText)) {
+    for (let i = 0; i < conditions.length; i++) {
+      if (edgeExpectsFloor(conditions[i] ?? "")) return i;
+    }
+    for (let i = 0; i < conditions.length; i++) {
+      const c = conditions[i]?.toLowerCase() ?? "";
+      if (/\b(user answers?|detail|floor)\b/.test(c)) return i;
     }
   }
 
@@ -270,34 +730,64 @@ export function tryHeuristicEdgeIndex(conditions: string[], userText: string): n
 
   // Spelled-out or digit phone numbers when an edge expects contact info.
   if (looksLikePhoneAnswer(userText)) {
-    for (let i = 0; i < conditions.length; i++) {
-      if (edgeExpectsPhone(conditions[i] ?? "")) return i;
-    }
-    for (let i = 0; i < conditions.length; i++) {
-      if (edgeExpectsGenericContinuation(conditions[i] ?? "")) return i;
+    const phone = pickHeuristicEdge(conditions, userText, (condition) =>
+      edgeExpectsPhone(condition),
+    );
+    if (phone !== null) return phone;
+    // No dedicated phone edge — fall back to generic continuation (e.g. start node).
+    if (!conditions.some((condition) => edgeExpectsPhone(condition))) {
+      const generic = pickHeuristicEdge(conditions, userText, (condition) =>
+        edgeExpectsGenericContinuation(condition),
+      );
+      if (generic !== null) return generic;
     }
   }
 
-  // Numeric / detail answers (price, floor, size, bedrooms).
+  if (looksLikeAddressAnswer(userText)) {
+    const address = pickHeuristicEdge(conditions, userText, (condition) =>
+      edgeExpectsAddress(condition),
+    );
+    if (address !== null) return address;
+    const addressDetail = pickHeuristicEdge(conditions, userText, (condition) =>
+      /\b(address|property|location|postcode|post code|detail|confirm|provided|information|where)\b/.test(
+        condition.toLowerCase(),
+      ),
+    );
+    if (addressDetail !== null) return addressDetail;
+    if (!conditions.some((condition) => edgeExpectsAddress(condition))) {
+      const generic = pickHeuristicEdge(conditions, userText, (condition) =>
+        edgeExpectsGenericContinuation(condition),
+      );
+      if (generic !== null) return generic;
+    }
+  }
+
+  // Owner-occupied / tenancy one-liners ("I live in it", "it's rented").
   if (
-    /\d/.test(t) ||
-    /\b(one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|double|triple|zero|oh|million|thousand|hundred|floor|bhk|b h k|goodbye|bye|thanks|thank you)\b/.test(
-      t,
+    looksLikeTenureAnswer(userText) ||
+    /\b(i live in|we live in|owner.?occupied|it's rented|it is rented|tenant|vacant|empty property)\b/i.test(
+      userText,
     )
   ) {
     for (let i = 0; i < conditions.length; i++) {
       const c = conditions[i]?.toLowerCase() ?? "";
-      if (
-        /\b(price|amount|floor|size|bedroom|detail|unit|square|goodbye|end|finish|affirm|yes|continue|proceed|phone|mobile|contact|callback|details)\b/.test(
-          c,
-        )
-      ) {
-        return i;
-      }
+      if (/\b(owner|occupied|rent|tenant|vacant|live|tenure|property)\b/.test(c)) return i;
     }
-    for (let i = 0; i < conditions.length; i++) {
-      if (edgeExpectsGenericContinuation(conditions[i] ?? "")) return i;
-    }
+  }
+
+  // Numeric / detail answers (price, floor, size, bedrooms) — never jump to hang-up edges.
+  if (
+    /\d/.test(t) ||
+    /\b(one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|double|triple|zero|oh|million|thousand|hundred|floor|bhk|b h k)\b/.test(
+      t,
+    )
+  ) {
+    const numeric = pickHeuristicEdge(conditions, userText, (condition) =>
+      /\b(price|amount|floor|size|bedroom|unit|square|phone|mobile|contact|callback|bedrooms|sqft|square feet)\b/.test(
+        condition.toLowerCase(),
+      ),
+    );
+    if (numeric !== null) return numeric;
   }
 
   return null;

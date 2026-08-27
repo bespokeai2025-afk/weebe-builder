@@ -63,8 +63,8 @@ function nodeColor(n: Node) {
 function nodeDimensions(node: Node) {
   const measured = node.measured ?? {};
   const fallback = NODE_DIMENSIONS[(node.data as FlowNodeData | undefined)?.kind ?? ""] ?? {
-    width: 288,
-    height: 170,
+    width: 340,
+    height: 260,
   };
   return {
     width: typeof measured.width === "number" ? measured.width : fallback.width,
@@ -174,7 +174,7 @@ function FlowMiniMap({
   if (!map) return null;
 
   return (
-    <div className="nopan nodrag nowheel absolute bottom-3 right-3 z-20 hidden overflow-hidden rounded-md border border-white/[0.06] bg-background/70 shadow-[0_4px_20px_-8px_rgba(0,0,0,0.5)] backdrop-blur-md transition-opacity hover:opacity-100 opacity-70 md:block">
+    <div className="nopan nodrag nowheel absolute bottom-3 right-3 z-20 hidden overflow-hidden rounded-md border border-[var(--flow-minimap-border)] bg-[var(--flow-minimap-bg)] shadow-[0_8px_24px_-10px_rgba(0,0,0,0.55)] backdrop-blur-md transition-opacity hover:opacity-100 opacity-80 md:block">
       <svg
         width={MINI_MAP_WIDTH}
         height={MINI_MAP_HEIGHT}
@@ -241,7 +241,7 @@ function CanvasInner({
     }
   }, [rf, onReady]);
 
-  const { nodes, edges, onNodesChange, onEdgesChange, onConnect, deleteEdge, flowVersion } =
+  const { nodes, edges, onNodesChange, onEdgesChange, onConnect, deleteEdge, flowVersion, selectNode } =
     useBuilderStore();
   const renderEdges = useMemo(
     () => edges.map((edge) => (edge.type === "step" ? edge : { ...edge, type: "step" })),
@@ -280,6 +280,8 @@ function CanvasInner({
       onEdgesChange={onEdgesChange}
       onConnect={onConnect}
       onEdgeClick={onEdgeClick}
+      onNodeClick={(_, node) => selectNode(node.id)}
+      onPaneClick={() => selectNode(null)}
       onMove={(_, nextViewport) => setViewport(nextViewport)}
       nodeTypes={memoTypes}
       fitView
@@ -292,12 +294,13 @@ function CanvasInner({
         animated: false,
         style: {
           stroke: "var(--flow-edge)",
-          strokeWidth: 1.25,
-          filter: "drop-shadow(0 0 3px rgba(110, 231, 249, 0.2))",
+          strokeWidth: 1.35,
+          filter: "drop-shadow(0 0 4px rgba(125, 211, 252, 0.28))",
         },
       }}
     >
-      <Background gap={20} size={1} color="var(--flow-grid)" />
+      <Background id="flow-lines" variant="lines" gap={72} color="var(--flow-grid-major)" />
+      <Background id="flow-dots" variant="dots" gap={18} size={1.4} color="var(--flow-grid)" />
       <Controls
         showInteractive={false}
         className="!bg-primary !text-primary-foreground !border-primary [&>button]:!bg-primary [&>button]:!text-primary-foreground [&>button]:!border-primary/40 [&>button:hover]:!bg-primary/80"
@@ -324,7 +327,11 @@ export function FlowCanvas({
   );
 
   return (
-    <div ref={setRefs} className="h-full w-full bg-[var(--flow-canvas)]">
+    <div
+      ref={setRefs}
+      className="h-full w-full bg-[var(--flow-canvas)]"
+      style={{ backgroundImage: "var(--flow-canvas-sheen)" }}
+    >
       <ReactFlowProvider>
         <CanvasInner containerRef={internalRef} onReady={onReady} />
       </ReactFlowProvider>

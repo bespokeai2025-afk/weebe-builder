@@ -1,5 +1,5 @@
 /**
- * Conversation graph VM — OpenAI-backed model access.
+ * Conversation graph VM — Cerebras (OpenAI-compatible) model access.
  *
  * The VM depends on the narrow `VmLlm` interface so its graph semantics can be
  * tested without a network. This is the production implementation of that
@@ -9,11 +9,18 @@
  * Relative imports only — this module is reachable from vite.config.ts.
  */
 
-import { gptComplete, gptStream, type ChatMsg } from "../llm/gpt";
+import { gptComplete, gptStream, type ChatMsg, type VoiceLlmProvider } from "../llm/gpt";
+import {
+  WEBEE_NATIVE_CLASSIFIER_MODEL,
+  WEBEE_NATIVE_OPENAI_CLASSIFIER_MODEL,
+  WEBEE_NATIVE_OPENAI_SPEECH_MODEL,
+  WEBEE_NATIVE_SPEECH_MODEL,
+} from "../webee-native.shared";
 import type { LlmMessage, VariableValue, VmLlm } from "./types";
 
 export interface OpenAiVmLlmOptions {
   apiKey: string;
+  provider?: VoiceLlmProvider;
   /** Used when a call site passes no per-node model override. */
   defaultModel?: string;
   /**
@@ -33,6 +40,11 @@ const CLASSIFY_SYSTEM = [
   "Labels may match option text (e.g. \"positive\"). Do not generate speech.",
 ].join("\n");
 
+/** gpt-oss spends a slice of max_tokens on reasoning — keep room for spoken words. */
+const SPEECH_MAX_TOKENS = 512;
+const CLASSIFY_MAX_TOKENS = 128;
+const EXTRACT_MAX_TOKENS = 256;
+
 const EXTRACT_SYSTEM = [
   "You extract structured data from a voice conversation.",
   "Return a JSON object containing only the requested fields.",
@@ -41,29 +53,35 @@ const EXTRACT_SYSTEM = [
 ].join("\n");
 
 export function createOpenAiVmLlm(options: OpenAiVmLlmOptions): VmLlm {
-  const { apiKey } = options;
-  const defaultModel = options.defaultModel || "gpt-4.1";
-  const classifierModel = options.classifierModel || "gpt-4o-mini";
+  const { apiKey, provider } = options;
+  const defaultModel =
+    options.defaultModel ||
+    (provider === "openai" ? WEBEE_NATIVE_OPENAI_SPEECH_MODEL : WEBEE_NATIVE_SPEECH_MODEL);
+  const classifierModel =
+    options.classifierModel ||
+    (provider === "openai" ? WEBEE_NATIVE_OPENAI_CLASSIFIER_MODEL : WEBEE_NATIVE_CLASSIFIER_MODEL);
 
   const complete = (messages: LlmMessage[], model: string, extra: Record<string, unknown> = {}) =>
     gptComplete(messages as ChatMsg[], {
       model,
       apiKey,
-      temperature: options.temperature,
+      provider,
+      temperature: options.temperature ?? 0.3,
       ...extra,
     });
 
   return {
     async generate(messages, opts) {
-      return complete(messages, opts?.model || defaultModel);
+      return complete(messages, opts?.model || defaultModel, { maxTokens: SPEECH_MAX_TOKENS });
     },
 
     generateStream(messages, opts) {
       return gptStream(messages as ChatMsg[], {
         model: opts?.model || defaultModel,
         apiKey,
-        temperature: options.temperature,
-        maxTokens: 80,
+        provider,
+        temperature: options.temperature ?? 0.3,
+        maxTokens: SPEECH_MAX_TOKENS,
         signal: opts?.signal,
       });
     },
@@ -84,7 +102,7 @@ export function createOpenAiVmLlm(options: OpenAiVmLlmOptions): VmLlm {
       // Routing always uses the cheap classifier — never the speech model.
       const raw = await complete(prompt, opts?.model || classifierModel, {
         temperature: 0,
-        maxTokens: 24,
+        maxTokens: CLASSIFY_MAX_TOKENS,
         responseFormat: "json_object",
       });
 
@@ -114,6 +132,7 @@ export function createOpenAiVmLlm(options: OpenAiVmLlmOptions): VmLlm {
 
       const raw = await complete(prompt, opts?.model || classifierModel, {
         temperature: 0,
+        maxTokens: EXTRACT_MAX_TOKENS,
         responseFormat: "json_object",
       });
 

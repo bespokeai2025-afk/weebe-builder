@@ -15,6 +15,7 @@ import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { buildGraphRuntime } from "@/lib/voice/gateway/graph-agent";
+import { resolveVoiceLlmApiKey } from "@/lib/voice/llm/gpt";
 import { resolveDeploymentMode } from "@/lib/runtime/adapter";
 import { replayThroughVm } from "./replay";
 import {
@@ -76,8 +77,8 @@ export const runShadowComparison = createServerFn({ method: "POST" })
     const workspaceId = context.workspaceId;
     if (!workspaceId) throw new Error("No active workspace");
 
-    const apiKey = process.env.OPENAI_API_KEY ?? "";
-    if (!apiKey) throw new Error("OPENAI_API_KEY is not configured — the native engine cannot run");
+    const apiKey = resolveVoiceLlmApiKey();
+    if (!apiKey) throw new Error("OPENAI_API_KEY or CEREBRAS_API_KEY is not configured — the native engine cannot run");
 
     const agent = await loadAgentForWorkspace(data.agentId, workspaceId);
 
@@ -261,12 +262,12 @@ async function computeCutoverReadiness(
   const settings = (agent.settings ?? {}) as Record<string, unknown>;
   const checks: CutoverCheck[] = [];
 
-  const openai = Boolean(process.env.OPENAI_API_KEY);
+  const llmKey = Boolean(resolveVoiceLlmApiKey());
   checks.push({
     id: "llm",
     label: "Text LLM key",
-    status: openai ? "pass" : "fail",
-    detail: openai ? "OPENAI_API_KEY is set" : "OPENAI_API_KEY is missing",
+    status: llmKey ? "pass" : "fail",
+    detail: llmKey ? "Voice LLM key is set" : "CEREBRAS_API_KEY is missing",
   });
 
   const fish = Boolean(process.env.FISH_API_KEY);
@@ -311,7 +312,7 @@ async function computeCutoverReadiness(
   let graphDetail = "Could not build the conversation graph";
   try {
     const runtime = await buildGraphRuntime({
-      apiKey: process.env.OPENAI_API_KEY ?? "",
+      apiKey: resolveVoiceLlmApiKey(),
       logPrefix: "[cutover]",
       agentId,
       supabase: supabaseAdmin as never,

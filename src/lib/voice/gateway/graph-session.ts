@@ -26,6 +26,8 @@ export interface GraphSessionCallbacks {
   onTranscript?(role: "agent" | "user", text: string): void;
   onVariables?(values: Record<string, VariableValue>): void;
   onToolCall?(toolId: string, result: string, ok: boolean): void;
+  /** Builder canvas highlight — fire on every node the VM is currently in. */
+  onNodeActive?(nodeId: string): void;
   /** Bridge the call. Resolve true once connected, false if it could not be. */
   onTransfer?(destination: string, transferType: string): Promise<boolean>;
   onAgentSwap?(agentId: string, agentVersion?: number | string): void;
@@ -92,6 +94,9 @@ export class GraphSession {
   }
 
   private async apply(directive: VmDirective): Promise<VmInput | null> {
+    if ("nodeId" in directive && directive.nodeId) {
+      this.cb.onNodeActive?.(directive.nodeId);
+    }
     switch (directive.type) {
       case "speak": {
         if (directive.textStream) {

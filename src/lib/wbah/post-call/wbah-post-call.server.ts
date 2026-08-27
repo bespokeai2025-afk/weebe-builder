@@ -138,6 +138,32 @@ async function postDashboardRaw(input: {
   });
 }
 
+async function maybePostWbahNoAnswerTimelineNote(input: {
+  call: RetellCall;
+  leadId: string;
+  custom: Record<string, unknown>;
+}): Promise<void> {
+  const startMs = Number(input.call.start_timestamp ?? 0);
+  const endMs = Number(input.call.end_timestamp ?? 0);
+  const durationMs = startMs > 0 && endMs > startMs ? endMs - startMs : 0;
+  if (durationMs > 0) return;
+
+  const noteText = buildWbahAiTimelineNoteText({
+    label: "WBAH AI call",
+    callId: input.call.call_id ?? null,
+    userSentiment: null,
+    callSummary:
+      String(input.custom.detailed_call_summary ?? "").trim() ||
+      "Call not answered — no conversation recorded.",
+    transcript: input.call.transcript ?? null,
+  });
+  await postWbahLeadTimelineNote({
+    leadId: input.leadId,
+    subject: "WBAH AI call — no answer",
+    noteText,
+  });
+}
+
 async function postDashboardAnalyzed(input: {
   call: RetellCall;
   payload: Record<string, unknown>;
@@ -192,6 +218,8 @@ async function runDynamicsAllensPath(input: {
     allens,
     calendlyBookingUrl: input.calendlyBookingUrl,
     callbackUtc: input.formatted.callbackDatetimeUtc,
+    custom: input.custom,
+    transcript: input.transcript ?? null,
   });
 
   if (!Object.keys(patch).length) {
@@ -214,9 +242,10 @@ async function runDynamicsAgenticPath(input: {
   leadId: string;
   formatted: ReturnType<typeof formatWbahRetellCallData>;
   custom: Record<string, unknown>;
+  transcript?: string | null;
 }): Promise<void> {
   const structured = input.formatted.structuredJsonOutput;
-  const patch = buildWbahAgenticCrmPayload(structured, input.custom);
+  const patch = buildWbahAgenticCrmPayload(structured, input.custom, input.transcript ?? null);
   if (Object.keys(patch).length) {
     console.log("[WBAH POST-CALL] dynamics_agentic PATCH", {
       leadId: input.leadId,
@@ -367,6 +396,19 @@ export async function runWbahPostCallPipelineCore(
     }
   }
 
+  if (event === "call_ended" && leadId && isWbahDynamicsConfigured()) {
+    try {
+      await maybePostWbahNoAnswerTimelineNote({
+        call,
+        leadId,
+        custom,
+      });
+      branches.push("dynamics_lead_note");
+    } catch (e) {
+      errors.push(`dynamics_lead_note: ${(e as Error).message}`);
+    }
+  }
+
   if ((event === "call_started" || event === "call_ended") && leadId) {
     if (stepOn("dashboard_raw")) {
       try {
@@ -475,6 +517,7 @@ export async function runWbahPostCallPipelineCore(
           leadId,
           formatted,
           custom,
+          transcript: call.transcript ?? null,
         });
         branches.push("dynamics_agentic");
       } catch (e) {

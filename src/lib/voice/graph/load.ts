@@ -15,7 +15,7 @@ import type { ConversationFlow, VariableValue } from "./types";
 
 export interface LoadedFlow {
   flow: ConversationFlow;
-  /** Seed variables declared on the agent, so `{{…}}` resolves from turn one. */
+  /** Seeded at call time from CRM/dialer or explicit runtimeDefault — not analysis examples. */
   variables: Record<string, VariableValue>;
   /** Non-fatal problems, surfaced rather than swallowed. */
   warnings: string[];
@@ -87,9 +87,9 @@ export function loadFlowFromAgent(
 /**
  * Seed variables from a stored agent without compiling its flow.
  *
- * Used when the caller brings its own flow (a builder test call) but still wants
- * the agent's declared defaults. Running the exporter for this would be wasted
- * work, and worse, would report export warnings about a graph nobody is running.
+ * Builder `defaultValue` / Retell `examples` are post-call analysis hints, not a
+ * live lead. Only an explicit `runtimeDefault` (or call-time dynamic values)
+ * belongs in the VM store.
  */
 export function seedVariablesFromAgent(
   flowData: unknown,
@@ -105,12 +105,31 @@ export function seedVariablesFromAgent(
   return seedVariables(declared);
 }
 
+/** Builder variable rows → runtime map. Analysis examples are not runtime values. */
+export function variablesArrayToMap(
+  declared: Array<{ name?: string; runtimeDefault?: string; defaultValue?: string; examples?: string[] }>,
+): Record<string, VariableValue> {
+  return seedVariables(declared);
+}
+
 /**
- * Pre-populate declared variables that carry a default.
+ * Merge call-time values over any explicit runtime defaults.
+ * Analysis `defaultValue` / `examples` are not applied.
+ */
+export function mergeRuntimeVariables(
+  declared: unknown[],
+  dynamic: Record<string, VariableValue> = {},
+): Record<string, VariableValue> {
+  return { ...seedVariables(declared), ...dynamic };
+}
+
+/**
+ * Pre-populate variables that carry an explicit call-time default.
  *
- * Only defaults are seeded; a variable the agent expects to collect must stay
- * absent so `{{…}}` interpolation and extraction can tell "not yet known" from
- * "known to be empty".
+ * Builder `defaultValue` is a post-call analysis example (Retell import copies
+ * `examples[0]` into it). Speaking that as a live lead skips collect nodes and
+ * dumps sample PII. Only `runtimeDefault` is seeded; everything else stays
+ * absent until the CRM/dialer or the caller provides it.
  */
 function seedVariables(declared: unknown[]): Record<string, VariableValue> {
   const out: Record<string, VariableValue> = {};
@@ -118,7 +137,7 @@ function seedVariables(declared: unknown[]): Record<string, VariableValue> {
     if (!isRecord(item)) continue;
     const name = String(item.name ?? "").trim();
     if (!name) continue;
-    const value = item.defaultValue ?? item.default_value;
+    const value = item.runtimeDefault ?? item.runtime_default;
     if (value === undefined || value === null || value === "") continue;
     if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") {
       out[name] = value;

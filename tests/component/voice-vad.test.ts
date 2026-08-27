@@ -107,6 +107,20 @@ describe("Endpointer", () => {
     expect(ep.isSpeaking).toBe(false);
   });
 
+  it("closes sooner when hangover is tightened mid-utterance", () => {
+    const ep = new Endpointer({
+      startFrames: 1,
+      silenceFramesTrigger: 8,
+      minSpeechFrames: 1,
+      preRollFrames: 0,
+    });
+    ep.step(SPEECH, true, 100);
+    expect(ep.step(SILENCE, false, 5).type).toBe("speech");
+    expect(ep.step(SILENCE, false, 5).type).toBe("speech");
+    ep.setSilenceFramesTrigger(3);
+    expect(ep.step(SILENCE, false, 5).type).toBe("utterance_end");
+  });
+
   it("drops a partial utterance on reset", () => {
     const ep = new Endpointer(opts);
     ep.step(SPEECH, true, 100);

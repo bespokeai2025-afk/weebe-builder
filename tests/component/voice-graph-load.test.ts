@@ -137,7 +137,10 @@ describe("loadFlowFromAgent", () => {
           dialogue: "Great, here is the offer.",
           transitions: [{ id: "t3", condition: "done", target: "bye" }],
         }),
-        builderNode("bye", "ending", { endingPrompt: "Thanks for your time." }),
+        builderNode("bye", "ending", {
+          instructionType: "static_text",
+          endingPrompt: "Thanks for your time.",
+        }),
       ],
       edges: [
         { id: "e1", source: "greet", target: "pitch", sourceHandle: "t1" },
@@ -162,11 +165,9 @@ describe("loadFlowFromAgent", () => {
       "Great, here is the offer.",
     ]);
 
-    // The exporter emits `ending` nodes as prompt instructions, so the closing
-    // line is generated from the author's intent rather than read verbatim.
+    // Ending nodes with a spoken line are read verbatim (no extra LLM hop).
     const last = await drain(vm.run({ type: "user_utterance", text: "sounds good" }));
-    expect(speech(last)).toEqual(["generated"]);
-    expect(llm.generatePrompts.at(-1)).toContain("Thanks for your time.");
+    expect(speech(last)).toEqual(["Thanks for your time."]);
     expect(last.at(-1)).toMatchObject({ type: "end_call", reason: "flow_ended" });
   });
 
@@ -197,9 +198,33 @@ describe("loadFlowFromAgent", () => {
     expect(last.at(-1)).toMatchObject({ type: "end_call", reason: "flow_ended" });
   });
 
-  it("seeds declared defaults but leaves uncollected variables absent", () => {
+  it("does not treat analysis examples as a live lead record", () => {
     const loaded = loadFlowFromAgent(
-      { nodes: [], edges: [], variables: [{ name: "brand", defaultValue: "WEBEE" }, { name: "postcode" }] },
+      {
+        nodes: [],
+        edges: [],
+        variables: [
+          { name: "first_name", defaultValue: "Steven", examples: ["Steven"] },
+          { name: "email", defaultValue: "steviepiow@gmail.com" },
+          { name: "postcode" },
+        ],
+      },
+      {},
+    );
+
+    expect(loaded.variables).toEqual({});
+  });
+
+  it("seeds an explicit runtime default, not analysis examples", () => {
+    const loaded = loadFlowFromAgent(
+      {
+        nodes: [],
+        edges: [],
+        variables: [
+          { name: "brand", runtimeDefault: "WEBEE", defaultValue: "Steven" },
+          { name: "postcode", defaultValue: "PO41 0SS" },
+        ],
+      },
       {},
     );
 
@@ -208,7 +233,7 @@ describe("loadFlowFromAgent", () => {
 
   it("lets caller-supplied variables win over declared defaults", () => {
     const loaded = loadFlowFromAgent(
-      { nodes: [], edges: [], variables: [{ name: "brand", defaultValue: "WEBEE" }] },
+      { nodes: [], edges: [], variables: [{ name: "brand", runtimeDefault: "WEBEE" }] },
       {},
       { brand: "Acme" },
     );

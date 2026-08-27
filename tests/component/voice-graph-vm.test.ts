@@ -56,7 +56,15 @@ function fakeLlm(overrides: FakeLlmOverrides = {}): FakeLlm {
 
 async function drain(gen: AsyncGenerator<VmDirective>): Promise<VmDirective[]> {
   const out: VmDirective[] = [];
-  for await (const d of gen) out.push(d);
+  for await (const d of gen) {
+    out.push(d);
+    // yieldSpeech waits for the consumer to drain textStream before advancing.
+    if (d.type === "speak" && d.textStream) {
+      for await (const _chunk of d.textStream) {
+        /* discard — speech() still reports [streamed] */
+      }
+    }
+  }
   return out;
 }
 
@@ -97,8 +105,13 @@ function say(id: string, text: string, edges: FlowNode["edges"] = []): FlowNode 
   };
 }
 
-function edge(id: string, to: string, prompt = ""): NonNullable<FlowNode["edges"]>[number] {
-  return { id, destination_node_id: to, transition_condition: { type: "prompt", prompt } };
+function edge(
+  id: string,
+  to: string,
+  prompt = "",
+  type: "prompt" | "equation" = "prompt",
+): NonNullable<FlowNode["edges"]>[number] {
+  return { id, destination_node_id: to, transition_condition: { type, prompt } };
 }
 
 function flowOf(nodes: FlowNode[], extra: Partial<ConversationFlow> = {}): ConversationFlow {
@@ -131,7 +144,9 @@ describe("compileFlow", () => {
       nodes: [say("a", "hi", [edge("e1", "ghost", "always")])],
     });
 
-    expect(compiled.nodes.get("a")?.edges?.[0].destination_node_id).toBeUndefined();
+    const dangling =
+      compiled.nodes.get("a")?.always_edge ?? compiled.nodes.get("a")?.edges?.[0];
+    expect(dangling?.destination_node_id).toBeUndefined();
     expect(compiled.warnings.join(" ")).toMatch(/points at missing node "ghost"/);
   });
 
@@ -202,7 +217,8 @@ describe("selectEdge", () => {
     const llm = fakeLlm();
     const chosen = await selectEdge([edge("e1", "next")], ctx, llm);
 
-    expect(chosen?.destination_node_id).toBe("next");
+    expect(chosen.edge?.destination_node_id).toBe("next");
+    expect(chosen.method).toBe("unconditional");
     expect(llm.calls.classify).toHaveLength(0);
   });
 
@@ -210,13 +226,13 @@ describe("selectEdge", () => {
     const llm = fakeLlm();
     const stub = { id: "e1", transition_condition: { type: "prompt" as const, prompt: "failed" } };
 
-    expect(await selectEdge([stub], ctx, llm)).toBeNull();
+    expect((await selectEdge([stub], ctx, llm)).edge).toBeNull();
   });
 
   it("returns null when the classifier says nothing applies", async () => {
     const llm = fakeLlm({ classify: () => -1 });
 
-    expect(await selectEdge([edge("e1", "a", "yes"), edge("e2", "b", "no")], ctx, llm)).toBeNull();
+    expect((await selectEdge([edge("e1", "a", "yes"), edge("e2", "b", "no")], ctx, llm)).edge).toBeNull();
   });
 
   it("keeps the call moving when the classifier itself fails", async () => {
@@ -230,7 +246,7 @@ describe("selectEdge", () => {
     const chosen = await selectEdge([edge("e1", "a", "yes"), edge("e2", "b", "")], ctx, llm);
 
     // The unconditional branch is the safe default, not simply the first edge.
-    expect(chosen?.destination_node_id).toBe("b");
+    expect(chosen.edge?.destination_node_id).toBe("b");
   });
 
   it("routes obvious yes/no without a classifier call", async () => {
@@ -246,7 +262,53 @@ describe("selectEdge", () => {
       llm,
     );
 
-    expect(chosen?.destination_node_id).toBe("yes-node");
+    expect(chosen.edge?.destination_node_id).toBe("yes-node");
+    expect(chosen.method).toBe("heuristic");
+    expect(llm.calls.classify).toHaveLength(0);
+  });
+
+  it("routes equation edges without a classifier call", async () => {
+    const llm = fakeLlm();
+    const ctx = {
+      history: [{ role: "user" as const, content: "Botox please" }],
+      variables: { appointment_type: "botox" },
+      globalPrompt: "",
+    };
+    const chosen = await selectEdge(
+      [
+        edge("e1", "botox-node", '{{appointment_type}} == "botox"', "equation"),
+        edge("e2", "other-node", '{{appointment_type}} == "consultation"', "equation"),
+      ],
+      ctx,
+      llm,
+    );
+
+    expect(chosen.edge?.destination_node_id).toBe("botox-node");
+    expect(chosen.method).toBe("equation");
+    expect(llm.calls.classify).toHaveLength(0);
+  });
+
+  it("routes yes to the edge that matches the question just asked", async () => {
+    const llm = fakeLlm({ classify: () => -1 });
+    const chosen = await selectEdge(
+      [
+        edge("e1", "same", "User confirms their name matches the property documents"),
+        edge("e2", "diff", "User says the name on the documents is different"),
+      ],
+      {
+        history: [
+          {
+            role: "assistant",
+            content: "Great, is your name the same as on the property documents?",
+          },
+          { role: "user", content: "Yes." },
+        ],
+        variables: {},
+        globalPrompt: "",
+      },
+      llm,
+    );
+    expect(chosen.edge?.destination_node_id).toBe("same");
     expect(llm.calls.classify).toHaveLength(0);
   });
 });
@@ -262,11 +324,11 @@ describe("selectGlobalNode fast path", () => {
     };
 
     expect(looksLikeGlobalInterrupt("Yes")).toBe(false);
-    expect(await selectGlobalNode(globals, ctx, llm)).toBeNull();
+    expect((await selectGlobalNode(globals, ctx, llm)).hit).toBeNull();
     expect(llm.calls.classify).toHaveLength(0);
   });
 
-  it("runs the classifier when the caller might be interrupting", async () => {
+  it("routes human interrupt via heuristic without classifier", async () => {
     const llm = fakeLlm({
       classify: (_m, choices) => choices.findIndex((c) => c.includes("human")),
     });
@@ -279,8 +341,9 @@ describe("selectGlobalNode fast path", () => {
 
     expect(looksLikeGlobalInterrupt("I need to speak to a human")).toBe(true);
     const hit = await selectGlobalNode(globals, ctx, llm);
-    expect(hit?.node.id).toBe("human");
-    expect(llm.calls.classify).toHaveLength(1);
+    expect(hit.hit?.node.id).toBe("human");
+    expect(hit.method).toBe("global_heuristic");
+    expect(llm.calls.classify).toHaveLength(0);
   });
 });
 
@@ -323,7 +386,172 @@ describe("ConversationVm conversation flow", () => {
     expect(out.speeches).toEqual(["Sure, I can help with that."]);
     const system = llm.calls.generate[0][0].content;
     expect(system).toContain("Ask why they are calling");
-    expect(system).toContain("ONLY the words to say next");
+    expect(system).toContain("ONLY the next words to speak");
+  });
+
+  it("does not dump unused CRM fields into the speech prompt", async () => {
+    const llm = fakeLlm({ generate: () => "Is this a house or a flat?" });
+    const vm = new ConversationVm({
+      flow: flowOf([
+        {
+          id: "ask",
+          type: "conversation",
+          instruction: { type: "prompt", text: "Ask what type of property it is." },
+          edges: [],
+        },
+      ]),
+      llm,
+      variables: {
+        first_name: "Steven",
+        last_name: "Pearce",
+        email: "steviepiow@gmail.com",
+      },
+    });
+    await drainWithSpeech(vm.run({ type: "begin" }));
+
+    const system = llm.calls.generate[0][0].content;
+    expect(system).not.toContain("Steven");
+    expect(system).not.toContain("Pearce");
+    expect(system).not.toContain("# Known information");
+    expect(system).toContain("that's all you need");
+  });
+
+  it("includes only CRM fields this turn's script actually reads", async () => {
+    const llm = fakeLlm({ generate: () => "Hello Steven, is that right?" });
+    const vm = new ConversationVm({
+      flow: flowOf([
+        {
+          id: "ask",
+          type: "conversation",
+          instruction: {
+            type: "prompt",
+            text: "Ask the caller to confirm the name {{first_name}}.",
+          },
+          edges: [],
+        },
+      ]),
+      llm,
+      variables: {
+        first_name: "Steven",
+        last_name: "Pearce",
+        email: "steviepiow@gmail.com",
+      },
+    });
+    await drainWithSpeech(vm.run({ type: "begin" }));
+
+    const system = llm.calls.generate[0][0].content;
+    expect(system).toContain("first_name=Steven");
+    expect(system).toContain("Task (do not read aloud)");
+    expect(system).not.toContain("Speak the script");
+    expect(system).not.toContain("Pearce");
+    expect(system).not.toContain("steviepiow");
+  });
+
+  it("does not speak generic Ask-task node text if the model echoes it", async () => {
+    const llm = fakeLlm({ generate: () => "Ask the preferred title" });
+    const vm = new ConversationVm({
+      flow: flowOf([
+        {
+          id: "ask",
+          type: "conversation",
+          instruction: {
+            type: "prompt",
+            text: "Ask the preferred title\nMr, Mrs, Miss, Ms, Dr",
+          },
+          edges: [],
+        },
+      ]),
+      llm,
+    });
+    const out = await drainWithSpeech(vm.run({ type: "begin" }));
+    expect(out.speeches.join(" ")).toBe("What's your preferred title?");
+    const system = llm.calls.generate[0][0].content;
+    expect(system).toContain("Task (do not read aloud)");
+    expect(system).not.toMatch(/Script:\nAsk the preferred title/);
+  });
+
+  it("speaks static_text nodes verbatim and generates prompt nodes", async () => {
+    const llm = fakeLlm({
+      generate: () => "What's your postcode?",
+    });
+    const staticVm = new ConversationVm({
+      flow: flowOf([
+        {
+          id: "ask",
+          type: "conversation",
+          instruction: {
+            type: "static_text",
+            text: "Can I take your postcode?\nDo not ask any other questions.",
+          },
+          edges: [],
+        },
+      ]),
+      llm,
+    });
+    const staticOut = await drainWithSpeech(staticVm.run({ type: "begin" }));
+    expect(staticOut.speeches).toEqual(["Can I take your postcode?"]);
+    expect(llm.calls.generate).toHaveLength(0);
+
+    const promptVm = new ConversationVm({
+      flow: flowOf([
+        {
+          id: "ask",
+          type: "conversation",
+          instruction: {
+            type: "prompt",
+            text: "Ask the preferred title",
+          },
+          edges: [],
+        },
+      ]),
+      llm,
+    });
+    const promptOut = await drainWithSpeech(promptVm.run({ type: "begin" }));
+    expect(promptOut.speeches.join(" ")).toBe("What's your postcode?");
+    expect(llm.calls.generate.length).toBeGreaterThan(0);
+  });
+
+  it("speaks the node fallback when the speech model yields no content", async () => {
+    const llm = fakeLlm({ generate: () => "" });
+    llm.generateStream = async function* () {
+      /* gpt-oss spent the budget on reasoning */
+    };
+    const vm = new ConversationVm({
+      flow: flowOf([
+        {
+          id: "ask",
+          type: "conversation",
+          instruction: { type: "prompt", text: "Ask the preferred title" },
+          edges: [],
+        },
+      ]),
+      llm,
+    });
+    const out = await drainWithSpeech(vm.run({ type: "begin" }));
+    expect(out.speeches.join(" ")).toBe("What's your preferred title?");
+    expect(out.directives.some((d) => d.type === "await_user")).toBe(true);
+  });
+
+  it("replaces a wrap-up line with a spoken question on a generic Ask node", async () => {
+    const llm = fakeLlm({
+      generate: () =>
+        "Thank you. That's all I need for now. If you have any questions before your consultation, please let us know.",
+    });
+    const vm = new ConversationVm({
+      flow: flowOf([
+        {
+          id: "ask",
+          type: "conversation",
+          instruction: { type: "prompt", text: "Ask what type of property it is." },
+          edges: [],
+        },
+      ]),
+      llm,
+    });
+    const out = await drainWithSpeech(vm.run({ type: "begin" }));
+    expect(out.speeches.join(" ")).toContain("What type of property is it?");
+    expect(out.speeches.join(" ")).not.toMatch(/that's all I need/i);
+    expect(out.speeches.join(" ")).not.toMatch(/^Ask /);
   });
 
   it("interpolates collected variables into static speech", async () => {
@@ -410,6 +638,181 @@ describe("ConversationVm conversation flow", () => {
     expect(vm.nodeId).toBe("ask");
   });
 
+  it("skips the floor question when the caller said house", async () => {
+    const vm = new ConversationVm({
+      flow: flowOf([
+        say("type", "Is it a house, flat, or bungalow?", [
+          edge("e1", "floor", "caller gave the property type"),
+        ]),
+        say("floor", "Which floor is it on?", [edge("e2", "tenure", "user answers")]),
+        say("tenure", "Is it vacant or rented?"),
+      ]),
+      llm: fakeLlm(),
+    });
+
+    await drain(vm.run({ type: "begin" }));
+    const out = await drain(vm.run({ type: "user_utterance", text: "House" }));
+    expect(speech(out)).toEqual(["Is it vacant or rented?"]);
+    expect(vm.nodeId).toBe("tenure");
+  });
+
+  it("clarifies a vacant/rented mishear instead of leaving the node", async () => {
+    const vm = new ConversationVm({
+      flow: flowOf([
+        say("tenure", "Is the property currently vacant or rented?", [
+          edge("e1", "next", "user said vacant"),
+          edge("e2", "rent", "user said rented"),
+        ]),
+        say("next", "Thanks"),
+        say("rent", "Rented ok"),
+      ]),
+      llm: fakeLlm({ classify: () => -1 }),
+    });
+
+    await drain(vm.run({ type: "begin" }));
+    const out = await drain(vm.run({ type: "user_utterance", text: "It is weekend." }));
+    expect(speech(out).join(" ")).toMatch(/vacant/i);
+    expect(vm.nodeId).toBe("tenure");
+  });
+
+  it("follows skip_response without waiting for the caller", async () => {
+    const intro: FlowNode = {
+      ...say("intro", "Here is a disclaimer."),
+      skip_response_edge: edge("skip", "ask", "Skip response"),
+    };
+    const vm = new ConversationVm({
+      flow: flowOf([intro, say("ask", "What is your name?")]),
+      llm: fakeLlm(),
+    });
+    const out = await drain(vm.run({ type: "begin" }));
+    expect(speech(out)).toEqual(["Here is a disclaimer.", "What is your name?"]);
+    expect(vm.nodeId).toBe("ask");
+  });
+
+  it("follows a conversation else edge when no prompt matches", async () => {
+    const ask: FlowNode = {
+      ...say("ask", "Anything else?", [edge("e1", "more", "caller wants to add more")]),
+      else_edge: edge("else", "done", "Else"),
+    };
+    const vm = new ConversationVm({
+      flow: flowOf([ask, say("more", "Go on"), say("done", "Moving on")]),
+      llm: fakeLlm({ classify: () => -1 }),
+    });
+    await drain(vm.run({ type: "begin" }));
+    const out = await drain(vm.run({ type: "user_utterance", text: "That's it." }));
+    expect(speech(out)).toEqual(["Moving on"]);
+    expect(vm.nodeId).toBe("done");
+  });
+
+  it("starts else-path speech before the classifier returns", async () => {
+    const order: string[] = [];
+    let streamCalls = 0;
+    const llm: VmLlm = {
+      async generate() {
+        return "Next question.";
+      },
+      async *generateStream() {
+        streamCalls += 1;
+        order.push("stream");
+        yield "Next question.";
+      },
+      async classify() {
+        await new Promise((r) => setTimeout(r, 25));
+        order.push("classify");
+        return -1;
+      },
+      async extract() {
+        return {};
+      },
+    };
+    const ask: FlowNode = {
+      id: "ask",
+      type: "conversation",
+      instruction: { type: "prompt", text: "Ask if they want to add more." },
+      edges: [edge("e1", "more", "caller wants to add more details about zebras")],
+      else_edge: edge("else", "done", "Else"),
+    };
+    const done: FlowNode = {
+      id: "done",
+      type: "conversation",
+      instruction: { type: "prompt", text: "Ask for the postcode." },
+    };
+    const vm = new ConversationVm({
+      flow: flowOf([ask, say("more", "Go on"), done]),
+      llm,
+    });
+    await drainWithSpeech(vm.run({ type: "begin" }));
+    const out = await drainWithSpeech(
+      vm.run({ type: "user_utterance", text: "That's all thanks." }),
+    );
+    expect(order[0]).toBe("stream");
+    expect(order).toContain("classify");
+    expect(out.speeches.join(" ")).toContain("Next question");
+    expect(vm.nodeId).toBe("done");
+    // begin + raced dest — dest must reuse the in-flight stream, not start a third.
+    expect(streamCalls).toBe(2);
+  });
+
+  it("reuses speculative speech started before the final transcript", async () => {
+    let streamCalls = 0;
+    const llm: VmLlm = {
+      async generate() {
+        return "What type of property is it?";
+      },
+      async *generateStream() {
+        streamCalls += 1;
+        yield "What type of property is it?";
+      },
+      async classify() {
+        return 0;
+      },
+      async extract() {
+        return {};
+      },
+    };
+    const vm = new ConversationVm({
+      flow: flowOf([
+        {
+          id: "ask",
+          type: "conversation",
+          instruction: { type: "prompt", text: "Ask for the postcode." },
+          edges: [edge("e1", "next", "user gave a postcode")],
+        },
+        {
+          id: "next",
+          type: "conversation",
+          instruction: { type: "prompt", text: "Ask for the property type." },
+        },
+      ]),
+      llm,
+    });
+    await drainWithSpeech(vm.run({ type: "begin" }));
+    vm.setSpeculativeSpeech("next", {
+      partial: "SW1A 1AA",
+      ctrl: new AbortController(),
+      tokens: ["What type of property is it?"],
+      done: Promise.resolve("What type of property is it?"),
+    });
+    const out = await drainWithSpeech(vm.run({ type: "user_utterance", text: "SW1A 1AA" }));
+    expect(out.speeches.join(" ")).toContain("What type of property is it");
+    expect(vm.nodeId).toBe("next");
+    expect(streamCalls).toBe(1);
+  });
+
+  it("replays the last spoken line when the caller says what", async () => {
+    const vm = new ConversationVm({
+      flow: flowOf([
+        say("ask", "Can I have your postcode?", [edge("e1", "next", "user gave a postcode")]),
+        say("next", "Thanks"),
+      ]),
+      llm: fakeLlm({ classify: () => 0 }),
+    });
+    await drain(vm.run({ type: "begin" }));
+    const out = await drain(vm.run({ type: "user_utterance", text: "What?" }));
+    expect(speech(out)).toEqual(["Can I have your postcode?"]);
+    expect(vm.nodeId).toBe("ask");
+  });
+
   it("routes spelled-out phone numbers without waiting for the LLM classifier", async () => {
     const llm = fakeLlm({
       classify: () => {
@@ -443,7 +846,7 @@ describe("ConversationVm conversation flow", () => {
     expect(llm.calls.classify).toHaveLength(0);
   });
 
-  it("acknowledges substantive replies on prompt nodes when routing still misses", async () => {
+  it("routes substantive address replies via heuristics without classifier or ack filler", async () => {
     const llm = fakeLlm({
       classify: () => -1,
       generate: () => "Got it, thanks for that.",
@@ -466,9 +869,11 @@ describe("ConversationVm conversation flow", () => {
       vm.run({ type: "user_utterance", text: "Ten Upping Street London" }),
     );
 
-    expect(out.speeches).toEqual(["Got it, thanks for that."]);
-    expect(out.directives.some((d) => d.type === "await_user")).toBe(true);
-    expect(vm.nodeId).toBe("ask");
+    expect(out.speeches).toEqual(["Thanks"]);
+    expect(vm.nodeId).toBe("done");
+    expect(llm.calls.classify).toHaveLength(0);
+    // Opening prompt node may generate once; no extra ack filler on stay-put routing miss.
+    expect(llm.calls.generate.length).toBeLessThanOrEqual(1);
   });
 
   it("records both sides of the conversation for downstream routing", async () => {

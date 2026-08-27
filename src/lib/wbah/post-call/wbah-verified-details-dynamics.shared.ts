@@ -1,13 +1,15 @@
 /**
  * Retell structured_json_output.verified_details → Dynamics Lead attributes.
  * Single source of truth for New Leads post-call field mapping.
- *
- * Retell extraction contract (contact / home address):
- * - address1_* is populated ONLY when the caller gives a different address from property.
- * - When same as property OR not given → all address1_* = "".
- * - WEBEE cannot infer "same" from empty address1_* alone; Retell must set
- *   contact_same_as_property: "true" when the caller confirms contact = property.
  */
+
+import {
+  enrichWbahVerifiedDetailsFromSummaries,
+  applyOwnerOccupiedCorrection,
+  shouldMirrorPropertyToContact,
+} from "./wbah-crm-enrichment.shared";
+import { sanitizeWbahUkAddressFields } from "./wbah-uk-address.shared";
+import { normalizeWbahUkMobilePhone } from "./wbah-uk-phone.shared";
 
 /** Retell extraction keys that alias to a Dynamics attribute (extraction name → CRM name). */
 export const WBAH_VERIFIED_DETAILS_ALIASES: Record<string, string> = {
@@ -36,6 +38,8 @@ export const WBAH_VERIFIED_DETAILS_ALIASES: Record<string, string> = {
   decision_maker: "decisionmaker",
   contact_address: "address1_line1",
   postcode_contact: "address1_postalcode",
+  rent_achieved: "new_propinfo_rentachieved",
+  monthly_rent: "new_propinfo_rentachieved",
 };
 
 /** Property → contact address pairs when caller confirms contact = property. */
@@ -50,7 +54,13 @@ const WBAH_PROPERTY_TO_CONTACT_ADDRESS: ReadonlyArray<[string, string]> = [
 const SAME_AS_PROPERTY_PATTERN =
   /\b(?:same\s*(as)?\s*(the\s*)?(property|prop(?:erty)?(?:\s*address)?|address)|yes[\s,]*same)\b/i;
 
-function confirmsContactSameAsProperty(source: Record<string, unknown>): boolean {
+function confirmsContactSameAsProperty(
+  source: Record<string, unknown>,
+  custom?: Record<string, unknown>,
+  transcript?: string | null,
+): boolean {
+  if (shouldMirrorPropertyToContact(source, custom, transcript)) return true;
+
   const explicitFlag = boolVal(
     source.contact_same_as_property ??
       source.contact_address_same_as_property ??
@@ -90,6 +100,8 @@ export const WBAH_VERIFIED_DETAILS_EXCLUDED_KEYS = new Set([
   "contact_same_as_property",
   "contact_address_same_as_property",
   "same_as_property_address",
+  "rent_achieved",
+  "monthly_rent",
 ]);
 
 /** Dynamics Lead attributes writable from WBAH verified_details (production set). */
@@ -127,6 +139,7 @@ export const WBAH_VERIFIED_DETAILS_DYNAMICS_FIELDS = new Set([
   "cos_call_summary",
   "new_propinfo_typeofproperty",
   "new_propinfo_whichfloor",
+  "new_propinfo_rentachieved",
   "decisionmaker",
 ]);
 
@@ -186,16 +199,15 @@ function indicatesSameAsPropertyAddress(...values: unknown[]): boolean {
 export function applyContactAddressSameAsProperty(
   target: Record<string, unknown>,
   source: Record<string, unknown>,
+  custom?: Record<string, unknown>,
+  transcript?: string | null,
 ): void {
-  if (!confirmsContactSameAsProperty({ ...source, ...target })) return;
+  if (!confirmsContactSameAsProperty({ ...source, ...target }, custom, transcript)) return;
 
   for (const [propertyKey, contactKey] of WBAH_PROPERTY_TO_CONTACT_ADDRESS) {
     const propertyValue = val(source[propertyKey], target[propertyKey]);
     if (isEmptyValue(propertyValue)) continue;
-    if (
-      isEmptyValue(target[contactKey]) ||
-      indicatesSameAsPropertyAddress(target[contactKey])
-    ) {
+    if (isEmptyValue(target[contactKey]) || indicatesSameAsPropertyAddress(target[contactKey])) {
       target[contactKey] = propertyValue;
     }
   }
@@ -224,8 +236,13 @@ export function applyVacantOrTenantedToPayload(
 export function mapWbahVerifiedDetailsToDynamicsFields(input: {
   verifiedDetails: Record<string, unknown>;
   fallbackEmail?: string | null;
+  custom?: Record<string, unknown>;
+  transcript?: string | null;
 }): Record<string, unknown> {
-  const vd = input.verifiedDetails;
+  const vd = { ...input.verifiedDetails };
+  enrichWbahVerifiedDetailsFromSummaries(vd, input.custom, input.transcript);
+  sanitizeWbahUkAddressFields(vd);
+
   const payload: Record<string, unknown> = {};
 
   const fn = val(vd.firstname, vd.first_name);
@@ -235,9 +252,11 @@ export function mapWbahVerifiedDetailsToDynamicsFields(input: {
   const email = val(vd.emailaddress1, vd.user_email, vd.email_address, input.fallbackEmail);
   if (email) payload.emailaddress1 = email;
   const mobile = val(vd.mobilephone, vd.user_mobile);
-  if (mobile) payload.mobilephone = mobile;
+  if (mobile) payload.mobilephone = normalizeWbahUkMobilePhone(String(mobile));
   const homeTel = val(vd.new_othervendor_hometelephone, vd.user_mobile);
-  if (homeTel) payload.new_othervendor_hometelephone = homeTel;
+  if (homeTel) {
+    payload.new_othervendor_hometelephone = normalizeWbahUkMobilePhone(String(homeTel));
+  }
 
   const titleVal = intVal(vd.new_contact_title, vd.title);
   if (titleVal !== undefined) payload.new_contact_title = titleVal;
@@ -268,7 +287,7 @@ export function mapWbahVerifiedDetailsToDynamicsFields(input: {
     payload.address1_postalcode = contactPostcode;
   }
 
-  applyContactAddressSameAsProperty(payload, { ...vd, ...payload });
+  applyContactAddressSameAsProperty(payload, { ...vd, ...payload }, input.custom, input.transcript);
 
   const propType = intVal(vd.new_propinfo_typeofproperty, vd.property_type);
   if (propType !== undefined) payload.new_propinfo_typeofproperty = propType;
@@ -310,8 +329,15 @@ export function mapWbahVerifiedDetailsToDynamicsFields(input: {
     if (leaseYears !== undefined) payload.cos_numberofyearsonlease = leaseYears;
   }
 
+  const rentAchieved = cleanNumber(
+    vd.new_propinfo_rentachieved ?? vd.rent_achieved ?? vd.monthly_rent,
+  );
+  if (rentAchieved !== undefined) payload.new_propinfo_rentachieved = rentAchieved;
+
   const callSummary = val(vd.cos_call_summary);
   if (callSummary) payload.cos_call_summary = callSummary;
+
+  applyOwnerOccupiedCorrection(payload, input.custom, vd);
 
   return payload;
 }
